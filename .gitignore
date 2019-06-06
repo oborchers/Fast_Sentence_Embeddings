@@ -56,7 +56,6 @@ draft
 *.docx
 *.dict
 .coverage
-data
 *.bak
 /build/
 /dist/
