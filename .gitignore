@@ -51,7 +51,7 @@ draft
 .ipynb_checkpoints/
 .settings/
 .eggs
-*.egg-info
+fse*.egg-info
 *.pptx
 *.doc
 *.docx
