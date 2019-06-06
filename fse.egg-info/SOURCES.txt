@@ -1,0 +1,14 @@
+README.md
+setup.py
+./fse/models/sif_inner.c
+fse/__init__.py
+fse.egg-info/PKG-INFO
+fse.egg-info/SOURCES.txt
+fse.egg-info/dependency_links.txt
+fse.egg-info/not-zip-safe
+fse.egg-info/requires.txt
+fse.egg-info/top_level.txt
+fse/exp/__init__.py
+fse/exp/sif_variants.py
+fse/models/__init__.py
+fse/models/sif.py
