@@ -1,4 +1,4 @@
-from fse import models
+from fse import models, exp
 import logging
 
 __version__ = '0.1'

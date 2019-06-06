@@ -8,13 +8,12 @@ sudo python ./setup.py install
 '''
 
 import os
+import platform
 import sys
 import warnings
-import ez_setup
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext
 
-ez_setup.use_setuptools()
 
 class custom_build_ext(build_ext):
     '''Allow C extension building to fail.
@@ -77,8 +76,6 @@ http://api.mongodb.org/python/current/installation.html#osx
         import numpy
         self.include_dirs.append(numpy.get_include())
 
-ez_setup.use_setuptools()
-
 mod_dir = os.path.join(os.path.dirname(__file__), 'fse', 'models')
 dev_dir = os.path.join(os.path.dirname(__file__), 'fse', 'exp')
 fse_dir = os.path.join(os.path.dirname(__file__), 'fse')
@@ -87,10 +84,14 @@ cmdclass = {'build_ext': custom_build_ext}
 
 setup(
     name='fse',
-    version='0.1',
+    version='0.0.1',
     description='Fast Sentence Embeddings for Gensim',
 
+    author=u'Oliver Borchers',
+    author_email='borchers@bwl.uni-mannheim.de',
+
     setup_requires=[
+        'numpy >= 1.11.3'
         'setuptools>=18.0',
         'cython',
     ],
@@ -106,14 +107,15 @@ setup(
         
     cmdclass=cmdclass,
     packages=find_packages(),
+
     zip_safe=False,
-    author=u'Oliver Borchers',
-    author_email='borchers@bwl.uni-mannheim.de',
+
     install_requires=[
         'numpy >= 1.11.3',
         'scipy >= 0.18.1',
         'six >= 1.5.0',
-        'smart_open >= 1.2.1',
+        'smart_open >= 1.7.0',
     ],
+
     include_package_data=True,
 )

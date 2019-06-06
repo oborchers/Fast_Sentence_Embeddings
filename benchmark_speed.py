@@ -6,16 +6,15 @@ import sys
 np.random.seed(42)
 logger = logging.getLogger(__name__)
 
-from fse import SIF
-from fse.sif import CY_ROUTINES as CY_ROUTINES_TRAIN
+from fse.models import SIF
+from fse.models.sif import CY_ROUTINES as CY_ROUTINES_TRAIN
 
-from fse.sif_variants import sif_embeddings, \
+from fse.exp.sif_variants import sif_embeddings, \
 	sif_embeddings_1, sif_embeddings_2, sif_embeddings_3, \
 	sif_embeddings_4, sif_embeddings_5
 
 try:
-	# Import cython functions  
-	from fse.sif_variants_cy import sif_embeddings_6, \
+	from fse.exp.sif_variants_cy import sif_embeddings_6, \
 		sif_embeddings_7, sif_embeddings_8
 	CY_ROUTINES = 1
 except ImportError as e:
@@ -34,7 +33,7 @@ if __name__ == "__main__":
 	import timeit
 	import argparse
 
-	from gensim.fse import Word2Vec
+	from gensim.models import Word2Vec
 	from nltk.corpus import brown
 	from collections import OrderedDict
 	from datetime import datetime

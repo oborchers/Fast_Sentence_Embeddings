@@ -1,6 +1,10 @@
 README.md
 setup.py
+./fse/exp/sif_variants_cy.c
 ./fse/models/sif_inner.c
+examples/__init__.py
+examples/benchmark_speed.py
+examples/compute_sif.py
 fse/__init__.py
 fse.egg-info/PKG-INFO
 fse.egg-info/SOURCES.txt

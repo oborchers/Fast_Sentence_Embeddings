@@ -4,8 +4,8 @@ import logging
 import os
 import sys
 
-from fse import SIF
-from fse.sif import CY_ROUTINES
+from fse.models import SIF
+from fse.models.sif import CY_ROUTINES
 
 from gensim.models.word2vec import Word2Vec, LineSentence
 
