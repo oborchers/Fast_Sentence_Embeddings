@@ -132,12 +132,12 @@ def sif_embeddings_4(sentences, model):
 	return np.vstack(output).astype(REAL)
 
 
-def sif_embeddings_5(sentences_idx, model):
+def sif_embeddings_5(sentences, model):
 	""" Uses a pre-computed list of indices and skips the use of strings alltogether
 	"""
 	vectors = model.wv.sif_vectors
-	output = np.zeros(shape=(len(sentences_idx), model.vector_size), dtype=REAL)
+	output = np.zeros(shape=(len(sentences), model.vector_size), dtype=REAL)
 
-	for i,s in enumerate(sentences_idx):
+	for i,s in enumerate(sentences):
 		output[i] = np.sum(vectors[s], axis=0) * ( (1/len(s)) if len(s)>0 else 1)
 	return output.astype(REAL)

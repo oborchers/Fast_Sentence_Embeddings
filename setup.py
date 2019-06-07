@@ -90,18 +90,12 @@ setup(
     author=u'Oliver Borchers',
     author_email='borchers@bwl.uni-mannheim.de',
 
-    setup_requires=[
-        'numpy >= 1.11.3'
-        'setuptools>=18.0',
-        'cython',
-    ],
-
     ext_modules=[
-        Extension('fse.models.sif_inner',
-                sources=['./fse/models/sif_inner.c'],
+        Extension('fse.models.sentence2vec_inner',
+                sources=['./fse/models/sentence2vec_inner.pyx'],
                 include_dirs=[mod_dir]),
         Extension('fse.exp.sif_variants_cy',
-                sources=['./fse/exp/sif_variants_cy.c'],
+                sources=['./fse/exp/sif_variants_cy.pyx'],
                 include_dirs=[dev_dir]),
         ],
         
@@ -115,6 +109,9 @@ setup(
         'scipy >= 0.18.1',
         'six >= 1.5.0',
         'smart_open >= 1.7.0',
+        'scikit-learn >= 0.19.1',
+        'gensim >= 3.4.0',
+        'wordfreq >= 2.2.1',
     ],
 
     include_package_data=True,

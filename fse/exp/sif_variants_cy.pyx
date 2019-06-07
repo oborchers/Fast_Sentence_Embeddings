@@ -29,7 +29,7 @@ cdef REAL_t ONEF = <REAL_t>1.0
 cdef int ONE = 1
 
 
-def sif_embeddings_6(sentences_idx, model):
+def sif_embeddings_6(sentences, model):
     cdef int size = model.vector_size
     cdef float[:,:] vectors = model.wv.sif_vectors
 
@@ -37,10 +37,10 @@ def sif_embeddings_6(sentences_idx, model):
     cdef float inv = 1.
     np_sum = np.sum
     
-    output = np.zeros((len(sentences_idx), size), dtype=np.float32)   
+    output = np.zeros((len(sentences), size), dtype=np.float32)   
     cdef float[:,:] sv = output
     
-    for sentence_index, sentence in enumerate(sentences_idx):
+    for sentence_index, sentence in enumerate(sentences):
         if len(sentence) > 0:
             count = 0
             for word_index in sentence:
@@ -53,24 +53,24 @@ def sif_embeddings_6(sentences_idx, model):
                 sv[sentence_index, d] *= inv
     return output
 
-def sif_embeddings_7(sentences_idx, model):
+def sif_embeddings_7(sentences, model):
     cdef int size = model.vector_size
     cdef float[:,:] vectors = model.wv.sif_vectors
 
     np_sum = np.sum
     np_asarray = np.asarray
     
-    output = np.zeros((len(sentences_idx), size), dtype=np.float32)   
+    output = np.zeros((len(sentences), size), dtype=np.float32)   
     cdef float[:,:] sv = output
     
     cdef int[:] sentence_view
     cdef int sentence_len
     
     
-    for i in xrange(len(sentences_idx)):
-        if len(sentences_idx[i]) > 0:
-            sentence_view = sentences_idx[i]
-            sentence_len = len(sentences_idx[i])
+    for i in xrange(len(sentences)):
+        if len(sentences[i]) > 0:
+            sentence_view = sentences[i]
+            sentence_len = len(sentences[i])
             sif_embeddings_7_cloop(size, sentence_view, sentence_len, i, vectors, sv)
         
     return output
@@ -90,19 +90,19 @@ cdef void sif_embeddings_7_cloop(int size, int[:] sentence_view, int sentence_le
         summary_vectors[sentence_idx, d] *= inv
 
 
-def sif_embeddings_8(sentence_idx, model):
+def sif_embeddings_8(sentences, model):
     cdef int size = model.vector_size
     cdef REAL_t *vectors = <REAL_t *>(np.PyArray_DATA(model.wv.sif_vectors))
     
-    output = np.zeros((len(sentence_idx), size), dtype=np.float32)   
+    output = np.zeros((len(sentences), size), dtype=np.float32)   
     cdef REAL_t *sv = <REAL_t *>(np.PyArray_DATA(output))
     
     cdef INT_t *sentence_view
     
-    for i in xrange(len(sentence_idx)):
-        if len(sentence_idx[i]):
-            sentence_view = <INT_t *>(np.PyArray_DATA(sentence_idx[i]))
-            sentence_len = len(sentence_idx[i])
+    for i in xrange(len(sentences)):
+        if len(sentences[i]):
+            sentence_view = <INT_t *>(np.PyArray_DATA(sentences[i]))
+            sentence_len = len(sentences[i])
             sif_embeddings_8_inner(size, sentence_view, sentence_len, i, vectors, sv)
     return output
 

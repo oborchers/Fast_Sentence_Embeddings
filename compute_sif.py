@@ -3,9 +3,10 @@ from re import sub
 import logging
 import os
 import sys
+import pathlib
 
-from fse.models import SIF
-from fse.models.sif import CY_ROUTINES
+from fse.models import Sentence2Vec
+from fse.models.sentence2vec import CY_ROUTINES
 
 from gensim.models.word2vec import Word2Vec, LineSentence
 
@@ -67,12 +68,17 @@ if __name__ == "__main__":
     	negative=args.negative, cbow_mean=0, iter=args.iter
     	)
 
-	sif_model = SIF(model, alpha=args.alpha, components=args.pc)
+	sif_model = Sentence2Vec(model, alpha=args.alpha, components=args.pc)
 	sif_emb = sif_model.train(sentences)
+
+	sif_model.normalize(sif_emb)
 
 	if args.save:
 		now = datetime.now()
 		date_time = now.strftime("%m-%d-%Y_%H-%M-%S")
+
+		p = pathlib.Path("model_data")
+		p.mkdir(exist_ok=True)
 
 		out_model = "model_data/model_"+date_time
 		model.save(out_model + '.model')

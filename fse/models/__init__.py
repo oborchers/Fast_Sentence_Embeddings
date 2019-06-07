@@ -1,1 +1,1 @@
-from .sif import SIF
+from .sentence2vec import Sentence2Vec
