@@ -90,6 +90,8 @@ setup(
     author=u'Oliver Borchers',
     author_email='borchers@bwl.uni-mannheim.de',
 
+    url="https://github.com/oborchers/Fast_Sentence_Embeddings",
+
     ext_modules=[
         Extension('fse.models.sentence2vec_inner',
                 sources=['./fse/models/sentence2vec_inner.pyx'],

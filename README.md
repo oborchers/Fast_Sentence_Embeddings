@@ -33,7 +33,7 @@ before installing fse.
 
 The simple way to install gensim is:
 
-    pip install -U fse
+    pip install git+https://github.com/oborchers/Fast_Sentence_Embeddings
 
 Or, if you have instead downloaded and unzipped the [source tar.gz]
 package, you’d run:
@@ -57,6 +57,11 @@ The current version does not offer multi-core support out of the box.
 	from fse.models import Sentence2Vec
 	se = Sentence2Vec(model)
 	sentences_emb = se.train(sentences)
+
+Sentence Prediction.ipynb contains an example of how to use the library 
+with a pre-trained Word2Vec model. compute_sif.py trains a Word2Vec model
+on a corpus (i.e, brown) and benchmark_speed.py reproduces the results from
+the Medium post.
 
 ToDos
 -------------
