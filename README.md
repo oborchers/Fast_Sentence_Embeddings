@@ -18,6 +18,9 @@ unsupervised NLP applications, as they serve as a formidable baseline.
 The models here are based on the the smooth inverse frequency embeddings [1]
 and the deep-averaging networks [2].
 
+Credit is due to Radim Řehůřek and all contributors for the **awesome** library
+and code that gensim provides.
+
 
 Installation
 ------------
