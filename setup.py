@@ -108,7 +108,7 @@ setup(
         'numpy >= 1.11.3',
         'scipy >= 0.18.1',
         'six >= 1.5.0',
-        'smart_open >= 1.7.0',
+        'smart_open >= 1.5.0',
         'scikit-learn >= 0.19.1',
         'gensim >= 3.4.0',
         'wordfreq >= 2.2.1',
