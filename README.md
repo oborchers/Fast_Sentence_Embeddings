@@ -8,9 +8,9 @@ Features
 ------------
 
 **fse** implements two algorithms for sentence embeddings. You can choose
-between unweighted sentence averages and smooth inverse frequency averages.
+between *unweighted sentence averages* and *smooth inverse frequency averages*.
 In order to use the **fse** model, you first need some pre-trained embedding
-model, which is then used by **fse** to compute the sentence embeddings.
+gensim embedding model, which is then used by **fse** to compute the sentence embeddings.
 
 After computing sentence embeddings, you can use them in supervised or
 unsupervised NLP applications, as they serve as a formidable baseline.
@@ -58,9 +58,12 @@ The current version does not offer multi-core support out of the box.
 ToDos
 -------------
 **[ ]** Bugfixes
+
 **[ ]** Multi Core Implementation
-**[ ]** Direct to disc-estimation to to avoid RAM overflow
-**[ ]** Add as a gensim feature
+
+**[ ]** Direct to disc-estimation to to avoid RAM shortage
+
+**[ ]** Add as a gensim feature (perhaps?)
 
 Literature
 -------------
@@ -75,4 +78,5 @@ Copyright
 -------------
 
 Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
+
 Copyright (C) 2019 Oliver Borchers
