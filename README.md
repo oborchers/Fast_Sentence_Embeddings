@@ -31,12 +31,11 @@ You must have them installed prior to installing fse.
 As with gensim, it is also recommended you install a fast BLAS library
 before installing fse.
 
-The simple way to install gensim is:
+The simple way to install **fse** is:
 
-    pip install git+https://github.com/oborchers/Fast_Sentence_Embeddings
+    pip install fse
 
-Or, if you have instead downloaded and unzipped the [source tar.gz]
-package, you’d run:
+In case you want to build from the source, just run:
 
     python setup.py install
 
