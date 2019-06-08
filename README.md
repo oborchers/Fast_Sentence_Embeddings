@@ -83,6 +83,15 @@ Embeddings. Int. Conf. Learn. Represent. (Toulon, France), 1–16.
 Composition Rivals Syntactic Methods for Text Classification. Proc. 53rd Annu. 
 Meet. Assoc. Comput. Linguist. 7th Int. Jt. Conf. Nat. Lang. Process., 1681–1691.
 
+3. Eneko Agirre, Daniel Cer, Mona Diab, Iñigo Lopez-Gazpio, Lucia Specia. Semeval-2017 Task 1: Semantic Textual Similarity Multilingual and Crosslingual Focused Evaluation. Proceedings of SemEval 2017.
+
+4. Duong, Chi Thang, Remi Lebret, and Karl Aberer. “Multimodal Classification for Analysing Social Media.” The 27th European Conference on Machine Learning and Principles and Practice of Knowledge Discovery in Databases (ECML-PKDD), 2017
+
+Credits
+-------------
+The STS dataset was released by [3].
+The Reddit dataset was released by [4]: https://emoclassifier.github.io 
+
 Copyright
 -------------
 
