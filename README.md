@@ -66,6 +66,8 @@ ToDos
 -------------
 **[ ]** Bugfixes
 
+**[ ]** Support TaggedLineDocument from Doc2Vec 
+
 **[ ]** Multi Core Implementation
 
 **[ ]** Direct to disc-estimation to to avoid RAM shortage

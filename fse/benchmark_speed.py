@@ -55,7 +55,7 @@ if __name__ == "__main__":
 	parser.add_argument("-len", help="Determine the length of the set to benchmark on", type=int, default=400)
 	parser.add_argument("-runs", help="Determine the number of runs used to benchmark", type=int, default=1000)
 	parser.add_argument("-size", help="Set the size of the embedding", type=int, default=100)
-	parser.add_argument("-excel", help="Output results as excel file", type=int, default=0)
+	parser.add_argument("-excel", help="Output results as excel file", type=int, default=1)
 	args = parser.parse_args()
 
 	# Prepare the brown corpus for the benchmark (~50k sentences)
