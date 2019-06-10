@@ -66,15 +66,17 @@ the Medium post.
 
 ToDos
 -------------
-**[ ]** Bugfixes
+**[ ]** Various Bugfixes
+
+**[ ]** Feature Testing
 
 **[ ]** Support TaggedLineDocument from Doc2Vec 
 
 **[ ]** Multi Core Implementation
 
-**[ ]** Direct to disc-estimation to to avoid RAM shortage
+**[ ]** Direct to disc-estimation to to avoid RAM shortage (perhaps?)
 
-**[ ]** Add as a gensim feature (perhaps?)
+**[ ]** Propose as a gensim feature (perhaps?)
 
 Literature
 -------------
