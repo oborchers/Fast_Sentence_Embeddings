@@ -35,7 +35,7 @@ before installing fse.
 
 The simple way to install **fse** is:
 
-    pip install fse
+    pip install --upgrade fse
 
 In case you want to build from the source, just run:
 
