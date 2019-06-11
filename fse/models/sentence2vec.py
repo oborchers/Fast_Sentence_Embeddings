@@ -20,7 +20,9 @@ import psutil
 logger = logging.getLogger(__name__)
 
 from numpy import float32 as REAL, sum as np_sum, vstack, zeros, ones,\
-        dtype, sqrt, newaxis
+        dtype, sqrt, newaxis, empty, full
+
+EPS = 1e-8
 
 try:
     # Import cython functions  
@@ -28,11 +30,10 @@ try:
     from fse.models.sentence2vec_inner import s2v_train
 except ImportError as e:
     CY_ROUTINES = 0
-    logger.warning("ImportError of Cython functions: %s", e)
+    warnings.warn("ImportError of Cython functions: Training will be slow. Install C-Compiler and re-compile.")
 
-    def s2v_train(sentences, wv, weights):
-        """Train sentence embedding on a list of sentences.
-        This methods is numpy only and is much slower than the cython variant.
+    def s2v_train(sentences, len_sentences, wv, weights):
+        """Train sentence embedding on a list of sentences
 
         Called internally from :meth:`~fse.models.sentence2vec.Sentence2Vec.train`.
 
@@ -40,6 +41,8 @@ except ImportError as e:
         ----------
         sentences : iterable of list of str
             The corpus used to train the model.
+        len_sentences : int
+            Length of the sentence iterable
         wv : :class:`~gensim.models.keyedvectors.BaseKeyedVectors`
             The BaseKeyedVectors instance containing the vectors used for training
         weights : np.ndarray
@@ -54,23 +57,29 @@ except ImportError as e:
         int 
             Number of sentences used for training.
         """
-
+        size = wv.vector_size
         vlookup = wv.vocab
-        vectors = wv
-        output = []
+        vectors = wv.vectors
+
+        w_trans = weights[:, None]
+
+        output = empty((len_sentences, size), dtype=REAL)
+        for i in range(len_sentences):
+            output[i] = full(size, EPS, dtype=REAL)
 
         effective_words = 0
         effective_sentences = 0
 
-        for s in sentences:
-            idx = [vlookup[w].index for w in s if w in vlookup]
-            v = np_sum(vectors.vectors[idx] * weights[idx][:, None], axis=0)
-            if len(idx) > 0:
-                effective_words += len(idx)
+        for i, s in enumerate(sentences):
+            sentence_idx = [vlookup[w].index for w in s if w in vlookup]
+            if len(sentence_idx):
+                v = np_sum(vectors[sentence_idx] * w_trans[sentence_idx], axis=0)
+                effective_words += len(sentence_idx)
                 effective_sentences += 1
-                v *= 1/len(idx)
-            output.append(v)
-        return vstack(output).astype(REAL), effective_words, effective_sentences
+                v *= 1/len(sentence_idx)
+                output[i] = v
+
+        return output.astype(REAL), effective_words, effective_sentences
     
 class Sentence2Vec():
     """Compute smooth inverse frequency weighted or averaged sentence emeddings.
@@ -336,6 +345,7 @@ class Sentence2Vec():
         numpy.ndarray
             The sentence embedding matrix of dim len(sentences) * vector_size
         """ 
+
         if sentences is None:
             raise RuntimeError("Provide sentences object")
 
