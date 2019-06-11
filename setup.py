@@ -94,10 +94,10 @@ setup(
 
     ext_modules=[
         Extension('fse.models.sentence2vec_inner',
-                sources=['./fse/models/sentence2vec_inner.pyx'],
+                sources=['./fse/models/sentence2vec_inner.c'],
                 include_dirs=[mod_dir]),
         Extension('fse.exp.sif_variants_cy',
-                sources=['./fse/exp/sif_variants_cy.pyx'],
+                sources=['./fse/exp/sif_variants_cy.c'],
                 include_dirs=[dev_dir]),
         ],
         
