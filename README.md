@@ -41,6 +41,10 @@ In case you want to build from the source, just run:
 
     python setup.py install
 
+If building the Cython extension fails (you will be notified), try:
+
+    pip install git+https://github.com/oborchers/Fast_Sentence_Embeddings
+
 Exemplary application
 -------------
 
@@ -63,6 +67,8 @@ Sentence Prediction.ipynb contains an example of how to use the library
 with a pre-trained Word2Vec model. compute_sif.py trains a Word2Vec model
 on a corpus (i.e, brown) and benchmark_speed.py reproduces the results from
 the Medium post.
+
+To install **fse** on Colab, check out: https://colab.research.google.com/drive/1qq9GBgEosG7YSRn7r6e02T9snJb04OEi 
 
 ToDos
 -------------
