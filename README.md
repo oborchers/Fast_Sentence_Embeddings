@@ -11,8 +11,8 @@ Find the corresponding blog post here: https://medium.com/@oliverbor/fse-2b1ffa7
 
 **fse** implements two algorithms for sentence embeddings. You can choose
 between *unweighted sentence averages* and *smooth inverse frequency averages*.
-In order to use the **fse** model, you first need some pre-trained embedding
-gensim embedding model, which is then used by **fse** to compute the sentence embeddings.
+In order to use the **fse** model, you first need some pre-trained gensim 
+embedding model, which is then used by **fse** to compute the sentence embeddings.
 
 After computing sentence embeddings, you can use them in supervised or
 unsupervised NLP applications, as they serve as a formidable baseline.
