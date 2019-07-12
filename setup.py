@@ -84,7 +84,7 @@ cmdclass = {'build_ext': custom_build_ext}
 
 setup(
     name='fse',
-    version='0.0.4',
+    version='0.0.5',
     description='Fast Sentence Embeddings for Gensim',
 
     author=u'Oliver Borchers',
@@ -92,13 +92,12 @@ setup(
 
     url="https://github.com/oborchers/Fast_Sentence_Embeddings",
 
+    license='GPL-3.0',
+
     ext_modules=[
         Extension('fse.models.sentence2vec_inner',
                 sources=['./fse/models/sentence2vec_inner.c'],
                 include_dirs=[mod_dir]),
-        Extension('fse.exp.sif_variants_cy',
-                sources=['./fse/exp/sif_variants_cy.c'],
-                include_dirs=[dev_dir]),
         ],
         
     cmdclass=cmdclass,
