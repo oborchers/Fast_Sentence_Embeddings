@@ -51,6 +51,7 @@ fse.egg-info/
 #########
 .ipynb_checkpoints/
 .settings/
+.vscode/
 .eggs
 fse*.egg-info
 *.pptx
