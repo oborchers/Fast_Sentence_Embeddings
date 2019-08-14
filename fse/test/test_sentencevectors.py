@@ -12,307 +12,75 @@ Automated tests for checking the sentence vectors.
 import logging
 import unittest
 
+from pathlib import Path
 import numpy as np
-
 from fse.models import sentencevectors
 
 logger = logging.getLogger(__name__)
 
 
 class TestSentenceVectorsFunctions(unittest.TestCase):
-
     def setUp(self):
-        self.sv_ram = sentencevectors.SentenceVectors(2, "test_data/")
-        self.sv_ram.vectors = np.arange(10).reshape(5,2)
-        self.sv_ram.count = len(self.sv_ram.vectors)
-
-    def test_base_functionality(self):
-        self.assertTrue(([0,1] == self.sv_ram.vectors[0]).all())
-        self.assertTrue("test_data/" == self.sv_ram.mapfile_path)
+        self.sv = sentencevectors.SentenceVectors(2)
+        self.sv.vectors = np.arange(10).reshape(5,2)
 
     def test_getitem(self):
-        self.assertTrue(([0,1] == self.sv_ram[0]).all())
-        self.assertTrue(([[0,1],[2,3],[4,5]] == self.sv_ram[[0,1,2]]).all())
+        # Done
+        self.assertTrue(([0,1] == self.sv[0]).all())
+        self.assertTrue(([[0,1],[4,5]] == self.sv[[0,2]]).all())
 
     def test_isin(self):
-        self.assertFalse(5 in self.sv_ram)
-        self.assertFalse([5,6] in self.sv_ram)
+        # Done
+        self.assertTrue(0 in self.sv)
+        self.assertFalse(5 in self.sv)
 
+    def test_init_sims_wo_replace(self):
+        # Done
+        self.sv.init_sims()
+        self.assertIsNotNone(self.sv.vectors_norm)
+        self.assertFalse((self.sv.vectors == self.sv.vectors_norm).all())
 
+        v1 = self.sv.vectors[0]
+        v1 = v1 / np.sqrt(np.sum(v1**2))
 
-# class TestWordEmbeddingSimilarityIndex(unittest.TestCase):
-#     def setUp(self):
-#         self.vectors = EuclideanKeyedVectors.load_word2vec_format(
-#             datapath('euclidean_vectors.bin'), binary=True, datatype=np.float64)
+        v2 = self.sv.vectors[1]
+        v2 = v2 / np.sqrt(np.sum(v2**2))
 
-#     def test_most_similar(self):
-#         """Test most_similar returns expected results."""
+        self.assertTrue(np.allclose(v1, self.sv.vectors_norm[0]))
+        self.assertTrue(np.allclose(v2, self.sv.vectors_norm[1]))
+        self.assertTrue(np.allclose(v2, self.sv.get_vector(1, True)))
 
-#         # check the handling of out-of-dictionary terms
-#         index = WordEmbeddingSimilarityIndex(self.vectors)
-#         self.assertLess(0, len(list(index.most_similar(u"holiday", topn=10))))
-#         self.assertEqual(0, len(list(index.most_similar(u"out-of-dictionary term", topn=10))))
+    def test_get_vector(self):
+        # Done
+        self.assertTrue(([0,1] == self.sv.get_vector(0)).all())
+        self.assertTrue(([2,3] == self.sv.get_vector(1)).all())
 
-#         # check that the topn works as expected
-#         index = WordEmbeddingSimilarityIndex(self.vectors)
-#         results = list(index.most_similar(u"holiday", topn=10))
-#         self.assertLess(0, len(results))
-#         self.assertGreaterEqual(10, len(results))
-#         results = list(index.most_similar(u"holiday", topn=20))
-#         self.assertLess(10, len(results))
-#         self.assertGreaterEqual(20, len(results))
+    def test_init_sims_w_replace(self):
+        # Done
+        self.sv.init_sims(True)
+        self.assertTrue((self.sv.vectors[0] == self.sv.vectors_norm[0]).all())
 
-#         # check that the term itself is not returned
-#         index = WordEmbeddingSimilarityIndex(self.vectors)
-#         terms = [term for term, similarity in index.most_similar(u"holiday", topn=len(self.vectors.vocab))]
-#         self.assertFalse(u"holiday" in terms)
+    def test_init_sims_w_mapfile(self):
+        # Done
+        p = Path("fse/test/test_data/test_vectors")
+        self.sv.mapfile_path = str(p.absolute())
+        self.sv.init_sims()
+        p = Path("fse/test/test_data/test_vectors.vectors_norm")
+        self.assertTrue(p.exists())
+        p.unlink()
 
-#         # check that the threshold works as expected
-#         index = WordEmbeddingSimilarityIndex(self.vectors, threshold=0.0)
-#         results = list(index.most_similar(u"holiday", topn=10))
-#         self.assertLess(0, len(results))
-#         self.assertGreaterEqual(10, len(results))
+    def test_save_load(self):
+        # Done
+        p = Path("fse/test/test_data/test_vectors.vectors")
+        self.sv.save(str(p.absolute()))
+        self.assertTrue(p.exists())
+        sv2 = sentencevectors.SentenceVectors.load(str(p.absolute()))
+        self.assertTrue((self.sv.vectors == sv2.vectors).all())
+        p.unlink()
 
-#         index = WordEmbeddingSimilarityIndex(self.vectors, threshold=1.0)
-#         results = list(index.most_similar(u"holiday", topn=10))
-#         self.assertEqual(0, len(results))
-
-#         # check that the exponent works as expected
-#         index = WordEmbeddingSimilarityIndex(self.vectors, exponent=1.0)
-#         first_similarities = np.array([similarity for term, similarity in index.most_similar(u"holiday", topn=10)])
-#         index = WordEmbeddingSimilarityIndex(self.vectors, exponent=2.0)
-#         second_similarities = np.array([similarity for term, similarity in index.most_similar(u"holiday", topn=10)])
-#         self.assertTrue(np.allclose(first_similarities**2.0, second_similarities))
-
-
-# class TestEuclideanKeyedVectors(unittest.TestCase):
-#     def setUp(self):
-#         self.vectors = EuclideanKeyedVectors.load_word2vec_format(
-#             datapath('euclidean_vectors.bin'), binary=True, datatype=np.float64)
-
-#     def test_similarity_matrix(self):
-#         """Test similarity_matrix returns expected results."""
-
-#         documents = [[u"government", u"denied", u"holiday"], [u"holiday", u"slowing", u"hollingworth"]]
-#         dictionary = Dictionary(documents)
-#         similarity_matrix = self.vectors.similarity_matrix(dictionary).todense()
-
-#         # checking the existence of ones on the main diagonal
-#         self.assertTrue(
-#             (np.diag(similarity_matrix) == np.ones(similarity_matrix.shape[0])).all())
-
-#     def test_most_similar(self):
-#         """Test most_similar returns expected results."""
-#         expected = [
-#             'conflict',
-#             'administration',
-#             'terrorism',
-#             'call',
-#             'israel'
-#         ]
-#         predicted = [result[0] for result in self.vectors.most_similar('war', topn=5)]
-#         self.assertEqual(expected, predicted)
-
-#     def test_most_similar_topn(self):
-#         """Test most_similar returns correct results when `topn` is specified."""
-#         self.assertEqual(len(self.vectors.most_similar('war', topn=5)), 5)
-#         self.assertEqual(len(self.vectors.most_similar('war', topn=10)), 10)
-
-#         predicted = self.vectors.most_similar('war', topn=None)
-#         self.assertEqual(len(predicted), len(self.vectors.vocab))
-
-#         predicted = self.vectors.most_similar('war', topn=0)
-#         self.assertEqual(len(predicted), 0)
-
-#         predicted = self.vectors.most_similar('war', topn=np.uint8(0))
-#         self.assertEqual(len(predicted), 0)
-
-#     def test_relative_cosine_similarity(self):
-#         """Test relative_cosine_similarity returns expected results with an input of a word pair and topn"""
-#         wordnet_syn = [
-#             'good', 'goodness', 'commodity', 'trade_good', 'full', 'estimable', 'honorable',
-#             'respectable', 'beneficial', 'just', 'upright', 'adept', 'expert', 'practiced', 'proficient',
-#             'skillful', 'skilful', 'dear', 'near', 'dependable', 'safe', 'secure', 'right', 'ripe', 'well',
-#             'effective', 'in_effect', 'in_force', 'serious', 'sound', 'salutary', 'honest', 'undecomposed',
-#             'unspoiled', 'unspoilt', 'thoroughly', 'soundly'
-#         ]   # synonyms for "good" as per wordnet
-#         cos_sim = []
-#         for i in range(len(wordnet_syn)):
-#             if wordnet_syn[i] in self.vectors.vocab:
-#                 cos_sim.append(self.vectors.similarity("good", wordnet_syn[i]))
-#         cos_sim = sorted(cos_sim, reverse=True)  # cosine_similarity of "good" with wordnet_syn in decreasing order
-#         # computing relative_cosine_similarity of two similar words
-#         rcs_wordnet = self.vectors.similarity("good", "nice") / sum(cos_sim[i] for i in range(10))
-#         rcs = self.vectors.relative_cosine_similarity("good", "nice", 10)
-#         self.assertTrue(rcs_wordnet >= rcs)
-#         self.assertTrue(np.allclose(rcs_wordnet, rcs, 0, 0.125))
-#         # computing relative_cosine_similarity for two non-similar words
-#         rcs = self.vectors.relative_cosine_similarity("good", "worst", 10)
-#         self.assertTrue(rcs < 0.10)
-
-#     def test_most_similar_raises_keyerror(self):
-#         """Test most_similar raises KeyError when input is out of vocab."""
-#         with self.assertRaises(KeyError):
-#             self.vectors.most_similar('not_in_vocab')
-
-#     def test_most_similar_restrict_vocab(self):
-#         """Test most_similar returns handles restrict_vocab correctly."""
-#         expected = set(self.vectors.index2word[:5])
-#         predicted = set(result[0] for result in self.vectors.most_similar('war', topn=5, restrict_vocab=5))
-#         self.assertEqual(expected, predicted)
-
-#     def test_most_similar_with_vector_input(self):
-#         """Test most_similar returns expected results with an input vector instead of an input word."""
-#         expected = [
-#             'war',
-#             'conflict',
-#             'administration',
-#             'terrorism',
-#             'call',
-#         ]
-#         input_vector = self.vectors['war']
-#         predicted = [result[0] for result in self.vectors.most_similar([input_vector], topn=5)]
-#         self.assertEqual(expected, predicted)
-
-#     def test_most_similar_to_given(self):
-#         """Test most_similar_to_given returns correct results."""
-#         predicted = self.vectors.most_similar_to_given('war', ['terrorism', 'call', 'waging'])
-#         self.assertEqual(predicted, 'terrorism')
-
-#     def test_similar_by_word(self):
-#         """Test similar_by_word returns expected results."""
-#         expected = [
-#             'conflict',
-#             'administration',
-#             'terrorism',
-#             'call',
-#             'israel'
-#         ]
-#         predicted = [result[0] for result in self.vectors.similar_by_word('war', topn=5)]
-#         self.assertEqual(expected, predicted)
-
-#     def test_similar_by_vector(self):
-#         """Test similar_by_word returns expected results."""
-#         expected = [
-#             'war',
-#             'conflict',
-#             'administration',
-#             'terrorism',
-#             'call',
-#         ]
-#         input_vector = self.vectors['war']
-#         predicted = [result[0] for result in self.vectors.similar_by_vector(input_vector, topn=5)]
-#         self.assertEqual(expected, predicted)
-
-#     def test_distance(self):
-#         """Test that distance returns expected values."""
-#         self.assertTrue(np.allclose(self.vectors.distance('war', 'conflict'), 0.06694602))
-#         self.assertEqual(self.vectors.distance('war', 'war'), 0)
-
-#     def test_similarity(self):
-#         """Test similarity returns expected value for two words, and for identical words."""
-#         self.assertTrue(np.allclose(self.vectors.similarity('war', 'war'), 1))
-#         self.assertTrue(np.allclose(self.vectors.similarity('war', 'conflict'), 0.93305397))
-
-#     def test_words_closer_than(self):
-#         """Test words_closer_than returns expected value for distinct and identical nodes."""
-#         self.assertEqual(self.vectors.words_closer_than('war', 'war'), [])
-#         expected = set(['conflict', 'administration'])
-#         self.assertEqual(set(self.vectors.words_closer_than('war', 'terrorism')), expected)
-
-#     def test_rank(self):
-#         """Test rank returns expected value for distinct and identical nodes."""
-#         self.assertEqual(self.vectors.rank('war', 'war'), 1)
-#         self.assertEqual(self.vectors.rank('war', 'terrorism'), 3)
-
-#     def test_wv_property(self):
-#         """Test that the deprecated `wv` property returns `self`. To be removed in v4.0.0."""
-#         self.assertTrue(self.vectors is self.vectors)
-
-#     def test_add_single(self):
-#         """Test that adding entity in a manual way works correctly."""
-#         entities = ['___some_entity{}_not_present_in_keyed_vectors___'.format(i) for i in range(5)]
-#         vectors = [np.random.randn(self.vectors.vector_size) for _ in range(5)]
-
-#         # Test `add` on already filled kv.
-#         for ent, vector in zip(entities, vectors):
-#             self.vectors.add(ent, vector)
-
-#         for ent, vector in zip(entities, vectors):
-#             self.assertTrue(np.allclose(self.vectors[ent], vector))
-
-#         # Test `add` on empty kv.
-#         kv = EuclideanKeyedVectors(self.vectors.vector_size)
-#         for ent, vector in zip(entities, vectors):
-#             kv.add(ent, vector)
-
-#         for ent, vector in zip(entities, vectors):
-#             self.assertTrue(np.allclose(kv[ent], vector))
-
-#     def test_add_multiple(self):
-#         """Test that adding a bulk of entities in a manual way works correctly."""
-#         entities = ['___some_entity{}_not_present_in_keyed_vectors___'.format(i) for i in range(5)]
-#         vectors = [np.random.randn(self.vectors.vector_size) for _ in range(5)]
-
-#         # Test `add` on already filled kv.
-#         vocab_size = len(self.vectors.vocab)
-#         self.vectors.add(entities, vectors, replace=False)
-#         self.assertEqual(vocab_size + len(entities), len(self.vectors.vocab))
-
-#         for ent, vector in zip(entities, vectors):
-#             self.assertTrue(np.allclose(self.vectors[ent], vector))
-
-#         # Test `add` on empty kv.
-#         kv = EuclideanKeyedVectors(self.vectors.vector_size)
-#         kv[entities] = vectors
-#         self.assertEqual(len(kv.vocab), len(entities))
-
-#         for ent, vector in zip(entities, vectors):
-#             self.assertTrue(np.allclose(kv[ent], vector))
-
-#     def test_set_item(self):
-#         """Test that __setitem__ works correctly."""
-#         vocab_size = len(self.vectors.vocab)
-
-#         # Add new entity.
-#         entity = '___some_new_entity___'
-#         vector = np.random.randn(self.vectors.vector_size)
-#         self.vectors[entity] = vector
-
-#         self.assertEqual(len(self.vectors.vocab), vocab_size + 1)
-#         self.assertTrue(np.allclose(self.vectors[entity], vector))
-
-#         # Replace vector for entity in vocab.
-#         vocab_size = len(self.vectors.vocab)
-#         vector = np.random.randn(self.vectors.vector_size)
-#         self.vectors['war'] = vector
-
-#         self.assertEqual(len(self.vectors.vocab), vocab_size)
-#         self.assertTrue(np.allclose(self.vectors['war'], vector))
-
-#         # __setitem__ on several entities.
-#         vocab_size = len(self.vectors.vocab)
-#         entities = ['war', '___some_new_entity1___', '___some_new_entity2___', 'terrorism', 'conflict']
-#         vectors = [np.random.randn(self.vectors.vector_size) for _ in range(len(entities))]
-
-#         self.vectors[entities] = vectors
-
-#         self.assertEqual(len(self.vectors.vocab), vocab_size + 2)
-#         for ent, vector in zip(entities, vectors):
-#             self.assertTrue(np.allclose(self.vectors[ent], vector))
-
-#     def test_ft_kv_backward_compat_w_360(self):
-#         kv = EuclideanKeyedVectors.load(datapath("ft_kv_3.6.0.model.gz"))
-#         ft_kv = FastTextKeyedVectors.load(datapath("ft_kv_3.6.0.model.gz"))
-
-#         expected = ['trees', 'survey', 'system', 'graph', 'interface']
-#         actual = [word for (word, similarity) in kv.most_similar("human", topn=5)]
-
-#         self.assertEqual(actual, expected)
-
-#         actual = [word for (word, similarity) in ft_kv.most_similar("human", topn=5)]
-
-#         self.assertEqual(actual, expected)
+    def test_len(self):
+        # Done
+        self.assertEqual(5, len(self.sv))
 
 
 if __name__ == '__main__':
