@@ -77,7 +77,6 @@ http://api.mongodb.org/python/current/installation.html#osx
         self.include_dirs.append(numpy.get_include())
 
 mod_dir = os.path.join(os.path.dirname(__file__), 'fse', 'models')
-dev_dir = os.path.join(os.path.dirname(__file__), 'fse', 'exp')
 fse_dir = os.path.join(os.path.dirname(__file__), 'fse')
 
 cmdclass = {'build_ext': custom_build_ext}

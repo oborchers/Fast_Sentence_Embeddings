@@ -155,6 +155,8 @@ class Sentence2Vec():
         self.no_frequency = bool(no_frequency)
         self.lang = str(lang)
 
+        self.principal_components = None
+
         self.sif_weights = self._precompute_sif_weights(self.model, self.alpha, no_frequency, lang)
 
 
@@ -184,7 +186,7 @@ class Sentence2Vec():
         return svd.components_
 
 
-    def _remove_principal_component(self, vectors, npc=1):
+    def _remove_principal_component(self, vectors, npc=1, update_components=True):
         """Remove the projection from the sentence embeddings
 
         Notes
@@ -204,12 +206,14 @@ class Sentence2Vec():
             The sentence embedding matrix of dim len(sentences) * vector size after removing the projection
 
         """
-        pc = self._compute_principal_component(vectors, npc)
+        if update_components or self.principal_components is None:
+            self.principal_components = self._compute_principal_component(vectors, npc)
+        
         logger.info("removing %d principal components", npc)
         if npc==1:
-            vectors_rpc = vectors - vectors.dot(pc.transpose()) * pc
+            vectors_rpc = vectors - vectors.dot(self.principal_components.transpose()) * self.principal_components
         else:
-            vectors_rpc = vectors - vectors.dot(pc.transpose()).dot(pc)
+            vectors_rpc = vectors - vectors.dot(self.principal_components.transpose()).dot(self.principal_components)
         return vectors_rpc
 
 
@@ -331,7 +335,7 @@ class Sentence2Vec():
             output = (sentence_matrix / sqrt((sentence_matrix ** 2).sum(-1))[..., newaxis]).astype(REAL)
             return output
 
-    def train(self, sentences, **kwargs):
+    def train(self, sentences, update_components=True, **kwargs):
         """Train the model on sentences
 
         Parameters
@@ -365,6 +369,6 @@ class Sentence2Vec():
         logger.info("finished computing sentence embeddings of %i effective sentences with %i effective words", no_sents, no_words)
 
         if self.components > 0:
-            output = self._remove_principal_component(output, self.components)
+            output = self._remove_principal_component(output, self.components, update_components)
 
         return output
