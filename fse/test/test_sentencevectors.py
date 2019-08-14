@@ -18,7 +18,6 @@ from fse.models import sentencevectors
 
 logger = logging.getLogger(__name__)
 
-
 class TestSentenceVectorsFunctions(unittest.TestCase):
     def setUp(self):
         self.sv = sentencevectors.SentenceVectors(2)
@@ -81,6 +80,17 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
     def test_len(self):
         # Done
         self.assertEqual(5, len(self.sv))
+
+    def test_similarity(self):
+        # Done
+        v1 = self.sv.vectors[0]
+        v1 = v1 / np.sqrt(np.sum(v1**2))
+
+        v2 = self.sv.vectors[1]
+        v2 = v2 / np.sqrt(np.sum(v2**2))
+
+        self.assertEqual(v1.dot(v2), self.sv.similarity(0,1))
+        self.assertEqual(1-(v1.dot(v2)), self.sv.distance(0,1))
 
 
 if __name__ == '__main__':

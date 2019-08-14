@@ -309,31 +309,31 @@ class Sentence2Vec():
 
         return report
 
-    def normalize(self, sentence_matrix, inplace=True):
-        """Normalize the sentence_matrix rows to unit_length
+    # def normalize(self, sentence_matrix, inplace=True):
+    #     """Normalize the sentence_matrix rows to unit_length
 
-        Notes
-        -----
-        Directly adapted from gensim
+    #     Notes
+    #     -----
+    #     Directly adapted from gensim
 
-        Parameters
-        ----------
-        sentence_matrix : numpy.ndarray
-            The sentence embedding matrix of dim len(sentences) * vector_size
-        inplace : bool, optional
+    #     Parameters
+    #     ----------
+    #     sentence_matrix : numpy.ndarray
+    #         The sentence embedding matrix of dim len(sentences) * vector_size
+    #     inplace : bool, optional
 
-        Returns
-        -------
-        numpy.ndarray
-            The sentence embedding matrix of dim len(sentences) * vector_size
-        """ 
-        logger.info("computing L2-norms of sentence embeddings")
-        if inplace:
-            for i in xrange(len(sentence_matrix)):
-                sentence_matrix[i, :] /= sqrt((sentence_matrix[i, :] ** 2).sum(-1))
-        else:
-            output = (sentence_matrix / sqrt((sentence_matrix ** 2).sum(-1))[..., newaxis]).astype(REAL)
-            return output
+    #     Returns
+    #     -------
+    #     numpy.ndarray
+    #         The sentence embedding matrix of dim len(sentences) * vector_size
+    #     """ 
+    #     logger.info("computing L2-norms of sentence embeddings")
+    #     if inplace:
+    #         for i in xrange(len(sentence_matrix)):
+    #             sentence_matrix[i, :] /= sqrt((sentence_matrix[i, :] ** 2).sum(-1))
+    #     else:
+    #         output = (sentence_matrix / sqrt((sentence_matrix ** 2).sum(-1))[..., newaxis]).astype(REAL)
+    #         return output
 
     def train(self, sentences, update_components=True, **kwargs):
         """Train the model on sentences

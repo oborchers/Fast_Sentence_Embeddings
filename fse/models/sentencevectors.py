@@ -17,8 +17,6 @@ import numpy as np
 from gensim import utils, matutils
 from gensim.models.keyedvectors import _l2_norm
 
-from six import integer_types
-
 logger = logging.getLogger(__name__)
 
 class SentenceVectors(utils.SaveLoad):
@@ -28,6 +26,8 @@ class SentenceVectors(utils.SaveLoad):
         # [ ] Document Boundary (DocId, Up, Low)
         # [X] Only int indices for sentences
         # [X] Aceppt lists as input
+        # [ ] Implement Average Emebddings
+        # [ ] Implement SIF Emebddings
         # [ ] Implement uSIF Emebddings
         # [ ] Write base Sentence Embedding Class
         # [ ] Multi Core Implementation (Splitted Sentence Queue?)
@@ -39,6 +39,7 @@ class SentenceVectors(utils.SaveLoad):
         # [ ] For outputs, provide an indexable function to map indices to sentences
         # [ ] Check that input is list of list
         # [ ] Initialization with zeros, but on first scan of sentences
+        # [ ] Fasttext compatibility for the inner loops
         
         # Note to self: Working with dfs where reviews are in the rows would work best
         # with two enumerated tuples (i.e: reviewdIdx, sentIdx)
@@ -64,13 +65,13 @@ class SentenceVectors(utils.SaveLoad):
 
         """
 
-        if isinstance(entities, integer_types + (integer,)):
+        if isinstance(entities, (int, integer,)):
             return self.get_vector(entities)
 
         return vstack([self.get_vector(e) for e in entities])
 
     def __contains__(self, index):
-        if isinstance(index, integer_types + (integer,)):
+        if isinstance(index, (int, integer,)):
             return index < len(self)
         else:
             raise KeyError(f"index {index} is not a valid index")
@@ -132,7 +133,6 @@ class SentenceVectors(utils.SaveLoad):
         else:
             raise KeyError("index {index} not found")
 
-    
     def init_sims(self, replace=False):
         """Precompute L2-normalized vectors.
 
@@ -159,15 +159,47 @@ class SentenceVectors(utils.SaveLoad):
 
             self.vectors_norm = _l2_norm(self.vectors, replace=replace)
 
-    def most_similar(self, positive=None, negative=None, topn=10, clip_start=0, clip_end=None, indexer=None, indexable=None):
-        # TODO
-        raise NotImplementedError()
-
     def similarity(self, d1, d2):
-        # TODO
-        raise NotImplementedError()
+        """Compute cosine similarity between two sentences from the training set.
+
+        TODO: Accept vectors of out-of-training-set docs, as if from inference.
+
+        Parameters
+        ----------
+        d1 : {int, str}
+            index of sentence / sentence.
+        d2 : {int, str}
+            index of sentence / sentence.
+
+        Returns
+        -------
+        float
+            The cosine similarity between the vectors of the two sentences.
+
+        """
+        return dot(matutils.unitvec(self[d1]), matutils.unitvec(self[d2]))
 
     def distance(self, d1, d2):
+        """Compute cosine similarity between two sentences from the training set.
+
+        TODO: Accept vectors of out-of-training-set docs, as if from inference.
+
+        Parameters
+        ----------
+        d1 : {int, str}
+            index of sentence / sentence.
+        d2 : {int, str}
+            index of sentence / sentence.
+
+        Returns
+        -------
+        float
+            The cosine distance between the vectors of the two sentences.
+
+        """
+        return 1 - self.similarity(d1, d2)
+
+    def most_similar(self, positive=None, negative=None, topn=10, clip_start=0, clip_end=None, indexer=None, indexable=None):
         # TODO
         raise NotImplementedError()
 
