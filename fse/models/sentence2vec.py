@@ -138,22 +138,23 @@ class Sentence2Vec():
 
         """
 
-        if isinstance(model, BaseWordEmbeddingsModel):
-            self.model = model.wv
-        elif isinstance(model, BaseKeyedVectors):
-            self.model = model
-        else:
-            raise RuntimeError("Model must be child of BaseWordEmbeddingsModel or BaseKeyedVectors.")
+        # if isinstance(model, BaseWordEmbeddingsModel):
+        #     self.model = model.wv
+        # elif isinstance(model, BaseKeyedVectors):
+        #     self.model = model
+        # else:
+        #     raise RuntimeError("Model must be child of BaseWordEmbeddingsModel or BaseKeyedVectors.")
 
-        if not hasattr(self.model, 'vectors'):
-            raise RuntimeError("Parameters required for predicting sentence embeddings not found.")
+        # if not hasattr(self.model, 'vectors'):
+        #     raise RuntimeError("Parameters required for predicting sentence embeddings not found.")
 
         assert alpha >= 0 & components >= 0
 
         self.alpha = float(alpha)
         self.components = int(components)
-        self.no_frequency = bool(no_frequency)
-        self.lang = str(lang)
+
+        # self.no_frequency = bool(no_frequency)
+        # self.lang = str(lang)
 
         self.principal_components = None
 
@@ -350,8 +351,8 @@ class Sentence2Vec():
             The sentence embedding matrix of dim len(sentences) * vector_size
         """ 
 
-        if sentences is None:
-            raise RuntimeError("Provide sentences object")
+        # if sentences is None:
+        #     raise RuntimeError("Provide sentences object")
 
         len_sentences = 0
         if not hasattr(sentences, '__len__'):

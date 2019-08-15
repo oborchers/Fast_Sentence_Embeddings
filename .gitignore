@@ -39,6 +39,7 @@
 ehthumbs.db
 Icon?
 Thumbs.db
+*.icloud
 
 # Folders #
 ###########
@@ -69,4 +70,3 @@ fse*.egg-info
 *.model
 *_out.txt
 *.html
-*.icloud

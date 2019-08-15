@@ -24,17 +24,14 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         self.sv.vectors = np.arange(10).reshape(5,2)
 
     def test_getitem(self):
-        # Done
         self.assertTrue(([0,1] == self.sv[0]).all())
         self.assertTrue(([[0,1],[4,5]] == self.sv[[0,2]]).all())
 
     def test_isin(self):
-        # Done
         self.assertTrue(0 in self.sv)
         self.assertFalse(5 in self.sv)
 
     def test_init_sims_wo_replace(self):
-        # Done
         self.sv.init_sims()
         self.assertIsNotNone(self.sv.vectors_norm)
         self.assertFalse((self.sv.vectors == self.sv.vectors_norm).all())
@@ -50,17 +47,14 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         self.assertTrue(np.allclose(v2, self.sv.get_vector(1, True)))
 
     def test_get_vector(self):
-        # Done
         self.assertTrue(([0,1] == self.sv.get_vector(0)).all())
         self.assertTrue(([2,3] == self.sv.get_vector(1)).all())
 
     def test_init_sims_w_replace(self):
-        # Done
         self.sv.init_sims(True)
         self.assertTrue((self.sv.vectors[0] == self.sv.vectors_norm[0]).all())
 
     def test_init_sims_w_mapfile(self):
-        # Done
         p = Path("fse/test/test_data/test_vectors")
         self.sv.mapfile_path = str(p.absolute())
         self.sv.init_sims()
@@ -69,7 +63,6 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         p.unlink()
 
     def test_save_load(self):
-        # Done
         p = Path("fse/test/test_data/test_vectors.vectors")
         self.sv.save(str(p.absolute()))
         self.assertTrue(p.exists())
@@ -78,11 +71,9 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         p.unlink()
 
     def test_len(self):
-        # Done
         self.assertEqual(5, len(self.sv))
 
     def test_similarity(self):
-        # Done
         v1 = self.sv.vectors[0]
         v1 = v1 / np.sqrt(np.sum(v1**2))
 

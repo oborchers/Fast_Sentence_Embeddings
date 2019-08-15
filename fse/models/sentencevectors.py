@@ -11,46 +11,25 @@ import logging
 
 from numpy import dot, float32 as REAL, memmap as np_memmap, \
     double, array, zeros, vstack, sqrt, newaxis, integer, \
-    ndarray, sum as np_sum, prod, argmax
-import numpy as np
+    ndarray, sum as np_sum, prod, argmax, ndarray
 
 from gensim import utils, matutils
 from gensim.models.keyedvectors import _l2_norm
+
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
 class SentenceVectors(utils.SaveLoad):
 
-    def __init__(self, vector_size, mapfile_path=None):
-        # [ ] Indexed Sentence Class (Index, Sentence)
-        # [ ] Document Boundary (DocId, Up, Low)
-        # [X] Only int indices for sentences
-        # [X] Aceppt lists as input
-        # [ ] Implement Average Emebddings
-        # [ ] Implement SIF Emebddings
-        # [ ] Implement uSIF Emebddings
-        # [ ] Write base Sentence Embedding Class
-        # [ ] Multi Core Implementation (Splitted Sentence Queue?)
-        # [ ] The LOGGER MUST GO TO DEBUG! Or a logging level. Whatever.
-        # [ ] If principal compnents exist, use them for the next train phase --> train + infer
-        # [ ] Make a warning when sentences are not passed as [[str, str]] --> validate input
-        # [ ] How to best determine length?
-        # [ ] Similarity for unseen documents --> Model.infer vector
-        # [ ] For outputs, provide an indexable function to map indices to sentences
-        # [ ] Check that input is list of list
-        # [ ] Initialization with zeros, but on first scan of sentences
-        # [ ] Fasttext compatibility for the inner loops
-        
-        # Note to self: Working with dfs where reviews are in the rows would work best
-        # with two enumerated tuples (i.e: reviewdIdx, sentIdx)
-
+    def __init__(self, vector_size:int, mapfile_path:str=None):
         self.vector_size = vector_size              # Size of vectors
         self.vectors = zeros((0, vector_size))      # Vectors for sentences
         self.vectors_norm = None
         self.mapfile_path = mapfile_path            # File for numpy memmap
 
         
-    def __getitem__(self, entities):
+    def __getitem__(self, entities:int) -> ndarray:
         """Get vector representation of `entities`.
 
         Parameters
@@ -70,13 +49,13 @@ class SentenceVectors(utils.SaveLoad):
 
         return vstack([self.get_vector(e) for e in entities])
 
-    def __contains__(self, index):
+    def __contains__(self, index:int) -> bool:
         if isinstance(index, (int, integer,)):
             return index < len(self)
         else:
             raise KeyError(f"index {index} is not a valid index")
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.vectors)
 
     def save(self, *args, **kwargs):
@@ -94,14 +73,14 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         # don't bother storing the cached normalized vectors
-        kwargs['ignore'] = kwargs.get('ignore', ['vectors_docs_norm'])
+        kwargs['ignore'] = kwargs.get('ignore', ['vectors_norm'])
         super(SentenceVectors, self).save(*args, **kwargs)
 
     @classmethod
     def load(cls, fname_or_handle, **kwargs):
         return super(SentenceVectors, cls).load(fname_or_handle, **kwargs)
 
-    def get_vector(self, index, use_norm=False):
+    def get_vector(self, index:int, use_norm:bool=False) -> ndarray:
         """Get sentence representations in vector space, as a 1D numpy array.
 
         Parameters
@@ -133,7 +112,7 @@ class SentenceVectors(utils.SaveLoad):
         else:
             raise KeyError("index {index} not found")
 
-    def init_sims(self, replace=False):
+    def init_sims(self, replace:bool=False):
         """Precompute L2-normalized vectors.
 
         Parameters
@@ -159,7 +138,7 @@ class SentenceVectors(utils.SaveLoad):
 
             self.vectors_norm = _l2_norm(self.vectors, replace=replace)
 
-    def similarity(self, d1, d2):
+    def similarity(self, d1:int, d2:int) -> float:
         """Compute cosine similarity between two sentences from the training set.
 
         TODO: Accept vectors of out-of-training-set docs, as if from inference.
@@ -179,7 +158,7 @@ class SentenceVectors(utils.SaveLoad):
         """
         return dot(matutils.unitvec(self[d1]), matutils.unitvec(self[d2]))
 
-    def distance(self, d1, d2):
+    def distance(self, d1:int, d2:int) -> float:
         """Compute cosine similarity between two sentences from the training set.
 
         TODO: Accept vectors of out-of-training-set docs, as if from inference.
@@ -199,7 +178,7 @@ class SentenceVectors(utils.SaveLoad):
         """
         return 1 - self.similarity(d1, d2)
 
-    def most_similar(self, positive=None, negative=None, topn=10, clip_start=0, clip_end=None, indexer=None, indexable=None):
+    def most_similar(self, positive=None, negative=None, topn:int=10, clip_start:int=0, clip_end=None, indexer=None, indexable=None) -> Dict[int, float]: 
         # TODO
         raise NotImplementedError()
 
