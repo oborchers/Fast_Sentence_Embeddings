@@ -6,7 +6,7 @@
 
 
 """
-Automated tests for checking the base_s2v class.
+Automated tests for checking the average model.
 """
 
 
@@ -19,6 +19,7 @@ import numpy as np
 
 from fse.models.average import Average
 from fse.models.average import average_train_np
+from fse.models.inputs import IndexedSentence
 
 from gensim.models import Word2Vec
 
@@ -34,13 +35,11 @@ W2V.wv.vectors[:,] = np.arange(len(W2V.wv.vectors), dtype=np.float32)[:, None]
 class TestAverageFunctions(unittest.TestCase):
     def setUp(self):
         self.sentences = [["They", "admit"], ["So", "Apple", "bought", "buds"]]
-        self.word_indices = [[W2V.wv.vocab[w].index for w in s] for s in self.sentences]
+        self.sentences = [IndexedSentence(s, i) for i,s in enumerate(self.sentences)]
         self.model = Average(W2V)
         self.model.prep.prepare_vectors(sv=self.model.sv, total_sentences=len(self.sentences), update=False)
-
-    def test_weight_dtype(self):
-        self.assertEqual(np.float32, self.model.word_weights.dtype)
-
+        self.model._pre_train_calls()
+        
     def test_average_train_np(self):
         output = average_train_np(self.model, self.sentences)
         self.assertEqual((2, 6), output)
@@ -49,7 +48,11 @@ class TestAverageFunctions(unittest.TestCase):
 
     def test_do_train_job(self):
         self.model.prep.prepare_vectors(sv=self.model.sv, total_sentences=len(SENTENCES), update=True)
-        self.assertEqual((100,1450), self.model._do_train_job(SENTENCES))
+        self.assertEqual((100,1450), self.model._do_train_job([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)]))
+        self.assertEqual((102,DIM), self.model.sv.vectors.shape)
+
+    def test_train(self):
+        self.assertEqual((100,1450), self.model.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)]))
 
 
 if __name__ == '__main__':

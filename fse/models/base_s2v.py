@@ -11,7 +11,7 @@ from gensim.models.base_any2vec import BaseWordEmbeddingsModel
 from gensim.models.keyedvectors import BaseKeyedVectors, FastTextKeyedVectors
 from gensim.utils import SaveLoad
 
-from numpy import ndarray, memmap as np_memmap, float32 as REAL, empty, zeros, vstack, dtype
+from numpy import ndarray, memmap as np_memmap, float32 as REAL, empty, zeros, vstack, dtype, isfinite
 
 from wordfreq import available_languages, get_frequency_dict
 
@@ -79,12 +79,14 @@ class BaseSentence2VecModel(SaveLoad):
             # [ ] How to deal with indexed sentences?
             # [ ] Automate CPU Selection with psutil
             # [ ] Count the effective words
+
         # [ ] Implement SIF Emebddings
             # [ ] If principal compnents exist, use them for the next train phase --> train + infer
             # [ ] pre_train_calls & post_train_calls
 
         # [ ] Implement uSIF Emebddings
             # [ ] Where to pass average sentence length?
+
         # [ ] Implement Fasttext Support
             # [ ] Estimate Memory does note account for fasttext ngram vectors
         
@@ -95,7 +97,7 @@ class BaseSentence2VecModel(SaveLoad):
             # [ ] Decide which attributes to ignore when saving
         
         # [ ] :class: inputs
-            # [ ] Tests for IndexedSentence
+            # [X] Tests for IndexedSentence
             # [ ] rewrite TaggedLineDocument
             # [ ] Document Boundary (DocId, Up, Low)
 
@@ -176,6 +178,76 @@ class BaseSentence2VecModel(SaveLoad):
         elif not hasattr(data_iterable, "__iter__"):
             raise TypeError("Iterable must provide __iter__ function")
 
+    def _log_train_end(self, eff_sentences:int, eff_words:int, overall_time:float):
+        """Callback to log the end of training.
+
+        Parameters
+        ----------
+        eff_sentences : int
+            Number of effective (non-zero) sentences encountered in training.
+        eff_words : int
+            Number of effective words used in training (after ignoring unknown words).
+        overall_time : float
+        """
+        logger.info(
+            f"training on {eff_sentences} effective sentences with {eff_words} effective words "
+            f"took {int(overall_time)}s with {eff_sentences / overall_time:.1f} sentences/s"
+        )
+
+    def _check_pre_training_sanity(self, total_sentences:int, total_words:int, average_length:int):
+        """ Check if all available objects for training are available and compliant """
+        
+        if not hasattr(self, "wv") or self.wv is None: 
+            raise RuntimeError("you must first load a valid BaseKeyedVectors object")
+        if not len(self.wv.vectors):
+            raise RuntimeError("you must initialize vectors before computing sentence vectors")
+
+        if not hasattr(self.sv, "vectors") or self.sv.vectors is None: 
+            raise RuntimeError("initialization of SentenceVectors failed")
+
+        if self.wv.vectors.dtype != REAL:
+            raise RuntimeError(f"type of wv.vectors is wrong: {self.wv.vectors.dtype}")
+        if self.sv.vectors.dtype != REAL:
+            raise RuntimeError(f"type of sv.vectors is wrong: {self.sv.vectors.dtype}")
+
+        if total_sentences is 0 or total_words is 0 or average_length is 0:
+            raise ValueError(
+                f"scanning the sentences returned invalid values. Check the input."
+            )
+
+    def _check_post_training_sanity(self, eff_sentences:int, eff_words:int):
+        """ Check if the training result do not contain any infs/nans """
+
+        if not isfinite(self.wv.vectors).all():
+            raise RuntimeError(f"Illegal operation on wv.vectors: contains nan/inf. check code.")
+        if not isfinite(self.sv.vectors).all():
+            raise RuntimeError(f"Illegal operation on sv.vectors: contains nan/inf. check code.")
+
+        if eff_sentences is 0 or eff_words is 0:
+            raise ValueError(
+                f"training returned invalid values. Check the input."
+            )
+
+    def _do_train_job(self, data_iterable) -> [int, int]:
+        """ Function to be called on a batch of sentences. Returns eff sentences/words"""
+        raise NotImplementedError()
+
+    def _pre_train_calls(self):
+        """Function calls to perform before training """
+        raise NotImplementedError()
+
+    def _post_train_calls(self):
+        """Function calls to perform after training """
+        raise NotImplementedError()
+    
+    def _check_parameter_sanity(self):
+        """ Check the sanity of all child paramters """
+        raise NotImplementedError()
+
+    def _check_dtype_santiy(self):
+        """ Check the dtypes of all child attributes"""
+        raise NotImplementedError()
+
     @classmethod
     def load(cls, *args, **kwargs):
         """Load a previously saved :class:`~fse.models.base_s2v.BaseSentence2VecModel`.
@@ -208,30 +280,31 @@ class BaseSentence2VecModel(SaveLoad):
         # kwargs['ignore'] = kwargs.get('ignore', ['vectors_norm', 'cum_table'])
         super(BaseSentence2VecModel, self).save(*args, **kwargs)
 
-    def scan_sentences(self, sentences:[List[List[str]], List[IndexedSentence]]=None, progress_per:int=5) -> [int, int, int, int]:
-        logger.info("scanning all sentences and their word counts")
+    def scan_sentences(self, sentences:List[IndexedSentence]=None, progress_per:int=5) -> [int, int, int, int]:
+        logger.info("scanning all indexed sentences and their word counts")
 
         current_time = time()
         total_sentences = 0
         total_words = 0
         average_length = 0
         empty_sentences = 0
-        checked_string_types = 0            # Checks only once
+        checked_types = 0            # Checks only once
         max_index = 0
 
-        for obj_no, obj in enumerate(sentences):
+        for obj in sentences:
             if isinstance(obj, IndexedSentence):
                 index = obj.index
                 sent = obj.words
             else:
-                index = obj_no
-                sent = obj
+                raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain IndexedSentence.")
 
-            if not checked_string_types:
+            if not checked_types:
                 if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
-                    raise TypeError(f"Passed {type(sent)}: {sent}. Iterable must contain list of str.")
-                checked_string_types += 1
-            
+                    raise TypeError(f"Passed {type(sent)}: {sent}. IndexedSentence.words must contain list of str.")
+                if not isinstance(index, int):
+                    raise TypeError(f"Passed {type(index)}: {index}. IndexedSentence.index must contain index")
+                checked_types += 1
+
             if time() - current_time > progress_per:
                 current_time = time()
                 logger.info(f"PROGRESS: finished {total_sentences} sentences with {total_words} words")
@@ -293,18 +366,20 @@ class BaseSentence2VecModel(SaveLoad):
             warnings.warn("The embeddings will likely not fit into RAM. Consider to use mapfile_path")
         return report
 
+    def train(self, sentences:List[IndexedSentence]=None, update:bool=False, report_delay:int=5) -> [int,int]:
 
-    def train(self, sentences:[List[List[str]], List[IndexedSentence]]=None, update:bool=False, report_delay:int=5) -> [int,int]:
+        start_time = time()
 
         self._check_input_data_sanity(sentences)
         total_sentences, total_words, average_length, empty_sentences = self.scan_sentences(sentences)
+        self._check_pre_training_sanity(total_sentences, total_words, average_length)
+
         self.estimate_memory(total_sentences)
         self.prep.prepare_vectors(sv=self.sv, total_sentences=total_sentences, update=update)
-        #self._check_training_sanity()
+        
+        # Preform post-tain calls (i.e weight computation)
+        self._pre_train_calls()
 
-        #self._pre_train_calls()
-
-        #start_time = time()
 
         eff_sentences, eff_words = self._do_train_job(sentences)
 
@@ -314,40 +389,23 @@ class BaseSentence2VecModel(SaveLoad):
         #             data_iterable, cur_epoch=cur_epoch, total_examples=total_examples,
         #             total_words=total_words, queue_factor=queue_factor, report_delay=report_delay)
 
-        #self._post_train_calls()
+        # Preform post-tain calls (i.e principal component removal)
+        self._post_train_calls()
 
-        return total_sentences, total_words
+        self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
 
-    def infer(self, sentences:[List[List[str]], List[IndexedSentence]]=None) -> ndarray:
-        raise NotImplementedError()
+        overall_time = time() - start_time
+        self._log_train_end(eff_sentences=eff_sentences, eff_words=eff_words, overall_time=overall_time)
 
-    def _pre_train_calls(self):
-        raise NotImplementedError()
+        return eff_sentences, eff_words    
 
-    def _post_train_calls(self):
-        raise NotImplementedError()
-
-    def _check_training_sanity(self):
-        raise NotImplementedError()
-
-    def _check_parameter_sanity(self):
-        raise NotImplementedError()
+    def infer(self, sentences:List[IndexedSentence]=None) -> ndarray:
+        raise NotImplementedError()    
 
     def _log_progress(self):
         raise NotImplementedError()
-
-    def _log_train_end(self):
-        raise NotImplementedError()
     
     def __str__(self):
-        raise NotImplementedError()
-
-    def _do_train_job(self, data_iterable) -> [int, int]:
-        # TODO: Original implementation contains job_parameters and thread_paramters
-        # return effective sentence count, effective word count
-        raise NotImplementedError()
-
-    def _check_dtypes(self):
         raise NotImplementedError()
 
 

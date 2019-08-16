@@ -24,7 +24,7 @@ class SentenceVectors(utils.SaveLoad):
 
     def __init__(self, vector_size:int, mapfile_path:str=None):
         self.vector_size = vector_size              # Size of vectors
-        self.vectors = zeros((0, vector_size))      # Vectors for sentences
+        self.vectors = zeros((0, vector_size), REAL)      # Vectors for sentences
         self.vectors_norm = None
         self.mapfile_path = mapfile_path            # File for numpy memmap
 

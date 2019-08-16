@@ -5,35 +5,41 @@
 # Copyright (C) 2019 Oliver Borchers
 
 from fse.models.base_s2v import BaseSentence2VecModel
-
+from fse.models.inputs import IndexedSentence
 from gensim.models.keyedvectors import BaseKeyedVectors
 
 from numpy import ones, float32 as REAL, sum as np_sum
 
+from typing import List
+
+import logging
+
+logger = logging.getLogger(__name__)
+
 FAST_VERSION = -1
-def average_train_np(model, sentences):
+def average_train_np(model:BaseSentence2VecModel, sentences:List[IndexedSentence]) -> [int,int]:
         size = model.wv.vector_size
         vlookup = model.wv.vocab
 
         w_vectors = model.wv.vectors
-        w_weights = model.word_weights[:, None]
-
         s_vectors = model.sv.vectors
 
         eff_sentences, eff_words = 0, 0
 
-        # Here the enumeration is a problem because it should only work with indexed sentences
-        for sentence_index, sentence in enumerate(sentences):
-            word_indices = [vlookup[word].index for word in sentence if word in vlookup]
+        for obj in sentences:
+            sent_index = obj.index
+            sent = obj.words
+
+            word_indices = [vlookup[word].index for word in sent if word in vlookup]
             if not len(word_indices):
                 continue
 
             eff_sentences += 1
             eff_words += len(word_indices)
 
-            v = np_sum(w_vectors[word_indices] * w_weights[word_indices], axis=0)
+            v = np_sum(w_vectors[word_indices], axis=0)
             v *= 1/len(word_indices)
-            s_vectors[sentence_index] = v.astype(REAL)
+            s_vectors[sent_index] = v.astype(REAL)
 
         return eff_sentences, eff_words
 
@@ -46,10 +52,12 @@ class Average(BaseSentence2VecModel):
             model=model, mapfile_path=mapfile_path, workers=workers, 
             lang_freq=lang_freq, fast_version=FAST_VERSION)
 
-        self.word_weights = ones(len(self.wv.vocab), dtype=REAL)
-
-    def _do_train_job(self, sentences):
-
+    def _do_train_job(self, sentences:List[IndexedSentence]) -> [int,int]:
         summary = average_train_np(self, sentences)
-
         return summary
+
+    def _pre_train_calls(self):
+        pass
+
+    def _post_train_calls(self):
+        pass
