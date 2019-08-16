@@ -53,8 +53,8 @@ class Average(BaseSentence2VecModel):
             lang_freq=lang_freq, wv_from_disk=wv_from_disk, fast_version=FAST_VERSION)
 
     def _do_train_job(self, sentences:List[IndexedSentence]) -> [int,int]:
-        summary = average_train_np(self, sentences)
-        return summary
+        eff_sentences, eff_words = average_train_np(self, sentences)
+        return eff_sentences, eff_words
 
     def _pre_train_calls(self):
         pass

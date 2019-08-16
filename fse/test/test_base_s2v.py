@@ -237,67 +237,80 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         self.assertTrue(p_target.exists())
         self.assertFalse(se.wv.vectors.flags.writeable)
         p_target.unlink()
-        
 
-# class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
+    def test_train_manager(self):
+        se = BaseSentence2VecModel(W2V, workers=2)
+        def temp_train_job(data_iterable):
+            v1 = v2 = sum(1 for _ in data_iterable)
+            return v1*2, v2*3
+        se._do_train_job = temp_train_job
+        job_output = se._train_manager(data_iterable=[IndexedSentence(s, i) for i,s in enumerate(SENTENCES)], total_sentences=len(SENTENCES),report_delay=0.01)
+        self.assertEqual((100,200,300), job_output)
 
-#     def test_reset_vectors(self):
-#         se = BaseSentence2VecModel(W2V)
-#         trainables = BaseSentence2VecPreparer()
-#         trainables.reset_vectors(se.sv, 20)
-#         self.assertEqual((20,DIM), se.sv.vectors.shape)
-#         self.assertEqual(np.float32, se.sv.vectors.dtype)
-#         self.assertTrue((np.zeros((20, DIM)) == se.sv.vectors).all())
-#         self.assertTrue(se.sv.vectors_norm is None)
+    def test_remaining_thread_funcs(self):
+        # TODO
+        pass
 
-#     def test_reset_vectors_memmap(self):
-#         p = Path("fse/test/test_data/test_vectors")
-#         p_target = Path("fse/test/test_data/test_vectors.vectors")
-#         se = BaseSentence2VecModel(W2V, mapfile_path=str(p.absolute()))
-#         trainables = BaseSentence2VecPreparer()
-#         trainables.reset_vectors(se.sv, 20)
-#         self.assertTrue(p_target.exists())
-#         self.assertEqual((20,DIM), se.sv.vectors.shape)
-#         self.assertEqual(np.float32, se.sv.vectors.dtype)
-#         self.assertTrue((np.zeros((20, DIM)) == se.sv.vectors).all())
-#         self.assertTrue(se.sv.vectors_norm is None)
-#         p_target.unlink()
 
-#     def test_update_vectors(self):
-#         se = BaseSentence2VecModel(W2V)
-#         trainables = BaseSentence2VecPreparer()
-#         trainables.reset_vectors(se.sv, 20)
-#         se.sv.vectors[:] = 1.
-#         trainables.update_vectors(se.sv, 10)
-#         self.assertEqual((30,DIM), se.sv.vectors.shape)
-#         self.assertEqual(np.float32, se.sv.vectors.dtype)
-#         self.assertTrue((np.ones((20, DIM)) == se.sv.vectors[:20]).all())
-#         self.assertTrue((np.zeros((10, DIM)) == se.sv.vectors[20:]).all())
-#         self.assertTrue(se.sv.vectors_norm is None)
+class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
 
-#     def test_update_vectors_memmap(self):
-#         p = Path("fse/test/test_data/test_vectors")
-#         p_target = Path("fse/test/test_data/test_vectors.vectors")
-#         se = BaseSentence2VecModel(W2V, mapfile_path=str(p.absolute()))
-#         trainables = BaseSentence2VecPreparer()
-#         trainables.reset_vectors(se.sv, 20)
-#         se.sv.vectors[:] = 1.
-#         trainables.update_vectors(se.sv, 10)
-#         self.assertTrue(p_target.exists())
-#         self.assertEqual((30,DIM), se.sv.vectors.shape)
-#         self.assertEqual(np.float32, se.sv.vectors.dtype)
-#         self.assertTrue((np.ones((20, DIM)) == se.sv.vectors[:20]).all())
-#         self.assertTrue((np.zeros((10, DIM)) == se.sv.vectors[20:]).all())
-#         self.assertTrue(se.sv.vectors_norm is None)
-#         p_target.unlink()
+    def test_reset_vectors(self):
+        se = BaseSentence2VecModel(W2V)
+        trainables = BaseSentence2VecPreparer()
+        trainables.reset_vectors(se.sv, 20)
+        self.assertEqual((20,DIM), se.sv.vectors.shape)
+        self.assertEqual(np.float32, se.sv.vectors.dtype)
+        self.assertTrue((np.zeros((20, DIM)) == se.sv.vectors).all())
+        self.assertTrue(se.sv.vectors_norm is None)
 
-#     def test_prepare_vectors(self):
-#         se = BaseSentence2VecModel(W2V)
-#         trainables = BaseSentence2VecPreparer()
-#         trainables.prepare_vectors(se.sv, 20, update=False)
-#         self.assertEqual((20,DIM), se.sv.vectors.shape)
-#         trainables.prepare_vectors(se.sv, 40, update=True)
-#         self.assertEqual((60,DIM), se.sv.vectors.shape)
+    def test_reset_vectors_memmap(self):
+        p = Path("fse/test/test_data/test_vectors")
+        p_target = Path("fse/test/test_data/test_vectors.vectors")
+        se = BaseSentence2VecModel(W2V, mapfile_path=str(p.absolute()))
+        trainables = BaseSentence2VecPreparer()
+        trainables.reset_vectors(se.sv, 20)
+        self.assertTrue(p_target.exists())
+        self.assertEqual((20,DIM), se.sv.vectors.shape)
+        self.assertEqual(np.float32, se.sv.vectors.dtype)
+        self.assertTrue((np.zeros((20, DIM)) == se.sv.vectors).all())
+        self.assertTrue(se.sv.vectors_norm is None)
+        p_target.unlink()
+
+    def test_update_vectors(self):
+        se = BaseSentence2VecModel(W2V)
+        trainables = BaseSentence2VecPreparer()
+        trainables.reset_vectors(se.sv, 20)
+        se.sv.vectors[:] = 1.
+        trainables.update_vectors(se.sv, 10)
+        self.assertEqual((30,DIM), se.sv.vectors.shape)
+        self.assertEqual(np.float32, se.sv.vectors.dtype)
+        self.assertTrue((np.ones((20, DIM)) == se.sv.vectors[:20]).all())
+        self.assertTrue((np.zeros((10, DIM)) == se.sv.vectors[20:]).all())
+        self.assertTrue(se.sv.vectors_norm is None)
+
+    def test_update_vectors_memmap(self):
+        p = Path("fse/test/test_data/test_vectors")
+        p_target = Path("fse/test/test_data/test_vectors.vectors")
+        se = BaseSentence2VecModel(W2V, mapfile_path=str(p.absolute()))
+        trainables = BaseSentence2VecPreparer()
+        trainables.reset_vectors(se.sv, 20)
+        se.sv.vectors[:] = 1.
+        trainables.update_vectors(se.sv, 10)
+        self.assertTrue(p_target.exists())
+        self.assertEqual((30,DIM), se.sv.vectors.shape)
+        self.assertEqual(np.float32, se.sv.vectors.dtype)
+        self.assertTrue((np.ones((20, DIM)) == se.sv.vectors[:20]).all())
+        self.assertTrue((np.zeros((10, DIM)) == se.sv.vectors[20:]).all())
+        self.assertTrue(se.sv.vectors_norm is None)
+        p_target.unlink()
+
+    def test_prepare_vectors(self):
+        se = BaseSentence2VecModel(W2V)
+        trainables = BaseSentence2VecPreparer()
+        trainables.prepare_vectors(se.sv, 20, update=False)
+        self.assertEqual((20,DIM), se.sv.vectors.shape)
+        trainables.prepare_vectors(se.sv, 40, update=True)
+        self.assertEqual((60,DIM), se.sv.vectors.shape)
 
 if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)

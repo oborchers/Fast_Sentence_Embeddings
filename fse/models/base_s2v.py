@@ -18,11 +18,20 @@ from wordfreq import available_languages, get_frequency_dict
 from typing import List, Dict
 from types import GeneratorType
 
-from time import time
+from collections import defaultdict
+
+from time import time, sleep
 from psutil import virtual_memory
 
 import logging
 import warnings
+
+import threading
+
+try:
+    from queue import Queue
+except ImportError:
+    from Queue import Queue
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +54,7 @@ class BaseSentence2VecModel(SaveLoad):
         Average sentence Model.
     """
 
-    def __init__(self, model:BaseKeyedVectors, mapfile_path:str=None, workers:int=2, lang_freq:str=None, fast_version:int=0, wv_from_disk:bool=False, **kwargs):
+    def __init__(self, model:BaseKeyedVectors, mapfile_path:str=None, workers:int=1, lang_freq:str=None, fast_version:int=0, wv_from_disk:bool=False, batch_words:int=100000, **kwargs):
         """
         Parameters
         ----------
@@ -115,6 +124,7 @@ class BaseSentence2VecModel(SaveLoad):
         # [X] What happens, if the Indices in IndexedSentence are larger than the matrix?
         
         self.workers = int(workers)
+        self.batch_words = batch_words
         self.wv = None                              # TODO: Check if to ignore wv file when saving
                                                     # TODO: Check what happens to the induced frequency if you ignore wv during saving
         self.subword_information = False            # TODO: Implement Fasttext support
@@ -331,7 +341,7 @@ class BaseSentence2VecModel(SaveLoad):
 
             if time() - current_time > progress_per:
                 current_time = time()
-                logger.info(f"PROGRESS: finished {total_sentences} sentences with {total_words} words")
+                logger.info(f"SCANNING : finished {total_sentences} sentences with {total_words} words")
 
             max_index = max(max_index, index)
             total_sentences += 1
@@ -390,7 +400,7 @@ class BaseSentence2VecModel(SaveLoad):
             warnings.warn("The embeddings will likely not fit into RAM. Consider to use mapfile_path")
         return report
 
-    def train(self, sentences:List[IndexedSentence]=None, update:bool=False, report_delay:int=5) -> [int,int]:
+    def train(self, sentences:List[IndexedSentence]=None, update:bool=False, queue_factor:int=2, report_delay:int=5) -> [int,int]:
 
         start_time = time()
 
@@ -404,19 +414,12 @@ class BaseSentence2VecModel(SaveLoad):
         # Preform post-tain calls (i.e weight computation)
         self._pre_train_calls()
 
-
-        eff_sentences, eff_words = self._do_train_job(sentences)
-
-        # Continue here with multi core implementation
-
-        # trained_word_count_epoch, raw_word_count_epoch, job_tally_epoch = self._train_epoch(
-        #             data_iterable, cur_epoch=cur_epoch, total_examples=total_examples,
-        #             total_words=total_words, queue_factor=queue_factor, report_delay=report_delay)
+        _, eff_sentences, eff_words = self._train_manager(data_iterable=sentences, total_sentences=total_sentences, queue_factor=queue_factor, report_delay=report_delay)
 
         # Preform post-tain calls (i.e principal component removal)
         self._post_train_calls()
 
-        self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
+        #self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
 
         overall_time = time() - start_time
         self._log_train_end(eff_sentences=eff_sentences, eff_words=eff_words, overall_time=overall_time)
@@ -432,6 +435,97 @@ class BaseSentence2VecModel(SaveLoad):
     def __str__(self):
         raise NotImplementedError()
 
+    def _train_manager(self, data_iterable:List[IndexedSentence], total_sentences:int=None, queue_factor:int=2, report_delay:int=5):
+        job_queue = Queue(maxsize=queue_factor * self.workers)
+        progress_queue = Queue(maxsize=(queue_factor + 1) * self.workers)
+
+        # WORKING Threads
+        workers = [
+            threading.Thread(
+                target=self._worker_loop,
+                args=(job_queue, progress_queue))
+            for _ in range(self.workers)
+        ]
+        # JOB PRODUCER
+        workers.append(
+            threading.Thread(
+            target=self._job_producer,
+            args=(data_iterable, job_queue))
+        )
+
+        for thread in workers:
+            thread.daemon = True  # make interrupting the process with ctrl+c easier
+            thread.start()
+
+        jobs, eff_sentences, eff_words = self._log_train_progress(
+            progress_queue, total_sentences=total_sentences,
+            report_delay=report_delay
+        )
+        return jobs, eff_sentences, eff_words
+
+    def _worker_loop(self, job_queue, progress_queue):
+        jobs_processed = 0
+        while True:
+            job = job_queue.get()
+            if job is None:
+                progress_queue.put(None)
+                # no more jobs => quit this worker
+                break  
+            eff_sentences, eff_words = self._do_train_job(job)
+            progress_queue.put((len(job), eff_sentences, eff_words))
+            jobs_processed += 1
+        logger.debug(f"worker exiting, processed {jobs_processed} jobs")
+    
+    def _job_producer(self, data_iterable:List[IndexedSentence], job_queue:Queue):
+        job_batch, batch_size = [], 0
+        job_no = 0
+
+        for data_idx, data in enumerate(data_iterable):
+            data_length = len(data.words)
+            if batch_size + data_length <= self.batch_words:
+                job_batch.append(data)
+                batch_size += data_length
+            else:
+                job_no += 1
+                job_queue.put(job_batch)
+                job_batch, batch_size = [data], data_length
+        
+        if job_batch:
+            job_no += 1
+            job_queue.put(job_batch)
+
+        for _ in range(self.workers):
+            job_queue.put(None)
+        logger.debug(f"job loop exiting, total {job_no} jobs")
+    
+    def _log_train_progress(self, progress_queue:Queue, total_sentences:int=None, report_delay:int=5):
+        jobs, eff_sentences, eff_words = 0, 0, 0
+        unfinished_worker_count = self.workers
+        start_time = time()
+        sentence_inc = 0
+        while unfinished_worker_count > 0:
+            report = progress_queue.get()
+
+            if report is None:  # a thread reporting that it finished
+                unfinished_worker_count -= 1
+                logger.info(f"worker thread finished; awaiting finish of {unfinished_worker_count} more threads")
+                continue
+            j, s, w = report
+
+            jobs += j
+            eff_sentences += s
+            eff_words += w
+            if time() - start_time >= report_delay:
+                start_time = time()
+
+                logger.info("PROGRESS : finished {:3.2f}% with {} sentences and {} words, {} sentences/s".format(
+                    100 * (eff_sentences/total_sentences),
+                    eff_sentences, eff_words,
+                    int((eff_sentences-sentence_inc) /report_delay)
+                ))
+                sentence_inc = eff_sentences
+        
+        return jobs, eff_sentences, eff_words
 
 class BaseSentence2VecPreparer(SaveLoad):
     """ Contains helper functions to perpare the weights for the training of BaseSentence2VecModel """

@@ -54,13 +54,31 @@ class TestAverageFunctions(unittest.TestCase):
     def test_train(self):
         self.assertEqual((100,1450), self.model.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)]))
     
-    def test_train_from_disk(self):
+    def test_train_single_from_disk(self):
         p = Path("fse/test/test_data/test_vecs")
         p_res = Path("fse/test/test_data/test_vecs.vectors")
         p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
 
         se1 = Average(W2V)
         se2 = Average(W2V, mapfile_path=str(p.absolute()), wv_from_disk=True)
+        se1.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
+        se2.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
+
+        self.assertTrue(p_target.exists())
+        self.assertTrue((se1.wv.vectors == se2.wv.vectors).all())
+        self.assertFalse(se2.wv.vectors.flags.writeable)
+
+        self.assertTrue((se1.sv.vectors == se2.sv.vectors).all())
+        p_res.unlink()
+        p_target.unlink()
+
+    def test_train_multi_from_disk(self):
+        p = Path("fse/test/test_data/test_vecs")
+        p_res = Path("fse/test/test_data/test_vecs.vectors")
+        p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
+
+        se1 = Average(W2V, workers=2)
+        se2 = Average(W2V, workers=2, mapfile_path=str(p.absolute()), wv_from_disk=True)
         se1.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
         se2.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
 
