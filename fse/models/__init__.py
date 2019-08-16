@@ -1,1 +1,1 @@
-from .sentence2vec import Sentence2Vec
+#from .sentence2vec import Sentence2Vec

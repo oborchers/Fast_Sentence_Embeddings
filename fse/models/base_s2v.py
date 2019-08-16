@@ -11,14 +11,15 @@ from gensim.models.base_any2vec import BaseWordEmbeddingsModel
 from gensim.models.keyedvectors import BaseKeyedVectors, FastTextKeyedVectors
 from gensim.utils import SaveLoad
 
-from numpy import ndarray
+from numpy import ndarray, memmap as np_memmap, float32 as REAL, empty, zeros, vstack, dtype
 
 from wordfreq import available_languages, get_frequency_dict
 
-from typing import List
+from typing import List, Dict
 from types import GeneratorType
 
 from time import time
+from psutil import virtual_memory
 
 import logging
 import warnings
@@ -44,7 +45,7 @@ class BaseSentence2VecModel(SaveLoad):
         Average sentence Model.
     """
 
-    def __init__(self, model:BaseKeyedVectors, mapfile_path:str=None, workers:int=2, min_count:int=0, lang_freq:str=None, fast_version:int=0, **kwargs):
+    def __init__(self, model:BaseKeyedVectors, mapfile_path:str=None, workers:int=2, lang_freq:str=None, fast_version:int=0, **kwargs):
         """
         Parameters
         ----------
@@ -55,8 +56,6 @@ class BaseSentence2VecModel(SaveLoad):
             Optional path to store the vectors in for very large datasets
         workers : int, optional
             Number of working threads, used for multithreading.
-        min_count : int, optional
-            Ignores all words with total frequency lower than this.
         language : str, optional
             Some pre-trained embeddings, i.e. "GoogleNews-vectors-negative300.bin", do not contain information about
             the frequency of a word. As the frequency is required for estimating the word weights, we induce
@@ -68,32 +67,49 @@ class BaseSentence2VecModel(SaveLoad):
         **kwargs : object
             Key word arguments needed to allow children classes to accept more arguments.
         """
-        # [X] Indexed Sentence Class (Index, Sentence)
-        # [ ] Document Boundary (DocId, Up, Low)
+
+        # [ ] Implement Average Emebddings (Prototype)
+        # [ ] :class: BaseSentence2VecModel
+            # [ ] Check all dtypes before training
+            # [ ] Check inf/nan
+            # [ ] memmap for word vectors
+
+        # [ ] Multi Core Implementation (Splitted Sentence Queue?)
+            # [ ] Does asynchronous execution comply with lists? --> Accept only indexed sentences
+            # [ ] How to deal with indexed sentences?
+            # [ ] Automate CPU Selection with psutil
+            # [ ] Count the effective words
+        # [ ] Implement SIF Emebddings
+            # [ ] If principal compnents exist, use them for the next train phase --> train + infer
+            # [ ] pre_train_calls & post_train_calls
+
+        # [ ] Implement uSIF Emebddings
+            # [ ] Where to pass average sentence length?
+        # [ ] Implement Fasttext Support
+            # [ ] Estimate Memory does note account for fasttext ngram vectors
+        
+        # [ ] :class: SentenceVectors
+            # [ ] Similarity for unseen documents --> Model.infer vector
+            # [ ] For outputs, provide an indexable function to map indices to sentences
+            # [ ] Does sv.vectors & wv.vectors collide during saving without mapfile path?
+            # [ ] Decide which attributes to ignore when saving
+        
+        # [ ] :class: inputs
+            # [ ] Tests for IndexedSentence
+            # [ ] rewrite TaggedLineDocument
+            # [ ] Document Boundary (DocId, Up, Low)
+
         # [X] Only int indices for sentences
         # [X] Aceppt lists as input
-        # [ ] Implement Average Emebddings
-        # [ ] Implement SIF Emebddings
-        # [ ] Implement uSIF Emebddings
-        # [ ] Write base Sentence Embedding Class
-        # [ ] Multi Core Implementation (Splitted Sentence Queue?)
-        # [ ] If principal compnents exist, use them for the next train phase --> train + infer
-        # [ ] Make a warning when sentences are not passed as [[str, str]] --> validate input
-        # [ ] How to best determine length?
-        # [ ] Similarity for unseen documents --> Model.infer vector
-        # [ ] For outputs, provide an indexable function to map indices to sentences
-        # [ ] Check that input is list of list
-        # [ ] Initialization with zeros, but on first scan of sentences
-        # [ ] Fasttext compatibility for the inner loops
-        # [ ] Does sv.vectors & wv.vectors collide during saving without mapfile path?
-        # [ ] Decide which attributes to ignore when saving
+        # [X] Write base Sentence Embedding Class
+        # [X] Indexed Sentence Class (Index, Sentence)
+        # [X] Make a warning when sentences are not passed as [[str, str]] --> validate input
+        # [X] How to best determine length?
+        # [X] Initialization with zeros, but on first scan of sentences
         # [X] Unittest for inputs_check
-        # [ ] Tests for IndexedSentence
-        # [ ] rewrite TaggedLineDocument
-        # [ ] What happens, if the Indices in IndexedSentence are larger than the matrix?
+        # [X] What happens, if the Indices in IndexedSentence are larger than the matrix?
         
         self.workers = int(workers)
-        self.min_count = int(min_count)
         self.wv = None                              # TODO: Check if to ignore wv file when saving
                                                     # TODO: Check what happens to the induced frequency if you ignore wv during saving
         self.subword_information = False            # TODO: Implement Fasttext support
@@ -111,6 +127,7 @@ class BaseSentence2VecModel(SaveLoad):
             self._induce_frequencies()
 
         self.sv = SentenceVectors(vector_size=self.wv.vector_size, mapfile_path=mapfile_path)
+        self.prep = BaseSentence2VecPreparer()
 
     def _check_and_include_model(self, model:BaseKeyedVectors):
         """Check if the supplied model is a compatible model. """
@@ -191,7 +208,7 @@ class BaseSentence2VecModel(SaveLoad):
         # kwargs['ignore'] = kwargs.get('ignore', ['vectors_norm', 'cum_table'])
         super(BaseSentence2VecModel, self).save(*args, **kwargs)
 
-    def scan_sentences(self, sentences:[List[List[str]], List[IndexedSentence]]=None, progress_per:int=10) -> [int, int, int, int]:
+    def scan_sentences(self, sentences:[List[List[str]], List[IndexedSentence]]=None, progress_per:int=5) -> [int, int, int, int]:
         logger.info("scanning all sentences and their word counts")
 
         current_time = time()
@@ -238,18 +255,82 @@ class BaseSentence2VecModel(SaveLoad):
             f"finished scanning {total_sentences} sentences with an average length of {average_length} and {total_words} total words"
         )
         return total_sentences, total_words, average_length, empty_sentences
+    
+    def estimate_memory(self, total_sentences:int, report:dict=None) -> Dict[str, int]:
+        """Estimate the size of the sentence embedding
 
-    def train(self, sentences:[List[List[str]], List[IndexedSentence]]=None):
+        Parameters
+        ----------
+        wv : :class:`~gensim.models.keyedvectors.BaseKeyedVectors`
+            Contains all necessary information to compute size requirements
+        total_sentences : int
+            Number of sentences to be computed
+
+        Returns
+        -------
+        dict
+            Dictionary of esitmated sizes
+
+        """
+        if isinstance(self.wv, FastTextKeyedVectors):
+            # TODO: Remove after implementation
+            raise NotImplementedError()
+
+        vocab_size = len(self.wv.vectors)
+
+        report = report or {}
+        report["Word Weights"] = vocab_size * dtype(REAL).itemsize
+        report["Word Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
+        report["Sentence Vectors"] = total_sentences * self.wv.vector_size * dtype(REAL).itemsize
+        report["Total"] = sum(report.values())
+        mb_size = int(report["Total"] / 1024**2)
+        logger.info(
+            f"estimated memory for {total_sentences} sentences with "
+            f"{self.wv.vector_size} dimensions and {vocab_size} vocabulary: "
+            f"{mb_size} MB ({int(mb_size / 1024)} GB)"
+        )
+        if report["Total"] >= 0.95 * virtual_memory()[1]:
+            warnings.warn("The embeddings will likely not fit into RAM. Consider to use mapfile_path")
+        return report
+
+
+    def train(self, sentences:[List[List[str]], List[IndexedSentence]]=None, update:bool=False, report_delay:int=5) -> [int,int]:
+
         self._check_input_data_sanity(sentences)
-        raise NotImplementedError()
+        total_sentences, total_words, average_length, empty_sentences = self.scan_sentences(sentences)
+        self.estimate_memory(total_sentences)
+        self.prep.prepare_vectors(sv=self.sv, total_sentences=total_sentences, update=update)
+        #self._check_training_sanity()
+
+        #self._pre_train_calls()
+
+        #start_time = time()
+
+        eff_sentences, eff_words = self._do_train_job(sentences)
+
+        # Continue here with multi core implementation
+
+        # trained_word_count_epoch, raw_word_count_epoch, job_tally_epoch = self._train_epoch(
+        #             data_iterable, cur_epoch=cur_epoch, total_examples=total_examples,
+        #             total_words=total_words, queue_factor=queue_factor, report_delay=report_delay)
+
+        #self._post_train_calls()
+
+        return total_sentences, total_words
 
     def infer(self, sentences:[List[List[str]], List[IndexedSentence]]=None) -> ndarray:
         raise NotImplementedError()
 
-    def _do_train_job(self):
+    def _pre_train_calls(self):
+        raise NotImplementedError()
+
+    def _post_train_calls(self):
         raise NotImplementedError()
 
     def _check_training_sanity(self):
+        raise NotImplementedError()
+
+    def _check_parameter_sanity(self):
         raise NotImplementedError()
 
     def _log_progress(self):
@@ -258,11 +339,59 @@ class BaseSentence2VecModel(SaveLoad):
     def _log_train_end(self):
         raise NotImplementedError()
     
-
     def __str__(self):
         raise NotImplementedError()
 
-    
+    def _do_train_job(self, data_iterable) -> [int, int]:
+        # TODO: Original implementation contains job_parameters and thread_paramters
+        # return effective sentence count, effective word count
+        raise NotImplementedError()
 
-    def estimate_memory(self, vocab_size=None, report=None):
-        pass 
+    def _check_dtypes(self):
+        raise NotImplementedError()
+
+
+class BaseSentence2VecPreparer(SaveLoad):
+    """ Contains helper functions to perpare the weights for the training of BaseSentence2VecModel """
+
+    def prepare_vectors(self, sv:SentenceVectors, total_sentences:int, update:bool=False):
+        """Build tables and model weights based on final vocabulary settings."""
+        if not update:
+            self.reset_vectors(sv, total_sentences)
+        else:
+            self.update_vectors(sv, total_sentences)
+
+    def reset_vectors(self, sv:SentenceVectors, total_sentences:int):
+        """Initialize all sentence vectors to zero and overwrite existing files"""
+        logger.info(f"initializing sentence vectors for {total_sentences} sentences")
+        if sv.mapfile_path:
+            sv.vectors = np_memmap(
+                sv.mapfile_path + '.vectors', dtype=REAL,
+                mode='w+', shape=(total_sentences, sv.vector_size))
+        else:
+            sv.vectors = empty((total_sentences, sv.vector_size), dtype=REAL)
+        
+        for i in range(total_sentences):
+            sv.vectors[i] = zeros(sv.vector_size, dtype=REAL)
+        sv.vectors_norm = None
+
+    def update_vectors(self, sv:SentenceVectors, total_sentences:int):
+        """Given existing sentence vectors, append new ones"""
+        logger.info(f"appending sentence vectors for {total_sentences} sentences")
+        sentences_before = len(sv.vectors)
+        sentences_after = len(sv.vectors) + total_sentences
+
+        if sv.mapfile_path:
+            sv.vectors = np_memmap(
+                sv.mapfile_path + '.vectors', dtype=REAL,
+                mode='r+', shape=(sentences_after, sv.vector_size))
+        else:
+            newvectors = empty((total_sentences, sv.vector_size), dtype=REAL)
+            for i in range(total_sentences):
+                newvectors[i] = zeros(sv.vector_size, dtype=REAL)
+            sv.vectors = vstack([sv.vectors, newvectors])
+        sv.vectors_norm = None
+
+        
+        
+

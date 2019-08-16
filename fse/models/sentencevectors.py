@@ -11,7 +11,7 @@ import logging
 
 from numpy import dot, float32 as REAL, memmap as np_memmap, \
     double, array, zeros, vstack, sqrt, newaxis, integer, \
-    ndarray, sum as np_sum, prod, argmax, ndarray
+    ndarray, sum as np_sum, prod, argmax
 
 from gensim import utils, matutils
 from gensim.models.keyedvectors import _l2_norm
