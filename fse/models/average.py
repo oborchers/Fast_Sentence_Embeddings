@@ -46,11 +46,11 @@ def average_train_np(model:BaseSentence2VecModel, sentences:List[IndexedSentence
 
 class Average(BaseSentence2VecModel):
 
-    def __init__(self, model:BaseKeyedVectors, mapfile_path:str=None, workers:int=2, lang_freq:str=None):
+    def __init__(self, model:BaseKeyedVectors, mapfile_path:str=None, workers:int=2, lang_freq:str=None, fast_version:int=0, wv_from_disk:bool=False):
 
         super(Average, self).__init__(
             model=model, mapfile_path=mapfile_path, workers=workers, 
-            lang_freq=lang_freq, fast_version=FAST_VERSION)
+            lang_freq=lang_freq, wv_from_disk=wv_from_disk, fast_version=FAST_VERSION)
 
     def _do_train_job(self, sentences:List[IndexedSentence]) -> [int,int]:
         summary = average_train_np(self, sentences)

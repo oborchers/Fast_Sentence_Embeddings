@@ -45,7 +45,7 @@ class BaseSentence2VecModel(SaveLoad):
         Average sentence Model.
     """
 
-    def __init__(self, model:BaseKeyedVectors, mapfile_path:str=None, workers:int=2, lang_freq:str=None, fast_version:int=0, **kwargs):
+    def __init__(self, model:BaseKeyedVectors, mapfile_path:str=None, workers:int=2, lang_freq:str=None, fast_version:int=0, wv_from_disk:bool=False, **kwargs):
         """
         Parameters
         ----------
@@ -68,11 +68,11 @@ class BaseSentence2VecModel(SaveLoad):
             Key word arguments needed to allow children classes to accept more arguments.
         """
 
-        # [ ] Implement Average Emebddings (Prototype)
+        # [X] Implement Average Emebddings (Prototype)
         # [ ] :class: BaseSentence2VecModel
-            # [ ] Check all dtypes before training
-            # [ ] Check inf/nan
-            # [ ] memmap for word vectors
+            # [X] Check all dtypes before training
+            # [X] Check inf/nan
+            # [X] memmap for word vectors
 
         # [ ] Multi Core Implementation (Splitted Sentence Queue?)
             # [ ] Does asynchronous execution comply with lists? --> Accept only indexed sentences
@@ -97,9 +97,12 @@ class BaseSentence2VecModel(SaveLoad):
             # [ ] Decide which attributes to ignore when saving
         
         # [ ] :class: inputs
+            # [ ] Move to fse.inputs 
             # [X] Tests for IndexedSentence
             # [ ] rewrite TaggedLineDocument
             # [ ] Document Boundary (DocId, Up, Low)
+
+        # [ ] Support for corpusfile
 
         # [X] Only int indices for sentences
         # [X] Aceppt lists as input
@@ -123,6 +126,8 @@ class BaseSentence2VecModel(SaveLoad):
             )
 
         self._check_and_include_model(model)
+        if bool(wv_from_disk):
+            self.wv.vectors = self._move_wv_to_disk(self.wv.vectors, mapfile_path=mapfile_path)
 
         if lang_freq is not None:
             self._check_language_settings(lang_freq)
@@ -139,6 +144,7 @@ class BaseSentence2VecModel(SaveLoad):
             self.wv = model
         else:
             raise RuntimeError(f"Model must be child of BaseWordEmbeddingsModel or BaseKeyedVectors. Received {str(model)}")
+        self.wv.vectors_norm = None
         
         if isinstance(self.wv, FastTextKeyedVectors):
             # TODO: Remove after implementation
@@ -227,8 +233,26 @@ class BaseSentence2VecModel(SaveLoad):
             raise ValueError(
                 f"training returned invalid values. Check the input."
             )
+    
+    def _move_wv_to_disk(self, vectors:ndarray, mapfile_path:str=None) -> ndarray:
+        """Moves the wv.vectors to memory"""
+        if mapfile_path is None:
+            raise RuntimeError(f"Must provide mapfile_path.")
 
-    def _do_train_job(self, data_iterable) -> [int, int]:
+        shape = vectors.shape
+
+        memvecs = np_memmap(
+            mapfile_path + '_wv.vectors', dtype=REAL,
+            mode='w+', shape=shape)
+        memvecs[:] = vectors[:]
+        del memvecs, vectors
+
+        readonly_memvecs = np_memmap(
+            mapfile_path + '_wv.vectors', dtype=REAL,
+            mode='r', shape=shape)
+        return readonly_memvecs
+
+    def _do_train_job(self, data_iterable:List[IndexedSentence]) -> [int, int]:
         """ Function to be called on a batch of sentences. Returns eff sentences/words"""
         raise NotImplementedError()
 
