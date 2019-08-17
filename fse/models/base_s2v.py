@@ -84,6 +84,7 @@ class BaseSentence2VecModel(SaveLoad):
                 # [ ] do i need our_saxpy_ptr?
                 # [ ] Does batch_words & MAX_SENTENCE_LEN collide upon change?
                 # [ ] MAX_WORDS_IN_BATCH -> batch_words is defined by import
+                # [ ] Add init to check for float/double
 
         # [ ] :class: BaseSentence2VecModel
             # [X] Check all dtypes before training
@@ -434,6 +435,8 @@ class BaseSentence2VecModel(SaveLoad):
         self._check_dtype_santiy()
 
         start_time = time()
+
+        logger.info(f"begin training!")
 
         _, eff_sentences, eff_words = self._train_manager(data_iterable=sentences, total_sentences=total_sentences, queue_factor=queue_factor, report_delay=report_delay)
 
