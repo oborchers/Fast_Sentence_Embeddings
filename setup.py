@@ -83,7 +83,7 @@ cmdclass = {'build_ext': custom_build_ext}
 
 setup(
     name='fse',
-    version='0.0.5',
+    version='0.0.6',
     description='Fast Sentence Embeddings for Gensim',
 
     author=u'Oliver Borchers',
@@ -94,8 +94,8 @@ setup(
     license='GPL-3.0',
 
     ext_modules=[
-        Extension('fse.models.sentence2vec_inner',
-                sources=['./fse/models/sentence2vec_inner.c'],
+        Extension('fse.models.average_inner',
+                sources=['./fse/models/average_inner.c'],
                 include_dirs=[mod_dir]),
         ],
         

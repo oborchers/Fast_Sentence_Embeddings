@@ -78,7 +78,13 @@ class BaseSentence2VecModel(SaveLoad):
             Key word arguments needed to allow children classes to accept more arguments.
         """
 
-        # [X] Implement Average Emebddings (Prototype)
+        # [ ] Implement Average Emebddings (Prototype)
+            # [X] Implement Numpy Reference for Word2Vec
+            # [ ] Implement Cython version
+                # [ ] do i need our_saxpy_ptr?
+                # [ ] Does batch_words & MAX_SENTENCE_LEN collide upon change?
+                # [ ] MAX_WORDS_IN_BATCH -> batch_words is defined by import
+
         # [ ] :class: BaseSentence2VecModel
             # [X] Check all dtypes before training
             # [X] Check inf/nan
@@ -210,7 +216,7 @@ class BaseSentence2VecModel(SaveLoad):
         """
         logger.info(
             f"training on {eff_sentences} effective sentences with {eff_words} effective words "
-            f"took {int(overall_time)}s with {eff_sentences / overall_time:.1f} sentences/s"
+            f"took {int(overall_time)}s with {int(eff_sentences / overall_time)} sentences/s"
         )
 
     def _check_pre_training_sanity(self, total_sentences:int, total_words:int, average_length:int):
@@ -338,22 +344,19 @@ class BaseSentence2VecModel(SaveLoad):
         total_words = 0
         average_length = 0
         empty_sentences = 0
-        checked_types = 0            # Checks only once
         max_index = 0
 
-        for obj in sentences:
+        for i, obj in enumerate(sentences):
             if isinstance(obj, IndexedSentence):
                 index = obj.index
                 sent = obj.words
             else:
                 raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain IndexedSentence.")
 
-            if not checked_types:
-                if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
-                    raise TypeError(f"Passed {type(sent)}: {sent}. IndexedSentence.words must contain list of str.")
-                if not isinstance(index, int):
-                    raise TypeError(f"Passed {type(index)}: {index}. IndexedSentence.index must contain index")
-                checked_types += 1
+            if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
+                raise TypeError(f"At {i}: Passed {type(sent)}: {sent}. IndexedSentence.words must contain list of str.")
+            if not isinstance(index, int):
+                raise TypeError(f"At {i}: Passed {type(index)}: {index}. IndexedSentence.index must contain index")
 
             if time() - current_time > progress_per:
                 current_time = time()
@@ -436,10 +439,10 @@ class BaseSentence2VecModel(SaveLoad):
 
         overall_time = time() - start_time
 
+        self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
+
         # Preform post-tain calls (i.e principal component removal)
         self._post_train_calls()
-
-        self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
 
         self._log_train_end(eff_sentences=eff_sentences, eff_words=eff_words, overall_time=overall_time)
 
