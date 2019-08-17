@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from fse.models.average import Average
-from fse.models.average import average_train_np
+from fse.models.average import train_average_np
 from fse.models.inputs import IndexedSentence
 
 from gensim.models import Word2Vec
@@ -41,7 +41,7 @@ class TestAverageFunctions(unittest.TestCase):
         self.model._pre_train_calls()
 
     def test_average_train_np(self):
-        output = average_train_np(self.model, self.sentences)
+        output = train_average_np(self.model, self.sentences)
         self.assertEqual((2, 6), output)
         self.assertTrue((183 == self.model.sv[0]).all())
         self.assertTrue((164.5 == self.model.sv[1]).all())
@@ -78,7 +78,7 @@ class TestAverageFunctions(unittest.TestCase):
         p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
 
         se1 = Average(W2V, workers=2)
-        se2 = Average(W2V, workers=2, mapfile_path=str(p.absolute()), wv_from_disk=True)
+        se2 = Average(W2V, workers=2,mapfile_path=str(p.absolute()), wv_from_disk=True)
         se1.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
         se2.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
 
@@ -89,6 +89,12 @@ class TestAverageFunctions(unittest.TestCase):
         self.assertTrue((se1.sv.vectors == se2.sv.vectors).all())
         p_res.unlink()
         p_target.unlink()
+
+    def test_check_parameter_sanity(self):
+        se = Average(W2V)
+        se.word_weights = np.full(20, 2., dtype=np.float32)
+        with self.assertRaises(ValueError):
+            se._check_parameter_sanity()
 
 if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)

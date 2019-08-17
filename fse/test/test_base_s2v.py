@@ -162,10 +162,16 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             se._check_dtype_santiy()  
 
-    def test_pre_training_sanity(self):
+    def test_zpre_training_sanity(self):
         w2v = Word2Vec()
         w2v.build_vocab(SENTENCES)
+        for w in w2v.wv.vocab.keys():
+            w2v.wv.vocab[w].count = 1
+
         se = BaseSentence2VecModel(w2v)
+
+        # Just throws multiple warnings warning
+        se._check_pre_training_sanity(1,1,1)
         
         with self.assertRaises(ValueError):
             se._check_pre_training_sanity(0,1,1)
@@ -174,13 +180,22 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         with self.assertRaises(ValueError):
             se._check_pre_training_sanity(1,1,0)
         
+        se.word_weights = np.ones(20, dtype=bool)
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
         se.sv.vectors = np.zeros((20,20), dtype=int)
         with self.assertRaises(RuntimeError):
             se._check_pre_training_sanity(1,1,1)
         se.wv.vectors = np.zeros((20,20), dtype=np.float64)
         with self.assertRaises(RuntimeError):
             se._check_pre_training_sanity(1,1,1)
+        se.word_weights = np.ones(30, dtype=bool)
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
 
+        se.word_weights = None
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
         se.sv.vectors = None
         with self.assertRaises(RuntimeError):
             se._check_pre_training_sanity(1,1,1)
@@ -213,24 +228,24 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             se._check_post_training_sanity(1,1)
 
-    def test_move_wv_to_disk(self):
+    def test_move_vectors_to_disk(self):
         se = BaseSentence2VecModel(W2V)
         p = Path("fse/test/test_data/test_vecs")
         p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
         se.wv.vectors[0,1] = 10
         vecs = se.wv.vectors.copy()
-        output = se._move_wv_to_disk(se.wv.vectors, mapfile_path=str(p.absolute()))
+        output = se._move_vectors_to_disk(se.wv.vectors, mapfile_path=str(p.absolute()))
         self.assertTrue(p_target.exists())
         self.assertFalse(output.flags.writeable)
         self.assertTrue((vecs == output).all())
         p_target.unlink()
 
-    def test_move_wv_to_disk_wo_file(self):
+    def test_move_vectors_to_disk_wo_file(self):
         se = BaseSentence2VecModel(W2V)
         with self.assertRaises(RuntimeError):
-            output = se._move_wv_to_disk(se.wv.vectors)
+            output = se._move_vectors_to_disk(se.wv.vectors)
 
-    def test_move_wv_to_disk_from_init(self):
+    def test_move_vectors_to_disk_from_init(self):
         p = Path("fse/test/test_data/test_vecs")
         se = BaseSentence2VecModel(W2V, mapfile_path=str(p.absolute()), wv_from_disk=True)
         p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
