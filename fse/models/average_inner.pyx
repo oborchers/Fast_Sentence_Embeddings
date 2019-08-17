@@ -42,13 +42,6 @@ cdef void iprint(const int size, uINT_t *in_vec) nogil:
         printf("%d ", in_vec[d])
     printf("\n")
 
-# for when no blas available
-cdef void our_saxpy_noblas(const int *N, const float *alpha, const float *X, const int *incX, float *Y, const int *incY) nogil:
-    cdef int i
-    for i from 0 <= i < N[0] by 1:
-        Y[i * (incY[0])] = (alpha[0]) * X[i * (incX[0])] + Y[i * (incY[0])]
-
-
 cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model):
     c[0].workers = model.workers
     c[0].size = model.sv.vector_size
@@ -121,7 +114,7 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
             word_row = word_ind[i] * size
             word_idx = word_ind[i]
 
-            saxpy_f(&size, &word_weights[word_idx], &word_vectors[word_row], &ONE, &sent_vectors[sent_row], &ONE)
+            saxpy(&size, &word_weights[word_idx], &word_vectors[word_row], &ONE, &sent_vectors[sent_row], &ONE)
 
         if sent_len > ZEROF:
             inv_count = ONEF / sent_len
@@ -144,10 +137,6 @@ def train_average_cy(model, indexed_sentences):
     return eff_sentences, eff_words
 
 def init():
-    global saxpy_f
-
-    saxpy_f = saxpy
-
     return 1
 
 FAST_VERSION = init()

@@ -26,12 +26,6 @@ cdef sscal_ptr sscal
 
 DEF MAX_WORDS = 10000
 
-# TODO: Do I really need this?
-ctypedef void (*our_saxpy_ptr) (const int *N, const float *alpha, const float *X, const int *incX, float *Y, const int *incY) nogil
-cdef our_saxpy_ptr saxpy_f
-cdef void our_saxpy_noblas(const int *N, const float *alpha, const float *X, const int *incX, float *Y, const int *incY) nogil
-# ---
-
 cdef struct BaseSentenceVecsConfig:
     int size, workers
 

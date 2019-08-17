@@ -29,10 +29,7 @@ import warnings
 
 import threading
 
-try:
-    from queue import Queue
-except ImportError:
-    from Queue import Queue
+from queue import Queue
 
 logger = logging.getLogger(__name__)
 
@@ -80,13 +77,13 @@ class BaseSentence2VecModel(SaveLoad):
 
         # [ ] Implement Average Emebddings (Prototype)
             # [X] Implement Numpy Reference for Word2Vec
-            # [ ] Implement Cython version
+            # [X] Implement Cython version
                 # [ ] do i need our_saxpy_ptr?
-                # [ ] Does batch_words & MAX_SENTENCE_LEN collide upon change?
-                # [ ] MAX_WORDS_IN_BATCH -> batch_words is defined by import
+                # [X] Does batch_words & MAX_SENTENCE_LEN collide upon change?
+                # [X] MAX_WORDS_IN_BATCH -> batch_words is defined by import
                 # [ ] Add init to check for float/double
 
-        # [ ] :class: BaseSentence2VecModel
+        # [X] :class: BaseSentence2VecModel
             # [X] Check all dtypes before training
             # [X] Check inf/nan
             # [X] memmap for word vectors
