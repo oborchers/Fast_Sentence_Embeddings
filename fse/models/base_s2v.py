@@ -169,7 +169,7 @@ class BaseSentence2VecModel(SaveLoad):
         self.wv.vectors_norm = None
         
         if isinstance(self.wv, FastTextKeyedVectors):
-            self.wv.adjust_vectors()
+            # self.wv.adjust_vectors()
             self.wv.vectors_vocab_norm = None # Save some space
             self.wv.vectors_ngrams_norm = None
             self.wv.vectors_vocab = None

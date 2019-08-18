@@ -93,7 +93,7 @@ except ImportError:
 
 class Average(BaseSentence2VecModel):
 
-    def __init__(self, model:BaseKeyedVectors, mapfile_path:str=None, workers:int=2, lang_freq:str=None, wv_from_disk:bool=False):
+    def __init__(self, model:BaseKeyedVectors, mapfile_path:str=None, workers:int=1, lang_freq:str=None, wv_from_disk:bool=False):
 
         super(Average, self).__init__(
             model=model, mapfile_path=mapfile_path, workers=workers, 
