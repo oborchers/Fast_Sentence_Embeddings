@@ -21,7 +21,7 @@ from types import GeneratorType
 
 from collections import defaultdict
 
-from time import time, sleep
+from time import time
 from psutil import virtual_memory
 
 import logging
@@ -78,10 +78,11 @@ class BaseSentence2VecModel(SaveLoad):
         # [ ] Implement Average Emebddings (Prototype)
             # [X] Implement Numpy Reference for Word2Vec
             # [X] Implement Cython version
-                # [ ] do i need our_saxpy_ptr?
+                # [X] do i need our_saxpy_ptr?
                 # [X] Does batch_words & MAX_SENTENCE_LEN collide upon change?
                 # [X] MAX_WORDS_IN_BATCH -> batch_words is defined by import
-                # [ ] Add init to check for float/double
+                # [X] Add init to check for float/double -> No.
+                # [ ] Fasttext suuport
 
         # [X] :class: BaseSentence2VecModel
             # [X] Check all dtypes before training
@@ -91,8 +92,12 @@ class BaseSentence2VecModel(SaveLoad):
         # [X] Multi Core Implementation (Splitted Sentence Queue?)
             # [X] Does asynchronous execution comply with lists? --> Accept only indexed sentences
             # [X] How to deal with indexed sentences?
-            # [ ] Automate CPU Selection with psutil
             # [X] Count the effective words
+
+        # [ ] Implement Fasttext Support
+            # [ ] Estimate Memory does note account for fasttext ngram vectors
+            # [X] sanity: Check if ngram_vectors is available
+            # [X] sanity: Only accept FT compatible hash function fasttext implementaiton
 
         # [ ] Implement SIF Emebddings
             # [ ] If principal compnents exist, use them for the next train phase --> train + infer
@@ -100,9 +105,6 @@ class BaseSentence2VecModel(SaveLoad):
 
         # [ ] Implement uSIF Emebddings
             # [ ] Where to pass average sentence length?
-
-        # [ ] Implement Fasttext Support
-            # [ ] Estimate Memory does note account for fasttext ngram vectors
         
         # [ ] :class: SentenceVectors
             # [ ] Similarity for unseen documents --> Model.infer vector
@@ -132,7 +134,7 @@ class BaseSentence2VecModel(SaveLoad):
         self.batch_words = batch_words
         self.wv = None                              # TODO: Check if to ignore wv file when saving
                                                     # TODO: Check what happens to the induced frequency if you ignore wv during saving
-        self.subword_information = False            # TODO: Implement Fasttext support
+        self.is_ft = False                          # TODO: Implement Fasttext support
 
         if fast_version < 0:
             warnings.warn(
@@ -141,8 +143,11 @@ class BaseSentence2VecModel(SaveLoad):
             )
 
         self._check_and_include_model(model)
+
         if bool(wv_from_disk):
-            self.wv.vectors = self._move_vectors_to_disk(self.wv.vectors, mapfile_path=mapfile_path)
+            self.wv.vectors = self._move_vectors_to_disk(self.wv.vectors, mapfile_path=mapfile_path, name="wv")
+            if self.is_ft:
+                self.wv.vectors_ngrams = self._move_vectors_to_disk(self.wv.vectors_ngrams, mapfile_path=mapfile_path, name="ngrams")
 
         if lang_freq is not None:
             self._check_language_settings(lang_freq)
@@ -164,10 +169,20 @@ class BaseSentence2VecModel(SaveLoad):
         self.wv.vectors_norm = None
         
         if isinstance(self.wv, FastTextKeyedVectors):
-            # TODO: Remove after implementation
-            raise NotImplementedError()
+            self.wv.adjust_vectors()
+            self.wv.vectors_vocab_norm = None # Save some space
+            self.wv.vectors_ngrams_norm = None
+            self.wv.vectors_vocab = None
+            self.is_ft = True
 
-        if not hasattr(self.wv, 'vectors'):
+            if not self.wv.compatible_hash:
+                raise RuntimeError("FastText model requires compatible hash function")
+
+            if not hasattr(self.wv, 'vectors_ngrams') or self.wv.vectors_ngrams is None:
+                raise RuntimeError("Ngram vectors required for sentence embeddings not found.")
+            
+
+        if not hasattr(self.wv, 'vectors') or self.wv.vectors is None:
             raise RuntimeError("Word vectors required for sentence embeddings not found.")
         if not hasattr(self.wv, 'vocab'):
             raise RuntimeError("Vocab required for sentence embeddings not found.")
@@ -225,6 +240,9 @@ class BaseSentence2VecModel(SaveLoad):
         if not len(self.wv.vectors):
             raise RuntimeError("you must initialize vectors before computing sentence vectors")
 
+        if self.is_ft and not len(self.wv.vectors_ngrams):
+            raise RuntimeError("you must initialize ngram vectors before computing sentence vectors")
+
         if sum([self.wv.vocab[w].count for w in self.wv.vocab]) == len(self.wv.vocab):
             logger.warning(
                 "The sum of the word counts is equal to its length (all word counts are 1). "
@@ -241,6 +259,8 @@ class BaseSentence2VecModel(SaveLoad):
 
         if self.wv.vectors.dtype != REAL:
             raise RuntimeError(f"type of wv.vectors is wrong: {self.wv.vectors.dtype}")
+        if self.is_ft and self.wv.vectors_ngrams.dtype != REAL:
+            raise RuntimeError(f"type of wv.vectors_ngrams is wrong: {self.wv.vectors_ngrams.dtype}")
         if self.sv.vectors.dtype != REAL:
             raise RuntimeError(f"type of sv.vectors is wrong: {self.sv.vectors.dtype}")
         if self.word_weights.dtype != REAL:
@@ -264,21 +284,19 @@ class BaseSentence2VecModel(SaveLoad):
                 f"training returned invalid values. Check the input."
             )
     
-    def _move_vectors_to_disk(self, vectors:ndarray, mapfile_path:str=None) -> ndarray:
+    def _move_vectors_to_disk(self, vectors:ndarray, mapfile_path:str, name:str="") -> ndarray:
         """Moves the wv.vectors to memory"""
-        if mapfile_path is None:
-            raise RuntimeError(f"Must provide mapfile_path.")
-
         shape = vectors.shape
+        path = f"{mapfile_path}_{name}.vectors"
 
         memvecs = np_memmap(
-            mapfile_path + '_wv.vectors', dtype=REAL,
+            path, dtype=REAL,
             mode='w+', shape=shape)
         memvecs[:] = vectors[:]
         del memvecs, vectors
 
         readonly_memvecs = np_memmap(
-            mapfile_path + '_wv.vectors', dtype=REAL,
+            path, dtype=REAL,
             mode='r', shape=shape)
         return readonly_memvecs
 
@@ -433,7 +451,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         start_time = time()
 
-        logger.info(f"begin training!")
+        logger.info(f"begin training")
 
         _, eff_sentences, eff_words = self._train_manager(data_iterable=sentences, total_sentences=total_sentences, queue_factor=queue_factor, report_delay=report_delay)
 
@@ -534,7 +552,6 @@ class BaseSentence2VecModel(SaveLoad):
                 continue
 
             j, s, w = report
-
             jobs += j
             eff_sentences += s
             eff_words += w

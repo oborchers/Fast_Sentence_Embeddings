@@ -23,7 +23,7 @@ from fse.models.average_inner import train_average_cy
 from fse.models.average_inner import FAST_VERSION, MAX_WORDS_IN_BATCH
 from fse.models.inputs import IndexedSentence
 
-from gensim.models import Word2Vec
+from gensim.models import Word2Vec, FastText
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,25 @@ class TestAverageFunctions(unittest.TestCase):
         self.assertTrue((183 == self.model.sv[0]).all())
         self.assertTrue((164.5 == self.model.sv[1]).all())
         self.assertTrue((self.model.wv.vocab["go"].index == self.model.sv[2]).all())
+
+    def test_average_train_np_ft(self):
+        ft = FastText(min_count=1, size=DIM)
+        ft.build_vocab(SENTENCES)
+
+        m = Average(ft)
+        m.prep.prepare_vectors(sv=m.sv, total_sentences=len(self.sentences), update=False)
+        m._pre_train_calls()
+
+        m.wv.vectors = np.ones_like(m.wv.vectors, dtype=np.float32)
+        m.wv.vectors_ngrams = np.full_like(m.wv.vectors_ngrams, 2, dtype=np.float32)
+
+        output = train_average_np(m, self.sentences)
+        self.assertEqual((3, 8), output)
+        self.assertTrue((1. == m.sv[0]).all())
+        self.assertTrue((1.5 == m.sv[2]).all())
+        # "go" -> [1,1...]
+        # oov: "12345" -> (14 hashes * 2) / 14 =  2
+        # (2 + 1) / 2 = 1.5
 
     def test_cython(self):
         self.assertTrue(FAST_VERSION)

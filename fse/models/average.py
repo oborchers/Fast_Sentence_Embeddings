@@ -6,9 +6,11 @@
 
 from fse.models.base_s2v import BaseSentence2VecModel
 from fse.models.inputs import IndexedSentence
-from gensim.models.keyedvectors import BaseKeyedVectors
 
-from numpy import ones, float32 as REAL, sum as np_sum, multiply as np_mult
+from gensim.models.keyedvectors import BaseKeyedVectors
+from gensim.models.utils_any2vec import ft_ngram_hashes
+
+from numpy import ones, float32 as REAL, sum as np_sum, multiply as np_mult, zeros, max as np_max
 
 from typing import List
 
@@ -18,28 +20,65 @@ logger = logging.getLogger(__name__)
 
 def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[IndexedSentence]) -> [int,int]:
         size = model.wv.vector_size
-        vlookup = model.wv.vocab
+        vocab = model.wv.vocab
 
         w_vectors = model.wv.vectors
-        s_vectors = model.sv.vectors
         w_weights = model.word_weights
+
+        s_vectors = model.sv.vectors
+
+        is_ft = model.is_ft
+
+        if model.is_ft:
+            # NOTE: For Fasttext: Ignore wv.vectors_vocab
+            # model.wv.vectors is the sum of vectors_vocab + ngram_vectors
+            # See :method: `~gensim.models.keyedvectors.FastTextKeyedVectors.adjust_vectors`
+            ngram_vectors = model.wv.vectors_ngrams
+            min_n = model.wv.min_n
+            max_n = model.wv.max_n
+            bucket = model.wv.bucket
+            oov_weight = np_max(w_weights)
 
         eff_sentences, eff_words = 0, 0
 
-        for obj in indexed_sentences:
-            sent_index = obj.index
-            sent = obj.words
+        if not is_ft:
+            for obj in indexed_sentences:
+                sent_adr = obj.index
+                sent = obj.words
+                word_indices = [vocab[word].index for word in sent if word in vocab]
+                if not len(word_indices):
+                    continue
 
-            word_indices = [vlookup[word].index for word in sent if word in vlookup]
-            if not len(word_indices):
-                continue
+                eff_sentences += 1
+                eff_words += len(word_indices)
 
-            eff_sentences += 1
-            eff_words += len(word_indices)
+                vec = np_sum(np_mult(w_vectors[word_indices],w_weights[word_indices][:,None]) , axis=0)
+                vec *= 1/len(word_indices)
+                s_vectors[sent_adr] = vec.astype(REAL)
+        else:
+            for obj in indexed_sentences:
+                sent_adr = obj.index
+                sent = obj.words
+                vec = zeros(size, dtype=REAL)
 
-            v = np_sum(np_mult(w_vectors[word_indices],w_weights[word_indices][:,None]) , axis=0)
-            v *= 1/len(word_indices)
-            s_vectors[sent_index] = v.astype(REAL)
+                if not len(sent):
+                    continue
+
+                eff_sentences += 1
+                eff_words += len(sent) # Counts everything in the sentence
+
+                for word in sent:
+                    if word in vocab:
+                        word_index = vocab[word].index
+                        vec += (w_weights[word_index] * w_vectors[word_index])
+                    else:
+                        ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket, True)
+                        if len(ngram_hashes) == 0:
+                            continue
+                        vec += oov_weight * (np_sum(ngram_vectors[ngram_hashes], axis=0) / len(ngram_hashes))
+                    # Implicit addition of zero if oov does not contain any ngrams
+
+                s_vectors[sent_adr] = vec / len(sent)
 
         return eff_sentences, eff_words
 

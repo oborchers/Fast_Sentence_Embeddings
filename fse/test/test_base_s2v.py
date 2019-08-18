@@ -49,9 +49,17 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             del w2v.wv.vectors
             BaseSentence2VecModel(w2v)
 
-    def test_init_w_ft_model(self):
-        with self.assertRaises(NotImplementedError):
-            BaseSentence2VecModel(FastText(min_count=1, size=DIM))
+    def test_init_w_empty_ft_model(self):
+        ft = FastText(min_count=1, size=DIM)
+        ft.wv.vectors = np.zeros(10)
+        ft.wv.vectors_ngrams = None
+        with self.assertRaises(RuntimeError):
+            BaseSentence2VecModel(ft)
+
+    def test_init_w_incompatible_ft_model(self):
+        ft = FastText(min_count=1, size=DIM, compatible_hash=False)
+        with self.assertRaises(RuntimeError):
+            BaseSentence2VecModel(ft)
 
     def test_include_model(self):
         se = BaseSentence2VecModel(W2V)
@@ -162,13 +170,13 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             se._check_dtype_santiy()  
 
-    def test_zpre_training_sanity(self):
-        w2v = Word2Vec()
-        w2v.build_vocab(SENTENCES)
-        for w in w2v.wv.vocab.keys():
-            w2v.wv.vocab[w].count = 1
+    def test_pre_training_sanity(self):
+        ft = FastText(min_count=1, size=5)
+        ft.build_vocab(SENTENCES)
+        for w in ft.wv.vocab.keys():
+            ft.wv.vocab[w].count = 1
 
-        se = BaseSentence2VecModel(w2v)
+        se = BaseSentence2VecModel(ft)
 
         # Just throws multiple warnings warning
         se._check_pre_training_sanity(1,1,1)
@@ -189,7 +197,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se.wv.vectors = np.zeros((20,20), dtype=np.float64)
         with self.assertRaises(RuntimeError):
             se._check_pre_training_sanity(1,1,1)
-        se.word_weights = np.ones(30, dtype=bool)
+        se.vectors_ngrams = np.ones(30, dtype=np.float16)
         with self.assertRaises(RuntimeError):
             se._check_pre_training_sanity(1,1,1)
 
@@ -202,7 +210,10 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         del se.sv.vectors
         with self.assertRaises(RuntimeError):
             se._check_pre_training_sanity(1,1,1)
-        
+
+        se.wv.vectors_ngrams = []
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
         se.wv.vectors = []
         with self.assertRaises(RuntimeError):
             se._check_pre_training_sanity(1,1,1)
@@ -228,13 +239,13 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             se._check_post_training_sanity(1,1)
 
-    def test_move_vectors_to_disk(self):
+    def test_move_vectors_to_disk_w2v(self):
         se = BaseSentence2VecModel(W2V)
         p = Path("fse/test/test_data/test_vecs")
         p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
         se.wv.vectors[0,1] = 10
         vecs = se.wv.vectors.copy()
-        output = se._move_vectors_to_disk(se.wv.vectors, mapfile_path=str(p.absolute()))
+        output = se._move_vectors_to_disk(se.wv.vectors, name="wv", mapfile_path=str(p.absolute()))
         self.assertTrue(p_target.exists())
         self.assertFalse(output.flags.writeable)
         self.assertTrue((vecs == output).all())
@@ -242,16 +253,35 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
     def test_move_vectors_to_disk_wo_file(self):
         se = BaseSentence2VecModel(W2V)
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(TypeError):
             output = se._move_vectors_to_disk(se.wv.vectors)
 
-    def test_move_vectors_to_disk_from_init(self):
+    def test_move_w2v_vectors_to_disk_from_init(self):
         p = Path("fse/test/test_data/test_vecs")
         se = BaseSentence2VecModel(W2V, mapfile_path=str(p.absolute()), wv_from_disk=True)
         p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
         self.assertTrue(p_target.exists())
         self.assertFalse(se.wv.vectors.flags.writeable)
         p_target.unlink()
+
+    def test_move_ft_vectors_to_disk_from_init(self):
+        ft = FastText(min_count=1, size=DIM)
+        ft.build_vocab(SENTENCES)
+
+        p = Path("fse/test/test_data/test_vecs")
+        p_target_wv = Path("fse/test/test_data/test_vecs_wv.vectors")
+        p_target_ngram = Path("fse/test/test_data/test_vecs_ngrams.vectors")
+
+        se = BaseSentence2VecModel(ft, mapfile_path=str(p.absolute()), wv_from_disk=True)
+
+        self.assertTrue(p_target_wv.exists())
+        self.assertFalse(se.wv.vectors.flags.writeable)
+
+        self.assertTrue(p_target_ngram.exists())
+        self.assertFalse(se.wv.vectors_ngrams.flags.writeable)
+
+        p_target_wv.unlink()
+        p_target_ngram.unlink()
 
     def test_train_manager(self):
         se = BaseSentence2VecModel(W2V, workers=2)
