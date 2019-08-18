@@ -82,7 +82,7 @@ class BaseSentence2VecModel(SaveLoad):
                 # [X] Does batch_words & MAX_SENTENCE_LEN collide upon change?
                 # [X] MAX_WORDS_IN_BATCH -> batch_words is defined by import
                 # [X] Add init to check for float/double -> No.
-                # [ ] Fasttext suuport
+                # [ ] Fasttext support
 
         # [X] :class: BaseSentence2VecModel
             # [X] Check all dtypes before training
@@ -101,10 +101,12 @@ class BaseSentence2VecModel(SaveLoad):
 
         # [ ] Implement SIF Emebddings
             # [ ] If principal compnents exist, use them for the next train phase --> train + infer
-            # [ ] pre_train_calls & post_train_calls
+            # [X] pre_train_calls & post_train_calls
+            # [ ] Unittests
+            # [ ] Parameter sanity
 
         # [ ] Implement uSIF Emebddings
-            # [ ] Where to pass average sentence length?
+            # [ ] Where to best pass average sentence length?
         
         # [ ] :class: SentenceVectors
             # [ ] Similarity for unseen documents --> Model.infer vector
