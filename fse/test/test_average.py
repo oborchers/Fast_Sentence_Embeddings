@@ -98,7 +98,10 @@ class TestAverageFunctions(unittest.TestCase):
 
     def test_do_train_job(self):
         self.model.prep.prepare_vectors(sv=self.model.sv, total_sentences=len(SENTENCES), update=True)
-        self.assertEqual((100,1450), self.model._do_train_job([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)]))
+        self.assertEqual((100,1450), self.model._do_train_job(
+            [IndexedSentence(s, i) for i,s in enumerate(SENTENCES)],
+            target=self.model.sv.vectors)
+        )
         self.assertEqual((103,DIM), self.model.sv.vectors.shape)
 
     def test_train(self):

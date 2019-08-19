@@ -422,6 +422,8 @@ class BaseSentence2VecModel(SaveLoad):
             raise TypeError(f"At {iterPos}: Passed {type(sent)}: {sent}. IndexedSentence.words must contain list of str.")
         if not isinstance(index, int):
             raise TypeError(f"At {iterPos}: Passed {type(index)}: {index}. IndexedSentence.index must contain index")
+        if index < 0:
+            raise ValueError(f"At {iterPos}: Passed negative {index}")
         return index, sent
 
     def scan_sentences(self, sentences:List[IndexedSentence]=None, progress_per:int=5) -> [int, int, int, int]:
@@ -452,8 +454,6 @@ class BaseSentence2VecModel(SaveLoad):
 
         if max_index >= total_sentences:
             raise RuntimeError(f"Index {max_index} is larger than number of sentences {total_sentences}")
-        if max_index == 0:
-            max_index = 1
 
         average_length = int(total_words / total_sentences)
 
@@ -465,7 +465,7 @@ class BaseSentence2VecModel(SaveLoad):
             "total_words" : total_words,
             "average_length" : average_length,
             "empty_sentences" : empty_sentences,
-            "max_index" : max_index
+            "max_index" : max_index + 1
         }
         return statistics
     
@@ -524,7 +524,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         logger.info(f"begin training")
 
-        _, eff_sentences, eff_words = self._train_manager(data_iterable=sentences, total_sentences=statistics["max_index"], queue_factor=queue_factor, report_delay=report_delay)
+        _, eff_sentences, eff_words = self._train_manager(data_iterable=sentences, total_sentences=statistics["max_index"]+1, queue_factor=queue_factor, report_delay=report_delay)
 
         overall_time = time() - start_time
 

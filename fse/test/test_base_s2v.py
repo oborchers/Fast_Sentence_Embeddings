@@ -170,7 +170,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         self.assertEqual(1450, stats["total_words"])
         self.assertEqual(14, stats["average_length"])
         self.assertEqual(0, stats["empty_sentences"])
-        self.assertEqual(99, stats["max_index"])
+        self.assertEqual(100, stats["max_index"])
 
     def test_scan_w_wrong_IndexedSentence(self):
         se = BaseSentence2VecModel(W2V)
@@ -197,6 +197,8 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
         with self.assertRaises(RuntimeError):
             se.scan_sentences([IndexedSentence(s, i+1) for i,s in enumerate(SENTENCES)])
+        with self.assertRaises(ValueError):
+            se.scan_sentences([IndexedSentence(s, i-1) for i,s in enumerate(SENTENCES)])
         
     def test_scan_w_many_to_one_input(self):
         se = BaseSentence2VecModel(W2V)
