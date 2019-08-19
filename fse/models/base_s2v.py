@@ -101,7 +101,7 @@ class BaseSentence2VecModel(SaveLoad):
             # [X] Count the effective words
 
         # [ ] Implement Fasttext Support
-            # [ ] Estimate Memory does note account for fasttext ngram vectors
+            # [X] Estimate Memory does not account for fasttext ngram vectors
             # [X] sanity: Check if ngram_vectors is available
             # [X] sanity: Only accept FT compatible hash function fasttext implementaiton
 
@@ -171,6 +171,17 @@ class BaseSentence2VecModel(SaveLoad):
         self.prep = BaseSentence2VecPreparer()
 
         self.word_weights = ones(len(self.wv.vocab), REAL)
+
+    def __str__(self) -> str:
+        """Human readable representation of the model's state.
+
+        Returns
+        -------
+        str
+            Human readable representation of the model's state.
+
+        """
+        return f"{self.__class__.__name__} based on {self.wv.__class__.__name__}, size={len(self.sv)}"
 
     def _check_and_include_model(self, model:BaseKeyedVectors):
         """Check if the supplied model is a compatible model. """
@@ -444,7 +455,7 @@ class BaseSentence2VecModel(SaveLoad):
         logger.info(
             f"finished scanning {total_sentences} sentences with an average length of {average_length} and {total_words} total words"
         )
-        return total_sentences, total_words, average_length, empty_sentences
+        return total_sentences, total_words, average_length, empty_sentences, max_index
     
     def estimate_memory(self, total_sentences:int, report:dict=None) -> Dict[str, int]:
         """Estimate the size of the sentence embedding
@@ -462,15 +473,15 @@ class BaseSentence2VecModel(SaveLoad):
             Dictionary of esitmated sizes
 
         """
-        if isinstance(self.wv, FastTextKeyedVectors):
-            logger.warning("Fasttext memory estimation not yet completed")
-
         vocab_size = len(self.wv.vectors)
 
         report = report or {}
         report["Word Weights"] = vocab_size * dtype(REAL).itemsize
         report["Word Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
         report["Sentence Vectors"] = total_sentences * self.wv.vector_size * dtype(REAL).itemsize
+        if self.is_ft:
+            report["Sentence Vocab Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
+            report["Sentence Vocab Vectors"] = self.wv.vectors_ngrams[0] * self.wv.vector_size * dtype(REAL).itemsize
         report["Total"] = sum(report.values())
         mb_size = int(report["Total"] / 1024**2)
         logger.info(
@@ -484,7 +495,7 @@ class BaseSentence2VecModel(SaveLoad):
 
     def train(self, sentences:List[IndexedSentence]=None, update:bool=False, queue_factor:int=2, report_delay:int=5) -> [int,int]:
         self._check_input_data_sanity(sentences)
-        total_sentences, total_words, average_length, empty_sentences = self.scan_sentences(sentences)
+        total_sentences, total_words, average_length, empty_sentences, _ = self.scan_sentences(sentences)
         self._check_pre_training_sanity(total_sentences, total_words, average_length)
 
         self.estimate_memory(total_sentences)
@@ -515,9 +526,6 @@ class BaseSentence2VecModel(SaveLoad):
 
     def infer(self, sentences:List[IndexedSentence]=None) -> ndarray:
         raise NotImplementedError()    
-    
-    def __str__(self):
-        raise NotImplementedError()
 
     def _train_manager(self, data_iterable:List[IndexedSentence], total_sentences:int=None, queue_factor:int=2, report_delay:int=5):
         job_queue = Queue(maxsize=queue_factor * self.workers)

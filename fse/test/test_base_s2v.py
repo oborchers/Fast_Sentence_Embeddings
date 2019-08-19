@@ -4,7 +4,6 @@
 # Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
 # Copyright (C) 2019 Oliver Borchers
 
-
 """
 Automated tests for checking the base_s2v class.
 """
@@ -113,7 +112,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         self.assertEqual(shape, se.wv.vectors.shape)
         self.assertEqual((2000000, 5), se.wv.vectors_ngrams.shape)
 
-        for p in [p_vecs, p_ngrams, p_vocab]:
+        for p in [p, p_vecs, p_ngrams, p_vocab]:
             p.unlink()
 
     def test_map_all_vectors_to_disk(self):
@@ -158,11 +157,15 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         with self.assertRaises(TypeError):
             se.scan_sentences(SENTENCES)
 
+    def test_str_rep(self):
+        output = str(BaseSentence2VecModel(W2V))
+        self.assertEqual("BaseSentence2VecModel based on Word2VecKeyedVectors, size=0", output)
+
     def test_scan_w_IndexedSentence(self):
         se = BaseSentence2VecModel(W2V)
         id_sent = [IndexedSentence(s, i) for i,s in enumerate(SENTENCES)]
-        self.assertTrue(
-            (100, 1450, 14, 0) == se.scan_sentences(id_sent, progress_per=0)
+        self.assertEqual(
+            (100, 1450, 14, 0, 99), se.scan_sentences(id_sent, progress_per=0)
             )
 
     def test_scan_w_wrong_IndexedSentence(self):
@@ -175,7 +178,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(W2V)
         for i in [5, 10, 15]:
             SENTENCES[i] = []
-        self.assertEqual(3, se.scan_sentences([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])[-1])
+        self.assertEqual(3, se.scan_sentences([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])[-2])
 
     def test_scan_w_wrong_input(self):
         se = BaseSentence2VecModel(W2V)
@@ -190,6 +193,9 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
         with self.assertRaises(RuntimeError):
             se.scan_sentences([IndexedSentence(s, i+1) for i,s in enumerate(SENTENCES)])
+        
+        output = se.scan_sentences([IndexedSentence(s, 0) for i,s in enumerate(SENTENCES)])[-1]
+        self.assertEqual(0, output)
 
     def test_estimate_memory(self):
         se = BaseSentence2VecModel(W2V)

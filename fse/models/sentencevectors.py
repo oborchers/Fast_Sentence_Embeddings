@@ -137,15 +137,6 @@ class SentenceVectors(utils.SaveLoad):
         ----------
         replace : bool, optional
             If True - forget the original vectors and only keep the normalized ones = saves lots of memory!
-
-        # TODO: Check if this warning applies?
-        # Warnings
-        # --------
-        # You **cannot continue training** after doing a replace.
-        # The model becomes effectively read-only: you can call
-        # :meth:`~gensim.models.keyedvectors.Doc2VecKeyedVectors.most_similar`,
-        # :meth:`~gensim.models.keyedvectors.Doc2VecKeyedVectors.similarity`, etc., but not train and infer_vector.
-
         """
         if getattr(self, 'vectors_norm', None) is None or replace:
             logger.info("precomputing L2-norms of sentence vectors")
