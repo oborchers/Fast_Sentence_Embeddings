@@ -89,7 +89,8 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
     def test_save_load_with_memmap(self):
         ft = FastText(min_count=1, size=5)
         ft.build_vocab(SENTENCES)
-        ft.wv.vectors = np.zeros((10000,10000), np.float32)
+        shape = (1000, 1000)
+        ft.wv.vectors = np.zeros(shape, np.float32)
 
         p = Path("fse/test/test_data/test_emb")
         p_vecs = Path("fse/test/test_data/test_emb_wv.vectors")
@@ -109,6 +110,8 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
         se = BaseSentence2VecModel.load(str(p.absolute()))
         self.assertFalse(se.wv.vectors_vocab.flags.writeable)
+        self.assertEqual(shape, se.wv.vectors.shape)
+        self.assertEqual((2000000, 5), se.wv.vectors_ngrams.shape)
 
         for p in [p_vecs, p_ngrams, p_vocab]:
             p.unlink()
@@ -276,23 +279,22 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         with self.assertRaises(ValueError):
             se._check_post_training_sanity(1,0)
             
-
-    def test_move_vectors_to_disk_w2v(self):
+    def test_move_ndarray_to_disk_w2v(self):
         se = BaseSentence2VecModel(W2V)
         p = Path("fse/test/test_data/test_vecs")
         p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
         se.wv.vectors[0,1] = 10
         vecs = se.wv.vectors.copy()
-        output = se.move_vectors_to_disk(se.wv.vectors, name="wv", mapfile_path=str(p.absolute()))
+        output = se._move_ndarray_to_disk(se.wv.vectors, name="wv", mapfile_path=str(p.absolute()))
         self.assertTrue(p_target.exists())
         self.assertFalse(output.flags.writeable)
         self.assertTrue((vecs == output).all())
         p_target.unlink()
 
-    def testmove_vectors_to_disk_wo_file(self):
+    def test_move_ndarray_to_disk_wo_file(self):
         se = BaseSentence2VecModel(W2V)
         with self.assertRaises(TypeError):
-            output = se.move_vectors_to_disk(se.wv.vectors)
+            output = se._move_ndarray_to_disk(se.wv.vectors)
 
     def test_move_w2v_vectors_to_disk_from_init(self):
         p = Path("fse/test/test_data/test_vecs")

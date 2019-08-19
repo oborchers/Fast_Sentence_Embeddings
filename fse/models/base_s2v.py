@@ -150,6 +150,7 @@ class BaseSentence2VecModel(SaveLoad):
         self.is_ft = False                          # TODO: Implement Fasttext support
 
         self.wv_mapfile_path = Path(wv_mapfile_path) if wv_mapfile_path is not None else None
+        self.wv_mapfile_shapes = {}
 
         if fast_version < 0:
             warnings.warn(
@@ -171,7 +172,6 @@ class BaseSentence2VecModel(SaveLoad):
 
         self.word_weights = ones(len(self.wv.vocab), REAL)
 
-    
     def _check_and_include_model(self, model:BaseKeyedVectors):
         """Check if the supplied model is a compatible model. """
         if isinstance(model, BaseWordEmbeddingsModel):
@@ -300,29 +300,32 @@ class BaseSentence2VecModel(SaveLoad):
         """ Maps all vectors to disk """
         path = str(mapfile_path.absolute())
 
-        self.wv.vectors = self.move_vectors_to_disk(self.wv.vectors, mapfile_path=path, name="wv")
+        self.wv_mapfile_shapes["vectors"] = self.wv.vectors.shape
+        self.wv.vectors = self._move_ndarray_to_disk(self.wv.vectors, mapfile_path=path, name="wv")
         if self.is_ft:
-            self.wv.vectors_vocab = self.move_vectors_to_disk(self.wv.vectors_vocab, mapfile_path=self.wv_mapfile_path, name="vocab")    
-            self.wv.vectors_ngrams = self.move_vectors_to_disk(self.wv.vectors_ngrams, mapfile_path=self.wv_mapfile_path, name="ngrams")            
+            self.wv_mapfile_shapes["vectors_vocab"] = self.wv.vectors_vocab.shape
+            self.wv_mapfile_shapes["vectors_ngrams"] = self.wv.vectors_ngrams.shape
+            self.wv.vectors_vocab = self._move_ndarray_to_disk(self.wv.vectors_vocab, mapfile_path=self.wv_mapfile_path, name="vocab")    
+            self.wv.vectors_ngrams = self._move_ndarray_to_disk(self.wv.vectors_ngrams, mapfile_path=self.wv_mapfile_path, name="ngrams")
 
     def _load_all_vectors_from_disk(self, mapfile_path:Path):
         """ Reads all vectors from disk """
         path = str(mapfile_path.absolute())
 
-        self.wv.vectors = np_memmap(f"{path}_wv.vectors", dtype=REAL, mode='r')
+        self.wv.vectors = np_memmap(f"{path}_wv.vectors", dtype=REAL, mode='r', shape=self.wv_mapfile_shapes["vectors"])
         if self.is_ft:
-            self.wv.vectors_ngrams = np_memmap(
-                f"{path}_ngrams.vectors", dtype=REAL, mode='r')
             self.wv.vectors_vocab = np_memmap(
-                f"{path}_vocab.vectors", dtype=REAL, mode='r')
+                f"{path}_vocab.vectors", dtype=REAL, mode='r', shape=self.wv_mapfile_shapes["vectors_vocab"])
+            self.wv.vectors_ngrams = np_memmap(
+                f"{path}_ngrams.vectors", dtype=REAL, mode='r', shape=self.wv_mapfile_shapes["vectors_ngrams"])
         
-    def move_vectors_to_disk(self, vectors:ndarray, mapfile_path:str, name:str="") -> ndarray:
+    def _move_ndarray_to_disk(self, vectors:ndarray, mapfile_path:str, name:str="") -> ndarray:
         """ Moves the a numpy ndarray to disk"""
         shape = vectors.shape
         path = Path(f"{mapfile_path}_{name}.vectors")
 
         if not path.exists():
-            logger.info(f"writing {name} to {mapfile_path}")
+            logger.info(f"writing {name} to {path}")
             memvecs = np_memmap(
                 path, dtype=REAL,
                 mode='w+', shape=shape)
@@ -330,7 +333,7 @@ class BaseSentence2VecModel(SaveLoad):
             del memvecs, vectors
         else:
             # If multiple instances of this class exist, all can access the same files
-            logger.info(f"loading pre-existing {name} from {mapfile_path}")
+            logger.info(f"loading pre-existing {name} from {path}")
 
         readonly_memvecs = np_memmap(path, dtype=REAL, mode='r', shape=shape)
         return readonly_memvecs
@@ -371,12 +374,12 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         # This is kind of an ugly hack because I cannot directly modify the save routine of the
-        # correpsonding files, as a memmap file makes the npy files irrelvant
+        # correpsonding KeyedVectors Files, as a memmap file makes the npy files irrelvant
         model = super(BaseSentence2VecModel, cls).load(*args, **kwargs)
 
         if model.wv_mapfile_path is not None:
             model._load_all_vectors_from_disk(model.wv_mapfile_path)
-
+        model.wv_mapfile_shapes = None
         return model
 
     def save(self, *args, **kwargs):
@@ -512,9 +515,6 @@ class BaseSentence2VecModel(SaveLoad):
 
     def infer(self, sentences:List[IndexedSentence]=None) -> ndarray:
         raise NotImplementedError()    
-
-    def _log_progress(self):
-        raise NotImplementedError()
     
     def __str__(self):
         raise NotImplementedError()
