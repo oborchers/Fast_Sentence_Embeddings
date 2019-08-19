@@ -14,13 +14,13 @@ import unittest
 
 from pathlib import Path
 import numpy as np
-from fse.models import sentencevectors
+from fse.models.sentencevectors import SentenceVectors
 
 logger = logging.getLogger(__name__)
 
 class TestSentenceVectorsFunctions(unittest.TestCase):
     def setUp(self):
-        self.sv = sentencevectors.SentenceVectors(2)
+        self.sv = SentenceVectors(2)
         self.sv.vectors = np.arange(10).reshape(5,2)
 
     def test_getitem(self):
@@ -66,9 +66,36 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         p = Path("fse/test/test_data/test_vectors.vectors")
         self.sv.save(str(p.absolute()))
         self.assertTrue(p.exists())
-        sv2 = sentencevectors.SentenceVectors.load(str(p.absolute()))
+        sv2 = SentenceVectors.load(str(p.absolute()))
         self.assertTrue((self.sv.vectors == sv2.vectors).all())
         p.unlink()
+
+    def test_save_load_with_memmap(self):
+        p = Path("fse/test/test_data/test_vectors")
+        p_target = Path("fse/test/test_data/test_vectors.vectors")
+        p_not_exists = Path("fse/test/test_data/test_vectors.vectors.npy")
+
+        sv = SentenceVectors(2, mapfile_path=str(p))
+
+        shape = (1000, 1000)
+        sv.vectors = np.ones(shape, dtype=np.float32)
+        
+        memvecs = np.memmap(
+            p_target, dtype=np.float32,
+            mode='w+', shape=shape)
+        memvecs[:] = sv.vectors[:]
+        del memvecs
+
+        self.assertTrue(p_target.exists())
+        sv.save(str(p.absolute()))
+        self.assertTrue(p.exists())
+        self.assertFalse(p_not_exists.exists())
+
+        sv = SentenceVectors.load(str(p.absolute()))
+        self.assertEqual(shape, sv.vectors.shape)
+
+        for t in [p, p_target]:
+            t.unlink()
 
     def test_len(self):
         self.assertEqual(5, len(self.sv))

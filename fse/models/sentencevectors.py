@@ -18,17 +18,21 @@ from gensim.models.keyedvectors import _l2_norm
 
 from typing import Dict
 
+from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 class SentenceVectors(utils.SaveLoad):
 
     def __init__(self, vector_size:int, mapfile_path:str=None):
-        self.vector_size = vector_size              # Size of vectors
-        self.vectors = zeros((0, vector_size), REAL)      # Vectors for sentences
+        self.vector_size = vector_size                      # Size of vectors
+        self.vectors = zeros((0, vector_size), REAL)        # Vectors for sentences
         self.vectors_norm = None
-        self.mapfile_path = mapfile_path            # File for numpy memmap
 
-        
+        # File for numpy memmap
+        self.mapfile_path = Path(mapfile_path) if mapfile_path is not None else None            
+        self.mapfile_shape = None
+
     def __getitem__(self, entities:int) -> ndarray:
         """Get vector representation of `entities`.
 
@@ -58,6 +62,11 @@ class SentenceVectors(utils.SaveLoad):
     def __len__(self) -> int:
         return len(self.vectors)
 
+    def _load_all_vectors_from_disk(self, mapfile_path:Path):
+        """ Reads all vectors from disk """
+        path = str(mapfile_path.absolute())
+        self.vectors = np_memmap(f"{path}.vectors", dtype=REAL, mode='r+', shape=self.mapfile_shape)
+
     def save(self, *args, **kwargs):
         """Save object.
 
@@ -72,13 +81,22 @@ class SentenceVectors(utils.SaveLoad):
             Load object.
 
         """
+        self.mapfile_shape = self.vectors.shape
+        ignore = ["vectors_norm"]
         # don't bother storing the cached normalized vectors
-        kwargs['ignore'] = kwargs.get('ignore', ['vectors_norm'])
+        if self.mapfile_path is not None:
+            ignore.append("vectors")
+        kwargs['ignore'] = kwargs.get('ignore', ignore)
         super(SentenceVectors, self).save(*args, **kwargs)
 
     @classmethod
     def load(cls, fname_or_handle, **kwargs):
-        return super(SentenceVectors, cls).load(fname_or_handle, **kwargs)
+        # TODO: Unittests
+        sv = super(SentenceVectors, cls).load(fname_or_handle, **kwargs)
+        path = sv.mapfile_path
+        if path is not None:
+            sv._load_all_vectors_from_disk(mapfile_path=path)
+        return sv
 
     def get_vector(self, index:int, use_norm:bool=False) -> ndarray:
         """Get sentence representations in vector space, as a 1D numpy array.

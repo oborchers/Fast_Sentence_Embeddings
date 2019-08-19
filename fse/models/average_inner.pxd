@@ -39,4 +39,4 @@ cdef struct BaseSentenceVecsConfig:
     uINT_t sent_adresses[MAX_WORDS]
     uINT_t sentence_boundary[MAX_WORDS + 1]
     
-cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model)
+cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target)

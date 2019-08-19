@@ -42,13 +42,13 @@ cdef void iprint(const int size, uINT_t *in_vec) nogil:
         printf("%d ", in_vec[d])
     printf("\n")
 
-cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model):
+cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target):
     c[0].workers = model.workers
     c[0].size = model.sv.vector_size
 
     c[0].word_vectors = <REAL_t *>(np.PyArray_DATA(model.wv.vectors))
     c[0].word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
-    c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(model.sv.vectors))
+    c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
 
 cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_sentences):
 
@@ -120,14 +120,14 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
             inv_count = ONEF / sent_len
             sscal(&size, &inv_count, &sent_vectors[sent_row], &ONE)
 
-def train_average_cy(model, indexed_sentences):
+def train_average_cy(model, indexed_sentences, target):
 
     cdef:
         BaseSentenceVecsConfig c
         uINT_t eff_sentences = 0
         uINT_t eff_words = 0
 
-    init_base_s2v_config(&c, model)
+    init_base_s2v_config(&c, model, target)
 
     eff_sentences, eff_words = populate_base_s2v_config(&c, model.wv.vocab, indexed_sentences)
 

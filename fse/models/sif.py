@@ -18,15 +18,15 @@ logger = logging.getLogger(__name__)
 
 class SIF(Average):
 
-    def __init__(self, model:BaseKeyedVectors, alpha:float=1e-3, components:int=1, mapfile_path:str=None, workers:int=1, lang_freq:str=None, wv_from_disk:bool=False):
-        
+    def __init__(self, model:BaseKeyedVectors, alpha:float=1e-3, components:int=1, sv_mapfile_path:str=None, wv_mapfile_path:str=None, workers:int=1, lang_freq:str=None):        
         self.alpha = float(alpha)
         self.components = int(components)
         self.components_vec = None
 
         super(SIF, self).__init__(
-            model=model, mapfile_path=mapfile_path, workers=workers, 
-            lang_freq=lang_freq, wv_from_disk=wv_from_disk)
+            model=model, sv_mapfile_path=sv_mapfile_path, wv_mapfile_path=wv_mapfile_path,
+            workers=workers, 
+            lang_freq=lang_freq)
 
     def _check_parameter_sanity(self):
         pass

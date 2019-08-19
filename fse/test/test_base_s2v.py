@@ -76,7 +76,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             BaseSentence2VecModel(W2V, lang_freq="test")
 
     def test_save_load(self):
-        se = BaseSentence2VecModel(W2V, lang_freq="en")
+        se = BaseSentence2VecModel(W2V)
         p = Path("fse/test/test_data/test_emb.model")
         se.save(str(p.absolute()))
         self.assertTrue(p.exists())
@@ -85,6 +85,51 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         self.assertTrue(se.wv.index2word == se2.wv.index2word)
         self.assertEqual(se.workers, se2.workers)
         p.unlink()
+
+    def test_save_load_with_memmap(self):
+        ft = FastText(min_count=1, size=5)
+        ft.build_vocab(SENTENCES)
+        ft.wv.vectors = np.zeros((10000,10000), np.float32)
+
+        p = Path("fse/test/test_data/test_emb")
+        p_vecs = Path("fse/test/test_data/test_emb_wv.vectors")
+        p_ngrams = Path("fse/test/test_data/test_emb_ngrams.vectors")
+        p_vocab = Path("fse/test/test_data/test_emb_vocab.vectors")
+
+        p_not_exists = Path("fse/test/test_data/test_emb.wv.vectors.npy")
+
+        se = BaseSentence2VecModel(ft, wv_mapfile_path=str(p))
+        self.assertTrue(p_vecs.exists())
+        self.assertTrue(p_ngrams.exists())
+        self.assertTrue(p_vocab.exists())
+
+        se.save(str(p.absolute()))
+        self.assertTrue(p.exists())
+        self.assertFalse(p_not_exists.exists())
+
+        se = BaseSentence2VecModel.load(str(p.absolute()))
+        self.assertFalse(se.wv.vectors_vocab.flags.writeable)
+
+        for p in [p_vecs, p_ngrams, p_vocab]:
+            p.unlink()
+
+    def test_map_all_vectors_to_disk(self):
+        ft = FastText(min_count=1, size=5)
+        ft.build_vocab(SENTENCES)
+
+        p = Path("fse/test/test_data/test_emb")
+        p_vecs = Path("fse/test/test_data/test_emb_wv.vectors")
+        p_ngrams = Path("fse/test/test_data/test_emb_ngrams.vectors")
+        p_vocab = Path("fse/test/test_data/test_emb_vocab.vectors")
+
+        se = BaseSentence2VecModel(ft, wv_mapfile_path=str(p))
+
+        self.assertTrue(p_vecs.exists())
+        self.assertTrue(p_ngrams.exists())
+        self.assertTrue(p_vocab.exists())
+
+        for p in [p_vecs, p_ngrams, p_vocab]:
+            p.unlink()
 
     def test_input_check(self):
         se = BaseSentence2VecModel(W2V)
@@ -230,14 +275,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             se._check_post_training_sanity(0,1)
         with self.assertRaises(ValueError):
             se._check_post_training_sanity(1,0)
-        
-        se.sv.vectors[5,3] = np.inf
-        with self.assertRaises(RuntimeError):
-            se._check_post_training_sanity(1,1)
-        
-        se.wv.vectors[50,3] = np.nan
-        with self.assertRaises(RuntimeError):
-            se._check_post_training_sanity(1,1)
+            
 
     def test_move_vectors_to_disk_w2v(self):
         se = BaseSentence2VecModel(W2V)
@@ -245,20 +283,20 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
         se.wv.vectors[0,1] = 10
         vecs = se.wv.vectors.copy()
-        output = se._move_vectors_to_disk(se.wv.vectors, name="wv", mapfile_path=str(p.absolute()))
+        output = se.move_vectors_to_disk(se.wv.vectors, name="wv", mapfile_path=str(p.absolute()))
         self.assertTrue(p_target.exists())
         self.assertFalse(output.flags.writeable)
         self.assertTrue((vecs == output).all())
         p_target.unlink()
 
-    def test_move_vectors_to_disk_wo_file(self):
+    def testmove_vectors_to_disk_wo_file(self):
         se = BaseSentence2VecModel(W2V)
         with self.assertRaises(TypeError):
-            output = se._move_vectors_to_disk(se.wv.vectors)
+            output = se.move_vectors_to_disk(se.wv.vectors)
 
     def test_move_w2v_vectors_to_disk_from_init(self):
         p = Path("fse/test/test_data/test_vecs")
-        se = BaseSentence2VecModel(W2V, mapfile_path=str(p.absolute()), wv_from_disk=True)
+        se = BaseSentence2VecModel(W2V, wv_mapfile_path=str(p.absolute()))
         p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
         self.assertTrue(p_target.exists())
         self.assertFalse(se.wv.vectors.flags.writeable)
@@ -271,8 +309,9 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         p = Path("fse/test/test_data/test_vecs")
         p_target_wv = Path("fse/test/test_data/test_vecs_wv.vectors")
         p_target_ngram = Path("fse/test/test_data/test_vecs_ngrams.vectors")
+        p_target_vocab = Path("fse/test/test_data/test_vecs_vocab.vectors")
 
-        se = BaseSentence2VecModel(ft, mapfile_path=str(p.absolute()), wv_from_disk=True)
+        se = BaseSentence2VecModel(ft, wv_mapfile_path=str(p.absolute()))
 
         self.assertTrue(p_target_wv.exists())
         self.assertFalse(se.wv.vectors.flags.writeable)
@@ -282,6 +321,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
         p_target_wv.unlink()
         p_target_ngram.unlink()
+        p_target_vocab.unlink()
 
     def test_train_manager(self):
         se = BaseSentence2VecModel(W2V, workers=2)
@@ -311,7 +351,7 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
     def test_reset_vectors_memmap(self):
         p = Path("fse/test/test_data/test_vectors")
         p_target = Path("fse/test/test_data/test_vectors.vectors")
-        se = BaseSentence2VecModel(W2V, mapfile_path=str(p.absolute()))
+        se = BaseSentence2VecModel(W2V, sv_mapfile_path=str(p.absolute()))
         trainables = BaseSentence2VecPreparer()
         trainables.reset_vectors(se.sv, 20)
         self.assertTrue(p_target.exists())
@@ -336,7 +376,7 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
     def test_update_vectors_memmap(self):
         p = Path("fse/test/test_data/test_vectors")
         p_target = Path("fse/test/test_data/test_vectors.vectors")
-        se = BaseSentence2VecModel(W2V, mapfile_path=str(p.absolute()))
+        se = BaseSentence2VecModel(W2V, sv_mapfile_path=str(p.absolute()))
         trainables = BaseSentence2VecPreparer()
         trainables.reset_vectors(se.sv, 20)
         se.sv.vectors[:] = 1.

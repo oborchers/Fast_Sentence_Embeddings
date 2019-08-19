@@ -34,6 +34,7 @@ SENTENCES = [l.split() for i, l in enumerate(open(CORPUS, "r"))]
 W2V.build_vocab(SENTENCES)
 W2V.wv.vectors[:,] = np.arange(len(W2V.wv.vectors), dtype=np.float32)[:, None]
 
+
 class TestAverageFunctions(unittest.TestCase):
     def setUp(self):
         self.sentences = [["They", "admit"], ["So", "Apple", "bought", "buds"], ["go", "12345"]]
@@ -44,7 +45,7 @@ class TestAverageFunctions(unittest.TestCase):
 
     def test_average_train_np(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
-        output = train_average_np(self.model, self.sentences)
+        output = train_average_np(self.model, self.sentences, self.model.sv.vectors)
         self.assertEqual((3, 7), output)
         self.assertTrue((183 == self.model.sv[0]).all())
         self.assertTrue((164.5 == self.model.sv[1]).all())
@@ -58,10 +59,10 @@ class TestAverageFunctions(unittest.TestCase):
         m.prep.prepare_vectors(sv=m.sv, total_sentences=len(self.sentences), update=False)
         m._pre_train_calls()
 
-        m.wv.vectors = np.ones_like(m.wv.vectors, dtype=np.float32)
+        m.wv.vectors = m.wv.vectors_vocab = np.ones_like(m.wv.vectors, dtype=np.float32)
         m.wv.vectors_ngrams = np.full_like(m.wv.vectors_ngrams, 2, dtype=np.float32)
 
-        output = train_average_np(m, self.sentences)
+        output = train_average_np(m, self.sentences, m.sv.vectors)
         self.assertEqual((3, 8), output)
         self.assertTrue((1. == m.sv[0]).all())
         self.assertTrue((1.5 == m.sv[2]).all())
@@ -75,7 +76,7 @@ class TestAverageFunctions(unittest.TestCase):
 
     def test_average_train_cy(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
-        output = train_average_cy(self.model, self.sentences)
+        output = train_average_cy(self.model, self.sentences, self.model.sv.vectors)
         self.assertEqual((3, 7), output)
         self.assertTrue((183 == self.model.sv[0]).all())
         self.assertTrue((164.5 == self.model.sv[1]).all())
@@ -85,25 +86,13 @@ class TestAverageFunctions(unittest.TestCase):
         m1 = Average(W2V)
         m1.prep.prepare_vectors(sv=m1.sv, total_sentences=len(self.sentences), update=False)
         m1._pre_train_calls()
-        o1 = train_average_np(m1, self.sentences)
+        o1 = train_average_np(m1, self.sentences, m1.sv.vectors)
 
         m2 = Average(W2V)
         m2.prep.prepare_vectors(sv=m2.sv, total_sentences=len(self.sentences), update=False)
         m2._pre_train_calls()
-        o2 = train_average_cy(m2, self.sentences)
+        o2 = train_average_cy(m2, self.sentences, m2.sv.vectors)
 
-        self.assertEqual(o1, o2)
-        self.assertTrue((m1.sv.vectors == m2.sv.vectors).all())
-
-    def test_cy_single_equal_multi(self):
-        m1 = Average(W2V, workers=1)
-        m1.train_average = train_average_cy
-        o1 = m1.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
-        
-        m2 = Average(W2V, workers=2)
-        m2.train_average = train_average_cy
-        o2 = m2.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
-        
         self.assertEqual(o1, o2)
         self.assertTrue((m1.sv.vectors == m2.sv.vectors).all())
 
@@ -121,7 +110,7 @@ class TestAverageFunctions(unittest.TestCase):
         p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
 
         se1 = Average(W2V)
-        se2 = Average(W2V, mapfile_path=str(p.absolute()), wv_from_disk=True)
+        se2 = Average(W2V, sv_mapfile_path=str(p.absolute()) ,wv_mapfile_path=str(p.absolute()))
         se1.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
         se2.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
 
@@ -139,7 +128,7 @@ class TestAverageFunctions(unittest.TestCase):
         p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
 
         se1 = Average(W2V, workers=2)
-        se2 = Average(W2V, workers=2,mapfile_path=str(p.absolute()), wv_from_disk=True)
+        se2 = Average(W2V, workers=2, sv_mapfile_path=str(p.absolute()) ,wv_mapfile_path=str(p.absolute()))
         se1.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
         se2.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
 

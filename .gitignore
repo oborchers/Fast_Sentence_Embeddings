@@ -70,3 +70,5 @@ fse*.egg-info
 *.model
 *_out.txt
 *.html
+vectors
+*.vectors
