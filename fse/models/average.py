@@ -109,11 +109,13 @@ class Average(BaseSentence2VecModel):
         if not all(self.word_weights == 1.): 
             raise ValueError("For averaging, all word weights must be one")
 
-    def _pre_train_calls(self):
+    def _pre_train_calls(self, **kwargs):
+        pass
+
+    def _post_train_calls(self, **kwargs):
         pass
     
     def _check_dtype_santiy(self):
         pass
 
-    def _post_train_calls(self):
-        pass
+    

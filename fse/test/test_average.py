@@ -9,7 +9,6 @@
 Automated tests for checking the average model.
 """
 
-
 import logging
 import unittest
 

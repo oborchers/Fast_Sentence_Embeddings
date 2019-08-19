@@ -353,11 +353,11 @@ class BaseSentence2VecModel(SaveLoad):
         """ Function to be called on a batch of sentences. Returns eff sentences/words"""
         raise NotImplementedError()
 
-    def _pre_train_calls(self):
+    def _pre_train_calls(self, **kwargs):
         """Function calls to perform before training """
         raise NotImplementedError()
 
-    def _post_train_calls(self):
+    def _post_train_calls(self, **kwargs):
         """Function calls to perform after training """
         raise NotImplementedError()
     
@@ -511,15 +511,14 @@ class BaseSentence2VecModel(SaveLoad):
 
         self._check_pre_training_sanity(**statistics)
 
-        self.estimate_memory(**statistics)
+        # TODO: smth is wrong here w ft
+        #self.estimate_memory(**statistics)
         self.prep.prepare_vectors(sv=self.sv, total_sentences=statistics["max_index"], update=update)
         
         # Preform post-tain calls (i.e weight computation)
-        self._pre_train_calls()
-
+        self._pre_train_calls(**statistics)
         self._check_parameter_sanity()
         self._check_dtype_santiy()
-
         start_time = time()
 
         logger.info(f"begin training")
@@ -531,13 +530,14 @@ class BaseSentence2VecModel(SaveLoad):
         self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
 
         # Preform post-tain calls (i.e principal component removal)
-        self._post_train_calls()
+        self._post_train_calls(**statistics)
 
         self._log_train_end(eff_sentences=eff_sentences, eff_words=eff_words, overall_time=overall_time)
 
         return eff_sentences, eff_words    
 
     def infer(self, sentences:List[IndexedSentence]=None) -> ndarray:
+        # TODO: On post train calls, manage that the inference removes the components
         self._check_input_data_sanity(sentences)
 
         statistics = self.scan_sentences(sentences)

@@ -8,7 +8,7 @@ from fse.models.average import Average
 
 from gensim.models.keyedvectors import BaseKeyedVectors
 
-from numpy import ndarray, ones, float32 as REAL, sum as np_sum, multiply as np_mult, zeros, max as np_max
+from numpy import ndarray, float32 as REAL
 
 from sklearn.decomposition import TruncatedSVD
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class SIF(Average):
 
-    def __init__(self, model:BaseKeyedVectors, alpha:float=1e-3, components:int=1, sv_mapfile_path:str=None, wv_mapfile_path:str=None, workers:int=1, lang_freq:str=None):        
+    def __init__(self, model:BaseKeyedVectors, components:int=1, alpha:float=1e-3, sv_mapfile_path:str=None, wv_mapfile_path:str=None, workers:int=1, lang_freq:str=None):        
         self.alpha = float(alpha)
         self.components = int(components)
         self.components_vec = None
@@ -29,19 +29,27 @@ class SIF(Average):
             lang_freq=lang_freq)
 
     def _check_parameter_sanity(self):
-        pass
-        #if not all(self.word_weights == 1.): 
-        #    raise ValueError("For averaging, all word weights must be one")
+        if not all(self.word_weights <= 1.) and not all(self.word_weights >= 0.): 
+            raise ValueError("For SIF, all word weights must be 0 <= w_weight <= 1")
+        if self.alpha <= 0.:
+            raise ValueError("Alpha must be greater than zero.")
+        if self.components < 0.:
+            raise ValueError("Components must be greater or equal zero")
 
-    def _pre_train_calls(self):
+    def _pre_train_calls(self, **kwargs):
         self._compute_sif_weights()
     
     def _check_dtype_santiy(self):
         pass
+        #if self.components_vec.dtype != REAL:
+        #    raise RuntimeError(f"type of components_vec is wrong: {self.components_vec.dtype}")
 
-    def _post_train_calls(self):
-        self.components_vec = self._compute_principal_components(components = self.components)
-        self._remove_principal_components(components = self.components)
+    def _post_train_calls(self, **kwargs):
+        if self.components > 0:
+            self.components_vec = self._compute_principal_components(components = self.components)
+            self._remove_principal_components(components = self.components)
+        else:
+            logger.info(f"no removal of principal components")
 
     def _compute_sif_weights(self):
         logger.info(f"pre-computing SIF weights for {len(self.wv.vocab)} words")
