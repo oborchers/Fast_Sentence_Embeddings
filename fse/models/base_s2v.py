@@ -91,7 +91,7 @@ class BaseSentence2VecModel(SaveLoad):
             # [X] Check all dtypes before training
             # [X] Check inf/nan
             # [X] memmap for word vectors
-            # [ ] Scan: Induce to possibility to map 2 or more sentences onto the index
+            # [X] Scan: Induce to possibility to map 2 or more sentences onto the index
             # [X] Ignore wv.vectors when saving and when mapfile path is supplied
             # [X] The post train checks include the checks for nans/infs which take way too long
 
@@ -256,7 +256,7 @@ class BaseSentence2VecModel(SaveLoad):
             f"took {int(overall_time)}s with {int(eff_sentences / overall_time)} sentences/s"
         )
 
-    def _check_pre_training_sanity(self, total_sentences:int, total_words:int, average_length:int):
+    def _check_pre_training_sanity(self, total_sentences:int, total_words:int, average_length:int, **kwargs):
         """ Check if all available objects for training are available and compliant """
         
         if not hasattr(self, "wv") or self.wv is None: 
@@ -349,7 +349,7 @@ class BaseSentence2VecModel(SaveLoad):
         readonly_memvecs = np_memmap(path, dtype=REAL, mode='r', shape=shape)
         return readonly_memvecs
 
-    def _do_train_job(self, data_iterable:List[IndexedSentence]) -> [int, int]:
+    def _do_train_job(self, data_iterable:List[IndexedSentence], target:ndarray) -> [int, int]:
         """ Function to be called on a batch of sentences. Returns eff sentences/words"""
         raise NotImplementedError()
 
@@ -411,6 +411,19 @@ class BaseSentence2VecModel(SaveLoad):
                 self.wv.vectors_ngrams = None
         super(BaseSentence2VecModel, self).save(*args, **kwargs)
 
+    def _check_indexed_sent_valid(self, iterPos:int, obj:IndexedSentence) -> [int, List[str]]:
+        """ Performs a check if the passed object contains valid data """
+        if isinstance(obj, IndexedSentence):
+            index = obj.index
+            sent = obj.words
+        else:
+            raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain IndexedSentence.")
+        if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
+            raise TypeError(f"At {iterPos}: Passed {type(sent)}: {sent}. IndexedSentence.words must contain list of str.")
+        if not isinstance(index, int):
+            raise TypeError(f"At {iterPos}: Passed {type(index)}: {index}. IndexedSentence.index must contain index")
+        return index, sent
+
     def scan_sentences(self, sentences:List[IndexedSentence]=None, progress_per:int=5) -> [int, int, int, int]:
         logger.info("scanning all indexed sentences and their word counts")
 
@@ -422,17 +435,7 @@ class BaseSentence2VecModel(SaveLoad):
         max_index = 0
 
         for i, obj in enumerate(sentences):
-            if isinstance(obj, IndexedSentence):
-                index = obj.index
-                sent = obj.words
-            else:
-                raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain IndexedSentence.")
-
-            if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
-                raise TypeError(f"At {i}: Passed {type(sent)}: {sent}. IndexedSentence.words must contain list of str.")
-            if not isinstance(index, int):
-                raise TypeError(f"At {i}: Passed {type(index)}: {index}. IndexedSentence.index must contain index")
-
+            index, sent = self._check_indexed_sent_valid(iterPos=i, obj=obj)
             if time() - current_time > progress_per:
                 current_time = time()
                 logger.info(f"SCANNING : finished {total_sentences} sentences with {total_words} words")
@@ -448,16 +451,25 @@ class BaseSentence2VecModel(SaveLoad):
             logger.warning(f"found {empty_sentences} empty sentences")
 
         if max_index >= total_sentences:
-            raise RuntimeError(f"Maxium index {max_index} is larger than number of sentences {total_sentences}")
+            raise RuntimeError(f"Index {max_index} is larger than number of sentences {total_sentences}")
+        if max_index == 0:
+            max_index = 1
 
         average_length = int(total_words / total_sentences)
 
         logger.info(
             f"finished scanning {total_sentences} sentences with an average length of {average_length} and {total_words} total words"
         )
-        return total_sentences, total_words, average_length, empty_sentences, max_index
+        statistics = {
+            "total_sentences" : total_sentences,
+            "total_words" : total_words,
+            "average_length" : average_length,
+            "empty_sentences" : empty_sentences,
+            "max_index" : max_index
+        }
+        return statistics
     
-    def estimate_memory(self, total_sentences:int, report:dict=None) -> Dict[str, int]:
+    def estimate_memory(self, total_sentences:int, report:dict=None, **kwargs) -> Dict[str, int]:
         """Estimate the size of the sentence embedding
 
         Parameters
@@ -495,11 +507,12 @@ class BaseSentence2VecModel(SaveLoad):
 
     def train(self, sentences:List[IndexedSentence]=None, update:bool=False, queue_factor:int=2, report_delay:int=5) -> [int,int]:
         self._check_input_data_sanity(sentences)
-        total_sentences, total_words, average_length, empty_sentences, _ = self.scan_sentences(sentences)
-        self._check_pre_training_sanity(total_sentences, total_words, average_length)
+        statistics = self.scan_sentences(sentences)
 
-        self.estimate_memory(total_sentences)
-        self.prep.prepare_vectors(sv=self.sv, total_sentences=total_sentences, update=update)
+        self._check_pre_training_sanity(**statistics)
+
+        self.estimate_memory(**statistics)
+        self.prep.prepare_vectors(sv=self.sv, total_sentences=statistics["max_index"], update=update)
         
         # Preform post-tain calls (i.e weight computation)
         self._pre_train_calls()
@@ -511,7 +524,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         logger.info(f"begin training")
 
-        _, eff_sentences, eff_words = self._train_manager(data_iterable=sentences, total_sentences=total_sentences, queue_factor=queue_factor, report_delay=report_delay)
+        _, eff_sentences, eff_words = self._train_manager(data_iterable=sentences, total_sentences=statistics["max_index"], queue_factor=queue_factor, report_delay=report_delay)
 
         overall_time = time() - start_time
 
@@ -525,7 +538,13 @@ class BaseSentence2VecModel(SaveLoad):
         return eff_sentences, eff_words    
 
     def infer(self, sentences:List[IndexedSentence]=None) -> ndarray:
-        raise NotImplementedError()    
+        self._check_input_data_sanity(sentences)
+
+        statistics = self.scan_sentences(sentences)
+
+        output = zeros((statistics["max_index"], self.sv.vector_size), dtype=REAL)
+        self._do_train_job(data_iterable=sentences, target=output)
+        return output
 
     def _train_manager(self, data_iterable:List[IndexedSentence], total_sentences:int=None, queue_factor:int=2, report_delay:int=5):
         job_queue = Queue(maxsize=queue_factor * self.workers)
@@ -563,7 +582,7 @@ class BaseSentence2VecModel(SaveLoad):
                 progress_queue.put(None)
                 # no more jobs => quit this worker
                 break  
-            eff_sentences, eff_words = self._do_train_job(job)
+            eff_sentences, eff_words = self._do_train_job(data_iterable=job, target=self.sv.vectors)
             progress_queue.put((len(job), eff_sentences, eff_words))
             jobs_processed += 1
         logger.debug(f"worker exiting, processed {jobs_processed} jobs")

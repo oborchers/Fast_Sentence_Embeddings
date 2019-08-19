@@ -164,9 +164,13 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
     def test_scan_w_IndexedSentence(self):
         se = BaseSentence2VecModel(W2V)
         id_sent = [IndexedSentence(s, i) for i,s in enumerate(SENTENCES)]
-        self.assertEqual(
-            (100, 1450, 14, 0, 99), se.scan_sentences(id_sent, progress_per=0)
-            )
+        stats = se.scan_sentences(id_sent, progress_per=0)
+
+        self.assertEqual(100, stats["total_sentences"])
+        self.assertEqual(1450, stats["total_words"])
+        self.assertEqual(14, stats["average_length"])
+        self.assertEqual(0, stats["empty_sentences"])
+        self.assertEqual(99, stats["max_index"])
 
     def test_scan_w_wrong_IndexedSentence(self):
         se = BaseSentence2VecModel(W2V)
@@ -178,7 +182,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(W2V)
         for i in [5, 10, 15]:
             SENTENCES[i] = []
-        self.assertEqual(3, se.scan_sentences([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])[-2])
+        self.assertEqual(3, se.scan_sentences([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])["empty_sentences"])
 
     def test_scan_w_wrong_input(self):
         se = BaseSentence2VecModel(W2V)
@@ -194,8 +198,10 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             se.scan_sentences([IndexedSentence(s, i+1) for i,s in enumerate(SENTENCES)])
         
-        output = se.scan_sentences([IndexedSentence(s, 0) for i,s in enumerate(SENTENCES)])[-1]
-        self.assertEqual(0, output)
+    def test_scan_w_many_to_one_input(self):
+        se = BaseSentence2VecModel(W2V)
+        output = se.scan_sentences([IndexedSentence(s, 0) for i,s in enumerate(SENTENCES)])["max_index"]
+        self.assertEqual(1, output)
 
     def test_estimate_memory(self):
         se = BaseSentence2VecModel(W2V)
@@ -214,7 +220,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(W2V)
 
         with self.assertRaises(NotImplementedError):
-            se._do_train_job(None)
+            se._do_train_job(None, None)
         with self.assertRaises(NotImplementedError):
             se._pre_train_calls()
         with self.assertRaises(NotImplementedError):
@@ -333,17 +339,37 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
     def test_train_manager(self):
         se = BaseSentence2VecModel(W2V, workers=2)
-        def temp_train_job(data_iterable):
+        def temp_train_job(data_iterable, target):
             v1 = v2 = sum(1 for _ in data_iterable)
             return v1*2, v2*3
         se._do_train_job = temp_train_job
         job_output = se._train_manager(data_iterable=[IndexedSentence(s, i) for i,s in enumerate(SENTENCES)], total_sentences=len(SENTENCES),report_delay=0.01)
         self.assertEqual((100,200,300), job_output)
 
+    def test_infer_method(self):
+        se = BaseSentence2VecModel(W2V)
+        def temp_train_job(data_iterable, target):
+            for i in data_iterable:
+                target += 1
+            return target
+        se._do_train_job = temp_train_job
+        output = se.infer([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
+        self.assertTrue((100 == output).all())
+
+    def test_infer_many_to_one(self):
+        se = BaseSentence2VecModel(W2V)
+        def temp_train_job(data_iterable, target):
+            for i in data_iterable:
+                target += 1
+            return target
+        se._do_train_job = temp_train_job
+        output = se.infer([IndexedSentence(s, 0) for i,s in enumerate(SENTENCES)])
+        self.assertTrue((100 == output).all())
+        self.assertEqual((1, 5), output.shape)
+
     def test_remaining_thread_funcs(self):
         # TODO
         pass
-
 
 class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
 

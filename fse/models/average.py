@@ -101,8 +101,8 @@ class Average(BaseSentence2VecModel):
             batch_words=MAX_WORDS_IN_BATCH, fast_version=FAST_VERSION
             )
 
-    def _do_train_job(self, sentences:List[IndexedSentence]) -> [int,int]:
-        eff_sentences, eff_words = train_average(model=self, indexed_sentences=sentences, target=self.sv.vectors)
+    def _do_train_job(self, data_iterable:List[IndexedSentence], target:ndarray) -> [int, int]:
+        eff_sentences, eff_words = train_average(model=self, indexed_sentences=data_iterable, target=target)
         return eff_sentences, eff_words
 
     def _check_parameter_sanity(self):
