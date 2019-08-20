@@ -20,7 +20,7 @@ from fse.models.average import Average
 from fse.models.average import train_average_np
 from fse.models.average_inner import train_average_cy
 from fse.models.average_inner import FAST_VERSION, MAX_WORDS_IN_BATCH
-from fse.models.inputs import IndexedSentence
+from fse.inputs import IndexedSentence
 
 from gensim.models import Word2Vec, FastText
 

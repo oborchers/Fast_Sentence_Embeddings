@@ -13,7 +13,7 @@ Automated tests for checking the input models.
 import logging
 import unittest
 
-from fse.models.inputs import IndexedSentence
+from fse.inputs import IndexedSentence
 
 logger = logging.getLogger(__name__)
 

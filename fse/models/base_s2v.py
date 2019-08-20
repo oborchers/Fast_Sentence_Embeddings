@@ -5,10 +5,10 @@
 # Copyright (C) 2019 Oliver Borchers
 
 from fse.models.sentencevectors import SentenceVectors
-from fse.models.inputs import IndexedSentence
+from fse.inputs import IndexedSentence
 
 from gensim.models.base_any2vec import BaseWordEmbeddingsModel
-from gensim.models.keyedvectors import BaseKeyedVectors, FastTextKeyedVectors
+from gensim.models.keyedvectors import BaseKeyedVectors, FastTextKeyedVectors, _l2_norm
 from gensim.utils import SaveLoad
 
 from numpy import ndarray, memmap as np_memmap, float32 as REAL, empty, zeros, vstack, dtype, isfinite, \
@@ -47,11 +47,19 @@ class BaseSentence2VecModel(SaveLoad):
     sv : :class:`~fse.models.sentencevectors.SentenceVectors`
         This object contains the sentence vectors inferred from the training data. There will be one such vector
         for each unique docusentence supplied during training. They may be individually accessed using the index.
+    
+    prep : :class:`~fse.models.base_s2v.BaseSentence2VecPreparer`
+        The prep object is used to transform and initialize the sv.vectors. Aditionally, it can be used
+        to move the vectors to disk for training with memmap.
 
     See Also
     --------
     :class:`~fse.models.average.Average`.
-        Average sentence Model.
+        Average sentence model.
+    :class:`~fse.models.sif.SIF`.
+        Smooth inverse frequency weighted model.
+    :class:`~fse.models.usif.uSIF`.
+        Unsupervised Smooth inverse frequency weighted model.
     """
 
     def __init__(self, model:BaseKeyedVectors, sv_mapfile_path:str=None, wv_mapfile_path:str=None, workers:int=1, lang_freq:str=None, fast_version:int=0, batch_words:int=10000, **kwargs):
@@ -100,7 +108,7 @@ class BaseSentence2VecModel(SaveLoad):
             # [X] How to deal with indexed sentences?
             # [X] Count the effective words
 
-        # [ ] Implement Fasttext Support
+        # [X] Implement Fasttext Support
             # [X] Estimate Memory does not account for fasttext ngram vectors
             # [X] sanity: Check if ngram_vectors is available
             # [X] sanity: Only accept FT compatible hash function fasttext implementaiton
@@ -358,14 +366,20 @@ class BaseSentence2VecModel(SaveLoad):
         raise NotImplementedError()
 
     def _post_train_calls(self, **kwargs):
-        """Function calls to perform after training """
+        """ Function calls to perform after training, such as computing eigenvectors """
         raise NotImplementedError()
     
-    def _check_parameter_sanity(self):
+    def _post_inference_calls(self, **kwargs):
+        """ Function calls to perform after training & inference
+        Examples include the removal of components
+        """
+        raise NotImplementedError()
+
+    def _check_parameter_sanity(self, **kwargs):
         """ Check the sanity of all child paramters """
         raise NotImplementedError()
 
-    def _check_dtype_santiy(self):
+    def _check_dtype_santiy(self, **kwargs):
         """ Check the dtypes of all child attributes"""
         raise NotImplementedError()
 
@@ -511,7 +525,6 @@ class BaseSentence2VecModel(SaveLoad):
 
         self._check_pre_training_sanity(**statistics)
 
-        # TODO: smth is wrong here w ft
         self.estimate_memory(**statistics)
         self.prep.prepare_vectors(sv=self.sv, total_sentences=statistics["max_index"], update=update)
         
@@ -530,20 +543,25 @@ class BaseSentence2VecModel(SaveLoad):
         self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
 
         # Preform post-tain calls (i.e principal component removal)
-        self._post_train_calls(**statistics)
+        self._post_train_calls()
 
         self._log_train_end(eff_sentences=eff_sentences, eff_words=eff_words, overall_time=overall_time)
 
         return eff_sentences, eff_words    
 
-    def infer(self, sentences:List[IndexedSentence]=None) -> ndarray:
-        # TODO: On post train calls, manage that the inference removes the components
+    def infer(self, sentences:List[IndexedSentence]=None, use_norm=False) -> ndarray:
         self._check_input_data_sanity(sentences)
 
         statistics = self.scan_sentences(sentences)
 
         output = zeros((statistics["max_index"], self.sv.vector_size), dtype=REAL)
+        
         self._do_train_job(data_iterable=sentences, target=output)
+
+        self._post_inference_calls(output=output)
+
+        if use_norm:
+            output = _l2_norm(output)
         return output
 
     def _train_manager(self, data_iterable:List[IndexedSentence], total_sentences:int=None, queue_factor:int=2, report_delay:int=5):

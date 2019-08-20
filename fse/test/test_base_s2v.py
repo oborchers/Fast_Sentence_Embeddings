@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 
 from fse.models.base_s2v import BaseSentence2VecModel, BaseSentence2VecPreparer
-from fse.models.inputs import IndexedSentence
+from fse.inputs import IndexedSentence
 
 from gensim.models import Word2Vec, FastText
 from gensim.models.keyedvectors import BaseKeyedVectors
@@ -233,6 +233,8 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             se._check_parameter_sanity()
         with self.assertRaises(NotImplementedError):
             se._check_dtype_santiy()  
+        with self.assertRaises(NotImplementedError):
+            se._post_inference_calls()  
 
     def test_pre_training_sanity(self):
         ft = FastText(min_count=1, size=5)
@@ -356,6 +358,9 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             for i in data_iterable:
                 target += 1
             return target
+
+        def pass_method(**kwargs): pass
+        se._post_inference_calls = pass_method
         se._do_train_job = temp_train_job
         output = se.infer([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
         self.assertTrue((100 == output).all())
@@ -366,10 +371,25 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             for i in data_iterable:
                 target += 1
             return target
+        def pass_method(**kwargs): pass
+        se._post_inference_calls = pass_method
         se._do_train_job = temp_train_job
         output = se.infer([IndexedSentence(s, 0) for i,s in enumerate(SENTENCES)])
         self.assertTrue((100 == output).all())
         self.assertEqual((1, 5), output.shape)
+
+    def test_infer_use_norm(self):
+        se = BaseSentence2VecModel(W2V)
+        def temp_train_job(data_iterable, target):
+            for i in data_iterable:
+                target += 1
+            return target
+        def pass_method(**kwargs): pass
+        se._post_inference_calls = pass_method
+        se._do_train_job = temp_train_job
+        output = se.infer([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)], use_norm=True)
+
+        self.assertTrue(np.allclose(1., np.sqrt(np.sum(output[0]**2))))
 
     def test_remaining_thread_funcs(self):
         # TODO

@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from fse.models.usif import uSIF
-from fse.models.inputs import IndexedSentence
+from fse.inputs import IndexedSentence
 
 from gensim.models import Word2Vec
 
