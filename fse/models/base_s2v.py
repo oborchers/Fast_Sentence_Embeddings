@@ -6,6 +6,8 @@
 # Licensed under GNU General Public License v3.0
 
 """Base class containing common methods for training, using & evaluating sentence embeddings.
+A lot of the code is based on Gensim. I have to thank Radim Rehurek and the whole team
+for the outstanding library which I used for a lot of my research.
 
 Attributes
 ----------
@@ -123,23 +125,23 @@ class BaseSentence2VecModel(SaveLoad):
             # [X] sanity: Only accept FT compatible hash function fasttext implementaiton
 
         # [ ] Implement SIF Emebddings
-            # [ ] If principal compnents exist, use them for the next train phase --> train + infer
+            # [ ] If principal components exist, use them for the next train phase --> train + infer
             # [X] pre_train_calls & post_train_calls
             # [ ] Unittests
             # [ ] Parameter sanity
 
         # [ ] Implement uSIF Emebddings
-            # [ ] Where to best pass average sentence length?
+            # [X] Where to best pass average sentence length?
         
         # [ ] :class: SentenceVectors
             # [ ] Similarity for unseen documents --> Model.infer vector
             # [ ] For outputs, provide an indexable function to map indices to sentences
             # [X] Does sv.vectors & wv.vectors collide during saving without mapfile path? -> No
             # [X] Decide which attributes to ignore when saving
-            # [ ] Unittests for modified saving routine
+            # [X] Unittests for modified saving routine
         
         # [ ] :class: inputs
-            # [ ] Move to fse.inputs 
+            # [X] Move to fse.inputs 
             # [X] Tests for IndexedSentence
             # [ ] rewrite TaggedLineDocument
             # [ ] Document Boundary (DocId, Up, Low)
@@ -639,6 +641,27 @@ class BaseSentence2VecModel(SaveLoad):
         return report
 
     def train(self, sentences:List[IndexedSentence]=None, update:bool=False, queue_factor:int=2, report_delay:int=5) -> [int,int]:
+        """ Main routine to train an embedding. This method writes all sentences vectors into sv.vectors and is
+        used for computing embeddings for large chunks of data. This method also handles post-training transformations,
+        such as computing the SVD of the sentence vectors.
+
+        Parameters
+        ----------
+        sentences : (list, iterable)
+            An iterable consisting of IndexedSentence objects
+        update : bool
+            If bool is True, the sentence vector matrix will be updated in size (even with memmap)
+        queue_factor : int
+            Multiplier for size of queue -> size = number of workers * queue_factor.
+        report_delay : int
+            Number of seconds between two consecutive progress report messages in the logger.
+
+        Returns
+        -------
+        int, int
+            Count of effective sentences and words encountered
+
+        """
         self._check_input_data_sanity(sentences)
         statistics = self.scan_sentences(sentences)
 
@@ -669,6 +692,23 @@ class BaseSentence2VecModel(SaveLoad):
         return eff_sentences, eff_words    
 
     def infer(self, sentences:List[IndexedSentence]=None, use_norm=False) -> ndarray:
+        """ Secondary routine to train an embedding. This method is essential for small batches of sentences,
+        which require little computation. Note: This method does not apply post-training transformations,
+        only post inference calls (such as removing principal components).
+
+        Parameters
+        ----------
+        sentences : (list, iterable)
+            An iterable consisting of IndexedSentence objects
+        use_norm : bool
+            If bool is True, the sentence vectors will be L2 normalized (unit euclidean length)
+
+        Returns
+        -------
+        ndarray
+            Computed sentence vectors
+
+        """
         self._check_input_data_sanity(sentences)
 
         statistics = self.scan_sentences(sentences)
@@ -684,6 +724,20 @@ class BaseSentence2VecModel(SaveLoad):
         return output
 
     def _train_manager(self, data_iterable:List[IndexedSentence], total_sentences:int=None, queue_factor:int=2, report_delay:int=5):
+        """ Manager for the multi-core implementation. Directly adapted from gensim
+        
+        Parameters
+        ----------
+        data_iterable : (list, iterable)
+            An iterable consisting of IndexedSentence objects. This will be split in chunks and these chunks will be pushed to the queue.
+        total_sentences : int
+            Number of sentences found during the initial scan
+        queue_factor : int
+            Multiplier for size of queue -> size = number of workers * queue_factor.
+        report_delay : int
+            Number of seconds between two consecutive progress report messages in the logger.
+
+        """
         job_queue = Queue(maxsize=queue_factor * self.workers)
         progress_queue = Queue(maxsize=(queue_factor + 1) * self.workers)
 
@@ -712,6 +766,24 @@ class BaseSentence2VecModel(SaveLoad):
         return jobs, eff_sentences, eff_words
 
     def _worker_loop(self, job_queue, progress_queue):
+        """ Train the model, lifting batches of data from the queue.
+
+        This function will be called in parallel by multiple workers (threads or processes) to make
+        optimal use of multicore machines.
+
+        Parameters
+        ----------
+        job_queue : Queue of (list of IndexedSentence)
+            A queue of jobs still to be processed. The worker will take up jobs from this queue.
+            Each job is represented as a batch of IndexedSentence.
+        progress_queue : Queue of (int, int, int)
+            A queue of progress reports. Each report is represented as a tuple of these 3 elements:
+                * Size of job processed
+                * Effective sentences encountered in traning
+                * Effective words encountered in traning
+
+        """
+
         jobs_processed = 0
         while True:
             job = job_queue.get()
@@ -725,6 +797,20 @@ class BaseSentence2VecModel(SaveLoad):
         logger.debug(f"worker exiting, processed {jobs_processed} jobs")
     
     def _job_producer(self, data_iterable:List[IndexedSentence], job_queue:Queue):
+        """ Fill the jobs queue using the data found in the input stream.
+
+        Each job is represented as a batch of IndexedSentence
+
+        Parameters
+        ----------
+        data_iterable : (list, iterable)
+            An iterable consisting of IndexedSentence objects. This will be split in chunks and these chunks will be pushed to the queue.
+        job_queue : Queue of (list of IndexedSentence)
+            A queue of jobs still to be processed. The worker will take up jobs from this queue.
+            Each job is represented as a batch of IndexedSentence.
+
+        """
+
         job_batch, batch_size = [], 0
         job_no = 0
 
@@ -747,13 +833,32 @@ class BaseSentence2VecModel(SaveLoad):
         logger.debug(f"job loop exiting, total {job_no} jobs")
     
     def _log_train_progress(self, progress_queue:Queue, total_sentences:int=None, report_delay:int=5):
+        """ Log the training process after a couple of seconds.
+
+        Parameters
+        ----------
+        progress_queue : Queue of (int, int, int)
+            A queue of progress reports. Each report is represented as a tuple of these 3 elements:
+                * Size of job processed
+                * Effective sentences encountered in traning
+                * Effective words encountered in traning
+        total_sentences : int
+            Number of sentences found during the initial scan
+        report_delay : int
+            Number of seconds between two consecutive progress report messages in the logger.
+
+        Returns
+        -------
+        int, int, int
+            number of jobs, effective sentences, and effective words in traning
+
+        """
         jobs, eff_sentences, eff_words = 0, 0, 0
         unfinished_worker_count = self.workers
         start_time = time()
         sentence_inc = 0
         while unfinished_worker_count > 0:
             report = progress_queue.get()
-
             if report is None:  # a thread reporting that it finished
                 unfinished_worker_count -= 1
                 logger.info(f"worker thread finished; awaiting finish of {unfinished_worker_count} more threads")
