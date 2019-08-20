@@ -3,6 +3,34 @@
 
 # Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
 # Copyright (C) 2019 Oliver Borchers
+# Licensed under GNU General Public License v3.0
+
+"""Base class containing common methods for training, using & evaluating sentence embeddings.
+
+Attributes
+----------
+wv : :class:`~gensim.models.keyedvectors.BaseKeyedVectors`
+    This object essentially contains the mapping between words and embeddings. After training, it can be used
+    directly to query those embeddings in various ways. See the module level docstring for examples.
+
+sv : :class:`~fse.models.sentencevectors.SentenceVectors`
+    This object contains the sentence vectors inferred from the training data. There will be one such vector
+    for each unique docusentence supplied during training. They may be individually accessed using the index.
+
+prep : :class:`~fse.models.base_s2v.BaseSentence2VecPreparer`
+    The prep object is used to transform and initialize the sv.vectors. Aditionally, it can be used
+    to move the vectors to disk for training with memmap.
+
+See Also
+--------
+:class:`~fse.models.average.Average`.
+    Average sentence model.
+:class:`~fse.models.sif.SIF`.
+    Smooth inverse frequency weighted model.
+:class:`~fse.models.usif.uSIF`.
+    Unsupervised Smooth inverse frequency weighted model.
+
+"""
 
 from fse.models.sentencevectors import SentenceVectors
 from fse.inputs import IndexedSentence
@@ -11,15 +39,12 @@ from gensim.models.base_any2vec import BaseWordEmbeddingsModel
 from gensim.models.keyedvectors import BaseKeyedVectors, FastTextKeyedVectors, _l2_norm
 from gensim.utils import SaveLoad
 
-from numpy import ndarray, memmap as np_memmap, float32 as REAL, empty, zeros, vstack, dtype, isfinite, \
-    ones
+from numpy import ndarray, memmap as np_memmap, float32 as REAL, empty, zeros, vstack, dtype, ones
 
 from wordfreq import available_languages, get_frequency_dict
 
 from typing import List, Dict
 from types import GeneratorType
-
-from collections import defaultdict
 
 from time import time
 from psutil import virtual_memory
@@ -36,44 +61,25 @@ from queue import Queue
 logger = logging.getLogger(__name__)
 
 class BaseSentence2VecModel(SaveLoad):
-    """Base class containing common methods for training, using & evaluating sentence embeddings.
-
-    Attributes
-    ----------
-    wv : :class:`~gensim.models.keyedvectors.BaseKeyedVectors`
-        This object essentially contains the mapping between words and embeddings. After training, it can be used
-        directly to query those embeddings in various ways. See the module level docstring for examples.
     
-    sv : :class:`~fse.models.sentencevectors.SentenceVectors`
-        This object contains the sentence vectors inferred from the training data. There will be one such vector
-        for each unique docusentence supplied during training. They may be individually accessed using the index.
-    
-    prep : :class:`~fse.models.base_s2v.BaseSentence2VecPreparer`
-        The prep object is used to transform and initialize the sv.vectors. Aditionally, it can be used
-        to move the vectors to disk for training with memmap.
-
-    See Also
-    --------
-    :class:`~fse.models.average.Average`.
-        Average sentence model.
-    :class:`~fse.models.sif.SIF`.
-        Smooth inverse frequency weighted model.
-    :class:`~fse.models.usif.uSIF`.
-        Unsupervised Smooth inverse frequency weighted model.
-    """
-
     def __init__(self, model:BaseKeyedVectors, sv_mapfile_path:str=None, wv_mapfile_path:str=None, workers:int=1, lang_freq:str=None, fast_version:int=0, batch_words:int=10000, **kwargs):
-        """
+        """ Base class for all Sentence2Vec Models. Provides core functionality, such as
+        save, load, sanity checking, frequency induction, data checking, scanning, etc.
+
         Parameters
         ----------
         model : :class:`~gensim.models.keyedvectors.BaseKeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
             This object essentially contains the mapping between words and embeddings. To compute the sentence embeddings
             the wv.vocab and wv.vector elements are required.
-        mapfile_path : str, optional
-            Optional path to store the vectors in for very large datasets
+        sv_mapfile_path : str, optional
+            Optional path to store the sentence-vectors in for very large datasets. Used for memmap.
+        wv_mapfile_path : str, optional
+            Optional path to store the word-vectors in for very large datasets. Used for memmap.
+            Use sv_mapfile_path and wv_mapfile_path to train disk-to-disk without needing much ram.
         workers : int, optional
-            Number of working threads, used for multithreading.
-        language : str, optional
+            Number of working threads, used for multithreading. For most tasks (few words in a sentence)
+            a value of 1 should be more than enough.
+        lang_freq : str, optional
             Some pre-trained embeddings, i.e. "GoogleNews-vectors-negative300.bin", do not contain information about
             the frequency of a word. As the frequency is required for estimating the word weights, we induce
             frequencies into the wv.vocab.count based on :class:`~wordfreq`
@@ -81,8 +87,11 @@ class BaseSentence2VecModel(SaveLoad):
             See https://github.com/LuminosoInsight/wordfreq
         fast_version : {-1, 1}, optional
             Whether or not the fast cython implementation of the internal training methods is available. 1 means it is.
+        batch_words : int, optional
+            Number of words to be processed by a single job.
         **kwargs : object
             Key word arguments needed to allow children classes to accept more arguments.
+
         """
 
         # [ ] Implement Average Emebddings (Prototype)
@@ -181,7 +190,7 @@ class BaseSentence2VecModel(SaveLoad):
         self.word_weights = ones(len(self.wv.vocab), REAL)
 
     def __str__(self) -> str:
-        """Human readable representation of the model's state.
+        """ Human readable representation of the model's state.
 
         Returns
         -------
@@ -192,7 +201,14 @@ class BaseSentence2VecModel(SaveLoad):
         return f"{self.__class__.__name__} based on {self.wv.__class__.__name__}, size={len(self.sv)}"
 
     def _check_and_include_model(self, model:BaseKeyedVectors):
-        """Check if the supplied model is a compatible model. """
+        """ Check if the supplied model is a compatible model. Performs all kinds of checks and small optimizations.
+        
+        Parameters
+        ----------
+        model : :class:`~gensim.models.keyedvectors.BaseKeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
+            The model to inject into this class.
+
+        """
         if isinstance(model, BaseWordEmbeddingsModel):
             self.wv = model.wv
         elif isinstance(model, BaseKeyedVectors):
@@ -220,7 +236,14 @@ class BaseSentence2VecModel(SaveLoad):
             raise RuntimeError("Vocab required for sentence embeddings not found.")
     
     def _check_language_settings(self, lang_freq:str):
-        """Check if the supplied language is a compatible with the wordfreq package"""
+        """ Check if the supplied language is a compatible with the wordfreq package
+        
+        Parameters
+        ----------
+        lang_freq : str
+            The language used to induce the frequencies into the wv.vocab object.
+
+        """
         if lang_freq in available_languages(wordlist='best'):
             self.lang_freq = str(lang_freq)
             logger.info("no frequency mode: using wordfreq for estimation "
@@ -229,7 +252,14 @@ class BaseSentence2VecModel(SaveLoad):
             raise ValueError(f"Language {lang_freq} is not available in wordfreq")
     
     def _induce_frequencies(self, domain:int=2**31 - 1):
-        """Induce frequencies for a pretrained model"""
+        """ Induce frequencies for a pretrained model, as not all pretrained models come with frequencies.
+        
+        Parameters
+        ----------
+        domain : int
+            The cumulative count of the vocabulary.
+
+        """
         freq_dict = get_frequency_dict(self.lang_freq, wordlist='best')
         for word in self.wv.index2word:
             if word in freq_dict:
@@ -237,8 +267,15 @@ class BaseSentence2VecModel(SaveLoad):
             else:
                 self.wv.vocab[word].count = int(1e-8 * domain)
 
-    def _check_input_data_sanity(self, data_iterable=None):
-        """Check if the input data complies with the required formats"""
+    def _check_input_data_sanity(self, data_iterable:IndexedSentence):
+        """ Check if the input data complies with the required formats
+        
+        Parameters
+        ----------
+        data_iterable : IndexedSentence
+            The cumulative count of the vocabulary.
+
+        """
         if data_iterable is None:
             raise TypeError("You must provide a data iterable to train on")
         elif isinstance(data_iterable, str):
@@ -249,7 +286,7 @@ class BaseSentence2VecModel(SaveLoad):
             raise TypeError("Iterable must provide __iter__ function")
 
     def _log_train_end(self, eff_sentences:int, eff_words:int, overall_time:float):
-        """Callback to log the end of training.
+        """ Log the end of training.
 
         Parameters
         ----------
@@ -258,6 +295,8 @@ class BaseSentence2VecModel(SaveLoad):
         eff_words : int
             Number of effective words used in training (after ignoring unknown words).
         overall_time : float
+            Time in seconds for the task to be completed.
+
         """
         logger.info(
             f"training on {eff_sentences} effective sentences with {eff_words} effective words "
@@ -265,8 +304,18 @@ class BaseSentence2VecModel(SaveLoad):
         )
 
     def _check_pre_training_sanity(self, total_sentences:int, total_words:int, average_length:int, **kwargs):
-        """ Check if all available objects for training are available and compliant """
-        
+        """ Check if all available objects for training are available and compliant
+
+        Parameters
+        ----------
+        total_sentences : int
+            Number of sentences encountered while scanning
+        total_words : int
+            Number of words encountered while scanning
+        average_length : int
+            Average sentence length
+
+        """
         if not hasattr(self, "wv") or self.wv is None: 
             raise RuntimeError("you must first load a valid BaseKeyedVectors object")
         if not len(self.wv.vectors):
@@ -308,15 +357,30 @@ class BaseSentence2VecModel(SaveLoad):
             )
 
     def _check_post_training_sanity(self, eff_sentences:int, eff_words:int):
-        """ Check if the training result do not contain any infs/nans """
+        """ Check if the training results make sense
 
+        Parameters
+        ----------
+        eff_sentences : int
+            Number of effective sentences encountered during training
+        eff_words : int
+            Number of effective words encountered during training
+        
+        """
         if eff_sentences is 0 or eff_words is 0:
             raise ValueError(
                 f"training returned invalid values. Check the input."
             )
     
     def _map_all_vectors_to_disk(self, mapfile_path:Path):
-        """ Maps all vectors to disk """
+        """ Maps all vectors to disk 
+
+        Parameters
+        ----------
+        mapfile_path : Path
+            Path where to write the vectors to
+
+        """
         path = str(mapfile_path.absolute())
 
         self.wv_mapfile_shapes["vectors"] = self.wv.vectors.shape
@@ -328,7 +392,14 @@ class BaseSentence2VecModel(SaveLoad):
             self.wv.vectors_ngrams = self._move_ndarray_to_disk(self.wv.vectors_ngrams, mapfile_path=self.wv_mapfile_path, name="ngrams")
 
     def _load_all_vectors_from_disk(self, mapfile_path:Path):
-        """ Reads all vectors from disk """
+        """ Reads all vectors from disk 
+
+        Parameters
+        ----------
+        mapfile_path : Path
+            Path where to read the vectors from
+
+        """
         path = str(mapfile_path.absolute())
 
         self.wv.vectors = np_memmap(f"{path}_wv.vectors", dtype=REAL, mode='r', shape=self.wv_mapfile_shapes["vectors"])
@@ -338,9 +409,25 @@ class BaseSentence2VecModel(SaveLoad):
             self.wv.vectors_ngrams = np_memmap(
                 f"{path}_ngrams.vectors", dtype=REAL, mode='r', shape=self.wv_mapfile_shapes["vectors_ngrams"])
         
-    def _move_ndarray_to_disk(self, vectors:ndarray, mapfile_path:str, name:str="") -> ndarray:
-        """ Moves the a numpy ndarray to disk"""
-        shape = vectors.shape
+    def _move_ndarray_to_disk(self, vector:ndarray, mapfile_path:str, name:str="") -> ndarray:
+        """ Moves a numpy ndarray to disk via memmap
+
+        Parameters
+        ----------
+        vector : ndarray
+            The vector to write to disk
+        mapfile_path : Path
+            Path where to write the vector to
+        name : str
+            Suffix which is appended to the path to distinguish multiple files
+
+        Returns
+        -------
+        ndarray
+            readonly ndarray to be used in further computations
+
+        """
+        shape = vector.shape
         path = Path(f"{mapfile_path}_{name}.vectors")
 
         if not path.exists():
@@ -348,8 +435,8 @@ class BaseSentence2VecModel(SaveLoad):
             memvecs = np_memmap(
                 path, dtype=REAL,
                 mode='w+', shape=shape)
-            memvecs[:] = vectors[:]
-            del memvecs, vectors
+            memvecs[:] = vector[:]
+            del memvecs, vector
         else:
             # If multiple instances of this class exist, all can access the same files
             logger.info(f"loading pre-existing {name} from {path}")
@@ -358,11 +445,11 @@ class BaseSentence2VecModel(SaveLoad):
         return readonly_memvecs
 
     def _do_train_job(self, data_iterable:List[IndexedSentence], target:ndarray) -> [int, int]:
-        """ Function to be called on a batch of sentences. Returns eff sentences/words"""
+        """ Function to be called on a batch of sentences. Returns eff sentences/words """
         raise NotImplementedError()
 
     def _pre_train_calls(self, **kwargs):
-        """Function calls to perform before training """
+        """ Function calls to perform before training """
         raise NotImplementedError()
 
     def _post_train_calls(self, **kwargs):
@@ -380,12 +467,12 @@ class BaseSentence2VecModel(SaveLoad):
         raise NotImplementedError()
 
     def _check_dtype_santiy(self, **kwargs):
-        """ Check the dtypes of all child attributes"""
+        """ Check the dtypes of all child attributes """
         raise NotImplementedError()
 
     @classmethod
     def load(cls, *args, **kwargs):
-        """Load a previously saved :class:`~fse.models.base_s2v.BaseSentence2VecModel`.
+        """ Load a previously saved :class:`~fse.models.base_s2v.BaseSentence2VecModel`.
 
         Parameters
         ----------
@@ -408,7 +495,7 @@ class BaseSentence2VecModel(SaveLoad):
         return model
 
     def save(self, *args, **kwargs):
-        """Save the model.
+        """ Save the model.
         This saved model can be loaded again using :func:`~fse.models.base_s2v.BaseSentence2VecModel.load`
 
         Parameters
@@ -426,7 +513,24 @@ class BaseSentence2VecModel(SaveLoad):
         super(BaseSentence2VecModel, self).save(*args, **kwargs)
 
     def _check_indexed_sent_valid(self, iterPos:int, obj:IndexedSentence) -> [int, List[str]]:
-        """ Performs a check if the passed object contains valid data """
+        """ Performs a check if the passed object contains valid data
+
+        Parameters
+        ----------
+        iterPos : int
+            Position in file/iterable
+        obj : IndexedSentence
+            An IndexedSentence object containing the index and sentence
+        
+        Returns
+        -------
+        int
+            Index of the sentence used to write to (in sv.vectors)
+        list
+            List of strings containing all words in a sentence
+
+        """
+
         if isinstance(obj, IndexedSentence):
             index = obj.index
             sent = obj.words
@@ -440,7 +544,22 @@ class BaseSentence2VecModel(SaveLoad):
             raise ValueError(f"At {iterPos}: Passed negative {index}")
         return index, sent
 
-    def scan_sentences(self, sentences:List[IndexedSentence]=None, progress_per:int=5) -> [int, int, int, int]:
+    def scan_sentences(self, sentences:List[IndexedSentence]=None, progress_per:int=5) -> Dict[str,int]:
+        """ Performs an initial scan of the data and reports all corresponding statistics
+
+        Parameters
+        ----------
+        sentences : (list, iterable)
+            An iterable consisting of IndexedSentence objects
+        progress_per : int
+            Number of seconds to pass before reporting the scan progress
+
+        Returns
+        -------
+        dict
+            Dictionary containing the scan statistics
+        
+        """
         logger.info("scanning all indexed sentences and their word counts")
 
         current_time = time()
@@ -484,19 +603,19 @@ class BaseSentence2VecModel(SaveLoad):
         return statistics
     
     def estimate_memory(self, total_sentences:int, report:dict=None, **kwargs) -> Dict[str, int]:
-        """Estimate the size of the sentence embedding
+        """ Estimate the size of the sentence embedding
 
         Parameters
         ----------
-        wv : :class:`~gensim.models.keyedvectors.BaseKeyedVectors`
-            Contains all necessary information to compute size requirements
         total_sentences : int
-            Number of sentences to be computed
+            Number of sentences found during the initial scan
+        report : dict
+            Report of subclasses
 
         Returns
         -------
         dict
-            Dictionary of esitmated sizes
+            Dictionary of estimated memory sizes
 
         """
         vocab_size = len(self.wv.vectors)
