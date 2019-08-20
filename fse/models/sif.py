@@ -41,8 +41,6 @@ class SIF(Average):
     
     def _check_dtype_santiy(self):
         pass
-        #if self.components_vec.dtype != REAL:
-        #    raise RuntimeError(f"type of components_vec is wrong: {self.components_vec.dtype}")
 
     def _post_train_calls(self, **kwargs):
         if self.components > 0:

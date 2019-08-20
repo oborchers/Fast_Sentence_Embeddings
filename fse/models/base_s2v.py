@@ -492,8 +492,8 @@ class BaseSentence2VecModel(SaveLoad):
         report["Word Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
         report["Sentence Vectors"] = total_sentences * self.wv.vector_size * dtype(REAL).itemsize
         if self.is_ft:
-            report["Sentence Vocab Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
-            report["Sentence Vocab Vectors"] = self.wv.vectors_ngrams[0] * self.wv.vector_size * dtype(REAL).itemsize
+            report["Vocab Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
+            report["Ngram Vectors"] = self.wv.vectors_ngrams.shape[0] * self.wv.vector_size * dtype(REAL).itemsize
         report["Total"] = sum(report.values())
         mb_size = int(report["Total"] / 1024**2)
         logger.info(
@@ -512,7 +512,7 @@ class BaseSentence2VecModel(SaveLoad):
         self._check_pre_training_sanity(**statistics)
 
         # TODO: smth is wrong here w ft
-        #self.estimate_memory(**statistics)
+        self.estimate_memory(**statistics)
         self.prep.prepare_vectors(sv=self.sv, total_sentences=statistics["max_index"], update=update)
         
         # Preform post-tain calls (i.e weight computation)

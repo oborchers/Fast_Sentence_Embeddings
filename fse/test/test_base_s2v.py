@@ -206,8 +206,10 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         self.assertEqual(1, output)
 
     def test_estimate_memory(self):
-        se = BaseSentence2VecModel(W2V)
-        self.assertEqual(2000013704, se.estimate_memory(int(1e8))["Total"])
+        ft = FastText(min_count=1, size=5)
+        ft.build_vocab(SENTENCES)
+        se = BaseSentence2VecModel(ft)
+        self.assertEqual(2040025124, se.estimate_memory(int(1e8))["Total"])
 
     def test_train(self):
         se = BaseSentence2VecModel(W2V)

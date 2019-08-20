@@ -17,16 +17,17 @@ DIM = 50
 W2V = Word2Vec(min_count=1, size=DIM)
 SENTENCES = [l.split() for i, l in enumerate(open(CORPUS, "r"))]
 W2V.build_vocab(SENTENCES)
-W2V.wv.vectors[:,] = np.arange(len(W2V.wv.vectors), dtype=np.float32)[:, None]
 
+from gensim.models.keyedvectors import KeyedVectors
+kv = KeyedVectors.load("/Users/oliverborchers/Desktop/GSDEV/Models/Static/paranmt.model")
 
 class TestuSIFFunctions(unittest.TestCase):
     def setUp(self):
         self.sentences = [IndexedSentence(s, i) for i,s in enumerate(SENTENCES)]
-        self.model = uSIF(W2V)
+        self.model = uSIF(kv, lang_freq="en")
 
     def test_length_init(self):
-        se = uSIF(W2V, length=11)
+        se = uSIF(kv, length=11, lang_freq="en")
         self.assertEqual(11, se.length)
 
     def test_length(self):

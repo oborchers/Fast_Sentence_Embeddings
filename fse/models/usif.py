@@ -61,10 +61,12 @@ class uSIF(Average):
         for word in self.wv.vocab:
             pw[self.wv.vocab[word].index] = self.wv.vocab[word].count / corpus_size
         
-        threshold = 1- (1-(1/v)) ** self.length
+        threshold = 1 - (1-(1/v)) ** self.length
         alpha = sum(pw > threshold) / v
         z = v/2
         a = (1 - alpha)/(alpha * z)
+
+        #a = 0.0012066490225995639
 
         for word in self.wv.vocab:
             idx = self.wv.vocab[word].index
@@ -74,12 +76,4 @@ class uSIF(Average):
         logger.info(f"computing {components} principal components")
         svd = TruncatedSVD(n_components=components, n_iter=7, random_state=0, algorithm="randomized")
         svd.fit(self.sv.vectors)
-        return svd#svd.components_, svd.singular_values_
-
-    # def _remove_principal_components(self, components:int=1):
-    #     logger.info(f"removing {components} principal components")
-    #     if components==1:
-    #         self.sv.vectors -= self.sv.vectors.dot(self.components_vec.transpose()) * self.components_vec
-    #     else:
-    #         self.sv.vectors -= self.sv.vectors.dot(self.components_vec.transpose()).dot(self.components_vec)
-        
+        return svd
