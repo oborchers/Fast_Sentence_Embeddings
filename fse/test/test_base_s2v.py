@@ -48,6 +48,21 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             del w2v.wv.vectors
             BaseSentence2VecModel(w2v)
 
+    def test_init_w_empty_vocab_model(self):
+        with self.assertRaises(RuntimeError):
+            w2v = Word2Vec()
+            del w2v.wv.vocab
+            BaseSentence2VecModel(w2v)
+
+    def test_init_w_ft_model_wo_vecs(self):
+        ft = FastText(SENTENCES, size=5)
+        with self.assertRaises(RuntimeError):
+            ft.wv.vectors_vocab = None
+            BaseSentence2VecModel(ft)
+        with self.assertRaises(RuntimeError):
+            ft.wv.vectors_ngrams = None
+            BaseSentence2VecModel(ft)
+
     def test_init_w_empty_ft_model(self):
         ft = FastText(min_count=1, size=DIM)
         ft.wv.vectors = np.zeros(10)
@@ -146,6 +161,8 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         with self.assertRaises(TypeError):
             se._check_input_data_sanity()
         with self.assertRaises(TypeError):
+            se._check_input_data_sanity(data_iterable = None)
+        with self.assertRaises(TypeError):
             se._check_input_data_sanity(data_iterable = "Hello there!")
         with self.assertRaises(TypeError):
             se._check_input_data_sanity(data_iterable = BadIterator())
@@ -236,13 +253,95 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             se._post_inference_calls()  
 
-    def test_pre_training_sanity(self):
+    def test_check_pre_train_san_no_wv(self):
         ft = FastText(min_count=1, size=5)
         ft.build_vocab(SENTENCES)
-        for w in ft.wv.vocab.keys():
-            ft.wv.vocab[w].count = 1
-
         se = BaseSentence2VecModel(ft)
+        se.wv = None
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
+
+    def test_check_pre_train_san_no_wv_len(self):
+        ft = FastText(min_count=1, size=5)
+        ft.build_vocab(SENTENCES)
+        se = BaseSentence2VecModel(ft)
+        se.wv.vectors = []
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
+
+    def test_check_pre_train_san_no_ngrams_vectors(self):
+        ft = FastText(min_count=1, size=5)
+        ft.build_vocab(SENTENCES)
+        se = BaseSentence2VecModel(ft)
+        se.wv.vectors_ngrams = []
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
+        se.wv.vectors_ngrams = [1]
+        se.wv.vectors_vocab = []
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
+
+    def test_check_pre_train_san_no_sv_vecs(self):
+        ft = FastText(min_count=1, size=5)
+        ft.build_vocab(SENTENCES)
+        se = BaseSentence2VecModel(ft)
+        se.sv.vectors = None
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
+
+    def test_check_pre_train_san_no_word_weights(self):
+        ft = FastText(min_count=1, size=5)
+        ft.build_vocab(SENTENCES)
+        se = BaseSentence2VecModel(ft)
+        se.word_weights = None
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
+
+    def test_check_pre_train_san_incos_len(self):
+        ft = FastText(min_count=1, size=5)
+        ft.build_vocab(SENTENCES)
+        se = BaseSentence2VecModel(ft)
+        se.word_weights = np.ones(20)
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
+
+    def test_check_pre_train_dtypes(self):
+        ft = FastText(min_count=1, size=5)
+        ft.build_vocab(SENTENCES)
+        se = BaseSentence2VecModel(ft)
+
+        se.wv.vectors = np.zeros((len(se.wv.vocab),20), dtype=np.float64)
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
+        se.wv.vectors = np.zeros((len(se.wv.vocab),20), dtype=np.float32)
+
+        se.wv.vectors_ngrams = np.ones(len(se.wv.vocab), dtype=np.float16)
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
+        se.wv.vectors_ngrams = np.ones(len(se.wv.vocab), dtype=np.float32)
+
+        se.wv.vectors_vocab = np.ones(len(se.wv.vocab), dtype=np.float16)
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
+        se.wv.vectors_vocab = np.ones(len(se.wv.vocab), dtype=np.float32)
+
+        se.sv.vectors = np.zeros((len(se.wv.vocab),20), dtype=int)
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
+        se.sv.vectors = np.zeros((len(se.wv.vocab),20), dtype=np.float32)
+
+        se.word_weights = np.ones(len(se.wv.vocab), dtype=bool)
+        with self.assertRaises(RuntimeError):
+            se._check_pre_training_sanity(1,1,1)
+        se.word_weights = np.ones(len(se.wv.vocab), dtype=np.float32)
+
+    def test_check_pre_train_statistics(self):
+        ft = FastText(min_count=1, size=5)
+        ft.build_vocab(SENTENCES)
+        se = BaseSentence2VecModel(ft)
+
+        for v in se.wv.vocab:
+            se.wv.vocab[v].count = 1
 
         # Just throws multiple warnings warning
         se._check_pre_training_sanity(1,1,1)
@@ -253,39 +352,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             se._check_pre_training_sanity(1,0,1)
         with self.assertRaises(ValueError):
             se._check_pre_training_sanity(1,1,0)
-        
-        se.word_weights = np.ones(20, dtype=bool)
-        with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
-        se.sv.vectors = np.zeros((20,20), dtype=int)
-        with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
-        se.wv.vectors = np.zeros((20,20), dtype=np.float64)
-        with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
-        se.vectors_ngrams = np.ones(30, dtype=np.float16)
-        with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
 
-        se.word_weights = None
-        with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
-        se.sv.vectors = None
-        with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
-        del se.sv.vectors
-        with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
-
-        se.wv.vectors_ngrams = []
-        with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
-        se.wv.vectors = []
-        with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
-        se.wv = None
-        with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
 
     def test_post_training_sanity(self):
         w2v = Word2Vec()
