@@ -42,7 +42,7 @@ from gensim.models.keyedvectors import BaseKeyedVectors, FastTextKeyedVectors, _
 from gensim.utils import SaveLoad
 from gensim.matutils import zeros_aligned
 
-from numpy import ndarray, memmap as np_memmap, float32 as REAL, empty, zeros, vstack, dtype, ones
+from numpy import ndarray, memmap as np_memmap, float32 as REAL, uint32 as uINT, empty, zeros, vstack, dtype, ones
 
 from wordfreq import available_languages, get_frequency_dict
 
@@ -64,7 +64,7 @@ logger = logging.getLogger(__name__)
 
 class BaseSentence2VecModel(SaveLoad):
     
-    def __init__(self, model:BaseKeyedVectors, sv_mapfile_path:str=None, wv_mapfile_path:str=None, workers:int=1, lang_freq:str=None, fast_version:int=0, batch_words:int=10000, **kwargs):
+    def __init__(self, model:BaseKeyedVectors, sv_mapfile_path:str=None, wv_mapfile_path:str=None, workers:int=1, lang_freq:str=None, fast_version:int=0, batch_words:int=10000, batch_ngrams:int=40, **kwargs):
         """ Base class for all Sentence2Vec Models. Provides core functionality, such as
         save, load, sanity checking, frequency induction, data checking, scanning, etc.
 
@@ -91,6 +91,8 @@ class BaseSentence2VecModel(SaveLoad):
             Whether or not the fast cython implementation of the internal training methods is available. 1 means it is.
         batch_words : int, optional
             Number of words to be processed by a single job.
+        batch_ngrams : int, optional
+            Number of maxium ngrams for oov words.
         **kwargs : object
             Key word arguments needed to allow children classes to accept more arguments.
 
@@ -126,11 +128,12 @@ class BaseSentence2VecModel(SaveLoad):
 
         # [ ] Implement SIF Emebddings
             # [ ] If principal components exist, use them for the next train phase --> train + infer
+            # [ ] Replace the svd computation to import it to uSIF
             # [X] pre_train_calls & post_train_calls
             # [ ] Unittests
             # [ ] Parameter sanity
 
-        # [ ] Implement uSIF Emebddings
+        # [X] Implement uSIF Emebddings
             # [X] Where to best pass average sentence length?
         
         # [ ] :class: SentenceVectors
@@ -140,11 +143,11 @@ class BaseSentence2VecModel(SaveLoad):
             # [X] Decide which attributes to ignore when saving
             # [X] Unittests for modified saving routine
         
-        # [ ] :class: inputs
+        # [X] :class: inputs
             # [X] Move to fse.inputs 
             # [X] Tests for IndexedSentence
-            # [ ] rewrite TaggedLineDocument
-            # [ ] Document Boundary (DocId, Up, Low)
+            # [X] rewrite TaggedLineDocument
+            # [-] Document Boundary (DocId, Up, Low)
         
         # [ ] :class: senteval (preliminary)
             # [ ] provide method to test a BaseSentence2VecModel
@@ -164,6 +167,7 @@ class BaseSentence2VecModel(SaveLoad):
         
         self.workers = int(workers)
         self.batch_words = batch_words
+        self.batch_ngrams = batch_ngrams
         self.wv = None                              # TODO: Check if to ignore wv file when saving
                                                     # TODO: Check what happens to the induced frequency if you ignore wv during saving
         self.is_ft = False                          # TODO: Implement Fasttext support
@@ -444,7 +448,7 @@ class BaseSentence2VecModel(SaveLoad):
         readonly_memvecs = np_memmap(path, dtype=REAL, mode='r', shape=shape)
         return readonly_memvecs
 
-    def _get_thread_working_mem(self) -> ndarray:
+    def _get_thread_working_mem(self) -> [ndarray, ndarray]:
         """Computes the memory used per worker thread.
 
         Returns
@@ -454,7 +458,8 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         mem = zeros_aligned(self.sv.vector_size, dtype=REAL)
-        return mem
+        oov_mem = zeros_aligned((self.batch_words, self.batch_ngrams), dtype=uINT)
+        return (mem, oov_mem)
 
     def _do_train_job(self, data_iterable:List[IndexedSentence], target:ndarray, memory:ndarray) -> [int, int]:
         """ Function to be called on a batch of sentences. Returns eff sentences/words """

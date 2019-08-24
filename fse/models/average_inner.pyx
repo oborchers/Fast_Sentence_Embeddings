@@ -15,7 +15,7 @@ import numpy as np
 
 cimport numpy as np
 
-from gensim.models.utils_any2vec import ft_ngram_hashes
+from gensim.models._utils_any2vec import compute_ngrams_bytes, ft_hash_bytes
 
 from libc.string cimport memset
 
@@ -32,6 +32,7 @@ cdef REAL_t ONEF = <REAL_t>1.0
 cdef REAL_t ZEROF = <REAL_t>0.0
 
 DEF MAX_WORDS = 10000
+DEF MAX_NGRAMS = 40
 
 from libc.stdio cimport printf
 cdef void fprint(const int size, REAL_t *in_vec) nogil:
@@ -63,7 +64,9 @@ cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory):
 
     c[0].oov_weight = np.max(model.word_weights)
 
-    c[0].mem = <REAL_t *>(np.PyArray_DATA(memory))
+    c[0].mem = <REAL_t *>(np.PyArray_DATA(memory[0]))
+    c[0].subwords_idx = <uINT_t *>(np.PyArray_DATA(memory[1]))
+
     c[0].word_vectors = <REAL_t *>(np.PyArray_DATA(model.wv.vectors_vocab))
     c[0].ngram_vectors = <REAL_t *>(np.PyArray_DATA(model.wv.vectors_ngrams))
     c[0].word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
@@ -88,7 +91,6 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_s
             c.sent_adresses[eff_words] = <uINT_t>obj.index
 
             eff_words += ONE
-
             if eff_words == MAX_WORDS:
                 break
         
@@ -111,17 +113,29 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sente
         if not obj.words:
             continue
         for token in obj.words:
-            word = vocab[token] if token in vocab else None # Vocab obj
-            if word is None:
-                continue
-            c.word_indices[eff_words] = <uINT_t>word.index
             c.sent_adresses[eff_words] = <uINT_t>obj.index
 
+            if token in vocab:
+                # In Vocabulary
+                word = vocab[token]
+                c.word_indices[eff_words] = <uINT_t>word.index    
+                c.subwords_idx_len[eff_words] = ZERO
+            else:
+                # OOV words --> write to memory
+                c.word_indices[eff_words] = ZERO
+
+                encoded_ngrams = compute_ngrams_bytes(token, c.min_n, c.max_n)
+                hashes = [ft_hash_bytes(n) % c.bucket for n in encoded_ngrams]
+
+                c.subwords_idx_len[eff_words] = <uINT_t>min(len(encoded_ngrams), MAX_NGRAMS)
+                for i, h in enumerate(hashes[:MAX_NGRAMS]):
+                    c.subwords_idx[eff_words + i] = <uINT_t>h
+            
             eff_words += ONE
 
             if eff_words == MAX_WORDS:
                 break
-        
+                
         eff_sents += 1
         c.sentence_boundary[eff_sents] = eff_words
 
@@ -170,6 +184,69 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
             inv_count = ONEF / sent_len
             sscal(&size, &inv_count, &sent_vectors[sent_row], &ONE)
 
+cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sentences) nogil:
+    cdef:
+        int size = c.size
+
+        uINT_t sent_idx
+        uINT_t sent_start
+        uINT_t sent_end 
+        uINT_t sent_row
+        uINT_t ngram_row
+        uINT_t ngrams
+
+        uINT_t i, j
+        uINT_t word_idx
+        uINT_t word_row
+
+        uINT_t *word_ind = c.word_indices
+        uINT_t *sent_adr = c.sent_adresses
+
+        uINT_t *ngram_len = c.subwords_idx_len
+        uINT_t *ngram_ind = c.subwords_idx
+
+        REAL_t sent_len
+        REAL_t inv_count, inv_ngram
+        REAL_t oov_weight = c.oov_weight
+
+        REAL_t *mem = c.mem
+        REAL_t *word_vectors = c.word_vectors
+        REAL_t *ngram_vectors = c.ngram_vectors
+        REAL_t *word_weights = c.word_weights
+
+        REAL_t *sent_vectors = c.sentence_vectors
+
+
+    memset(mem, 0, size * cython.sizeof(REAL_t))
+
+    for sent_idx in range(num_sentences):
+        sent_start = c.sentence_boundary[sent_idx]
+        sent_end = c.sentence_boundary[sent_idx + 1]
+        sent_len = ZEROF
+
+        for i in range(sent_start, sent_end):
+            sent_len += ONEF
+            sent_row = sent_adr[i] * size
+
+            word_idx = word_ind[i]
+            ngrams = ngram_len[i]
+
+            if ngrams == 0:
+                word_row = word_ind[i] * size
+                saxpy(&size, &word_weights[word_idx], &word_vectors[word_row], &ONE, &sent_vectors[sent_row], &ONE)
+            else:
+                for j in range(ngrams):
+                    ngram_row = ngram_ind[i+j] * size
+                    saxpy(&size, &ONEF, &ngram_vectors[ngram_row], &ONE, mem, &ONE)
+
+                inv_ngram = ONEF / <REAL_t>ngrams
+                saxpy(&size, &inv_ngram, mem, &ONE, &sent_vectors[sent_row], &ONE)
+                memset(mem, 0, size * cython.sizeof(REAL_t))
+
+        if sent_len > ZEROF:
+            inv_count = ONEF / sent_len
+            sscal(&size, &inv_count, &sent_vectors[sent_row], &ONE)
+
 def train_average_cy(model, indexed_sentences, target, memory):
     """Training on a sequence of sentences and update the target ndarray.
 
@@ -207,7 +284,10 @@ def train_average_cy(model, indexed_sentences, target, memory):
     else:        
         init_ft_s2v_config(&ft, model, target, memory)
 
+        eff_sentences, eff_words = populate_ft_s2v_config(&ft, model.wv.vocab, indexed_sentences)
 
+        with nogil:
+            compute_ft_sentence_averages(&ft, eff_sentences) 
     
     return eff_sentences, eff_words
 
@@ -216,3 +296,4 @@ def init():
 
 FAST_VERSION = init()
 MAX_WORDS_IN_BATCH = MAX_WORDS
+MAX_NGRAMS_IN_BATCH = MAX_NGRAMS

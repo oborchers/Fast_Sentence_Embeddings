@@ -94,6 +94,7 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
         # I suspect this is because the wv.vectors are based on the averages of
         # wv.vectors_vocab + wv.vectors_ngrams, which will point all into very
         # similar directions.
+        max_ngrams = model.batch_ngrams
         w_vectors = model.wv.vectors_vocab
         ngram_vectors = model.wv.vectors_ngrams
         min_n = model.wv.min_n
@@ -108,10 +109,9 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
             sent_adr = obj.index
             sent = obj.words
             word_indices = [vocab[word].index for word in sent if word in vocab]
+            eff_sentences += 1
             if not len(word_indices):
                 continue
-
-            eff_sentences += 1
             eff_words += len(word_indices)
 
             mem = np_sum(np_mult(w_vectors[word_indices],w_weights[word_indices][:,None]) , axis=0)
@@ -135,7 +135,7 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
                     word_index = vocab[word].index
                     mem += w_vectors[word_index] * w_weights[word_index]
                 else:
-                    ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket, True)
+                    ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket, True)[:max_ngrams]
                     if len(ngram_hashes) == 0:
                         continue
                     mem += oov_weight * (np_sum(ngram_vectors[ngram_hashes], axis=0) / len(ngram_hashes))
@@ -145,14 +145,15 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
 
     return eff_sentences, eff_words
 
-# try:
-#     from fse.models.average_inner import train_average_cy
-#     from fse.models.average_inner import FAST_VERSION, MAX_WORDS_IN_BATCH
-#     train_average = train_average_cy
-# except ImportError:
-FAST_VERSION = -1
-MAX_WORDS_IN_BATCH = 10000
-train_average = train_average_np
+try:
+    from fse.models.average_inner import train_average_cy
+    from fse.models.average_inner import FAST_VERSION, MAX_WORDS_IN_BATCH, MAX_NGRAMS_IN_BATCH
+    train_average = train_average_cy
+except ImportError:
+    FAST_VERSION = -1
+    MAX_WORDS_IN_BATCH = 10000
+    MAX_NGRAMS_IN_BATCH = 40
+    train_average = train_average_np
 
 class Average(BaseSentence2VecModel):
 
@@ -184,7 +185,8 @@ class Average(BaseSentence2VecModel):
         super(Average, self).__init__(
             model=model, sv_mapfile_path=sv_mapfile_path, wv_mapfile_path=wv_mapfile_path,
             workers=workers, lang_freq=lang_freq,
-            batch_words=MAX_WORDS_IN_BATCH, fast_version=FAST_VERSION
+            batch_words=MAX_WORDS_IN_BATCH, batch_ngrams=MAX_NGRAMS_IN_BATCH,
+            fast_version=FAST_VERSION
             )
 
     def _do_train_job(self, data_iterable:List[IndexedSentence], target:ndarray, memory:ndarray) -> [int, int]:

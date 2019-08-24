@@ -25,6 +25,7 @@ cdef scopy_ptr scopy
 cdef sscal_ptr sscal
 
 DEF MAX_WORDS = 10000
+DEF MAX_NGRAMS = 40
 
 cdef struct BaseSentenceVecsConfig:
     int size, workers
@@ -58,7 +59,7 @@ cdef struct FTSentenceVecsConfig:
 
     # For storing the oov items
     uINT_t subwords_idx_len[MAX_WORDS]
-    uINT_t *subwords_idx[MAX_WORDS]
+    uINT_t *subwords_idx
     
 cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target)
 
