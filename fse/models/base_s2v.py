@@ -40,13 +40,13 @@ from fse.inputs import IndexedSentence
 from gensim.models.base_any2vec import BaseWordEmbeddingsModel
 from gensim.models.keyedvectors import BaseKeyedVectors, FastTextKeyedVectors, _l2_norm
 from gensim.utils import SaveLoad
+from gensim.matutils import zeros_aligned
 
 from numpy import ndarray, memmap as np_memmap, float32 as REAL, empty, zeros, vstack, dtype, ones
 
 from wordfreq import available_languages, get_frequency_dict
 
 from typing import List, Dict
-from types import GeneratorType
 
 from time import time
 from psutil import virtual_memory
@@ -281,9 +281,7 @@ class BaseSentence2VecModel(SaveLoad):
         if data_iterable is None:
             raise TypeError("You must provide a data iterable to train on")
         elif isinstance(data_iterable, str):
-            raise TypeError("Passed string. Input data must be iterable list of list of tokens or IndexedSentence")        
-        elif isinstance(data_iterable, GeneratorType):
-            raise TypeError("You can't pass a generator as the iterable. Try a sequence.")
+            raise TypeError("Passed string. Input data must be iterable list of list of tokens or IndexedSentence")
         elif not hasattr(data_iterable, "__iter__"):
             raise TypeError("Iterable must provide __iter__ function")
 
@@ -446,7 +444,19 @@ class BaseSentence2VecModel(SaveLoad):
         readonly_memvecs = np_memmap(path, dtype=REAL, mode='r', shape=shape)
         return readonly_memvecs
 
-    def _do_train_job(self, data_iterable:List[IndexedSentence], target:ndarray) -> [int, int]:
+    def _get_thread_working_mem(self) -> ndarray:
+        """Computes the memory used per worker thread.
+
+        Returns
+        -------
+        np.ndarray
+            Each worker threads private work memory.
+
+        """
+        mem = zeros_aligned(self.sv.vector_size, dtype=REAL)
+        return mem
+
+    def _do_train_job(self, data_iterable:List[IndexedSentence], target:ndarray, memory:ndarray) -> [int, int]:
         """ Function to be called on a batch of sentences. Returns eff sentences/words """
         raise NotImplementedError()
 
@@ -714,8 +724,9 @@ class BaseSentence2VecModel(SaveLoad):
         statistics = self.scan_sentences(sentences)
 
         output = zeros((statistics["max_index"], self.sv.vector_size), dtype=REAL)
+        mem = zeros(self.sv.vector_size, dtype=REAL)
         
-        self._do_train_job(data_iterable=sentences, target=output)
+        self._do_train_job(data_iterable=sentences, target=output, memory=mem)
 
         self._post_inference_calls(output=output)
 
@@ -783,7 +794,7 @@ class BaseSentence2VecModel(SaveLoad):
                 * Effective words encountered in traning
 
         """
-
+        mem = self._get_thread_working_mem()
         jobs_processed = 0
         while True:
             job = job_queue.get()
@@ -791,7 +802,7 @@ class BaseSentence2VecModel(SaveLoad):
                 progress_queue.put(None)
                 # no more jobs => quit this worker
                 break  
-            eff_sentences, eff_words = self._do_train_job(data_iterable=job, target=self.sv.vectors)
+            eff_sentences, eff_words = self._do_train_job(data_iterable=job, target=self.sv.vectors, memory=mem)
             progress_queue.put((len(job), eff_sentences, eff_words))
             jobs_processed += 1
         logger.debug(f"worker exiting, processed {jobs_processed} jobs")

@@ -15,6 +15,8 @@ import numpy as np
 
 cimport numpy as np
 
+from gensim.models.utils_any2vec import ft_ngram_hashes
+
 from libc.string cimport memset
 
 import scipy.linalg.blas as fblas
@@ -48,9 +50,57 @@ cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target):
 
     c[0].word_vectors = <REAL_t *>(np.PyArray_DATA(model.wv.vectors))
     c[0].word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
+
+    c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
+
+cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory):
+
+    c[0].workers = model.workers
+    c[0].size = model.sv.vector_size
+    c[0].min_n = model.wv.min_n
+    c[0].max_n = model.wv.max_n
+    c[0].bucket = model.wv.bucket
+
+    c[0].oov_weight = np.max(model.word_weights)
+
+    c[0].mem = <REAL_t *>(np.PyArray_DATA(memory))
+    c[0].word_vectors = <REAL_t *>(np.PyArray_DATA(model.wv.vectors_vocab))
+    c[0].ngram_vectors = <REAL_t *>(np.PyArray_DATA(model.wv.vectors_ngrams))
+    c[0].word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
+
     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
 
 cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_sentences):
+
+    cdef uINT_t eff_words = ZERO    # Effective words encountered in a sentence
+    cdef uINT_t eff_sents = ZERO    # Effective sentences encountered
+
+    c.sentence_boundary[0] = ZERO
+
+    for obj in indexed_sentences:
+        if not obj.words:
+            continue
+        for token in obj.words:
+            word = vocab[token] if token in vocab else None # Vocab obj
+            if word is None:
+                continue
+            c.word_indices[eff_words] = <uINT_t>word.index
+            c.sent_adresses[eff_words] = <uINT_t>obj.index
+
+            eff_words += ONE
+
+            if eff_words == MAX_WORDS:
+                break
+        
+        eff_sents += 1
+        c.sentence_boundary[eff_sents] = eff_words
+
+        if eff_words == MAX_WORDS:
+            break   
+
+    return eff_sents, eff_words
+
+cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sentences):
 
     cdef uINT_t eff_words = ZERO    # Effective words encountered in a sentence
     cdef uINT_t eff_sents = ZERO    # Effective sentences encountered
@@ -120,20 +170,45 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
             inv_count = ONEF / sent_len
             sscal(&size, &inv_count, &sent_vectors[sent_row], &ONE)
 
-def train_average_cy(model, indexed_sentences, target):
+def train_average_cy(model, indexed_sentences, target, memory):
+    """Training on a sequence of sentences and update the target ndarray.
 
-    cdef:
-        BaseSentenceVecsConfig c
-        uINT_t eff_sentences = 0
-        uINT_t eff_words = 0
+    Called internally from :meth:`~fse.models.average.Average._do_train_job`.
 
-    init_base_s2v_config(&c, model, target)
+    Parameters
+    ----------
+    model : :class:`~fse.models.base_s2v.BaseSentence2VecModel`
+        The BaseSentence2VecModel model instance.
+    indexed_sentences : iterable of IndexedSentence
+        The sentences used to train the model.
+    target : ndarray
+        The target ndarray. We use the index from indexed_sentences
+        to write into the corresponding row of target.
 
-    eff_sentences, eff_words = populate_base_s2v_config(&c, model.wv.vocab, indexed_sentences)
+    Returns
+    -------
+    int, int
+        Number of effective sentences (non-zero) and effective words in the vocabulary used 
+        during training the sentence embedding.
+    """
 
-    with nogil:
-        compute_base_sentence_averages(&c, eff_sentences)
+    cdef uINT_t eff_sentences = 0
+    cdef uINT_t eff_words = 0
+    cdef BaseSentenceVecsConfig w2v
+    cdef FTSentenceVecsConfig ft
 
+    if not model.is_ft:
+        init_base_s2v_config(&w2v, model, target)
+
+        eff_sentences, eff_words = populate_base_s2v_config(&w2v, model.wv.vocab, indexed_sentences)
+
+        with nogil:
+            compute_base_sentence_averages(&w2v, eff_sentences)
+    else:        
+        init_ft_s2v_config(&ft, model, target, memory)
+
+
+    
     return eff_sentences, eff_words
 
 def init():

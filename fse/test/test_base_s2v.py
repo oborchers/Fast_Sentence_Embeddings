@@ -154,9 +154,6 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         class BadIterator():
             def __init__(self):
                 pass
-        def Generator():
-            for i in range(10):
-                yield i
 
         with self.assertRaises(TypeError):
             se._check_input_data_sanity()
@@ -166,8 +163,6 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             se._check_input_data_sanity(data_iterable = "Hello there!")
         with self.assertRaises(TypeError):
             se._check_input_data_sanity(data_iterable = BadIterator())
-        with self.assertRaises(TypeError):
-            se._check_input_data_sanity(data_iterable = Generator())
 
     def test_scan_w_list(self):
         se = BaseSentence2VecModel(W2V)
@@ -457,10 +452,6 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         output = se.infer([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)], use_norm=True)
 
         self.assertTrue(np.allclose(1., np.sqrt(np.sum(output[0]**2))))
-
-    def test_remaining_thread_funcs(self):
-        # TODO
-        pass
 
 class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
 
