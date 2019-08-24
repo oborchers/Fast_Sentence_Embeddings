@@ -17,11 +17,9 @@ ctypedef np.uint32_t uINT_t
 
 # BLAS routine signatures
 ctypedef void (*saxpy_ptr) (const int *N, const float *alpha, const float *X, const int *incX, float *Y, const int *incY) nogil
-ctypedef void (*scopy_ptr) (const int *N, const float *X, const int *incX, float *Y, const int *incY) nogil
 ctypedef void (*sscal_ptr) (const int *N, const float *alpha, const float *X, const int *incX) nogil
 
 cdef saxpy_ptr saxpy
-cdef scopy_ptr scopy
 cdef sscal_ptr sscal
 
 DEF MAX_WORDS = 10000

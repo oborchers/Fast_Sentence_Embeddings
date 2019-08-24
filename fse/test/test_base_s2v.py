@@ -236,7 +236,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(W2V)
 
         with self.assertRaises(NotImplementedError):
-            se._do_train_job(None, None)
+            se._do_train_job(None, None, None)
         with self.assertRaises(NotImplementedError):
             se._pre_train_calls()
         with self.assertRaises(NotImplementedError):
@@ -407,7 +407,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
     def test_train_manager(self):
         se = BaseSentence2VecModel(W2V, workers=2)
-        def temp_train_job(data_iterable, target):
+        def temp_train_job(data_iterable, target, memory):
             v1 = v2 = sum(1 for _ in data_iterable)
             return v1*2, v2*3
         se._do_train_job = temp_train_job
@@ -416,7 +416,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
     def test_infer_method(self):
         se = BaseSentence2VecModel(W2V)
-        def temp_train_job(data_iterable, target):
+        def temp_train_job(data_iterable, target, memory):
             for i in data_iterable:
                 target += 1
             return target
@@ -429,7 +429,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
     def test_infer_many_to_one(self):
         se = BaseSentence2VecModel(W2V)
-        def temp_train_job(data_iterable, target):
+        def temp_train_job(data_iterable, target, memory):
             for i in data_iterable:
                 target += 1
             return target
@@ -442,7 +442,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
     def test_infer_use_norm(self):
         se = BaseSentence2VecModel(W2V)
-        def temp_train_job(data_iterable, target):
+        def temp_train_job(data_iterable, target, memory):
             for i in data_iterable:
                 target += 1
             return target

@@ -22,7 +22,6 @@ from libc.string cimport memset
 import scipy.linalg.blas as fblas
 
 cdef saxpy_ptr saxpy=<saxpy_ptr>PyCObject_AsVoidPtr(fblas.saxpy._cpointer)  # y += alpha * x
-cdef scopy_ptr scopy=<scopy_ptr>PyCObject_AsVoidPtr(fblas.scopy._cpointer)  # y = x
 cdef sscal_ptr sscal=<sscal_ptr>PyCObject_AsVoidPtr(fblas.sscal._cpointer) # x = alpha * x
 
 cdef int ONE = <int>1
@@ -33,17 +32,6 @@ cdef REAL_t ZEROF = <REAL_t>0.0
 
 DEF MAX_WORDS = 10000
 DEF MAX_NGRAMS = 40
-
-from libc.stdio cimport printf
-cdef void fprint(const int size, REAL_t *in_vec) nogil:
-    for d in range(size):
-        printf("%+4.4f ", in_vec[d])
-    printf("\n")
-
-cdef void iprint(const int size, uINT_t *in_vec) nogil:
-    for d in range(size):
-        printf("%d ", in_vec[d])
-    printf("\n")
 
 cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target):
     c[0].workers = model.workers
@@ -146,6 +134,7 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sente
 
 cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_sentences) nogil:
     cdef:
+        # TODO: Make the code less verbose by substituting word_vectors by c.word_vectors
         int size = c.size
 
         uINT_t sent_idx
@@ -294,6 +283,6 @@ def train_average_cy(model, indexed_sentences, target, memory):
 def init():
     return 1
 
-FAST_VERSION = init()
 MAX_WORDS_IN_BATCH = MAX_WORDS
 MAX_NGRAMS_IN_BATCH = MAX_NGRAMS
+FAST_VERSION = init()
