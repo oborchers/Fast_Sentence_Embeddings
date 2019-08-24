@@ -4,7 +4,6 @@
 # Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
 # Copyright (C) 2019 Oliver Borchers
 
-
 """
 Automated tests for checking the average model.
 """

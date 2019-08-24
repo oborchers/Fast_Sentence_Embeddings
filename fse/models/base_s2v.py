@@ -98,7 +98,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
 
-        # [ ] Implement Average Emebddings (Prototype)
+        # [X] Implement Average Emebddings (Prototype)
             # [X] Implement Numpy Reference for Word2Vec
             # [X] Train method must take "output" ndarray for infer method to be viable
             # [X] Implement Cython version
@@ -106,7 +106,7 @@ class BaseSentence2VecModel(SaveLoad):
                 # [X] Does batch_words & MAX_SENTENCE_LEN collide upon change?
                 # [X] MAX_WORDS_IN_BATCH -> batch_words is defined by import
                 # [X] Add init to check for float/double -> No.
-                # [ ] Fasttext support
+                # [X] Fasttext support
 
         # [X] :class: BaseSentence2VecModel
             # [X] Check all dtypes before training
