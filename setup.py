@@ -83,7 +83,7 @@ cmdclass = {'build_ext': custom_build_ext}
 
 setup(
     name='fse',
-    version='0.1.0',
+    version='0.1.1',
     description='Fast Sentence Embeddings for Gensim',
 
     author=u'Oliver Borchers',
