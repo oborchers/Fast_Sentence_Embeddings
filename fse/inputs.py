@@ -6,7 +6,8 @@
 
 from typing import NamedTuple, List, MutableSequence
 
-from gensim.utils import any2unicode, open as s_open
+from gensim.utils import any2unicode
+from smart_open import open
 
 from pathlib import Path
 
@@ -154,7 +155,7 @@ class IndexedLineDocument(object):
     
     def _build_offsets(self):
         """ Builds an offset table to index the file """
-        with s_open(self.path, "rb") as f:
+        with open(self.path, "rb") as f:
             offset = f.tell()
             for line in f:
                 self.line_offset.append(offset)
@@ -178,7 +179,7 @@ class IndexedLineDocument(object):
         if not self.get_able:
             raise RuntimeError("To index the lines you must contruct with get_able=True")
 
-        with s_open(self.path, "rb") as f:
+        with open(self.path, "rb") as f:
             f.seek(self.line_offset[i])
             output = f.readline()
             f.seek(0)
@@ -193,6 +194,6 @@ class IndexedLineDocument(object):
             IndexedSentence from `path` specified in the constructor.
 
         """
-        with s_open(self.path, "rb") as f:
+        with open(self.path, "rb") as f:
             for i, line in enumerate(f):
                 yield IndexedSentence(any2unicode(line).split(), i)
