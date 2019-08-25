@@ -83,7 +83,7 @@ cmdclass = {'build_ext': custom_build_ext}
 
 setup(
     name='fse',
-    version='0.0.6',
+    version='0.1.0',
     description='Fast Sentence Embeddings for Gensim',
 
     author=u'Oliver Borchers',
@@ -95,7 +95,7 @@ setup(
 
     ext_modules=[
         Extension('fse.models.average_inner',
-                sources=['./fse/models/average_inner.c'],
+                sources=['./fse/models/average_inner.pyx'],
                 include_dirs=[mod_dir]),
         ],
         
@@ -107,12 +107,10 @@ setup(
     install_requires=[
         'numpy >= 1.11.3',
         'scipy >= 0.18.1',
-        'six >= 1.5.0',
         'smart_open >= 1.5.0',
         'scikit-learn >= 0.19.1',
         'gensim >= 3.4.0',
         'wordfreq >= 2.2.1',
     ],
-
     include_package_data=True,
 )

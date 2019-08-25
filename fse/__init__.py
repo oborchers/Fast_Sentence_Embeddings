@@ -1,4 +1,5 @@
 from fse import models
+from .inputs import IndexedSentence, IndexedList, IndexedLineDocument
 import logging
 
 __version__ = '0.1'
