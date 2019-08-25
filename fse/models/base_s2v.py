@@ -144,6 +144,7 @@ class BaseSentence2VecModel(SaveLoad):
             # [X] Unittests for modified saving routine
         
         # [X] :class: inputs
+            # [ ] Add feature to IndexedList for already splitted lists
             # [X] Move to fse.inputs 
             # [X] Tests for IndexedSentence
             # [X] rewrite TaggedLineDocument
@@ -345,15 +346,15 @@ class BaseSentence2VecModel(SaveLoad):
             raise RuntimeError("Number of word vectors and weights does not match")
 
         if self.wv.vectors.dtype != REAL:
-            raise RuntimeError(f"type of wv.vectors is wrong: {self.wv.vectors.dtype}")
+            raise TypeError(f"type of wv.vectors is wrong: {self.wv.vectors.dtype}")
         if self.is_ft and self.wv.vectors_ngrams.dtype != REAL:
-            raise RuntimeError(f"type of wv.vectors_ngrams is wrong: {self.wv.vectors_ngrams.dtype}")
+            raise TypeError(f"type of wv.vectors_ngrams is wrong: {self.wv.vectors_ngrams.dtype}")
         if self.is_ft and self.wv.vectors_vocab.dtype != REAL:
-            raise RuntimeError(f"type of wv.vectors_vocab is wrong: {self.wv.vectors_vocab.dtype}")
+            raise TypeError(f"type of wv.vectors_vocab is wrong: {self.wv.vectors_vocab.dtype}")
         if self.sv.vectors.dtype != REAL:
-            raise RuntimeError(f"type of sv.vectors is wrong: {self.sv.vectors.dtype}")
+            raise TypeError(f"type of sv.vectors is wrong: {self.sv.vectors.dtype}")
         if self.word_weights.dtype != REAL:
-            raise RuntimeError(f"type of word_weights is wrong: {self.word_weights.dtype}")
+            raise TypeError(f"type of word_weights is wrong: {self.word_weights.dtype}")
 
         if total_sentences is 0 or total_words is 0 or average_length is 0:
             raise ValueError(
@@ -376,6 +377,38 @@ class BaseSentence2VecModel(SaveLoad):
                 f"training returned invalid values. Check the input."
             )
     
+    def _check_indexed_sent_valid(self, iterPos:int, obj:IndexedSentence) -> [int, List[str]]:
+        """ Performs a check if the passed object contains valid data
+
+        Parameters
+        ----------
+        iterPos : int
+            Position in file/iterable
+        obj : IndexedSentence
+            An IndexedSentence object containing the index and sentence
+        
+        Returns
+        -------
+        int
+            Index of the sentence used to write to (in sv.vectors)
+        list
+            List of strings containing all words in a sentence
+
+        """
+
+        if isinstance(obj, IndexedSentence):
+            index = obj.index
+            sent = obj.words
+        else:
+            raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain IndexedSentence.")
+        if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
+            raise TypeError(f"At {iterPos}: Passed {type(sent)}: {sent}. IndexedSentence.words must contain list of str.")
+        if not isinstance(index, int):
+            raise TypeError(f"At {iterPos}: Passed {type(index)}: {index}. IndexedSentence.index must contain index")
+        if index < 0:
+            raise ValueError(f"At {iterPos}: Passed negative {index}")
+        return index, sent
+
     def _map_all_vectors_to_disk(self, mapfile_path:Path):
         """ Maps all vectors to disk 
 
@@ -528,38 +561,6 @@ class BaseSentence2VecModel(SaveLoad):
                 self.wv.vectors_vocab = None
                 self.wv.vectors_ngrams = None
         super(BaseSentence2VecModel, self).save(*args, **kwargs)
-
-    def _check_indexed_sent_valid(self, iterPos:int, obj:IndexedSentence) -> [int, List[str]]:
-        """ Performs a check if the passed object contains valid data
-
-        Parameters
-        ----------
-        iterPos : int
-            Position in file/iterable
-        obj : IndexedSentence
-            An IndexedSentence object containing the index and sentence
-        
-        Returns
-        -------
-        int
-            Index of the sentence used to write to (in sv.vectors)
-        list
-            List of strings containing all words in a sentence
-
-        """
-
-        if isinstance(obj, IndexedSentence):
-            index = obj.index
-            sent = obj.words
-        else:
-            raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain IndexedSentence.")
-        if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
-            raise TypeError(f"At {iterPos}: Passed {type(sent)}: {sent}. IndexedSentence.words must contain list of str.")
-        if not isinstance(index, int):
-            raise TypeError(f"At {iterPos}: Passed {type(index)}: {index}. IndexedSentence.index must contain index")
-        if index < 0:
-            raise ValueError(f"At {iterPos}: Passed negative {index}")
-        return index, sent
 
     def scan_sentences(self, sentences:List[IndexedSentence]=None, progress_per:int=5) -> Dict[str,int]:
         """ Performs an initial scan of the data and reports all corresponding statistics
@@ -936,7 +937,3 @@ class BaseSentence2VecPreparer(SaveLoad):
                 newvectors[i] = zeros(sv.vector_size, dtype=REAL)
             sv.vectors = vstack([sv.vectors, newvectors])
         sv.vectors_norm = None
-
-        
-        
-

@@ -306,27 +306,27 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(ft)
 
         se.wv.vectors = np.zeros((len(se.wv.vocab),20), dtype=np.float64)
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(TypeError):
             se._check_pre_training_sanity(1,1,1)
         se.wv.vectors = np.zeros((len(se.wv.vocab),20), dtype=np.float32)
 
         se.wv.vectors_ngrams = np.ones(len(se.wv.vocab), dtype=np.float16)
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(TypeError):
             se._check_pre_training_sanity(1,1,1)
         se.wv.vectors_ngrams = np.ones(len(se.wv.vocab), dtype=np.float32)
 
         se.wv.vectors_vocab = np.ones(len(se.wv.vocab), dtype=np.float16)
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(TypeError):
             se._check_pre_training_sanity(1,1,1)
         se.wv.vectors_vocab = np.ones(len(se.wv.vocab), dtype=np.float32)
 
         se.sv.vectors = np.zeros((len(se.wv.vocab),20), dtype=int)
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(TypeError):
             se._check_pre_training_sanity(1,1,1)
         se.sv.vectors = np.zeros((len(se.wv.vocab),20), dtype=np.float32)
 
         se.word_weights = np.ones(len(se.wv.vocab), dtype=bool)
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(TypeError):
             se._check_pre_training_sanity(1,1,1)
         se.word_weights = np.ones(len(se.wv.vocab), dtype=np.float32)
 

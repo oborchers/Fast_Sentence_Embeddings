@@ -156,8 +156,7 @@ except ImportError:
     train_average = train_average_np
 
 class Average(BaseSentence2VecModel):
-
-    """Train, use and evaluate averaged sentence vectors.
+    """ Train, use and evaluate averaged sentence vectors.
 
     The model can be stored/loaded via its :meth:`~fse.models.average.Average.save` and
     :meth:`~fse.models.average.Average.load` methods.
@@ -181,7 +180,34 @@ class Average(BaseSentence2VecModel):
     """
 
     def __init__(self, model:BaseKeyedVectors, sv_mapfile_path:str=None, wv_mapfile_path:str=None, workers:int=1, lang_freq:str=None, **kwargs):
-    
+        """ Average (unweighted) sentence embeddings model. Performs a simple averaging operation over all
+        words in a sentences without further transformation.
+
+        The implementation is based on Iyyer et al. (2015): Deep Unordered Composition Rivals Syntactic Methods for Text Classification.
+        For more information, see <https://people.cs.umass.edu/~miyyer/pubs/2015_acl_dan.pdf>.
+
+        Parameters
+        ----------
+        model : :class:`~gensim.models.keyedvectors.BaseKeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
+            This object essentially contains the mapping between words and embeddings. To compute the sentence embeddings
+            the wv.vocab and wv.vector elements are required.
+        sv_mapfile_path : str, optional
+            Optional path to store the sentence-vectors in for very large datasets. Used for memmap.
+        wv_mapfile_path : str, optional
+            Optional path to store the word-vectors in for very large datasets. Used for memmap.
+            Use sv_mapfile_path and wv_mapfile_path to train disk-to-disk without needing much ram.
+        workers : int, optional
+            Number of working threads, used for multithreading. For most tasks (few words in a sentence)
+            a value of 1 should be more than enough.
+        lang_freq : str, optional
+            Some pre-trained embeddings, i.e. "GoogleNews-vectors-negative300.bin", do not contain information about
+            the frequency of a word. As the frequency is required for estimating the word weights, we induce
+            frequencies into the wv.vocab.count based on :class:`~wordfreq`
+            If no frequency information is available, you can choose the language to estimate the frequency.
+            See https://github.com/LuminosoInsight/wordfreq
+        
+        """
+
         super(Average, self).__init__(
             model=model, sv_mapfile_path=sv_mapfile_path, wv_mapfile_path=wv_mapfile_path,
             workers=workers, lang_freq=lang_freq,
