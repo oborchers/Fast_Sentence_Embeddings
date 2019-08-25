@@ -7,12 +7,12 @@ Fast Sentence Embeddings is a Python library that serves as an addition to Gensi
 Features
 ------------
 
-Find the corresponding blog post(s) here: https://medium.com/@oliverbor/fse-2b1ffa791cf9 
+Find the corresponding blog post(s) here: https://medium.com/@oliverbor/fse-2b1ffa791cf9 (will be updated soon)
 
 **fse** implements three algorithms for sentence embeddings. You can choose
 between *unweighted sentence averages*,  *smooth inverse frequency averages*, and *unsupervised smooth inverse frequency averages*. 
 
-Key features of fse are: 
+Key features of **fse** are: 
 
 **[X]** Supports Average, SIF, and uSIF Embeddings
 
@@ -41,7 +41,7 @@ Key features of fse are:
 Usage
 -------------
 
-In the folder nootebooks you can find the following guides:
+Within the folder nootebooks you can find the following guides:
 
 **Tutorial.ipynb** offers a detailed walk-through of some of the most important functions fse has to offer.
 
