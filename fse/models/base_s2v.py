@@ -101,9 +101,9 @@ class BaseSentence2VecModel(SaveLoad):
         self.workers = int(workers)
         self.batch_words = batch_words
         self.batch_ngrams = batch_ngrams
-        self.wv = None                              # TODO: Check if to ignore wv file when saving
-                                                    # TODO: Check what happens to the induced frequency if you ignore wv during saving
-        self.is_ft = False                          # TODO: Implement Fasttext support
+        self.wv = None                              
+                                                    
+        self.is_ft = False                          
 
         self.wv_mapfile_path = Path(wv_mapfile_path) if wv_mapfile_path is not None else None
         self.wv_mapfile_shapes = {}
