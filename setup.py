@@ -77,14 +77,13 @@ http://api.mongodb.org/python/current/installation.html#osx
         self.include_dirs.append(numpy.get_include())
 
 mod_dir = os.path.join(os.path.dirname(__file__), 'fse', 'models')
-dev_dir = os.path.join(os.path.dirname(__file__), 'fse', 'exp')
 fse_dir = os.path.join(os.path.dirname(__file__), 'fse')
 
 cmdclass = {'build_ext': custom_build_ext}
 
 setup(
     name='fse',
-    version='0.0.4',
+    version='0.1.0',
     description='Fast Sentence Embeddings for Gensim',
 
     author=u'Oliver Borchers',
@@ -92,13 +91,12 @@ setup(
 
     url="https://github.com/oborchers/Fast_Sentence_Embeddings",
 
+    license='GPL-3.0',
+
     ext_modules=[
-        Extension('fse.models.sentence2vec_inner',
-                sources=['./fse/models/sentence2vec_inner.c'],
+        Extension('fse.models.average_inner',
+                sources=['./fse/models/average_inner.pyx'],
                 include_dirs=[mod_dir]),
-        Extension('fse.exp.sif_variants_cy',
-                sources=['./fse/exp/sif_variants_cy.c'],
-                include_dirs=[dev_dir]),
         ],
         
     cmdclass=cmdclass,
@@ -109,12 +107,10 @@ setup(
     install_requires=[
         'numpy >= 1.11.3',
         'scipy >= 0.18.1',
-        'six >= 1.5.0',
         'smart_open >= 1.5.0',
         'scikit-learn >= 0.19.1',
         'gensim >= 3.4.0',
         'wordfreq >= 2.2.1',
     ],
-
     include_package_data=True,
 )

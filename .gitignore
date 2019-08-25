@@ -39,6 +39,7 @@
 ehthumbs.db
 Icon?
 Thumbs.db
+*.icloud
 
 # Folders #
 ###########
@@ -51,6 +52,7 @@ fse.egg-info/
 #########
 .ipynb_checkpoints/
 .settings/
+.vscode/
 .eggs
 fse*.egg-info
 *.pptx
@@ -68,3 +70,5 @@ fse*.egg-info
 *.model
 *_out.txt
 *.html
+vectors
+*.vectors
