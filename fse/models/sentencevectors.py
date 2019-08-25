@@ -7,7 +7,9 @@
 
 from __future__ import division
 
-import logging
+from fse.inputs import IndexedSentence, IndexedList, IndexedLineDocument
+
+from gensim.models.keyedvectors import BaseKeyedVectors
 
 from numpy import dot, float32 as REAL, memmap as np_memmap, \
     double, array, zeros, vstack, sqrt, newaxis, integer, \
@@ -16,9 +18,11 @@ from numpy import dot, float32 as REAL, memmap as np_memmap, \
 from gensim import utils, matutils
 from gensim.models.keyedvectors import _l2_norm
 
-from typing import Dict
+from typing import List, Tuple
 
 from pathlib import Path
+
+import logging
 
 logger = logging.getLogger(__name__)
 
@@ -150,14 +154,12 @@ class SentenceVectors(utils.SaveLoad):
     def similarity(self, d1:int, d2:int) -> float:
         """Compute cosine similarity between two sentences from the training set.
 
-        TODO: Accept vectors of out-of-training-set docs, as if from inference.
-
         Parameters
         ----------
-        d1 : {int, str}
-            index of sentence / sentence.
-        d2 : {int, str}
-            index of sentence / sentence.
+        d1 : int
+            index of sentence 
+        d2 : int
+            index of sentence 
 
         Returns
         -------
@@ -170,14 +172,12 @@ class SentenceVectors(utils.SaveLoad):
     def distance(self, d1:int, d2:int) -> float:
         """Compute cosine similarity between two sentences from the training set.
 
-        TODO: Accept vectors of out-of-training-set docs, as if from inference.
-
         Parameters
         ----------
-        d1 : {int, str}
-            index of sentence / sentence.
-        d2 : {int, str}
-            index of sentence / sentence.
+        d1 : int
+            index of sentence 
+        d2 : int
+            index of sentence 
 
         Returns
         -------
@@ -187,10 +187,196 @@ class SentenceVectors(utils.SaveLoad):
         """
         return 1 - self.similarity(d1, d2)
 
-    def most_similar(self, positive=None, negative=None, topn:int=10, clip_start:int=0, clip_end=None, indexer=None, indexable=None) -> Dict[int, float]: 
-        # TODO
-        raise NotImplementedError()
+    def most_similar(self, positive:[int,ndarray]=None, negative:[int,ndarray]=None, 
+                        indexable:[IndexedList,IndexedLineDocument]=None, topn:int=10, 
+                        restrict_size:[int, Tuple[int, int]]=None) -> List[Tuple[int,float]]:
 
-    def infer_sentence(self, sentence, model):
-        # TODO
-        raise NotImplementedError()
+        """Find the top-N most similar sentences.
+        Positive sentences contribute positively towards the similarity, negative sentences negatively.
+
+        This method computes cosine similarity between a simple mean of the projection
+        weight vectors of the given sentences and the vectors for each sentence in the model.
+
+        Parameters
+        ----------
+        positive : list of int, optional
+            List of indices that contribute positively.
+        negative : list of int, optional
+            List of indices that contribute negatively.
+        indexable: list, IndexedList, IndexedLineDocument
+            Provides an indexable object from where the most similar sentences are read
+        topn : int or None, optional
+            Number of top-N similar sentences to return, when `topn` is int. When `topn` is None,
+            then similarities for all sentences are returned.
+        restrict_size : int or Tuple(int,int), optional
+            Optional integer which limits the range of vectors which
+            are searched for most-similar values. For example, restrict_vocab=10000 would
+            only check the first 10000 sentence vectors.
+            restrict_vocab=(500, 1000) would search the sentence vectors with indices between
+            500 and 1000.
+
+        Returns
+        -------
+        list of (int, float) or list of (str, int, float)
+            A sequence of (index, similarity) is returned.
+            When an indexable is provided, returns (str, index, similarity)
+            When `topn` is None, then similarities for all words are returned as a
+            one-dimensional numpy array with the size of the vocabulary.
+
+        """
+        if indexable is not None and not hasattr(indexable, "__getitem__"):
+            raise RuntimeError("Indexable must provide __getitem__")
+        if positive is None:
+            positive = []
+        if negative is None:
+            negative = []
+
+        self.init_sims()
+
+        if isinstance(positive, (int, integer)) and not negative:
+            positive = [positive]
+        if isinstance(positive, (ndarray)) and not negative:
+            if len(positive.shape) == 1:
+                positive = [positive]
+
+        positive = [
+            (sent, 1.0) if isinstance(sent, (int, integer, ndarray)) else sent
+            for sent in positive
+        ]
+        negative = [
+            (sent, -1.0) if isinstance(sent, (int, integer,  ndarray)) else sent
+            for sent in negative
+        ]
+
+        all_sents, mean = set(), []
+        for sent, weight in positive + negative:
+            if isinstance(sent, ndarray):
+                mean.append(weight * sent)
+            else:
+                mean.append(weight * self.get_vector(index=sent, use_norm=True))
+                if sent in self:
+                    all_sents.add(sent)
+        if not mean:
+            raise ValueError("cannot compute similarity with no input")
+        mean = matutils.unitvec(array(mean).mean(axis=0)).astype(REAL)
+
+        if isinstance(restrict_size, (int, integer)):
+            lo, hi = 0, restrict_size
+        elif isinstance(restrict_size, Tuple):
+            lo, hi = restrict_size
+        else:
+            lo, hi = 0, None
+
+        limited = self.vectors_norm if restrict_size is None else self.vectors_norm[lo:hi]
+        dists = dot(limited, mean)
+        if not topn:
+            return dists
+        best = matutils.argsort(dists, topn=topn + len(all_sents), reverse=True)
+        best_off = best + lo
+        
+        if indexable is not None:
+            result = [(indexable[off_idx], off_idx, float(dists[idx])) for off_idx, idx in zip(best_off, best) if off_idx not in all_sents]
+        else:
+            result = [(off_idx, float(dists[idx])) for off_idx, idx in zip(best_off, best) if off_idx not in all_sents]
+        return result[:topn]
+
+    def similar_by_word(self, word:str, wv:BaseKeyedVectors, indexable:[IndexedList,IndexedLineDocument]=None, topn:int=10, 
+                        restrict_size:[int,Tuple[int, int]]=None) -> List[Tuple[int,float]]:
+
+        """Find the top-N most similar sentences to a given word.
+
+        Parameters
+        ----------
+        word : str
+            Word
+        wv : :class:`~gensim.models.keyedvectors.BaseKeyedVectors`
+            This object essentially contains the mapping between words and embeddings.
+        indexable: list, IndexedList, IndexedLineDocument
+            Provides an indexable object from where the most similar sentences are read
+        topn : int or None, optional
+            Number of top-N similar sentences to return, when `topn` is int. When `topn` is None,
+            then similarities for all sentences are returned.
+        restrict_size : int or Tuple(int,int), optional
+            Optional integer which limits the range of vectors which
+            are searched for most-similar values. For example, restrict_vocab=10000 would
+            only check the first 10000 sentence vectors.
+            restrict_vocab=(500, 1000) would search the sentence vectors with indices between
+            500 and 1000.
+
+        Returns
+        -------
+        list of (int, float) or list of (str, int, float)
+            A sequence of (index, similarity) is returned.
+            When an indexable is provided, returns (str, index, similarity)
+            When `topn` is None, then similarities for all words are returned as a
+            one-dimensional numpy array with the size of the vocabulary.
+
+        """
+        return self.most_similar(positive=wv[word], indexable=indexable, topn=topn, restrict_size=restrict_size)
+
+    def similar_by_sentence(self, sentence:List[str], model, indexable:[IndexedList,IndexedLineDocument]=None, topn:int=10,
+                            restrict_size:[int,Tuple[int, int]]=None) -> List[Tuple[int,float]]:
+        
+        """Find the top-N most similar sentences to a given sentence.
+
+        Parameters
+        ----------
+        sentence : list of str
+            Sentence as list of strings
+        model : :class:`~fse.models.base_s2v.BaseSentence2VecModel`
+            This object essentially provides the infer method used to transform .
+        indexable: list, IndexedList, IndexedLineDocument
+            Provides an indexable object from where the most similar sentences are read
+        topn : int or None, optional
+            Number of top-N similar sentences to return, when `topn` is int. When `topn` is None,
+            then similarities for all sentences are returned.
+        restrict_size : int or Tuple(int,int), optional
+            Optional integer which limits the range of vectors which
+            are searched for most-similar values. For example, restrict_vocab=10000 would
+            only check the first 10000 sentence vectors.
+            restrict_vocab=(500, 1000) would search the sentence vectors with indices between
+            500 and 1000.
+
+        Returns
+        -------
+        list of (int, float) or list of (str, int, float)
+            A sequence of (index, similarity) is returned.
+            When an indexable is provided, returns (str, index, similarity)
+            When `topn` is None, then similarities for all words are returned as a
+            one-dimensional numpy array with the size of the vocabulary.
+
+        """
+        vector = model.infer([IndexedSentence(sentence, 0)])
+        return self.most_similar(positive=vector, indexable=indexable, topn=topn, restrict_size=restrict_size)
+    
+    def similar_by_vector(self, vector:ndarray, indexable:[IndexedList,IndexedLineDocument]=None, topn:int=10,
+                        restrict_size:[int,Tuple[int, int]]=None) -> List[Tuple[int,float]]:
+
+        """Find the top-N most similar sentences to a given vector.
+
+        Parameters
+        ----------
+        vector : ndarray
+            Vectors
+        indexable: list, IndexedList, IndexedLineDocument
+            Provides an indexable object from where the most similar sentences are read
+        topn : int or None, optional
+            Number of top-N similar sentences to return, when `topn` is int. When `topn` is None,
+            then similarities for all sentences are returned.
+        restrict_size : int or Tuple(int,int), optional
+            Optional integer which limits the range of vectors which
+            are searched for most-similar values. For example, restrict_vocab=10000 would
+            only check the first 10000 sentence vectors.
+            restrict_vocab=(500, 1000) would search the sentence vectors with indices between
+            500 and 1000.
+
+        Returns
+        -------
+        list of (int, float) or list of (str, int, float)
+            A sequence of (index, similarity) is returned.
+            When an indexable is provided, returns (str, index, similarity)
+            When `topn` is None, then similarities for all words are returned as a
+            one-dimensional numpy array with the size of the vocabulary.
+
+        """
+        return self.most_similar(positive=vector, indexable=indexable, topn=topn, restrict_size=restrict_size)
