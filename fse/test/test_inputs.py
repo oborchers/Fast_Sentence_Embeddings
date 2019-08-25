@@ -31,6 +31,7 @@ class TestIndexedListFuncs(unittest.TestCase):
     def setUp(self):
         self.list_a = ["the dog is good", "it's nice and comfy"]
         self.list_b = ["lorem ipsum dolor", "si amet"]
+        self.list_c = [s.split() for s in self.list_a]
         self.set_a = set(["hello there", "its a set"])
         self.il = IndexedList(self.list_a, self.list_b, self.set_a, split=True)
 
@@ -52,6 +53,10 @@ class TestIndexedListFuncs(unittest.TestCase):
     def test_init_multiple_args(self):
         with self.assertRaises(RuntimeError):
             IndexedList(self.list_a, split=True, split_func=self.list_a)
+
+    def test_init_multiple_splits(self):
+        with self.assertRaises(RuntimeError):
+            IndexedList(self.list_a, split_func=self.list_a, pre_splitted=True)
     
     def test__len(self):
         l = IndexedList(self.list_a)
@@ -64,7 +69,11 @@ class TestIndexedListFuncs(unittest.TestCase):
     def test_getitem(self):
         self.assertEqual(["the", "dog", "is", "good"], self.il.__getitem__(0).words)
         self.assertEqual(0, self.il.__getitem__(0).index)
-    
+
+    def test_getitem_presplitted(self):
+        l = IndexedList(self.list_c, pre_splitted=True)
+        self.assertEqual(["the", "dog", "is", "good"], self.il.__getitem__(0).words)
+
     def test_delitem(self):
         self.il.__delitem__(0)
         self.assertEqual(5, len(self.il))

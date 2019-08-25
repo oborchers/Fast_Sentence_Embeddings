@@ -126,12 +126,12 @@ class BaseSentence2VecModel(SaveLoad):
             # [X] sanity: Check if ngram_vectors is available
             # [X] sanity: Only accept FT compatible hash function fasttext implementaiton
 
-        # [ ] Implement SIF Emebddings
-            # [ ] If principal components exist, use them for the next train phase --> train + infer
-            # [ ] Replace the svd computation to import it to uSIF
+        # [X] Implement SIF Emebddings
+            # [X] If principal components exist, use them for the next train phase --> train + infer
+            # [X] Replace the svd computation to import it to uSIF
             # [X] pre_train_calls & post_train_calls
-            # [ ] Unittests
-            # [ ] Parameter sanity
+            # [X] Unittests
+            # [X] Parameter sanity
 
         # [X] Implement uSIF Emebddings
             # [X] Where to best pass average sentence length?
@@ -144,15 +144,15 @@ class BaseSentence2VecModel(SaveLoad):
             # [X] Unittests for modified saving routine
         
         # [X] :class: inputs
-            # [ ] Add feature to IndexedList for already splitted lists
+            # [X] Add feature to IndexedList for already splitted lists
             # [X] Move to fse.inputs 
             # [X] Tests for IndexedSentence
             # [X] rewrite TaggedLineDocument
             # [-] Document Boundary (DocId, Up, Low)
         
-        # [ ] :class: senteval (preliminary)
-            # [ ] provide method to test a BaseSentence2VecModel
-            # [ ] Outputs a table for model and years 2012-2017
+        # [-] :class: senteval (preliminary)
+            # [-] provide method to test a BaseSentence2VecModel
+            # [-] Outputs a table for model and years 2012-2017
 
         # [ ] Support for corpusfile
 

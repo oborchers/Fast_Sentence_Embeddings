@@ -27,7 +27,7 @@ class IndexedSentence(NamedTuple):
 
 class IndexedList(MutableSequence):
     
-    def __init__(self, *args, split=True, split_func=None):
+    def __init__(self, *args, split=True, split_func=None, pre_splitted=False):
         """ Quasi-list to be used for feeding in-memory stored lists of sentences to
         the training routine as indexed sentence.
 
@@ -39,8 +39,12 @@ class IndexedList(MutableSequence):
             If true performs a split function on the strings contained in the list.
         split_func : function, optional
             A user definable split function which turns a string into a list of strings.
+        pre_splitted : bool, optional
+            Determines if the input is already splitted in the format of ["token0", "token1"]
+
         """
-        self.split = bool(split)
+        self.pre_splitted = bool(pre_splitted)
+        self.split = bool(split) if not self.pre_splitted else False
         self.split_func = split_func
         self._check_kwargs_sanity()
         
@@ -70,6 +74,8 @@ class IndexedList(MutableSequence):
         """ Checks argument validity """
         if self.split and self.split_func is not None:
             raise RuntimeError("You must provide either split=True or a split_func, not both")
+        if (self.split or self.split_func is not None) and self.pre_splitted:
+            raise RuntimeError("Split function and pre_splitted are not compatible")
 
     def __len__(self):
         """ List length """
@@ -83,7 +89,9 @@ class IndexedList(MutableSequence):
 
     def _convert_item(self, item):
         """ Convert sentence to list of tokens """
-        if self.split:
+        if self.pre_splitted:
+            return item
+        elif self.split:
             return any2unicode(item).split()
         else:
             return self.split_func(any2unicode(item))
