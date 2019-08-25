@@ -194,11 +194,3 @@ class SentenceVectors(utils.SaveLoad):
     def infer_sentence(self, sentence, model):
         # TODO
         raise NotImplementedError()
-
-    def add(self):
-        # TODO: Do i need that?
-        raise NotImplementedError()
-
-    def __setitem__(self):
-        # TODO: Do i need that?
-        raise NotImplementedError()

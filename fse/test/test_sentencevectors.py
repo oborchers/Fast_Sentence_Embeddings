@@ -110,6 +110,8 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         self.assertEqual(v1.dot(v2), self.sv.similarity(0,1))
         self.assertEqual(1-(v1.dot(v2)), self.sv.distance(0,1))
 
+    
+
 
 if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
