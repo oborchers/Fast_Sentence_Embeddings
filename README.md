@@ -13,22 +13,41 @@ Find the corresponding blog post(s) here: https://medium.com/@oliverbor/fse-2b1f
 between *unweighted sentence averages*,  *smooth inverse frequency averages*, and *unsupervised smooth inverse frequency averages*. 
 
 Key features of fse are: 
+
 **[X]** Supports Average, SIF, and uSIF Embeddings
+
 **[X]** Full support for Gensims Word2Vec and all other compatible classes
+
 **[X]** Full support for Gensims FastText with out-of-vocabulary words
+
 **[X]** Induction of word frequencies for pre-trained embeddings
+
 **[X]** Incredibly fast Cython core routines 
+
 **[X]** Dedicated input file formats for easy usage (including disk streaming)
+
 **[X]** Ram-to-disk training for large corpora
+
 **[X]** Disk-to-disk training for even larger corpora
+
 **[X]** Many fail-safe checks for easy usage
+
 **[X]** Simple interface for developing your own models
 
 **[X]** Extensive documentation of all functions
+
 **[X]** 98% unittest coverage
 
 Usage
 -------------
+
+In the folder nootebooks you can find the following guides:
+
+**Tutorial.ipynb** offers a detailed walk-through of some of the most important functions fse has to offer.
+
+**STS-Benchmarks.ipynb** contains an example of how to use the library with pre-trained models to
+replicate the STS Benchmark results [4] reported in the papers.
+
 
 In order to use the **fse** model, you first need some pre-trained gensim 
 word embedding model, which is then used by **fse** to compute the sentence embeddings.
@@ -62,13 +81,6 @@ for a corpus.
 
 The current version does offer multi-core support out of the box. However, for most
 applications a single core will most likely suffice.
-
-In the folder nootebooks you can find the following guides:
-
-**Tutorial.ipynb** offers a detailed walk-through of some of the most important functions fse has to offer.
-
-**STS-Benchmarks.ipynb** contains an example of how to use the library with pre-trained models to
-replicate the STS Benchmark results [4] reported in the papers.
 
 To install **fse** on Colab, check out: https://colab.research.google.com/drive/1qq9GBgEosG7YSRn7r6e02T9snJb04OEi 
 
