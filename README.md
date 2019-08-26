@@ -110,14 +110,14 @@ Installation
 ------------
 
 This software depends on [NumPy, Scipy, Scikit-learn, Gensim, and Wordfreq]. 
-You must have them installed prior to installing fse.
+You must have them installed prior to installing fse. Required Python version is 3.6 for f-string compatibility.
 
 As with gensim, it is also recommended you install a fast BLAS library
 before installing fse.
 
 The simple way to install **fse** is:
 
-    pip install --upgrade fse
+    pip install -U fse
 
 In case you want to build from the source, just run:
 
@@ -125,7 +125,7 @@ In case you want to build from the source, just run:
 
 If building the Cython extension fails (you will be notified), try:
 
-    pip install git+https://github.com/oborchers/Fast_Sentence_Embeddings
+    pip install -U git+https://github.com/oborchers/Fast_Sentence_Embeddings
 
 
 Literature
