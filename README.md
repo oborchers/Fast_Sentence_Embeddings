@@ -84,6 +84,27 @@ applications a single core will most likely suffice.
 
 To install **fse** on Colab, check out: https://colab.research.google.com/drive/1qq9GBgEosG7YSRn7r6e02T9snJb04OEi 
 
+Results
+------------
+
+Model | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Results)
+:---: | :---:
+`CBOW-Paranmt` | **79.85**
+`uSIF-Paranmt` | 79.02
+`SIF-Paranmt` | 76.75
+`SIF-Paragram` | 73.86
+`uSIF-Paragram` | 73.64
+`SIF-FT` | 73.38
+`SIF-Glove` | 71.95
+`SIF-W2V` | 71.12
+`uSIF-FT` | 69.4
+`uSIF-Glove` | 67.16
+`uSIF-W2V` | 66.99
+`CBOW-W2V` | 61.54
+`CBOW-Paragram` | 50.38
+`CBOW-FT` | 48.49
+`CBOW-Glove` | 40.41
+
 
 Installation
 ------------
