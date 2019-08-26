@@ -14,6 +14,8 @@ import warnings
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext
 
+if sys.version_info[:2] < (3, 6):
+    raise Exception('This version of fse needs Python 3.6 or later.')
 
 class custom_build_ext(build_ext):
     '''Allow C extension building to fail.
@@ -83,7 +85,7 @@ cmdclass = {'build_ext': custom_build_ext}
 
 setup(
     name='fse',
-    version='0.1.1',
+    version='0.1.11',
     description='Fast Sentence Embeddings for Gensim',
 
     author=u'Oliver Borchers',
@@ -95,7 +97,7 @@ setup(
 
     ext_modules=[
         Extension('fse.models.average_inner',
-                sources=['./fse/models/average_inner.pyx'],
+                sources=['./fse/models/average_inner.c'],
                 include_dirs=[mod_dir]),
         ],
         
@@ -109,7 +111,7 @@ setup(
         'scipy >= 0.18.1',
         'smart_open >= 1.5.0',
         'scikit-learn >= 0.19.1',
-        'gensim >= 3.4.0',
+        'gensim >= 3.8.0',
         'wordfreq >= 2.2.1',
     ],
     include_package_data=True,
