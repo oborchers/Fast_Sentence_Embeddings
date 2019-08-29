@@ -80,6 +80,8 @@ cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory):
     c[0].oov_weight = <REAL_t>np.max(model.word_weights)
 
     c[0].mem = <REAL_t *>(np.PyArray_DATA(memory[0]))
+
+    memory[1].fill(ZERO)    # Reset the ngram storage before filling the struct
     c[0].subwords_idx = <uINT_t *>(np.PyArray_DATA(memory[1]))
 
     c[0].word_vectors = <REAL_t *>(np.PyArray_DATA(model.wv.vectors_vocab))
