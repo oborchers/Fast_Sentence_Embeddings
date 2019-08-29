@@ -188,7 +188,7 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sente
 
                 c.subwords_idx_len[eff_words] = <uINT_t>min(len(encoded_ngrams), MAX_NGRAMS)
                 for i, h in enumerate(hashes[:MAX_NGRAMS]):
-                    c.subwords_idx[eff_words + i] = <uINT_t>h
+                    c.subwords_idx[(eff_words*MAX_NGRAMS) + i] = <uINT_t>h
             
             eff_words += ONE
 
@@ -292,7 +292,7 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
                 saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, &c.sentence_vectors[sent_row], &ONE)
             else:
                 for j in range(ngrams):
-                    ngram_row = c.subwords_idx[i+j] * size
+                    ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size
                     saxpy(&size, &ONEF, &c.ngram_vectors[ngram_row], &ONE, c.mem, &ONE)
 
                 inv_ngram = ONEF / <REAL_t>ngrams

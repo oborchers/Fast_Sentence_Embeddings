@@ -3143,7 +3143,7 @@ static PyObject *__pyx_f_13average_inner_populate_ft_s2v_config(struct __pyx_t_1
  * 
  *                 c.subwords_idx_len[eff_words] = <uINT_t>min(len(encoded_ngrams), MAX_NGRAMS)             # <<<<<<<<<<<<<<
  *                 for i, h in enumerate(hashes[:MAX_NGRAMS]):
- *                     c.subwords_idx[eff_words + i] = <uINT_t>h
+ *                     c.subwords_idx[(eff_words*MAX_NGRAMS) + i] = <uINT_t>h
  */
         __pyx_t_19 = 40;
         __pyx_t_17 = PyObject_Length(__pyx_v_encoded_ngrams); if (unlikely(__pyx_t_17 == ((Py_ssize_t)-1))) __PYX_ERR(0, 189, __pyx_L1_error)
@@ -3158,7 +3158,7 @@ static PyObject *__pyx_f_13average_inner_populate_ft_s2v_config(struct __pyx_t_1
  * 
  *                 c.subwords_idx_len[eff_words] = <uINT_t>min(len(encoded_ngrams), MAX_NGRAMS)
  *                 for i, h in enumerate(hashes[:MAX_NGRAMS]):             # <<<<<<<<<<<<<<
- *                     c.subwords_idx[eff_words + i] = <uINT_t>h
+ *                     c.subwords_idx[(eff_words*MAX_NGRAMS) + i] = <uINT_t>h
  * 
  */
         __Pyx_INCREF(__pyx_int_0);
@@ -3188,12 +3188,12 @@ static PyObject *__pyx_f_13average_inner_populate_ft_s2v_config(struct __pyx_t_1
           /* "average_inner.pyx":191
  *                 c.subwords_idx_len[eff_words] = <uINT_t>min(len(encoded_ngrams), MAX_NGRAMS)
  *                 for i, h in enumerate(hashes[:MAX_NGRAMS]):
- *                     c.subwords_idx[eff_words + i] = <uINT_t>h             # <<<<<<<<<<<<<<
+ *                     c.subwords_idx[(eff_words*MAX_NGRAMS) + i] = <uINT_t>h             # <<<<<<<<<<<<<<
  * 
  *             eff_words += ONE
  */
           __pyx_t_10 = __Pyx_PyInt_As_npy_uint32(__pyx_v_h); if (unlikely((__pyx_t_10 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 191, __pyx_L1_error)
-          __pyx_t_11 = __Pyx_PyInt_From_npy_uint32(__pyx_v_eff_words); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 191, __pyx_L1_error)
+          __pyx_t_11 = __Pyx_PyInt_From_long((__pyx_v_eff_words * 40)); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 191, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_11);
           __pyx_t_13 = PyNumber_Add(__pyx_t_11, __pyx_v_i); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 191, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_13);
@@ -3206,7 +3206,7 @@ static PyObject *__pyx_f_13average_inner_populate_ft_s2v_config(struct __pyx_t_1
  * 
  *                 c.subwords_idx_len[eff_words] = <uINT_t>min(len(encoded_ngrams), MAX_NGRAMS)
  *                 for i, h in enumerate(hashes[:MAX_NGRAMS]):             # <<<<<<<<<<<<<<
- *                     c.subwords_idx[eff_words + i] = <uINT_t>h
+ *                     c.subwords_idx[(eff_words*MAX_NGRAMS) + i] = <uINT_t>h
  * 
  */
         }
@@ -3216,7 +3216,7 @@ static PyObject *__pyx_f_13average_inner_populate_ft_s2v_config(struct __pyx_t_1
       __pyx_L8:;
 
       /* "average_inner.pyx":193
- *                     c.subwords_idx[eff_words + i] = <uINT_t>h
+ *                     c.subwords_idx[(eff_words*MAX_NGRAMS) + i] = <uINT_t>h
  * 
  *             eff_words += ONE             # <<<<<<<<<<<<<<
  * 
@@ -3758,7 +3758,7 @@ static void __pyx_f_13average_inner_compute_ft_sentence_averages(struct __pyx_t_
  *                 saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, &c.sentence_vectors[sent_row], &ONE)
  *             else:
  *                 for j in range(ngrams):             # <<<<<<<<<<<<<<
- *                     ngram_row = c.subwords_idx[i+j] * size
+ *                     ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size
  *                     saxpy(&size, &ONEF, &c.ngram_vectors[ngram_row], &ONE, c.mem, &ONE)
  */
       /*else*/ {
@@ -3770,15 +3770,15 @@ static void __pyx_f_13average_inner_compute_ft_sentence_averages(struct __pyx_t_
           /* "average_inner.pyx":295
  *             else:
  *                 for j in range(ngrams):
- *                     ngram_row = c.subwords_idx[i+j] * size             # <<<<<<<<<<<<<<
+ *                     ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size             # <<<<<<<<<<<<<<
  *                     saxpy(&size, &ONEF, &c.ngram_vectors[ngram_row], &ONE, c.mem, &ONE)
  * 
  */
-          __pyx_v_ngram_row = ((__pyx_v_c->subwords_idx[(__pyx_v_i + __pyx_v_j)]) * __pyx_v_size);
+          __pyx_v_ngram_row = ((__pyx_v_c->subwords_idx[((__pyx_v_i * 40) + __pyx_v_j)]) * __pyx_v_size);
 
           /* "average_inner.pyx":296
  *                 for j in range(ngrams):
- *                     ngram_row = c.subwords_idx[i+j] * size
+ *                     ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size
  *                     saxpy(&size, &ONEF, &c.ngram_vectors[ngram_row], &ONE, c.mem, &ONE)             # <<<<<<<<<<<<<<
  * 
  *                 inv_ngram = ONEF / <REAL_t>ngrams

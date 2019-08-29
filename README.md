@@ -150,3 +150,17 @@ Copyright
 Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
 
 Copyright (C) 2019 Oliver Borchers
+
+Citation
+-------------
+
+If you found this software useful, please cite it in your publication.
+
+	@misc{Borchers2019,
+		author = {Borchers, Oliver},
+		title = {Fast sentence embeddings},
+		year = {2019},
+		publisher = {GitHub},
+		journal = {GitHub Repository},
+		howpublished = {\url{https://github.com/oborchers/Fast_Sentence_Embeddings}},
+	}
