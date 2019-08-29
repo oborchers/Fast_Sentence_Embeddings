@@ -626,7 +626,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         logger.info(f"begin training")
 
-        _, eff_sentences, eff_words = self._train_manager(data_iterable=sentences, total_sentences=statistics["max_index"]+1, queue_factor=queue_factor, report_delay=report_delay)
+        _, eff_sentences, eff_words = self._train_manager(data_iterable=sentences, total_sentences=statistics["total_sentences"], queue_factor=queue_factor, report_delay=report_delay)
 
         overall_time = time() - start_time
 
