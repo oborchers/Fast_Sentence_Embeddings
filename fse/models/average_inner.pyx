@@ -249,7 +249,7 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
 
             saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, c.mem, &ONE)
 
-        if sent_len > ZEROF:∂
+        if sent_len > ZEROF:
             inv_count = ONEF / sent_len
             # If we perform the a*x on memory, the computation is compatible with many-to-one mappings
             # because it doesn't rescale the overall result
