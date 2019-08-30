@@ -662,7 +662,7 @@ class BaseSentence2VecModel(SaveLoad):
         statistics = self.scan_sentences(sentences)
 
         output = zeros((statistics["max_index"], self.sv.vector_size), dtype=REAL)
-        mem = zeros(self.sv.vector_size, dtype=REAL)
+        mem = self._get_thread_working_mem()
         
         self._do_train_job(data_iterable=sentences, target=output, memory=mem)
 
