@@ -94,8 +94,8 @@ class TestAverageFunctions(unittest.TestCase):
         output = train_average_cy(m, self.sentences, m.sv.vectors, mem)
         self.assertEqual((4, 10), output)
         self.assertTrue((1. == m.sv[0]).all())
-        self.assertTrue((1.5 == m.sv[2]).all())
-        self.assertTrue((2 == m.sv[3]).all())
+        self.assertTrue(np.allclose(1.5, m.sv[2]))
+        self.assertTrue(np.allclose(2, m.sv[3]))
 
     def test_cy_equal_np_w2v(self):
         m1 = Average(W2V)

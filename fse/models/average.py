@@ -86,13 +86,14 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
 
     is_ft = model.is_ft
 
-    mem = memory
+    mem = memory[0]
+    subwords_idx = memory[1]
 
     if is_ft:
         # NOTE: For Fasttext: Use wv.vectors_vocab
         # Using the wv.vectors from fasttext had horrible effects on the sts results
         # I suspect this is because the wv.vectors are based on the averages of
-        # wv.vectors_vocab + wv.vectors_ngrams, which will point all into very
+        # wv.vectors_vocab + wv.vectors_ngrams, which will all point into very
         # similar directions.
         max_ngrams = model.batch_ngrams
         w_vectors = model.wv.vectors_vocab
@@ -106,6 +107,7 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
 
     if not is_ft:
         for obj in indexed_sentences:
+            mem.fill(0.)
             sent_adr = obj.index
             sent = obj.words
             word_indices = [vocab[word].index for word in sent if word in vocab]
@@ -114,12 +116,12 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
                 continue
             eff_words += len(word_indices)
 
-            mem = np_sum(np_mult(w_vectors[word_indices],w_weights[word_indices][:,None]) , axis=0)
+            mem += np_sum(np_mult(w_vectors[word_indices],w_weights[word_indices][:,None]) , axis=0)
             mem *= 1/len(word_indices)
             s_vectors[sent_adr] = mem.astype(REAL)
-            mem = zeros(size, dtype=REAL)
     else:
         for obj in indexed_sentences:
+            mem.fill(0.)
             sent_adr = obj.index
             sent = obj.words
             
@@ -141,7 +143,6 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
                     mem += oov_weight * (np_sum(ngram_vectors[ngram_hashes], axis=0) / len(ngram_hashes))
                 # Implicit addition of zero if oov does not contain any ngrams
             s_vectors[sent_adr] = mem / len(sent)
-            mem = zeros(size, dtype=REAL)
 
     return eff_sentences, eff_words
 

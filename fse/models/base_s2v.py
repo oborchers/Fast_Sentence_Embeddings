@@ -552,13 +552,13 @@ class BaseSentence2VecModel(SaveLoad):
         }
         return statistics
     
-    def estimate_memory(self, total_sentences:int, report:dict=None, **kwargs) -> Dict[str, int]:
+    def estimate_memory(self, max_index:int, report:dict=None, **kwargs) -> Dict[str, int]:
         """ Estimate the size of the sentence embedding
 
         Parameters
         ----------
-        total_sentences : int
-            Number of sentences found during the initial scan
+        max_index : int
+            Maximum index found during the initial scan
         report : dict
             Report of subclasses
 
@@ -573,14 +573,14 @@ class BaseSentence2VecModel(SaveLoad):
         report = report or {}
         report["Word Weights"] = vocab_size * dtype(REAL).itemsize
         report["Word Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
-        report["Sentence Vectors"] = total_sentences * self.wv.vector_size * dtype(REAL).itemsize
+        report["Sentence Vectors"] = max_index * self.wv.vector_size * dtype(REAL).itemsize
         if self.is_ft:
             report["Vocab Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
             report["Ngram Vectors"] = self.wv.vectors_ngrams.shape[0] * self.wv.vector_size * dtype(REAL).itemsize
         report["Total"] = sum(report.values())
         mb_size = int(report["Total"] / 1024**2)
         logger.info(
-            f"estimated memory for {total_sentences} sentences with "
+            f"estimated memory for {max_index} sentences with "
             f"{self.wv.vector_size} dimensions and {vocab_size} vocabulary: "
             f"{mb_size} MB ({int(mb_size / 1024)} GB)"
         )
