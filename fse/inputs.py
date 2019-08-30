@@ -11,6 +11,8 @@ from smart_open import open
 
 from pathlib import Path
 
+from numpy import ndarray
+
 class IndexedSentence(NamedTuple):
     words: List[str]
     index: int
@@ -28,7 +30,7 @@ class IndexedSentence(NamedTuple):
 
 class IndexedList(MutableSequence):
     
-    def __init__(self, *args, split=True, split_func=None, pre_splitted=False):
+    def __init__(self, *args, split=True, split_func=None, pre_splitted=False, custom_index=None):
         """ Quasi-list to be used for feeding in-memory stored lists of sentences to
         the training routine as indexed sentence.
 
@@ -51,15 +53,24 @@ class IndexedList(MutableSequence):
         
         self.items = list()
 
-        for arg in args:
-            self._check_list_type(arg)
-            self.items += arg
+        if len(args) == 1:
+            self._check_list_type(args[0])
+            self.items = args[0]
+        else:
+            for arg in args:
+                self._check_list_type(arg)
+                self.items += arg
+
+        if custom_index is not None:
+            self.custom_index = custom_index
+            if len(self.items) != len(self.custom_index):
+                RuntimeError(f"Custom index has wrong length {len(self.custom_index)}")
 
         super().__init__()
 
     def _check_list_type(self, obj):
         """ Checks input validity """
-        if isinstance(obj, (list, set)):
+        if isinstance(obj, (list, set, ndarray)):
             return 1
         else:
             raise TypeError(f"Arg must be list/set type. Got {type(obj)}")
@@ -101,6 +112,9 @@ class IndexedList(MutableSequence):
         """ Get a list item """
         item = self.items[i]
         output = self._convert_item(item)
+
+        if self.custom_index is not None:
+            return IndexedSentence(output, self.custom_index[i])
         return IndexedSentence(output, i)
 
     def __delitem__(self, i):
