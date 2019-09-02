@@ -28,6 +28,13 @@ class IndexedSentence(NamedTuple):
         """
         return f"{self.__class__.__name__}({self.words}, {self.index})"
 
+class IdentityOp():
+    """ This class is a ghost for return the called index to serve as a substitute
+    for a custom index object in IndexedList
+    """
+    def __getitem__(self, i):
+        return i
+
 class IndexedList(MutableSequence):
     
     def __init__(self, *args, split=True, split_func=None, pre_splitted=False, custom_index=None):
@@ -65,9 +72,13 @@ class IndexedList(MutableSequence):
             self.custom_index = custom_index
             if len(self.items) != len(self.custom_index):
                 RuntimeError(f"Custom index has wrong length {len(self.custom_index)}")
+        else:
+            self.custom_index = IdentityOp()
 
         super().__init__()
 
+        self._set_get_meth()
+    
     def _check_list_type(self, obj):
         """ Checks input validity """
         if isinstance(obj, (list, set, ndarray)):
@@ -99,23 +110,30 @@ class IndexedList(MutableSequence):
     def __str__(self):
         return str(self.items)
 
-    def _convert_item(self, item):
-        """ Convert sentence to list of tokens """
+    def _get_presplitted(self, i):
+        """ Get with presplitted list """
+        return IndexedSentence(self.items[i], self.custom_index[i])
+
+    def _get_not_splitted(self, i):
+        """ Get with regular split func """
+        return IndexedSentence(self.items[i].split(), self.custom_index[i])
+
+    def _get_splitfunc(self, i):
+        """ Get with custom split func """
+        return IndexedSentence(self.split_func(self.items[i]), self.custom_index[i])
+
+    def _set_get_meth(self):
+        """ Sets the __getitem__ method so that we only have to check this once"""
         if self.pre_splitted:
-            return item
-        elif self.split:
-            return any2unicode(item).split()
-        else:
-            return self.split_func(any2unicode(item))
-
+            self._getmeth = self._get_presplitted
+        if self.split:
+            self._getmeth = self._get_not_splitted
+        if self.split_func is not None:
+            self._getmeth = self._get_splitfunc
+    
     def __getitem__(self, i):
-        """ Get a list item """
-        item = self.items[i]
-        output = self._convert_item(item)
-
-        if self.custom_index is not None:
-            return IndexedSentence(output, self.custom_index[i])
-        return IndexedSentence(output, i)
+        """ Will be overwritten """
+        return self._getmeth(i)
 
     def __delitem__(self, i):
         """ Delete an item """

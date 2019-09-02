@@ -9,7 +9,6 @@
 Automated tests for checking the input methods.
 """
 
-
 import logging
 import unittest
 
