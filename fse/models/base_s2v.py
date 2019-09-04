@@ -309,7 +309,7 @@ class BaseSentence2VecModel(SaveLoad):
                 f"training returned invalid values. Check the input."
             )
     
-    def _check_indexed_sent_valid(self, iterPos:int, obj:IndexedSentence) -> [int, List[str]]:
+    def _check_indexed_sent_valid(self, iterPos:int, obj:IndexedSentence, checked:int=False) -> [int, List[str]]:
         """ Performs a check if the passed object contains valid data
 
         Parameters
@@ -328,17 +328,19 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
 
-        if isinstance(obj, IndexedSentence):
-            index = obj.index
-            sent = obj.words
+        if isinstance(obj, (IndexedSentence, tuple)):
+            sent = obj[0]   #Faster than obj.words
+            index = obj[1]
         else:
             raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain IndexedSentence.")
-        if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
-            raise TypeError(f"At {iterPos}: Passed {type(sent)}: {sent}. IndexedSentence.words must contain list of str.")
-        if not isinstance(index, int):
-            raise TypeError(f"At {iterPos}: Passed {type(index)}: {index}. IndexedSentence.index must contain index")
-        if index < 0:
-            raise ValueError(f"At {iterPos}: Passed negative {index}")
+
+        if not checked:
+            if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
+                raise TypeError(f"At {iterPos}: Passed {type(sent)}: {sent}. IndexedSentence.words must contain list of str.")
+            if not isinstance(index, int):
+                raise TypeError(f"At {iterPos}: Passed {type(index)}: {index}. IndexedSentence.index must contain index")
+            if index < 0:
+                raise ValueError(f"At {iterPos}: Passed negative {index}")
         return index, sent
 
     def _map_all_vectors_to_disk(self, mapfile_path:Path):
@@ -518,9 +520,11 @@ class BaseSentence2VecModel(SaveLoad):
         average_length = 0
         empty_sentences = 0
         max_index = 0
+        checked_sentences = 0   # We only check the first item to not constrain runtime so much
 
         for i, obj in enumerate(sentences):
-            index, sent = self._check_indexed_sent_valid(iterPos=i, obj=obj)
+            index, sent = self._check_indexed_sent_valid(iterPos=i, obj=obj, checked=checked_sentences)
+            checked_sentences += 1
             if time() - current_time > progress_per:
                 current_time = time()
                 logger.info(f"SCANNING : finished {total_sentences} sentences with {total_words} words")
@@ -664,6 +668,7 @@ class BaseSentence2VecModel(SaveLoad):
         output = zeros((statistics["max_index"], self.sv.vector_size), dtype=REAL)
         mem = self._get_thread_working_mem()
         
+        # TODO : THIS ONLY WORKS FOR MAX WORDS IN BATCH!!!!
         self._do_train_job(data_iterable=sentences, target=output, memory=mem)
 
         self._post_inference_calls(output=output)
@@ -764,7 +769,7 @@ class BaseSentence2VecModel(SaveLoad):
         job_no = 0
 
         for data_idx, data in enumerate(data_iterable):
-            data_length = len(data.words)
+            data_length = len(data[0])
             if batch_size + data_length <= self.batch_words:
                 job_batch.append(data)
                 batch_size += data_length

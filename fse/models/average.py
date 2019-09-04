@@ -108,8 +108,9 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
     if not is_ft:
         for obj in indexed_sentences:
             mem.fill(0.)
-            sent_adr = obj.index
-            sent = obj.words
+            sent = obj[0]
+            sent_adr = obj[1]
+            
             word_indices = [vocab[word].index for word in sent if word in vocab]
             eff_sentences += 1
             if not len(word_indices):
@@ -122,8 +123,8 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
     else:
         for obj in indexed_sentences:
             mem.fill(0.)
-            sent_adr = obj.index
-            sent = obj.words
+            sent = obj[0]
+            sent_adr = obj[1]
             
             if not len(sent):
                 continue

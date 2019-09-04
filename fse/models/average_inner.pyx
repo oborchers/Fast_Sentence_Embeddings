@@ -125,14 +125,14 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_s
     c.sentence_boundary[0] = ZERO
 
     for obj in indexed_sentences:
-        if not obj.words:
+        if not obj[0]:
             continue
-        for token in obj.words:
+        for token in obj[0]:
             word = vocab[token] if token in vocab else None # Vocab obj
             if word is None:
                 continue
             c.word_indices[eff_words] = <uINT_t>word.index
-            c.sent_adresses[eff_words] = <uINT_t>obj.index
+            c.sent_adresses[eff_words] = <uINT_t>obj[1]
 
             eff_words += ONE
             if eff_words == MAX_WORDS:
@@ -176,10 +176,10 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sente
     c.sentence_boundary[0] = ZERO
 
     for obj in indexed_sentences:
-        if not obj.words:
+        if not obj[0]:
             continue
-        for token in obj.words:
-            c.sent_adresses[eff_words] = <uINT_t>obj.index
+        for token in obj[0]:
+            c.sent_adresses[eff_words] = <uINT_t>obj[1]
 
             if token in vocab:
                 # In Vocabulary
@@ -305,9 +305,7 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
                 for j in range(ngrams):
                     ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size
                     saxpy(&size, &inv_ngram, &c.ngram_vectors[ngram_row], &ONE, c.mem, &ONE)
-                # sscal(&size, &inv_ngram, c.mem, &ONE)
-                # saxpy(&size, &c.oov_weight, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
-                # memset(c.mem, 0, size * cython.sizeof(REAL_t))
+                
         if sent_len > ZEROF:
             inv_count = ONEF / sent_len
             saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)

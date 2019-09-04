@@ -28,22 +28,15 @@ class IndexedSentence(NamedTuple):
         """
         return f"{self.__class__.__name__}({self.words}, {self.index})"
 
-class IdentityOp():
-    """ This class is a ghost for return the called index to serve as a substitute
-    for a custom index object in IndexedList
-    """
-    def __getitem__(self, i):
-        return i
-
 class IndexedList(MutableSequence):
     
-    def __init__(self, *args, split=True, split_func=None, pre_splitted=False, custom_index=None):
+    def __init__(self, *args:[list, set, ndarray], split:bool=True, split_func:bool=None, pre_splitted:bool=False, custom_index:bool=None):
         """ Quasi-list to be used for feeding in-memory stored lists of sentences to
-        the training routine as indexed sentence.
+        the training routine as IndexedSentence.
 
         Parameters
         ----------
-        args : lists, sets
+        args : lists, sets, ndarray
             Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
         split : bool, optional
             If true performs a split function on the strings contained in the list.
@@ -68,25 +61,25 @@ class IndexedList(MutableSequence):
                 self._check_list_type(arg)
                 self.items += arg
 
+        self.custom_index = custom_index
         if custom_index is not None:
+            # Custom index for many-to-one averages
             self.custom_index = custom_index
             if len(self.items) != len(self.custom_index):
                 RuntimeError(f"Custom index has wrong length {len(self.custom_index)}")
-        else:
-            self.custom_index = IdentityOp()
-
-        super().__init__()
 
         self._set_get_meth()
+
+        super().__init__()
     
-    def _check_list_type(self, obj):
+    def _check_list_type(self, obj:object):
         """ Checks input validity """
         if isinstance(obj, (list, set, ndarray)):
             return 1
         else:
             raise TypeError(f"Arg must be list/set type. Got {type(obj)}")
     
-    def _check_str_type(self, obj):
+    def _check_str_type(self, obj:object):
         """ Checks input validity """
         if isinstance(obj, str):
             return 1
@@ -101,60 +94,101 @@ class IndexedList(MutableSequence):
             raise RuntimeError("Split function and pre_splitted are not compatible")
 
     def __len__(self):
-        """ List length """
+        """ List length 
+        
+        Returns
+        -------
+        int
+           Length of the IndexedList
+        """
         return len(self.items)
-    
-    def __repr__(self):
-        return f"{self.__class__.__name__}, {self.items}"
 
     def __str__(self):
+        """Human readable representation of the object's state, used for debugging.
+
+        Returns
+        -------
+        str
+           Human readable representation of the object's state (words and tags).
+
+        """
         return str(self.items)
 
-    def _get_presplitted(self, i):
-        """ Get with presplitted list """
-        return IndexedSentence(self.items[i], self.custom_index[i])
+    def _get_presplitted(self, i:int) -> IndexedSentence:
+        """ Get with presplitted list. Fastest. """
+        return IndexedSentence(self.items.__getitem__(i), i)
 
-    def _get_not_splitted(self, i):
+    def _get_not_splitted(self, i:int) -> IndexedSentence:
         """ Get with regular split func """
-        return IndexedSentence(self.items[i].split(), self.custom_index[i])
+        return IndexedSentence(self.items.__getitem__(i).split(), i)
 
-    def _get_splitfunc(self, i):
+    def _get_splitfunc(self, i:int) -> IndexedSentence:
         """ Get with custom split func """
-        return IndexedSentence(self.split_func(self.items[i]), self.custom_index[i])
+        return IndexedSentence(self.split_func(self.items.__getitem__(i)), i)
+
+    def _get_presplitted_cust_idx(self, i:int) -> IndexedSentence:
+        """ Get with presplitted list """
+        return IndexedSentence(self.items.__getitem__(i), self.custom_index.__getitem__(i))
+
+    def _get_not_splitted_cust_idx(self, i:int) -> IndexedSentence:
+        """ Get with regular split func """
+        return IndexedSentence(self.items.__getitem__(i).split(), self.custom_index.__getitem__(i))
+
+    def _get_splitfunc_cust_idx(self, i:int) -> IndexedSentence:
+        """ Get with custom split func. Slowest."""
+        return IndexedSentence(self.split_func(self.items.__getitem__(i)), self.custom_index.__getitem__(i))
 
     def _set_get_meth(self):
         """ Sets the __getitem__ method so that we only have to check this once"""
-        if self.pre_splitted:
-            self._getmeth = self._get_presplitted
-        if self.split:
-            self._getmeth = self._get_not_splitted
-        if self.split_func is not None:
-            self._getmeth = self._get_splitfunc
+        if self.custom_index is not None:
+            if self.pre_splitted:
+                self._getmeth = self._get_presplitted_cust_idx
+            if self.split:
+                self._getmeth = self._get_not_splitted_cust_idx
+            if self.split_func is not None:
+                self._getmeth = self._get_splitfunc_cust_idx
+        else:
+            if self.pre_splitted:
+                self._getmeth = self._get_presplitted
+            if self.split:
+                self._getmeth = self._get_not_splitted
+            if self.split_func is not None:
+                self._getmeth = self._get_splitfunc
     
-    def __getitem__(self, i):
-        """ Will be overwritten """
+    def __getitem__(self, i:int) -> IndexedSentence:
+        """  Getitem method
+        
+        Returns
+        -------
+        IndexedSentence
+            Returns the core object, IndexedSentence, for every sentence embedding model.
+        """
+        # TODO: Implement this beast.
+        #return (self.items.__getitem__(i), i)
         return self._getmeth(i)
 
-    def __delitem__(self, i):
+    def __delitem__(self, i:int):
         """ Delete an item """
         del self.items[i]
+        if self.custom_index is not None:
+            del self.custom_index[i]
 
-    def __setitem__(self, i, item):
+    def __setitem__(self, i:int, item:str):
         """ Sets an item """
         self._check_str_type(item)
         self.items[i] = item
 
-    def insert(self, i, item):
+    def insert(self, i:int, item:str):
         """ Inserts an item at a position """
         self._check_str_type(item)
         self.items.insert(i, item)
 
-    def append(self, item):
+    def append(self, item:str):
         """ Appends item at last position"""
         self._check_str_type(item)
         self.insert(len(self.items), item)
     
-    def extend(self, *args):
+    def extend(self, *args:[list, set, ndarray]):
         """ Extens list """
         for arg in args:
             self._check_list_type(arg)
