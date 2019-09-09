@@ -11,87 +11,45 @@ from smart_open import open
 
 from pathlib import Path
 
-from numpy import ndarray
+from numpy import ndarray, concatenate
 
-class IndexedSentence(NamedTuple):
-    words: List[str]
-    index: int
+class BaseIndexedList(MutableSequence):
 
-    def __str__(self):
-        """Human readable representation of the object's state, used for debugging.
-
-        Returns
-        -------
-        str
-           Human readable representation of the object's state (words and tags).
-
-        """
-        return f"{self.__class__.__name__}({self.words}, {self.index})"
-
-class IndexedList(MutableSequence):
-    
-    def __init__(self, *args:[list, set, ndarray], split:bool=True, split_func:bool=None, pre_splitted:bool=False, custom_index:bool=None):
-        """ Quasi-list to be used for feeding in-memory stored lists of sentences to
-        the training routine as IndexedSentence.
+    def __init__(self, *args:[list, set, ndarray]):
+        """ Base object to be used for feeding in-memory stored lists of sentences to
+        the training routine.
 
         Parameters
         ----------
         args : lists, sets, ndarray
-            Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
-        split : bool, optional
-            If true performs a split function on the strings contained in the list.
-        split_func : function, optional
-            A user definable split function which turns a string into a list of strings.
-        pre_splitted : bool, optional
-            Determines if the input is already splitted in the format of ["token0", "token1"]
+            Arguments to be merged into a single contianer. Can be single or multiple list/set/ndarray objects.
 
         """
-        self.pre_splitted = bool(pre_splitted)
-        self.split = bool(split) if not self.pre_splitted else False
-        self.split_func = split_func
-        self._check_kwargs_sanity()
-        
-        self.items = list()
 
+        self.items = list()
+        
         if len(args) == 1:
             self._check_list_type(args[0])
             self.items = args[0]
         else:
             for arg in args:
-                self._check_list_type(arg)
-                self.items += arg
-
-        self.custom_index = custom_index
-        if custom_index is not None:
-            # Custom index for many-to-one averages
-            self.custom_index = custom_index
-            if len(self.items) != len(self.custom_index):
-                RuntimeError(f"Custom index has wrong length {len(self.custom_index)}")
-
-        self._set_get_meth()
+                self.extend(arg)
 
         super().__init__()
-    
+
     def _check_list_type(self, obj:object):
         """ Checks input validity """
         if isinstance(obj, (list, set, ndarray)):
             return 1
         else:
             raise TypeError(f"Arg must be list/set type. Got {type(obj)}")
-    
+
     def _check_str_type(self, obj:object):
         """ Checks input validity """
         if isinstance(obj, str):
             return 1
         else:
             raise TypeError(f"Arg must be str type. Got {type(obj)}")
-    
-    def _check_kwargs_sanity(self):
-        """ Checks argument validity """
-        if self.split and self.split_func is not None:
-            raise RuntimeError("You must provide either split=True or a split_func, not both")
-        if (self.split or self.split_func is not None) and self.pre_splitted:
-            raise RuntimeError("Split function and pre_splitted are not compatible")
 
     def __len__(self):
         """ List length 
@@ -114,65 +72,20 @@ class IndexedList(MutableSequence):
         """
         return str(self.items)
 
-    def _get_presplitted(self, i:int) -> IndexedSentence:
-        """ Get with presplitted list. Fastest. """
-        return IndexedSentence(self.items.__getitem__(i), i)
-
-    def _get_not_splitted(self, i:int) -> IndexedSentence:
-        """ Get with regular split func """
-        return IndexedSentence(self.items.__getitem__(i).split(), i)
-
-    def _get_splitfunc(self, i:int) -> IndexedSentence:
-        """ Get with custom split func """
-        return IndexedSentence(self.split_func(self.items.__getitem__(i)), i)
-
-    def _get_presplitted_cust_idx(self, i:int) -> IndexedSentence:
-        """ Get with presplitted list """
-        return IndexedSentence(self.items.__getitem__(i), self.custom_index.__getitem__(i))
-
-    def _get_not_splitted_cust_idx(self, i:int) -> IndexedSentence:
-        """ Get with regular split func """
-        return IndexedSentence(self.items.__getitem__(i).split(), self.custom_index.__getitem__(i))
-
-    def _get_splitfunc_cust_idx(self, i:int) -> IndexedSentence:
-        """ Get with custom split func. Slowest."""
-        return IndexedSentence(self.split_func(self.items.__getitem__(i)), self.custom_index.__getitem__(i))
-
-    def _set_get_meth(self):
-        """ Sets the __getitem__ method so that we only have to check this once"""
-        if self.custom_index is not None:
-            if self.pre_splitted:
-                self._getmeth = self._get_presplitted_cust_idx
-            if self.split:
-                self._getmeth = self._get_not_splitted_cust_idx
-            if self.split_func is not None:
-                self._getmeth = self._get_splitfunc_cust_idx
-        else:
-            if self.pre_splitted:
-                self._getmeth = self._get_presplitted
-            if self.split:
-                self._getmeth = self._get_not_splitted
-            if self.split_func is not None:
-                self._getmeth = self._get_splitfunc
-    
-    def __getitem__(self, i:int) -> IndexedSentence:
+    def __getitem__(self, i:int) -> tuple:
         """  Getitem method
         
         Returns
         -------
-        IndexedSentence
-            Returns the core object, IndexedSentence, for every sentence embedding model.
+        tuple ([str], int)
+            Returns the core object, a tuple, for every sentence embedding model.
         """
-        # TODO: Implement this beast.
-        #return (self.items.__getitem__(i), i)
-        return self._getmeth(i)
+        raise NotImplementedError()
 
     def __delitem__(self, i:int):
         """ Delete an item """
         del self.items[i]
-        if self.custom_index is not None:
-            del self.custom_index[i]
-
+        
     def __setitem__(self, i:int, item:str):
         """ Sets an item """
         self._check_str_type(item)
@@ -188,16 +101,189 @@ class IndexedList(MutableSequence):
         self._check_str_type(item)
         self.insert(len(self.items), item)
     
-    def extend(self, *args:[list, set, ndarray]):
+    def extend(self, arg:[list, set, ndarray]):
         """ Extens list """
-        for arg in args:
-            self._check_list_type(arg)
+        self._check_list_type(arg)
+
+        if not isinstance(arg, ndarray):
             self.items += arg
+        else:
+            self.items = concatenate([self.items, arg], axis=0)
+
+class IndexedList(BaseIndexedList):
+
+    def __init__(self, *args:[list, set, ndarray]):
+        """ Quasi-list to be used for feeding in-memory stored lists of sentences to
+        the training routine.
+
+        Parameters
+        ----------
+        args : lists, sets, ndarray
+            Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
+
+        """
+        super(IndexedList, self).__init__(*args)
+
+    def __getitem__(self, i:int) -> tuple:
+        """  Getitem method
+        
+        Returns
+        -------
+        tuple
+            Returns the core object, tuple, for every sentence embedding model.
+        """
+        return (self.items.__getitem__(i), i)
+
+class CIndexedList(BaseIndexedList):
+
+    def __init__(self, *args:[list, set, ndarray], custom_index:[list, ndarray]):
+        """ Quasi-list with custom indices to be used for feeding in-memory stored lists of sentences to
+        the training routine.
+
+        Parameters
+        ----------
+        args : lists, sets, ndarray
+            Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
+        custom_index : list, ndarray
+            Custom index to support many to one mappings.
+
+        """
+        self.custom_index = custom_index
+
+        super(CIndexedList, self).__init__(*args)
+
+        if len(self.items) != len(self.custom_index):
+            raise RuntimeError(f"Size of custom_index {len(custom_index)} does not match items {len(self.items)}")
+
+    def __getitem__(self, i:int) -> tuple:
+        """  Getitem method
+        
+        Returns
+        -------
+        tuple
+            Returns the core object, tuple, for every sentence embedding model.
+        """
+        return (self.items.__getitem__(i), self.custom_index[i])
+
+    def __delitem__(self, i:int):
+        raise NotImplementedError("Method not currently supported")
+        
+    def __setitem__(self, i:int, item:str):
+        raise NotImplementedError("Method not currently supported")
+
+    def insert(self, i:int, item:str):
+        raise NotImplementedError("Method not currently supported")
+
+    def append(self, item:str):
+        raise NotImplementedError("Method not currently supported")
+    
+    def extend(self, arg:[list, set, ndarray]):
+        raise NotImplementedError("Method not currently supported")
+
+class SplitIndexedList(BaseIndexedList):
+
+    def __init__(self, *args:[list, set, ndarray]):
+        """ Quasi-list with string splitting to be used for feeding in-memory stored lists of sentences to
+        the training routine.
+
+        Parameters
+        ----------
+        args : lists, sets, ndarray
+            Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
+
+        """
+        super(SplitIndexedList, self).__init__(*args)
+
+    def __getitem__(self, i:int) -> tuple:
+        """  Getitem method
+        
+        Returns
+        -------
+        tuple
+            Returns the core object, tuple, for every sentence embedding model.
+        """
+        return (self.items.__getitem__(i).split(), i)
+
+class CSplitIndexedList(BaseIndexedList):
+
+    def __init__(self, *args:[list, set, ndarray], custom_split:callable):
+        """ Quasi-list with custom string splitting to be used for feeding in-memory stored lists of sentences to
+        the training routine.
+
+        Parameters
+        ----------
+        args : lists, sets, ndarray
+            Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
+        custom_split : callable
+            Split function to be used to convert strings into list of str.
+
+        """
+        self.custom_split = custom_split
+        super(CSplitIndexedList, self).__init__(*args)
+
+    def __getitem__(self, i:int) -> tuple:
+        """  Getitem method
+        
+        Returns
+        -------
+        tuple
+            Returns the core object, tuple, for every sentence embedding model.
+        """
+        return (self.custom_split(self.items.__getitem__(i)), i)
+
+class CSplitCIndexedList(BaseIndexedList):
+
+    def __init__(self, *args:[list, set, ndarray], custom_split:callable, custom_index:[list, ndarray]):
+        """ Quasi-list with custom indices and ustom string splitting to be used for feeding in-memory stored lists of sentences to
+        the training routine.
+
+        Parameters
+        ----------
+        args : lists, sets, ndarray
+            Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
+        custom_split : callable
+            Split function to be used to convert strings into list of str.
+        custom_index : list, ndarray
+            Custom index to support many to one mappings.
+
+        """
+        self.custom_split = custom_split
+        self.custom_index = custom_index
+        
+        super(CSplitCIndexedList, self).__init__(*args)
+
+        if len(self.items) != len(self.custom_index):
+            raise RuntimeError(f"Size of custom_index {len(custom_index)} does not match items {len(self.items)}")
+
+    def __getitem__(self, i:int) -> tuple:
+        """  Getitem method
+        
+        Returns
+        -------
+        tuple
+            Returns the core object, tuple, for every sentence embedding model.
+        """
+        return (self.custom_split(self.items.__getitem__(i)), self.custom_index[i])
+
+    def __delitem__(self, i:int):
+        raise NotImplementedError("Method not currently supported")
+        
+    def __setitem__(self, i:int, item:str):
+        raise NotImplementedError("Method not currently supported")
+
+    def insert(self, i:int, item:str):
+        raise NotImplementedError("Method not currently supported")
+
+    def append(self, item:str):
+        raise NotImplementedError("Method not currently supported")
+    
+    def extend(self, arg:[list, set, ndarray]):
+        raise NotImplementedError("Method not currently supported")
 
 class IndexedLineDocument(object):
 
     def __init__(self, path, get_able=True):
-        """ Iterate over a file that contains sentences: one line = :class:`~fse.inputs.IndexedSentence` object.
+        """ Iterate over a file that contains sentences: one line = tuple([str], int).
 
         Words are expected to be already preprocessed and separated by whitespace. Sentence tags are constructed
         automatically from the sentence line number.
@@ -256,10 +342,10 @@ class IndexedLineDocument(object):
 
         Yields
         ------
-        :class:`~fse.inputs.IndexedSentence`
-            IndexedSentence from `path` specified in the constructor.
+        tuple : (list[str], int)
+            Tuple of list of string and index
 
         """
         with open(self.path, "rb") as f:
             for i, line in enumerate(f):
-                yield IndexedSentence(any2unicode(line).split(), i)
+                yield (any2unicode(line).split(), i)

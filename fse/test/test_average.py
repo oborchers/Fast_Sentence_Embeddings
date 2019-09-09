@@ -19,7 +19,6 @@ from fse.models.average import Average
 from fse.models.average import train_average_np
 from fse.models.average_inner import train_average_cy
 from fse.models.average_inner import FAST_VERSION, MAX_WORDS_IN_BATCH, MAX_NGRAMS_IN_BATCH
-from fse.inputs import IndexedSentence
 
 from gensim.models import Word2Vec, FastText
 
@@ -36,7 +35,7 @@ W2V.wv.vectors[:,] = np.arange(len(W2V.wv.vectors), dtype=np.float32)[:, None]
 class TestAverageFunctions(unittest.TestCase):
     def setUp(self):
         self.sentences = [["They", "admit"], ["So", "Apple", "bought", "buds"], ["go", "12345"], ["pull", "12345678910111213"]]
-        self.sentences = [IndexedSentence(s, i) for i,s in enumerate(self.sentences)]
+        self.sentences = [(s, i) for i,s in enumerate(self.sentences)]
         self.model = Average(W2V)
         self.model.prep.prepare_vectors(sv=self.model.sv, total_sentences=len(self.sentences), update=False)
         self.model._pre_train_calls()
@@ -137,13 +136,13 @@ class TestAverageFunctions(unittest.TestCase):
         self.model.prep.prepare_vectors(sv=self.model.sv, total_sentences=len(SENTENCES), update=True)
         mem = self.model._get_thread_working_mem()
         self.assertEqual((100,1450), self.model._do_train_job(
-            [IndexedSentence(s, i) for i,s in enumerate(SENTENCES)],
+            [(s, i) for i,s in enumerate(SENTENCES)],
             target=self.model.sv.vectors, memory=mem)
         )
         self.assertEqual((104,DIM), self.model.sv.vectors.shape)
 
     def test_train(self):
-        self.assertEqual((100,1450), self.model.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)]))
+        self.assertEqual((100,1450), self.model.train([(s, i) for i,s in enumerate(SENTENCES)]))
     
     def test_train_single_from_disk(self):
         p = Path("fse/test/test_data/test_vecs")
@@ -152,8 +151,8 @@ class TestAverageFunctions(unittest.TestCase):
 
         se1 = Average(W2V)
         se2 = Average(W2V, sv_mapfile_path=str(p.absolute()) ,wv_mapfile_path=str(p.absolute()))
-        se1.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
-        se2.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
+        se1.train([(s, i) for i,s in enumerate(SENTENCES)])
+        se2.train([(s, i) for i,s in enumerate(SENTENCES)])
 
         self.assertTrue(p_target.exists())
         self.assertTrue((se1.wv.vectors == se2.wv.vectors).all())
@@ -170,8 +169,8 @@ class TestAverageFunctions(unittest.TestCase):
 
         se1 = Average(W2V, workers=2)
         se2 = Average(W2V, workers=2, sv_mapfile_path=str(p.absolute()) ,wv_mapfile_path=str(p.absolute()))
-        se1.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
-        se2.train([IndexedSentence(s, i) for i,s in enumerate(SENTENCES)])
+        se1.train([(s, i) for i,s in enumerate(SENTENCES)])
+        se2.train([(s, i) for i,s in enumerate(SENTENCES)])
 
         self.assertTrue(p_target.exists())
         self.assertTrue((se1.wv.vectors == se2.wv.vectors).all())

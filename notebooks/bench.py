@@ -10,9 +10,9 @@ sentences = load("sentences.joblib")
 
 s = IndexedList([sent.split() for sent in sentences], pre_splitted=True)
 
-from profiling.tracing import TracingProfiler
-profiler = TracingProfiler()
-profiler.start()
+# from profiling.tracing import TracingProfiler
+# profiler = TracingProfiler()
+# profiler.start()
 
 
 # import cProfile
@@ -28,5 +28,5 @@ model.train(s)
  
 # # pr.print_stats(sort='time')
 
-profiler.stop()
-profiler.run_viewer()
+# profiler.stop()
+# profiler.run_viewer()

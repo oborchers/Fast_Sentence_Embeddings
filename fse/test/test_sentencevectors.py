@@ -17,7 +17,7 @@ import numpy as np
 
 from fse.models.sentencevectors import SentenceVectors
 from fse.models.average import Average
-from fse.inputs import IndexedSentence, IndexedList, IndexedLineDocument
+from fse.inputs import IndexedList, IndexedLineDocument
 
 from gensim.models import Word2Vec
 
@@ -124,7 +124,7 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         self.assertEqual(1-(v1.dot(v2)), self.sv.distance(0,1))
 
     def test_most_similar(self):
-        sent_ind = IndexedList(SENTENCES, pre_splitted=True)
+        sent_ind = IndexedList(SENTENCES)
         sentences = IndexedLineDocument(CORPUS)
         m = Average(W2V)
         m.train(sentences)
@@ -135,7 +135,7 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         self.assertEqual("Looks good and fits snug", o[0][0])
 
         o = m.sv.most_similar(positive=0, indexable=sent_ind)
-        self.assertEqual("Looks good and fits snug".split(), o[0][0].words)
+        self.assertEqual("Looks good and fits snug".split(), o[0][0][0])
 
     def test_most_similar_vec(self):
         sentences = IndexedLineDocument(CORPUS)

@@ -73,9 +73,9 @@ for a corpus.
 	ft = FastText(sentences, min_count=1, size=10)
 
 	from fse.models import Average
-	from fse import IndexedSentence
+	from fse import IndexedList
 	model = Average(ft)
-	model.train([IndexedSentence(s, i) for i, s in enumerate(sentences)])
+	model.train(IndexedList(sentences))
 
 	model.sv.similarity(0,1)
 
@@ -126,6 +126,16 @@ In case you want to build from the source, just run:
 If building the Cython extension fails (you will be notified), try:
 
     pip install -U git+https://github.com/oborchers/Fast_Sentence_Embeddings
+
+Changelog
+-------------
+
+0.1.15 from 0.1.11:
+- Rewrote the input class. Turns out NamedTuple was pretty slow. 
+- Added unittests
+- Added documentation
+- Fixed FT Ngram computation bug
+- Major speed improvements
 
 
 Literature

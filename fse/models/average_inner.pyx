@@ -107,7 +107,7 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_s
         A pointer to the struct that will contain the populated indices.
     vocab : dict
         The vocabulary
-    indexed_sentences : iterable of IndexedSentences
+    indexed_sentences : iterable of tuple
         The sentences to read
 
     Returns
@@ -158,7 +158,7 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sente
         A pointer to the struct that will contain the populated indices.
     vocab : dict
         The vocabulary
-    indexed_sentences : iterable of IndexedSentences
+    indexed_sentences : iterable of tuples
         The sentences to read
 
     Returns
@@ -319,7 +319,7 @@ def train_average_cy(model, indexed_sentences, target, memory):
     ----------
     model : :class:`~fse.models.base_s2v.BaseSentence2VecModel`
         The BaseSentence2VecModel model instance.
-    indexed_sentences : iterable of IndexedSentence
+    indexed_sentences : iterable of tuple
         The sentences used to train the model.
     target : ndarray
         The target ndarray. We use the index from indexed_sentences

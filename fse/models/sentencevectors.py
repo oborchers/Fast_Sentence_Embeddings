@@ -7,7 +7,7 @@
 
 from __future__ import division
 
-from fse.inputs import IndexedSentence, IndexedList, IndexedLineDocument
+from fse.inputs import IndexedList, IndexedLineDocument
 
 from gensim.models.keyedvectors import BaseKeyedVectors
 
@@ -346,7 +346,7 @@ class SentenceVectors(utils.SaveLoad):
             one-dimensional numpy array with the size of the vocabulary.
 
         """
-        vector = model.infer([IndexedSentence(sentence, 0)])
+        vector = model.infer([(sentence, 0)])
         return self.most_similar(positive=vector, indexable=indexable, topn=topn, restrict_size=restrict_size)
     
     def similar_by_vector(self, vector:ndarray, indexable:[IndexedList,IndexedLineDocument]=None, topn:int=10,

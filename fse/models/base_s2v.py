@@ -35,7 +35,6 @@ See Also
 """
 
 from fse.models.sentencevectors import SentenceVectors
-from fse.inputs import IndexedSentence
 
 from gensim.models.base_any2vec import BaseWordEmbeddingsModel
 from gensim.models.keyedvectors import BaseKeyedVectors, FastTextKeyedVectors, _l2_norm
@@ -97,6 +96,19 @@ class BaseSentence2VecModel(SaveLoad):
             Key word arguments needed to allow children classes to accept more arguments.
 
         """
+        
+        # [ ] Bug with percentage computation when fewer indices than sentences
+        # [ ] FT Bugfix with Ngram computation
+        #     [ ] unittest should also work with randomly constructed matrices
+
+        # [ ] Input class with type annotations and additional checks
+        # [ ] Input: what about a series input? (i.e. df row)
+
+        # [ ] Run the test on ubuntu (no swap)
+        # [ ] Benchmark inputs and optimize them
+        # [ ] Infer method must work with 
+
+        # [ ] Handling of empty sentences (nan w/ similarity computations)
 
         self.workers = int(workers)
         self.batch_words = batch_words
@@ -206,19 +218,19 @@ class BaseSentence2VecModel(SaveLoad):
             else:
                 self.wv.vocab[word].count = int(1e-8 * domain)
 
-    def _check_input_data_sanity(self, data_iterable:IndexedSentence):
+    def _check_input_data_sanity(self, data_iterable:tuple):
         """ Check if the input data complies with the required formats
         
         Parameters
         ----------
-        data_iterable : IndexedSentence
+        data_iterable : tuple
             The cumulative count of the vocabulary.
 
         """
         if data_iterable is None:
             raise TypeError("You must provide a data iterable to train on")
         elif isinstance(data_iterable, str):
-            raise TypeError("Passed string. Input data must be iterable list of list of tokens or IndexedSentence")
+            raise TypeError("Passed string. Input data must be iterable list of list of tokens or tuple")
         elif not hasattr(data_iterable, "__iter__"):
             raise TypeError("Iterable must provide __iter__ function")
 
@@ -309,15 +321,15 @@ class BaseSentence2VecModel(SaveLoad):
                 f"training returned invalid values. Check the input."
             )
     
-    def _check_indexed_sent_valid(self, iterPos:int, obj:IndexedSentence, checked:int=False) -> [int, List[str]]:
+    def _check_indexed_sent_valid(self, iterPos:int, obj:tuple, checked:int=False) -> [int, List[str]]:
         """ Performs a check if the passed object contains valid data
 
         Parameters
         ----------
         iterPos : int
             Position in file/iterable
-        obj : IndexedSentence
-            An IndexedSentence object containing the index and sentence
+        obj : tuple
+            An tuple object containing the index and sentence
         
         Returns
         -------
@@ -328,17 +340,17 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
 
-        if isinstance(obj, (IndexedSentence, tuple)):
+        if isinstance(obj, tuple):
             sent = obj[0]   #Faster than obj.words
             index = obj[1]
         else:
-            raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain IndexedSentence.")
+            raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain tuple.")
 
         if not checked:
             if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
-                raise TypeError(f"At {iterPos}: Passed {type(sent)}: {sent}. IndexedSentence.words must contain list of str.")
+                raise TypeError(f"At {iterPos}: Passed {type(sent)}: {sent}. tuple.words must contain list of str.")
             if not isinstance(index, int):
-                raise TypeError(f"At {iterPos}: Passed {type(index)}: {index}. IndexedSentence.index must contain index")
+                raise TypeError(f"At {iterPos}: Passed {type(index)}: {index}. tuple.index must contain index")
             if index < 0:
                 raise ValueError(f"At {iterPos}: Passed negative {index}")
         return index, sent
@@ -428,7 +440,7 @@ class BaseSentence2VecModel(SaveLoad):
         oov_mem = zeros_aligned((self.batch_words, self.batch_ngrams), dtype=uINT)
         return (mem, oov_mem)
 
-    def _do_train_job(self, data_iterable:List[IndexedSentence], target:ndarray, memory:ndarray) -> [int, int]:
+    def _do_train_job(self, data_iterable:List[tuple], target:ndarray, memory:ndarray) -> [int, int]:
         """ Function to be called on a batch of sentences. Returns eff sentences/words """
         raise NotImplementedError()
 
@@ -496,13 +508,13 @@ class BaseSentence2VecModel(SaveLoad):
                 self.wv.vectors_ngrams = None
         super(BaseSentence2VecModel, self).save(*args, **kwargs)
 
-    def scan_sentences(self, sentences:List[IndexedSentence]=None, progress_per:int=5) -> Dict[str,int]:
+    def scan_sentences(self, sentences:List[tuple]=None, progress_per:int=5) -> Dict[str,int]:
         """ Performs an initial scan of the data and reports all corresponding statistics
 
         Parameters
         ----------
         sentences : (list, iterable)
-            An iterable consisting of IndexedSentence objects
+            An iterable consisting of tuple objects
         progress_per : int
             Number of seconds to pass before reporting the scan progress
 
@@ -592,7 +604,7 @@ class BaseSentence2VecModel(SaveLoad):
             logger.warning("The embeddings will likely not fit into RAM. Consider to use mapfile_path")
         return report
 
-    def train(self, sentences:List[IndexedSentence]=None, update:bool=False, queue_factor:int=2, report_delay:int=5) -> [int,int]:
+    def train(self, sentences:List[tuple]=None, update:bool=False, queue_factor:int=2, report_delay:int=5) -> [int,int]:
         """ Main routine to train an embedding. This method writes all sentences vectors into sv.vectors and is
         used for computing embeddings for large chunks of data. This method also handles post-training transformations,
         such as computing the SVD of the sentence vectors.
@@ -600,7 +612,7 @@ class BaseSentence2VecModel(SaveLoad):
         Parameters
         ----------
         sentences : (list, iterable)
-            An iterable consisting of IndexedSentence objects
+            An iterable consisting of tuple objects
         update : bool
             If bool is True, the sentence vector matrix will be updated in size (even with memmap)
         queue_factor : int
@@ -643,7 +655,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         return eff_sentences, eff_words    
 
-    def infer(self, sentences:List[IndexedSentence]=None, use_norm=False) -> ndarray:
+    def infer(self, sentences:List[tuple]=None, use_norm=False) -> ndarray:
         """ Secondary routine to train an embedding. This method is essential for small batches of sentences,
         which require little computation. Note: This method does not apply post-training transformations,
         only post inference calls (such as removing principal components).
@@ -651,7 +663,7 @@ class BaseSentence2VecModel(SaveLoad):
         Parameters
         ----------
         sentences : (list, iterable)
-            An iterable consisting of IndexedSentence objects
+            An iterable consisting of tuple objects
         use_norm : bool
             If bool is True, the sentence vectors will be L2 normalized (unit euclidean length)
 
@@ -677,13 +689,59 @@ class BaseSentence2VecModel(SaveLoad):
             output = _l2_norm(output)
         return output
 
-    def _train_manager(self, data_iterable:List[IndexedSentence], total_sentences:int=None, queue_factor:int=2, report_delay:int=5):
+    # def _train_manager(self, data_iterable:List[tuple], total_sentences:int=None, queue_factor:int=2, report_delay:int=5):
+
+    #     # import cProfile
+ 
+    #     # pr = cProfile.Profile()
+    #     # pr.enable()
+
+    #     mem = self._get_thread_working_mem()
+    #     start_time = time()
+    #     job_batch, batch_size = [], 0
+    #     job_no = 0
+    #     eff_sentences, eff_words = 0, 0
+    #     sentence_inc = 0
+    #     for data_idx, data in enumerate(data_iterable):
+    #         data_length = len(data[0])
+    #         if batch_size + data_length <= self.batch_words:
+    #             job_batch.append(data)
+    #             batch_size += data_length
+    #         else:
+    #             job_no += 1
+    #             s, w = self._do_train_job(data_iterable=job_batch, target=self.sv.vectors, memory=mem)
+    #             eff_sentences += s
+    #             eff_words += w
+    #             job_batch, batch_size = [data], data_length
+
+    #         if time() - start_time >= report_delay:
+    #             start_time = time()
+    #             logger.info("PROGRESS : finished {:3.2f}% with {} sentences and {} words, {} sentences/s".format(
+    #                 100 * (eff_sentences/total_sentences),
+    #                 eff_sentences, eff_words,
+    #                 int((eff_sentences-sentence_inc) / report_delay)
+    #             ))
+    #             sentence_inc = eff_sentences
+
+    #     if job_batch:
+    #         job_no += 1
+    #         s, w = self._do_train_job(data_iterable=job_batch, target=self.sv.vectors, memory=mem)
+    #         eff_sentences += s
+    #         eff_words += w
+
+    #     # pr.disable()
+    #     # pr.print_stats(sort='time')
+
+    #     return job_no, eff_sentences, eff_words
+        
+
+    def _train_manager(self, data_iterable:List[tuple], total_sentences:int=None, queue_factor:int=2, report_delay:int=5):
         """ Manager for the multi-core implementation. Directly adapted from gensim
         
         Parameters
         ----------
         data_iterable : (list, iterable)
-            An iterable consisting of IndexedSentence objects. This will be split in chunks and these chunks will be pushed to the queue.
+            An iterable consisting of tuple objects. This will be split in chunks and these chunks will be pushed to the queue.
         total_sentences : int
             Number of sentences found during the initial scan
         queue_factor : int
@@ -727,9 +785,9 @@ class BaseSentence2VecModel(SaveLoad):
 
         Parameters
         ----------
-        job_queue : Queue of (list of IndexedSentence)
+        job_queue : Queue of (list of tuple)
             A queue of jobs still to be processed. The worker will take up jobs from this queue.
-            Each job is represented as a batch of IndexedSentence.
+            Each job is represented as a batch of tuple.
         progress_queue : Queue of (int, int, int)
             A queue of progress reports. Each report is represented as a tuple of these 3 elements:
                 * Size of job processed
@@ -750,18 +808,18 @@ class BaseSentence2VecModel(SaveLoad):
             jobs_processed += 1
         logger.debug(f"worker exiting, processed {jobs_processed} jobs")
     
-    def _job_producer(self, data_iterable:List[IndexedSentence], job_queue:Queue):
+    def _job_producer(self, data_iterable:List[tuple], job_queue:Queue):
         """ Fill the jobs queue using the data found in the input stream.
 
-        Each job is represented as a batch of IndexedSentence
+        Each job is represented as a batch of tuple
 
         Parameters
         ----------
         data_iterable : (list, iterable)
-            An iterable consisting of IndexedSentence objects. This will be split in chunks and these chunks will be pushed to the queue.
-        job_queue : Queue of (list of IndexedSentence)
+            An iterable consisting of tuple objects. This will be split in chunks and these chunks will be pushed to the queue.
+        job_queue : Queue of (list of tuple)
             A queue of jobs still to be processed. The worker will take up jobs from this queue.
-            Each job is represented as a batch of IndexedSentence.
+            Each job is represented as a batch of tuple.
 
         """
 
