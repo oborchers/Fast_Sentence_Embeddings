@@ -13,7 +13,7 @@ from gensim.models.keyedvectors import BaseKeyedVectors
 
 from numpy import dot, float32 as REAL, memmap as np_memmap, \
     double, array, zeros, vstack, sqrt, newaxis, integer, \
-    ndarray, sum as np_sum, prod, argmax, finfo
+    ndarray, sum as np_sum, prod, argmax
 
 from gensim import utils, matutils
 from gensim.models.keyedvectors import _l2_norm
@@ -25,8 +25,6 @@ from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
-
-EPS = finfo(REAL).eps
 
 class SentenceVectors(utils.SaveLoad):
 
@@ -150,8 +148,7 @@ class SentenceVectors(utils.SaveLoad):
                 self.vectors_norm = np_memmap(
                     self.mapfile_path + '.vectors_norm', dtype=REAL,
                     mode='w+', shape=self.vectors.shape)
-
-            self.vectors_norm = _l2_norm(self.vectors + EPS, replace=replace)
+            self.vectors_norm = _l2_norm(self.vectors, replace=replace)
 
     def similarity(self, d1:int, d2:int) -> float:
         """Compute cosine similarity between two sentences from the training set.
@@ -169,7 +166,7 @@ class SentenceVectors(utils.SaveLoad):
             The cosine similarity between the vectors of the two sentences.
 
         """
-        return dot(matutils.unitvec(self[d1] + EPS), matutils.unitvec(self[d2] + EPS))
+        return dot(matutils.unitvec(self[d1]), matutils.unitvec(self[d2]))
 
     def distance(self, d1:int, d2:int) -> float:
         """Compute cosine similarity between two sentences from the training set.

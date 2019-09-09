@@ -65,7 +65,7 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
 
     def test_init_sims_w_replace(self):
         self.sv.init_sims(True)
-        self.assertTrue((self.sv.vectors[0] == self.sv.vectors_norm[0]).all())
+        self.assertTrue(np.allclose(self.sv.vectors[0], self.sv.vectors_norm[0]))
 
     def test_init_sims_w_mapfile(self):
         p = Path("fse/test/test_data/test_vectors")
@@ -120,8 +120,8 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         v2 = self.sv.vectors[1]
         v2 = v2 / np.sqrt(np.sum(v2**2))
 
-        self.assertEqual(v1.dot(v2), self.sv.similarity(0,1))
-        self.assertEqual(1-(v1.dot(v2)), self.sv.distance(0,1))
+        self.assertTrue(np.allclose(v1.dot(v2), self.sv.similarity(0,1)))
+        self.assertTrue(np.allclose(1-v1.dot(v2), self.sv.distance(0,1)))
 
     def test_most_similar(self):
         sent_ind = IndexedList(SENTENCES)

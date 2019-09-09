@@ -18,6 +18,7 @@ cimport numpy as np
 from gensim.models._utils_any2vec import compute_ngrams_bytes, ft_hash_bytes
 
 from libc.string cimport memset
+from libc.stdio cimport printf
 
 import scipy.linalg.blas as fblas
 
@@ -29,6 +30,8 @@ cdef int ZERO = <int>0
 
 cdef REAL_t ONEF = <REAL_t>1.0
 cdef REAL_t ZEROF = <REAL_t>0.0
+
+cdef REAL_t EPS = <REAL_t>np.finfo(np.float32).eps
 
 DEF MAX_WORDS = 10000
 DEF MAX_NGRAMS = 40
@@ -137,7 +140,6 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_s
             eff_words += ONE
             if eff_words == MAX_WORDS:
                 break
-        
         eff_sents += 1
         c.sentence_boundary[eff_sents] = eff_words
 
@@ -180,7 +182,6 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sente
             continue
         for token in obj[0]:
             c.sent_adresses[eff_words] = <uINT_t>obj[1]
-
             if token in vocab:
                 # In Vocabulary
                 word = vocab[token]

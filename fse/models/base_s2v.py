@@ -97,7 +97,8 @@ class BaseSentence2VecModel(SaveLoad):
             Key word arguments needed to allow children classes to accept more arguments.
 
         """
-        
+        # [ ] FIX EPS COMPUTATION IN AVERAGE INNER!
+
         self.workers = int(workers)
         self.batch_words = batch_words
         self.batch_ngrams = batch_ngrams
