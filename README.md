@@ -131,12 +131,13 @@ Changelog
 -------------
 
 0.1.15 from 0.1.11:
-- Rewrote the input class. Turns out NamedTuple was pretty slow. 
-- Added unittests
-- Added documentation
 - Fixed FT Ngram computation bug
+- Rewrote the input class. Turns out NamedTuple was pretty slow. 
+- Added further unittests
+- Added documentation
 - Major speed improvements
-
+- Fixed division by zero for empty sentences
+- Fixed overflow when infer method is used with too many sentences
 
 Literature
 -------------

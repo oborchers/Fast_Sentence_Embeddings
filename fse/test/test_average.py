@@ -112,7 +112,26 @@ class TestAverageFunctions(unittest.TestCase):
         self.assertEqual(o1, o2)
         self.assertTrue((m1.sv.vectors == m2.sv.vectors).all())
 
-    def test_cy_equal_np_ft(self):
+    def test_cy_equal_np_w2v_random(self):
+        w2v = Word2Vec(min_count=1, size=DIM)
+        # Random initialization
+        w2v.build_vocab(SENTENCES)
+
+        m1 = Average(w2v)
+        m1.prep.prepare_vectors(sv=m1.sv, total_sentences=len(self.sentences), update=False)
+        m1._pre_train_calls()
+        mem1 = m1._get_thread_working_mem()
+        o1 = train_average_np(m1, self.sentences, m1.sv.vectors, mem1)
+
+        m2 = Average(w2v)
+        m2.prep.prepare_vectors(sv=m2.sv, total_sentences=len(self.sentences), update=False)
+        m2._pre_train_calls()
+        mem2 = m2._get_thread_working_mem()
+        o2 = train_average_cy(m2, self.sentences, m2.sv.vectors, mem2)
+
+        self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors))
+
+    def test_cy_equal_np_ft_random(self):
         ft = FastText(size=20, min_count=1)
         ft.build_vocab(SENTENCES)
 

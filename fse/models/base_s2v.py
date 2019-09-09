@@ -41,7 +41,8 @@ from gensim.models.keyedvectors import BaseKeyedVectors, FastTextKeyedVectors, _
 from gensim.utils import SaveLoad
 from gensim.matutils import zeros_aligned
 
-from numpy import ndarray, memmap as np_memmap, float32 as REAL, uint32 as uINT, empty, zeros, vstack, dtype, ones
+from numpy import ndarray, memmap as np_memmap, float32 as REAL, uint32 as uINT, \
+    empty, zeros, vstack, dtype, ones
 
 from wordfreq import available_languages, get_frequency_dict
 
@@ -97,19 +98,6 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         
-        # [ ] Bug with percentage computation when fewer indices than sentences
-        # [ ] FT Bugfix with Ngram computation
-        #     [ ] unittest should also work with randomly constructed matrices
-
-        # [ ] Input class with type annotations and additional checks
-        # [ ] Input: what about a series input? (i.e. df row)
-
-        # [ ] Run the test on ubuntu (no swap)
-        # [ ] Benchmark inputs and optimize them
-        # [ ] Infer method must work with 
-
-        # [ ] Handling of empty sentences (nan w/ similarity computations)
-
         self.workers = int(workers)
         self.batch_words = batch_words
         self.batch_ngrams = batch_ngrams
@@ -680,60 +668,23 @@ class BaseSentence2VecModel(SaveLoad):
         output = zeros((statistics["max_index"], self.sv.vector_size), dtype=REAL)
         mem = self._get_thread_working_mem()
         
-        # TODO : THIS ONLY WORKS FOR MAX WORDS IN BATCH!!!!
-        self._do_train_job(data_iterable=sentences, target=output, memory=mem)
+        job_batch, batch_size = [], 0
+        for data_idx, data in enumerate(sentences):
+            data_length = len(data[0])
+            if batch_size + data_length <= self.batch_words:
+                job_batch.append(data)
+                batch_size += data_length
+            else:
+                self._do_train_job(data_iterable=job_batch, target=output, memory=mem)
+                job_batch, batch_size = [data], data_length
+        if job_batch:
+            self._do_train_job(data_iterable=job_batch, target=output, memory=mem)
 
         self._post_inference_calls(output=output)
 
         if use_norm:
             output = _l2_norm(output)
         return output
-
-    # def _train_manager(self, data_iterable:List[tuple], total_sentences:int=None, queue_factor:int=2, report_delay:int=5):
-
-    #     # import cProfile
- 
-    #     # pr = cProfile.Profile()
-    #     # pr.enable()
-
-    #     mem = self._get_thread_working_mem()
-    #     start_time = time()
-    #     job_batch, batch_size = [], 0
-    #     job_no = 0
-    #     eff_sentences, eff_words = 0, 0
-    #     sentence_inc = 0
-    #     for data_idx, data in enumerate(data_iterable):
-    #         data_length = len(data[0])
-    #         if batch_size + data_length <= self.batch_words:
-    #             job_batch.append(data)
-    #             batch_size += data_length
-    #         else:
-    #             job_no += 1
-    #             s, w = self._do_train_job(data_iterable=job_batch, target=self.sv.vectors, memory=mem)
-    #             eff_sentences += s
-    #             eff_words += w
-    #             job_batch, batch_size = [data], data_length
-
-    #         if time() - start_time >= report_delay:
-    #             start_time = time()
-    #             logger.info("PROGRESS : finished {:3.2f}% with {} sentences and {} words, {} sentences/s".format(
-    #                 100 * (eff_sentences/total_sentences),
-    #                 eff_sentences, eff_words,
-    #                 int((eff_sentences-sentence_inc) / report_delay)
-    #             ))
-    #             sentence_inc = eff_sentences
-
-    #     if job_batch:
-    #         job_no += 1
-    #         s, w = self._do_train_job(data_iterable=job_batch, target=self.sv.vectors, memory=mem)
-    #         eff_sentences += s
-    #         eff_words += w
-
-    #     # pr.disable()
-    #     # pr.print_stats(sort='time')
-
-    #     return job_no, eff_sentences, eff_words
-        
 
     def _train_manager(self, data_iterable:List[tuple], total_sentences:int=None, queue_factor:int=2, report_delay:int=5):
         """ Manager for the multi-core implementation. Directly adapted from gensim
