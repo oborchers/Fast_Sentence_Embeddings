@@ -24,6 +24,6 @@ matrix:
 
 install: 
   - pip3 install --upgrade pip 
-  - pip3 instal .
+  - pip3 install .
 
 script: pytest
