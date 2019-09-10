@@ -16,7 +16,6 @@ from numpy import dot, float32 as REAL, memmap as np_memmap, \
     ndarray, sum as np_sum, prod, argmax
 
 from gensim import utils, matutils
-from gensim.models.keyedvectors import _l2_norm
 
 from typing import List, Tuple
 
@@ -379,3 +378,25 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         return self.most_similar(positive=vector, indexable=indexable, topn=topn, restrict_size=restrict_size)
+
+def _l2_norm(m, replace=False):
+    """Return an L2-normalized version of a matrix.
+
+    Parameters
+    ----------
+    m : np.array
+        The matrix to normalize.
+    replace : boolean, optional
+        If True, modifies the existing matrix.
+
+    Returns
+    -------
+    The normalized matrix.  If replace=True, this will be the same as m.
+
+    """
+    dist = sqrt((m ** 2).sum(-1))[..., newaxis]
+    if replace:
+        m = m / dist
+        return m
+    else:
+        return (m / dist).astype(REAL)

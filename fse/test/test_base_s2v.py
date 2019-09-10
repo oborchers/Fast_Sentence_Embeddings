@@ -426,31 +426,31 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         output = se.infer([(s, i) for i,s in enumerate(SENTENCES)])
         self.assertTrue((100 == output).all())
 
-    def test_infer_method_cy_overflow(self):
-        se = BaseSentence2VecModel(W2V)
+    # def test_infer_method_cy_overflow(self):
+    #     se = BaseSentence2VecModel(W2V)
         
-        from fse.models.average_inner import MAX_WORDS_IN_BATCH
-        from fse.models.average_inner import train_average_cy
-        def _do_train_job(data_iterable, target, memory):
-            eff_sentences, eff_words = train_average_cy(model=se, indexed_sentences=data_iterable, target=target, memory=memory)
-            return eff_sentences, eff_words
+    #     from fse.models.average_inner import MAX_WORDS_IN_BATCH
+    #     from fse.models.average_inner import train_average_cy
+    #     def _do_train_job(data_iterable, target, memory):
+    #         eff_sentences, eff_words = train_average_cy(model=se, indexed_sentences=data_iterable, target=target, memory=memory)
+    #         return eff_sentences, eff_words
 
-        def pass_method(**kwargs): pass
-        se._post_inference_calls = pass_method
-        se._do_train_job = _do_train_job
-        tmp = []
-        for i in range(20):
-            tmp.extend(SENTENCES)
-        bs = 0
-        for i, s in enumerate(tmp):
-            if bs >= MAX_WORDS_IN_BATCH:
-                min_index = i
-                break
-            bs += len(s)
-        sents = [(s, i) for i,s in enumerate(tmp)]
-        output = se.infer(sents)
-        output = output[i:]
-        self.assertTrue((0 != output).all())
+    #     def pass_method(**kwargs): pass
+    #     se._post_inference_calls = pass_method
+    #     se._do_train_job = _do_train_job
+    #     tmp = []
+    #     for i in range(20):
+    #         tmp.extend(SENTENCES)
+    #     bs = 0
+    #     for i, s in enumerate(tmp):
+    #         if bs >= MAX_WORDS_IN_BATCH:
+    #             min_index = i
+    #             break
+    #         bs += len(s)
+    #     sents = [(s, i) for i,s in enumerate(tmp)]
+    #     output = se.infer(sents)
+    #     output = output[i:]
+    #     self.assertTrue((0 != output).all())
 
     def test_infer_many_to_one(self):
         se = BaseSentence2VecModel(W2V)
