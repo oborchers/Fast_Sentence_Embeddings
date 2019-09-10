@@ -98,6 +98,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         # [ ] FIX EPS COMPUTATION IN AVERAGE INNER!
+        # [ ] SplitCIndexedList
 
         self.workers = int(workers)
         self.batch_words = batch_words

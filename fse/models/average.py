@@ -115,7 +115,7 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[tuple],
             word_indices = [vocab[word].index for word in sent if word in vocab]
             eff_sentences += 1
             if not len(word_indices):
-                s_vectors[sent_adr] += EPS
+                # TODO: s_vectors[sent_adr] += EPS
                 continue
             eff_words += len(word_indices)
 
@@ -129,7 +129,7 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[tuple],
             sent_adr = obj[1]
             
             if not len(sent):
-                s_vectors[sent_adr] += EPS
+                # TODO: s_vectors[sent_adr] += EPS
                 continue
             mem = zeros(size, dtype=REAL)
 
