@@ -11,6 +11,9 @@ language: python
 python:
   - "3.6"
   - "3.7"
+  - "3.7-dev"
+  - "3.8-dev"
+  - "nightly"
 
 branches:
   only:
@@ -20,10 +23,10 @@ matrix:
   include:
     - name: "Python 3.7.1 on Xenial Linux"
       python: 3.7           
-    # - name: "Python 3.7.4 on macOS"
-    #   os: osx
-    #   osx_image: xcode11    
-    #   language: shell       
+    - name: "Python 3.7.4 on macOS"
+      os: osx
+      osx_image: xcode11    
+      language: shell       
     # - name: "Python 3.7.4 on Windows"
     #   os: windows           
     #   language: shell
@@ -35,9 +38,9 @@ matrix:
   #   - windows
 
 install: 
-  - pip install -U pip coveralls
-  - pip install -U psutil cython numpy
-  - pip install .
+  - pip3 install -U pip coveralls
+  - pip3 install -U psutil cython numpy
+  - pip3 install .
 
 script:
   coverage run --source fse setup.py test
