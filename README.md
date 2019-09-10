@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/oborchers/Fast_Sentence_Embeddings.svg?branch=master)](https://travis-ci.com/oborchers/Fast_Sentence_Embeddings)
+[![Build Status](https://travis-ci.com/oborchers/Fast_Sentence_Embeddings.svg?branch=develop)](https://travis-ci.com/oborchers/Fast_Sentence_Embeddings)
 [![Coverage Status](https://coveralls.io/repos/github/oborchers/Fast_Sentence_Embeddings/badge.svg?branch=develop)](https://coveralls.io/github/oborchers/Fast_Sentence_Embeddings?branch=develop)
 
 Fast Sentence Embeddings (fse)

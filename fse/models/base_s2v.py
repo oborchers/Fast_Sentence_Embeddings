@@ -99,6 +99,9 @@ class BaseSentence2VecModel(SaveLoad):
         """
         # [ ] FIX EPS COMPUTATION IN AVERAGE INNER!
         # [ ] SplitCIndexedList
+        # [ ] Check the unittests for travis
+            # [ ] Why does the cython build fail? test_average
+            # [ ] On fix: Unmark test_infer_method
 
         self.workers = int(workers)
         self.batch_words = batch_words
