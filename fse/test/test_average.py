@@ -145,6 +145,8 @@ class TestAverageFunctions(unittest.TestCase):
         m1 = Average(ft)
         m1.prep.prepare_vectors(sv=m1.sv, total_sentences=len(self.sentences), update=False)
         m1._pre_train_calls()
+
+        from fse.models.average_inner import MAX_NGRAMS_IN_BATCH
         m1.batch_ngrams = MAX_NGRAMS_IN_BATCH
         mem1 = m1._get_thread_working_mem()
         o1 = train_average_np(m1, self.sentences[:2], m1.sv.vectors, mem1)
