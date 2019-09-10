@@ -4,7 +4,6 @@ language: python
 python:
   - "3.6"
   - "3.7"
-  - "3.8"
 
 matrix:
   include:
@@ -24,7 +23,7 @@ matrix:
 
 install: 
   - pip3 install -U pip 
-  - pip3 install -U psutil
-  - pip3 install .
+  - pip3 install -U psutil cython numpy
+  - python setup.py install
 
 script: pytest
