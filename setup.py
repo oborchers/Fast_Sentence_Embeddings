@@ -106,6 +106,8 @@ setup(
 
     zip_safe=False,
 
+    test_suite="fse.test",
+
     install_requires=[
         'numpy >= 1.11.3',
         'scipy >= 0.18.1',
