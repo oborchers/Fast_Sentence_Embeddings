@@ -17,8 +17,6 @@ import numpy as np
 
 from fse.models.average import Average
 from fse.models.average import train_average_np
-from fse.models.average_inner import train_average_cy
-from fse.models.average_inner import FAST_VERSION, MAX_WORDS_IN_BATCH, MAX_NGRAMS_IN_BATCH
 
 from gensim.models import Word2Vec, FastText
 
@@ -41,6 +39,7 @@ class TestAverageFunctions(unittest.TestCase):
         self.model._pre_train_calls()
 
     def test_cython(self):
+        from fse.models.average_inner import FAST_VERSION, MAX_WORDS_IN_BATCH, MAX_NGRAMS_IN_BATCH
         self.assertTrue(FAST_VERSION)
         self.assertEqual(10000,MAX_WORDS_IN_BATCH)
         self.assertEqual(40, MAX_NGRAMS_IN_BATCH)
@@ -57,6 +56,8 @@ class TestAverageFunctions(unittest.TestCase):
     def test_average_train_cy_w2v(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
         mem = self.model._get_thread_working_mem()
+
+        from fse.models.average_inner import train_average_cy
         output = train_average_cy(self.model, self.sentences, self.model.sv.vectors, mem)
         self.assertEqual((4, 7), output)
         self.assertTrue((183 == self.model.sv[0]).all())
@@ -90,6 +91,8 @@ class TestAverageFunctions(unittest.TestCase):
         m.wv.vectors = m.wv.vectors_vocab = np.ones_like(m.wv.vectors, dtype=np.float32)
         m.wv.vectors_ngrams = np.full_like(m.wv.vectors_ngrams, 2, dtype=np.float32)
         mem = m._get_thread_working_mem()
+
+        from fse.models.average_inner import train_average_cy
         output = train_average_cy(m, self.sentences, m.sv.vectors, mem)
         self.assertEqual((4, 10), output)
         self.assertTrue((1. == m.sv[0]).all())
@@ -107,6 +110,8 @@ class TestAverageFunctions(unittest.TestCase):
         m2.prep.prepare_vectors(sv=m2.sv, total_sentences=len(self.sentences), update=False)
         m2._pre_train_calls()
         mem2 = m2._get_thread_working_mem()
+
+        from fse.models.average_inner import train_average_cy
         o2 = train_average_cy(m2, self.sentences, m2.sv.vectors, mem2)
 
         self.assertEqual(o1, o2)
@@ -127,6 +132,8 @@ class TestAverageFunctions(unittest.TestCase):
         m2.prep.prepare_vectors(sv=m2.sv, total_sentences=len(self.sentences), update=False)
         m2._pre_train_calls()
         mem2 = m2._get_thread_working_mem()
+
+        from fse.models.average_inner import train_average_cy
         o2 = train_average_cy(m2, self.sentences, m2.sv.vectors, mem2)
 
         self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors))
@@ -146,6 +153,8 @@ class TestAverageFunctions(unittest.TestCase):
         m2.prep.prepare_vectors(sv=m2.sv, total_sentences=len(self.sentences), update=False)
         m2._pre_train_calls()
         mem2 = m2._get_thread_working_mem()
+
+        from fse.models.average_inner import train_average_cy
         o2 = train_average_cy(m2, self.sentences[:2], m2.sv.vectors, mem2)
 
         self.assertEqual(o1, o2)
