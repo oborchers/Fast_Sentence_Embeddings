@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/oborchers/Fast_Sentence_Embeddings.svg?branch=master)](https://travis-ci.com/oborchers/Fast_Sentence_Embeddings)
+
 Fast Sentence Embeddings (fse)
 ==================================
 
