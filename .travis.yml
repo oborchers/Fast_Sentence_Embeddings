@@ -20,10 +20,10 @@ matrix:
   include:
     - name: "Python 3.7.1 on Xenial Linux"
       python: 3.7           
-    - name: "Python 3.7.4 on macOS"
-      os: osx
-      osx_image: xcode11    
-      language: shell       
+    # - name: "Python 3.7.4 on macOS"
+    #   os: osx
+    #   osx_image: xcode11    
+    #   language: shell       
     # - name: "Python 3.7.4 on Windows"
     #   os: windows           
     #   language: shell
@@ -31,11 +31,13 @@ matrix:
     #     - choco install python
     #     - python -m pip install --upgrade pip
     #   env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
+  # allow_failures:
+  #   - windows
 
 install: 
-  - pip3 install -U pip 
-  - pip3 install -U psutil cython numpy
-  - pip3 install .
+  - pip install -U pip 
+  - pip install -U psutil cython numpy
+  - pip install .
 
 script: pytest
 
