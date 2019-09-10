@@ -204,6 +204,53 @@ class SplitIndexedList(BaseIndexedList):
         """
         return (self.items.__getitem__(i).split(), i)
 
+class SplitCIndexedList(BaseIndexedList):
+
+    def __init__(self, *args:[list, set, ndarray], custom_index:[list, ndarray]):
+        """ Quasi-list with custom indices and string splitting to be used for feeding in-memory stored lists of sentences to
+        the training routine.
+
+        Parameters
+        ----------
+        args : lists, sets, ndarray
+            Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
+        custom_index : list, ndarray
+            Custom index to support many to one mappings.
+
+        """
+        self.custom_index = custom_index
+
+        super(SplitCIndexedList, self).__init__(*args)
+
+        if len(self.items) != len(self.custom_index):
+            raise RuntimeError(f"Size of custom_index {len(custom_index)} does not match items {len(self.items)}")
+
+
+    def __getitem__(self, i:int) -> tuple:
+        """  Getitem method
+        
+        Returns
+        -------
+        tuple
+            Returns the core object, tuple, for every sentence embedding model.
+        """
+        return (self.items.__getitem__(i).split(), self.custom_index[i])
+    
+    def __delitem__(self, i:int):
+        raise NotImplementedError("Method not currently supported")
+        
+    def __setitem__(self, i:int, item:str):
+        raise NotImplementedError("Method not currently supported")
+
+    def insert(self, i:int, item:str):
+        raise NotImplementedError("Method not currently supported")
+
+    def append(self, item:str):
+        raise NotImplementedError("Method not currently supported")
+    
+    def extend(self, arg:[list, set, ndarray]):
+        raise NotImplementedError("Method not currently supported")
+
 class CSplitIndexedList(BaseIndexedList):
 
     def __init__(self, *args:[list, set, ndarray], custom_split:callable):

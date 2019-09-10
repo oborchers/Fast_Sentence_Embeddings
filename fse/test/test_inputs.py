@@ -15,7 +15,7 @@ import unittest
 import numpy as np
 
 from fse.inputs import BaseIndexedList, IndexedList, SplitIndexedList, CSplitIndexedList,  \
-    CIndexedList, CSplitCIndexedList, IndexedLineDocument
+    CIndexedList, CSplitCIndexedList, IndexedLineDocument, SplitCIndexedList
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +138,27 @@ class TestCSplitIndexedList(unittest.TestCase):
     
     def test_getitem(self):
         self.assertEqual("the dog is good".split(), self.il[0][0])
+
+class TestSplitCIndexedList(unittest.TestCase):
+    def setUp(self):
+        self.list_a = ["The Dog is good", "it's nice and comfy"]
+        self.il = SplitCIndexedList(self.list_a, custom_index=[1,1])
+    
+    def test_getitem(self):
+        self.assertEqual(("The Dog is good".split(), 1), self.il[0])
+
+    def test_mutable_funcs(self):
+        with self.assertRaises(NotImplementedError):
+            self.il.__delitem__(0)
+        with self.assertRaises(NotImplementedError):
+            self.il.__setitem__(0, "the")
+    
+        with self.assertRaises(NotImplementedError):
+            self.il.insert(0, "the")
+        with self.assertRaises(NotImplementedError):
+            self.il.append("the")
+        with self.assertRaises(NotImplementedError):
+            self.il.extend(["the", "dog"])
 
 class TestCSplitCIndexedList(unittest.TestCase):
     def setUp(self):
