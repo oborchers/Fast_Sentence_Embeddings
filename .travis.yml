@@ -23,7 +23,8 @@ matrix:
       env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
 
 install: 
-  - pip3 install --upgrade pip 
+  - pip3 install -U pip 
+  - pip3 install -U psutil
   - pip3 install .
 
 script: pytest
