@@ -1,9 +1,20 @@
 sudo: false
 
+cache:
+  apt: true
+  directories:
+  - $HOME/.cache/pip
+  - $HOME/.ccache
+  - $HOME/.pip-cache
+
 language: python
 python:
   - "3.6"
   - "3.7"
+
+branches:
+  only:
+    - develop
 
 matrix:
   include:
@@ -13,17 +24,18 @@ matrix:
       os: osx
       osx_image: xcode11    
       language: shell       
-    - name: "Python 3.7.4 on Windows"
-      os: windows           
-      language: shell
-      before_install:
-        - choco install python
-        - python -m pip install --upgrade pip
-      env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
+    # - name: "Python 3.7.4 on Windows"
+    #   os: windows           
+    #   language: shell
+    #   before_install:
+    #     - choco install python
+    #     - python -m pip install --upgrade pip
+    #   env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
 
 install: 
   - pip3 install -U pip 
   - pip3 install -U psutil cython numpy
-  - python setup.py install
+  - pip3 install .
 
 script: pytest
+
