@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-from fse.models.base_s2v import BaseSentence2VecModel, BaseSentence2VecPreparer
+from fse.models.base_s2v import BaseSentence2VecModel, BaseSentence2VecPreparer, EPS
 
 from gensim.models import Word2Vec, FastText
 from gensim.models.keyedvectors import BaseKeyedVectors
@@ -23,7 +23,6 @@ from gensim.models.keyedvectors import BaseKeyedVectors
 from wordfreq import get_frequency_dict
 
 logger = logging.getLogger(__name__)
-
 
 CORPUS = Path("fse/test/test_data/test_sentences.txt")
 DIM = 5
@@ -426,31 +425,31 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         output = se.infer([(s, i) for i,s in enumerate(SENTENCES)])
         self.assertTrue((100 == output).all())
 
-    # def test_infer_method_cy_overflow(self):
-    #     se = BaseSentence2VecModel(W2V)
+    def test_infer_method_cy_overflow(self):
+        se = BaseSentence2VecModel(W2V)
         
-    #     from fse.models.average_inner import MAX_WORDS_IN_BATCH
-    #     from fse.models.average_inner import train_average_cy
-    #     def _do_train_job(data_iterable, target, memory):
-    #         eff_sentences, eff_words = train_average_cy(model=se, indexed_sentences=data_iterable, target=target, memory=memory)
-    #         return eff_sentences, eff_words
+        from fse.models.average_inner import MAX_WORDS_IN_BATCH
+        from fse.models.average_inner import train_average_cy
+        def _do_train_job(data_iterable, target, memory):
+            eff_sentences, eff_words = train_average_cy(model=se, indexed_sentences=data_iterable, target=target, memory=memory)
+            return eff_sentences, eff_words
 
-    #     def pass_method(**kwargs): pass
-    #     se._post_inference_calls = pass_method
-    #     se._do_train_job = _do_train_job
-    #     tmp = []
-    #     for i in range(20):
-    #         tmp.extend(SENTENCES)
-    #     bs = 0
-    #     for i, s in enumerate(tmp):
-    #         if bs >= MAX_WORDS_IN_BATCH:
-    #             min_index = i
-    #             break
-    #         bs += len(s)
-    #     sents = [(s, i) for i,s in enumerate(tmp)]
-    #     output = se.infer(sents)
-    #     output = output[i:]
-    #     self.assertTrue((0 != output).all())
+        def pass_method(**kwargs): pass
+        se._post_inference_calls = pass_method
+        se._do_train_job = _do_train_job
+        tmp = []
+        for i in range(20):
+            tmp.extend(SENTENCES)
+        bs = 0
+        for i, s in enumerate(tmp):
+            if bs >= MAX_WORDS_IN_BATCH:
+                min_index = i
+                break
+            bs += len(s)
+        sents = [(s, i) for i,s in enumerate(tmp)]
+        output = se.infer(sents)
+        output = output[i:]
+        self.assertTrue((0 != output).all())
 
     def test_infer_many_to_one(self):
         se = BaseSentence2VecModel(W2V)
@@ -486,7 +485,7 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         trainables.reset_vectors(se.sv, 20)
         self.assertEqual((20,DIM), se.sv.vectors.shape)
         self.assertEqual(np.float32, se.sv.vectors.dtype)
-        self.assertTrue((np.zeros((20, DIM)) == se.sv.vectors).all())
+        self.assertTrue((EPS == se.sv.vectors).all())
         self.assertTrue(se.sv.vectors_norm is None)
 
     def test_reset_vectors_memmap(self):
@@ -498,7 +497,7 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         self.assertTrue(p_target.exists())
         self.assertEqual((20,DIM), se.sv.vectors.shape)
         self.assertEqual(np.float32, se.sv.vectors.dtype)
-        self.assertTrue((np.zeros((20, DIM)) == se.sv.vectors).all())
+        self.assertTrue((EPS == se.sv.vectors).all())
         self.assertTrue(se.sv.vectors_norm is None)
         p_target.unlink()
 
@@ -511,7 +510,7 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         self.assertEqual((30,DIM), se.sv.vectors.shape)
         self.assertEqual(np.float32, se.sv.vectors.dtype)
         self.assertTrue((np.ones((20, DIM)) == se.sv.vectors[:20]).all())
-        self.assertTrue((np.zeros((10, DIM)) == se.sv.vectors[20:]).all())
+        self.assertTrue((EPS == se.sv.vectors[20:]).all())
         self.assertTrue(se.sv.vectors_norm is None)
 
     def test_update_vectors_memmap(self):
@@ -526,7 +525,7 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         self.assertEqual((30,DIM), se.sv.vectors.shape)
         self.assertEqual(np.float32, se.sv.vectors.dtype)
         self.assertTrue((np.ones((20, DIM)) == se.sv.vectors[:20]).all())
-        self.assertTrue((np.zeros((10, DIM)) == se.sv.vectors[20:]).all())
+        self.assertTrue((EPS == se.sv.vectors[20:]).all())
         self.assertTrue(se.sv.vectors_norm is None)
         p_target.unlink()
 

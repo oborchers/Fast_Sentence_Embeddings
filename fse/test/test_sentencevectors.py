@@ -15,7 +15,7 @@ import unittest
 from pathlib import Path
 import numpy as np
 
-from fse.models.sentencevectors import SentenceVectors
+from fse.models.sentencevectors import SentenceVectors, _l2_norm
 from fse.models.average import Average
 from fse.inputs import IndexedList, IndexedLineDocument
 
@@ -219,7 +219,18 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         m.train(sentences)
         o = m.sv.similar_by_sentence(sentence=["the", "product", "is", "good"], model=m)
         self.assertEqual(4, o[0][0])
-        
+
+    def test_l2_norm(self):
+        out = np.random.normal(size=(200,50)).astype(np.float32)
+        result = _l2_norm(out, False)
+        lens = np.sqrt(np.sum((result**2), axis=-1))
+        self.assertTrue(np.allclose(1, lens, atol=1e-6))
+
+        out = np.random.normal(size=(200,50)).astype(np.float32)
+        out = _l2_norm(out, True)
+        lens = np.sqrt(np.sum((out**2), axis=-1))
+        self.assertTrue(np.allclose(1, lens, atol=1e-6))
+
 
 if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)

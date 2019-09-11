@@ -42,7 +42,7 @@ from gensim.utils import SaveLoad
 from gensim.matutils import zeros_aligned
 
 from numpy import ndarray, memmap as np_memmap, float32 as REAL, uint32 as uINT, \
-    empty, zeros, vstack, dtype, ones
+    empty, zeros, vstack, dtype, ones, finfo, full
 
 from wordfreq import available_languages, get_frequency_dict
 
@@ -61,6 +61,8 @@ import threading
 from queue import Queue
 
 logger = logging.getLogger(__name__)
+
+EPS = finfo(REAL).eps
 
 class BaseSentence2VecModel(SaveLoad):
     
@@ -97,8 +99,6 @@ class BaseSentence2VecModel(SaveLoad):
             Key word arguments needed to allow children classes to accept more arguments.
 
         """
-        # [ ] FIX EPS COMPUTATION IN AVERAGE INNER!
-        # [ ] SplitCIndexedList
         # [ ] Check the unittests for travis
             # [ ] Why does the cython build fail? test_average
             # [ ] On fix: Unmark test_infer_method
@@ -869,7 +869,7 @@ class BaseSentence2VecPreparer(SaveLoad):
             sv.vectors = empty((total_sentences, sv.vector_size), dtype=REAL)
         
         for i in range(total_sentences):
-            sv.vectors[i] = zeros(sv.vector_size, dtype=REAL)
+            sv.vectors[i] = full(shape=sv.vector_size, fill_value=EPS, dtype=REAL)
         sv.vectors_norm = None
 
     def update_vectors(self, sv:SentenceVectors, total_sentences:int):
@@ -882,9 +882,11 @@ class BaseSentence2VecPreparer(SaveLoad):
             sv.vectors = np_memmap(
                 str(sv.mapfile_path) + '.vectors', dtype=REAL,
                 mode='r+', shape=(sentences_after, sv.vector_size))
+            for i in range(sentences_before, sentences_after):
+                sv.vectors[i] = full(shape=sv.vector_size, fill_value=EPS, dtype=REAL)
         else:
             newvectors = empty((total_sentences, sv.vector_size), dtype=REAL)
             for i in range(total_sentences):
-                newvectors[i] = zeros(sv.vector_size, dtype=REAL)
+                newvectors[i] = full(shape=sv.vector_size, fill_value=EPS, dtype=REAL)
             sv.vectors = vstack([sv.vectors, newvectors])
         sv.vectors_norm = None

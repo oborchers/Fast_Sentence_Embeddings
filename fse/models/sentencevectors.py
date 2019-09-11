@@ -393,6 +393,8 @@ def _l2_norm(m, replace=False):
     -------
     The normalized matrix.  If replace=True, this will be the same as m.
 
+    NOTE: This part is copied from Gensim and modified as the call
+    m /= dist somtimes raises an exception and sometimes it does not.
     """
     dist = sqrt((m ** 2).sum(-1))[..., newaxis]
     if replace:

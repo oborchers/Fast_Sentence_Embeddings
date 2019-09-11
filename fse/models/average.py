@@ -38,15 +38,13 @@ from gensim.models.keyedvectors import BaseKeyedVectors
 from gensim.models.utils_any2vec import ft_ngram_hashes
 
 from numpy import ndarray, float32 as REAL, sum as np_sum, multiply as np_mult,\
-    zeros, max as np_max, finfo
+    zeros, max as np_max
 
 from typing import List
 
 import logging
 
 logger = logging.getLogger(__name__)
-
-EPS = finfo(REAL).eps
 
 def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[tuple], target:ndarray, memory:ndarray) -> [int,int]:
     """Training on a sequence of sentences and update the target ndarray.
@@ -115,7 +113,6 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[tuple],
             word_indices = [vocab[word].index for word in sent if word in vocab]
             eff_sentences += 1
             if not len(word_indices):
-                # TODO: s_vectors[sent_adr] += EPS
                 continue
             eff_words += len(word_indices)
 
@@ -129,7 +126,6 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[tuple],
             sent_adr = obj[1]
             
             if not len(sent):
-                # TODO: s_vectors[sent_adr] += EPS
                 continue
             mem = zeros(size, dtype=REAL)
 

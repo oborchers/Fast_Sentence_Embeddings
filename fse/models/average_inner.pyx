@@ -31,8 +31,6 @@ cdef int ZERO = <int>0
 cdef REAL_t ONEF = <REAL_t>1.0
 cdef REAL_t ZEROF = <REAL_t>0.0
 
-cdef REAL_t EPS = <REAL_t>np.finfo(np.float32).eps
-
 DEF MAX_WORDS = 10000
 DEF MAX_NGRAMS = 40
 
