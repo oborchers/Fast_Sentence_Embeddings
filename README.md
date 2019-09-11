@@ -1,5 +1,5 @@
-[![Build Status](https://travis-ci.com/oborchers/Fast_Sentence_Embeddings.svg?branch=develop)](https://travis-ci.com/oborchers/Fast_Sentence_Embeddings)
-[![Coverage Status](https://coveralls.io/repos/github/oborchers/Fast_Sentence_Embeddings/badge.svg?branch=develop)](https://coveralls.io/github/oborchers/Fast_Sentence_Embeddings?branch=develop)
+[![Build Status](https://travis-ci.com/oborchers/Fast_Sentence_Embeddings.svg?branch=master)](https://travis-ci.com/oborchers/Fast_Sentence_Embeddings)
+[![Coverage Status](https://coveralls.io/repos/github/oborchers/Fast_Sentence_Embeddings/badge.svg?branch=master)](https://coveralls.io/github/oborchers/Fast_Sentence_Embeddings?branch=master)
 
 Fast Sentence Embeddings (fse)
 ==================================
@@ -38,6 +38,8 @@ Key features of **fse** are:
 **[X]** Simple interface for developing your own models
 
 **[X]** Extensive documentation of all functions
+
+**[X]** Optimized Input Classes
 
 Installation
 ------------
@@ -101,8 +103,8 @@ for a corpus.
 
 	model.sv.similarity(0,1)
 
-The current version does offer multi-core support out of the box. However, for most
-applications a single core will most likely suffice.
+The current version does offer multi-thread support out of the box. However, for most
+applications a single thread will most likely suffice.
 
 To install **fse** on Colab, check out: https://colab.research.google.com/drive/1qq9GBgEosG7YSRn7r6e02T9snJb04OEi 
 

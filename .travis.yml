@@ -15,6 +15,7 @@ python:
 
 branches:
   only:
+    - master
     - develop
 
 matrix:
@@ -24,16 +25,7 @@ matrix:
     - name: "Python 3.7.4 on macOS"
       os: osx
       osx_image: xcode11    
-      language: shell       
-    # - name: "Python 3.7.4 on Windows"
-    #   os: windows           
-    #   language: shell
-    #   before_install:
-    #     - choco install python
-    #     - python -m pip install --upgrade pip
-    #   env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
-  # allow_failures:
-  #   - windows
+      language: shell
 
 install: 
   - pip3 install -U pip coveralls
