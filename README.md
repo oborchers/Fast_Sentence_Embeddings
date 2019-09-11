@@ -72,6 +72,7 @@ Within the folder nootebooks you can find the following guides:
 **STS-Benchmarks.ipynb** contains an example of how to use the library with pre-trained models to
 replicate the STS Benchmark results [4] reported in the papers.
 
+**Speed Comparision.ipynb** compares the speed between the numpy and the cython routines.
 
 In order to use the **fse** model, you first need some pre-trained gensim 
 word embedding model, which is then used by **fse** to compute the sentence embeddings.
