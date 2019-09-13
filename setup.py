@@ -85,7 +85,7 @@ cmdclass = {'build_ext': custom_build_ext}
 
 setup(
     name='fse',
-    version='0.1.11',
+    version='0.1.12',
     description='Fast Sentence Embeddings for Gensim',
 
     author=u'Oliver Borchers',
@@ -113,6 +113,7 @@ setup(
         'scikit-learn >= 0.19.1',
         'gensim >= 3.8.0',
         'wordfreq >= 2.2.1',
+        'psutil',
     ],
     include_package_data=True,
 )
