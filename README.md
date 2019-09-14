@@ -91,7 +91,7 @@ The models presented are based on
 - Unsupervised smooth inverse frequency embeddings [3]
 
 Credits to Radim Řehůřek and all contributors for the **awesome** library
-and code that (Gensim)[https://github.com/RaRe-Technologies/gensim] provides. A whole lot of the code found in this lib is based on Gensim.
+and code that [Gensim](https://github.com/RaRe-Technologies/gensim) provides. A whole lot of the code found in this lib is based on Gensim.
 
 In order to use **fse** you must first estimate a Gensim model which contains a
 gensim.models.keyedvectors.BaseKeyedVectors class, for example 
