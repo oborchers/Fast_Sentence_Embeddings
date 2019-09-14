@@ -166,19 +166,19 @@ class CIndexedList(BaseIndexedList):
         return (self.items.__getitem__(i), self.custom_index[i])
 
     def __delitem__(self, i:int):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
         
     def __setitem__(self, i:int, item:str):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
 
     def insert(self, i:int, item:str):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
 
     def append(self, item:str):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
     
     def extend(self, arg:[list, set, ndarray]):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
 
 class SplitIndexedList(BaseIndexedList):
 
@@ -237,19 +237,19 @@ class SplitCIndexedList(BaseIndexedList):
         return (self.items.__getitem__(i).split(), self.custom_index[i])
     
     def __delitem__(self, i:int):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
         
     def __setitem__(self, i:int, item:str):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
 
     def insert(self, i:int, item:str):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
 
     def append(self, item:str):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
     
     def extend(self, arg:[list, set, ndarray]):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
 
 class CSplitIndexedList(BaseIndexedList):
 
@@ -313,19 +313,19 @@ class CSplitCIndexedList(BaseIndexedList):
         return (self.custom_split(self.items.__getitem__(i)), self.custom_index[i])
 
     def __delitem__(self, i:int):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
         
     def __setitem__(self, i:int, item:str):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
 
     def insert(self, i:int, item:str):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
 
     def append(self, item:str):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
     
     def extend(self, arg:[list, set, ndarray]):
-        raise NotImplementedError("Method not currently supported")
+        raise NotImplementedError("Method currently not supported")
 
 class IndexedLineDocument(object):
 
@@ -376,7 +376,7 @@ class IndexedLineDocument(object):
 
         """
         if not self.get_able:
-            raise RuntimeError("To index the lines you must contruct with get_able=True")
+            raise RuntimeError("To index the lines, you must contruct with get_able=True")
 
         with open(self.path, "rb") as f:
             f.seek(self.line_offset[i])

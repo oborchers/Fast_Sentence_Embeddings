@@ -115,7 +115,7 @@ setup(
         'scikit-learn >= 0.19.1',
         'gensim >= 3.8.0',
         'wordfreq >= 2.2.1',
-        'psutils'
+        'psutil'
     ],
     include_package_data=True,
 )

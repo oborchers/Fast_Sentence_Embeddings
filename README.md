@@ -17,6 +17,8 @@ between *unweighted sentence averages*,  *smooth inverse frequency averages*, an
 
 Key features of **fse** are: 
 
+**[X]** Up to 500.000 sentences / second (1)
+
 **[X]** Supports Average, SIF, and uSIF Embeddings
 
 **[X]** Full support for Gensims Word2Vec and all other compatible classes
@@ -41,20 +43,23 @@ Key features of **fse** are:
 
 **[X]** Optimized Input Classes
 
+(1) May vary significantly from system to system (i.e. by using swap memory) and processing.
+I regularly observe 300k-500k sentences/s for preprocessed data on my Macbook (2016).
+Visit **Tutorial.ipynb** for an example.
+
 Installation
 ------------
 
-This software depends on [NumPy, Scipy, Scikit-learn, Gensim, and Wordfreq]. 
-You must have them installed prior to installing fse. Required Python version is 3.6 for f-string compatibility.
+This software depends on NumPy, Scipy, Scikit-learn, Gensim, and Wordfreq. 
+You must have them installed prior to installing fse. Required Python version is 3.6.
 
-As with gensim, it is also recommended you install a fast BLAS library
-before installing fse.
+As with gensim, it is also recommended you install a BLAS library before installing fse.
 
 The simple way to install **fse** is:
 
     pip install -U fse
 
-In case you want to build from the source, just run:
+In case you want to build from source, just run:
 
     python setup.py install
 
@@ -86,9 +91,9 @@ The models presented are based on
 - Unsupervised smooth inverse frequency embeddings [3]
 
 Credits to Radim Řehůřek and all contributors for the **awesome** library
-and code that Gensim provides. A whole lot of the code found in this lib is based on Gensim.
+and code that (Gensim)[https://github.com/RaRe-Technologies/gensim] provides. A whole lot of the code found in this lib is based on Gensim.
 
-In order to use **fse** you must first estimate a Gensim model which containes a
+In order to use **fse** you must first estimate a Gensim model which contains a
 gensim.models.keyedvectors.BaseKeyedVectors class, for example 
 *Word2Vec* or *Fasttext*. Then you can proceed to compute sentence embeddings
 for a corpus.
@@ -104,8 +109,8 @@ for a corpus.
 
 	model.sv.similarity(0,1)
 
-The current version does offer multi-thread support out of the box. However, for most
-applications a single thread will most likely suffice.
+fse offers multi-thread support out of the box. However, for most
+applications a *single thread will most likely be sufficient*.
 
 To install **fse** on Colab, check out: https://colab.research.google.com/drive/1qq9GBgEosG7YSRn7r6e02T9snJb04OEi 
 
@@ -134,13 +139,14 @@ Changelog
 -------------
 
 0.1.15 from 0.1.11:
-- Fixed FT Ngram computation bug
+- Fixed major FT Ngram computation bug
 - Rewrote the input class. Turns out NamedTuple was pretty slow. 
 - Added further unittests
 - Added documentation
 - Major speed improvements
 - Fixed division by zero for empty sentences
 - Fixed overflow when infer method is used with too many sentences
+- Fixed similar_by_sentence bug
 
 Literature
 -------------
