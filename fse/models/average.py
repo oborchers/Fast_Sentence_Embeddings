@@ -22,10 +22,9 @@ Initialize and train a :class:`~fse.models.sentence2vec.Sentence2Vec` model
         >>> sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
         >>> model = Word2Vec(sentences, min_count=1, size=20)
 
-        >>> from fse.models.average import Average
-        >>> from fse.inputs import IndexedSentence
+        >>> from fse.models.average import Average        
         >>> avg = Average(model)
-        >>> avg.train([IndexedSentence(s, i) for i, s in enumerate(sentences)])
+        >>> avg.train([(s, i) for i, s in enumerate(sentences)])
         >>> avg.sv.vectors.shape
         (2, 20)
 
@@ -34,12 +33,12 @@ Initialize and train a :class:`~fse.models.sentence2vec.Sentence2Vec` model
 from __future__ import division 
 
 from fse.models.base_s2v import BaseSentence2VecModel
-from fse.inputs import IndexedSentence
 
 from gensim.models.keyedvectors import BaseKeyedVectors
 from gensim.models.utils_any2vec import ft_ngram_hashes
 
-from numpy import ndarray, float32 as REAL, sum as np_sum, multiply as np_mult, zeros, max as np_max
+from numpy import ndarray, float32 as REAL, sum as np_sum, multiply as np_mult,\
+    zeros, max as np_max
 
 from typing import List
 
@@ -47,7 +46,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[IndexedSentence], target:ndarray, memory:ndarray) -> [int,int]:
+def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[tuple], target:ndarray, memory:ndarray) -> [int,int]:
     """Training on a sequence of sentences and update the target ndarray.
 
     Called internally from :meth:`~fse.models.average.Average._do_train_job`.
@@ -61,7 +60,7 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
     ----------
     model : :class:`~fse.models.base_s2v.BaseSentence2VecModel`
         The BaseSentence2VecModel model instance.
-    indexed_sentences : iterable of IndexedSentence
+    indexed_sentences : iterable of tuple
         The sentences used to train the model.
     target : ndarray
         The target ndarray. We use the index from indexed_sentences
@@ -86,13 +85,14 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
 
     is_ft = model.is_ft
 
-    mem = memory
+    mem = memory[0]
+    subwords_idx = memory[1]
 
     if is_ft:
         # NOTE: For Fasttext: Use wv.vectors_vocab
         # Using the wv.vectors from fasttext had horrible effects on the sts results
         # I suspect this is because the wv.vectors are based on the averages of
-        # wv.vectors_vocab + wv.vectors_ngrams, which will point all into very
+        # wv.vectors_vocab + wv.vectors_ngrams, which will all point into very
         # similar directions.
         max_ngrams = model.batch_ngrams
         w_vectors = model.wv.vectors_vocab
@@ -106,22 +106,24 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
 
     if not is_ft:
         for obj in indexed_sentences:
-            sent_adr = obj.index
-            sent = obj.words
+            mem.fill(0.)
+            sent = obj[0]
+            sent_adr = obj[1]
+            
             word_indices = [vocab[word].index for word in sent if word in vocab]
             eff_sentences += 1
             if not len(word_indices):
                 continue
             eff_words += len(word_indices)
 
-            mem = np_sum(np_mult(w_vectors[word_indices],w_weights[word_indices][:,None]) , axis=0)
+            mem += np_sum(np_mult(w_vectors[word_indices],w_weights[word_indices][:,None]) , axis=0)
             mem *= 1/len(word_indices)
             s_vectors[sent_adr] = mem.astype(REAL)
-            mem = zeros(size, dtype=REAL)
     else:
         for obj in indexed_sentences:
-            sent_adr = obj.index
-            sent = obj.words
+            mem.fill(0.)
+            sent = obj[0]
+            sent_adr = obj[1]
             
             if not len(sent):
                 continue
@@ -141,7 +143,6 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[Indexed
                     mem += oov_weight * (np_sum(ngram_vectors[ngram_hashes], axis=0) / len(ngram_hashes))
                 # Implicit addition of zero if oov does not contain any ngrams
             s_vectors[sent_adr] = mem / len(sent)
-            mem = zeros(size, dtype=REAL)
 
     return eff_sentences, eff_words
 
@@ -215,7 +216,7 @@ class Average(BaseSentence2VecModel):
             fast_version=FAST_VERSION
             )
 
-    def _do_train_job(self, data_iterable:List[IndexedSentence], target:ndarray, memory:ndarray) -> [int, int]:
+    def _do_train_job(self, data_iterable:List[tuple], target:ndarray, memory:ndarray) -> [int, int]:
         """ Internal routine which is called on training and performs averaging for all entries in the iterable """
         eff_sentences, eff_words = train_average(model=self, indexed_sentences=data_iterable, target=target, memory=memory)
         return eff_sentences, eff_words

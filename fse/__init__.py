@@ -1,13 +1,19 @@
 from fse import models
-from .inputs import IndexedSentence, IndexedList, IndexedLineDocument
-import logging
 
-__version__ = '0.1'
+from .inputs import BaseIndexedList
+from .inputs import IndexedList
+from .inputs import CIndexedList
+from .inputs import SplitIndexedList
+from .inputs import SplitCIndexedList
+from .inputs import CSplitIndexedList
+from .inputs import CSplitCIndexedList
+from .inputs import IndexedLineDocument
+
+import logging
 
 class NullHandler(logging.Handler):
     def emit(self, record):
         pass
-
 
 logger = logging.getLogger('fse')
 if len(logger.handlers) == 0:  # To ensure reload() doesn't add another one

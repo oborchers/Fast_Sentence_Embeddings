@@ -18,6 +18,7 @@ cimport numpy as np
 from gensim.models._utils_any2vec import compute_ngrams_bytes, ft_hash_bytes
 
 from libc.string cimport memset
+from libc.stdio cimport printf
 
 import scipy.linalg.blas as fblas
 
@@ -33,7 +34,7 @@ cdef REAL_t ZEROF = <REAL_t>0.0
 DEF MAX_WORDS = 10000
 DEF MAX_NGRAMS = 40
 
-cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target):
+cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory):
     """Load BaseAny2Vec parameters into a BaseSentenceVecsConfig struct.
 
     Parameters
@@ -44,10 +45,15 @@ cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target):
         The model to load.
     target : np.ndarray
         The target array to write the averages to.
+    memory : np.ndarray
+        Private working memory for each worker.
+        Consists of 2 nd.arrays.
 
     """
     c[0].workers = model.workers
     c[0].size = model.sv.vector_size
+
+    c[0].mem = <REAL_t *>(np.PyArray_DATA(memory[0]))
 
     c[0].word_vectors = <REAL_t *>(np.PyArray_DATA(model.wv.vectors))
     c[0].word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
@@ -80,6 +86,8 @@ cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory):
     c[0].oov_weight = <REAL_t>np.max(model.word_weights)
 
     c[0].mem = <REAL_t *>(np.PyArray_DATA(memory[0]))
+
+    memory[1].fill(ZERO)    # Reset the ngram storage before filling the struct
     c[0].subwords_idx = <uINT_t *>(np.PyArray_DATA(memory[1]))
 
     c[0].word_vectors = <REAL_t *>(np.PyArray_DATA(model.wv.vectors_vocab))
@@ -100,7 +108,7 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_s
         A pointer to the struct that will contain the populated indices.
     vocab : dict
         The vocabulary
-    indexed_sentences : iterable of IndexedSentences
+    indexed_sentences : iterable of tuple
         The sentences to read
 
     Returns
@@ -118,19 +126,18 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_s
     c.sentence_boundary[0] = ZERO
 
     for obj in indexed_sentences:
-        if not obj.words:
+        if not obj[0]:
             continue
-        for token in obj.words:
+        for token in obj[0]:
             word = vocab[token] if token in vocab else None # Vocab obj
             if word is None:
                 continue
             c.word_indices[eff_words] = <uINT_t>word.index
-            c.sent_adresses[eff_words] = <uINT_t>obj.index
+            c.sent_adresses[eff_words] = <uINT_t>obj[1]
 
             eff_words += ONE
             if eff_words == MAX_WORDS:
                 break
-        
         eff_sents += 1
         c.sentence_boundary[eff_sents] = eff_words
 
@@ -151,7 +158,7 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sente
         A pointer to the struct that will contain the populated indices.
     vocab : dict
         The vocabulary
-    indexed_sentences : iterable of IndexedSentences
+    indexed_sentences : iterable of tuples
         The sentences to read
 
     Returns
@@ -169,11 +176,10 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sente
     c.sentence_boundary[0] = ZERO
 
     for obj in indexed_sentences:
-        if not obj.words:
+        if not obj[0]:
             continue
-        for token in obj.words:
-            c.sent_adresses[eff_words] = <uINT_t>obj.index
-
+        for token in obj[0]:
+            c.sent_adresses[eff_words] = <uINT_t>obj[1]
             if token in vocab:
                 # In Vocabulary
                 word = vocab[token]
@@ -188,7 +194,7 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sente
 
                 c.subwords_idx_len[eff_words] = <uINT_t>min(len(encoded_ngrams), MAX_NGRAMS)
                 for i, h in enumerate(hashes[:MAX_NGRAMS]):
-                    c.subwords_idx[eff_words + i] = <uINT_t>h
+                    c.subwords_idx[(eff_words * MAX_NGRAMS) + i] = <uINT_t>h
             
             eff_words += ONE
 
@@ -228,6 +234,8 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
         REAL_t sent_len, inv_count
 
     for sent_idx in range(num_sentences):
+        memset(c.mem, 0, size * cython.sizeof(REAL_t))
+
         sent_start = c.sentence_boundary[sent_idx]
         sent_end = c.sentence_boundary[sent_idx + 1]
         sent_len = ZEROF
@@ -238,11 +246,13 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
             word_row = c.word_indices[i] * size
             word_idx = c.word_indices[i]
 
-            saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, &c.sentence_vectors[sent_row], &ONE)
+            saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, c.mem, &ONE)
 
         if sent_len > ZEROF:
             inv_count = ONEF / sent_len
-            sscal(&size, &inv_count, &c.sentence_vectors[sent_row], &ONE)
+            # If we perform the a*x on memory, the computation is compatible with many-to-one mappings
+            # because it doesn't rescale the overall result
+            saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
 
 cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sentences) nogil:
     """Perform optimized sentence-level averaging for FastText model.
@@ -273,9 +283,8 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
         REAL_t oov_weight = c.oov_weight
 
 
-    memset(c.mem, 0, size * cython.sizeof(REAL_t))
-
     for sent_idx in range(num_sentences):
+        memset(c.mem, 0, size * cython.sizeof(REAL_t))
         sent_start = c.sentence_boundary[sent_idx]
         sent_end = c.sentence_boundary[sent_idx + 1]
         sent_len = ZEROF
@@ -289,21 +298,16 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
 
             if ngrams == 0:
                 word_row = c.word_indices[i] * size
-                saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, &c.sentence_vectors[sent_row], &ONE)
+                saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, c.mem, &ONE)
             else:
+                inv_ngram = (ONEF / <REAL_t>ngrams) * c.oov_weight
                 for j in range(ngrams):
-                    ngram_row = c.subwords_idx[i+j] * size
-                    saxpy(&size, &ONEF, &c.ngram_vectors[ngram_row], &ONE, c.mem, &ONE)
-
-                inv_ngram = ONEF / <REAL_t>ngrams
-                sscal(&size, &inv_ngram, c.mem, &ONE)
-
-                saxpy(&size, &c.oov_weight, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
-                memset(c.mem, 0, size * cython.sizeof(REAL_t))
-
+                    ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size
+                    saxpy(&size, &inv_ngram, &c.ngram_vectors[ngram_row], &ONE, c.mem, &ONE)
+                
         if sent_len > ZEROF:
             inv_count = ONEF / sent_len
-            sscal(&size, &inv_count, &c.sentence_vectors[sent_row], &ONE)
+            saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
 
 def train_average_cy(model, indexed_sentences, target, memory):
     """Training on a sequence of sentences and update the target ndarray.
@@ -314,7 +318,7 @@ def train_average_cy(model, indexed_sentences, target, memory):
     ----------
     model : :class:`~fse.models.base_s2v.BaseSentence2VecModel`
         The BaseSentence2VecModel model instance.
-    indexed_sentences : iterable of IndexedSentence
+    indexed_sentences : iterable of tuple
         The sentences used to train the model.
     target : ndarray
         The target ndarray. We use the index from indexed_sentences
@@ -335,7 +339,7 @@ def train_average_cy(model, indexed_sentences, target, memory):
     cdef FTSentenceVecsConfig ft
 
     if not model.is_ft:
-        init_base_s2v_config(&w2v, model, target)
+        init_base_s2v_config(&w2v, model, target, memory)
 
         eff_sentences, eff_words = populate_base_s2v_config(&w2v, model.wv.vocab, indexed_sentences)
 

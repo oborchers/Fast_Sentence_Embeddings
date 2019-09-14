@@ -29,6 +29,7 @@ cdef struct BaseSentenceVecsConfig:
     int size, workers
 
     # Vectors
+    REAL_t *mem
     REAL_t *word_vectors
     REAL_t *word_weights
     REAL_t *sentence_vectors
@@ -59,6 +60,6 @@ cdef struct FTSentenceVecsConfig:
     uINT_t subwords_idx_len[MAX_WORDS]
     uINT_t *subwords_idx
     
-cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target)
+cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory)
 
 cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory)

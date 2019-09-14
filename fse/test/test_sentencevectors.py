@@ -15,9 +15,9 @@ import unittest
 from pathlib import Path
 import numpy as np
 
-from fse.models.sentencevectors import SentenceVectors
+from fse.models.sentencevectors import SentenceVectors, _l2_norm
 from fse.models.average import Average
-from fse.inputs import IndexedSentence, IndexedList, IndexedLineDocument
+from fse.inputs import IndexedList, IndexedLineDocument
 
 from gensim.models import Word2Vec
 
@@ -65,7 +65,7 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
 
     def test_init_sims_w_replace(self):
         self.sv.init_sims(True)
-        self.assertTrue((self.sv.vectors[0] == self.sv.vectors_norm[0]).all())
+        self.assertTrue(np.allclose(self.sv.vectors[0], self.sv.vectors_norm[0]))
 
     def test_init_sims_w_mapfile(self):
         p = Path("fse/test/test_data/test_vectors")
@@ -120,11 +120,11 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         v2 = self.sv.vectors[1]
         v2 = v2 / np.sqrt(np.sum(v2**2))
 
-        self.assertEqual(v1.dot(v2), self.sv.similarity(0,1))
-        self.assertEqual(1-(v1.dot(v2)), self.sv.distance(0,1))
+        self.assertTrue(np.allclose(v1.dot(v2), self.sv.similarity(0,1)))
+        self.assertTrue(np.allclose(1-v1.dot(v2), self.sv.distance(0,1)))
 
     def test_most_similar(self):
-        sent_ind = IndexedList(SENTENCES, pre_splitted=True)
+        sent_ind = IndexedList(SENTENCES)
         sentences = IndexedLineDocument(CORPUS)
         m = Average(W2V)
         m.train(sentences)
@@ -135,7 +135,7 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         self.assertEqual("Looks good and fits snug", o[0][0])
 
         o = m.sv.most_similar(positive=0, indexable=sent_ind)
-        self.assertEqual("Looks good and fits snug".split(), o[0][0].words)
+        self.assertEqual("Looks good and fits snug".split(), o[0][0][0])
 
     def test_most_similar_vec(self):
         sentences = IndexedLineDocument(CORPUS)
@@ -219,7 +219,18 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         m.train(sentences)
         o = m.sv.similar_by_sentence(sentence=["the", "product", "is", "good"], model=m)
         self.assertEqual(4, o[0][0])
-        
+
+    def test_l2_norm(self):
+        out = np.random.normal(size=(200,50)).astype(np.float32)
+        result = _l2_norm(out, False)
+        lens = np.sqrt(np.sum((result**2), axis=-1))
+        self.assertTrue(np.allclose(1, lens, atol=1e-6))
+
+        out = np.random.normal(size=(200,50)).astype(np.float32)
+        out = _l2_norm(out, True)
+        lens = np.sqrt(np.sum((out**2), axis=-1))
+        self.assertTrue(np.allclose(1, lens, atol=1e-6))
+
 
 if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)

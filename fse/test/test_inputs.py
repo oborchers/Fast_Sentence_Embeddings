@@ -9,90 +9,180 @@
 Automated tests for checking the input methods.
 """
 
-
 import logging
 import unittest
 
-from fse.inputs import IndexedSentence, IndexedList, IndexedLineDocument
+import numpy as np
+
+from fse.inputs import BaseIndexedList, IndexedList, SplitIndexedList, CSplitIndexedList,  \
+    CIndexedList, CSplitCIndexedList, IndexedLineDocument, SplitCIndexedList
 
 logger = logging.getLogger(__name__)
 
-class TestIndexedSentenceFunctions(unittest.TestCase):
-    def test__str(self):
-        sent_0 = IndexedSentence(["Hello", "there"], 0)
-        sent_1 = IndexedSentence(["Hello", "again"], 1)
-        self.assertEqual(0, sent_0.index)
-        self.assertEqual(1, sent_1.index)
-        self.assertEqual(["Hello", "there"], sent_0.words)
-        self.assertEqual(["Hello", "again"], sent_1.words)
-
-class TestIndexedListFuncs(unittest.TestCase):
+class TestBaseIndexedList(unittest.TestCase):
 
     def setUp(self):
         self.list_a = ["the dog is good", "it's nice and comfy"]
         self.list_b = ["lorem ipsum dolor", "si amet"]
         self.list_c = [s.split() for s in self.list_a]
         self.set_a = set(["hello there", "its a set"])
-        self.il = IndexedList(self.list_a, self.list_b, self.set_a, split=True)
+        self.arr_a = np.array(self.list_a)
+        self.l = BaseIndexedList(self.list_a)
+        self.ll = BaseIndexedList(self.list_a, self.list_b, self.list_c)
+    
+    def test_init(self):
+        _ = BaseIndexedList(self.list_a)
 
-    def test_init_list(self):
-        l = IndexedList(self.list_a)
-    
-    def test_init_multiple_list(self):
-        l = IndexedList(self.list_a, self.list_b)
-        self.assertEqual(4, len(l))
-    
-    def test_init_set(self):
-        l = IndexedList(self.set_a)
-    
-    def test_init_dict(self):
-        tmp = {0: "hello there"}
-        with self.assertRaises(TypeError): 
-            IndexedList(tmp)
-    
-    def test_init_multiple_args(self):
-        with self.assertRaises(RuntimeError):
-            IndexedList(self.list_a, split=True, split_func=self.list_a)
+    def test_init_mult_arg(self):
+        self.assertEqual(6, len(self.ll.items))
 
-    def test_init_multiple_splits(self):
-        with self.assertRaises(RuntimeError):
-            IndexedList(self.list_a, split_func=self.list_a, pre_splitted=True)
+    def test_init_ndarray(self):
+        _ = BaseIndexedList(self.arr_a)
+
+    def test__check_list_type(self):
+        with self.assertRaises(TypeError):
+            self.l._check_list_type(1)
+        with self.assertRaises(TypeError):
+            self.l._check_list_type("Hello")
+
+    def test__check_str_type(self):
+        self.assertEqual(1, self.l._check_str_type("Hello"))
+        with self.assertRaises(TypeError):
+            self.l._check_str_type(1)
+        with self.assertRaises(TypeError):
+            self.l._check_str_type([])
     
     def test__len(self):
-        l = IndexedList(self.list_a)
-        self.assertEqual(2, len(l))
+        self.assertEqual(2, len(self.l))
 
     def test__str(self):
-        target = "[\'the dog is good\', \"it's nice and comfy\"]"
-        self.assertEqual(target, str(IndexedList(self.list_a)))
+        self.assertEqual("[\'the dog is good\', \"it\'s nice and comfy\"]",
+        str(self.l))
 
-    def test_getitem(self):
-        self.assertEqual(["the", "dog", "is", "good"], self.il.__getitem__(0).words)
-        self.assertEqual(0, self.il.__getitem__(0).index)
+    def test__getitem(self):
+        with self.assertRaises(NotImplementedError):
+            self.l[0]
 
-    def test_getitem_presplitted(self):
-        l = IndexedList(self.list_c, pre_splitted=True)
-        self.assertEqual(["the", "dog", "is", "good"], self.il.__getitem__(0).words)
+    def test__delitem(self):
+        self.ll.__delitem__(0)
+        self.assertEqual(5, len(self.ll))
 
-    def test_delitem(self):
-        self.il.__delitem__(0)
-        self.assertEqual(5, len(self.il))
-
-    def test_setitem(self):
-        self.il.__setitem__(0, "is it me?")
-        self.assertEqual(["is", "it", "me?"], self.il[0].words)
+    def test__setitem(self):
+        self.ll.__setitem__(0, "is it me?")
+        self.assertEqual("is it me?", self.ll.items[0])
     
-    def test_setitem_wrong_dtype(self):
-        with self.assertRaises(TypeError):
-            self.il.__setitem__(0, ["is it me?"])
-
     def test_append(self):
-        self.il.append("is it me?")
-        self.assertEqual(["is", "it", "me?"], self.il[-1].words)
+        self.ll.append("is it me?")
+        self.assertEqual("is it me?", self.ll.items[-1])
     
     def test_extend(self):
-        self.il.extend(self.list_a, self.list_b)
-        self.assertEqual(10, len(self.il))
+        self.ll.extend(self.list_a)
+        self.assertEqual(8, len(self.ll))
+
+        self.ll.extend(self.set_a)
+        self.assertEqual(10, len(self.ll))
+
+    def test_extend_ndarr(self):
+        l = BaseIndexedList(np.array([str(i) for i in [1,2,3,4]]))
+        l.extend(np.array([str(i) for i in [1,2,3,4]]))
+        self.assertEqual(8, len(l))
+
+class TestIndexedList(unittest.TestCase):
+    def setUp(self):
+        self.list_a = ["the dog is good", "it's nice and comfy"]
+        self.list_b = [s.split() for s in self.list_a]
+        self.il = IndexedList(self.list_a, self.list_b)
+
+    def test_init(self):
+        _ = IndexedList(self.list_a)
+
+    def test_getitem(self):
+        self.assertEqual(("the dog is good", 0), self.il[0])
+
+    def test_split(self):
+        l = SplitIndexedList(self.list_a)
+        self.assertEqual("the dog is good".split(), l[0][0])
+
+class TestCIndexedList(unittest.TestCase):
+    def setUp(self):
+        self.list_a = ["The Dog is good", "it's nice and comfy"]
+        self.il = CIndexedList(self.list_a, custom_index=[1,1])
+    
+    def test_cust_index(self):
+        self.assertEqual(1, self.il[0][1])
+
+    def test_wrong_len(self):
+        with self.assertRaises(RuntimeError):
+            il = CIndexedList(self.list_a, custom_index=[1])
+
+    def test_mutable_funcs(self):
+        with self.assertRaises(NotImplementedError):
+            self.il.__delitem__(0)
+        with self.assertRaises(NotImplementedError):
+            self.il.__setitem__(0, "the")
+    
+        with self.assertRaises(NotImplementedError):
+            self.il.insert(0, "the")
+        with self.assertRaises(NotImplementedError):
+            self.il.append("the")
+        with self.assertRaises(NotImplementedError):
+            self.il.extend(["the", "dog"])
+
+class TestCSplitIndexedList(unittest.TestCase):
+    def setUp(self):
+        self.list_a = ["The Dog is good", "it's nice and comfy"]
+        self.il = CSplitIndexedList(self.list_a, custom_split=self.split_func)
+
+    def split_func(self, input):
+        return input.lower().split()
+    
+    def test_getitem(self):
+        self.assertEqual("the dog is good".split(), self.il[0][0])
+
+class TestSplitCIndexedList(unittest.TestCase):
+    def setUp(self):
+        self.list_a = ["The Dog is good", "it's nice and comfy"]
+        self.il = SplitCIndexedList(self.list_a, custom_index=[1,1])
+    
+    def test_getitem(self):
+        self.assertEqual(("The Dog is good".split(), 1), self.il[0])
+
+    def test_mutable_funcs(self):
+        with self.assertRaises(NotImplementedError):
+            self.il.__delitem__(0)
+        with self.assertRaises(NotImplementedError):
+            self.il.__setitem__(0, "the")
+    
+        with self.assertRaises(NotImplementedError):
+            self.il.insert(0, "the")
+        with self.assertRaises(NotImplementedError):
+            self.il.append("the")
+        with self.assertRaises(NotImplementedError):
+            self.il.extend(["the", "dog"])
+
+class TestCSplitCIndexedList(unittest.TestCase):
+    def setUp(self):
+        self.list_a = ["The Dog is good", "it's nice and comfy"]
+        self.il = CSplitCIndexedList(self.list_a, custom_split=self.split_func, custom_index=[1,1])
+
+    def split_func(self, input):
+        return input.lower().split()
+    
+    def test_getitem(self):
+        self.assertEqual(("the dog is good".split(), 1), self.il[0])
+    
+    def test_mutable_funcs(self):
+        with self.assertRaises(NotImplementedError):
+            self.il.__delitem__(0)
+        with self.assertRaises(NotImplementedError):
+            self.il.__setitem__(0, "the")
+    
+        with self.assertRaises(NotImplementedError):
+            self.il.insert(0, "the")
+        with self.assertRaises(NotImplementedError):
+            self.il.append("the")
+        with self.assertRaises(NotImplementedError):
+            self.il.extend(["the", "dog"])
 
 class TestIndexedLineDocument(unittest.TestCase):
 
@@ -106,8 +196,8 @@ class TestIndexedLineDocument(unittest.TestCase):
         self.assertEqual("I am not sure if it is a tracfone problem or the battery", self.doc[-1])
 
     def test_yield(self):
-        first = IndexedSentence("Good stuff i just wish it lasted longer".split(), 0)
-        last = IndexedSentence("I am not sure if it is a tracfone problem or the battery".split(), 99)
+        first = ("Good stuff i just wish it lasted longer".split(), 0)
+        last = ("I am not sure if it is a tracfone problem or the battery".split(), 99)
         for i, obj in enumerate(self.doc):
             if i == 0:
                 self.assertEqual(first, obj)

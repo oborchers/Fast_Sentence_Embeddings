@@ -7,7 +7,7 @@
 
 from __future__ import division
 
-from fse.inputs import IndexedSentence, IndexedList, IndexedLineDocument
+from fse.inputs import IndexedList, IndexedLineDocument
 
 from gensim.models.keyedvectors import BaseKeyedVectors
 
@@ -16,7 +16,6 @@ from numpy import dot, float32 as REAL, memmap as np_memmap, \
     ndarray, sum as np_sum, prod, argmax
 
 from gensim import utils, matutils
-from gensim.models.keyedvectors import _l2_norm
 
 from typing import List, Tuple
 
@@ -148,7 +147,6 @@ class SentenceVectors(utils.SaveLoad):
                 self.vectors_norm = np_memmap(
                     self.mapfile_path + '.vectors_norm', dtype=REAL,
                     mode='w+', shape=self.vectors.shape)
-
             self.vectors_norm = _l2_norm(self.vectors, replace=replace)
 
     def similarity(self, d1:int, d2:int) -> float:
@@ -346,7 +344,7 @@ class SentenceVectors(utils.SaveLoad):
             one-dimensional numpy array with the size of the vocabulary.
 
         """
-        vector = model.infer([IndexedSentence(sentence, 0)])
+        vector = model.infer([(sentence, 0)])
         return self.most_similar(positive=vector, indexable=indexable, topn=topn, restrict_size=restrict_size)
     
     def similar_by_vector(self, vector:ndarray, indexable:[IndexedList,IndexedLineDocument]=None, topn:int=10,
@@ -380,3 +378,27 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         return self.most_similar(positive=vector, indexable=indexable, topn=topn, restrict_size=restrict_size)
+
+def _l2_norm(m, replace=False):
+    """Return an L2-normalized version of a matrix.
+
+    Parameters
+    ----------
+    m : np.array
+        The matrix to normalize.
+    replace : boolean, optional
+        If True, modifies the existing matrix.
+
+    Returns
+    -------
+    The normalized matrix.  If replace=True, this will be the same as m.
+
+    NOTE: This part is copied from Gensim and modified as the call
+    m /= dist somtimes raises an exception and sometimes it does not.
+    """
+    dist = sqrt((m ** 2).sum(-1))[..., newaxis]
+    if replace:
+        m = m / dist
+        return m
+    else:
+        return (m / dist).astype(REAL)

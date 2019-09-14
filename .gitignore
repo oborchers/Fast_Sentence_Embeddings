@@ -72,3 +72,4 @@ fse*.egg-info
 *.html
 vectors
 *.vectors
+*.joblib
