@@ -10,7 +10,10 @@ Fast Sentence Embeddings is a Python library that serves as an addition to Gensi
 Features
 ------------
 
-Find the corresponding blog post(s) here: https://medium.com/@oliverbor/fse-2b1ffa791cf9 (will be updated soon)
+Find the corresponding blog post(s) here:
+
+- [Visualizing 100,000 Amazon Products](https://towardsdatascience.com/vis-amz-83dea6fcb059)
+- [Sentence Embeddings. Fast, please!](https://towardsdatascience.com/fse-2b1ffa791cf9)
 
 **fse** implements three algorithms for sentence embeddings. You can choose
 between *unweighted sentence averages*,  *smooth inverse frequency averages*, and *unsupervised smooth inverse frequency averages*. 
