@@ -92,7 +92,9 @@ class SIF(Average):
         """ Function calls to perform after training, such as computing eigenvectors """
         if self.components > 0:
             self.svd_res = compute_principal_components(
-                self.sv.vectors, components=self.components,cache_size_gb=self.cache_size_gb
+                self.sv.vectors,
+                components=self.components,
+                cache_size_gb=self.cache_size_gb,
             )
             remove_principal_components(
                 self.sv.vectors, svd_res=self.svd_res, inplace=True

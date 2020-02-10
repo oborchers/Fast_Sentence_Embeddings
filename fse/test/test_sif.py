@@ -101,6 +101,19 @@ class TestSIFFunctions(unittest.TestCase):
         output = self.model.train(self.sentences)
         self.assertEqual((100,1450), output)
         self.assertTrue(np.isfinite(self.model.sv.vectors).all())
+        self.assertEqual(2, len(self.model.svd_res))
+
+    def test_issue(self):
+        model = SIF(W2V)
+        model.train(self.sentences)
+
+        p = Path("fse/test/test_data/test_emb.model")
+        model.save(str(p))
+        model = SIF.load(str(p))
+        p.unlink()
+
+        self.assertEqual(2, len(model.svd_res))
+        model.sv.similar_by_sentence("test sentence".split(), model=model)
 
 if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
