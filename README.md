@@ -60,10 +60,15 @@ Visit **Tutorial.ipynb** for an example.
 Things I will work on next:
 
 **[ ]** MaxPooling / Hierarchical Pooling Embedding
+
 **[ ]** Approximate Nearest Neighbor Search for SentenceVectors
+
 **[ ]** Discrete Cosine Transform Embedding (?)
+
 **[ ]** VLAVE Embedding (?)
+
 **[ ]** PowerMeans Embedding (?)
+
 
 
 Installation
