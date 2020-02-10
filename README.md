@@ -1,5 +1,10 @@
-[![Build Status](https://travis-ci.com/oborchers/Fast_Sentence_Embeddings.svg?branch=master)](https://travis-ci.com/oborchers/Fast_Sentence_Embeddings)
-[![Coverage Status](https://coveralls.io/repos/github/oborchers/Fast_Sentence_Embeddings/badge.svg?branch=master)](https://coveralls.io/github/oborchers/Fast_Sentence_Embeddings?branch=master)
+<p align="center">
+<a href="https://travis-ci.com/oborchers/Fast_Sentence_Embeddings"><img alt="Build Status" src="https://travis-ci.com/oborchers/Fast_Sentence_Embeddings.svg?branch=master"></a>
+<a href="https://coveralls.io/repos/github/oborchers/Fast_Sentence_Embeddings?branch=master"><img alt="Coverage Status" src="https://coveralls.io/repos/github/oborchers/Fast_Sentence_Embeddings/badge.svg?branch=master"></a>
+<a href="https://pepy.tech/badge/fse"><img alt="Downloads" src="https://pepy.tech/project/fse"></a>
+<a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
+</p>
+
 
 Fast Sentence Embeddings (fse)
 ==================================
