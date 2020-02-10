@@ -21,6 +21,13 @@ class TestUtils(unittest.TestCase):
         out = compute_principal_components(vectors = m, components=5)
         self.assertEqual(2, len(out))
         self.assertEqual(5, len(out[1]))
+
+    def test_compute_large_components(self):
+        m = np.random.uniform(size=(int(2e6), 100)).astype(np.float32)
+        out = compute_principal_components(vectors = m, cache_size_gb = 0.2)
+        self.assertEqual(2, len(out))
+        self.assertEqual(1, len(out[1]))
+        self.assertEqual(np.float32, out[1].dtype)
     
     def test_remove_components_inplace(self):
         m = np.ones((500,10), dtype=np.float32)
