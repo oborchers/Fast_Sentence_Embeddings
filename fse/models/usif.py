@@ -9,7 +9,7 @@ from fse.models.utils import compute_principal_components, remove_principal_comp
 
 from gensim.models.keyedvectors import BaseKeyedVectors
 
-from numpy import ndarray, float32 as REAL, zeros
+from numpy import ndarray, float32 as REAL, zeros, isfinite
 
 import logging
 
@@ -71,6 +71,9 @@ class uSIF(Average):
         self.cache_size_gb = float(cache_size_gb)
         self.svd_res = None
         self.svd_weights = None
+
+        if lang_freq is None:
+            logger.info("make sure you are using a model with valid word-frequency information. Otherwise use lang_freq argument.")
 
         super(Average, self).__init__(
             model=model,
@@ -161,3 +164,10 @@ class uSIF(Average):
         a = (1 - alpha) / (alpha * z)
 
         self.word_weights = (a / ((a / 2) + pw)).astype(REAL)
+
+        if not all(isfinite(self.word_weights)):
+            raise RuntimeError(
+                "Encountered nan values. "
+                "This likely happens because the word frequency information is wrong/missing. "
+                "Consider restarting using lang_freq argument to infer frequency. "
+            )
