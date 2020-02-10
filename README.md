@@ -20,7 +20,7 @@ Find the corresponding blog post(s) here:
 - [Visualizing 100,000 Amazon Products](https://towardsdatascience.com/vis-amz-83dea6fcb059)
 - [Sentence Embeddings. Fast, please!](https://towardsdatascience.com/fse-2b1ffa791cf9)
 
-- **Announcment: As of the 24.01.2020 this library has not been updated. Please understand that I am at the end of my PhD and have not had any free minutes to fix any issues. Issues will be adressed as soon as I have time (April).**
+- **Announcment: Please understand, that I am at the end of my PhD and I do not have  many free minutes to fix issues or add features.**
 
 **fse** implements three algorithms for sentence embeddings. You can choose
 between *unweighted sentence averages*,  *smooth inverse frequency averages*, and *unsupervised smooth inverse frequency averages*. 
@@ -56,6 +56,15 @@ Key features of **fse** are:
 (1) May vary significantly from system to system (i.e. by using swap memory) and processing.
 I regularly observe 300k-500k sentences/s for preprocessed data on my Macbook (2016).
 Visit **Tutorial.ipynb** for an example.
+
+Things I will work on next:
+
+**[ ]** MaxPooling / Hierarchical Pooling Embedding
+**[ ]** Approximate Nearest Neighbor Search for SentenceVectors
+**[ ]** Discrete Cosine Transform Embedding (?)
+**[ ]** VLAVE Embedding (?)
+**[ ]** PowerMeans Embedding (?)
+
 
 Installation
 ------------
