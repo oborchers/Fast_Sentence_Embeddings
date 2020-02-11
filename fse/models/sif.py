@@ -68,7 +68,9 @@ class SIF(Average):
         self.svd_res = None
 
         if lang_freq is None:
-            logger.info("make sure you are using a model with valid word-frequency information. Otherwise use lang_freq argument.")
+            logger.info(
+                "make sure you are using a model with valid word-frequency information. Otherwise use lang_freq argument."
+            )
 
         super(SIF, self).__init__(
             model=model,
@@ -144,7 +146,7 @@ class SIF(Average):
 
         self.word_weights = (self.alpha / (self.alpha + pw)).astype(REAL)
 
-        if not all(isfinite(self.word_weights)):
+        if not all(isfinite(self.word_weights)) or any(self.word_weights < 0):
             raise RuntimeError(
                 "Encountered nan values. "
                 "This likely happens because the word frequency information is wrong/missing. "

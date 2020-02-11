@@ -73,7 +73,9 @@ class uSIF(Average):
         self.svd_weights = None
 
         if lang_freq is None:
-            logger.info("make sure you are using a model with valid word-frequency information. Otherwise use lang_freq argument.")
+            logger.info(
+                "make sure you are using a model with valid word-frequency information. Otherwise use lang_freq argument."
+            )
 
         super(Average, self).__init__(
             model=model,
