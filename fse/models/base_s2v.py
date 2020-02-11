@@ -36,6 +36,8 @@ See Also
 
 from fse.models.sentencevectors import SentenceVectors
 
+from fse.models.utils import set_madvise_for_mmap
+
 from gensim.models.base_any2vec import BaseWordEmbeddingsModel
 from gensim.models.keyedvectors import BaseKeyedVectors, FastTextKeyedVectors, _l2_norm
 from gensim.utils import SaveLoad
@@ -121,6 +123,37 @@ class BaseSentence2VecModel(SaveLoad):
             Key word arguments needed to allow children classes to accept more arguments.
 
         """
+
+        """
+        TODO:
+
+        [ ] global:
+            [ ] windows support
+            [ ] documentation
+            [ ] more benchmarks
+            [ ] remove wv_mapfile_path?
+            [ ] modifiable sv_mapfile_path?
+            [ ] How much does the madvise fix help?
+
+        [ ] models:
+            [ ] check feasibility first
+            [ ] max-pooling
+            [ ] hierarchical pooling
+            [ ] discrete cosine transform
+            [ ] valve
+            [ ] power-means embedding
+            
+        [ ] sentencevectors:
+            [X] similar_by_sentence model type check
+            [ ] approximate NN search for large files
+                [ ] compare ANN libraries
+                [ ] ease-of-use
+                [ ] dependencies
+                [ ] compatibility
+                [ ] memory-usage
+        """
+
+        set_madvise_for_mmap()
 
         self.workers = int(workers)
         self.batch_words = batch_words
@@ -553,6 +586,9 @@ class BaseSentence2VecModel(SaveLoad):
         if model.wv_mapfile_path is not None:
             model._load_all_vectors_from_disk(model.wv_mapfile_path)
         model.wv_mapfile_shapes = None
+
+        set_madvise_for_mmap()
+
         return model
 
     def save(self, *args, **kwargs):

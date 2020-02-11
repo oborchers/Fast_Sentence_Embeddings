@@ -238,6 +238,23 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         lens = np.sqrt(np.sum((out**2), axis=-1))
         self.assertTrue(np.allclose(1, lens, atol=1e-6))
 
+    def test_madvise(self):
+        from sys import platform
+        from fse.models.utils import set_madvise_for_mmap
+
+        if platform in ["linux", "darwin", "aix"]:
+            madvise = set_madvise_for_mmap(True)
+            
+            sentences = IndexedLineDocument(CORPUS)
+            m = Average(W2V)
+            m.train(sentences)
+            mat = m.sv.vectors
+
+            self.assertEqual(
+                madvise(mat.ctypes.data, mat.size * mat.dtype.itemsize, 1),
+                0
+            )
+
 
 if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)

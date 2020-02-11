@@ -9,6 +9,8 @@ from __future__ import division
 
 from fse.inputs import IndexedList, IndexedLineDocument
 
+from fse.models.utils import set_madvise_for_mmap
+
 from gensim.models.keyedvectors import BaseKeyedVectors
 
 from numpy import (
@@ -41,6 +43,9 @@ logger = logging.getLogger(__name__)
 
 class SentenceVectors(utils.SaveLoad):
     def __init__(self, vector_size: int, mapfile_path: str = None):
+
+        set_madvise_for_mmap()
+
         self.vector_size = vector_size  # Size of vectors
         self.vectors = zeros((0, vector_size), REAL)  # Vectors for sentences
         self.vectors_norm = None
@@ -114,6 +119,7 @@ class SentenceVectors(utils.SaveLoad):
         path = sv.mapfile_path
         if path is not None:
             sv._load_all_vectors_from_disk(mapfile_path=path)
+        set_madvise_for_mmap()
         return sv
 
     def get_vector(self, index: int, use_norm: bool = False) -> ndarray:

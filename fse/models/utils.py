@@ -13,7 +13,25 @@ from time import time
 
 import logging
 
+from sys import platform
+
+import ctypes
+
 logger = logging.getLogger(__name__)
+
+
+def set_madvise_for_mmap(return_madvise: bool = False) -> bool:
+    # See memmap issue (https://github.com/numpy/numpy/issues/13172)
+    if platform in ["linux", "darwin", "aix"]:
+        if platform == "darwin":
+            madvise = ctypes.CDLL("libc.dylib").madvise
+        if platform in ["linux", "aix"]:
+            madvise = ctypes.CDLL("libc.so.6").madvise
+        madvise.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int]
+        madvise.restype = ctypes.c_int
+
+        if return_madvise:
+            return madvise
 
 
 def compute_principal_components(
