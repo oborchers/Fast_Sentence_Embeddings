@@ -220,6 +220,13 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         o = m.sv.similar_by_sentence(sentence=["the", "product", "is", "good"], model=m)
         self.assertEqual(4, o[0][0])
 
+    def test_similar_by_sentence_wrong_model(self):
+        sentences = IndexedLineDocument(CORPUS)
+        m = Average(W2V)
+        m.train(sentences)
+        with self.assertRaises(RuntimeError):
+            m.sv.similar_by_sentence(sentence=["the", "product", "is", "good"], model=W2V)
+
     def test_l2_norm(self):
         out = np.random.normal(size=(200,50)).astype(np.float32)
         result = _l2_norm(out, False)

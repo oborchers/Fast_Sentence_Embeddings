@@ -394,6 +394,12 @@ class SentenceVectors(utils.SaveLoad):
             one-dimensional numpy array with the size of the vocabulary.
 
         """
+        infer_op = getattr(model, "infer", None)
+        if not callable(infer_op):
+            raise RuntimeError(
+                "Model does not have infer method. Make sure to pass a BaseSentence2VecModel"
+            )
+
         vector = model.infer([(sentence, 0)])
         return self.most_similar(
             positive=vector, indexable=indexable, topn=topn, restrict_size=restrict_size
