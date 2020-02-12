@@ -9,24 +9,24 @@ cache:
 
 language: python
 python:
-  - "3.6"
-  - "3.7"
+  # - "3.6"
+  # - "3.7"
   - "3.8"
-  - "3.8-dev"
 
 branches:
   only:
     - master
     - develop
 
-matrix:
-  include:     
-    - name: "Python 3.8.0 on macOS"
-      os: osx
-      osx_image: xcode11.2
-      language: shell
+# matrix:
+#   include:     
+#     - name: "Python 3.8.0 on macOS"
+#       os: osx
+#       osx_image: xcode11.2
+#       language: shell
 
 install: 
+  - sudo apt-get install build-essential python-dev python3-pip
   - pip3 install -U pip coveralls
   - pip3 install -U psutil cython numpy
   - pip3 install .
