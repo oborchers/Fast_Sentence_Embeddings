@@ -5,7 +5,11 @@ from pathlib import Path
 
 import numpy as np
 
-from fse.models.sif import SIF, compute_principal_components, remove_principal_components
+from fse.models.sif import (
+    SIF,
+    compute_principal_components,
+    remove_principal_components,
+)
 from fse.inputs import IndexedLineDocument
 
 from gensim.models import Word2Vec
@@ -23,10 +27,10 @@ class TestSIFFunctions(unittest.TestCase):
     def setUp(self):
         self.sentences = IndexedLineDocument(CORPUS)
         self.model = SIF(W2V, lang_freq="en")
-    
+
     def test_parameter_sanity(self):
         with self.assertRaises(ValueError):
-            m = SIF(W2V, alpha= -1)
+            m = SIF(W2V, alpha=-1)
             m._check_parameter_sanity()
         with self.assertRaises(ValueError):
             m = SIF(W2V, components=-1)
@@ -43,13 +47,13 @@ class TestSIFFunctions(unittest.TestCase):
         self.model.sv.vectors = np.ones((200, 10), dtype=np.float32)
         self.model._post_train_calls()
         self.assertTrue(np.allclose(self.model.sv.vectors, 0, atol=1e-5))
-    
+
     def test_post_train_calls_no_removal(self):
         self.model.components = 0
         self.model.sv.vectors = np.ones((200, 10), dtype=np.float32)
         self.model._post_train_calls()
         self.assertTrue(np.allclose(self.model.sv.vectors, 1, atol=1e-5))
-    
+
     def test_post_inference_calls(self):
         self.model.sv.vectors = np.ones((200, 10), dtype=np.float32)
         self.model._post_train_calls()
@@ -63,7 +67,7 @@ class TestSIFFunctions(unittest.TestCase):
         self.model.svd_res = None
         with self.assertRaises(RuntimeError):
             self.model._post_inference_calls(output=None)
-    
+
     def test_post_inference_calls_no_removal(self):
         self.model.components = 0
         self.model.sv.vectors = np.ones((200, 10), dtype=np.float32)
@@ -75,17 +79,23 @@ class TestSIFFunctions(unittest.TestCase):
         self.model.word_weights = np.ones_like(self.model.word_weights, dtype=int)
         with self.assertRaises(TypeError):
             self.model._check_dtype_santiy()
-    
+
     def test_dtype_sanity_svd_vals(self):
-        self.model.svd_res = (np.ones_like(self.model.word_weights, dtype=int), np.array(0, dtype=np.float32))
+        self.model.svd_res = (
+            np.ones_like(self.model.word_weights, dtype=int),
+            np.array(0, dtype=np.float32),
+        )
         with self.assertRaises(TypeError):
             self.model._check_dtype_santiy()
 
     def test_dtype_sanity_svd_vecs(self):
-        self.model.svd_res = (np.array(0, dtype=np.float32), np.ones_like(self.model.word_weights, dtype=int))
+        self.model.svd_res = (
+            np.array(0, dtype=np.float32),
+            np.ones_like(self.model.word_weights, dtype=int),
+        )
         with self.assertRaises(TypeError):
             self.model._check_dtype_santiy()
-    
+
     def test_compute_sif_weights(self):
         cs = 1095661426
         w = "Good"
@@ -99,7 +109,7 @@ class TestSIFFunctions(unittest.TestCase):
 
     def test_train(self):
         output = self.model.train(self.sentences)
-        self.assertEqual((100,1450), output)
+        self.assertEqual((100, 1450), output)
         self.assertTrue(np.isfinite(self.model.sv.vectors).all())
         self.assertEqual(2, len(self.model.svd_res))
 
@@ -120,12 +130,14 @@ class TestSIFFunctions(unittest.TestCase):
         w2v.build_vocab([l.split() for l in open(CORPUS, "r")])
         for k in w2v.wv.vocab:
             w2v.wv.vocab[k].count = np.nan
-            
+
         model = SIF(w2v)
         with self.assertRaises(RuntimeError):
             model.train(self.sentences)
 
 
-if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
+if __name__ == "__main__":
+    logging.basicConfig(
+        format="%(asctime)s : %(levelname)s : %(message)s", level=logging.DEBUG
+    )
     unittest.main()

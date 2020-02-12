@@ -76,10 +76,10 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
     def test_include_model(self):
         se = BaseSentence2VecModel(W2V)
         self.assertTrue(isinstance(se.wv, BaseKeyedVectors))
-    
+
     def test_model_w_language(self):
         se = BaseSentence2VecModel(W2V, lang_freq="en")
-        freq = int((2**31 - 1) * get_frequency_dict("en", wordlist="best")["help"])
+        freq = int((2 ** 31 - 1) * get_frequency_dict("en", wordlist="best")["help"])
         self.assertEqual(freq, se.wv.vocab["help"].count)
         self.assertEqual(21, se.wv.vocab["79"].count)
 
@@ -149,18 +149,18 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
     def test_input_check(self):
         se = BaseSentence2VecModel(W2V)
 
-        class BadIterator():
+        class BadIterator:
             def __init__(self):
                 pass
 
         with self.assertRaises(TypeError):
             se._check_input_data_sanity()
         with self.assertRaises(TypeError):
-            se._check_input_data_sanity(data_iterable = None)
+            se._check_input_data_sanity(data_iterable=None)
         with self.assertRaises(TypeError):
-            se._check_input_data_sanity(data_iterable = "Hello there!")
+            se._check_input_data_sanity(data_iterable="Hello there!")
         with self.assertRaises(TypeError):
-            se._check_input_data_sanity(data_iterable = BadIterator())
+            se._check_input_data_sanity(data_iterable=BadIterator())
 
     def test_scan_w_list(self):
         se = BaseSentence2VecModel(W2V)
@@ -169,11 +169,13 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
     def test_str_rep(self):
         output = str(BaseSentence2VecModel(W2V))
-        self.assertEqual("BaseSentence2VecModel based on Word2VecKeyedVectors, size=0", output)
+        self.assertEqual(
+            "BaseSentence2VecModel based on Word2VecKeyedVectors, size=0", output
+        )
 
     def test_scan_w_ituple(self):
         se = BaseSentence2VecModel(W2V)
-        id_sent = [(s, i) for i,s in enumerate(SENTENCES)]
+        id_sent = [(s, i) for i, s in enumerate(SENTENCES)]
         stats = se.scan_sentences(id_sent, progress_per=0)
 
         self.assertEqual(100, stats["total_sentences"])
@@ -184,7 +186,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
     def test_scan_w_wrong_tuple(self):
         se = BaseSentence2VecModel(W2V)
-        id_sent = [(s, str(i)) for i,s in enumerate(SENTENCES)]
+        id_sent = [(s, str(i)) for i, s in enumerate(SENTENCES)]
         with self.assertRaises(TypeError):
             se.scan_sentences(id_sent)
 
@@ -192,27 +194,34 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(W2V)
         for i in [5, 10, 15]:
             SENTENCES[i] = []
-        self.assertEqual(3, se.scan_sentences([(s, i) for i,s in enumerate(SENTENCES)])["empty_sentences"])
+        self.assertEqual(
+            3,
+            se.scan_sentences([(s, i) for i, s in enumerate(SENTENCES)])[
+                "empty_sentences"
+            ],
+        )
 
     def test_scan_w_wrong_input(self):
         se = BaseSentence2VecModel(W2V)
         sentences = ["the dog hit the car", "he was very fast"]
-        
+
         with self.assertRaises(TypeError):
             se.scan_sentences(sentences)
         with self.assertRaises(TypeError):
-            se.scan_sentences([(s, i) for i,s in enumerate(sentences)])
+            se.scan_sentences([(s, i) for i, s in enumerate(sentences)])
         with self.assertRaises(TypeError):
             se.scan_sentences([list(range(10) for _ in range(2))])
 
         with self.assertRaises(RuntimeError):
-            se.scan_sentences([(s, i+1) for i,s in enumerate(SENTENCES)])
+            se.scan_sentences([(s, i + 1) for i, s in enumerate(SENTENCES)])
         with self.assertRaises(ValueError):
-            se.scan_sentences([(s, i-1) for i,s in enumerate(SENTENCES)])
-        
+            se.scan_sentences([(s, i - 1) for i, s in enumerate(SENTENCES)])
+
     def test_scan_w_many_to_one_input(self):
         se = BaseSentence2VecModel(W2V)
-        output = se.scan_sentences([(s, 0) for i,s in enumerate(SENTENCES)])["max_index"]
+        output = se.scan_sentences([(s, 0) for i, s in enumerate(SENTENCES)])[
+            "max_index"
+        ]
         self.assertEqual(1, output)
 
     def test_estimate_memory(self):
@@ -224,7 +233,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
     def test_train(self):
         se = BaseSentence2VecModel(W2V)
         with self.assertRaises(NotImplementedError):
-            se.train([(s, i) for i,s in enumerate(SENTENCES)])
+            se.train([(s, i) for i, s in enumerate(SENTENCES)])
 
     def test_log_end(self):
         se = BaseSentence2VecModel(W2V)
@@ -242,9 +251,9 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             se._check_parameter_sanity()
         with self.assertRaises(NotImplementedError):
-            se._check_dtype_santiy()  
+            se._check_dtype_santiy()
         with self.assertRaises(NotImplementedError):
-            se._post_inference_calls()  
+            se._post_inference_calls()
 
     def test_check_pre_train_san_no_wv(self):
         ft = FastText(min_count=1, size=5)
@@ -252,7 +261,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(ft)
         se.wv = None
         with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
+            se._check_pre_training_sanity(1, 1, 1)
 
     def test_check_pre_train_san_no_wv_len(self):
         ft = FastText(min_count=1, size=5)
@@ -260,7 +269,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(ft)
         se.wv.vectors = []
         with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
+            se._check_pre_training_sanity(1, 1, 1)
 
     def test_check_pre_train_san_no_ngrams_vectors(self):
         ft = FastText(min_count=1, size=5)
@@ -268,11 +277,11 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(ft)
         se.wv.vectors_ngrams = []
         with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
+            se._check_pre_training_sanity(1, 1, 1)
         se.wv.vectors_ngrams = [1]
         se.wv.vectors_vocab = []
         with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
+            se._check_pre_training_sanity(1, 1, 1)
 
     def test_check_pre_train_san_no_sv_vecs(self):
         ft = FastText(min_count=1, size=5)
@@ -280,7 +289,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(ft)
         se.sv.vectors = None
         with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
+            se._check_pre_training_sanity(1, 1, 1)
 
     def test_check_pre_train_san_no_word_weights(self):
         ft = FastText(min_count=1, size=5)
@@ -288,7 +297,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(ft)
         se.word_weights = None
         with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
+            se._check_pre_training_sanity(1, 1, 1)
 
     def test_check_pre_train_san_incos_len(self):
         ft = FastText(min_count=1, size=5)
@@ -296,36 +305,36 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(ft)
         se.word_weights = np.ones(20)
         with self.assertRaises(RuntimeError):
-            se._check_pre_training_sanity(1,1,1)
+            se._check_pre_training_sanity(1, 1, 1)
 
     def test_check_pre_train_dtypes(self):
         ft = FastText(min_count=1, size=5)
         ft.build_vocab(SENTENCES)
         se = BaseSentence2VecModel(ft)
 
-        se.wv.vectors = np.zeros((len(se.wv.vocab),20), dtype=np.float64)
+        se.wv.vectors = np.zeros((len(se.wv.vocab), 20), dtype=np.float64)
         with self.assertRaises(TypeError):
-            se._check_pre_training_sanity(1,1,1)
-        se.wv.vectors = np.zeros((len(se.wv.vocab),20), dtype=np.float32)
+            se._check_pre_training_sanity(1, 1, 1)
+        se.wv.vectors = np.zeros((len(se.wv.vocab), 20), dtype=np.float32)
 
         se.wv.vectors_ngrams = np.ones(len(se.wv.vocab), dtype=np.float16)
         with self.assertRaises(TypeError):
-            se._check_pre_training_sanity(1,1,1)
+            se._check_pre_training_sanity(1, 1, 1)
         se.wv.vectors_ngrams = np.ones(len(se.wv.vocab), dtype=np.float32)
 
         se.wv.vectors_vocab = np.ones(len(se.wv.vocab), dtype=np.float16)
         with self.assertRaises(TypeError):
-            se._check_pre_training_sanity(1,1,1)
+            se._check_pre_training_sanity(1, 1, 1)
         se.wv.vectors_vocab = np.ones(len(se.wv.vocab), dtype=np.float32)
 
-        se.sv.vectors = np.zeros((len(se.wv.vocab),20), dtype=int)
+        se.sv.vectors = np.zeros((len(se.wv.vocab), 20), dtype=int)
         with self.assertRaises(TypeError):
-            se._check_pre_training_sanity(1,1,1)
-        se.sv.vectors = np.zeros((len(se.wv.vocab),20), dtype=np.float32)
+            se._check_pre_training_sanity(1, 1, 1)
+        se.sv.vectors = np.zeros((len(se.wv.vocab), 20), dtype=np.float32)
 
         se.word_weights = np.ones(len(se.wv.vocab), dtype=bool)
         with self.assertRaises(TypeError):
-            se._check_pre_training_sanity(1,1,1)
+            se._check_pre_training_sanity(1, 1, 1)
         se.word_weights = np.ones(len(se.wv.vocab), dtype=np.float32)
 
     def test_check_pre_train_statistics(self):
@@ -337,15 +346,14 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             se.wv.vocab[v].count = 1
 
         # Just throws multiple warnings warning
-        se._check_pre_training_sanity(1,1,1)
-        
-        with self.assertRaises(ValueError):
-            se._check_pre_training_sanity(0,1,1)
-        with self.assertRaises(ValueError):
-            se._check_pre_training_sanity(1,0,1)
-        with self.assertRaises(ValueError):
-            se._check_pre_training_sanity(1,1,0)
+        se._check_pre_training_sanity(1, 1, 1)
 
+        with self.assertRaises(ValueError):
+            se._check_pre_training_sanity(0, 1, 1)
+        with self.assertRaises(ValueError):
+            se._check_pre_training_sanity(1, 0, 1)
+        with self.assertRaises(ValueError):
+            se._check_pre_training_sanity(1, 1, 0)
 
     def test_post_training_sanity(self):
         w2v = Word2Vec()
@@ -353,17 +361,19 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(w2v)
         se.prep.prepare_vectors(se.sv, 20)
         with self.assertRaises(ValueError):
-            se._check_post_training_sanity(0,1)
+            se._check_post_training_sanity(0, 1)
         with self.assertRaises(ValueError):
-            se._check_post_training_sanity(1,0)
-            
+            se._check_post_training_sanity(1, 0)
+
     def test_move_ndarray_to_disk_w2v(self):
         se = BaseSentence2VecModel(W2V)
         p = Path("fse/test/test_data/test_vecs")
         p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
-        se.wv.vectors[0,1] = 10
+        se.wv.vectors[0, 1] = 10
         vecs = se.wv.vectors.copy()
-        output = se._move_ndarray_to_disk(se.wv.vectors, name="wv", mapfile_path=str(p.absolute()))
+        output = se._move_ndarray_to_disk(
+            se.wv.vectors, name="wv", mapfile_path=str(p.absolute())
+        )
         self.assertTrue(p_target.exists())
         self.assertFalse(output.flags.writeable)
         self.assertTrue((vecs == output).all())
@@ -405,36 +415,50 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
     def test_train_manager(self):
         se = BaseSentence2VecModel(W2V, workers=2)
+
         def temp_train_job(data_iterable, target, memory):
             v1 = v2 = sum(1 for _ in data_iterable)
-            return v1*2, v2*3
+            return v1 * 2, v2 * 3
+
         se._do_train_job = temp_train_job
-        job_output = se._train_manager(data_iterable=[(s, i) for i,s in enumerate(SENTENCES)], total_sentences=len(SENTENCES),report_delay=0.01)
-        self.assertEqual((100,200,300), job_output)
+        job_output = se._train_manager(
+            data_iterable=[(s, i) for i, s in enumerate(SENTENCES)],
+            total_sentences=len(SENTENCES),
+            report_delay=0.01,
+        )
+        self.assertEqual((100, 200, 300), job_output)
 
     def test_infer_method(self):
         se = BaseSentence2VecModel(W2V)
+
         def temp_train_job(data_iterable, target, memory):
             for i in data_iterable:
                 target += 1
             return target
 
-        def pass_method(**kwargs): pass
+        def pass_method(**kwargs):
+            pass
+
         se._post_inference_calls = pass_method
         se._do_train_job = temp_train_job
-        output = se.infer([(s, i) for i,s in enumerate(SENTENCES)])
+        output = se.infer([(s, i) for i, s in enumerate(SENTENCES)])
         self.assertTrue((100 == output).all())
 
     def test_infer_method_cy_overflow(self):
         se = BaseSentence2VecModel(W2V)
-        
+
         from fse.models.average_inner import MAX_WORDS_IN_BATCH
         from fse.models.average_inner import train_average_cy
+
         def _do_train_job(data_iterable, target, memory):
-            eff_sentences, eff_words = train_average_cy(model=se, indexed_sentences=data_iterable, target=target, memory=memory)
+            eff_sentences, eff_words = train_average_cy(
+                model=se, indexed_sentences=data_iterable, target=target, memory=memory
+            )
             return eff_sentences, eff_words
 
-        def pass_method(**kwargs): pass
+        def pass_method(**kwargs):
+            pass
+
         se._post_inference_calls = pass_method
         se._do_train_job = _do_train_job
         tmp = []
@@ -446,44 +470,52 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
                 min_index = i
                 break
             bs += len(s)
-        sents = [(s, i) for i,s in enumerate(tmp)]
+        sents = [(s, i) for i, s in enumerate(tmp)]
         output = se.infer(sents)
         output = output[i:]
         self.assertTrue((0 != output).all())
 
     def test_infer_many_to_one(self):
         se = BaseSentence2VecModel(W2V)
+
         def temp_train_job(data_iterable, target, memory):
             for i in data_iterable:
                 target += 1
             return target
-        def pass_method(**kwargs): pass
+
+        def pass_method(**kwargs):
+            pass
+
         se._post_inference_calls = pass_method
         se._do_train_job = temp_train_job
-        output = se.infer([(s, 0) for i,s in enumerate(SENTENCES)])
+        output = se.infer([(s, 0) for i, s in enumerate(SENTENCES)])
         self.assertTrue((100 == output).all())
         self.assertEqual((1, 5), output.shape)
 
     def test_infer_use_norm(self):
         se = BaseSentence2VecModel(W2V)
+
         def temp_train_job(data_iterable, target, memory):
             for i in data_iterable:
                 target += 1
             return target
-        def pass_method(**kwargs): pass
+
+        def pass_method(**kwargs):
+            pass
+
         se._post_inference_calls = pass_method
         se._do_train_job = temp_train_job
-        output = se.infer([(s, i) for i,s in enumerate(SENTENCES)], use_norm=True)
+        output = se.infer([(s, i) for i, s in enumerate(SENTENCES)], use_norm=True)
 
-        self.assertTrue(np.allclose(1., np.sqrt(np.sum(output[0]**2))))
+        self.assertTrue(np.allclose(1.0, np.sqrt(np.sum(output[0] ** 2))))
+
 
 class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
-
     def test_reset_vectors(self):
         se = BaseSentence2VecModel(W2V)
         trainables = BaseSentence2VecPreparer()
         trainables.reset_vectors(se.sv, 20)
-        self.assertEqual((20,DIM), se.sv.vectors.shape)
+        self.assertEqual((20, DIM), se.sv.vectors.shape)
         self.assertEqual(np.float32, se.sv.vectors.dtype)
         self.assertTrue((EPS == se.sv.vectors).all())
         self.assertTrue(se.sv.vectors_norm is None)
@@ -495,7 +527,7 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         trainables = BaseSentence2VecPreparer()
         trainables.reset_vectors(se.sv, 20)
         self.assertTrue(p_target.exists())
-        self.assertEqual((20,DIM), se.sv.vectors.shape)
+        self.assertEqual((20, DIM), se.sv.vectors.shape)
         self.assertEqual(np.float32, se.sv.vectors.dtype)
         self.assertTrue((EPS == se.sv.vectors).all())
         self.assertTrue(se.sv.vectors_norm is None)
@@ -505,9 +537,9 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(W2V)
         trainables = BaseSentence2VecPreparer()
         trainables.reset_vectors(se.sv, 20)
-        se.sv.vectors[:] = 1.
+        se.sv.vectors[:] = 1.0
         trainables.update_vectors(se.sv, 10)
-        self.assertEqual((30,DIM), se.sv.vectors.shape)
+        self.assertEqual((30, DIM), se.sv.vectors.shape)
         self.assertEqual(np.float32, se.sv.vectors.dtype)
         self.assertTrue((np.ones((20, DIM)) == se.sv.vectors[:20]).all())
         self.assertTrue((EPS == se.sv.vectors[20:]).all())
@@ -519,10 +551,10 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(W2V, sv_mapfile_path=str(p.absolute()))
         trainables = BaseSentence2VecPreparer()
         trainables.reset_vectors(se.sv, 20)
-        se.sv.vectors[:] = 1.
+        se.sv.vectors[:] = 1.0
         trainables.update_vectors(se.sv, 10)
         self.assertTrue(p_target.exists())
-        self.assertEqual((30,DIM), se.sv.vectors.shape)
+        self.assertEqual((30, DIM), se.sv.vectors.shape)
         self.assertEqual(np.float32, se.sv.vectors.dtype)
         self.assertTrue((np.ones((20, DIM)) == se.sv.vectors[:20]).all())
         self.assertTrue((EPS == se.sv.vectors[20:]).all())
@@ -533,10 +565,13 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(W2V)
         trainables = BaseSentence2VecPreparer()
         trainables.prepare_vectors(se.sv, 20, update=False)
-        self.assertEqual((20,DIM), se.sv.vectors.shape)
+        self.assertEqual((20, DIM), se.sv.vectors.shape)
         trainables.prepare_vectors(se.sv, 40, update=True)
-        self.assertEqual((60,DIM), se.sv.vectors.shape)
+        self.assertEqual((60, DIM), se.sv.vectors.shape)
 
-if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        format="%(asctime)s : %(levelname)s : %(message)s", level=logging.DEBUG
+    )
     unittest.main()
