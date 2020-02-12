@@ -21,9 +21,25 @@ logger = logging.getLogger(__name__)
 
 
 def set_madvise_for_mmap(return_madvise: bool = False) -> object:
-    # See memmap issue (https://github.com/numpy/numpy/issues/13172)
+    """ Method used to set madvise parameters.
+    This problem adresses the memmap issue raised in https://github.com/numpy/numpy/issues/13172
+    The issue is not applicable for windows
+
+    Parameters
+    ----------
+    return_madvise : bool
+        Returns the madvise object for unittests, se test_utils.py
+
+    Returns
+    -------
+    object
+        madvise object
+
+    """
+
     if platform in ["linux", "linux2", "darwin", "aix"]:
         if platform == "darwin":
+            # Path different for Macos
             madvise = ctypes.CDLL("libc.dylib").madvise
         if platform in ["linux", "linux2", "aix"]:
             madvise = ctypes.CDLL("libc.so.6").madvise
