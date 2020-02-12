@@ -133,15 +133,15 @@ class BaseSentence2VecModel(SaveLoad):
             [ ] more benchmarks
             [ ] remove wv_mapfile_path?
             [ ] modifiable sv_mapfile_path?
-            [ ] How much does the madvise fix help?
 
         [ ] models:
             [ ] check feasibility first
-            [ ] max-pooling
-            [ ] hierarchical pooling
-            [ ] discrete cosine transform
-            [ ] valve
-            [ ] power-means embedding
+            [ ] max-pooling -> easy
+            [ ] hierarchical pooling -> easy
+            [ ] discrete cosine transform -> somewhat easy, questionable
+            [ ] valve -> unclear, not cited enough
+            [ ] power-means embedding -> very large dimensionalty
+                [ ] z-score transformation is quite nice
             
         [ ] sentencevectors:
             [X] similar_by_sentence model type check
