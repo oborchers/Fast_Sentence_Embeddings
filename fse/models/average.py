@@ -98,7 +98,6 @@ def train_average_np(
     is_ft = model.is_ft
 
     mem = memory[0]
-    subwords_idx = memory[1]
 
     if is_ft:
         # NOTE: For Fasttext: Use wv.vectors_vocab

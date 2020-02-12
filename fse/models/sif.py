@@ -9,7 +9,7 @@ from fse.models.utils import compute_principal_components, remove_principal_comp
 
 from gensim.models.keyedvectors import BaseKeyedVectors
 
-from numpy import ndarray, float32 as REAL, ones, zeros, isfinite
+from numpy import ndarray, float32 as REAL, zeros, isfinite
 
 import logging
 

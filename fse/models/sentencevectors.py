@@ -17,7 +17,6 @@ from numpy import (
     dot,
     float32 as REAL,
     memmap as np_memmap,
-    double,
     array,
     zeros,
     vstack,
@@ -25,9 +24,6 @@ from numpy import (
     newaxis,
     integer,
     ndarray,
-    sum as np_sum,
-    prod,
-    argmax,
 )
 
 from gensim import utils, matutils

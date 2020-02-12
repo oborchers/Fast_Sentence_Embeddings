@@ -121,7 +121,6 @@ def remove_principal_components(
     ndarray, ndarray
         Singular values and singular vectors
     """
-    singular_values = svd_res[0].astype(REAL)
     components = svd_res[1].astype(REAL)
 
     start = time()

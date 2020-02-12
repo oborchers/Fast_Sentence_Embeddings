@@ -8,7 +8,6 @@ sudo python ./setup.py install
 '''
 
 import os
-import platform
 import sys
 import warnings
 from setuptools import setup, find_packages, Extension
