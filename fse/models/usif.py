@@ -77,7 +77,7 @@ class uSIF(Average):
                 "make sure you are using a model with valid word-frequency information. Otherwise use lang_freq argument."
             )
 
-        super(Average, self).__init__(
+        super(uSIF, self).__init__(
             model=model,
             sv_mapfile_path=sv_mapfile_path,
             wv_mapfile_path=wv_mapfile_path,

@@ -20,7 +20,7 @@ import ctypes
 logger = logging.getLogger(__name__)
 
 
-def set_madvise_for_mmap(return_madvise: bool = False) -> bool:
+def set_madvise_for_mmap(return_madvise: bool = False) -> object:
     # See memmap issue (https://github.com/numpy/numpy/issues/13172)
     if platform in ["linux", "linux2", "darwin", "aix"]:
         if platform == "darwin":
