@@ -97,7 +97,7 @@ setup(
 
     ext_modules=[
         Extension('fse.models.average_inner',
-                sources=['./fse/models/average_inner.pyx'],
+                sources=['./fse/models/average_inner.pyx'], #.c
                 include_dirs=[mod_dir]),
         ],
         
