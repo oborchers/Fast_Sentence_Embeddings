@@ -242,7 +242,7 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         from sys import platform
         from fse.models.utils import set_madvise_for_mmap
 
-        if platform in ["linux", "darwin", "aix"]:
+        if platform in ["linux", "linux2", "darwin", "aix"]:
             madvise = set_madvise_for_mmap(True)
             
             sentences = IndexedLineDocument(CORPUS)
