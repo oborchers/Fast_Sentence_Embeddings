@@ -28,7 +28,7 @@ branches:
 install: 
   # - sudo apt-get install build-essential python-dev python3-pip
   - pip3 install -U pip coveralls
-  - pip3 install -U psutil cython=0.29.9 numpy
+  - pip3 install -U psutil cython==0.29.14 numpy
   - pip3 install .
 
 script:
