@@ -8,7 +8,6 @@ sudo python ./setup.py install
 '''
 
 import os
-import platform
 import sys
 import warnings
 from setuptools import setup, find_packages, Extension
@@ -85,7 +84,7 @@ cmdclass = {'build_ext': custom_build_ext}
 
 setup(
     name='fse',
-    version='0.1.15',
+    version='0.1.16',
     description='Fast Sentence Embeddings for Gensim',
 
     author=u'Oliver Borchers',
@@ -97,7 +96,7 @@ setup(
 
     ext_modules=[
         Extension('fse.models.average_inner',
-                sources=['./fse/models/average_inner.c'],
+                sources=['./fse/models/average_inner.pyx'], #.c
                 include_dirs=[mod_dir]),
         ],
         

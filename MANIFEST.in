@@ -3,6 +3,5 @@ include README.md
 
 include fse/models/voidptr.h
 
-include fse/models/average_inner.c
 include fse/models/average_inner.pyx
 include fse/models/average_inner.pxd

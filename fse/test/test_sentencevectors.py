@@ -31,14 +31,15 @@ W2V.build_vocab(SENTENCES)
 np.random.seed(42)
 W2V.wv.vectors = np.random.uniform(size=W2V.wv.vectors.shape).astype(np.float32)
 
+
 class TestSentenceVectorsFunctions(unittest.TestCase):
     def setUp(self):
         self.sv = SentenceVectors(2)
-        self.sv.vectors = np.arange(10).reshape(5,2)
+        self.sv.vectors = np.arange(10).reshape(5, 2)
 
     def test_getitem(self):
-        self.assertTrue(([0,1] == self.sv[0]).all())
-        self.assertTrue(([[0,1],[4,5]] == self.sv[[0,2]]).all())
+        self.assertTrue(([0, 1] == self.sv[0]).all())
+        self.assertTrue(([[0, 1], [4, 5]] == self.sv[[0, 2]]).all())
 
     def test_isin(self):
         self.assertTrue(0 in self.sv)
@@ -50,18 +51,18 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         self.assertFalse((self.sv.vectors == self.sv.vectors_norm).all())
 
         v1 = self.sv.vectors[0]
-        v1 = v1 / np.sqrt(np.sum(v1**2))
+        v1 = v1 / np.sqrt(np.sum(v1 ** 2))
 
         v2 = self.sv.vectors[1]
-        v2 = v2 / np.sqrt(np.sum(v2**2))
+        v2 = v2 / np.sqrt(np.sum(v2 ** 2))
 
         self.assertTrue(np.allclose(v1, self.sv.vectors_norm[0]))
         self.assertTrue(np.allclose(v2, self.sv.vectors_norm[1]))
         self.assertTrue(np.allclose(v2, self.sv.get_vector(1, True)))
 
     def test_get_vector(self):
-        self.assertTrue(([0,1] == self.sv.get_vector(0)).all())
-        self.assertTrue(([2,3] == self.sv.get_vector(1)).all())
+        self.assertTrue(([0, 1] == self.sv.get_vector(0)).all())
+        self.assertTrue(([2, 3] == self.sv.get_vector(1)).all())
 
     def test_init_sims_w_replace(self):
         self.sv.init_sims(True)
@@ -92,10 +93,8 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
 
         shape = (1000, 1000)
         sv.vectors = np.ones(shape, dtype=np.float32)
-        
-        memvecs = np.memmap(
-            p_target, dtype=np.float32,
-            mode='w+', shape=shape)
+
+        memvecs = np.memmap(p_target, dtype=np.float32, mode="w+", shape=shape)
         memvecs[:] = sv.vectors[:]
         del memvecs
 
@@ -115,13 +114,13 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
 
     def test_similarity(self):
         v1 = self.sv.vectors[0]
-        v1 = v1 / np.sqrt(np.sum(v1**2))
+        v1 = v1 / np.sqrt(np.sum(v1 ** 2))
 
         v2 = self.sv.vectors[1]
-        v2 = v2 / np.sqrt(np.sum(v2**2))
+        v2 = v2 / np.sqrt(np.sum(v2 ** 2))
 
-        self.assertTrue(np.allclose(v1.dot(v2), self.sv.similarity(0,1)))
-        self.assertTrue(np.allclose(1-v1.dot(v2), self.sv.distance(0,1)))
+        self.assertTrue(np.allclose(v1.dot(v2), self.sv.similarity(0, 1)))
+        self.assertTrue(np.allclose(1 - v1.dot(v2), self.sv.distance(0, 1)))
 
     def test_most_similar(self):
         sent_ind = IndexedList(SENTENCES)
@@ -153,7 +152,7 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         m = Average(W2V)
         m.train(sentences)
         m.sv.init_sims()
-        v = m.sv[[0,1]]
+        v = m.sv[[0, 1]]
         o = m.sv.most_similar(positive=v)
         self.assertEqual(1, o[0][0])
         self.assertEqual(0, o[1][0])
@@ -161,6 +160,7 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
     def test_most_similar_wrong_indexable(self):
         def indexable(self):
             pass
+
         sentences = IndexedLineDocument(CORPUS)
         m = Average(W2V)
         m.train(sentences)
@@ -193,7 +193,9 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         self.assertEqual(20, len(o))
         self.assertEqual(9, o[0][0])
 
-        o = m.sv.most_similar(positive=1, topn=20, restrict_size=(5, 25), indexable=sentences)
+        o = m.sv.most_similar(
+            positive=1, topn=20, restrict_size=(5, 25), indexable=sentences
+        )
         self.assertEqual(20, len(o))
         self.assertEqual(9, o[0][1])
 
@@ -220,18 +222,29 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         o = m.sv.similar_by_sentence(sentence=["the", "product", "is", "good"], model=m)
         self.assertEqual(4, o[0][0])
 
+    def test_similar_by_sentence_wrong_model(self):
+        sentences = IndexedLineDocument(CORPUS)
+        m = Average(W2V)
+        m.train(sentences)
+        with self.assertRaises(RuntimeError):
+            m.sv.similar_by_sentence(
+                sentence=["the", "product", "is", "good"], model=W2V
+            )
+
     def test_l2_norm(self):
-        out = np.random.normal(size=(200,50)).astype(np.float32)
+        out = np.random.normal(size=(200, 50)).astype(np.float32)
         result = _l2_norm(out, False)
-        lens = np.sqrt(np.sum((result**2), axis=-1))
+        lens = np.sqrt(np.sum((result ** 2), axis=-1))
         self.assertTrue(np.allclose(1, lens, atol=1e-6))
 
-        out = np.random.normal(size=(200,50)).astype(np.float32)
+        out = np.random.normal(size=(200, 50)).astype(np.float32)
         out = _l2_norm(out, True)
-        lens = np.sqrt(np.sum((out**2), axis=-1))
+        lens = np.sqrt(np.sum((out ** 2), axis=-1))
         self.assertTrue(np.allclose(1, lens, atol=1e-6))
 
 
-if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
+if __name__ == "__main__":
+    logging.basicConfig(
+        format="%(asctime)s : %(levelname)s : %(message)s", level=logging.DEBUG
+    )
     unittest.main()

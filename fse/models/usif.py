@@ -9,15 +9,25 @@ from fse.models.utils import compute_principal_components, remove_principal_comp
 
 from gensim.models.keyedvectors import BaseKeyedVectors
 
-from numpy import ndarray, float32 as REAL, zeros
+from numpy import ndarray, float32 as REAL, zeros, isfinite
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-class uSIF(Average):
 
-    def __init__(self, model:BaseKeyedVectors, length:int=None, components:int=5, sv_mapfile_path:str=None, wv_mapfile_path:str=None, workers:int=1, lang_freq:str=None):        
+class uSIF(Average):
+    def __init__(
+        self,
+        model: BaseKeyedVectors,
+        length: int = None,
+        components: int = 5,
+        cache_size_gb: int = 1.0,
+        sv_mapfile_path: str = None,
+        wv_mapfile_path: str = None,
+        workers: int = 1,
+        lang_freq: str = None,
+    ):
         """ Unsupervised smooth-inverse frequency (uSIF) weighted sentence embeddings model. Performs a weighted averaging operation over all
         words in a sentences. After training, the model removes a number of weighted singular vectors.
 
@@ -37,6 +47,8 @@ class uSIF(Average):
         components : int, optional
             Corresponds to the number of singular vectors to remove from the sentence embeddings.
             Is equivalent to m in the paper.
+        cache_size_gb : float, optional
+            Cache size for computing the singular vectors in GB.
         sv_mapfile_path : str, optional
             Optional path to store the sentence-vectors in for very large datasets. Used for memmap.
         wv_mapfile_path : str, optional
@@ -56,18 +68,28 @@ class uSIF(Average):
 
         self.length = length
         self.components = int(components)
+        self.cache_size_gb = float(cache_size_gb)
         self.svd_res = None
         self.svd_weights = None
 
-        super(Average, self).__init__(
-            model=model, sv_mapfile_path=sv_mapfile_path, wv_mapfile_path=wv_mapfile_path,
-            workers=workers, lang_freq=lang_freq)
+        if lang_freq is None:
+            logger.info(
+                "make sure you are using a model with valid word-frequency information. Otherwise use lang_freq argument."
+            )
+
+        super(uSIF, self).__init__(
+            model=model,
+            sv_mapfile_path=sv_mapfile_path,
+            wv_mapfile_path=wv_mapfile_path,
+            workers=workers,
+            lang_freq=lang_freq,
+        )
 
     def _check_parameter_sanity(self):
         """ Check the sanity of all paramters """
-        if self.length <= 0.:
+        if self.length <= 0.0:
             raise ValueError("Length must be greater than zero.")
-        if self.components < 0.:
+        if self.components < 0.0:
             raise ValueError("Components must be greater or equal zero")
 
     def _pre_train_calls(self, **kwargs):
@@ -78,22 +100,37 @@ class uSIF(Average):
     def _post_train_calls(self):
         """ Function calls to perform after training, such as computing eigenvectors """
         if self.components > 0:
-            self.svd_res = compute_principal_components(self.sv.vectors, components=self.components)
-            self.svd_weights = (self.svd_res[0] ** 2) / (self.svd_res[0] ** 2).sum().astype(REAL)
-            remove_principal_components(self.sv.vectors, svd_res=self.svd_res, weights=self.svd_weights, inplace=True)
+            self.svd_res = compute_principal_components(
+                self.sv.vectors,
+                components=self.components,
+                cache_size_gb=self.cache_size_gb,
+            )
+            self.svd_weights = (self.svd_res[0] ** 2) / (
+                self.svd_res[0] ** 2
+            ).sum().astype(REAL)
+            remove_principal_components(
+                self.sv.vectors,
+                svd_res=self.svd_res,
+                weights=self.svd_weights,
+                inplace=True,
+            )
         else:
             self.svd_res = 0
             logger.info(f"no removal of principal components")
 
-    def _post_inference_calls(self, output:ndarray):
+    def _post_inference_calls(self, output: ndarray):
         """ Function calls to perform after training & inference """
         if self.svd_res is None:
-            raise RuntimeError("You must first train the model to obtain SVD components")
+            raise RuntimeError(
+                "You must first train the model to obtain SVD components"
+            )
         elif self.components > 0:
-            remove_principal_components(output, svd_res=self.svd_res, weights=self.svd_weights, inplace=True)
+            remove_principal_components(
+                output, svd_res=self.svd_res, weights=self.svd_weights, inplace=True
+            )
         else:
             logger.info(f"no removal of principal components")
-    
+
     def _check_dtype_santiy(self):
         """ Check the dtypes of all attributes """
         if self.word_weights.dtype != REAL:
@@ -102,9 +139,13 @@ class uSIF(Average):
             if self.svd_res[0].dtype != REAL:
                 raise TypeError(f"type of svd values is wrong: {self.svd_res[0].dtype}")
             if self.svd_res[1].dtype != REAL:
-                raise TypeError(f"type of svd components is wrong: {self.svd_res[1].dtype}")
+                raise TypeError(
+                    f"type of svd components is wrong: {self.svd_res[1].dtype}"
+                )
             if self.svd_weights.dtype != REAL:
-                raise TypeError(f"type of svd weights is wrong: {self.svd_weights.dtype}")
+                raise TypeError(
+                    f"type of svd weights is wrong: {self.svd_weights.dtype}"
+                )
 
     def _compute_usif_weights(self):
         """ Precomputes the uSIF weights """
@@ -119,9 +160,16 @@ class uSIF(Average):
             pw[self.wv.vocab[word].index] = c
         pw /= corpus_size
 
-        threshold = 1 - (1-(1/v)) ** self.length
+        threshold = 1 - (1 - (1 / v)) ** self.length
         alpha = sum(pw > threshold) / v
-        z = v/2
-        a = (1 - alpha)/(alpha * z)
+        z = v / 2
+        a = (1 - alpha) / (alpha * z)
 
-        self.word_weights = (a / ((a/2) + pw)).astype(REAL)
+        self.word_weights = (a / ((a / 2) + pw)).astype(REAL)
+
+        if not all(isfinite(self.word_weights)):
+            raise RuntimeError(
+                "Encountered nan values. "
+                "This likely happens because the word frequency information is wrong/missing. "
+                "Consider restarting using lang_freq argument to infer frequency. "
+            )

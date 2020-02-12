@@ -4,7 +4,7 @@
 # Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
 # Copyright (C) 2019 Oliver Borchers
 
-from typing import NamedTuple, List, MutableSequence
+from typing import MutableSequence
 
 from gensim.utils import any2unicode
 from smart_open import open

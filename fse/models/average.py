@@ -30,15 +30,21 @@ Initialize and train a :class:`~fse.models.sentence2vec.Sentence2Vec` model
 
 """
 
-from __future__ import division 
+from __future__ import division
 
 from fse.models.base_s2v import BaseSentence2VecModel
 
 from gensim.models.keyedvectors import BaseKeyedVectors
 from gensim.models.utils_any2vec import ft_ngram_hashes
 
-from numpy import ndarray, float32 as REAL, sum as np_sum, multiply as np_mult,\
-    zeros, max as np_max
+from numpy import (
+    ndarray,
+    float32 as REAL,
+    sum as np_sum,
+    multiply as np_mult,
+    zeros,
+    max as np_max,
+)
 
 from typing import List
 
@@ -46,7 +52,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[tuple], target:ndarray, memory:ndarray) -> [int,int]:
+
+def train_average_np(
+    model: BaseSentence2VecModel,
+    indexed_sentences: List[tuple],
+    target: ndarray,
+    memory: ndarray,
+) -> [int, int]:
     """Training on a sequence of sentences and update the target ndarray.
 
     Called internally from :meth:`~fse.models.average.Average._do_train_job`.
@@ -86,7 +98,6 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[tuple],
     is_ft = model.is_ft
 
     mem = memory[0]
-    subwords_idx = memory[1]
 
     if is_ft:
         # NOTE: For Fasttext: Use wv.vectors_vocab
@@ -106,55 +117,69 @@ def train_average_np(model:BaseSentence2VecModel, indexed_sentences:List[tuple],
 
     if not is_ft:
         for obj in indexed_sentences:
-            mem.fill(0.)
+            mem.fill(0.0)
             sent = obj[0]
             sent_adr = obj[1]
-            
+
             word_indices = [vocab[word].index for word in sent if word in vocab]
             eff_sentences += 1
             if not len(word_indices):
                 continue
             eff_words += len(word_indices)
 
-            mem += np_sum(np_mult(w_vectors[word_indices],w_weights[word_indices][:,None]) , axis=0)
-            mem *= 1/len(word_indices)
+            mem += np_sum(
+                np_mult(w_vectors[word_indices], w_weights[word_indices][:, None]),
+                axis=0,
+            )
+            mem *= 1 / len(word_indices)
             s_vectors[sent_adr] = mem.astype(REAL)
     else:
         for obj in indexed_sentences:
-            mem.fill(0.)
+            mem.fill(0.0)
             sent = obj[0]
             sent_adr = obj[1]
-            
+
             if not len(sent):
                 continue
             mem = zeros(size, dtype=REAL)
 
             eff_sentences += 1
-            eff_words += len(sent) # Counts everything in the sentence
+            eff_words += len(sent)  # Counts everything in the sentence
 
             for word in sent:
                 if word in vocab:
                     word_index = vocab[word].index
                     mem += w_vectors[word_index] * w_weights[word_index]
                 else:
-                    ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket, True)[:max_ngrams]
+                    ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket, True)[
+                        :max_ngrams
+                    ]
                     if len(ngram_hashes) == 0:
                         continue
-                    mem += oov_weight * (np_sum(ngram_vectors[ngram_hashes], axis=0) / len(ngram_hashes))
+                    mem += oov_weight * (
+                        np_sum(ngram_vectors[ngram_hashes], axis=0) / len(ngram_hashes)
+                    )
                 # Implicit addition of zero if oov does not contain any ngrams
             s_vectors[sent_adr] = mem / len(sent)
 
     return eff_sentences, eff_words
 
+
 try:
     from fse.models.average_inner import train_average_cy
-    from fse.models.average_inner import FAST_VERSION, MAX_WORDS_IN_BATCH, MAX_NGRAMS_IN_BATCH
+    from fse.models.average_inner import (
+        FAST_VERSION,
+        MAX_WORDS_IN_BATCH,
+        MAX_NGRAMS_IN_BATCH,
+    )
+
     train_average = train_average_cy
 except ImportError:
     FAST_VERSION = -1
     MAX_WORDS_IN_BATCH = 10000
     MAX_NGRAMS_IN_BATCH = 40
     train_average = train_average_np
+
 
 class Average(BaseSentence2VecModel):
     """ Train, use and evaluate averaged sentence vectors.
@@ -180,7 +205,15 @@ class Average(BaseSentence2VecModel):
     
     """
 
-    def __init__(self, model:BaseKeyedVectors, sv_mapfile_path:str=None, wv_mapfile_path:str=None, workers:int=1, lang_freq:str=None, **kwargs):
+    def __init__(
+        self,
+        model: BaseKeyedVectors,
+        sv_mapfile_path: str = None,
+        wv_mapfile_path: str = None,
+        workers: int = 1,
+        lang_freq: str = None,
+        **kwargs
+    ):
         """ Average (unweighted) sentence embeddings model. Performs a simple averaging operation over all
         words in a sentences without further transformation.
 
@@ -210,20 +243,28 @@ class Average(BaseSentence2VecModel):
         """
 
         super(Average, self).__init__(
-            model=model, sv_mapfile_path=sv_mapfile_path, wv_mapfile_path=wv_mapfile_path,
-            workers=workers, lang_freq=lang_freq,
-            batch_words=MAX_WORDS_IN_BATCH, batch_ngrams=MAX_NGRAMS_IN_BATCH,
-            fast_version=FAST_VERSION
-            )
+            model=model,
+            sv_mapfile_path=sv_mapfile_path,
+            wv_mapfile_path=wv_mapfile_path,
+            workers=workers,
+            lang_freq=lang_freq,
+            batch_words=MAX_WORDS_IN_BATCH,
+            batch_ngrams=MAX_NGRAMS_IN_BATCH,
+            fast_version=FAST_VERSION,
+        )
 
-    def _do_train_job(self, data_iterable:List[tuple], target:ndarray, memory:ndarray) -> [int, int]:
+    def _do_train_job(
+        self, data_iterable: List[tuple], target: ndarray, memory: ndarray
+    ) -> [int, int]:
         """ Internal routine which is called on training and performs averaging for all entries in the iterable """
-        eff_sentences, eff_words = train_average(model=self, indexed_sentences=data_iterable, target=target, memory=memory)
+        eff_sentences, eff_words = train_average(
+            model=self, indexed_sentences=data_iterable, target=target, memory=memory
+        )
         return eff_sentences, eff_words
 
     def _check_parameter_sanity(self, **kwargs):
         """ Check the sanity of all child paramters """
-        if not all(self.word_weights == 1.): 
+        if not all(self.word_weights == 1.0):
             raise ValueError("All word weights must equal one for averaging")
 
     def _pre_train_calls(self, **kwargs):
@@ -233,15 +274,13 @@ class Average(BaseSentence2VecModel):
     def _post_train_calls(self, **kwargs):
         """ Function calls to perform after training, such as computing eigenvectors """
         pass
-    
+
     def _post_inference_calls(self, **kwargs):
         """ Function calls to perform after training & inference
         Examples include the removal of components
         """
         pass
-    
+
     def _check_dtype_santiy(self, **kwargs):
         """ Check the dtypes of all child attributes"""
         pass
-
-    
