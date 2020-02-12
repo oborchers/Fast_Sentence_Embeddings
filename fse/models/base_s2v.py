@@ -373,7 +373,7 @@ class BaseSentence2VecModel(SaveLoad):
         if self.word_weights.dtype != REAL:
             raise TypeError(f"type of word_weights is wrong: {self.word_weights.dtype}")
 
-        if total_sentences is 0 or total_words is 0 or average_length is 0:
+        if total_sentences == 0 or total_words == 0 or average_length == 0:
             raise ValueError(
                 f"scanning the sentences returned invalid values. Check the input."
             )
@@ -389,7 +389,7 @@ class BaseSentence2VecModel(SaveLoad):
             Number of effective words encountered during training
         
         """
-        if eff_sentences is 0 or eff_words is 0:
+        if eff_sentences == 0 or eff_words == 0:
             raise ValueError(f"training returned invalid values. Check the input.")
 
     def _check_indexed_sent_valid(
