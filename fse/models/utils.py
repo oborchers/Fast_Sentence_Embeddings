@@ -76,9 +76,10 @@ def compute_principal_components(
 
     current_mem = INF
     sample_size = len(vectors)
-    while 1:
+    while current_mem >= cache_size_gb:
         current_mem = sample_size * vectors.shape[1] * dtype(REAL).itemsize / 1024 ** 3
         if current_mem < cache_size_gb:
+            # Skip if full dataset is already smaller than cache_size_gb
             break
         sample_size *= 0.995
     sample_size = int(sample_size)
