@@ -62,12 +62,6 @@ Things I will work on next:
 
 **[ ]** Approximate Nearest Neighbor Search for SentenceVectors
 
-**[ ]** Discrete Cosine Transform Embedding (?)
-
-**[ ]** VLAVE Embedding (?)
-
-**[ ]** PowerMeans Embedding (?)
-
 
 
 Installation
