@@ -25,7 +25,8 @@ logger = logging.getLogger(__name__)
 CORPUS = Path("fse/test/test_data/test_sentences.txt")
 DIM = 5
 W2V = Word2Vec(min_count=1, size=DIM)
-SENTENCES = [l.split() for i, l in enumerate(open(CORPUS, "r"))]
+with open(CORPUS, "r") as f:
+    SENTENCES = [l.split() for i, l in enumerate(f)]
 W2V.build_vocab(SENTENCES)
 W2V.wv.vectors[:,] = np.arange(len(W2V.wv.vectors), dtype=np.float32)[:, None]
 
