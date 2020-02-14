@@ -1,6 +1,6 @@
 path_classifiers:
   test:
-      - exclude: "**/test_*"
+      - test
 
 extraction:
   python:
