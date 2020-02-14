@@ -150,6 +150,9 @@ class CIndexedList(BaseIndexedList):
         """
         self.custom_index = custom_index
 
+        if len(args) > 1:
+            RuntimeError("Argument merging not supported")
+
         super(CIndexedList, self).__init__(*args)
 
         if len(self.items) != len(self.custom_index):
@@ -175,9 +178,6 @@ class CIndexedList(BaseIndexedList):
         raise NotImplementedError("Method currently not supported")
 
     def append(self, item:str):
-        raise NotImplementedError("Method currently not supported")
-    
-    def extend(self, arg:[list, set, ndarray]):
         raise NotImplementedError("Method currently not supported")
 
 class SplitIndexedList(BaseIndexedList):
@@ -220,6 +220,9 @@ class SplitCIndexedList(BaseIndexedList):
         """
         self.custom_index = custom_index
 
+        if len(args) > 1:
+            RuntimeError("Argument merging not supported")
+
         super(SplitCIndexedList, self).__init__(*args)
 
         if len(self.items) != len(self.custom_index):
@@ -248,9 +251,6 @@ class SplitCIndexedList(BaseIndexedList):
     def append(self, item:str):
         raise NotImplementedError("Method currently not supported")
     
-    def extend(self, arg:[list, set, ndarray]):
-        raise NotImplementedError("Method currently not supported")
-
 class CSplitIndexedList(BaseIndexedList):
 
     def __init__(self, *args:[list, set, ndarray], custom_split:callable):
@@ -296,6 +296,9 @@ class CSplitCIndexedList(BaseIndexedList):
         """
         self.custom_split = custom_split
         self.custom_index = custom_index
+
+        if len(args) > 1:
+            RuntimeError("Argument merging not supported")
         
         super(CSplitCIndexedList, self).__init__(*args)
 
@@ -322,9 +325,6 @@ class CSplitCIndexedList(BaseIndexedList):
         raise NotImplementedError("Method currently not supported")
 
     def append(self, item:str):
-        raise NotImplementedError("Method currently not supported")
-    
-    def extend(self, arg:[list, set, ndarray]):
         raise NotImplementedError("Method currently not supported")
 
 class IndexedLineDocument(object):
