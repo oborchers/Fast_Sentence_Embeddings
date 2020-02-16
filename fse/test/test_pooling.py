@@ -37,10 +37,13 @@ FT = FastText(min_count=1, size=DIM)
 FT.build_vocab(SENTENCES)
 FT.wv.vectors[:,] = np.arange(len(FT.wv.vectors), dtype=np.float32)[:, None]
 FT.wv.vectors_vocab = FT.wv.vectors
-FT.wv.vectors_ngrams[:,] = np.arange(len(FT.wv.vectors_ngrams), dtype=np.float32)[:, None]
+FT.wv.vectors_ngrams[:,] = np.arange(len(FT.wv.vectors_ngrams), dtype=np.float32)[
+    :, None
+]
 
 FT_R = FastText(min_count=1, size=DIM)
 FT_R.build_vocab(SENTENCES)
+
 
 class TestAverageFunctions(unittest.TestCase):
     def setUp(self):
@@ -49,7 +52,7 @@ class TestAverageFunctions(unittest.TestCase):
             ["So", "Apple", "bought", "buds"],
             ["go", "12345"],
             ["pull", "12345678910111213"],
-            "this is a longer test sentence test longer sentences".split()
+            "this is a longer test sentence test longer sentences".split(),
         ]
         self.sentences = [(s, i) for i, s in enumerate(self.sentences)]
         self.model = MaxPooling(W2V)
@@ -230,16 +233,16 @@ class TestAverageFunctions(unittest.TestCase):
         se.word_weights = np.full(20, 2.0, dtype=np.float32)
         with self.assertRaises(ValueError):
             se._check_parameter_sanity()
-        
+
         se = MaxPooling(W2V, window_size=0)
         with self.assertRaises(ValueError):
             se._check_parameter_sanity()
-        
+
     def test_train(self):
         self.assertEqual(
             (100, 1450), self.model.train([(s, i) for i, s in enumerate(SENTENCES)])
         )
-    
+
     def test_do_train_job(self):
         self.model.prep.prepare_vectors(
             sv=self.model.sv, total_sentences=len(SENTENCES), update=True
@@ -272,13 +275,13 @@ class TestAverageFunctions(unittest.TestCase):
         mpool = MaxPooling(W2V_R)
         mpool.train(self.sentences)
         self.assertTrue((mpool.sv.vectors >= 0).all())
-        
+
     def test_hier_pooling_train_np_w2v(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
         mem = self.model._get_thread_working_mem()
 
         self.model.hierarchical = True
-        
+
         output = train_pooling_np(
             self.model, self.sentences, self.model.sv.vectors, mem
         )
@@ -341,6 +344,7 @@ class TestAverageFunctions(unittest.TestCase):
         mpool = MaxPooling(FT_R, hierarchical=True)
         mpool.train(self.sentences)
         self.assertTrue((mpool.sv.vectors >= 0).all())
+
 
 if __name__ == "__main__":
     logging.basicConfig(

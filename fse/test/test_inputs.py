@@ -134,7 +134,7 @@ class TestCIndexedList(unittest.TestCase):
             self.il.insert(0, "the")
         with self.assertRaises(NotImplementedError):
             self.il.append("the")
-    
+
     def test_arg_merging(self):
         with self.assertRaises(RuntimeError):
             CIndexedList(self.list_a, self.list_a, custom_index=[1, 1])
@@ -170,7 +170,7 @@ class TestSplitCIndexedList(unittest.TestCase):
             self.il.insert(0, "the")
         with self.assertRaises(NotImplementedError):
             self.il.append("the")
-    
+
     def test_arg_merging(self):
         with self.assertRaises(RuntimeError):
             SplitCIndexedList(self.list_a, self.list_a, custom_index=[1, 1])
@@ -199,13 +199,16 @@ class TestCSplitCIndexedList(unittest.TestCase):
             self.il.insert(0, "the")
         with self.assertRaises(NotImplementedError):
             self.il.append("the")
-            
+
     def test_arg_merging(self):
         with self.assertRaises(RuntimeError):
-            CSplitCIndexedList(self.list_a, self.list_a, 
+            CSplitCIndexedList(
+                self.list_a,
+                self.list_a,
                 custom_split=self.split_func,
-                custom_index=[1, 1]
+                custom_index=[1, 1],
             )
+
 
 class TestIndexedLineDocument(unittest.TestCase):
     def setUp(self):

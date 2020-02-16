@@ -117,7 +117,7 @@ def train_pooling_np(
         bucket = model.wv.bucket
         oov_weight = np_amax(w_weights)
 
-    def get_ft_vector(word:str) -> ndarray:
+    def get_ft_vector(word: str) -> ndarray:
         """ Function to compute the FT vectors if applicable
 
         Parameters
@@ -136,14 +136,14 @@ def train_pooling_np(
             return w_vectors[vocab_index] * w_weights[vocab_index]
         else:
             # Requires additional temporary storage
-            ngram_hashes = ft_ngram_hashes(
-                word, min_n, max_n, bucket, True
-            )[:max_ngrams]
+            ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket, True)[
+                :max_ngrams
+            ]
             if len(ngram_hashes) == 0:
                 return zeros(size, dtype=REAL)
             return (
-                oov_weight *
-                np_sum(ngram_vectors[ngram_hashes], axis=0)
+                oov_weight
+                * np_sum(ngram_vectors[ngram_hashes], axis=0)
                 / len(ngram_hashes)
             )
 
@@ -200,8 +200,7 @@ def train_pooling_np(
             if not hierarchical:
                 for word in sent:
                     s_vectors[sent_adr] = np_maximum(
-                        get_ft_vector(word),
-                        s_vectors[sent_adr],
+                        get_ft_vector(word), s_vectors[sent_adr],
                     )
             else:
                 for word_index, word in enumerate(sent):
@@ -216,12 +215,10 @@ def train_pooling_np(
                         count += 1
                     mem /= count
 
-                    s_vectors[sent_adr] = np_maximum(
-                        mem,
-                        s_vectors[sent_adr],
-                    )
+                    s_vectors[sent_adr] = np_maximum(mem, s_vectors[sent_adr],)
 
     return eff_sentences, eff_words
+
 
 # try:
 # from fse.models.average_inner import train_average_cy
