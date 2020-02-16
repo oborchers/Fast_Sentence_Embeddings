@@ -20,16 +20,14 @@ Find the corresponding blog post(s) here:
 - [Visualizing 100,000 Amazon Products](https://towardsdatascience.com/vis-amz-83dea6fcb059)
 - [Sentence Embeddings. Fast, please!](https://towardsdatascience.com/fse-2b1ffa791cf9)
 
-- **Announcment: Please understand, that I am at the end of my PhD and I do not have  many free minutes to fix issues or add features.**
-
-**fse** implements three algorithms for sentence embeddings. You can choose
-between *unweighted sentence averages*,  *smooth inverse frequency averages*, and *unsupervised smooth inverse frequency averages*. 
+**fse** implements five algorithms for sentence embeddings. You can choose
+between *unweighted sentence averages*, *smooth inverse frequency averages*, *unsupervised smooth inverse frequency averages*, *max pooling*, and *hierarchical max pooling*. 
 
 Key features of **fse** are: 
 
 **[X]** Up to 500.000 sentences / second (1)
 
-**[X]** Supports Average, SIF, and uSIF Embeddings
+**[X]** Supports Average, SIF, uSIF, MaxPooling, and Hierarchical MaxPooling Embeddings
 
 **[X]** Full support for Gensims Word2Vec and all other compatible classes
 
@@ -51,18 +49,13 @@ Key features of **fse** are:
 
 **[X]** Extensive documentation of all functions
 
+**[X]** Extensive unittest for Linux/OSX
+
 **[X]** Optimized Input Classes
 
 (1) May vary significantly from system to system (i.e. by using swap memory) and processing.
 I regularly observe 300k-500k sentences/s for preprocessed data on my Macbook (2016).
 Visit **Tutorial.ipynb** for an example.
-
-Things I will work on next:
-
-**[ ]** MaxPooling / Hierarchical Pooling Embedding
-
-**[ ]** Approximate Nearest Neighbor Search for SentenceVectors
-
 
 
 Installation
@@ -107,6 +100,7 @@ The models presented are based on
 - Deep-averaging embeddings [1]
 - Smooth inverse frequency embeddings [2]
 - Unsupervised smooth inverse frequency embeddings [3]
+- MaxPooling / Hierarchical MaxPooling [5]
 
 Credits to Radim Řehůřek and all contributors for the **awesome** library
 and code that [Gensim](https://github.com/RaRe-Technologies/gensim) provides. A whole lot of the code found in this lib is based on Gensim.
@@ -156,6 +150,17 @@ Model | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Re
 Changelog
 -------------
 
+0.1.16 from 0.1.15:
+- Added MaxPooling / Hierarchical MaxPooling
+- Added features to Sentencevectors
+- Added further unittests
+- Workaround for Numpy memmap issue (https://github.com/numpy/numpy/issues/13172)
+- Bugfixes for python 3.8 builds
+- Code refactoring to black style
+- SVD ram subsampling for SIF / uSIF
+- Minor fixes for nan-handling
+- Minor fix for sentencevectors class
+
 0.1.15 from 0.1.11:
 - Fixed major FT Ngram computation bug
 - Rewrote the input class. Turns out NamedTuple was pretty slow. 
@@ -180,6 +185,8 @@ Embeddings. Int. Conf. Learn. Represent. (Toulon, France), 1–16.
 Proceedings of the 3rd Workshop on Representation Learning for NLP. (Toulon, France), 91–100.
 
 4. Eneko Agirre, Daniel Cer, Mona Diab, Iñigo Lopez-Gazpio, Lucia Specia. Semeval-2017 Task 1: Semantic Textual Similarity Multilingual and Crosslingual Focused Evaluation. Proceedings of SemEval 2017.
+
+5. Dinghan Shen, Guoyin Wang, Wenlin Wang, Martin Renqiang Min, Qinliang Su, Yizhe Zhang, Chunyuan Li, Ricardo Henao, Lawrence Carin (2018) Baseline Needs More Love: On Simple Word-Embedding-Based Models and Associated Pooling Mechanisms. ACL 2018.
 
 
 Copyright
