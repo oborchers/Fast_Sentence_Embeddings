@@ -5,7 +5,7 @@
 # Copyright (C) 2019 Oliver Borchers
 
 """
-Automated tests for checking the average model.
+Automated tests for checking the model.
 """
 
 import logging

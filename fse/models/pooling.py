@@ -315,7 +315,7 @@ class MaxPooling(BaseSentence2VecModel):
     def _do_train_job(
         self, data_iterable: List[tuple], target: ndarray, memory: tuple
     ) -> [int, int]:
-        """ Internal routine which is called on training and performs averaging for all entries in the iterable """
+        """ Internal routine which is called on training and performs pooling for all entries in the iterable """
         eff_sentences, eff_words = train_pooling(
             model=self, indexed_sentences=data_iterable, target=target, memory=memory,
         )
