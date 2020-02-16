@@ -523,13 +523,13 @@ class BaseSentence2VecModel(SaveLoad):
         readonly_memvecs = np_memmap(path, dtype=REAL, mode="r", shape=shape)
         return readonly_memvecs
 
-    def _get_thread_working_mem(self) -> [ndarray, ndarray]:
+    def _get_thread_working_mem(self) -> tuple:
         """Computes the memory used per worker thread.
 
         Returns
         -------
-        np.ndarray
-            Each worker threads private work memory.
+        tuple
+            Each worker threads private work memory array(s).
 
         """
         mem = zeros_aligned(self.sv.vector_size, dtype=REAL)
@@ -537,7 +537,7 @@ class BaseSentence2VecModel(SaveLoad):
         return (mem, oov_mem)
 
     def _do_train_job(
-        self, data_iterable: List[tuple], target: ndarray, memory: ndarray
+        self, data_iterable: List[tuple], target: ndarray, memory: tuple
     ) -> [int, int]:
         """ Function to be called on a batch of sentences. Returns eff sentences/words """
         raise NotImplementedError()

@@ -58,7 +58,7 @@ def train_pooling_np(
     model: BaseSentence2VecModel,
     indexed_sentences: List[tuple],
     target: ndarray,
-    memory: ndarray,
+    memory: tuple,
 ) -> [int, int]:
     """Training on a sequence of sentences and update the target ndarray.
 
@@ -67,7 +67,7 @@ def train_pooling_np(
     Warnings
     --------
     This is the non-optimized, pure Python version. If you have a C compiler,
-    fse will use an optimized code path from :mod:`fse.models.average_inner` instead.
+    fse will use an optimized code path from :mod:`fse.models.pooling_inner` instead.
 
     Parameters
     ----------
@@ -78,8 +78,8 @@ def train_pooling_np(
     target : ndarray
         The target ndarray. We use the index from indexed_sentences
         to write into the corresponding row of target.
-    memory : ndarray
-        Private memory for each working thread
+    memory : tuple
+        Private memory array(s) for each working thread
 
     Returns
     -------
@@ -118,6 +118,19 @@ def train_pooling_np(
         oov_weight = np_amax(w_weights)
 
     def get_ft_vector(word:str) -> ndarray:
+        """ Function to compute the FT vectors if applicable
+
+        Parameters
+        ----------
+        word : str
+            String representation of token
+
+        Returns
+        -------
+        ndarray
+            FT vector representation
+
+        """
         if word in vocab:
             vocab_index = vocab[word].index
             return w_vectors[vocab_index] * w_weights[vocab_index]
@@ -299,7 +312,7 @@ class MaxPooling(BaseSentence2VecModel):
         )
 
     def _do_train_job(
-        self, data_iterable: List[tuple], target: ndarray, memory: ndarray
+        self, data_iterable: List[tuple], target: ndarray, memory: tuple
     ) -> [int, int]:
         """ Internal routine which is called on training and performs averaging for all entries in the iterable """
         eff_sentences, eff_words = train_pooling(

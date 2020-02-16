@@ -57,7 +57,7 @@ def train_average_np(
     model: BaseSentence2VecModel,
     indexed_sentences: List[tuple],
     target: ndarray,
-    memory: ndarray,
+    memory: tuple,
 ) -> [int, int]:
     """Training on a sequence of sentences and update the target ndarray.
 
@@ -77,8 +77,8 @@ def train_average_np(
     target : ndarray
         The target ndarray. We use the index from indexed_sentences
         to write into the corresponding row of target.
-    memory : ndarray
-        Private memory for each working thread
+    memory : tuple
+        Private memory array(s) for each working thread
 
     Returns
     -------
@@ -254,7 +254,7 @@ class Average(BaseSentence2VecModel):
         )
 
     def _do_train_job(
-        self, data_iterable: List[tuple], target: ndarray, memory: ndarray
+        self, data_iterable: List[tuple], target: ndarray, memory: tuple
     ) -> [int, int]:
         """ Internal routine which is called on training and performs averaging for all entries in the iterable """
         eff_sentences, eff_words = train_average(
