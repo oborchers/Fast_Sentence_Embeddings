@@ -131,7 +131,7 @@ def train_average_np(
                 np_mult(w_vectors[word_indices], w_weights[word_indices][:, None]),
                 axis=0,
             )
-            mem *= 1 / len(word_indices)
+            mem /= len(word_indices)
             s_vectors[sent_adr] += mem.astype(REAL)
     else:
         for obj in indexed_sentences:

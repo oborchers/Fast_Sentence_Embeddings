@@ -95,9 +95,9 @@ class TestAverageFunctions(unittest.TestCase):
         mem = m._get_thread_working_mem()
         output = train_average_np(m, self.sentences, m.sv.vectors, mem)
         self.assertEqual((4, 10), output)
-        self.assertTrue((1.0 == m.sv[0]).all())
-        self.assertTrue((1.5 == m.sv[2]).all())
-        self.assertTrue((2 == m.sv[3]).all())
+        self.assertTrue(np.allclose(1.0, m.sv[0]))
+        self.assertTrue(np.allclose(1.5, m.sv[2]))
+        self.assertTrue(np.allclose(2, m.sv[3]))
         # "go" -> [1,1...]
         # oov: "12345" -> (14 hashes * 2) / 14 =  2
         # (2 + 1) / 2 = 1.5
