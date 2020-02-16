@@ -132,7 +132,7 @@ def train_average_np(
                 axis=0,
             )
             mem *= 1 / len(word_indices)
-            s_vectors[sent_adr] = mem.astype(REAL)
+            s_vectors[sent_adr] += mem.astype(REAL)
     else:
         for obj in indexed_sentences:
             mem.fill(0.0)
@@ -160,7 +160,7 @@ def train_average_np(
                         np_sum(ngram_vectors[ngram_hashes], axis=0) / len(ngram_hashes)
                     )
                 # Implicit addition of zero if oov does not contain any ngrams
-            s_vectors[sent_adr] = mem / len(sent)
+            s_vectors[sent_adr] += mem / len(sent)
 
     return eff_sentences, eff_words
 
