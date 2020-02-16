@@ -163,10 +163,11 @@ def train_pooling_np(
 
             if not hierarchical:
                 # Take the maxium value along the axis
-                s_vectors[sent_adr] = np_amax(
+                mem = np_amax(
                     np_mult(w_vectors[word_indices], w_weights[word_indices][:, None]),
                     axis=0,
                 )
+                s_vectors[sent_adr] = np_maximum(s_vectors[sent_adr], mem,)
             else:
                 # More expensive iteration
                 for word_index, _ in enumerate(word_indices):

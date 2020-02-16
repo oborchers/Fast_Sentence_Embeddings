@@ -30,6 +30,17 @@ with open(CORPUS, "r") as f:
 W2V.build_vocab(SENTENCES)
 W2V.wv.vectors[:,] = np.arange(len(W2V.wv.vectors), dtype=np.float32)[:, None]
 
+W2V_R = Word2Vec(min_count=1, size=DIM)
+W2V_R.build_vocab(SENTENCES)
+
+FT = FastText(min_count=1, size=DIM)
+FT.build_vocab(SENTENCES)
+FT.wv.vectors[:,] = np.arange(len(FT.wv.vectors), dtype=np.float32)[:, None]
+FT.wv.vectors_vocab = FT.wv.vectors
+FT.wv.vectors_ngrams[:,] = np.arange(len(FT.wv.vectors_ngrams), dtype=np.float32)[:, None]
+
+FT_R = FastText(min_count=1, size=DIM)
+FT_R.build_vocab(SENTENCES)
 
 class TestAverageFunctions(unittest.TestCase):
     def setUp(self):
@@ -257,6 +268,11 @@ class TestAverageFunctions(unittest.TestCase):
         self.assertTrue((306 == self.model.sv[1]).all())
         self.assertTrue((self.model.wv.vocab["go"].index == self.model.sv[2]).all())
 
+    def test_pooling_train_np_w2v_non_negative(self):
+        mpool = MaxPooling(W2V_R)
+        mpool.train(self.sentences)
+        self.assertTrue((mpool.sv.vectors >= 0).all())
+        
     def test_hier_pooling_train_np_w2v(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
         mem = self.model._get_thread_working_mem()
@@ -272,19 +288,17 @@ class TestAverageFunctions(unittest.TestCase):
         self.assertTrue((183 == self.model.sv[0]).all())
         self.assertTrue(np.allclose(self.model.sv[4], 245.66667))
 
+    def test_hpooling_train_np_w2v_non_negative(self):
+        mpool = MaxPooling(W2V_R, hierarchical=True)
+        mpool.train(self.sentences)
+        self.assertTrue((mpool.sv.vectors >= 0).all())
+
     def test_pooling_train_np_ft(self):
-        ft = FastText(min_count=1, size=DIM)
-        ft.build_vocab(SENTENCES)
-        m = MaxPooling(ft)
+        m = MaxPooling(FT)
         m.prep.prepare_vectors(
             sv=m.sv, total_sentences=len(self.sentences), update=False
         )
         m._pre_train_calls()
-
-        m.wv.vectors[:,] = np.arange(len(m.wv.vectors), dtype=np.float32)[:, None]
-        m.wv.vectors_vocab = m.wv.vectors
-
-        m.wv.vectors_ngrams[:,] = np.arange(len(m.wv.vectors_ngrams), dtype=np.float32)[:, None]
         mem = m._get_thread_working_mem()
 
         output = train_pooling_np(m, self.sentences, m.sv.vectors, mem)
@@ -294,19 +308,17 @@ class TestAverageFunctions(unittest.TestCase):
         self.assertTrue((737413.9 == m.sv[2]).all())
         self.assertTrue((1080970.2 == m.sv[3]).all())
 
+    def test_pooling_train_np_ft_non_negative(self):
+        mpool = MaxPooling(FT_R)
+        mpool.train(self.sentences)
+        self.assertTrue((mpool.sv.vectors >= 0).all())
+
     def test_hier_pooling_train_np_ft(self):
-        ft = FastText(min_count=1, size=DIM)
-        ft.build_vocab(SENTENCES)
-        m = MaxPooling(ft)
+        m = MaxPooling(FT)
         m.prep.prepare_vectors(
             sv=m.sv, total_sentences=len(self.sentences), update=False
         )
         m._pre_train_calls()
-
-        m.wv.vectors[:,] = np.arange(len(m.wv.vectors), dtype=np.float32)[:, None]
-        m.wv.vectors_vocab = m.wv.vectors
-
-        m.wv.vectors_ngrams[:,] = np.arange(len(m.wv.vectors_ngrams), dtype=np.float32)[:, None]
         mem = m._get_thread_working_mem()
 
         m.hierarchical = True
@@ -324,6 +336,11 @@ class TestAverageFunctions(unittest.TestCase):
         will always be the highest value.
         TODO: This unittest is thus a bit flawed. Maybe fix?
         """
+
+    def test_hier_pooling_train_np_ft_non_negative(self):
+        mpool = MaxPooling(FT_R, hierarchical=True)
+        mpool.train(self.sentences)
+        self.assertTrue((mpool.sv.vectors >= 0).all())
 
 if __name__ == "__main__":
     logging.basicConfig(
