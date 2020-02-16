@@ -122,6 +122,7 @@ def train_pooling_np(
             vocab_index = vocab[word].index
             return w_vectors[vocab_index] * w_weights[vocab_index]
         else:
+            # Requires additional temporary storage
             ngram_hashes = ft_ngram_hashes(
                 word, min_n, max_n, bucket, True
             )[:max_ngrams]
@@ -167,7 +168,7 @@ def train_pooling_np(
                         axis=0,
                     )
                     # Perform hierarchical max pooling
-                    mem *= 1 / len(window_indices)
+                    mem /= len(window_indices)
                     s_vectors[sent_adr] = np_maximum(s_vectors[sent_adr], mem,)
     else:
         for obj in indexed_sentences:
@@ -184,40 +185,29 @@ def train_pooling_np(
 
             if not hierarchical:
                 for word in sent:
-                    if word in vocab:
-                        vocab_index = vocab[word].index
-                        s_vectors[sent_adr] = np_maximum(
-                            get_ft_vector(word),
-                            s_vectors[sent_adr],
-                        )
-                    else:
-                        ngram_hashes = ft_ngram_hashes(
-                            word, min_n, max_n, bucket, True
-                        )[:max_ngrams]
-                        if len(ngram_hashes) == 0:
-                            continue
-                        mem = oov_weight * (
-                            np_sum(ngram_vectors[ngram_hashes], axis=0)
-                            / len(ngram_hashes)
-                        )
-
-                        s_vectors[sent_adr] = np_maximum(
-                            mem,
-                            s_vectors[sent_adr],
-                        )
+                    s_vectors[sent_adr] = np_maximum(
+                        get_ft_vector(word),
+                        s_vectors[sent_adr],
+                    )
             else:
-                # Expensive iteration
                 for word_index, word in enumerate(sent):
                     mem.fill(0.0)
+                    mem += get_ft_vector(word)
+                    count = 1
+
                     for context in sent[word_index : word_index + window]:
                         if word == context:
                             continue
-                        print(context)
+                        mem += get_ft_vector(context)
+                        count += 1
+                    mem /= count
 
-
+                    s_vectors[sent_adr] = np_maximum(
+                        mem,
+                        s_vectors[sent_adr],
+                    )
 
     return eff_sentences, eff_words
-
 
 # try:
 # from fse.models.average_inner import train_average_cy
@@ -268,7 +258,6 @@ class MaxPooling(BaseSentence2VecModel):
         sv_mapfile_path: str = None,
         wv_mapfile_path: str = None,
         workers: int = 1,
-        lang_freq: str = None,
         **kwargs
     ):
         """ Max pooling sentence embeddings model. Performs a simple maximum pooling operation over all
@@ -293,14 +282,7 @@ class MaxPooling(BaseSentence2VecModel):
             Use sv_mapfile_path and wv_mapfile_path to train disk-to-disk without needing much ram.
         workers : int, optional
             Number of working threads, used for multithreading. For most tasks (few words in a sentence)
-            a value of 1 should be more than enough.
-        lang_freq : str, optional
-            Some pre-trained embeddings, i.e. "GoogleNews-vectors-negative300.bin", do not contain information about
-            the frequency of a word. As the frequency is required for estimating the word weights, we induce
-            frequencies into the wv.vocab.count based on :class:`~wordfreq`
-            If no frequency information is available, you can choose the language to estimate the frequency.
-            See https://github.com/LuminosoInsight/wordfreq
-        
+            a value of 1 should be more than enough. 
         """
         self.hierarchical = bool(hierarchical)
         self.window_size = int(window_size)
@@ -310,7 +292,7 @@ class MaxPooling(BaseSentence2VecModel):
             sv_mapfile_path=sv_mapfile_path,
             wv_mapfile_path=wv_mapfile_path,
             workers=workers,
-            lang_freq=lang_freq,
+            lang_freq=None,
             batch_words=MAX_WORDS_IN_BATCH,
             batch_ngrams=MAX_NGRAMS_IN_BATCH,
             fast_version=FAST_VERSION,

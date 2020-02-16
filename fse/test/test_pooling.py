@@ -314,10 +314,16 @@ class TestAverageFunctions(unittest.TestCase):
         output = train_pooling_np(m, self.sentences, m.sv.vectors, mem)
 
         self.assertEqual((5, 19), output)
-        # self.assertTrue((241 == m.sv[0]).all())
-        # self.assertTrue((737413.9 == m.sv[2]).all())
-        # self.assertTrue((1080970.2 == m.sv[3]).all())
-
+        self.assertTrue((183 == m.sv[0]).all())
+        self.assertTrue((737413.9 == m.sv[2]).all())
+        self.assertTrue((1080970.2 == m.sv[3]).all())
+        """
+        Note to future self:
+        Due to the size of the ngram vectors,
+        an ngram at the last position of the senence 
+        will always be the highest value.
+        TODO: This unittest is thus a bit flawed. Maybe fix?
+        """
 
 if __name__ == "__main__":
     logging.basicConfig(
