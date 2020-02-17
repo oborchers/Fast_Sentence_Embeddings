@@ -16,6 +16,7 @@ from setuptools.command.build_ext import build_ext
 if sys.version_info[:2] < (3, 6):
     raise Exception('This version of fse needs Python 3.6 or later.')
 
+
 class custom_build_ext(build_ext):
     '''Allow C extension building to fail.
     '''
@@ -77,6 +78,7 @@ http://api.mongodb.org/python/current/installation.html#osx
         import numpy
         self.include_dirs.append(numpy.get_include())
 
+
 mod_dir = os.path.join(os.path.dirname(__file__), 'fse', 'models')
 fse_dir = os.path.join(os.path.dirname(__file__), 'fse')
 
@@ -96,17 +98,19 @@ setup(
 
     ext_modules=[
         Extension('fse.models.average_inner',
-                sources=['./fse/models/average_inner.pyx'], #.c
-                include_dirs=[mod_dir]),
-        ],
-        
+                  sources=['./fse/models/average_inner.pyx'],  # .c
+                  include_dirs=[mod_dir]),
+    ],
+
     cmdclass=cmdclass,
     packages=find_packages(),
 
     zip_safe=False,
 
     test_suite="fse.test",
-
+    setup_requires=[
+        'numpy >= 1.11.3',
+    ],
     install_requires=[
         'numpy >= 1.11.3',
         'scipy >= 0.18.1',
