@@ -131,13 +131,14 @@ class BaseSentence2VecModel(SaveLoad):
             [ ] windows support
             [ ] documentation
             [ ] more benchmarks
+            [ ] more speed benchmarks -> worker support still somewhat weird
             [ ] remove wv_mapfile_path?
             [ ] modifiable sv_mapfile_path?
 
         [ ] models:
             [ ] check feasibility first
-            [ ] max-pooling -> easy
-            [ ] hierarchical pooling -> easy
+            [X] max-pooling -> easy
+            [X] hierarchical pooling -> easy
             [ ] discrete cosine transform -> somewhat easy, questionable
             [ ] valve -> unclear, not cited enough
             [ ] power-means embedding -> very large dimensionalty
