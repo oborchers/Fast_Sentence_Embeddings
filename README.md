@@ -81,6 +81,25 @@ If building the Cython extension fails (you will be notified), try:
 Usage
 -------------
 
+In order to use **fse** you must first estimate a Gensim model which contains a
+gensim.models.keyedvectors.BaseKeyedVectors class, for example 
+*Word2Vec* or *Fasttext*. Then you can proceed to compute sentence embeddings
+for a corpus.
+
+	from gensim.models import FastText
+	sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
+	ft = FastText(sentences, min_count=1, size=10)
+
+	from fse.models import Average
+	from fse import IndexedList
+	model = Average(ft)
+	model.train(IndexedList(sentences))
+
+	model.sv.similarity(0,1)
+
+fse offers multi-thread support out of the box. However, for most
+applications a *single thread will most likely be sufficient*.
+
 Within the folder nootebooks you can find the following guides:
 
 **Tutorial.ipynb** offers a detailed walk-through of some of the most important functions fse has to offer.
@@ -105,29 +124,12 @@ The models presented are based on
 Credits to Radim Řehůřek and all contributors for the **awesome** library
 and code that [Gensim](https://github.com/RaRe-Technologies/gensim) provides. A whole lot of the code found in this lib is based on Gensim.
 
-In order to use **fse** you must first estimate a Gensim model which contains a
-gensim.models.keyedvectors.BaseKeyedVectors class, for example 
-*Word2Vec* or *Fasttext*. Then you can proceed to compute sentence embeddings
-for a corpus.
-
-	from gensim.models import FastText
-	sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
-	ft = FastText(sentences, min_count=1, size=10)
-
-	from fse.models import Average
-	from fse import IndexedList
-	model = Average(ft)
-	model.train(IndexedList(sentences))
-
-	model.sv.similarity(0,1)
-
-fse offers multi-thread support out of the box. However, for most
-applications a *single thread will most likely be sufficient*.
-
 To install **fse** on Colab, check out: https://colab.research.google.com/drive/1qq9GBgEosG7YSRn7r6e02T9snJb04OEi 
 
 Results
 ------------
+
+Note: Though some models perform very good on the sentence-similarty-task (STS), this does not imply good performance in other donwstream tasks!
 
 Model | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Results)
 :---: | :---:
