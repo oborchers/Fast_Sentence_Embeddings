@@ -78,6 +78,8 @@ If building the Cython extension fails (you will be notified), try:
 
     pip install -U git+https://github.com/oborchers/Fast_Sentence_Embeddings
 
+To install **fse** on Colab, check out: https://colab.research.google.com/drive/1qq9GBgEosG7YSRn7r6e02T9snJb04OEi 
+
 Usage
 -------------
 
@@ -124,8 +126,6 @@ The models presented are based on
 Credits to Radim Řehůřek and all contributors for the **awesome** library
 and code that [Gensim](https://github.com/RaRe-Technologies/gensim) provides. A whole lot of the code found in this lib is based on Gensim.
 
-To install **fse** on Colab, check out: https://colab.research.google.com/drive/1qq9GBgEosG7YSRn7r6e02T9snJb04OEi 
-
 Results
 ------------
 
@@ -159,7 +159,7 @@ Changelog
 - Workaround for Numpy memmap issue (https://github.com/numpy/numpy/issues/13172)
 - Bugfixes for python 3.8 builds
 - Code refactoring to black style
-- SVD ram subsampling for SIF / uSIF
+- SVD ram subsampling for SIF / uSIF (customizable, standard is 1 GB of RAM)
 - Minor fixes for nan-handling
 - Minor fix for sentencevectors class
 
