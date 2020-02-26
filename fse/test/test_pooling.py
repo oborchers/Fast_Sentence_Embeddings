@@ -45,7 +45,7 @@ FT_R = FastText(min_count=1, size=DIM)
 FT_R.build_vocab(SENTENCES)
 
 
-class TestAverageFunctions(unittest.TestCase):
+class TestPoolingFunctions(unittest.TestCase):
     def setUp(self):
         self.sentences = [
             ["They", "admit"],
@@ -61,32 +61,20 @@ class TestAverageFunctions(unittest.TestCase):
         )
         self.model._pre_train_calls()
 
-    # def test_cython(self):
-    #     from fse.models.average_inner import (
-    #         FAST_VERSION,
-    #         MAX_WORDS_IN_BATCH,
-    #         MAX_NGRAMS_IN_BATCH,
-    #     )
-
-    #     self.assertTrue(FAST_VERSION)
-    #     self.assertEqual(10000, MAX_WORDS_IN_BATCH)
-    #     self.assertEqual(40, MAX_NGRAMS_IN_BATCH)
-
-    # def test_average_train_cy_w2v(self):
-    #     self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
-    #     mem = self.model._get_thread_working_mem()
-
-    #     from fse.models.average_inner import train_average_cy
-
-    #     output = train_average_cy(
-    #         self.model, self.sentences, self.model.sv.vectors, mem
-    #     )
-    #     self.assertEqual((4, 7), output)
-    #     self.assertTrue((183 == self.model.sv[0]).all())
-    #     self.assertTrue((164.5 == self.model.sv[1]).all())
-    #     self.assertTrue((self.model.wv.vocab["go"].index == self.model.sv[2]).all())
+    def test_cython(self):
+        from fse.models.pooling_inner import (
+            FAST_VERSION,
+            MAX_WORDS_IN_BATCH,
+            MAX_NGRAMS_IN_BATCH,
+            train_pooling_cy,
+        )
+        self.assertTrue(FAST_VERSION)
+        self.assertTrue(callable(train_pooling_cy))
+        self.assertEqual(10000, MAX_WORDS_IN_BATCH)
+        self.assertEqual(40, MAX_NGRAMS_IN_BATCH)
 
     # def test_average_train_cy_ft(self):
+    # TODO
     #     ft = FastText(min_count=1, size=DIM)
     #     ft.build_vocab(SENTENCES)
     #     m = Average(ft)
@@ -106,56 +94,8 @@ class TestAverageFunctions(unittest.TestCase):
     #     self.assertTrue(np.allclose(1.5, m.sv[2]))
     #     self.assertTrue(np.allclose(2, m.sv[3]))
 
-    # def test_cy_equal_np_w2v(self):
-    #     m1 = Average(W2V)
-    #     m1.prep.prepare_vectors(
-    #         sv=m1.sv, total_sentences=len(self.sentences), update=False
-    #     )
-    #     m1._pre_train_calls()
-    #     mem1 = m1._get_thread_working_mem()
-    #     o1 = train_average_np(m1, self.sentences, m1.sv.vectors, mem1)
-
-    #     m2 = Average(W2V)
-    #     m2.prep.prepare_vectors(
-    #         sv=m2.sv, total_sentences=len(self.sentences), update=False
-    #     )
-    #     m2._pre_train_calls()
-    #     mem2 = m2._get_thread_working_mem()
-
-    #     from fse.models.average_inner import train_average_cy
-
-    #     o2 = train_average_cy(m2, self.sentences, m2.sv.vectors, mem2)
-
-    #     self.assertEqual(o1, o2)
-    #     self.assertTrue((m1.sv.vectors == m2.sv.vectors).all())
-
-    # def test_cy_equal_np_w2v_random(self):
-    #     w2v = Word2Vec(min_count=1, size=DIM)
-    #     # Random initialization
-    #     w2v.build_vocab(SENTENCES)
-
-    #     m1 = Average(w2v)
-    #     m1.prep.prepare_vectors(
-    #         sv=m1.sv, total_sentences=len(self.sentences), update=False
-    #     )
-    #     m1._pre_train_calls()
-    #     mem1 = m1._get_thread_working_mem()
-    #     o1 = train_average_np(m1, self.sentences, m1.sv.vectors, mem1)
-
-    #     m2 = Average(w2v)
-    #     m2.prep.prepare_vectors(
-    #         sv=m2.sv, total_sentences=len(self.sentences), update=False
-    #     )
-    #     m2._pre_train_calls()
-    #     mem2 = m2._get_thread_working_mem()
-
-    #     from fse.models.average_inner import train_average_cy
-
-    #     o2 = train_average_cy(m2, self.sentences, m2.sv.vectors, mem2)
-
-    #     self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))
-
     # def test_cy_equal_np_ft_random(self):
+    # TODO
     #     ft = FastText(size=20, min_count=1)
     #     ft.build_vocab(SENTENCES)
 
@@ -186,6 +126,7 @@ class TestAverageFunctions(unittest.TestCase):
     #     self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))
 
     # def test_train_single_from_disk(self):
+    # TODO
     #     p = Path("fse/test/test_data/test_vecs")
     #     p_res = Path("fse/test/test_data/test_vecs.vectors")
     #     p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
@@ -206,6 +147,7 @@ class TestAverageFunctions(unittest.TestCase):
     #     p_target.unlink()
 
     # def test_train_multi_from_disk(self):
+            # TODO
     #     p = Path("fse/test/test_data/test_vecs")
     #     p_res = Path("fse/test/test_data/test_vecs.vectors")
     #     p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
@@ -270,6 +212,70 @@ class TestAverageFunctions(unittest.TestCase):
         self.assertTrue((241 == self.model.sv[0]).all())
         self.assertTrue((306 == self.model.sv[1]).all())
         self.assertTrue((self.model.wv.vocab["go"].index == self.model.sv[2]).all())
+
+    def test_pool_train_cy_w2v(self):
+        self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
+        mem = self.model._get_thread_working_mem()
+
+        from fse.models.pooling_inner import train_pooling_cy
+        
+        output = train_pooling_cy(
+            self.model, self.sentences, self.model.sv.vectors, mem
+        )
+
+        self.assertEqual((5, 14), output)
+        self.assertTrue((241 == self.model.sv[0]).all())
+        self.assertTrue((306 == self.model.sv[1]).all())
+        self.assertTrue((self.model.wv.vocab["go"].index == self.model.sv[2]).all())
+    
+    def test_cy_equal_np_w2v(self):
+        m1 = MaxPooling(W2V)
+        m1.prep.prepare_vectors(
+            sv=m1.sv, total_sentences=len(self.sentences), update=False
+        )
+        m1._pre_train_calls()
+        mem1 = m1._get_thread_working_mem()
+        o1 = train_pooling_np(m1, self.sentences, m1.sv.vectors, mem1)
+
+        m2 = MaxPooling(W2V)
+        m2.prep.prepare_vectors(
+            sv=m2.sv, total_sentences=len(self.sentences), update=False
+        )
+        m2._pre_train_calls()
+        mem2 = m2._get_thread_working_mem()
+
+        from fse.models.pooling_inner import train_pooling_cy
+
+        o2 = train_pooling_cy(m2, self.sentences, m2.sv.vectors, mem2)
+
+        self.assertEqual(o1, o2)
+        self.assertTrue((m1.sv.vectors == m2.sv.vectors).all())
+    
+    def test_cy_equal_np_w2v_random(self):
+        w2v = Word2Vec(min_count=1, size=DIM)
+        # Random initialization
+        w2v.build_vocab(SENTENCES)
+
+        m1 = MaxPooling(w2v)
+        m1.prep.prepare_vectors(
+            sv=m1.sv, total_sentences=len(self.sentences), update=False
+        )
+        m1._pre_train_calls()
+        mem1 = m1._get_thread_working_mem()
+        o1 = train_pooling_np(m1, self.sentences, m1.sv.vectors, mem1)
+
+        m2 = MaxPooling(w2v)
+        m2.prep.prepare_vectors(
+            sv=m2.sv, total_sentences=len(self.sentences), update=False
+        )
+        m2._pre_train_calls()
+        mem2 = m2._get_thread_working_mem()
+
+        from fse.models.pooling_inner import train_pooling_cy
+
+        o2 = train_pooling_cy(m2, self.sentences, m2.sv.vectors, mem2)
+
+        self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))
 
     def test_pooling_train_np_w2v_non_negative(self):
         mpool = MaxPooling(W2V_R)

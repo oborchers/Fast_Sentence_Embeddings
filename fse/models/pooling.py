@@ -62,7 +62,7 @@ def train_pooling_np(
 ) -> [int, int]:
     """Training on a sequence of sentences and update the target ndarray.
 
-    Called internally from :meth:`~fse.models.average.Average._do_train_job`.
+    Called internally from :meth:`~fse.models.pooling.MaxPooling._do_train_job`.
 
     Warnings
     --------
@@ -220,21 +220,19 @@ def train_pooling_np(
     return eff_sentences, eff_words
 
 
-# try:
-# from fse.models.average_inner import train_average_cy
-# from fse.models.average_inner import (
-#     FAST_VERSION,
-#     MAX_WORDS_IN_BATCH,
-#     MAX_NGRAMS_IN_BATCH,
-# )
-
-# train_average = train_average_cy
-# except ImportError
-
-FAST_VERSION = -1
-MAX_WORDS_IN_BATCH = 10000
-MAX_NGRAMS_IN_BATCH = 40
-train_pooling = train_pooling_np
+try:
+    from fse.models.pooling_inner import train_pooling_cy
+    from fse.models.pooling_inner import (
+        FAST_VERSION,
+        MAX_WORDS_IN_BATCH,
+        MAX_NGRAMS_IN_BATCH,
+    )
+    train_pooling = train_pooling_cy
+except ImportError:
+    FAST_VERSION = -1
+    MAX_WORDS_IN_BATCH = 10000
+    MAX_NGRAMS_IN_BATCH = 40
+    train_pooling = train_pooling_np
 
 
 class MaxPooling(BaseSentence2VecModel):

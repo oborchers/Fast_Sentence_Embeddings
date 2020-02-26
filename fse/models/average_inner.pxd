@@ -22,6 +22,12 @@ ctypedef void (*sscal_ptr) (const int *N, const float *alpha, const float *X, co
 cdef saxpy_ptr saxpy
 cdef sscal_ptr sscal
 
+cdef int ONE = <int>1
+cdef int ZERO = <int>0
+
+cdef REAL_t ONEF = <REAL_t>1.0
+cdef REAL_t ZEROF = <REAL_t>0.0
+
 DEF MAX_WORDS = 10000
 DEF MAX_NGRAMS = 40
 
@@ -30,6 +36,7 @@ cdef struct BaseSentenceVecsConfig:
 
     # Vectors
     REAL_t *mem
+    REAL_t *mem2
     REAL_t *word_vectors
     REAL_t *word_weights
     REAL_t *sentence_vectors
@@ -45,6 +52,7 @@ cdef struct FTSentenceVecsConfig:
 
     # Vectors
     REAL_t *mem
+    REAL_t *mem2
     REAL_t *word_vectors # Note: these will be the vocab vectors, not wv.vectors
     REAL_t *ngram_vectors
     REAL_t *word_weights
@@ -61,5 +69,7 @@ cdef struct FTSentenceVecsConfig:
     uINT_t *subwords_idx
     
 cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory)
-
 cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory)
+
+cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_sentences)
+cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sentences)

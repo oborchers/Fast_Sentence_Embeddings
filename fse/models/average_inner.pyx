@@ -18,7 +18,6 @@ cimport numpy as np
 from gensim.models._utils_any2vec import compute_ngrams_bytes, ft_hash_bytes
 
 from libc.string cimport memset
-from libc.stdio cimport printf
 
 import scipy.linalg.blas as fblas
 
@@ -47,13 +46,14 @@ cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory):
         The target array to write the averages to.
     memory : np.ndarray
         Private working memory for each worker.
-        Consists of 2 nd.arrays.
+        Consists of 3 nd.arrays.
 
     """
     c[0].workers = model.workers
     c[0].size = model.sv.vector_size
 
     c[0].mem = <REAL_t *>(np.PyArray_DATA(memory[0]))
+    c[0].mem2 = <REAL_t *>(np.PyArray_DATA(memory[2]))
 
     c[0].word_vectors = <REAL_t *>(np.PyArray_DATA(model.wv.vectors))
     c[0].word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
@@ -73,7 +73,7 @@ cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory):
         The target array to write the averages to.
     memory : np.ndarray
         Private working memory for each worker.
-        Consists of 2 nd.arrays.
+        Consists of 3 nd.arrays.
 
     """
 
@@ -86,6 +86,7 @@ cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory):
     c[0].oov_weight = <REAL_t>np.max(model.word_weights)
 
     c[0].mem = <REAL_t *>(np.PyArray_DATA(memory[0]))
+    c[0].mem2 = <REAL_t *>(np.PyArray_DATA(memory[2]))
 
     memory[1].fill(ZERO)    # Reset the ngram storage before filling the struct
     c[0].subwords_idx = <uINT_t *>(np.PyArray_DATA(memory[1]))
