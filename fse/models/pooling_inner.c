@@ -1056,7 +1056,7 @@ typedef npy_double __pyx_t_5numpy_double_t;
  */
 typedef npy_longdouble __pyx_t_5numpy_longdouble_t;
 
-/* "average_inner.pxd":15
+/* "average_inner.pxd":16
  *     void* PyCObject_AsVoidPtr(object obj)
  * 
  * ctypedef np.float32_t REAL_t             # <<<<<<<<<<<<<<
@@ -1065,7 +1065,7 @@ typedef npy_longdouble __pyx_t_5numpy_longdouble_t;
  */
 typedef __pyx_t_5numpy_float32_t __pyx_t_13average_inner_REAL_t;
 
-/* "average_inner.pxd":16
+/* "average_inner.pxd":17
  * 
  * ctypedef np.float32_t REAL_t
  * ctypedef np.uint32_t uINT_t             # <<<<<<<<<<<<<<
@@ -1138,7 +1138,7 @@ typedef npy_cdouble __pyx_t_5numpy_complex_t;
 struct __pyx_t_13average_inner_BaseSentenceVecsConfig;
 struct __pyx_t_13average_inner_FTSentenceVecsConfig;
 
-/* "average_inner.pxd":19
+/* "average_inner.pxd":20
  * 
  * # BLAS routine signatures
  * ctypedef void (*saxpy_ptr) (const int *N, const float *alpha, const float *X, const int *incX, float *Y, const int *incY) nogil             # <<<<<<<<<<<<<<
@@ -1147,7 +1147,7 @@ struct __pyx_t_13average_inner_FTSentenceVecsConfig;
  */
 typedef void (*__pyx_t_13average_inner_saxpy_ptr)(int const *, float const *, float const *, int const *, float *, int const *);
 
-/* "average_inner.pxd":20
+/* "average_inner.pxd":21
  * # BLAS routine signatures
  * ctypedef void (*saxpy_ptr) (const int *N, const float *alpha, const float *X, const int *incX, float *Y, const int *incY) nogil
  * ctypedef void (*sscal_ptr) (const int *N, const float *alpha, const float *X, const int *incX) nogil             # <<<<<<<<<<<<<<
@@ -1156,7 +1156,7 @@ typedef void (*__pyx_t_13average_inner_saxpy_ptr)(int const *, float const *, fl
  */
 typedef void (*__pyx_t_13average_inner_sscal_ptr)(int const *, float const *, float const *, int const *);
 
-/* "average_inner.pxd":34
+/* "average_inner.pxd":35
  * DEF MAX_NGRAMS = 40
  * 
  * cdef struct BaseSentenceVecsConfig:             # <<<<<<<<<<<<<<
@@ -1176,7 +1176,7 @@ struct __pyx_t_13average_inner_BaseSentenceVecsConfig {
   __pyx_t_13average_inner_uINT_t sentence_boundary[(0x2710 + 1)];
 };
 
-/* "average_inner.pxd":48
+/* "average_inner.pxd":49
  *     uINT_t sentence_boundary[MAX_WORDS + 1]
  * 
  * cdef struct FTSentenceVecsConfig:             # <<<<<<<<<<<<<<
@@ -1725,6 +1725,7 @@ static PyObject *(*__pyx_f_13average_inner_populate_ft_s2v_config)(struct __pyx_
 /* Module declarations from 'pooling_inner' */
 static void __pyx_f_13pooling_inner_sl_max_pool(int const *, float *, float const *); /*proto*/
 static void __pyx_f_13pooling_inner_compute_base_sentence_pooling(struct __pyx_t_13average_inner_BaseSentenceVecsConfig *, __pyx_t_13average_inner_uINT_t); /*proto*/
+static void __pyx_f_13pooling_inner_compute_base_sentence_hier_pooling(struct __pyx_t_13average_inner_BaseSentenceVecsConfig *, __pyx_t_13average_inner_uINT_t, __pyx_t_13average_inner_uINT_t); /*proto*/
 static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_13average_inner_FTSentenceVecsConfig *, __pyx_t_13average_inner_uINT_t); /*proto*/
 #define __Pyx_MODULE_NAME "pooling_inner"
 extern int __pyx_module_is_main_pooling_inner;
@@ -1756,6 +1757,7 @@ static const char __pyx_k_target[] = "target";
 static const char __pyx_k_eff_words[] = "eff_words";
 static const char __pyx_k_ValueError[] = "ValueError";
 static const char __pyx_k_ImportError[] = "ImportError";
+static const char __pyx_k_window_size[] = "window_size";
 static const char __pyx_k_FAST_VERSION[] = "FAST_VERSION";
 static const char __pyx_k_RuntimeError[] = "RuntimeError";
 static const char __pyx_k_hierarchical[] = "hierarchical";
@@ -1817,6 +1819,7 @@ static PyObject *__pyx_n_s_train_pooling_cy;
 static PyObject *__pyx_kp_u_unknown_dtype_code_in_numpy_pxd;
 static PyObject *__pyx_n_s_vocab;
 static PyObject *__pyx_n_s_w2v;
+static PyObject *__pyx_n_s_window_size;
 static PyObject *__pyx_n_s_wv;
 static PyObject *__pyx_pf_13pooling_inner_train_pooling_cy(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_model, PyObject *__pyx_v_indexed_sentences, PyObject *__pyx_v_target, PyObject *__pyx_v_memory); /* proto */
 static PyObject *__pyx_pf_13pooling_inner_2init(CYTHON_UNUSED PyObject *__pyx_self); /* proto */
@@ -1837,12 +1840,12 @@ static PyObject *__pyx_codeobj__10;
 static PyObject *__pyx_codeobj__11;
 /* Late includes */
 
-/* "pooling_inner.pyx":42
+/* "pooling_inner.pyx":43
  * DEF MAX_NGRAMS = 40
  * 
- * cdef void sl_max_pool(const int *N, float *X, const float *Y) nogil:             # <<<<<<<<<<<<<<
- *     """ Performs single left max pooling op
- * 
+ * cdef void sl_max_pool(             # <<<<<<<<<<<<<<
+ *     const int *N,
+ *     float *X,
  */
 
 static void __pyx_f_13pooling_inner_sl_max_pool(int const *__pyx_v_N, float *__pyx_v_X, float const *__pyx_v_Y) {
@@ -1850,7 +1853,7 @@ static void __pyx_f_13pooling_inner_sl_max_pool(int const *__pyx_v_N, float *__p
   int __pyx_t_1;
   int __pyx_t_2;
 
-  /* "pooling_inner.pyx":56
+  /* "pooling_inner.pyx":61
  *     """
  *     cdef int i
  *     for i from 0 <= i < N[0] by 1:             # <<<<<<<<<<<<<<
@@ -1860,7 +1863,7 @@ static void __pyx_f_13pooling_inner_sl_max_pool(int const *__pyx_v_N, float *__p
   __pyx_t_1 = (__pyx_v_N[0]);
   for (__pyx_v_i = 0; __pyx_v_i < __pyx_t_1; __pyx_v_i+=1) {
 
-    /* "pooling_inner.pyx":57
+    /* "pooling_inner.pyx":62
  *     cdef int i
  *     for i from 0 <= i < N[0] by 1:
  *         if X[i] < Y[i]:             # <<<<<<<<<<<<<<
@@ -1870,16 +1873,16 @@ static void __pyx_f_13pooling_inner_sl_max_pool(int const *__pyx_v_N, float *__p
     __pyx_t_2 = (((__pyx_v_X[__pyx_v_i]) < (__pyx_v_Y[__pyx_v_i])) != 0);
     if (__pyx_t_2) {
 
-      /* "pooling_inner.pyx":58
+      /* "pooling_inner.pyx":63
  *     for i from 0 <= i < N[0] by 1:
  *         if X[i] < Y[i]:
  *             X[i] = Y[i]             # <<<<<<<<<<<<<<
  * 
- * cdef void compute_base_sentence_pooling(BaseSentenceVecsConfig *c, uINT_t num_sentences) nogil:
+ * cdef void compute_base_sentence_pooling(
  */
       (__pyx_v_X[__pyx_v_i]) = (__pyx_v_Y[__pyx_v_i]);
 
-      /* "pooling_inner.pyx":57
+      /* "pooling_inner.pyx":62
  *     cdef int i
  *     for i from 0 <= i < N[0] by 1:
  *         if X[i] < Y[i]:             # <<<<<<<<<<<<<<
@@ -1889,23 +1892,23 @@ static void __pyx_f_13pooling_inner_sl_max_pool(int const *__pyx_v_N, float *__p
     }
   }
 
-  /* "pooling_inner.pyx":42
+  /* "pooling_inner.pyx":43
  * DEF MAX_NGRAMS = 40
  * 
- * cdef void sl_max_pool(const int *N, float *X, const float *Y) nogil:             # <<<<<<<<<<<<<<
- *     """ Performs single left max pooling op
- * 
+ * cdef void sl_max_pool(             # <<<<<<<<<<<<<<
+ *     const int *N,
+ *     float *X,
  */
 
   /* function exit code */
 }
 
-/* "pooling_inner.pyx":60
+/* "pooling_inner.pyx":65
  *             X[i] = Y[i]
  * 
- * cdef void compute_base_sentence_pooling(BaseSentenceVecsConfig *c, uINT_t num_sentences) nogil:             # <<<<<<<<<<<<<<
- *     """Perform optimized sentence-level max pooling for BaseAny2Vec model.
- * 
+ * cdef void compute_base_sentence_pooling(             # <<<<<<<<<<<<<<
+ *     BaseSentenceVecsConfig *c,
+ *     uINT_t num_sentences,
  */
 
 static void __pyx_f_13pooling_inner_compute_base_sentence_pooling(struct __pyx_t_13average_inner_BaseSentenceVecsConfig *__pyx_v_c, __pyx_t_13average_inner_uINT_t __pyx_v_num_sentences) {
@@ -1925,7 +1928,7 @@ static void __pyx_f_13pooling_inner_compute_base_sentence_pooling(struct __pyx_t
   __pyx_t_13average_inner_uINT_t __pyx_t_6;
   __pyx_t_13average_inner_uINT_t __pyx_t_7;
 
-  /* "pooling_inner.pyx":76
+  /* "pooling_inner.pyx":84
  *     """
  *     cdef:
  *         int size = c.size             # <<<<<<<<<<<<<<
@@ -1935,47 +1938,29 @@ static void __pyx_f_13pooling_inner_compute_base_sentence_pooling(struct __pyx_t
   __pyx_t_1 = __pyx_v_c->size;
   __pyx_v_size = __pyx_t_1;
 
-  /* "pooling_inner.pyx":84
+  /* "pooling_inner.pyx":92
  *         REAL_t sent_len, inv_count
  * 
  *     for sent_idx in range(num_sentences):             # <<<<<<<<<<<<<<
- *         memset(c.mem, 0, size * cython.sizeof(REAL_t))
- *         memset(c.mem2, 0, size * cython.sizeof(REAL_t))
+ *         sent_start = c.sentence_boundary[sent_idx]
+ *         sent_end = c.sentence_boundary[sent_idx + 1]
  */
   __pyx_t_2 = __pyx_v_num_sentences;
   __pyx_t_3 = __pyx_t_2;
   for (__pyx_t_4 = 0; __pyx_t_4 < __pyx_t_3; __pyx_t_4+=1) {
     __pyx_v_sent_idx = __pyx_t_4;
 
-    /* "pooling_inner.pyx":85
+    /* "pooling_inner.pyx":93
  * 
  *     for sent_idx in range(num_sentences):
- *         memset(c.mem, 0, size * cython.sizeof(REAL_t))             # <<<<<<<<<<<<<<
- *         memset(c.mem2, 0, size * cython.sizeof(REAL_t))
- * 
- */
-    (void)(memset(__pyx_v_c->mem, 0, (__pyx_v_size * (sizeof(__pyx_t_13average_inner_REAL_t)))));
-
-    /* "pooling_inner.pyx":86
- *     for sent_idx in range(num_sentences):
- *         memset(c.mem, 0, size * cython.sizeof(REAL_t))
- *         memset(c.mem2, 0, size * cython.sizeof(REAL_t))             # <<<<<<<<<<<<<<
- * 
- *         sent_start = c.sentence_boundary[sent_idx]
- */
-    (void)(memset(__pyx_v_c->mem2, 0, (__pyx_v_size * (sizeof(__pyx_t_13average_inner_REAL_t)))));
-
-    /* "pooling_inner.pyx":88
- *         memset(c.mem2, 0, size * cython.sizeof(REAL_t))
- * 
  *         sent_start = c.sentence_boundary[sent_idx]             # <<<<<<<<<<<<<<
  *         sent_end = c.sentence_boundary[sent_idx + 1]
  *         sent_len = ZEROF
  */
     __pyx_v_sent_start = (__pyx_v_c->sentence_boundary[__pyx_v_sent_idx]);
 
-    /* "pooling_inner.pyx":89
- * 
+    /* "pooling_inner.pyx":94
+ *     for sent_idx in range(num_sentences):
  *         sent_start = c.sentence_boundary[sent_idx]
  *         sent_end = c.sentence_boundary[sent_idx + 1]             # <<<<<<<<<<<<<<
  *         sent_len = ZEROF
@@ -1983,7 +1968,7 @@ static void __pyx_f_13pooling_inner_compute_base_sentence_pooling(struct __pyx_t
  */
     __pyx_v_sent_end = (__pyx_v_c->sentence_boundary[(__pyx_v_sent_idx + 1)]);
 
-    /* "pooling_inner.pyx":90
+    /* "pooling_inner.pyx":95
  *         sent_start = c.sentence_boundary[sent_idx]
  *         sent_end = c.sentence_boundary[sent_idx + 1]
  *         sent_len = ZEROF             # <<<<<<<<<<<<<<
@@ -1992,7 +1977,7 @@ static void __pyx_f_13pooling_inner_compute_base_sentence_pooling(struct __pyx_t
  */
     __pyx_v_sent_len = __pyx_v_13average_inner_ZEROF;
 
-    /* "pooling_inner.pyx":92
+    /* "pooling_inner.pyx":97
  *         sent_len = ZEROF
  * 
  *         for i in range(sent_start, sent_end):             # <<<<<<<<<<<<<<
@@ -2004,7 +1989,7 @@ static void __pyx_f_13pooling_inner_compute_base_sentence_pooling(struct __pyx_t
     for (__pyx_t_7 = __pyx_v_sent_start; __pyx_t_7 < __pyx_t_6; __pyx_t_7+=1) {
       __pyx_v_i = __pyx_t_7;
 
-      /* "pooling_inner.pyx":93
+      /* "pooling_inner.pyx":98
  * 
  *         for i in range(sent_start, sent_end):
  *             sent_len += ONEF             # <<<<<<<<<<<<<<
@@ -2013,7 +1998,7 @@ static void __pyx_f_13pooling_inner_compute_base_sentence_pooling(struct __pyx_t
  */
       __pyx_v_sent_len = (__pyx_v_sent_len + __pyx_v_13average_inner_ONEF);
 
-      /* "pooling_inner.pyx":94
+      /* "pooling_inner.pyx":99
  *         for i in range(sent_start, sent_end):
  *             sent_len += ONEF
  *             sent_row = c.sent_adresses[i] * size             # <<<<<<<<<<<<<<
@@ -2022,7 +2007,7 @@ static void __pyx_f_13pooling_inner_compute_base_sentence_pooling(struct __pyx_t
  */
       __pyx_v_sent_row = ((__pyx_v_c->sent_adresses[__pyx_v_i]) * __pyx_v_size);
 
-      /* "pooling_inner.pyx":95
+      /* "pooling_inner.pyx":100
  *             sent_len += ONEF
  *             sent_row = c.sent_adresses[i] * size
  *             word_row = c.word_indices[i] * size             # <<<<<<<<<<<<<<
@@ -2031,7 +2016,7 @@ static void __pyx_f_13pooling_inner_compute_base_sentence_pooling(struct __pyx_t
  */
       __pyx_v_word_row = ((__pyx_v_c->word_indices[__pyx_v_i]) * __pyx_v_size);
 
-      /* "pooling_inner.pyx":97
+      /* "pooling_inner.pyx":102
  *             word_row = c.word_indices[i] * size
  * 
  *             sl_max_pool(             # <<<<<<<<<<<<<<
@@ -2042,23 +2027,149 @@ static void __pyx_f_13pooling_inner_compute_base_sentence_pooling(struct __pyx_t
     }
   }
 
-  /* "pooling_inner.pyx":60
+  /* "pooling_inner.pyx":65
  *             X[i] = Y[i]
  * 
- * cdef void compute_base_sentence_pooling(BaseSentenceVecsConfig *c, uINT_t num_sentences) nogil:             # <<<<<<<<<<<<<<
- *     """Perform optimized sentence-level max pooling for BaseAny2Vec model.
- * 
+ * cdef void compute_base_sentence_pooling(             # <<<<<<<<<<<<<<
+ *     BaseSentenceVecsConfig *c,
+ *     uINT_t num_sentences,
  */
 
   /* function exit code */
 }
 
-/* "pooling_inner.pyx":105
+/* "pooling_inner.pyx":110
  * 
  * 
- * cdef void compute_ft_sentence_pooling(FTSentenceVecsConfig *c, uINT_t num_sentences) nogil:             # <<<<<<<<<<<<<<
- *     """Perform optimized sentence-level max pooling for FastText model.
+ * cdef void compute_base_sentence_hier_pooling(             # <<<<<<<<<<<<<<
+ *     BaseSentenceVecsConfig *c,
+ *     uINT_t num_sentences,
+ */
+
+static void __pyx_f_13pooling_inner_compute_base_sentence_hier_pooling(struct __pyx_t_13average_inner_BaseSentenceVecsConfig *__pyx_v_c, __pyx_t_13average_inner_uINT_t __pyx_v_num_sentences, CYTHON_UNUSED __pyx_t_13average_inner_uINT_t __pyx_v_window_size) {
+  int __pyx_v_size;
+  __pyx_t_13average_inner_uINT_t __pyx_v_sent_idx;
+  __pyx_t_13average_inner_uINT_t __pyx_v_sent_start;
+  __pyx_t_13average_inner_uINT_t __pyx_v_sent_end;
+  CYTHON_UNUSED __pyx_t_13average_inner_uINT_t __pyx_v_sent_row;
+  __pyx_t_13average_inner_uINT_t __pyx_v_i;
+  CYTHON_UNUSED __pyx_t_13average_inner_uINT_t __pyx_v_word_row;
+  __pyx_t_13average_inner_REAL_t __pyx_v_sent_len;
+  int __pyx_t_1;
+  __pyx_t_13average_inner_uINT_t __pyx_t_2;
+  __pyx_t_13average_inner_uINT_t __pyx_t_3;
+  __pyx_t_13average_inner_uINT_t __pyx_t_4;
+  __pyx_t_13average_inner_uINT_t __pyx_t_5;
+  __pyx_t_13average_inner_uINT_t __pyx_t_6;
+  __pyx_t_13average_inner_uINT_t __pyx_t_7;
+
+  /* "pooling_inner.pyx":130
+ *     """
+ *     cdef:
+ *         int size = c.size             # <<<<<<<<<<<<<<
  * 
+ *         uINT_t sent_idx, sent_start, sent_end, sent_row
+ */
+  __pyx_t_1 = __pyx_v_c->size;
+  __pyx_v_size = __pyx_t_1;
+
+  /* "pooling_inner.pyx":138
+ *         REAL_t sent_len, inv_count
+ * 
+ *     for sent_idx in range(num_sentences):             # <<<<<<<<<<<<<<
+ *         sent_start = c.sentence_boundary[sent_idx]
+ *         sent_end = c.sentence_boundary[sent_idx + 1]
+ */
+  __pyx_t_2 = __pyx_v_num_sentences;
+  __pyx_t_3 = __pyx_t_2;
+  for (__pyx_t_4 = 0; __pyx_t_4 < __pyx_t_3; __pyx_t_4+=1) {
+    __pyx_v_sent_idx = __pyx_t_4;
+
+    /* "pooling_inner.pyx":139
+ * 
+ *     for sent_idx in range(num_sentences):
+ *         sent_start = c.sentence_boundary[sent_idx]             # <<<<<<<<<<<<<<
+ *         sent_end = c.sentence_boundary[sent_idx + 1]
+ *         sent_len = ZEROF
+ */
+    __pyx_v_sent_start = (__pyx_v_c->sentence_boundary[__pyx_v_sent_idx]);
+
+    /* "pooling_inner.pyx":140
+ *     for sent_idx in range(num_sentences):
+ *         sent_start = c.sentence_boundary[sent_idx]
+ *         sent_end = c.sentence_boundary[sent_idx + 1]             # <<<<<<<<<<<<<<
+ *         sent_len = ZEROF
+ * 
+ */
+    __pyx_v_sent_end = (__pyx_v_c->sentence_boundary[(__pyx_v_sent_idx + 1)]);
+
+    /* "pooling_inner.pyx":141
+ *         sent_start = c.sentence_boundary[sent_idx]
+ *         sent_end = c.sentence_boundary[sent_idx + 1]
+ *         sent_len = ZEROF             # <<<<<<<<<<<<<<
+ * 
+ *         for i in range(sent_start, sent_end):
+ */
+    __pyx_v_sent_len = __pyx_v_13average_inner_ZEROF;
+
+    /* "pooling_inner.pyx":143
+ *         sent_len = ZEROF
+ * 
+ *         for i in range(sent_start, sent_end):             # <<<<<<<<<<<<<<
+ *             sent_len += ONEF
+ *             sent_row = c.sent_adresses[i] * size
+ */
+    __pyx_t_5 = __pyx_v_sent_end;
+    __pyx_t_6 = __pyx_t_5;
+    for (__pyx_t_7 = __pyx_v_sent_start; __pyx_t_7 < __pyx_t_6; __pyx_t_7+=1) {
+      __pyx_v_i = __pyx_t_7;
+
+      /* "pooling_inner.pyx":144
+ * 
+ *         for i in range(sent_start, sent_end):
+ *             sent_len += ONEF             # <<<<<<<<<<<<<<
+ *             sent_row = c.sent_adresses[i] * size
+ *             word_row = c.word_indices[i] * size
+ */
+      __pyx_v_sent_len = (__pyx_v_sent_len + __pyx_v_13average_inner_ONEF);
+
+      /* "pooling_inner.pyx":145
+ *         for i in range(sent_start, sent_end):
+ *             sent_len += ONEF
+ *             sent_row = c.sent_adresses[i] * size             # <<<<<<<<<<<<<<
+ *             word_row = c.word_indices[i] * size
+ * 
+ */
+      __pyx_v_sent_row = ((__pyx_v_c->sent_adresses[__pyx_v_i]) * __pyx_v_size);
+
+      /* "pooling_inner.pyx":146
+ *             sent_len += ONEF
+ *             sent_row = c.sent_adresses[i] * size
+ *             word_row = c.word_indices[i] * size             # <<<<<<<<<<<<<<
+ * 
+ * 
+ */
+      __pyx_v_word_row = ((__pyx_v_c->word_indices[__pyx_v_i]) * __pyx_v_size);
+    }
+  }
+
+  /* "pooling_inner.pyx":110
+ * 
+ * 
+ * cdef void compute_base_sentence_hier_pooling(             # <<<<<<<<<<<<<<
+ *     BaseSentenceVecsConfig *c,
+ *     uINT_t num_sentences,
+ */
+
+  /* function exit code */
+}
+
+/* "pooling_inner.pyx":149
+ * 
+ * 
+ * cdef void compute_ft_sentence_pooling(             # <<<<<<<<<<<<<<
+ *     FTSentenceVecsConfig *c,
+ *     uINT_t num_sentences,
  */
 
 static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_13average_inner_FTSentenceVecsConfig *__pyx_v_c, __pyx_t_13average_inner_uINT_t __pyx_v_num_sentences) {
@@ -2089,7 +2200,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
   __pyx_t_13average_inner_uINT_t __pyx_t_11;
   __pyx_t_13average_inner_uINT_t __pyx_t_12;
 
-  /* "pooling_inner.pyx":121
+  /* "pooling_inner.pyx":168
  *     """
  *     cdef:
  *         int size = c.size             # <<<<<<<<<<<<<<
@@ -2099,7 +2210,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
   __pyx_t_1 = __pyx_v_c->size;
   __pyx_v_size = __pyx_t_1;
 
-  /* "pooling_inner.pyx":131
+  /* "pooling_inner.pyx":178
  *         REAL_t sent_len
  *         REAL_t inv_count, inv_ngram
  *         REAL_t oov_weight = c.oov_weight             # <<<<<<<<<<<<<<
@@ -2109,7 +2220,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
   __pyx_t_2 = __pyx_v_c->oov_weight;
   __pyx_v_oov_weight = __pyx_t_2;
 
-  /* "pooling_inner.pyx":133
+  /* "pooling_inner.pyx":180
  *         REAL_t oov_weight = c.oov_weight
  * 
  *     for sent_idx in range(num_sentences):             # <<<<<<<<<<<<<<
@@ -2121,7 +2232,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
   for (__pyx_t_5 = 0; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
     __pyx_v_sent_idx = __pyx_t_5;
 
-    /* "pooling_inner.pyx":134
+    /* "pooling_inner.pyx":181
  * 
  *     for sent_idx in range(num_sentences):
  *         sent_start = c.sentence_boundary[sent_idx]             # <<<<<<<<<<<<<<
@@ -2130,7 +2241,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
  */
     __pyx_v_sent_start = (__pyx_v_c->sentence_boundary[__pyx_v_sent_idx]);
 
-    /* "pooling_inner.pyx":135
+    /* "pooling_inner.pyx":182
  *     for sent_idx in range(num_sentences):
  *         sent_start = c.sentence_boundary[sent_idx]
  *         sent_end = c.sentence_boundary[sent_idx + 1]             # <<<<<<<<<<<<<<
@@ -2139,7 +2250,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
  */
     __pyx_v_sent_end = (__pyx_v_c->sentence_boundary[(__pyx_v_sent_idx + 1)]);
 
-    /* "pooling_inner.pyx":136
+    /* "pooling_inner.pyx":183
  *         sent_start = c.sentence_boundary[sent_idx]
  *         sent_end = c.sentence_boundary[sent_idx + 1]
  *         sent_len = ZEROF             # <<<<<<<<<<<<<<
@@ -2148,7 +2259,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
  */
     __pyx_v_sent_len = __pyx_v_13average_inner_ZEROF;
 
-    /* "pooling_inner.pyx":138
+    /* "pooling_inner.pyx":185
  *         sent_len = ZEROF
  * 
  *         for i in range(sent_start, sent_end):             # <<<<<<<<<<<<<<
@@ -2160,7 +2271,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
     for (__pyx_t_8 = __pyx_v_sent_start; __pyx_t_8 < __pyx_t_7; __pyx_t_8+=1) {
       __pyx_v_i = __pyx_t_8;
 
-      /* "pooling_inner.pyx":139
+      /* "pooling_inner.pyx":186
  * 
  *         for i in range(sent_start, sent_end):
  *             sent_len += ONEF             # <<<<<<<<<<<<<<
@@ -2169,7 +2280,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
  */
       __pyx_v_sent_len = (__pyx_v_sent_len + __pyx_v_13average_inner_ONEF);
 
-      /* "pooling_inner.pyx":140
+      /* "pooling_inner.pyx":187
  *         for i in range(sent_start, sent_end):
  *             sent_len += ONEF
  *             sent_row = c.sent_adresses[i] * size             # <<<<<<<<<<<<<<
@@ -2178,7 +2289,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
  */
       __pyx_v_sent_row = ((__pyx_v_c->sent_adresses[__pyx_v_i]) * __pyx_v_size);
 
-      /* "pooling_inner.pyx":142
+      /* "pooling_inner.pyx":189
  *             sent_row = c.sent_adresses[i] * size
  * 
  *             word_idx = c.word_indices[i]             # <<<<<<<<<<<<<<
@@ -2187,7 +2298,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
  */
       __pyx_v_word_idx = (__pyx_v_c->word_indices[__pyx_v_i]);
 
-      /* "pooling_inner.pyx":143
+      /* "pooling_inner.pyx":190
  * 
  *             word_idx = c.word_indices[i]
  *             ngrams = c.subwords_idx_len[i]             # <<<<<<<<<<<<<<
@@ -2196,7 +2307,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
  */
       __pyx_v_ngrams = (__pyx_v_c->subwords_idx_len[__pyx_v_i]);
 
-      /* "pooling_inner.pyx":145
+      /* "pooling_inner.pyx":192
  *             ngrams = c.subwords_idx_len[i]
  * 
  *             if ngrams == 0:             # <<<<<<<<<<<<<<
@@ -2206,7 +2317,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
       __pyx_t_9 = ((__pyx_v_ngrams == 0) != 0);
       if (__pyx_t_9) {
 
-        /* "pooling_inner.pyx":146
+        /* "pooling_inner.pyx":193
  * 
  *             if ngrams == 0:
  *                 word_row = c.word_indices[i] * size             # <<<<<<<<<<<<<<
@@ -2215,7 +2326,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
  */
         __pyx_v_word_row = ((__pyx_v_c->word_indices[__pyx_v_i]) * __pyx_v_size);
 
-        /* "pooling_inner.pyx":148
+        /* "pooling_inner.pyx":195
  *                 word_row = c.word_indices[i] * size
  * 
  *                 sl_max_pool(             # <<<<<<<<<<<<<<
@@ -2224,7 +2335,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
  */
         __pyx_f_13pooling_inner_sl_max_pool((&__pyx_v_size), (&(__pyx_v_c->sentence_vectors[__pyx_v_sent_row])), (&(__pyx_v_c->word_vectors[__pyx_v_word_row])));
 
-        /* "pooling_inner.pyx":145
+        /* "pooling_inner.pyx":192
  *             ngrams = c.subwords_idx_len[i]
  * 
  *             if ngrams == 0:             # <<<<<<<<<<<<<<
@@ -2234,7 +2345,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
         goto __pyx_L7;
       }
 
-      /* "pooling_inner.pyx":155
+      /* "pooling_inner.pyx":202
  * 
  *             else:
  *                 memset(c.mem, 0, size * cython.sizeof(REAL_t))             # <<<<<<<<<<<<<<
@@ -2244,7 +2355,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
       /*else*/ {
         (void)(memset(__pyx_v_c->mem, 0, (__pyx_v_size * (sizeof(__pyx_t_13average_inner_REAL_t)))));
 
-        /* "pooling_inner.pyx":156
+        /* "pooling_inner.pyx":203
  *             else:
  *                 memset(c.mem, 0, size * cython.sizeof(REAL_t))
  *                 inv_ngram = (ONEF / <REAL_t>ngrams) * c.oov_weight             # <<<<<<<<<<<<<<
@@ -2253,7 +2364,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
  */
         __pyx_v_inv_ngram = ((__pyx_v_13average_inner_ONEF / ((__pyx_t_13average_inner_REAL_t)__pyx_v_ngrams)) * __pyx_v_c->oov_weight);
 
-        /* "pooling_inner.pyx":157
+        /* "pooling_inner.pyx":204
  *                 memset(c.mem, 0, size * cython.sizeof(REAL_t))
  *                 inv_ngram = (ONEF / <REAL_t>ngrams) * c.oov_weight
  *                 for j in range(ngrams):             # <<<<<<<<<<<<<<
@@ -2265,7 +2376,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
         for (__pyx_t_12 = 0; __pyx_t_12 < __pyx_t_11; __pyx_t_12+=1) {
           __pyx_v_j = __pyx_t_12;
 
-          /* "pooling_inner.pyx":158
+          /* "pooling_inner.pyx":205
  *                 inv_ngram = (ONEF / <REAL_t>ngrams) * c.oov_weight
  *                 for j in range(ngrams):
  *                     ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size             # <<<<<<<<<<<<<<
@@ -2274,7 +2385,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
  */
           __pyx_v_ngram_row = ((__pyx_v_c->subwords_idx[((__pyx_v_i * 40) + __pyx_v_j)]) * __pyx_v_size);
 
-          /* "pooling_inner.pyx":159
+          /* "pooling_inner.pyx":206
  *                 for j in range(ngrams):
  *                     ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size
  *                     saxpy(             # <<<<<<<<<<<<<<
@@ -2284,7 +2395,7 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
           __pyx_v_13average_inner_saxpy((&__pyx_v_size), (&__pyx_v_inv_ngram), (&(__pyx_v_c->ngram_vectors[__pyx_v_ngram_row])), (&__pyx_v_13average_inner_ONE), __pyx_v_c->mem, (&__pyx_v_13average_inner_ONE));
         }
 
-        /* "pooling_inner.pyx":168
+        /* "pooling_inner.pyx":215
  *                     )
  * 
  *                 sl_max_pool(             # <<<<<<<<<<<<<<
@@ -2297,23 +2408,23 @@ static void __pyx_f_13pooling_inner_compute_ft_sentence_pooling(struct __pyx_t_1
     }
   }
 
-  /* "pooling_inner.pyx":105
+  /* "pooling_inner.pyx":149
  * 
  * 
- * cdef void compute_ft_sentence_pooling(FTSentenceVecsConfig *c, uINT_t num_sentences) nogil:             # <<<<<<<<<<<<<<
- *     """Perform optimized sentence-level max pooling for FastText model.
- * 
+ * cdef void compute_ft_sentence_pooling(             # <<<<<<<<<<<<<<
+ *     FTSentenceVecsConfig *c,
+ *     uINT_t num_sentences,
  */
 
   /* function exit code */
 }
 
-/* "pooling_inner.pyx":176
+/* "pooling_inner.pyx":223
  * 
  * 
- * def train_pooling_cy(model, indexed_sentences, target, memory):             # <<<<<<<<<<<<<<
- *     """Training on a sequence of sentences and update the target ndarray.
- * 
+ * def train_pooling_cy(             # <<<<<<<<<<<<<<
+ *     model,
+ *     indexed_sentences,
  */
 
 /* Python wrapper */
@@ -2355,23 +2466,23 @@ static PyObject *__pyx_pw_13pooling_inner_1train_pooling_cy(PyObject *__pyx_self
         case  1:
         if (likely((values[1] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_indexed_sentences)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("train_pooling_cy", 1, 4, 4, 1); __PYX_ERR(0, 176, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("train_pooling_cy", 1, 4, 4, 1); __PYX_ERR(0, 223, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  2:
         if (likely((values[2] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_target)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("train_pooling_cy", 1, 4, 4, 2); __PYX_ERR(0, 176, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("train_pooling_cy", 1, 4, 4, 2); __PYX_ERR(0, 223, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  3:
         if (likely((values[3] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_memory)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("train_pooling_cy", 1, 4, 4, 3); __PYX_ERR(0, 176, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("train_pooling_cy", 1, 4, 4, 3); __PYX_ERR(0, 223, __pyx_L3_error)
         }
       }
       if (unlikely(kw_args > 0)) {
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "train_pooling_cy") < 0)) __PYX_ERR(0, 176, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "train_pooling_cy") < 0)) __PYX_ERR(0, 223, __pyx_L3_error)
       }
     } else if (PyTuple_GET_SIZE(__pyx_args) != 4) {
       goto __pyx_L5_argtuple_error;
@@ -2388,7 +2499,7 @@ static PyObject *__pyx_pw_13pooling_inner_1train_pooling_cy(PyObject *__pyx_self
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("train_pooling_cy", 1, 4, 4, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 176, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("train_pooling_cy", 1, 4, 4, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 223, __pyx_L3_error)
   __pyx_L3_error:;
   __Pyx_AddTraceback("pooling_inner.train_pooling_cy", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
@@ -2404,152 +2515,174 @@ static PyObject *__pyx_pw_13pooling_inner_1train_pooling_cy(PyObject *__pyx_self
 static PyObject *__pyx_pf_13pooling_inner_train_pooling_cy(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_model, PyObject *__pyx_v_indexed_sentences, PyObject *__pyx_v_target, PyObject *__pyx_v_memory) {
   __pyx_t_13average_inner_uINT_t __pyx_v_eff_sentences;
   __pyx_t_13average_inner_uINT_t __pyx_v_eff_words;
+  __pyx_t_13average_inner_uINT_t __pyx_v_window_size;
   struct __pyx_t_13average_inner_BaseSentenceVecsConfig __pyx_v_w2v;
   struct __pyx_t_13average_inner_FTSentenceVecsConfig __pyx_v_ft;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
-  int __pyx_t_2;
+  __pyx_t_13average_inner_uINT_t __pyx_t_2;
   int __pyx_t_3;
-  PyObject *__pyx_t_4 = NULL;
+  int __pyx_t_4;
   PyObject *__pyx_t_5 = NULL;
   PyObject *__pyx_t_6 = NULL;
-  PyObject *(*__pyx_t_7)(PyObject *);
-  __pyx_t_13average_inner_uINT_t __pyx_t_8;
+  PyObject *__pyx_t_7 = NULL;
+  PyObject *(*__pyx_t_8)(PyObject *);
   __pyx_t_13average_inner_uINT_t __pyx_t_9;
   __Pyx_RefNannySetupContext("train_pooling_cy", 0);
 
-  /* "pooling_inner.pyx":200
+  /* "pooling_inner.pyx":252
  *     """
  * 
  *     cdef uINT_t eff_sentences = 0             # <<<<<<<<<<<<<<
  *     cdef uINT_t eff_words = 0
- *     cdef BaseSentenceVecsConfig w2v
+ *     cdef uINT_t window_size = <uINT_t> model.window_size
  */
   __pyx_v_eff_sentences = 0;
 
-  /* "pooling_inner.pyx":201
+  /* "pooling_inner.pyx":253
  * 
  *     cdef uINT_t eff_sentences = 0
  *     cdef uINT_t eff_words = 0             # <<<<<<<<<<<<<<
+ *     cdef uINT_t window_size = <uINT_t> model.window_size
  *     cdef BaseSentenceVecsConfig w2v
- *     cdef FTSentenceVecsConfig ft
  */
   __pyx_v_eff_words = 0;
 
-  /* "pooling_inner.pyx":205
+  /* "pooling_inner.pyx":254
+ *     cdef uINT_t eff_sentences = 0
+ *     cdef uINT_t eff_words = 0
+ *     cdef uINT_t window_size = <uINT_t> model.window_size             # <<<<<<<<<<<<<<
+ *     cdef BaseSentenceVecsConfig w2v
+ *     cdef FTSentenceVecsConfig ft
+ */
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_window_size); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 254, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_t_2 = __Pyx_PyInt_As_npy_uint32(__pyx_t_1); if (unlikely((__pyx_t_2 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 254, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+  __pyx_v_window_size = ((__pyx_t_13average_inner_uINT_t)__pyx_t_2);
+
+  /* "pooling_inner.pyx":258
  *     cdef FTSentenceVecsConfig ft
  * 
  *     if not model.is_ft:             # <<<<<<<<<<<<<<
  *         init_base_s2v_config(&w2v, model, target, memory)
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_is_ft); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 205, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_is_ft); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 258, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 205, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_3 < 0)) __PYX_ERR(0, 258, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_3 = ((!__pyx_t_2) != 0);
-  if (__pyx_t_3) {
+  __pyx_t_4 = ((!__pyx_t_3) != 0);
+  if (__pyx_t_4) {
 
-    /* "pooling_inner.pyx":206
+    /* "pooling_inner.pyx":259
  * 
  *     if not model.is_ft:
  *         init_base_s2v_config(&w2v, model, target, memory)             # <<<<<<<<<<<<<<
  * 
- *         eff_sentences, eff_words = populate_base_s2v_config(&w2v, model.wv.vocab, indexed_sentences)
+ *         eff_sentences, eff_words = populate_base_s2v_config(
  */
-    __pyx_t_1 = __pyx_f_13average_inner_init_base_s2v_config((&__pyx_v_w2v), __pyx_v_model, __pyx_v_target, __pyx_v_memory); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 206, __pyx_L1_error)
+    __pyx_t_1 = __pyx_f_13average_inner_init_base_s2v_config((&__pyx_v_w2v), __pyx_v_model, __pyx_v_target, __pyx_v_memory); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 259, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-    /* "pooling_inner.pyx":208
+    /* "pooling_inner.pyx":263
+ *         eff_sentences, eff_words = populate_base_s2v_config(
+ *             &w2v,
+ *             model.wv.vocab,             # <<<<<<<<<<<<<<
+ *             indexed_sentences
+ *         )
+ */
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_wv); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 263, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_vocab); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 263, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_5);
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+
+    /* "pooling_inner.pyx":261
  *         init_base_s2v_config(&w2v, model, target, memory)
  * 
- *         eff_sentences, eff_words = populate_base_s2v_config(&w2v, model.wv.vocab, indexed_sentences)             # <<<<<<<<<<<<<<
- * 
- *         if not model.hierarchical:
+ *         eff_sentences, eff_words = populate_base_s2v_config(             # <<<<<<<<<<<<<<
+ *             &w2v,
+ *             model.wv.vocab,
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_wv); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 208, __pyx_L1_error)
+    __pyx_t_1 = __pyx_f_13average_inner_populate_base_s2v_config((&__pyx_v_w2v), __pyx_t_5, __pyx_v_indexed_sentences); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 261, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_vocab); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 208, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_4);
-    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_1 = __pyx_f_13average_inner_populate_base_s2v_config((&__pyx_v_w2v), __pyx_t_4, __pyx_v_indexed_sentences); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 208, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_1);
-    __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+    __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     if ((likely(PyTuple_CheckExact(__pyx_t_1))) || (PyList_CheckExact(__pyx_t_1))) {
       PyObject* sequence = __pyx_t_1;
       Py_ssize_t size = __Pyx_PySequence_SIZE(sequence);
       if (unlikely(size != 2)) {
         if (size > 2) __Pyx_RaiseTooManyValuesError(2);
         else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-        __PYX_ERR(0, 208, __pyx_L1_error)
+        __PYX_ERR(0, 261, __pyx_L1_error)
       }
       #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
       if (likely(PyTuple_CheckExact(sequence))) {
-        __pyx_t_4 = PyTuple_GET_ITEM(sequence, 0); 
-        __pyx_t_5 = PyTuple_GET_ITEM(sequence, 1); 
+        __pyx_t_5 = PyTuple_GET_ITEM(sequence, 0); 
+        __pyx_t_6 = PyTuple_GET_ITEM(sequence, 1); 
       } else {
-        __pyx_t_4 = PyList_GET_ITEM(sequence, 0); 
-        __pyx_t_5 = PyList_GET_ITEM(sequence, 1); 
+        __pyx_t_5 = PyList_GET_ITEM(sequence, 0); 
+        __pyx_t_6 = PyList_GET_ITEM(sequence, 1); 
       }
-      __Pyx_INCREF(__pyx_t_4);
       __Pyx_INCREF(__pyx_t_5);
+      __Pyx_INCREF(__pyx_t_6);
       #else
-      __pyx_t_4 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 208, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_4);
-      __pyx_t_5 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 208, __pyx_L1_error)
+      __pyx_t_5 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 261, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_5);
+      __pyx_t_6 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 261, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_6);
       #endif
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     } else {
       Py_ssize_t index = -1;
-      __pyx_t_6 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 208, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
+      __pyx_t_7 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 261, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-      __pyx_t_7 = Py_TYPE(__pyx_t_6)->tp_iternext;
-      index = 0; __pyx_t_4 = __pyx_t_7(__pyx_t_6); if (unlikely(!__pyx_t_4)) goto __pyx_L4_unpacking_failed;
-      __Pyx_GOTREF(__pyx_t_4);
-      index = 1; __pyx_t_5 = __pyx_t_7(__pyx_t_6); if (unlikely(!__pyx_t_5)) goto __pyx_L4_unpacking_failed;
+      __pyx_t_8 = Py_TYPE(__pyx_t_7)->tp_iternext;
+      index = 0; __pyx_t_5 = __pyx_t_8(__pyx_t_7); if (unlikely(!__pyx_t_5)) goto __pyx_L4_unpacking_failed;
       __Pyx_GOTREF(__pyx_t_5);
-      if (__Pyx_IternextUnpackEndCheck(__pyx_t_7(__pyx_t_6), 2) < 0) __PYX_ERR(0, 208, __pyx_L1_error)
-      __pyx_t_7 = NULL;
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      index = 1; __pyx_t_6 = __pyx_t_8(__pyx_t_7); if (unlikely(!__pyx_t_6)) goto __pyx_L4_unpacking_failed;
+      __Pyx_GOTREF(__pyx_t_6);
+      if (__Pyx_IternextUnpackEndCheck(__pyx_t_8(__pyx_t_7), 2) < 0) __PYX_ERR(0, 261, __pyx_L1_error)
+      __pyx_t_8 = NULL;
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
       goto __pyx_L5_unpacking_done;
       __pyx_L4_unpacking_failed:;
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __pyx_t_7 = NULL;
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      __pyx_t_8 = NULL;
       if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
-      __PYX_ERR(0, 208, __pyx_L1_error)
+      __PYX_ERR(0, 261, __pyx_L1_error)
       __pyx_L5_unpacking_done:;
     }
-    __pyx_t_8 = __Pyx_PyInt_As_npy_uint32(__pyx_t_4); if (unlikely((__pyx_t_8 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 208, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_9 = __Pyx_PyInt_As_npy_uint32(__pyx_t_5); if (unlikely((__pyx_t_9 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 208, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyInt_As_npy_uint32(__pyx_t_5); if (unlikely((__pyx_t_2 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 261, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-    __pyx_v_eff_sentences = __pyx_t_8;
+    __pyx_t_9 = __Pyx_PyInt_As_npy_uint32(__pyx_t_6); if (unlikely((__pyx_t_9 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 261, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_v_eff_sentences = __pyx_t_2;
     __pyx_v_eff_words = __pyx_t_9;
 
-    /* "pooling_inner.pyx":210
- *         eff_sentences, eff_words = populate_base_s2v_config(&w2v, model.wv.vocab, indexed_sentences)
+    /* "pooling_inner.pyx":267
+ *         )
  * 
  *         if not model.hierarchical:             # <<<<<<<<<<<<<<
  *             with nogil:
- *                 compute_base_sentence_pooling(&w2v, eff_sentences)
+ *                 compute_base_sentence_pooling(
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_hierarchical); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 210, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_hierarchical); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 267, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_3 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_3 < 0)) __PYX_ERR(0, 210, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_4 < 0)) __PYX_ERR(0, 267, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_2 = ((!__pyx_t_3) != 0);
-    if (__pyx_t_2) {
+    __pyx_t_3 = ((!__pyx_t_4) != 0);
+    if (__pyx_t_3) {
 
-      /* "pooling_inner.pyx":211
+      /* "pooling_inner.pyx":268
  * 
  *         if not model.hierarchical:
  *             with nogil:             # <<<<<<<<<<<<<<
- *                 compute_base_sentence_pooling(&w2v, eff_sentences)
- *     else:
+ *                 compute_base_sentence_pooling(
+ *                     &w2v,
  */
       {
           #ifdef WITH_THREAD
@@ -2559,22 +2692,22 @@ static PyObject *__pyx_pf_13pooling_inner_train_pooling_cy(CYTHON_UNUSED PyObjec
           #endif
           /*try:*/ {
 
-            /* "pooling_inner.pyx":212
+            /* "pooling_inner.pyx":269
  *         if not model.hierarchical:
  *             with nogil:
- *                 compute_base_sentence_pooling(&w2v, eff_sentences)             # <<<<<<<<<<<<<<
- *     else:
- *         init_ft_s2v_config(&ft, model, target, memory)
+ *                 compute_base_sentence_pooling(             # <<<<<<<<<<<<<<
+ *                     &w2v,
+ *                     eff_sentences
  */
             __pyx_f_13pooling_inner_compute_base_sentence_pooling((&__pyx_v_w2v), __pyx_v_eff_sentences);
           }
 
-          /* "pooling_inner.pyx":211
+          /* "pooling_inner.pyx":268
  * 
  *         if not model.hierarchical:
  *             with nogil:             # <<<<<<<<<<<<<<
- *                 compute_base_sentence_pooling(&w2v, eff_sentences)
- *     else:
+ *                 compute_base_sentence_pooling(
+ *                     &w2v,
  */
           /*finally:*/ {
             /*normal exit:*/{
@@ -2588,16 +2721,64 @@ static PyObject *__pyx_pf_13pooling_inner_train_pooling_cy(CYTHON_UNUSED PyObjec
           }
       }
 
-      /* "pooling_inner.pyx":210
- *         eff_sentences, eff_words = populate_base_s2v_config(&w2v, model.wv.vocab, indexed_sentences)
+      /* "pooling_inner.pyx":267
+ *         )
  * 
  *         if not model.hierarchical:             # <<<<<<<<<<<<<<
  *             with nogil:
- *                 compute_base_sentence_pooling(&w2v, eff_sentences)
+ *                 compute_base_sentence_pooling(
  */
+      goto __pyx_L6;
     }
 
-    /* "pooling_inner.pyx":205
+    /* "pooling_inner.pyx":274
+ *                 )
+ *         else:
+ *             with nogil:             # <<<<<<<<<<<<<<
+ *                 compute_base_sentence_hier_pooling(
+ *                     &w2v,
+ */
+    /*else*/ {
+      {
+          #ifdef WITH_THREAD
+          PyThreadState *_save;
+          Py_UNBLOCK_THREADS
+          __Pyx_FastGIL_Remember();
+          #endif
+          /*try:*/ {
+
+            /* "pooling_inner.pyx":275
+ *         else:
+ *             with nogil:
+ *                 compute_base_sentence_hier_pooling(             # <<<<<<<<<<<<<<
+ *                     &w2v,
+ *                     eff_sentences,
+ */
+            __pyx_f_13pooling_inner_compute_base_sentence_hier_pooling((&__pyx_v_w2v), __pyx_v_eff_sentences, __pyx_v_window_size);
+          }
+
+          /* "pooling_inner.pyx":274
+ *                 )
+ *         else:
+ *             with nogil:             # <<<<<<<<<<<<<<
+ *                 compute_base_sentence_hier_pooling(
+ *                     &w2v,
+ */
+          /*finally:*/ {
+            /*normal exit:*/{
+              #ifdef WITH_THREAD
+              __Pyx_FastGIL_Forget();
+              Py_BLOCK_THREADS
+              #endif
+              goto __pyx_L12;
+            }
+            __pyx_L12:;
+          }
+      }
+    }
+    __pyx_L6:;
+
+    /* "pooling_inner.pyx":258
  *     cdef FTSentenceVecsConfig ft
  * 
  *     if not model.is_ft:             # <<<<<<<<<<<<<<
@@ -2607,101 +2788,109 @@ static PyObject *__pyx_pf_13pooling_inner_train_pooling_cy(CYTHON_UNUSED PyObjec
     goto __pyx_L3;
   }
 
-  /* "pooling_inner.pyx":214
- *                 compute_base_sentence_pooling(&w2v, eff_sentences)
+  /* "pooling_inner.pyx":281
+ *                 )
  *     else:
  *         init_ft_s2v_config(&ft, model, target, memory)             # <<<<<<<<<<<<<<
  * 
- *         eff_sentences, eff_words = populate_ft_s2v_config(&ft, model.wv.vocab, indexed_sentences)
+ *         eff_sentences, eff_words = populate_ft_s2v_config(
  */
   /*else*/ {
-    __pyx_t_1 = __pyx_f_13average_inner_init_ft_s2v_config((&__pyx_v_ft), __pyx_v_model, __pyx_v_target, __pyx_v_memory); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 214, __pyx_L1_error)
+    __pyx_t_1 = __pyx_f_13average_inner_init_ft_s2v_config((&__pyx_v_ft), __pyx_v_model, __pyx_v_target, __pyx_v_memory); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 281, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-    /* "pooling_inner.pyx":216
+    /* "pooling_inner.pyx":285
+ *         eff_sentences, eff_words = populate_ft_s2v_config(
+ *             &ft,
+ *             model.wv.vocab,             # <<<<<<<<<<<<<<
+ *             indexed_sentences
+ *         )
+ */
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_wv); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 285, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_vocab); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 285, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+
+    /* "pooling_inner.pyx":283
  *         init_ft_s2v_config(&ft, model, target, memory)
  * 
- *         eff_sentences, eff_words = populate_ft_s2v_config(&ft, model.wv.vocab, indexed_sentences)             # <<<<<<<<<<<<<<
- * 
- *         if not model.hierarchical:
+ *         eff_sentences, eff_words = populate_ft_s2v_config(             # <<<<<<<<<<<<<<
+ *             &ft,
+ *             model.wv.vocab,
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_wv); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 216, __pyx_L1_error)
+    __pyx_t_1 = __pyx_f_13average_inner_populate_ft_s2v_config((&__pyx_v_ft), __pyx_t_6, __pyx_v_indexed_sentences); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 283, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_vocab); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 216, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_5);
-    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_1 = __pyx_f_13average_inner_populate_ft_s2v_config((&__pyx_v_ft), __pyx_t_5, __pyx_v_indexed_sentences); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 216, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_1);
-    __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     if ((likely(PyTuple_CheckExact(__pyx_t_1))) || (PyList_CheckExact(__pyx_t_1))) {
       PyObject* sequence = __pyx_t_1;
       Py_ssize_t size = __Pyx_PySequence_SIZE(sequence);
       if (unlikely(size != 2)) {
         if (size > 2) __Pyx_RaiseTooManyValuesError(2);
         else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-        __PYX_ERR(0, 216, __pyx_L1_error)
+        __PYX_ERR(0, 283, __pyx_L1_error)
       }
       #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
       if (likely(PyTuple_CheckExact(sequence))) {
-        __pyx_t_5 = PyTuple_GET_ITEM(sequence, 0); 
-        __pyx_t_4 = PyTuple_GET_ITEM(sequence, 1); 
+        __pyx_t_6 = PyTuple_GET_ITEM(sequence, 0); 
+        __pyx_t_5 = PyTuple_GET_ITEM(sequence, 1); 
       } else {
-        __pyx_t_5 = PyList_GET_ITEM(sequence, 0); 
-        __pyx_t_4 = PyList_GET_ITEM(sequence, 1); 
+        __pyx_t_6 = PyList_GET_ITEM(sequence, 0); 
+        __pyx_t_5 = PyList_GET_ITEM(sequence, 1); 
       }
+      __Pyx_INCREF(__pyx_t_6);
       __Pyx_INCREF(__pyx_t_5);
-      __Pyx_INCREF(__pyx_t_4);
       #else
-      __pyx_t_5 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 216, __pyx_L1_error)
+      __pyx_t_6 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 283, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_6);
+      __pyx_t_5 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 283, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_5);
-      __pyx_t_4 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 216, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_4);
       #endif
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     } else {
       Py_ssize_t index = -1;
-      __pyx_t_6 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 216, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
+      __pyx_t_7 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 283, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-      __pyx_t_7 = Py_TYPE(__pyx_t_6)->tp_iternext;
-      index = 0; __pyx_t_5 = __pyx_t_7(__pyx_t_6); if (unlikely(!__pyx_t_5)) goto __pyx_L10_unpacking_failed;
+      __pyx_t_8 = Py_TYPE(__pyx_t_7)->tp_iternext;
+      index = 0; __pyx_t_6 = __pyx_t_8(__pyx_t_7); if (unlikely(!__pyx_t_6)) goto __pyx_L13_unpacking_failed;
+      __Pyx_GOTREF(__pyx_t_6);
+      index = 1; __pyx_t_5 = __pyx_t_8(__pyx_t_7); if (unlikely(!__pyx_t_5)) goto __pyx_L13_unpacking_failed;
       __Pyx_GOTREF(__pyx_t_5);
-      index = 1; __pyx_t_4 = __pyx_t_7(__pyx_t_6); if (unlikely(!__pyx_t_4)) goto __pyx_L10_unpacking_failed;
-      __Pyx_GOTREF(__pyx_t_4);
-      if (__Pyx_IternextUnpackEndCheck(__pyx_t_7(__pyx_t_6), 2) < 0) __PYX_ERR(0, 216, __pyx_L1_error)
-      __pyx_t_7 = NULL;
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      goto __pyx_L11_unpacking_done;
-      __pyx_L10_unpacking_failed:;
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __pyx_t_7 = NULL;
+      if (__Pyx_IternextUnpackEndCheck(__pyx_t_8(__pyx_t_7), 2) < 0) __PYX_ERR(0, 283, __pyx_L1_error)
+      __pyx_t_8 = NULL;
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      goto __pyx_L14_unpacking_done;
+      __pyx_L13_unpacking_failed:;
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      __pyx_t_8 = NULL;
       if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
-      __PYX_ERR(0, 216, __pyx_L1_error)
-      __pyx_L11_unpacking_done:;
+      __PYX_ERR(0, 283, __pyx_L1_error)
+      __pyx_L14_unpacking_done:;
     }
-    __pyx_t_9 = __Pyx_PyInt_As_npy_uint32(__pyx_t_5); if (unlikely((__pyx_t_9 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 216, __pyx_L1_error)
+    __pyx_t_9 = __Pyx_PyInt_As_npy_uint32(__pyx_t_6); if (unlikely((__pyx_t_9 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 283, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_2 = __Pyx_PyInt_As_npy_uint32(__pyx_t_5); if (unlikely((__pyx_t_2 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 283, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-    __pyx_t_8 = __Pyx_PyInt_As_npy_uint32(__pyx_t_4); if (unlikely((__pyx_t_8 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 216, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __pyx_v_eff_sentences = __pyx_t_9;
-    __pyx_v_eff_words = __pyx_t_8;
+    __pyx_v_eff_words = __pyx_t_2;
 
-    /* "pooling_inner.pyx":218
- *         eff_sentences, eff_words = populate_ft_s2v_config(&ft, model.wv.vocab, indexed_sentences)
+    /* "pooling_inner.pyx":289
+ *         )
  * 
  *         if not model.hierarchical:             # <<<<<<<<<<<<<<
  *             with nogil:
  *                 compute_ft_sentence_pooling(&ft, eff_sentences)
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_hierarchical); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 218, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_hierarchical); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 289, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 218, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_3 < 0)) __PYX_ERR(0, 289, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_3 = ((!__pyx_t_2) != 0);
-    if (__pyx_t_3) {
+    __pyx_t_4 = ((!__pyx_t_3) != 0);
+    if (__pyx_t_4) {
 
-      /* "pooling_inner.pyx":219
+      /* "pooling_inner.pyx":290
  * 
  *         if not model.hierarchical:
  *             with nogil:             # <<<<<<<<<<<<<<
@@ -2716,7 +2905,7 @@ static PyObject *__pyx_pf_13pooling_inner_train_pooling_cy(CYTHON_UNUSED PyObjec
           #endif
           /*try:*/ {
 
-            /* "pooling_inner.pyx":220
+            /* "pooling_inner.pyx":291
  *         if not model.hierarchical:
  *             with nogil:
  *                 compute_ft_sentence_pooling(&ft, eff_sentences)             # <<<<<<<<<<<<<<
@@ -2726,7 +2915,7 @@ static PyObject *__pyx_pf_13pooling_inner_train_pooling_cy(CYTHON_UNUSED PyObjec
             __pyx_f_13pooling_inner_compute_ft_sentence_pooling((&__pyx_v_ft), __pyx_v_eff_sentences);
           }
 
-          /* "pooling_inner.pyx":219
+          /* "pooling_inner.pyx":290
  * 
  *         if not model.hierarchical:
  *             with nogil:             # <<<<<<<<<<<<<<
@@ -2739,14 +2928,14 @@ static PyObject *__pyx_pf_13pooling_inner_train_pooling_cy(CYTHON_UNUSED PyObjec
               __Pyx_FastGIL_Forget();
               Py_BLOCK_THREADS
               #endif
-              goto __pyx_L15;
+              goto __pyx_L18;
             }
-            __pyx_L15:;
+            __pyx_L18:;
           }
       }
 
-      /* "pooling_inner.pyx":218
- *         eff_sentences, eff_words = populate_ft_s2v_config(&ft, model.wv.vocab, indexed_sentences)
+      /* "pooling_inner.pyx":289
+ *         )
  * 
  *         if not model.hierarchical:             # <<<<<<<<<<<<<<
  *             with nogil:
@@ -2756,7 +2945,7 @@ static PyObject *__pyx_pf_13pooling_inner_train_pooling_cy(CYTHON_UNUSED PyObjec
   }
   __pyx_L3:;
 
-  /* "pooling_inner.pyx":222
+  /* "pooling_inner.pyx":293
  *                 compute_ft_sentence_pooling(&ft, eff_sentences)
  * 
  *     return eff_sentences, eff_words             # <<<<<<<<<<<<<<
@@ -2764,36 +2953,36 @@ static PyObject *__pyx_pf_13pooling_inner_train_pooling_cy(CYTHON_UNUSED PyObjec
  * def init():
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyInt_From_npy_uint32(__pyx_v_eff_sentences); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 222, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_From_npy_uint32(__pyx_v_eff_sentences); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 293, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_4 = __Pyx_PyInt_From_npy_uint32(__pyx_v_eff_words); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 222, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_5 = PyTuple_New(2); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 222, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_From_npy_uint32(__pyx_v_eff_words); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 293, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
+  __pyx_t_6 = PyTuple_New(2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 293, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_6);
   __Pyx_GIVEREF(__pyx_t_1);
-  PyTuple_SET_ITEM(__pyx_t_5, 0, __pyx_t_1);
-  __Pyx_GIVEREF(__pyx_t_4);
-  PyTuple_SET_ITEM(__pyx_t_5, 1, __pyx_t_4);
+  PyTuple_SET_ITEM(__pyx_t_6, 0, __pyx_t_1);
+  __Pyx_GIVEREF(__pyx_t_5);
+  PyTuple_SET_ITEM(__pyx_t_6, 1, __pyx_t_5);
   __pyx_t_1 = 0;
-  __pyx_t_4 = 0;
-  __pyx_r = __pyx_t_5;
   __pyx_t_5 = 0;
+  __pyx_r = __pyx_t_6;
+  __pyx_t_6 = 0;
   goto __pyx_L0;
 
-  /* "pooling_inner.pyx":176
+  /* "pooling_inner.pyx":223
  * 
  * 
- * def train_pooling_cy(model, indexed_sentences, target, memory):             # <<<<<<<<<<<<<<
- *     """Training on a sequence of sentences and update the target ndarray.
- * 
+ * def train_pooling_cy(             # <<<<<<<<<<<<<<
+ *     model,
+ *     indexed_sentences,
  */
 
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
-  __Pyx_XDECREF(__pyx_t_4);
   __Pyx_XDECREF(__pyx_t_5);
   __Pyx_XDECREF(__pyx_t_6);
+  __Pyx_XDECREF(__pyx_t_7);
   __Pyx_AddTraceback("pooling_inner.train_pooling_cy", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
@@ -2802,7 +2991,7 @@ static PyObject *__pyx_pf_13pooling_inner_train_pooling_cy(CYTHON_UNUSED PyObjec
   return __pyx_r;
 }
 
-/* "pooling_inner.pyx":224
+/* "pooling_inner.pyx":295
  *     return eff_sentences, eff_words
  * 
  * def init():             # <<<<<<<<<<<<<<
@@ -2830,7 +3019,7 @@ static PyObject *__pyx_pf_13pooling_inner_2init(CYTHON_UNUSED PyObject *__pyx_se
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("init", 0);
 
-  /* "pooling_inner.pyx":225
+  /* "pooling_inner.pyx":296
  * 
  * def init():
  *     return 1             # <<<<<<<<<<<<<<
@@ -2842,7 +3031,7 @@ static PyObject *__pyx_pf_13pooling_inner_2init(CYTHON_UNUSED PyObject *__pyx_se
   __pyx_r = __pyx_int_1;
   goto __pyx_L0;
 
-  /* "pooling_inner.pyx":224
+  /* "pooling_inner.pyx":295
  *     return eff_sentences, eff_words
  * 
  * def init():             # <<<<<<<<<<<<<<
@@ -5361,11 +5550,12 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_kp_u_unknown_dtype_code_in_numpy_pxd, __pyx_k_unknown_dtype_code_in_numpy_pxd, sizeof(__pyx_k_unknown_dtype_code_in_numpy_pxd), 0, 1, 0, 0},
   {&__pyx_n_s_vocab, __pyx_k_vocab, sizeof(__pyx_k_vocab), 0, 0, 1, 1},
   {&__pyx_n_s_w2v, __pyx_k_w2v, sizeof(__pyx_k_w2v), 0, 0, 1, 1},
+  {&__pyx_n_s_window_size, __pyx_k_window_size, sizeof(__pyx_k_window_size), 0, 0, 1, 1},
   {&__pyx_n_s_wv, __pyx_k_wv, sizeof(__pyx_k_wv), 0, 0, 1, 1},
   {0, 0, 0, 0, 0, 0, 0}
 };
 static CYTHON_SMALL_CODE int __Pyx_InitCachedBuiltins(void) {
-  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_range) __PYX_ERR(0, 84, __pyx_L1_error)
+  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_range) __PYX_ERR(0, 92, __pyx_L1_error)
   __pyx_builtin_ValueError = __Pyx_GetBuiltinName(__pyx_n_s_ValueError); if (!__pyx_builtin_ValueError) __PYX_ERR(1, 272, __pyx_L1_error)
   __pyx_builtin_RuntimeError = __Pyx_GetBuiltinName(__pyx_n_s_RuntimeError); if (!__pyx_builtin_RuntimeError) __PYX_ERR(1, 856, __pyx_L1_error)
   __pyx_builtin_ImportError = __Pyx_GetBuiltinName(__pyx_n_s_ImportError); if (!__pyx_builtin_ImportError) __PYX_ERR(1, 1038, __pyx_L1_error)
@@ -5455,26 +5645,26 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __Pyx_GOTREF(__pyx_tuple__7);
   __Pyx_GIVEREF(__pyx_tuple__7);
 
-  /* "pooling_inner.pyx":176
+  /* "pooling_inner.pyx":223
  * 
  * 
- * def train_pooling_cy(model, indexed_sentences, target, memory):             # <<<<<<<<<<<<<<
- *     """Training on a sequence of sentences and update the target ndarray.
- * 
+ * def train_pooling_cy(             # <<<<<<<<<<<<<<
+ *     model,
+ *     indexed_sentences,
  */
-  __pyx_tuple__9 = PyTuple_Pack(8, __pyx_n_s_model, __pyx_n_s_indexed_sentences, __pyx_n_s_target, __pyx_n_s_memory, __pyx_n_s_eff_sentences, __pyx_n_s_eff_words, __pyx_n_s_w2v, __pyx_n_s_ft); if (unlikely(!__pyx_tuple__9)) __PYX_ERR(0, 176, __pyx_L1_error)
+  __pyx_tuple__9 = PyTuple_Pack(9, __pyx_n_s_model, __pyx_n_s_indexed_sentences, __pyx_n_s_target, __pyx_n_s_memory, __pyx_n_s_eff_sentences, __pyx_n_s_eff_words, __pyx_n_s_window_size, __pyx_n_s_w2v, __pyx_n_s_ft); if (unlikely(!__pyx_tuple__9)) __PYX_ERR(0, 223, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__9);
   __Pyx_GIVEREF(__pyx_tuple__9);
-  __pyx_codeobj__10 = (PyObject*)__Pyx_PyCode_New(4, 0, 8, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__9, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_pooling_inner_pyx, __pyx_n_s_train_pooling_cy, 176, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__10)) __PYX_ERR(0, 176, __pyx_L1_error)
+  __pyx_codeobj__10 = (PyObject*)__Pyx_PyCode_New(4, 0, 9, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__9, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_pooling_inner_pyx, __pyx_n_s_train_pooling_cy, 223, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__10)) __PYX_ERR(0, 223, __pyx_L1_error)
 
-  /* "pooling_inner.pyx":224
+  /* "pooling_inner.pyx":295
  *     return eff_sentences, eff_words
  * 
  * def init():             # <<<<<<<<<<<<<<
  *     return 1
  * 
  */
-  __pyx_codeobj__11 = (PyObject*)__Pyx_PyCode_New(0, 0, 0, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_pooling_inner_pyx, __pyx_n_s_init, 224, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 224, __pyx_L1_error)
+  __pyx_codeobj__11 = (PyObject*)__Pyx_PyCode_New(0, 0, 0, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_pooling_inner_pyx, __pyx_n_s_init, 295, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 295, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -5807,88 +5997,88 @@ if (!__Pyx_RefNanny) {
   if (__Pyx_patch_abc() < 0) __PYX_ERR(0, 1, __pyx_L1_error)
   #endif
 
-  /* "pooling_inner.pyx":14
+  /* "pooling_inner.pyx":15
  * 
  * import cython
  * import numpy as np             # <<<<<<<<<<<<<<
  * 
  * cimport numpy as np
  */
-  __pyx_t_1 = __Pyx_Import(__pyx_n_s_numpy, 0, -1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 14, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_Import(__pyx_n_s_numpy, 0, -1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 15, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_np, __pyx_t_1) < 0) __PYX_ERR(0, 14, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_np, __pyx_t_1) < 0) __PYX_ERR(0, 15, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "pooling_inner.pyx":20
+  /* "pooling_inner.pyx":21
  * from libc.string cimport memset
  * 
  * import scipy.linalg.blas as fblas             # <<<<<<<<<<<<<<
  * 
  * from average_inner cimport (
  */
-  __pyx_t_1 = PyList_New(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 20, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_INCREF(__pyx_n_s__8);
   __Pyx_GIVEREF(__pyx_n_s__8);
   PyList_SET_ITEM(__pyx_t_1, 0, __pyx_n_s__8);
-  __pyx_t_2 = __Pyx_Import(__pyx_n_s_scipy_linalg_blas, __pyx_t_1, -1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 20, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_Import(__pyx_n_s_scipy_linalg_blas, __pyx_t_1, -1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_fblas, __pyx_t_2) < 0) __PYX_ERR(0, 20, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_fblas, __pyx_t_2) < 0) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "pooling_inner.pyx":176
+  /* "pooling_inner.pyx":223
  * 
  * 
- * def train_pooling_cy(model, indexed_sentences, target, memory):             # <<<<<<<<<<<<<<
- *     """Training on a sequence of sentences and update the target ndarray.
- * 
+ * def train_pooling_cy(             # <<<<<<<<<<<<<<
+ *     model,
+ *     indexed_sentences,
  */
-  __pyx_t_2 = PyCFunction_NewEx(&__pyx_mdef_13pooling_inner_1train_pooling_cy, NULL, __pyx_n_s_pooling_inner); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 176, __pyx_L1_error)
+  __pyx_t_2 = PyCFunction_NewEx(&__pyx_mdef_13pooling_inner_1train_pooling_cy, NULL, __pyx_n_s_pooling_inner); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 223, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_train_pooling_cy, __pyx_t_2) < 0) __PYX_ERR(0, 176, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_train_pooling_cy, __pyx_t_2) < 0) __PYX_ERR(0, 223, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "pooling_inner.pyx":224
+  /* "pooling_inner.pyx":295
  *     return eff_sentences, eff_words
  * 
  * def init():             # <<<<<<<<<<<<<<
  *     return 1
  * 
  */
-  __pyx_t_2 = PyCFunction_NewEx(&__pyx_mdef_13pooling_inner_3init, NULL, __pyx_n_s_pooling_inner); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 224, __pyx_L1_error)
+  __pyx_t_2 = PyCFunction_NewEx(&__pyx_mdef_13pooling_inner_3init, NULL, __pyx_n_s_pooling_inner); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 295, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_init, __pyx_t_2) < 0) __PYX_ERR(0, 224, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_init, __pyx_t_2) < 0) __PYX_ERR(0, 295, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "pooling_inner.pyx":227
+  /* "pooling_inner.pyx":298
  *     return 1
  * 
  * MAX_WORDS_IN_BATCH = MAX_WORDS             # <<<<<<<<<<<<<<
  * MAX_NGRAMS_IN_BATCH = MAX_NGRAMS
  * FAST_VERSION = init()
  */
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_MAX_WORDS_IN_BATCH, __pyx_int_10000) < 0) __PYX_ERR(0, 227, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_MAX_WORDS_IN_BATCH, __pyx_int_10000) < 0) __PYX_ERR(0, 298, __pyx_L1_error)
 
-  /* "pooling_inner.pyx":228
+  /* "pooling_inner.pyx":299
  * 
  * MAX_WORDS_IN_BATCH = MAX_WORDS
  * MAX_NGRAMS_IN_BATCH = MAX_NGRAMS             # <<<<<<<<<<<<<<
  * FAST_VERSION = init()
  */
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_MAX_NGRAMS_IN_BATCH, __pyx_int_40) < 0) __PYX_ERR(0, 228, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_MAX_NGRAMS_IN_BATCH, __pyx_int_40) < 0) __PYX_ERR(0, 299, __pyx_L1_error)
 
-  /* "pooling_inner.pyx":229
+  /* "pooling_inner.pyx":300
  * MAX_WORDS_IN_BATCH = MAX_WORDS
  * MAX_NGRAMS_IN_BATCH = MAX_NGRAMS
  * FAST_VERSION = init()             # <<<<<<<<<<<<<<
  */
-  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_init); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 229, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_init); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 300, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_1 = __Pyx_PyObject_CallNoArg(__pyx_t_2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 229, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_CallNoArg(__pyx_t_2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 300, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_FAST_VERSION, __pyx_t_1) < 0) __PYX_ERR(0, 229, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_FAST_VERSION, __pyx_t_1) < 0) __PYX_ERR(0, 300, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
   /* "pooling_inner.pyx":1
