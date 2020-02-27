@@ -17,8 +17,21 @@ ctypedef np.float32_t REAL_t
 ctypedef np.uint32_t uINT_t
 
 # BLAS routine signatures
-ctypedef void (*saxpy_ptr) (const int *N, const float *alpha, const float *X, const int *incX, float *Y, const int *incY) nogil
-ctypedef void (*sscal_ptr) (const int *N, const float *alpha, const float *X, const int *incX) nogil
+ctypedef void (*saxpy_ptr) (
+    const int *N, 
+    const float *alpha, 
+    const float *X, 
+    const int *incX, 
+    float *Y, 
+    const int *incY,
+) nogil
+
+ctypedef void (*sscal_ptr) (
+    const int *N, 
+    const float *alpha, 
+    const float *X, 
+    const int *incX,
+) nogil
 
 cdef saxpy_ptr saxpy
 cdef sscal_ptr sscal
@@ -69,8 +82,26 @@ cdef struct FTSentenceVecsConfig:
     uINT_t subwords_idx_len[MAX_WORDS]
     uINT_t *subwords_idx
     
-cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory)
-cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory)
+cdef init_base_s2v_config(
+    BaseSentenceVecsConfig *c, 
+    model, 
+    target, 
+    memory
+)
+cdef init_ft_s2v_config(
+    FTSentenceVecsConfig *c, 
+    model, 
+    target, 
+    memory
+)
 
-cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_sentences)
-cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sentences)
+cdef object populate_base_s2v_config(
+    BaseSentenceVecsConfig *c, 
+    vocab, 
+    indexed_sentences,
+)
+cdef object populate_ft_s2v_config(
+    FTSentenceVecsConfig *c, 
+    vocab, 
+    indexed_sentences,
+)

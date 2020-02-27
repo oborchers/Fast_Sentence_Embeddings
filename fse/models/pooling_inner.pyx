@@ -219,7 +219,6 @@ cdef void compute_ft_sentence_pooling(
                 )
         # There's nothing to do here for many-to-one mappings
 
-
 def train_pooling_cy(
     model, 
     indexed_sentences, 
