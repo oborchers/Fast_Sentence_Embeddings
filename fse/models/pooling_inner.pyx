@@ -102,60 +102,76 @@ cdef void compute_base_sentence_pooling(BaseSentenceVecsConfig *c, uINT_t num_se
         # There's nothing to do here for many-to-one mappings
 
 
-# cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sentences) nogil:
-#     """Perform optimized sentence-level averaging for FastText model.
+cdef void compute_ft_sentence_pooling(FTSentenceVecsConfig *c, uINT_t num_sentences) nogil:
+    """Perform optimized sentence-level max pooling for FastText model.
 
-#     Parameters
-#     ----------
-#     c : FTSentenceVecsConfig *
-#         A pointer to a fully initialized and populated struct.
-#     num_sentences : uINT_t
-#         The number of sentences used to train the model.
+    Parameters
+    ----------
+    c : FTSentenceVecsConfig *
+        A pointer to a fully initialized and populated struct.
+    num_sentences : uINT_t
+        The number of sentences used to train the model.
     
-#     Notes
-#     -----
-#     This routine DOES provide oov support.
+    Notes
+    -----
+    This routine DOES provide oov support.
 
-#     """
-#     cdef:
-#         int size = c.size
+    """
+    cdef:
+        int size = c.size
 
-#         uINT_t sent_idx, sent_start, sent_end, sent_row
+        uINT_t sent_idx, sent_start, sent_end, sent_row
 
-#         uINT_t ngram_row, ngrams
+        uINT_t ngram_row, ngrams
 
-#         uINT_t i, j, word_idx, word_row
+        uINT_t i, j, word_idx, word_row
 
-#         REAL_t sent_len
-#         REAL_t inv_count, inv_ngram
-#         REAL_t oov_weight = c.oov_weight
+        REAL_t sent_len
+        REAL_t inv_count, inv_ngram
+        REAL_t oov_weight = c.oov_weight
 
+    for sent_idx in range(num_sentences):
+        sent_start = c.sentence_boundary[sent_idx]
+        sent_end = c.sentence_boundary[sent_idx + 1]
+        sent_len = ZEROF
 
-#     for sent_idx in range(num_sentences):
-#         memset(c.mem, 0, size * cython.sizeof(REAL_t))
-#         sent_start = c.sentence_boundary[sent_idx]
-#         sent_end = c.sentence_boundary[sent_idx + 1]
-#         sent_len = ZEROF
+        for i in range(sent_start, sent_end):
+            sent_len += ONEF
+            sent_row = c.sent_adresses[i] * size
 
-#         for i in range(sent_start, sent_end):
-#             sent_len += ONEF
-#             sent_row = c.sent_adresses[i] * size
+            word_idx = c.word_indices[i]
+            ngrams = c.subwords_idx_len[i]
 
-#             word_idx = c.word_indices[i]
-#             ngrams = c.subwords_idx_len[i]
+            if ngrams == 0:
+                word_row = c.word_indices[i] * size
 
-#             if ngrams == 0:
-#                 word_row = c.word_indices[i] * size
-#                 saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, c.mem, &ONE)
-#             else:
-#                 inv_ngram = (ONEF / <REAL_t>ngrams) * c.oov_weight
-#                 for j in range(ngrams):
-#                     ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size
-#                     saxpy(&size, &inv_ngram, &c.ngram_vectors[ngram_row], &ONE, c.mem, &ONE)
-                
-#         if sent_len > ZEROF:
-#             inv_count = ONEF / sent_len
-#             saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
+                sl_max_pool(
+                    &size, 
+                    &c.sentence_vectors[sent_row],
+                    &c.word_vectors[word_row],
+                )
+
+            else:
+                memset(c.mem, 0, size * cython.sizeof(REAL_t))
+                inv_ngram = (ONEF / <REAL_t>ngrams) * c.oov_weight
+                for j in range(ngrams):
+                    ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size
+                    saxpy(
+                        &size, 
+                        &inv_ngram, 
+                        &c.ngram_vectors[ngram_row], 
+                        &ONE, 
+                        c.mem, 
+                        &ONE
+                    )
+
+                sl_max_pool(
+                    &size, 
+                    &c.sentence_vectors[sent_row],
+                    c.mem,
+                )
+        # There's nothing to do here for many-to-one mappings
+
 
 def train_pooling_cy(model, indexed_sentences, target, memory):
     """Training on a sequence of sentences and update the target ndarray.
@@ -191,15 +207,17 @@ def train_pooling_cy(model, indexed_sentences, target, memory):
 
         eff_sentences, eff_words = populate_base_s2v_config(&w2v, model.wv.vocab, indexed_sentences)
 
-        with nogil:
-            compute_base_sentence_pooling(&w2v, eff_sentences)
+        if not model.hierarchical:
+            with nogil:
+                compute_base_sentence_pooling(&w2v, eff_sentences)
     else:        
         init_ft_s2v_config(&ft, model, target, memory)
 
         eff_sentences, eff_words = populate_ft_s2v_config(&ft, model.wv.vocab, indexed_sentences)
 
-        # with nogil:
-        #     compute_ft_sentence_averages(&ft, eff_sentences) 
+        if not model.hierarchical:
+            with nogil:
+                compute_ft_sentence_pooling(&ft, eff_sentences) 
     
     return eff_sentences, eff_words
 

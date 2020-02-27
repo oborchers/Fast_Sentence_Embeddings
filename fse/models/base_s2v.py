@@ -132,7 +132,7 @@ class BaseSentence2VecModel(SaveLoad):
             [ ] documentation
             [ ] more benchmarks
             [ ] more speed benchmarks -> worker support still somewhat weird
-            [ ] remove wv_mapfile_path?
+            [-] remove wv_mapfile_path?
             [ ] modifiable sv_mapfile_path?
 
         [ ] models:
@@ -147,11 +147,12 @@ class BaseSentence2VecModel(SaveLoad):
         [ ] sentencevectors:
             [X] similar_by_sentence model type check
             [ ] approximate NN search for large files
-                [ ] compare ANN libraries
-                [ ] ease-of-use
-                [ ] dependencies
-                [ ] compatibility
-                [ ] memory-usage
+                [X] compare ANN libraries
+                [X] ease-of-use
+                [X] dependencies
+                [X] compatibility
+                [X] memory-usage
+                --> Annoy
         """
 
         set_madvise_for_mmap()
