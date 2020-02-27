@@ -107,6 +107,10 @@ setup(
 
     test_suite="fse.test",
 
+    setup_requires=[
+         'numpy >= 1.11.3',
+     ],
+
     install_requires=[
         'numpy >= 1.11.3',
         'scipy >= 0.18.1',
