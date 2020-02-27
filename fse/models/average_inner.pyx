@@ -6,7 +6,7 @@
 # coding: utf-8
 
 # Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
-# Copyright (C) 2019 Oliver Borchers
+# Copyright (C) 2020 Oliver Borchers
 
 """Optimized cython functions for computing sentence embeddings"""
 

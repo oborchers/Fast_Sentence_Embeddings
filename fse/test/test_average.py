@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
-# Copyright (C) 2019 Oliver Borchers
+# Copyright (C) 2020 Oliver Borchers
 
 """
 Automated tests for checking the average model.
