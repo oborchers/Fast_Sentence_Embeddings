@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
+# Copyright (C) 2020 Oliver Borchers
+
 import logging
 import unittest
 

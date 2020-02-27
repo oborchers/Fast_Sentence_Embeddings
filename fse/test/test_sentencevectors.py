@@ -3,6 +3,7 @@
 
 # Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
 # Copyright (C) 2020 Oliver Borchers
+# Licensed under GNU General Public License v3.0
 
 
 """
