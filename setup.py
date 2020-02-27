@@ -102,6 +102,11 @@ setup(
             sources=["./fse/models/average_inner.pyx"],  # .c
             include_dirs=[mod_dir],
         ),
+        Extension(
+            "fse.models.pooling_inner",
+            sources=["./fse/models/pooling_inner.pyx"],  # .c
+            include_dirs=[mod_dir],
+        ),
     ],
     cmdclass=cmdclass,
     packages=find_packages(),
