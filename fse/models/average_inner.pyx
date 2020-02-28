@@ -19,6 +19,7 @@ cimport numpy as np
 from gensim.models._utils_any2vec import compute_ngrams_bytes, ft_hash_bytes
 
 from libc.string cimport memset
+from libc.stdio cimport printf
 
 import scipy.linalg.blas as fblas
 
@@ -269,13 +270,27 @@ cdef void compute_base_sentence_averages(
             word_row = c.word_indices[i] * size
             word_idx = c.word_indices[i]
 
-            saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, c.mem, &ONE)
+            saxpy(
+                &size, 
+                &c.word_weights[word_idx], 
+                &c.word_vectors[word_row], 
+                &ONE, 
+                c.mem, 
+                &ONE
+            )
 
         if sent_len > ZEROF:
             inv_count = ONEF / sent_len
             # If we perform the a*x on memory, the computation is compatible with many-to-one mappings
             # because it doesn't rescale the overall result
-            saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
+            saxpy(
+                &size, 
+                &inv_count, 
+                c.mem, 
+                &ONE, 
+                &c.sentence_vectors[sent_row], 
+                &ONE
+            )
 
 cdef void compute_ft_sentence_averages(
     FTSentenceVecsConfig *c, 

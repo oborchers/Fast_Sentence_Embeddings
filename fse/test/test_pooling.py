@@ -47,6 +47,7 @@ FT_R.build_vocab(SENTENCES)
 
 
 class TestPoolingFunctions(unittest.TestCase):
+    
     def setUp(self):
         self.sentences = [
             ["They", "admit"],
@@ -256,6 +257,16 @@ class TestPoolingFunctions(unittest.TestCase):
         mpool.train(self.sentences)
         self.assertTrue((mpool.sv.vectors >= 0).all())
 
+    def test_hpooling_train_np_w2v_non_negative(self):
+        mpool = MaxPooling(W2V_R, hierarchical=True)
+        mpool.train(self.sentences)
+        self.assertTrue((mpool.sv.vectors >= 0).all())
+
+    def test_pooling_train_np_ft_non_negative(self):
+        mpool = MaxPooling(FT_R)
+        mpool.train(self.sentences)
+        self.assertTrue((mpool.sv.vectors >= 0).all())
+
     def test_hier_pooling_train_np_w2v(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
         mem = self.model._get_thread_working_mem()
@@ -271,15 +282,23 @@ class TestPoolingFunctions(unittest.TestCase):
         self.assertTrue((183 == self.model.sv[0]).all())
         self.assertTrue(np.allclose(self.model.sv[4], 245.66667))
 
-    def test_hpooling_train_np_w2v_non_negative(self):
-        mpool = MaxPooling(W2V_R, hierarchical=True)
-        mpool.train(self.sentences)
-        self.assertTrue((mpool.sv.vectors >= 0).all())
+    def test_hier_pooling_train_cy_w2v(self):
+        self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
+        mem = self.model._get_thread_working_mem()
 
-    def test_pooling_train_np_ft_non_negative(self):
-        mpool = MaxPooling(FT_R)
-        mpool.train(self.sentences)
-        self.assertTrue((mpool.sv.vectors >= 0).all())
+        self.model.hierarchical = True
+
+        from fse.models.pooling_inner import train_pooling_cy
+
+        output = train_pooling_cy(
+            self.model, self.sentences, self.model.sv.vectors, mem
+        )
+        self.model.hierarchical = False
+
+        self.assertEqual((5, 14), output)
+        self.assertTrue((183 == self.model.sv[0]).all())
+        self.assertTrue(np.allclose(self.model.sv[4], 245.66667))
+
 
     def test_hier_pooling_train_np_ft(self):
         m = MaxPooling(FT)
