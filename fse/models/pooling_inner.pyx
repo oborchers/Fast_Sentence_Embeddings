@@ -117,6 +117,7 @@ cdef void compute_base_sentence_hier_pooling(
     BaseSentenceVecsConfig *c, 
     uINT_t num_sentences,
     uINT_t window_size,
+    REAL_t window_stride,
 ) nogil:
     """Perform optimized sentence-level hierarchical max pooling for BaseAny2Vec model.
 
@@ -128,13 +129,14 @@ cdef void compute_base_sentence_hier_pooling(
         The number of sentences used to train the model.
     window_size : uINT_t
         The local window size.
-    
+    window_stride : REAL_t
+        The local window stride.
+
     Notes
     -----
     This routine does not provide oov support.
 
     """
-
     cdef:
         int size = c.size
 
@@ -151,6 +153,10 @@ cdef void compute_base_sentence_hier_pooling(
 
         for sent_pos in range(sent_start, sent_end):
             sent_len += ONEF
+
+            if (sent_len-ONEF) % window_stride != ZEROF:
+                continue
+
             sent_row = c.sent_adresses[sent_pos] * size    
 
             if sent_pos + window_size > sent_end:
@@ -275,6 +281,7 @@ cdef void compute_ft_sentence_hier_pooling(
     FTSentenceVecsConfig *c, 
     uINT_t num_sentences,
     uINT_t window_size,
+    REAL_t window_stride,
 ) nogil:
     """Perform optimized sentence-level hierarchical max pooling for FastText model.
 
@@ -286,7 +293,9 @@ cdef void compute_ft_sentence_hier_pooling(
         The number of sentences used to train the model.
     window_size : uINT_t
         The local window size.
-    
+    window_stride : REAL_t
+        The local window stride.
+
     Notes
     -----
     This routine DOES provide oov support.
@@ -314,6 +323,10 @@ cdef void compute_ft_sentence_hier_pooling(
 
         for sent_pos in range(sent_start, sent_end):
             sent_len += ONEF
+
+            if (sent_len-ONEF) % window_stride != ZEROF:
+                continue
+
             sent_row = c.sent_adresses[sent_pos] * size    
 
             if sent_pos + window_size > sent_end:
@@ -418,6 +431,7 @@ def train_pooling_cy(
     cdef uINT_t eff_sentences = 0
     cdef uINT_t eff_words = 0
     cdef uINT_t window_size = <uINT_t> model.window_size
+    cdef REAL_t window_stride = <REAL_t> model.window_stride
     cdef BaseSentenceVecsConfig w2v
     cdef FTSentenceVecsConfig ft
 
@@ -442,6 +456,7 @@ def train_pooling_cy(
                     &w2v, 
                     eff_sentences, 
                     window_size,
+                    window_stride,
                 )
     else:        
         init_ft_s2v_config(&ft, model, target, memory)
@@ -461,6 +476,7 @@ def train_pooling_cy(
                     &ft, 
                     eff_sentences, 
                     window_size,
+                    window_stride,
                 )
     
     return eff_sentences, eff_words

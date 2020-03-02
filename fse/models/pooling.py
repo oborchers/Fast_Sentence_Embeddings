@@ -102,7 +102,8 @@ def train_pooling_np(
     mem = memory[0]
 
     hierarchical = model.hierarchical
-    window = model.window_size
+    window_size = model.window_size
+    window_stride = model.window_stride
 
     if is_ft:
         # NOTE: For Fasttext: Use wv.vectors_vocab
@@ -177,8 +178,10 @@ def train_pooling_np(
             else:
                 # More expensive iteration
                 for word_index, _ in enumerate(word_indices):
+                    if word_index % window_stride != 0:
+                        continue
                     # Compute the local window
-                    window_indices = word_indices[word_index : word_index + window]
+                    window_indices = word_indices[word_index : word_index + window_size]
                     # Perform average pooling [0,1,2,3,4]
                     mem = np_sum(
                         np_mult(
@@ -209,18 +212,22 @@ def train_pooling_np(
                         get_ft_vector(word), s_vectors[sent_adr],
                     )
             else:
+                if sent_adr == 4:
+                    print("hi")
+                
                 for word_index, word in enumerate(sent):
+                    if word_index % window_stride != 0:
+                        continue
                     mem.fill(0.0)
                     mem += get_ft_vector(word)
                     count = 1
 
-                    for context in sent[word_index : word_index + window]:
+                    for context in sent[word_index : word_index + window_size]:
                         if word == context:
                             continue
                         mem += get_ft_vector(context)
                         count += 1
                     mem /= count
-
                     s_vectors[sent_adr] = np_maximum(mem, s_vectors[sent_adr],)
 
     return eff_sentences, eff_words
@@ -270,10 +277,10 @@ class MaxPooling(BaseSentence2VecModel):
         model: BaseKeyedVectors,
         hierarchical: bool = False,
         window_size: int = 5,
+        window_stride: int = 1,
         sv_mapfile_path: str = None,
         wv_mapfile_path: str = None,
         workers: int = 1,
-        **kwargs
     ):
         """ Max pooling sentence embeddings model. Performs a simple maximum pooling operation over all
         words in a sentences without further transformations.
@@ -290,6 +297,8 @@ class MaxPooling(BaseSentence2VecModel):
             If true, then perform hierarchical pooling operation
         window_size : int
             Set the size of the window used for hierarchical pooling operation
+        window_stride: int
+            Set adjacency of the window used for hierarchical pooling operation
         sv_mapfile_path : str, optional
             Optional path to store the sentence-vectors in for very large datasets. Used for memmap.
         wv_mapfile_path : str, optional
@@ -301,6 +310,7 @@ class MaxPooling(BaseSentence2VecModel):
         """
         self.hierarchical = bool(hierarchical)
         self.window_size = int(window_size)
+        self.window_stride = int(window_stride)
 
         super(MaxPooling, self).__init__(
             model=model,
@@ -328,6 +338,8 @@ class MaxPooling(BaseSentence2VecModel):
             raise ValueError("All word weights must equal one for pool")
         if self.window_size < 1:
             raise ValueError("Window size must be greater than 1")
+        if not 1 <= self.window_stride <= self.window_size:
+            raise ValueError(f"Window stride must be 1 <= stride <= {self.window_size}")
 
     def _pre_train_calls(self, **kwargs):
         """Function calls to perform before training """
