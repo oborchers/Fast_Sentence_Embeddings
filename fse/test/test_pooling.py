@@ -105,7 +105,7 @@ class TestPoolingFunctions(unittest.TestCase):
         )
         self.assertEqual((105, DIM), self.model.sv.vectors.shape)
 
-    def test_pooling_train_np_w2v(self):
+    def test_pool_train_np_w2v(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
         mem = self.model._get_thread_working_mem()
 
@@ -180,8 +180,8 @@ class TestPoolingFunctions(unittest.TestCase):
 
         o2 = train_pooling_cy(m2, self.sentences, m2.sv.vectors, mem2)
 
-        self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))
-    
+        self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))    
+
     def test_pool_train_np_ft(self):
         m = MaxPooling(FT)
         m.prep.prepare_vectors(
@@ -222,7 +222,7 @@ class TestPoolingFunctions(unittest.TestCase):
             np.allclose(1080970.2, m.sv[3])
         )
 
-    def test_cy_equal_np_ft_random(self):
+    def test_pool_cy_equal_np_ft_random(self):
         ft = FastText(size=20, min_count=1)
         ft.build_vocab(SENTENCES)
 
@@ -252,20 +252,17 @@ class TestPoolingFunctions(unittest.TestCase):
         self.assertEqual(o1, o2)
         self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))
 
-    def test_pooling_train_np_w2v_non_negative(self):
+    def test_pool_np_w2v_non_negative(self):
         mpool = MaxPooling(W2V_R)
         mpool.train(self.sentences)
         self.assertTrue((mpool.sv.vectors >= 0).all())
 
-    def test_hpooling_train_np_w2v_non_negative(self):
-        mpool = MaxPooling(W2V_R, hierarchical=True)
-        mpool.train(self.sentences)
-        self.assertTrue((mpool.sv.vectors >= 0).all())
-
-    def test_pooling_train_np_ft_non_negative(self):
+    def test_pool_np_ft_non_negative(self):
         mpool = MaxPooling(FT_R)
         mpool.train(self.sentences)
         self.assertTrue((mpool.sv.vectors >= 0).all())
+
+    ### Hierarchical Tests start here
 
     def test_hier_pooling_train_np_w2v(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
@@ -299,23 +296,20 @@ class TestPoolingFunctions(unittest.TestCase):
         self.assertTrue((183 == self.model.sv[0]).all())
         self.assertTrue(np.allclose(self.model.sv[4], 245.66667))
 
-
     def test_hier_pooling_train_np_ft(self):
-        m = MaxPooling(FT)
+        m = MaxPooling(FT, hierarchical=True)
         m.prep.prepare_vectors(
             sv=m.sv, total_sentences=len(self.sentences), update=False
         )
         m._pre_train_calls()
         mem = m._get_thread_working_mem()
 
-        m.hierarchical = True
-
         output = train_pooling_np(m, self.sentences, m.sv.vectors, mem)
 
         self.assertEqual((5, 19), output)
         self.assertTrue((183 == m.sv[0]).all())
-        self.assertTrue((737413.9 == m.sv[2]).all())
-        self.assertTrue((1080970.2 == m.sv[3]).all())
+        self.assertTrue(np.allclose(737413.9, m.sv[2]))
+        self.assertTrue(np.allclose(1080970.2, m.sv[3]))
         """
         Note to future self:
         Due to the size of the ngram vectors,
@@ -324,7 +318,55 @@ class TestPoolingFunctions(unittest.TestCase):
         TODO: This unittest is thus a bit flawed. Maybe fix?
         """
 
-    def test_hier_pooling_train_np_ft_non_negative(self):
+    def test_hier_pooling_train_cy_ft(self):
+        m = MaxPooling(FT, hierarchical=True)
+        m.prep.prepare_vectors(
+            sv=m.sv, total_sentences=len(self.sentences), update=False
+        )
+        m._pre_train_calls()
+        mem = m._get_thread_working_mem()
+
+        from fse.models.pooling_inner import train_pooling_cy
+
+        output = train_pooling_cy(m, self.sentences, m.sv.vectors, mem)
+
+        self.assertEqual((5, 19), output)
+        self.assertTrue((183 == m.sv[0]).all())
+        self.assertTrue(np.allclose(737413.9, m.sv[2]))
+        self.assertTrue(np.allclose(1080970.2, m.sv[3]))
+
+    def test_hier_pool_cy_equal_np_w2v_random(self):
+        w2v = Word2Vec(min_count=1, size=DIM)
+        # Random initialization
+        w2v.build_vocab(SENTENCES)
+
+        m1 = MaxPooling(w2v, hierarchical=True)
+        m1.prep.prepare_vectors(
+            sv=m1.sv, total_sentences=len(self.sentences), update=False
+        )
+        m1._pre_train_calls()
+        mem1 = m1._get_thread_working_mem()
+        o1 = train_pooling_np(m1, self.sentences, m1.sv.vectors, mem1)
+
+        m2 = MaxPooling(w2v, hierarchical=True)
+        m2.prep.prepare_vectors(
+            sv=m2.sv, total_sentences=len(self.sentences), update=False
+        )
+        m2._pre_train_calls()
+        mem2 = m2._get_thread_working_mem()
+
+        from fse.models.pooling_inner import train_pooling_cy
+
+        o2 = train_pooling_cy(m2, self.sentences, m2.sv.vectors, mem2)
+
+        self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))
+
+    def test_hier_pool_cy_w2v_non_negative(self):
+        mpool = MaxPooling(W2V_R, hierarchical=True)
+        mpool.train(self.sentences)
+        self.assertTrue((mpool.sv.vectors >= 0).all())
+
+    def test_hier_pool_cy_ft_non_negative(self):
         mpool = MaxPooling(FT_R, hierarchical=True)
         mpool.train(self.sentences)
         self.assertTrue((mpool.sv.vectors >= 0).all())

@@ -89,7 +89,7 @@ cdef void compute_base_sentence_pooling(
 
         uINT_t sent_idx, sent_start, sent_end, sent_row
 
-        uINT_t i, word_idx, word_row
+        uINT_t sent_pos, word_idx, word_row
 
         REAL_t sent_len, inv_count
 
@@ -98,11 +98,11 @@ cdef void compute_base_sentence_pooling(
         sent_end = c.sentence_boundary[sent_idx + 1]
         sent_len = ZEROF
 
-        for i in range(sent_start, sent_end):
+        for sent_pos in range(sent_start, sent_end):
             sent_len += ONEF
-            sent_row = c.sent_adresses[i] * size
-            word_row = c.word_indices[i] * size
-            word_idx = c.word_indices[i]
+            sent_row = c.sent_adresses[sent_pos] * size
+            word_row = c.word_indices[sent_pos] * size
+            word_idx = c.word_indices[sent_pos]
             
             swrmax_pool(
                 &size, 
@@ -140,7 +140,7 @@ cdef void compute_base_sentence_hier_pooling(
 
         uINT_t sent_idx, sent_start, sent_end, sent_row, window_end
 
-        uINT_t i, j, word_idx, word_row
+        uINT_t sent_pos, window_pos, word_idx, word_row
 
         REAL_t sent_len, win_len, inv_count
 
@@ -149,24 +149,24 @@ cdef void compute_base_sentence_hier_pooling(
         sent_end = c.sentence_boundary[sent_idx + 1]
         sent_len = ZEROF
 
-        for i in range(sent_start, sent_end):
+        for sent_pos in range(sent_start, sent_end):
             sent_len += ONEF
-            sent_row = c.sent_adresses[i] * size    
+            sent_row = c.sent_adresses[sent_pos] * size    
 
-            if i + window_size > sent_end:
+            if sent_pos + window_size > sent_end:
                 window_end = sent_end
             else:
-                window_end = i + window_size
+                window_end = sent_pos + window_size
             
             # Compute the locally averaged window
             win_len = ZEROF
             memset(c.mem, 0, size * cython.sizeof(REAL_t))
             memset(c.mem2, 0, size * cython.sizeof(REAL_t))
-            for j in range(i, window_end):
+            for window_pos in range(sent_pos, window_end):
                 win_len += ONEF
                 
-                word_row = c.word_indices[j] * size
-                word_idx = c.word_indices[j]
+                word_row = c.word_indices[window_pos] * size
+                word_idx = c.word_indices[window_pos]
 
                 saxpy(
                     &size, 
@@ -221,7 +221,7 @@ cdef void compute_ft_sentence_pooling(
 
         uINT_t ngram_row, ngrams
 
-        uINT_t i, j, word_idx, word_row
+        uINT_t sent_pos, ngram_pos, word_idx, word_row
 
         REAL_t sent_len
         REAL_t inv_count, inv_ngram
@@ -232,15 +232,15 @@ cdef void compute_ft_sentence_pooling(
         sent_end = c.sentence_boundary[sent_idx + 1]
         sent_len = ZEROF
 
-        for i in range(sent_start, sent_end):
+        for sent_pos in range(sent_start, sent_end):
             sent_len += ONEF
-            sent_row = c.sent_adresses[i] * size
+            sent_row = c.sent_adresses[sent_pos] * size
 
-            word_idx = c.word_indices[i]
-            ngrams = c.subwords_idx_len[i]
+            word_idx = c.word_indices[sent_pos]
+            ngrams = c.subwords_idx_len[sent_pos]
 
             if ngrams == 0:
-                word_row = c.word_indices[i] * size
+                word_row = c.word_indices[sent_pos] * size
 
                 swrmax_pool(
                     &size, 
@@ -252,8 +252,8 @@ cdef void compute_ft_sentence_pooling(
             else:
                 memset(c.mem, 0, size * cython.sizeof(REAL_t))
                 inv_ngram = (ONEF / <REAL_t>ngrams) * c.oov_weight
-                for j in range(ngrams):
-                    ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size
+                for ngram_pos in range(ngrams):
+                    ngram_row = c.subwords_idx[(sent_pos * MAX_NGRAMS)+ngram_pos] * size
                     saxpy(
                         &size, 
                         &inv_ngram, 
@@ -269,6 +269,121 @@ cdef void compute_ft_sentence_pooling(
                     c.mem,
                     &c.sentence_vectors[sent_row],
                 )
+        # There's nothing to do here for many-to-one mappings
+
+cdef void compute_ft_sentence_hier_pooling(
+    FTSentenceVecsConfig *c, 
+    uINT_t num_sentences,
+    uINT_t window_size,
+) nogil:
+    """Perform optimized sentence-level hierarchical max pooling for FastText model.
+
+    Parameters
+    ----------
+    c : FTSentenceVecsConfig *
+        A pointer to a fully initialized and populated struct.
+    num_sentences : uINT_t
+        The number of sentences used to train the model.
+    window_size : uINT_t
+        The local window size.
+    
+    Notes
+    -----
+    This routine DOES provide oov support.
+
+    """
+    # The naming of the i,j,k vars is a bit different here
+
+    cdef:
+        int size = c.size
+
+        uINT_t sent_idx, sent_start, sent_end, sent_row
+
+        uINT_t ngram_row, ngrams
+
+        uINT_t sent_pos, window_pos, ngram_pos, word_idx, word_row
+
+        REAL_t sent_len, win_len
+        REAL_t inv_count, inv_ngram
+        REAL_t oov_weight = c.oov_weight
+
+    for sent_idx in range(num_sentences):
+        sent_start = c.sentence_boundary[sent_idx]
+        sent_end = c.sentence_boundary[sent_idx + 1]
+        sent_len = ZEROF
+
+        for sent_pos in range(sent_start, sent_end):
+            sent_len += ONEF
+            sent_row = c.sent_adresses[sent_pos] * size    
+
+            if sent_pos + window_size > sent_end:
+                window_end = sent_end
+            else:
+                window_end = sent_pos + window_size
+            
+            # Compute the locally averaged window
+            win_len = ZEROF
+            memset(c.mem, 0, size * cython.sizeof(REAL_t))
+            memset(c.mem2, 0, size * cython.sizeof(REAL_t))
+            for window_pos in range(sent_pos, window_end):
+                win_len += ONEF                
+                ngrams = c.subwords_idx_len[window_pos]
+
+                if ngrams == 0:
+                    word_row = c.word_indices[window_pos] * size
+                    word_idx = c.word_indices[window_pos]
+
+                    saxpy(
+                        &size, 
+                        &c.word_weights[word_idx], 
+                        &c.word_vectors[word_row], 
+                        &ONE, 
+                        c.mem, 
+                        &ONE
+                    )
+                    
+                else:
+                    memset(c.mem2, 0, size * cython.sizeof(REAL_t))
+                    inv_ngram = (ONEF / <REAL_t>ngrams) * c.oov_weight
+                    for ngram_pos in range(ngrams):
+                        ngram_row = c.subwords_idx[(window_pos * MAX_NGRAMS)+ngram_pos] * size
+                        saxpy(
+                            &size, 
+                            &inv_ngram, 
+                            &c.ngram_vectors[ngram_row], 
+                            &ONE, 
+                            c.mem2, 
+                            &ONE
+                        )
+
+                    saxpy(
+                        &size, 
+                        &oov_weight, 
+                        c.mem2, 
+                        &ONE, 
+                        c.mem,
+                        &ONE
+                    )
+
+            memset(c.mem2, 0, size * cython.sizeof(REAL_t)) 
+            # Rescale for dynamic window size
+            if win_len > ZEROF:
+                inv_count = ONEF / win_len
+                saxpy(
+                    &size, 
+                    &inv_count, 
+                    c.mem, 
+                    &ONE, 
+                    c.mem2,
+                    &ONE
+                )
+
+            swrmax_pool(
+                &size, 
+                &ONEF, 
+                c.mem2,
+                &c.sentence_vectors[sent_row],
+            )
         # There's nothing to do here for many-to-one mappings
 
 def train_pooling_cy(
@@ -340,6 +455,13 @@ def train_pooling_cy(
         if not model.hierarchical:
             with nogil:
                 compute_ft_sentence_pooling(&ft, eff_sentences) 
+        else:
+            with nogil: 
+                compute_ft_sentence_hier_pooling(
+                    &ft, 
+                    eff_sentences, 
+                    window_size,
+                )
     
     return eff_sentences, eff_words
 
