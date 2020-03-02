@@ -3,7 +3,7 @@
 
 # Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
 # Copyright (C) 2020 Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# For License information, see corresponding LICENSE file.
 
 from fse.models.average import Average
 from fse.models.utils import compute_principal_components, remove_principal_components

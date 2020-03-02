@@ -3,7 +3,7 @@
 
 # Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
 # Copyright (C) 2020 Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# For License information, see corresponding LICENSE file.
 
 """This module implements the base class to compute Max Pooling representations for sentences, using highly optimized C routines,
 data streaming and Pythonic interfaces.
