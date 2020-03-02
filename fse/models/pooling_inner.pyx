@@ -301,7 +301,6 @@ cdef void compute_ft_sentence_hier_pooling(
     This routine DOES provide oov support.
 
     """
-    # The naming of the i,j,k vars is a bit different here
 
     cdef:
         int size = c.size
@@ -469,7 +468,10 @@ def train_pooling_cy(
 
         if not model.hierarchical:
             with nogil:
-                compute_ft_sentence_pooling(&ft, eff_sentences) 
+                compute_ft_sentence_pooling(
+                    &ft, 
+                    eff_sentences
+                ) 
         else:
             with nogil: 
                 compute_ft_sentence_hier_pooling(

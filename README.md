@@ -20,14 +20,16 @@ Find the corresponding blog post(s) here:
 - [Visualizing 100,000 Amazon Products](https://towardsdatascience.com/vis-amz-83dea6fcb059)
 - [Sentence Embeddings. Fast, please!](https://towardsdatascience.com/fse-2b1ffa791cf9)
 
-**fse** implements five algorithms for sentence embeddings. You can choose
-between *unweighted sentence averages*, *smooth inverse frequency averages*, *unsupervised smooth inverse frequency averages*, *max pooling*, and *hierarchical max pooling*. 
+**fse** implements multiple algorithms for sentence embeddings. You can choose
+between *unweighted sentence averages*, *smooth inverse frequency averages*, *unsupervised smooth inverse frequency averages*, and *max pooling*. All models support hierarchical estimation, similar to convolutional filters in CNNs.
 
 Key features of **fse** are: 
 
 **[X]** Up to 500.000 sentences / second (1)
 
-**[X]** Supports Average, SIF, uSIF, MaxPooling, and Hierarchical MaxPooling Embeddings
+**[X]** Supports Average, SIF, uSIF, and MaxPooling Embeddings
+
+**[X]** All models can be estimated as hierarchical models (with window size and stride)
 
 **[X]** Full support for Gensims Word2Vec and all other compatible classes
 
@@ -123,8 +125,6 @@ The models presented are based on
 - Unsupervised smooth inverse frequency embeddings [3]
 - MaxPooling / Hierarchical MaxPooling [5]
 
-Credits to Radim Řehůřek and all contributors for the **awesome** library
-and code that [Gensim](https://github.com/RaRe-Technologies/gensim) provides. A whole lot of the code found in this lib is based on Gensim.
 
 Results
 ------------
@@ -153,15 +153,17 @@ Changelog
 -------------
 
 0.1.16 from 0.1.15:
-- Added MaxPooling / Hierarchical MaxPooling
-- Added features to Sentencevectors
+- Added Hierarchical (Convolutional) Embeddings for all Models
+- Added MaxPooling
+- Added Features to Sentencevectors
 - Added further unittests
 - Workaround for Numpy memmap issue (https://github.com/numpy/numpy/issues/13172)
 - Bugfixes for python 3.8 builds
 - Code refactoring to black style
 - SVD ram subsampling for SIF / uSIF (customizable, standard is 1 GB of RAM)
 - Minor fixes for nan-handling
-- Minor fix for sentencevectors class
+- Minor fixes for sentencevectors class
+- Changed License
 
 0.1.15 from 0.1.11:
 - Fixed major FT Ngram computation bug
@@ -197,6 +199,7 @@ Copyright
 Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
 
 Copyright (C) 2020 Oliver Borchers
+
 
 Citation
 -------------
