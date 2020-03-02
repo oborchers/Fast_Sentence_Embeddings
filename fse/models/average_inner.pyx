@@ -253,7 +253,7 @@ cdef void compute_base_sentence_averages(
 
         uINT_t sent_idx, sent_start, sent_end, sent_row
 
-        uINT_t i, word_idx, word_row
+        uINT_t sent_pos, word_idx, word_row
 
         REAL_t sent_len, inv_count
 
@@ -264,11 +264,11 @@ cdef void compute_base_sentence_averages(
         sent_end = c.sentence_boundary[sent_idx + 1]
         sent_len = ZEROF
 
-        for i in range(sent_start, sent_end):
+        for sent_pos in range(sent_start, sent_end):
             sent_len += ONEF
-            sent_row = c.sent_adresses[i] * size
-            word_row = c.word_indices[i] * size
-            word_idx = c.word_indices[i]
+            sent_row = c.sent_adresses[sent_pos] * size
+            word_row = c.word_indices[sent_pos] * size
+            word_idx = c.word_indices[sent_pos]
 
             saxpy(
                 &size, 
@@ -317,7 +317,7 @@ cdef void compute_ft_sentence_averages(
 
         uINT_t ngram_row, ngrams
 
-        uINT_t i, j, word_idx, word_row
+        uINT_t sent_pos, ngram_pos, word_idx, word_row
 
         REAL_t sent_len
         REAL_t inv_count, inv_ngram
@@ -330,25 +330,46 @@ cdef void compute_ft_sentence_averages(
         sent_end = c.sentence_boundary[sent_idx + 1]
         sent_len = ZEROF
 
-        for i in range(sent_start, sent_end):
+        for sent_pos in range(sent_start, sent_end):
             sent_len += ONEF
-            sent_row = c.sent_adresses[i] * size
+            sent_row = c.sent_adresses[sent_pos] * size
 
-            word_idx = c.word_indices[i]
-            ngrams = c.subwords_idx_len[i]
+            word_idx = c.word_indices[sent_pos]
+            ngrams = c.subwords_idx_len[sent_pos]
 
             if ngrams == 0:
-                word_row = c.word_indices[i] * size
-                saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, c.mem, &ONE)
+                word_row = c.word_indices[sent_pos] * size
+                saxpy(
+                    &size, 
+                    &c.word_weights[word_idx], 
+                    &c.word_vectors[word_row], 
+                    &ONE, 
+                    c.mem, 
+                    &ONE
+                )
             else:
                 inv_ngram = (ONEF / <REAL_t>ngrams) * c.oov_weight
-                for j in range(ngrams):
-                    ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size
-                    saxpy(&size, &inv_ngram, &c.ngram_vectors[ngram_row], &ONE, c.mem, &ONE)
+                for ngram_pos in range(ngrams):
+                    ngram_row = c.subwords_idx[(sent_pos * MAX_NGRAMS)+ngram_pos] * size
+                    saxpy(
+                        &size, 
+                        &inv_ngram, 
+                        &c.ngram_vectors[ngram_row], 
+                        &ONE, 
+                        c.mem, 
+                        &ONE
+                    )
                 
         if sent_len > ZEROF:
             inv_count = ONEF / sent_len
-            saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
+            saxpy(
+                &size, 
+                &inv_count, 
+                c.mem, 
+                &ONE, 
+                &c.sentence_vectors[sent_row], 
+                &ONE
+            )
 
 def train_average_cy(
     model, 
