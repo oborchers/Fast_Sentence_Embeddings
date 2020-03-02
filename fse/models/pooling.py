@@ -156,7 +156,9 @@ def train_pooling_np(
             sent = obj[0]
             sent_adr = obj[1]
 
-            word_indices = [vocab[word].index for word in sent if word in vocab]
+            word_indices = [
+                vocab[word].index for word in sent if word in vocab
+            ]
             eff_sentences += 1
             if not len(word_indices):
                 continue
@@ -165,7 +167,10 @@ def train_pooling_np(
             if not hierarchical:
                 # Take the maxium value along the axis
                 mem = np_amax(
-                    np_mult(w_vectors[word_indices], w_weights[word_indices][:, None]),
+                    np_mult(
+                        w_vectors[word_indices], 
+                        w_weights[word_indices][:, None]
+                    ),
                     axis=0,
                 )
                 s_vectors[sent_adr] = np_maximum(s_vectors[sent_adr], mem,)
