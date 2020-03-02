@@ -45,7 +45,6 @@ FT.wv.vectors_ngrams[:,] = np.arange(len(FT.wv.vectors_ngrams), dtype=np.float32
 FT_R = FastText(min_count=1, size=DIM)
 FT_R.build_vocab(SENTENCES)
 
-
 class TestPoolingFunctions(unittest.TestCase):
     
     def setUp(self):
@@ -541,7 +540,7 @@ class TestPoolingFunctions(unittest.TestCase):
         mpool = MaxPooling(W2V_R, hierarchical=True, window_stride=4)
         mpool.train(self.sentences)
         self.assertTrue((mpool.sv.vectors >= 0).all())
-        
+
     def test_hier_pool_stride_np_ft_non_negative(self):
         mpool = MaxPooling(FT_R, hierarchical=True, window_stride=4)
         mpool.train(self.sentences)
