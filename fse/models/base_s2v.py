@@ -143,7 +143,7 @@ class BaseSentence2VecModel(SaveLoad):
                 [ ] Stride Parameter: https://adeshpande3.github.io/A-Beginner%27s-Guide-To-Understanding-Convolutional-Neural-Networks-Part-2/
             [X] Max Pooling
                 [X] Hierarchical Max Pooling
-                [ ] Stride Paramter: https://adeshpande3.github.io/A-Beginner%27s-Guide-To-Understanding-Convolutional-Neural-Networks-Part-2/
+                [X] Stride Paramter: https://adeshpande3.github.io/A-Beginner%27s-Guide-To-Understanding-Convolutional-Neural-Networks-Part-2/
 
             [ ] discrete cosine transform -> somewhat easy, questionable
             [ ] valve -> unclear, not cited enough
