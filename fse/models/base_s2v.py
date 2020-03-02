@@ -136,9 +136,15 @@ class BaseSentence2VecModel(SaveLoad):
             [ ] modifiable sv_mapfile_path?
 
         [ ] models:
-            [ ] check feasibility first
-            [X] max-pooling -> easy
-            [X] hierarchical pooling -> easy
+            [ ] Check feasibility first
+
+            [ ] Average:
+                [ ] Hierarchical Average
+                [ ] Stride Parameter: https://adeshpande3.github.io/A-Beginner%27s-Guide-To-Understanding-Convolutional-Neural-Networks-Part-2/
+            [X] Max Pooling
+                [X] Hierarchical Max Pooling
+                [ ] Stride Paramter: https://adeshpande3.github.io/A-Beginner%27s-Guide-To-Understanding-Convolutional-Neural-Networks-Part-2/
+
             [ ] discrete cosine transform -> somewhat easy, questionable
             [ ] valve -> unclear, not cited enough
             [ ] power-means embedding -> very large dimensionalty
