@@ -436,7 +436,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         out = se._get_thread_working_mem()
         self.assertEqual(3, len(out))
         self.assertEqual(se.sv.vector_size, len(out[0]))
-        self.assertEqual(se.sv.vector_size, len(out[2]))
+        self.assertEqual(se.sv.vector_size, len(out[1]))
 
     def test_infer_method(self):
         se = BaseSentence2VecModel(W2V)

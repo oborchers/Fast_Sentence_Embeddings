@@ -60,7 +60,7 @@ cdef init_base_s2v_config(
     c[0].size = model.sv.vector_size
 
     c[0].mem = <REAL_t *>(np.PyArray_DATA(memory[0]))
-    c[0].mem2 = <REAL_t *>(np.PyArray_DATA(memory[2]))
+    c[0].mem2 = <REAL_t *>(np.PyArray_DATA(memory[1]))
 
     c[0].word_vectors = <REAL_t *>(np.PyArray_DATA(model.wv.vectors))
     c[0].word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
@@ -98,10 +98,10 @@ cdef init_ft_s2v_config(
     c[0].oov_weight = <REAL_t>np.max(model.word_weights)
 
     c[0].mem = <REAL_t *>(np.PyArray_DATA(memory[0]))
-    c[0].mem2 = <REAL_t *>(np.PyArray_DATA(memory[2]))
+    c[0].mem2 = <REAL_t *>(np.PyArray_DATA(memory[1]))
 
-    memory[1].fill(ZERO)    # Reset the ngram storage before filling the struct
-    c[0].subwords_idx = <uINT_t *>(np.PyArray_DATA(memory[1]))
+    memory[2].fill(ZERO)    # Reset the ngram storage before filling the struct
+    c[0].subwords_idx = <uINT_t *>(np.PyArray_DATA(memory[2]))
 
     c[0].word_vectors = <REAL_t *>(np.PyArray_DATA(model.wv.vectors_vocab))
     c[0].ngram_vectors = <REAL_t *>(np.PyArray_DATA(model.wv.vectors_ngrams))
@@ -230,6 +230,10 @@ cdef object populate_ft_s2v_config(
 
     return eff_sents, eff_words
 
+
+
+
+
 cdef void compute_base_sentence_averages(
     BaseSentenceVecsConfig *c, 
     uINT_t num_sentences,
@@ -270,6 +274,7 @@ cdef void compute_base_sentence_averages(
             word_row = c.word_indices[sent_pos] * size
             word_idx = c.word_indices[sent_pos]
 
+            # Core loop
             saxpy(
                 &size, 
                 &c.word_weights[word_idx], 
@@ -279,6 +284,7 @@ cdef void compute_base_sentence_averages(
                 &ONE
             )
 
+        # Post-Core Transform
         if sent_len > ZEROF:
             inv_count = ONEF / sent_len
             # If we perform the a*x on memory, the computation is compatible with many-to-one mappings

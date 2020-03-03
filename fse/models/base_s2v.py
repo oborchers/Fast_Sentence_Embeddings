@@ -541,13 +541,13 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         mem = zeros_aligned(self.sv.vector_size, dtype=REAL)
+        mem2 = zeros_aligned(self.sv.vector_size, dtype=REAL)
         if self.is_ft:
             oov_mem = zeros_aligned((self.batch_words, self.batch_ngrams), dtype=uINT)
         else:
             # Save memory if not using FT
             oov_mem = 0
-        mem2 = zeros_aligned(self.sv.vector_size, dtype=REAL)
-        return (mem, oov_mem, mem2)
+        return (mem, mem2, oov_mem)
 
     def _do_train_job(
         self, data_iterable: List[tuple], target: ndarray, memory: tuple
