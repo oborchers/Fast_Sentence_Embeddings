@@ -11,6 +11,8 @@ Fast Sentence Embeddings (fse)
 
 Fast Sentence Embeddings is a Python library that serves as an addition to Gensim. This library is intended to compute *sentence vectors* for large collections of sentences or documents. 
 
+If you want to support fse, take a quick [survey](https://forms.gle/8uSU323fWUVtVwcAA) to improve it :-)
+
 
 Features
 ------------
