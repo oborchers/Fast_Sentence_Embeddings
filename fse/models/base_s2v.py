@@ -159,6 +159,12 @@ class BaseSentence2VecModel(SaveLoad):
                 [X] compatibility
                 [X] memory-usage
                 --> Annoy
+
+        [ ] unittests:
+            [ ] Check that custom index is numerical only
+                [ ] Raise
+                [ ] Unittest
+                
         """
 
         set_madvise_for_mmap()
