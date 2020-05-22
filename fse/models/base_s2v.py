@@ -151,6 +151,7 @@ class BaseSentence2VecModel(SaveLoad):
                 [ ] z-score transformation is quite nice
             
         [ ] sentencevectors:
+            [ ] remove the L1 normalization or make it optional?
             [X] similar_by_sentence model type check
             [ ] approximate NN search for large files
                 [X] compare ANN libraries
