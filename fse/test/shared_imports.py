@@ -34,9 +34,9 @@ FT_DET.build_vocab(SENTENCES)
 FT_DET.wv.vectors = FT_DET.wv.vectors_vocab = np.ones_like(
     FT_DET.wv.vectors, dtype=np.float32
 )
-FT_DET.wv.vectors_ngrams[:,] = np.arange(len(FT_DET.wv.vectors_ngrams), dtype=np.float32)[
-    :, None
-]
+FT_DET.wv.vectors_ngrams[:,] = np.arange(
+    len(FT_DET.wv.vectors_ngrams), dtype=np.float32
+)[:, None]
 
 # Random FT
 FT_RNG = FastText(min_count=1, size=DIM)

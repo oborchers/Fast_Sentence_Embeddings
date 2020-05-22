@@ -13,6 +13,7 @@ from shared_imports import *
 
 from fse.models.average import Average, train_average_np
 
+
 class TestAverageFunctions(unittest.TestCase):
     def setUp(self):
         self.sentences = [
@@ -95,7 +96,7 @@ class TestAverageFunctions(unittest.TestCase):
         self.assertEqual((4, 10), output)
         self.assertTrue((1.0 + EPS == m.sv[0]).all())
         self.assertTrue(np.allclose(368707.4, m.sv[2]))
-        self.assertTrue(np.allclose(961940., m.sv[3]))
+        self.assertTrue(np.allclose(961940.0, m.sv[3]))
 
     def test_cy_equal_np_w2v_det(self):
         m1 = Average(W2V_DET)

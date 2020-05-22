@@ -7,13 +7,13 @@
 from shared_imports import *
 
 from fse.models.utils import (
-    compute_principal_components, 
+    compute_principal_components,
     remove_principal_components,
     get_ft_word_vector,
 )
 
+
 class TestUtils(unittest.TestCase):
-    
     def test_compute_components(self):
         m = np.random.uniform(size=(500, 10)).astype(np.float32)
         out = compute_principal_components(vectors=m)
@@ -74,6 +74,7 @@ class TestUtils(unittest.TestCase):
 
     def test_ft_word_vector(self):
         from fse.models.average import Average
+
         model = Average(FT_DET)
 
         word = "123456789"
@@ -81,6 +82,7 @@ class TestUtils(unittest.TestCase):
 
         self.assertIsInstance(vec, np.ndarray)
         self.assertTrue(np.allclose(max(vec), 979980.94))
+
 
 if __name__ == "__main__":
     logging.basicConfig(
