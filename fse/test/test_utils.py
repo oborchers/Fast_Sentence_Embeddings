@@ -4,17 +4,16 @@
 # Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
 # Copyright (C) 2020 Oliver Borchers
 
-import logging
-import unittest
+from shared_imports import *
 
-import numpy as np
-
-from fse.models.utils import compute_principal_components, remove_principal_components
-
-logger = logging.getLogger(__name__)
-
+from fse.models.utils import (
+    compute_principal_components, 
+    remove_principal_components,
+    get_ft_word_vector,
+)
 
 class TestUtils(unittest.TestCase):
+    
     def test_compute_components(self):
         m = np.random.uniform(size=(500, 10)).astype(np.float32)
         out = compute_principal_components(vectors=m)
@@ -73,6 +72,15 @@ class TestUtils(unittest.TestCase):
             )
             p.unlink()
 
+    def test_ft_word_vector(self):
+        from fse.models.average import Average
+        model = Average(FT_DET)
+
+        word = "123456789"
+        vec = get_ft_word_vector(word, model)
+
+        self.assertIsInstance(vec, np.ndarray)
+        self.assertTrue(np.allclose(max(vec), 979980.94))
 
 if __name__ == "__main__":
     logging.basicConfig(

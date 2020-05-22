@@ -430,7 +430,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             report_delay=0.01,
         )
         self.assertEqual((100, 200, 300), job_output)
-    
+
     def test_memory_creation(self):
         se = BaseSentence2VecModel(W2V, workers=2)
         out = se._get_thread_working_mem()

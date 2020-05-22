@@ -7,7 +7,9 @@
 
 from sklearn.decomposition import TruncatedSVD
 
-from numpy import ndarray, float32 as REAL, ones, vstack, inf as INF, dtype
+from gensim.models.utils_any2vec import ft_ngram_hashes
+
+from numpy import ndarray, float32 as REAL, ones, vstack, inf as INF, dtype, amax as np_amax, zeros, sum as np_sum
 from numpy.random import choice
 
 from time import time
@@ -20,6 +22,53 @@ import ctypes
 
 logger = logging.getLogger(__name__)
 
+def get_ft_word_vector(
+            word: str,
+            model,
+        ) -> ndarray:
+        """ Function to compute the FT vectors
+
+        Parameters
+        ----------
+        word : str
+            String representation of token
+
+        Returns
+        -------
+        ndarray
+            FT vector representation
+
+        """
+        size = model.wv.vector_size
+        vocab = model.wv.vocab
+
+        w_vectors = model.wv.vectors
+        w_weights = model.word_weights
+
+        max_ngrams = model.batch_ngrams
+        min_n = model.wv.min_n
+        max_n = model.wv.max_n
+        bucket = model.wv.bucket
+
+        oov_weight = np_amax(w_weights)
+
+        ngram_vectors = model.wv.vectors_ngrams
+
+        if word in vocab:
+            vocab_index = vocab[word].index
+            return w_vectors[vocab_index] * w_weights[vocab_index]
+        else:
+            # Requires additional temporary storage
+            ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket, True)[
+                :max_ngrams
+            ]
+            if len(ngram_hashes) == 0:
+                return zeros(size, dtype=REAL)
+            return (
+                oov_weight
+                * np_sum(ngram_vectors[ngram_hashes], axis=0)
+                / len(ngram_hashes)
+            )
 
 def set_madvise_for_mmap(return_madvise: bool = False) -> object:
     """ Method used to set madvise parameters.
