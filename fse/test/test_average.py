@@ -9,10 +9,9 @@
 Automated tests for checking the average model.
 """
 
-from shared_imports import *
+from fse.test.model_shared_imports import *
 
 from fse.models.average import Average, train_average_np
-
 
 class TestAverageFunctions(unittest.TestCase):
     def setUp(self):

@@ -8,6 +8,7 @@ from pathlib import Path
 from gensim.models import Word2Vec, FastText
 
 from fse.models.base_s2v import EPS
+from fse.inputs import IndexedLineDocument
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,10 @@ W2V_DET.wv.vectors[:,] = np.arange(len(W2V_DET.wv.vectors), dtype=np.float32)[:,
 # Random W2V
 W2V_RNG = Word2Vec(min_count=1, size=DIM)
 W2V_RNG.build_vocab(SENTENCES)
+
+# Random W2V Large
+W2V_RNG_LRG = Word2Vec(min_count=1, size=50)
+W2V_RNG_LRG.build_vocab(SENTENCES)
 
 # Deterministic FT
 FT_DET = FastText(min_count=1, size=DIM)

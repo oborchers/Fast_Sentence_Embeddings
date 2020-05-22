@@ -4,7 +4,7 @@
 # Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
 # Copyright (C) 2020 Oliver Borchers
 
-from shared_imports import *
+from fse.test.model_shared_imports import *
 
 from fse.models.utils import (
     compute_principal_components,

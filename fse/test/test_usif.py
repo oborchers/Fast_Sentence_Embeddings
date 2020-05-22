@@ -4,39 +4,22 @@
 # Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
 # Copyright (C) 2020 Oliver Borchers
 
-import logging
-import unittest
-
-from pathlib import Path
-
-import numpy as np
-
 from fse.models.usif import uSIF
-from fse.inputs import IndexedLineDocument
 
-from gensim.models import Word2Vec
-
-logger = logging.getLogger(__name__)
-
-CORPUS = Path("fse/test/test_data/test_sentences.txt")
-DIM = 50
-W2V = Word2Vec(min_count=1, size=DIM)
-with open(CORPUS, "r") as f:
-    SENTENCES = [l.split() for i, l in enumerate(f)]
-W2V.build_vocab(SENTENCES)
+from fse.test.model_shared_imports import *
 
 
 class TestuSIFFunctions(unittest.TestCase):
     def setUp(self):
         self.sentences = IndexedLineDocument(CORPUS)
-        self.model = uSIF(W2V, lang_freq="en")
+        self.model = uSIF(W2V_RNG_LRG, lang_freq="en")
 
     def test_parameter_sanity(self):
         with self.assertRaises(ValueError):
-            m = uSIF(W2V, length=0)
+            m = uSIF(W2V_RNG_LRG, length=0)
             m._check_parameter_sanity()
         with self.assertRaises(ValueError):
-            m = uSIF(W2V, components=-1, length=11)
+            m = uSIF(W2V_RNG_LRG, components=-1, length=11)
             m._check_parameter_sanity()
 
     def test_pre_train_calls(self):
@@ -113,7 +96,7 @@ class TestuSIFFunctions(unittest.TestCase):
         self.assertTrue(np.isfinite(self.model.sv.vectors).all())
 
     def test_broken_vocab(self):
-        w2v = Word2Vec(min_count=1, size=DIM)
+        w2v = Word2Vec(min_count=1, size=50)
         w2v.build_vocab([l.split() for l in open(CORPUS, "r")])
         for k in w2v.wv.vocab:
             w2v.wv.vocab[k].count = np.nan

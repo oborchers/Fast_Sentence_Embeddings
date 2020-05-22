@@ -5,46 +5,9 @@
 # Copyright (C) 2020 Oliver Borchers
 # For License information, see corresponding LICENSE file.
 
-"""
-Automated tests for checking the model.
-"""
-
-import logging
-import unittest
-
-from pathlib import Path
-
-import numpy as np
-
 from fse.models.pooling import MaxPooling, train_pooling_np
-from fse.models.base_s2v import EPS
 
-from gensim.models import Word2Vec, FastText
-
-logger = logging.getLogger(__name__)
-
-CORPUS = Path("fse/test/test_data/test_sentences.txt")
-DIM = 5
-W2V = Word2Vec(min_count=1, size=DIM)
-with open(CORPUS, "r") as f:
-    SENTENCES = [l.split() for i, l in enumerate(f)]
-W2V.build_vocab(SENTENCES)
-W2V.wv.vectors[:,] = np.arange(len(W2V.wv.vectors), dtype=np.float32)[:, None]
-
-W2V_R = Word2Vec(min_count=1, size=DIM)
-W2V_R.build_vocab(SENTENCES)
-
-FT = FastText(min_count=1, size=DIM)
-FT.build_vocab(SENTENCES)
-FT.wv.vectors[:,] = np.arange(len(FT.wv.vectors), dtype=np.float32)[:, None]
-FT.wv.vectors_vocab = FT.wv.vectors
-FT.wv.vectors_ngrams[:,] = np.arange(len(FT.wv.vectors_ngrams), dtype=np.float32)[
-    :, None
-]
-
-FT_R = FastText(min_count=1, size=DIM)
-FT_R.build_vocab(SENTENCES)
-
+from fse.test.model_shared_imports import *
 
 class TestPoolingFunctions(unittest.TestCase):
     def setUp(self):
@@ -56,7 +19,7 @@ class TestPoolingFunctions(unittest.TestCase):
             "this is a longer test sentence test longer sentences".split(),
         ]
         self.sentences = [(s, i) for i, s in enumerate(self.sentences)]
-        self.model = MaxPooling(W2V)
+        self.model = MaxPooling(W2V_DET)
         self.model.prep.prepare_vectors(
             sv=self.model.sv, total_sentences=len(self.sentences), update=False
         )
