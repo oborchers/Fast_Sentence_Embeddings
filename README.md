@@ -19,8 +19,8 @@ Features
 
 Find the corresponding blog post(s) here:
 
-- [Visualizing 100,000 Amazon Products](https://towardsdatascience.com/vis-amz-83dea6fcb059)
-- [Sentence Embeddings. Fast, please!](https://towardsdatascience.com/fse-2b1ffa791cf9)
+- [Visualizing 100,000 Amazon Products](https://towardsdatascience.com/vis-amz-83dea6fcb059) (Note: The code may be outdated)
+- [Sentence Embeddings. Fast, please!](https://towardsdatascience.com/fse-2b1ffa791cf9) (Note: The code may be outdated)
 
 **fse** implements multiple algorithms for sentence embeddings. You can choose
 between *unweighted sentence averages*, *smooth inverse frequency averages*, *unsupervised smooth inverse frequency averages*, and *max pooling*. All models support hierarchical estimation, similar to convolutional filters in CNNs.
