@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 CORPUS = Path("fse/test/test_data/test_sentences.txt")
 with open(CORPUS, "r") as f:
     SENTENCES = [l.split() for i, l in enumerate(f)]
+ENUM_SENTENCES = [(l, i) for i, l in enumerate(SENTENCES)]
 
 # Models
 DIM = 5
