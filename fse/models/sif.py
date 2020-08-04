@@ -151,5 +151,5 @@ class SIF(Average):
             raise RuntimeError(
                 "Encountered nan values. "
                 "This likely happens because the word frequency information is wrong/missing. "
-                "Consider restarting using lang_freq argument to infer frequency. "
+                "Restart using lang_freq argument to infer frequency."
             )
