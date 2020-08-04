@@ -125,7 +125,6 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         TODO:
-
         [ ] Global:
             Immediate:
             [ ] Documentation
@@ -135,6 +134,8 @@ class BaseSentence2VecModel(SaveLoad):
             [ ] Python 3.8 Travis Build
             [ ] Possible to make a slim-save version and discard very large files?
             [ ] Check with latest Gensim version!
+            [ ] Add Contribution guideline
+            [ ] Updated performance table and vary pooling size
             Postponed:
             [ ] more benchmarks
             [ ] more speed benchmarks -> worker support still somewhat weird

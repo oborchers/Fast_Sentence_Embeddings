@@ -4,6 +4,7 @@
 <a href="https://pepy.tech/project/fse"><img alt="Downloads" src="https://pepy.tech/badge/fse"></a>
 <a href="https://lgtm.com/projects/g/oborchers/Fast_Sentence_Embeddings/context:python"><img alt="Language grade: Python" src="https://img.shields.io/lgtm/grade/python/g/oborchers/Fast_Sentence_Embeddings.svg"></a>
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
+<a href="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"><img alt="License: GPL3" src="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"></a>
 </p>
 
 Fast Sentence Embeddings (fse)
@@ -16,11 +17,6 @@ If you want to support fse, take a quick [survey](https://forms.gle/8uSU323fWUVt
 
 Features
 ------------
-
-Find the corresponding blog post(s) here:
-
-- [Visualizing 100,000 Amazon Products](https://towardsdatascience.com/vis-amz-83dea6fcb059) (Note: The code may be outdated)
-- [Sentence Embeddings. Fast, please!](https://towardsdatascience.com/fse-2b1ffa791cf9) (Note: The code may be outdated)
 
 **fse** implements multiple algorithms for sentence embeddings. You can choose
 between *unweighted sentence averages*, *smooth inverse frequency averages*, *unsupervised smooth inverse frequency averages*, and *max pooling*. All models support hierarchical estimation, similar to convolutional filters in CNNs.
@@ -61,6 +57,10 @@ Key features of **fse** are:
 I regularly observe 300k-500k sentences/s for preprocessed data on my Macbook (2016).
 Visit **Tutorial.ipynb** for an example.
 
+Find the corresponding blog post(s) here:
+
+- [Visualizing 100,000 Amazon Products](https://towardsdatascience.com/vis-amz-83dea6fcb059) (Note: The code may be outdated)
+- [Sentence Embeddings. Fast, please!](https://towardsdatascience.com/fse-2b1ffa791cf9) (Note: The code may be outdated)
 
 Installation
 ------------
@@ -104,7 +104,7 @@ for a corpus.
 	model.sv.similarity(0,1)
 
 fse offers multi-thread support out of the box. However, for most
-applications a *single thread will most likely be sufficient*.
+applications a **single** *thread will most likely be sufficient*.
 
 Within the folder nootebooks you can find the following guides:
 
