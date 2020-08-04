@@ -51,32 +51,6 @@ class SentenceVectors(utils.SaveLoad):
         self.mapfile_path = Path(mapfile_path) if mapfile_path is not None else None
         self.mapfile_shape = None
 
-        """
-        Thoughts on additinal features:
-        ANN: 
-            [ ] Only construct index when when calling most_similar method
-            [ ] Logging of index speed
-            [ ] Save and load of index
-            [ ] Assert that index and vectors are of equal size
-            [ ] Paramters must be tunable afterwards
-            [ ] Method to reconstruct index
-            [ ] How does the index saving comply with SaveLoad?
-            [ ] Write unittests?
-        Brute:
-            [ ] Keep access to default method
-            [ ] Make ANN Search the default?! --> Results?
-            [ ] Throw warning for large datasets for vector norm init
-            [ ] Maybe throw warning if exceeds RAM size of the embedding + normalization
-        Other:
-            [ ] L2 Distance
-            [ ] L1 Distance
-            [ ] Correlation
-            [ ] Lookup-Functionality (via defaultdict)
-            [ ] Get vector: Not really memory friendly
-            [ ] Show which words are in vocabulary
-            [ ] Asses empty vectors (via EPS sum)
-        """
-
     def __getitem__(self, entities: int) -> ndarray:
         """Get vector representation of `entities`.
 

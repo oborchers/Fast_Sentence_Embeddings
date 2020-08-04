@@ -77,7 +77,6 @@ logger = logging.getLogger(__name__)
 
 EPS = finfo(REAL).eps
 
-
 class BaseSentence2VecModel(SaveLoad):
     def __init__(
         self,
@@ -127,47 +126,77 @@ class BaseSentence2VecModel(SaveLoad):
         """
         TODO:
 
-        [ ] global:
-            [ ] windows support
-            [ ] documentation
+        [ ] Global:
+            Immediate:
+            [ ] Documentation
+            [ ] Mail address update
+            [ ] remove wv_mapfile_path?
+            [ ] modifiable sv_mapfile_path?
+            [ ] Python 3.8 Travis Build
+            [ ] Possible to make a slim-save version and discard very large files?
+            [ ] Check with latest Gensim version!
+            Postponed:
             [ ] more benchmarks
             [ ] more speed benchmarks -> worker support still somewhat weird
-            [-] remove wv_mapfile_path?
-            [ ] modifiable sv_mapfile_path?
+            [ ] windows support
 
-        [ ] models:
-            [ ] Check feasibility first
-
-            [ ] Average:
+        [ ] Models:
+            Immediate
+            [ ] pre_inference_calls
+            [ ] base_iterator:
                 [ ] Hierarchical Average
                 [ ] Stride Parameter: https://adeshpande3.github.io/A-Beginner%27s-Guide-To-Understanding-Convolutional-Neural-Networks-Part-2/
-            [X] Max Pooling
-                [X] Hierarchical Max Pooling
-                [X] Stride Paramter: https://adeshpande3.github.io/A-Beginner%27s-Guide-To-Understanding-Convolutional-Neural-Networks-Part-2/
+            [ ] Average:
+                [ ] inherit from base_iterator
+                [ ] avg core routines in cyhton
+            [ ] Max Pooling
+                [ ] inherit from base_iterator
+                [ ] avg core routines in cyhton
+            [ ] Check for further simple models
+            [ ] Min Pooling
+            Lower:
+            [ ] GEM: https://arxiv.org/pdf/1810.00438.pdf
+            [ ] ALaCarte
 
+            Postponed:
             [ ] discrete cosine transform -> somewhat easy, questionable
             [ ] valve -> unclear, not cited enough
             [ ] power-means embedding -> very large dimensionalty
                 [ ] z-score transformation is quite nice
-            
-        [ ] sentencevectors:
-            [ ] remove the L1 normalization or make it optional?
-            [X] similar_by_sentence model type check
-            [ ] approximate NN search for large files
-                [X] compare ANN libraries
-                [X] ease-of-use
-                [X] dependencies
-                [X] compatibility
-                [X] memory-usage
-                --> Annoy
+        
+        [ ] Sentencevectors:
+            Global:
+            [ ] Remove normalized vector files and replace with NN
+            ANN: --> (Annoy, with Option for Google ScANN?)
+            [ ] Only construct index when when calling most_similar method
+            [ ] Logging of index speed
+            [ ] Save and load of index
+            [ ] Assert that index and vectors are of equal size
+            [ ] Paramters must be tunable afterwards
+            [ ] Method to reconstruct index
+            [ ] How does the index saving comply with SaveLoad?
+            [ ] Write unittests?
+            Brute:
+            [ ] Keep access to default method
+            [ ] Make ANN Search the default?! --> Results?
+            [ ] Throw warning for large datasets for vector norm init
+            [ ] Maybe throw warning if exceeds RAM size of the embedding + normalization
+            Other:
+            [ ] L2 Distance
+            [ ] L1 Distance
+            [ ] Correlation (Power Score Correlation?)
+            [ ] Lookup-Functionality (via defaultdict)
+            [ ] Get vector: Not really memory friendly
+            [ ] Show which words are in vocabulary
+            [ ] Asses empty vectors (via EPS sum)
+            [ ] Z-Score Transformation from Power-Means Embedding? --> Benefit?
 
-        [ ] unittests:
+        [ ] Tests:
             [ ] Check that custom index is numerical only
                 [ ] Raise
                 [ ] Unittest
                 
         """
-
         set_madvise_for_mmap()
 
         self.workers = int(workers)
