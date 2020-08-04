@@ -74,6 +74,7 @@ class SentenceVectors(utils.SaveLoad):
             [ ] Lookup-Functionality (via defaultdict)
             [ ] Get vector: Not really memory friendly
             [ ] Show which words are in vocabulary
+            [ ] Asses empty vectors (via EPS sum)
         """
 
     def __getitem__(self, entities: int) -> ndarray:
