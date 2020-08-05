@@ -454,6 +454,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         output = se.infer([(s, i) for i, s in enumerate(SENTENCES)])
         self.assertTrue((100 == output).all())
 
+    @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
     def test_infer_method_cy_overflow(self):
         se = BaseSentence2VecModel(W2V)
 

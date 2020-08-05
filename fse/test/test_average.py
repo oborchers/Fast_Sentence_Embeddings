@@ -28,6 +28,7 @@ class TestAverageFunctions(unittest.TestCase):
         )
         self.model._pre_train_calls()
 
+    @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
     def test_cython(self):
         from fse.models.average_inner import (
             FAST_VERSION,
@@ -49,7 +50,8 @@ class TestAverageFunctions(unittest.TestCase):
         self.assertTrue((183 == self.model.sv[0]).all())
         self.assertTrue((164.5 == self.model.sv[1]).all())
         self.assertTrue((self.model.wv.vocab["go"].index == self.model.sv[2]).all())
-
+    
+    @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
     def test_average_train_cy_w2v_det(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
         mem = self.model._get_thread_working_mem()
@@ -81,6 +83,7 @@ class TestAverageFunctions(unittest.TestCase):
         # oov: "12345" -> (14 hashes * 2) / 14 =  2
         # (2 + 1) / 2 = 1.5
 
+    @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
     def test_average_train_cy_ft_det(self):
         m = Average(FT_DET)
         m.prep.prepare_vectors(
@@ -97,6 +100,7 @@ class TestAverageFunctions(unittest.TestCase):
         self.assertTrue(np.allclose(368707.4, m.sv[2]))
         self.assertTrue(np.allclose(961940.0, m.sv[3]))
 
+    @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
     def test_cy_equal_np_w2v_det(self):
         m1 = Average(W2V_DET)
         m1.prep.prepare_vectors(
@@ -120,6 +124,7 @@ class TestAverageFunctions(unittest.TestCase):
         self.assertEqual(o1, o2)
         self.assertTrue((m1.sv.vectors == m2.sv.vectors).all())
 
+    @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
     def test_cy_equal_np_w2v_rng(self):
         m1 = Average(W2V_RNG)
         m1.prep.prepare_vectors(
@@ -142,6 +147,7 @@ class TestAverageFunctions(unittest.TestCase):
 
         self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))
 
+    @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
     def test_cy_equal_np_ft_rng(self):
         m1 = Average(FT_RNG)
         m1.prep.prepare_vectors(

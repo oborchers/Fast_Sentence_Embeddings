@@ -18,6 +18,8 @@ with open(CORPUS, "r") as f:
     SENTENCES = [l.split() for i, l in enumerate(f)]
 ENUM_SENTENCES = [(l, i) for i, l in enumerate(SENTENCES)]
 
+IGNORE_CY = True
+
 # Models
 DIM = 5
 
