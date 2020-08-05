@@ -26,8 +26,11 @@ def base_iterator(
     indexed_sentences: List[tuple],
     target: ndarray,
     memory: tuple,
-    window_merger : callable,
-    sentence_merger : callable,
+    sentence_length : callable,
+    window_kernel   : callable,
+    window_scaler   : callable,
+    sentence_kernel : callable,
+    sentence_scaler : callable,
 ) -> [int, int]:
     # """Training on a sequence of sentences and update the target ndarray.
 
@@ -41,7 +44,7 @@ def base_iterator(
     # Parameters
     # ----------
     # model : :class:`~fse.models.base_s2v.BaseSentence2VecModel`
-    #     The BaseSentence2VecModel model instance.
+    #     The BaseSentence2VecModel model instance or a child of it.
     # indexed_sentences : iterable of tuple
     #     The sentences used to train the model.
     # target : ndarray
@@ -60,15 +63,15 @@ def base_iterator(
     size = model.wv.vector_size
     vocab = model.wv.vocab
 
+    mem = memory[0]
+    mem2 = memory[1]
+    # Do not need ngram vectors here due to numpy ft ngram implementation
+
     w_vectors = model.wv.vectors
     w_weights = model.word_weights
-
     s_vectors = target
 
     is_ft = model.is_ft
-
-    mem = memory[0]
-    mem2 = memory[1]
 
     window_size = model.window_size
     window_stride = model.window_stride
@@ -79,23 +82,21 @@ def base_iterator(
         # I suspect this is because the wv.vectors are based on the averages of
         # wv.vectors_vocab + wv.vectors_ngrams, which will all point into very
         # similar directions.
-        max_ngrams = model.batch_ngrams
-        w_vectors = model.wv.vectors_vocab
-        ngram_vectors = model.wv.vectors_ngrams
         min_n = model.wv.min_n
         max_n = model.wv.max_n
         bucket = model.wv.bucket
+        max_ngrams = model.batch_ngrams
         oov_weight = np_amax(w_weights)
 
+        w_vectors = model.wv.vectors_vocab
+        ngram_vectors = model.wv.vectors_ngrams
+        
     eff_sentences, eff_words = 0, 0
 
-    for obj in indexed_sentences:
-        sent = obj[0]
-        sent_adr = obj[1]
-
+    for sent, sent_index in indexed_sentences:
         if not len(sent):
+            # Skip if sentence is empty, leaves vector empty
             continue
-
         eff_sentences += 1
         
         # In cython we know the length (-OOV) beforehand
@@ -106,28 +107,28 @@ def base_iterator(
         if not sent_len:
             continue
 
-        # Number of windows to be encountered
+        # Number of windows in a sentence. Includes broken windows at the edge
         win_count = int(ceil(sent_len / window_size))
 
         for word_index, _ in enumerate(sent):
             if word_index % window_stride != 0:
                 continue
-
             win_len = 0
             mem.fill(0.) # mem for summation
             mem2.fill(0.)
+
             for word in sent[word_index : word_index + window_size]:
-                eff_words += window_func(
+                eff_words += window_kernel(
                     model,
                     word,
                     mem,
+                    mem2,
                 ) # -> mem
                 # W2V will return 0&1, FT returns 1
-
                 win_len += 1
 
             # Herein the window will be merged (i.e., rescaled)
-            window_merger(
+            window_scaler(
                 model,
                 win_len,
                 mem,
@@ -135,12 +136,21 @@ def base_iterator(
             ) # mem ->  mem2
         
             # Partially constructs the sentence onto sv.vectors
-            sentence_merger(
+            sentence_kernel(
                 sent_len,
-                mem2,
-                sent_adr,
+                sent_index,
                 target,
+                mem,
+                mem2,
             )
+
+        sentence_scaler(
+            sent_len,
+            sent_index,
+            target,
+            mem,
+            mem2,
+        )
 
     return eff_sentences, eff_words
 
@@ -156,40 +166,68 @@ def sentence_length(
         # Inefficient, but hey, its just the python version anyways
         return sum([1 if token in model.wv.vocab else 0 for token in sent])
 
-def window_func(
+def window_kernel(
         model,
         word : str,
         mem : ndarray,
-    ) -> int:
-    """ Computes the word vectors for a word
-    """
-    if word in model.wv.vocab:
-        word_index = model.wv.vocab[word].index
-        mem += model.wv.vectors[word_index] * model.word_weights[word_index]
-        return 1
-    else:
-        if model.is_ft:
-            mem += get_ft_word_vector(word, model) * np_max(model.word_weights)
-            return 1
-        else:
-            return 0 # Word not taken into account
-
-def window_merger(
-        model,
-        win_len : int,
-        mem : ndarray,
         mem2 : ndarray,
-    ):
-    """ Average window merger.
-    Should implement functionality to merge temporary results from 
-    mem to mem2 inplace. Depends on model architecture
+    ) -> int:
+    """ Window kernel implements aggregation function for window.
+    Does the vector conversion.
+    All results will be stored in mem.
     """
-    pass
+    return 1
 
-def sentence_merger(
+def window_scaler(
+        model,
         window_length : int,
         mem : ndarray,
+        mem2 : ndarray,
+    ) -> None:
+    """ Window scaler implements scaling function for window result.
+    All results will be stored in mem2.
+    """
+    pass
+
+def sentence_kernel(
+        sent_length : int,
+        sent_index : int,
+        target : ndarray,
+        mem : ndarray,
+        mem2 : ndarray,
+    ) -> int:
+    """ Sentence kernel implements aggregation function for all windows.
+    All results will be stored in target.
+    """
+    pass
+
+def sentence_scaler(
+        sent_length : int,
         sent_adr : int,
         target : ndarray,
-    ):
+        mem : ndarray,
+        mem2 : ndarray,
+    ) -> None:
+    """ Sentence scaler implements scaling function for accumulated window result.
+    All results will be stored in target.
+    """
     pass
+
+# def window_func(
+#         model,
+#         word : str,
+#         mem : ndarray,
+#     ) -> int:
+#     """ Computes the word vectors for a word
+#     """
+#     if word in model.wv.vocab:
+#         word_index = model.wv.vocab[word].index
+#         mem += model.wv.vectors[word_index] * model.word_weights[word_index]
+#         return 1
+#     else:
+#         if model.is_ft:
+#             mem += get_ft_word_vector(word, model) * np_max(model.word_weights)
+#             return 1
+#         else:
+#             return 0 # Word not taken into account
+

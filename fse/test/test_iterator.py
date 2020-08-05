@@ -4,7 +4,15 @@
 # Author: Oliver Borchers <oliver-borchers@outlook.de>
 # Copyright (C) 2020 Oliver Borchers
 
-from fse.models.base_iterator import base_iterator
+from fse.models.base_iterator import (
+    base_iterator,
+    sentence_length,
+    window_kernel,
+    window_scaler,
+    sentence_kernel,
+    sentence_scaler,
+)
+
 from fse.test.model_shared_imports import *
 
 from fse.models.average import Average
@@ -24,16 +32,16 @@ class TestSentenceIterator(unittest.TestCase):
         self.mem = self.model._get_thread_working_mem()
 
     def test_iterator_w2v_det(self):
-        def window_merger(*args, **kwargs): pass
-        def sentence_merger(*args, **kwargs): pass
-
         it = base_iterator(
             self.model,
             indexed_sentences = ENUM_SENTENCES,
             target = self.model.sv.vectors,
             memory = self.mem,
-            window_merger=window_merger,
-            sentence_merger=sentence_merger,
+            sentence_length=sentence_length,
+            window_kernel=window_kernel,
+            window_scaler=window_scaler,
+            sentence_kernel=sentence_kernel,
+            sentence_scaler=sentence_scaler,
         )
         
 if __name__ == "__main__":
