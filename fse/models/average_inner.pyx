@@ -36,16 +36,16 @@ DEF MAX_WORDS = 10000
 DEF MAX_NGRAMS = 40
 
 cdef init_base_s2v_config(
-    BaseSentenceVecsConfig *c, 
+    VecsConfig *c, 
     model, 
     target, 
     memory,
 ):
-    """Load BaseAny2Vec parameters into a BaseSentenceVecsConfig struct.
+    """Load BaseAny2Vec parameters into a VecsConfig struct.
 
     Parameters
     ----------
-    c : FTSentenceVecsConfig *
+    c : VecsConfig *
         A pointer to the struct to initialize.
     model : fse.models.base_s2v.BaseSentence2VecModel
         The model to load.
@@ -68,16 +68,16 @@ cdef init_base_s2v_config(
     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
 
 cdef init_ft_s2v_config(
-    FTSentenceVecsConfig *c, 
+    VecsConfig *c, 
     model, 
     target, 
     memory,
 ):
-    """Load Fasttext parameters into a FTSentenceVecsConfig struct.
+    """Load Fasttext parameters into a VecsConfig struct.
 
     Parameters
     ----------
-    c : FTSentenceVecsConfig *
+    c : VecsConfig *
         A pointer to the struct to initialize.
     model : fse.models.base_s2v.BaseSentence2VecModel
         The model to load.
@@ -110,7 +110,7 @@ cdef init_ft_s2v_config(
     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
 
 cdef object populate_base_s2v_config(
-    BaseSentenceVecsConfig *c, 
+    VecsConfig *c, 
     vocab, 
     indexed_sentences,
 ):
@@ -121,7 +121,7 @@ cdef object populate_base_s2v_config(
 
     Parameters
     ----------
-    c : BaseSentenceVecsConfig*
+    c : VecsConfig*
         A pointer to the struct that will contain the populated indices.
     vocab : dict
         The vocabulary
@@ -164,7 +164,7 @@ cdef object populate_base_s2v_config(
     return eff_sents, eff_words
 
 cdef object populate_ft_s2v_config(
-    FTSentenceVecsConfig *c, 
+    VecsConfig *c, 
     vocab, 
     indexed_sentences,
 ):
@@ -175,7 +175,7 @@ cdef object populate_ft_s2v_config(
 
     Parameters
     ----------
-    c : FTSentenceVecsConfig*
+    c : VecsConfig*
         A pointer to the struct that will contain the populated indices.
     vocab : dict
         The vocabulary
@@ -235,14 +235,14 @@ cdef object populate_ft_s2v_config(
 
 
 cdef void compute_base_sentence_averages(
-    BaseSentenceVecsConfig *c, 
+    VecsConfig *c, 
     uINT_t num_sentences,
 ) nogil:
     """Perform optimized sentence-level averaging for BaseAny2Vec model.
 
     Parameters
     ----------
-    c : BaseSentenceVecsConfig *
+    c : VecsConfig *
         A pointer to a fully initialized and populated struct.
     num_sentences : uINT_t
         The number of sentences used to train the model.
@@ -299,14 +299,14 @@ cdef void compute_base_sentence_averages(
             )
 
 cdef void compute_ft_sentence_averages(
-    FTSentenceVecsConfig *c, 
+    VecsConfig *c, 
     uINT_t num_sentences,
 ) nogil:
     """Perform optimized sentence-level averaging for FastText model.
 
     Parameters
     ----------
-    c : FTSentenceVecsConfig *
+    c : VecsConfig *
         A pointer to a fully initialized and populated struct.
     num_sentences : uINT_t
         The number of sentences used to train the model.
@@ -408,40 +408,39 @@ def train_average_cy(
 
     cdef uINT_t eff_sentences = 0
     cdef uINT_t eff_words = 0
-    cdef BaseSentenceVecsConfig w2v
-    cdef FTSentenceVecsConfig ft
+    cdef VecsConfig config
 
     if not model.is_ft:
-        init_base_s2v_config(&w2v, model, target, memory)
+        init_base_s2v_config(&config, model, target, memory)
 
         eff_sentences, eff_words = populate_base_s2v_config(
-            &w2v, 
+            &config, 
             model.wv.vocab, 
             indexed_sentences,
         )
 
         with nogil:
             compute_base_sentence_averages(
-                &w2v, 
+                &config, 
                 eff_sentences,
             )
     else:        
         init_ft_s2v_config(
-            &ft, 
+            &config, 
             model, 
             target, 
             memory,
         )
 
         eff_sentences, eff_words = populate_ft_s2v_config(
-            &ft, 
+            &config, 
             model.wv.vocab, 
             indexed_sentences,
         )
 
         with nogil:
             compute_ft_sentence_averages(
-                &ft, 
+                &config, 
                 eff_sentences
             ) 
     

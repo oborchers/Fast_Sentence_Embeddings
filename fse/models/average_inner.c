@@ -1132,8 +1132,7 @@ typedef npy_clongdouble __pyx_t_5numpy_clongdouble_t;
  * cdef inline object PyArray_MultiIterNew1(a):
  */
 typedef npy_cdouble __pyx_t_5numpy_complex_t;
-struct __pyx_t_13average_inner_BaseSentenceVecsConfig;
-struct __pyx_t_13average_inner_FTSentenceVecsConfig;
+struct __pyx_t_13average_inner_VecsConfig;
 
 /* "average_inner.pxd":20
  * 
@@ -1156,11 +1155,11 @@ typedef void (*__pyx_t_13average_inner_sscal_ptr)(int const *, float const *, fl
 /* "average_inner.pxd":48
  * DEF MAX_NGRAMS = 40
  * 
- * cdef struct BaseSentenceVecsConfig:             # <<<<<<<<<<<<<<
+ * cdef struct VecsConfig:             # <<<<<<<<<<<<<<
+ *     # Common
  *     int size, workers
- * 
  */
-struct __pyx_t_13average_inner_BaseSentenceVecsConfig {
+struct __pyx_t_13average_inner_VecsConfig {
   int size;
   int workers;
   __pyx_t_13average_inner_REAL_t *mem;
@@ -1171,31 +1170,11 @@ struct __pyx_t_13average_inner_BaseSentenceVecsConfig {
   __pyx_t_13average_inner_uINT_t word_indices[0x2710];
   __pyx_t_13average_inner_uINT_t sent_adresses[0x2710];
   __pyx_t_13average_inner_uINT_t sentence_boundary[(0x2710 + 1)];
-};
-
-/* "average_inner.pxd":62
- *     uINT_t sentence_boundary[MAX_WORDS + 1]
- * 
- * cdef struct FTSentenceVecsConfig:             # <<<<<<<<<<<<<<
- *     int size, workers, min_n, max_n, bucket
- * 
- */
-struct __pyx_t_13average_inner_FTSentenceVecsConfig {
-  int size;
-  int workers;
   int min_n;
   int max_n;
   int bucket;
   __pyx_t_13average_inner_REAL_t oov_weight;
-  __pyx_t_13average_inner_REAL_t *mem;
-  __pyx_t_13average_inner_REAL_t *mem2;
-  __pyx_t_13average_inner_REAL_t *word_vectors;
   __pyx_t_13average_inner_REAL_t *ngram_vectors;
-  __pyx_t_13average_inner_REAL_t *word_weights;
-  __pyx_t_13average_inner_REAL_t *sentence_vectors;
-  __pyx_t_13average_inner_uINT_t word_indices[0x2710];
-  __pyx_t_13average_inner_uINT_t sent_adresses[0x2710];
-  __pyx_t_13average_inner_uINT_t sentence_boundary[(0x2710 + 1)];
   __pyx_t_13average_inner_uINT_t subwords_idx_len[0x2710];
   __pyx_t_13average_inner_uINT_t *subwords_idx;
 };
@@ -1792,12 +1771,12 @@ static int __pyx_v_13average_inner_ONE;
 static int __pyx_v_13average_inner_ZERO;
 static __pyx_t_13average_inner_REAL_t __pyx_v_13average_inner_ONEF;
 static __pyx_t_13average_inner_REAL_t __pyx_v_13average_inner_ZEROF;
-static PyObject *__pyx_f_13average_inner_init_base_s2v_config(struct __pyx_t_13average_inner_BaseSentenceVecsConfig *, PyObject *, PyObject *, PyObject *); /*proto*/
-static PyObject *__pyx_f_13average_inner_init_ft_s2v_config(struct __pyx_t_13average_inner_FTSentenceVecsConfig *, PyObject *, PyObject *, PyObject *); /*proto*/
-static PyObject *__pyx_f_13average_inner_populate_base_s2v_config(struct __pyx_t_13average_inner_BaseSentenceVecsConfig *, PyObject *, PyObject *); /*proto*/
-static PyObject *__pyx_f_13average_inner_populate_ft_s2v_config(struct __pyx_t_13average_inner_FTSentenceVecsConfig *, PyObject *, PyObject *); /*proto*/
-static void __pyx_f_13average_inner_compute_base_sentence_averages(struct __pyx_t_13average_inner_BaseSentenceVecsConfig *, __pyx_t_13average_inner_uINT_t); /*proto*/
-static void __pyx_f_13average_inner_compute_ft_sentence_averages(struct __pyx_t_13average_inner_FTSentenceVecsConfig *, __pyx_t_13average_inner_uINT_t); /*proto*/
+static PyObject *__pyx_f_13average_inner_init_base_s2v_config(struct __pyx_t_13average_inner_VecsConfig *, PyObject *, PyObject *, PyObject *); /*proto*/
+static PyObject *__pyx_f_13average_inner_init_ft_s2v_config(struct __pyx_t_13average_inner_VecsConfig *, PyObject *, PyObject *, PyObject *); /*proto*/
+static PyObject *__pyx_f_13average_inner_populate_base_s2v_config(struct __pyx_t_13average_inner_VecsConfig *, PyObject *, PyObject *); /*proto*/
+static PyObject *__pyx_f_13average_inner_populate_ft_s2v_config(struct __pyx_t_13average_inner_VecsConfig *, PyObject *, PyObject *); /*proto*/
+static void __pyx_f_13average_inner_compute_base_sentence_averages(struct __pyx_t_13average_inner_VecsConfig *, __pyx_t_13average_inner_uINT_t); /*proto*/
+static void __pyx_f_13average_inner_compute_ft_sentence_averages(struct __pyx_t_13average_inner_VecsConfig *, __pyx_t_13average_inner_uINT_t); /*proto*/
 #define __Pyx_MODULE_NAME "average_inner"
 extern int __pyx_module_is_main_average_inner;
 int __pyx_module_is_main_average_inner = 0;
@@ -1809,13 +1788,11 @@ static PyObject *__pyx_builtin_ValueError;
 static PyObject *__pyx_builtin_RuntimeError;
 static PyObject *__pyx_builtin_ImportError;
 static const char __pyx_k__8[] = "*";
-static const char __pyx_k_ft[] = "ft";
 static const char __pyx_k_np[] = "np";
 static const char __pyx_k_sv[] = "sv";
 static const char __pyx_k_wv[] = "wv";
 static const char __pyx_k_ONE[] = "ONE";
 static const char __pyx_k_max[] = "max";
-static const char __pyx_k_w2v[] = "w2v";
 static const char __pyx_k_ONEF[] = "ONEF";
 static const char __pyx_k_ZERO[] = "ZERO";
 static const char __pyx_k_fill[] = "fill";
@@ -1836,6 +1813,7 @@ static const char __pyx_k_saxpy[] = "saxpy";
 static const char __pyx_k_sscal[] = "sscal";
 static const char __pyx_k_vocab[] = "vocab";
 static const char __pyx_k_bucket[] = "bucket";
+static const char __pyx_k_config[] = "config";
 static const char __pyx_k_import[] = "__import__";
 static const char __pyx_k_memory[] = "memory";
 static const char __pyx_k_target[] = "target";
@@ -1893,13 +1871,13 @@ static PyObject *__pyx_kp_s_average_inner_pyx;
 static PyObject *__pyx_n_s_bucket;
 static PyObject *__pyx_n_s_cline_in_traceback;
 static PyObject *__pyx_n_s_compute_ngrams_bytes;
+static PyObject *__pyx_n_s_config;
 static PyObject *__pyx_n_s_cpointer;
 static PyObject *__pyx_n_s_eff_sentences;
 static PyObject *__pyx_n_s_eff_words;
 static PyObject *__pyx_n_s_enumerate;
 static PyObject *__pyx_n_s_fblas;
 static PyObject *__pyx_n_s_fill;
-static PyObject *__pyx_n_s_ft;
 static PyObject *__pyx_n_s_ft_hash_bytes;
 static PyObject *__pyx_n_s_gensim_models__utils_any2vec;
 static PyObject *__pyx_n_s_import;
@@ -1935,7 +1913,6 @@ static PyObject *__pyx_n_s_vectors;
 static PyObject *__pyx_n_s_vectors_ngrams;
 static PyObject *__pyx_n_s_vectors_vocab;
 static PyObject *__pyx_n_s_vocab;
-static PyObject *__pyx_n_s_w2v;
 static PyObject *__pyx_n_s_word_weights;
 static PyObject *__pyx_n_s_workers;
 static PyObject *__pyx_n_s_wv;
@@ -1963,11 +1940,11 @@ static PyObject *__pyx_codeobj__11;
  * DEF MAX_NGRAMS = 40
  * 
  * cdef init_base_s2v_config(             # <<<<<<<<<<<<<<
- *     BaseSentenceVecsConfig *c,
+ *     VecsConfig *c,
  *     model,
  */
 
-static PyObject *__pyx_f_13average_inner_init_base_s2v_config(struct __pyx_t_13average_inner_BaseSentenceVecsConfig *__pyx_v_c, PyObject *__pyx_v_model, PyObject *__pyx_v_target, PyObject *__pyx_v_memory) {
+static PyObject *__pyx_f_13average_inner_init_base_s2v_config(struct __pyx_t_13average_inner_VecsConfig *__pyx_v_c, PyObject *__pyx_v_model, PyObject *__pyx_v_target, PyObject *__pyx_v_memory) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -2073,7 +2050,7 @@ static PyObject *__pyx_f_13average_inner_init_base_s2v_config(struct __pyx_t_13a
  * DEF MAX_NGRAMS = 40
  * 
  * cdef init_base_s2v_config(             # <<<<<<<<<<<<<<
- *     BaseSentenceVecsConfig *c,
+ *     VecsConfig *c,
  *     model,
  */
 
@@ -2095,11 +2072,11 @@ static PyObject *__pyx_f_13average_inner_init_base_s2v_config(struct __pyx_t_13a
  *     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
  * 
  * cdef init_ft_s2v_config(             # <<<<<<<<<<<<<<
- *     FTSentenceVecsConfig *c,
+ *     VecsConfig *c,
  *     model,
  */
 
-static PyObject *__pyx_f_13average_inner_init_ft_s2v_config(struct __pyx_t_13average_inner_FTSentenceVecsConfig *__pyx_v_c, PyObject *__pyx_v_model, PyObject *__pyx_v_target, PyObject *__pyx_v_memory) {
+static PyObject *__pyx_f_13average_inner_init_ft_s2v_config(struct __pyx_t_13average_inner_VecsConfig *__pyx_v_c, PyObject *__pyx_v_model, PyObject *__pyx_v_target, PyObject *__pyx_v_memory) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -2351,7 +2328,7 @@ static PyObject *__pyx_f_13average_inner_init_ft_s2v_config(struct __pyx_t_13ave
  *     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
  * 
  * cdef init_ft_s2v_config(             # <<<<<<<<<<<<<<
- *     FTSentenceVecsConfig *c,
+ *     VecsConfig *c,
  *     model,
  */
 
@@ -2375,11 +2352,11 @@ static PyObject *__pyx_f_13average_inner_init_ft_s2v_config(struct __pyx_t_13ave
  *     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
  * 
  * cdef object populate_base_s2v_config(             # <<<<<<<<<<<<<<
- *     BaseSentenceVecsConfig *c,
+ *     VecsConfig *c,
  *     vocab,
  */
 
-static PyObject *__pyx_f_13average_inner_populate_base_s2v_config(struct __pyx_t_13average_inner_BaseSentenceVecsConfig *__pyx_v_c, PyObject *__pyx_v_vocab, PyObject *__pyx_v_indexed_sentences) {
+static PyObject *__pyx_f_13average_inner_populate_base_s2v_config(struct __pyx_t_13average_inner_VecsConfig *__pyx_v_c, PyObject *__pyx_v_vocab, PyObject *__pyx_v_indexed_sentences) {
   __pyx_t_13average_inner_uINT_t __pyx_v_eff_words;
   __pyx_t_13average_inner_uINT_t __pyx_v_eff_sents;
   PyObject *__pyx_v_obj = NULL;
@@ -2770,7 +2747,7 @@ static PyObject *__pyx_f_13average_inner_populate_base_s2v_config(struct __pyx_t
  *     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
  * 
  * cdef object populate_base_s2v_config(             # <<<<<<<<<<<<<<
- *     BaseSentenceVecsConfig *c,
+ *     VecsConfig *c,
  *     vocab,
  */
 
@@ -2795,11 +2772,11 @@ static PyObject *__pyx_f_13average_inner_populate_base_s2v_config(struct __pyx_t
  *     return eff_sents, eff_words
  * 
  * cdef object populate_ft_s2v_config(             # <<<<<<<<<<<<<<
- *     FTSentenceVecsConfig *c,
+ *     VecsConfig *c,
  *     vocab,
  */
 
-static PyObject *__pyx_f_13average_inner_populate_ft_s2v_config(struct __pyx_t_13average_inner_FTSentenceVecsConfig *__pyx_v_c, PyObject *__pyx_v_vocab, PyObject *__pyx_v_indexed_sentences) {
+static PyObject *__pyx_f_13average_inner_populate_ft_s2v_config(struct __pyx_t_13average_inner_VecsConfig *__pyx_v_c, PyObject *__pyx_v_vocab, PyObject *__pyx_v_indexed_sentences) {
   __pyx_t_13average_inner_uINT_t __pyx_v_eff_words;
   __pyx_t_13average_inner_uINT_t __pyx_v_eff_sents;
   PyObject *__pyx_v_obj = NULL;
@@ -3431,7 +3408,7 @@ static PyObject *__pyx_f_13average_inner_populate_ft_s2v_config(struct __pyx_t_1
  *     return eff_sents, eff_words
  * 
  * cdef object populate_ft_s2v_config(             # <<<<<<<<<<<<<<
- *     FTSentenceVecsConfig *c,
+ *     VecsConfig *c,
  *     vocab,
  */
 
@@ -3465,11 +3442,11 @@ static PyObject *__pyx_f_13average_inner_populate_ft_s2v_config(struct __pyx_t_1
  * 
  * 
  * cdef void compute_base_sentence_averages(             # <<<<<<<<<<<<<<
- *     BaseSentenceVecsConfig *c,
+ *     VecsConfig *c,
  *     uINT_t num_sentences,
  */
 
-static void __pyx_f_13average_inner_compute_base_sentence_averages(struct __pyx_t_13average_inner_BaseSentenceVecsConfig *__pyx_v_c, __pyx_t_13average_inner_uINT_t __pyx_v_num_sentences) {
+static void __pyx_f_13average_inner_compute_base_sentence_averages(struct __pyx_t_13average_inner_VecsConfig *__pyx_v_c, __pyx_t_13average_inner_uINT_t __pyx_v_num_sentences) {
   int __pyx_v_size;
   __pyx_t_13average_inner_uINT_t __pyx_v_sent_idx;
   __pyx_t_13average_inner_uINT_t __pyx_v_sent_start;
@@ -3647,7 +3624,7 @@ static void __pyx_f_13average_inner_compute_base_sentence_averages(struct __pyx_
  * 
  * 
  * cdef void compute_base_sentence_averages(             # <<<<<<<<<<<<<<
- *     BaseSentenceVecsConfig *c,
+ *     VecsConfig *c,
  *     uINT_t num_sentences,
  */
 
@@ -3658,11 +3635,11 @@ static void __pyx_f_13average_inner_compute_base_sentence_averages(struct __pyx_
  *             )
  * 
  * cdef void compute_ft_sentence_averages(             # <<<<<<<<<<<<<<
- *     FTSentenceVecsConfig *c,
+ *     VecsConfig *c,
  *     uINT_t num_sentences,
  */
 
-static void __pyx_f_13average_inner_compute_ft_sentence_averages(struct __pyx_t_13average_inner_FTSentenceVecsConfig *__pyx_v_c, __pyx_t_13average_inner_uINT_t __pyx_v_num_sentences) {
+static void __pyx_f_13average_inner_compute_ft_sentence_averages(struct __pyx_t_13average_inner_VecsConfig *__pyx_v_c, __pyx_t_13average_inner_uINT_t __pyx_v_num_sentences) {
   int __pyx_v_size;
   __pyx_t_13average_inner_uINT_t __pyx_v_sent_idx;
   __pyx_t_13average_inner_uINT_t __pyx_v_sent_start;
@@ -3931,7 +3908,7 @@ static void __pyx_f_13average_inner_compute_ft_sentence_averages(struct __pyx_t_
  *             )
  * 
  * cdef void compute_ft_sentence_averages(             # <<<<<<<<<<<<<<
- *     FTSentenceVecsConfig *c,
+ *     VecsConfig *c,
  *     uINT_t num_sentences,
  */
 
@@ -4034,8 +4011,7 @@ static PyObject *__pyx_pw_13average_inner_1train_average_cy(PyObject *__pyx_self
 static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_model, PyObject *__pyx_v_indexed_sentences, PyObject *__pyx_v_target, PyObject *__pyx_v_memory) {
   __pyx_t_13average_inner_uINT_t __pyx_v_eff_sentences;
   __pyx_t_13average_inner_uINT_t __pyx_v_eff_words;
-  struct __pyx_t_13average_inner_BaseSentenceVecsConfig __pyx_v_w2v;
-  struct __pyx_t_13average_inner_FTSentenceVecsConfig __pyx_v_ft;
+  struct __pyx_t_13average_inner_VecsConfig __pyx_v_config;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -4054,7 +4030,7 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
  * 
  *     cdef uINT_t eff_sentences = 0             # <<<<<<<<<<<<<<
  *     cdef uINT_t eff_words = 0
- *     cdef BaseSentenceVecsConfig w2v
+ *     cdef VecsConfig config
  */
   __pyx_v_eff_sentences = 0;
 
@@ -4062,57 +4038,57 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
  * 
  *     cdef uINT_t eff_sentences = 0
  *     cdef uINT_t eff_words = 0             # <<<<<<<<<<<<<<
- *     cdef BaseSentenceVecsConfig w2v
- *     cdef FTSentenceVecsConfig ft
+ *     cdef VecsConfig config
+ * 
  */
   __pyx_v_eff_words = 0;
 
-  /* "average_inner.pyx":414
- *     cdef FTSentenceVecsConfig ft
+  /* "average_inner.pyx":413
+ *     cdef VecsConfig config
  * 
  *     if not model.is_ft:             # <<<<<<<<<<<<<<
- *         init_base_s2v_config(&w2v, model, target, memory)
+ *         init_base_s2v_config(&config, model, target, memory)
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_is_ft); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 414, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_is_ft); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 413, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 414, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 413, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_t_3 = ((!__pyx_t_2) != 0);
   if (__pyx_t_3) {
 
-    /* "average_inner.pyx":415
+    /* "average_inner.pyx":414
  * 
  *     if not model.is_ft:
- *         init_base_s2v_config(&w2v, model, target, memory)             # <<<<<<<<<<<<<<
+ *         init_base_s2v_config(&config, model, target, memory)             # <<<<<<<<<<<<<<
  * 
  *         eff_sentences, eff_words = populate_base_s2v_config(
  */
-    __pyx_t_1 = __pyx_f_13average_inner_init_base_s2v_config((&__pyx_v_w2v), __pyx_v_model, __pyx_v_target, __pyx_v_memory); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 415, __pyx_L1_error)
+    __pyx_t_1 = __pyx_f_13average_inner_init_base_s2v_config((&__pyx_v_config), __pyx_v_model, __pyx_v_target, __pyx_v_memory); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 414, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-    /* "average_inner.pyx":419
+    /* "average_inner.pyx":418
  *         eff_sentences, eff_words = populate_base_s2v_config(
- *             &w2v,
+ *             &config,
  *             model.wv.vocab,             # <<<<<<<<<<<<<<
  *             indexed_sentences,
  *         )
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_wv); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 419, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_wv); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 418, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_vocab); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 419, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_vocab); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 418, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-    /* "average_inner.pyx":417
- *         init_base_s2v_config(&w2v, model, target, memory)
+    /* "average_inner.pyx":416
+ *         init_base_s2v_config(&config, model, target, memory)
  * 
  *         eff_sentences, eff_words = populate_base_s2v_config(             # <<<<<<<<<<<<<<
- *             &w2v,
+ *             &config,
  *             model.wv.vocab,
  */
-    __pyx_t_1 = __pyx_f_13average_inner_populate_base_s2v_config((&__pyx_v_w2v), __pyx_t_4, __pyx_v_indexed_sentences); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 417, __pyx_L1_error)
+    __pyx_t_1 = __pyx_f_13average_inner_populate_base_s2v_config((&__pyx_v_config), __pyx_t_4, __pyx_v_indexed_sentences); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 416, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     if ((likely(PyTuple_CheckExact(__pyx_t_1))) || (PyList_CheckExact(__pyx_t_1))) {
@@ -4121,7 +4097,7 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
       if (unlikely(size != 2)) {
         if (size > 2) __Pyx_RaiseTooManyValuesError(2);
         else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-        __PYX_ERR(0, 417, __pyx_L1_error)
+        __PYX_ERR(0, 416, __pyx_L1_error)
       }
       #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
       if (likely(PyTuple_CheckExact(sequence))) {
@@ -4134,15 +4110,15 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
       __Pyx_INCREF(__pyx_t_4);
       __Pyx_INCREF(__pyx_t_5);
       #else
-      __pyx_t_4 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 417, __pyx_L1_error)
+      __pyx_t_4 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 416, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
-      __pyx_t_5 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 417, __pyx_L1_error)
+      __pyx_t_5 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 416, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_5);
       #endif
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     } else {
       Py_ssize_t index = -1;
-      __pyx_t_6 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 417, __pyx_L1_error)
+      __pyx_t_6 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 416, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
       __pyx_t_7 = Py_TYPE(__pyx_t_6)->tp_iternext;
@@ -4150,7 +4126,7 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
       __Pyx_GOTREF(__pyx_t_4);
       index = 1; __pyx_t_5 = __pyx_t_7(__pyx_t_6); if (unlikely(!__pyx_t_5)) goto __pyx_L4_unpacking_failed;
       __Pyx_GOTREF(__pyx_t_5);
-      if (__Pyx_IternextUnpackEndCheck(__pyx_t_7(__pyx_t_6), 2) < 0) __PYX_ERR(0, 417, __pyx_L1_error)
+      if (__Pyx_IternextUnpackEndCheck(__pyx_t_7(__pyx_t_6), 2) < 0) __PYX_ERR(0, 416, __pyx_L1_error)
       __pyx_t_7 = NULL;
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
       goto __pyx_L5_unpacking_done;
@@ -4158,22 +4134,22 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
       __pyx_t_7 = NULL;
       if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
-      __PYX_ERR(0, 417, __pyx_L1_error)
+      __PYX_ERR(0, 416, __pyx_L1_error)
       __pyx_L5_unpacking_done:;
     }
-    __pyx_t_8 = __Pyx_PyInt_As_npy_uint32(__pyx_t_4); if (unlikely((__pyx_t_8 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 417, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyInt_As_npy_uint32(__pyx_t_4); if (unlikely((__pyx_t_8 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 416, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_9 = __Pyx_PyInt_As_npy_uint32(__pyx_t_5); if (unlikely((__pyx_t_9 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 417, __pyx_L1_error)
+    __pyx_t_9 = __Pyx_PyInt_As_npy_uint32(__pyx_t_5); if (unlikely((__pyx_t_9 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 416, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __pyx_v_eff_sentences = __pyx_t_8;
     __pyx_v_eff_words = __pyx_t_9;
 
-    /* "average_inner.pyx":423
+    /* "average_inner.pyx":422
  *         )
  * 
  *         with nogil:             # <<<<<<<<<<<<<<
  *             compute_base_sentence_averages(
- *                 &w2v,
+ *                 &config,
  */
     {
         #ifdef WITH_THREAD
@@ -4183,22 +4159,22 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
         #endif
         /*try:*/ {
 
-          /* "average_inner.pyx":424
+          /* "average_inner.pyx":423
  * 
  *         with nogil:
  *             compute_base_sentence_averages(             # <<<<<<<<<<<<<<
- *                 &w2v,
+ *                 &config,
  *                 eff_sentences,
  */
-          __pyx_f_13average_inner_compute_base_sentence_averages((&__pyx_v_w2v), __pyx_v_eff_sentences);
+          __pyx_f_13average_inner_compute_base_sentence_averages((&__pyx_v_config), __pyx_v_eff_sentences);
         }
 
-        /* "average_inner.pyx":423
+        /* "average_inner.pyx":422
  *         )
  * 
  *         with nogil:             # <<<<<<<<<<<<<<
  *             compute_base_sentence_averages(
- *                 &w2v,
+ *                 &config,
  */
         /*finally:*/ {
           /*normal exit:*/{
@@ -4212,57 +4188,57 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
         }
     }
 
-    /* "average_inner.pyx":414
- *     cdef FTSentenceVecsConfig ft
+    /* "average_inner.pyx":413
+ *     cdef VecsConfig config
  * 
  *     if not model.is_ft:             # <<<<<<<<<<<<<<
- *         init_base_s2v_config(&w2v, model, target, memory)
+ *         init_base_s2v_config(&config, model, target, memory)
  * 
  */
     goto __pyx_L3;
   }
 
-  /* "average_inner.pyx":429
+  /* "average_inner.pyx":428
  *             )
  *     else:
  *         init_ft_s2v_config(             # <<<<<<<<<<<<<<
- *             &ft,
+ *             &config,
  *             model,
  */
   /*else*/ {
 
-    /* "average_inner.pyx":433
+    /* "average_inner.pyx":432
  *             model,
  *             target,
  *             memory,             # <<<<<<<<<<<<<<
  *         )
  * 
  */
-    __pyx_t_1 = __pyx_f_13average_inner_init_ft_s2v_config((&__pyx_v_ft), __pyx_v_model, __pyx_v_target, __pyx_v_memory); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 429, __pyx_L1_error)
+    __pyx_t_1 = __pyx_f_13average_inner_init_ft_s2v_config((&__pyx_v_config), __pyx_v_model, __pyx_v_target, __pyx_v_memory); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 428, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-    /* "average_inner.pyx":438
+    /* "average_inner.pyx":437
  *         eff_sentences, eff_words = populate_ft_s2v_config(
- *             &ft,
+ *             &config,
  *             model.wv.vocab,             # <<<<<<<<<<<<<<
  *             indexed_sentences,
  *         )
  */
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_wv); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 438, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_model, __pyx_n_s_wv); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 437, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_vocab); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 438, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_vocab); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 437, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-    /* "average_inner.pyx":436
+    /* "average_inner.pyx":435
  *         )
  * 
  *         eff_sentences, eff_words = populate_ft_s2v_config(             # <<<<<<<<<<<<<<
- *             &ft,
+ *             &config,
  *             model.wv.vocab,
  */
-    __pyx_t_1 = __pyx_f_13average_inner_populate_ft_s2v_config((&__pyx_v_ft), __pyx_t_5, __pyx_v_indexed_sentences); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 436, __pyx_L1_error)
+    __pyx_t_1 = __pyx_f_13average_inner_populate_ft_s2v_config((&__pyx_v_config), __pyx_t_5, __pyx_v_indexed_sentences); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 435, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     if ((likely(PyTuple_CheckExact(__pyx_t_1))) || (PyList_CheckExact(__pyx_t_1))) {
@@ -4271,7 +4247,7 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
       if (unlikely(size != 2)) {
         if (size > 2) __Pyx_RaiseTooManyValuesError(2);
         else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-        __PYX_ERR(0, 436, __pyx_L1_error)
+        __PYX_ERR(0, 435, __pyx_L1_error)
       }
       #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
       if (likely(PyTuple_CheckExact(sequence))) {
@@ -4284,15 +4260,15 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
       __Pyx_INCREF(__pyx_t_5);
       __Pyx_INCREF(__pyx_t_4);
       #else
-      __pyx_t_5 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 436, __pyx_L1_error)
+      __pyx_t_5 = PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 435, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_5);
-      __pyx_t_4 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 436, __pyx_L1_error)
+      __pyx_t_4 = PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 435, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
       #endif
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     } else {
       Py_ssize_t index = -1;
-      __pyx_t_6 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 436, __pyx_L1_error)
+      __pyx_t_6 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 435, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
       __pyx_t_7 = Py_TYPE(__pyx_t_6)->tp_iternext;
@@ -4300,7 +4276,7 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
       __Pyx_GOTREF(__pyx_t_5);
       index = 1; __pyx_t_4 = __pyx_t_7(__pyx_t_6); if (unlikely(!__pyx_t_4)) goto __pyx_L9_unpacking_failed;
       __Pyx_GOTREF(__pyx_t_4);
-      if (__Pyx_IternextUnpackEndCheck(__pyx_t_7(__pyx_t_6), 2) < 0) __PYX_ERR(0, 436, __pyx_L1_error)
+      if (__Pyx_IternextUnpackEndCheck(__pyx_t_7(__pyx_t_6), 2) < 0) __PYX_ERR(0, 435, __pyx_L1_error)
       __pyx_t_7 = NULL;
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
       goto __pyx_L10_unpacking_done;
@@ -4308,22 +4284,22 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
       __pyx_t_7 = NULL;
       if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
-      __PYX_ERR(0, 436, __pyx_L1_error)
+      __PYX_ERR(0, 435, __pyx_L1_error)
       __pyx_L10_unpacking_done:;
     }
-    __pyx_t_9 = __Pyx_PyInt_As_npy_uint32(__pyx_t_5); if (unlikely((__pyx_t_9 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 436, __pyx_L1_error)
+    __pyx_t_9 = __Pyx_PyInt_As_npy_uint32(__pyx_t_5); if (unlikely((__pyx_t_9 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 435, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-    __pyx_t_8 = __Pyx_PyInt_As_npy_uint32(__pyx_t_4); if (unlikely((__pyx_t_8 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 436, __pyx_L1_error)
+    __pyx_t_8 = __Pyx_PyInt_As_npy_uint32(__pyx_t_4); if (unlikely((__pyx_t_8 == ((npy_uint32)-1)) && PyErr_Occurred())) __PYX_ERR(0, 435, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __pyx_v_eff_sentences = __pyx_t_9;
     __pyx_v_eff_words = __pyx_t_8;
 
-    /* "average_inner.pyx":442
+    /* "average_inner.pyx":441
  *         )
  * 
  *         with nogil:             # <<<<<<<<<<<<<<
  *             compute_ft_sentence_averages(
- *                 &ft,
+ *                 &config,
  */
     {
         #ifdef WITH_THREAD
@@ -4333,22 +4309,22 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
         #endif
         /*try:*/ {
 
-          /* "average_inner.pyx":443
+          /* "average_inner.pyx":442
  * 
  *         with nogil:
  *             compute_ft_sentence_averages(             # <<<<<<<<<<<<<<
- *                 &ft,
+ *                 &config,
  *                 eff_sentences
  */
-          __pyx_f_13average_inner_compute_ft_sentence_averages((&__pyx_v_ft), __pyx_v_eff_sentences);
+          __pyx_f_13average_inner_compute_ft_sentence_averages((&__pyx_v_config), __pyx_v_eff_sentences);
         }
 
-        /* "average_inner.pyx":442
+        /* "average_inner.pyx":441
  *         )
  * 
  *         with nogil:             # <<<<<<<<<<<<<<
  *             compute_ft_sentence_averages(
- *                 &ft,
+ *                 &config,
  */
         /*finally:*/ {
           /*normal exit:*/{
@@ -4364,7 +4340,7 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
   }
   __pyx_L3:;
 
-  /* "average_inner.pyx":448
+  /* "average_inner.pyx":447
  *             )
  * 
  *     return eff_sentences, eff_words             # <<<<<<<<<<<<<<
@@ -4372,11 +4348,11 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
  * def init():
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyInt_From_npy_uint32(__pyx_v_eff_sentences); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 448, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_From_npy_uint32(__pyx_v_eff_sentences); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 447, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_4 = __Pyx_PyInt_From_npy_uint32(__pyx_v_eff_words); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 448, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyInt_From_npy_uint32(__pyx_v_eff_words); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 447, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_5 = PyTuple_New(2); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 448, __pyx_L1_error)
+  __pyx_t_5 = PyTuple_New(2); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 447, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_GIVEREF(__pyx_t_1);
   PyTuple_SET_ITEM(__pyx_t_5, 0, __pyx_t_1);
@@ -4410,7 +4386,7 @@ static PyObject *__pyx_pf_13average_inner_train_average_cy(CYTHON_UNUSED PyObjec
   return __pyx_r;
 }
 
-/* "average_inner.pyx":450
+/* "average_inner.pyx":449
  *     return eff_sentences, eff_words
  * 
  * def init():             # <<<<<<<<<<<<<<
@@ -4438,7 +4414,7 @@ static PyObject *__pyx_pf_13average_inner_2init(CYTHON_UNUSED PyObject *__pyx_se
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("init", 0);
 
-  /* "average_inner.pyx":451
+  /* "average_inner.pyx":450
  * 
  * def init():
  *     return 1             # <<<<<<<<<<<<<<
@@ -4450,7 +4426,7 @@ static PyObject *__pyx_pf_13average_inner_2init(CYTHON_UNUSED PyObject *__pyx_se
   __pyx_r = __pyx_int_1;
   goto __pyx_L0;
 
-  /* "average_inner.pyx":450
+  /* "average_inner.pyx":449
  *     return eff_sentences, eff_words
  * 
  * def init():             # <<<<<<<<<<<<<<
@@ -6948,13 +6924,13 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_bucket, __pyx_k_bucket, sizeof(__pyx_k_bucket), 0, 0, 1, 1},
   {&__pyx_n_s_cline_in_traceback, __pyx_k_cline_in_traceback, sizeof(__pyx_k_cline_in_traceback), 0, 0, 1, 1},
   {&__pyx_n_s_compute_ngrams_bytes, __pyx_k_compute_ngrams_bytes, sizeof(__pyx_k_compute_ngrams_bytes), 0, 0, 1, 1},
+  {&__pyx_n_s_config, __pyx_k_config, sizeof(__pyx_k_config), 0, 0, 1, 1},
   {&__pyx_n_s_cpointer, __pyx_k_cpointer, sizeof(__pyx_k_cpointer), 0, 0, 1, 1},
   {&__pyx_n_s_eff_sentences, __pyx_k_eff_sentences, sizeof(__pyx_k_eff_sentences), 0, 0, 1, 1},
   {&__pyx_n_s_eff_words, __pyx_k_eff_words, sizeof(__pyx_k_eff_words), 0, 0, 1, 1},
   {&__pyx_n_s_enumerate, __pyx_k_enumerate, sizeof(__pyx_k_enumerate), 0, 0, 1, 1},
   {&__pyx_n_s_fblas, __pyx_k_fblas, sizeof(__pyx_k_fblas), 0, 0, 1, 1},
   {&__pyx_n_s_fill, __pyx_k_fill, sizeof(__pyx_k_fill), 0, 0, 1, 1},
-  {&__pyx_n_s_ft, __pyx_k_ft, sizeof(__pyx_k_ft), 0, 0, 1, 1},
   {&__pyx_n_s_ft_hash_bytes, __pyx_k_ft_hash_bytes, sizeof(__pyx_k_ft_hash_bytes), 0, 0, 1, 1},
   {&__pyx_n_s_gensim_models__utils_any2vec, __pyx_k_gensim_models__utils_any2vec, sizeof(__pyx_k_gensim_models__utils_any2vec), 0, 0, 1, 1},
   {&__pyx_n_s_import, __pyx_k_import, sizeof(__pyx_k_import), 0, 0, 1, 1},
@@ -6990,7 +6966,6 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_vectors_ngrams, __pyx_k_vectors_ngrams, sizeof(__pyx_k_vectors_ngrams), 0, 0, 1, 1},
   {&__pyx_n_s_vectors_vocab, __pyx_k_vectors_vocab, sizeof(__pyx_k_vectors_vocab), 0, 0, 1, 1},
   {&__pyx_n_s_vocab, __pyx_k_vocab, sizeof(__pyx_k_vocab), 0, 0, 1, 1},
-  {&__pyx_n_s_w2v, __pyx_k_w2v, sizeof(__pyx_k_w2v), 0, 0, 1, 1},
   {&__pyx_n_s_word_weights, __pyx_k_word_weights, sizeof(__pyx_k_word_weights), 0, 0, 1, 1},
   {&__pyx_n_s_workers, __pyx_k_workers, sizeof(__pyx_k_workers), 0, 0, 1, 1},
   {&__pyx_n_s_wv, __pyx_k_wv, sizeof(__pyx_k_wv), 0, 0, 1, 1},
@@ -7095,19 +7070,19 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
  *     model,
  *     indexed_sentences,
  */
-  __pyx_tuple__9 = PyTuple_Pack(8, __pyx_n_s_model, __pyx_n_s_indexed_sentences, __pyx_n_s_target, __pyx_n_s_memory, __pyx_n_s_eff_sentences, __pyx_n_s_eff_words, __pyx_n_s_w2v, __pyx_n_s_ft); if (unlikely(!__pyx_tuple__9)) __PYX_ERR(0, 380, __pyx_L1_error)
+  __pyx_tuple__9 = PyTuple_Pack(7, __pyx_n_s_model, __pyx_n_s_indexed_sentences, __pyx_n_s_target, __pyx_n_s_memory, __pyx_n_s_eff_sentences, __pyx_n_s_eff_words, __pyx_n_s_config); if (unlikely(!__pyx_tuple__9)) __PYX_ERR(0, 380, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__9);
   __Pyx_GIVEREF(__pyx_tuple__9);
-  __pyx_codeobj__10 = (PyObject*)__Pyx_PyCode_New(4, 0, 8, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__9, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_average_inner_pyx, __pyx_n_s_train_average_cy, 380, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__10)) __PYX_ERR(0, 380, __pyx_L1_error)
+  __pyx_codeobj__10 = (PyObject*)__Pyx_PyCode_New(4, 0, 7, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__9, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_average_inner_pyx, __pyx_n_s_train_average_cy, 380, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__10)) __PYX_ERR(0, 380, __pyx_L1_error)
 
-  /* "average_inner.pyx":450
+  /* "average_inner.pyx":449
  *     return eff_sentences, eff_words
  * 
  * def init():             # <<<<<<<<<<<<<<
  *     return 1
  * 
  */
-  __pyx_codeobj__11 = (PyObject*)__Pyx_PyCode_New(0, 0, 0, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_average_inner_pyx, __pyx_n_s_init, 450, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 450, __pyx_L1_error)
+  __pyx_codeobj__11 = (PyObject*)__Pyx_PyCode_New(0, 0, 0, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_average_inner_pyx, __pyx_n_s_init, 449, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 449, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -7163,10 +7138,10 @@ static int __Pyx_modinit_function_export_code(void) {
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__Pyx_modinit_function_export_code", 0);
   /*--- Function export code ---*/
-  if (__Pyx_ExportFunction("init_base_s2v_config", (void (*)(void))__pyx_f_13average_inner_init_base_s2v_config, "PyObject *(struct __pyx_t_13average_inner_BaseSentenceVecsConfig *, PyObject *, PyObject *, PyObject *)") < 0) __PYX_ERR(0, 1, __pyx_L1_error)
-  if (__Pyx_ExportFunction("init_ft_s2v_config", (void (*)(void))__pyx_f_13average_inner_init_ft_s2v_config, "PyObject *(struct __pyx_t_13average_inner_FTSentenceVecsConfig *, PyObject *, PyObject *, PyObject *)") < 0) __PYX_ERR(0, 1, __pyx_L1_error)
-  if (__Pyx_ExportFunction("populate_base_s2v_config", (void (*)(void))__pyx_f_13average_inner_populate_base_s2v_config, "PyObject *(struct __pyx_t_13average_inner_BaseSentenceVecsConfig *, PyObject *, PyObject *)") < 0) __PYX_ERR(0, 1, __pyx_L1_error)
-  if (__Pyx_ExportFunction("populate_ft_s2v_config", (void (*)(void))__pyx_f_13average_inner_populate_ft_s2v_config, "PyObject *(struct __pyx_t_13average_inner_FTSentenceVecsConfig *, PyObject *, PyObject *)") < 0) __PYX_ERR(0, 1, __pyx_L1_error)
+  if (__Pyx_ExportFunction("init_base_s2v_config", (void (*)(void))__pyx_f_13average_inner_init_base_s2v_config, "PyObject *(struct __pyx_t_13average_inner_VecsConfig *, PyObject *, PyObject *, PyObject *)") < 0) __PYX_ERR(0, 1, __pyx_L1_error)
+  if (__Pyx_ExportFunction("init_ft_s2v_config", (void (*)(void))__pyx_f_13average_inner_init_ft_s2v_config, "PyObject *(struct __pyx_t_13average_inner_VecsConfig *, PyObject *, PyObject *, PyObject *)") < 0) __PYX_ERR(0, 1, __pyx_L1_error)
+  if (__Pyx_ExportFunction("populate_base_s2v_config", (void (*)(void))__pyx_f_13average_inner_populate_base_s2v_config, "PyObject *(struct __pyx_t_13average_inner_VecsConfig *, PyObject *, PyObject *)") < 0) __PYX_ERR(0, 1, __pyx_L1_error)
+  if (__Pyx_ExportFunction("populate_ft_s2v_config", (void (*)(void))__pyx_f_13average_inner_populate_ft_s2v_config, "PyObject *(struct __pyx_t_13average_inner_VecsConfig *, PyObject *, PyObject *)") < 0) __PYX_ERR(0, 1, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -7575,46 +7550,46 @@ if (!__Pyx_RefNanny) {
   if (PyDict_SetItem(__pyx_d, __pyx_n_s_train_average_cy, __pyx_t_1) < 0) __PYX_ERR(0, 380, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "average_inner.pyx":450
+  /* "average_inner.pyx":449
  *     return eff_sentences, eff_words
  * 
  * def init():             # <<<<<<<<<<<<<<
  *     return 1
  * 
  */
-  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_13average_inner_3init, NULL, __pyx_n_s_average_inner); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 450, __pyx_L1_error)
+  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_13average_inner_3init, NULL, __pyx_n_s_average_inner); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 449, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_init, __pyx_t_1) < 0) __PYX_ERR(0, 450, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_init, __pyx_t_1) < 0) __PYX_ERR(0, 449, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "average_inner.pyx":453
+  /* "average_inner.pyx":452
  *     return 1
  * 
  * MAX_WORDS_IN_BATCH = MAX_WORDS             # <<<<<<<<<<<<<<
  * MAX_NGRAMS_IN_BATCH = MAX_NGRAMS
  * FAST_VERSION = init()
  */
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_MAX_WORDS_IN_BATCH, __pyx_int_10000) < 0) __PYX_ERR(0, 453, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_MAX_WORDS_IN_BATCH, __pyx_int_10000) < 0) __PYX_ERR(0, 452, __pyx_L1_error)
 
-  /* "average_inner.pyx":454
+  /* "average_inner.pyx":453
  * 
  * MAX_WORDS_IN_BATCH = MAX_WORDS
  * MAX_NGRAMS_IN_BATCH = MAX_NGRAMS             # <<<<<<<<<<<<<<
  * FAST_VERSION = init()
  */
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_MAX_NGRAMS_IN_BATCH, __pyx_int_40) < 0) __PYX_ERR(0, 454, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_MAX_NGRAMS_IN_BATCH, __pyx_int_40) < 0) __PYX_ERR(0, 453, __pyx_L1_error)
 
-  /* "average_inner.pyx":455
+  /* "average_inner.pyx":454
  * MAX_WORDS_IN_BATCH = MAX_WORDS
  * MAX_NGRAMS_IN_BATCH = MAX_NGRAMS
  * FAST_VERSION = init()             # <<<<<<<<<<<<<<
  */
-  __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_init); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 455, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_init); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 454, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyObject_CallNoArg(__pyx_t_1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 455, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_CallNoArg(__pyx_t_1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 454, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_FAST_VERSION, __pyx_t_2) < 0) __PYX_ERR(0, 455, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_FAST_VERSION, __pyx_t_2) < 0) __PYX_ERR(0, 454, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
   /* "average_inner.pyx":1

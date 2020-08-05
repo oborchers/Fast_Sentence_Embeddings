@@ -45,10 +45,10 @@ cdef REAL_t ZEROF = <REAL_t>0.0
 DEF MAX_WORDS = 10000
 DEF MAX_NGRAMS = 40
 
-cdef struct BaseSentenceVecsConfig:
+cdef struct VecsConfig:
+    # Common
     int size, workers
 
-    # Vectors
     REAL_t *mem
     REAL_t *mem2
     REAL_t *word_vectors
@@ -59,49 +59,59 @@ cdef struct BaseSentenceVecsConfig:
     uINT_t sent_adresses[MAX_WORDS]
     uINT_t sentence_boundary[MAX_WORDS + 1]
 
-cdef struct FTSentenceVecsConfig:
-    int size, workers, min_n, max_n, bucket
+    # Fasttext specific
+    int min_n, max_n, bucket
 
     REAL_t oov_weight
-
-    # Vectors
-    REAL_t *mem
-    REAL_t *mem2
-    REAL_t *word_vectors # Note: these will be the vocab vectors, not wv.vectors
     REAL_t *ngram_vectors
-    REAL_t *word_weights
-
-    REAL_t *sentence_vectors
-
-    # REAL_t *work memory for summation?
-    uINT_t word_indices[MAX_WORDS]
-    uINT_t sent_adresses[MAX_WORDS]
-    uINT_t sentence_boundary[MAX_WORDS + 1]
 
     # For storing the oov items
     uINT_t subwords_idx_len[MAX_WORDS]
     uINT_t *subwords_idx
+
+# cdef struct FTSentenceVecsConfig:
+#     int size, workers, min_n, max_n, bucket
+
+#     REAL_t oov_weight
+
+#     # Vectors
+#     REAL_t *mem
+#     REAL_t *mem2
+#     REAL_t *word_vectors # Note: these will be the vocab vectors, not wv.vectors
+#     REAL_t *ngram_vectors
+#     REAL_t *word_weights
+
+#     REAL_t *sentence_vectors
+
+#     # REAL_t *work memory for summation?
+#     uINT_t word_indices[MAX_WORDS]
+#     uINT_t sent_adresses[MAX_WORDS]
+#     uINT_t sentence_boundary[MAX_WORDS + 1]
+
+#     # For storing the oov items
+#     uINT_t subwords_idx_len[MAX_WORDS]
+#     uINT_t *subwords_idx
     
 cdef init_base_s2v_config(
-    BaseSentenceVecsConfig *c, 
+    VecsConfig *c, 
     model, 
     target, 
     memory
 )
 cdef init_ft_s2v_config(
-    FTSentenceVecsConfig *c, 
+    VecsConfig *c, 
     model, 
     target, 
     memory
 )
 
 cdef object populate_base_s2v_config(
-    BaseSentenceVecsConfig *c, 
+    VecsConfig *c, 
     vocab, 
     indexed_sentences,
 )
 cdef object populate_ft_s2v_config(
-    FTSentenceVecsConfig *c, 
+    VecsConfig *c, 
     vocab, 
     indexed_sentences,
 )

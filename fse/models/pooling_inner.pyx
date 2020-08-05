@@ -30,8 +30,7 @@ from average_inner cimport (
     ZEROF,
     saxpy, 
     sscal, 
-    BaseSentenceVecsConfig,
-    FTSentenceVecsConfig,
+    VecsConfig,
     init_base_s2v_config,
     init_ft_s2v_config,
     populate_base_s2v_config,
@@ -67,14 +66,14 @@ cdef void swrmax_pool(
             Y[i] = alpha[0] * X[i]
 
 cdef void compute_base_sentence_pooling(
-    BaseSentenceVecsConfig *c, 
+    VecsConfig *c, 
     uINT_t num_sentences,
 ) nogil:
     """Perform optimized sentence-level max pooling for BaseAny2Vec model.
 
     Parameters
     ----------
-    c : BaseSentenceVecsConfig *
+    c : VecsConfig *
         A pointer to a fully initialized and populated struct.
     num_sentences : uINT_t
         The number of sentences used to train the model.
@@ -114,7 +113,7 @@ cdef void compute_base_sentence_pooling(
 
 
 cdef void compute_base_sentence_hier_pooling(
-    BaseSentenceVecsConfig *c, 
+    VecsConfig *c, 
     uINT_t num_sentences,
     uINT_t window_size,
     REAL_t window_stride,
@@ -123,7 +122,7 @@ cdef void compute_base_sentence_hier_pooling(
 
     Parameters
     ----------
-    c : BaseSentenceVecsConfig *
+    c : VecsConfig *
         A pointer to a fully initialized and populated struct.
     num_sentences : uINT_t
         The number of sentences used to train the model.
@@ -203,14 +202,14 @@ cdef void compute_base_sentence_hier_pooling(
             )
 
 cdef void compute_ft_sentence_pooling(
-    FTSentenceVecsConfig *c, 
+    VecsConfig *c, 
     uINT_t num_sentences,
 ) nogil:
     """Perform optimized sentence-level max pooling for FastText model.
 
     Parameters
     ----------
-    c : FTSentenceVecsConfig *
+    c : VecsConfig *
         A pointer to a fully initialized and populated struct.
     num_sentences : uINT_t
         The number of sentences used to train the model.
@@ -278,7 +277,7 @@ cdef void compute_ft_sentence_pooling(
         # There's nothing to do here for many-to-one mappings
 
 cdef void compute_ft_sentence_hier_pooling(
-    FTSentenceVecsConfig *c, 
+    VecsConfig *c, 
     uINT_t num_sentences,
     uINT_t window_size,
     REAL_t window_stride,
@@ -287,7 +286,7 @@ cdef void compute_ft_sentence_hier_pooling(
 
     Parameters
     ----------
-    c : FTSentenceVecsConfig *
+    c : VecsConfig *
         A pointer to a fully initialized and populated struct.
     num_sentences : uINT_t
         The number of sentences used to train the model.
@@ -431,14 +430,13 @@ def train_pooling_cy(
     cdef uINT_t eff_words = 0
     cdef uINT_t window_size = <uINT_t> model.window_size
     cdef REAL_t window_stride = <REAL_t> model.window_stride
-    cdef BaseSentenceVecsConfig w2v
-    cdef FTSentenceVecsConfig ft
+    cdef VecsConfig config
 
     if not model.is_ft:
-        init_base_s2v_config(&w2v, model, target, memory)
+        init_base_s2v_config(&config, model, target, memory)
 
         eff_sentences, eff_words = populate_base_s2v_config(
-            &w2v, 
+            &config, 
             model.wv.vocab, 
             indexed_sentences
         )
@@ -446,22 +444,22 @@ def train_pooling_cy(
         if not model.hierarchical:
             with nogil: 
                 compute_base_sentence_pooling(
-                    &w2v, 
+                    &config, 
                     eff_sentences
                 )
         else:
             with nogil: 
                 compute_base_sentence_hier_pooling(
-                    &w2v, 
+                    &config, 
                     eff_sentences, 
                     window_size,
                     window_stride,
                 )
     else:        
-        init_ft_s2v_config(&ft, model, target, memory)
+        init_ft_s2v_config(&config, model, target, memory)
 
         eff_sentences, eff_words = populate_ft_s2v_config(
-            &ft, 
+            &config, 
             model.wv.vocab, 
             indexed_sentences
         )
@@ -469,13 +467,13 @@ def train_pooling_cy(
         if not model.hierarchical:
             with nogil:
                 compute_ft_sentence_pooling(
-                    &ft, 
+                    &config, 
                     eff_sentences
                 ) 
         else:
             with nogil: 
                 compute_ft_sentence_hier_pooling(
-                    &ft, 
+                    &config, 
                     eff_sentences, 
                     window_size,
                     window_stride,
