@@ -145,7 +145,7 @@ class BaseSentence2VecModel(SaveLoad):
             Immediate
             [ ] pre_inference_calls
             [ ] base_iterator:
-                [ ] Rewrite VecsConfig to combine FT & W2V
+                [X] Rewrite VecsConfig to combine FT & W2V
                 [ ] Hierarchical Average
                 [ ] Stride Parameter: https://adeshpande3.github.io/A-Beginner%27s-Guide-To-Understanding-Convolutional-Neural-Networks-Part-2/
             [ ] Average:
