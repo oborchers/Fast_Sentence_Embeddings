@@ -198,7 +198,7 @@ Proceedings of the 3rd Workshop on Representation Learning for NLP. (Toulon, Fra
 Copyright
 -------------
 
-Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
+Author: Oliver Borchers <oliver-borchers@outlook.de>
 
 Copyright (C) 2020 Oliver Borchers
 

@@ -93,7 +93,7 @@ setup(
     version="0.1.16",
     description="Fast Sentence Embeddings for Gensim",
     author=u"Oliver Borchers",
-    author_email="borchers@bwl.uni-mannheim.de",
+    author_email="oliver-borchers@outlook.de",
     url="https://github.com/oborchers/Fast_Sentence_Embeddings",
     license="GPL-3.0",
     ext_modules=[

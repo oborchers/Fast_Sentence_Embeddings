@@ -5,7 +5,7 @@
 # cython: embedsignature=True
 # coding: utf-8
 
-# Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
+# Author: Oliver Borchers <oliver-borchers@outlook.de>
 # Copyright (C) 2020 Oliver Borchers
 # For License information, see corresponding LICENSE file.
 

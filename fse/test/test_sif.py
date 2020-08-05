@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
+# Author: Oliver Borchers <oliver-borchers@outlook.de>
 # Copyright (C) 2020 Oliver Borchers
 
 from fse.models.sif import (

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
+# Author: Oliver Borchers <oliver-borchers@outlook.de>
 # Copyright (C) 2020 Oliver Borchers
 # For License information, see corresponding LICENSE file.
 
@@ -128,7 +128,7 @@ class BaseSentence2VecModel(SaveLoad):
         [ ] Global:
             Immediate:
             [ ] Documentation
-            [ ] Mail address update
+            [X] Mail address update
             [ ] remove wv_mapfile_path?
             [ ] modifiable sv_mapfile_path?
             [ ] Python 3.8 Travis Build
@@ -145,6 +145,7 @@ class BaseSentence2VecModel(SaveLoad):
             Immediate
             [ ] pre_inference_calls
             [ ] base_iterator:
+                [ ] Rewrite VecsConfig to combine FT & W2V
                 [ ] Hierarchical Average
                 [ ] Stride Parameter: https://adeshpande3.github.io/A-Beginner%27s-Guide-To-Understanding-Convolutional-Neural-Networks-Part-2/
             [ ] Average:
