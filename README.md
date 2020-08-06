@@ -14,6 +14,7 @@ Fast Sentence Embeddings is a Python library that serves as an addition to Gensi
 
 If you want to support fse, take a quick [survey](https://forms.gle/8uSU323fWUVtVwcAA) to improve it :-)
 
+*For additional features, please check out the dev branch. There is no development on the master branch*
 
 Features
 ------------
