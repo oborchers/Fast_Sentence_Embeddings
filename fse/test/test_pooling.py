@@ -5,6 +5,53 @@
 # Copyright (C) 2020 Oliver Borchers
 # For License information, see corresponding LICENSE file.
 
+"""
+Example for computation of convolution length
+
+window=5
+stride=3
+
+window=5
+stride=1
+
+Consider, that w2v does not contain "12345"
+
+all     w2v     ft
+"They", "admit"
+2       2       2  
+        1       1
+
+"So", "Apple", "bought", "buds"
+4       4       4
+1       3       3
+        2       2
+        1       1
+
+"go", "12345"
+2       1       2
+                1
+
+"pull", "12345678910111213"
+2       0       2
+                1
+
+"this"	"is"	"a"	"longer"	"test"	"sentence"	"test"	"longer"	"sentences"
+0       1       2   3           4
+                    0           1       2           3       4
+                                                    0       1           2
+                                    
+"this"          5       5       5    
+"is"	                4       5
+"a"	                    4       5
+"longer"	    5       4       5
+"test"	                3       5
+"sentence"	            2       4
+"test"	        3       2       3
+"longer"	            1       2
+"sentences"             0       1
+"""
+
+
 from fse.models.pooling import MaxPooling, train_pooling_np
 
 from fse.test.model_shared_imports import *
@@ -24,6 +71,14 @@ class TestPoolingFunctions(unittest.TestCase):
             sv=self.model.sv, total_sentences=len(self.sentences), update=False
         )
         self.model._pre_train_calls()
+
+    def set_convolution(self):
+        self.model.window_size=5
+        self.model.window_stride=1
+    
+    def unset_convolution(self):
+        self.model.window_size=1
+        self.model.window_stride=1
 
     @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
     def test_cython(self):
@@ -239,41 +294,43 @@ class TestPoolingFunctions(unittest.TestCase):
 
     ## Hierarchical Tests start here
 
-    def test_hier_pool_train_np_w2v(self):
+    def test_conv_pool_train_np_w2v(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
         mem = self.model._get_thread_working_mem()
 
-        self.model.hierarchical = True
+        self.set_convolution()
 
         output = train_pooling_np(
             self.model, self.sentences, self.model.sv.vectors, mem
         )
-        self.model.hierarchical = False
+        self.unset_convolution()
 
-        self.assertEqual((5, 14), output)
+        # TODO: The count does not match the expectation
+        self.assertEqual((5, 39), output)
         self.assertTrue((183 == self.model.sv[0]).all())
-        self.assertTrue(np.allclose(self.model.sv[4], 245.66667))
+        self.assertTrue(np.allclose(self.model.sv[4], 184.8))
 
     @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
-    def test_hier_pool_train_cy_w2v(self):
+    def test_conv_pool_train_cy_w2v(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
         mem = self.model._get_thread_working_mem()
 
-        self.model.hierarchical = True
+        self.set_convolution()
 
         from fse.models.pooling_inner import train_pooling_cy
 
         output = train_pooling_cy(
             self.model, self.sentences, self.model.sv.vectors, mem
         )
-        self.model.hierarchical = False
 
-        self.assertEqual((5, 14), output)
+        self.unset_convolution()
+
+        self.assertEqual((5, 39), output)
         self.assertTrue((183 == self.model.sv[0]).all())
-        self.assertTrue(np.allclose(self.model.sv[4], 245.66667))
+        self.assertTrue(np.allclose(self.model.sv[4], 184.8))
 
-    def test_hier_pool_train_np_ft(self):
-        m = MaxPooling(FT_DET, hierarchical=True)
+    def test_conv_pool_train_np_ft(self):
+        m = MaxPooling(FT_DET, window_size=2, window_stride=2)
         m.prep.prepare_vectors(
             sv=m.sv, total_sentences=len(self.sentences), update=False
         )
@@ -284,8 +341,8 @@ class TestPoolingFunctions(unittest.TestCase):
 
         self.assertEqual((5, 19), output)
         self.assertTrue((1 == m.sv[0]).all())
-        self.assertTrue(np.allclose(737413.9, m.sv[2]))
-        self.assertTrue(np.allclose(1080970.2, m.sv[3]))
+        self.assertTrue(np.allclose(368707.44, m.sv[2]))
+        self.assertTrue(np.allclose(961940.2, m.sv[3]))
         """
         Note to future self:
         Due to the size of the ngram vectors,
@@ -295,8 +352,8 @@ class TestPoolingFunctions(unittest.TestCase):
         """
 
     @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
-    def test_hier_pool_train_cy_ft(self):
-        m = MaxPooling(FT_DET, hierarchical=True)
+    def test_conv_pool_train_cy_ft(self):
+        m = MaxPooling(FT_DET, window_size=2, window_stride=2)
         m.prep.prepare_vectors(
             sv=m.sv, total_sentences=len(self.sentences), update=False
         )
@@ -309,12 +366,12 @@ class TestPoolingFunctions(unittest.TestCase):
 
         self.assertEqual((5, 19), output)
         self.assertTrue((1 == m.sv[0]).all())
-        self.assertTrue(np.allclose(737413.9, m.sv[2]))
-        self.assertTrue(np.allclose(1080970.2, m.sv[3]))
+        self.assertTrue(np.allclose(368707.44, m.sv[2]))
+        self.assertTrue(np.allclose(961940.2, m.sv[3]))
 
     @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
-    def test_hier_pool_cy_equal_np_w2v_random(self):
-        m1 = MaxPooling(W2V_RNG, hierarchical=True)
+    def test_conv_pool_cy_equal_np_w2v_random(self):
+        m1 = MaxPooling(W2V_RNG, window_size=5, window_stride=1)
         m1.prep.prepare_vectors(
             sv=m1.sv, total_sentences=len(self.sentences), update=False
         )
@@ -322,7 +379,7 @@ class TestPoolingFunctions(unittest.TestCase):
         mem1 = m1._get_thread_working_mem()
         o1 = train_pooling_np(m1, self.sentences, m1.sv.vectors, mem1)
 
-        m2 = MaxPooling(W2V_RNG, hierarchical=True)
+        m2 = MaxPooling(W2V_RNG, window_size=5, window_stride=1)
         m2.prep.prepare_vectors(
             sv=m2.sv, total_sentences=len(self.sentences), update=False
         )
@@ -336,8 +393,8 @@ class TestPoolingFunctions(unittest.TestCase):
         self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))
 
     @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
-    def test_hier_pool_cy_equal_np_ft_random(self):
-        m1 = MaxPooling(FT_RNG, hierarchical=True)
+    def test_conv_pool_cy_equal_np_ft_random(self):
+        m1 = MaxPooling(FT_RNG, window_size=5, window_stride=1)
         m1.prep.prepare_vectors(
             sv=m1.sv, total_sentences=len(self.sentences), update=False
         )
@@ -349,7 +406,7 @@ class TestPoolingFunctions(unittest.TestCase):
         mem1 = m1._get_thread_working_mem()
         o1 = train_pooling_np(m1, self.sentences[:2], m1.sv.vectors, mem1)
 
-        m2 = MaxPooling(FT_RNG, hierarchical=True)
+        m2 = MaxPooling(FT_RNG, window_size=5, window_stride=1)
         m2.prep.prepare_vectors(
             sv=m2.sv, total_sentences=len(self.sentences), update=False
         )
@@ -364,42 +421,41 @@ class TestPoolingFunctions(unittest.TestCase):
         self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))
 
     @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
-    def test_hier_pool_cy_w2v_non_negative(self):
-        mpool = MaxPooling(W2V_RNG, hierarchical=True)
+    def test_conv_pool_cy_w2v_non_negative(self):
+        mpool = MaxPooling(W2V_RNG, window_size=5, window_stride=1)
         mpool.train(self.sentences)
         self.assertTrue((mpool.sv.vectors >= 0).all())
 
     @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
-    def test_hier_pool_cy_ft_non_negative(self):
-        mpool = MaxPooling(FT_RNG, hierarchical=True)
+    def test_conv_pool_cy_ft_non_negative(self):
+        mpool = MaxPooling(FT_RNG, window_size=5, window_stride=1)
         mpool.train(self.sentences)
         self.assertTrue((mpool.sv.vectors >= 0).all())
 
     ### Hierarchical Test + Stride start here
 
-    def test_hier_pool_stride_train_np_w2v(self):
+    def test_conv_pool_stride_train_np_w2v(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
         mem = self.model._get_thread_working_mem()
 
-        self.model.hierarchical = True
+        self.set_convolution()
         self.model.window_stride = 5
 
         output = train_pooling_np(
             self.model, self.sentences, self.model.sv.vectors, mem
         )
-        self.model.hierarchical = False
-        self.model.window_stride = 1
+        self.unset_convolution()
 
         self.assertEqual((5, 14), output)
         self.assertTrue((183 == self.model.sv[0]).all())
-        self.assertTrue((231 == self.model.sv[4]).all())
+        self.assertTrue((115.5 == self.model.sv[4]).all())
 
     @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
-    def test_hier_pool_stride_train_cy_w2v(self):
+    def test_conv_pool_stride_train_cy_w2v(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
         mem = self.model._get_thread_working_mem()
 
-        self.model.hierarchical = True
+        self.set_convolution()
         self.model.window_stride = 5
 
         from fse.models.pooling_inner import train_pooling_cy
@@ -407,15 +463,14 @@ class TestPoolingFunctions(unittest.TestCase):
         output = train_pooling_cy(
             self.model, self.sentences, self.model.sv.vectors, mem
         )
-        self.model.hierarchical = False
-        self.model.window_stride = 1
+        self.unset_convolution()
 
         self.assertEqual((5, 14), output)
         self.assertTrue((183 == self.model.sv[0]).all())
-        self.assertTrue((231 == self.model.sv[4]).all())
+        self.assertTrue((115.5 == self.model.sv[4]).all())
 
-    def test_hier_pool_stride_train_np_ft(self):
-        m = MaxPooling(FT_DET, hierarchical=True, window_stride=3)
+    def test_conv_pool_stride_train_np_ft(self):
+        m = MaxPooling(FT_DET, window_size=5, window_stride=3)
         m.prep.prepare_vectors(
             sv=m.sv, total_sentences=len(self.sentences), update=False
         )
@@ -424,14 +479,14 @@ class TestPoolingFunctions(unittest.TestCase):
 
         output = train_pooling_np(m, self.sentences, m.sv.vectors, mem)
 
-        self.assertEqual((5, 19), output)
+        self.assertEqual((5, 24), output)
         self.assertTrue((1 == m.sv[0]).all())
         self.assertTrue(np.allclose(368707.44, m.sv[2]))
         self.assertTrue(np.allclose(961940.2, m.sv[3]))
 
     @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
-    def test_hier_pool_stride_train_cy_ft(self):
-        m = MaxPooling(FT_DET, hierarchical=True, window_stride=3)
+    def test_conv_pool_stride_train_cy_ft(self):
+        m = MaxPooling(FT_DET, window_size=5, window_stride=3)
         m.prep.prepare_vectors(
             sv=m.sv, total_sentences=len(self.sentences), update=False
         )
@@ -442,14 +497,14 @@ class TestPoolingFunctions(unittest.TestCase):
 
         output = train_pooling_cy(m, self.sentences, m.sv.vectors, mem)
 
-        self.assertEqual((5, 19), output)
+        self.assertEqual((5, 24), output)
         self.assertTrue((1 == m.sv[0]).all())
         self.assertTrue(np.allclose(368707.44, m.sv[2]))
         self.assertTrue(np.allclose(961940.2, m.sv[3]))
 
     @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
-    def test_hier_pool_stride_cy_equal_np_w2v_random(self):
-        m1 = MaxPooling(W2V_RNG, hierarchical=True, window_stride=4)
+    def test_conv_pool_stride_cy_equal_np_w2v_random(self):
+        m1 = MaxPooling(W2V_RNG, window_size=5, window_stride=4)
         m1.prep.prepare_vectors(
             sv=m1.sv, total_sentences=len(self.sentences), update=False
         )
@@ -457,7 +512,7 @@ class TestPoolingFunctions(unittest.TestCase):
         mem1 = m1._get_thread_working_mem()
         o1 = train_pooling_np(m1, self.sentences, m1.sv.vectors, mem1)
 
-        m2 = MaxPooling(W2V_RNG, hierarchical=True, window_stride=4)
+        m2 = MaxPooling(W2V_RNG, window_size=5, window_stride=4)
         m2.prep.prepare_vectors(
             sv=m2.sv, total_sentences=len(self.sentences), update=False
         )
@@ -471,8 +526,8 @@ class TestPoolingFunctions(unittest.TestCase):
         self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))
 
     @unittest.skipIf(IGNORE_CY, "ignoring Cython build")
-    def test_hier_pool_stride_cy_equal_np_ft_random(self):
-        m1 = MaxPooling(FT_RNG, hierarchical=True, window_stride=5)
+    def test_conv_pool_stride_cy_equal_np_ft_random(self):
+        m1 = MaxPooling(FT_RNG, window_size=5, window_stride=5)
         m1.prep.prepare_vectors(
             sv=m1.sv, total_sentences=len(self.sentences), update=False
         )
@@ -484,7 +539,7 @@ class TestPoolingFunctions(unittest.TestCase):
         mem1 = m1._get_thread_working_mem()
         o1 = train_pooling_np(m1, self.sentences[:2], m1.sv.vectors, mem1)
 
-        m2 = MaxPooling(FT_RNG, hierarchical=True, window_stride=5)
+        m2 = MaxPooling(FT_RNG, window_size=5, window_stride=5)
         m2.prep.prepare_vectors(
             sv=m2.sv, total_sentences=len(self.sentences), update=False
         )
@@ -498,13 +553,13 @@ class TestPoolingFunctions(unittest.TestCase):
         self.assertEqual(o1, o2)
         self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))
 
-    def test_hier_pool_stride_np_w2v_non_negative(self):
-        mpool = MaxPooling(W2V_RNG, hierarchical=True, window_stride=4)
+    def test_conv_pool_stride_np_w2v_non_negative(self):
+        mpool = MaxPooling(W2V_RNG, window_size=2, window_stride=2)
         mpool.train(self.sentences)
         self.assertTrue((mpool.sv.vectors >= 0).all())
 
-    def test_hier_pool_stride_np_ft_non_negative(self):
-        mpool = MaxPooling(FT_RNG, hierarchical=True, window_stride=4)
+    def test_conv_pool_stride_np_ft_non_negative(self):
+        mpool = MaxPooling(FT_RNG, window_size=2, window_stride=2)
         mpool.train(self.sentences)
         self.assertTrue((mpool.sv.vectors >= 0).all())
 

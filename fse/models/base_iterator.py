@@ -108,7 +108,7 @@ def base_iterator(
             continue
 
         # Number of windows in a sentence. Includes broken windows at the edge
-        win_count = int(ceil(sent_len / window_size))
+        win_count = int(ceil(sent_len / window_stride))
 
         for word_index, _ in enumerate(sent):
             if word_index % window_stride != 0:
@@ -144,8 +144,10 @@ def base_iterator(
                 mem2,
             )
 
+        # Rescales the sentence if necessary
+        # Note: If size & stride = 1 -> win_count = sent_len
         sentence_scaler(
-            sent_len,
+            win_count,
             sent_index,
             target,
             mem,
@@ -202,7 +204,7 @@ def sentence_kernel(
     pass
 
 def sentence_scaler(
-        sent_length : int,
+        win_count : int,
         sent_adr : int,
         target : ndarray,
         mem : ndarray,
@@ -212,22 +214,3 @@ def sentence_scaler(
     All results will be stored in target.
     """
     pass
-
-# def window_func(
-#         model,
-#         word : str,
-#         mem : ndarray,
-#     ) -> int:
-#     """ Computes the word vectors for a word
-#     """
-#     if word in model.wv.vocab:
-#         word_index = model.wv.vocab[word].index
-#         mem += model.wv.vectors[word_index] * model.word_weights[word_index]
-#         return 1
-#     else:
-#         if model.is_ft:
-#             mem += get_ft_word_vector(word, model) * np_max(model.word_weights)
-#             return 1
-#         else:
-#             return 0 # Word not taken into account
-
