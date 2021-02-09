@@ -22,7 +22,7 @@ class SIF(Average):
         model: BaseKeyedVectors,
         alpha: float = 1e-3,
         components: int = 1,
-        cache_size_gb: int = 1.0,
+        cache_size_gb: float = 1.0,
         sv_mapfile_path: str = None,
         wv_mapfile_path: str = None,
         workers: int = 1,
