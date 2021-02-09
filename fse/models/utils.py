@@ -114,7 +114,7 @@ def remove_principal_components(
     weights : ndarray, optional
         Weights to be used to weigh the components which are removed from the vectors
     inplace : bool, optional
-        If true, removes the componentens from the vectors inplace (memory efficient)
+        If true, removes the components from the vectors inplace (memory efficient)
 
     Returns
     -------
@@ -132,15 +132,16 @@ def remove_principal_components(
     output = None
     if len(components) == 1:
         if not inplace:
-            output = vectors.dot(w_comp.transpose()) * w_comp
+            output = vectors - vectors.dot(w_comp.transpose()) * w_comp
         else:
             vectors -= vectors.dot(w_comp.transpose()) * w_comp
     else:
         if not inplace:
-            output = vectors.dot(w_comp.transpose()).dot(w_comp)
+            output = vectors - vectors.dot(w_comp.transpose()).dot(w_comp)
         else:
             vectors -= vectors.dot(w_comp.transpose()).dot(w_comp)
     elapsed = time()
+
     logger.info(
         f"removing {len(components)} principal components took {int(elapsed-start)}s"
     )
