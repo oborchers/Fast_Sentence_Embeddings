@@ -2,6 +2,7 @@ import logging
 import unittest
 
 import numpy as np
+from numpy.testing import assert_allclose, assert_raises
 
 from fse.models.utils import compute_principal_components, remove_principal_components
 
@@ -30,21 +31,38 @@ class TestUtils(unittest.TestCase):
 
     def test_remove_components_inplace(self):
         m = np.ones((500, 10), dtype=np.float32)
+        c = np.copy(m)
         out = compute_principal_components(vectors=m)
         remove_principal_components(m, svd_res=out)
-        self.assertTrue(np.allclose(0.0, m, atol=1e-5))
+        assert_allclose(m, 0.0, atol=1e-5)
+        with assert_raises(AssertionError):
+            assert_allclose(m, c)
+
 
     def test_remove_components(self):
         m = np.ones((500, 10), dtype=np.float32)
+        c = np.copy(m)
         out = compute_principal_components(vectors=m)
         res = remove_principal_components(m, svd_res=out, inplace=False)
-        self.assertTrue(np.allclose(1.0, res, atol=1e-5))
+        assert_allclose(res, 0.0, atol=1e-5)
+        assert_allclose(m, c)
+
+    def test_remove_weighted_components_inplace(self):
+        m = np.ones((500, 10), dtype=np.float32)
+        c = np.copy(m)
+        out = compute_principal_components(vectors=m)
+        remove_principal_components(m, svd_res=out, weights=np.array([0.5]))
+        assert_allclose(m, 0.75, atol=1e-5)
+        with assert_raises(AssertionError):
+            assert_allclose(m, c)
 
     def test_remove_weighted_components(self):
         m = np.ones((500, 10), dtype=np.float32)
+        c = np.copy(m)
         out = compute_principal_components(vectors=m)
-        remove_principal_components(m, svd_res=out, weights=np.array([0.5]))
-        self.assertTrue(np.allclose(0.75, m))
+        res = remove_principal_components(m, svd_res=out, weights=np.array([0.5]), inplace=False)
+        assert_allclose(res, 0.75, atol=1e-5)
+        assert_allclose(m, c)
 
     def test_madvise(self):
         from pathlib import Path
