@@ -70,17 +70,18 @@ def compute_principal_components(
         Singular values and singular vectors
     """
     start = time()
+    num_vectors = vectors.shape[0]
     svd = TruncatedSVD(
         n_components=components, n_iter=7, random_state=42, algorithm="randomized"
     )
 
     sample_size = int(1024**3 * cache_size_gb / (vectors.shape[1] * dtype(REAL).itemsize))
 
-    if sample_size > vectors.shape[1]:
+    if sample_size > num_vectors:
         svd.fit(vectors)
     else:
         logger.info(f"sampling {sample_size} vectors to compute principal components")
-        sample_indices = choice(range(vectors.shape[0]), replace=False, size=int(1e6))
+        sample_indices = choice(range(num_vectors), replace=False, size=int(1e6))
         svd.fit(vectors[sample_indices, :])
 
     elapsed = time()
