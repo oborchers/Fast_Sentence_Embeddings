@@ -6,7 +6,7 @@
 
 from sklearn.decomposition import TruncatedSVD
 
-from numpy import ndarray, float32 as REAL, ones, vstack, inf as INF, dtype
+from numpy import ndarray, float32 as REAL, ones, vstack, dtype
 from numpy.random import choice
 
 from time import time
@@ -74,21 +74,14 @@ def compute_principal_components(
         n_components=components, n_iter=7, random_state=42, algorithm="randomized"
     )
 
-    current_mem = INF
-    sample_size = len(vectors)
-    while 1:
-        current_mem = sample_size * vectors.shape[1] * dtype(REAL).itemsize / 1024 ** 3
-        if current_mem < cache_size_gb:
-            break
-        sample_size *= 0.995
-    sample_size = int(sample_size)
+    sample_size = int(1024**3 * cache_size_gb / (vectors.shape[1] * dtype(REAL).itemsize))
 
-    if sample_size < len(vectors):
+    if sample_size > vectors.shape[1]:
+        svd.fit(vectors)
+    else:
         logger.info(f"sampling {sample_size} vectors to compute principal components")
         sample_indices = choice(range(vectors.shape[0]), replace=False, size=int(1e6))
-        svd.fit(vstack([vectors[i] for i in sample_indices]))
-    else:
-        svd.fit(vectors)
+        svd.fit(vectors[sample_indices, :])
 
     elapsed = time()
     logger.info(
