@@ -44,10 +44,6 @@ Thumbs.db
 # Folders #
 ###########
 legacy
-latex
-draft
-drafts
-fse.egg-info/
 
 # Other #
 #########
@@ -55,11 +51,6 @@ fse.egg-info/
 .settings/
 .vscode/
 .eggs
-fse*.egg-info
-*.pptx
-*.doc
-*.docx
-*.dict
 .coverage
 *.bak
 /build/
@@ -68,9 +59,3 @@ fse*.egg-info
 *.lprof
 *.bin
 *.old
-*.model
-*_out.txt
-*.html
-vectors
-*.vectors
-*.joblib

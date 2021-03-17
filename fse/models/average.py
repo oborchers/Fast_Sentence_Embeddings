@@ -209,6 +209,8 @@ class Average(BaseSentence2VecModel):
     def __init__(
         self,
         model: BaseKeyedVectors,
+        window_size: int = 1,
+        window_stride: int = 1,
         sv_mapfile_path: str = None,
         wv_mapfile_path: str = None,
         workers: int = 1,
@@ -242,7 +244,9 @@ class Average(BaseSentence2VecModel):
             See https://github.com/LuminosoInsight/wordfreq
         
         """
-
+        self.window_size = int(window_size)
+        self.window_stride = int(window_stride)
+        
         super(Average, self).__init__(
             model=model,
             sv_mapfile_path=sv_mapfile_path,
