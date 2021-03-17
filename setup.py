@@ -1,120 +1,174 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-'''
-Run with:
+# Author: Oliver Borchers
+# For License information, see corresponding LICENSE file.
 
-sudo python ./setup.py install
-'''
+"""Template setup.py Read more on
+https://docs.python.org/3.7/distutils/setupscript.html."""
 
+import distutils
+import itertools
 import os
-import sys
-import warnings
-from setuptools import setup, find_packages, Extension
+import platform
+import shutil
+
+from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
 
-if sys.version_info[:2] < (3, 6):
-    raise Exception('This version of fse needs Python 3.6 or later.')
+NAME = "fse"
+VERSION = "0.1.16"
+DESCRIPTION = "Fast Sentence Embeddings for Gensim"
+AUTHOR = "Dr. Oliver Borchers"
+AUTHOR_EMAIL = "borchers@bwl.uni-mannheim.de"
+URL = "https://github.com/oborchers/Fast_Sentence_Embeddings"
+LICENSE = "GPL-3.0"
+REQUIRES_PYTHON = ">=3.8"
+NUMPY_STR = "numpy >= 1.11.3"
+CYTHON_STR = "Cython==0.29.14"
 
-class custom_build_ext(build_ext):
-    '''Allow C extension building to fail.
-    '''
-    warning_message = '''
-********************************************************************
-WARNING: %s could not be compiled. %s
+INSTALL_REQUIRES = [
+    NUMPY_STR,
+    "scipy >= 0.18.1",
+    "smart_open >= 1.5.0",
+    "scikit-learn >= 0.19.1",
+    "gensim >= 3.8.0",
+    "wordfreq >= 2.2.1",
+    "psutil",
+]
+SETUP_REQUIRES = [NUMPY_STR]
 
-Here are some hints for popular operating systems:
+c_extensions = {
+    "fse.models.average_inner": "fse/models/average_inner.c",
+}
+cpp_extensions = {}
 
-If you are seeing this message on Linux you probably need to
-install GCC and/or the Python development package for your
-version of Python.
 
-Debian and Ubuntu users should issue the following command:
+def need_cython():
+    """Return True if we need Cython to translate any of the extensions.
 
-    $ sudo apt-get install build-essential python-dev
+    If the extensions have already been translated to C/C++, then we don"t need to
+    install Cython and perform the translation.
+    """
+    expected = list(c_extensions.values()) + list(cpp_extensions.values())
+    return any([not os.path.isfile(f) for f in expected])
 
-RedHat, CentOS, and Fedora users should issue the following command:
 
-    $ sudo yum install gcc python-devel
+def make_c_ext(use_cython=False):
+    for module, source in c_extensions.items():
+        if use_cython:
+            source = source.replace(".c", ".pyx")
+        extra_args = []
+        #        extra_args.extend(["-g", "-O0"])  # uncomment if optimization limiting crash info
+        yield Extension(
+            module, sources=[source], language="c", extra_compile_args=extra_args,
+        )
 
-If you are seeing this message on OSX please read the documentation
-here:
 
-http://api.mongodb.org/python/current/installation.html#osx
-********************************************************************
-'''
+def make_cpp_ext(use_cython=False):
+    extra_args = []
+    system = platform.system()
 
-    def run(self):
-        try:
-            build_ext.run(self)
-        except Exception:
-            e = sys.exc_info()[1]
-            sys.stdout.write('%s\n' % str(e))
-            warnings.warn(
-                self.warning_message +
-                'Extension modules' +
-                'There was an issue with your platform configuration - see above.')
+    if system == "Linux":
+        extra_args.append("-std=c++11")
+    elif system == "Darwin":
+        extra_args.extend(["-stdlib=libc++", "-std=c++11"])
+    # extra_args.extend(["-g", "-O0"])  # uncomment if
+    # optimization limiting crash info
+    for module, source in cpp_extensions.items():
+        if use_cython:
+            source = source.replace(".cpp", ".pyx")
+        yield Extension(
+            module,
+            sources=[source],
+            language="c++",
+            extra_compile_args=extra_args,
+            extra_link_args=extra_args,
+        )
 
-    def build_extension(self, ext):
-        name = ext.name
-        try:
-            build_ext.build_extension(self, ext)
-        except Exception:
-            e = sys.exc_info()[1]
-            sys.stdout.write('%s\n' % str(e))
-            warnings.warn(
-                self.warning_message +
-                'The %s extension module' % (name,) +
-                'The output above this warning shows how the compilation failed.')
 
+#
+# We use use_cython=False here for two reasons:
+#
+# 1. Cython may not be available at this stage
+# 2. The actual translation from Cython to C/C++ happens inside CustomBuildExt
+#
+ext_modules = list(
+    itertools.chain(make_c_ext(use_cython=False), make_cpp_ext(use_cython=False))
+)
+
+
+class CustomBuildExt(build_ext):
+    """Custom build_ext action with bootstrapping.
+
+    We need this in order to use numpy and Cython in this script without importing them
+    at module level, because they may not be available yet.
+    """
+
+    #
+    # http://stackoverflow.com/questions/19919905/how-to-bootstrap-numpy-installation-in-setup-py
+    #
     def finalize_options(self):
         build_ext.finalize_options(self)
-        if isinstance(__builtins__, dict):
-            __builtins__['__NUMPY_SETUP__'] = False
-        else:
-            __builtins__.__NUMPY_SETUP__ = False
+        # Prevent numpy from thinking it is still in its setup process:
+        # https://docs.python.org/2/library/__builtin__.html#module-__builtin__
+        __builtins__.__NUMPY_SETUP__ = False
 
         import numpy
+
         self.include_dirs.append(numpy.get_include())
 
-mod_dir = os.path.join(os.path.dirname(__file__), 'fse', 'models')
-fse_dir = os.path.join(os.path.dirname(__file__), 'fse')
+        if need_cython():
+            import Cython.Build
 
-cmdclass = {'build_ext': custom_build_ext}
+            Cython.Build.cythonize(list(make_c_ext(use_cython=True)))
+            Cython.Build.cythonize(list(make_cpp_ext(use_cython=True)))
+
+
+class CleanExt(distutils.cmd.Command):
+    description = "Remove C sources, C++ sources and binaries for gensim extensions"
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        for root, dirs, files in os.walk("gensim"):
+            files = [
+                os.path.join(root, f)
+                for f in files
+                if os.path.splitext(f)[1] in (".c", ".cpp", ".so")
+            ]
+            for f in files:
+                self.announce("removing %s" % f, level=distutils.log.INFO)
+                os.unlink(f)
+
+        if os.path.isdir("build"):
+            self.announce("recursively removing build", level=distutils.log.INFO)
+            shutil.rmtree("build")
+
+
+cmdclass = {"build_ext": CustomBuildExt, "clean_ext": CleanExt}
+
+if need_cython():
+    INSTALL_REQUIRES.append(CYTHON_STR)
+    SETUP_REQUIRES.append(CYTHON_STR)
 
 setup(
-    name='fse',
-    version='0.1.16',
-    description='Fast Sentence Embeddings for Gensim',
-
-    author=u'Oliver Borchers',
-    author_email='borchers@bwl.uni-mannheim.de',
-
-    url="https://github.com/oborchers/Fast_Sentence_Embeddings",
-
-    license='GPL-3.0',
-
-    ext_modules=[
-        Extension('fse.models.average_inner',
-                sources=['./fse/models/average_inner.pyx'], #.c
-                include_dirs=[mod_dir]),
-        ],
-        
-    cmdclass=cmdclass,
+    name=NAME,
+    version=VERSION,
+    description=DESCRIPTION,
+    author=AUTHOR,
+    author_email=AUTHOR_EMAIL,
     packages=find_packages(),
-
+    requires_python=REQUIRES_PYTHON,
+    install_requires=INSTALL_REQUIRES,
+    setup_requires=SETUP_REQUIRES,
+    ext_modules=ext_modules,
+    cmdclass=cmdclass,
     zip_safe=False,
-
-    test_suite="fse.test",
-
-    install_requires=[
-        'numpy >= 1.11.3',
-        'scipy >= 0.18.1',
-        'smart_open >= 1.5.0',
-        'scikit-learn >= 0.19.1',
-        'gensim >= 3.8.0',
-        'wordfreq >= 2.2.1',
-        'psutil'
-    ],
     include_package_data=True,
 )
