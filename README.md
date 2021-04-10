@@ -22,8 +22,6 @@ Find the corresponding blog post(s) here:
 - [Visualizing 100,000 Amazon Products](https://towardsdatascience.com/vis-amz-83dea6fcb059)
 - [Sentence Embeddings. Fast, please!](https://towardsdatascience.com/fse-2b1ffa791cf9)
 
-- **Announcment: Please understand, that I am at the end of my PhD and I do not have  many free minutes to fix issues or add features.**
-
 **fse** implements three algorithms for sentence embeddings. You can choose
 between *unweighted sentence averages*,  *smooth inverse frequency averages*, and *unsupervised smooth inverse frequency averages*. 
 
