@@ -2,7 +2,9 @@
 <a href="https://travis-ci.com/oborchers/Fast_Sentence_Embeddings"><img alt="Build Status" src="https://travis-ci.com/oborchers/Fast_Sentence_Embeddings.svg?branch=master"></a>
 <a href="https://coveralls.io/github/oborchers/Fast_Sentence_Embeddings?branch=master"><img alt="Coverage Status" src="https://coveralls.io/repos/github/oborchers/Fast_Sentence_Embeddings/badge.svg?branch=master"></a>
 <a href="https://pepy.tech/project/fse"><img alt="Downloads" src="https://pepy.tech/badge/fse"></a>
+<a href="https://lgtm.com/projects/g/oborchers/Fast_Sentence_Embeddings/context:python"><img alt="Language grade: Python" src="https://img.shields.io/lgtm/grade/python/g/oborchers/Fast_Sentence_Embeddings.svg"></a>
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
+<a href="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"><img alt="License: GPL3" src="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"></a>
 </p>
 
 Fast Sentence Embeddings (fse)
@@ -10,6 +12,7 @@ Fast Sentence Embeddings (fse)
 
 Fast Sentence Embeddings is a Python library that serves as an addition to Gensim. This library is intended to compute *sentence vectors* for large collections of sentences or documents. 
 
+**Disclaimer**: I am currently working full time. Unfortunately, I have yet to find time to add all the features I'd like to see. Especially the API needs some overhaul and we need support for gensim 4.0.0. If you want to support [fse](https://forms.gle/8uSU323fWUVtVwcAA), take a quick survey to improve it :-)
 
 Features
 ------------
