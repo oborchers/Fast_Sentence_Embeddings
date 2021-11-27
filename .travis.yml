@@ -15,10 +15,11 @@ python:
   - "3.9"
   - "3.10"
 
-#branches:
-#  only:
-#    - master
-#    - develop
+branches:
+  only:
+    - master
+    - develop
+    - v0.1.17
 
 matrix:
   include:     
