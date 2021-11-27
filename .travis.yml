@@ -1,3 +1,4 @@
+if: (type = push AND branch IN (master, develop)) OR (type = pull_request AND NOT branch =~ /no-ci/)
 sudo: false
 
 cache:
