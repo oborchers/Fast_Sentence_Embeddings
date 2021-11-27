@@ -17,13 +17,13 @@ from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
 
 NAME = "fse"
-VERSION = "0.1.16"
+VERSION = "0.1.17"
 DESCRIPTION = "Fast Sentence Embeddings for Gensim"
-AUTHOR = "Dr. Oliver Borchers"
-AUTHOR_EMAIL = "borchers@bwl.uni-mannheim.de"
+AUTHOR = "Oliver Borchers"
+AUTHOR_EMAIL = "o.borchers@oxolo.com"
 URL = "https://github.com/oborchers/Fast_Sentence_Embeddings"
 LICENSE = "GPL-3.0"
-REQUIRES_PYTHON = ">=3.8"
+REQUIRES_PYTHON = ">=3.6"
 NUMPY_STR = "numpy >= 1.11.3"
 CYTHON_STR = "Cython==0.29.14"
 
@@ -32,7 +32,7 @@ INSTALL_REQUIRES = [
     "scipy >= 0.18.1",
     "smart_open >= 1.5.0",
     "scikit-learn >= 0.19.1",
-    "gensim >= 3.8.0, < 4.0",
+    "gensim<4",
     "wordfreq >= 2.2.1",
     "psutil",
 ]
@@ -61,7 +61,10 @@ def make_c_ext(use_cython=False):
         extra_args = []
         #        extra_args.extend(["-g", "-O0"])  # uncomment if optimization limiting crash info
         yield Extension(
-            module, sources=[source], language="c", extra_compile_args=extra_args,
+            module,
+            sources=[source],
+            language="c",
+            extra_compile_args=extra_args,
         )
 
 

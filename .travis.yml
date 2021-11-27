@@ -1,3 +1,4 @@
+if: (type = push AND branch IN (master, develop)) OR (type = pull_request AND NOT branch =~ /no-ci/)
 sudo: false
 
 cache:
@@ -12,6 +13,7 @@ python:
   - "3.6"
   - "3.7"
   - "3.8"
+  - "3.9"
 
 branches:
   only:

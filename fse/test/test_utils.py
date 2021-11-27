@@ -38,7 +38,6 @@ class TestUtils(unittest.TestCase):
         with assert_raises(AssertionError):
             assert_allclose(m, c)
 
-
     def test_remove_components(self):
         m = np.ones((500, 10), dtype=np.float32)
         c = np.copy(m)
@@ -60,7 +59,9 @@ class TestUtils(unittest.TestCase):
         m = np.ones((500, 10), dtype=np.float32)
         c = np.copy(m)
         out = compute_principal_components(vectors=m)
-        res = remove_principal_components(m, svd_res=out, weights=np.array([0.5]), inplace=False)
+        res = remove_principal_components(
+            m, svd_res=out, weights=np.array([0.5]), inplace=False
+        )
         assert_allclose(res, 0.75, atol=1e-5)
         assert_allclose(m, c)
 

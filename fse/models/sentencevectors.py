@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
-# Copyright (C) 2019 Oliver Borchers
+# Author: Oliver Borchers
+# Copyright (C) Oliver Borchers Oliver Borchers
 
 
 from __future__ import division
@@ -65,13 +65,25 @@ class SentenceVectors(utils.SaveLoad):
 
         """
 
-        if isinstance(entities, (int, integer,)):
+        if isinstance(
+            entities,
+            (
+                int,
+                integer,
+            ),
+        ):
             return self.get_vector(entities)
 
         return vstack([self.get_vector(e) for e in entities])
 
     def __contains__(self, index: int) -> bool:
-        if isinstance(index, (int, integer,)):
+        if isinstance(
+            index,
+            (
+                int,
+                integer,
+            ),
+        ):
             return index < len(self)
         else:
             raise KeyError(f"index {index} is not a valid index")
@@ -175,9 +187,9 @@ class SentenceVectors(utils.SaveLoad):
         Parameters
         ----------
         d1 : int
-            index of sentence 
+            index of sentence
         d2 : int
-            index of sentence 
+            index of sentence
 
         Returns
         -------
@@ -193,9 +205,9 @@ class SentenceVectors(utils.SaveLoad):
         Parameters
         ----------
         d1 : int
-            index of sentence 
+            index of sentence
         d2 : int
-            index of sentence 
+            index of sentence
 
         Returns
         -------

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
-# Copyright (C) 2019 Oliver Borchers
+# Author: Oliver Borchers
+# Copyright (C) Oliver Borchers Oliver Borchers
 
 """This module implements the base class to compute average representations for sentences, using highly optimized C routines,
 data streaming and Pythonic interfaces.
@@ -83,7 +83,7 @@ def train_average_np(
     Returns
     -------
     int, int
-        Number of effective sentences (non-zero) and effective words in the vocabulary used 
+        Number of effective sentences (non-zero) and effective words in the vocabulary used
         during training the sentence embedding.
 
     """
@@ -182,7 +182,7 @@ except ImportError:
 
 
 class Average(BaseSentence2VecModel):
-    """ Train, use and evaluate averaged sentence vectors.
+    """Train, use and evaluate averaged sentence vectors.
 
     The model can be stored/loaded via its :meth:`~fse.models.average.Average.save` and
     :meth:`~fse.models.average.Average.load` methods.
@@ -194,15 +194,15 @@ class Average(BaseSentence2VecModel):
     wv : :class:`~gensim.models.keyedvectors.BaseKeyedVectors`
         This object essentially contains the mapping between words and embeddings. After training, it can be used
         directly to query those embeddings in various ways. See the module level docstring for examples.
-    
+
     sv : :class:`~fse.models.sentencevectors.SentenceVectors`
         This object contains the sentence vectors inferred from the training data. There will be one such vector
         for each unique docusentence supplied during training. They may be individually accessed using the index.
-    
+
     prep : :class:`~fse.models.base_s2v.BaseSentence2VecPreparer`
         The prep object is used to transform and initialize the sv.vectors. Aditionally, it can be used
         to move the vectors to disk for training with memmap.
-    
+
     """
 
     def __init__(
@@ -214,7 +214,7 @@ class Average(BaseSentence2VecModel):
         lang_freq: str = None,
         **kwargs
     ):
-        """ Average (unweighted) sentence embeddings model. Performs a simple averaging operation over all
+        """Average (unweighted) sentence embeddings model. Performs a simple averaging operation over all
         words in a sentences without further transformation.
 
         The implementation is based on Iyyer et al. (2015): Deep Unordered Composition Rivals Syntactic Methods for Text Classification.
@@ -239,7 +239,7 @@ class Average(BaseSentence2VecModel):
             frequencies into the wv.vocab.count based on :class:`~wordfreq`
             If no frequency information is available, you can choose the language to estimate the frequency.
             See https://github.com/LuminosoInsight/wordfreq
-        
+
         """
 
         super(Average, self).__init__(
@@ -276,7 +276,7 @@ class Average(BaseSentence2VecModel):
         pass
 
     def _post_inference_calls(self, **kwargs):
-        """ Function calls to perform after training & inference
+        """Function calls to perform after training & inference
         Examples include the removal of components
         """
         pass
