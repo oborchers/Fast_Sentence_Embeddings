@@ -19,7 +19,6 @@ branches:
   only:
     - master
     - develop
-    - v0.1.17
 
 matrix:
   include:     
