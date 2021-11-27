@@ -5,7 +5,7 @@
 # Copyright (C) Oliver Borchers Oliver Borchers
 
 from pathlib import Path
-from typing import List, MutableSequence
+from typing import List, MutableSequence, Union
 
 from gensim.utils import any2unicode
 from numpy import concatenate, ndarray
@@ -13,7 +13,7 @@ from smart_open import open
 
 
 class BaseIndexedList(MutableSequence):
-    def __init__(self, *args: List[list, set, ndarray]):
+    def __init__(self, *args: List[Union[list, set, ndarray]]):
         """Base object to be used for feeding in-memory stored lists of sentences to the
         training routine.
 
