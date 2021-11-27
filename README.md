@@ -12,12 +12,26 @@ Fast Sentence Embeddings (fse)
 
 Fast Sentence Embeddings is a Python library that serves as an addition to Gensim. This library is intended to compute *sentence vectors* for large collections of sentences or documents. 
 
-**Disclaimer**: I am currently working full time. Unfortunately, I have yet to find time to add all the features I'd like to see. Especially the API needs some overhaul and we need support for gensim 4.0.0. If you want to support [fse](https://forms.gle/8uSU323fWUVtVwcAA), take a quick survey to improve it :-)
+**Disclaimer**: I am working full time. Unfortunately, I have yet to find time to add all the features I'd like to see. Especially the API needs some overhaul and we need support for gensim 4.0.0.
+
+I am looking for active contributors to keep this package alive. Please feel free to ping me at <o.borchers@oxolo.com> if you are interested.
+
+Audience
+------------
+
+This package builds upon Gensim and is intenteded to compute sentence/paragraph vectors for large databases. Use this package if:
+- (Sentence) Transformers are too slow
+- Your dataset is too large for existing solutions (spacy)
+- Using GPUs is not an option.
+
+The average (online) inference time for a well optimized (and batched) sentence-transformer is around 1ms-10ms per sentence.
+If that is not enough and you are willing to sacrifice a bit in terms of quality, this is your package.
+
 
 Features
 ------------
 
-Find the corresponding blog post(s) here:
+Find the corresponding blog post(s) here (code may be outdated):
 
 - [Visualizing 100,000 Amazon Products](https://towardsdatascience.com/vis-amz-83dea6fcb059)
 - [Sentence Embeddings. Fast, please!](https://towardsdatascience.com/fse-2b1ffa791cf9)
@@ -57,20 +71,12 @@ Key features of **fse** are:
 I regularly observe 300k-500k sentences/s for preprocessed data on my Macbook (2016).
 Visit **Tutorial.ipynb** for an example.
 
-Things I will work on next:
-
-**[ ]** MaxPooling / Hierarchical Pooling Embedding
-
-**[ ]** Approximate Nearest Neighbor Search for SentenceVectors
-
-
-
 
 Installation
 ------------
 
 This software depends on NumPy, Scipy, Scikit-learn, Gensim, and Wordfreq. 
-You must have them installed prior to installing fse. Required Python version is 3.6.
+You must have them installed prior to installing fse.
 
 As with gensim, it is also recommended you install a BLAS library before installing fse.
 
@@ -157,6 +163,9 @@ Model | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Re
 Changelog
 -------------
 
+0.1.17:
+- Fixed dependency issue where you cannot install fse properly, #
+
 0.1.15 from 0.1.11:
 - Fixed major FT Ngram computation bug
 - Rewrote the input class. Turns out NamedTuple was pretty slow. 
@@ -186,9 +195,9 @@ Proceedings of the 3rd Workshop on Representation Learning for NLP. (Toulon, Fra
 Copyright
 -------------
 
-Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
+Author: Oliver Borchers
 
-Copyright (C) 2019 Oliver Borchers
+Copyright (C) 2021 Oliver Borchers
 
 Citation
 -------------
