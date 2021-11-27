@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
-# Copyright (C) 2019 Oliver Borchers
+# Author: Oliver Borchers
+# Copyright (C) Oliver Borchers Oliver Borchers
 
 """
 Automated tests for checking the average model.
@@ -27,7 +27,9 @@ DIM = 5
 W2V = Word2Vec(min_count=1, size=DIM)
 SENTENCES = [l.split() for i, l in enumerate(open(CORPUS, "r"))]
 W2V.build_vocab(SENTENCES)
-W2V.wv.vectors[:,] = np.arange(len(W2V.wv.vectors), dtype=np.float32)[:, None]
+W2V.wv.vectors[:,] = np.arange(
+    len(W2V.wv.vectors), dtype=np.float32
+)[:, None]
 
 
 class TestAverageFunctions(unittest.TestCase):

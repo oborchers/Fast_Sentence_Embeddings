@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
-# Copyright (C) 2019 Oliver Borchers
+# Author: Oliver Borchers
+# Copyright (C) Oliver Borchers Oliver Borchers
 
 from fse.models.average import Average
 from fse.models.utils import compute_principal_components, remove_principal_components
@@ -28,7 +28,7 @@ class SIF(Average):
         workers: int = 1,
         lang_freq: str = None,
     ):
-        """ Smooth-inverse frequency (SIF) weighted sentence embeddings model. Performs a weighted averaging operation over all
+        """Smooth-inverse frequency (SIF) weighted sentence embeddings model. Performs a weighted averaging operation over all
         words in a sentences. After training, the model removes a number of singular vectors.
 
         The implementation is based on Arora et al. (2017): A Simple but Tough-to-Beat Baseline for Sentence Embeddings.
@@ -59,7 +59,7 @@ class SIF(Average):
             frequencies into the wv.vocab.count based on :class:`~wordfreq`
             If no frequency information is available, you can choose the language to estimate the frequency.
             See https://github.com/LuminosoInsight/wordfreq
-        
+
         """
 
         self.alpha = float(alpha)

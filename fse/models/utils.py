@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Author: Oliver Borchers <borchers@bwl.uni-mannheim.de>
-# Copyright (C) 2019 Oliver Borchers
+# Author: Oliver Borchers
+# Copyright (C) Oliver Borchers Oliver Borchers
 
 from sklearn.decomposition import TruncatedSVD
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def set_madvise_for_mmap(return_madvise: bool = False) -> object:
-    """ Method used to set madvise parameters.
+    """Method used to set madvise parameters.
     This problem adresses the memmap issue raised in https://github.com/numpy/numpy/issues/13172
     The issue is not applicable for windows
 
@@ -53,7 +53,7 @@ def set_madvise_for_mmap(return_madvise: bool = False) -> object:
 def compute_principal_components(
     vectors: ndarray, components: int = 1, cache_size_gb: float = 1.0
 ) -> [ndarray, ndarray]:
-    """ Method used to compute the first singular vectors of a given (sub)matrix
+    """Method used to compute the first singular vectors of a given (sub)matrix
 
     Parameters
     ----------
@@ -75,7 +75,9 @@ def compute_principal_components(
         n_components=components, n_iter=7, random_state=42, algorithm="randomized"
     )
 
-    sample_size = int(1024**3 * cache_size_gb / (vectors.shape[1] * dtype(REAL).itemsize))
+    sample_size = int(
+        1024 ** 3 * cache_size_gb / (vectors.shape[1] * dtype(REAL).itemsize)
+    )
 
     if sample_size > num_vectors:
         svd.fit(vectors)
@@ -97,7 +99,7 @@ def remove_principal_components(
     weights: ndarray = None,
     inplace: bool = True,
 ) -> ndarray:
-    """ Method used to remove the first singular vectors of a given matrix
+    """Method used to remove the first singular vectors of a given matrix
 
     Parameters
     ----------

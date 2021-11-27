@@ -164,7 +164,9 @@ Changelog
 -------------
 
 0.1.17:
-- Fixed dependency issue where you cannot install fse properly, #
+- Fixed dependency issue where you cannot install fse properly
+- Updated readme
+- Updated travis python versions (3.9, 3.10)
 
 0.1.15 from 0.1.11:
 - Fixed major FT Ngram computation bug
