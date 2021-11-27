@@ -2,9 +2,16 @@ import logging
 
 from fse import models
 
-from .inputs import (BaseIndexedList, CIndexedList, CSplitCIndexedList,
-                     CSplitIndexedList, IndexedLineDocument, IndexedList,
-                     SplitCIndexedList, SplitIndexedList)
+from .inputs import (
+    BaseIndexedList,
+    CIndexedList,
+    CSplitCIndexedList,
+    CSplitIndexedList,
+    IndexedLineDocument,
+    IndexedList,
+    SplitCIndexedList,
+    SplitIndexedList,
+)
 
 
 class NullHandler(logging.Handler):
