@@ -1,6 +1,9 @@
 path_classifiers:
   test:
+      - test
       - exclude: "**/test_*"
+      - exclude: "fse/test"
+      - exclude: "test"
 
 extraction:
   python:
