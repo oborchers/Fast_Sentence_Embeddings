@@ -4,9 +4,10 @@
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers Oliver Borchers
 
+from typing import Tuple
 from sklearn.decomposition import TruncatedSVD
 
-from numpy import ndarray, float32 as REAL, ones, vstack, dtype
+from numpy import ndarray, float32 as REAL, ones, dtype
 from numpy.random import choice
 
 from time import time
@@ -19,6 +20,7 @@ import ctypes
 
 logger = logging.getLogger(__name__)
 
+TINY_FLOAT = 1e-9
 
 def set_madvise_for_mmap(return_madvise: bool = False) -> object:
     """Method used to set madvise parameters.
@@ -52,7 +54,7 @@ def set_madvise_for_mmap(return_madvise: bool = False) -> object:
 
 def compute_principal_components(
     vectors: ndarray, components: int = 1, cache_size_gb: float = 1.0
-) -> [ndarray, ndarray]:
+) -> Tuple[ndarray, ndarray]:
     """Method used to compute the first singular vectors of a given (sub)matrix
 
     Parameters
@@ -95,7 +97,7 @@ def compute_principal_components(
 
 def remove_principal_components(
     vectors: ndarray,
-    svd_res: [ndarray, ndarray],
+    svd_res: Tuple[ndarray, ndarray],
     weights: ndarray = None,
     inplace: bool = True,
 ) -> ndarray:

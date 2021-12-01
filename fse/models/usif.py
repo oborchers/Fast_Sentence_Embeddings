@@ -4,14 +4,18 @@
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers Oliver Borchers
 
-from fse.models.average import Average
-from fse.models.utils import compute_principal_components, remove_principal_components
+import logging
 
 from gensim.models.keyedvectors import BaseKeyedVectors
+from numpy import float32 as REAL
+from numpy import isfinite, ndarray, zeros
 
-from numpy import ndarray, float32 as REAL, zeros, isfinite
-
-import logging
+from fse.models.average import Average
+from fse.models.utils import (
+    compute_principal_components,
+    remove_principal_components,
+    TINY_FLOAT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +32,9 @@ class uSIF(Average):
         workers: int = 1,
         lang_freq: str = None,
     ):
-        """Unsupervised smooth-inverse frequency (uSIF) weighted sentence embeddings model. Performs a weighted averaging operation over all
-        words in a sentences. After training, the model removes a number of weighted singular vectors.
+        """Unsupervised smooth-inverse frequency (uSIF) weighted sentence embeddings
+        model. Performs a weighted averaging operation over all words in a sentences.
+        After training, the model removes a number of weighted singular vectors.
 
         The implementation is based on Ethayarajh (2018): Unsupervised Random Walk Sentence Embeddings: A Strong but Simple Baseline.
         For more information, see <https://www.aclweb.org/anthology/W18-3012> and <https://github.com/kawine/usif>
@@ -63,7 +68,6 @@ class uSIF(Average):
             frequencies into the wv.vocab.count based on :class:`~wordfreq`
             If no frequency information is available, you can choose the language to estimate the frequency.
             See https://github.com/LuminosoInsight/wordfreq
-
         """
 
         self.length = length
@@ -86,19 +90,19 @@ class uSIF(Average):
         )
 
     def _check_parameter_sanity(self):
-        """ Check the sanity of all paramters """
+        """Check the sanity of all paramters."""
         if self.length <= 0.0:
             raise ValueError("Length must be greater than zero.")
         if self.components < 0.0:
             raise ValueError("Components must be greater or equal zero")
 
     def _pre_train_calls(self, **kwargs):
-        """ Function calls to perform before training """
+        """Function calls to perform before training."""
         self.length = kwargs["average_length"] if self.length is None else self.length
         self._compute_usif_weights()
 
     def _post_train_calls(self):
-        """ Function calls to perform after training, such as computing eigenvectors """
+        """Function calls to perform after training, such as computing eigenvectors."""
         if self.components > 0:
             self.svd_res = compute_principal_components(
                 self.sv.vectors,
@@ -119,7 +123,7 @@ class uSIF(Average):
             logger.info(f"no removal of principal components")
 
     def _post_inference_calls(self, output: ndarray):
-        """ Function calls to perform after training & inference """
+        """Function calls to perform after training & inference."""
         if self.svd_res is None:
             raise RuntimeError(
                 "You must first train the model to obtain SVD components"
@@ -132,7 +136,7 @@ class uSIF(Average):
             logger.info(f"no removal of principal components")
 
     def _check_dtype_santiy(self):
-        """ Check the dtypes of all attributes """
+        """Check the dtypes of all attributes."""
         if self.word_weights.dtype != REAL:
             raise TypeError(f"type of word_weights is wrong: {self.word_weights.dtype}")
         if self.svd_res is not None:
@@ -148,7 +152,7 @@ class uSIF(Average):
                 )
 
     def _compute_usif_weights(self):
-        """ Precomputes the uSIF weights """
+        """Precomputes the uSIF weights."""
         logger.info(f"pre-computing uSIF weights for {len(self.wv.vocab)} words")
         v = len(self.wv.vocab)
         corpus_size = 0
@@ -163,7 +167,7 @@ class uSIF(Average):
         threshold = 1 - (1 - (1 / v)) ** self.length
         alpha = sum(pw > threshold) / v
         z = v / 2
-        a = (1 - alpha) / (alpha * z)
+        a = (1 - alpha) / ((alpha * z) + TINY_FLOAT)
 
         self.word_weights = (a / ((a / 2) + pw)).astype(REAL)
 
