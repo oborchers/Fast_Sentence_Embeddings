@@ -5,37 +5,43 @@ from pathlib import Path
 
 import numpy as np
 
-from fse.models.usif import uSIF
+from fse.models.sif import (
+    SIF,
+)
 from fse.inputs import IndexedLineDocument
 
 from gensim.models import Word2Vec
 
 logger = logging.getLogger(__name__)
 
-CORPUS = Path("fse/test/test_data/test_sentences.txt")
+TEST_DATA = Path(__file__).parent / "test_data"
+CORPUS = TEST_DATA / "test_sentences.txt"
 DIM = 50
 W2V = Word2Vec(min_count=1, size=DIM)
-SENTENCES = [l.split() for l in open(CORPUS, "r")]
+with open(CORPUS, "r") as file:
+    SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)
 
 
-class TestuSIFFunctions(unittest.TestCase):
+class TestSIFFunctions(unittest.TestCase):
     def setUp(self):
         self.sentences = IndexedLineDocument(CORPUS)
-        self.model = uSIF(W2V, lang_freq="en")
+        self.model = SIF(W2V, lang_freq="en")
 
     def test_parameter_sanity(self):
         with self.assertRaises(ValueError):
-            m = uSIF(W2V, length=0)
+            m = SIF(W2V, alpha=-1)
             m._check_parameter_sanity()
         with self.assertRaises(ValueError):
-            m = uSIF(W2V, components=-1, length=11)
+            m = SIF(W2V, components=-1)
+            m._check_parameter_sanity()
+        with self.assertRaises(ValueError):
+            m = SIF(W2V)
+            m.word_weights = np.ones_like(m.word_weights) + 2
             m._check_parameter_sanity()
 
     def test_pre_train_calls(self):
-        kwargs = {"average_length": 10}
-        self.model._pre_train_calls(**kwargs)
-        self.assertEqual(10, self.model.length)
+        self.model._pre_train_calls()
 
     def test_post_train_calls(self):
         self.model.sv.vectors = np.ones((200, 10), dtype=np.float32)
@@ -90,20 +96,34 @@ class TestuSIFFunctions(unittest.TestCase):
         with self.assertRaises(TypeError):
             self.model._check_dtype_santiy()
 
-    def test_compute_usif_weights(self):
+    def test_compute_sif_weights(self):
+        cs = 1095661426
         w = "Good"
         pw = 1.916650481770269e-08
+        alpha = self.model.alpha
+        sif = alpha / (alpha + pw)
+
         idx = self.model.wv.vocab[w].index
-        self.model.length = 11
-        a = 0.17831555484795414
-        usif = a / ((a / 2) + pw)
-        self.model._compute_usif_weights()
-        self.assertTrue(np.allclose(self.model.word_weights[idx], usif))
+        self.model._compute_sif_weights()
+        self.assertTrue(np.allclose(self.model.word_weights[idx], sif))
 
     def test_train(self):
         output = self.model.train(self.sentences)
         self.assertEqual((100, 1450), output)
         self.assertTrue(np.isfinite(self.model.sv.vectors).all())
+        self.assertEqual(2, len(self.model.svd_res))
+
+    def test_save_issue(self):
+        model = SIF(W2V)
+        model.train(self.sentences)
+
+        p = TEST_DATA / "test_emb.model"
+        model.save(str(p))
+        model = SIF.load(str(p))
+        p.unlink()
+
+        self.assertEqual(2, len(model.svd_res))
+        model.sv.similar_by_sentence("test sentence".split(), model=model)
 
     def test_broken_vocab(self):
         w2v = Word2Vec(min_count=1, size=DIM)
@@ -111,8 +131,7 @@ class TestuSIFFunctions(unittest.TestCase):
         for k in w2v.wv.vocab:
             w2v.wv.vocab[k].count = np.nan
 
-        model = uSIF(w2v)
-
+        model = SIF(w2v)
         with self.assertRaises(RuntimeError):
             model.train(self.sentences)
 

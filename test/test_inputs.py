@@ -5,24 +5,23 @@
 # Copyright (C) Oliver Borchers Oliver Borchers
 
 
-"""
-Automated tests for checking the input methods.
-"""
+"""Automated tests for checking the input methods."""
 
 import logging
 import unittest
+from pathlib import Path
 
 import numpy as np
 
 from fse.inputs import (
     BaseIndexedList,
-    IndexedList,
-    SplitIndexedList,
-    CSplitIndexedList,
     CIndexedList,
     CSplitCIndexedList,
+    CSplitIndexedList,
     IndexedLineDocument,
+    IndexedList,
     SplitCIndexedList,
+    SplitIndexedList,
 )
 
 logger = logging.getLogger(__name__)
@@ -201,7 +200,7 @@ class TestCSplitCIndexedList(unittest.TestCase):
 
 class TestIndexedLineDocument(unittest.TestCase):
     def setUp(self):
-        self.p = "fse/test/test_data/test_sentences.txt"
+        self.p = Path(__file__).parent / "test_data" / "test_sentences.txt"
         self.doc = IndexedLineDocument(self.p)
 
     def test_getitem(self):

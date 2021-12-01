@@ -23,10 +23,12 @@ from gensim.models import Word2Vec
 
 logger = logging.getLogger(__name__)
 
-CORPUS = Path("fse/test/test_data/test_sentences.txt")
+TEST_DATA = Path(__file__).parent / "test_data"
+CORPUS = TEST_DATA / "test_sentences.txt"
 DIM = 5
 W2V = Word2Vec(min_count=1, size=DIM, seed=42)
-SENTENCES = [l.split() for l in open(CORPUS, "r")]
+with open(CORPUS, "r") as file:
+    SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)
 np.random.seed(42)
 W2V.wv.vectors = np.random.uniform(size=W2V.wv.vectors.shape).astype(np.float32)
@@ -69,15 +71,15 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         self.assertTrue(np.allclose(self.sv.vectors[0], self.sv.vectors_norm[0]))
 
     def test_init_sims_w_mapfile(self):
-        p = Path("fse/test/test_data/test_vectors")
+        p = TEST_DATA / "test_vectors"
         self.sv.mapfile_path = str(p.absolute())
         self.sv.init_sims()
-        p = Path("fse/test/test_data/test_vectors.vectors_norm")
+        p = TEST_DATA / "test_vectors.vectors_norm"
         self.assertTrue(p.exists())
         p.unlink()
 
     def test_save_load(self):
-        p = Path("fse/test/test_data/test_vectors.vectors")
+        p = TEST_DATA / "test_vectors.vectors"
         self.sv.save(str(p.absolute()))
         self.assertTrue(p.exists())
         sv2 = SentenceVectors.load(str(p.absolute()))
@@ -85,9 +87,9 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         p.unlink()
 
     def test_save_load_with_memmap(self):
-        p = Path("fse/test/test_data/test_vectors")
-        p_target = Path("fse/test/test_data/test_vectors.vectors")
-        p_not_exists = Path("fse/test/test_data/test_vectors.vectors.npy")
+        p = TEST_DATA / "test_vectors"
+        p_target = TEST_DATA / "test_vectors.vectors"
+        p_not_exists = TEST_DATA / "test_vectors.vectors.npy"
 
         sv = SentenceVectors(2, mapfile_path=str(p))
 

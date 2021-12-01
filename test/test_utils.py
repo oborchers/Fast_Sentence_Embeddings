@@ -1,5 +1,6 @@
 import logging
 import unittest
+from pathlib import Path
 
 import numpy as np
 from numpy.testing import assert_allclose, assert_raises
@@ -7,6 +8,8 @@ from numpy.testing import assert_allclose, assert_raises
 from fse.models.utils import compute_principal_components, remove_principal_components
 
 logger = logging.getLogger(__name__)
+
+TEST_DATA = Path(__file__).parent / "test_data"
 
 
 class TestUtils(unittest.TestCase):
@@ -66,12 +69,12 @@ class TestUtils(unittest.TestCase):
         assert_allclose(m, c)
 
     def test_madvise(self):
-        from pathlib import Path
         from sys import platform
+
         from fse.models.utils import set_madvise_for_mmap
 
         if platform in ["linux", "linux2", "darwin", "aix"]:
-            p = Path("fse/test/test_data/test_vectors")
+            p = TEST_DATA / "test_vectors"
             madvise = set_madvise_for_mmap(True)
             shape = (500, 10)
             mat = np.random.normal(size=shape)

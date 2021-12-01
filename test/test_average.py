@@ -22,10 +22,13 @@ from gensim.models import Word2Vec, FastText
 
 logger = logging.getLogger(__name__)
 
-CORPUS = Path("fse/test/test_data/test_sentences.txt")
+
+TEST_DATA = Path(__file__).parent / "test_data"
+CORPUS = TEST_DATA / "test_sentences.txt"
 DIM = 5
 W2V = Word2Vec(min_count=1, size=DIM)
-SENTENCES = [l.split() for i, l in enumerate(open(CORPUS, "r"))]
+with open(CORPUS, "r") as file:
+    SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)
 W2V.wv.vectors[:,] = np.arange(
     len(W2V.wv.vectors), dtype=np.float32
@@ -223,9 +226,9 @@ class TestAverageFunctions(unittest.TestCase):
         )
 
     def test_train_single_from_disk(self):
-        p = Path("fse/test/test_data/test_vecs")
-        p_res = Path("fse/test/test_data/test_vecs.vectors")
-        p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
+        p = TEST_DATA / "test_vecs"
+        p_res = TEST_DATA / "test_vecs.vectors"
+        p_target = TEST_DATA / "test_vecs_wv.vectors"
 
         se1 = Average(W2V)
         se2 = Average(
@@ -243,9 +246,9 @@ class TestAverageFunctions(unittest.TestCase):
         p_target.unlink()
 
     def test_train_multi_from_disk(self):
-        p = Path("fse/test/test_data/test_vecs")
-        p_res = Path("fse/test/test_data/test_vecs.vectors")
-        p_target = Path("fse/test/test_data/test_vecs_wv.vectors")
+        p = TEST_DATA / "test_vecs"
+        p_res = TEST_DATA / "test_vecs.vectors"
+        p_target = TEST_DATA / "test_vecs_wv.vectors"
 
         se1 = Average(W2V, workers=2)
         se2 = Average(
