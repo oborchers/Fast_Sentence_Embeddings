@@ -4,21 +4,17 @@
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers Oliver Borchers
 
-"""
-Automated tests for checking the average model.
-"""
+"""Automated tests for checking the average model."""
 
 import logging
 import unittest
-
 from pathlib import Path
 
 import numpy as np
+from gensim.models import FastText, Word2Vec
 
 from fse.models.average import Average, train_average_np
 from fse.models.base_s2v import EPS
-
-from gensim.models import Word2Vec, FastText
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +49,8 @@ class TestAverageFunctions(unittest.TestCase):
     def test_cython(self):
         from fse.models.average_inner import (
             FAST_VERSION,
-            MAX_WORDS_IN_BATCH,
             MAX_NGRAMS_IN_BATCH,
+            MAX_WORDS_IN_BATCH,
         )
 
         self.assertTrue(FAST_VERSION)

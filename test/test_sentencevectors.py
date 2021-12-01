@@ -5,21 +5,18 @@
 # Copyright (C) Oliver Borchers Oliver Borchers
 
 
-"""
-Automated tests for checking the sentence vectors.
-"""
+"""Automated tests for checking the sentence vectors."""
 
 import logging
 import unittest
-
 from pathlib import Path
+
 import numpy as np
-
-from fse.models.sentencevectors import SentenceVectors, _l2_norm
-from fse.models.average import Average
-from fse.inputs import IndexedList, IndexedLineDocument
-
 from gensim.models import Word2Vec
+
+from fse.inputs import IndexedLineDocument, IndexedList
+from fse.models.average import Average
+from fse.models.sentencevectors import SentenceVectors, _l2_norm
 
 logger = logging.getLogger(__name__)
 

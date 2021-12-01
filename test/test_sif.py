@@ -1,16 +1,12 @@
 import logging
 import unittest
-
 from pathlib import Path
 
 import numpy as np
-
-from fse.models.sif import (
-    SIF,
-)
-from fse.inputs import IndexedLineDocument
-
 from gensim.models import Word2Vec
+
+from fse.inputs import IndexedLineDocument
+from fse.models.sif import SIF
 
 logger = logging.getLogger(__name__)
 

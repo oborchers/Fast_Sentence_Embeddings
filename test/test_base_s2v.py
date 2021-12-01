@@ -4,23 +4,18 @@
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers Oliver Borchers
 
-"""
-Automated tests for checking the base_s2v class.
-"""
+"""Automated tests for checking the base_s2v class."""
 
 import logging
 import unittest
-
 from pathlib import Path
 
 import numpy as np
-
-from fse.models.base_s2v import BaseSentence2VecModel, BaseSentence2VecPreparer, EPS
-
-from gensim.models import Word2Vec, FastText
+from gensim.models import FastText, Word2Vec
 from gensim.models.keyedvectors import BaseKeyedVectors
-
 from wordfreq import get_frequency_dict
+
+from fse.models.base_s2v import EPS, BaseSentence2VecModel, BaseSentence2VecPreparer
 
 logger = logging.getLogger(__name__)
 
@@ -449,8 +444,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
     def test_infer_method_cy_overflow(self):
         se = BaseSentence2VecModel(W2V)
 
-        from fse.models.average_inner import MAX_WORDS_IN_BATCH
-        from fse.models.average_inner import train_average_cy
+        from fse.models.average_inner import MAX_WORDS_IN_BATCH, train_average_cy
 
         def _do_train_job(data_iterable, target, memory):
             eff_sentences, eff_words = train_average_cy(

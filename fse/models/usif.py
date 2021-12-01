@@ -12,9 +12,9 @@ from numpy import isfinite, ndarray, zeros
 
 from fse.models.average import Average
 from fse.models.utils import (
+    TINY_FLOAT,
     compute_principal_components,
     remove_principal_components,
-    TINY_FLOAT,
 )
 
 logger = logging.getLogger(__name__)

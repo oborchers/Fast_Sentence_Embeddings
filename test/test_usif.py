@@ -1,14 +1,12 @@
 import logging
 import unittest
-
 from pathlib import Path
 
 import numpy as np
-
-from fse.models.usif import uSIF
-from fse.inputs import IndexedLineDocument
-
 from gensim.models import Word2Vec
+
+from fse.inputs import IndexedLineDocument
+from fse.models.usif import uSIF
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +116,7 @@ class TestuSIFFunctions(unittest.TestCase):
             model.train(self.sentences)
 
     def test_zero_div_error(self):
-        """From issue: #47"""
+        """From issue: #47."""
 
         model = uSIF(W2V, length=12, components=1)
         model._compute_usif_weights()

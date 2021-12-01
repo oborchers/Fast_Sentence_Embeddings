@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 TINY_FLOAT = 1e-9
 
+
 def set_madvise_for_mmap(return_madvise: bool = False) -> object:
     """Method used to set madvise parameters.
     This problem adresses the memmap issue raised in https://github.com/numpy/numpy/issues/13172
