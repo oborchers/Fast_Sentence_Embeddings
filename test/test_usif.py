@@ -117,6 +117,12 @@ class TestuSIFFunctions(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             model.train(self.sentences)
 
+    def test_zero_div_error(self):
+        """From issue: #47"""
+
+        model = uSIF(W2V, length=12, components=1)
+        model._compute_usif_weights()
+
 
 if __name__ == "__main__":
     logging.basicConfig(
