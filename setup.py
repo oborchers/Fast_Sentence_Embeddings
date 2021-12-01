@@ -17,7 +17,7 @@ from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
 
 NAME = "fse"
-VERSION = "0.1.17"
+VERSION = "0.1.18"
 DESCRIPTION = "Fast Sentence Embeddings for Gensim"
 AUTHOR = "Oliver Borchers"
 AUTHOR_EMAIL = "o.borchers@oxolo.com"

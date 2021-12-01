@@ -163,6 +163,11 @@ Model | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Re
 Changelog
 -------------
 
+0.1.18:
+- Moved tests out of the main folder
+- Moved sts out of the main folder
+- Fixed zero division bug for uSIF
+
 0.1.17:
 - Fixed dependency issue where you cannot install fse properly
 - Updated readme
