@@ -1,6 +1,9 @@
 import logging
 
 from fse import models
+from fse.models import Average, SIF, uSIF, SentenceVectors
+
+from fse.vectors import Vectors
 
 from .inputs import (
     BaseIndexedList,
@@ -24,4 +27,4 @@ if len(logger.handlers) == 0:  # To ensure reload() doesn't add another one
     logger.addHandler(NullHandler())
 
 
-__version__ = "0.1.18"
+__version__ = "0.2.0"

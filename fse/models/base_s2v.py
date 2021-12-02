@@ -123,36 +123,6 @@ class BaseSentence2VecModel(SaveLoad):
             Key word arguments needed to allow children classes to accept more arguments.
 
         """
-
-        """
-        TODO:
-
-        [ ] global:
-            [ ] windows support
-            [ ] documentation
-            [ ] more benchmarks
-            [ ] remove wv_mapfile_path?
-            [ ] modifiable sv_mapfile_path?
-
-        [ ] models:
-            [ ] check feasibility first
-            [ ] max-pooling -> easy
-            [ ] hierarchical pooling -> easy
-            [ ] discrete cosine transform -> somewhat easy, questionable
-            [ ] valve -> unclear, not cited enough
-            [ ] power-means embedding -> very large dimensionalty
-                [ ] z-score transformation is quite nice
-            
-        [ ] sentencevectors:
-            [X] similar_by_sentence model type check
-            [ ] approximate NN search for large files
-                [ ] compare ANN libraries
-                [ ] ease-of-use
-                [ ] dependencies
-                [ ] compatibility
-                [ ] memory-usage
-        """
-
         set_madvise_for_mmap()
 
         self.workers = int(workers)

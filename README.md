@@ -10,7 +10,19 @@
 Fast Sentence Embeddings (fse)
 ==================================
 
-Fast Sentence Embeddings is a Python library that serves as an addition to Gensim. This library is intended to compute *sentence vectors* for large collections of sentences or documents. 
+Fast Sentence Embeddings is a Python library that serves as an addition to Gensim. This library is intended to compute *sentence vectors* for large collections of sentences or documents with as little hassle as possible:
+
+```
+from fse import Vectors, Average, IndexedList
+vecs = Vectors.from_pretrained("glove-twitter-25")
+model = Average(vecs)
+
+sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
+
+model.train(IndexedList(sentences))
+
+model.sv.similarity(0,1)
+```
 
 **Disclaimer**: I am working full time. Unfortunately, I have yet to find time to add all the features I'd like to see. Especially the API needs some overhaul and we need support for gensim 4.0.0.
 
@@ -24,9 +36,7 @@ This package builds upon Gensim and is intenteded to compute sentence/paragraph 
 - Your dataset is too large for existing solutions (spacy)
 - Using GPUs is not an option.
 
-The average (online) inference time for a well optimized (and batched) sentence-transformer is around 1ms-10ms per sentence.
-If that is not enough and you are willing to sacrifice a bit in terms of quality, this is your package.
-
+The average (online) inference time for a well optimized (and batched) sentence-transformer is around 1ms-10ms per sentence. If that is not enough and you are willing to sacrifice a bit in terms of quality, this is your package.
 
 Features
 ------------
@@ -42,6 +52,8 @@ between *unweighted sentence averages*,  *smooth inverse frequency averages*, an
 Key features of **fse** are: 
 
 **[X]** Up to 500.000 sentences / second (1)
+
+**[X]** Provides HUB access to various pre-trained models for convenience
 
 **[X]** Supports Average, SIF, and uSIF Embeddings
 
@@ -95,6 +107,47 @@ If building the Cython extension fails (you will be notified), try:
 Usage
 -------------
 
+Using pre-trained models with **fse** is easy. You can just use them from the hub and download them accordingly.
+They will be stored locally so you can re-use them later.
+
+```
+from fse import Vectors, Average, IndexedList
+vecs = Vectors.from_pretrained("glove-twitter-25")
+model = Average(vecs)
+
+sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
+
+model.train(IndexedList(sentences))
+
+model.sv.similarity(0,1)
+```
+
+If your vectors are large and you don't have a lot of RAM, you can supply the `mmap` argument as follows to read the vectors from disk instead of loading them into RAM:
+
+```
+Vectors.from_pretrained("glove-twitter-25", mmap="r")
+```
+
+In order to use **fse** with a custom model you must first estimate a Gensim model which contains a
+gensim.models.keyedvectors.BaseKeyedVectors class, for example *Word2Vec* or *Fasttext*. Then you can proceed to compute sentence embeddings for a corpus as follows:
+
+```
+from gensim.models import FastText
+sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
+ft = FastText(sentences, min_count=1, size=10)
+
+from fse import Average, IndexedList
+model = Average(ft)
+model.train(IndexedList(sentences))
+
+model.sv.similarity(0,1)
+```
+
+fse offers multi-thread support out of the box. However, for most applications a *single thread will most likely be sufficient*.
+
+Additional Information
+-------------
+
 Within the folder nootebooks you can find the following guides:
 
 **Tutorial.ipynb** offers a detailed walk-through of some of the most important functions fse has to offer.
@@ -117,25 +170,6 @@ The models presented are based on
 
 Credits to Radim Řehůřek and all contributors for the **awesome** library
 and code that [Gensim](https://github.com/RaRe-Technologies/gensim) provides. A whole lot of the code found in this lib is based on Gensim.
-
-In order to use **fse** you must first estimate a Gensim model which contains a
-gensim.models.keyedvectors.BaseKeyedVectors class, for example 
-*Word2Vec* or *Fasttext*. Then you can proceed to compute sentence embeddings
-for a corpus.
-
-	from gensim.models import FastText
-	sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
-	ft = FastText(sentences, min_count=1, size=10)
-
-	from fse.models import Average
-	from fse import IndexedList
-	model = Average(ft)
-	model.train(IndexedList(sentences))
-
-	model.sv.similarity(0,1)
-
-fse offers multi-thread support out of the box. However, for most
-applications a *single thread will most likely be sufficient*.
 
 To install **fse** on Colab, check out: https://colab.research.google.com/drive/1qq9GBgEosG7YSRn7r6e02T9snJb04OEi 
 
@@ -163,10 +197,11 @@ Model | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Re
 Changelog
 -------------
 
-0.1.18:
+0.2.0:
 - Moved tests out of the main folder
 - Moved sts out of the main folder
 - Fixed zero division bug for uSIF
+- Added `Vectors` class and hub support by `Vectors.from_pretrained`
 
 0.1.17:
 - Fixed dependency issue where you cannot install fse properly
