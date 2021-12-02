@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
-# Copyright (C) Oliver Borchers Oliver Borchers
+# Copyright (C) Oliver Borchers
 
 """Automated tests for checking the base_s2v class."""
 

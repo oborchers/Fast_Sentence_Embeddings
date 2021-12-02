@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
-# Copyright (C) Oliver Borchers Oliver Borchers
+# Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
 """Base class containing common methods for training, using & evaluating sentence embeddings.

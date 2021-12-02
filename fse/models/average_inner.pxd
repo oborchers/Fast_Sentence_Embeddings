@@ -5,7 +5,7 @@
 # coding: utf-8
 
 # Author: Oliver Borchers 
-# Copyright (C) Oliver Borchers Oliver Borchers
+# Copyright (C) Oliver Borchers
 
 cimport numpy as np
 

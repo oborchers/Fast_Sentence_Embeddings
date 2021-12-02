@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
-# Copyright (C) Oliver Borchers Oliver Borchers
+# Copyright (C) Oliver Borchers
 
 import logging
 
@@ -12,7 +12,7 @@ from numpy import isfinite, ndarray, zeros
 
 from fse.models.average import Average
 from fse.models.utils import (
-    TINY_FLOAT,
+    EPS,
     compute_principal_components,
     remove_principal_components,
 )
@@ -167,7 +167,7 @@ class uSIF(Average):
         threshold = 1 - (1 - (1 / v)) ** self.length
         alpha = sum(pw > threshold) / v
         z = v / 2
-        a = (1 - alpha) / ((alpha * z) + TINY_FLOAT)
+        a = (1 - alpha) / ((alpha * z) + EPS)
 
         self.word_weights = (a / ((a / 2) + pw)).astype(REAL)
 

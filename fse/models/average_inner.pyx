@@ -6,7 +6,7 @@
 # coding: utf-8
 
 # Author: Oliver Borchers 
-# Copyright (C) Oliver Borchers Oliver Borchers
+# Copyright (C) Oliver Borchers
 
 """Optimized cython functions for computing sentence embeddings"""
 

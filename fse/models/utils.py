@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
-# Copyright (C) Oliver Borchers Oliver Borchers
+# Copyright (C) Oliver Borchers
 
 from typing import Tuple
 from sklearn.decomposition import TruncatedSVD
 
-from numpy import ndarray, float32 as REAL, ones, dtype
+from numpy import finfo, ndarray, float32 as REAL, ones, dtype
 from numpy.random import choice
 
 from time import time
@@ -20,7 +20,7 @@ import ctypes
 
 logger = logging.getLogger(__name__)
 
-TINY_FLOAT = 1e-9
+EPS = finfo(REAL).eps
 
 
 def set_madvise_for_mmap(return_madvise: bool = False) -> object:

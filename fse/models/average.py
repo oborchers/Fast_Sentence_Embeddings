@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
-# Copyright (C) Oliver Borchers Oliver Borchers
+# Copyright (C) Oliver Borchers
 
 """This module implements the base class to compute average representations for sentences, using highly optimized C routines,
 data streaming and Pythonic interfaces.
