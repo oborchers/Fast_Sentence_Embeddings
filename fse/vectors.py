@@ -25,7 +25,7 @@ class Vectors(BaseKeyedVectors):
 
         Parameters
         ----------
-        model : :str: of the model name to load from the bug. For example: "glove-twitter-25"
+        model : :str: of the model name to load from the bug. For example: "glove-wiki-gigaword-50"
         mmap : :str: If to load the vectors in mmap mode.
 
         Returns

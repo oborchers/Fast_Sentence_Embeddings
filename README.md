@@ -14,7 +14,7 @@ Fast Sentence Embeddings is a Python library that serves as an addition to Gensi
 
 ```
 from fse import Vectors, Average, IndexedList
-vecs = Vectors.from_pretrained("glove-twitter-25")
+vecs = Vectors.from_pretrained("glove-wiki-gigaword-50")
 model = Average(vecs)
 
 sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
@@ -112,7 +112,7 @@ They will be stored locally so you can re-use them later.
 
 ```
 from fse import Vectors, Average, IndexedList
-vecs = Vectors.from_pretrained("glove-twitter-25")
+vecs = Vectors.from_pretrained("glove-wiki-gigaword-50")
 model = Average(vecs)
 
 sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
@@ -125,7 +125,7 @@ model.sv.similarity(0,1)
 If your vectors are large and you don't have a lot of RAM, you can supply the `mmap` argument as follows to read the vectors from disk instead of loading them into RAM:
 
 ```
-Vectors.from_pretrained("glove-twitter-25", mmap="r")
+Vectors.from_pretrained("glove-wiki-gigaword-50", mmap="r")
 ```
 
 To check which vectors are on the hub, please check: https://huggingface.co/fse. For example, you will find:

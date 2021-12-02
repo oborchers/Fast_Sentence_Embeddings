@@ -18,13 +18,13 @@ logger = logging.getLogger(__name__)
 class TestVectors(unittest.TestCase):
     def test_from_pretrained(self):
         """Test the pretrained vectors"""
-        vectors = Vectors.from_pretrained("glove-twitter-25")
-        self.assertEqual(vectors.vector_size, 25)
-        self.assertEqual(vectors.vectors.shape, (1193514, 25))
+        vectors = Vectors.from_pretrained("glove-wiki-gigaword-50")
+        self.assertEqual(vectors.vector_size, 50)
+        self.assertEqual(vectors.vectors.shape, (400000, 50))
 
-        vectors = Vectors.from_pretrained("glove-twitter-25", mmap="r")
-        self.assertEqual(vectors.vector_size, 25)
-        self.assertEqual(vectors.vectors.shape, (1193514, 25))
+        vectors = Vectors.from_pretrained("glove-wiki-gigaword-50", mmap="r")
+        self.assertEqual(vectors.vector_size, 50)
+        self.assertEqual(vectors.vectors.shape, (400000, 50))
 
     def test_missing_model(self):
         """Tests a missing model"""
