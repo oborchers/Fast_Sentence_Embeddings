@@ -128,6 +128,17 @@ If your vectors are large and you don't have a lot of RAM, you can supply the `m
 Vectors.from_pretrained("glove-twitter-25", mmap="r")
 ```
 
+To check which vectors are on the hub, please check: https://huggingface.co/fse. For example, you will find:
+- glove-twitter-25
+- glove-twitter-50
+- glove-twitter-100
+- glove-twitter-200
+- glove-wiki-gigaword-100
+- glove-wiki-gigaword-300
+- word2vec-google-news-300
+- paranmt-300
+- paragram-300
+
 In order to use **fse** with a custom model you must first estimate a Gensim model which contains a
 gensim.models.keyedvectors.BaseKeyedVectors class, for example *Word2Vec* or *Fasttext*. Then you can proceed to compute sentence embeddings for a corpus as follows:
 
