@@ -24,10 +24,6 @@ model.train(IndexedList(sentences))
 model.sv.similarity(0,1)
 ```
 
-**Disclaimer**: I am working full time. Unfortunately, I have yet to find time to add all the features I'd like to see. Especially the API needs some overhaul and we need support for gensim 4.0.0.
-
-I am looking for active contributors to keep this package alive. Please feel free to ping me at <o.borchers@oxolo.com> if you are interested.
-
 Audience
 ------------
 
@@ -193,21 +189,51 @@ Results
 
 Model | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Results)
 :---: | :---:
-`CBOW-Paranmt` | **79.85**
-`uSIF-Paranmt` | 79.02
-`SIF-Paranmt` | 76.75
-`SIF-Paragram` | 73.86
-`uSIF-Paragram` | 73.64
-`SIF-FT` | 73.38
-`SIF-Glove` | 71.95
-`SIF-W2V` | 71.12
-`uSIF-FT` | 69.4
-`uSIF-Glove` | 67.16
-`uSIF-W2V` | 66.99
-`CBOW-W2V` | 61.54
-`CBOW-Paragram` | 50.38
-`CBOW-FT` | 48.49
-`CBOW-Glove` | 40.41
+`CBOW paranmt-300 | **79.82**
+`uSIF paranmt-300 | 79.02
+`SIF paranmt-300 | 76.76
+`SIF paragram-300-sl999 | 74.27
+`SIF paragram-300-ws353 | 74.08
+`SIF fasttext-crawl-subwords-300 | 73.54
+`uSIF paragram-300-sl999 | 73.09
+`SIF fasttext-wiki-news-subwords-300 | 72.24
+`uSIF paragram-300-ws353 | 71.9
+`SIF glove-twitter-200 | 71.67
+`SIF glove-wiki-gigaword-300 | 71.43
+`SIF word2vec-google-news-300 | 71.17
+`SIF glove-wiki-gigaword-200 | 70.73
+`SIF glove-twitter-100 | 69.7
+`uSIF fasttext-crawl-subwords-300 | 69.55
+`uSIF fasttext-wiki-news-subwords-300 | 69.05
+`SIF glove-wiki-gigaword-100 | 68.43
+`uSIF glove-wiki-gigaword-300 | 67.73
+`uSIF glove-wiki-gigaword-200 | 67.26
+`uSIF word2vec-google-news-300 | 67.15
+`uSIF glove-twitter-200 | 66.73
+`SIF glove-twitter-50 | 65.57
+`uSIF glove-wiki-gigaword-100 | 65.48
+`uSIF paragram-25 | 64.31
+`uSIF glove-twitter-100 | 64.22
+`SIF glove-wiki-gigaword-50 | 64.2
+`uSIF glove-wiki-gigaword-50 | 62.22
+`CBOW word2vec-google-news-300 | 61.54
+`uSIF glove-twitter-50 | 60.5
+`SIF paragram-25 | 59.22
+`uSIF glove-twitter-25 | 55.17
+`CBOW paragram-300-ws353 | 54.72
+`SIF glove-twitter-25 | 54.42
+`CBOW paragram-300-sl999 | 51.46
+`CBOW fasttext-crawl-subwords-300 | 48.49
+`CBOW glove-wiki-gigaword-300 | 44.46
+`CBOW glove-wiki-gigaword-200 | 42.4
+`CBOW paragram-25 | 40.13
+`CBOW glove-wiki-gigaword-100 | 38.12
+`CBOW glove-wiki-gigaword-50 | 37.47
+`CBOW glove-twitter-200 | 34.94
+`CBOW glove-twitter-100 | 33.81
+`CBOW glove-twitter-50 | 30.78
+`CBOW glove-twitter-25 | 26.15
+`CBOW fasttext-wiki-news-subwords-300 | 26.08
 
 Changelog
 -------------
@@ -216,7 +242,8 @@ Changelog
 - Moved tests out of the main folder
 - Moved sts out of the main folder
 - Fixed zero division bug for uSIF
-- Added `Vectors` class and hub support by `Vectors.from_pretrained`
+- Added `Vectors` and `FTVectors` class and hub support by `from_pretrained`
+- Extended benchmark
 
 0.1.17:
 - Fixed dependency issue where you cannot install fse properly
@@ -251,6 +278,10 @@ Proceedings of the 3rd Workshop on Representation Learning for NLP. (Toulon, Fra
 
 Copyright
 -------------
+
+**Disclaimer**: I am working full time. Unfortunately, I have yet to find time to add all the features I'd like to see. Especially the API needs some overhaul and we need support for gensim 4.0.0.
+
+I am looking for active contributors to keep this package alive. Please feel free to ping me at <o.borchers@oxolo.com> if you are interested.
 
 Author: Oliver Borchers
 
