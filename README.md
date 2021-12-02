@@ -140,6 +140,8 @@ To check which vectors are on the hub, please check: https://huggingface.co/fse.
 - paranmt-300
 - paragram-300-sl999
 - paragram-300-ws353
+- fasttext-wiki-news-subwords-300
+- fasttext-crawl-subwords-300 (Use with `FTVectors`)
 
 In order to use **fse** with a custom model you must first estimate a Gensim model which contains a
 gensim.models.keyedvectors.BaseKeyedVectors class, for example *Word2Vec* or *Fasttext*. Then you can proceed to compute sentence embeddings for a corpus as follows:

@@ -9,15 +9,15 @@
 
 from pathlib import Path
 
-from gensim.models.keyedvectors import BaseKeyedVectors
+from gensim.models.keyedvectors import BaseKeyedVectors, FastTextKeyedVectors
 from huggingface_hub import snapshot_download
 from requests import HTTPError
 
 _SUFFIX: str = ".model"
 
 
-class Vectors(BaseKeyedVectors):
-    """Class to instantiates vectors from pretrained models."""
+class _PreTrainedMixin:
+    """Loader mixin"""
 
     @classmethod
     def from_pretrained(cls, model: str, mmap: str = None):
@@ -45,3 +45,11 @@ class Vectors(BaseKeyedVectors):
         return super(Vectors, cls).load(
             (path / (model + _SUFFIX)).as_posix(), mmap=mmap
         )
+
+
+class Vectors(BaseKeyedVectors, _PreTrainedMixin):
+    """Class to instantiates vectors from pretrained models."""
+
+
+class FTVectors(FastTextKeyedVectors, _PreTrainedMixin):
+    """Class to instantiates FT vectors from pretrained models."""
