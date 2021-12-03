@@ -17,6 +17,7 @@ Fast Sentence Embeddings is a Python library that serves as an addition to Gensi
 
 ```
 from fse import Vectors, Average, IndexedList
+
 vecs = Vectors.from_pretrained("glove-wiki-gigaword-50")
 model = Average(vecs)
 
