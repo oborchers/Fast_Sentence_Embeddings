@@ -1,9 +1,8 @@
 import logging
 
 from fse import models
-from fse.models import Average, SIF, uSIF, SentenceVectors
-
-from fse.vectors import Vectors, FTVectors
+from fse.models import SIF, Average, SentenceVectors, uSIF
+from fse.vectors import FTVectors, Vectors
 
 from .inputs import (
     BaseIndexedList,
