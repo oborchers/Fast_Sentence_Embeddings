@@ -6,7 +6,9 @@
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 <a href="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"><img alt="License: GPL3" src="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"></a>
 </p>
+<p align="center">
 <a><img alt="fse" src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/develop/media/fse.png"></a>
+</p>
 
 Fast Sentence Embeddings (fse)
 ==================================
