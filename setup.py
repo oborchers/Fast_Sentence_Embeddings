@@ -36,6 +36,7 @@ INSTALL_REQUIRES = [
     "wordfreq >= 2.2.1",
     "huggingface-hub",
     "psutil",
+    "dataclasses; python_version < '3.7'",
 ]
 SETUP_REQUIRES = [NUMPY_STR]
 
