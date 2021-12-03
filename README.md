@@ -1,6 +1,5 @@
 <p align="center">
 <a href="https://travis-ci.com/oborchers/Fast_Sentence_Embeddings"><img alt="Build Status" src="https://travis-ci.com/oborchers/Fast_Sentence_Embeddings.svg?branch=master"></a>
-<a><img alt="Coverage" src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/develop/media/coverage.svg"></a>
 <a href="https://coveralls.io/github/oborchers/Fast_Sentence_Embeddings?branch=master"><img alt="Coverage Status" src="https://coveralls.io/repos/github/oborchers/Fast_Sentence_Embeddings/badge.svg?branch=master"></a>
 <a href="https://pepy.tech/project/fse"><img alt="Downloads" src="https://pepy.tech/badge/fse"></a>
 <a href="https://lgtm.com/projects/g/oborchers/Fast_Sentence_Embeddings/context:python"><img alt="Language grade: Python" src="https://img.shields.io/lgtm/grade/python/g/oborchers/Fast_Sentence_Embeddings.svg"></a>
