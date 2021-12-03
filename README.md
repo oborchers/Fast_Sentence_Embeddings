@@ -24,6 +24,8 @@ model.train(IndexedList(sentences))
 model.sv.similarity(0,1)
 ```
 
+If you want to support fse, take a quick [survey](https://forms.gle/8uSU323fWUVtVwcAA) to improve it.
+
 Audience
 ------------
 
@@ -187,63 +189,63 @@ To install **fse** on Colab, check out: https://colab.research.google.com/drive/
 Results
 ------------
 
-Model | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Results)
-:---: | :---:
-`CBOW paranmt-300` | **79.82**
-`uSIF paranmt-300` | 79.02
-`SIF paranmt-300` | 76.76
-`SIF paragram-300-sl999` | 74.27
-`SIF paragram-300-ws353` | 74.08
-`SIF fasttext-crawl-subwords-300` | 73.54
-`uSIF paragram-300-sl999` | 73.09
-`SIF fasttext-wiki-news-subwords-300` | 72.24
-`uSIF paragram-300-ws353` | 71.9
-`SIF glove-twitter-200` | 71.67
-`SIF glove-wiki-gigaword-300` | 71.43
-`SIF word2vec-google-news-300` | 71.17
-`SIF glove-wiki-gigaword-200` | 70.73
-`SIF glove-twitter-100` | 69.7
-`uSIF fasttext-crawl-subwords-300` | 69.55
-`uSIF fasttext-wiki-news-subwords-300` | 69.05
-`SIF glove-wiki-gigaword-100` | 68.43
-`uSIF glove-wiki-gigaword-300` | 67.73
-`uSIF glove-wiki-gigaword-200` | 67.26
-`uSIF word2vec-google-news-300` | 67.15
-`uSIF glove-twitter-200` | 66.73
-`SIF glove-twitter-50` | 65.57
-`uSIF glove-wiki-gigaword-100` | 65.48
-`uSIF paragram-25` | 64.31
-`uSIF glove-twitter-100` | 64.22
-`SIF glove-wiki-gigaword-50` | 64.2
-`uSIF glove-wiki-gigaword-50` | 62.22
-`CBOW word2vec-google-news-300` | 61.54
-`uSIF glove-twitter-50` | 60.5
-`SIF paragram-25` | 59.22
-`uSIF glove-twitter-25` | 55.17
-`CBOW paragram-300-ws353` | 54.72
-`SIF glove-twitter-25` | 54.42
-`CBOW paragram-300-sl999` | 51.46
-`CBOW fasttext-crawl-subwords-300` | 48.49
-`CBOW glove-wiki-gigaword-300` | 44.46
-`CBOW glove-wiki-gigaword-200` | 42.4
-`CBOW paragram-25` | 40.13
-`CBOW glove-wiki-gigaword-100` | 38.12
-`CBOW glove-wiki-gigaword-50` | 37.47
-`CBOW glove-twitter-200` | 34.94
-`CBOW glove-twitter-100` | 33.81
-`CBOW glove-twitter-50` | 30.78
-`CBOW glove-twitter-25` | 26.15
-`CBOW fasttext-wiki-news-subwords-300` | 26.08
+Model | Vectors | params | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Results)
+:---: | :---: | :---: | :---:
+`CBOW` | `paranmt-300` |  | 79.82
+`uSIF` | `paranmt-300` | length=11 | 79.02
+`SIF-10` | `paranmt-300` | components=10 | 76.76
+`SIF-10` | `paragram-300-sl999` | components=10 | 74.27
+`SIF-10` | `paragram-300-ws353` | components=10 | 74.08
+`SIF-10` | `fasttext-crawl-subwords-300` | components=10 | 73.54
+`uSIF` | `paragram-300-sl999` | length=11 | 73.09
+`SIF-10` | `fasttext-wiki-news-subwords-300` | components=10 | 72.24
+`uSIF` | `paragram-300-ws353` | length=11 | 71.90
+`SIF-10` | `glove-twitter-200` | components=10 | 71.67
+`SIF-10` | `glove-wiki-gigaword-300` | components=10 | 71.43
+`SIF-10` | `word2vec-google-news-300` | components=10 | 71.17
+`SIF-10` | `glove-wiki-gigaword-200` | components=10 | 70.73
+`SIF-10` | `glove-twitter-100` | components=10 | 69.70
+`uSIF` | `fasttext-crawl-subwords-300` | length=11 | 69.55
+`uSIF` | `fasttext-wiki-news-subwords-300` | length=11 | 69.05
+`SIF-10` | `glove-wiki-gigaword-100` | components=10 | 68.43
+`uSIF` | `glove-wiki-gigaword-300` | length=11 | 67.73
+`uSIF` | `glove-wiki-gigaword-200` | length=11 | 67.26
+`uSIF` | `word2vec-google-news-300` | length=11 | 67.15
+`uSIF` | `glove-twitter-200` | length=11 | 66.73
+`SIF-10` | `glove-twitter-50` | components=10 | 65.57
+`uSIF` | `glove-wiki-gigaword-100` | length=11 | 65.48
+`uSIF` | `paragram-25` | length=11 | 64.31
+`uSIF` | `glove-twitter-100` | length=11 | 64.22
+`SIF-10` | `glove-wiki-gigaword-50` | components=10 | 64.20
+`uSIF` | `glove-wiki-gigaword-50` | length=11 | 62.22
+`CBOW` | `word2vec-google-news-300` |  | 61.54
+`uSIF` | `glove-twitter-50` | length=11 | 60.50
+`SIF-10` | `paragram-25` | components=10 | 59.22
+`uSIF` | `glove-twitter-25` | length=11 | 55.17
+`CBOW` | `paragram-300-ws353` |  | 54.72
+`SIF-10` | `glove-twitter-25` | components=10 | 54.42
+`CBOW` | `paragram-300-sl999` |  | 51.46
+`CBOW` | `fasttext-crawl-subwords-300` |  | 48.49
+`CBOW` | `glove-wiki-gigaword-300` |  | 44.46
+`CBOW` | `glove-wiki-gigaword-200` |  | 42.40
+`CBOW` | `paragram-25` |  | 40.13
+`CBOW` | `glove-wiki-gigaword-100` |  | 38.12
+`CBOW` | `glove-wiki-gigaword-50` |  | 37.47
+`CBOW` | `glove-twitter-200` |  | 34.94
+`CBOW` | `glove-twitter-100` |  | 33.81
+`CBOW` | `glove-twitter-50` |  | 30.78
+`CBOW` | `glove-twitter-25` |  | 26.15
+`CBOW` | `fasttext-wiki-news-subwords-300` |  | 26.08
 
 Changelog
 -------------
 
 0.2.0:
-- Moved tests out of the main folder
-- Moved sts out of the main folder
-- Fixed zero division bug for uSIF
 - Added `Vectors` and `FTVectors` class and hub support by `from_pretrained`
 - Extended benchmark
+- Fixed zero division bug for uSIF
+- Moved tests out of the main folder
+- Moved sts out of the main folder
 
 0.1.17:
 - Fixed dependency issue where you cannot install fse properly
