@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
-# Copyright (C) Oliver Borchers Oliver Borchers
+# Copyright (C) Oliver Borchers
 
 from fse.models.average import Average
 from fse.models.utils import compute_principal_components, remove_principal_components

@@ -6,15 +6,29 @@
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 <a href="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"><img alt="License: GPL3" src="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"></a>
 </p>
+<p align="center">
+<a><img alt="fse" src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/develop/media/fse.png"></a>
+</p>
 
-Fast Sentence Embeddings (fse)
+Fast Sentence Embeddings
 ==================================
 
-Fast Sentence Embeddings is a Python library that serves as an addition to Gensim. This library is intended to compute *sentence vectors* for large collections of sentences or documents. 
+Fast Sentence Embeddings is a Python library that serves as an addition to Gensim. This library is intended to compute *sentence vectors* for large collections of sentences or documents with as little hassle as possible:
 
-**Disclaimer**: I am working full time. Unfortunately, I have yet to find time to add all the features I'd like to see. Especially the API needs some overhaul and we need support for gensim 4.0.0.
+```
+from fse import Vectors, Average, IndexedList
 
-I am looking for active contributors to keep this package alive. Please feel free to ping me at <o.borchers@oxolo.com> if you are interested.
+vecs = Vectors.from_pretrained("glove-wiki-gigaword-50")
+model = Average(vecs)
+
+sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
+
+model.train(IndexedList(sentences))
+
+model.sv.similarity(0,1)
+```
+
+If you want to support fse, take a quick [survey](https://forms.gle/8uSU323fWUVtVwcAA) to improve it.
 
 Audience
 ------------
@@ -24,9 +38,7 @@ This package builds upon Gensim and is intenteded to compute sentence/paragraph 
 - Your dataset is too large for existing solutions (spacy)
 - Using GPUs is not an option.
 
-The average (online) inference time for a well optimized (and batched) sentence-transformer is around 1ms-10ms per sentence.
-If that is not enough and you are willing to sacrifice a bit in terms of quality, this is your package.
-
+The average (online) inference time for a well optimized (and batched) sentence-transformer is around 1ms-10ms per sentence. If that is not enough and you are willing to sacrifice a bit in terms of quality, this is your package.
 
 Features
 ------------
@@ -42,6 +54,8 @@ between *unweighted sentence averages*,  *smooth inverse frequency averages*, an
 Key features of **fse** are: 
 
 **[X]** Up to 500.000 sentences / second (1)
+
+**[X]** Provides HUB access to various pre-trained models for convenience
 
 **[X]** Supports Average, SIF, and uSIF Embeddings
 
@@ -95,6 +109,62 @@ If building the Cython extension fails (you will be notified), try:
 Usage
 -------------
 
+Using pre-trained models with **fse** is easy. You can just use them from the hub and download them accordingly.
+They will be stored locally so you can re-use them later.
+
+```
+from fse import Vectors, Average, IndexedList
+vecs = Vectors.from_pretrained("glove-wiki-gigaword-50")
+model = Average(vecs)
+
+sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
+
+model.train(IndexedList(sentences))
+
+model.sv.similarity(0,1)
+```
+
+If your vectors are large and you don't have a lot of RAM, you can supply the `mmap` argument as follows to read the vectors from disk instead of loading them into RAM:
+
+```
+Vectors.from_pretrained("glove-wiki-gigaword-50", mmap="r")
+```
+
+To check which vectors are on the hub, please check: https://huggingface.co/fse. For example, you will find:
+- glove-twitter-25
+- glove-twitter-50
+- glove-twitter-100
+- glove-twitter-200
+- glove-wiki-gigaword-100
+- glove-wiki-gigaword-300
+- word2vec-google-news-300
+- paragram-25
+- paranmt-300
+- paragram-300-sl999
+- paragram-300-ws353
+- fasttext-wiki-news-subwords-300
+- fasttext-crawl-subwords-300 (Use with `FTVectors`)
+
+In order to use **fse** with a custom model you must first estimate a Gensim model which contains a
+gensim.models.keyedvectors.BaseKeyedVectors class, for example *Word2Vec* or *Fasttext*. Then you can proceed to compute sentence embeddings for a corpus as follows:
+
+```
+from gensim.models import FastText
+sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
+ft = FastText(sentences, min_count=1, size=10)
+
+from fse import Average, IndexedList
+model = Average(ft)
+model.train(IndexedList(sentences))
+
+model.sv.similarity(0,1)
+```
+
+fse offers multi-thread support out of the box. However, for most applications a *single thread will most likely be sufficient*.
+
+Additional Information
+-------------
+
 Within the folder nootebooks you can find the following guides:
 
 **Tutorial.ipynb** offers a detailed walk-through of some of the most important functions fse has to offer.
@@ -118,50 +188,68 @@ The models presented are based on
 Credits to Radim Řehůřek and all contributors for the **awesome** library
 and code that [Gensim](https://github.com/RaRe-Technologies/gensim) provides. A whole lot of the code found in this lib is based on Gensim.
 
-In order to use **fse** you must first estimate a Gensim model which contains a
-gensim.models.keyedvectors.BaseKeyedVectors class, for example 
-*Word2Vec* or *Fasttext*. Then you can proceed to compute sentence embeddings
-for a corpus.
-
-	from gensim.models import FastText
-	sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
-	ft = FastText(sentences, min_count=1, size=10)
-
-	from fse.models import Average
-	from fse import IndexedList
-	model = Average(ft)
-	model.train(IndexedList(sentences))
-
-	model.sv.similarity(0,1)
-
-fse offers multi-thread support out of the box. However, for most
-applications a *single thread will most likely be sufficient*.
-
 To install **fse** on Colab, check out: https://colab.research.google.com/drive/1qq9GBgEosG7YSRn7r6e02T9snJb04OEi 
 
 Results
 ------------
 
-Model | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Results)
-:---: | :---:
-`CBOW-Paranmt` | **79.85**
-`uSIF-Paranmt` | 79.02
-`SIF-Paranmt` | 76.75
-`SIF-Paragram` | 73.86
-`uSIF-Paragram` | 73.64
-`SIF-FT` | 73.38
-`SIF-Glove` | 71.95
-`SIF-W2V` | 71.12
-`uSIF-FT` | 69.4
-`uSIF-Glove` | 67.16
-`uSIF-W2V` | 66.99
-`CBOW-W2V` | 61.54
-`CBOW-Paragram` | 50.38
-`CBOW-FT` | 48.49
-`CBOW-Glove` | 40.41
+Model | Vectors | params | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Results)
+:---: | :---: | :---: | :---:
+`CBOW` | `paranmt-300` |  | 79.82
+`uSIF` | `paranmt-300` | length=11 | 79.02
+`SIF-10` | `paranmt-300` | components=10 | 76.76
+`SIF-10` | `paragram-300-sl999` | components=10 | 74.27
+`SIF-10` | `paragram-300-ws353` | components=10 | 74.08
+`SIF-10` | `fasttext-crawl-subwords-300` | components=10 | 73.54
+`uSIF` | `paragram-300-sl999` | length=11 | 73.09
+`SIF-10` | `fasttext-wiki-news-subwords-300` | components=10 | 72.24
+`uSIF` | `paragram-300-ws353` | length=11 | 71.90
+`SIF-10` | `glove-twitter-200` | components=10 | 71.67
+`SIF-10` | `glove-wiki-gigaword-300` | components=10 | 71.43
+`SIF-10` | `word2vec-google-news-300` | components=10 | 71.17
+`SIF-10` | `glove-wiki-gigaword-200` | components=10 | 70.73
+`SIF-10` | `glove-twitter-100` | components=10 | 69.70
+`uSIF` | `fasttext-crawl-subwords-300` | length=11 | 69.55
+`uSIF` | `fasttext-wiki-news-subwords-300` | length=11 | 69.05
+`SIF-10` | `glove-wiki-gigaword-100` | components=10 | 68.43
+`uSIF` | `glove-wiki-gigaword-300` | length=11 | 67.73
+`uSIF` | `glove-wiki-gigaword-200` | length=11 | 67.26
+`uSIF` | `word2vec-google-news-300` | length=11 | 67.15
+`uSIF` | `glove-twitter-200` | length=11 | 66.73
+`SIF-10` | `glove-twitter-50` | components=10 | 65.57
+`uSIF` | `glove-wiki-gigaword-100` | length=11 | 65.48
+`uSIF` | `paragram-25` | length=11 | 64.31
+`uSIF` | `glove-twitter-100` | length=11 | 64.22
+`SIF-10` | `glove-wiki-gigaword-50` | components=10 | 64.20
+`uSIF` | `glove-wiki-gigaword-50` | length=11 | 62.22
+`CBOW` | `word2vec-google-news-300` |  | 61.54
+`uSIF` | `glove-twitter-50` | length=11 | 60.50
+`SIF-10` | `paragram-25` | components=10 | 59.22
+`uSIF` | `glove-twitter-25` | length=11 | 55.17
+`CBOW` | `paragram-300-ws353` |  | 54.72
+`SIF-10` | `glove-twitter-25` | components=10 | 54.42
+`CBOW` | `paragram-300-sl999` |  | 51.46
+`CBOW` | `fasttext-crawl-subwords-300` |  | 48.49
+`CBOW` | `glove-wiki-gigaword-300` |  | 44.46
+`CBOW` | `glove-wiki-gigaword-200` |  | 42.40
+`CBOW` | `paragram-25` |  | 40.13
+`CBOW` | `glove-wiki-gigaword-100` |  | 38.12
+`CBOW` | `glove-wiki-gigaword-50` |  | 37.47
+`CBOW` | `glove-twitter-200` |  | 34.94
+`CBOW` | `glove-twitter-100` |  | 33.81
+`CBOW` | `glove-twitter-50` |  | 30.78
+`CBOW` | `glove-twitter-25` |  | 26.15
+`CBOW` | `fasttext-wiki-news-subwords-300` |  | 26.08
 
 Changelog
 -------------
+
+0.2.0:
+- Added `Vectors` and `FTVectors` class and hub support by `from_pretrained`
+- Extended benchmark
+- Fixed zero division bug for uSIF
+- Moved tests out of the main folder
+- Moved sts out of the main folder
 
 0.1.17:
 - Fixed dependency issue where you cannot install fse properly
@@ -196,6 +284,10 @@ Proceedings of the 3rd Workshop on Representation Learning for NLP. (Toulon, Fra
 
 Copyright
 -------------
+
+**Disclaimer**: I am working full time. Unfortunately, I have yet to find time to add all the features I'd like to see. Especially the API needs some overhaul and we need support for gensim 4.0.0.
+
+I am looking for active contributors to keep this package alive. Please feel free to ping me at <o.borchers@oxolo.com> if you are interested.
 
 Author: Oliver Borchers
 

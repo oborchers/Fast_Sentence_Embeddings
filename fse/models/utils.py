@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
-# Copyright (C) Oliver Borchers Oliver Borchers
+# Copyright (C) Oliver Borchers
 
+from typing import Tuple
 from sklearn.decomposition import TruncatedSVD
 
-from numpy import ndarray, float32 as REAL, ones, vstack, dtype
+from numpy import finfo, ndarray, float32 as REAL, ones, dtype
 from numpy.random import choice
 
 from time import time
@@ -18,6 +19,8 @@ from sys import platform
 import ctypes
 
 logger = logging.getLogger(__name__)
+
+EPS = finfo(REAL).eps
 
 
 def set_madvise_for_mmap(return_madvise: bool = False) -> object:
@@ -52,7 +55,7 @@ def set_madvise_for_mmap(return_madvise: bool = False) -> object:
 
 def compute_principal_components(
     vectors: ndarray, components: int = 1, cache_size_gb: float = 1.0
-) -> [ndarray, ndarray]:
+) -> Tuple[ndarray, ndarray]:
     """Method used to compute the first singular vectors of a given (sub)matrix
 
     Parameters
@@ -95,7 +98,7 @@ def compute_principal_components(
 
 def remove_principal_components(
     vectors: ndarray,
-    svd_res: [ndarray, ndarray],
+    svd_res: Tuple[ndarray, ndarray],
     weights: ndarray = None,
     inplace: bool = True,
 ) -> ndarray:

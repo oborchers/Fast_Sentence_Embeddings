@@ -17,7 +17,7 @@ from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
 
 NAME = "fse"
-VERSION = "0.1.17"
+VERSION = "0.2.0"
 DESCRIPTION = "Fast Sentence Embeddings for Gensim"
 AUTHOR = "Oliver Borchers"
 AUTHOR_EMAIL = "o.borchers@oxolo.com"
@@ -34,7 +34,9 @@ INSTALL_REQUIRES = [
     "scikit-learn >= 0.19.1",
     "gensim<4",
     "wordfreq >= 2.2.1",
+    "huggingface-hub",
     "psutil",
+    "dataclasses; python_version < '3.7'",
 ]
 SETUP_REQUIRES = [NUMPY_STR]
 

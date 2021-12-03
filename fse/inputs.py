@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
-# Copyright (C) Oliver Borchers Oliver Borchers
+# Copyright (C) Oliver Borchers
 
 from pathlib import Path
 from typing import List, MutableSequence, Union
