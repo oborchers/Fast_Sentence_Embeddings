@@ -97,7 +97,7 @@ class BaseIndexedList(MutableSequence):
         self._check_str_type(item)
         self.insert(len(self.items), item)
 
-    def extend(self, arg: [list, set, ndarray]):
+    def extend(self, arg: Union[list, set, ndarray]):
         """Extens list."""
         self._check_list_type(arg)
 
@@ -108,7 +108,7 @@ class BaseIndexedList(MutableSequence):
 
 
 class IndexedList(BaseIndexedList):
-    def __init__(self, *args: [list, set, ndarray]):
+    def __init__(self, *args: Union[list, set, ndarray]):
         """Quasi-list to be used for feeding in-memory stored lists of sentences to the
         training routine.
 
@@ -131,7 +131,9 @@ class IndexedList(BaseIndexedList):
 
 
 class CIndexedList(BaseIndexedList):
-    def __init__(self, *args: [list, set, ndarray], custom_index: [list, ndarray]):
+    def __init__(
+        self, *args: Union[list, set, ndarray], custom_index: Union[list, ndarray]
+    ):
         """Quasi-list with custom indices to be used for feeding in-memory stored lists
         of sentences to the training routine.
 
@@ -173,12 +175,12 @@ class CIndexedList(BaseIndexedList):
     def append(self, item: str):
         raise NotImplementedError("Method currently not supported")
 
-    def extend(self, arg: [list, set, ndarray]):
+    def extend(self, arg: Union[list, set, ndarray]):
         raise NotImplementedError("Method currently not supported")
 
 
 class SplitIndexedList(BaseIndexedList):
-    def __init__(self, *args: [list, set, ndarray]):
+    def __init__(self, *args: Union[list, set, ndarray]):
         """Quasi-list with string splitting to be used for feeding in-memory stored
         lists of sentences to the training routine.
 
@@ -201,7 +203,9 @@ class SplitIndexedList(BaseIndexedList):
 
 
 class SplitCIndexedList(BaseIndexedList):
-    def __init__(self, *args: [list, set, ndarray], custom_index: [list, ndarray]):
+    def __init__(
+        self, *args: Union[list, set, ndarray], custom_index: Union[list, ndarray]
+    ):
         """Quasi-list with custom indices and string splitting to be used for feeding
         in-memory stored lists of sentences to the training routine.
 
@@ -243,12 +247,12 @@ class SplitCIndexedList(BaseIndexedList):
     def append(self, item: str):
         raise NotImplementedError("Method currently not supported")
 
-    def extend(self, arg: [list, set, ndarray]):
+    def extend(self, arg: Union[list, set, ndarray]):
         raise NotImplementedError("Method currently not supported")
 
 
 class CSplitIndexedList(BaseIndexedList):
-    def __init__(self, *args: [list, set, ndarray], custom_split: callable):
+    def __init__(self, *args: Union[list, set, ndarray], custom_split: callable):
         """Quasi-list with custom string splitting to be used for feeding in-memory
         stored lists of sentences to the training routine.
 
@@ -276,9 +280,9 @@ class CSplitIndexedList(BaseIndexedList):
 class CSplitCIndexedList(BaseIndexedList):
     def __init__(
         self,
-        *args: [list, set, ndarray],
+        *args: Union[list, set, ndarray],
         custom_split: callable,
-        custom_index: [list, ndarray],
+        custom_index: Union[list, ndarray],
     ):
         """Quasi-list with custom indices and ustom string splitting to be used for
         feeding in-memory stored lists of sentences to the training routine.
@@ -324,7 +328,7 @@ class CSplitCIndexedList(BaseIndexedList):
     def append(self, item: str):
         raise NotImplementedError("Method currently not supported")
 
-    def extend(self, arg: [list, set, ndarray]):
+    def extend(self, arg: Union[list, set, ndarray]):
         raise NotImplementedError("Method currently not supported")
 
 

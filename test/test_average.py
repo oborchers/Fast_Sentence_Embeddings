@@ -156,7 +156,7 @@ class TestAverageFunctions(unittest.TestCase):
         )
         m1._pre_train_calls()
         mem1 = m1._get_thread_working_mem()
-        o1 = train_average_np(m1, self.sentences, m1.sv.vectors, mem1)
+        train_average_np(m1, self.sentences, m1.sv.vectors, mem1)
 
         m2 = Average(w2v)
         m2.prep.prepare_vectors(
@@ -167,7 +167,7 @@ class TestAverageFunctions(unittest.TestCase):
 
         from fse.models.average_inner import train_average_cy
 
-        o2 = train_average_cy(m2, self.sentences, m2.sv.vectors, mem2)
+        train_average_cy(m2, self.sentences, m2.sv.vectors, mem2)
 
         self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))
 

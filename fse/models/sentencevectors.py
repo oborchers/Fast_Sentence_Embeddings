@@ -28,7 +28,7 @@ from numpy import (
 
 from gensim import utils, matutils
 
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 from pathlib import Path
 
@@ -219,11 +219,11 @@ class SentenceVectors(utils.SaveLoad):
 
     def most_similar(
         self,
-        positive: [int, ndarray] = None,
-        negative: [int, ndarray] = None,
-        indexable: [IndexedList, IndexedLineDocument] = None,
+        positive: Union[int, ndarray] = None,
+        negative: Union[int, ndarray] = None,
+        indexable: Union[IndexedList, IndexedLineDocument] = None,
         topn: int = 10,
-        restrict_size: [int, Tuple[int, int]] = None,
+        restrict_size: Union[int, Tuple[int, int]] = None,
     ) -> List[Tuple[int, float]]:
 
         """Find the top-N most similar sentences.
@@ -329,9 +329,9 @@ class SentenceVectors(utils.SaveLoad):
         self,
         word: str,
         wv: BaseKeyedVectors,
-        indexable: [IndexedList, IndexedLineDocument] = None,
+        indexable: Union[IndexedList, IndexedLineDocument] = None,
         topn: int = 10,
-        restrict_size: [int, Tuple[int, int]] = None,
+        restrict_size: Union[int, Tuple[int, int]] = None,
     ) -> List[Tuple[int, float]]:
 
         """Find the top-N most similar sentences to a given word.
@@ -374,9 +374,9 @@ class SentenceVectors(utils.SaveLoad):
         self,
         sentence: List[str],
         model,
-        indexable: [IndexedList, IndexedLineDocument] = None,
+        indexable: Union[IndexedList, IndexedLineDocument] = None,
         topn: int = 10,
-        restrict_size: [int, Tuple[int, int]] = None,
+        restrict_size: Union[int, Tuple[int, int]] = None,
     ) -> List[Tuple[int, float]]:
 
         """Find the top-N most similar sentences to a given sentence.
@@ -422,9 +422,9 @@ class SentenceVectors(utils.SaveLoad):
     def similar_by_vector(
         self,
         vector: ndarray,
-        indexable: [IndexedList, IndexedLineDocument] = None,
+        indexable: Union[IndexedList, IndexedLineDocument] = None,
         topn: int = 10,
-        restrict_size: [int, Tuple[int, int]] = None,
+        restrict_size: Union[int, Tuple[int, int]] = None,
     ) -> List[Tuple[int, float]]:
 
         """Find the top-N most similar sentences to a given vector.

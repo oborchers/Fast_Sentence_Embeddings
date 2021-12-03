@@ -122,7 +122,7 @@ class uSIF(Average):
             self.svd_res = 0
             logger.info(f"no removal of principal components")
 
-    def _post_inference_calls(self, output: ndarray):
+    def _post_inference_calls(self, output: ndarray, **kwargs):
         """Function calls to perform after training & inference."""
         if self.svd_res is None:
             raise RuntimeError(

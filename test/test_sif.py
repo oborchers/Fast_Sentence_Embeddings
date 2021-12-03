@@ -93,7 +93,6 @@ class TestSIFFunctions(unittest.TestCase):
             self.model._check_dtype_santiy()
 
     def test_compute_sif_weights(self):
-        cs = 1095661426
         w = "Good"
         pw = 1.916650481770269e-08
         alpha = self.model.alpha
@@ -123,7 +122,8 @@ class TestSIFFunctions(unittest.TestCase):
 
     def test_broken_vocab(self):
         w2v = Word2Vec(min_count=1, size=DIM)
-        w2v.build_vocab([l.split() for l in open(CORPUS, "r")])
+        with open(CORPUS, "r") as file:
+            w2v.build_vocab([l.split() for l in file])
         for k in w2v.wv.vocab:
             w2v.wv.vocab[k].count = np.nan
 

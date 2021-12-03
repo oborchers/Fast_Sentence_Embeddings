@@ -29,10 +29,6 @@ W2V.build_vocab(SENTENCES)
 
 
 class TestBaseSentence2VecModelFunctions(unittest.TestCase):
-    def test_init_wo_model(self):
-        with self.assertRaises(TypeError):
-            BaseSentence2VecModel()
-
     def test_init_w_wrong_model(self):
         with self.assertRaises(RuntimeError):
             BaseSentence2VecModel(int)
@@ -91,7 +87,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         self.assertTrue(p.exists())
         se2 = BaseSentence2VecModel.load(str(p.absolute()))
         self.assertTrue((se.wv.vectors == se2.wv.vectors).all())
-        self.assertTrue(se.wv.index2word == se2.wv.index2word)
+        self.assertEqual(se.wv.index2word, se2.wv.index2word)
         self.assertEqual(se.workers, se2.workers)
         p.unlink()
 
@@ -134,7 +130,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         p_ngrams = TEST_DATA / "test_emb_ngrams.vectors"
         p_vocab = TEST_DATA / "test_emb_vocab.vectors"
 
-        se = BaseSentence2VecModel(ft, wv_mapfile_path=str(p))
+        BaseSentence2VecModel(ft, wv_mapfile_path=str(p))
 
         self.assertTrue(p_vecs.exists())
         self.assertTrue(p_ngrams.exists())
@@ -150,8 +146,6 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             def __init__(self):
                 pass
 
-        with self.assertRaises(TypeError):
-            se._check_input_data_sanity()
         with self.assertRaises(TypeError):
             se._check_input_data_sanity(data_iterable=None)
         with self.assertRaises(TypeError):
@@ -376,11 +370,6 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         self.assertTrue((vecs == output).all())
         p_target.unlink()
 
-    def test_move_ndarray_to_disk_wo_file(self):
-        se = BaseSentence2VecModel(W2V)
-        with self.assertRaises(TypeError):
-            output = se._move_ndarray_to_disk(se.wv.vectors)
-
     def test_move_w2v_vectors_to_disk_from_init(self):
         p = TEST_DATA / "test_vecs"
         se = BaseSentence2VecModel(W2V, wv_mapfile_path=str(p.absolute()))
@@ -463,7 +452,6 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         bs = 0
         for i, s in enumerate(tmp):
             if bs >= MAX_WORDS_IN_BATCH:
-                min_index = i
                 break
             bs += len(s)
         sents = [(s, i) for i, s in enumerate(tmp)]
@@ -514,7 +502,7 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         self.assertEqual((20, DIM), se.sv.vectors.shape)
         self.assertEqual(np.float32, se.sv.vectors.dtype)
         self.assertTrue((EPS == se.sv.vectors).all())
-        self.assertTrue(se.sv.vectors_norm is None)
+        self.assertIsNone(se.sv.vectors_norm)
 
     def test_reset_vectors_memmap(self):
         p = TEST_DATA / "test_vectors"
@@ -526,7 +514,7 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         self.assertEqual((20, DIM), se.sv.vectors.shape)
         self.assertEqual(np.float32, se.sv.vectors.dtype)
         self.assertTrue((EPS == se.sv.vectors).all())
-        self.assertTrue(se.sv.vectors_norm is None)
+        self.assertIsNone(se.sv.vectors_norm)
         p_target.unlink()
 
     def test_update_vectors(self):
@@ -539,7 +527,7 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         self.assertEqual(np.float32, se.sv.vectors.dtype)
         self.assertTrue((np.ones((20, DIM)) == se.sv.vectors[:20]).all())
         self.assertTrue((EPS == se.sv.vectors[20:]).all())
-        self.assertTrue(se.sv.vectors_norm is None)
+        self.assertIsNone(se.sv.vectors_norm)
 
     def test_update_vectors_memmap(self):
         p = TEST_DATA / "test_vectors"
@@ -554,7 +542,7 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         self.assertEqual(np.float32, se.sv.vectors.dtype)
         self.assertTrue((np.ones((20, DIM)) == se.sv.vectors[:20]).all())
         self.assertTrue((EPS == se.sv.vectors[20:]).all())
-        self.assertTrue(se.sv.vectors_norm is None)
+        self.assertIsNone(se.sv.vectors_norm)
         p_target.unlink()
 
     def test_prepare_vectors(self):

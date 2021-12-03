@@ -121,7 +121,7 @@ class TestCIndexedList(unittest.TestCase):
 
     def test_wrong_len(self):
         with self.assertRaises(RuntimeError):
-            il = CIndexedList(self.list_a, custom_index=[1])
+            CIndexedList(self.list_a, custom_index=[1])
 
     def test_mutable_funcs(self):
         with self.assertRaises(NotImplementedError):

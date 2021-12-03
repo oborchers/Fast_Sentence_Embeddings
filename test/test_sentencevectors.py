@@ -41,8 +41,8 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         self.assertTrue(([[0, 1], [4, 5]] == self.sv[[0, 2]]).all())
 
     def test_isin(self):
-        self.assertTrue(0 in self.sv)
-        self.assertFalse(5 in self.sv)
+        self.assertIn(0, self.sv)
+        self.assertNotIn(5, self.sv)
 
     def test_init_sims_wo_replace(self):
         self.sv.init_sims()

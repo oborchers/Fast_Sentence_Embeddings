@@ -35,6 +35,11 @@ class TestVectors(unittest.TestCase):
         with self.assertRaises(ValueError):
             Vectors.from_pretrained("unittest")
 
+        with patch("fse.vectors.snapshot_download") as mock:
+            mock.side_effect = RuntimeError
+            with self.assertRaises(RuntimeError):
+                Vectors.from_pretrained("unittest")
+
 
 class TestFTVectors(unittest.TestCase):
     def test_from_pretrained(self):
@@ -49,7 +54,12 @@ class TestFTVectors(unittest.TestCase):
         """Tests a missing model."""
 
         with self.assertRaises(ValueError):
-            Vectors.from_pretrained("unittest")
+            FTVectors.from_pretrained("unittest")
+
+        with patch("fse.vectors.snapshot_download") as mock:
+            mock.side_effect = RuntimeError
+            with self.assertRaises(RuntimeError):
+                FTVectors.from_pretrained("unittest")
 
 
 if __name__ == "__main__":
