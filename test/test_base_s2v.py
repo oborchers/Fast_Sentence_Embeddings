@@ -333,7 +333,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         ft.build_vocab(SENTENCES)
         se = BaseSentence2VecModel(ft)
 
-        for v in se.wv.key_to_index.__dict__.keys():
+        for v in se.wv.key_to_index:
             se.wv.set_vecattr(v, "count", 1)
 
         # Just throws multiple warnings warning

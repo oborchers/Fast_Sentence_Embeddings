@@ -151,7 +151,7 @@ def train_average_np(
                     word_index = model.wv.key_to_index[word]
                     mem += w_vectors[word_index] * w_weights[word_index]
                 else:
-                    ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket, True)[
+                    ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket)[
                         :max_ngrams
                     ]
                     if len(ngram_hashes) == 0:

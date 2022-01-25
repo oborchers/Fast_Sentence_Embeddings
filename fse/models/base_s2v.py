@@ -56,6 +56,7 @@ from numpy import (
     ones,
     finfo,
     full,
+    linalg
 )
 
 from wordfreq import available_languages, get_frequency_dict
@@ -315,7 +316,7 @@ class BaseSentence2VecModel(SaveLoad):
                 "you must initialize vectors_vocab before computing sentence vectors"
             )
 
-        if sum([self.wv.get_vecattr(w, "count") for w in self.wv.key_to_index.__dict__.keys()]) == len(self.wv):
+        if sum([self.wv.get_vecattr(w, "count") for w in self.wv.key_to_index]) == len(self.wv):
             logger.warning(
                 "The sum of the word counts is equal to its length (all word counts are 1). "
                 "Make sure to obtain proper word counts by using lang_freq for pretrained embeddings."
@@ -806,7 +807,7 @@ class BaseSentence2VecModel(SaveLoad):
         self._post_inference_calls(output=output)
 
         if use_norm:
-            output = Nmf.l2_norm(output)
+            output /= linalg.norm(output, axis=1)
         return output
 
     def _train_manager(

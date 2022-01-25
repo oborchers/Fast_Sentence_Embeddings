@@ -124,7 +124,7 @@ class TestSIFFunctions(unittest.TestCase):
         w2v = Word2Vec(min_count=1, vector_size=DIM)
         with open(CORPUS, "r") as file:
             w2v.build_vocab([l.split() for l in file])
-        for k in w2v.wv.key_to_index.__dict__.keys():
+        for k in w2v.wv.key_to_index:
             w2v.wv.set_vecattr(k, "count", np.nan)
 
         model = SIF(w2v)

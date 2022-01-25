@@ -138,7 +138,7 @@ class SIF(Average):
         corpus_size = 0
 
         pw = zeros(v, dtype=REAL)
-        for word in self.wv.key_to_index.__dict__.keys():
+        for word in self.wv.key_to_index:
             c = self.wv.get_vecattr(word, "count")
             corpus_size += c
             pw[self.wv.key_to_index[word]] = c
