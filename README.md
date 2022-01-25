@@ -151,7 +151,7 @@ gensim.models.keyedvectors.BaseKeyedVectors class, for example *Word2Vec* or *Fa
 ```
 from gensim.models import FastText
 sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
-ft = FastText(sentences, min_count=1, size=10)
+ft = FastText(sentences, min_count=1, vector_size=10)
 
 from fse import Average, IndexedList
 model = Average(ft)
