@@ -40,7 +40,6 @@ from fse.models.utils import set_madvise_for_mmap
 
 from gensim.models.word2vec import Word2Vec
 from gensim.models.keyedvectors import KeyedVectors
-from gensim.models.nmf import Nmf
 from gensim.utils import SaveLoad
 from gensim.matutils import zeros_aligned
 

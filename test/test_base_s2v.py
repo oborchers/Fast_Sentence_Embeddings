@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 from gensim.models import FastText, Word2Vec
-from gensim.models.keyedvectors import BaseKeyedVectors
+from gensim.models.keyedvectors import KeyedVectors
 from wordfreq import get_frequency_dict
 
 from fse.models.base_s2v import EPS, BaseSentence2VecModel, BaseSentence2VecPreparer
@@ -62,13 +62,13 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             BaseSentence2VecModel(ft)
 
     def test_init_w_incompatible_ft_model(self):
-        ft = FastText(min_count=1, vector_size=DIM, compatible_hash=False)
+        ft = FastText(min_count=1, vector_size=DIM)
         with self.assertRaises(RuntimeError):
             BaseSentence2VecModel(ft)
 
     def test_include_model(self):
         se = BaseSentence2VecModel(W2V)
-        self.assertTrue(isinstance(se.wv, BaseKeyedVectors))
+        self.assertTrue(isinstance(se.wv, KeyedVectors))
 
     def test_model_w_language(self):
         se = BaseSentence2VecModel(W2V, lang_freq="en")

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 CORPUS = Path(__file__).parent / "test_data" / "test_sentences.txt"
 DIM = 50
-W2V = Word2Vec(min_count=1, vector_vector_size=DIM)
+W2V = Word2Vec(min_count=1, vector_size=DIM)
 with open(CORPUS, "r") as file:
     SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)
@@ -105,7 +105,7 @@ class TestuSIFFunctions(unittest.TestCase):
         self.assertTrue(np.isfinite(self.model.sv.vectors).all())
 
     def test_broken_vocab(self):
-        w2v = Word2Vec(min_count=1, vector_vector_size=DIM)
+        w2v = Word2Vec(min_count=1, vector_size=DIM)
 
         with open(CORPUS, "r") as file:
             w2v.build_vocab([l.split() for l in file])
