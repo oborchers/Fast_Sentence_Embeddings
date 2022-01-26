@@ -32,7 +32,7 @@ INSTALL_REQUIRES = [
     "scipy >= 0.18.1",
     "smart_open >= 1.5.0",
     "scikit-learn >= 0.19.1",
-    "gensim<4",
+    "gensim >= 4",
     "wordfreq >= 2.2.1",
     "huggingface-hub",
     "psutil",
