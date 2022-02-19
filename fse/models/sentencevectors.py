@@ -11,7 +11,7 @@ from fse.inputs import IndexedList, IndexedLineDocument
 
 from fse.models.utils import set_madvise_for_mmap
 
-from gensim.models.keyedvectors import BaseKeyedVectors
+from gensim.models.keyedvectors import KeyedVectors
 
 from numpy import (
     dot,
@@ -328,7 +328,7 @@ class SentenceVectors(utils.SaveLoad):
     def similar_by_word(
         self,
         word: str,
-        wv: BaseKeyedVectors,
+        wv: KeyedVectors,
         indexable: Union[IndexedList, IndexedLineDocument] = None,
         topn: int = 10,
         restrict_size: Union[int, Tuple[int, int]] = None,
@@ -340,7 +340,7 @@ class SentenceVectors(utils.SaveLoad):
         ----------
         word : str
             Word
-        wv : :class:`~gensim.models.keyedvectors.BaseKeyedVectors`
+        wv : :class:`~gensim.models.keyedvectors.KeyedVectors`
             This object essentially contains the mapping between words and embeddings.
         indexable: list, IndexedList, IndexedLineDocument
             Provides an indexable object from where the most similar sentences are read

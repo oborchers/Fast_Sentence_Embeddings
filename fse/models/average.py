@@ -18,14 +18,14 @@ Initialize and train a :class:`~fse.models.sentence2vec.Sentence2Vec` model
 
 .. sourcecode:: pycon
 
-        >>> from gensim.models.word2vec import Word2Vec
-        >>> sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
-        >>> model = Word2Vec(sentences, min_count=1, size=20)
-
-        >>> from fse.models.average import Average        
-        >>> avg = Average(model)
-        >>> avg.train([(s, i) for i, s in enumerate(sentences)])
-        >>> avg.sv.vectors.shape
+        # >>> from gensim.models.word2vec import Word2Vec
+        # >>> sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
+        # >>> model = Word2Vec(sentences, min_count=1, vector_size=20)
+        #
+        # >>> from fse.models.average import Average
+        # >>> avg = Average(model)
+        # >>> avg.train([(s, i) for i, s in enumerate(sentences)])
+        # >>> avg.sv.vectors.shape
         (2, 20)
 
 """
@@ -34,8 +34,8 @@ from __future__ import division
 
 from fse.models.base_s2v import BaseSentence2VecModel
 
-from gensim.models.keyedvectors import BaseKeyedVectors
-from gensim.models.utils_any2vec import ft_ngram_hashes
+from gensim.models.keyedvectors import KeyedVectors
+from gensim.models.fasttext import ft_ngram_hashes
 
 from numpy import (
     ndarray,
@@ -88,7 +88,7 @@ def train_average_np(
 
     """
     size = model.wv.vector_size
-    vocab = model.wv.vocab
+    # vocab = model.wv.vocab
 
     w_vectors = model.wv.vectors
     w_weights = model.word_weights
@@ -121,7 +121,7 @@ def train_average_np(
             sent = obj[0]
             sent_adr = obj[1]
 
-            word_indices = [vocab[word].index for word in sent if word in vocab]
+            word_indices = [model.wv.key_to_index[word] for word in sent if word in model.wv.key_to_index]
             eff_sentences += 1
             if not len(word_indices):
                 continue
@@ -147,11 +147,11 @@ def train_average_np(
             eff_words += len(sent)  # Counts everything in the sentence
 
             for word in sent:
-                if word in vocab:
-                    word_index = vocab[word].index
+                if word in model.wv.key_to_index:
+                    word_index = model.wv.key_to_index[word]
                     mem += w_vectors[word_index] * w_weights[word_index]
                 else:
-                    ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket, True)[
+                    ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket)[
                         :max_ngrams
                     ]
                     if len(ngram_hashes) == 0:
@@ -191,7 +191,7 @@ class Average(BaseSentence2VecModel):
 
     Attributes
     ----------
-    wv : :class:`~gensim.models.keyedvectors.BaseKeyedVectors`
+    wv : :class:`~gensim.models.keyedvectors.KeyedVectors`
         This object essentially contains the mapping between words and embeddings. After training, it can be used
         directly to query those embeddings in various ways. See the module level docstring for examples.
 
@@ -207,7 +207,7 @@ class Average(BaseSentence2VecModel):
 
     def __init__(
         self,
-        model: BaseKeyedVectors,
+        model: KeyedVectors,
         sv_mapfile_path: str = None,
         wv_mapfile_path: str = None,
         workers: int = 1,
@@ -222,7 +222,7 @@ class Average(BaseSentence2VecModel):
 
         Parameters
         ----------
-        model : :class:`~gensim.models.keyedvectors.BaseKeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
+        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
             This object essentially contains the mapping between words and embeddings. To compute the sentence embeddings
             the wv.vocab and wv.vector elements are required.
         sv_mapfile_path : str, optional

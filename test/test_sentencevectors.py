@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 TEST_DATA = Path(__file__).parent / "test_data"
 CORPUS = TEST_DATA / "test_sentences.txt"
 DIM = 5
-W2V = Word2Vec(min_count=1, size=DIM, seed=42)
+W2V = Word2Vec(min_count=1, vector_size=DIM, seed=42)
 with open(CORPUS, "r") as file:
     SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)

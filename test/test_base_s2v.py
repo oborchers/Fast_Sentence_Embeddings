@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 from gensim.models import FastText, Word2Vec
-from gensim.models.keyedvectors import BaseKeyedVectors
+from gensim.models.keyedvectors import KeyedVectors
 from wordfreq import get_frequency_dict
 
 from fse.models.base_s2v import EPS, BaseSentence2VecModel, BaseSentence2VecPreparer
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 TEST_DATA = Path(__file__).parent / "test_data"
 CORPUS = TEST_DATA / "test_sentences.txt"
 DIM = 5
-W2V = Word2Vec(min_count=1, size=DIM)
+W2V = Word2Vec(min_count=1, vector_size=DIM)
 with open(CORPUS, "r") as file:
     SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)
@@ -42,11 +42,11 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
     def test_init_w_empty_vocab_model(self):
         with self.assertRaises(RuntimeError):
             w2v = Word2Vec()
-            del w2v.wv.vocab
+            del w2v.wv
             BaseSentence2VecModel(w2v)
 
     def test_init_w_ft_model_wo_vecs(self):
-        ft = FastText(SENTENCES, size=5)
+        ft = FastText(SENTENCES, vector_size=5)
         with self.assertRaises(RuntimeError):
             ft.wv.vectors_vocab = None
             BaseSentence2VecModel(ft)
@@ -55,26 +55,26 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             BaseSentence2VecModel(ft)
 
     def test_init_w_empty_ft_model(self):
-        ft = FastText(min_count=1, size=DIM)
+        ft = FastText(min_count=1, vector_size=DIM)
         ft.wv.vectors = np.zeros(10)
         ft.wv.vectors_ngrams = None
         with self.assertRaises(RuntimeError):
             BaseSentence2VecModel(ft)
 
     def test_init_w_incompatible_ft_model(self):
-        ft = FastText(min_count=1, size=DIM, compatible_hash=False)
+        ft = FastText(min_count=1, vector_size=DIM)
         with self.assertRaises(RuntimeError):
             BaseSentence2VecModel(ft)
 
     def test_include_model(self):
         se = BaseSentence2VecModel(W2V)
-        self.assertTrue(isinstance(se.wv, BaseKeyedVectors))
+        self.assertTrue(isinstance(se.wv, KeyedVectors))
 
     def test_model_w_language(self):
         se = BaseSentence2VecModel(W2V, lang_freq="en")
         freq = int((2 ** 31 - 1) * get_frequency_dict("en", wordlist="best")["help"])
-        self.assertEqual(freq, se.wv.vocab["help"].count)
-        self.assertEqual(21, se.wv.vocab["79"].count)
+        self.assertEqual(freq, se.wv.get_vecattr("help", "count"))
+        self.assertEqual(21, se.wv.get_vecattr("79", "count"))
 
     def test_model_w_wrong_language(self):
         with self.assertRaises(ValueError):
@@ -87,12 +87,12 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         self.assertTrue(p.exists())
         se2 = BaseSentence2VecModel.load(str(p.absolute()))
         self.assertTrue((se.wv.vectors == se2.wv.vectors).all())
-        self.assertEqual(se.wv.index2word, se2.wv.index2word)
+        self.assertEqual(se.wv.index_to_key, se2.wv.index_to_key)
         self.assertEqual(se.workers, se2.workers)
         p.unlink()
 
     def test_save_load_with_memmap(self):
-        ft = FastText(min_count=1, size=5)
+        ft = FastText(min_count=1, vector_size=5)
         ft.build_vocab(SENTENCES)
         shape = (1000, 1000)
         ft.wv.vectors = np.zeros(shape, np.float32)
@@ -122,7 +122,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             p.unlink()
 
     def test_map_all_vectors_to_disk(self):
-        ft = FastText(min_count=1, size=5)
+        ft = FastText(min_count=1, vector_size=5)
         ft.build_vocab(SENTENCES)
 
         p = TEST_DATA / "test_emb"
@@ -216,7 +216,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         self.assertEqual(1, output)
 
     def test_estimate_memory(self):
-        ft = FastText(min_count=1, size=5)
+        ft = FastText(min_count=1, vector_size=5)
         ft.build_vocab(SENTENCES)
         se = BaseSentence2VecModel(ft)
         self.assertEqual(2040025124, se.estimate_memory(int(1e8))["Total"])
@@ -247,7 +247,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             se._post_inference_calls()
 
     def test_check_pre_train_san_no_wv(self):
-        ft = FastText(min_count=1, size=5)
+        ft = FastText(min_count=1, vector_size=5)
         ft.build_vocab(SENTENCES)
         se = BaseSentence2VecModel(ft)
         se.wv = None
@@ -255,7 +255,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             se._check_pre_training_sanity(1, 1, 1)
 
     def test_check_pre_train_san_no_wv_len(self):
-        ft = FastText(min_count=1, size=5)
+        ft = FastText(min_count=1, vector_size=5)
         ft.build_vocab(SENTENCES)
         se = BaseSentence2VecModel(ft)
         se.wv.vectors = []
@@ -263,7 +263,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             se._check_pre_training_sanity(1, 1, 1)
 
     def test_check_pre_train_san_no_ngrams_vectors(self):
-        ft = FastText(min_count=1, size=5)
+        ft = FastText(min_count=1, vector_size=5)
         ft.build_vocab(SENTENCES)
         se = BaseSentence2VecModel(ft)
         se.wv.vectors_ngrams = []
@@ -275,7 +275,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             se._check_pre_training_sanity(1, 1, 1)
 
     def test_check_pre_train_san_no_sv_vecs(self):
-        ft = FastText(min_count=1, size=5)
+        ft = FastText(min_count=1, vector_size=5)
         ft.build_vocab(SENTENCES)
         se = BaseSentence2VecModel(ft)
         se.sv.vectors = None
@@ -283,7 +283,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             se._check_pre_training_sanity(1, 1, 1)
 
     def test_check_pre_train_san_no_word_weights(self):
-        ft = FastText(min_count=1, size=5)
+        ft = FastText(min_count=1, vector_size=5)
         ft.build_vocab(SENTENCES)
         se = BaseSentence2VecModel(ft)
         se.word_weights = None
@@ -291,7 +291,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             se._check_pre_training_sanity(1, 1, 1)
 
     def test_check_pre_train_san_incos_len(self):
-        ft = FastText(min_count=1, size=5)
+        ft = FastText(min_count=1, vector_size=5)
         ft.build_vocab(SENTENCES)
         se = BaseSentence2VecModel(ft)
         se.word_weights = np.ones(20)
@@ -299,42 +299,42 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
             se._check_pre_training_sanity(1, 1, 1)
 
     def test_check_pre_train_dtypes(self):
-        ft = FastText(min_count=1, size=5)
+        ft = FastText(min_count=1, vector_size=5)
         ft.build_vocab(SENTENCES)
         se = BaseSentence2VecModel(ft)
 
-        se.wv.vectors = np.zeros((len(se.wv.vocab), 20), dtype=np.float64)
+        se.wv.vectors = np.zeros((len(se.wv), 20), dtype=np.float64)
         with self.assertRaises(TypeError):
             se._check_pre_training_sanity(1, 1, 1)
-        se.wv.vectors = np.zeros((len(se.wv.vocab), 20), dtype=np.float32)
+        se.wv.vectors = np.zeros((len(se.wv), 20), dtype=np.float32)
 
-        se.wv.vectors_ngrams = np.ones(len(se.wv.vocab), dtype=np.float16)
+        se.wv.vectors_ngrams = np.ones(len(se.wv), dtype=np.float16)
         with self.assertRaises(TypeError):
             se._check_pre_training_sanity(1, 1, 1)
-        se.wv.vectors_ngrams = np.ones(len(se.wv.vocab), dtype=np.float32)
+        se.wv.vectors_ngrams = np.ones(len(se.wv), dtype=np.float32)
 
-        se.wv.vectors_vocab = np.ones(len(se.wv.vocab), dtype=np.float16)
+        se.wv.vectors_vocab = np.ones(len(se.wv), dtype=np.float16)
         with self.assertRaises(TypeError):
             se._check_pre_training_sanity(1, 1, 1)
-        se.wv.vectors_vocab = np.ones(len(se.wv.vocab), dtype=np.float32)
+        se.wv.vectors_vocab = np.ones(len(se.wv), dtype=np.float32)
 
-        se.sv.vectors = np.zeros((len(se.wv.vocab), 20), dtype=int)
+        se.sv.vectors = np.zeros((len(se.wv), 20), dtype=int)
         with self.assertRaises(TypeError):
             se._check_pre_training_sanity(1, 1, 1)
-        se.sv.vectors = np.zeros((len(se.wv.vocab), 20), dtype=np.float32)
+        se.sv.vectors = np.zeros((len(se.wv), 20), dtype=np.float32)
 
-        se.word_weights = np.ones(len(se.wv.vocab), dtype=bool)
+        se.word_weights = np.ones(len(se.wv), dtype=bool)
         with self.assertRaises(TypeError):
             se._check_pre_training_sanity(1, 1, 1)
-        se.word_weights = np.ones(len(se.wv.vocab), dtype=np.float32)
+        se.word_weights = np.ones(len(se.wv), dtype=np.float32)
 
     def test_check_pre_train_statistics(self):
-        ft = FastText(min_count=1, size=5)
+        ft = FastText(min_count=1, vector_size=5)
         ft.build_vocab(SENTENCES)
         se = BaseSentence2VecModel(ft)
 
-        for v in se.wv.vocab:
-            se.wv.vocab[v].count = 1
+        for v in se.wv.key_to_index:
+            se.wv.set_vecattr(v, "count", 1)
 
         # Just throws multiple warnings warning
         se._check_pre_training_sanity(1, 1, 1)
@@ -379,7 +379,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         p_target.unlink()
 
     def test_move_ft_vectors_to_disk_from_init(self):
-        ft = FastText(min_count=1, size=DIM)
+        ft = FastText(min_count=1, vector_size=DIM)
         ft.build_vocab(SENTENCES)
 
         p = TEST_DATA / "test_vecs"
