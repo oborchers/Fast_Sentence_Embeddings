@@ -5,13 +5,13 @@
 # Copyright (C) 2021 Alessandro Muzzi
 from typing import List
 
-import numpy as np
 from math import log
 from fse.models.average import Average
 
 from gensim.models.keyedvectors import KeyedVectors
 
-from numpy import ndarray, float32 as REAL
+from numpy import float32 as REAL
+import numpy as np
 
 import logging
 
@@ -62,14 +62,6 @@ class Idf(Average):
     def _pre_train_calls(self, **kwargs):
         """Function calls to perform before training """
         self._compute_idf_weights(kwargs)
-
-    def _post_train_calls(self):
-        """ Function calls to perform after training, such as computing eigenvectors """
-        pass
-
-    def _post_inference_calls(self, output: ndarray):
-        """ Function calls to perform after training, such as computing eigenvectors """
-        pass
 
     def _check_parameter_sanity(self):
         """ Check the sanity of all paramters """
