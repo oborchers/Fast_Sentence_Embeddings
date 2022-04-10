@@ -296,7 +296,7 @@ I am looking for active contributors to keep this package alive. Please feel fre
 
 Author: Oliver Borchers
 
-Copyright (C) 2021 Oliver Borchers
+Copyright (C) 2022 Oliver Borchers
 
 Citation
 -------------
