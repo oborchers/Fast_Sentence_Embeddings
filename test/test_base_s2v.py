@@ -35,13 +35,13 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
     def test_init_w_empty_w2v_model(self):
         with self.assertRaises(RuntimeError):
-            w2v = Word2Vec()
+            w2v = Word2Vec(min_count=1, vector_size=DIM)
             del w2v.wv.vectors
             BaseSentence2VecModel(w2v)
 
     def test_init_w_empty_vocab_model(self):
         with self.assertRaises(RuntimeError):
-            w2v = Word2Vec()
+            w2v = Word2Vec(min_count=1, vector_size=DIM)
             del w2v.wv
             BaseSentence2VecModel(w2v)
 

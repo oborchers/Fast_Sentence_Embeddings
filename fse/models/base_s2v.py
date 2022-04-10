@@ -34,7 +34,7 @@ See Also
 
 """
 
-from fse.models.sentencevectors import SentenceVectors
+from fse.models.sentencevectors import SentenceVectors, _l2_norm
 
 from fse.models.utils import set_madvise_for_mmap
 
@@ -182,6 +182,8 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         if isinstance(model, (Word2Vec, FastText)):
+            if not hasattr(model, "wv"):
+                raise RuntimeError("Model does not contain wv object.")
             self.wv = model.wv
         elif isinstance(model, KeyedVectors):
             self.wv = model
@@ -807,7 +809,7 @@ class BaseSentence2VecModel(SaveLoad):
         self._post_inference_calls(output=output)
 
         if use_norm:
-            output /= linalg.norm(output, axis=1)
+            output = _l2_norm(output)
         return output
 
     def _train_manager(
