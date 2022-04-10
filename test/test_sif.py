@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 TEST_DATA = Path(__file__).parent / "test_data"
 CORPUS = TEST_DATA / "test_sentences.txt"
 DIM = 50
-W2V = Word2Vec(min_count=1, size=DIM)
+W2V = Word2Vec(min_count=1, vector_size=DIM)
 with open(CORPUS, "r") as file:
     SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)
@@ -98,7 +98,7 @@ class TestSIFFunctions(unittest.TestCase):
         alpha = self.model.alpha
         sif = alpha / (alpha + pw)
 
-        idx = self.model.wv.vocab[w].index
+        idx = self.model.wv.key_to_index[w]
         self.model._compute_sif_weights()
         self.assertTrue(np.allclose(self.model.word_weights[idx], sif))
 
@@ -121,14 +121,15 @@ class TestSIFFunctions(unittest.TestCase):
         model.sv.similar_by_sentence("test sentence".split(), model=model)
 
     def test_broken_vocab(self):
-        w2v = Word2Vec(min_count=1, size=DIM)
+        w2v = Word2Vec(min_count=1, vector_size=DIM)
         with open(CORPUS, "r") as file:
             w2v.build_vocab([l.split() for l in file])
-        for k in w2v.wv.vocab:
-            w2v.wv.vocab[k].count = np.nan
+            
+        for k in w2v.wv.key_to_index:
+            w2v.wv.set_vecattr(k, "count", -1)
 
         model = SIF(w2v)
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):
             model.train(self.sentences)
 
 

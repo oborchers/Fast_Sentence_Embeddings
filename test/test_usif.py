@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 CORPUS = Path(__file__).parent / "test_data" / "test_sentences.txt"
 DIM = 50
-W2V = Word2Vec(min_count=1, size=DIM)
+W2V = Word2Vec(min_count=1, vector_size=DIM)
 with open(CORPUS, "r") as file:
     SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)
@@ -92,7 +92,7 @@ class TestuSIFFunctions(unittest.TestCase):
     def test_compute_usif_weights(self):
         w = "Good"
         pw = 1.916650481770269e-08
-        idx = self.model.wv.vocab[w].index
+        idx = self.model.wv.key_to_index[w]
         self.model.length = 11
         a = 0.17831555484795414
         usif = a / ((a / 2) + pw)
@@ -105,16 +105,16 @@ class TestuSIFFunctions(unittest.TestCase):
         self.assertTrue(np.isfinite(self.model.sv.vectors).all())
 
     def test_broken_vocab(self):
-        w2v = Word2Vec(min_count=1, size=DIM)
+        w2v = Word2Vec(min_count=1, vector_size=DIM)
 
         with open(CORPUS, "r") as file:
             w2v.build_vocab([l.split() for l in file])
-        for k in w2v.wv.vocab:
-            w2v.wv.vocab[k].count = np.nan
+        for k in w2v.wv.key_to_index:
+            w2v.wv.set_vecattr(k, "count", -1)
 
         model = uSIF(w2v)
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):
             model.train(self.sentences)
 
     def test_zero_div_error(self):
