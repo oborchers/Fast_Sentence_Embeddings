@@ -365,7 +365,8 @@ class IndexedLineDocument(object):
                 offset += len(line)
 
     def __getitem__(self, i):
-        """Returns the line indexed by i. Primarily used for
+        """Returns the line indexed by i. Primarily used for.
+
         :meth:`~fse.models.sentencevectors.SentenceVectors.most_similar`
 
         Parameters
@@ -377,7 +378,6 @@ class IndexedLineDocument(object):
         -------
         str
             line at the current index
-
         """
         if not self.get_able:
             raise RuntimeError(

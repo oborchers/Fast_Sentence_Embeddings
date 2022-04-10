@@ -6,7 +6,7 @@
 
 import logging
 
-from gensim.models.keyedvectors import BaseKeyedVectors
+from gensim.models.keyedvectors import KeyedVectors
 from numpy import float32 as REAL
 from numpy import isfinite, ndarray, zeros
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class uSIF(Average):
     def __init__(
         self,
-        model: BaseKeyedVectors,
+        model: KeyedVectors,
         length: int = None,
         components: int = 5,
         cache_size_gb: float = 1.0,
@@ -41,7 +41,7 @@ class uSIF(Average):
 
         Parameters
         ----------
-        model : :class:`~gensim.models.keyedvectors.BaseKeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
+        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
             This object essentially contains the mapping between words and embeddings. To compute the sentence embeddings
             the wv.vocab and wv.vector elements are required.
         length : int, optional
@@ -153,15 +153,17 @@ class uSIF(Average):
 
     def _compute_usif_weights(self):
         """Precomputes the uSIF weights."""
-        logger.info(f"pre-computing uSIF weights for {len(self.wv.vocab)} words")
-        v = len(self.wv.vocab)
+        logger.info(f"pre-computing uSIF weights for {len(self.wv)} words")
+        v = len(self.wv)
         corpus_size = 0
 
         pw = zeros(v, dtype=REAL)
-        for word in self.wv.vocab:
-            c = self.wv.vocab[word].count
+        for word in self.wv.key_to_index:
+            c = self.wv.get_vecattr(word, "count")
+            if c < 0:
+                raise ValueError("vocab count is negative")
             corpus_size += c
-            pw[self.wv.vocab[word].index] = c
+            pw[self.wv.key_to_index[word]] = c
         pw /= corpus_size
 
         threshold = 1 - (1 - (1 / v)) ** self.length

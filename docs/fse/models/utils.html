@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>fse.models.utils API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>fse.models.utils</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# Author: Oliver Borchers
+# Copyright (C) Oliver Borchers
+
+from typing import Tuple
+from sklearn.decomposition import TruncatedSVD
+
+from numpy import finfo, ndarray, float32 as REAL, ones, dtype
+from numpy.random import choice
+
+from time import time
+
+import logging
+
+from sys import platform
+
+import ctypes
+
+logger = logging.getLogger(__name__)
+
+EPS = finfo(REAL).eps
+
+
+def set_madvise_for_mmap(return_madvise: bool = False) -&gt; object:
+    &#34;&#34;&#34;Method used to set madvise parameters.
+    This problem adresses the memmap issue raised in https://github.com/numpy/numpy/issues/13172
+    The issue is not applicable for windows
+
+    Parameters
+    ----------
+    return_madvise : bool
+        Returns the madvise object for unittests, se test_utils.py
+
+    Returns
+    -------
+    object
+        madvise object
+
+    &#34;&#34;&#34;
+
+    if platform in [&#34;linux&#34;, &#34;linux2&#34;, &#34;darwin&#34;, &#34;aix&#34;]:
+        if platform == &#34;darwin&#34;:
+            # Path different for Macos
+            madvise = ctypes.CDLL(&#34;libc.dylib&#34;).madvise
+        if platform in [&#34;linux&#34;, &#34;linux2&#34;, &#34;aix&#34;]:
+            madvise = ctypes.CDLL(&#34;libc.so.6&#34;).madvise
+        madvise.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int]
+        madvise.restype = ctypes.c_int
+
+        if return_madvise:
+            return madvise
+
+
+def compute_principal_components(
+    vectors: ndarray, components: int = 1, cache_size_gb: float = 1.0
+) -&gt; Tuple[ndarray, ndarray]:
+    &#34;&#34;&#34;Method used to compute the first singular vectors of a given (sub)matrix
+
+    Parameters
+    ----------
+    vectors : ndarray
+        (Sentence) vectors to compute the truncated SVD on
+    components : int, optional
+        Number of singular values/vectors to compute
+    cache_size_gb : float, optional
+            Cache size for computing the principal components in GB
+
+    Returns
+    -------
+    ndarray, ndarray
+        Singular values and singular vectors
+    &#34;&#34;&#34;
+    start = time()
+    num_vectors = vectors.shape[0]
+    svd = TruncatedSVD(
+        n_components=components, n_iter=7, random_state=42, algorithm=&#34;randomized&#34;
+    )
+
+    sample_size = int(
+        1024 ** 3 * cache_size_gb / (vectors.shape[1] * dtype(REAL).itemsize)
+    )
+
+    if sample_size &gt; num_vectors:
+        svd.fit(vectors)
+    else:
+        logger.info(f&#34;sampling {sample_size} vectors to compute principal components&#34;)
+        sample_indices = choice(range(num_vectors), replace=False, size=int(1e6))
+        svd.fit(vectors[sample_indices, :])
+
+    elapsed = time()
+    logger.info(
+        f&#34;computing {components} principal components took {int(elapsed-start)}s&#34;
+    )
+    return svd.singular_values_.astype(REAL), svd.components_.astype(REAL)
+
+
+def remove_principal_components(
+    vectors: ndarray,
+    svd_res: Tuple[ndarray, ndarray],
+    weights: ndarray = None,
+    inplace: bool = True,
+) -&gt; ndarray:
+    &#34;&#34;&#34;Method used to remove the first singular vectors of a given matrix
+
+    Parameters
+    ----------
+    vectors : ndarray
+        (Sentence) vectors to remove components fromm
+    svd_res : (ndarray, ndarray)
+        Tuple consisting of the singular values and components to remove from the vectors
+    weights : ndarray, optional
+        Weights to be used to weigh the components which are removed from the vectors
+    inplace : bool, optional
+        If true, removes the components from the vectors inplace (memory efficient)
+
+    Returns
+    -------
+    ndarray, ndarray
+        Singular values and singular vectors
+    &#34;&#34;&#34;
+    components = svd_res[1].astype(REAL)
+
+    start = time()
+    if weights is None:
+        w_comp = components * ones(len(components), dtype=REAL)[:, None]
+    else:
+        w_comp = components * (weights[:, None].astype(REAL))
+
+    output = None
+    if len(components) == 1:
+        if not inplace:
+            output = vectors - vectors.dot(w_comp.transpose()) * w_comp
+        else:
+            vectors -= vectors.dot(w_comp.transpose()) * w_comp
+    else:
+        if not inplace:
+            output = vectors - vectors.dot(w_comp.transpose()).dot(w_comp)
+        else:
+            vectors -= vectors.dot(w_comp.transpose()).dot(w_comp)
+    elapsed = time()
+
+    logger.info(
+        f&#34;removing {len(components)} principal components took {int(elapsed-start)}s&#34;
+    )
+    if not inplace:
+        return output</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="fse.models.utils.choice"><code class="name flex">
+<span>def <span class="ident">choice</span></span>(<span>a, size=None, replace=True, p=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generates a random sample from a given 1-D array</p>
+<div class="admonition versionadded">
+<p class="admonition-title">Added in version:&ensp;1.7.0</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>New code should use the <code><a title="fse.models.utils.choice" href="#fse.models.utils.choice">RandomState.choice()</a></code> method of a <code>default_rng()</code>
+instance instead; please see the :ref:<code>random-quick-start</code>.</p>
+</div>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>a</code></strong> :&ensp;<code>1-D array-like</code> or <code>int</code></dt>
+<dd>If an ndarray, a random sample is generated from its elements.
+If an int, the random sample is generated as if it were <code>np.arange(a)</code></dd>
+<dt><strong><code>size</code></strong> :&ensp;<code>int</code> or <code>tuple</code> of <code>ints</code>, optional</dt>
+<dd>Output shape.
+If the given shape is, e.g., <code>(m, n, k)</code>, then
+<code>m * n * k</code> samples are drawn.
+Default is None, in which case a
+single value is returned.</dd>
+<dt><strong><code>replace</code></strong> :&ensp;<code>boolean</code>, optional</dt>
+<dd>Whether the sample is with or without replacement. Default is True,
+meaning that a value of <code>a</code> can be selected multiple times.</dd>
+<dt><strong><code>p</code></strong> :&ensp;<code>1-D array-like</code>, optional</dt>
+<dd>The probabilities associated with each entry in a.
+If not given, the sample assumes a uniform distribution over all
+entries in <code>a</code>.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><strong><code>samples</code></strong> :&ensp;<code>single item</code> or <code>ndarray</code></dt>
+<dd>The generated random samples</dd>
+</dl>
+<h2 id="raises">Raises</h2>
+<dl>
+<dt><code>ValueError</code></dt>
+<dd>If a is an int and less than zero, if a or p are not 1-dimensional,
+if a is an array-like of size 0, if p is not a vector of
+probabilities, if a and p have different lengths, or if
+replace=False and the sample size is greater than the population
+size</dd>
+</dl>
+<h2 id="see-also">See Also</h2>
+<p><code>randint</code>, <code>shuffle</code>, <code>permutation</code>
+<code>Generator.choice: which should be used in new code</code></p>
+<h2 id="notes">Notes</h2>
+<p>Setting user-specified probabilities through <code>p</code> uses a more general but less
+efficient sampler than the default. The general sampler produces a different sample
+than the optimized sampler even if each element of <code>p</code> is 1 / len(a).</p>
+<p>Sampling random rows from a 2-D array is not possible with this function,
+but is possible with <code>Generator.choice</code> through its <code>axis</code> keyword.</p>
+<h2 id="examples">Examples</h2>
+<p>Generate a uniform random sample from np.arange(5) of size 3:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; np.random.choice(5, 3)
+array([0, 3, 4]) # random
+&gt;&gt;&gt; #This is equivalent to np.random.randint(0,5,3)
+</code></pre>
+<p>Generate a non-uniform random sample from np.arange(5) of size 3:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; np.random.choice(5, 3, p=[0.1, 0, 0.3, 0.6, 0])
+array([3, 3, 0]) # random
+</code></pre>
+<p>Generate a uniform random sample from np.arange(5) of size 3 without
+replacement:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; np.random.choice(5, 3, replace=False)
+array([3,1,0]) # random
+&gt;&gt;&gt; #This is equivalent to np.random.permutation(np.arange(5))[:3]
+</code></pre>
+<p>Generate a non-uniform random sample from np.arange(5) of size
+3 without replacement:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; np.random.choice(5, 3, replace=False, p=[0.1, 0, 0.3, 0.6, 0])
+array([2, 3, 0]) # random
+</code></pre>
+<p>Any of the above can be repeated with an arbitrary array-like
+instead of just integers. For instance:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; aa_milne_arr = ['pooh', 'rabbit', 'piglet', 'Christopher']
+&gt;&gt;&gt; np.random.choice(aa_milne_arr, 5, p=[0.5, 0.1, 0.1, 0.3])
+array(['pooh', 'pooh', 'pooh', 'Christopher', 'piglet'], # random
+      dtype='&lt;U11')
+</code></pre></div>
+</dd>
+<dt id="fse.models.utils.compute_principal_components"><code class="name flex">
+<span>def <span class="ident">compute_principal_components</span></span>(<span>vectors: numpy.ndarray, components: int = 1, cache_size_gb: float = 1.0) ‑> Tuple[numpy.ndarray, numpy.ndarray]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Method used to compute the first singular vectors of a given (sub)matrix</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>vectors</code></strong> :&ensp;<code>ndarray</code></dt>
+<dd>(Sentence) vectors to compute the truncated SVD on</dd>
+<dt><strong><code>components</code></strong> :&ensp;<code>int</code>, optional</dt>
+<dd>Number of singular values/vectors to compute</dd>
+<dt><strong><code>cache_size_gb</code></strong> :&ensp;<code>float</code>, optional</dt>
+<dd>Cache size for computing the principal components in GB</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>ndarray, ndarray</code></dt>
+<dd>Singular values and singular vectors</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def compute_principal_components(
+    vectors: ndarray, components: int = 1, cache_size_gb: float = 1.0
+) -&gt; Tuple[ndarray, ndarray]:
+    &#34;&#34;&#34;Method used to compute the first singular vectors of a given (sub)matrix
+
+    Parameters
+    ----------
+    vectors : ndarray
+        (Sentence) vectors to compute the truncated SVD on
+    components : int, optional
+        Number of singular values/vectors to compute
+    cache_size_gb : float, optional
+            Cache size for computing the principal components in GB
+
+    Returns
+    -------
+    ndarray, ndarray
+        Singular values and singular vectors
+    &#34;&#34;&#34;
+    start = time()
+    num_vectors = vectors.shape[0]
+    svd = TruncatedSVD(
+        n_components=components, n_iter=7, random_state=42, algorithm=&#34;randomized&#34;
+    )
+
+    sample_size = int(
+        1024 ** 3 * cache_size_gb / (vectors.shape[1] * dtype(REAL).itemsize)
+    )
+
+    if sample_size &gt; num_vectors:
+        svd.fit(vectors)
+    else:
+        logger.info(f&#34;sampling {sample_size} vectors to compute principal components&#34;)
+        sample_indices = choice(range(num_vectors), replace=False, size=int(1e6))
+        svd.fit(vectors[sample_indices, :])
+
+    elapsed = time()
+    logger.info(
+        f&#34;computing {components} principal components took {int(elapsed-start)}s&#34;
+    )
+    return svd.singular_values_.astype(REAL), svd.components_.astype(REAL)</code></pre>
+</details>
+</dd>
+<dt id="fse.models.utils.remove_principal_components"><code class="name flex">
+<span>def <span class="ident">remove_principal_components</span></span>(<span>vectors: numpy.ndarray, svd_res: Tuple[numpy.ndarray, numpy.ndarray], weights: numpy.ndarray = None, inplace: bool = True) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Method used to remove the first singular vectors of a given matrix</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>vectors</code></strong> :&ensp;<code>ndarray</code></dt>
+<dd>(Sentence) vectors to remove components fromm</dd>
+<dt><strong><code>svd_res</code></strong> :&ensp;<code>(ndarray, ndarray)</code></dt>
+<dd>Tuple consisting of the singular values and components to remove from the vectors</dd>
+<dt><strong><code>weights</code></strong> :&ensp;<code>ndarray</code>, optional</dt>
+<dd>Weights to be used to weigh the components which are removed from the vectors</dd>
+<dt><strong><code>inplace</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>If true, removes the components from the vectors inplace (memory efficient)</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>ndarray, ndarray</code></dt>
+<dd>Singular values and singular vectors</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def remove_principal_components(
+    vectors: ndarray,
+    svd_res: Tuple[ndarray, ndarray],
+    weights: ndarray = None,
+    inplace: bool = True,
+) -&gt; ndarray:
+    &#34;&#34;&#34;Method used to remove the first singular vectors of a given matrix
+
+    Parameters
+    ----------
+    vectors : ndarray
+        (Sentence) vectors to remove components fromm
+    svd_res : (ndarray, ndarray)
+        Tuple consisting of the singular values and components to remove from the vectors
+    weights : ndarray, optional
+        Weights to be used to weigh the components which are removed from the vectors
+    inplace : bool, optional
+        If true, removes the components from the vectors inplace (memory efficient)
+
+    Returns
+    -------
+    ndarray, ndarray
+        Singular values and singular vectors
+    &#34;&#34;&#34;
+    components = svd_res[1].astype(REAL)
+
+    start = time()
+    if weights is None:
+        w_comp = components * ones(len(components), dtype=REAL)[:, None]
+    else:
+        w_comp = components * (weights[:, None].astype(REAL))
+
+    output = None
+    if len(components) == 1:
+        if not inplace:
+            output = vectors - vectors.dot(w_comp.transpose()) * w_comp
+        else:
+            vectors -= vectors.dot(w_comp.transpose()) * w_comp
+    else:
+        if not inplace:
+            output = vectors - vectors.dot(w_comp.transpose()).dot(w_comp)
+        else:
+            vectors -= vectors.dot(w_comp.transpose()).dot(w_comp)
+    elapsed = time()
+
+    logger.info(
+        f&#34;removing {len(components)} principal components took {int(elapsed-start)}s&#34;
+    )
+    if not inplace:
+        return output</code></pre>
+</details>
+</dd>
+<dt id="fse.models.utils.set_madvise_for_mmap"><code class="name flex">
+<span>def <span class="ident">set_madvise_for_mmap</span></span>(<span>return_madvise: bool = False) ‑> object</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Method used to set madvise parameters.
+This problem adresses the memmap issue raised in <a href="https://github.com/numpy/numpy/issues/13172">https://github.com/numpy/numpy/issues/13172</a>
+The issue is not applicable for windows</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>return_madvise</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Returns the madvise object for unittests, se test_utils.py</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>object</code></dt>
+<dd>madvise object</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def set_madvise_for_mmap(return_madvise: bool = False) -&gt; object:
+    &#34;&#34;&#34;Method used to set madvise parameters.
+    This problem adresses the memmap issue raised in https://github.com/numpy/numpy/issues/13172
+    The issue is not applicable for windows
+
+    Parameters
+    ----------
+    return_madvise : bool
+        Returns the madvise object for unittests, se test_utils.py
+
+    Returns
+    -------
+    object
+        madvise object
+
+    &#34;&#34;&#34;
+
+    if platform in [&#34;linux&#34;, &#34;linux2&#34;, &#34;darwin&#34;, &#34;aix&#34;]:
+        if platform == &#34;darwin&#34;:
+            # Path different for Macos
+            madvise = ctypes.CDLL(&#34;libc.dylib&#34;).madvise
+        if platform in [&#34;linux&#34;, &#34;linux2&#34;, &#34;aix&#34;]:
+            madvise = ctypes.CDLL(&#34;libc.so.6&#34;).madvise
+        madvise.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int]
+        madvise.restype = ctypes.c_int
+
+        if return_madvise:
+            return madvise</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="fse.models" href="index.html">fse.models</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="fse.models.utils.choice" href="#fse.models.utils.choice">choice</a></code></li>
+<li><code><a title="fse.models.utils.compute_principal_components" href="#fse.models.utils.compute_principal_components">compute_principal_components</a></code></li>
+<li><code><a title="fse.models.utils.remove_principal_components" href="#fse.models.utils.remove_principal_components">remove_principal_components</a></code></li>
+<li><code><a title="fse.models.utils.set_madvise_for_mmap" href="#fse.models.utils.set_madvise_for_mmap">set_madvise_for_mmap</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

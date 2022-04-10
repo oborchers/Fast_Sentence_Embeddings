@@ -15,7 +15,7 @@ import numpy as np
 
 cimport numpy as np
 
-from gensim.models._utils_any2vec import compute_ngrams_bytes, ft_hash_bytes
+from gensim.models.fasttext import compute_ngrams_bytes, ft_hash_bytes
 
 from libc.string cimport memset
 from libc.stdio cimport printf
@@ -96,7 +96,7 @@ cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory):
 
     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
 
-cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_sentences):
+cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sentences):
     """Prepare C structures for BaseAny2VecModel so we can go "full C" and release the Python GIL.
 
     We create indices over the sentences.  We also perform some calculations for
@@ -106,8 +106,8 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_s
     ----------
     c : BaseSentenceVecsConfig*
         A pointer to the struct that will contain the populated indices.
-    vocab : dict
-        The vocabulary
+    wv : obj
+        The word vector object
     indexed_sentences : iterable of tuple
         The sentences to read
 
@@ -129,10 +129,10 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_s
         if not obj[0]:
             continue
         for token in obj[0]:
-            word = vocab[token] if token in vocab else None # Vocab obj
+            word = token if token in wv.key_to_index else None
             if word is None:
                 continue
-            c.word_indices[eff_words] = <uINT_t>word.index
+            c.word_indices[eff_words] = <uINT_t>wv.key_to_index[token]
             c.sent_adresses[eff_words] = <uINT_t>obj[1]
 
             eff_words += ONE
@@ -146,7 +146,7 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, vocab, indexed_s
 
     return eff_sents, eff_words
 
-cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sentences):
+cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentences):
     """Prepare C structures for FastText so we can go "full C" and release the Python GIL.
 
     We create indices over the sentences.  We also perform some calculations for
@@ -156,8 +156,8 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sente
     ----------
     c : FTSentenceVecsConfig*
         A pointer to the struct that will contain the populated indices.
-    vocab : dict
-        The vocabulary
+    wv : obj
+        The word vector object
     indexed_sentences : iterable of tuples
         The sentences to read
 
@@ -180,10 +180,9 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, vocab, indexed_sente
             continue
         for token in obj[0]:
             c.sent_adresses[eff_words] = <uINT_t>obj[1]
-            if token in vocab:
+            if token in wv.key_to_index:
                 # In Vocabulary
-                word = vocab[token]
-                c.word_indices[eff_words] = <uINT_t>word.index    
+                c.word_indices[eff_words] = <uINT_t>wv.key_to_index[token]
                 c.subwords_idx_len[eff_words] = ZERO
             else:
                 # OOV words --> write ngram indices to memory
@@ -341,14 +340,14 @@ def train_average_cy(model, indexed_sentences, target, memory):
     if not model.is_ft:
         init_base_s2v_config(&w2v, model, target, memory)
 
-        eff_sentences, eff_words = populate_base_s2v_config(&w2v, model.wv.vocab, indexed_sentences)
+        eff_sentences, eff_words = populate_base_s2v_config(&w2v, model.wv, indexed_sentences)
 
         with nogil:
             compute_base_sentence_averages(&w2v, eff_sentences)
     else:        
         init_ft_s2v_config(&ft, model, target, memory)
 
-        eff_sentences, eff_words = populate_ft_s2v_config(&ft, model.wv.vocab, indexed_sentences)
+        eff_sentences, eff_words = populate_ft_s2v_config(&ft, model.wv, indexed_sentences)
 
         with nogil:
             compute_ft_sentence_averages(&ft, eff_sentences) 

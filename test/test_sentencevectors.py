@@ -23,12 +23,13 @@ logger = logging.getLogger(__name__)
 TEST_DATA = Path(__file__).parent / "test_data"
 CORPUS = TEST_DATA / "test_sentences.txt"
 DIM = 5
-W2V = Word2Vec(min_count=1, size=DIM, seed=42)
+W2V = Word2Vec(min_count=1, vector_size=DIM, seed=42)
 with open(CORPUS, "r") as file:
     SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)
-np.random.seed(42)
-W2V.wv.vectors = np.random.uniform(size=W2V.wv.vectors.shape).astype(np.float32)
+
+rng = np.random.default_rng(12345)
+W2V.wv.vectors = rng.uniform(size=W2V.wv.vectors.shape).astype(np.float32)
 
 
 class TestSentenceVectorsFunctions(unittest.TestCase):
@@ -127,13 +128,19 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         m = Average(W2V)
         m.train(sentences)
         o = m.sv.most_similar(positive=0)
-        self.assertEqual(45, o[0][0])
-        self.assertEqual(35, o[1][0])
+        self.assertEqual(50, o[0][0])
+        self.assertEqual(58, o[1][0])
         o = m.sv.most_similar(positive=0, indexable=sentences)
-        self.assertEqual("Looks good and fits snug", o[0][0])
+        self.assertEqual(
+            "A basic phone which does what it is suppose to do , the thing i like most is the distinctive ring",
+            o[0][0],
+        )
 
         o = m.sv.most_similar(positive=0, indexable=sent_ind)
-        self.assertEqual("Looks good and fits snug".split(), o[0][0][0])
+        self.assertEqual(
+            "A basic phone which does what it is suppose to do , the thing i like most is the distinctive ring".split(),
+            o[0][0][0],
+        )
 
     def test_most_similar_vec(self):
         sentences = IndexedLineDocument(CORPUS)
@@ -142,19 +149,19 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         m.sv.init_sims()
         v = m.sv.get_vector(0, use_norm=True)
         o = m.sv.most_similar(positive=v)
-        # Includes 0 obviously
-        self.assertEqual(45, o[1][0])
-        self.assertEqual(35, o[2][0])
+        self.assertEqual(0, o[0][0])
+        self.assertEqual(50, o[1][0])
+        self.assertEqual(58, o[2][0])
 
-    def test_most_similar_vecs(self):
+    def test_most_similar_vectors(self):
         sentences = IndexedLineDocument(CORPUS)
         m = Average(W2V)
         m.train(sentences)
         m.sv.init_sims()
         v = m.sv[[0, 1]]
         o = m.sv.most_similar(positive=v)
-        self.assertEqual(1, o[0][0])
-        self.assertEqual(0, o[1][0])
+        self.assertEqual(10, o[0][0])
+        self.assertEqual(11, o[1][0])
 
     def test_most_similar_wrong_indexable(self):
         def indexable(self):
@@ -190,36 +197,36 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
 
         o = m.sv.most_similar(positive=1, topn=20, restrict_size=(5, 25))
         self.assertEqual(20, len(o))
-        self.assertEqual(9, o[0][0])
+        self.assertEqual(11, o[0][0])
 
         o = m.sv.most_similar(
             positive=1, topn=20, restrict_size=(5, 25), indexable=sentences
         )
         self.assertEqual(20, len(o))
-        self.assertEqual(9, o[0][1])
+        self.assertEqual(11, o[0][1])
 
     def test_similar_by_word(self):
         sentences = IndexedLineDocument(CORPUS)
         m = Average(W2V)
         m.train(sentences)
         o = m.sv.similar_by_word(word="the", wv=m.wv)
-        self.assertEqual(96, o[0][0])
+        self.assertEqual(5, o[0][0])
         o = m.sv.similar_by_word(word="the", wv=m.wv, indexable=sentences)
-        self.assertEqual(96, o[0][1])
+        self.assertEqual(5, o[0][1])
 
     def test_similar_by_vector(self):
         sentences = IndexedLineDocument(CORPUS)
         m = Average(W2V)
         m.train(sentences)
         o = m.sv.similar_by_vector(m.wv["the"])
-        self.assertEqual(96, o[0][0])
+        self.assertEqual(5, o[0][0])
 
     def test_similar_by_sentence(self):
         sentences = IndexedLineDocument(CORPUS)
         m = Average(W2V)
         m.train(sentences)
         o = m.sv.similar_by_sentence(sentence=["the", "product", "is", "good"], model=m)
-        self.assertEqual(4, o[0][0])
+        self.assertEqual(26, o[0][0])
 
     def test_similar_by_sentence_wrong_model(self):
         sentences = IndexedLineDocument(CORPUS)

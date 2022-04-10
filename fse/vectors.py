@@ -9,14 +9,15 @@
 
 from pathlib import Path
 
-from gensim.models.keyedvectors import FastTextKeyedVectors, Word2VecKeyedVectors
+from gensim.models.fasttext import FastTextKeyedVectors
+from gensim.models.keyedvectors import KeyedVectors
 from huggingface_hub import snapshot_download
 from requests import HTTPError
 
 _SUFFIX: str = ".model"
 
 
-class Vectors(Word2VecKeyedVectors):
+class Vectors(KeyedVectors):
     """Class to instantiates vectors from pretrained models."""
 
     @classmethod

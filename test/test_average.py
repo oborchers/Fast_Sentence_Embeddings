@@ -21,8 +21,10 @@ logger = logging.getLogger(__name__)
 
 TEST_DATA = Path(__file__).parent / "test_data"
 CORPUS = TEST_DATA / "test_sentences.txt"
+
+
 DIM = 5
-W2V = Word2Vec(min_count=1, size=DIM)
+W2V = Word2Vec(min_count=1, vector_size=DIM)
 with open(CORPUS, "r") as file:
     SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)
@@ -64,9 +66,9 @@ class TestAverageFunctions(unittest.TestCase):
             self.model, self.sentences, self.model.sv.vectors, mem
         )
         self.assertEqual((4, 7), output)
-        self.assertTrue((183 == self.model.sv[0]).all())
-        self.assertTrue((164.5 == self.model.sv[1]).all())
-        self.assertTrue((self.model.wv.vocab["go"].index == self.model.sv[2]).all())
+        self.assertTrue((179 == self.model.sv[0]).all())
+        self.assertTrue((140.75 == self.model.sv[1]).all())
+        self.assertTrue((self.model.wv.key_to_index["go"] == self.model.sv[2]).all())
 
     def test_average_train_cy_w2v(self):
         self.model.sv.vectors = np.zeros_like(self.model.sv.vectors, dtype=np.float32)
@@ -78,12 +80,12 @@ class TestAverageFunctions(unittest.TestCase):
             self.model, self.sentences, self.model.sv.vectors, mem
         )
         self.assertEqual((4, 7), output)
-        self.assertTrue((183 == self.model.sv[0]).all())
-        self.assertTrue((164.5 == self.model.sv[1]).all())
-        self.assertTrue((self.model.wv.vocab["go"].index == self.model.sv[2]).all())
+        self.assertTrue((179 == self.model.sv[0]).all())
+        self.assertTrue((140.75 == self.model.sv[1]).all())
+        self.assertTrue((self.model.wv.key_to_index["go"] == self.model.sv[2]).all())
 
     def test_average_train_np_ft(self):
-        ft = FastText(min_count=1, size=DIM)
+        ft = FastText(min_count=1, vector_size=DIM)
         ft.build_vocab(SENTENCES)
         m = Average(ft)
         m.prep.prepare_vectors(
@@ -103,7 +105,7 @@ class TestAverageFunctions(unittest.TestCase):
         # (2 + 1) / 2 = 1.5
 
     def test_average_train_cy_ft(self):
-        ft = FastText(min_count=1, size=DIM)
+        ft = FastText(min_count=1, vector_size=DIM)
         ft.build_vocab(SENTENCES)
         m = Average(ft)
         m.prep.prepare_vectors(
@@ -146,7 +148,7 @@ class TestAverageFunctions(unittest.TestCase):
         self.assertTrue((m1.sv.vectors == m2.sv.vectors).all())
 
     def test_cy_equal_np_w2v_random(self):
-        w2v = Word2Vec(min_count=1, size=DIM)
+        w2v = Word2Vec(min_count=1, vector_size=DIM)
         # Random initialization
         w2v.build_vocab(SENTENCES)
 
@@ -172,7 +174,7 @@ class TestAverageFunctions(unittest.TestCase):
         self.assertTrue(np.allclose(m1.sv.vectors, m2.sv.vectors, atol=1e-6))
 
     def test_cy_equal_np_ft_random(self):
-        ft = FastText(size=20, min_count=1)
+        ft = FastText(vector_size=20, min_count=1)
         ft.build_vocab(SENTENCES)
 
         m1 = Average(ft)
