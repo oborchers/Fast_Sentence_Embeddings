@@ -196,38 +196,38 @@ Results
 Model | Vectors | params | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Results)
 :---: | :---: | :---: | :---:
 `CBOW` | `paranmt-300` |  | 79.82
-`uSIF` | `paranmt-300` | length=11 | 79.02
-`SIF-10` | `paranmt-300` | components=10 | 76.76
-`SIF-10` | `paragram-300-sl999` | components=10 | 74.27
-`SIF-10` | `paragram-300-ws353` | components=10 | 74.08
-`SIF-10` | `fasttext-crawl-subwords-300` | components=10 | 73.54
-`uSIF` | `paragram-300-sl999` | length=11 | 73.09
-`SIF-10` | `fasttext-wiki-news-subwords-300` | components=10 | 72.24
-`uSIF` | `paragram-300-ws353` | length=11 | 71.90
-`SIF-10` | `glove-twitter-200` | components=10 | 71.67
-`SIF-10` | `glove-wiki-gigaword-300` | components=10 | 71.43
-`SIF-10` | `word2vec-google-news-300` | components=10 | 71.17
-`SIF-10` | `glove-wiki-gigaword-200` | components=10 | 70.73
-`SIF-10` | `glove-twitter-100` | components=10 | 69.70
-`uSIF` | `fasttext-crawl-subwords-300` | length=11 | 69.55
-`uSIF` | `fasttext-wiki-news-subwords-300` | length=11 | 69.05
-`SIF-10` | `glove-wiki-gigaword-100` | components=10 | 68.43
-`uSIF` | `glove-wiki-gigaword-300` | length=11 | 67.73
-`uSIF` | `glove-wiki-gigaword-200` | length=11 | 67.26
-`uSIF` | `word2vec-google-news-300` | length=11 | 67.15
-`uSIF` | `glove-twitter-200` | length=11 | 66.73
-`SIF-10` | `glove-twitter-50` | components=10 | 65.57
-`uSIF` | `glove-wiki-gigaword-100` | length=11 | 65.48
-`uSIF` | `paragram-25` | length=11 | 64.31
-`uSIF` | `glove-twitter-100` | length=11 | 64.22
-`SIF-10` | `glove-wiki-gigaword-50` | components=10 | 64.20
-`uSIF` | `glove-wiki-gigaword-50` | length=11 | 62.22
+`uSIF` | `paranmt-300` | length=11 | 79.00
+`SIF-10` | `paranmt-300` | components=10 | 76.72
+`SIF-10` | `paragram-300-sl999` | components=10 | 74.21
+`SIF-10` | `paragram-300-ws353` | components=10 | 74.03
+`SIF-10` | `fasttext-crawl-subwords-300` | components=10 | 73.38
+`uSIF` | `paragram-300-sl999` | length=11 | 73.04
+`SIF-10` | `fasttext-wiki-news-subwords-300` | components=10 | 72.29
+`uSIF` | `paragram-300-ws353` | length=11 | 71.84
+`SIF-10` | `glove-twitter-200` | components=10 | 71.62
+`SIF-10` | `glove-wiki-gigaword-300` | components=10 | 71.35
+`SIF-10` | `word2vec-google-news-300` | components=10 | 71.12
+`SIF-10` | `glove-wiki-gigaword-200` | components=10 | 70.62
+`SIF-10` | `glove-twitter-100` | components=10 | 69.65
+`uSIF` | `fasttext-crawl-subwords-300` | length=11 | 69.40
+`uSIF` | `fasttext-wiki-news-subwords-300` | length=11 | 68.63
+`SIF-10` | `glove-wiki-gigaword-100` | components=10 | 68.34
+`uSIF` | `glove-wiki-gigaword-300` | length=11 | 67.60
+`uSIF` | `glove-wiki-gigaword-200` | length=11 | 67.11
+`uSIF` | `word2vec-google-news-300` | length=11 | 66.99
+`uSIF` | `glove-twitter-200` | length=11 | 66.67
+`SIF-10` | `glove-twitter-50` | components=10 | 65.52
+`uSIF` | `glove-wiki-gigaword-100` | length=11 | 65.33
+`uSIF` | `paragram-25` | length=11 | 64.22
+`uSIF` | `glove-twitter-100` | length=11 | 64.13
+`SIF-10` | `glove-wiki-gigaword-50` | components=10 | 64.11
+`uSIF` | `glove-wiki-gigaword-50` | length=11 | 62.06
 `CBOW` | `word2vec-google-news-300` |  | 61.54
-`uSIF` | `glove-twitter-50` | length=11 | 60.50
-`SIF-10` | `paragram-25` | components=10 | 59.22
-`uSIF` | `glove-twitter-25` | length=11 | 55.17
+`uSIF` | `glove-twitter-50` | length=11 | 60.41
+`SIF-10` | `paragram-25` | components=10 | 59.07
+`uSIF` | `glove-twitter-25` | length=11 | 55.06
 `CBOW` | `paragram-300-ws353` |  | 54.72
-`SIF-10` | `glove-twitter-25` | components=10 | 54.42
+`SIF-10` | `glove-twitter-25` | components=10 | 54.16
 `CBOW` | `paragram-300-sl999` |  | 51.46
 `CBOW` | `fasttext-crawl-subwords-300` |  | 48.49
 `CBOW` | `glove-wiki-gigaword-300` |  | 44.46

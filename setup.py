@@ -25,7 +25,7 @@ URL = "https://github.com/oborchers/Fast_Sentence_Embeddings"
 LICENSE = "GPL-3.0"
 REQUIRES_PYTHON = ">=3.6"
 NUMPY_STR = "numpy >= 1.11.3"
-CYTHON_STR = "Cython==0.29.14"
+CYTHON_STR = "Cython==0.29.23"
 
 INSTALL_REQUIRES = [
     NUMPY_STR,
