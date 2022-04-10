@@ -66,8 +66,8 @@ class TestAverageFunctions(unittest.TestCase):
             self.model, self.sentences, self.model.sv.vectors, mem
         )
         self.assertEqual((4, 7), output)
-        self.assertTrue((183 == self.model.sv[0]).all())
-        self.assertTrue((164.5 == self.model.sv[1]).all())
+        self.assertTrue((179 == self.model.sv[0]).all())
+        self.assertTrue((140.75 == self.model.sv[1]).all())
         self.assertTrue((self.model.wv.key_to_index["go"] == self.model.sv[2]).all())
 
     def test_average_train_cy_w2v(self):
@@ -80,8 +80,8 @@ class TestAverageFunctions(unittest.TestCase):
             self.model, self.sentences, self.model.sv.vectors, mem
         )
         self.assertEqual((4, 7), output)
-        self.assertTrue((183 == self.model.sv[0]).all())
-        self.assertTrue((164.5 == self.model.sv[1]).all())
+        self.assertTrue((179 == self.model.sv[0]).all())
+        self.assertTrue((140.75 == self.model.sv[1]).all())
         self.assertTrue((self.model.wv.key_to_index["go"] == self.model.sv[2]).all())
 
     def test_average_train_np_ft(self):

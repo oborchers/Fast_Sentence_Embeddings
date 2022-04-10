@@ -2430,7 +2430,7 @@ static PyObject *__pyx_f_3fse_6models_13average_inner_populate_base_s2v_config(s
  *         if not obj[0]:
  *             continue             # <<<<<<<<<<<<<<
  *         for token in obj[0]:
- *             word = token if token in wv.key_to_index else None # Vocab obj
+ *             word = token if token in wv.key_to_index else None
  */
       goto __pyx_L3_continue;
 
@@ -2447,7 +2447,7 @@ static PyObject *__pyx_f_3fse_6models_13average_inner_populate_base_s2v_config(s
  *         if not obj[0]:
  *             continue
  *         for token in obj[0]:             # <<<<<<<<<<<<<<
- *             word = token if token in wv.key_to_index else None # Vocab obj
+ *             word = token if token in wv.key_to_index else None
  *             if word is None:
  */
     __pyx_t_4 = __Pyx_GetItemInt(__pyx_v_obj, 0, long, 1, __Pyx_PyInt_From_long, 0, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 131, __pyx_L1_error)
@@ -2498,7 +2498,7 @@ static PyObject *__pyx_f_3fse_6models_13average_inner_populate_base_s2v_config(s
       /* "fse/models/average_inner.pyx":132
  *             continue
  *         for token in obj[0]:
- *             word = token if token in wv.key_to_index else None # Vocab obj             # <<<<<<<<<<<<<<
+ *             word = token if token in wv.key_to_index else None             # <<<<<<<<<<<<<<
  *             if word is None:
  *                 continue
  */
@@ -2518,7 +2518,7 @@ static PyObject *__pyx_f_3fse_6models_13average_inner_populate_base_s2v_config(s
 
       /* "fse/models/average_inner.pyx":133
  *         for token in obj[0]:
- *             word = token if token in wv.key_to_index else None # Vocab obj
+ *             word = token if token in wv.key_to_index else None
  *             if word is None:             # <<<<<<<<<<<<<<
  *                 continue
  *             c.word_indices[eff_words] = <uINT_t>wv.key_to_index[token]
@@ -2528,7 +2528,7 @@ static PyObject *__pyx_f_3fse_6models_13average_inner_populate_base_s2v_config(s
       if (__pyx_t_5) {
 
         /* "fse/models/average_inner.pyx":134
- *             word = token if token in wv.key_to_index else None # Vocab obj
+ *             word = token if token in wv.key_to_index else None
  *             if word is None:
  *                 continue             # <<<<<<<<<<<<<<
  *             c.word_indices[eff_words] = <uINT_t>wv.key_to_index[token]
@@ -2538,7 +2538,7 @@ static PyObject *__pyx_f_3fse_6models_13average_inner_populate_base_s2v_config(s
 
         /* "fse/models/average_inner.pyx":133
  *         for token in obj[0]:
- *             word = token if token in wv.key_to_index else None # Vocab obj
+ *             word = token if token in wv.key_to_index else None
  *             if word is None:             # <<<<<<<<<<<<<<
  *                 continue
  *             c.word_indices[eff_words] = <uINT_t>wv.key_to_index[token]
@@ -2615,7 +2615,7 @@ static PyObject *__pyx_f_3fse_6models_13average_inner_populate_base_s2v_config(s
  *         if not obj[0]:
  *             continue
  *         for token in obj[0]:             # <<<<<<<<<<<<<<
- *             word = token if token in wv.key_to_index else None # Vocab obj
+ *             word = token if token in wv.key_to_index else None
  *             if word is None:
  */
       __pyx_L6_continue:;
