@@ -56,7 +56,6 @@ from numpy import (
     ones,
     finfo,
     full,
-    linalg,
 )
 
 from wordfreq import available_languages, get_frequency_dict
@@ -578,9 +577,6 @@ class BaseSentence2VecModel(SaveLoad):
         # Manually removes vectors from the wv class because we cannot modify the save method
         if self.wv_mapfile_path is not None:
             self.wv.vectors = None
-            if self.is_ft:
-                self.wv.vectors_vocab = None
-                self.wv.vectors_ngrams = None
         super(BaseSentence2VecModel, self).save(*args, **kwargs)
 
     def scan_sentences(
