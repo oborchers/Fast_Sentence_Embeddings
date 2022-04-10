@@ -5,4 +5,4 @@ black .
 
 pytest -v --cov=fse --cov-report=term-missing
 
-pdoc --html --output-dir docs --force fse
+handsdown
