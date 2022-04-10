@@ -245,7 +245,9 @@ Changelog
 -------------
 
 1.0.0:
-- Added compatibility for gensim>=4
+- Added support for gensim>=4. This library is no longer compatible with gensim<4. For migration, see the [README](https://github.com/RaRe-Technologies/gensim/wiki/Migrating-from-Gensim-3.x-to-4).
+- `size` argument is now `vector_size`
+- Added docs
 
 0.2.0:
 - Added `Vectors` and `FTVectors` class and hub support by `from_pretrained`

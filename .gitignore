@@ -71,7 +71,6 @@ fse*.egg-info
 *.old
 *.model
 *_out.txt
-*.html
 vectors
 *.vectors
 *.joblib

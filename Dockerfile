@@ -1,7 +1,5 @@
 FROM python:3.6.0
 
-ARG gensim==3.8.3
-
 RUN pip install -U pip 
 
 RUN pip install scipy \
@@ -11,6 +9,7 @@ RUN pip install scipy \
     huggingface-hub \
     psutil
 
+ARG gensim==4.0.0
 RUN pip install -U "gensim==$gensim" pytest coverage
 
 ADD . /home
