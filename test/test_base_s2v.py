@@ -161,7 +161,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
     def test_str_rep(self):
         output = str(BaseSentence2VecModel(W2V))
         self.assertEqual(
-            "BaseSentence2VecModel based on Word2VecKeyedVectors, vector_size=0", output
+            "BaseSentence2VecModel based on KeyedVectors, vector_size=0", output
         )
 
     def test_scan_w_ituple(self):

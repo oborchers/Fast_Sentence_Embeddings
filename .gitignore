@@ -75,3 +75,5 @@ fse*.egg-info
 vectors
 *.vectors
 *.joblib
+
+test_emb*
