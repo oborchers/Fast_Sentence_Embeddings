@@ -4,5 +4,3 @@ isort --atomic **/*.py
 black .
 
 pytest -v --cov=fse --cov-report=term-missing
-
-handsdown
