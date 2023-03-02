@@ -118,6 +118,11 @@ class CustomBuildExt(build_ext):
         # Prevent numpy from thinking it is still in its setup process:
         # https://docs.python.org/2/library/__builtin__.html#module-__builtin__
 
+        try:
+            __builtins__.__NUMPY_SETUP__ = False
+        except AttributeError:
+            pass
+
         import numpy
 
         self.include_dirs.append(numpy.get_include())
