@@ -18,7 +18,7 @@ Maintenance mode
 
 **fse is no longer actively developed.** It stays available and installable, and it receives compatibility fixes when time allows, but no new features.
 
-- Version 1.1.0 is tested on Python 3.10 to 3.13 with current numpy, scipy, scikit-learn, gensim and huggingface-hub releases.
+- Version 1.1.0 is tested on Python 3.11 to 3.13 with current numpy, scipy, scikit-learn, gensim and huggingface-hub releases.
 - Python 3.14 and newer are not supported yet, because gensim does not build there (see [gensim#3640](https://github.com/piskvorky/gensim/issues/3640)).
 - Bug reports about compatibility are welcome. Feature requests will be closed.
 
@@ -100,7 +100,7 @@ Visit **Tutorial.ipynb** for an example.
 Installation
 ------------
 
-Pre-built wheels are available for Linux (x86_64, aarch64), macOS (arm64, x86_64) and Windows (x86_64) on Python 3.10 to 3.13:
+Pre-built wheels are available for Linux (x86_64, aarch64), macOS (arm64, x86_64) and Windows (x86_64) on Python 3.11 to 3.13:
 
     pip install -U fse
 
@@ -278,7 +278,7 @@ Development
 The project uses [uv](https://docs.astral.sh/uv/) and a Makefile:
 
     make install   # create the environment and build the extension
-    make check     # format check, lint and tests
+    make check     # format check, lint, type check and tests
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details and [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 

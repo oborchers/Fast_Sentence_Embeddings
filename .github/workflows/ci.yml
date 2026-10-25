@@ -38,6 +38,7 @@ jobs:
       - run: uv sync $UV_SYNC_FLAGS --group lint
       - run: make format-check
       - run: make lint
+      - run: make typecheck
 
   test:
     runs-on: ${{ matrix.os }}
@@ -45,12 +46,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13"]
         deps: ["latest"]
         include:
           # Lowest supported versions, matching the bounds in pyproject.toml.
           - os: ubuntu-latest
-            python-version: "3.10"
+            python-version: "3.11"
             deps: "min"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1

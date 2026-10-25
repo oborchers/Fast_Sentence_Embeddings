@@ -9,7 +9,7 @@ description = "Fast Sentence Embeddings for Gensim"
 readme = "README.md"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{ name = "Oliver Borchers" }]
 keywords = [
     "sentence-embeddings",
@@ -28,7 +28,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Cython",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -59,7 +58,8 @@ Changelog = "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/C
 where = ["src"]
 
 [tool.setuptools.package-data]
-"fse.models" = ["*.pyx", "*.pxd", "*.h"]
+"fse" = ["py.typed"]
+"fse.models" = ["*.pyx", "*.pxd", "*.h", "*.pyi"]
 
 [tool.setuptools_scm]
 version_file = "src/fse/_version.py"
@@ -69,9 +69,11 @@ version_file = "src/fse/_version.py"
 [dependency-groups]
 dev = [
     "pre-commit>=3.0.0",
+    "cibuildwheel>=3.0.0",
 ]
 lint = [
     "ruff>=0.17.2",
+    "mypy>=1.18.0",
 ]
 test = [
     "pytest>=8.0.0",
@@ -96,23 +98,42 @@ cache-keys = [
 # --- Ruff ---
 
 [tool.ruff]
-line-length = 88
-target-version = "py310"
+line-length = 100
+target-version = "py311"
 src = ["src"]
 extend-exclude = ["_version.py", "notebooks"]
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/**" = ["E741"]
+select = ["E", "F", "UP", "B", "SIM", "I", "PLC", "RUF", "PT", "N"]
+# N812: numpy dtypes are imported under the conventional uppercase aliases REAL and uINT.
+ignore = ["E501", "N812"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["fse"]
 
+[tool.ruff.lint.per-file-ignores]
+# uSIF is a public class name; renaming it would break the API and saved models.
+"src/fse/models/usif.py" = ["N801"]
+"tests/**" = ["PLC0415", "E741"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+docstring-code-format = true
+
+# --- mypy ---
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/fse"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+
+# These dependencies ship no type information.
+[[tool.mypy.overrides]]
+module = ["gensim.*", "sklearn.*", "wordfreq.*", "smart_open.*", "psutil.*", "scipy.*"]
+ignore_missing_imports = true
 
 # --- pytest ---
 
@@ -123,7 +144,6 @@ addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 xfail_strict = true
 markers = [
     "network: needs access to the Hugging Face Hub",
-    "memmap: deletes memory-mapped files while open, skipped on Windows",
 ]
 filterwarnings = [
     "error",
@@ -137,6 +157,7 @@ filterwarnings = [
 source = ["fse"]
 branch = true
 parallel = true
+omit = ["*/_version.py"]
 
 [tool.coverage.paths]
 source = ["src/fse", "*/src/fse"]
@@ -147,11 +168,18 @@ precision = 2
 fail_under = 90
 show_missing = true
 skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "@overload",
+    "\\.\\.\\.$",
+]
 
 # --- cibuildwheel ---
 
 [tool.cibuildwheel]
-build = "cp310-* cp311-* cp312-* cp313-*"
+build = "cp311-* cp312-* cp313-*"
 skip = "*-musllinux_* *-win32 *_i686"
 build-frontend = "build[uv]"
 test-groups = ["test"]

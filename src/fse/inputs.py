@@ -3,8 +3,9 @@
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
 
-from collections.abc import MutableSequence
+from collections.abc import Callable, MutableSequence
 from pathlib import Path
+from typing import Any
 
 from gensim.utils import any2unicode
 from numpy import concatenate, ndarray
@@ -12,7 +13,7 @@ from smart_open import open
 
 
 class BaseIndexedList(MutableSequence):
-    def __init__(self, *args: list[list | set | ndarray]):
+    def __init__(self, *args: list | set | ndarray):
         """Base object to be used for feeding in-memory stored lists of sentences to the
         training routine.
 
@@ -22,7 +23,7 @@ class BaseIndexedList(MutableSequence):
             Arguments to be merged into a single contianer. Can be single or multiple list/set/ndarray objects.
         """
 
-        self.items = list()
+        self.items: Any = list()
 
         if len(args) == 1:
             self._check_list_type(args[0])
@@ -67,7 +68,7 @@ class BaseIndexedList(MutableSequence):
         """
         return str(self.items)
 
-    def __getitem__(self, i: int) -> tuple:
+    def __getitem__(self, i: int) -> tuple:  # type: ignore[override]
         """Getitem method.
 
         Returns
@@ -77,11 +78,11 @@ class BaseIndexedList(MutableSequence):
         """
         raise NotImplementedError()
 
-    def __delitem__(self, i: int):
+    def __delitem__(self, i: int):  # type: ignore[override]
         """Delete an item."""
         del self.items[i]
 
-    def __setitem__(self, i: int, item: str):
+    def __setitem__(self, i: int, item: str):  # type: ignore[override]
         """Sets an item."""
         self._check_str_type(item)
         self.items[i] = item
@@ -96,7 +97,7 @@ class BaseIndexedList(MutableSequence):
         self._check_str_type(item)
         self.insert(len(self.items), item)
 
-    def extend(self, arg: list | set | ndarray):
+    def extend(self, arg: list | set | ndarray):  # type: ignore[override]
         """Extens list."""
         self._check_list_type(arg)
 
@@ -118,7 +119,7 @@ class IndexedList(BaseIndexedList):
         """
         super().__init__(*args)
 
-    def __getitem__(self, i: int) -> tuple:
+    def __getitem__(self, i: int) -> tuple:  # type: ignore[override]
         """Getitem method.
 
         Returns
@@ -150,7 +151,7 @@ class CIndexedList(BaseIndexedList):
                 f"Size of custom_index {len(custom_index)} does not match items {len(self.items)}"
             )
 
-    def __getitem__(self, i: int) -> tuple:
+    def __getitem__(self, i: int) -> tuple:  # type: ignore[override]
         """Getitem method.
 
         Returns
@@ -160,10 +161,10 @@ class CIndexedList(BaseIndexedList):
         """
         return (self.items.__getitem__(i), self.custom_index[i])
 
-    def __delitem__(self, i: int):
+    def __delitem__(self, i: int):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
 
-    def __setitem__(self, i: int, item: str):
+    def __setitem__(self, i: int, item: str):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
 
     def insert(self, i: int, item: str):
@@ -172,7 +173,7 @@ class CIndexedList(BaseIndexedList):
     def append(self, item: str):
         raise NotImplementedError("Method currently not supported")
 
-    def extend(self, arg: list | set | ndarray):
+    def extend(self, arg: list | set | ndarray):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
 
 
@@ -188,7 +189,7 @@ class SplitIndexedList(BaseIndexedList):
         """
         super().__init__(*args)
 
-    def __getitem__(self, i: int) -> tuple:
+    def __getitem__(self, i: int) -> tuple:  # type: ignore[override]
         """Getitem method.
 
         Returns
@@ -220,7 +221,7 @@ class SplitCIndexedList(BaseIndexedList):
                 f"Size of custom_index {len(custom_index)} does not match items {len(self.items)}"
             )
 
-    def __getitem__(self, i: int) -> tuple:
+    def __getitem__(self, i: int) -> tuple:  # type: ignore[override]
         """Getitem method.
 
         Returns
@@ -230,10 +231,10 @@ class SplitCIndexedList(BaseIndexedList):
         """
         return (self.items.__getitem__(i).split(), self.custom_index[i])
 
-    def __delitem__(self, i: int):
+    def __delitem__(self, i: int):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
 
-    def __setitem__(self, i: int, item: str):
+    def __setitem__(self, i: int, item: str):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
 
     def insert(self, i: int, item: str):
@@ -242,12 +243,12 @@ class SplitCIndexedList(BaseIndexedList):
     def append(self, item: str):
         raise NotImplementedError("Method currently not supported")
 
-    def extend(self, arg: list | set | ndarray):
+    def extend(self, arg: list | set | ndarray):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
 
 
 class CSplitIndexedList(BaseIndexedList):
-    def __init__(self, *args: list | set | ndarray, custom_split: callable):
+    def __init__(self, *args: list | set | ndarray, custom_split: Callable[[str], list[str]]):
         """Quasi-list with custom string splitting to be used for feeding in-memory
         stored lists of sentences to the training routine.
 
@@ -261,7 +262,7 @@ class CSplitIndexedList(BaseIndexedList):
         self.custom_split = custom_split
         super().__init__(*args)
 
-    def __getitem__(self, i: int) -> tuple:
+    def __getitem__(self, i: int) -> tuple:  # type: ignore[override]
         """Getitem method.
 
         Returns
@@ -276,7 +277,7 @@ class CSplitCIndexedList(BaseIndexedList):
     def __init__(
         self,
         *args: list | set | ndarray,
-        custom_split: callable,
+        custom_split: Callable[[str], list[str]],
         custom_index: list | ndarray,
     ):
         """Quasi-list with custom indices and ustom string splitting to be used for
@@ -301,7 +302,7 @@ class CSplitCIndexedList(BaseIndexedList):
                 f"Size of custom_index {len(custom_index)} does not match items {len(self.items)}"
             )
 
-    def __getitem__(self, i: int) -> tuple:
+    def __getitem__(self, i: int) -> tuple:  # type: ignore[override]
         """Getitem method.
 
         Returns
@@ -311,10 +312,10 @@ class CSplitCIndexedList(BaseIndexedList):
         """
         return (self.custom_split(self.items.__getitem__(i)), self.custom_index[i])
 
-    def __delitem__(self, i: int):
+    def __delitem__(self, i: int):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
 
-    def __setitem__(self, i: int, item: str):
+    def __setitem__(self, i: int, item: str):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
 
     def insert(self, i: int, item: str):
@@ -323,7 +324,7 @@ class CSplitCIndexedList(BaseIndexedList):
     def append(self, item: str):
         raise NotImplementedError("Method currently not supported")
 
-    def extend(self, arg: list | set | ndarray):
+    def extend(self, arg: list | set | ndarray):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
 
 
@@ -375,9 +376,7 @@ class IndexedLineDocument:
             line at the current index
         """
         if not self.get_able:
-            raise RuntimeError(
-                "To index the lines, you must contruct with get_able=True"
-            )
+            raise RuntimeError("To index the lines, you must contruct with get_able=True")
 
         with open(self.path, "rb") as f:
             f.seek(self.line_offset[i])

@@ -6,6 +6,7 @@
 
 import logging
 from pathlib import Path
+from typing import Any, cast
 
 from gensim import matutils, utils
 from gensim.models.keyedvectors import KeyedVectors
@@ -33,7 +34,10 @@ logger = logging.getLogger(__name__)
 
 
 class SentenceVectors(utils.SaveLoad):
-    def __init__(self, vector_size: int, mapfile_path: str = None):
+    vectors_norm: ndarray | None
+    mapfile_shape: tuple[int, int] | None
+
+    def __init__(self, vector_size: int, mapfile_path: str | None = None):
 
         set_madvise_for_mmap()
 
@@ -89,9 +93,7 @@ class SentenceVectors(utils.SaveLoad):
     def _load_all_vectors_from_disk(self, mapfile_path: Path):
         """Reads all vectors from disk"""
         path = str(mapfile_path.absolute())
-        self.vectors = np_memmap(
-            f"{path}.vectors", dtype=REAL, mode="r+", shape=self.mapfile_shape
-        )
+        self.vectors = np_memmap(f"{path}.vectors", dtype=REAL, mode="r+", shape=self.mapfile_shape)
 
     def save(self, *args, **kwargs):
         """Save object.
@@ -147,10 +149,7 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         if index in self:
-            if use_norm:
-                result = self.vectors_norm[index]
-            else:
-                result = self.vectors[index]
+            result = cast(ndarray, self.vectors_norm)[index] if use_norm else self.vectors[index]
 
             result.setflags(write=False)
             return result
@@ -168,8 +167,8 @@ class SentenceVectors(utils.SaveLoad):
         if getattr(self, "vectors_norm", None) is None or replace:
             logger.info("precomputing L2-norms of sentence vectors")
             if not replace and self.mapfile_path is not None:
-                self.vectors_norm = np_memmap(
-                    self.mapfile_path + ".vectors_norm",
+                self.vectors_norm = np_memmap(  # type: ignore[call-overload]
+                    self.mapfile_path + ".vectors_norm",  # type: ignore[operator]
                     dtype=REAL,
                     mode="w+",
                     shape=self.vectors.shape,
@@ -214,12 +213,12 @@ class SentenceVectors(utils.SaveLoad):
 
     def most_similar(
         self,
-        positive: int | ndarray = None,
-        negative: int | ndarray = None,
-        indexable: IndexedList | IndexedLineDocument = None,
+        positive: Any = None,
+        negative: Any = None,
+        indexable: IndexedList | IndexedLineDocument | None = None,
         topn: int = 10,
-        restrict_size: int | tuple[int, int] = None,
-    ) -> list[tuple[int, float]]:
+        restrict_size: int | tuple[int, int] | None = None,
+    ) -> list[tuple[Any, ...]]:
         """Find the top-N most similar sentences.
         Positive sentences contribute positively towards the similarity, negative sentences negatively.
 
@@ -264,17 +263,14 @@ class SentenceVectors(utils.SaveLoad):
 
         if isinstance(positive, (int, integer)) and not negative:
             positive = [positive]
-        if isinstance(positive, (ndarray)) and not negative:
-            if len(positive.shape) == 1:
-                positive = [positive]
+        if isinstance(positive, (ndarray)) and not negative and len(positive.shape) == 1:
+            positive = [positive]
 
         positive = [
-            (sent, 1.0) if isinstance(sent, (int, integer, ndarray)) else sent
-            for sent in positive
+            (sent, 1.0) if isinstance(sent, (int, integer, ndarray)) else sent for sent in positive
         ]
         negative = [
-            (sent, -1.0) if isinstance(sent, (int, integer, ndarray)) else sent
-            for sent in negative
+            (sent, -1.0) if isinstance(sent, (int, integer, ndarray)) else sent for sent in negative
         ]
 
         all_sents, mean = set(), []
@@ -296,15 +292,15 @@ class SentenceVectors(utils.SaveLoad):
         else:
             lo, hi = 0, None
 
-        limited = (
-            self.vectors_norm if restrict_size is None else self.vectors_norm[lo:hi]
-        )
+        vectors_norm = cast(ndarray, self.vectors_norm)
+        limited = vectors_norm if restrict_size is None else vectors_norm[lo:hi]
         dists = dot(limited, mean)
         if not topn:
             return dists
         best = matutils.argsort(dists, topn=topn + len(all_sents), reverse=True)
         best_off = best + lo
 
+        result: list[tuple[Any, ...]]
         if indexable is not None:
             result = [
                 (indexable[off_idx], off_idx, float(dists[idx]))
@@ -323,10 +319,10 @@ class SentenceVectors(utils.SaveLoad):
         self,
         word: str,
         wv: KeyedVectors,
-        indexable: IndexedList | IndexedLineDocument = None,
+        indexable: IndexedList | IndexedLineDocument | None = None,
         topn: int = 10,
-        restrict_size: int | tuple[int, int] = None,
-    ) -> list[tuple[int, float]]:
+        restrict_size: int | tuple[int, int] | None = None,
+    ) -> list[tuple[Any, ...]]:
         """Find the top-N most similar sentences to a given word.
 
         Parameters
@@ -367,10 +363,10 @@ class SentenceVectors(utils.SaveLoad):
         self,
         sentence: list[str],
         model,
-        indexable: IndexedList | IndexedLineDocument = None,
+        indexable: IndexedList | IndexedLineDocument | None = None,
         topn: int = 10,
-        restrict_size: int | tuple[int, int] = None,
-    ) -> list[tuple[int, float]]:
+        restrict_size: int | tuple[int, int] | None = None,
+    ) -> list[tuple[Any, ...]]:
         """Find the top-N most similar sentences to a given sentence.
 
         Parameters
@@ -414,10 +410,10 @@ class SentenceVectors(utils.SaveLoad):
     def similar_by_vector(
         self,
         vector: ndarray,
-        indexable: IndexedList | IndexedLineDocument = None,
+        indexable: IndexedList | IndexedLineDocument | None = None,
         topn: int = 10,
-        restrict_size: int | tuple[int, int] = None,
-    ) -> list[tuple[int, float]]:
+        restrict_size: int | tuple[int, int] | None = None,
+    ) -> list[tuple[Any, ...]]:
         """Find the top-N most similar sentences to a given vector.
 
         Parameters

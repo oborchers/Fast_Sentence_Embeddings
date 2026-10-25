@@ -9,7 +9,7 @@ if int(gensim.__version__.split(".")[0]) < 4:
         "Upgrade gensim with: pip install -U 'gensim>=4'"
     )
 
-from fse.inputs import (  # noqa: E402
+from fse.inputs import (
     BaseIndexedList,
     CIndexedList,
     CSplitCIndexedList,
@@ -19,8 +19,8 @@ from fse.inputs import (  # noqa: E402
     SplitCIndexedList,
     SplitIndexedList,
 )
-from fse.models import SIF, Average, SentenceVectors, uSIF  # noqa: E402
-from fse.vectors import FTVectors, Vectors  # noqa: E402
+from fse.models import SIF, Average, SentenceVectors, uSIF
+from fse.vectors import FTVectors, Vectors
 
 try:
     __version__ = version("fse")
