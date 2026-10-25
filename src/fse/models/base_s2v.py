@@ -364,9 +364,7 @@ class BaseSentence2VecModel(SaveLoad):
         if eff_sentences == 0 or eff_words == 0:
             raise ValueError("training returned invalid values. Check the input.")
 
-    def _check_indexed_sent_valid(
-        self, iter_pos: int, obj: tuple, checked: int = False
-    ) -> tuple[int, list[str]]:
+    def _check_indexed_sent_valid(self, iter_pos: int, obj: tuple) -> tuple[int, list[str]]:
         """Performs a check if the passed object contains valid data
 
         Parameters
@@ -391,11 +389,7 @@ class BaseSentence2VecModel(SaveLoad):
         else:
             raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain tuple.")
 
-        # The cheap checks run on every item; only the per-word type check is limited to
-        # the first item to keep the scan fast.
-        if not isinstance(sent, list) or (
-            not checked and not all(isinstance(w, str) for w in sent)
-        ):
+        if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
             raise TypeError(
                 f"At {iter_pos}: Passed {type(sent)}: {sent}. tuple.words must contain list of str."
             )
@@ -634,8 +628,7 @@ class BaseSentence2VecModel(SaveLoad):
         seen: set[int] = set()
 
         for i, obj in enumerate(sentences):
-            # Only the first item is fully type checked to keep the scan fast.
-            index, sent = self._check_indexed_sent_valid(iter_pos=i, obj=obj, checked=i)
+            index, sent = self._check_indexed_sent_valid(iter_pos=i, obj=obj)
             if time() - current_time > progress_per:
                 current_time = time()
                 logger.info(

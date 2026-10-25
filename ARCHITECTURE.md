@@ -52,6 +52,10 @@ Several sentences may share one index. Each sentence average is added into the r
 
 Subclasses override `_check_parameter_sanity`, `_pre_train_calls`, `_post_train_calls`, `_post_inference_calls` and `_check_dtype_santiy`, all of which accept `**kwargs`. Tests replace `_do_train_job` on instances, so the job path must keep calling it.
 
+### Validate strictly, never fail silently
+
+Invalid input raises a clear exception at the API boundary. Nothing is coerced, ignored or truncated without an error, and an unexpected keyword argument is a `TypeError`. A slower but correct fallback, such as training with one worker, is logged as a warning.
+
 ### float32 throughout
 
 Word vectors, weights and sentence vectors are `float32` (`REAL`). The kernel takes raw pointers, so arrays must be `float32` and C-contiguous.

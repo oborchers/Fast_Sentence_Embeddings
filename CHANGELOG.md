@@ -15,7 +15,9 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 
 ### Changed
 
-- Unknown keyword arguments to `Average` emit a `UserWarning` instead of being silently ignored. `SIF` and `uSIF` already rejected them with a `TypeError`.
+- Unknown keyword arguments to `Average` raise a `TypeError` instead of being silently ignored, as they already did for `SIF` and `uSIF`.
+- The input classes reject sets with a `TypeError`. A set has no order, so the sentence indices would be arbitrary; pass `sorted(...)` instead.
+- Every sentence is checked to be a list of `str`, not only the first one.
 - `set_madvise_for_mmap` is no longer called on every model construction and load; it never applied any advice.
 - Requires Python 3.11 or newer. Python 3.10 reached its end of life in October 2026; installations on 3.10 and older keep fse 1.0.0. Python 3.14 is not supported yet, because gensim does not build there.
 - Minimum versions: numpy 1.26.4, scipy 1.11.4, scikit-learn 1.3.2, gensim 4.3.3, smart_open 6.4.0, wordfreq 3.1.0, huggingface-hub 0.23.0, psutil 5.9.0.
@@ -38,7 +40,6 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 - SIF and uSIF with `components=0` could not be trained a second time.
 - In the Cython path, a FastText out-of-vocabulary token without any ngrams (for example a token shorter than `min_n - 2` characters) added the vector of the first vocabulary word. It now adds nothing, as in the numpy fallback.
 - Saving a model with `sv_mapfile_path` wrote the sentence vectors a second time into `.npy` files, and loading returned them in RAM instead of reopening the mapfile.
-- `IndexedList` accepted a set but then failed on indexing; sets are now converted to a list.
 - `x in sentence_vectors` raised a `KeyError` for non-integer values and accepted negative indices; it now returns `False` for both. The `KeyError` for a missing index names the index.
 - `str(model)` reported the number of sentences as `vector_size`.
 - Scanning failed for an empty input and for corpora with less than one word per sentence on average.

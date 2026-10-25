@@ -109,8 +109,9 @@ class TestBaseIndexedList:
         multi.extend(list_a)
         assert len(multi) == 8
 
-        multi.extend({"hello there", "its a set"})
-        assert len(multi) == 10
+        with pytest.raises(TypeError, match="A set has no order"):
+            multi.extend({"hello there", "its a set"})
+        assert len(multi) == 8
 
     def test_extend_ndarr(self):
         base = BaseIndexedList(np.array([str(i) for i in [1, 2, 3, 4]]))
@@ -213,11 +214,9 @@ class TestIndexedLineDocument:
         assert items[99] == last
 
 
-def test_indexed_list_from_set():
-    """A set is accepted by the type check, so it must also be indexable afterwards."""
+def test_indexed_list_rejects_set():
+    """A set has no order, so the sentence indices would be arbitrary."""
     from fse import IndexedList
 
-    items = IndexedList({"the dog", "a cat"})
-    assert len(items) == 2
-    assert sorted(sentence for sentence, _ in items) == ["a cat", "the dog"]
-    assert items[1][1] == 1
+    with pytest.raises(TypeError, match="A set has no order"):
+        IndexedList({"the dog", "a cat"})

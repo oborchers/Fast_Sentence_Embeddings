@@ -13,24 +13,23 @@ from smart_open import open
 
 
 class BaseIndexedList(MutableSequence):
-    def __init__(self, *args: list | set | ndarray):
+    def __init__(self, *args: list | ndarray):
         """Base object to be used for feeding in-memory stored lists of sentences to the
         training routine.
 
         Parameters
         ----------
-        args : lists, sets, ndarray
+        args : lists, ndarray
             Arguments to be merged into a single container. Can be single or multiple
-            list/set/ndarray objects. A single list or ndarray is used as is, without a copy,
-            so later changes to it are visible here. A set has no order and is converted to a
-            list.
+            list/ndarray objects. A single list or ndarray is used as is, without a copy,
+            so later changes to it are visible here.
         """
 
         self.items: Any = list()
 
         if len(args) == 1:
             self._check_list_type(args[0])
-            self.items = list(args[0]) if isinstance(args[0], set) else args[0]
+            self.items = args[0]
         else:
             for arg in args:
                 self.extend(arg)
@@ -39,10 +38,13 @@ class BaseIndexedList(MutableSequence):
 
     def _check_list_type(self, obj: object):
         """Checks input validity."""
-        if isinstance(obj, (list, set, ndarray)):
+        if isinstance(obj, set):
+            # A set has no order, so the sentence indices would be arbitrary.
+            raise TypeError("Arg must be a list or ndarray. A set has no order; pass sorted(...)")
+        if isinstance(obj, (list, ndarray)):
             return 1
         else:
-            raise TypeError(f"Arg must be list/set type. Got {type(obj)}")
+            raise TypeError(f"Arg must be a list or ndarray. Got {type(obj)}")
 
     def _check_str_type(self, obj: object):
         """Checks input validity."""
@@ -100,7 +102,7 @@ class BaseIndexedList(MutableSequence):
         self._check_str_type(item)
         self.insert(len(self.items), item)
 
-    def extend(self, arg: list | set | ndarray):  # type: ignore[override]
+    def extend(self, arg: list | ndarray):  # type: ignore[override]
         """Extens list."""
         self._check_list_type(arg)
 
@@ -111,13 +113,13 @@ class BaseIndexedList(MutableSequence):
 
 
 class IndexedList(BaseIndexedList):
-    def __init__(self, *args: list | set | ndarray):
+    def __init__(self, *args: list | ndarray):
         """Quasi-list to be used for feeding in-memory stored lists of sentences to the
         training routine.
 
         Parameters
         ----------
-        args : lists, sets, ndarray
+        args : lists, ndarray
             Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
         """
         super().__init__(*args)
@@ -134,13 +136,13 @@ class IndexedList(BaseIndexedList):
 
 
 class CIndexedList(BaseIndexedList):
-    def __init__(self, *args: list | set | ndarray, custom_index: list | ndarray):
+    def __init__(self, *args: list | ndarray, custom_index: list | ndarray):
         """Quasi-list with custom indices to be used for feeding in-memory stored lists
         of sentences to the training routine.
 
         Parameters
         ----------
-        args : lists, sets, ndarray
+        args : lists, ndarray
             Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
         custom_index : list, ndarray
             Custom index to support many to one mappings.
@@ -176,18 +178,18 @@ class CIndexedList(BaseIndexedList):
     def append(self, item: str):
         raise NotImplementedError("Method currently not supported")
 
-    def extend(self, arg: list | set | ndarray):  # type: ignore[override]
+    def extend(self, arg: list | ndarray):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
 
 
 class SplitIndexedList(BaseIndexedList):
-    def __init__(self, *args: list | set | ndarray):
+    def __init__(self, *args: list | ndarray):
         """Quasi-list with string splitting to be used for feeding in-memory stored
         lists of sentences to the training routine.
 
         Parameters
         ----------
-        args : lists, sets, ndarray
+        args : lists, ndarray
             Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
         """
         super().__init__(*args)
@@ -204,13 +206,13 @@ class SplitIndexedList(BaseIndexedList):
 
 
 class SplitCIndexedList(BaseIndexedList):
-    def __init__(self, *args: list | set | ndarray, custom_index: list | ndarray):
+    def __init__(self, *args: list | ndarray, custom_index: list | ndarray):
         """Quasi-list with custom indices and string splitting to be used for feeding
         in-memory stored lists of sentences to the training routine.
 
         Parameters
         ----------
-        args : lists, sets, ndarray
+        args : lists, ndarray
             Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
         custom_index : list, ndarray
             Custom index to support many to one mappings.
@@ -246,18 +248,18 @@ class SplitCIndexedList(BaseIndexedList):
     def append(self, item: str):
         raise NotImplementedError("Method currently not supported")
 
-    def extend(self, arg: list | set | ndarray):  # type: ignore[override]
+    def extend(self, arg: list | ndarray):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
 
 
 class CSplitIndexedList(BaseIndexedList):
-    def __init__(self, *args: list | set | ndarray, custom_split: Callable[[str], list[str]]):
+    def __init__(self, *args: list | ndarray, custom_split: Callable[[str], list[str]]):
         """Quasi-list with custom string splitting to be used for feeding in-memory
         stored lists of sentences to the training routine.
 
         Parameters
         ----------
-        args : lists, sets, ndarray
+        args : lists, ndarray
             Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
         custom_split : callable
             Split function to be used to convert strings into list of str.
@@ -279,7 +281,7 @@ class CSplitIndexedList(BaseIndexedList):
 class CSplitCIndexedList(BaseIndexedList):
     def __init__(
         self,
-        *args: list | set | ndarray,
+        *args: list | ndarray,
         custom_split: Callable[[str], list[str]],
         custom_index: list | ndarray,
     ):
@@ -288,7 +290,7 @@ class CSplitCIndexedList(BaseIndexedList):
 
         Parameters
         ----------
-        args : lists, sets, ndarray
+        args : lists, ndarray
             Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
         custom_split : callable
             Split function to be used to convert strings into list of str.
@@ -327,7 +329,7 @@ class CSplitCIndexedList(BaseIndexedList):
     def append(self, item: str):
         raise NotImplementedError("Method currently not supported")
 
-    def extend(self, arg: list | set | ndarray):  # type: ignore[override]
+    def extend(self, arg: list | ndarray):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
 
 

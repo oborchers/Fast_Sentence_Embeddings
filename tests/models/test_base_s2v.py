@@ -246,6 +246,7 @@ class TestBaseSentence2VecModel:
             ((["a", "b"], "3"), TypeError, "At 10: .*tuple.index"),
             ((["a", "b"], 2.0), TypeError, "At 10: .*tuple.index"),
             (("a b", 3), TypeError, "At 10: .*tuple.words"),
+            ((["a", 2], 3), TypeError, "At 10: .*tuple.words"),
         ],
     )
     def test_scan_validates_every_item(self, w2v, sentences, bad_item, error, match):
@@ -641,10 +642,11 @@ class TestSmallFixes:
         with pytest.raises(ValueError, match="invalid values"):
             se._check_pre_training_sanity(**stats)
 
-    def test_unknown_keyword_arguments_warn(self, w2v):
+    def test_unknown_keyword_arguments_raise(self, w2v):
+        """A typo such as worker=4 must not be ignored silently."""
         from fse.models.average import Average
 
-        with pytest.warns(UserWarning, match="ignores unknown keyword arguments: foo"):
+        with pytest.raises(TypeError, match="unexpected keyword arguments: foo"):
             Average(w2v, foo=1)
 
 

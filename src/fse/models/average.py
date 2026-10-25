@@ -30,7 +30,6 @@ Initialize and train a :class:`~fse.models.average.Average` model
 """
 
 import logging
-import warnings
 
 from gensim.models.fasttext import ft_ngram_hashes
 from gensim.models.keyedvectors import KeyedVectors
@@ -247,11 +246,9 @@ class Average(BaseSentence2VecModel):
         """
 
         if kwargs:
-            warnings.warn(
-                f"{type(self).__name__} ignores unknown keyword arguments: "
-                f"{', '.join(sorted(kwargs))}",
-                UserWarning,
-                stacklevel=2,
+            raise TypeError(
+                f"{type(self).__name__} got unexpected keyword arguments: "
+                f"{', '.join(sorted(kwargs))}"
             )
         super().__init__(
             model=model,
