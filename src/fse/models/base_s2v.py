@@ -553,8 +553,8 @@ class BaseSentence2VecModel(SaveLoad):
         """
         return None
 
-    def _encode_job(self, context: Any, batch: list[tuple]) -> Any:
-        """Encode a batch of (tokens, index) tuples for :meth:`_run_encoded_job`."""
+    def _job_encoder(self, context: Any, sentences: Iterable[tuple]) -> Any:
+        """Return an object whose next_job() yields encoded jobs, then None."""
         raise NotImplementedError()
 
     def _run_encoded_job(
@@ -904,26 +904,28 @@ class BaseSentence2VecModel(SaveLoad):
         mem = self._get_thread_working_mem()
         context = self._kernel_context(output)
 
-        def run(batch: list[tuple]):
-            if context is None:
-                self._do_train_job(data_iterable=batch, target=output, memory=mem)
-            else:
-                self._run_encoded_job(context, self._encode_job(context, batch), mem)
-
-        job_batch: list[tuple] = []
-        batch_size = 0
-        for _data_idx, data in enumerate(sentences):
-            data_length = len(data[0])
-            # Jobs hold at most batch_words words and batch_words sentences, so a run of
-            # empty sentences cannot grow one job without bound.
-            if batch_size + data_length <= self.batch_words and len(job_batch) < self.batch_words:
-                job_batch.append(data)
-                batch_size += data_length
-            else:
-                run(job_batch)
-                job_batch, batch_size = [data], data_length
-        if job_batch:
-            run(job_batch)
+        if context is not None:
+            encoder = self._job_encoder(context, sentences)
+            while (job := encoder.next_job()) is not None:
+                self._run_encoded_job(context, job, mem)
+        else:
+            job_batch: list[tuple] = []
+            batch_size = 0
+            for data in sentences:
+                data_length = len(data[0])
+                # Jobs hold at most batch_words words and batch_words sentences, so a run
+                # of empty sentences cannot grow one job without bound.
+                if (
+                    batch_size + data_length <= self.batch_words
+                    and len(job_batch) < self.batch_words
+                ):
+                    job_batch.append(data)
+                    batch_size += data_length
+                else:
+                    self._do_train_job(data_iterable=job_batch, target=output, memory=mem)
+                    job_batch, batch_size = [data], data_length
+            if job_batch:
+                self._do_train_job(data_iterable=job_batch, target=output, memory=mem)
 
         self._post_inference_calls(output=output)
 
@@ -1100,22 +1102,22 @@ class BaseSentence2VecModel(SaveLoad):
         workers : int, optional
             Number of workers, each of which receives one end marker.
         context : object, optional
-            Kernel context. The producer then encodes every job while holding the GIL, so
-            the workers can average it without the GIL.
+            Kernel context. The producer then reads, batches and encodes the input in one
+            pass while holding the GIL, so the workers can average it without the GIL.
 
         """
-
-        def put(batch: list[tuple]):
-            if context is None:
-                job_queue.put(batch)
-            else:
-                job_queue.put((len(batch), self._encode_job(context, batch)))
 
         job_batch: list[tuple] = []
         batch_size = 0
         job_no = 0
 
         try:
+            if context is not None:
+                encoder = self._job_encoder(context, data_iterable)
+                while not stop.is_set() and (job := encoder.next_job()) is not None:
+                    job_no += 1
+                    job_queue.put((job.n_items, job))
+                data_iterable = ()
             for data in data_iterable:
                 if stop.is_set():
                     break
@@ -1128,12 +1130,12 @@ class BaseSentence2VecModel(SaveLoad):
                     batch_size += data_length
                 else:
                     job_no += 1
-                    put(job_batch)
+                    job_queue.put(job_batch)
                     job_batch, batch_size = [data], data_length
 
             if job_batch and not stop.is_set():
                 job_no += 1
-                put(job_batch)
+                job_queue.put(job_batch)
         except BaseException as err:
             errors.append(err)
             stop.set()

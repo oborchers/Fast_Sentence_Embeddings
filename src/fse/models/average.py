@@ -30,6 +30,7 @@ Initialize and train a :class:`~fse.models.average.Average` model
 """
 
 import logging
+from collections.abc import Iterable
 from typing import Any
 
 from gensim.models.fasttext import ft_ngram_hashes
@@ -178,8 +179,8 @@ try:
         FAST_VERSION,
         MAX_NGRAMS_IN_BATCH,
         MAX_WORDS_IN_BATCH,
+        JobEncoder,
         KernelContext,
-        encode_job,
         run_job,
         train_average_cy,
     )
@@ -281,9 +282,9 @@ class Average(BaseSentence2VecModel):
             return None
         return KernelContext(self, target)
 
-    def _encode_job(self, context: Any, batch: list[tuple]) -> Any:
-        """Encode a batch while holding the GIL, in the producer thread."""
-        return encode_job(context, batch)
+    def _job_encoder(self, context: Any, sentences: Iterable[tuple]) -> Any:
+        """Batch and encode the input in one pass while holding the GIL, in the producer."""
+        return JobEncoder(context, sentences, self.batch_words)
 
     def _run_encoded_job(
         self, context: Any, job: Any, memory: tuple[ndarray, ndarray]

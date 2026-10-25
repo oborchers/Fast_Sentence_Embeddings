@@ -27,10 +27,18 @@ class KernelContext:
 class EncodedJob:
     """A batch of sentences encoded for the kernel."""
 
+    n_items: int
     n_sentences: int
     eff_words: int
 
 def encode_job(ctx: KernelContext, batch: Any) -> EncodedJob: ...
+
+class JobEncoder:
+    """Read (tokens, index) tuples from an iterable and encode them into jobs."""
+
+    def __init__(self, ctx: KernelContext, iterable: Any, batch_words: int) -> None: ...
+    def next_job(self) -> EncodedJob | None: ...
+
 def run_job(ctx: KernelContext, job: EncodedJob, scratch: ndarray) -> tuple[int, int]: ...
 def ft_ngram_hashes(
     word: str, min_n: int, max_n: int, bucket: int, max_ngrams: int

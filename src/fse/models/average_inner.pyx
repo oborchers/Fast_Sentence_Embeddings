@@ -16,6 +16,7 @@ import numpy as np
 
 cimport numpy as np
 
+from cpython.bytes cimport PyBytes_FromStringAndSize
 from cpython.dict cimport PyDict_GetItem
 from cpython.object cimport PyObject
 from cpython.pycapsule cimport PyCapsule_GetPointer
@@ -26,12 +27,16 @@ from cpython.pythread cimport (
     PyThread_free_lock,
     PyThread_release_lock,
 )
-from libc.stdlib cimport free, malloc
-from libc.string cimport memset
+from libc.stdlib cimport free, malloc, realloc
+from libc.string cimport memcpy, memset
 
 from time import time
 
 import scipy.linalg.blas as fblas
+
+cdef extern from "Python.h":
+    # Raises (TypeError, UnicodeEncodeError) instead of returning NULL silently.
+    const char *PyUnicode_AsUTF8AndSize(object unicode, Py_ssize_t *size) except NULL
 
 # y += alpha * x, taken from scipy's BLAS. Raises at import if scipy exposes no pointer.
 cdef saxpy_ptr saxpy=<saxpy_ptr>PyCapsule_GetPointer(fblas.saxpy._cpointer, NULL)
@@ -197,8 +202,10 @@ cdef class EncodedJob:
     ``words[offsets[s]:offsets[s + 1]]`` are the tokens of sentence ``s``, which is added
     into row ``targets[s]``: vocabulary indices, or ``OOV_TOKEN`` for an unknown FastText
     word whose bytes are ``oov_bytes[oov_offsets[k]:oov_offsets[k + 1]]``, in order.
+    ``n_items`` counts every input item of the job, including empty sentences.
     """
 
+    cdef readonly Py_ssize_t n_items
     cdef readonly Py_ssize_t n_sentences
     cdef readonly Py_ssize_t eff_words
     cdef object words
@@ -208,67 +215,186 @@ cdef class EncodedJob:
     cdef object oov_offsets
 
 
-def encode_job(KernelContext ctx, batch):
-    """Encode (tokens, index) tuples into an EncodedJob, holding the GIL.
+cdef struct _Buffer:
+    char *data
+    Py_ssize_t size  # bytes used
+    Py_ssize_t capacity  # bytes allocated
 
-    Empty sentences are skipped, as is every unknown word of a Word2Vec-style model. The
-    number of non-empty sentences and of used tokens are the counts train reports.
+
+cdef int _reserve(_Buffer *b, Py_ssize_t extra) except -1:
+    """Grow b so that extra more bytes fit, doubling the capacity."""
+    cdef Py_ssize_t needed = b.size + extra
+    cdef Py_ssize_t capacity
+    cdef char *data
+    if needed <= b.capacity:
+        return 0
+    capacity = max(needed, 2 * b.capacity, 4096)
+    data = <char *>realloc(b.data, capacity)
+    if data == NULL:
+        raise MemoryError("could not grow the job buffer")
+    b.data = data
+    b.capacity = capacity
+    return 0
+
+
+cdef inline int _push_u32(_Buffer *b, uINT_t value) except -1:
+    _reserve(b, sizeof(uINT_t))
+    (<uINT_t *>(b.data + b.size))[0] = value
+    b.size += sizeof(uINT_t)
+    return 0
+
+
+cdef inline int _push_i64(_Buffer *b, np.int64_t value) except -1:
+    _reserve(b, sizeof(np.int64_t))
+    (<np.int64_t *>(b.data + b.size))[0] = value
+    b.size += sizeof(np.int64_t)
+    return 0
+
+
+cdef inline int _push_bytes(_Buffer *b, const char *data, Py_ssize_t n) except -1:
+    _reserve(b, n)
+    memcpy(b.data + b.size, data, n)
+    b.size += n
+    return 0
+
+
+cdef object _to_array(_Buffer *b, dtype):
+    """Copy the used part of b into a new numpy array of dtype."""
+    out = np.empty(b.size // np.dtype(dtype).itemsize, dtype=dtype)
+    if b.size:
+        memcpy(np.PyArray_DATA(out), b.data, b.size)
+    return out
+
+
+cdef class JobEncoder:
+    """Read (tokens, index) tuples from an iterable and encode them into jobs.
+
+    Batching and encoding happen in one pass, holding the GIL: a job takes items while
+    it has fewer than ``batch_words`` items and its words stay within ``batch_words``; a
+    longer item starts a job of its own. Empty sentences are skipped, as is every
+    unknown word of a Word2Vec-style model. The number of non-empty sentences and of
+    used tokens are the counts train reports.
     """
-    cdef list items = list(batch)
-    cdef Py_ssize_t capacity = 0
-    for obj in items:
-        capacity += len(obj[0])
 
-    words_arr = np.empty(capacity, dtype=np.uint32)
-    offsets_arr = np.empty(len(items) + 1, dtype=np.int64)
-    targets_arr = np.empty(len(items), dtype=np.uint32)
-    cdef uINT_t[::1] words = words_arr
-    cdef np.int64_t[::1] offsets = offsets_arr
-    cdef uINT_t[::1] targets = targets_arr
+    cdef KernelContext ctx
+    cdef object iterator
+    cdef Py_ssize_t batch_words
+    cdef object pending
+    cdef bint has_pending
+    cdef _Buffer words, offsets, targets, oov_bytes, oov_offsets
 
-    cdef dict vocab = ctx.vocab
-    cdef bint is_ft = ctx.params.is_ft
-    cdef Py_ssize_t n_rows = ctx.n_rows
-    cdef Py_ssize_t pos = 0
-    cdef Py_ssize_t n_sentences = 0
-    cdef PyObject *hit
-    cdef list oov_parts = []
-    cdef list oov_ends = [0]
-    cdef Py_ssize_t oov_end = 0
+    def __cinit__(self):
+        memset(&self.words, 0, sizeof(_Buffer))
+        memset(&self.offsets, 0, sizeof(_Buffer))
+        memset(&self.targets, 0, sizeof(_Buffer))
+        memset(&self.oov_bytes, 0, sizeof(_Buffer))
+        memset(&self.oov_offsets, 0, sizeof(_Buffer))
 
-    offsets[0] = 0
-    for obj in items:
-        index = obj[1]
-        # The kernel writes into target[index] through a raw pointer.
-        if not 0 <= index < n_rows:
-            raise IndexError(f"sentence index {index} is out of range for {n_rows} target rows")
-        sentence = obj[0]
-        if not sentence:
-            continue
-        for token in sentence:
-            hit = PyDict_GetItem(vocab, token)
-            if hit != NULL:
-                words[pos] = <uINT_t>(<object>hit)
-                pos += 1
-            elif is_ft:
-                utf8_word = ("<%s>" % token).encode("utf-8")
-                oov_parts.append(utf8_word)
-                oov_end += len(utf8_word)
-                oov_ends.append(oov_end)
-                words[pos] = OOV_TOKEN
-                pos += 1
-        targets[n_sentences] = <uINT_t>index
-        n_sentences += 1
-        offsets[n_sentences] = pos
+    def __init__(self, KernelContext ctx, iterable, Py_ssize_t batch_words):
+        if batch_words < 1:
+            raise ValueError(f"batch_words must be positive, got {batch_words}")
+        self.ctx = ctx
+        self.iterator = iter(iterable)
+        self.batch_words = batch_words
+        self.has_pending = False
 
-    cdef EncodedJob job = EncodedJob.__new__(EncodedJob)
-    job.n_sentences = n_sentences
-    job.eff_words = pos
-    job.words = words_arr
-    job.offsets = offsets_arr
-    job.targets = targets_arr
-    job.oov_bytes = b"".join(oov_parts)
-    job.oov_offsets = np.array(oov_ends, dtype=np.int64)
+    def __dealloc__(self):
+        free(self.words.data)
+        free(self.offsets.data)
+        free(self.targets.data)
+        free(self.oov_bytes.data)
+        free(self.oov_offsets.data)
+
+    def __reduce__(self):
+        raise TypeError("JobEncoder only exists during a train or infer call")
+
+    def next_job(self):
+        """Return the next EncodedJob, or None once the input is exhausted."""
+        cdef dict vocab = self.ctx.vocab
+        cdef bint is_ft = self.ctx.params.is_ft
+        cdef Py_ssize_t n_rows = self.ctx.n_rows
+        cdef Py_ssize_t n_items = 0
+        cdef Py_ssize_t n_words = 0
+        cdef Py_ssize_t n_sentences = 0
+        cdef Py_ssize_t length
+        cdef Py_ssize_t utf8_size
+        cdef const char *utf8
+        cdef PyObject *hit
+
+        self.words.size = 0
+        self.offsets.size = 0
+        self.targets.size = 0
+        self.oov_bytes.size = 0
+        self.oov_offsets.size = 0
+        _push_i64(&self.offsets, 0)
+        _push_i64(&self.oov_offsets, 0)
+
+        while True:
+            if self.has_pending:
+                obj = self.pending
+                self.pending = None
+                self.has_pending = False
+            else:
+                try:
+                    obj = next(self.iterator)
+                except StopIteration:
+                    break
+            sentence = obj[0]
+            length = len(sentence)
+            if n_items and (n_words + length > self.batch_words or n_items >= self.batch_words):
+                self.pending = obj
+                self.has_pending = True
+                break
+            n_items += 1
+            n_words += length
+
+            index = obj[1]
+            # The kernel writes into target[index] through a raw pointer.
+            if not 0 <= index < n_rows:
+                raise IndexError(f"sentence index {index} is out of range for {n_rows} target rows")
+            if not length:
+                continue
+            for token in sentence:
+                hit = PyDict_GetItem(vocab, token)
+                if hit != NULL:
+                    _push_u32(&self.words, <uINT_t>(<object>hit))
+                elif is_ft:
+                    # The UTF-8 bytes of "<token>", as fastText hashes them.
+                    utf8 = PyUnicode_AsUTF8AndSize(token, &utf8_size)
+                    _push_bytes(&self.oov_bytes, "<", 1)
+                    _push_bytes(&self.oov_bytes, utf8, utf8_size)
+                    _push_bytes(&self.oov_bytes, ">", 1)
+                    _push_i64(&self.oov_offsets, self.oov_bytes.size)
+                    _push_u32(&self.words, OOV_TOKEN)
+            _push_u32(&self.targets, <uINT_t>index)
+            n_sentences += 1
+            _push_i64(&self.offsets, self.words.size // sizeof(uINT_t))
+
+        if not n_items:
+            return None
+        cdef EncodedJob job = EncodedJob.__new__(EncodedJob)
+        job.n_items = n_items
+        job.n_sentences = n_sentences
+        job.eff_words = self.words.size // sizeof(uINT_t)
+        job.words = _to_array(&self.words, np.uint32)
+        job.offsets = _to_array(&self.offsets, np.int64)
+        job.targets = _to_array(&self.targets, np.uint32)
+        job.oov_bytes = PyBytes_FromStringAndSize(self.oov_bytes.data, self.oov_bytes.size)
+        job.oov_offsets = _to_array(&self.oov_offsets, np.int64)
+        return job
+
+
+def encode_job(KernelContext ctx, batch):
+    """Encode all (tokens, index) tuples of batch into one EncodedJob."""
+    items = list(batch)
+    job = JobEncoder(ctx, items, max(len(items), 1) + sum(len(obj[0]) for obj in items)).next_job()
+    if job is None:
+        job = EncodedJob.__new__(EncodedJob)
+        job.words = np.empty(0, dtype=np.uint32)
+        job.offsets = np.zeros(1, dtype=np.int64)
+        job.targets = np.empty(0, dtype=np.uint32)
+        job.oov_bytes = b""
+        job.oov_offsets = np.zeros(1, dtype=np.int64)
     return job
 
 

@@ -596,10 +596,10 @@ def test_encoder_errors_reach_the_caller(w2v, corpus_indexed, monkeypatch):
     """An exception while encoding in the producer thread is raised by train."""
     model = Average(w2v, workers=2)
 
-    def broken(context, batch):
+    def broken(context, sentences):
         raise RuntimeError("encoder failed")
 
-    monkeypatch.setattr(model, "_encode_job", broken)
+    monkeypatch.setattr(model, "_job_encoder", broken)
     with pytest.raises(RuntimeError, match="encoder failed"):
         model.train(corpus_indexed)
 
@@ -613,3 +613,58 @@ def test_kernel_context_cannot_be_pickled(w2v):
     _prepare(model, total_sentences=1)
     with pytest.raises(TypeError, match="only exists"):
         pickle.dumps(KernelContext(model, model.sv.vectors))
+
+
+def _python_batches(items, batch_words):
+    """The batching of the job path: words and items both capped at batch_words."""
+    batches, batch, size = [], [], 0
+    for item in items:
+        if size + len(item[0]) <= batch_words and len(batch) < batch_words:
+            batch.append(item)
+            size += len(item[0])
+        else:
+            if batch:
+                batches.append(batch)
+            batch, size = [item], len(item[0])
+    if batch:
+        batches.append(batch)
+    return batches
+
+
+@pytest.mark.parametrize("batch_words", [1, 3, 10, 1000])
+def test_job_encoder_batches_like_the_job_path(w2v, batch_words):
+    from fse.models.average_inner import JobEncoder, KernelContext
+
+    rng = np.random.default_rng(0)
+    words = list(w2v.wv.index_to_key)
+    items = [
+        ([words[j] for j in rng.integers(0, len(words), n)], i)
+        for i, n in enumerate(rng.choice([0, 0, 1, 2, 5, 12, 40], size=300))
+    ]
+    model = Average(w2v)
+    _prepare(model, total_sentences=len(items))
+    encoder = JobEncoder(KernelContext(model, model.sv.vectors), items, batch_words)
+    sizes = []
+    while (job := encoder.next_job()) is not None:
+        sizes.append(job.n_items)
+    assert sizes == [len(batch) for batch in _python_batches(items, batch_words)]
+
+
+def test_job_encoder_hashes_numpy_strings_like_str(ft):
+    """Unknown FastText words given as numpy str_ give the same vectors as str."""
+    model = Average(ft)
+    outputs = []
+    for token in ("ünbekannt", np.str_("ünbekannt")):
+        _prepare(model, total_sentences=1)
+        train_average_cy(model, [([token], 0)], model.sv.vectors, model._get_thread_working_mem())
+        outputs.append(np.array(model.sv.vectors))
+    assert np.array_equal(outputs[0], outputs[1])
+
+
+def test_job_encoder_rejects_unencodable_unknown_words(ft):
+    model = Average(ft)
+    _prepare(model, total_sentences=1)
+    with pytest.raises(UnicodeEncodeError):
+        train_average_cy(
+            model, [(["\ud800"], 0)], model.sv.vectors, model._get_thread_working_mem()
+        )
