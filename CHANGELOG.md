@@ -28,7 +28,7 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 
 ### Fixed
 
-- **uSIF results change.** uSIF removed each principal component weighted by λ² instead of λ, unlike the reference implementation ([kawine/usif](https://github.com/kawine/usif)). Embeddings from uSIF models trained with earlier versions differ from 1.1.0.
+- **uSIF results change.** uSIF removed each principal component weighted by λ² instead of λ, unlike the reference implementation ([kawine/usif](https://github.com/kawine/usif)). Embeddings from uSIF models trained with earlier versions differ from 1.1.0. On the STS Benchmark the fix raises uSIF scores on all 15 published vector sets, by 0.18 to 1.30 points (mean 0.75) when both formulas run in the same environment; the README table is remeasured. The previous table is in the [1.0.0 README](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/v1.0.0/README.md#results).
 - An exception in a worker thread or in the input iterable made `train()` hang forever. It is now raised in the calling thread after all threads have stopped.
 - Only the first input item was validated. A negative or non-integer index later in the input could hang training or silently write into the wrong row. Every item is now checked, and `numpy` integers are accepted as indices, so `CIndexedList` works with an ndarray `custom_index` as documented.
 - Generators and other one-shot iterators returned all-zero vectors from `infer` and failed with a misleading error in `train`, because the input is read twice. They are now rejected with a clear `TypeError`.
