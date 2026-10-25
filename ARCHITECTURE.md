@@ -24,13 +24,13 @@ src/fse/
 
 `train(sentences)` and `infer(sentences)` take a re-iterable of `(tokens, index)` tuples. The `inputs` classes produce exactly that shape. `index` is the row of the output matrix the sentence contributes to.
 
-1. **Scan:** `scan_sentences` makes one pass over the input. It counts sentences and words, finds the largest index and validates the first item.
+1. **Scan:** `scan_sentences` makes one pass over the input. It counts sentences and words, finds the largest index, validates every item and reports whether all indices are unique.
 2. **Sanity and memory:** `_check_pre_training_sanity` checks the vectors and weights; `estimate_memory` warns when the result will not fit into RAM.
-3. **Prepare:** `BaseSentence2VecPreparer` allocates the sentence vectors (`max_index` rows, initialized to `EPS`), in RAM or as a memmap.
+3. **Prepare:** `BaseSentence2VecPreparer` allocates the sentence vectors (`max_index` rows, initialized to `EPS`), in RAM or as a memmap. With `train(update=True)` it appends the rows instead, and every sentence index is shifted by the previous number of rows.
 4. **Pre-train hook:** `_pre_train_calls` computes the word weights. All weights are 1 for Average; SIF and uSIF derive them from word frequencies.
 5. **Jobs:** `_train_manager` starts one producer thread and `workers` worker threads. The producer batches the input into jobs of up to `batch_words` words; a single longer sentence forms a job of its own. Each worker calls `_do_train_job`, which runs `train_average_cy` (or `train_average_np` when the extension is missing).
 6. **Kernel:** `populate_*_config` turns tokens into word indices while holding the GIL. The averaging runs without the GIL and adds each sentence average into its target row with BLAS `saxpy`.
-7. **Post-train hook:** `_post_train_calls` removes principal components for SIF and uSIF.
+7. **Post-train hook:** `_post_train_calls` removes principal components for SIF and uSIF. After `train(update=True)` it reuses the components of the first training for the appended rows only, as `infer` does.
 
 `infer(sentences)` takes a shorter path. It scans the input, allocates a zero-filled output matrix, runs the jobs in the calling thread with the weights learned in `train`, and finishes with `_post_inference_calls`, which removes the stored principal components for SIF and uSIF. It has no preparer, no pre-train hook and no threads.
 
@@ -44,9 +44,23 @@ src/fse/
 
 Several sentences may share one index. Each sentence average is added into the row; a row is not overwritten.
 
+`scan_sentences` reports whether every index is unique. If it is not and more than one worker trains, the Cython kernel adds into rows under striped locks (`RowLocks`, 256 stripes), which exist only during `train` and are never pickled. Without the extension, such inputs train with one worker. Unique indices, the common case, take no lock.
+
+### Appended rows never change existing rows
+
+`train(update=True)` writes only into the rows it appends. Existing sentence vectors, including their removed components, stay bit-identical.
+
 ### Hooks keep their signatures
 
-Subclasses override `_check_parameter_sanity`, `_pre_train_calls`, `_post_train_calls`, `_post_inference_calls` and `_check_dtype_santiy`, all of which accept `**kwargs`. Tests replace `_do_train_job` on instances, so the job path must keep calling it.
+Subclasses override `_check_parameter_sanity`, `_pre_train_calls`, `_post_train_calls`, `_post_inference_calls` and `_check_dtype_santiy`, all of which accept `**kwargs`, and `_post_load_calls`, which migrates models saved by earlier versions. Tests replace `_do_train_job` on instances, so the job path must keep calling it.
+
+### Validate strictly, never fail silently
+
+Invalid input raises a clear exception at the API boundary. Nothing is coerced, ignored or truncated without an error, and an unexpected keyword argument is an error (`pydantic.ValidationError` at validated entry points). A slower but correct fallback, such as training with one worker, is logged as a warning.
+
+Two known gaps remain and are scheduled for the next performance change: the Cython kernel stops after 10,000 contributing words per sentence, and it always uses up to 40 ngrams per out-of-vocabulary word regardless of `batch_ngrams`. The numpy fallback does neither.
+
+Entry points whose own work dwarfs a few microseconds use `fse._validation.validate_arguments`, a strict pydantic `validate_call`: constructors, `train`, `infer`, `from_pretrained` and the similarity searches. Constraints such as `PositiveInt` live in the signatures. Two places check explicitly instead: methods called per element in loops (`similarity`, `get_vector`, `__getitem__`), where validation would add measurable overhead, and the training data, which pydantic would iterate or copy. Parameters that hold data stay `Any` in validated signatures for the same reason; the scan checks them. Integer constraints accept numpy integer scalars, float constraints reject infinity and NaN.
 
 ### float32 throughout
 

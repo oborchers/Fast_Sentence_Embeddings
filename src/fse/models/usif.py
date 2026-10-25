@@ -6,10 +6,17 @@
 import logging
 from typing import Any, cast
 
-from gensim.models.keyedvectors import KeyedVectors
 from numpy import float32 as REAL
 from numpy import isfinite, ndarray, zeros
 
+from fse._validation import (
+    NonNegativeInt,
+    PathLike,
+    PositiveFloat,
+    PositiveInt,
+    WordVectorModel,
+    validate_arguments,
+)
 from fse.models.average import Average
 from fse.models.utils import (
     EPS,
@@ -24,17 +31,19 @@ class uSIF(Average):
     # svd_res is None before training and 0 when no components are removed.
     svd_res: Any
     svd_weights: Any
+    component_weighting: str
     length: Any
 
+    @validate_arguments
     def __init__(
         self,
-        model: KeyedVectors,
-        length: int | None = None,
-        components: int = 5,
-        cache_size_gb: float = 1.0,
-        sv_mapfile_path: str | None = None,
-        wv_mapfile_path: str | None = None,
-        workers: int = 1,
+        model: WordVectorModel,
+        length: PositiveInt | None = None,
+        components: NonNegativeInt = 5,
+        cache_size_gb: PositiveFloat = 1.0,
+        sv_mapfile_path: PathLike | None = None,
+        wv_mapfile_path: PathLike | None = None,
+        workers: PositiveInt = 1,
         lang_freq: str | None = None,
     ):
         """Unsupervised smooth-inverse frequency (uSIF) weighted sentence embeddings
@@ -46,9 +55,9 @@ class uSIF(Average):
 
         Parameters
         ----------
-        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
+        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or a gensim model with a ``wv`` attribute, such as :class:`~gensim.models.Word2Vec` or :class:`~gensim.models.FastText`
             This object essentially contains the mapping between words and embeddings. To compute the sentence embeddings
-            the wv.vocab and wv.vector elements are required.
+            its ``key_to_index`` and ``vectors`` are required.
         length : int, optional
             Corresponds to the average number of words in a sentence in the training corpus.
             If length is None, then the model takes the average number of words from
@@ -70,7 +79,7 @@ class uSIF(Average):
         lang_freq : str, optional
             Some pre-trained embeddings, i.e. "GoogleNews-vectors-negative300.bin", do not contain information about
             the frequency of a word. As the frequency is required for estimating the word weights, we induce
-            frequencies into the wv.vocab.count based on :class:`~wordfreq`
+            frequencies into the ``count`` attribute of each word based on :class:`~wordfreq`
             If no frequency information is available, you can choose the language to estimate the frequency.
             See https://github.com/LuminosoInsight/wordfreq
         """
@@ -80,6 +89,8 @@ class uSIF(Average):
         self.cache_size_gb = float(cache_size_gb)
         self.svd_res = None
         self.svd_weights = None
+        # How svd_weights scale the removed components; models saved before 1.1.0 lack it.
+        self.component_weighting = "lambda"
 
         if lang_freq is None:
             logger.info(
@@ -106,15 +117,21 @@ class uSIF(Average):
         self.length = kwargs["average_length"] if self.length is None else self.length
         self._compute_usif_weights()
 
-    def _post_train_calls(self, **kwargs):
+    def _post_train_calls(self, update: bool = False, offset: int = 0, **kwargs):
         """Function calls to perform after training, such as computing eigenvectors."""
-        if self.components > 0:
+        if self.components > 0 and update and isinstance(self.svd_res, tuple):
+            # Appended rows are treated like inference: reuse the learned components.
+            remove_principal_components(
+                self.sv.vectors[offset:], svd_res=self.svd_res, weights=self.svd_weights
+            )
+        elif self.components > 0:
             self.svd_res = compute_principal_components(
                 self.sv.vectors,
                 components=self.components,
                 cache_size_gb=self.cache_size_gb,
             )
             self.svd_weights = (self.svd_res[0] ** 2) / (self.svd_res[0] ** 2).sum().astype(REAL)
+            self.component_weighting = "lambda"
             remove_principal_components(
                 self.sv.vectors,
                 svd_res=self.svd_res,
@@ -124,6 +141,25 @@ class uSIF(Average):
         else:
             self.svd_res = 0
             logger.info("no removal of principal components")
+
+    def _post_load_calls(self):
+        """Keep models saved before 1.1.0 consistent with their stored sentence vectors.
+
+        Before 1.1.0, uSIF removed each component weighted by lambda squared. The stored
+        vectors of such a model carry that removal, so infer and train(update=True) keep
+        using it: with svd_weights squared, the current formula reproduces the old one.
+        """
+        if hasattr(self, "component_weighting"):
+            return
+        self.component_weighting = "lambda_squared"
+        if isinstance(self.svd_res, tuple) and self.svd_weights is not None:
+            self.svd_weights = (self.svd_weights**2).astype(REAL)
+            logger.warning(
+                "this uSIF model was saved before fse 1.1.0 and removes principal components "
+                "weighted by lambda squared; infer and train(update=True) keep that weighting "
+                "so new vectors match the stored ones. Retrain the model to use the corrected "
+                "weighting."
+            )
 
     def _post_inference_calls(self, output: ndarray | None = None, **kwargs):
         """Function calls to perform after training & inference."""
@@ -140,7 +176,7 @@ class uSIF(Average):
         """Check the dtypes of all attributes."""
         if self.word_weights.dtype != REAL:
             raise TypeError(f"type of word_weights is wrong: {self.word_weights.dtype}")
-        if self.svd_res is not None:
+        if isinstance(self.svd_res, tuple):
             if self.svd_res[0].dtype != REAL:
                 raise TypeError(f"type of svd values is wrong: {self.svd_res[0].dtype}")
             if self.svd_res[1].dtype != REAL:

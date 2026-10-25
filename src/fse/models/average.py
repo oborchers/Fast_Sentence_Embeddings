@@ -13,7 +13,7 @@ The training algorithms is based on the Gensim implementation of Word2Vec, FastT
 For more information, see: :class:`~gensim.models.word2vec.Word2Vec`, :class:`~gensim.models.fasttext.FastText`, or
 :class:`~gensim.models.doc2vec.Doc2Vec`.
 
-Initialize and train a :class:`~fse.models.sentence2vec.Sentence2Vec` model
+Initialize and train a :class:`~fse.models.average.Average` model
 
 .. sourcecode:: pycon
 
@@ -32,7 +32,6 @@ Initialize and train a :class:`~fse.models.sentence2vec.Sentence2Vec` model
 import logging
 
 from gensim.models.fasttext import ft_ngram_hashes
-from gensim.models.keyedvectors import KeyedVectors
 from numpy import (
     float32 as REAL,
 )
@@ -50,6 +49,7 @@ from numpy import (
     sum as np_sum,
 )
 
+from fse._validation import PathLike, PositiveInt, WordVectorModel, validate_arguments
 from fse.models.base_s2v import BaseSentence2VecModel
 
 logger = logging.getLogger(__name__)
@@ -122,6 +122,8 @@ def train_average_np(
             sent = obj[0]
             sent_adr = obj[1]
 
+            if not sent:
+                continue
             word_indices = [
                 model.wv.key_to_index[word] for word in sent if word in model.wv.key_to_index
             ]
@@ -206,14 +208,14 @@ class Average(BaseSentence2VecModel):
 
     """
 
+    @validate_arguments
     def __init__(
         self,
-        model: KeyedVectors,
-        sv_mapfile_path: str | None = None,
-        wv_mapfile_path: str | None = None,
-        workers: int = 1,
+        model: WordVectorModel,
+        sv_mapfile_path: PathLike | None = None,
+        wv_mapfile_path: PathLike | None = None,
+        workers: PositiveInt = 1,
         lang_freq: str | None = None,
-        **kwargs,
     ):
         """Average (unweighted) sentence embeddings model. Performs a simple averaging operation over all
         words in a sentences without further transformation.
@@ -223,9 +225,9 @@ class Average(BaseSentence2VecModel):
 
         Parameters
         ----------
-        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
+        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or a gensim model with a ``wv`` attribute, such as :class:`~gensim.models.Word2Vec` or :class:`~gensim.models.FastText`
             This object essentially contains the mapping between words and embeddings. To compute the sentence embeddings
-            the wv.vocab and wv.vector elements are required.
+            its ``key_to_index`` and ``vectors`` are required.
         sv_mapfile_path : str, optional
             Optional path to store the sentence-vectors in for very large datasets. Used for memmap.
         wv_mapfile_path : str, optional
@@ -237,7 +239,7 @@ class Average(BaseSentence2VecModel):
         lang_freq : str, optional
             Some pre-trained embeddings, i.e. "GoogleNews-vectors-negative300.bin", do not contain information about
             the frequency of a word. As the frequency is required for estimating the word weights, we induce
-            frequencies into the wv.vocab.count based on :class:`~wordfreq`
+            frequencies into the ``count`` attribute of each word based on :class:`~wordfreq`
             If no frequency information is available, you can choose the language to estimate the frequency.
             See https://github.com/LuminosoInsight/wordfreq
 

@@ -6,10 +6,17 @@
 import logging
 from typing import Any, cast
 
-from gensim.models.keyedvectors import KeyedVectors
 from numpy import float32 as REAL
 from numpy import isfinite, ndarray, zeros
 
+from fse._validation import (
+    NonNegativeInt,
+    PathLike,
+    PositiveFloat,
+    PositiveInt,
+    WordVectorModel,
+    validate_arguments,
+)
 from fse.models.average import Average
 from fse.models.utils import compute_principal_components, remove_principal_components
 
@@ -19,17 +26,17 @@ logger = logging.getLogger(__name__)
 class SIF(Average):
     # svd_res is None before training and 0 when no components are removed.
     svd_res: Any
-    svd_weights: Any
 
+    @validate_arguments
     def __init__(
         self,
-        model: KeyedVectors,
-        alpha: float = 1e-3,
-        components: int = 1,
-        cache_size_gb: float = 1.0,
-        sv_mapfile_path: str | None = None,
-        wv_mapfile_path: str | None = None,
-        workers: int = 1,
+        model: WordVectorModel,
+        alpha: PositiveFloat = 1e-3,
+        components: NonNegativeInt = 1,
+        cache_size_gb: PositiveFloat = 1.0,
+        sv_mapfile_path: PathLike | None = None,
+        wv_mapfile_path: PathLike | None = None,
+        workers: PositiveInt = 1,
         lang_freq: str | None = None,
     ):
         """Smooth-inverse frequency (SIF) weighted sentence embeddings model. Performs a weighted averaging operation over all
@@ -40,9 +47,9 @@ class SIF(Average):
 
         Parameters
         ----------
-        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
+        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or a gensim model with a ``wv`` attribute, such as :class:`~gensim.models.Word2Vec` or :class:`~gensim.models.FastText`
             This object essentially contains the mapping between words and embeddings. To compute the sentence embeddings
-            the wv.vocab and wv.vector elements are required.
+            its ``key_to_index`` and ``vectors`` are required.
         alpha : float, optional
             Alpha is the weighting factor used to downweigh each individual word.
         components : int, optional
@@ -60,7 +67,7 @@ class SIF(Average):
         lang_freq : str, optional
             Some pre-trained embeddings, i.e. "GoogleNews-vectors-negative300.bin", do not contain information about
             the frequency of a word. As the frequency is required for estimating the word weights, we induce
-            frequencies into the wv.vocab.count based on :class:`~wordfreq`
+            frequencies into the ``count`` attribute of each word based on :class:`~wordfreq`
             If no frequency information is available, you can choose the language to estimate the frequency.
             See https://github.com/LuminosoInsight/wordfreq
 
@@ -97,9 +104,12 @@ class SIF(Average):
         """Function calls to perform before training"""
         self._compute_sif_weights()
 
-    def _post_train_calls(self, **kwargs):
+    def _post_train_calls(self, update: bool = False, offset: int = 0, **kwargs):
         """Function calls to perform after training, such as computing eigenvectors"""
-        if self.components > 0:
+        if self.components > 0 and update and isinstance(self.svd_res, tuple):
+            # Appended rows are treated like inference: reuse the learned components.
+            remove_principal_components(self.sv.vectors[offset:], svd_res=self.svd_res)
+        elif self.components > 0:
             self.svd_res = compute_principal_components(
                 self.sv.vectors,
                 components=self.components,
@@ -123,7 +133,7 @@ class SIF(Average):
         """Check the dtypes of all attributes"""
         if self.word_weights.dtype != REAL:
             raise TypeError(f"type of word_weights is wrong: {self.word_weights.dtype}")
-        if self.svd_res is not None:
+        if isinstance(self.svd_res, tuple):
             if self.svd_res[0].dtype != REAL:
                 raise TypeError(f"type of svd values is wrong: {self.svd_res[0].dtype}")
             if self.svd_res[1].dtype != REAL:

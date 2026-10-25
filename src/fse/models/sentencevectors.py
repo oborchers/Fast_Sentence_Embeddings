@@ -13,9 +13,13 @@ from gensim.models.keyedvectors import KeyedVectors
 from numpy import (
     array,
     dot,
+    dtype,
+    floating,
     integer,
+    issubdtype,
     ndarray,
     newaxis,
+    prod,
     sqrt,
     vstack,
     zeros,
@@ -27,8 +31,7 @@ from numpy import (
     memmap as np_memmap,
 )
 
-from fse.inputs import IndexedLineDocument, IndexedList
-from fse.models.utils import set_madvise_for_mmap
+from fse._validation import NonNegativeInt, PathLike, validate_arguments
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +40,8 @@ class SentenceVectors(utils.SaveLoad):
     vectors_norm: ndarray | None
     mapfile_shape: tuple[int, int] | None
 
-    def __init__(self, vector_size: int, mapfile_path: str | None = None):
-
-        set_madvise_for_mmap()
+    @validate_arguments
+    def __init__(self, vector_size: NonNegativeInt, mapfile_path: PathLike | None = None):
 
         self.vector_size = vector_size  # Size of vectors
         self.vectors = zeros((0, vector_size), REAL)  # Vectors for sentences
@@ -75,17 +77,10 @@ class SentenceVectors(utils.SaveLoad):
 
         return vstack([self.get_vector(e) for e in entities])
 
-    def __contains__(self, index: int) -> bool:
-        if isinstance(
-            index,
-            (
-                int,
-                integer,
-            ),
-        ):
-            return index < len(self)
-        else:
-            raise KeyError(f"index {index} is not a valid index")
+    def __contains__(self, index: object) -> bool:
+        if isinstance(index, bool) or not isinstance(index, (int, integer)):
+            return False
+        return bool(0 <= index < len(self))
 
     def __len__(self) -> int:
         return len(self.vectors)
@@ -105,7 +100,7 @@ class SentenceVectors(utils.SaveLoad):
 
         See Also
         --------
-        :meth:`~gensim.models.keyedvectors.Doc2VecKeyedVectors.load`
+        :meth:`~fse.models.sentencevectors.SentenceVectors.load`
             Load object.
 
         """
@@ -124,7 +119,6 @@ class SentenceVectors(utils.SaveLoad):
         path = sv.mapfile_path
         if path is not None:
             sv._load_all_vectors_from_disk(mapfile_path=path)
-        set_madvise_for_mmap()
         return sv
 
     def get_vector(self, index: int, use_norm: bool = False) -> ndarray:
@@ -134,7 +128,7 @@ class SentenceVectors(utils.SaveLoad):
         ----------
         index : int
             Input index
-        norm : bool, optional
+        use_norm : bool, optional
             If True - resulting vector will be L2-normalized (unit euclidean length).
 
         Returns
@@ -149,12 +143,14 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         if index in self:
+            if use_norm:
+                self.init_sims()
             result = cast(ndarray, self.vectors_norm)[index] if use_norm else self.vectors[index]
 
             result.setflags(write=False)
             return result
         else:
-            raise KeyError("index {index} not found")
+            raise KeyError(f"index {index} not found")
 
     def init_sims(self, replace: bool = False):
         """Precompute L2-normalized vectors.
@@ -162,18 +158,35 @@ class SentenceVectors(utils.SaveLoad):
         Parameters
         ----------
         replace : bool, optional
-            If True - forget the original vectors and only keep the normalized ones = saves lots of memory!
+            If True, normalize ``vectors`` themselves and keep no separate copy. This saves
+            memory, but the original vectors are lost.
         """
-        if getattr(self, "vectors_norm", None) is None or replace:
-            logger.info("precomputing L2-norms of sentence vectors")
-            if not replace and self.mapfile_path is not None:
-                self.vectors_norm = np_memmap(  # type: ignore[call-overload]
-                    self.mapfile_path + ".vectors_norm",  # type: ignore[operator]
-                    dtype=REAL,
-                    mode="w+",
-                    shape=self.vectors.shape,
+        if getattr(self, "vectors_norm", None) is not None and not replace:
+            return
+        logger.info("precomputing L2-norms of sentence vectors")
+        if replace:
+            self.vectors = _l2_norm(self.vectors, replace=True)
+            self.vectors_norm = self.vectors
+        elif self.mapfile_path is not None:
+            norm_path = Path(f"{self.mapfile_path}.vectors_norm")
+            # Reuse a file of the right size instead of truncating it: another model loaded
+            # from the same files may have it mapped, and Windows refuses to truncate then.
+            expected_size = int(prod(self.vectors.shape)) * dtype(REAL).itemsize
+            exists = norm_path.exists() and norm_path.stat().st_size == expected_size
+            self.vectors_norm = np_memmap(
+                norm_path,
+                dtype=REAL,
+                mode="r+" if exists else "w+",
+                shape=self.vectors.shape,
+            )
+            # Normalize in blocks so a memory-mapped matrix never has to fit into RAM.
+            block = 100_000
+            for start in range(0, len(self.vectors), block):
+                self.vectors_norm[start : start + block] = _l2_norm(
+                    self.vectors[start : start + block]
                 )
-            self.vectors_norm = _l2_norm(self.vectors, replace=replace)
+        else:
+            self.vectors_norm = _l2_norm(self.vectors)
 
     def similarity(self, d1: int, d2: int) -> float:
         """Compute cosine similarity between two sentences from the training set.
@@ -211,14 +224,15 @@ class SentenceVectors(utils.SaveLoad):
         """
         return 1 - self.similarity(d1, d2)
 
+    @validate_arguments
     def most_similar(
         self,
         positive: Any = None,
         negative: Any = None,
-        indexable: IndexedList | IndexedLineDocument | None = None,
-        topn: int = 10,
-        restrict_size: int | tuple[int, int] | None = None,
-    ) -> list[tuple[Any, ...]]:
+        indexable: Any = None,
+        topn: NonNegativeInt | None = 10,
+        restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
+    ) -> list[tuple[Any, ...]] | ndarray:
         """Find the top-N most similar sentences.
         Positive sentences contribute positively towards the similarity, negative sentences negatively.
 
@@ -234,13 +248,13 @@ class SentenceVectors(utils.SaveLoad):
         indexable: list, IndexedList, IndexedLineDocument
             Provides an indexable object from where the most similar sentences are read
         topn : int or None, optional
-            Number of top-N similar sentences to return, when `topn` is int. When `topn` is None,
-            then similarities for all sentences are returned.
+            Number of top-N similar sentences to return, when `topn` is a positive int. When
+            `topn` is 0 or None, the similarities to all sentences are returned as an array.
         restrict_size : int or Tuple(int,int), optional
             Optional integer which limits the range of vectors which
-            are searched for most-similar values. For example, restrict_vocab=10000 would
+            are searched for most-similar values. For example, restrict_size=10000 would
             only check the first 10000 sentence vectors.
-            restrict_vocab=(500, 1000) would search the sentence vectors with indices between
+            restrict_size=(500, 1000) would search the sentence vectors with indices between
             500 and 1000.
 
         Returns
@@ -291,6 +305,10 @@ class SentenceVectors(utils.SaveLoad):
             lo, hi = restrict_size
         else:
             lo, hi = 0, None
+        if hi is not None and hi < lo:
+            raise ValueError(
+                f"restrict_size {restrict_size} has an upper bound below its lower bound"
+            )
 
         vectors_norm = cast(ndarray, self.vectors_norm)
         limited = vectors_norm if restrict_size is None else vectors_norm[lo:hi]
@@ -315,14 +333,15 @@ class SentenceVectors(utils.SaveLoad):
             ]
         return result[:topn]
 
+    @validate_arguments
     def similar_by_word(
         self,
         word: str,
         wv: KeyedVectors,
-        indexable: IndexedList | IndexedLineDocument | None = None,
-        topn: int = 10,
-        restrict_size: int | tuple[int, int] | None = None,
-    ) -> list[tuple[Any, ...]]:
+        indexable: Any = None,
+        topn: NonNegativeInt | None = 10,
+        restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
+    ) -> list[tuple[Any, ...]] | ndarray:
         """Find the top-N most similar sentences to a given word.
 
         Parameters
@@ -334,13 +353,13 @@ class SentenceVectors(utils.SaveLoad):
         indexable: list, IndexedList, IndexedLineDocument
             Provides an indexable object from where the most similar sentences are read
         topn : int or None, optional
-            Number of top-N similar sentences to return, when `topn` is int. When `topn` is None,
-            then similarities for all sentences are returned.
+            Number of top-N similar sentences to return, when `topn` is a positive int. When
+            `topn` is 0 or None, the similarities to all sentences are returned as an array.
         restrict_size : int or Tuple(int,int), optional
             Optional integer which limits the range of vectors which
-            are searched for most-similar values. For example, restrict_vocab=10000 would
+            are searched for most-similar values. For example, restrict_size=10000 would
             only check the first 10000 sentence vectors.
-            restrict_vocab=(500, 1000) would search the sentence vectors with indices between
+            restrict_size=(500, 1000) would search the sentence vectors with indices between
             500 and 1000.
 
         Returns
@@ -359,14 +378,15 @@ class SentenceVectors(utils.SaveLoad):
             restrict_size=restrict_size,
         )
 
+    @validate_arguments
     def similar_by_sentence(
         self,
-        sentence: list[str],
-        model,
-        indexable: IndexedList | IndexedLineDocument | None = None,
-        topn: int = 10,
-        restrict_size: int | tuple[int, int] | None = None,
-    ) -> list[tuple[Any, ...]]:
+        sentence: Any,
+        model: Any,
+        indexable: Any = None,
+        topn: NonNegativeInt | None = 10,
+        restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
+    ) -> list[tuple[Any, ...]] | ndarray:
         """Find the top-N most similar sentences to a given sentence.
 
         Parameters
@@ -378,13 +398,13 @@ class SentenceVectors(utils.SaveLoad):
         indexable: list, IndexedList, IndexedLineDocument
             Provides an indexable object from where the most similar sentences are read
         topn : int or None, optional
-            Number of top-N similar sentences to return, when `topn` is int. When `topn` is None,
-            then similarities for all sentences are returned.
+            Number of top-N similar sentences to return, when `topn` is a positive int. When
+            `topn` is 0 or None, the similarities to all sentences are returned as an array.
         restrict_size : int or Tuple(int,int), optional
             Optional integer which limits the range of vectors which
-            are searched for most-similar values. For example, restrict_vocab=10000 would
+            are searched for most-similar values. For example, restrict_size=10000 would
             only check the first 10000 sentence vectors.
-            restrict_vocab=(500, 1000) would search the sentence vectors with indices between
+            restrict_size=(500, 1000) would search the sentence vectors with indices between
             500 and 1000.
 
         Returns
@@ -407,13 +427,14 @@ class SentenceVectors(utils.SaveLoad):
             positive=vector, indexable=indexable, topn=topn, restrict_size=restrict_size
         )
 
+    @validate_arguments
     def similar_by_vector(
         self,
         vector: ndarray,
-        indexable: IndexedList | IndexedLineDocument | None = None,
-        topn: int = 10,
-        restrict_size: int | tuple[int, int] | None = None,
-    ) -> list[tuple[Any, ...]]:
+        indexable: Any = None,
+        topn: NonNegativeInt | None = 10,
+        restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
+    ) -> list[tuple[Any, ...]] | ndarray:
         """Find the top-N most similar sentences to a given vector.
 
         Parameters
@@ -423,13 +444,13 @@ class SentenceVectors(utils.SaveLoad):
         indexable: list, IndexedList, IndexedLineDocument
             Provides an indexable object from where the most similar sentences are read
         topn : int or None, optional
-            Number of top-N similar sentences to return, when `topn` is int. When `topn` is None,
-            then similarities for all sentences are returned.
+            Number of top-N similar sentences to return, when `topn` is a positive int. When
+            `topn` is 0 or None, the similarities to all sentences are returned as an array.
         restrict_size : int or Tuple(int,int), optional
             Optional integer which limits the range of vectors which
-            are searched for most-similar values. For example, restrict_vocab=10000 would
+            are searched for most-similar values. For example, restrict_size=10000 would
             only check the first 10000 sentence vectors.
-            restrict_vocab=(500, 1000) would search the sentence vectors with indices between
+            restrict_size=(500, 1000) would search the sentence vectors with indices between
             500 and 1000.
 
         Returns
@@ -458,14 +479,14 @@ def _l2_norm(m, replace=False):
 
     Returns
     -------
-    The normalized matrix.  If replace=True, this will be the same as m.
-
-    NOTE: This part is copied from Gensim and modified as the call
-    m /= dist somtimes raises an exception and sometimes it does not.
+    The normalized matrix. Rows of zeros stay zero. If replace=True and m holds floats, m is
+    normalized in place and returned; other dtypes cannot be normalized in place, so a new
+    float32 matrix is returned.
     """
     dist = sqrt((m**2).sum(-1))[..., newaxis]
-    if replace:
-        m = m / dist
+    # A zero vector has no direction; leave it at zero instead of producing NaN.
+    dist[dist == 0] = 1
+    if replace and issubdtype(m.dtype, floating):
+        m /= dist
         return m
-    else:
-        return (m / dist).astype(REAL)
+    return (m / dist).astype(REAL)

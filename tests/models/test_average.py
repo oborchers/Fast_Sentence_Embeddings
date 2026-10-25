@@ -5,6 +5,8 @@
 
 """Automated tests for checking the average model."""
 
+import sys
+
 import numpy as np
 import pytest
 
@@ -218,3 +220,298 @@ def test_check_parameter_sanity(w2v):
     se.word_weights = np.full(20, 2.0, dtype=np.float32)
     with pytest.raises(ValueError, match="word weights must equal one"):
         se._check_parameter_sanity()
+
+
+def test_train_with_numpy_custom_index(w2v, sentences):
+    """CIndexedList documents ndarray custom indices; training must accept them."""
+    from fse import CIndexedList
+
+    custom_index = np.arange(len(sentences), dtype=np.int64) // 2
+    model = Average(w2v)
+    model.train(CIndexedList(sentences, custom_index=custom_index))
+    assert model.sv.vectors.shape == (len(sentences) // 2, w2v.wv.vector_size)
+
+    expected = Average(w2v)
+    expected.train(CIndexedList(sentences, custom_index=custom_index.tolist()))
+    assert np.allclose(model.sv.vectors, expected.sv.vectors)
+
+
+class TestKernelInputChecks:
+    """train_average_cy takes raw pointers, so it must reject arrays it cannot use."""
+
+    def _model(self, w2v):
+        model = Average(w2v)
+        _prepare(model, total_sentences=2)
+        return model
+
+    def test_rejects_wrong_dtype_target(self, w2v):
+        model = self._model(w2v)
+        target = np.zeros(model.sv.vectors.shape, dtype=np.float64)
+        with pytest.raises(TypeError, match="target must have dtype float32"):
+            train_average_cy(model, [(["the"], 0)], target, model._get_thread_working_mem())
+
+    def test_rejects_non_contiguous_target(self, w2v):
+        model = self._model(w2v)
+        target = np.zeros((model.sv.vectors.shape[0], 2 * w2v.wv.vector_size), np.float32)
+        with pytest.raises(TypeError, match="C-contiguous"):
+            train_average_cy(model, [(["the"], 0)], target[:, ::2], model._get_thread_working_mem())
+
+    def test_rejects_index_out_of_range(self, w2v):
+        model = self._model(w2v)
+        with pytest.raises(IndexError, match="out of range"):
+            train_average_cy(
+                model, [(["the"], 2)], model.sv.vectors, model._get_thread_working_mem()
+            )
+
+    def test_rejects_small_ngram_buffer(self, ft):
+        model = Average(ft)
+        _prepare(model, total_sentences=1)
+        mem, _ = model._get_thread_working_mem()
+        small = np.zeros((2, 2), dtype=np.uint32)
+        with pytest.raises(ValueError, match="memory\\[1\\] must hold"):
+            train_average_cy(model, [(["the"], 0)], model.sv.vectors, (mem, small))
+
+    def test_small_batch_settings_keep_full_ngram_buffer(self, ft):
+        """batch_words and batch_ngrams below the kernel limits must not shrink the buffer."""
+        model = Average(ft)
+        model.batch_words, model.batch_ngrams = 2, 2
+        _, oov_mem = model._get_thread_working_mem()
+        assert oov_mem.shape == (MAX_WORDS_IN_BATCH, MAX_NGRAMS_IN_BATCH)
+
+
+def test_most_similar_with_sentence_mapfile(w2v, corpus_indexed, tmp_path):
+    """most_similar normalizes into a mapfile when the sentence vectors live on disk."""
+    on_disk = Average(w2v, sv_mapfile_path=str(tmp_path / "sv"))
+    on_disk.train(corpus_indexed)
+    in_ram = Average(w2v)
+    in_ram.train(corpus_indexed)
+    assert on_disk.sv.most_similar(positive=0, topn=5) == in_ram.sv.most_similar(positive=0, topn=5)
+    assert (tmp_path / "sv.vectors_norm").exists()
+
+
+def test_infer_use_norm_with_unknown_words(w2v, corpus_indexed):
+    """A sentence without known words has a zero vector, not NaN, after normalization."""
+    model = Average(w2v)
+    model.train(corpus_indexed)
+    known = next(w for w in w2v.wv.index_to_key if w2v.wv.key_to_index[w] > 0)
+    out = model.infer([(["unknownword"], 0), ([known], 1)], use_norm=True)
+    assert np.array_equal(out[0], np.zeros(w2v.wv.vector_size, dtype=np.float32))
+    assert np.isclose(np.linalg.norm(out[1]), 1.0)
+
+
+@pytest.mark.parametrize("model_name", ["Average", "SIF", "uSIF"])
+def test_train_update_appends_rows(make_w2v, sentences, model_name):
+    """update=True writes new sentences behind the existing rows and keeps the old ones.
+
+    The new sentences use indices 0..n-1 like any input; fse places them after the
+    existing rows. SIF and uSIF keep the components learned in the first training, so
+    the new rows equal infer() on the new sentences.
+    """
+    import fse
+
+    # Random vectors: the module's row-index vectors are all parallel, which leaves only
+    # rounding noise once SIF removes their common direction.
+    w2v = make_w2v(DIM)
+    w2v.wv.vectors[:] = np.random.default_rng(0).random(w2v.wv.vectors.shape, dtype=np.float32)
+    first = [(s, i) for i, s in enumerate(sentences[:60])]
+    second = [(s, i) for i, s in enumerate(sentences[60:])]
+    model = getattr(fse, model_name)(w2v)
+    model.train(first)
+    old_rows = np.array(model.sv.vectors)
+    svd_before = getattr(model, "svd_res", None)
+    weights_before = getattr(model, "svd_weights", None)
+
+    model.train(second, update=True)
+
+    # The components and weights of the first training are reused, not recomputed.
+    assert getattr(model, "svd_res", None) is svd_before
+    assert getattr(model, "svd_weights", None) is weights_before
+
+    assert model.sv.vectors.shape == (100, w2v.wv.vector_size)
+    assert np.array_equal(model.sv.vectors[:60], old_rows)
+
+    # Trained rows start at EPS while infer starts at zero. Component removal is linear,
+    # so a trained row equals the inferred row plus the processed EPS offset.
+    offset = np.full((1, w2v.wv.vector_size), EPS, dtype=np.float32)
+    if model_name != "Average":
+        model._post_inference_calls(output=offset)
+    # float32 with a different summation order per BLAS: values near zero differ by about 1e-8.
+    assert np.allclose(model.sv.vectors[60:], model.infer(second) + offset, rtol=1e-4, atol=1e-6)
+
+
+@pytest.mark.parametrize("model_name", ["SIF", "uSIF"])
+def test_train_twice_without_components(w2v, corpus_indexed, model_name):
+    """components=0 stores the marker 0 as svd_res; a second training must still work."""
+    import fse
+
+    model = getattr(fse, model_name)(w2v, components=0)
+    model.train(corpus_indexed)
+    first = np.array(model.sv.vectors)
+    model.train(corpus_indexed)
+    assert np.allclose(model.sv.vectors, first)
+
+
+@pytest.mark.parametrize("token", ["", "§"])
+def test_ft_oov_without_ngrams_parity(make_ft, token):
+    """An OOV token without ngrams adds nothing in both paths but counts for the length.
+
+    With min_n=4 the token "§" ("<§>" has 3 characters) and the empty token have no ngrams.
+    Neither occurs in the test corpus.
+    """
+    ft = make_ft(5, min_n=4, max_n=4)
+    assert token not in ft.wv.key_to_index
+    sentences = [([token, "the"], 0), ([token], 1)]
+    results = []
+    for train_func in (train_average_np, train_average_cy):
+        model = Average(ft)
+        _prepare(model, total_sentences=2)
+        model.sv.vectors = np.zeros_like(model.sv.vectors)
+        train_func(model, sentences, model.sv.vectors, model._get_thread_working_mem())
+        results.append(np.array(model.sv.vectors))
+    np_out, cy_out = results
+    assert np.allclose(np_out, cy_out, atol=1e-6)
+    assert np.array_equal(cy_out[1], np.zeros(5, dtype=np.float32))
+
+
+def test_save_load_with_sentence_mapfile(w2v, corpus_indexed, tmp_path):
+    """Sentence vectors on disk are not duplicated into .npy files and are reopened by load."""
+    model = Average(w2v, sv_mapfile_path=str(tmp_path / "sv"))
+    model.train(corpus_indexed)
+    model.sv.init_sims()
+    expected = np.array(model.sv.vectors)
+
+    # gensim stores arrays above sep_limit (10 MB) as separate .npy files; force that here.
+    model.save(str(tmp_path / "model"), sep_limit=0)
+    assert not [f.name for f in tmp_path.iterdir() if f.name.startswith("model.sv.")]
+    assert isinstance(model.sv.vectors, np.memmap)
+
+    loaded = Average.load(str(tmp_path / "model"))
+    assert isinstance(loaded.sv.vectors, np.memmap)
+    assert loaded.sv.vectors.filename == str((tmp_path / "sv.vectors").absolute())
+    assert np.array_equal(loaded.sv.vectors, expected)
+    assert loaded.sv.most_similar(positive=0, topn=3) == model.sv.most_similar(positive=0, topn=3)
+
+
+def test_np_counts_empty_sentences_like_cy(w2v):
+    sentences = [([], 0), (["the"], 1), ([], 2)]
+    counts = []
+    for train_func in (train_average_np, train_average_cy):
+        model = Average(w2v)
+        _prepare(model, total_sentences=3)
+        counts.append(
+            train_func(model, sentences, model.sv.vectors, model._get_thread_working_mem())
+        )
+    assert counts[0] == counts[1] == (1, 1)
+
+
+def test_many_to_one_with_workers_loses_no_updates():
+    """Workers that add into the same rows concurrently must not lose sentence averages.
+
+    50,000 sentences map onto 4 rows, so each row sums 12,500 averages. One lost update
+    changes a row by about 1/12,500 = 8e-5, far above float32 summation noise.
+    """
+    from gensim.models import KeyedVectors
+
+    from fse import CIndexedList
+
+    rng = np.random.default_rng(0)
+    vocab = [f"w{i}" for i in range(2000)]
+    kv = KeyedVectors(16)
+    kv.add_vectors(vocab, rng.random((len(vocab), 16), dtype=np.float32))
+    for word in vocab:
+        kv.set_vecattr(word, "count", 1)
+    sentences = [[vocab[j] for j in rng.integers(0, len(vocab), 12)] for _ in range(50_000)]
+    index = [i % 4 for i in range(len(sentences))]
+
+    vectors = kv.vectors.astype(np.float64)
+    expected = np.full((4, 16), EPS, dtype=np.float64)
+    for sentence, row in zip(sentences, index, strict=True):
+        expected[row] += vectors[[kv.key_to_index[w] for w in sentence]].mean(axis=0)
+
+    for _ in range(5):
+        model = Average(kv, workers=8)
+        model.train(CIndexedList(sentences, custom_index=index))
+        assert np.allclose(model.sv.vectors, expected, rtol=1e-5, atol=0)
+
+
+def test_load_keeps_sentence_vectors_of_older_saves(w2v, corpus_indexed, tmp_path):
+    """Before 1.1.0, a model save pickled memmapped sentence vectors without their shape."""
+    from gensim.utils import SaveLoad
+
+    model = Average(w2v, sv_mapfile_path=str(tmp_path / "sv"))
+    model.train(corpus_indexed)
+    expected = np.array(model.sv.vectors)
+    model.sv.mapfile_shape = None
+    # Save the way 1.0.0 did: through gensim, with the vectors inside the saved model.
+    SaveLoad.save(model, str(tmp_path / "old_model"))
+
+    loaded = Average.load(str(tmp_path / "old_model"))
+    assert loaded.sv.vectors.shape == expected.shape
+    assert np.array_equal(loaded.sv.vectors, expected)
+
+
+class TestKernelShapeChecks:
+    def _model(self, w2v):
+        model = Average(w2v)
+        _prepare(model, total_sentences=2)
+        return model
+
+    def test_rejects_read_only_target(self, w2v):
+        model = self._model(w2v)
+        target = np.zeros_like(model.sv.vectors)
+        target.setflags(write=False)
+        with pytest.raises(ValueError, match="writeable"):
+            train_average_cy(model, [(["the"], 0)], target, model._get_thread_working_mem())
+
+    def test_rejects_missing_word_weights(self, w2v):
+        model = self._model(w2v)
+        model.word_weights = np.zeros(0, dtype=np.float32)
+        with pytest.raises(ValueError, match="one weight per word vector"):
+            train_average_cy(
+                model, [(["the"], 0)], model.sv.vectors, model._get_thread_working_mem()
+            )
+
+    def test_rejects_mismatched_vector_size(self, w2v):
+        model = self._model(w2v)
+        model.sv.vector_size = w2v.wv.vector_size + 1
+        target = np.zeros((2, w2v.wv.vector_size + 1), dtype=np.float32)
+        with pytest.raises(ValueError, match="word vectors must have shape"):
+            train_average_cy(model, [(["the"], 0)], target, model._get_thread_working_mem())
+
+
+@pytest.mark.parametrize(("index", "expect_locks"), [(lambda i: i % 4, True), (lambda i: i, False)])
+def test_row_locks_are_set_only_for_shared_rows(w2v, sentences, index, expect_locks):
+    """Shared rows with several workers must train under row locks; unique rows without."""
+    model = Average(w2v, workers=2)
+    seen = []
+    original = model._do_train_job
+
+    def recording_job(data_iterable, target, memory):
+        seen.append(getattr(model, "_row_locks", None) is not None)
+        return original(data_iterable, target, memory)
+
+    model._do_train_job = recording_job
+    model.train([(s, index(i)) for i, s in enumerate(sentences)])
+    assert seen
+    assert all(flag is expect_locks for flag in seen)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="NTFS does not create sparse memmap files")
+def test_cy_addresses_rows_beyond_32_bit_offsets(make_w2v, tmp_path):
+    """Row * dimension exceeds 2**32 from row 14,316,558 on at 300 dimensions.
+
+    The kernel computed that flat offset in uint32, so the sentence landed near the start
+    of the matrix. The memmap is a sparse file; only the touched pages use disk space.
+    """
+    dim = 300
+    rows = 2**32 // dim + 2
+    model = Average(make_w2v(dim))
+    model._pre_train_calls()
+    target = np.memmap(tmp_path / "big", dtype=np.float32, mode="w+", shape=(rows, dim))
+    word = model.wv.index_to_key[0]
+
+    train_average_cy(model, [([word], rows - 1)], target, model._get_thread_working_mem())
+
+    np.testing.assert_allclose(target[rows - 1], model.wv.vectors[0], rtol=1e-6)
+    wrapped = (rows - 1) * dim % 2**32 // dim
+    assert not target[: wrapped + 2].any()

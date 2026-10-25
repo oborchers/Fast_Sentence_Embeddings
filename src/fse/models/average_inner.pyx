@@ -18,22 +18,68 @@ cimport numpy as np
 
 from gensim.models.fasttext import compute_ngrams_bytes, ft_hash_bytes
 
+from cpython.pycapsule cimport PyCapsule_GetPointer
+from cpython.pythread cimport (
+    WAIT_LOCK,
+    PyThread_acquire_lock,
+    PyThread_allocate_lock,
+    PyThread_free_lock,
+    PyThread_release_lock,
+)
 from libc.string cimport memset
 from libc.stdio cimport printf
 
 import scipy.linalg.blas as fblas
 
-cdef saxpy_ptr saxpy=<saxpy_ptr>PyCObject_AsVoidPtr(fblas.saxpy._cpointer)  # y += alpha * x
-cdef sscal_ptr sscal=<sscal_ptr>PyCObject_AsVoidPtr(fblas.sscal._cpointer) # x = alpha * x
+# y += alpha * x, taken from scipy's BLAS. Raises at import if scipy exposes no pointer.
+cdef saxpy_ptr saxpy=<saxpy_ptr>PyCapsule_GetPointer(fblas.saxpy._cpointer, NULL)
 
 cdef int ONE = <int>1
 cdef int ZERO = <int>0
 
+# Marks an out-of-vocabulary token that has no ngrams: it counts for the sentence length
+# but adds no vector, as in the numpy fallback.
+cdef uINT_t NO_VECTOR = <uINT_t>0xFFFFFFFF
+
 cdef REAL_t ONEF = <REAL_t>1.0
 cdef REAL_t ZEROF = <REAL_t>0.0
 
+cdef class RowLocks:
+    """Striped locks that serialize adding sentence averages into shared target rows.
+
+    Only needed when several sentences map to the same row and more than one worker
+    trains at the same time. Row ``r`` uses lock ``r % N_ROW_LOCKS``.
+    """
+
+    def __cinit__(self):
+        cdef int i
+        for i in range(N_ROW_LOCKS):
+            self.locks[i] = NULL
+        for i in range(N_ROW_LOCKS):
+            self.locks[i] = PyThread_allocate_lock()
+            if self.locks[i] == NULL:
+                raise MemoryError("could not allocate row locks")
+
+    def __dealloc__(self):
+        cdef int i
+        for i in range(N_ROW_LOCKS):
+            if self.locks[i] != NULL:
+                PyThread_free_lock(self.locks[i])
+
+    def __reduce__(self):
+        raise TypeError("RowLocks only exist during training and cannot be pickled")
+
+
+cdef PyThread_type_lock *_row_locks_of(model):
+    """Return the row locks set on the model for the current training, or NULL."""
+    locks = getattr(model, "_row_locks", None)
+    if locks is None:
+        return NULL
+    return (<RowLocks?>locks).locks
+
+
 cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory):
-    """Load BaseAny2Vec parameters into a BaseSentenceVecsConfig struct.
+    """Load the model parameters into a BaseSentenceVecsConfig struct.
 
     Parameters
     ----------
@@ -57,6 +103,7 @@ cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory):
     c[0].word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
 
     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
+    c[0].locks = _row_locks_of(model)
 
 cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory):
     """Load Fasttext parameters into a FTSentenceVecsConfig struct.
@@ -93,9 +140,10 @@ cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory):
     c[0].word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
 
     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
+    c[0].locks = _row_locks_of(model)
 
-cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sentences):
-    """Prepare C structures for BaseAny2VecModel so we can go "full C" and release the Python GIL.
+cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sentences, n_rows):
+    """Prepare C structures for Word2Vec-style vectors so the kernel can release the Python GIL.
 
     We create indices over the sentences.  We also perform some calculations for
     each token/ngram and store the result up front to save time.
@@ -111,10 +159,10 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sent
 
     Returns
     -------
-    eff_words : int
-        The number of in-vocabulary tokens.
     eff_sents : int
         The number of non-empty sentences.
+    eff_words : int
+        The number of in-vocabulary tokens.
 
     """
 
@@ -124,6 +172,9 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sent
     c.sentence_boundary[0] = ZERO
 
     for obj in indexed_sentences:
+        # The kernel writes into target[obj[1]] through a raw pointer.
+        if not 0 <= obj[1] < n_rows:
+            raise IndexError(f"sentence index {obj[1]} is out of range for {n_rows} target rows")
         if not obj[0]:
             continue
         for token in obj[0]:
@@ -144,7 +195,7 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sent
 
     return eff_sents, eff_words
 
-cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentences):
+cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentences, n_rows):
     """Prepare C structures for FastText so we can go "full C" and release the Python GIL.
 
     We create indices over the sentences.  We also perform some calculations for
@@ -161,10 +212,10 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentence
 
     Returns
     -------
-    eff_words : int
-        The number of in-vocabulary tokens.
     eff_sents : int
         The number of non-empty sentences.
+    eff_words : int
+        The number of in-vocabulary tokens.
 
     """
 
@@ -174,6 +225,9 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentence
     c.sentence_boundary[0] = ZERO
 
     for obj in indexed_sentences:
+        # The kernel writes into target[obj[1]] through a raw pointer.
+        if not 0 <= obj[1] < n_rows:
+            raise IndexError(f"sentence index {obj[1]} is out of range for {n_rows} target rows")
         if not obj[0]:
             continue
         for token in obj[0]:
@@ -184,9 +238,8 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentence
                 c.subwords_idx_len[eff_words] = ZERO
             else:
                 # OOV words --> write ngram indices to memory
-                c.word_indices[eff_words] = ZERO
-
                 encoded_ngrams = compute_ngrams_bytes(token, c.min_n, c.max_n)
+                c.word_indices[eff_words] = ZERO if encoded_ngrams else NO_VECTOR
                 hashes = [ft_hash_bytes(n) % c.bucket for n in encoded_ngrams]
 
                 c.subwords_idx_len[eff_words] = <uINT_t>min(len(encoded_ngrams), MAX_NGRAMS)
@@ -207,7 +260,7 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentence
     return eff_sents, eff_words
 
 cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_sentences) noexcept nogil:
-    """Perform optimized sentence-level averaging for BaseAny2Vec model.
+    """Perform optimized sentence-level averaging for Word2Vec-style vectors.
 
     Parameters
     ----------
@@ -224,11 +277,14 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
     cdef:
         int size = c.size
 
-        uINT_t sent_idx, sent_start, sent_end, sent_row
+        uINT_t sent_idx, sent_start, sent_end
+        # Flat offsets row * size overflow 32 bits from 2**32 / size rows on.
+        size_t sent_row, word_row
 
-        uINT_t i, word_idx, word_row
+        uINT_t i, word_idx
 
         REAL_t sent_len, inv_count
+        PyThread_type_lock lock
 
     for sent_idx in range(num_sentences):
         memset(c.mem, 0, size * cython.sizeof(REAL_t))
@@ -239,8 +295,8 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
 
         for i in range(sent_start, sent_end):
             sent_len += ONEF
-            sent_row = c.sent_adresses[i] * size
-            word_row = c.word_indices[i] * size
+            sent_row = <size_t>c.sent_adresses[i] * <size_t>size
+            word_row = <size_t>c.word_indices[i] * <size_t>size
             word_idx = c.word_indices[i]
 
             saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, c.mem, &ONE)
@@ -249,7 +305,13 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
             inv_count = ONEF / sent_len
             # If we perform the a*x on memory, the computation is compatible with many-to-one mappings
             # because it doesn't rescale the overall result
-            saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
+            if c.locks != NULL:
+                lock = c.locks[c.sent_adresses[sent_start] % N_ROW_LOCKS]
+                PyThread_acquire_lock(lock, WAIT_LOCK)
+                saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
+                PyThread_release_lock(lock)
+            else:
+                saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
 
 cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sentences) noexcept nogil:
     """Perform optimized sentence-level averaging for FastText model.
@@ -269,14 +331,17 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
     cdef:
         int size = c.size
 
-        uINT_t sent_idx, sent_start, sent_end, sent_row
+        uINT_t sent_idx, sent_start, sent_end
+        # Flat offsets row * size overflow 32 bits from 2**32 / size rows on.
+        size_t sent_row, word_row, ngram_row
 
-        uINT_t ngram_row, ngrams
+        uINT_t ngrams
 
-        uINT_t i, j, word_idx, word_row
+        uINT_t i, j, word_idx
 
         REAL_t sent_len
         REAL_t inv_count, inv_ngram
+        PyThread_type_lock lock
         REAL_t oov_weight = c.oov_weight
 
 
@@ -288,23 +353,84 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
 
         for i in range(sent_start, sent_end):
             sent_len += ONEF
-            sent_row = c.sent_adresses[i] * size
+            sent_row = <size_t>c.sent_adresses[i] * <size_t>size
 
             word_idx = c.word_indices[i]
             ngrams = c.subwords_idx_len[i]
 
             if ngrams == 0:
-                word_row = c.word_indices[i] * size
+                if word_idx == NO_VECTOR:
+                    continue
+                word_row = <size_t>c.word_indices[i] * <size_t>size
                 saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, c.mem, &ONE)
             else:
                 inv_ngram = (ONEF / <REAL_t>ngrams) * c.oov_weight
                 for j in range(ngrams):
-                    ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size
+                    ngram_row = <size_t>c.subwords_idx[(i * MAX_NGRAMS)+j] * <size_t>size
                     saxpy(&size, &inv_ngram, &c.ngram_vectors[ngram_row], &ONE, c.mem, &ONE)
 
         if sent_len > ZEROF:
             inv_count = ONEF / sent_len
-            saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
+            if c.locks != NULL:
+                lock = c.locks[c.sent_adresses[sent_start] % N_ROW_LOCKS]
+                PyThread_acquire_lock(lock, WAIT_LOCK)
+                saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
+                PyThread_release_lock(lock)
+            else:
+                saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
+
+def _check_array(array, name, dtype):
+    """Raise unless array is a C-contiguous ndarray of dtype, because the kernel takes raw pointers."""
+    if not isinstance(array, np.ndarray):
+        raise TypeError(f"{name} must be a numpy array, got {type(array).__name__}")
+    if array.dtype != dtype:
+        raise TypeError(f"{name} must have dtype {np.dtype(dtype).name}, got {array.dtype}")
+    if not array.flags.c_contiguous:
+        raise TypeError(f"{name} must be C-contiguous")
+
+
+def _check_inputs(model, target, memory):
+    """Validate every array the kernel reads or writes through a raw pointer."""
+    _check_array(target, "target", np.float32)
+    _check_array(memory[0], "memory[0]", np.float32)
+    _check_array(model.word_weights, "word_weights", np.float32)
+    if not target.flags.writeable:
+        raise ValueError("target must be writeable")
+    # The kernel strides through all matrices by the sentence vector size.
+    size = model.sv.vector_size
+    if model.is_ft:
+        word_vectors = model.wv.vectors_vocab
+        _check_array(word_vectors, "wv.vectors_vocab", np.float32)
+        _check_array(model.wv.vectors_ngrams, "wv.vectors_ngrams", np.float32)
+        if model.wv.vectors_ngrams.shape != (model.wv.bucket, size):
+            raise ValueError(
+                f"wv.vectors_ngrams must have shape ({model.wv.bucket}, {size}), "
+                f"got {model.wv.vectors_ngrams.shape}"
+            )
+        _check_array(memory[1], "memory[1]", np.uint32)
+        if memory[1].size < MAX_WORDS * MAX_NGRAMS:
+            raise ValueError(
+                f"memory[1] must hold at least {MAX_WORDS} x {MAX_NGRAMS} entries, "
+                f"got shape {memory[1].shape}"
+            )
+    else:
+        word_vectors = model.wv.vectors
+        _check_array(word_vectors, "wv.vectors", np.float32)
+    if word_vectors.ndim != 2 or word_vectors.shape[1] != size:
+        raise ValueError(f"word vectors must have shape (n, {size}), got {word_vectors.shape}")
+    if model.word_weights.shape != (word_vectors.shape[0],):
+        raise ValueError(
+            f"word_weights must have one weight per word vector ({word_vectors.shape[0]}), "
+            f"got shape {model.word_weights.shape}"
+        )
+    if target.ndim != 2 or target.shape[1] != size:
+        raise ValueError(f"target must have shape (n, {size}), got {target.shape}")
+    # Row and word indices are stored as uint32, and 0xFFFFFFFF marks a missing vector.
+    if target.shape[0] >= NO_VECTOR or word_vectors.shape[0] >= NO_VECTOR:
+        raise ValueError(f"the kernel supports fewer than {NO_VECTOR} rows and words")
+    if memory[0].size < size:
+        raise ValueError(f"memory[0] must hold at least {size} entries, got {memory[0].size}")
+
 
 def train_average_cy(model, indexed_sentences, target, memory):
     """Training on a sequence of sentences and update the target ndarray.
@@ -335,17 +461,19 @@ def train_average_cy(model, indexed_sentences, target, memory):
     cdef BaseSentenceVecsConfig w2v
     cdef FTSentenceVecsConfig ft
 
+    _check_inputs(model, target, memory)
+
     if not model.is_ft:
         init_base_s2v_config(&w2v, model, target, memory)
 
-        eff_sentences, eff_words = populate_base_s2v_config(&w2v, model.wv, indexed_sentences)
+        eff_sentences, eff_words = populate_base_s2v_config(&w2v, model.wv, indexed_sentences, target.shape[0])
 
         with nogil:
             compute_base_sentence_averages(&w2v, eff_sentences)
     else:
         init_ft_s2v_config(&ft, model, target, memory)
 
-        eff_sentences, eff_words = populate_ft_s2v_config(&ft, model.wv, indexed_sentences)
+        eff_sentences, eff_words = populate_ft_s2v_config(&ft, model.wv, indexed_sentences, target.shape[0])
 
         with nogil:
             compute_ft_sentence_averages(&ft, eff_sentences)

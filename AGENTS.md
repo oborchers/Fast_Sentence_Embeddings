@@ -24,6 +24,7 @@ Use uv and the Makefile; CI calls the same targets.
 
 ## Rules
 
+- Validate strictly and never fail silently: raise a clear exception instead of coercing, ignoring or truncating input. Decorate new public entry points with `fse._validation.validate_arguments` unless they are called per element or receive bulk data; measure the overhead when in doubt. See ARCHITECTURE.md.
 - Never rename modules under `fse.models`. Saved models pickle class paths such as `fse.models.average.Average`.
 - Keep the numpy fallback in `average.py` and the Cython routines in `average_inner.pyx` numerically identical; tests compare them.
 - Do not hard-code vocabulary positions in tests. gensim versions order words with equal counts differently; derive expectations from `key_to_index`.

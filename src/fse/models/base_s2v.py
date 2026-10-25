@@ -33,11 +33,13 @@ See Also
 
 """
 
+import contextlib
 import logging
 import threading
 import warnings
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from queue import Queue
+from queue import Empty, Queue
 from time import time
 from typing import Any
 
@@ -60,6 +62,9 @@ from numpy import (
     float32 as REAL,
 )
 from numpy import (
+    integer as np_integer,
+)
+from numpy import (
     memmap as np_memmap,
 )
 from numpy import (
@@ -68,10 +73,23 @@ from numpy import (
 from psutil import virtual_memory
 from wordfreq import available_languages, get_frequency_dict
 
+from fse._validation import (
+    PathLike,
+    PositiveFloat,
+    PositiveInt,
+    WordVectorModel,
+    validate_arguments,
+)
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
-from fse.models.utils import set_madvise_for_mmap
 
 logger = logging.getLogger(__name__)
+
+try:
+    from fse.models.average_inner import MAX_NGRAMS_IN_BATCH, MAX_WORDS_IN_BATCH, RowLocks
+except ImportError:  # pragma: no cover - the numpy fallback has no fixed buffer layout
+    MAX_WORDS_IN_BATCH = 10000
+    MAX_NGRAMS_IN_BATCH = 40
+    RowLocks = None  # type: ignore[assignment, misc]
 
 EPS = finfo(REAL).eps
 
@@ -82,26 +100,26 @@ class BaseSentence2VecModel(SaveLoad):
     wv_mapfile_path: Path | None
     wv_mapfile_shapes: dict[str, tuple[int, ...]]
 
+    @validate_arguments
     def __init__(
         self,
-        model: KeyedVectors,
-        sv_mapfile_path: str | None = None,
-        wv_mapfile_path: str | None = None,
-        workers: int = 1,
+        model: WordVectorModel,
+        sv_mapfile_path: PathLike | None = None,
+        wv_mapfile_path: PathLike | None = None,
+        workers: PositiveInt = 1,
         lang_freq: str | None = None,
         fast_version: int = 0,
-        batch_words: int = 10000,
-        batch_ngrams: int = 40,
-        **kwargs,
+        batch_words: PositiveInt = 10000,
+        batch_ngrams: PositiveInt = 40,
     ):
         """Base class for all Sentence2Vec Models. Provides core functionality, such as
         save, load, sanity checking, frequency induction, data checking, scanning, etc.
 
         Parameters
         ----------
-        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
+        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or a gensim model with a ``wv`` attribute, such as :class:`~gensim.models.Word2Vec` or :class:`~gensim.models.FastText`
             This object essentially contains the mapping between words and embeddings. To compute the sentence embeddings
-            the wv and wv.vector elements are required.
+            its ``key_to_index`` and ``vectors`` are required.
         sv_mapfile_path : str, optional
             Optional path to store the sentence-vectors in for very large datasets. Used for memmap.
         wv_mapfile_path : str, optional
@@ -122,11 +140,8 @@ class BaseSentence2VecModel(SaveLoad):
             Number of words to be processed by a single job.
         batch_ngrams : int, optional
             Number of maxium ngrams for oov words.
-        **kwargs : object
-            Key word arguments needed to allow children classes to accept more arguments.
 
         """
-        set_madvise_for_mmap()
 
         self.workers = int(workers)
         self.batch_words = batch_words
@@ -169,14 +184,14 @@ class BaseSentence2VecModel(SaveLoad):
             Human readable representation of the model's state.
 
         """
-        return f"{self.__class__.__name__} based on {self.wv.__class__.__name__}, vector_size={len(self.sv)}"
+        return f"{self.__class__.__name__} based on {self.wv.__class__.__name__}, vector_size={self.sv.vector_size}"
 
     def _check_and_include_model(self, model: KeyedVectors):
         """Check if the supplied model is a compatible model. Performs all kinds of checks and small optimizations.
 
         Parameters
         ----------
-        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
+        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or a gensim model with a ``wv`` attribute, such as :class:`~gensim.models.Word2Vec` or :class:`~gensim.models.FastText`
             The model to inject into this class.
 
         """
@@ -188,7 +203,7 @@ class BaseSentence2VecModel(SaveLoad):
             self.wv = model
         else:
             raise RuntimeError(
-                f"Model must be child of BaseWordEmbeddingsModel or KeyedVectors. Received {model!s}"
+                f"Model must be KeyedVectors or have a wv attribute with KeyedVectors. Received {model!s}"
             )
 
         if isinstance(self.wv, FastTextKeyedVectors):
@@ -243,8 +258,8 @@ class BaseSentence2VecModel(SaveLoad):
 
         Parameters
         ----------
-        data_iterable : tuple
-            The cumulative count of the vocabulary.
+        data_iterable : iterable of tuple
+            The input data to train on or to infer.
 
         """
         if data_iterable is None:
@@ -255,6 +270,13 @@ class BaseSentence2VecModel(SaveLoad):
             )
         elif not hasattr(data_iterable, "__iter__"):
             raise TypeError("Iterable must provide __iter__ function")
+        elif iter(data_iterable) is data_iterable:
+            # The data is read twice: once by scan_sentences and once for training.
+            raise TypeError(
+                "Input data must be re-iterable, for example a list, IndexedList or "
+                "IndexedLineDocument. Generators and other one-shot iterators are exhausted "
+                "by the initial scan."
+            )
 
     def _log_train_end(self, eff_sentences: int, eff_words: int, overall_time: float):
         """Log the end of training.
@@ -347,9 +369,7 @@ class BaseSentence2VecModel(SaveLoad):
         if eff_sentences == 0 or eff_words == 0:
             raise ValueError("training returned invalid values. Check the input.")
 
-    def _check_indexed_sent_valid(
-        self, iter_pos: int, obj: tuple, checked: int = False
-    ) -> tuple[int, list[str]]:
+    def _check_indexed_sent_valid(self, iter_pos: int, obj: tuple) -> tuple[int, list[str]]:
         """Performs a check if the passed object contains valid data
 
         Parameters
@@ -368,24 +388,26 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
 
-        if isinstance(obj, tuple):
-            sent = obj[0]  # Faster than obj.words
-            index = obj[1]
-        else:
+        if not isinstance(obj, tuple):
             raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain tuple.")
+        if len(obj) != 2:
+            raise ValueError(
+                f"At {iter_pos}: Passed a tuple of length {len(obj)}. "
+                "Each item must be a (words, index) tuple."
+            )
+        sent, index = obj
 
-        if not checked:
-            if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
-                raise TypeError(
-                    f"At {iter_pos}: Passed {type(sent)}: {sent}. tuple.words must contain list of str."
-                )
-            if not isinstance(index, int):
-                raise TypeError(
-                    f"At {iter_pos}: Passed {type(index)}: {index}. tuple.index must contain index"
-                )
-            if index < 0:
-                raise ValueError(f"At {iter_pos}: Passed negative {index}")
-        return index, sent
+        if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
+            raise TypeError(
+                f"At {iter_pos}: Passed {type(sent)}: {sent}. tuple.words must contain list of str."
+            )
+        if isinstance(index, bool) or not isinstance(index, (int, np_integer)):
+            raise TypeError(
+                f"At {iter_pos}: Passed {type(index)}: {index}. tuple.index must contain index"
+            )
+        if index < 0:
+            raise ValueError(f"At {iter_pos}: Passed negative {index}")
+        return int(index), sent
 
     def _map_all_vectors_to_disk(self, mapfile_path: Path):
         """Maps all vectors to disk
@@ -486,7 +508,15 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         mem = zeros_aligned(self.sv.vector_size, dtype=REAL)
-        oov_mem = zeros_aligned((self.batch_words, self.batch_ngrams), dtype=uINT)
+        # The Cython kernel strides through the ngram buffer by its compile-time limits,
+        # so the buffer must have at least that size whatever batch_words is set to.
+        oov_mem = zeros_aligned(
+            (
+                max(self.batch_words, MAX_WORDS_IN_BATCH),
+                max(self.batch_ngrams, MAX_NGRAMS_IN_BATCH),
+            ),
+            dtype=uINT,
+        )
         return (mem, oov_mem)
 
     def _do_train_job(
@@ -508,6 +538,9 @@ class BaseSentence2VecModel(SaveLoad):
         Examples include the removal of components
         """
         raise NotImplementedError()
+
+    def _post_load_calls(self):
+        """Migrate the state of a model saved by an earlier version, after loading it."""
 
     def _check_parameter_sanity(self, **kwargs):
         """Check the sanity of all child paramters"""
@@ -538,9 +571,11 @@ class BaseSentence2VecModel(SaveLoad):
 
         if model.wv_mapfile_path is not None:
             model._load_all_vectors_from_disk(model.wv_mapfile_path)
-        model.wv_mapfile_shapes = None
-
-        set_madvise_for_mmap()
+        # Since 1.1.0, save leaves memmapped sentence vectors out of the pickle. Models saved
+        # by earlier versions still carry them, without a recorded mapfile shape.
+        if model.sv.mapfile_path is not None and model.sv.vectors is None:
+            model.sv._load_all_vectors_from_disk(mapfile_path=model.sv.mapfile_path)
+        model._post_load_calls()
 
         return model
 
@@ -554,10 +589,24 @@ class BaseSentence2VecModel(SaveLoad):
             Path to the file.
 
         """
-        # Manually removes vectors from the wv class because we cannot modify the save method
+        # Vectors that live in mapfiles are reopened by load, so they are left out of the
+        # pickle. They are removed only for the duration of the save, because the model stays
+        # in use afterwards. gensim's FastText load needs vectors_vocab and vectors_ngrams, so
+        # those stay in the pickle. The normalized sentence vectors are a cache.
+        removed = []
         if self.wv_mapfile_path is not None:
-            self.wv.vectors = None
-        super().save(*args, **kwargs)
+            removed.append((self.wv, "vectors"))
+        if self.sv.mapfile_path is not None:
+            self.sv.mapfile_shape = self.sv.vectors.shape
+            removed += [(self.sv, "vectors"), (self.sv, "vectors_norm")]
+        stored = [(obj, name, getattr(obj, name)) for obj, name in removed]
+        try:
+            for obj, name in removed:
+                setattr(obj, name, None)
+            super().save(*args, **kwargs)
+        finally:
+            for obj, name, value in stored:
+                setattr(obj, name, value)
 
     def scan_sentences(self, sentences: Any = None, progress_per: int = 5) -> dict[str, Any]:
         """Performs an initial scan of the data and reports all corresponding statistics
@@ -583,10 +632,15 @@ class BaseSentence2VecModel(SaveLoad):
         average_length = 0
         empty_sentences = 0
         max_index = 0
+        # Whether every index occurs at most once. Most inputs use index == position, which
+        # needs no bookkeeping; any other order is tracked exactly in a set of seen indices,
+        # whose size grows with the number of sentences, not with the largest index.
+        unique_indices = True
+        identity = True
+        seen: set[int] = set()
 
         for i, obj in enumerate(sentences):
-            # Only the first item is fully type checked to keep the scan fast.
-            index, sent = self._check_indexed_sent_valid(iter_pos=i, obj=obj, checked=i)
+            index, sent = self._check_indexed_sent_valid(iter_pos=i, obj=obj)
             if time() - current_time > progress_per:
                 current_time = time()
                 logger.info(
@@ -595,6 +649,15 @@ class BaseSentence2VecModel(SaveLoad):
 
             max_index = max(max_index, index)
             total_sentences += 1
+            if identity and index != i:
+                identity = False
+                seen = set(range(i))
+            if not identity and unique_indices:
+                if index in seen:
+                    unique_indices = False
+                    seen.clear()
+                else:
+                    seen.add(index)
             total_words += len(sent)
 
             if not len(sent):
@@ -603,12 +666,13 @@ class BaseSentence2VecModel(SaveLoad):
         if empty_sentences:
             logger.warning(f"found {empty_sentences} empty sentences")
 
-        if max_index >= total_sentences:
+        if total_sentences and max_index >= total_sentences:
             raise RuntimeError(
                 f"Index {max_index} is larger than number of sentences {total_sentences}"
             )
 
-        average_length = int(total_words / total_sentences)
+        # At least 1 once there are words, so a corpus of mostly empty sentences is valid.
+        average_length = max(1, int(total_words / total_sentences)) if total_words else 0
 
         logger.info(
             f"finished scanning {total_sentences} sentences with an average length of {average_length} and {total_words} total words"
@@ -618,7 +682,8 @@ class BaseSentence2VecModel(SaveLoad):
             "total_words": total_words,
             "average_length": average_length,
             "empty_sentences": empty_sentences,
-            "max_index": max_index + 1,
+            "max_index": max_index + 1 if total_sentences else 0,
+            "unique_indices": unique_indices,
         }
         return statistics
 
@@ -664,12 +729,13 @@ class BaseSentence2VecModel(SaveLoad):
             )
         return report
 
+    @validate_arguments
     def train(
         self,
         sentences: Any = None,
         update: bool = False,
-        queue_factor: int = 2,
-        report_delay: int = 5,
+        queue_factor: PositiveInt = 2,
+        report_delay: PositiveFloat = 5,
     ) -> tuple[int, int]:
         """Main routine to train an embedding. This method writes all sentences vectors into sv.vectors and is
         used for computing embeddings for large chunks of data. This method also handles post-training transformations,
@@ -680,7 +746,11 @@ class BaseSentence2VecModel(SaveLoad):
         sentences : (list, iterable)
             An iterable consisting of tuple objects
         update : bool
-            If bool is True, the sentence vector matrix will be updated in size (even with memmap)
+            If True, append the sentences to the existing sentence vectors instead of
+            replacing them (also with memmap). The sentences use their own indices starting
+            at 0, as produced by the input classes; sentence ``i`` is stored in row
+            ``len(sv) + i``. Models that remove principal components (SIF, uSIF) reuse the
+            components of the first training for the new rows, as ``infer`` does.
         queue_factor : int
             Multiplier for size of queue -> size = number of workers * queue_factor.
         report_delay : int
@@ -698,6 +768,7 @@ class BaseSentence2VecModel(SaveLoad):
         self._check_pre_training_sanity(**statistics)
 
         self.estimate_memory(**statistics)
+        offset = len(self.sv.vectors) if update else 0
         self.prep.prepare_vectors(
             sv=self.sv, total_sentences=statistics["max_index"], update=update
         )
@@ -710,19 +781,35 @@ class BaseSentence2VecModel(SaveLoad):
 
         logger.info("begin training")
 
-        _, eff_sentences, eff_words = self._train_manager(
-            data_iterable=sentences,
-            total_sentences=statistics["total_sentences"],
-            queue_factor=queue_factor,
-            report_delay=report_delay,
-        )
+        workers = self.workers
+        if workers > 1 and not statistics["unique_indices"]:
+            if RowLocks is not None:
+                # Several sentences share rows: serialize adding into each row.
+                self._row_locks = RowLocks()
+            else:
+                logger.warning(
+                    "several sentences map to the same row; the numpy fallback trains them "
+                    "with one worker to avoid lost updates"
+                )
+                workers = 1
+        try:
+            _, eff_sentences, eff_words = self._train_manager(
+                data_iterable=_OffsetIndices(sentences, offset) if offset else sentences,
+                total_sentences=statistics["total_sentences"],
+                queue_factor=queue_factor,
+                report_delay=report_delay,
+                workers=workers,
+            )
+        finally:
+            # The locks only exist during training and must never be pickled.
+            self.__dict__.pop("_row_locks", None)
 
         overall_time = time() - start_time
 
         self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
 
         # Preform post-tain calls (i.e principal component removal)
-        self._post_train_calls()
+        self._post_train_calls(update=update, offset=offset)
 
         self._log_train_end(
             eff_sentences=eff_sentences, eff_words=eff_words, overall_time=overall_time
@@ -730,6 +817,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         return eff_sentences, eff_words
 
+    @validate_arguments
     def infer(self, sentences: Any = None, use_norm: bool = False) -> ndarray:
         """Secondary routine to train an embedding. This method is essential for small batches of sentences,
         which require little computation. Note: This method does not apply post-training transformations,
@@ -775,10 +863,11 @@ class BaseSentence2VecModel(SaveLoad):
 
     def _train_manager(
         self,
-        data_iterable: list[tuple],
+        data_iterable: Iterable[tuple],
         total_sentences: int | None = None,
         queue_factor: int = 2,
-        report_delay: int = 5,
+        report_delay: float = 5,
+        workers: int | None = None,
     ):
         """Manager for the multi-core implementation. Directly adapted from gensim
 
@@ -792,31 +881,64 @@ class BaseSentence2VecModel(SaveLoad):
             Multiplier for size of queue -> size = number of workers * queue_factor.
         report_delay : int
             Number of seconds between two consecutive progress report messages in the logger.
+        workers : int, optional
+            Number of worker threads. Defaults to the model's workers.
 
         """
-        job_queue: Queue[list[tuple] | None] = Queue(maxsize=queue_factor * self.workers)
+        n_workers = self.workers if workers is None else workers
+        job_queue: Queue[list[tuple] | None] = Queue(maxsize=queue_factor * n_workers)
         progress_queue: Queue[tuple[int, int, int] | None] = Queue(
-            maxsize=(queue_factor + 1) * self.workers
+            maxsize=(queue_factor + 1) * n_workers
         )
 
-        # WORKING Threads
-        workers = [
-            threading.Thread(target=self._worker_loop, args=(job_queue, progress_queue))
-            for _ in range(self.workers)
-        ]
-        # JOB PRODUCER
-        workers.append(threading.Thread(target=self._job_producer, args=(data_iterable, job_queue)))
+        # The first error of any thread is re-raised here once all threads are done.
+        # stop tells the producer to stop reading and the workers to skip their jobs.
+        errors: list[BaseException] = []
+        stop = threading.Event()
 
-        for thread in workers:
+        threads = [
+            threading.Thread(
+                target=self._worker_loop, args=(job_queue, progress_queue, errors, stop)
+            )
+            for _ in range(n_workers)
+        ]
+        threads.append(
+            threading.Thread(
+                target=self._job_producer,
+                args=(data_iterable, job_queue, errors, stop, n_workers),
+            )
+        )
+
+        for thread in threads:
             thread.daemon = True  # make interrupting the process with ctrl+c easier
             thread.start()
 
-        jobs, eff_sentences, eff_words = self._log_train_progress(
-            progress_queue, total_sentences=total_sentences, report_delay=report_delay
-        )
+        try:
+            jobs, eff_sentences, eff_words = self._log_train_progress(
+                progress_queue,
+                total_sentences=total_sentences,
+                report_delay=report_delay,
+                workers=n_workers,
+            )
+        finally:
+            stop.set()
+            # If the main thread stopped consuming early, for example on KeyboardInterrupt,
+            # workers may block on the full progress queue. Drain it until all threads end.
+            while any(thread.is_alive() for thread in threads):
+                with contextlib.suppress(Empty):
+                    progress_queue.get(timeout=0.1)
+
+        if errors:
+            raise errors[0]
         return jobs, eff_sentences, eff_words
 
-    def _worker_loop(self, job_queue, progress_queue):
+    def _worker_loop(
+        self,
+        job_queue: Queue,
+        progress_queue: Queue,
+        errors: list[BaseException],
+        stop: threading.Event,
+    ):
         """Train the model, lifting batches of data from the queue.
 
         This function will be called in parallel by multiple workers (threads or processes) to make
@@ -832,24 +954,49 @@ class BaseSentence2VecModel(SaveLoad):
                 * Size of job processed
                 * Effective sentences encountered in traning
                 * Effective words encountered in traning
+        errors : list of BaseException
+            Shared list that collects exceptions raised in any thread.
+        stop : threading.Event
+            Set once any thread failed. The worker then drains the queue without training.
 
         """
-        mem = self._get_thread_working_mem()
         jobs_processed = 0
+        try:
+            mem = self._get_thread_working_mem()
+        except BaseException as err:
+            errors.append(err)
+            stop.set()
+
+        # Always drain the queue until the end marker, so the producer never blocks
+        # on a full queue, and always report the end, so the main thread never waits
+        # for a worker that is gone.
         while True:
             job = job_queue.get()
             if job is None:
-                progress_queue.put(None)
-                # no more jobs => quit this worker
                 break
-            eff_sentences, eff_words = self._do_train_job(
-                data_iterable=job, target=self.sv.vectors, memory=mem
-            )
+            if stop.is_set():
+                continue
+            try:
+                eff_sentences, eff_words = self._do_train_job(
+                    data_iterable=job, target=self.sv.vectors, memory=mem
+                )
+            except BaseException as err:
+                errors.append(err)
+                stop.set()
+                continue
             progress_queue.put((len(job), eff_sentences, eff_words))
             jobs_processed += 1
+        progress_queue.put(None)
         logger.debug(f"worker exiting, processed {jobs_processed} jobs")
 
-    def _job_producer(self, data_iterable: list[tuple], job_queue: Queue):
+    def _job_producer(
+        self,
+        data_iterable: Iterable[tuple],
+        job_queue: Queue,
+        errors: list[BaseException],
+        stop: threading.Event,
+        workers: int | None = None,
+    ):
         """Fill the jobs queue using the data found in the input stream.
 
         Each job is represented as a batch of tuple
@@ -861,32 +1008,47 @@ class BaseSentence2VecModel(SaveLoad):
         job_queue : Queue of (list of tuple)
             A queue of jobs still to be processed. The worker will take up jobs from this queue.
             Each job is represented as a batch of tuple.
+        errors : list of BaseException
+            Shared list that collects exceptions raised in any thread.
+        stop : threading.Event
+            Set once any thread failed. The producer then stops reading the input.
 
         """
 
         job_batch, batch_size = [], 0
         job_no = 0
 
-        for _data_idx, data in enumerate(data_iterable):
-            data_length = len(data[0])
-            if batch_size + data_length <= self.batch_words:
-                job_batch.append(data)
-                batch_size += data_length
-            else:
+        try:
+            for data in data_iterable:
+                if stop.is_set():
+                    break
+                data_length = len(data[0])
+                if batch_size + data_length <= self.batch_words:
+                    job_batch.append(data)
+                    batch_size += data_length
+                else:
+                    job_no += 1
+                    job_queue.put(job_batch)
+                    job_batch, batch_size = [data], data_length
+
+            if job_batch and not stop.is_set():
                 job_no += 1
                 job_queue.put(job_batch)
-                job_batch, batch_size = [data], data_length
-
-        if job_batch:
-            job_no += 1
-            job_queue.put(job_batch)
-
-        for _ in range(self.workers):
-            job_queue.put(None)
+        except BaseException as err:
+            errors.append(err)
+            stop.set()
+        finally:
+            # Workers keep draining the queue, so these puts cannot block forever.
+            for _ in range(self.workers if workers is None else workers):
+                job_queue.put(None)
         logger.debug(f"job loop exiting, total {job_no} jobs")
 
     def _log_train_progress(
-        self, progress_queue: Queue, total_sentences: int | None = None, report_delay: int = 5
+        self,
+        progress_queue: Queue,
+        total_sentences: int | None = None,
+        report_delay: float = 5,
+        workers: int | None = None,
     ):
         """Log the training process after a couple of seconds.
 
@@ -909,7 +1071,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         jobs, eff_sentences, eff_words = 0, 0, 0
-        unfinished_worker_count = self.workers
+        unfinished_worker_count = self.workers if workers is None else workers
         start_time = time()
         sentence_inc = 0
         while unfinished_worker_count > 0:
@@ -934,6 +1096,18 @@ class BaseSentence2VecModel(SaveLoad):
                 sentence_inc = eff_sentences
 
         return jobs, eff_sentences, eff_words
+
+
+class _OffsetIndices:
+    """Re-iterable view of indexed sentences with every index shifted by offset."""
+
+    def __init__(self, sentences: Any, offset: int):
+        self.sentences = sentences
+        self.offset = offset
+
+    def __iter__(self) -> Iterator[tuple]:
+        offset = self.offset
+        return ((sentence, index + offset) for sentence, index in self.sentences)
 
 
 class BaseSentence2VecPreparer(SaveLoad):

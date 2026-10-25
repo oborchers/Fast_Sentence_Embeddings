@@ -10,7 +10,7 @@ readme = "README.md"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
-authors = [{ name = "Oliver Borchers" }]
+authors = [{ name = "Oliver Borchers", email = "26734737+oborchers@users.noreply.github.com" }]
 keywords = [
     "sentence-embeddings",
     "gensim",
@@ -44,6 +44,7 @@ dependencies = [
     "wordfreq>=3.1.0",
     "huggingface-hub>=0.23.0",
     "psutil>=5.9.0",
+    "pydantic>=2.5.0",
 ]
 
 [project.urls]
@@ -164,8 +165,8 @@ source = ["src/fse", "*/src/fse"]
 
 [tool.coverage.report]
 precision = 2
-# Measured baseline is about 94 percent of the Python code; Cython is not traced.
-fail_under = 90
+# Measured baseline is about 96 percent of the Python code; Cython is not traced.
+fail_under = 95
 show_missing = true
 skip_covered = true
 exclude_lines = [

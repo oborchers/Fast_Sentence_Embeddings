@@ -6,6 +6,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose, assert_raises
+from sklearn.decomposition import TruncatedSVD
 
 from fse.models.utils import (
     compute_principal_components,
@@ -44,10 +45,25 @@ def test_compute_components_sample_size():
     """The sample follows cache_size_gb, also below one million vectors (#58)."""
     m = np.random.uniform(size=(1000, 10)).astype(np.float32)
     cache_size_gb = 500 * 10 * 4 / 1024**3
-    with patch("fse.models.utils.choice", wraps=np.random.choice) as choice:
+    fitted = []
+    original_fit = TruncatedSVD.fit
+
+    def recording_fit(self, x, *args, **kwargs):
+        fitted.append(x.shape)
+        return original_fit(self, x, *args, **kwargs)
+
+    with patch.object(TruncatedSVD, "fit", recording_fit):
         out = compute_principal_components(vectors=m, cache_size_gb=cache_size_gb)
-    assert choice.call_args.kwargs["size"] == 500
+    assert fitted == [(500, 10)]
     assert len(out[1]) == 1
+
+
+def test_compute_components_sampling_is_reproducible():
+    m = np.random.default_rng(1).random((1000, 10), dtype=np.float32)
+    cache_size_gb = 500 * 10 * 4 / 1024**3
+    first = compute_principal_components(vectors=m, cache_size_gb=cache_size_gb)
+    second = compute_principal_components(vectors=m, cache_size_gb=cache_size_gb)
+    assert np.array_equal(first[1], second[1])
 
 
 def test_remove_components_inplace(ones):
@@ -71,7 +87,7 @@ def test_remove_weighted_components_inplace(ones):
     c = np.copy(ones)
     out = compute_principal_components(vectors=ones)
     remove_principal_components(ones, svd_res=out, weights=np.array([0.5]))
-    assert_allclose(ones, 0.75, atol=1e-5)
+    assert_allclose(ones, 0.5, atol=1e-5)
     with assert_raises(AssertionError):
         assert_allclose(ones, c)
 
@@ -80,8 +96,31 @@ def test_remove_weighted_components(ones):
     c = np.copy(ones)
     out = compute_principal_components(vectors=ones)
     res = remove_principal_components(ones, svd_res=out, weights=np.array([0.5]), inplace=False)
-    assert_allclose(res, 0.75, atol=1e-5)
+    assert_allclose(res, 0.5, atol=1e-5)
     assert_allclose(ones, c)
+
+
+@pytest.mark.parametrize("inplace", [True, False])
+def test_remove_weighted_components_matches_usif_reference(inplace):
+    """Each component is removed with weight lambda_i, as in the reference uSIF code.
+
+    Reference: https://github.com/kawine/usif/blob/master/usif.py, ``embed``:
+    ``v_s - lambda_i * proj(v_s, pc)`` for every principal component ``pc``.
+    """
+    rng = np.random.default_rng(0)
+    vectors = rng.normal(size=(200, 8)).astype(np.float32)
+    singular_values, components = compute_principal_components(vectors=vectors, components=3)
+    weights = (singular_values**2) / (singular_values**2).sum()
+
+    expected = vectors.astype(np.float64)
+    for lambda_i, pc in zip(weights, components.astype(np.float64), strict=True):
+        expected = expected - lambda_i * np.outer(expected @ pc, pc)
+
+    out = remove_principal_components(
+        vectors, svd_res=(singular_values, components), weights=weights, inplace=inplace
+    )
+    result = vectors if inplace else out
+    assert_allclose(result, expected, atol=1e-5)
 
 
 @pytest.mark.skipif(

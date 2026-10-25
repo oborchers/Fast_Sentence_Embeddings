@@ -99,10 +99,6 @@ class TestSentenceVectors:
         # Row 0 is unit length, so it must be the same in both arrays.
         assert np.allclose(sv.vectors[0], sv.vectors_norm[0])
 
-    @pytest.mark.xfail(
-        reason="init_sims(replace=True) stores the normalized copy in vectors_norm but "
-        "leaves vectors unchanged, because _l2_norm(replace=True) does not work in place",
-    )
     def test_init_sims_w_replace_overwrites_vectors(self, sv):
         expected = self._normalized(sv.vectors)
         sv.init_sims(True)
@@ -112,6 +108,27 @@ class TestSentenceVectors:
         sv.mapfile_path = str(tmp_path / "test_vectors")
         sv.init_sims()
         assert (tmp_path / "test_vectors.vectors_norm").exists()
+
+    def test_init_sims_w_mapfile_path_writes_normalized_file(self, sv, tmp_path):
+        """SentenceVectors stores mapfile_path as Path; the norms go into the mapfile."""
+        expected = self._normalized(sv.vectors)
+        sv.mapfile_path = tmp_path / "test_vectors"
+        sv.init_sims()
+        assert isinstance(sv.vectors_norm, np.memmap)
+        on_disk = np.memmap(
+            tmp_path / "test_vectors.vectors_norm", dtype=np.float32, mode="r", shape=expected.shape
+        )
+        assert np.allclose(on_disk, expected)
+
+    def test_get_vector_use_norm_before_init_sims(self, sv):
+        expected = self._normalized(sv.vectors)
+        assert np.allclose(sv.get_vector(1, use_norm=True), expected[1])
+
+    def test_init_sims_keeps_zero_vectors(self):
+        sv = SentenceVectors(2)
+        sv.vectors = np.array([[0.0, 0.0], [3.0, 4.0]], dtype=np.float32)
+        sv.init_sims()
+        assert np.array_equal(sv.vectors_norm, np.array([[0.0, 0.0], [0.6, 0.8]], np.float32))
 
     def test_save_load(self, sv, tmp_path):
         p = tmp_path / "test_vectors.vectors"
@@ -200,6 +217,14 @@ class TestMostSimilar:
         o = trained.sv.most_similar(positive=20, topn=20, restrict_size=5)
         assert len(o) == 5
 
+    def test_most_similar_restrict_size_numpy_integer(self, trained):
+        o = trained.sv.most_similar(positive=20, topn=20, restrict_size=np.int64(5))
+        assert len(o) == 5
+
+    def test_most_similar_restrict_size_reversed_raises(self, trained):
+        with pytest.raises(ValueError, match="upper bound below its lower bound"):
+            trained.sv.most_similar(positive=1, topn=20, restrict_size=(25, 5))
+
     def test_most_similar_restrict_size_tuple(self, trained, indexed_sentences):
         o = trained.sv.most_similar(positive=20, topn=20, restrict_size=(5, 25))
         assert len(o) == 19
@@ -244,3 +269,15 @@ def test_l2_norm():
     out = _l2_norm(out, True)
     lens = np.sqrt(np.sum((out**2), axis=-1))
     assert np.allclose(1, lens, atol=1e-6)
+
+
+class TestSentenceVectorsLookups:
+    def test_contains_rejects_invalid_indices(self, sv):
+        assert 0 in sv
+        assert -1 not in sv
+        assert "x" not in sv
+        assert 1.5 not in sv
+
+    def test_get_vector_missing_index_message(self, sv):
+        with pytest.raises(KeyError, match="index 99 not found"):
+            sv.get_vector(99)

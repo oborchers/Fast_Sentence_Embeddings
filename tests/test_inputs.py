@@ -109,8 +109,9 @@ class TestBaseIndexedList:
         multi.extend(list_a)
         assert len(multi) == 8
 
-        multi.extend({"hello there", "its a set"})
-        assert len(multi) == 10
+        with pytest.raises(TypeError, match="A set has no order"):
+            multi.extend({"hello there", "its a set"})
+        assert len(multi) == 8
 
     def test_extend_ndarr(self):
         base = BaseIndexedList(np.array([str(i) for i in [1, 2, 3, 4]]))
@@ -211,3 +212,21 @@ class TestIndexedLineDocument:
         assert len(items) == 100
         assert items[0] == first
         assert items[99] == last
+
+
+def test_indexed_list_rejects_set():
+    """A set has no order, so the sentence indices would be arbitrary."""
+    from fse import IndexedList
+
+    with pytest.raises(TypeError, match="A set has no order"):
+        IndexedList({"the dog", "a cat"})
+
+
+def test_indexed_line_document_validates_arguments(corpus_path):
+    from pydantic import ValidationError
+
+    from fse import IndexedLineDocument
+
+    assert len(list(IndexedLineDocument(corpus_path))) == 100
+    with pytest.raises(ValidationError):
+        IndexedLineDocument(corpus_path, get_able="yes")
