@@ -150,4 +150,5 @@ build = "cp310-* cp311-* cp312-* cp313-*"
 skip = "*-musllinux_* *-win32 *_i686"
 build-frontend = "build[uv]"
 test-groups = ["test"]
-test-command = "pytest {project}/tests -m 'not network' -p no:cacheprovider"
+# Double quotes, because the Windows shell does not understand single quotes.
+test-command = 'pytest {project}/tests -m "not network" -p no:cacheprovider'
