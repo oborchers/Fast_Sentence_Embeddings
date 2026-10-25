@@ -126,7 +126,7 @@ class SIF(Average):
         """Check the dtypes of all attributes"""
         if self.word_weights.dtype != REAL:
             raise TypeError(f"type of word_weights is wrong: {self.word_weights.dtype}")
-        if self.svd_res is not None:
+        if isinstance(self.svd_res, tuple):
             if self.svd_res[0].dtype != REAL:
                 raise TypeError(f"type of svd values is wrong: {self.svd_res[0].dtype}")
             if self.svd_res[1].dtype != REAL:

@@ -328,3 +328,15 @@ def test_train_update_appends_rows(make_w2v, sentences, model_name):
     if model_name != "Average":
         model._post_inference_calls(output=offset)
     assert np.allclose(model.sv.vectors[60:], model.infer(second) + offset, rtol=1e-4, atol=1e-9)
+
+
+@pytest.mark.parametrize("model_name", ["SIF", "uSIF"])
+def test_train_twice_without_components(w2v, corpus_indexed, model_name):
+    """components=0 stores the marker 0 as svd_res; a second training must still work."""
+    import fse
+
+    model = getattr(fse, model_name)(w2v, components=0)
+    model.train(corpus_indexed)
+    first = np.array(model.sv.vectors)
+    model.train(corpus_indexed)
+    assert np.allclose(model.sv.vectors, first)
