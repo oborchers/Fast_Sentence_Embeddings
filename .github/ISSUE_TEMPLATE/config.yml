@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Maintenance mode
+    url: https://github.com/oborchers/Fast_Sentence_Embeddings#maintenance-mode
+    about: fse only receives compatibility fixes. Feature requests are not accepted.
+  - name: Security issue
+    url: https://github.com/oborchers/Fast_Sentence_Embeddings/security/advisories/new
+    about: Report vulnerabilities privately, not as a public issue.

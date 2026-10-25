@@ -76,3 +76,14 @@ vectors
 *.joblib
 
 test_emb*
+# Build and tooling #
+#####################
+.venv/
+src/fse/_version.py
+src/fse/models/average_inner.c
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage.*
+htmlcov/
+wheelhouse/
