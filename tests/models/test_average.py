@@ -263,20 +263,41 @@ class TestKernelInputChecks:
                 model, [(["the"], 2)], model.sv.vectors, model._get_thread_working_mem()
             )
 
-    def test_rejects_small_ngram_buffer(self, ft):
-        model = Average(ft)
-        _prepare(model, total_sentences=1)
-        mem, _ = model._get_thread_working_mem()
-        small = np.zeros((2, 2), dtype=np.uint32)
-        with pytest.raises(ValueError, match="memory\\[1\\] must hold"):
-            train_average_cy(model, [(["the"], 0)], model.sv.vectors, (mem, small))
+    def test_working_memory_has_no_ngram_buffer(self, ft):
+        """The kernel allocates the ngram buffer per job, sized by batch_ngrams."""
+        _, oov_mem = Average(ft)._get_thread_working_mem()
+        assert oov_mem.size == 0
 
-    def test_small_batch_settings_keep_full_ngram_buffer(self, ft):
-        """batch_words and batch_ngrams below the kernel limits must not shrink the buffer."""
-        model = Average(ft)
-        model.batch_words, model.batch_ngrams = 2, 2
-        _, oov_mem = model._get_thread_working_mem()
-        assert oov_mem.shape == (MAX_WORDS_IN_BATCH, MAX_NGRAMS_IN_BATCH)
+
+@pytest.mark.parametrize("kind", ["w2v", "ft"])
+def test_cy_averages_sentences_longer_than_10000_words_like_np(kind, w2v, ft):
+    """The kernel used to stop after 10,000 words per sentence; numpy never did."""
+    model = Average(w2v if kind == "w2v" else ft)
+    words = list(model.wv.index_to_key)
+    sentence = [words[i % len(words)] for i in range(25_003)] + ["unknownword"] * 7
+    outputs = []
+    for train_func in (train_average_np, train_average_cy):
+        _prepare(model, total_sentences=1)
+        counts = train_func(
+            model, [(sentence, 0)], model.sv.vectors, model._get_thread_working_mem()
+        )
+        outputs.append((counts, np.array(model.sv.vectors)))
+    assert outputs[0][0] == outputs[1][0]
+    np.testing.assert_allclose(outputs[0][1], outputs[1][1], rtol=1e-4, atol=1e-6)
+
+
+@pytest.mark.parametrize("batch_ngrams", [1, 2, 40, 500])
+def test_cy_honors_batch_ngrams_like_np(ft, batch_ngrams):
+    """Unknown FastText words use at most batch_ngrams ngrams in both code paths."""
+    model = Average(ft)
+    model.batch_ngrams = batch_ngrams
+    sentences = [(["thisisaverylongunknownword", "the", "xyz"], 0), (["ünbekanntes"], 1)]
+    outputs = []
+    for train_func in (train_average_np, train_average_cy):
+        _prepare(model, total_sentences=2)
+        train_func(model, sentences, model.sv.vectors, model._get_thread_working_mem())
+        outputs.append(np.array(model.sv.vectors))
+    np.testing.assert_allclose(outputs[0], outputs[1], rtol=1e-5, atol=1e-7)
 
 
 def test_most_similar_with_sentence_mapfile(w2v, corpus_indexed, tmp_path):
@@ -515,3 +536,365 @@ def test_cy_addresses_rows_beyond_32_bit_offsets(make_w2v, tmp_path):
     np.testing.assert_allclose(target[rows - 1], model.wv.vectors[0], rtol=1e-6)
     wrapped = (rows - 1) * dim % 2**32 // dim
     assert not target[: wrapped + 2].any()
+
+
+@pytest.mark.parametrize("model_name", ["Average", "SIF", "uSIF"])
+@pytest.mark.parametrize("kind", ["w2v", "ft"])
+def test_results_do_not_depend_on_the_number_of_workers(
+    model_name, kind, make_w2v, make_ft, sentences
+):
+    """With one row per sentence, every worker count gives bit-identical vectors."""
+    import fse
+    from fse import IndexedList
+
+    wv = make_w2v(DIM) if kind == "w2v" else make_ft(DIM)
+    wv.wv.vectors[:] = np.random.default_rng(0).random(wv.wv.vectors.shape, dtype=np.float32)
+    if kind == "ft":
+        rng = np.random.default_rng(1)
+        wv.wv.vectors_vocab[:] = rng.random(wv.wv.vectors_vocab.shape, dtype=np.float32)
+        wv.wv.vectors_ngrams[:] = rng.random(wv.wv.vectors_ngrams.shape, dtype=np.float32)
+    data = IndexedList([[*s, "unknownword"] for s in sentences] * 20)
+    results = []
+    for workers in (1, 2, 4, 8):
+        model = getattr(fse, model_name)(wv, workers=workers)
+        model.train(data)
+        results.append(np.array(model.sv.vectors))
+    for result in results[1:]:
+        assert np.array_equal(result, results[0])
+
+
+def test_replaced_do_train_job_keeps_the_job_path(w2v, corpus_indexed):
+    """An instance that replaces _do_train_job receives lists of tuples, as before."""
+    model = Average(w2v)
+    seen = []
+    original = model._do_train_job
+
+    def spy(data_iterable, target, memory):
+        seen.append(type(data_iterable))
+        return original(data_iterable=data_iterable, target=target, memory=memory)
+
+    model._do_train_job = spy
+    model.train(corpus_indexed)
+    assert seen
+    assert set(seen) == {list}
+
+
+def test_encoder_errors_reach_the_caller(w2v, corpus_indexed, monkeypatch):
+    """An exception while encoding in the producer thread is raised by train."""
+    model = Average(w2v, workers=2)
+
+    def broken(context, sentences):
+        raise RuntimeError("encoder failed")
+
+    monkeypatch.setattr(model, "_job_encoder", broken)
+    with pytest.raises(RuntimeError, match="encoder failed"):
+        model.train(corpus_indexed)
+
+
+def test_kernel_context_cannot_be_pickled(w2v):
+    import pickle
+
+    from fse.models.average_inner import KernelContext
+
+    model = Average(w2v)
+    _prepare(model, total_sentences=1)
+    with pytest.raises(TypeError, match="only exists"):
+        pickle.dumps(KernelContext(model, model.sv.vectors))
+
+
+def _python_batches(items, batch_words):
+    """The batching of the job path: words and items both capped at batch_words."""
+    batches, batch, size = [], [], 0
+    for item in items:
+        if size + len(item[0]) <= batch_words and len(batch) < batch_words:
+            batch.append(item)
+            size += len(item[0])
+        else:
+            if batch:
+                batches.append(batch)
+            batch, size = [item], len(item[0])
+    if batch:
+        batches.append(batch)
+    return batches
+
+
+def _encode_all(model, items, batch_words):
+    """Encode every job first, so later calls reuse and grow the buffers, then return them."""
+    from fse.models.average_inner import JobEncoder, KernelContext
+
+    context = KernelContext(model, model.sv.vectors)
+    encoder = JobEncoder(context, items, batch_words)
+    jobs = []
+    while (job := encoder.next_job()) is not None:
+        jobs.append(job)
+    assert encoder.next_job() is None  # end of input stays the end
+    return context, jobs
+
+
+@pytest.mark.parametrize("batch_words", [1, 3, 10, 1000])
+@pytest.mark.parametrize("kind", ["w2v", "ft"])
+def test_job_encoder_batches_and_encodes_like_the_job_path(w2v, ft, kind, batch_words):
+    """Same batches, counts and vectors as the numpy fallback on the Python batches."""
+    from fse.models.average_inner import run_job
+
+    rng = np.random.default_rng(0)
+    model = Average(w2v if kind == "w2v" else ft)
+    words = [*model.wv.index_to_key, "unknownword", "ünbekannt"]
+    items = [
+        ([words[j] for j in rng.integers(0, len(words), n)], i)
+        for i, n in enumerate(rng.choice([0, 0, 1, 2, 5, 12, 40], size=300))
+    ]
+    _prepare(model, total_sentences=len(items))
+    context, jobs = _encode_all(model, items, batch_words)
+    batches = _python_batches(items, batch_words)
+    assert [job.n_items for job in jobs] == [len(batch) for batch in batches]
+
+    mem = model._get_thread_working_mem()
+    counts = [run_job(context, job, mem[0]) for job in jobs]
+    encoded = np.array(model.sv.vectors)
+    _prepare(model, total_sentences=len(items))
+    expected_counts = [train_average_np(model, batch, model.sv.vectors, mem) for batch in batches]
+    assert counts == expected_counts
+    np.testing.assert_allclose(encoded, model.sv.vectors, rtol=1e-5, atol=1e-7)
+
+
+@pytest.mark.parametrize("items", [[], [([], 0), ([], 1), ([], 2)]], ids=["no input", "only empty"])
+def test_job_encoder_edge_inputs(w2v, items):
+    model = Average(w2v)
+    _prepare(model, total_sentences=max(len(items), 1))
+    _, jobs = _encode_all(model, items, 2)
+    assert [job.n_items for job in jobs] == [len(batch) for batch in _python_batches(items, 2)]
+    assert all(job.n_sentences == 0 and job.eff_words == 0 for job in jobs)
+
+
+def test_job_encoder_keeps_a_huge_reported_length_alone(w2v):
+    """A sentence reporting sys.maxsize words is a job of its own, without overflow."""
+    import sys
+
+    class Huge(list):
+        def __len__(self):
+            return sys.maxsize
+
+    model = Average(w2v)
+    _prepare(model, total_sentences=3)
+    word = model.wv.index_to_key[0]
+    _, jobs = _encode_all(model, [([word], 0), (Huge([word]), 1), ([word], 2)], 3)
+    assert [job.n_items for job in jobs] == [1, 1, 1]
+
+
+def test_job_encoder_refuses_to_continue_after_an_error(w2v):
+    from fse.models.average_inner import JobEncoder, KernelContext
+
+    model = Average(w2v)
+    _prepare(model, total_sentences=2)
+    word = model.wv.index_to_key[0]
+    encoder = JobEncoder(KernelContext(model, model.sv.vectors), [([word], 0), ([word], 5)], 10)
+    with pytest.raises(IndexError):
+        encoder.next_job()
+    with pytest.raises(RuntimeError, match="failed before"):
+        encoder.next_job()
+
+
+def test_cy_formats_str_subclasses_like_np(ft):
+    """An unknown word of a str subclass is hashed from str() of it, as gensim does."""
+
+    class Shouting(str):
+        def __str__(self):
+            return self.upper()
+
+    model = Average(ft)
+    outputs = []
+    for train_func in (train_average_np, train_average_cy):
+        _prepare(model, total_sentences=1)
+        train_func(
+            model, [([Shouting("ünbekannt")], 0)], model.sv.vectors, model._get_thread_working_mem()
+        )
+        outputs.append(np.array(model.sv.vectors))
+    np.testing.assert_allclose(outputs[0], outputs[1], rtol=1e-5, atol=1e-7)
+
+
+def test_cy_skips_falsy_sentences_like_np(w2v):
+    class Falsy(list):
+        def __bool__(self):
+            return False
+
+    model = Average(w2v)
+    words = list(model.wv.index_to_key)[:3]
+    outputs = []
+    for train_func in (train_average_np, train_average_cy):
+        _prepare(model, total_sentences=2)
+        counts = train_func(
+            model,
+            [(Falsy(words), 0), (words, 1)],
+            model.sv.vectors,
+            model._get_thread_working_mem(),
+        )
+        outputs.append((counts, np.array(model.sv.vectors)))
+    assert outputs[0][0] == outputs[1][0]
+    np.testing.assert_allclose(outputs[0][1], outputs[1][1], rtol=1e-5, atol=1e-7)
+
+
+def test_job_encoder_hashes_numpy_strings_like_str(ft):
+    """Unknown FastText words given as numpy str_ give the same vectors as str."""
+    model = Average(ft)
+    outputs = []
+    for token in ("ünbekannt", np.str_("ünbekannt")):
+        _prepare(model, total_sentences=1)
+        train_average_cy(model, [([token], 0)], model.sv.vectors, model._get_thread_working_mem())
+        outputs.append(np.array(model.sv.vectors))
+    assert np.array_equal(outputs[0], outputs[1])
+
+
+def test_job_encoder_rejects_unencodable_unknown_words(ft):
+    model = Average(ft)
+    _prepare(model, total_sentences=1)
+    with pytest.raises(UnicodeEncodeError):
+        train_average_cy(
+            model, [(["\ud800"], 0)], model.sv.vectors, model._get_thread_working_mem()
+        )
+
+
+class _LyingList(list):
+    """A list subclass that reports a wrong length."""
+
+    def __len__(self):
+        return 1
+
+
+class _BrokenHash(str):
+    def __hash__(self):
+        raise RuntimeError("hash failed")
+
+
+def test_cy_handles_huge_batch_ngrams_like_np(ft):
+    """The ngram buffer is sized by the longest unknown word, not by batch_ngrams."""
+    model = Average(ft)
+    model.batch_ngrams = 2**62 + 1
+    sentences = [(["averyveryverylongunknownword", "the"], 0)]
+    outputs = []
+    for train_func in (train_average_np, train_average_cy):
+        _prepare(model, total_sentences=1)
+        train_func(model, sentences, model.sv.vectors, model._get_thread_working_mem())
+        outputs.append(np.array(model.sv.vectors))
+    np.testing.assert_allclose(outputs[0], outputs[1], rtol=1e-5, atol=1e-7)
+
+
+def test_cy_does_not_trust_the_reported_sentence_length(w2v):
+    """A sentence whose len() is wrong cannot overrun the job buffers."""
+    model = Average(w2v)
+    words = list(model.wv.index_to_key)[:50]
+    outputs = []
+    for train_func in (train_average_np, train_average_cy):
+        _prepare(model, total_sentences=1)
+        train_func(
+            model, [(_LyingList(words), 0)], model.sv.vectors, model._get_thread_working_mem()
+        )
+        outputs.append(np.array(model.sv.vectors))
+    np.testing.assert_allclose(outputs[0], outputs[1], rtol=1e-5, atol=1e-7)
+
+
+def test_cy_propagates_errors_of_the_vocabulary_lookup(w2v):
+    model = Average(w2v)
+    _prepare(model, total_sentences=1)
+    with pytest.raises(RuntimeError, match="hash failed"):
+        train_average_cy(
+            model, [([_BrokenHash("the")], 0)], model.sv.vectors, model._get_thread_working_mem()
+        )
+
+
+def test_train_and_infer_each_use_encoded_jobs(w2v, corpus_indexed, monkeypatch):
+    model = Average(w2v, workers=2)
+    calls = []
+    original = Average._run_encoded_job
+    monkeypatch.setattr(
+        model, "_run_encoded_job", lambda *a: calls.append(1) or original(model, *a)
+    )
+    model.train(corpus_indexed)
+    assert calls
+    calls.clear()
+    model.infer(corpus_indexed)
+    assert calls
+
+
+@pytest.mark.parametrize("call", ["train", "infer"])
+def test_subclass_with_own_do_train_job_keeps_the_job_path(w2v, corpus_indexed, call):
+    seen = []
+
+    class Custom(Average):
+        def _do_train_job(self, data_iterable, target, memory):
+            seen.append(type(data_iterable))
+            return super()._do_train_job(data_iterable, target, memory)
+
+    model = Custom(w2v)
+    if call == "infer":
+        model.train(corpus_indexed)
+        seen.clear()
+    getattr(model, call)(corpus_indexed)
+    assert seen
+    assert set(seen) == {list}
+
+
+def test_encoder_failure_after_queued_jobs_stops_training(w2v, corpus_indexed):
+    """The encoder fails after several jobs reached the workers; train raises and ends."""
+    import threading
+
+    model = Average(w2v, workers=2)
+    model.batch_words = 5
+
+    def failing_input():
+        yield from list(corpus_indexed)[:60]
+        raise OSError("input failed")
+
+    class Input:
+        def __iter__(self):
+            return failing_input()
+
+    model.prep.prepare_vectors(sv=model.sv, total_sentences=len(corpus_indexed))
+    context = model._kernel_context(model.sv.vectors)
+    threads_before = threading.active_count()
+    error = _run_with_timeout(
+        lambda: model._train_manager(data_iterable=Input(), total_sentences=100, context=context)
+    )
+    assert isinstance(error, OSError)
+    assert str(error) == "input failed"
+    assert threading.active_count() <= threads_before
+
+
+def test_worker_failure_with_encoded_jobs_stops_training(w2v, corpus_indexed, monkeypatch):
+    import threading
+
+    model = Average(w2v, workers=3)
+    model.batch_words = 5
+    done = []
+
+    def failing(context, job, memory):
+        done.append(1)
+        if len(done) == 3:
+            raise RuntimeError("worker failed")
+        return job.n_sentences, job.eff_words
+
+    monkeypatch.setattr(model, "_run_encoded_job", failing)
+    threads_before = threading.active_count()
+    error = _run_with_timeout(lambda: model.train(corpus_indexed))
+    assert isinstance(error, RuntimeError)
+    assert str(error) == "worker failed"
+    assert threading.active_count() <= threads_before
+
+
+def _run_with_timeout(func, timeout=30):
+    """Run func in a thread and return its exception, failing if it does not finish."""
+    import threading
+
+    result = {}
+
+    def target():
+        try:
+            func()
+        except BaseException as err:
+            result["error"] = err
+
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    assert not thread.is_alive(), "training did not finish; errors must not deadlock"
+    return result.get("error")

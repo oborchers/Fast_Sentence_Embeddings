@@ -30,6 +30,8 @@ Initialize and train a :class:`~fse.models.average.Average` model
 """
 
 import logging
+from collections.abc import Iterable
+from typing import Any
 
 from gensim.models.fasttext import ft_ngram_hashes
 from numpy import (
@@ -156,7 +158,11 @@ def train_average_np(
                     word_index = model.wv.key_to_index[word]
                     mem += w_vectors[word_index] * w_weights[word_index]
                 else:
-                    ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket)[:max_ngrams]
+                    # A model without ngram buckets has no vector for an unknown word, as
+                    # in the Cython routine.
+                    ngram_hashes = (
+                        ft_ngram_hashes(word, min_n, max_n, bucket)[:max_ngrams] if bucket else []
+                    )
                     if len(ngram_hashes) == 0:
                         continue
                     mem += oov_weight * (
@@ -173,11 +179,16 @@ try:
         FAST_VERSION,
         MAX_NGRAMS_IN_BATCH,
         MAX_WORDS_IN_BATCH,
+        JobEncoder,
+        KernelContext,
+        run_job,
         train_average_cy,
     )
 
     train_average = train_average_cy
+    CY_ROUTINES = True
 except ImportError:
+    CY_ROUTINES = False
     FAST_VERSION = -1
     MAX_WORDS_IN_BATCH = 10000
     MAX_NGRAMS_IN_BATCH = 40
@@ -255,6 +266,31 @@ class Average(BaseSentence2VecModel):
             batch_ngrams=MAX_NGRAMS_IN_BATCH,
             fast_version=FAST_VERSION,
         )
+
+    def _kernel_context(self, target: ndarray) -> Any:
+        """Kernel context for encoded jobs, or None for the job path of _do_train_job.
+
+        Encoded jobs need the extension, and they bypass _do_train_job, so a subclass or an
+        instance that replaces _do_train_job keeps the job path.
+        """
+        if not CY_ROUTINES:
+            return None
+        if (
+            "_do_train_job" in self.__dict__
+            or type(self)._do_train_job is not Average._do_train_job
+        ):
+            return None
+        return KernelContext(self, target)
+
+    def _job_encoder(self, context: Any, sentences: Iterable[tuple]) -> Any:
+        """Batch and encode the input in one pass while holding the GIL, in the producer."""
+        return JobEncoder(context, sentences, self.batch_words)
+
+    def _run_encoded_job(
+        self, context: Any, job: Any, memory: tuple[ndarray, ndarray]
+    ) -> tuple[int, int]:
+        """Average an encoded job without the GIL."""
+        return run_job(context, job, memory[0])
 
     def _do_train_job(
         self, data_iterable: list[tuple], target: ndarray, memory: tuple[ndarray, ndarray]

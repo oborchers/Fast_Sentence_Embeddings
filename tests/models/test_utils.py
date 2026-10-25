@@ -139,3 +139,76 @@ def test_madvise(tmp_path):
     mat = np.memmap(p, dtype=np.float32, mode="r", shape=shape)
 
     assert madvise(mat.ctypes.data, mat.size * mat.dtype.itemsize, 1) == 0
+
+
+def _remove_full_matrix(vectors, svd_res, weights=None):
+    """The formula on the whole matrix at once, as before the blockwise removal."""
+    components = svd_res[1].astype(np.float32)
+    coefficients = vectors.dot(components.T)
+    if weights is not None:
+        coefficients *= weights.astype(np.float32)[None, :]
+    return vectors - coefficients.dot(components)
+
+
+@pytest.mark.parametrize("inplace", [True, False])
+@pytest.mark.parametrize("weighted", [False, True])
+def test_remove_components_blockwise_matches_full_matrix(monkeypatch, inplace, weighted):
+    """Block boundaries, including a short last block, give the same result."""
+    from fse.models import utils
+
+    monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 7)
+    rng = np.random.default_rng(0)
+    vectors = rng.random((50, 10), dtype=np.float32)
+    svd_res = compute_principal_components(vectors, components=3)
+    weights = np.array([0.5, 0.3, 0.2], dtype=np.float32) if weighted else None
+    expected = _remove_full_matrix(vectors, svd_res, weights)
+
+    out = remove_principal_components(vectors, svd_res, weights=weights, inplace=inplace)
+    result = vectors if inplace else out
+    # BLAS may sum a block in another order than the whole matrix: float32 rounding only.
+    assert_allclose(result, expected, rtol=1e-5, atol=1e-6)
+
+
+def test_remove_components_memory_is_bounded_by_a_block(tmp_path):
+    """Removing components from a memmap allocates about one block, not the whole matrix."""
+    import tracemalloc
+
+    from fse.models import utils
+
+    rows, dim = 200_000, 50
+    vectors = np.memmap(tmp_path / "sv", dtype=np.float32, mode="w+", shape=(rows, dim))
+    vectors[:] = np.random.default_rng(0).random((rows, dim), dtype=np.float32)
+    svd_res = compute_principal_components(vectors, components=2)
+
+    tracemalloc.start()
+    remove_principal_components(vectors, svd_res, inplace=True)
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    matrix = rows * dim * 4
+    block = utils.REMOVAL_BLOCK_ROWS * dim * 4
+    assert peak < 3 * block
+    assert peak < matrix / 4
+
+
+def test_sample_rows_in_file_order_equal_fancy_indexing(monkeypatch, tmp_path):
+    """Reading the sample in file order gives the same matrix, so the same components."""
+    from fse.models import utils
+
+    monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 7)
+    rows, dim = 1_000, 8
+    vectors = np.memmap(tmp_path / "sv", dtype=np.float32, mode="w+", shape=(rows, dim))
+    vectors[:] = np.random.default_rng(0).random((rows, dim), dtype=np.float32)
+    indices = np.random.default_rng(42).choice(rows, size=100, replace=False)
+    assert np.array_equal(utils._take_rows_in_file_order(vectors, indices), vectors[indices])
+
+
+def test_remove_components_keeps_numpy_result_types():
+    """Integers give a float result, and in-place removal refuses to truncate."""
+    vectors = np.arange(40, dtype=np.int64).reshape(10, 4)
+    svd_res = (np.ones(1, dtype=np.float32), np.full((1, 4), 0.5, dtype=np.float32))
+    out = remove_principal_components(vectors, svd_res, inplace=False)
+    expected = vectors - vectors.dot(svd_res[1].T).dot(svd_res[1])
+    assert out.dtype == expected.dtype
+    assert_allclose(out, expected)
+    with pytest.raises(TypeError):
+        remove_principal_components(vectors, svd_res, inplace=True)

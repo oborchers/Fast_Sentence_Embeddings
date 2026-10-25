@@ -230,3 +230,37 @@ def test_indexed_line_document_validates_arguments(corpus_path):
     assert len(list(IndexedLineDocument(corpus_path))) == 100
     with pytest.raises(ValidationError):
         IndexedLineDocument(corpus_path, get_able="yes")
+
+
+@pytest.mark.parametrize("as_array", [False, True], ids=["list", "ndarray"])
+@pytest.mark.parametrize(
+    ("cls", "kwargs"),
+    [
+        (IndexedList, {}),
+        (CIndexedList, {"custom_index": [3, 1, 3]}),
+        (SplitIndexedList, {}),
+        (SplitCIndexedList, {"custom_index": np.array([3, 1, 3])}),
+        (CSplitIndexedList, {"custom_split": _lower_split}),
+        (CSplitCIndexedList, {"custom_split": _lower_split, "custom_index": [0, 0, 2]}),
+    ],
+)
+def test_iter_matches_getitem(cls, kwargs, as_array):
+    """The fast __iter__ yields exactly what indexing every position returns."""
+    items = ["The dog is good", "it's nice and comfy", "Ünïcödé\u2003words"]
+    il = cls(np.array(items) if as_array else items, **kwargs)
+    by_index = [il[i] for i in range(len(il))]
+    assert list(il) == by_index
+    assert [type(s) for s, _ in il] == [type(s) for s, _ in by_index]
+    assert list(il) == list(il)
+
+
+def test_iter_uses_a_subclass_getitem():
+    """A subclass that changes __getitem__ is iterated through it, as before."""
+
+    class Lower(SplitIndexedList):
+        def __getitem__(self, i):
+            words, index = super().__getitem__(i)
+            return [w.lower() for w in words], index
+
+    il = Lower(["The Dog", "A Cat"])
+    assert list(il) == [(["the", "dog"], 0), (["a", "cat"], 1)]

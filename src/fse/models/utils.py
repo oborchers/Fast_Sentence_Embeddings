@@ -9,7 +9,7 @@ from sys import platform
 from time import time
 from typing import Any
 
-from numpy import dtype, finfo, ndarray
+from numpy import argsort, dtype, empty, finfo, ndarray, result_type, subtract
 from numpy import float32 as REAL
 from numpy.random import default_rng
 from sklearn.decomposition import TruncatedSVD
@@ -17,6 +17,9 @@ from sklearn.decomposition import TruncatedSVD
 logger = logging.getLogger(__name__)
 
 EPS = finfo(REAL).eps
+
+# Rows per block when removing principal components: about 20 MB at 300 dimensions.
+REMOVAL_BLOCK_ROWS = 16_384
 
 
 def set_madvise_for_mmap(return_madvise: bool = False) -> Any:
@@ -80,11 +83,26 @@ def compute_principal_components(
         logger.info(f"sampling {sample_size} vectors to compute principal components")
         # Seeded like the SVD itself, so repeated runs pick the same sample.
         sample_indices = default_rng(42).choice(num_vectors, size=sample_size, replace=False)
-        svd.fit(vectors[sample_indices, :])
+        svd.fit(_take_rows_in_file_order(vectors, sample_indices))
 
     elapsed = time()
     logger.info(f"computing {components} principal components took {int(elapsed - start)}s")
     return svd.singular_values_.astype(REAL), svd.components_.astype(REAL)
+
+
+def _take_rows_in_file_order(vectors: ndarray, indices: ndarray) -> ndarray:
+    """Return vectors[indices], reading the rows in ascending order.
+
+    The result is identical to fancy indexing, but a memmap is read front to back instead
+    of at random positions. Rows are gathered in blocks, so the only large allocation is
+    the result itself.
+    """
+    order = argsort(indices, kind="stable")
+    sample = empty((len(indices), vectors.shape[1]), dtype=vectors.dtype)
+    for begin in range(0, len(order), REMOVAL_BLOCK_ROWS):
+        positions = order[begin : begin + REMOVAL_BLOCK_ROWS]
+        sample[positions] = vectors[indices[positions]]
+    return sample
 
 
 def remove_principal_components(
@@ -112,20 +130,25 @@ def remove_principal_components(
         The vectors without the components if inplace is False, otherwise None.
     """
     components = svd_res[1].astype(REAL)
+    scale = None if weights is None else weights.astype(REAL)[None, :]
 
     start = time()
-    # Coefficients of each vector on each component, scaled by the component weight.
-    # The weight is applied once, so each component is removed as weight * projection.
-    coefficients = vectors.dot(components.transpose())
-    if weights is not None:
-        coefficients *= weights.astype(REAL)[None, :]
-    projection = coefficients.dot(components)
-
-    output = None
-    if inplace:
-        vectors -= projection
-    else:
-        output = vectors - projection
+    # The result type of vectors - projection, as for the whole matrix at once: an integer
+    # input gives a float result instead of being truncated.
+    output = vectors if inplace else empty(vectors.shape, dtype=result_type(vectors, components))
+    # Work in blocks of rows, so the temporary projection never exceeds one block, also for
+    # memory-mapped vectors that do not fit into RAM.
+    for begin in range(0, len(vectors), REMOVAL_BLOCK_ROWS):
+        block = vectors[begin : begin + REMOVAL_BLOCK_ROWS]
+        # Coefficients of each vector on each component, scaled by the component weight.
+        # The weight is applied once, so each component is removed as weight * projection.
+        coefficients = block.dot(components.transpose())
+        if scale is not None:
+            coefficients *= scale
+        # subtract with out raises for an unsafe cast, as vectors -= projection did.
+        subtract(
+            block, coefficients.dot(components), out=output[begin : begin + REMOVAL_BLOCK_ROWS]
+        )
     elapsed = time()
 
     logger.info(f"removing {len(components)} principal components took {int(elapsed - start)}s")

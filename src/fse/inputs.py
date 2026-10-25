@@ -3,7 +3,8 @@
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
 
-from collections.abc import Callable, MutableSequence
+from collections.abc import Callable, Iterator, MutableSequence
+from operator import methodcaller
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,9 @@ from numpy import concatenate, ndarray
 from smart_open import open
 
 from fse._validation import PathLike, validate_arguments
+
+# Calls .split() on each item like __getitem__ does, also for numpy str_ items.
+_split = methodcaller("split")
 
 
 class BaseIndexedList(MutableSequence):
@@ -136,6 +140,13 @@ class IndexedList(BaseIndexedList):
         """
         return (self.items.__getitem__(i), i)
 
+    def __iter__(self) -> Iterator[tuple]:
+        """Iterate over all sentences, faster than indexing each one."""
+        if type(self).__getitem__ is not IndexedList.__getitem__:
+            # A subclass that changes __getitem__ is iterated through it.
+            return MutableSequence.__iter__(self)
+        return zip(self.items, range(len(self.items)), strict=True)
+
 
 class CIndexedList(BaseIndexedList):
     def __init__(self, *args: list | ndarray, custom_index: list | ndarray):
@@ -167,6 +178,13 @@ class CIndexedList(BaseIndexedList):
             Returns the core object, tuple, for every sentence embedding model.
         """
         return (self.items.__getitem__(i), self.custom_index[i])
+
+    def __iter__(self) -> Iterator[tuple]:
+        """Iterate over all sentences, faster than indexing each one."""
+        if type(self).__getitem__ is not CIndexedList.__getitem__:
+            # A subclass that changes __getitem__ is iterated through it.
+            return MutableSequence.__iter__(self)
+        return zip(self.items, self.custom_index, strict=True)
 
     def __delitem__(self, i: int):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
@@ -206,6 +224,13 @@ class SplitIndexedList(BaseIndexedList):
         """
         return (self.items.__getitem__(i).split(), i)
 
+    def __iter__(self) -> Iterator[tuple]:
+        """Iterate over all sentences, faster than indexing each one."""
+        if type(self).__getitem__ is not SplitIndexedList.__getitem__:
+            # A subclass that changes __getitem__ is iterated through it.
+            return MutableSequence.__iter__(self)
+        return zip(map(_split, self.items), range(len(self.items)), strict=True)
+
 
 class SplitCIndexedList(BaseIndexedList):
     def __init__(self, *args: list | ndarray, custom_index: list | ndarray):
@@ -237,6 +262,13 @@ class SplitCIndexedList(BaseIndexedList):
             Returns the core object, tuple, for every sentence embedding model.
         """
         return (self.items.__getitem__(i).split(), self.custom_index[i])
+
+    def __iter__(self) -> Iterator[tuple]:
+        """Iterate over all sentences, faster than indexing each one."""
+        if type(self).__getitem__ is not SplitCIndexedList.__getitem__:
+            # A subclass that changes __getitem__ is iterated through it.
+            return MutableSequence.__iter__(self)
+        return zip(map(_split, self.items), self.custom_index, strict=True)
 
     def __delitem__(self, i: int):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")
@@ -279,6 +311,13 @@ class CSplitIndexedList(BaseIndexedList):
         """
         return (self.custom_split(self.items.__getitem__(i)), i)
 
+    def __iter__(self) -> Iterator[tuple]:
+        """Iterate over all sentences, faster than indexing each one."""
+        if type(self).__getitem__ is not CSplitIndexedList.__getitem__:
+            # A subclass that changes __getitem__ is iterated through it.
+            return MutableSequence.__iter__(self)
+        return zip(map(self.custom_split, self.items), range(len(self.items)), strict=True)
+
 
 class CSplitCIndexedList(BaseIndexedList):
     def __init__(
@@ -318,6 +357,13 @@ class CSplitCIndexedList(BaseIndexedList):
             Returns the core object, tuple, for every sentence embedding model.
         """
         return (self.custom_split(self.items.__getitem__(i)), self.custom_index[i])
+
+    def __iter__(self) -> Iterator[tuple]:
+        """Iterate over all sentences, faster than indexing each one."""
+        if type(self).__getitem__ is not CSplitCIndexedList.__getitem__:
+            # A subclass that changes __getitem__ is iterated through it.
+            return MutableSequence.__iter__(self)
+        return zip(map(self.custom_split, self.items), self.custom_index, strict=True)
 
     def __delitem__(self, i: int):  # type: ignore[override]
         raise NotImplementedError("Method currently not supported")

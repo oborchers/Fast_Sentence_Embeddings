@@ -7,7 +7,7 @@ import logging
 from typing import Any, cast
 
 from numpy import float32 as REAL
-from numpy import isfinite, ndarray, zeros
+from numpy import isfinite, ndarray
 
 from fse._validation import (
     NonNegativeInt,
@@ -188,16 +188,7 @@ class uSIF(Average):
         """Precomputes the uSIF weights."""
         logger.info(f"pre-computing uSIF weights for {len(self.wv)} words")
         v = len(self.wv)
-        corpus_size = 0
-
-        pw = zeros(v, dtype=REAL)
-        for word in self.wv.key_to_index:
-            c = self.wv.get_vecattr(word, "count")
-            if c < 0:
-                raise ValueError("vocab count is negative")
-            corpus_size += c
-            pw[self.wv.key_to_index[word]] = c
-        pw /= corpus_size
+        pw = self._word_probabilities()
 
         threshold = 1 - (1 - (1 / v)) ** self.length
         alpha = sum(pw > threshold) / v
