@@ -29,6 +29,8 @@ from cpython.pythread cimport (
 from libc.stdlib cimport free, malloc
 from libc.string cimport memset
 
+from time import time
+
 import scipy.linalg.blas as fblas
 
 # y += alpha * x, taken from scipy's BLAS. Raises at import if scipy exposes no pointer.
@@ -365,6 +367,77 @@ def run_job(KernelContext ctx, EncodedJob job, scratch):
     finally:
         free(ngram_buffer)
     return job.n_sentences, job.eff_words
+
+
+def scan_indexed_sentences(sentences, double progress_per, progress):
+    """Validate every (tokens, index) tuple and count them, like the Python scan loop.
+
+    The checks and their messages are those of
+    ``BaseSentence2VecModel._check_indexed_sent_valid``. ``progress(sentences, words)`` is
+    called about every ``progress_per`` seconds. Returns the number of sentences and
+    words, the number of empty sentences, the largest index and whether every index
+    occurs at most once.
+    """
+    cdef Py_ssize_t i = 0
+    cdef Py_ssize_t total_words = 0
+    cdef Py_ssize_t empty_sentences = 0
+    cdef object max_index = 0
+    cdef bint unique_indices = True
+    cdef bint identity = True
+    cdef set seen = set()
+    cdef double last = time()
+    cdef list sent
+
+    for obj in sentences:
+        if not isinstance(obj, tuple):
+            raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain tuple.")
+        if len(<tuple>obj) != 2:
+            raise ValueError(
+                f"At {i}: Passed a tuple of length {len(obj)}. "
+                "Each item must be a (words, index) tuple."
+            )
+        words = (<tuple>obj)[0]
+        index = (<tuple>obj)[1]
+        if not isinstance(words, list):
+            raise TypeError(
+                f"At {i}: Passed {type(words)}: {words}. tuple.words must contain list of str."
+            )
+        sent = <list>words
+        for word in sent:
+            if not isinstance(word, str):
+                raise TypeError(
+                    f"At {i}: Passed {type(words)}: {words}. tuple.words must contain list of str."
+                )
+        if type(index) is not int:
+            if isinstance(index, bool) or not isinstance(index, (int, np.integer)):
+                raise TypeError(
+                    f"At {i}: Passed {type(index)}: {index}. tuple.index must contain index"
+                )
+            index = int(index)
+        if index < 0:
+            raise ValueError(f"At {i}: Passed negative {index}")
+
+        if (i & 4095) == 0 and time() - last > progress_per:
+            last = time()
+            progress(i, total_words)
+
+        if index > max_index:
+            max_index = index
+        if identity and index != i:
+            identity = False
+            seen = set(range(i))
+        if not identity and unique_indices:
+            if index in seen:
+                unique_indices = False
+                seen.clear()
+            else:
+                seen.add(index)
+        total_words += len(sent)
+        if not sent:
+            empty_sentences += 1
+        i += 1
+
+    return i, total_words, empty_sentences, max_index, unique_indices
 
 
 def _check_array(array, name, dtype):

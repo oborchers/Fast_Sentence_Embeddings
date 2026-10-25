@@ -781,3 +781,39 @@ def test_job_producer_caps_jobs_by_sentence_count(w2v):
         jobs.append(job)
     assert not errors
     assert [len(job) for job in jobs] == [10, 10, 5]
+
+
+SCAN_INPUTS = [
+    [],
+    [(["a", "b"], 0), ([], 1), (["c"], 2)],
+    [(["a"], 2), (["b"], 0), (["c"], 1)],
+    [(["a"], 0), (["b"], 0), (["c"], 1)],
+    [(["a"], np.int64(1)), (["b"], np.int32(0))],
+    [(["a"], 0), (["b"], 5)],
+    [(["a"], 0), ["b", 1]],
+    [(["a"], 0), (["b"], 1, "x")],
+    [(["a"], 0), ("b", 1)],
+    [(["a"], 0), ([1], 1)],
+    [(["a"], 0), (["b"], True)],
+    [(["a"], 0), (["b"], 1.0)],
+    [(["a"], 0), (["b"], -1)],
+    [(["a"], 0), (["b"], np.int64(-3))],
+    [(["a", np.str_("b")], 0)],
+]
+
+
+@pytest.mark.parametrize("data", SCAN_INPUTS)
+def test_compiled_scan_matches_the_python_loop(w2v, data, monkeypatch):
+    """Same statistics, or the same exception type and message, in both scan paths."""
+    from fse.models import base_s2v
+
+    def outcome():
+        se = BaseSentence2VecModel(w2v)
+        try:
+            return se.scan_sentences(data)
+        except Exception as err:
+            return type(err), str(err)
+
+    compiled = outcome()
+    monkeypatch.setattr(base_s2v, "scan_indexed_sentences", None)
+    assert outcome() == compiled

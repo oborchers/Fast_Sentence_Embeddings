@@ -81,6 +81,11 @@ from fse._validation import (
 )
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
 
+try:
+    from fse.models.average_inner import scan_indexed_sentences
+except ImportError:
+    scan_indexed_sentences = None  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -677,29 +682,40 @@ class BaseSentence2VecModel(SaveLoad):
         identity = True
         seen: set[int] = set()
 
-        for i, obj in enumerate(sentences):
-            index, sent = self._check_indexed_sent_valid(iter_pos=i, obj=obj)
-            if time() - current_time > progress_per:
-                current_time = time()
-                logger.info(
-                    f"SCANNING : finished {total_sentences} sentences with {total_words} words"
-                )
+        def progress(sentences_done: int, words_done: int):
+            logger.info(f"SCANNING : finished {sentences_done} sentences with {words_done} words")
 
-            max_index = max(max_index, index)
-            total_sentences += 1
-            if identity and index != i:
-                identity = False
-                seen = set(range(i))
-            if not identity and unique_indices:
-                if index in seen:
-                    unique_indices = False
-                    seen.clear()
-                else:
-                    seen.add(index)
-            total_words += len(sent)
+        if (
+            scan_indexed_sentences is not None
+            and type(self)._check_indexed_sent_valid
+            is BaseSentence2VecModel._check_indexed_sent_valid
+        ):
+            # The compiled scan runs the same checks with the same messages.
+            total_sentences, total_words, empty_sentences, max_index, unique_indices = (
+                scan_indexed_sentences(sentences, progress_per, progress)
+            )
+        else:
+            for i, obj in enumerate(sentences):
+                index, sent = self._check_indexed_sent_valid(iter_pos=i, obj=obj)
+                if time() - current_time > progress_per:
+                    current_time = time()
+                    progress(total_sentences, total_words)
 
-            if not len(sent):
-                empty_sentences += 1
+                max_index = max(max_index, index)
+                total_sentences += 1
+                if identity and index != i:
+                    identity = False
+                    seen = set(range(i))
+                if not identity and unique_indices:
+                    if index in seen:
+                        unique_indices = False
+                        seen.clear()
+                    else:
+                        seen.add(index)
+                total_words += len(sent)
+
+                if not len(sent):
+                    empty_sentences += 1
 
         if empty_sentences:
             logger.warning(f"found {empty_sentences} empty sentences")

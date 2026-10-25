@@ -15,6 +15,9 @@ def train_average_cy(
     memory: tuple[ndarray, ndarray],
 ) -> tuple[int, int]: ...
 def init() -> int: ...
+def scan_indexed_sentences(
+    sentences: Any, progress_per: float, progress: Any
+) -> tuple[int, int, int, int, bool]: ...
 
 class KernelContext:
     """Read-only state of one train or infer call, shared by all workers."""
