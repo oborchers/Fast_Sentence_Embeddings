@@ -9,7 +9,7 @@ description = "Fast Sentence Embeddings for Gensim"
 readme = "README.md"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{ name = "Oliver Borchers" }]
 keywords = [
     "sentence-embeddings",
@@ -28,7 +28,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Cython",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -70,6 +69,7 @@ version_file = "src/fse/_version.py"
 [dependency-groups]
 dev = [
     "pre-commit>=3.0.0",
+    "cibuildwheel>=3.0.0",
 ]
 lint = [
     "ruff>=0.17.2",
@@ -99,7 +99,7 @@ cache-keys = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 src = ["src"]
 extend-exclude = ["_version.py", "notebooks"]
 
@@ -124,7 +124,7 @@ docstring-code-format = true
 # --- mypy ---
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 files = ["src/fse"]
 warn_unused_ignores = true
 warn_redundant_casts = true
@@ -179,7 +179,7 @@ exclude_lines = [
 # --- cibuildwheel ---
 
 [tool.cibuildwheel]
-build = "cp310-* cp311-* cp312-* cp313-*"
+build = "cp311-* cp312-* cp313-*"
 skip = "*-musllinux_* *-win32 *_i686"
 build-frontend = "build[uv]"
 test-groups = ["test"]

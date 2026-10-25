@@ -8,7 +8,7 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 
 ### Added
 
-- Pre-built wheels for Linux (x86_64, aarch64), macOS (arm64, x86_64) and Windows (x86_64) on Python 3.10 to 3.13.
+- Pre-built wheels for Linux (x86_64, aarch64), macOS (arm64, x86_64) and Windows (x86_64) on Python 3.11 to 3.13.
 - Support for numpy 2, Cython 3, current scipy, scikit-learn, gensim 4.4 and huggingface-hub 2.x.
 - A clear `ImportError` when gensim < 4 is installed.
 - `__all__` in `fse` and `fse.models`.
@@ -17,7 +17,7 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 
 - Unknown keyword arguments to `Average`, `SIF` and `uSIF` emit a `UserWarning` instead of being silently ignored.
 - `set_madvise_for_mmap` is no longer called on every model construction and load; it never applied any advice.
-- Requires Python 3.10 or newer. Python 3.14 is not supported yet, because gensim does not build there.
+- Requires Python 3.11 or newer. Python 3.10 reached its end of life in October 2026; installations on 3.10 and older keep fse 1.0.0. Python 3.14 is not supported yet, because gensim does not build there.
 - Minimum versions: numpy 1.26.4, scipy 1.11.4, scikit-learn 1.3.2, gensim 4.3.3, smart_open 6.4.0, wordfreq 3.1.0, huggingface-hub 0.23.0, psutil 5.9.0.
 - Packaging moved to `pyproject.toml`; the version now comes from git tags.
 - The warning about a missing C extension is a `RuntimeWarning`.
@@ -56,7 +56,7 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 
 ### Removed
 
-- Support for Python 3.6 to 3.9.
+- Support for Python 3.6 to 3.10.
 - The `requests` and `dataclasses` dependencies.
 
 ## [1.0.0] - 2022-04-10
