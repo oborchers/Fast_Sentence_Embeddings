@@ -29,6 +29,7 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 - The warning about a missing C extension is a `RuntimeWarning`.
 - Faster preparation and input handling, with identical results: sentence vectors are initialized in blocks instead of one row at a time, the list input classes iterate directly instead of through `__getitem__`, and SIF and uSIF read all word counts at once.
 - Removing principal components for SIF and uSIF works in blocks of rows. It used to allocate a second copy of the whole sentence matrix in RAM, also for vectors on disk (`sv_mapfile_path`). The SVD sample is read from the vectors in file order, which gives the same sample.
+- FastText ngrams of out-of-vocabulary words are hashed in C instead of Python, with the same buckets as gensim. A FastText model without ngram buckets (`bucket=0`) gives unknown words no vector in both code paths; the numpy fallback raised `ZeroDivisionError`.
 - Jobs hold at most `batch_words` sentences as well as `batch_words` words, so long runs of empty sentences no longer form one large job.
 - The training log reports the end-to-end time, including the scan and component removal, next to the time of the training phase.
 

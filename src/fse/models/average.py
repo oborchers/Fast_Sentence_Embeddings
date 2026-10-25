@@ -156,7 +156,11 @@ def train_average_np(
                     word_index = model.wv.key_to_index[word]
                     mem += w_vectors[word_index] * w_weights[word_index]
                 else:
-                    ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket)[:max_ngrams]
+                    # A model without ngram buckets has no vector for an unknown word, as
+                    # in the Cython routine.
+                    ngram_hashes = (
+                        ft_ngram_hashes(word, min_n, max_n, bucket)[:max_ngrams] if bucket else []
+                    )
                     if len(ngram_hashes) == 0:
                         continue
                     mem += oov_weight * (

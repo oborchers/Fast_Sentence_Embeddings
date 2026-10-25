@@ -39,7 +39,8 @@ cdef struct BaseSentenceVecsConfig:
     uINT_t sentence_boundary[MAX_WORDS + 1]
 
 cdef struct FTSentenceVecsConfig:
-    int size, workers, min_n, max_n, bucket
+    int size, workers, min_n, max_n
+    uINT_t bucket
 
     REAL_t oov_weight
 
