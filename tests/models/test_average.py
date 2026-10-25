@@ -362,3 +362,22 @@ def test_ft_oov_without_ngrams_parity(make_ft, token):
     np_out, cy_out = results
     assert np.allclose(np_out, cy_out, atol=1e-6)
     assert np.array_equal(cy_out[1], np.zeros(5, dtype=np.float32))
+
+
+def test_save_load_with_sentence_mapfile(w2v, corpus_indexed, tmp_path):
+    """Sentence vectors on disk are not duplicated into .npy files and are reopened by load."""
+    model = Average(w2v, sv_mapfile_path=str(tmp_path / "sv"))
+    model.train(corpus_indexed)
+    model.sv.init_sims()
+    expected = np.array(model.sv.vectors)
+
+    # gensim stores arrays above sep_limit (10 MB) as separate .npy files; force that here.
+    model.save(str(tmp_path / "model"), sep_limit=0)
+    assert not [f.name for f in tmp_path.iterdir() if f.name.startswith("model.sv.")]
+    assert isinstance(model.sv.vectors, np.memmap)
+
+    loaded = Average.load(str(tmp_path / "model"))
+    assert isinstance(loaded.sv.vectors, np.memmap)
+    assert loaded.sv.vectors.filename == str((tmp_path / "sv.vectors").absolute())
+    assert np.array_equal(loaded.sv.vectors, expected)
+    assert loaded.sv.most_similar(positive=0, topn=3) == model.sv.most_similar(positive=0, topn=3)

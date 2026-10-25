@@ -20,14 +20,17 @@ class BaseIndexedList(MutableSequence):
         Parameters
         ----------
         args : lists, sets, ndarray
-            Arguments to be merged into a single contianer. Can be single or multiple list/set/ndarray objects.
+            Arguments to be merged into a single container. Can be single or multiple
+            list/set/ndarray objects. A single list or ndarray is used as is, without a copy,
+            so later changes to it are visible here. A set has no order and is converted to a
+            list.
         """
 
         self.items: Any = list()
 
         if len(args) == 1:
             self._check_list_type(args[0])
-            self.items = args[0]
+            self.items = list(args[0]) if isinstance(args[0], set) else args[0]
         else:
             for arg in args:
                 self.extend(arg)

@@ -211,3 +211,13 @@ class TestIndexedLineDocument:
         assert len(items) == 100
         assert items[0] == first
         assert items[99] == last
+
+
+def test_indexed_list_from_set():
+    """A set is accepted by the type check, so it must also be indexable afterwards."""
+    from fse import IndexedList
+
+    items = IndexedList({"the dog", "a cat"})
+    assert len(items) == 2
+    assert sorted(sentence for sentence, _ in items) == ["a cat", "the dog"]
+    assert items[1][1] == 1

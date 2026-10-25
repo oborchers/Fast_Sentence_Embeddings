@@ -566,6 +566,8 @@ class BaseSentence2VecModel(SaveLoad):
 
         if model.wv_mapfile_path is not None:
             model._load_all_vectors_from_disk(model.wv_mapfile_path)
+        if model.sv.mapfile_path is not None:
+            model.sv._load_all_vectors_from_disk(mapfile_path=model.sv.mapfile_path)
 
         set_madvise_for_mmap()
 
@@ -581,20 +583,24 @@ class BaseSentence2VecModel(SaveLoad):
             Path to the file.
 
         """
-        if self.wv_mapfile_path is None:
-            super().save(*args, **kwargs)
-            return
-
-        # wv.vectors lives in the mapfile and is reopened by load, so it is left out of the
-        # pickle. It is removed only for the duration of the save, because the model stays in
-        # use afterwards. gensim's FastText load needs vectors_vocab and vectors_ngrams, so
-        # those stay in the pickle.
-        vectors = self.wv.vectors
+        # Vectors that live in mapfiles are reopened by load, so they are left out of the
+        # pickle. They are removed only for the duration of the save, because the model stays
+        # in use afterwards. gensim's FastText load needs vectors_vocab and vectors_ngrams, so
+        # those stay in the pickle. The normalized sentence vectors are a cache.
+        removed = []
+        if self.wv_mapfile_path is not None:
+            removed.append((self.wv, "vectors"))
+        if self.sv.mapfile_path is not None:
+            self.sv.mapfile_shape = self.sv.vectors.shape
+            removed += [(self.sv, "vectors"), (self.sv, "vectors_norm")]
+        stored = [(obj, name, getattr(obj, name)) for obj, name in removed]
         try:
-            self.wv.vectors = None
+            for obj, name in removed:
+                setattr(obj, name, None)
             super().save(*args, **kwargs)
         finally:
-            self.wv.vectors = vectors
+            for obj, name, value in stored:
+                setattr(obj, name, value)
 
     def scan_sentences(self, sentences: Any = None, progress_per: int = 5) -> dict[str, Any]:
         """Performs an initial scan of the data and reports all corresponding statistics
