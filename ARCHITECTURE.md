@@ -28,9 +28,11 @@ src/fse/
 2. **Sanity and memory:** `_check_pre_training_sanity` checks the vectors and weights; `estimate_memory` warns when the result will not fit into RAM.
 3. **Prepare:** `BaseSentence2VecPreparer` allocates the sentence vectors (`max_index` rows, initialized to `EPS`), in RAM or as a memmap.
 4. **Pre-train hook:** `_pre_train_calls` computes the word weights. All weights are 1 for Average; SIF and uSIF derive them from word frequencies.
-5. **Jobs:** `_train_manager` starts one producer thread and `workers` worker threads. The producer batches the input into jobs of at most `batch_words` words. Each worker calls `_do_train_job`, which runs `train_average_cy` (or `train_average_np` when the extension is missing).
+5. **Jobs:** `_train_manager` starts one producer thread and `workers` worker threads. The producer batches the input into jobs of up to `batch_words` words; a single longer sentence forms a job of its own. Each worker calls `_do_train_job`, which runs `train_average_cy` (or `train_average_np` when the extension is missing).
 6. **Kernel:** `populate_*_config` turns tokens into word indices while holding the GIL. The averaging runs without the GIL and adds each sentence average into its target row with BLAS `saxpy`.
 7. **Post-train hook:** `_post_train_calls` removes principal components for SIF and uSIF.
+
+`infer(sentences)` takes a shorter path. It scans the input, allocates a zero-filled output matrix, runs the jobs in the calling thread with the weights learned in `train`, and finishes with `_post_inference_calls`, which removes the stored principal components for SIF and uSIF. It has no preparer, no pre-train hook and no threads.
 
 ## Rules
 

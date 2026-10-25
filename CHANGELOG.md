@@ -12,6 +12,7 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 - Support for numpy 2, Cython 3, current scipy, scikit-learn, gensim 4.4 and huggingface-hub 2.x.
 - A clear `ImportError` when gensim < 4 is installed.
 - `__all__` in `fse` and `fse.models`.
+- Type information: the package ships a `py.typed` marker and a stub for the Cython extension, so type checkers see the annotations of fse.
 
 ### Changed
 
