@@ -8,6 +8,8 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 
 ### Added
 
+- `CorpusFile(path)` for a local UTF-8 text file with one sentence per line, and `TextList(strings)` for strings in memory. They give exactly the sentences of `IndexedLineDocument` and `SplitIndexedList`, but every worker reads, splits and looks up its part without the GIL, so training scales with `workers`.
+- `min_similarity` for `most_similar` and the `similar_by_*` methods returns only results at or above a cosine similarity (#34).
 - A `NOTICE` file documents the parts adapted from gensim (LGPL 2.1, used under the GPL 3) and fastText (MIT), with their original copyright notices.
 - Pre-built wheels for Linux (x86_64, aarch64), macOS (arm64, x86_64) and Windows (x86_64) on Python 3.11 to 3.13.
 - Support for numpy 2, Cython 3, current scipy, scikit-learn, gensim 4.4 and huggingface-hub 2.x.

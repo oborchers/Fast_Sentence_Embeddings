@@ -170,7 +170,33 @@ model.train(IndexedList(sentences))
 model.sv.similarity(0,1)
 ```
 
-fse offers multi-thread support out of the box. However, for most applications a *single thread will most likely be sufficient*.
+### Choosing an input class
+
+Every model trains on `(tokens, index)` tuples; the input classes produce them. `CorpusFile` and `TextList` read and split their text natively, without the GIL in every worker, so they scale with `workers`. The other classes are read in Python by one producer thread, which limits them from about two to four workers on.
+
+| Your data | Input class | Splitting | Index |
+|---|---|---|---|
+| Tokenized sentences in memory | `IndexedList(sentences)` | already split | position |
+| Raw strings in memory | `TextList(strings)` | like `str.split()`, native | position |
+| A local UTF-8 text file, one sentence per line | `CorpusFile(path)` | like `str.split()`, native | line number |
+| A compressed or remote file (via smart_open) | `IndexedLineDocument(path)` | `str.split()` in Python | line number |
+| Your own splitting or indices | `CSplitIndexedList`, `CIndexedList`, `CSplitCIndexedList` | your function | yours |
+
+```python
+from fse import Average, CorpusFile, TextList
+
+model = Average(ft, workers=8)
+model.train(CorpusFile("sentences.txt"))  # line i of the file is sentence i
+vectors = model.infer(TextList(["cat say meow", "dog say woof"]))
+```
+
+`CorpusFile` and `TextList` give exactly the sentences of `IndexedLineDocument` and `SplitIndexedList`: a line ends at `\n`, text is decoded strictly as UTF-8, and words are split at every character for which `str.isspace()` is true. Invalid UTF-8 raises a `UnicodeDecodeError` that names the sentence. The file must not change while it is trained on.
+
+To keep only close matches, pass `min_similarity` to `most_similar` or the `similar_by_*` methods:
+
+```python
+model.sv.most_similar(0, topn=10, min_similarity=0.8)
+```
 
 Additional Information
 -------------
