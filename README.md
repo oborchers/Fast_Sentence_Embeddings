@@ -18,7 +18,7 @@ Maintenance mode
 
 **fse is no longer actively developed.** It stays available and installable, and it receives compatibility fixes when time allows, but no new features.
 
-- Version 1.1.0 is tested on Python 3.11 to 3.13 with current numpy, scipy, scikit-learn, gensim and huggingface-hub releases.
+- Version 1.1.0 is tested on Python 3.11 to 3.13 with current numpy, scipy, gensim and huggingface-hub releases.
 - Python 3.14 and newer are not supported yet, because gensim does not build there (see [gensim#3640](https://github.com/piskvorky/gensim/issues/3640)).
 - Bug reports about compatibility are welcome. Feature requests will be closed.
 

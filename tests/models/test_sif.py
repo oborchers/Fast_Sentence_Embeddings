@@ -168,3 +168,11 @@ def test_broken_vocab(make_w2v, indexed_sentences):
     model = SIF(w2v)
     with pytest.raises(ValueError, match="vocab count is negative"):
         model.train(indexed_sentences)
+
+
+def test_cache_size_gb_is_deprecated(w2v):
+    """An explicit cache_size_gb warns at the caller's line and changes nothing."""
+    with pytest.warns(DeprecationWarning, match="cache_size_gb has no effect") as record:
+        model = SIF(w2v, cache_size_gb=2.0)
+    assert record[0].filename == __file__
+    assert not hasattr(model, "cache_size_gb")

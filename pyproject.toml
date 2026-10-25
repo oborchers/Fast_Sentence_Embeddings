@@ -38,7 +38,6 @@ classifiers = [
 dependencies = [
     "numpy>=1.26.4",
     "scipy>=1.11.4",
-    "scikit-learn>=1.3.2",
     "gensim>=4.3.3",
     "smart_open>=6.4.0",
     "wordfreq>=3.1.0",
@@ -133,7 +132,7 @@ check_untyped_defs = true
 
 # These dependencies ship no type information.
 [[tool.mypy.overrides]]
-module = ["gensim.*", "sklearn.*", "wordfreq.*", "smart_open.*", "psutil.*", "scipy.*"]
+module = ["gensim.*", "wordfreq.*", "smart_open.*", "psutil.*", "scipy.*"]
 ignore_missing_imports = true
 
 # --- pytest ---
@@ -148,8 +147,6 @@ markers = [
 ]
 filterwarnings = [
     "error",
-    # The tiny test matrices make TruncatedSVD divide by a zero variance.
-    "ignore:.*encountered in divide:RuntimeWarning:sklearn.decomposition._truncated_svd",
 ]
 
 # --- Coverage ---

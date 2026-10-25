@@ -22,6 +22,7 @@ from fse.models.utils import (
     EPS,
     compute_principal_components,
     remove_principal_components,
+    warn_cache_size_gb_deprecated,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ class uSIF(Average):
         model: WordVectorModel,
         length: PositiveInt | None = None,
         components: NonNegativeInt = 5,
-        cache_size_gb: PositiveFloat = 1.0,
+        cache_size_gb: PositiveFloat | None = None,
         sv_mapfile_path: PathLike | None = None,
         wv_mapfile_path: PathLike | None = None,
         workers: PositiveInt = 1,
@@ -67,7 +68,8 @@ class uSIF(Average):
             Corresponds to the number of singular vectors to remove from the sentence embeddings.
             Is equivalent to m in the paper.
         cache_size_gb : float, optional
-            Cache size for computing the singular vectors in GB.
+            Deprecated and without effect since 1.1.0: the singular vectors are computed
+            exactly over all sentence vectors. Removed in 2.0.
         sv_mapfile_path : str, optional
             Optional path to store the sentence-vectors in for very large datasets. Used for memmap.
         wv_mapfile_path : str, optional
@@ -86,7 +88,8 @@ class uSIF(Average):
 
         self.length = length
         self.components = int(components)
-        self.cache_size_gb = float(cache_size_gb)
+        if cache_size_gb is not None:
+            warn_cache_size_gb_deprecated()
         self.svd_res = None
         self.svd_weights = None
         # How svd_weights scale the removed components; models saved before 1.1.0 lack it.
@@ -128,7 +131,6 @@ class uSIF(Average):
             self.svd_res = compute_principal_components(
                 self.sv.vectors,
                 components=self.components,
-                cache_size_gb=self.cache_size_gb,
             )
             self.svd_weights = (self.svd_res[0] ** 2) / (self.svd_res[0] ** 2).sum().astype(REAL)
             self.component_weighting = "lambda"

@@ -5,14 +5,30 @@
 
 import ctypes
 import logging
+import sys
+import warnings
 from sys import platform
 from time import time
 from typing import Any
 
-from numpy import argsort, dtype, empty, finfo, ndarray, result_type, subtract
+from numpy import (
+    absolute,
+    arange,
+    asarray,
+    empty,
+    finfo,
+    float64,
+    isfinite,
+    maximum,
+    ndarray,
+    result_type,
+    sign,
+    sqrt,
+    subtract,
+    zeros,
+)
 from numpy import float32 as REAL
-from numpy.random import default_rng
-from sklearn.decomposition import TruncatedSVD
+from numpy.linalg import eigh
 
 logger = logging.getLogger(__name__)
 
@@ -53,56 +69,75 @@ def set_madvise_for_mmap(return_madvise: bool = False) -> Any:
 
 
 def compute_principal_components(
-    vectors: ndarray, components: int = 1, cache_size_gb: float = 1.0
+    vectors: ndarray, components: int = 1, cache_size_gb: float | None = None
 ) -> tuple[ndarray, ndarray]:
-    """Method used to compute the first singular vectors of a given (sub)matrix
+    """Compute the first singular values and right singular vectors of a matrix, exactly.
+
+    The vectors are not centered, as for a truncated SVD. The Gram matrix ``X^T X`` is
+    summed over blocks of rows in float64 and decomposed; its eigenvalues are the squared
+    singular values and its eigenvectors the right singular vectors. Every row is read
+    once, front to back, so a memmap streams from disk and memory stays at one block plus
+    a dim x dim matrix.
 
     Parameters
     ----------
     vectors : ndarray
-        (Sentence) vectors to compute the truncated SVD on
+        (Sentence) vectors, one per row
     components : int, optional
         Number of singular values/vectors to compute
     cache_size_gb : float, optional
-            Cache size for computing the principal components in GB
+        Deprecated and without effect since 1.1.0: all vectors are used. Removed in 2.0.
 
     Returns
     -------
     ndarray, ndarray
-        Singular values and singular vectors
+        Singular values, largest first, and the singular vectors as rows, both float32
     """
+    if cache_size_gb is not None:
+        warn_cache_size_gb_deprecated()
+    num_vectors, dim = vectors.shape
+    if not 1 <= components <= dim:
+        raise ValueError(f"components must be between 1 and the dimension {dim}, got {components}")
+    if num_vectors == 0:
+        raise ValueError("cannot compute principal components of zero vectors")
+
     start = time()
-    num_vectors = vectors.shape[0]
-    svd = TruncatedSVD(n_components=components, n_iter=7, random_state=42, algorithm="randomized")
+    gram = zeros((dim, dim), dtype=float64)
+    for begin in range(0, num_vectors, REMOVAL_BLOCK_ROWS):
+        block = asarray(vectors[begin : begin + REMOVAL_BLOCK_ROWS], dtype=float64)
+        gram += block.T @ block
+    if not isfinite(gram).all():
+        raise ValueError("the vectors contain NaN or infinite values")
 
-    sample_size = int(1024**3 * cache_size_gb / (vectors.shape[1] * dtype(REAL).itemsize))
-
-    if sample_size > num_vectors:
-        svd.fit(vectors)
-    else:
-        logger.info(f"sampling {sample_size} vectors to compute principal components")
-        # Seeded like the SVD itself, so repeated runs pick the same sample.
-        sample_indices = default_rng(42).choice(num_vectors, size=sample_size, replace=False)
-        svd.fit(_take_rows_in_file_order(vectors, sample_indices))
+    # eigh returns the eigenvalues in ascending order; take the largest ones first.
+    eigenvalues, eigenvectors = eigh(gram)
+    eigenvalues = eigenvalues[::-1][:components]
+    basis = eigenvectors[:, ::-1][:, :components].T
+    # The sign of a singular vector is arbitrary; make the largest entry positive, as
+    # scikit-learn's svd_flip does, so the result does not depend on the LAPACK build.
+    largest = absolute(basis).argmax(axis=1)
+    basis *= sign(basis[arange(components), largest])[:, None]
+    # Rounding can make eigenvalues of a rank-deficient matrix slightly negative.
+    singular_values = sqrt(maximum(eigenvalues, 0.0))
 
     elapsed = time()
     logger.info(f"computing {components} principal components took {int(elapsed - start)}s")
-    return svd.singular_values_.astype(REAL), svd.components_.astype(REAL)
+    return singular_values.astype(REAL), basis.astype(REAL)
 
 
-def _take_rows_in_file_order(vectors: ndarray, indices: ndarray) -> ndarray:
-    """Return vectors[indices], reading the rows in ascending order.
-
-    The result is identical to fancy indexing, but a memmap is read front to back instead
-    of at random positions. Rows are gathered in blocks, so the only large allocation is
-    the result itself.
-    """
-    order = argsort(indices, kind="stable")
-    sample = empty((len(indices), vectors.shape[1]), dtype=vectors.dtype)
-    for begin in range(0, len(order), REMOVAL_BLOCK_ROWS):
-        positions = order[begin : begin + REMOVAL_BLOCK_ROWS]
-        sample[positions] = vectors[indices[positions]]
-    return sample
+def warn_cache_size_gb_deprecated():
+    """Warn that cache_size_gb has no effect, pointing at the caller outside fse."""
+    frame, level = sys._getframe(1), 2
+    while frame.f_back is not None and frame.f_globals.get("__name__", "").startswith(
+        ("fse.", "pydantic")
+    ):
+        frame, level = frame.f_back, level + 1
+    warnings.warn(
+        "cache_size_gb has no effect since fse 1.1.0: principal components are computed "
+        "exactly over all vectors. It will be removed in fse 2.0.",
+        DeprecationWarning,
+        stacklevel=level,
+    )
 
 
 def remove_principal_components(

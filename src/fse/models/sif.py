@@ -18,7 +18,11 @@ from fse._validation import (
     validate_arguments,
 )
 from fse.models.average import Average
-from fse.models.utils import compute_principal_components, remove_principal_components
+from fse.models.utils import (
+    compute_principal_components,
+    remove_principal_components,
+    warn_cache_size_gb_deprecated,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +37,7 @@ class SIF(Average):
         model: WordVectorModel,
         alpha: PositiveFloat = 1e-3,
         components: NonNegativeInt = 1,
-        cache_size_gb: PositiveFloat = 1.0,
+        cache_size_gb: PositiveFloat | None = None,
         sv_mapfile_path: PathLike | None = None,
         wv_mapfile_path: PathLike | None = None,
         workers: PositiveInt = 1,
@@ -55,7 +59,8 @@ class SIF(Average):
         components : int, optional
             Corresponds to the number of singular vectors to remove from the sentence embeddings.
         cache_size_gb : float, optional
-            Cache size for computing the singular vectors in GB.
+            Deprecated and without effect since 1.1.0: the singular vectors are computed
+            exactly over all sentence vectors. Removed in 2.0.
         sv_mapfile_path : str, optional
             Optional path to store the sentence-vectors in for very large datasets. Used for memmap.
         wv_mapfile_path : str, optional
@@ -75,7 +80,8 @@ class SIF(Average):
 
         self.alpha = float(alpha)
         self.components = int(components)
-        self.cache_size_gb = float(cache_size_gb)
+        if cache_size_gb is not None:
+            warn_cache_size_gb_deprecated()
         self.svd_res = None
 
         if lang_freq is None:
@@ -113,7 +119,6 @@ class SIF(Average):
             self.svd_res = compute_principal_components(
                 self.sv.vectors,
                 components=self.components,
-                cache_size_gb=self.cache_size_gb,
             )
             remove_principal_components(self.sv.vectors, svd_res=self.svd_res, inplace=True)
         else:

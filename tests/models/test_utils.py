@@ -1,12 +1,10 @@
 """Automated tests for the principal component helpers."""
 
 import sys
-from unittest.mock import patch
 
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose, assert_raises
-from sklearn.decomposition import TruncatedSVD
 
 from fse.models.utils import (
     compute_principal_components,
@@ -33,37 +31,126 @@ def test_compute_components():
     assert len(out[1]) == 5
 
 
-def test_compute_large_components():
-    m = np.random.uniform(size=(int(2e6), 10)).astype(np.float32)
-    out = compute_principal_components(vectors=m, cache_size_gb=0.02)
-    assert len(out) == 2
-    assert len(out[1]) == 1
-    assert out[1].dtype == np.float32
+def _reference(vectors, components):
+    """Singular values and the subspace of the right singular vectors, in float64."""
+    _, s, vt = np.linalg.svd(vectors.astype(np.float64), full_matrices=False)
+    return s[:components], vt[:components]
 
 
-def test_compute_components_sample_size():
-    """The sample follows cache_size_gb, also below one million vectors (#58)."""
-    m = np.random.uniform(size=(1000, 10)).astype(np.float32)
-    cache_size_gb = 500 * 10 * 4 / 1024**3
-    fitted = []
-    original_fit = TruncatedSVD.fit
-
-    def recording_fit(self, x, *args, **kwargs):
-        fitted.append(x.shape)
-        return original_fit(self, x, *args, **kwargs)
-
-    with patch.object(TruncatedSVD, "fit", recording_fit):
-        out = compute_principal_components(vectors=m, cache_size_gb=cache_size_gb)
-    assert fitted == [(500, 10)]
-    assert len(out[1]) == 1
+def _subspace_cosines(a, b):
+    """Cosines of the principal angles between the row spaces of a and b."""
+    qa, _ = np.linalg.qr(np.asarray(a, dtype=np.float64).T)
+    qb, _ = np.linalg.qr(np.asarray(b, dtype=np.float64).T)
+    return np.linalg.svd(qa.T @ qb, compute_uv=False)
 
 
-def test_compute_components_sampling_is_reproducible():
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+def test_compute_components_match_an_exact_svd(dtype):
+    rng = np.random.default_rng(0)
+    # A common offset and decaying scales, like sentence vectors with a dominant direction.
+    scales = np.linspace(3.0, 0.1, 20)
+    vectors = (rng.standard_normal((2_000, 20)) * scales + rng.standard_normal(20)).astype(dtype)
+    singular_values, components = compute_principal_components(vectors, components=5)
+    expected_values, expected_components = _reference(vectors, 5)
+    assert singular_values.dtype == components.dtype == np.float32
+    assert_allclose(singular_values, expected_values, rtol=1e-5)
+    assert_allclose(_subspace_cosines(components, expected_components), 1.0, atol=1e-5)
+    assert_allclose(np.linalg.norm(components, axis=1), 1.0, rtol=1e-6)
+
+
+def test_compute_components_with_nearly_equal_singular_values():
+    """Close singular values leave the basis open, but not the subspace or the removal."""
+    rng = np.random.default_rng(1)
+    q, _ = np.linalg.qr(rng.standard_normal((300, 12)))
+    scales = np.array([10.0, 10.0 - 1e-4, 10.0 - 2e-4, 5.0, 1.0, 0.5] + [0.1] * 6)
+    vectors = (rng.standard_normal((5_000, 12)) * scales @ q.T).astype(np.float32)
+    svd_res = compute_principal_components(vectors, components=3)
+    _, expected_components = _reference(vectors, 3)
+    assert_allclose(_subspace_cosines(svd_res[1], expected_components), 1.0, atol=1e-4)
+    removed = remove_principal_components(vectors, svd_res, inplace=False)
+    v64 = vectors.astype(np.float64)
+    expected = v64 - v64 @ expected_components.T @ expected_components
+    assert_allclose(removed, expected, atol=1e-3)
+
+
+def test_compute_components_have_a_fixed_sign():
+    """The largest entry of every component is positive, so flipped inputs agree."""
+    vectors = np.random.default_rng(2).random((300, 6), dtype=np.float32)
+    _, components = compute_principal_components(vectors, components=3)
+    largest = np.abs(components).argmax(axis=1)
+    assert (components[np.arange(3), largest] > 0).all()
+    _, flipped = compute_principal_components(-vectors, components=3)
+    assert_allclose(flipped, components, atol=1e-6)
+
+
+def test_compute_components_over_blocks_equal_one_block(monkeypatch, tmp_path):
+    """Block boundaries, a short last block and a memmap give the same components."""
+    from fse.models import utils
+
+    rows, dim = 1_000, 8
+    vectors = np.memmap(tmp_path / "sv", dtype=np.float32, mode="w+", shape=(rows, dim))
+    vectors[:] = np.random.default_rng(0).random((rows, dim), dtype=np.float32)
+    whole = compute_principal_components(np.array(vectors), components=3)
+    monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 7)
+    blocked = compute_principal_components(vectors, components=3)
+    assert_allclose(blocked[0], whole[0], rtol=1e-6)
+    assert_allclose(blocked[1], whole[1], atol=1e-6)
+
+
+def test_compute_components_are_reproducible():
     m = np.random.default_rng(1).random((1000, 10), dtype=np.float32)
-    cache_size_gb = 500 * 10 * 4 / 1024**3
-    first = compute_principal_components(vectors=m, cache_size_gb=cache_size_gb)
-    second = compute_principal_components(vectors=m, cache_size_gb=cache_size_gb)
+    first = compute_principal_components(vectors=m, components=3)
+    second = compute_principal_components(vectors=m, components=3)
+    assert np.array_equal(first[0], second[0])
     assert np.array_equal(first[1], second[1])
+
+
+def test_compute_components_of_a_rank_deficient_matrix():
+    """More components than the rank give zero singular values, never NaN."""
+    vectors = np.ones((50, 4), dtype=np.float32)
+    singular_values, components = compute_principal_components(vectors, components=3)
+    assert_allclose(singular_values, [np.sqrt(200), 0, 0], atol=1e-3)
+    assert np.isfinite(components).all()
+
+
+def test_compute_components_memory_is_bounded_by_a_block(tmp_path):
+    """A memmap is streamed: about one block in float64 is allocated, not the matrix."""
+    import tracemalloc
+
+    from fse.models import utils
+
+    rows, dim = 500_000, 50
+    vectors = np.memmap(tmp_path / "sv", dtype=np.float32, mode="w+", shape=(rows, dim))
+    vectors[:] = np.random.default_rng(0).random((rows, dim), dtype=np.float32)
+    tracemalloc.start()
+    compute_principal_components(vectors, components=2)
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert peak < 3 * utils.REMOVAL_BLOCK_ROWS * dim * 8
+    assert peak < rows * dim * 4 / 4
+
+
+@pytest.mark.parametrize(
+    ("vectors", "components", "message"),
+    [
+        (np.ones((10, 4), dtype=np.float32), 5, "between 1 and the dimension 4"),
+        (np.ones((10, 4), dtype=np.float32), 0, "between 1 and the dimension 4"),
+        (np.ones((0, 4), dtype=np.float32), 1, "zero vectors"),
+        (np.array([[1.0, np.nan], [0.0, 1.0]], dtype=np.float32), 1, "NaN or infinite"),
+        (np.array([[1.0, np.inf], [0.0, 1.0]], dtype=np.float32), 1, "NaN or infinite"),
+    ],
+)
+def test_compute_components_reject_invalid_input(vectors, components, message):
+    with pytest.raises(ValueError, match=message):
+        compute_principal_components(vectors, components=components)
+
+
+def test_cache_size_gb_is_deprecated():
+    """The warning names the caller's line, so it is shown outside of fse."""
+    vectors = np.random.default_rng(0).random((20, 4), dtype=np.float32)
+    with pytest.warns(DeprecationWarning, match="cache_size_gb has no effect") as record:
+        compute_principal_components(vectors, cache_size_gb=1.0)
+    assert record[0].filename == __file__
 
 
 def test_remove_components_inplace(ones):
@@ -188,18 +275,6 @@ def test_remove_components_memory_is_bounded_by_a_block(tmp_path):
     block = utils.REMOVAL_BLOCK_ROWS * dim * 4
     assert peak < 3 * block
     assert peak < matrix / 4
-
-
-def test_sample_rows_in_file_order_equal_fancy_indexing(monkeypatch, tmp_path):
-    """Reading the sample in file order gives the same matrix, so the same components."""
-    from fse.models import utils
-
-    monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 7)
-    rows, dim = 1_000, 8
-    vectors = np.memmap(tmp_path / "sv", dtype=np.float32, mode="w+", shape=(rows, dim))
-    vectors[:] = np.random.default_rng(0).random((rows, dim), dtype=np.float32)
-    indices = np.random.default_rng(42).choice(rows, size=100, replace=False)
-    assert np.array_equal(utils._take_rows_in_file_order(vectors, indices), vectors[indices])
 
 
 def test_remove_components_keeps_numpy_result_types():

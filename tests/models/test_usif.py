@@ -189,3 +189,11 @@ def test_load_keeps_current_weighting(model, indexed_sentences, tmp_path):
     loaded = uSIF.load(str(tmp_path / "new"))
     assert loaded.component_weighting == "lambda"
     np.testing.assert_array_equal(loaded.svd_weights, model.svd_weights)
+
+
+def test_cache_size_gb_is_deprecated(w2v):
+    """An explicit cache_size_gb warns at the caller's line and changes nothing."""
+    with pytest.warns(DeprecationWarning, match="cache_size_gb has no effect") as record:
+        model = uSIF(w2v, cache_size_gb=2.0)
+    assert record[0].filename == __file__
+    assert not hasattr(model, "cache_size_gb")
