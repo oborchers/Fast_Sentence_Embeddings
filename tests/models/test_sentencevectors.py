@@ -281,3 +281,55 @@ class TestSentenceVectorsLookups:
     def test_get_vector_missing_index_message(self, sv):
         with pytest.raises(KeyError, match="index 99 not found"):
             sv.get_vector(99)
+
+
+class TestMinSimilarity:
+    """most_similar and the similar_by_* methods filter by a similarity threshold (#34)."""
+
+    def test_keeps_only_results_at_or_above_the_threshold(self, trained):
+        everything = trained.sv.most_similar(positive=0, topn=50)
+        threshold = everything[10][1]
+        filtered = trained.sv.most_similar(positive=0, topn=50, min_similarity=threshold)
+        assert filtered == [item for item in everything if item[1] >= threshold]
+        assert filtered
+        assert all(item[1] >= threshold for item in filtered)
+
+    def test_thresholds_at_the_bounds(self, trained):
+        assert len(trained.sv.most_similar(positive=0, topn=5, min_similarity=-1)) == 5
+        result = trained.sv.most_similar(positive=0, topn=5, min_similarity=1)
+        assert all(item[1] >= 1 for item in result)
+
+    def test_applies_to_indexable_results(self, trained, indexed_sentences):
+        result = trained.sv.most_similar(
+            positive=0, indexable=indexed_sentences, topn=20, min_similarity=0.5
+        )
+        assert all(len(item) == 3 and item[2] >= 0.5 for item in result)
+
+    def test_similar_by_methods_pass_it_on(self, trained, w2v):
+        vector = trained.sv[0]
+        assert trained.sv.similar_by_vector(vector, topn=20, min_similarity=0.9) == (
+            trained.sv.most_similar(positive=vector, topn=20, min_similarity=0.9)
+        )
+        by_word = trained.sv.similar_by_word("the", w2v.wv, topn=20, min_similarity=0.5)
+        assert all(item[1] >= 0.5 for item in by_word)
+        by_sentence = trained.sv.similar_by_sentence(
+            ["the", "dog"], trained, topn=20, min_similarity=0.5
+        )
+        assert all(item[1] >= 0.5 for item in by_sentence)
+
+    def test_accepts_numpy_floats(self, trained):
+        assert trained.sv.most_similar(positive=0, topn=5, min_similarity=np.float32(0.0)) == (
+            trained.sv.most_similar(positive=0, topn=5, min_similarity=0.0)
+        )
+
+    @pytest.mark.parametrize("value", [1.5, -1.01, float("nan"), float("inf"), "0.5"])
+    def test_rejects_invalid_thresholds(self, trained, value):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            trained.sv.most_similar(positive=0, topn=5, min_similarity=value)
+
+    @pytest.mark.parametrize("topn", [0, None])
+    def test_requires_a_top_n_list(self, trained, topn):
+        with pytest.raises(ValueError, match="needs a positive topn"):
+            trained.sv.most_similar(positive=0, topn=topn, min_similarity=0.5)
