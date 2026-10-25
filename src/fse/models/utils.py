@@ -16,6 +16,7 @@ from numpy import (
     arange,
     asarray,
     empty,
+    errstate,
     finfo,
     float64,
     integer,
@@ -125,7 +126,9 @@ def compute_principal_components(
         # The sum is cheap and NaN or infinite as soon as one entry is.
         if not isfinite(block.sum(dtype=float64)):
             raise ValueError(f"the vectors contain NaN or infinite values in rows from {begin}")
-        gram += block.T @ block
+        # An overflow is reported below as an error, not as a warning of the product.
+        with errstate(over="ignore"):
+            gram += block.T @ block
         del block  # release the block before the next one is converted
     if not isfinite(gram).all():
         raise ValueError("the Gram matrix of the vectors overflows; scale the vectors down")
