@@ -9,7 +9,7 @@ from sys import platform
 from time import time
 from typing import Any
 
-from numpy import dtype, finfo, ndarray, ones
+from numpy import dtype, finfo, ndarray
 from numpy import float32 as REAL
 from numpy.random import choice
 from sklearn.decomposition import TruncatedSVD
@@ -107,28 +107,24 @@ def remove_principal_components(
 
     Returns
     -------
-    ndarray, ndarray
-        Singular values and singular vectors
+    ndarray or None
+        The vectors without the components if inplace is False, otherwise None.
     """
     components = svd_res[1].astype(REAL)
 
     start = time()
-    if weights is None:
-        w_comp = components * ones(len(components), dtype=REAL)[:, None]
-    else:
-        w_comp = components * (weights[:, None].astype(REAL))
+    # Coefficients of each vector on each component, scaled by the component weight.
+    # The weight is applied once, so each component is removed as weight * projection.
+    coefficients = vectors.dot(components.transpose())
+    if weights is not None:
+        coefficients *= weights.astype(REAL)[None, :]
+    projection = coefficients.dot(components)
 
     output = None
-    if len(components) == 1:
-        if not inplace:
-            output = vectors - vectors.dot(w_comp.transpose()) * w_comp
-        else:
-            vectors -= vectors.dot(w_comp.transpose()) * w_comp
+    if inplace:
+        vectors -= projection
     else:
-        if not inplace:
-            output = vectors - vectors.dot(w_comp.transpose()).dot(w_comp)
-        else:
-            vectors -= vectors.dot(w_comp.transpose()).dot(w_comp)
+        output = vectors - projection
     elapsed = time()
 
     logger.info(f"removing {len(components)} principal components took {int(elapsed - start)}s")

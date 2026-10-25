@@ -71,7 +71,7 @@ def test_remove_weighted_components_inplace(ones):
     c = np.copy(ones)
     out = compute_principal_components(vectors=ones)
     remove_principal_components(ones, svd_res=out, weights=np.array([0.5]))
-    assert_allclose(ones, 0.75, atol=1e-5)
+    assert_allclose(ones, 0.5, atol=1e-5)
     with assert_raises(AssertionError):
         assert_allclose(ones, c)
 
@@ -80,8 +80,31 @@ def test_remove_weighted_components(ones):
     c = np.copy(ones)
     out = compute_principal_components(vectors=ones)
     res = remove_principal_components(ones, svd_res=out, weights=np.array([0.5]), inplace=False)
-    assert_allclose(res, 0.75, atol=1e-5)
+    assert_allclose(res, 0.5, atol=1e-5)
     assert_allclose(ones, c)
+
+
+@pytest.mark.parametrize("inplace", [True, False])
+def test_remove_weighted_components_matches_usif_reference(inplace):
+    """Each component is removed with weight lambda_i, as in the reference uSIF code.
+
+    Reference: https://github.com/kawine/usif/blob/master/usif.py, ``embed``:
+    ``v_s - lambda_i * proj(v_s, pc)`` for every principal component ``pc``.
+    """
+    rng = np.random.default_rng(0)
+    vectors = rng.normal(size=(200, 8)).astype(np.float32)
+    singular_values, components = compute_principal_components(vectors=vectors, components=3)
+    weights = (singular_values**2) / (singular_values**2).sum()
+
+    expected = vectors.astype(np.float64)
+    for lambda_i, pc in zip(weights, components.astype(np.float64), strict=True):
+        expected = expected - lambda_i * np.outer(expected @ pc, pc)
+
+    out = remove_principal_components(
+        vectors, svd_res=(singular_values, components), weights=weights, inplace=inplace
+    )
+    result = vectors if inplace else out
+    assert_allclose(result, expected, atol=1e-5)
 
 
 @pytest.mark.skipif(
