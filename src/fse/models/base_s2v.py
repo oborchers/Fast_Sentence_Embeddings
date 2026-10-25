@@ -697,7 +697,19 @@ class BaseSentence2VecModel(SaveLoad):
         def progress(sentences_done: int, words_done: int):
             logger.info(f"SCANNING : finished {sentences_done} sentences with {words_done} words")
 
-        if (
+        native = getattr(sentences, "_scan_native", None)
+        native_stats = None
+        if native is not None and "_check_indexed_sent_valid" not in self.__dict__:
+            # CorpusFile and TextList scan their bytes in parallel without the GIL; None
+            # means the extension is missing and the Python loop below runs instead.
+            native_stats = native(workers=self.workers, progress=progress)
+        if native_stats is not None:
+            total_sentences = native_stats["total_sentences"]
+            total_words = native_stats["total_words"]
+            empty_sentences = native_stats["empty_sentences"]
+            max_index = max(total_sentences - 1, 0)
+            unique_indices = True
+        elif (
             scan_indexed_sentences is not None
             and "_check_indexed_sent_valid" not in self.__dict__
             and type(self)._check_indexed_sent_valid

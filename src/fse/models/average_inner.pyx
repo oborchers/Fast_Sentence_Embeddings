@@ -29,7 +29,7 @@ from cpython.pythread cimport (
     PyThread_release_lock,
 )
 from libc.stdlib cimport free, malloc, realloc
-from libc.string cimport memcpy, memset
+from libc.string cimport memchr, memcmp, memcpy, memset
 
 from time import time
 
@@ -432,6 +432,68 @@ def encode_job(KernelContext ctx, batch):
     return job
 
 
+cdef void _average_sentence(
+    const KernelParams *p,
+    const uINT_t *words,
+    Py_ssize_t n_tokens,
+    const unsigned char *oov_bytes,
+    const np.int64_t *oov_offsets,
+    Py_ssize_t *k,
+    uINT_t target,
+    REAL_t *mem,
+    uINT_t *ngram_buffer,
+    size_t ngram_capacity,
+) noexcept nogil:
+    """Add the average of one sentence into row target.
+
+    The weighted word vectors of the sentence are summed into mem, then mem / length is
+    added into the row, as in the numpy fallback. For an unknown FastText word, each
+    ngram vector is added scaled by oov_weight / ngrams, where numpy sums the ngram
+    vectors first and scales the sum: the same value within float32 rounding. k is the
+    index of the next unknown word in oov_offsets and is advanced past this sentence.
+    """
+    cdef int size = p.size
+    cdef Py_ssize_t t
+    cdef size_t j, ngrams, row
+    cdef uINT_t word
+    cdef REAL_t inv_count, inv_ngram
+    cdef PyThread_type_lock lock
+
+    memset(mem, 0, size * cython.sizeof(REAL_t))
+    for t in range(n_tokens):
+        word = words[t]
+        if word == OOV_TOKEN:
+            ngrams = ft_ngram_hashes_into(
+                &oov_bytes[oov_offsets[k[0]]],
+                <size_t>(oov_offsets[k[0] + 1] - oov_offsets[k[0]]),
+                p.min_n, p.max_n, p.bucket, ngram_buffer, ngram_capacity,
+            )
+            k[0] += 1
+            if ngrams == 0:
+                # No ngrams: the word counts for the length but adds no vector.
+                continue
+            inv_ngram = (ONEF / <REAL_t>ngrams) * p.oov_weight
+            for j in range(ngrams):
+                row = <size_t>ngram_buffer[j] * <size_t>size
+                saxpy(&size, &inv_ngram, &p.ngram_vectors[row], &ONE, mem, &ONE)
+        else:
+            row = <size_t>word * <size_t>size
+            saxpy(&size, &p.word_weights[word], &p.word_vectors[row], &ONE, mem, &ONE)
+
+    # Every stored token counts for the length, also unknown words without ngrams.
+    if n_tokens > 0:
+        inv_count = ONEF / <REAL_t>n_tokens
+        row = <size_t>target * <size_t>size
+        # Adding mem / length keeps many-to-one mappings correct: rows accumulate.
+        if p.locks != NULL:
+            lock = p.locks[target % N_ROW_LOCKS]
+            PyThread_acquire_lock(lock, WAIT_LOCK)
+            saxpy(&size, &inv_count, mem, &ONE, &p.target[row], &ONE)
+            PyThread_release_lock(lock)
+        else:
+            saxpy(&size, &inv_count, mem, &ONE, &p.target[row], &ONE)
+
+
 cdef void _average_job(
     const KernelParams *p,
     const uINT_t *words,
@@ -444,56 +506,13 @@ cdef void _average_job(
     uINT_t *ngram_buffer,
     size_t ngram_capacity,
 ) noexcept nogil:
-    """Add the average of every sentence of a job into its target row.
-
-    The weighted word vectors of a sentence are summed into mem, then mem / length is
-    added into the row, as in the numpy fallback. For an unknown FastText word, each
-    ngram vector is added scaled by oov_weight / ngrams, where numpy sums the ngram
-    vectors first and scales the sum: the same value within float32 rounding.
-    """
-    cdef int size = p.size
+    """Add the average of every sentence of an encoded job into its target row."""
     cdef Py_ssize_t s, k = 0
-    cdef np.int64_t t, sent_len
-    cdef size_t j, ngrams, row
-    cdef uINT_t word
-    cdef REAL_t inv_count, inv_ngram
-    cdef PyThread_type_lock lock
-
     for s in range(n_sentences):
-        memset(mem, 0, size * cython.sizeof(REAL_t))
-        # Every stored token counts for the length, also unknown words without ngrams.
-        sent_len = offsets[s + 1] - offsets[s]
-        for t in range(offsets[s], offsets[s + 1]):
-            word = words[t]
-            if word == OOV_TOKEN:
-                ngrams = ft_ngram_hashes_into(
-                    &oov_bytes[oov_offsets[k]],
-                    <size_t>(oov_offsets[k + 1] - oov_offsets[k]),
-                    p.min_n, p.max_n, p.bucket, ngram_buffer, ngram_capacity,
-                )
-                k += 1
-                if ngrams == 0:
-                    # No ngrams: the word counts for the length but adds no vector.
-                    continue
-                inv_ngram = (ONEF / <REAL_t>ngrams) * p.oov_weight
-                for j in range(ngrams):
-                    row = <size_t>ngram_buffer[j] * <size_t>size
-                    saxpy(&size, &inv_ngram, &p.ngram_vectors[row], &ONE, mem, &ONE)
-            else:
-                row = <size_t>word * <size_t>size
-                saxpy(&size, &p.word_weights[word], &p.word_vectors[row], &ONE, mem, &ONE)
-
-        if sent_len > 0:
-            inv_count = ONEF / <REAL_t>sent_len
-            row = <size_t>targets[s] * <size_t>size
-            # Adding mem / length keeps many-to-one mappings correct: rows accumulate.
-            if p.locks != NULL:
-                lock = p.locks[targets[s] % N_ROW_LOCKS]
-                PyThread_acquire_lock(lock, WAIT_LOCK)
-                saxpy(&size, &inv_count, mem, &ONE, &p.target[row], &ONE)
-                PyThread_release_lock(lock)
-            else:
-                saxpy(&size, &inv_count, mem, &ONE, &p.target[row], &ONE)
+        _average_sentence(
+            p, &words[offsets[s]] if words != NULL else NULL, offsets[s + 1] - offsets[s],
+            oov_bytes, oov_offsets, &k, targets[s], mem, ngram_buffer, ngram_capacity,
+        )
 
 
 def run_job(KernelContext ctx, EncodedJob job, scratch):
@@ -610,6 +629,475 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
         i += 1
 
     return i, total_words, empty_sentences, max_index, unique_indices
+
+
+# ---------------------------------------------------------------------------------------
+# Native text input (CorpusFile, TextList): tokenize UTF-8 bytes without the GIL.
+#
+# A sentence is a span of bytes: a line of a file without its "\n", or one string of a
+# TextList. It is decoded strictly as UTF-8 and split like str.split(): at every code
+# point for which str.isspace() is true. Tests compare the result with Python.
+# ---------------------------------------------------------------------------------------
+
+cdef uINT_t NOT_FOUND = <uINT_t>0xFFFFFFFF
+
+# Return codes of the native routines, translated into exceptions with the GIL.
+cdef enum:
+    NATIVE_OK = 0
+    NATIVE_NO_MEMORY = -1
+    NATIVE_BAD_UTF8 = -2
+    NATIVE_BAD_ROW = -3
+
+
+cdef inline int _utf8_len(const unsigned char *p, Py_ssize_t i, Py_ssize_t end) noexcept nogil:
+    """Length of the valid UTF-8 sequence at p[i], or 0 where CPython's decoder fails."""
+    cdef unsigned char b = p[i]
+    cdef unsigned char c
+    if b < 0x80:
+        return 1
+    if b < 0xC2:
+        return 0
+    if b < 0xE0:
+        if i + 1 < end and (p[i + 1] & 0xC0) == 0x80:
+            return 2
+        return 0
+    if b < 0xF0:
+        if i + 2 >= end:
+            return 0
+        c = p[i + 1]
+        if (b == 0xE0 and c < 0xA0) or (b == 0xED and c > 0x9F):
+            return 0
+        if (c & 0xC0) != 0x80 or (p[i + 2] & 0xC0) != 0x80:
+            return 0
+        return 3
+    if b < 0xF5:
+        if i + 3 >= end:
+            return 0
+        c = p[i + 1]
+        if (b == 0xF0 and c < 0x90) or (b == 0xF4 and c > 0x8F):
+            return 0
+        if (c & 0xC0) != 0x80 or (p[i + 2] & 0xC0) != 0x80 or (p[i + 3] & 0xC0) != 0x80:
+            return 0
+        return 4
+    return 0
+
+
+cdef inline bint _is_space(const unsigned char *p, Py_ssize_t i, int n) noexcept nogil:
+    """Whether the valid UTF-8 sequence of length n at p[i] satisfies str.isspace()."""
+    cdef unsigned char b = p[i]
+    cdef unsigned char c, d
+    if n == 1:
+        return (9 <= b <= 13) or (28 <= b <= 32)
+    if n == 2:
+        return b == 0xC2 and (p[i + 1] == 0x85 or p[i + 1] == 0xA0)
+    if n == 3:
+        c = p[i + 1]
+        d = p[i + 2]
+        if b == 0xE1:
+            return c == 0x9A and d == 0x80  # U+1680
+        if b == 0xE2:
+            if c == 0x80:  # U+2000 to U+200A, U+2028, U+2029, U+202F
+                return d <= 0x8A or d == 0xA8 or d == 0xA9 or d == 0xAF
+            return c == 0x81 and d == 0x9F  # U+205F
+        if b == 0xE3:
+            return c == 0x80 and d == 0x80  # U+3000
+    return False
+
+
+cdef inline np.uint64_t _fnv1a64(const unsigned char *p, Py_ssize_t n) noexcept nogil:
+    cdef np.uint64_t h = 14695981039346656037ULL
+    cdef Py_ssize_t i
+    for i in range(n):
+        h ^= p[i]
+        h *= 1099511628211ULL
+    return h
+
+
+cdef struct VocabView:
+    const unsigned char *keys
+    const np.int64_t *key_offsets
+    const np.uint32_t *key_lengths
+    const uINT_t *values
+    const uINT_t *slots
+    const np.uint64_t *slot_hashes
+    np.uint64_t mask
+
+
+cdef inline uINT_t _vocab_lookup(const VocabView *v, const unsigned char *p, Py_ssize_t n) noexcept nogil:
+    """Vocabulary index of the n bytes at p, or NOT_FOUND."""
+    cdef np.uint64_t h = _fnv1a64(p, n)
+    cdef np.uint64_t j = h & v.mask
+    cdef uINT_t k
+    while True:
+        k = v.slots[j]
+        if k == NOT_FOUND:
+            return NOT_FOUND
+        if (
+            v.slot_hashes[j] == h
+            and v.key_lengths[k] == n
+            and memcmp(v.keys + v.key_offsets[k], p, n) == 0
+        ):
+            return v.values[k]
+        j = (j + 1) & v.mask
+
+
+cdef class VocabTable:
+    """Immutable map from the UTF-8 bytes of a word to its vocabulary index.
+
+    Built once per train or infer call from key_to_index while holding the GIL, then
+    read without it: open addressing with linear probing, at most half full.
+    """
+
+    cdef bytes arena
+    cdef object _arrays
+    cdef VocabView view
+
+    def __init__(self, dict key_to_index):
+        cdef Py_ssize_t n = len(key_to_index)
+        offsets_arr = np.empty(max(n, 1), dtype=np.int64)
+        lengths_arr = np.empty(max(n, 1), dtype=np.uint32)
+        values_arr = np.empty(max(n, 1), dtype=np.uint32)
+        cdef np.int64_t[::1] offsets = offsets_arr
+        cdef np.uint32_t[::1] lengths = lengths_arr
+        cdef uINT_t[::1] values = values_arr
+        cdef list parts = []
+        cdef np.int64_t position = 0
+        cdef Py_ssize_t k = 0
+        for word, index in key_to_index.items():
+            encoded = (<str?>word).encode("utf-8")
+            parts.append(encoded)
+            offsets[k] = position
+            lengths[k] = len(encoded)
+            values[k] = <uINT_t>index
+            position += len(encoded)
+            k += 1
+        self.arena = b"".join(parts)
+
+        cdef np.uint64_t size = 2
+        while size < 2 * <np.uint64_t>n:
+            size <<= 1
+        self.view.mask = size - 1
+        slots_arr = np.full(size, NOT_FOUND, dtype=np.uint32)
+        hashes_arr = np.zeros(size, dtype=np.uint64)
+        cdef uINT_t[::1] slots = slots_arr
+        cdef np.uint64_t[::1] hashes = hashes_arr
+        self._arrays = (offsets_arr, lengths_arr, values_arr, slots_arr, hashes_arr)
+        self.view.keys = self.arena
+        self.view.key_offsets = &offsets[0]
+        self.view.key_lengths = &lengths[0]
+        self.view.values = &values[0]
+        self.view.slots = &slots[0]
+        self.view.slot_hashes = &hashes[0]
+
+        cdef np.uint64_t h, j
+        for k in range(n):
+            h = _fnv1a64(self.view.keys + offsets[k], lengths[k])
+            j = h & self.view.mask
+            while slots[j] != NOT_FOUND:
+                j = (j + 1) & self.view.mask
+            slots[j] = <uINT_t>k
+            hashes[j] = h
+
+    def __reduce__(self):
+        raise TypeError("VocabTable only exists during a train or infer call")
+
+    def get(self, word):
+        """Vocabulary index of word (str), or None; for tests."""
+        encoded = (<str?>word).encode("utf-8")
+        cdef uINT_t index = _vocab_lookup(&self.view, encoded, len(encoded))
+        return None if index == NOT_FOUND else index
+
+
+cdef Py_ssize_t _count_tokens(
+    const unsigned char *p, Py_ssize_t start, Py_ssize_t end, Py_ssize_t *error
+) noexcept nogil:
+    """Number of str.split() tokens in p[start:end]; sets error to the first bad byte."""
+    cdef Py_ssize_t i = start
+    cdef Py_ssize_t tokens = 0
+    cdef bint inside = False
+    cdef int m
+    while i < end:
+        m = _utf8_len(p, i, end)
+        if m == 0:
+            error[0] = i
+            return tokens
+        if _is_space(p, i, m):
+            inside = False
+        elif not inside:
+            inside = True
+            tokens += 1
+        i += m
+    return tokens
+
+
+def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssize_t last,
+               Py_ssize_t chunk_bytes):
+    """Validate and count the sentences of one scan range, without the GIL.
+
+    Line mode (offsets is None): the range holds the lines that start at byte positions
+    in [first, last); the caller aligns first and last to line starts. Item mode: the
+    range holds the strings first to last - 1 of a TextList, delimited by offsets.
+
+    Returns (sentences, tokens, empty, chunks, error_byte, error_sentence): chunks is a
+    list of (start, end, first_sentence) with positions in the same unit as the range and
+    sentence numbers relative to the range; error_byte is -1 if the range is valid.
+    """
+    cdef Py_ssize_t n = data.shape[0]
+    cdef const unsigned char *p = &data[0] if n else NULL
+    cdef bint lines = offsets is None
+    cdef np.int64_t[::1] item_offsets
+    cdef const np.int64_t *item_ptr = NULL
+    if not lines:
+        item_offsets = offsets
+        item_ptr = &item_offsets[0]
+    cdef Py_ssize_t sentences = 0, tokens = 0, empty = 0, count
+    cdef Py_ssize_t error = -1
+    cdef Py_ssize_t pos = first, span_end, next_pos, chunk_start = first, chunk_first = 0
+    cdef const unsigned char *newline
+    chunk_list = []
+    cdef np.int64_t[::1] chunk_buffer
+    cdef Py_ssize_t n_chunks = 0
+
+    # Chunk boundaries are collected in C and converted to a list at the end.
+    chunk_arr = np.empty(3 * (1 + (last - first) // max(chunk_bytes, 1) + 2), dtype=np.int64)
+    chunk_buffer = chunk_arr
+    with nogil:
+        while pos < last:
+            if lines:
+                newline = <const unsigned char *>memchr(p + pos, 10, n - pos)
+                span_end = (newline - p) if newline != NULL else n
+                next_pos = span_end + 1 if newline != NULL else n
+            else:
+                span_end = item_ptr[pos + 1]
+                next_pos = pos + 1
+            count = _count_tokens(p, item_ptr[pos] if not lines else pos, span_end, &error)
+            if error >= 0:
+                break
+            tokens += count
+            if count == 0:
+                empty += 1
+            sentences += 1
+            pos = next_pos
+            if (
+                (lines and pos - chunk_start >= chunk_bytes)
+                or (not lines and (item_ptr[pos] - item_ptr[chunk_start]) >= chunk_bytes)
+            ) and pos < last:
+                chunk_buffer[3 * n_chunks] = chunk_start
+                chunk_buffer[3 * n_chunks + 1] = pos
+                chunk_buffer[3 * n_chunks + 2] = chunk_first
+                n_chunks += 1
+                chunk_start = pos
+                chunk_first = sentences
+    if error >= 0:
+        return sentences, tokens, empty, [], error, sentences
+    if chunk_start < last:
+        chunk_buffer[3 * n_chunks] = chunk_start
+        chunk_buffer[3 * n_chunks + 1] = last
+        chunk_buffer[3 * n_chunks + 2] = chunk_first
+        n_chunks += 1
+    chunk_list = [tuple(chunk_arr[3 * c : 3 * c + 3].tolist()) for c in range(n_chunks)]
+    return sentences, tokens, empty, chunk_list, -1, -1
+
+
+cdef int _push_u32_nogil(_Buffer *b, uINT_t value) noexcept nogil:
+    if b.size + <Py_ssize_t>sizeof(uINT_t) > b.capacity:
+        if _grow_nogil(b, sizeof(uINT_t)) != 0:
+            return -1
+    (<uINT_t *>(b.data + b.size))[0] = value
+    b.size += sizeof(uINT_t)
+    return 0
+
+
+cdef int _push_i64_nogil(_Buffer *b, np.int64_t value) noexcept nogil:
+    if b.size + <Py_ssize_t>sizeof(np.int64_t) > b.capacity:
+        if _grow_nogil(b, sizeof(np.int64_t)) != 0:
+            return -1
+    (<np.int64_t *>(b.data + b.size))[0] = value
+    b.size += sizeof(np.int64_t)
+    return 0
+
+
+cdef int _push_bytes_nogil(_Buffer *b, const unsigned char *data, Py_ssize_t n) noexcept nogil:
+    if b.size + n > b.capacity:
+        if _grow_nogil(b, n) != 0:
+            return -1
+    memcpy(b.data + b.size, data, n)
+    b.size += n
+    return 0
+
+
+cdef int _grow_nogil(_Buffer *b, Py_ssize_t extra) noexcept nogil:
+    """Like _reserve, without the GIL: returns -1 instead of raising."""
+    cdef Py_ssize_t capacity
+    cdef char *data
+    if extra > PY_SSIZE_T_MAX - b.size:
+        return -1
+    capacity = b.capacity * 2 if b.capacity <= PY_SSIZE_T_MAX // 2 else PY_SSIZE_T_MAX
+    capacity = max(b.size + extra, capacity, 4096)
+    data = <char *>realloc(b.data, capacity)
+    if data == NULL:
+        return -1
+    b.data = data
+    b.capacity = capacity
+    return 0
+
+
+cdef int _average_spans(
+    const KernelParams *p,
+    const VocabView *table,
+    const unsigned char *data,
+    Py_ssize_t data_size,
+    const np.int64_t *item_offsets,
+    Py_ssize_t first,
+    Py_ssize_t last,
+    np.int64_t first_row,
+    Py_ssize_t n_rows,
+    REAL_t *mem,
+    _Buffer *words,
+    _Buffer *oov_bytes,
+    _Buffer *oov_offsets,
+    _Buffer *ngrams,
+    Py_ssize_t *eff_sentences,
+    Py_ssize_t *eff_words,
+    Py_ssize_t *error,
+) noexcept nogil:
+    """Tokenize, look up and average every sentence of a chunk without the GIL."""
+    cdef bint lines = item_offsets == NULL
+    cdef Py_ssize_t pos = first, span_start, span_end, next_pos, i, token_start, k
+    cdef Py_ssize_t longest, capacity
+    cdef np.int64_t row = first_row
+    cdef const unsigned char *newline
+    cdef bint inside
+    cdef int m
+    cdef Py_ssize_t seen
+    cdef uINT_t index
+    cdef unsigned char open_mark = 60, close_mark = 62  # "<" and ">"
+
+    while pos < last:
+        if lines:
+            newline = <const unsigned char *>memchr(data + pos, 10, data_size - pos)
+            span_start = pos
+            span_end = (newline - data) if newline != NULL else data_size
+            next_pos = span_end + 1 if newline != NULL else data_size
+        else:
+            span_start = item_offsets[pos]
+            span_end = item_offsets[pos + 1]
+            next_pos = pos + 1
+        if row < 0 or row >= n_rows:
+            return NATIVE_BAD_ROW
+
+        words.size = 0
+        oov_bytes.size = 0
+        oov_offsets.size = 0
+        if _push_i64_nogil(oov_offsets, 0) != 0:
+            return NATIVE_NO_MEMORY
+        longest = 0
+        seen = 0
+        inside = False
+        token_start = span_start
+        i = span_start
+        while i <= span_end:
+            if i < span_end:
+                m = _utf8_len(data, i, span_end)
+                if m == 0:
+                    error[0] = i
+                    return NATIVE_BAD_UTF8
+            else:
+                m = 0
+            if i == span_end or _is_space(data, i, m):
+                if inside:
+                    seen += 1
+                    index = _vocab_lookup(table, data + token_start, i - token_start)
+                    if index != NOT_FOUND:
+                        if _push_u32_nogil(words, index) != 0:
+                            return NATIVE_NO_MEMORY
+                    elif p.is_ft:
+                        # The UTF-8 bytes of "<token>", as fastText hashes them.
+                        if (
+                            _push_bytes_nogil(oov_bytes, &open_mark, 1) != 0
+                            or _push_bytes_nogil(oov_bytes, data + token_start, i - token_start) != 0
+                            or _push_bytes_nogil(oov_bytes, &close_mark, 1) != 0
+                            or _push_i64_nogil(oov_offsets, oov_bytes.size) != 0
+                            or _push_u32_nogil(words, OOV_TOKEN) != 0
+                        ):
+                            return NATIVE_NO_MEMORY
+                        longest = max(longest, i - token_start + 2)
+                    inside = False
+                if i == span_end:
+                    break
+            elif not inside:
+                inside = True
+                token_start = i
+            i += m
+
+        # A sentence with tokens counts even if none is known, as in the job path.
+        if seen:
+            eff_sentences[0] += 1
+        if words.size:
+            capacity = min(<Py_ssize_t>p.max_ngrams, longest * max(<Py_ssize_t>p.max_n, 1))
+            if capacity * <Py_ssize_t>sizeof(uINT_t) > ngrams.capacity:
+                if _grow_nogil(ngrams, capacity * sizeof(uINT_t) - ngrams.size) != 0:
+                    return NATIVE_NO_MEMORY
+            k = 0
+            eff_words[0] += words.size // sizeof(uINT_t)
+            _average_sentence(
+                p, <const uINT_t *>words.data, words.size // sizeof(uINT_t),
+                <const unsigned char *>oov_bytes.data, <const np.int64_t *>oov_offsets.data,
+                &k, <uINT_t>row, mem, <uINT_t *>ngrams.data, <size_t>capacity,
+            )
+        row += 1
+        pos = next_pos
+    return NATIVE_OK
+
+
+def run_chunk(KernelContext ctx, VocabTable table, const unsigned char[::1] data, offsets,
+              Py_ssize_t first, Py_ssize_t last, np.int64_t first_row, scratch):
+    """Average the sentences first to last - 1 of a native source without the GIL.
+
+    Positions are bytes in line mode (offsets is None) and string numbers otherwise; the
+    first sentence goes into row first_row. Returns the number of non-empty sentences and
+    of used tokens, like run_job.
+    """
+    _check_array(scratch, "scratch", np.float32)
+    if scratch.size < ctx.params.size:
+        raise ValueError(f"scratch must hold at least {ctx.params.size} entries")
+    cdef Py_ssize_t n = data.shape[0]
+    cdef const unsigned char *p = &data[0] if n else NULL
+    cdef np.int64_t[::1] item_offsets
+    cdef const np.int64_t *item_ptr = NULL
+    if offsets is not None:
+        item_offsets = offsets
+        item_ptr = &item_offsets[0]
+    cdef REAL_t *mem = <REAL_t *>(np.PyArray_DATA(scratch))
+    cdef _Buffer words, oov_bytes, oov_offsets, ngrams
+    memset(&words, 0, sizeof(_Buffer))
+    memset(&oov_bytes, 0, sizeof(_Buffer))
+    memset(&oov_offsets, 0, sizeof(_Buffer))
+    memset(&ngrams, 0, sizeof(_Buffer))
+    cdef Py_ssize_t eff_sentences = 0, eff_words = 0, error = -1
+    cdef Py_ssize_t n_rows = ctx.n_rows
+    cdef int status
+    try:
+        with nogil:
+            status = _average_spans(
+                &ctx.params, &table.view, p, n, item_ptr, first, last, first_row, n_rows, mem,
+                &words, &oov_bytes, &oov_offsets, &ngrams, &eff_sentences, &eff_words, &error,
+            )
+    finally:
+        free(words.data)
+        free(oov_bytes.data)
+        free(oov_offsets.data)
+        free(ngrams.data)
+    if status == NATIVE_NO_MEMORY:
+        raise MemoryError("could not grow the buffers of a native chunk")
+    if status == NATIVE_BAD_UTF8:
+        raise UnicodeDecodeError(
+            "utf-8", bytes(data[error : error + 1]), 0, 1,
+            f"invalid UTF-8 at byte {error}; the input changed after the scan",
+        )
+    if status == NATIVE_BAD_ROW:
+        raise IndexError(f"a sentence of the chunk maps past the {n_rows} target rows")
+    return eff_sentences, eff_words
 
 
 def _check_array(array, name, dtype):

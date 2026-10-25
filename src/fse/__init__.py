@@ -12,12 +12,14 @@ if int(gensim.__version__.split(".")[0]) < 4:
 from fse.inputs import (
     BaseIndexedList,
     CIndexedList,
+    CorpusFile,
     CSplitCIndexedList,
     CSplitIndexedList,
     IndexedLineDocument,
     IndexedList,
     SplitCIndexedList,
     SplitIndexedList,
+    TextList,
 )
 from fse.models import SIF, Average, SentenceVectors, uSIF
 from fse.vectors import FTVectors, Vectors
@@ -36,12 +38,14 @@ __all__ = [
     "CIndexedList",
     "CSplitCIndexedList",
     "CSplitIndexedList",
+    "CorpusFile",
     "FTVectors",
     "IndexedLineDocument",
     "IndexedList",
     "SentenceVectors",
     "SplitCIndexedList",
     "SplitIndexedList",
+    "TextList",
     "Vectors",
     "__version__",
     "uSIF",

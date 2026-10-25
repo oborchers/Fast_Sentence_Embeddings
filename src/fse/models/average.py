@@ -52,7 +52,7 @@ from numpy import (
 )
 
 from fse._validation import PathLike, PositiveInt, WordVectorModel, validate_arguments
-from fse.models.base_s2v import BaseSentence2VecModel
+from fse.models.base_s2v import BaseSentence2VecModel, _OffsetIndices
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +181,8 @@ try:
         MAX_WORDS_IN_BATCH,
         JobEncoder,
         KernelContext,
+        VocabTable,
+        run_chunk,
         run_job,
         train_average_cy,
     )
@@ -193,6 +195,35 @@ except ImportError:
     MAX_WORDS_IN_BATCH = 10000
     MAX_NGRAMS_IN_BATCH = 40
     train_average = train_average_np
+
+
+class _NativeChunk:
+    """Sentences of a CorpusFile or TextList for one worker: positions start to end."""
+
+    __slots__ = ("end", "first_row", "n_items", "source", "start", "table")
+
+    def __init__(self, source, table, start, end, first_row, n_items):
+        self.source = source
+        self.table = table
+        self.start = start
+        self.end = end
+        self.first_row = first_row
+        self.n_items = n_items
+
+
+class _ChunkFeeder:
+    """Hands out the chunks of a scanned native source, like JobEncoder hands out jobs."""
+
+    def __init__(self, source, table, chunks, offset):
+        self._chunks = iter(chunks)
+        self._source = source
+        self._table = table
+        self._offset = offset
+
+    def next_job(self):
+        for start, end, first, count in self._chunks:
+            return _NativeChunk(self._source, self._table, start, end, first + self._offset, count)
+        return None
 
 
 class Average(BaseSentence2VecModel):
@@ -283,13 +314,36 @@ class Average(BaseSentence2VecModel):
         return KernelContext(self, target)
 
     def _job_encoder(self, context: Any, sentences: Iterable[tuple]) -> Any:
-        """Batch and encode the input in one pass while holding the GIL, in the producer."""
+        """Batch and encode the input in one pass while holding the GIL, in the producer.
+
+        CorpusFile and TextList hand out chunks of their bytes instead; each worker then
+        splits and looks up its chunk itself, without the GIL.
+        """
+        offset = 0
+        if isinstance(sentences, _OffsetIndices):
+            offset, base = sentences.offset, sentences.sentences
+        else:
+            base = sentences
+        if hasattr(base, "_native_chunks"):
+            source, chunks = base._native_chunks()
+            return _ChunkFeeder(source, VocabTable(self.wv.key_to_index), chunks, offset)
         return JobEncoder(context, sentences, self.batch_words)
 
     def _run_encoded_job(
         self, context: Any, job: Any, memory: tuple[ndarray, ndarray]
     ) -> tuple[int, int]:
-        """Average an encoded job without the GIL."""
+        """Average an encoded job or a native chunk without the GIL."""
+        if isinstance(job, _NativeChunk):
+            return run_chunk(
+                context,
+                job.table,
+                job.source.data,
+                job.source.offsets,
+                job.start,
+                job.end,
+                job.first_row,
+                memory[0],
+            )
         return run_job(context, job, memory[0])
 
     def _do_train_job(
