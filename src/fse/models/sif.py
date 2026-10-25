@@ -4,6 +4,7 @@
 # Copyright (C) Oliver Borchers
 
 import logging
+from typing import Any, cast
 
 from gensim.models.keyedvectors import KeyedVectors
 from numpy import float32 as REAL
@@ -16,16 +17,20 @@ logger = logging.getLogger(__name__)
 
 
 class SIF(Average):
+    # svd_res is None before training and 0 when no components are removed.
+    svd_res: Any
+    svd_weights: Any
+
     def __init__(
         self,
         model: KeyedVectors,
         alpha: float = 1e-3,
         components: int = 1,
         cache_size_gb: float = 1.0,
-        sv_mapfile_path: str = None,
-        wv_mapfile_path: str = None,
+        sv_mapfile_path: str | None = None,
+        wv_mapfile_path: str | None = None,
         workers: int = 1,
-        lang_freq: str = None,
+        lang_freq: str | None = None,
     ):
         """Smooth-inverse frequency (SIF) weighted sentence embeddings model. Performs a weighted averaging operation over all
         words in a sentences. After training, the model removes a number of singular vectors.
@@ -79,7 +84,7 @@ class SIF(Average):
             lang_freq=lang_freq,
         )
 
-    def _check_parameter_sanity(self):
+    def _check_parameter_sanity(self, **kwargs):
         """Check the sanity of all paramters"""
         if not all(self.word_weights <= 1.0) or not all(self.word_weights >= 0.0):
             raise ValueError("For SIF, all word weights must be 0 <= w_weight <= 1")
@@ -92,7 +97,7 @@ class SIF(Average):
         """Function calls to perform before training"""
         self._compute_sif_weights()
 
-    def _post_train_calls(self):
+    def _post_train_calls(self, **kwargs):
         """Function calls to perform after training, such as computing eigenvectors"""
         if self.components > 0:
             self.svd_res = compute_principal_components(
@@ -100,25 +105,21 @@ class SIF(Average):
                 components=self.components,
                 cache_size_gb=self.cache_size_gb,
             )
-            remove_principal_components(
-                self.sv.vectors, svd_res=self.svd_res, inplace=True
-            )
+            remove_principal_components(self.sv.vectors, svd_res=self.svd_res, inplace=True)
         else:
             self.svd_res = 0
             logger.info("no removal of principal components")
 
-    def _post_inference_calls(self, output: ndarray, **kwargs):
+    def _post_inference_calls(self, output: ndarray | None = None, **kwargs):
         """Function calls to perform after training & inference"""
         if self.svd_res is None:
-            raise RuntimeError(
-                "You must first train the model to obtain SVD components"
-            )
+            raise RuntimeError("You must first train the model to obtain SVD components")
         elif self.components > 0:
-            remove_principal_components(output, svd_res=self.svd_res, inplace=True)
+            remove_principal_components(cast(ndarray, output), svd_res=self.svd_res, inplace=True)
         else:
             logger.info("no removal of principal components")
 
-    def _check_dtype_santiy(self):
+    def _check_dtype_santiy(self, **kwargs):
         """Check the dtypes of all attributes"""
         if self.word_weights.dtype != REAL:
             raise TypeError(f"type of word_weights is wrong: {self.word_weights.dtype}")
@@ -126,9 +127,7 @@ class SIF(Average):
             if self.svd_res[0].dtype != REAL:
                 raise TypeError(f"type of svd values is wrong: {self.svd_res[0].dtype}")
             if self.svd_res[1].dtype != REAL:
-                raise TypeError(
-                    f"type of svd components is wrong: {self.svd_res[1].dtype}"
-                )
+                raise TypeError(f"type of svd components is wrong: {self.svd_res[1].dtype}")
 
     def _compute_sif_weights(self):
         """Precomputes the SIF weights for all words in the vocabulary"""

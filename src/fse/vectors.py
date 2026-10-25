@@ -33,7 +33,7 @@ class Vectors(KeyedVectors):
     """Class to instantiates vectors from pretrained models."""
 
     @classmethod
-    def from_pretrained(cls, model: str, mmap: str = None):
+    def from_pretrained(cls, model: str, mmap: str | None = None):
         """Method to load vectors from a pre-trained model.
 
         Parameters
@@ -53,7 +53,7 @@ class FTVectors(FastTextKeyedVectors):
     """Class to instantiates FT vectors from pretrained models."""
 
     @classmethod
-    def from_pretrained(cls, model: str, mmap: str = None):
+    def from_pretrained(cls, model: str, mmap: str | None = None):
         """Method to load vectors from a pre-trained model.
 
         Parameters

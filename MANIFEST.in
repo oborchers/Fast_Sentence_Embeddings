@@ -1,5 +1,5 @@
 include LICENSE README.md CHANGELOG.md
-recursive-include src/fse *.pyx *.pxd *.h
+recursive-include src/fse *.pyx *.pxd *.h *.pyi py.typed
 graft tests
 prune evaluation
 prune notebooks

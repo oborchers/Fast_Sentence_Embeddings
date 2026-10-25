@@ -4,7 +4,7 @@ SRC := src/$(PACKAGE)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env install init sync rebuild-ext format format-check lint lint-fix test test-network test-cov check build clean pre-commit
+.PHONY: help env install init sync rebuild-ext format format-check lint lint-fix typecheck test test-network test-cov check build clean pre-commit
 
 ##@ Setup
 help: ## Show this help
@@ -38,6 +38,9 @@ lint: ## Lint code with ruff
 lint-fix: ## Lint and auto-fix
 	$(UV) run ruff check --fix $(SRC) tests
 
+typecheck: ## Type check with mypy
+	$(UV) run mypy
+
 ##@ Testing
 test: ## Run tests without network access
 	$(UV) run pytest tests -m "not network"
@@ -49,7 +52,7 @@ test-cov: ## Run tests with coverage
 	$(UV) run pytest tests -m "not network" --cov=$(PACKAGE) --cov-report=term-missing
 
 ##@ Combined
-check: format-check lint test ## Run all checks: format + lint + test
+check: format-check lint typecheck test ## Run all checks: format + lint + typecheck + test
 
 ##@ Build
 build: clean ## Build sdist and wheel

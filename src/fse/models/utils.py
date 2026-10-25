@@ -7,6 +7,7 @@ import ctypes
 import logging
 from sys import platform
 from time import time
+from typing import Any
 
 from numpy import dtype, finfo, ndarray, ones
 from numpy import float32 as REAL
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 EPS = finfo(REAL).eps
 
 
-def set_madvise_for_mmap(return_madvise: bool = False) -> object:
+def set_madvise_for_mmap(return_madvise: bool = False) -> Any:
     """Method used to set madvise parameters.
     This problem adresses the memmap issue raised in https://github.com/numpy/numpy/issues/13172
     The issue is not applicable for windows
@@ -69,13 +70,9 @@ def compute_principal_components(
     """
     start = time()
     num_vectors = vectors.shape[0]
-    svd = TruncatedSVD(
-        n_components=components, n_iter=7, random_state=42, algorithm="randomized"
-    )
+    svd = TruncatedSVD(n_components=components, n_iter=7, random_state=42, algorithm="randomized")
 
-    sample_size = int(
-        1024**3 * cache_size_gb / (vectors.shape[1] * dtype(REAL).itemsize)
-    )
+    sample_size = int(1024**3 * cache_size_gb / (vectors.shape[1] * dtype(REAL).itemsize))
 
     if sample_size > num_vectors:
         svd.fit(vectors)
@@ -85,18 +82,16 @@ def compute_principal_components(
         svd.fit(vectors[sample_indices, :])
 
     elapsed = time()
-    logger.info(
-        f"computing {components} principal components took {int(elapsed - start)}s"
-    )
+    logger.info(f"computing {components} principal components took {int(elapsed - start)}s")
     return svd.singular_values_.astype(REAL), svd.components_.astype(REAL)
 
 
 def remove_principal_components(
     vectors: ndarray,
     svd_res: tuple[ndarray, ndarray],
-    weights: ndarray = None,
+    weights: ndarray | None = None,
     inplace: bool = True,
-) -> ndarray:
+) -> ndarray | None:
     """Method used to remove the first singular vectors of a given matrix
 
     Parameters
@@ -136,8 +131,7 @@ def remove_principal_components(
             vectors -= vectors.dot(w_comp.transpose()).dot(w_comp)
     elapsed = time()
 
-    logger.info(
-        f"removing {len(components)} principal components took {int(elapsed - start)}s"
-    )
+    logger.info(f"removing {len(components)} principal components took {int(elapsed - start)}s")
     if not inplace:
         return output
+    return None

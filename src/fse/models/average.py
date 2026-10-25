@@ -59,7 +59,7 @@ def train_average_np(
     model: BaseSentence2VecModel,
     indexed_sentences: list[tuple],
     target: ndarray,
-    memory: ndarray,
+    memory: tuple[ndarray, ndarray],
 ) -> tuple[int, int]:
     """Training on a sequence of sentences and update the target ndarray.
 
@@ -123,12 +123,10 @@ def train_average_np(
             sent_adr = obj[1]
 
             word_indices = [
-                model.wv.key_to_index[word]
-                for word in sent
-                if word in model.wv.key_to_index
+                model.wv.key_to_index[word] for word in sent if word in model.wv.key_to_index
             ]
             eff_sentences += 1
-            if not len(word_indices):
+            if not word_indices:
                 continue
             eff_words += len(word_indices)
 
@@ -156,9 +154,7 @@ def train_average_np(
                     word_index = model.wv.key_to_index[word]
                     mem += w_vectors[word_index] * w_weights[word_index]
                 else:
-                    ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket)[
-                        :max_ngrams
-                    ]
+                    ngram_hashes = ft_ngram_hashes(word, min_n, max_n, bucket)[:max_ngrams]
                     if len(ngram_hashes) == 0:
                         continue
                     mem += oov_weight * (
@@ -213,10 +209,10 @@ class Average(BaseSentence2VecModel):
     def __init__(
         self,
         model: KeyedVectors,
-        sv_mapfile_path: str = None,
-        wv_mapfile_path: str = None,
+        sv_mapfile_path: str | None = None,
+        wv_mapfile_path: str | None = None,
         workers: int = 1,
-        lang_freq: str = None,
+        lang_freq: str | None = None,
         **kwargs,
     ):
         """Average (unweighted) sentence embeddings model. Performs a simple averaging operation over all
@@ -259,7 +255,7 @@ class Average(BaseSentence2VecModel):
         )
 
     def _do_train_job(
-        self, data_iterable: list[tuple], target: ndarray, memory: ndarray
+        self, data_iterable: list[tuple], target: ndarray, memory: tuple[ndarray, ndarray]
     ) -> tuple[int, int]:
         """Internal routine which is called on training and performs averaging for all entries in the iterable"""
         eff_sentences, eff_words = train_average(
@@ -280,7 +276,7 @@ class Average(BaseSentence2VecModel):
         """Function calls to perform after training, such as computing eigenvectors"""
         pass
 
-    def _post_inference_calls(self, **kwargs):
+    def _post_inference_calls(self, output: ndarray | None = None, **kwargs):
         """Function calls to perform after training & inference
         Examples include the removal of components
         """

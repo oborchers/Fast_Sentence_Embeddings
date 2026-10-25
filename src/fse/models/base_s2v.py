@@ -39,6 +39,7 @@ import warnings
 from pathlib import Path
 from queue import Queue
 from time import time
+from typing import Any
 
 from gensim.matutils import zeros_aligned
 from gensim.models import FastText, Word2Vec
@@ -76,13 +77,18 @@ EPS = finfo(REAL).eps
 
 
 class BaseSentence2VecModel(SaveLoad):
+    wv: KeyedVectors
+    sv: SentenceVectors
+    wv_mapfile_path: Path | None
+    wv_mapfile_shapes: dict[str, tuple[int, ...]]
+
     def __init__(
         self,
         model: KeyedVectors,
-        sv_mapfile_path: str = None,
-        wv_mapfile_path: str = None,
+        sv_mapfile_path: str | None = None,
+        wv_mapfile_path: str | None = None,
         workers: int = 1,
-        lang_freq: str = None,
+        lang_freq: str | None = None,
         fast_version: int = 0,
         batch_words: int = 10000,
         batch_ngrams: int = 40,
@@ -129,9 +135,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         self.is_ft = False
 
-        self.wv_mapfile_path = (
-            Path(wv_mapfile_path) if wv_mapfile_path is not None else None
-        )
+        self.wv_mapfile_path = Path(wv_mapfile_path) if wv_mapfile_path is not None else None
         self.wv_mapfile_shapes = {}
 
         if fast_version < 0:
@@ -151,9 +155,7 @@ class BaseSentence2VecModel(SaveLoad):
             self._check_language_settings(lang_freq)
             self._induce_frequencies()
 
-        self.sv = SentenceVectors(
-            vector_size=self.wv.vector_size, mapfile_path=sv_mapfile_path
-        )
+        self.sv = SentenceVectors(vector_size=self.wv.vector_size, mapfile_path=sv_mapfile_path)
         self.prep = BaseSentence2VecPreparer()
 
         self.word_weights = ones(len(self.wv), REAL)
@@ -186,7 +188,7 @@ class BaseSentence2VecModel(SaveLoad):
             self.wv = model
         else:
             raise RuntimeError(
-                f"Model must be child of BaseWordEmbeddingsModel or KeyedVectors. Received {str(model)}"
+                f"Model must be child of BaseWordEmbeddingsModel or KeyedVectors. Received {model!s}"
             )
 
         if isinstance(self.wv, FastTextKeyedVectors):
@@ -195,18 +197,12 @@ class BaseSentence2VecModel(SaveLoad):
             if not self.wv.compatible_hash:
                 raise RuntimeError("FastText model requires compatible hash function")
             if not hasattr(self.wv, "vectors_vocab") or self.wv.vectors_vocab is None:
-                raise RuntimeError(
-                    "vectors_vocab required for sentence embeddings not found."
-                )
+                raise RuntimeError("vectors_vocab required for sentence embeddings not found.")
             if not hasattr(self.wv, "vectors_ngrams") or self.wv.vectors_ngrams is None:
-                raise RuntimeError(
-                    "Ngram vectors required for sentence embeddings not found."
-                )
+                raise RuntimeError("Ngram vectors required for sentence embeddings not found.")
 
         if not hasattr(self.wv, "vectors") or self.wv.vectors is None:
-            raise RuntimeError(
-                "Word vectors required for sentence embeddings not found."
-            )
+            raise RuntimeError("Word vectors required for sentence embeddings not found.")
 
     def _check_language_settings(self, lang_freq: str):
         """Check if the supplied language is a compatible with the wordfreq package
@@ -242,7 +238,7 @@ class BaseSentence2VecModel(SaveLoad):
             else:
                 self.wv.set_vecattr(word, "count", int(1e-8 * domain))
 
-    def _check_input_data_sanity(self, data_iterable: tuple):
+    def _check_input_data_sanity(self, data_iterable: Any):
         """Check if the input data complies with the required formats
 
         Parameters
@@ -298,9 +294,7 @@ class BaseSentence2VecModel(SaveLoad):
         if not hasattr(self, "wv") or self.wv is None:
             raise RuntimeError("you must first load a valid KeyedVectors object")
         if not len(self.wv.vectors):
-            raise RuntimeError(
-                "you must initialize vectors before computing sentence vectors"
-            )
+            raise RuntimeError("you must initialize vectors before computing sentence vectors")
 
         if self.is_ft and not len(self.wv.vectors_ngrams):
             raise RuntimeError(
@@ -311,9 +305,7 @@ class BaseSentence2VecModel(SaveLoad):
                 "you must initialize vectors_vocab before computing sentence vectors"
             )
 
-        if sum([self.wv.get_vecattr(w, "count") for w in self.wv.key_to_index]) == len(
-            self.wv
-        ):
+        if sum([self.wv.get_vecattr(w, "count") for w in self.wv.key_to_index]) == len(self.wv):
             logger.warning(
                 "The sum of the word counts is equal to its length (all word counts are 1). "
                 "Make sure to obtain proper word counts by using lang_freq for pretrained embeddings."
@@ -330,22 +322,16 @@ class BaseSentence2VecModel(SaveLoad):
         if self.wv.vectors.dtype != REAL:
             raise TypeError(f"type of wv.vectors is wrong: {self.wv.vectors.dtype}")
         if self.is_ft and self.wv.vectors_ngrams.dtype != REAL:
-            raise TypeError(
-                f"type of wv.vectors_ngrams is wrong: {self.wv.vectors_ngrams.dtype}"
-            )
+            raise TypeError(f"type of wv.vectors_ngrams is wrong: {self.wv.vectors_ngrams.dtype}")
         if self.is_ft and self.wv.vectors_vocab.dtype != REAL:
-            raise TypeError(
-                f"type of wv.vectors_vocab is wrong: {self.wv.vectors_vocab.dtype}"
-            )
+            raise TypeError(f"type of wv.vectors_vocab is wrong: {self.wv.vectors_vocab.dtype}")
         if self.sv.vectors.dtype != REAL:
             raise TypeError(f"type of sv.vectors is wrong: {self.sv.vectors.dtype}")
         if self.word_weights.dtype != REAL:
             raise TypeError(f"type of word_weights is wrong: {self.word_weights.dtype}")
 
         if total_sentences == 0 or total_words == 0 or average_length == 0:
-            raise ValueError(
-                "scanning the sentences returned invalid values. Check the input."
-            )
+            raise ValueError("scanning the sentences returned invalid values. Check the input.")
 
     def _check_post_training_sanity(self, eff_sentences: int, eff_words: int):
         """Check if the training results make sense
@@ -362,13 +348,13 @@ class BaseSentence2VecModel(SaveLoad):
             raise ValueError("training returned invalid values. Check the input.")
 
     def _check_indexed_sent_valid(
-        self, iterPos: int, obj: tuple, checked: int = False
+        self, iter_pos: int, obj: tuple, checked: int = False
     ) -> tuple[int, list[str]]:
         """Performs a check if the passed object contains valid data
 
         Parameters
         ----------
-        iterPos : int
+        iter_pos : int
             Position in file/iterable
         obj : tuple
             An tuple object containing the index and sentence
@@ -391,14 +377,14 @@ class BaseSentence2VecModel(SaveLoad):
         if not checked:
             if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
                 raise TypeError(
-                    f"At {iterPos}: Passed {type(sent)}: {sent}. tuple.words must contain list of str."
+                    f"At {iter_pos}: Passed {type(sent)}: {sent}. tuple.words must contain list of str."
                 )
             if not isinstance(index, int):
                 raise TypeError(
-                    f"At {iterPos}: Passed {type(index)}: {index}. tuple.index must contain index"
+                    f"At {iter_pos}: Passed {type(index)}: {index}. tuple.index must contain index"
                 )
             if index < 0:
-                raise ValueError(f"At {iterPos}: Passed negative {index}")
+                raise ValueError(f"At {iter_pos}: Passed negative {index}")
         return index, sent
 
     def _map_all_vectors_to_disk(self, mapfile_path: Path):
@@ -413,9 +399,7 @@ class BaseSentence2VecModel(SaveLoad):
         path = str(mapfile_path.absolute())
 
         self.wv_mapfile_shapes["vectors"] = self.wv.vectors.shape
-        self.wv.vectors = self._move_ndarray_to_disk(
-            self.wv.vectors, mapfile_path=path, name="wv"
-        )
+        self.wv.vectors = self._move_ndarray_to_disk(self.wv.vectors, mapfile_path=path, name="wv")
         if self.is_ft:
             self.wv_mapfile_shapes["vectors_vocab"] = self.wv.vectors_vocab.shape
             self.wv_mapfile_shapes["vectors_ngrams"] = self.wv.vectors_ngrams.shape
@@ -458,7 +442,7 @@ class BaseSentence2VecModel(SaveLoad):
             )
 
     def _move_ndarray_to_disk(
-        self, vector: ndarray, mapfile_path: str, name: str = ""
+        self, vector: ndarray, mapfile_path: str | Path | None, name: str = ""
     ) -> ndarray:
         """Moves a numpy ndarray to disk via memmap
 
@@ -506,7 +490,7 @@ class BaseSentence2VecModel(SaveLoad):
         return (mem, oov_mem)
 
     def _do_train_job(
-        self, data_iterable: list[tuple], target: ndarray, memory: ndarray
+        self, data_iterable: list[tuple], target: ndarray, memory: tuple[ndarray, ndarray]
     ) -> tuple[int, int]:
         """Function to be called on a batch of sentences. Returns eff sentences/words"""
         raise NotImplementedError()
@@ -519,7 +503,7 @@ class BaseSentence2VecModel(SaveLoad):
         """Function calls to perform after training, such as computing eigenvectors"""
         raise NotImplementedError()
 
-    def _post_inference_calls(self, **kwargs):
+    def _post_inference_calls(self, output: ndarray | None = None, **kwargs):
         """Function calls to perform after training & inference
         Examples include the removal of components
         """
@@ -575,9 +559,7 @@ class BaseSentence2VecModel(SaveLoad):
             self.wv.vectors = None
         super().save(*args, **kwargs)
 
-    def scan_sentences(
-        self, sentences: list[tuple] = None, progress_per: int = 5
-    ) -> dict[str, int]:
+    def scan_sentences(self, sentences: Any = None, progress_per: int = 5) -> dict[str, Any]:
         """Performs an initial scan of the data and reports all corresponding statistics
 
         Parameters
@@ -601,15 +583,10 @@ class BaseSentence2VecModel(SaveLoad):
         average_length = 0
         empty_sentences = 0
         max_index = 0
-        checked_sentences = (
-            0  # We only check the first item to not constrain runtime so much
-        )
 
         for i, obj in enumerate(sentences):
-            index, sent = self._check_indexed_sent_valid(
-                iterPos=i, obj=obj, checked=checked_sentences
-            )
-            checked_sentences += 1
+            # Only the first item is fully type checked to keep the scan fast.
+            index, sent = self._check_indexed_sent_valid(iter_pos=i, obj=obj, checked=i)
             if time() - current_time > progress_per:
                 current_time = time()
                 logger.info(
@@ -646,7 +623,7 @@ class BaseSentence2VecModel(SaveLoad):
         return statistics
 
     def estimate_memory(
-        self, max_index: int, report: dict = None, **kwargs
+        self, max_index: int, report: dict | None = None, **kwargs
     ) -> dict[str, int]:
         """Estimate the size of the sentence embedding
 
@@ -668,17 +645,11 @@ class BaseSentence2VecModel(SaveLoad):
         report = report or {}
         report["Word Weights"] = vocab_size * dtype(REAL).itemsize
         report["Word Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
-        report["Sentence Vectors"] = (
-            max_index * self.wv.vector_size * dtype(REAL).itemsize
-        )
+        report["Sentence Vectors"] = max_index * self.wv.vector_size * dtype(REAL).itemsize
         if self.is_ft:
-            report["Vocab Vectors"] = (
-                vocab_size * self.wv.vector_size * dtype(REAL).itemsize
-            )
+            report["Vocab Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
             report["Ngram Vectors"] = (
-                self.wv.vectors_ngrams.shape[0]
-                * self.wv.vector_size
-                * dtype(REAL).itemsize
+                self.wv.vectors_ngrams.shape[0] * self.wv.vector_size * dtype(REAL).itemsize
             )
         report["Total"] = sum(report.values())
         mb_size = int(report["Total"] / 1024**2)
@@ -695,7 +666,7 @@ class BaseSentence2VecModel(SaveLoad):
 
     def train(
         self,
-        sentences: list[tuple] = None,
+        sentences: Any = None,
         update: bool = False,
         queue_factor: int = 2,
         report_delay: int = 5,
@@ -748,9 +719,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         overall_time = time() - start_time
 
-        self._check_post_training_sanity(
-            eff_sentences=eff_sentences, eff_words=eff_words
-        )
+        self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
 
         # Preform post-tain calls (i.e principal component removal)
         self._post_train_calls()
@@ -761,7 +730,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         return eff_sentences, eff_words
 
-    def infer(self, sentences: list[tuple] = None, use_norm=False) -> ndarray:
+    def infer(self, sentences: Any = None, use_norm: bool = False) -> ndarray:
         """Secondary routine to train an embedding. This method is essential for small batches of sentences,
         which require little computation. Note: This method does not apply post-training transformations,
         only post inference calls (such as removing principal components).
@@ -807,7 +776,7 @@ class BaseSentence2VecModel(SaveLoad):
     def _train_manager(
         self,
         data_iterable: list[tuple],
-        total_sentences: int = None,
+        total_sentences: int | None = None,
         queue_factor: int = 2,
         report_delay: int = 5,
     ):
@@ -825,8 +794,10 @@ class BaseSentence2VecModel(SaveLoad):
             Number of seconds between two consecutive progress report messages in the logger.
 
         """
-        job_queue = Queue(maxsize=queue_factor * self.workers)
-        progress_queue = Queue(maxsize=(queue_factor + 1) * self.workers)
+        job_queue: Queue[list[tuple] | None] = Queue(maxsize=queue_factor * self.workers)
+        progress_queue: Queue[tuple[int, int, int] | None] = Queue(
+            maxsize=(queue_factor + 1) * self.workers
+        )
 
         # WORKING Threads
         workers = [
@@ -834,9 +805,7 @@ class BaseSentence2VecModel(SaveLoad):
             for _ in range(self.workers)
         ]
         # JOB PRODUCER
-        workers.append(
-            threading.Thread(target=self._job_producer, args=(data_iterable, job_queue))
-        )
+        workers.append(threading.Thread(target=self._job_producer, args=(data_iterable, job_queue)))
 
         for thread in workers:
             thread.daemon = True  # make interrupting the process with ctrl+c easier
@@ -917,7 +886,7 @@ class BaseSentence2VecModel(SaveLoad):
         logger.debug(f"job loop exiting, total {job_no} jobs")
 
     def _log_train_progress(
-        self, progress_queue: Queue, total_sentences: int = None, report_delay: int = 5
+        self, progress_queue: Queue, total_sentences: int | None = None, report_delay: int = 5
     ):
         """Log the training process after a couple of seconds.
 
@@ -970,9 +939,7 @@ class BaseSentence2VecModel(SaveLoad):
 class BaseSentence2VecPreparer(SaveLoad):
     """Contains helper functions to perpare the weights for the training of BaseSentence2VecModel"""
 
-    def prepare_vectors(
-        self, sv: SentenceVectors, total_sentences: int, update: bool = False
-    ):
+    def prepare_vectors(self, sv: SentenceVectors, total_sentences: int, update: bool = False):
         """Build tables and model weights based on final vocabulary settings."""
         if not update:
             self.reset_vectors(sv, total_sentences)

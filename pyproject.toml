@@ -59,7 +59,8 @@ Changelog = "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/C
 where = ["src"]
 
 [tool.setuptools.package-data]
-"fse.models" = ["*.pyx", "*.pxd", "*.h"]
+"fse" = ["py.typed"]
+"fse.models" = ["*.pyx", "*.pxd", "*.h", "*.pyi"]
 
 [tool.setuptools_scm]
 version_file = "src/fse/_version.py"
@@ -72,6 +73,7 @@ dev = [
 ]
 lint = [
     "ruff>=0.17.2",
+    "mypy>=1.18.0",
 ]
 test = [
     "pytest>=8.0.0",
@@ -96,23 +98,42 @@ cache-keys = [
 # --- Ruff ---
 
 [tool.ruff]
-line-length = 88
+line-length = 100
 target-version = "py310"
 src = ["src"]
 extend-exclude = ["_version.py", "notebooks"]
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/**" = ["E741"]
+select = ["E", "F", "UP", "B", "SIM", "I", "PLC", "RUF", "PT", "N"]
+# N812: numpy dtypes are imported under the conventional uppercase aliases REAL and uINT.
+ignore = ["E501", "N812"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["fse"]
 
+[tool.ruff.lint.per-file-ignores]
+# uSIF is a public class name; renaming it would break the API and saved models.
+"src/fse/models/usif.py" = ["N801"]
+"tests/**" = ["PLC0415", "E741"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+docstring-code-format = true
+
+# --- mypy ---
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src/fse"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+
+# These dependencies ship no type information.
+[[tool.mypy.overrides]]
+module = ["gensim.*", "sklearn.*", "wordfreq.*", "smart_open.*", "psutil.*", "scipy.*"]
+ignore_missing_imports = true
 
 # --- pytest ---
 
