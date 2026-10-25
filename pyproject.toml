@@ -164,8 +164,8 @@ source = ["src/fse", "*/src/fse"]
 
 [tool.coverage.report]
 precision = 2
-# Measured baseline is about 94 percent of the Python code; Cython is not traced.
-fail_under = 90
+# Measured baseline is about 96 percent of the Python code; Cython is not traced.
+fail_under = 95
 show_missing = true
 skip_covered = true
 exclude_lines = [

@@ -153,7 +153,9 @@ class TestBaseSentence2VecModel:
     def test_save_with_memmap_skips_mapped_vectors(self, ft, tmp_path):
         """wv.vectors lives in the mapfile and is not written a second time as .npy file."""
         se = BaseSentence2VecModel(ft, wv_mapfile_path=str(tmp_path / "emb"))
-        se.save(str(tmp_path / "model"))
+        # gensim keeps small arrays inside the pickle; sep_limit=0 stores every array separately.
+        se.save(str(tmp_path / "model"), sep_limit=0)
+        assert (tmp_path / "model.wv.vectors_vocab.npy").exists()
         assert not (tmp_path / "model.wv.vectors.npy").exists()
 
     def test_save_load_with_memmap_twice(self, ft, tmp_path):
@@ -585,6 +587,24 @@ class TestTrainManagerErrors:
         )
         assert isinstance(error, ValueError)
         assert str(error) == "job failed"
+        assert threading.active_count() <= threads_before
+
+    def test_interrupted_progress_does_not_leave_threads(self, w2v, corpus_indexed):
+        """An exception in the main thread, such as Ctrl+C, must not leave blocked workers."""
+        se = BaseSentence2VecModel(w2v, workers=2, batch_words=5)
+        se._do_train_job = lambda data_iterable, target, memory: (len(data_iterable), 1)
+
+        def interrupted(*args, **kwargs):
+            raise KeyboardInterrupt
+
+        se._log_train_progress = interrupted
+        threads_before = threading.active_count()
+        error = _run_with_timeout(
+            lambda: se._train_manager(
+                data_iterable=corpus_indexed, total_sentences=len(corpus_indexed)
+            )
+        )
+        assert isinstance(error, KeyboardInterrupt)
         assert threading.active_count() <= threads_before
 
     def test_input_exception_propagates(self, w2v, corpus_indexed):

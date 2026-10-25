@@ -33,12 +33,13 @@ See Also
 
 """
 
+import contextlib
 import logging
 import threading
 import warnings
 from collections.abc import Iterable, Iterator
 from pathlib import Path
-from queue import Queue
+from queue import Empty, Queue
 from time import time
 from typing import Any
 
@@ -565,7 +566,9 @@ class BaseSentence2VecModel(SaveLoad):
 
         if model.wv_mapfile_path is not None:
             model._load_all_vectors_from_disk(model.wv_mapfile_path)
-        if model.sv.mapfile_path is not None:
+        # Since 1.1.0, save leaves memmapped sentence vectors out of the pickle. Models saved
+        # by earlier versions still carry them, without a recorded mapfile shape.
+        if model.sv.mapfile_path is not None and model.sv.vectors is None:
             model.sv._load_all_vectors_from_disk(mapfile_path=model.sv.mapfile_path)
 
         return model
@@ -624,10 +627,11 @@ class BaseSentence2VecModel(SaveLoad):
         empty_sentences = 0
         max_index = 0
         # Whether every index occurs at most once. Most inputs use index == position, which
-        # needs no bookkeeping; any other order is tracked exactly with one byte per row.
+        # needs no bookkeeping; any other order is tracked exactly in a set of seen indices,
+        # whose size grows with the number of sentences, not with the largest index.
         unique_indices = True
         identity = True
-        seen = bytearray()
+        seen: set[int] = set()
 
         for i, obj in enumerate(sentences):
             # Only the first item is fully type checked to keep the scan fast.
@@ -642,13 +646,13 @@ class BaseSentence2VecModel(SaveLoad):
             total_sentences += 1
             if identity and index != i:
                 identity = False
-                seen = bytearray(b"\x01") * i
+                seen = set(range(i))
             if not identity and unique_indices:
-                if index >= len(seen):
-                    seen.extend(bytes(index + 1 - len(seen)))
-                if seen[index]:
+                if index in seen:
                     unique_indices = False
-                seen[index] = 1
+                    seen.clear()
+                else:
+                    seen.add(index)
             total_words += len(sent)
 
             if not len(sent):
@@ -911,8 +915,11 @@ class BaseSentence2VecModel(SaveLoad):
             )
         finally:
             stop.set()
-            for thread in threads:
-                thread.join(timeout=60)
+            # If the main thread stopped consuming early, for example on KeyboardInterrupt,
+            # workers may block on the full progress queue. Drain it until all threads end.
+            while any(thread.is_alive() for thread in threads):
+                with contextlib.suppress(Empty):
+                    progress_queue.get(timeout=0.1)
 
         if errors:
             raise errors[0]

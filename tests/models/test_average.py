@@ -316,8 +316,14 @@ def test_train_update_appends_rows(make_w2v, sentences, model_name):
     model = getattr(fse, model_name)(w2v)
     model.train(first)
     old_rows = np.array(model.sv.vectors)
+    svd_before = getattr(model, "svd_res", None)
+    weights_before = getattr(model, "svd_weights", None)
 
     model.train(second, update=True)
+
+    # The components and weights of the first training are reused, not recomputed.
+    assert getattr(model, "svd_res", None) is svd_before
+    assert getattr(model, "svd_weights", None) is weights_before
 
     assert model.sv.vectors.shape == (100, w2v.wv.vector_size)
     assert np.array_equal(model.sv.vectors[:60], old_rows)
@@ -423,3 +429,65 @@ def test_many_to_one_with_workers_loses_no_updates():
         model = Average(kv, workers=8)
         model.train(CIndexedList(sentences, custom_index=index))
         assert np.allclose(model.sv.vectors, expected, rtol=1e-5, atol=0)
+
+
+def test_load_keeps_sentence_vectors_of_older_saves(w2v, corpus_indexed, tmp_path):
+    """Before 1.1.0, a model save pickled memmapped sentence vectors without their shape."""
+    from gensim.utils import SaveLoad
+
+    model = Average(w2v, sv_mapfile_path=str(tmp_path / "sv"))
+    model.train(corpus_indexed)
+    expected = np.array(model.sv.vectors)
+    model.sv.mapfile_shape = None
+    # Save the way 1.0.0 did: through gensim, with the vectors inside the saved model.
+    SaveLoad.save(model, str(tmp_path / "old_model"))
+
+    loaded = Average.load(str(tmp_path / "old_model"))
+    assert loaded.sv.vectors.shape == expected.shape
+    assert np.array_equal(loaded.sv.vectors, expected)
+
+
+class TestKernelShapeChecks:
+    def _model(self, w2v):
+        model = Average(w2v)
+        _prepare(model, total_sentences=2)
+        return model
+
+    def test_rejects_read_only_target(self, w2v):
+        model = self._model(w2v)
+        target = np.zeros_like(model.sv.vectors)
+        target.setflags(write=False)
+        with pytest.raises(ValueError, match="writeable"):
+            train_average_cy(model, [(["the"], 0)], target, model._get_thread_working_mem())
+
+    def test_rejects_missing_word_weights(self, w2v):
+        model = self._model(w2v)
+        model.word_weights = np.zeros(0, dtype=np.float32)
+        with pytest.raises(ValueError, match="one weight per word vector"):
+            train_average_cy(
+                model, [(["the"], 0)], model.sv.vectors, model._get_thread_working_mem()
+            )
+
+    def test_rejects_mismatched_vector_size(self, w2v):
+        model = self._model(w2v)
+        model.sv.vector_size = w2v.wv.vector_size + 1
+        target = np.zeros((2, w2v.wv.vector_size + 1), dtype=np.float32)
+        with pytest.raises(ValueError, match="word vectors must have shape"):
+            train_average_cy(model, [(["the"], 0)], target, model._get_thread_working_mem())
+
+
+@pytest.mark.parametrize(("index", "expect_locks"), [(lambda i: i % 4, True), (lambda i: i, False)])
+def test_row_locks_are_set_only_for_shared_rows(w2v, sentences, index, expect_locks):
+    """Shared rows with several workers must train under row locks; unique rows without."""
+    model = Average(w2v, workers=2)
+    seen = []
+    original = model._do_train_job
+
+    def recording_job(data_iterable, target, memory):
+        seen.append(getattr(model, "_row_locks", None) is not None)
+        return original(data_iterable, target, memory)
+
+    model._do_train_job = recording_job
+    model.train([(s, index(i)) for i, s in enumerate(sentences)])
+    assert seen
+    assert all(flag is expect_locks for flag in seen)

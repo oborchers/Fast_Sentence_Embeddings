@@ -390,19 +390,35 @@ def _check_inputs(model, target, memory):
     _check_array(target, "target", np.float32)
     _check_array(memory[0], "memory[0]", np.float32)
     _check_array(model.word_weights, "word_weights", np.float32)
+    if not target.flags.writeable:
+        raise ValueError("target must be writeable")
+    # The kernel strides through all matrices by the sentence vector size.
+    size = model.sv.vector_size
     if model.is_ft:
-        _check_array(model.wv.vectors_vocab, "wv.vectors_vocab", np.float32)
+        word_vectors = model.wv.vectors_vocab
+        _check_array(word_vectors, "wv.vectors_vocab", np.float32)
         _check_array(model.wv.vectors_ngrams, "wv.vectors_ngrams", np.float32)
+        if model.wv.vectors_ngrams.shape != (model.wv.bucket, size):
+            raise ValueError(
+                f"wv.vectors_ngrams must have shape ({model.wv.bucket}, {size}), "
+                f"got {model.wv.vectors_ngrams.shape}"
+            )
         _check_array(memory[1], "memory[1]", np.uint32)
         if memory[1].size < MAX_WORDS * MAX_NGRAMS:
             raise ValueError(
                 f"memory[1] must hold at least {MAX_WORDS} x {MAX_NGRAMS} entries, "
                 f"got shape {memory[1].shape}"
             )
-        size = model.wv.vectors_vocab.shape[1]
     else:
-        _check_array(model.wv.vectors, "wv.vectors", np.float32)
-        size = model.wv.vectors.shape[1]
+        word_vectors = model.wv.vectors
+        _check_array(word_vectors, "wv.vectors", np.float32)
+    if word_vectors.ndim != 2 or word_vectors.shape[1] != size:
+        raise ValueError(f"word vectors must have shape (n, {size}), got {word_vectors.shape}")
+    if model.word_weights.shape != (word_vectors.shape[0],):
+        raise ValueError(
+            f"word_weights must have one weight per word vector ({word_vectors.shape[0]}), "
+            f"got shape {model.word_weights.shape}"
+        )
     if target.ndim != 2 or target.shape[1] != size:
         raise ValueError(f"target must have shape (n, {size}), got {target.shape}")
     if memory[0].size < size:
