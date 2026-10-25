@@ -5,6 +5,8 @@
 
 """Automated tests for checking the base_s2v class."""
 
+import threading
+
 import numpy as np
 import pytest
 from gensim.models import FastText, Word2Vec
@@ -487,3 +489,58 @@ class TestBaseSentence2VecPreparer:
         assert se.sv.vectors.shape == (20, DIM)
         trainables.prepare_vectors(se.sv, 40, update=True)
         assert se.sv.vectors.shape == (60, DIM)
+
+
+def _run_with_timeout(func, timeout=30):
+    """Run func in a thread and return its exception, failing if it does not finish."""
+    result = {}
+
+    def target():
+        try:
+            func()
+        except BaseException as err:
+            result["error"] = err
+
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    assert not thread.is_alive(), "training did not finish; worker errors must not deadlock"
+    return result.get("error")
+
+
+class TestTrainManagerErrors:
+    @pytest.mark.parametrize("workers", [1, 4])
+    def test_worker_exception_propagates(self, w2v, corpus_indexed, workers):
+        se = BaseSentence2VecModel(w2v, workers=workers, batch_words=100)
+        calls = []
+
+        def failing_job(data_iterable, target, memory):
+            calls.append(1)
+            if len(calls) == 3:
+                raise ValueError("job failed")
+            return len(data_iterable), len(data_iterable)
+
+        se._do_train_job = failing_job
+        threads_before = threading.active_count()
+        error = _run_with_timeout(
+            lambda: se._train_manager(
+                data_iterable=corpus_indexed, total_sentences=len(corpus_indexed)
+            )
+        )
+        assert isinstance(error, ValueError)
+        assert str(error) == "job failed"
+        assert threading.active_count() <= threads_before
+
+    def test_input_exception_propagates(self, w2v, corpus_indexed):
+        se = BaseSentence2VecModel(w2v, workers=2, batch_words=100)
+        se._do_train_job = lambda data_iterable, target, memory: (len(data_iterable), 0)
+
+        def broken_input():
+            yield from list(corpus_indexed)[:50]
+            raise OSError("input failed")
+
+        error = _run_with_timeout(
+            lambda: se._train_manager(data_iterable=broken_input(), total_sentences=100)
+        )
+        assert isinstance(error, OSError)
+        assert str(error) == "input failed"

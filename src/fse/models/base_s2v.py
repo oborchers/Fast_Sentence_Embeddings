@@ -799,24 +799,47 @@ class BaseSentence2VecModel(SaveLoad):
             maxsize=(queue_factor + 1) * self.workers
         )
 
-        # WORKING Threads
-        workers = [
-            threading.Thread(target=self._worker_loop, args=(job_queue, progress_queue))
+        # The first error of any thread is re-raised here once all threads are done.
+        # stop tells the producer to stop reading and the workers to skip their jobs.
+        errors: list[BaseException] = []
+        stop = threading.Event()
+
+        threads = [
+            threading.Thread(
+                target=self._worker_loop, args=(job_queue, progress_queue, errors, stop)
+            )
             for _ in range(self.workers)
         ]
-        # JOB PRODUCER
-        workers.append(threading.Thread(target=self._job_producer, args=(data_iterable, job_queue)))
+        threads.append(
+            threading.Thread(
+                target=self._job_producer, args=(data_iterable, job_queue, errors, stop)
+            )
+        )
 
-        for thread in workers:
+        for thread in threads:
             thread.daemon = True  # make interrupting the process with ctrl+c easier
             thread.start()
 
-        jobs, eff_sentences, eff_words = self._log_train_progress(
-            progress_queue, total_sentences=total_sentences, report_delay=report_delay
-        )
+        try:
+            jobs, eff_sentences, eff_words = self._log_train_progress(
+                progress_queue, total_sentences=total_sentences, report_delay=report_delay
+            )
+        finally:
+            stop.set()
+            for thread in threads:
+                thread.join(timeout=60)
+
+        if errors:
+            raise errors[0]
         return jobs, eff_sentences, eff_words
 
-    def _worker_loop(self, job_queue, progress_queue):
+    def _worker_loop(
+        self,
+        job_queue: Queue,
+        progress_queue: Queue,
+        errors: list[BaseException],
+        stop: threading.Event,
+    ):
         """Train the model, lifting batches of data from the queue.
 
         This function will be called in parallel by multiple workers (threads or processes) to make
@@ -832,24 +855,48 @@ class BaseSentence2VecModel(SaveLoad):
                 * Size of job processed
                 * Effective sentences encountered in traning
                 * Effective words encountered in traning
+        errors : list of BaseException
+            Shared list that collects exceptions raised in any thread.
+        stop : threading.Event
+            Set once any thread failed. The worker then drains the queue without training.
 
         """
-        mem = self._get_thread_working_mem()
         jobs_processed = 0
+        try:
+            mem = self._get_thread_working_mem()
+        except BaseException as err:
+            errors.append(err)
+            stop.set()
+
+        # Always drain the queue until the end marker, so the producer never blocks
+        # on a full queue, and always report the end, so the main thread never waits
+        # for a worker that is gone.
         while True:
             job = job_queue.get()
             if job is None:
-                progress_queue.put(None)
-                # no more jobs => quit this worker
                 break
-            eff_sentences, eff_words = self._do_train_job(
-                data_iterable=job, target=self.sv.vectors, memory=mem
-            )
+            if stop.is_set():
+                continue
+            try:
+                eff_sentences, eff_words = self._do_train_job(
+                    data_iterable=job, target=self.sv.vectors, memory=mem
+                )
+            except BaseException as err:
+                errors.append(err)
+                stop.set()
+                continue
             progress_queue.put((len(job), eff_sentences, eff_words))
             jobs_processed += 1
+        progress_queue.put(None)
         logger.debug(f"worker exiting, processed {jobs_processed} jobs")
 
-    def _job_producer(self, data_iterable: list[tuple], job_queue: Queue):
+    def _job_producer(
+        self,
+        data_iterable: list[tuple],
+        job_queue: Queue,
+        errors: list[BaseException],
+        stop: threading.Event,
+    ):
         """Fill the jobs queue using the data found in the input stream.
 
         Each job is represented as a batch of tuple
@@ -861,28 +908,39 @@ class BaseSentence2VecModel(SaveLoad):
         job_queue : Queue of (list of tuple)
             A queue of jobs still to be processed. The worker will take up jobs from this queue.
             Each job is represented as a batch of tuple.
+        errors : list of BaseException
+            Shared list that collects exceptions raised in any thread.
+        stop : threading.Event
+            Set once any thread failed. The producer then stops reading the input.
 
         """
 
         job_batch, batch_size = [], 0
         job_no = 0
 
-        for _data_idx, data in enumerate(data_iterable):
-            data_length = len(data[0])
-            if batch_size + data_length <= self.batch_words:
-                job_batch.append(data)
-                batch_size += data_length
-            else:
+        try:
+            for data in data_iterable:
+                if stop.is_set():
+                    break
+                data_length = len(data[0])
+                if batch_size + data_length <= self.batch_words:
+                    job_batch.append(data)
+                    batch_size += data_length
+                else:
+                    job_no += 1
+                    job_queue.put(job_batch)
+                    job_batch, batch_size = [data], data_length
+
+            if job_batch and not stop.is_set():
                 job_no += 1
                 job_queue.put(job_batch)
-                job_batch, batch_size = [data], data_length
-
-        if job_batch:
-            job_no += 1
-            job_queue.put(job_batch)
-
-        for _ in range(self.workers):
-            job_queue.put(None)
+        except BaseException as err:
+            errors.append(err)
+            stop.set()
+        finally:
+            # Workers keep draining the queue, so these puts cannot block forever.
+            for _ in range(self.workers):
+                job_queue.put(None)
         logger.debug(f"job loop exiting, total {job_no} jobs")
 
     def _log_train_progress(
