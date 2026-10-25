@@ -791,7 +791,9 @@ def test_python_path_detects_a_change_between_scan_and_training(tmp_path, native
     original = model._pre_train_calls
 
     def change_file(**kwargs):
-        path.write_bytes(b"good is\ndog the\n")
+        # Another size: a change within the timer resolution that keeps size, inode and
+        # modification time is not detected, which the docs state.
+        path.write_bytes(b"good is\ndog the dog\n")
         return original(**kwargs)
 
     monkeypatch.setattr(model, "_pre_train_calls", change_file)
