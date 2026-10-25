@@ -535,16 +535,27 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         mem = zeros_aligned(self.sv.vector_size, dtype=REAL)
-        # The Cython kernel strides through the ngram buffer by its compile-time limits,
-        # so the buffer must have at least that size whatever batch_words is set to.
-        oov_mem = zeros_aligned(
-            (
-                max(self.batch_words, MAX_WORDS_IN_BATCH),
-                max(self.batch_ngrams, MAX_NGRAMS_IN_BATCH),
-            ),
-            dtype=uINT,
-        )
+        # The second buffer once held the ngram indices of the Cython kernel, which now
+        # allocates what each job needs. It stays empty to keep the (mem, oov_mem) shape.
+        oov_mem = zeros_aligned(0, dtype=uINT)
         return (mem, oov_mem)
+
+    def _kernel_context(self, target: ndarray) -> Any:
+        """Return the state for encoded jobs that write into target, or None.
+
+        None selects the job path of :meth:`_do_train_job` with lists of tuples.
+        """
+        return None
+
+    def _encode_job(self, context: Any, batch: list[tuple]) -> Any:
+        """Encode a batch of (tokens, index) tuples for :meth:`_run_encoded_job`."""
+        raise NotImplementedError()
+
+    def _run_encoded_job(
+        self, context: Any, job: Any, memory: tuple[ndarray, ndarray]
+    ) -> tuple[int, int]:
+        """Average an encoded job into the target of context."""
+        raise NotImplementedError()
 
     def _do_train_job(
         self, data_iterable: list[tuple], target: ndarray, memory: tuple[ndarray, ndarray]
@@ -827,6 +838,7 @@ class BaseSentence2VecModel(SaveLoad):
                 queue_factor=queue_factor,
                 report_delay=report_delay,
                 workers=workers,
+                context=self._kernel_context(self.sv.vectors),
             )
         finally:
             # The locks only exist during training and must never be pickled.
@@ -873,6 +885,13 @@ class BaseSentence2VecModel(SaveLoad):
 
         output = zeros((statistics["max_index"], self.sv.vector_size), dtype=REAL)
         mem = self._get_thread_working_mem()
+        context = self._kernel_context(output)
+
+        def run(batch: list[tuple]):
+            if context is None:
+                self._do_train_job(data_iterable=batch, target=output, memory=mem)
+            else:
+                self._run_encoded_job(context, self._encode_job(context, batch), mem)
 
         job_batch: list[tuple] = []
         batch_size = 0
@@ -884,10 +903,10 @@ class BaseSentence2VecModel(SaveLoad):
                 job_batch.append(data)
                 batch_size += data_length
             else:
-                self._do_train_job(data_iterable=job_batch, target=output, memory=mem)
+                run(job_batch)
                 job_batch, batch_size = [data], data_length
         if job_batch:
-            self._do_train_job(data_iterable=job_batch, target=output, memory=mem)
+            run(job_batch)
 
         self._post_inference_calls(output=output)
 
@@ -902,6 +921,7 @@ class BaseSentence2VecModel(SaveLoad):
         queue_factor: int = 2,
         report_delay: float = 5,
         workers: int | None = None,
+        context: Any = None,
     ):
         """Manager for the multi-core implementation. Directly adapted from gensim
 
@@ -917,6 +937,10 @@ class BaseSentence2VecModel(SaveLoad):
             Number of seconds between two consecutive progress report messages in the logger.
         workers : int, optional
             Number of worker threads. Defaults to the model's workers.
+        context : object, optional
+            Kernel context from :meth:`_kernel_context`. With a context, the producer
+            encodes every job and the workers average it without the GIL; without one,
+            the workers call :meth:`_do_train_job` on lists of tuples.
 
         """
         n_workers = self.workers if workers is None else workers
@@ -932,14 +956,15 @@ class BaseSentence2VecModel(SaveLoad):
 
         threads = [
             threading.Thread(
-                target=self._worker_loop, args=(job_queue, progress_queue, errors, stop)
+                target=self._worker_loop,
+                args=(job_queue, progress_queue, errors, stop, context),
             )
             for _ in range(n_workers)
         ]
         threads.append(
             threading.Thread(
                 target=self._job_producer,
-                args=(data_iterable, job_queue, errors, stop, n_workers),
+                args=(data_iterable, job_queue, errors, stop, n_workers, context),
             )
         )
 
@@ -972,6 +997,7 @@ class BaseSentence2VecModel(SaveLoad):
         progress_queue: Queue,
         errors: list[BaseException],
         stop: threading.Event,
+        context: Any = None,
     ):
         """Train the model, lifting batches of data from the queue.
 
@@ -992,6 +1018,8 @@ class BaseSentence2VecModel(SaveLoad):
             Shared list that collects exceptions raised in any thread.
         stop : threading.Event
             Set once any thread failed. The worker then drains the queue without training.
+        context : object, optional
+            Kernel context; the jobs are then (size, encoded job) pairs.
 
         """
         jobs_processed = 0
@@ -1011,14 +1039,19 @@ class BaseSentence2VecModel(SaveLoad):
             if stop.is_set():
                 continue
             try:
-                eff_sentences, eff_words = self._do_train_job(
-                    data_iterable=job, target=self.sv.vectors, memory=mem
-                )
+                if context is None:
+                    size = len(job)
+                    eff_sentences, eff_words = self._do_train_job(
+                        data_iterable=job, target=self.sv.vectors, memory=mem
+                    )
+                else:
+                    size, encoded = job
+                    eff_sentences, eff_words = self._run_encoded_job(context, encoded, mem)
             except BaseException as err:
                 errors.append(err)
                 stop.set()
                 continue
-            progress_queue.put((len(job), eff_sentences, eff_words))
+            progress_queue.put((size, eff_sentences, eff_words))
             jobs_processed += 1
         progress_queue.put(None)
         logger.debug(f"worker exiting, processed {jobs_processed} jobs")
@@ -1030,6 +1063,7 @@ class BaseSentence2VecModel(SaveLoad):
         errors: list[BaseException],
         stop: threading.Event,
         workers: int | None = None,
+        context: Any = None,
     ):
         """Fill the jobs queue using the data found in the input stream.
 
@@ -1046,8 +1080,19 @@ class BaseSentence2VecModel(SaveLoad):
             Shared list that collects exceptions raised in any thread.
         stop : threading.Event
             Set once any thread failed. The producer then stops reading the input.
+        workers : int, optional
+            Number of workers, each of which receives one end marker.
+        context : object, optional
+            Kernel context. The producer then encodes every job while holding the GIL, so
+            the workers can average it without the GIL.
 
         """
+
+        def put(batch: list[tuple]):
+            if context is None:
+                job_queue.put(batch)
+            else:
+                job_queue.put((len(batch), self._encode_job(context, batch)))
 
         job_batch: list[tuple] = []
         batch_size = 0
@@ -1066,12 +1111,12 @@ class BaseSentence2VecModel(SaveLoad):
                     batch_size += data_length
                 else:
                     job_no += 1
-                    job_queue.put(job_batch)
+                    put(job_batch)
                     job_batch, batch_size = [data], data_length
 
             if job_batch and not stop.is_set():
                 job_no += 1
-                job_queue.put(job_batch)
+                put(job_batch)
         except BaseException as err:
             errors.append(err)
             stop.set()

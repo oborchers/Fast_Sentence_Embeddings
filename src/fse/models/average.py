@@ -30,6 +30,7 @@ Initialize and train a :class:`~fse.models.average.Average` model
 """
 
 import logging
+from typing import Any
 
 from gensim.models.fasttext import ft_ngram_hashes
 from numpy import (
@@ -177,11 +178,16 @@ try:
         FAST_VERSION,
         MAX_NGRAMS_IN_BATCH,
         MAX_WORDS_IN_BATCH,
+        KernelContext,
+        encode_job,
+        run_job,
         train_average_cy,
     )
 
     train_average = train_average_cy
+    CY_ROUTINES = True
 except ImportError:
+    CY_ROUTINES = False
     FAST_VERSION = -1
     MAX_WORDS_IN_BATCH = 10000
     MAX_NGRAMS_IN_BATCH = 40
@@ -259,6 +265,31 @@ class Average(BaseSentence2VecModel):
             batch_ngrams=MAX_NGRAMS_IN_BATCH,
             fast_version=FAST_VERSION,
         )
+
+    def _kernel_context(self, target: ndarray) -> Any:
+        """Kernel context for encoded jobs, or None for the job path of _do_train_job.
+
+        Encoded jobs need the extension, and they bypass _do_train_job, so a subclass or an
+        instance that replaces _do_train_job keeps the job path.
+        """
+        if not CY_ROUTINES:
+            return None
+        if (
+            "_do_train_job" in self.__dict__
+            or type(self)._do_train_job is not Average._do_train_job
+        ):
+            return None
+        return KernelContext(self, target)
+
+    def _encode_job(self, context: Any, batch: list[tuple]) -> Any:
+        """Encode a batch while holding the GIL, in the producer thread."""
+        return encode_job(context, batch)
+
+    def _run_encoded_job(
+        self, context: Any, job: Any, memory: tuple[ndarray, ndarray]
+    ) -> tuple[int, int]:
+        """Average an encoded job without the GIL."""
+        return run_job(context, job, memory[0])
 
     def _do_train_job(
         self, data_iterable: list[tuple], target: ndarray, memory: tuple[ndarray, ndarray]

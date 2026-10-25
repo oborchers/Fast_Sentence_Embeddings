@@ -263,20 +263,41 @@ class TestKernelInputChecks:
                 model, [(["the"], 2)], model.sv.vectors, model._get_thread_working_mem()
             )
 
-    def test_rejects_small_ngram_buffer(self, ft):
-        model = Average(ft)
-        _prepare(model, total_sentences=1)
-        mem, _ = model._get_thread_working_mem()
-        small = np.zeros((2, 2), dtype=np.uint32)
-        with pytest.raises(ValueError, match="memory\\[1\\] must hold"):
-            train_average_cy(model, [(["the"], 0)], model.sv.vectors, (mem, small))
+    def test_working_memory_has_no_ngram_buffer(self, ft):
+        """The kernel allocates the ngram buffer per job, sized by batch_ngrams."""
+        _, oov_mem = Average(ft)._get_thread_working_mem()
+        assert oov_mem.size == 0
 
-    def test_small_batch_settings_keep_full_ngram_buffer(self, ft):
-        """batch_words and batch_ngrams below the kernel limits must not shrink the buffer."""
-        model = Average(ft)
-        model.batch_words, model.batch_ngrams = 2, 2
-        _, oov_mem = model._get_thread_working_mem()
-        assert oov_mem.shape == (MAX_WORDS_IN_BATCH, MAX_NGRAMS_IN_BATCH)
+
+@pytest.mark.parametrize("kind", ["w2v", "ft"])
+def test_cy_averages_sentences_longer_than_10000_words_like_np(kind, w2v, ft):
+    """The kernel used to stop after 10,000 words per sentence; numpy never did."""
+    model = Average(w2v if kind == "w2v" else ft)
+    words = list(model.wv.index_to_key)
+    sentence = [words[i % len(words)] for i in range(25_003)] + ["unknownword"] * 7
+    outputs = []
+    for train_func in (train_average_np, train_average_cy):
+        _prepare(model, total_sentences=1)
+        counts = train_func(
+            model, [(sentence, 0)], model.sv.vectors, model._get_thread_working_mem()
+        )
+        outputs.append((counts, np.array(model.sv.vectors)))
+    assert outputs[0][0] == outputs[1][0]
+    np.testing.assert_allclose(outputs[0][1], outputs[1][1], rtol=1e-4, atol=1e-6)
+
+
+@pytest.mark.parametrize("batch_ngrams", [1, 2, 40, 500])
+def test_cy_honors_batch_ngrams_like_np(ft, batch_ngrams):
+    """Unknown FastText words use at most batch_ngrams ngrams in both code paths."""
+    model = Average(ft)
+    model.batch_ngrams = batch_ngrams
+    sentences = [(["thisisaverylongunknownword", "the", "xyz"], 0), (["ünbekanntes"], 1)]
+    outputs = []
+    for train_func in (train_average_np, train_average_cy):
+        _prepare(model, total_sentences=2)
+        train_func(model, sentences, model.sv.vectors, model._get_thread_working_mem())
+        outputs.append(np.array(model.sv.vectors))
+    np.testing.assert_allclose(outputs[0], outputs[1], rtol=1e-5, atol=1e-7)
 
 
 def test_most_similar_with_sentence_mapfile(w2v, corpus_indexed, tmp_path):
@@ -515,3 +536,80 @@ def test_cy_addresses_rows_beyond_32_bit_offsets(make_w2v, tmp_path):
     np.testing.assert_allclose(target[rows - 1], model.wv.vectors[0], rtol=1e-6)
     wrapped = (rows - 1) * dim % 2**32 // dim
     assert not target[: wrapped + 2].any()
+
+
+@pytest.mark.parametrize("model_name", ["Average", "SIF", "uSIF"])
+@pytest.mark.parametrize("kind", ["w2v", "ft"])
+def test_results_do_not_depend_on_the_number_of_workers(
+    model_name, kind, make_w2v, make_ft, sentences
+):
+    """With one row per sentence, every worker count gives bit-identical vectors."""
+    import fse
+    from fse import IndexedList
+
+    wv = make_w2v(DIM) if kind == "w2v" else make_ft(DIM)
+    wv.wv.vectors[:] = np.random.default_rng(0).random(wv.wv.vectors.shape, dtype=np.float32)
+    if kind == "ft":
+        rng = np.random.default_rng(1)
+        wv.wv.vectors_vocab[:] = rng.random(wv.wv.vectors_vocab.shape, dtype=np.float32)
+        wv.wv.vectors_ngrams[:] = rng.random(wv.wv.vectors_ngrams.shape, dtype=np.float32)
+    data = IndexedList([[*s, "unknownword"] for s in sentences] * 20)
+    results = []
+    for workers in (1, 2, 4, 8):
+        model = getattr(fse, model_name)(wv, workers=workers)
+        model.train(data)
+        results.append(np.array(model.sv.vectors))
+    for result in results[1:]:
+        assert np.array_equal(result, results[0])
+
+
+def test_train_and_infer_use_encoded_jobs(w2v, corpus_indexed, monkeypatch):
+    """The workers average encoded jobs; _do_train_job is not called."""
+    model = Average(w2v, workers=2)
+    calls = []
+    monkeypatch.setattr(
+        model, "_run_encoded_job", lambda *a: calls.append(1) or Average._run_encoded_job(model, *a)
+    )
+    model.train(corpus_indexed)
+    model.infer(corpus_indexed)
+    assert calls
+    assert "_kernel_context" not in model.__dict__
+
+
+def test_replaced_do_train_job_keeps_the_job_path(w2v, corpus_indexed):
+    """An instance that replaces _do_train_job receives lists of tuples, as before."""
+    model = Average(w2v)
+    seen = []
+    original = model._do_train_job
+
+    def spy(data_iterable, target, memory):
+        seen.append(type(data_iterable))
+        return original(data_iterable=data_iterable, target=target, memory=memory)
+
+    model._do_train_job = spy
+    model.train(corpus_indexed)
+    assert seen
+    assert set(seen) == {list}
+
+
+def test_encoder_errors_reach_the_caller(w2v, corpus_indexed, monkeypatch):
+    """An exception while encoding in the producer thread is raised by train."""
+    model = Average(w2v, workers=2)
+
+    def broken(context, batch):
+        raise RuntimeError("encoder failed")
+
+    monkeypatch.setattr(model, "_encode_job", broken)
+    with pytest.raises(RuntimeError, match="encoder failed"):
+        model.train(corpus_indexed)
+
+
+def test_kernel_context_cannot_be_pickled(w2v):
+    import pickle
+
+    from fse.models.average_inner import KernelContext
+
+    model = Average(w2v)
+    _prepare(model, total_sentences=1)
+    with pytest.raises(TypeError, match="only exists"):
+        pickle.dumps(KernelContext(model, model.sv.vectors))

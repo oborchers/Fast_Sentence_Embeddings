@@ -15,6 +15,20 @@ def train_average_cy(
     memory: tuple[ndarray, ndarray],
 ) -> tuple[int, int]: ...
 def init() -> int: ...
+
+class KernelContext:
+    """Read-only state of one train or infer call, shared by all workers."""
+
+    def __init__(self, model: Any, target: ndarray) -> None: ...
+
+class EncodedJob:
+    """A batch of sentences encoded for the kernel."""
+
+    n_sentences: int
+    eff_words: int
+
+def encode_job(ctx: KernelContext, batch: Any) -> EncodedJob: ...
+def run_job(ctx: KernelContext, job: EncodedJob, scratch: ndarray) -> tuple[int, int]: ...
 def ft_ngram_hashes(
     word: str, min_n: int, max_n: int, bucket: int, max_ngrams: int
 ) -> list[int]: ...

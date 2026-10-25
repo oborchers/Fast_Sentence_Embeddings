@@ -19,56 +19,30 @@ ctypedef void (*saxpy_ptr) (const int *N, const float *alpha, const float *X, co
 
 cdef saxpy_ptr saxpy
 
+# Defaults for batch_words (words per job) and batch_ngrams (ngrams per unknown FastText
+# word). They are no limits of the kernel, whose buffers fit every job.
 cdef enum:
     MAX_WORDS = 10000
     MAX_NGRAMS = 40
 
-cdef struct BaseSentenceVecsConfig:
-    int size, workers
-
-    # Vectors
-    REAL_t *mem
-    REAL_t *word_vectors
-    REAL_t *word_weights
-    REAL_t *sentence_vectors
-    # Striped row locks for many-to-one index mappings, or NULL for one row per sentence.
-    PyThread_type_lock *locks
-
-    uINT_t word_indices[MAX_WORDS]
-    uINT_t sent_adresses[MAX_WORDS]
-    uINT_t sentence_boundary[MAX_WORDS + 1]
-
-cdef struct FTSentenceVecsConfig:
-    int size, workers, min_n, max_n
+# Read-only parameters of one train or infer call, passed to the kernel without the GIL.
+cdef struct KernelParams:
+    int size
+    bint is_ft
+    unsigned int min_n, max_n
     uINT_t bucket
-
+    size_t max_ngrams
     REAL_t oov_weight
 
-    # Vectors
-    REAL_t *mem
-    REAL_t *word_vectors # Note: these will be the vocab vectors, not wv.vectors
-    REAL_t *ngram_vectors
+    REAL_t *word_vectors  # wv.vectors, or wv.vectors_vocab for FastText
+    REAL_t *ngram_vectors  # wv.vectors_ngrams for FastText, else NULL
     REAL_t *word_weights
-
-    REAL_t *sentence_vectors
+    REAL_t *target
     # Striped row locks for many-to-one index mappings, or NULL for one row per sentence.
     PyThread_type_lock *locks
-
-    # REAL_t *work memory for summation?
-    uINT_t word_indices[MAX_WORDS]
-    uINT_t sent_adresses[MAX_WORDS]
-    uINT_t sentence_boundary[MAX_WORDS + 1]
-
-    # For storing the oov items
-    uINT_t subwords_idx_len[MAX_WORDS]
-    uINT_t *subwords_idx
 
 cdef enum:
     N_ROW_LOCKS = 256
 
 cdef class RowLocks:
     cdef PyThread_type_lock locks[N_ROW_LOCKS]
-
-cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory)
-
-cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory)
