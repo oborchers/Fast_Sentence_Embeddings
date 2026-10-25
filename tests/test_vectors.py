@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from huggingface_hub.errors import RepositoryNotFoundError
+from huggingface_hub.utils import RepositoryNotFoundError
 
 from fse.vectors import FTVectors, Vectors
 

@@ -5,7 +5,7 @@
 # cython: embedsignature=True
 # coding: utf-8
 
-# Author: Oliver Borchers 
+# Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
 
 cimport numpy as np
@@ -61,7 +61,7 @@ cdef struct FTSentenceVecsConfig:
     # For storing the oov items
     uINT_t subwords_idx_len[MAX_WORDS]
     uINT_t *subwords_idx
-    
+
 cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory)
 
 cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory)

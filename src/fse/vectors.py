@@ -11,7 +11,7 @@ from pathlib import Path
 from gensim.models.fasttext import FastTextKeyedVectors
 from gensim.models.keyedvectors import KeyedVectors
 from huggingface_hub import snapshot_download
-from huggingface_hub.errors import RepositoryNotFoundError
+from huggingface_hub.utils import RepositoryNotFoundError
 
 _SUFFIX: str = ".model"
 

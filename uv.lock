@@ -414,14 +414,14 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "gensim", specifier = ">=4.0" },
-    { name = "huggingface-hub", specifier = ">=0.23" },
-    { name = "numpy", specifier = ">=1.21" },
-    { name = "psutil", specifier = ">=5.0" },
-    { name = "scikit-learn", specifier = ">=1.0" },
-    { name = "scipy", specifier = ">=1.7" },
-    { name = "smart-open", specifier = ">=1.8.1" },
-    { name = "wordfreq", specifier = ">=2.2.1" },
+    { name = "gensim", specifier = ">=4.3.3" },
+    { name = "huggingface-hub", specifier = ">=0.23.0" },
+    { name = "numpy", specifier = ">=1.26.4" },
+    { name = "psutil", specifier = ">=5.9.0" },
+    { name = "scikit-learn", specifier = ">=1.3.2" },
+    { name = "scipy", specifier = ">=1.11.4" },
+    { name = "smart-open", specifier = ">=6.4.0" },
+    { name = "wordfreq", specifier = ">=3.1.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -430,10 +430,10 @@ all = [
     { name = "pre-commit", specifier = ">=3.0.0" },
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "pytest-cov", specifier = ">=5.0.0" },
-    { name = "ruff", specifier = ">=0.9.0" },
+    { name = "ruff", specifier = ">=0.17.2" },
 ]
 dev = [{ name = "pre-commit", specifier = ">=3.0.0" }]
-lint = [{ name = "ruff", specifier = ">=0.9.0" }]
+lint = [{ name = "ruff", specifier = ">=0.17.2" }]
 test = [
     { name = "coverage", extras = ["toml"], specifier = ">=7.0.0" },
     { name = "pytest", specifier = ">=8.0.0" },

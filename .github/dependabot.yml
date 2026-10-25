@@ -1,0 +1,8 @@
+version: 2
+updates:
+  # Python dependencies are covered by the monthly scheduled CI run, which
+  # tests against the newest versions without opening lockfile pull requests.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"

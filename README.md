@@ -49,9 +49,9 @@ Find the corresponding blog post(s) here (code may be outdated):
 - [Sentence Embeddings. Fast, please!](https://towardsdatascience.com/fse-2b1ffa791cf9)
 
 **fse** implements three algorithms for sentence embeddings. You can choose
-between *unweighted sentence averages*,  *smooth inverse frequency averages*, and *unsupervised smooth inverse frequency averages*. 
+between *unweighted sentence averages*,  *smooth inverse frequency averages*, and *unsupervised smooth inverse frequency averages*.
 
-Key features of **fse** are: 
+Key features of **fse** are:
 
 **[X]** Up to 500.000 sentences / second (1)
 
@@ -65,7 +65,7 @@ Key features of **fse** are:
 
 **[X]** Induction of word frequencies for pre-trained embeddings
 
-**[X]** Incredibly fast Cython core routines 
+**[X]** Incredibly fast Cython core routines
 
 **[X]** Dedicated input file formats for easy usage (including disk streaming)
 
@@ -89,7 +89,7 @@ Visit **Tutorial.ipynb** for an example.
 Installation
 ------------
 
-This software depends on NumPy, Scipy, Scikit-learn, Gensim, and Wordfreq. 
+This software depends on NumPy, Scipy, Scikit-learn, Gensim, and Wordfreq.
 You must have them installed prior to installing fse.
 
 As with gensim, it is also recommended you install a BLAS library before installing fse.
@@ -174,7 +174,7 @@ replicate the STS Benchmark results [4] reported in the papers.
 
 **Speed Comparision.ipynb** compares the speed between the numpy and the cython routines.
 
-In order to use the **fse** model, you first need some pre-trained gensim 
+In order to use the **fse** model, you first need some pre-trained gensim
 word embedding model, which is then used by **fse** to compute the sentence embeddings.
 
 After computing sentence embeddings, you can use them in supervised or
@@ -188,7 +188,7 @@ The models presented are based on
 Credits to Radim Řehůřek and all contributors for the **awesome** library
 and code that [Gensim](https://github.com/RaRe-Technologies/gensim) provides. A whole lot of the code found in this lib is based on Gensim.
 
-To install **fse** on Colab, check out: https://colab.research.google.com/drive/1qq9GBgEosG7YSRn7r6e02T9snJb04OEi 
+To install **fse** on Colab, check out: https://colab.research.google.com/drive/1qq9GBgEosG7YSRn7r6e02T9snJb04OEi
 
 Results
 ------------
@@ -262,7 +262,7 @@ Changelog
 
 0.1.15 from 0.1.11:
 - Fixed major FT Ngram computation bug
-- Rewrote the input class. Turns out NamedTuple was pretty slow. 
+- Rewrote the input class. Turns out NamedTuple was pretty slow.
 - Added further unittests
 - Added documentation
 - Major speed improvements
@@ -273,8 +273,8 @@ Changelog
 Literature
 -------------
 
-1. Iyyer M, Manjunatha V, Boyd-Graber J, Daumé III H (2015) Deep Unordered 
-Composition Rivals Syntactic Methods for Text Classification. Proc. 53rd Annu. 
+1. Iyyer M, Manjunatha V, Boyd-Graber J, Daumé III H (2015) Deep Unordered
+Composition Rivals Syntactic Methods for Text Classification. Proc. 53rd Annu.
 Meet. Assoc. Comput. Linguist. 7th Int. Jt. Conf. Nat. Lang. Process., 1681–1691.
 
 2. Arora S, Liang Y, Ma T (2017) A Simple but Tough-to-Beat Baseline for Sentence

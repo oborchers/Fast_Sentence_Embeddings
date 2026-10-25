@@ -6,7 +6,7 @@
 # cython: embedsignature=True
 # coding: utf-8
 
-# Author: Oliver Borchers 
+# Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
 
 """Optimized cython functions for computing sentence embeddings"""
@@ -140,7 +140,7 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sent
         c.sentence_boundary[eff_sents] = eff_words
 
         if eff_words == MAX_WORDS:
-            break   
+            break
 
     return eff_sents, eff_words
 
@@ -192,17 +192,17 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentence
                 c.subwords_idx_len[eff_words] = <uINT_t>min(len(encoded_ngrams), MAX_NGRAMS)
                 for i, h in enumerate(hashes[:MAX_NGRAMS]):
                     c.subwords_idx[(eff_words * MAX_NGRAMS) + i] = <uINT_t>h
-            
+
             eff_words += ONE
 
             if eff_words == MAX_WORDS:
                 break
-                
+
         eff_sents += 1
         c.sentence_boundary[eff_sents] = eff_words
 
         if eff_words == MAX_WORDS:
-            break   
+            break
 
     return eff_sents, eff_words
 
@@ -215,7 +215,7 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
         A pointer to a fully initialized and populated struct.
     num_sentences : uINT_t
         The number of sentences used to train the model.
-    
+
     Notes
     -----
     This routine does not provide oov support.
@@ -260,7 +260,7 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
         A pointer to a fully initialized and populated struct.
     num_sentences : uINT_t
         The number of sentences used to train the model.
-    
+
     Notes
     -----
     This routine DOES provide oov support.
@@ -301,7 +301,7 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
                 for j in range(ngrams):
                     ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size
                     saxpy(&size, &inv_ngram, &c.ngram_vectors[ngram_row], &ONE, c.mem, &ONE)
-                
+
         if sent_len > ZEROF:
             inv_count = ONEF / sent_len
             saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
@@ -326,7 +326,7 @@ def train_average_cy(model, indexed_sentences, target, memory):
     Returns
     -------
     int, int
-        Number of effective sentences (non-zero) and effective words in the vocabulary used 
+        Number of effective sentences (non-zero) and effective words in the vocabulary used
         during training the sentence embedding.
     """
 
@@ -342,14 +342,14 @@ def train_average_cy(model, indexed_sentences, target, memory):
 
         with nogil:
             compute_base_sentence_averages(&w2v, eff_sentences)
-    else:        
+    else:
         init_ft_s2v_config(&ft, model, target, memory)
 
         eff_sentences, eff_words = populate_ft_s2v_config(&ft, model.wv, indexed_sentences)
 
         with nogil:
-            compute_ft_sentence_averages(&ft, eff_sentences) 
-    
+            compute_ft_sentence_averages(&ft, eff_sentences)
+
     return eff_sentences, eff_words
 
 def init():
