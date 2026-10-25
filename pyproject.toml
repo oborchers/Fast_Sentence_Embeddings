@@ -10,7 +10,7 @@ readme = "README.md"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
-authors = [{ name = "Oliver Borchers" }]
+authors = [{ name = "Oliver Borchers", email = "26734737+oborchers@users.noreply.github.com" }]
 keywords = [
     "sentence-embeddings",
     "gensim",

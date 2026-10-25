@@ -277,9 +277,11 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
     cdef:
         int size = c.size
 
-        uINT_t sent_idx, sent_start, sent_end, sent_row
+        uINT_t sent_idx, sent_start, sent_end
+        # Flat offsets row * size overflow 32 bits from 2**32 / size rows on.
+        size_t sent_row, word_row
 
-        uINT_t i, word_idx, word_row
+        uINT_t i, word_idx
 
         REAL_t sent_len, inv_count
         PyThread_type_lock lock
@@ -293,8 +295,8 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
 
         for i in range(sent_start, sent_end):
             sent_len += ONEF
-            sent_row = c.sent_adresses[i] * size
-            word_row = c.word_indices[i] * size
+            sent_row = <size_t>c.sent_adresses[i] * <size_t>size
+            word_row = <size_t>c.word_indices[i] * <size_t>size
             word_idx = c.word_indices[i]
 
             saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, c.mem, &ONE)
@@ -329,11 +331,13 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
     cdef:
         int size = c.size
 
-        uINT_t sent_idx, sent_start, sent_end, sent_row
+        uINT_t sent_idx, sent_start, sent_end
+        # Flat offsets row * size overflow 32 bits from 2**32 / size rows on.
+        size_t sent_row, word_row, ngram_row
 
-        uINT_t ngram_row, ngrams
+        uINT_t ngrams
 
-        uINT_t i, j, word_idx, word_row
+        uINT_t i, j, word_idx
 
         REAL_t sent_len
         REAL_t inv_count, inv_ngram
@@ -349,7 +353,7 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
 
         for i in range(sent_start, sent_end):
             sent_len += ONEF
-            sent_row = c.sent_adresses[i] * size
+            sent_row = <size_t>c.sent_adresses[i] * <size_t>size
 
             word_idx = c.word_indices[i]
             ngrams = c.subwords_idx_len[i]
@@ -357,12 +361,12 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
             if ngrams == 0:
                 if word_idx == NO_VECTOR:
                     continue
-                word_row = c.word_indices[i] * size
+                word_row = <size_t>c.word_indices[i] * <size_t>size
                 saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, c.mem, &ONE)
             else:
                 inv_ngram = (ONEF / <REAL_t>ngrams) * c.oov_weight
                 for j in range(ngrams):
-                    ngram_row = c.subwords_idx[(i * MAX_NGRAMS)+j] * size
+                    ngram_row = <size_t>c.subwords_idx[(i * MAX_NGRAMS)+j] * <size_t>size
                     saxpy(&size, &inv_ngram, &c.ngram_vectors[ngram_row], &ONE, c.mem, &ONE)
 
         if sent_len > ZEROF:
@@ -421,6 +425,9 @@ def _check_inputs(model, target, memory):
         )
     if target.ndim != 2 or target.shape[1] != size:
         raise ValueError(f"target must have shape (n, {size}), got {target.shape}")
+    # Row and word indices are stored as uint32, and 0xFFFFFFFF marks a missing vector.
+    if target.shape[0] >= NO_VECTOR or word_vectors.shape[0] >= NO_VECTOR:
+        raise ValueError(f"the kernel supports fewer than {NO_VECTOR} rows and words")
     if memory[0].size < size:
         raise ValueError(f"memory[0] must hold at least {size} entries, got {memory[0].size}")
 

@@ -539,6 +539,9 @@ class BaseSentence2VecModel(SaveLoad):
         """
         raise NotImplementedError()
 
+    def _post_load_calls(self):
+        """Migrate the state of a model saved by an earlier version, after loading it."""
+
     def _check_parameter_sanity(self, **kwargs):
         """Check the sanity of all child paramters"""
         raise NotImplementedError()
@@ -572,6 +575,7 @@ class BaseSentence2VecModel(SaveLoad):
         # by earlier versions still carry them, without a recorded mapfile shape.
         if model.sv.mapfile_path is not None and model.sv.vectors is None:
             model.sv._load_all_vectors_from_disk(mapfile_path=model.sv.mapfile_path)
+        model._post_load_calls()
 
         return model
 

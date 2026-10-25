@@ -52,7 +52,7 @@ Several sentences may share one index. Each sentence average is added into the r
 
 ### Hooks keep their signatures
 
-Subclasses override `_check_parameter_sanity`, `_pre_train_calls`, `_post_train_calls`, `_post_inference_calls` and `_check_dtype_santiy`, all of which accept `**kwargs`. Tests replace `_do_train_job` on instances, so the job path must keep calling it.
+Subclasses override `_check_parameter_sanity`, `_pre_train_calls`, `_post_train_calls`, `_post_inference_calls` and `_check_dtype_santiy`, all of which accept `**kwargs`, and `_post_load_calls`, which migrates models saved by earlier versions. Tests replace `_do_train_job` on instances, so the job path must keep calling it.
 
 ### Validate strictly, never fail silently
 

@@ -31,6 +31,7 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 ### Fixed
 
 - **uSIF results change.** uSIF removed each principal component weighted by λ² instead of λ, unlike the reference implementation ([kawine/usif](https://github.com/kawine/usif)). Embeddings from uSIF models trained with earlier versions differ from 1.1.0. On the STS Benchmark the fix raises uSIF scores on all 15 published vector sets, by 0.18 to 1.30 points (mean 0.75) when both formulas run in the same environment; the README table is remeasured. The previous table is in the [1.0.0 README](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/v1.0.0/README.md#results).
+  uSIF models saved by earlier versions keep the old weighting when loaded, so `infer` and `train(update=True)` produce vectors that match their stored ones; a warning recommends retraining.
 - An exception in a worker thread or in the input iterable made `train()` hang forever. It is now raised in the calling thread after all threads have stopped.
 - Only the first input item was validated. A negative or non-integer index later in the input could hang training or silently write into the wrong row. Every item is now checked, and `numpy` integers are accepted as indices, so `CIndexedList` works with an ndarray `custom_index` as documented.
 - Generators and other one-shot iterators returned all-zero vectors from `infer` and failed with a misleading error in `train`, because the input is read twice. They are now rejected with a clear `TypeError`.
@@ -40,6 +41,7 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 - `most_similar` and `init_sims` failed with a `TypeError` for sentence vectors stored on disk (`sv_mapfile_path`). The normalized vectors are now written into the mapfile in blocks.
 - `init_sims(replace=True)` did not replace the vectors, and `get_vector(use_norm=True)` failed before `init_sims` was called.
 - Normalizing a sentence without known words returned NaN; it now stays a zero vector.
+- The Cython routine computed the position of a row as row times dimension in 32 bits. From about 14.3 million sentences at 300 dimensions (43 million at 100) on, sentence vectors were silently added to wrong rows near the start of the matrix. Offsets are now 64 bit, and more than 2³² - 1 rows or words raise a `ValueError`.
 - `train(update=True)` wrote the new sentences into the existing rows and left the appended rows empty. New sentences keep their indices starting at 0 and are stored after the existing rows. SIF and uSIF remove the components of the first training from the appended rows only, instead of removing them from all rows again.
 - SIF and uSIF with `components=0` could not be trained a second time.
 - In the Cython path, a FastText out-of-vocabulary token without any ngrams (for example a token shorter than `min_n - 2` characters) added the vector of the first vocabulary word. It now adds nothing, as in the numpy fallback.

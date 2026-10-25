@@ -31,6 +31,7 @@ class uSIF(Average):
     # svd_res is None before training and 0 when no components are removed.
     svd_res: Any
     svd_weights: Any
+    component_weighting: str
     length: Any
 
     @validate_arguments
@@ -88,6 +89,8 @@ class uSIF(Average):
         self.cache_size_gb = float(cache_size_gb)
         self.svd_res = None
         self.svd_weights = None
+        # How svd_weights scale the removed components; models saved before 1.1.0 lack it.
+        self.component_weighting = "lambda"
 
         if lang_freq is None:
             logger.info(
@@ -128,6 +131,7 @@ class uSIF(Average):
                 cache_size_gb=self.cache_size_gb,
             )
             self.svd_weights = (self.svd_res[0] ** 2) / (self.svd_res[0] ** 2).sum().astype(REAL)
+            self.component_weighting = "lambda"
             remove_principal_components(
                 self.sv.vectors,
                 svd_res=self.svd_res,
@@ -137,6 +141,25 @@ class uSIF(Average):
         else:
             self.svd_res = 0
             logger.info("no removal of principal components")
+
+    def _post_load_calls(self):
+        """Keep models saved before 1.1.0 consistent with their stored sentence vectors.
+
+        Before 1.1.0, uSIF removed each component weighted by lambda squared. The stored
+        vectors of such a model carry that removal, so infer and train(update=True) keep
+        using it: with svd_weights squared, the current formula reproduces the old one.
+        """
+        if hasattr(self, "component_weighting"):
+            return
+        self.component_weighting = "lambda_squared"
+        if isinstance(self.svd_res, tuple) and self.svd_weights is not None:
+            self.svd_weights = (self.svd_weights**2).astype(REAL)
+            logger.warning(
+                "this uSIF model was saved before fse 1.1.0 and removes principal components "
+                "weighted by lambda squared; infer and train(update=True) keep that weighting "
+                "so new vectors match the stored ones. Retrain the model to use the corrected "
+                "weighting."
+            )
 
     def _post_inference_calls(self, output: ndarray | None = None, **kwargs):
         """Function calls to perform after training & inference."""

@@ -156,3 +156,36 @@ def test_zero_div_error(w2v):
     """From issue: #47."""
     model = uSIF(w2v, length=12, components=1)
     model._compute_usif_weights()
+
+
+def test_load_keeps_lambda_squared_for_models_saved_before_1_1_0(
+    model, indexed_sentences, tmp_path
+):
+    """An old model's stored vectors carry the lambda squared removal; new vectors must match."""
+    from fse.models.utils import remove_principal_components
+
+    model.train(indexed_sentences)
+    weights = model.svd_weights.copy()
+    # A model pickled by fse 1.0 has no component_weighting attribute.
+    del model.component_weighting
+    model.save(str(tmp_path / "old"))
+
+    loaded = uSIF.load(str(tmp_path / "old"))
+    assert loaded.component_weighting == "lambda_squared"
+    np.testing.assert_allclose(loaded.svd_weights, weights**2)
+
+    sentences = [(["the", "dog"], 0), (["a", "cat", "sat"], 1)]
+    raw = uSIF(loaded.wv, components=0)
+    raw.word_weights = loaded.word_weights
+    raw.svd_res = 0
+    expected = raw.infer(sentences)
+    remove_principal_components(expected, svd_res=model.svd_res, weights=weights**2)
+    np.testing.assert_allclose(loaded.infer(sentences), expected, rtol=1e-5, atol=1e-6)
+
+
+def test_load_keeps_current_weighting(model, indexed_sentences, tmp_path):
+    model.train(indexed_sentences)
+    model.save(str(tmp_path / "new"))
+    loaded = uSIF.load(str(tmp_path / "new"))
+    assert loaded.component_weighting == "lambda"
+    np.testing.assert_array_equal(loaded.svd_weights, model.svd_weights)

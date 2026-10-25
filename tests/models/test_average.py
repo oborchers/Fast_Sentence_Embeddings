@@ -5,6 +5,8 @@
 
 """Automated tests for checking the average model."""
 
+import sys
+
 import numpy as np
 import pytest
 
@@ -492,3 +494,24 @@ def test_row_locks_are_set_only_for_shared_rows(w2v, sentences, index, expect_lo
     model.train([(s, index(i)) for i, s in enumerate(sentences)])
     assert seen
     assert all(flag is expect_locks for flag in seen)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="NTFS does not create sparse memmap files")
+def test_cy_addresses_rows_beyond_32_bit_offsets(make_w2v, tmp_path):
+    """Row * dimension exceeds 2**32 from row 14,316,558 on at 300 dimensions.
+
+    The kernel computed that flat offset in uint32, so the sentence landed near the start
+    of the matrix. The memmap is a sparse file; only the touched pages use disk space.
+    """
+    dim = 300
+    rows = 2**32 // dim + 2
+    model = Average(make_w2v(dim))
+    model._pre_train_calls()
+    target = np.memmap(tmp_path / "big", dtype=np.float32, mode="w+", shape=(rows, dim))
+    word = model.wv.index_to_key[0]
+
+    train_average_cy(model, [([word], rows - 1)], target, model._get_thread_working_mem())
+
+    np.testing.assert_allclose(target[rows - 1], model.wv.vectors[0], rtol=1e-6)
+    wrapped = (rows - 1) * dim % 2**32 // dim
+    assert not target[: wrapped + 2].any()
