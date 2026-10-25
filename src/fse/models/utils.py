@@ -1,22 +1,17 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
 
-from typing import Tuple
-from sklearn.decomposition import TruncatedSVD
-
-from numpy import finfo, ndarray, float32 as REAL, ones, dtype
-from numpy.random import choice
-
+import ctypes
+import logging
+from sys import platform
 from time import time
 
-import logging
-
-from sys import platform
-
-import ctypes
+from numpy import dtype, finfo, ndarray, ones
+from numpy import float32 as REAL
+from numpy.random import choice
+from sklearn.decomposition import TruncatedSVD
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +50,7 @@ def set_madvise_for_mmap(return_madvise: bool = False) -> object:
 
 def compute_principal_components(
     vectors: ndarray, components: int = 1, cache_size_gb: float = 1.0
-) -> Tuple[ndarray, ndarray]:
+) -> tuple[ndarray, ndarray]:
     """Method used to compute the first singular vectors of a given (sub)matrix
 
     Parameters
@@ -79,7 +74,7 @@ def compute_principal_components(
     )
 
     sample_size = int(
-        1024 ** 3 * cache_size_gb / (vectors.shape[1] * dtype(REAL).itemsize)
+        1024**3 * cache_size_gb / (vectors.shape[1] * dtype(REAL).itemsize)
     )
 
     if sample_size > num_vectors:
@@ -91,14 +86,14 @@ def compute_principal_components(
 
     elapsed = time()
     logger.info(
-        f"computing {components} principal components took {int(elapsed-start)}s"
+        f"computing {components} principal components took {int(elapsed - start)}s"
     )
     return svd.singular_values_.astype(REAL), svd.components_.astype(REAL)
 
 
 def remove_principal_components(
     vectors: ndarray,
-    svd_res: Tuple[ndarray, ndarray],
+    svd_res: tuple[ndarray, ndarray],
     weights: ndarray = None,
     inplace: bool = True,
 ) -> ndarray:
@@ -142,7 +137,7 @@ def remove_principal_components(
     elapsed = time()
 
     logger.info(
-        f"removing {len(components)} principal components took {int(elapsed-start)}s"
+        f"removing {len(components)} principal components took {int(elapsed - start)}s"
     )
     if not inplace:
         return output

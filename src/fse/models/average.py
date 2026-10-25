@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
@@ -10,7 +9,7 @@ data streaming and Pythonic interfaces.
 The implementation is based on Iyyer et al. (2015): Deep Unordered Composition Rivals Syntactic Methods for Text Classification.
 For more information, see <https://people.cs.umass.edu/~miyyer/pubs/2015_acl_dan.pdf>.
 
-The training algorithms is based on the Gensim implementation of Word2Vec, FastText, and Doc2Vec. 
+The training algorithms is based on the Gensim implementation of Word2Vec, FastText, and Doc2Vec.
 For more information, see: :class:`~gensim.models.word2vec.Word2Vec`, :class:`~gensim.models.fasttext.FastText`, or
 :class:`~gensim.models.doc2vec.Doc2Vec`.
 
@@ -22,7 +21,7 @@ Initialize and train a :class:`~fse.models.sentence2vec.Sentence2Vec` model
         >>> sentences = [["cat", "say", "meow"], ["dog", "say", "woof"]]
         >>> model = Word2Vec(sentences, min_count=1, vector_size=20)
 
-        >>> from fse.models.average import Average        
+        >>> from fse.models.average import Average
         >>> avg = Average(model)
         >>> avg.train([(s, i) for i, s in enumerate(sentences)])
         >>> avg.sv.vectors.shape
@@ -30,35 +29,38 @@ Initialize and train a :class:`~fse.models.sentence2vec.Sentence2Vec` model
 
 """
 
-from __future__ import division
+import logging
 
-from fse.models.base_s2v import BaseSentence2VecModel
-
-from gensim.models.keyedvectors import KeyedVectors
 from gensim.models.fasttext import ft_ngram_hashes
-
+from gensim.models.keyedvectors import KeyedVectors
 from numpy import (
-    ndarray,
     float32 as REAL,
-    sum as np_sum,
-    multiply as np_mult,
-    zeros,
+)
+from numpy import (
     max as np_max,
 )
+from numpy import (
+    multiply as np_mult,
+)
+from numpy import (
+    ndarray,
+    zeros,
+)
+from numpy import (
+    sum as np_sum,
+)
 
-from typing import List, Tuple
-
-import logging
+from fse.models.base_s2v import BaseSentence2VecModel
 
 logger = logging.getLogger(__name__)
 
 
 def train_average_np(
     model: BaseSentence2VecModel,
-    indexed_sentences: List[tuple],
+    indexed_sentences: list[tuple],
     target: ndarray,
     memory: ndarray,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """Training on a sequence of sentences and update the target ndarray.
 
     Called internally from :meth:`~fse.models.average.Average._do_train_job`.
@@ -169,11 +171,11 @@ def train_average_np(
 
 
 try:
-    from fse.models.average_inner import train_average_cy
     from fse.models.average_inner import (
         FAST_VERSION,
-        MAX_WORDS_IN_BATCH,
         MAX_NGRAMS_IN_BATCH,
+        MAX_WORDS_IN_BATCH,
+        train_average_cy,
     )
 
     train_average = train_average_cy
@@ -215,7 +217,7 @@ class Average(BaseSentence2VecModel):
         wv_mapfile_path: str = None,
         workers: int = 1,
         lang_freq: str = None,
-        **kwargs
+        **kwargs,
     ):
         """Average (unweighted) sentence embeddings model. Performs a simple averaging operation over all
         words in a sentences without further transformation.
@@ -245,7 +247,7 @@ class Average(BaseSentence2VecModel):
 
         """
 
-        super(Average, self).__init__(
+        super().__init__(
             model=model,
             sv_mapfile_path=sv_mapfile_path,
             wv_mapfile_path=wv_mapfile_path,
@@ -257,25 +259,25 @@ class Average(BaseSentence2VecModel):
         )
 
     def _do_train_job(
-        self, data_iterable: List[tuple], target: ndarray, memory: ndarray
-    ) -> Tuple[int, int]:
-        """ Internal routine which is called on training and performs averaging for all entries in the iterable """
+        self, data_iterable: list[tuple], target: ndarray, memory: ndarray
+    ) -> tuple[int, int]:
+        """Internal routine which is called on training and performs averaging for all entries in the iterable"""
         eff_sentences, eff_words = train_average(
             model=self, indexed_sentences=data_iterable, target=target, memory=memory
         )
         return eff_sentences, eff_words
 
     def _check_parameter_sanity(self, **kwargs):
-        """ Check the sanity of all child paramters """
+        """Check the sanity of all child paramters"""
         if not all(self.word_weights == 1.0):
             raise ValueError("All word weights must equal one for averaging")
 
     def _pre_train_calls(self, **kwargs):
-        """Function calls to perform before training """
+        """Function calls to perform before training"""
         pass
 
     def _post_train_calls(self, **kwargs):
-        """ Function calls to perform after training, such as computing eigenvectors """
+        """Function calls to perform after training, such as computing eigenvectors"""
         pass
 
     def _post_inference_calls(self, **kwargs):
@@ -285,5 +287,5 @@ class Average(BaseSentence2VecModel):
         pass
 
     def _check_dtype_santiy(self, **kwargs):
-        """ Check the dtypes of all child attributes"""
+        """Check the dtypes of all child attributes"""
         pass

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
@@ -25,12 +24,10 @@ CORPUS = TEST_DATA / "test_sentences.txt"
 
 DIM = 5
 W2V = Word2Vec(min_count=1, vector_size=DIM)
-with open(CORPUS, "r") as file:
+with open(CORPUS) as file:
     SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)
-W2V.wv.vectors[:,] = np.arange(
-    len(W2V.wv.vectors), dtype=np.float32
-)[:, None]
+W2V.wv.vectors[:,] = np.arange(len(W2V.wv.vectors), dtype=np.float32)[:, None]
 
 
 class TestAverageFunctions(unittest.TestCase):

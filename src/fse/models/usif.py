@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
@@ -81,7 +80,7 @@ class uSIF(Average):
                 "make sure you are using a model with valid word-frequency information. Otherwise use lang_freq argument."
             )
 
-        super(uSIF, self).__init__(
+        super().__init__(
             model=model,
             sv_mapfile_path=sv_mapfile_path,
             wv_mapfile_path=wv_mapfile_path,
@@ -120,7 +119,7 @@ class uSIF(Average):
             )
         else:
             self.svd_res = 0
-            logger.info(f"no removal of principal components")
+            logger.info("no removal of principal components")
 
     def _post_inference_calls(self, output: ndarray, **kwargs):
         """Function calls to perform after training & inference."""
@@ -133,7 +132,7 @@ class uSIF(Average):
                 output, svd_res=self.svd_res, weights=self.svd_weights, inplace=True
             )
         else:
-            logger.info(f"no removal of principal components")
+            logger.info("no removal of principal components")
 
     def _check_dtype_santiy(self):
         """Check the dtypes of all attributes."""

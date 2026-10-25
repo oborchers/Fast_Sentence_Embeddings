@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
@@ -44,8 +43,9 @@ class TestVectors(unittest.TestCase):
 class TestFTVectors(unittest.TestCase):
     def test_from_pretrained(self):
         """Test the pretrained vectors."""
-        with patch("fse.vectors.snapshot_download") as mock, patch(
-            "fse.vectors.FastTextKeyedVectors.load"
+        with (
+            patch("fse.vectors.snapshot_download") as mock,
+            patch("fse.vectors.FastTextKeyedVectors.load"),
         ):
             mock.return_value = TEST_DATA.as_posix()
             FTVectors.from_pretrained("ft")

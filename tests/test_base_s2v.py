@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
@@ -23,7 +22,7 @@ TEST_DATA = Path(__file__).parent / "test_data"
 CORPUS = TEST_DATA / "test_sentences.txt"
 DIM = 5
 W2V = Word2Vec(min_count=1, vector_size=DIM)
-with open(CORPUS, "r") as file:
+with open(CORPUS) as file:
     SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)
 
@@ -72,7 +71,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
 
     def test_model_w_language(self):
         se = BaseSentence2VecModel(W2V, lang_freq="en")
-        freq = int((2 ** 31 - 1) * get_frequency_dict("en", wordlist="best")["help"])
+        freq = int((2**31 - 1) * get_frequency_dict("en", wordlist="best")["help"])
         self.assertEqual(freq, se.wv.get_vecattr("help", "count"))
         self.assertEqual(21, se.wv.get_vecattr("79", "count"))
 
@@ -118,8 +117,8 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         self.assertEqual(shape, se.wv.vectors.shape)
         self.assertEqual((2000000, 5), se.wv.vectors_ngrams.shape)
 
-        for p in [p, p_vecs, p_ngrams, p_vocab]:
-            p.unlink()
+        for path in [p, p_vecs, p_ngrams, p_vocab]:
+            path.unlink()
 
     def test_map_all_vectors_to_disk(self):
         ft = FastText(min_count=1, vector_size=5)
@@ -418,7 +417,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(W2V)
 
         def temp_train_job(data_iterable, target, memory):
-            for i in data_iterable:
+            for _i in data_iterable:
                 target += 1
             return target
 
@@ -447,10 +446,10 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se._post_inference_calls = pass_method
         se._do_train_job = _do_train_job
         tmp = []
-        for i in range(20):
+        for _ in range(20):
             tmp.extend(SENTENCES)
         bs = 0
-        for i, s in enumerate(tmp):
+        for s in tmp:
             if bs >= MAX_WORDS_IN_BATCH:
                 break
             bs += len(s)
@@ -463,7 +462,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(W2V)
 
         def temp_train_job(data_iterable, target, memory):
-            for i in data_iterable:
+            for _i in data_iterable:
                 target += 1
             return target
 
@@ -480,7 +479,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         se = BaseSentence2VecModel(W2V)
 
         def temp_train_job(data_iterable, target, memory):
-            for i in data_iterable:
+            for _i in data_iterable:
                 target += 1
             return target
 

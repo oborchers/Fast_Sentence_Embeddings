@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
@@ -34,45 +33,42 @@ See Also
 
 """
 
-from fse.models.sentencevectors import SentenceVectors, _l2_norm
+import logging
+import threading
+import warnings
+from pathlib import Path
+from queue import Queue
+from time import time
 
-from fse.models.utils import set_madvise_for_mmap
-
-from gensim.models import Word2Vec, FastText
-from gensim.models.keyedvectors import KeyedVectors
-from gensim.models.fasttext import FastTextKeyedVectors
-from gensim.utils import SaveLoad
 from gensim.matutils import zeros_aligned
-
+from gensim.models import FastText, Word2Vec
+from gensim.models.fasttext import FastTextKeyedVectors
+from gensim.models.keyedvectors import KeyedVectors
+from gensim.utils import SaveLoad
 from numpy import (
-    ndarray,
-    memmap as np_memmap,
-    float32 as REAL,
-    uint32 as uINT,
-    empty,
-    zeros,
-    vstack,
     dtype,
-    ones,
+    empty,
     finfo,
     full,
+    ndarray,
+    ones,
+    vstack,
+    zeros,
 )
-
+from numpy import (
+    float32 as REAL,
+)
+from numpy import (
+    memmap as np_memmap,
+)
+from numpy import (
+    uint32 as uINT,
+)
+from psutil import virtual_memory
 from wordfreq import available_languages, get_frequency_dict
 
-from typing import List, Dict, Tuple
-
-from time import time
-from psutil import virtual_memory
-
-from pathlib import Path
-
-import logging
-import warnings
-
-import threading
-
-from queue import Queue
+from fse.models.sentencevectors import SentenceVectors, _l2_norm
+from fse.models.utils import set_madvise_for_mmap
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +137,8 @@ class BaseSentence2VecModel(SaveLoad):
         if fast_version < 0:
             warnings.warn(
                 "C extension not loaded, training/inferring will be slow. "
-                "Install a C compiler and reinstall fse."
+                "Install a C compiler and reinstall fse.",
+                stacklevel=2,
             )
 
         self._check_and_include_model(model)
@@ -232,7 +229,7 @@ class BaseSentence2VecModel(SaveLoad):
         else:
             raise ValueError(f"Language {lang_freq} is not available in wordfreq")
 
-    def _induce_frequencies(self, domain: int = 2 ** 31 - 1):
+    def _induce_frequencies(self, domain: int = 2**31 - 1):
         """Induce frequencies for a pretrained model, as not all pretrained models come with frequencies.
 
         Parameters
@@ -348,7 +345,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         if total_sentences == 0 or total_words == 0 or average_length == 0:
             raise ValueError(
-                f"scanning the sentences returned invalid values. Check the input."
+                "scanning the sentences returned invalid values. Check the input."
             )
 
     def _check_post_training_sanity(self, eff_sentences: int, eff_words: int):
@@ -363,11 +360,11 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         if eff_sentences == 0 or eff_words == 0:
-            raise ValueError(f"training returned invalid values. Check the input.")
+            raise ValueError("training returned invalid values. Check the input.")
 
     def _check_indexed_sent_valid(
         self, iterPos: int, obj: tuple, checked: int = False
-    ) -> Tuple[int, List[str]]:
+    ) -> tuple[int, list[str]]:
         """Performs a check if the passed object contains valid data
 
         Parameters
@@ -496,7 +493,7 @@ class BaseSentence2VecModel(SaveLoad):
         readonly_memvecs = np_memmap(path, dtype=REAL, mode="r", shape=shape)
         return readonly_memvecs
 
-    def _get_thread_working_mem(self) -> Tuple[ndarray, ndarray]:
+    def _get_thread_working_mem(self) -> tuple[ndarray, ndarray]:
         """Computes the memory used per worker thread.
 
         Returns
@@ -510,17 +507,17 @@ class BaseSentence2VecModel(SaveLoad):
         return (mem, oov_mem)
 
     def _do_train_job(
-        self, data_iterable: List[tuple], target: ndarray, memory: ndarray
-    ) -> Tuple[int, int]:
-        """ Function to be called on a batch of sentences. Returns eff sentences/words """
+        self, data_iterable: list[tuple], target: ndarray, memory: ndarray
+    ) -> tuple[int, int]:
+        """Function to be called on a batch of sentences. Returns eff sentences/words"""
         raise NotImplementedError()
 
     def _pre_train_calls(self, **kwargs):
-        """ Function calls to perform before training """
+        """Function calls to perform before training"""
         raise NotImplementedError()
 
     def _post_train_calls(self, **kwargs):
-        """ Function calls to perform after training, such as computing eigenvectors """
+        """Function calls to perform after training, such as computing eigenvectors"""
         raise NotImplementedError()
 
     def _post_inference_calls(self, **kwargs):
@@ -530,11 +527,11 @@ class BaseSentence2VecModel(SaveLoad):
         raise NotImplementedError()
 
     def _check_parameter_sanity(self, **kwargs):
-        """ Check the sanity of all child paramters """
+        """Check the sanity of all child paramters"""
         raise NotImplementedError()
 
     def _check_dtype_santiy(self, **kwargs):
-        """ Check the dtypes of all child attributes """
+        """Check the dtypes of all child attributes"""
         raise NotImplementedError()
 
     @classmethod
@@ -554,7 +551,7 @@ class BaseSentence2VecModel(SaveLoad):
         """
         # This is kind of an ugly hack because I cannot directly modify the save routine of the
         # correpsonding KeyedVectors Files, as a memmap file makes the npy files irrelvant
-        model = super(BaseSentence2VecModel, cls).load(*args, **kwargs)
+        model = super().load(*args, **kwargs)
 
         if model.wv_mapfile_path is not None:
             model._load_all_vectors_from_disk(model.wv_mapfile_path)
@@ -577,11 +574,11 @@ class BaseSentence2VecModel(SaveLoad):
         # Manually removes vectors from the wv class because we cannot modify the save method
         if self.wv_mapfile_path is not None:
             self.wv.vectors = None
-        super(BaseSentence2VecModel, self).save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
     def scan_sentences(
-        self, sentences: List[tuple] = None, progress_per: int = 5
-    ) -> Dict[str, int]:
+        self, sentences: list[tuple] = None, progress_per: int = 5
+    ) -> dict[str, int]:
         """Performs an initial scan of the data and reports all corresponding statistics
 
         Parameters
@@ -651,7 +648,7 @@ class BaseSentence2VecModel(SaveLoad):
 
     def estimate_memory(
         self, max_index: int, report: dict = None, **kwargs
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """Estimate the size of the sentence embedding
 
         Parameters
@@ -685,7 +682,7 @@ class BaseSentence2VecModel(SaveLoad):
                 * dtype(REAL).itemsize
             )
         report["Total"] = sum(report.values())
-        mb_size = int(report["Total"] / 1024 ** 2)
+        mb_size = int(report["Total"] / 1024**2)
         logger.info(
             f"estimated memory for {max_index} sentences with "
             f"{self.wv.vector_size} dimensions and {vocab_size} vocabulary: "
@@ -699,11 +696,11 @@ class BaseSentence2VecModel(SaveLoad):
 
     def train(
         self,
-        sentences: List[tuple] = None,
+        sentences: list[tuple] = None,
         update: bool = False,
         queue_factor: int = 2,
         report_delay: int = 5,
-    ) -> Tuple[int, int]:
+    ) -> tuple[int, int]:
         """Main routine to train an embedding. This method writes all sentences vectors into sv.vectors and is
         used for computing embeddings for large chunks of data. This method also handles post-training transformations,
         such as computing the SVD of the sentence vectors.
@@ -741,7 +738,7 @@ class BaseSentence2VecModel(SaveLoad):
         self._check_dtype_santiy()
         start_time = time()
 
-        logger.info(f"begin training")
+        logger.info("begin training")
 
         _, eff_sentences, eff_words = self._train_manager(
             data_iterable=sentences,
@@ -765,7 +762,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         return eff_sentences, eff_words
 
-    def infer(self, sentences: List[tuple] = None, use_norm=False) -> ndarray:
+    def infer(self, sentences: list[tuple] = None, use_norm=False) -> ndarray:
         """Secondary routine to train an embedding. This method is essential for small batches of sentences,
         which require little computation. Note: This method does not apply post-training transformations,
         only post inference calls (such as removing principal components).
@@ -791,7 +788,7 @@ class BaseSentence2VecModel(SaveLoad):
         mem = self._get_thread_working_mem()
 
         job_batch, batch_size = [], 0
-        for data_idx, data in enumerate(sentences):
+        for _data_idx, data in enumerate(sentences):
             data_length = len(data[0])
             if batch_size + data_length <= self.batch_words:
                 job_batch.append(data)
@@ -810,7 +807,7 @@ class BaseSentence2VecModel(SaveLoad):
 
     def _train_manager(
         self,
-        data_iterable: List[tuple],
+        data_iterable: list[tuple],
         total_sentences: int = None,
         queue_factor: int = 2,
         report_delay: int = 5,
@@ -884,7 +881,7 @@ class BaseSentence2VecModel(SaveLoad):
             jobs_processed += 1
         logger.debug(f"worker exiting, processed {jobs_processed} jobs")
 
-    def _job_producer(self, data_iterable: List[tuple], job_queue: Queue):
+    def _job_producer(self, data_iterable: list[tuple], job_queue: Queue):
         """Fill the jobs queue using the data found in the input stream.
 
         Each job is represented as a batch of tuple
@@ -902,7 +899,7 @@ class BaseSentence2VecModel(SaveLoad):
         job_batch, batch_size = [], 0
         job_no = 0
 
-        for data_idx, data in enumerate(data_iterable):
+        for _data_idx, data in enumerate(data_iterable):
             data_length = len(data[0])
             if batch_size + data_length <= self.batch_words:
                 job_batch.append(data)
@@ -964,12 +961,7 @@ class BaseSentence2VecModel(SaveLoad):
                 start_time = time()
 
                 logger.info(
-                    "PROGRESS : finished {:3.2f}% with {} sentences and {} words, {} sentences/s".format(
-                        100 * (eff_sentences / total_sentences),
-                        eff_sentences,
-                        eff_words,
-                        int((eff_sentences - sentence_inc) / report_delay),
-                    )
+                    f"PROGRESS : finished {100 * (eff_sentences / total_sentences):3.2f}% with {eff_sentences} sentences and {eff_words} words, {int((eff_sentences - sentence_inc) / report_delay)} sentences/s"
                 )
                 sentence_inc = eff_sentences
 
@@ -977,7 +969,7 @@ class BaseSentence2VecModel(SaveLoad):
 
 
 class BaseSentence2VecPreparer(SaveLoad):
-    """ Contains helper functions to perpare the weights for the training of BaseSentence2VecModel """
+    """Contains helper functions to perpare the weights for the training of BaseSentence2VecModel"""
 
     def prepare_vectors(
         self, sv: SentenceVectors, total_sentences: int, update: bool = False

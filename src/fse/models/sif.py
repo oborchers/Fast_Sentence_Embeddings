@@ -1,17 +1,16 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
 
-from fse.models.average import Average
-from fse.models.utils import compute_principal_components, remove_principal_components
+import logging
 
 from gensim.models.keyedvectors import KeyedVectors
+from numpy import float32 as REAL
+from numpy import isfinite, ndarray, zeros
 
-from numpy import ndarray, float32 as REAL, zeros, isfinite
-
-import logging
+from fse.models.average import Average
+from fse.models.utils import compute_principal_components, remove_principal_components
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +71,7 @@ class SIF(Average):
                 "make sure you are using a model with valid word-frequency information. Otherwise use lang_freq argument."
             )
 
-        super(SIF, self).__init__(
+        super().__init__(
             model=model,
             sv_mapfile_path=sv_mapfile_path,
             wv_mapfile_path=wv_mapfile_path,
@@ -81,7 +80,7 @@ class SIF(Average):
         )
 
     def _check_parameter_sanity(self):
-        """ Check the sanity of all paramters """
+        """Check the sanity of all paramters"""
         if not all(self.word_weights <= 1.0) or not all(self.word_weights >= 0.0):
             raise ValueError("For SIF, all word weights must be 0 <= w_weight <= 1")
         if self.alpha <= 0.0:
@@ -90,11 +89,11 @@ class SIF(Average):
             raise ValueError("Components must be greater or equal zero")
 
     def _pre_train_calls(self, **kwargs):
-        """Function calls to perform before training """
+        """Function calls to perform before training"""
         self._compute_sif_weights()
 
     def _post_train_calls(self):
-        """ Function calls to perform after training, such as computing eigenvectors """
+        """Function calls to perform after training, such as computing eigenvectors"""
         if self.components > 0:
             self.svd_res = compute_principal_components(
                 self.sv.vectors,
@@ -106,10 +105,10 @@ class SIF(Average):
             )
         else:
             self.svd_res = 0
-            logger.info(f"no removal of principal components")
+            logger.info("no removal of principal components")
 
     def _post_inference_calls(self, output: ndarray, **kwargs):
-        """ Function calls to perform after training & inference """
+        """Function calls to perform after training & inference"""
         if self.svd_res is None:
             raise RuntimeError(
                 "You must first train the model to obtain SVD components"
@@ -117,10 +116,10 @@ class SIF(Average):
         elif self.components > 0:
             remove_principal_components(output, svd_res=self.svd_res, inplace=True)
         else:
-            logger.info(f"no removal of principal components")
+            logger.info("no removal of principal components")
 
     def _check_dtype_santiy(self):
-        """ Check the dtypes of all attributes """
+        """Check the dtypes of all attributes"""
         if self.word_weights.dtype != REAL:
             raise TypeError(f"type of word_weights is wrong: {self.word_weights.dtype}")
         if self.svd_res is not None:
@@ -132,7 +131,7 @@ class SIF(Average):
                 )
 
     def _compute_sif_weights(self):
-        """ Precomputes the SIF weights for all words in the vocabulary """
+        """Precomputes the SIF weights for all words in the vocabulary"""
         logger.info(f"pre-computing SIF weights for {len(self.wv)} words")
         v = len(self.wv)
         corpus_size = 0

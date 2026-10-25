@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
@@ -24,7 +23,7 @@ TEST_DATA = Path(__file__).parent / "test_data"
 CORPUS = TEST_DATA / "test_sentences.txt"
 DIM = 5
 W2V = Word2Vec(min_count=1, vector_size=DIM, seed=42)
-with open(CORPUS, "r") as file:
+with open(CORPUS) as file:
     SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)
 
@@ -51,10 +50,10 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         self.assertFalse((self.sv.vectors == self.sv.vectors_norm).all())
 
         v1 = self.sv.vectors[0]
-        v1 = v1 / np.sqrt(np.sum(v1 ** 2))
+        v1 = v1 / np.sqrt(np.sum(v1**2))
 
         v2 = self.sv.vectors[1]
-        v2 = v2 / np.sqrt(np.sum(v2 ** 2))
+        v2 = v2 / np.sqrt(np.sum(v2**2))
 
         self.assertTrue(np.allclose(v1, self.sv.vectors_norm[0]))
         self.assertTrue(np.allclose(v2, self.sv.vectors_norm[1]))
@@ -114,10 +113,10 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
 
     def test_similarity(self):
         v1 = self.sv.vectors[0]
-        v1 = v1 / np.sqrt(np.sum(v1 ** 2))
+        v1 = v1 / np.sqrt(np.sum(v1**2))
 
         v2 = self.sv.vectors[1]
-        v2 = v2 / np.sqrt(np.sum(v2 ** 2))
+        v2 = v2 / np.sqrt(np.sum(v2**2))
 
         self.assertTrue(np.allclose(v1.dot(v2), self.sv.similarity(0, 1)))
         self.assertTrue(np.allclose(1 - v1.dot(v2), self.sv.distance(0, 1)))
@@ -240,12 +239,12 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
     def test_l2_norm(self):
         out = np.random.normal(size=(200, 50)).astype(np.float32)
         result = _l2_norm(out, False)
-        lens = np.sqrt(np.sum((result ** 2), axis=-1))
+        lens = np.sqrt(np.sum((result**2), axis=-1))
         self.assertTrue(np.allclose(1, lens, atol=1e-6))
 
         out = np.random.normal(size=(200, 50)).astype(np.float32)
         out = _l2_norm(out, True)
-        lens = np.sqrt(np.sum((out ** 2), axis=-1))
+        lens = np.sqrt(np.sum((out**2), axis=-1))
         self.assertTrue(np.allclose(1, lens, atol=1e-6))
 
 

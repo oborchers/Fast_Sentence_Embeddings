@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 CORPUS = Path(__file__).parent / "test_data" / "test_sentences.txt"
 DIM = 50
 W2V = Word2Vec(min_count=1, vector_size=DIM)
-with open(CORPUS, "r") as file:
+with open(CORPUS) as file:
     SENTENCES = [l.split() for _, l in enumerate(file)]
 W2V.build_vocab(SENTENCES)
 
@@ -107,7 +107,7 @@ class TestuSIFFunctions(unittest.TestCase):
     def test_broken_vocab(self):
         w2v = Word2Vec(min_count=1, vector_size=DIM)
 
-        with open(CORPUS, "r") as file:
+        with open(CORPUS) as file:
             w2v.build_vocab([l.split() for l in file])
         for k in w2v.wv.key_to_index:
             w2v.wv.set_vecattr(k, "count", -1)

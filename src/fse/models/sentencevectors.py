@@ -1,38 +1,33 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
 
 
-from __future__ import division
-
-from fse.inputs import IndexedList, IndexedLineDocument
-
-from fse.models.utils import set_madvise_for_mmap
-
-from gensim.models.keyedvectors import KeyedVectors
-
-from numpy import (
-    dot,
-    float32 as REAL,
-    memmap as np_memmap,
-    array,
-    zeros,
-    vstack,
-    sqrt,
-    newaxis,
-    integer,
-    ndarray,
-)
-
-from gensim import utils, matutils
-
-from typing import List, Tuple, Union
-
+import logging
 from pathlib import Path
 
-import logging
+from gensim import matutils, utils
+from gensim.models.keyedvectors import KeyedVectors
+from numpy import (
+    array,
+    dot,
+    integer,
+    ndarray,
+    newaxis,
+    sqrt,
+    vstack,
+    zeros,
+)
+from numpy import (
+    float32 as REAL,
+)
+from numpy import (
+    memmap as np_memmap,
+)
+
+from fse.inputs import IndexedLineDocument, IndexedList
+from fse.models.utils import set_madvise_for_mmap
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +87,7 @@ class SentenceVectors(utils.SaveLoad):
         return len(self.vectors)
 
     def _load_all_vectors_from_disk(self, mapfile_path: Path):
-        """ Reads all vectors from disk """
+        """Reads all vectors from disk"""
         path = str(mapfile_path.absolute())
         self.vectors = np_memmap(
             f"{path}.vectors", dtype=REAL, mode="r+", shape=self.mapfile_shape
@@ -118,12 +113,12 @@ class SentenceVectors(utils.SaveLoad):
         if self.mapfile_path is not None:
             ignore.append("vectors")
         kwargs["ignore"] = kwargs.get("ignore", ignore)
-        super(SentenceVectors, self).save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
     @classmethod
     def load(cls, fname_or_handle, **kwargs):
         # TODO: Unittests
-        sv = super(SentenceVectors, cls).load(fname_or_handle, **kwargs)
+        sv = super().load(fname_or_handle, **kwargs)
         path = sv.mapfile_path
         if path is not None:
             sv._load_all_vectors_from_disk(mapfile_path=path)
@@ -219,13 +214,12 @@ class SentenceVectors(utils.SaveLoad):
 
     def most_similar(
         self,
-        positive: Union[int, ndarray] = None,
-        negative: Union[int, ndarray] = None,
-        indexable: Union[IndexedList, IndexedLineDocument] = None,
+        positive: int | ndarray = None,
+        negative: int | ndarray = None,
+        indexable: IndexedList | IndexedLineDocument = None,
         topn: int = 10,
-        restrict_size: Union[int, Tuple[int, int]] = None,
-    ) -> List[Tuple[int, float]]:
-
+        restrict_size: int | tuple[int, int] = None,
+    ) -> list[tuple[int, float]]:
         """Find the top-N most similar sentences.
         Positive sentences contribute positively towards the similarity, negative sentences negatively.
 
@@ -297,7 +291,7 @@ class SentenceVectors(utils.SaveLoad):
 
         if isinstance(restrict_size, (int, integer)):
             lo, hi = 0, restrict_size
-        elif isinstance(restrict_size, Tuple):
+        elif isinstance(restrict_size, tuple):
             lo, hi = restrict_size
         else:
             lo, hi = 0, None
@@ -314,13 +308,13 @@ class SentenceVectors(utils.SaveLoad):
         if indexable is not None:
             result = [
                 (indexable[off_idx], off_idx, float(dists[idx]))
-                for off_idx, idx in zip(best_off, best)
+                for off_idx, idx in zip(best_off, best, strict=False)
                 if off_idx not in all_sents
             ]
         else:
             result = [
                 (off_idx, float(dists[idx]))
-                for off_idx, idx in zip(best_off, best)
+                for off_idx, idx in zip(best_off, best, strict=False)
                 if off_idx not in all_sents
             ]
         return result[:topn]
@@ -329,11 +323,10 @@ class SentenceVectors(utils.SaveLoad):
         self,
         word: str,
         wv: KeyedVectors,
-        indexable: Union[IndexedList, IndexedLineDocument] = None,
+        indexable: IndexedList | IndexedLineDocument = None,
         topn: int = 10,
-        restrict_size: Union[int, Tuple[int, int]] = None,
-    ) -> List[Tuple[int, float]]:
-
+        restrict_size: int | tuple[int, int] = None,
+    ) -> list[tuple[int, float]]:
         """Find the top-N most similar sentences to a given word.
 
         Parameters
@@ -372,13 +365,12 @@ class SentenceVectors(utils.SaveLoad):
 
     def similar_by_sentence(
         self,
-        sentence: List[str],
+        sentence: list[str],
         model,
-        indexable: Union[IndexedList, IndexedLineDocument] = None,
+        indexable: IndexedList | IndexedLineDocument = None,
         topn: int = 10,
-        restrict_size: Union[int, Tuple[int, int]] = None,
-    ) -> List[Tuple[int, float]]:
-
+        restrict_size: int | tuple[int, int] = None,
+    ) -> list[tuple[int, float]]:
         """Find the top-N most similar sentences to a given sentence.
 
         Parameters
@@ -422,11 +414,10 @@ class SentenceVectors(utils.SaveLoad):
     def similar_by_vector(
         self,
         vector: ndarray,
-        indexable: Union[IndexedList, IndexedLineDocument] = None,
+        indexable: IndexedList | IndexedLineDocument = None,
         topn: int = 10,
-        restrict_size: Union[int, Tuple[int, int]] = None,
-    ) -> List[Tuple[int, float]]:
-
+        restrict_size: int | tuple[int, int] = None,
+    ) -> list[tuple[int, float]]:
         """Find the top-N most similar sentences to a given vector.
 
         Parameters
@@ -476,7 +467,7 @@ def _l2_norm(m, replace=False):
     NOTE: This part is copied from Gensim and modified as the call
     m /= dist somtimes raises an exception and sometimes it does not.
     """
-    dist = sqrt((m ** 2).sum(-1))[..., newaxis]
+    dist = sqrt((m**2).sum(-1))[..., newaxis]
     if replace:
         m = m / dist
         return m

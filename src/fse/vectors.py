@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
@@ -43,9 +42,7 @@ class Vectors(KeyedVectors):
 
         assert path.exists(), "something went wrong. the file wasn't downloaded."
 
-        return super(Vectors, cls).load(
-            (path / (model + _SUFFIX)).as_posix(), mmap=mmap
-        )
+        return super().load((path / (model + _SUFFIX)).as_posix(), mmap=mmap)
 
 
 class FTVectors(FastTextKeyedVectors):
@@ -74,6 +71,4 @@ class FTVectors(FastTextKeyedVectors):
 
         assert path.exists(), "something went wrong. the file wasn't downloaded."
 
-        return super(FTVectors, cls).load(
-            (path / (model + _SUFFIX)).as_posix(), mmap=mmap
-        )
+        return super().load((path / (model + _SUFFIX)).as_posix(), mmap=mmap)

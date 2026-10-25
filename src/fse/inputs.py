@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
 
+from collections.abc import MutableSequence
 from pathlib import Path
-from typing import List, MutableSequence, Union
 
 from gensim.utils import any2unicode
 from numpy import concatenate, ndarray
@@ -13,7 +12,7 @@ from smart_open import open
 
 
 class BaseIndexedList(MutableSequence):
-    def __init__(self, *args: List[Union[list, set, ndarray]]):
+    def __init__(self, *args: list[list | set | ndarray]):
         """Base object to be used for feeding in-memory stored lists of sentences to the
         training routine.
 
@@ -97,7 +96,7 @@ class BaseIndexedList(MutableSequence):
         self._check_str_type(item)
         self.insert(len(self.items), item)
 
-    def extend(self, arg: Union[list, set, ndarray]):
+    def extend(self, arg: list | set | ndarray):
         """Extens list."""
         self._check_list_type(arg)
 
@@ -108,7 +107,7 @@ class BaseIndexedList(MutableSequence):
 
 
 class IndexedList(BaseIndexedList):
-    def __init__(self, *args: Union[list, set, ndarray]):
+    def __init__(self, *args: list | set | ndarray):
         """Quasi-list to be used for feeding in-memory stored lists of sentences to the
         training routine.
 
@@ -117,7 +116,7 @@ class IndexedList(BaseIndexedList):
         args : lists, sets, ndarray
             Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
         """
-        super(IndexedList, self).__init__(*args)
+        super().__init__(*args)
 
     def __getitem__(self, i: int) -> tuple:
         """Getitem method.
@@ -131,9 +130,7 @@ class IndexedList(BaseIndexedList):
 
 
 class CIndexedList(BaseIndexedList):
-    def __init__(
-        self, *args: Union[list, set, ndarray], custom_index: Union[list, ndarray]
-    ):
+    def __init__(self, *args: list | set | ndarray, custom_index: list | ndarray):
         """Quasi-list with custom indices to be used for feeding in-memory stored lists
         of sentences to the training routine.
 
@@ -146,7 +143,7 @@ class CIndexedList(BaseIndexedList):
         """
         self.custom_index = custom_index
 
-        super(CIndexedList, self).__init__(*args)
+        super().__init__(*args)
 
         if len(self.items) != len(self.custom_index):
             raise RuntimeError(
@@ -175,12 +172,12 @@ class CIndexedList(BaseIndexedList):
     def append(self, item: str):
         raise NotImplementedError("Method currently not supported")
 
-    def extend(self, arg: Union[list, set, ndarray]):
+    def extend(self, arg: list | set | ndarray):
         raise NotImplementedError("Method currently not supported")
 
 
 class SplitIndexedList(BaseIndexedList):
-    def __init__(self, *args: Union[list, set, ndarray]):
+    def __init__(self, *args: list | set | ndarray):
         """Quasi-list with string splitting to be used for feeding in-memory stored
         lists of sentences to the training routine.
 
@@ -189,7 +186,7 @@ class SplitIndexedList(BaseIndexedList):
         args : lists, sets, ndarray
             Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
         """
-        super(SplitIndexedList, self).__init__(*args)
+        super().__init__(*args)
 
     def __getitem__(self, i: int) -> tuple:
         """Getitem method.
@@ -203,9 +200,7 @@ class SplitIndexedList(BaseIndexedList):
 
 
 class SplitCIndexedList(BaseIndexedList):
-    def __init__(
-        self, *args: Union[list, set, ndarray], custom_index: Union[list, ndarray]
-    ):
+    def __init__(self, *args: list | set | ndarray, custom_index: list | ndarray):
         """Quasi-list with custom indices and string splitting to be used for feeding
         in-memory stored lists of sentences to the training routine.
 
@@ -218,7 +213,7 @@ class SplitCIndexedList(BaseIndexedList):
         """
         self.custom_index = custom_index
 
-        super(SplitCIndexedList, self).__init__(*args)
+        super().__init__(*args)
 
         if len(self.items) != len(self.custom_index):
             raise RuntimeError(
@@ -247,12 +242,12 @@ class SplitCIndexedList(BaseIndexedList):
     def append(self, item: str):
         raise NotImplementedError("Method currently not supported")
 
-    def extend(self, arg: Union[list, set, ndarray]):
+    def extend(self, arg: list | set | ndarray):
         raise NotImplementedError("Method currently not supported")
 
 
 class CSplitIndexedList(BaseIndexedList):
-    def __init__(self, *args: Union[list, set, ndarray], custom_split: callable):
+    def __init__(self, *args: list | set | ndarray, custom_split: callable):
         """Quasi-list with custom string splitting to be used for feeding in-memory
         stored lists of sentences to the training routine.
 
@@ -264,7 +259,7 @@ class CSplitIndexedList(BaseIndexedList):
             Split function to be used to convert strings into list of str.
         """
         self.custom_split = custom_split
-        super(CSplitIndexedList, self).__init__(*args)
+        super().__init__(*args)
 
     def __getitem__(self, i: int) -> tuple:
         """Getitem method.
@@ -280,9 +275,9 @@ class CSplitIndexedList(BaseIndexedList):
 class CSplitCIndexedList(BaseIndexedList):
     def __init__(
         self,
-        *args: Union[list, set, ndarray],
+        *args: list | set | ndarray,
         custom_split: callable,
-        custom_index: Union[list, ndarray],
+        custom_index: list | ndarray,
     ):
         """Quasi-list with custom indices and ustom string splitting to be used for
         feeding in-memory stored lists of sentences to the training routine.
@@ -299,7 +294,7 @@ class CSplitCIndexedList(BaseIndexedList):
         self.custom_split = custom_split
         self.custom_index = custom_index
 
-        super(CSplitCIndexedList, self).__init__(*args)
+        super().__init__(*args)
 
         if len(self.items) != len(self.custom_index):
             raise RuntimeError(
@@ -328,11 +323,11 @@ class CSplitCIndexedList(BaseIndexedList):
     def append(self, item: str):
         raise NotImplementedError("Method currently not supported")
 
-    def extend(self, arg: Union[list, set, ndarray]):
+    def extend(self, arg: list | set | ndarray):
         raise NotImplementedError("Method currently not supported")
 
 
-class IndexedLineDocument(object):
+class IndexedLineDocument:
     def __init__(self, path, get_able=True):
         """Iterate over a file that contains sentences: one line = tuple([str], int).
 
