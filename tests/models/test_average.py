@@ -333,7 +333,8 @@ def test_train_update_appends_rows(make_w2v, sentences, model_name):
     offset = np.full((1, w2v.wv.vector_size), EPS, dtype=np.float32)
     if model_name != "Average":
         model._post_inference_calls(output=offset)
-    assert np.allclose(model.sv.vectors[60:], model.infer(second) + offset, rtol=1e-4, atol=1e-9)
+    # float32 with a different summation order per BLAS: values near zero differ by about 1e-8.
+    assert np.allclose(model.sv.vectors[60:], model.infer(second) + offset, rtol=1e-4, atol=1e-6)
 
 
 @pytest.mark.parametrize("model_name", ["SIF", "uSIF"])
