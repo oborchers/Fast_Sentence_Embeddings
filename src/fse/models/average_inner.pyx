@@ -94,7 +94,7 @@ cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory):
 
     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
 
-cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sentences):
+cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sentences, n_rows):
     """Prepare C structures for BaseAny2VecModel so we can go "full C" and release the Python GIL.
 
     We create indices over the sentences.  We also perform some calculations for
@@ -124,6 +124,9 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sent
     c.sentence_boundary[0] = ZERO
 
     for obj in indexed_sentences:
+        # The kernel writes into target[obj[1]] through a raw pointer.
+        if not 0 <= obj[1] < n_rows:
+            raise IndexError(f"sentence index {obj[1]} is out of range for {n_rows} target rows")
         if not obj[0]:
             continue
         for token in obj[0]:
@@ -144,7 +147,7 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sent
 
     return eff_sents, eff_words
 
-cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentences):
+cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentences, n_rows):
     """Prepare C structures for FastText so we can go "full C" and release the Python GIL.
 
     We create indices over the sentences.  We also perform some calculations for
@@ -174,6 +177,9 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentence
     c.sentence_boundary[0] = ZERO
 
     for obj in indexed_sentences:
+        # The kernel writes into target[obj[1]] through a raw pointer.
+        if not 0 <= obj[1] < n_rows:
+            raise IndexError(f"sentence index {obj[1]} is out of range for {n_rows} target rows")
         if not obj[0]:
             continue
         for token in obj[0]:
@@ -306,6 +312,40 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
             inv_count = ONEF / sent_len
             saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
 
+def _check_array(array, name, dtype):
+    """Raise unless array is a C-contiguous ndarray of dtype, because the kernel takes raw pointers."""
+    if not isinstance(array, np.ndarray):
+        raise TypeError(f"{name} must be a numpy array, got {type(array).__name__}")
+    if array.dtype != dtype:
+        raise TypeError(f"{name} must have dtype {np.dtype(dtype).name}, got {array.dtype}")
+    if not array.flags.c_contiguous:
+        raise TypeError(f"{name} must be C-contiguous")
+
+
+def _check_inputs(model, target, memory):
+    """Validate every array the kernel reads or writes through a raw pointer."""
+    _check_array(target, "target", np.float32)
+    _check_array(memory[0], "memory[0]", np.float32)
+    _check_array(model.word_weights, "word_weights", np.float32)
+    if model.is_ft:
+        _check_array(model.wv.vectors_vocab, "wv.vectors_vocab", np.float32)
+        _check_array(model.wv.vectors_ngrams, "wv.vectors_ngrams", np.float32)
+        _check_array(memory[1], "memory[1]", np.uint32)
+        if memory[1].size < MAX_WORDS * MAX_NGRAMS:
+            raise ValueError(
+                f"memory[1] must hold at least {MAX_WORDS} x {MAX_NGRAMS} entries, "
+                f"got shape {memory[1].shape}"
+            )
+        size = model.wv.vectors_vocab.shape[1]
+    else:
+        _check_array(model.wv.vectors, "wv.vectors", np.float32)
+        size = model.wv.vectors.shape[1]
+    if target.ndim != 2 or target.shape[1] != size:
+        raise ValueError(f"target must have shape (n, {size}), got {target.shape}")
+    if memory[0].size < size:
+        raise ValueError(f"memory[0] must hold at least {size} entries, got {memory[0].size}")
+
+
 def train_average_cy(model, indexed_sentences, target, memory):
     """Training on a sequence of sentences and update the target ndarray.
 
@@ -335,17 +375,19 @@ def train_average_cy(model, indexed_sentences, target, memory):
     cdef BaseSentenceVecsConfig w2v
     cdef FTSentenceVecsConfig ft
 
+    _check_inputs(model, target, memory)
+
     if not model.is_ft:
         init_base_s2v_config(&w2v, model, target, memory)
 
-        eff_sentences, eff_words = populate_base_s2v_config(&w2v, model.wv, indexed_sentences)
+        eff_sentences, eff_words = populate_base_s2v_config(&w2v, model.wv, indexed_sentences, target.shape[0])
 
         with nogil:
             compute_base_sentence_averages(&w2v, eff_sentences)
     else:
         init_ft_s2v_config(&ft, model, target, memory)
 
-        eff_sentences, eff_words = populate_ft_s2v_config(&ft, model.wv, indexed_sentences)
+        eff_sentences, eff_words = populate_ft_s2v_config(&ft, model.wv, indexed_sentences, target.shape[0])
 
         with nogil:
             compute_ft_sentence_averages(&ft, eff_sentences)

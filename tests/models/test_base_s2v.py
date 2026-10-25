@@ -139,6 +139,32 @@ class TestBaseSentence2VecModel:
         assert se.wv.vectors.shape == shape
         assert se.wv.vectors_ngrams.shape == (2000000, 5)
 
+    def test_save_with_memmap_keeps_live_model(self, ft, tmp_path):
+        """Saving must not remove the vectors from the model that is still in use."""
+        from fse.models.average import Average
+
+        se = Average(ft, wv_mapfile_path=str(tmp_path / "emb"))
+        vectors = se.wv.vectors
+        expected = se.infer([(["the", "product"], 0)])
+        se.save(str(tmp_path / "model"))
+        assert se.wv.vectors is vectors
+        assert np.array_equal(se.infer([(["the", "product"], 0)]), expected)
+
+    def test_save_with_memmap_skips_mapped_vectors(self, ft, tmp_path):
+        """wv.vectors lives in the mapfile and is not written a second time as .npy file."""
+        se = BaseSentence2VecModel(ft, wv_mapfile_path=str(tmp_path / "emb"))
+        se.save(str(tmp_path / "model"))
+        assert not (tmp_path / "model.wv.vectors.npy").exists()
+
+    def test_save_load_with_memmap_twice(self, ft, tmp_path):
+        se = BaseSentence2VecModel(ft, wv_mapfile_path=str(tmp_path / "emb"))
+        expected = np.array(se.wv.vectors_vocab)
+        for cycle in range(2):
+            path = str(tmp_path / f"model_{cycle}")
+            se.save(path)
+            se = BaseSentence2VecModel.load(path)
+            assert np.array_equal(se.wv.vectors_vocab, expected)
+
     def test_map_all_vectors_to_disk(self, ft, tmp_path):
         p = tmp_path / "test_emb"
 

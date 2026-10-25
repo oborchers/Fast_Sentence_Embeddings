@@ -232,3 +232,46 @@ def test_train_with_numpy_custom_index(w2v, sentences):
     expected = Average(w2v)
     expected.train(CIndexedList(sentences, custom_index=custom_index.tolist()))
     assert np.allclose(model.sv.vectors, expected.sv.vectors)
+
+
+class TestKernelInputChecks:
+    """train_average_cy takes raw pointers, so it must reject arrays it cannot use."""
+
+    def _model(self, w2v):
+        model = Average(w2v)
+        _prepare(model, total_sentences=2)
+        return model
+
+    def test_rejects_wrong_dtype_target(self, w2v):
+        model = self._model(w2v)
+        target = np.zeros(model.sv.vectors.shape, dtype=np.float64)
+        with pytest.raises(TypeError, match="target must have dtype float32"):
+            train_average_cy(model, [(["the"], 0)], target, model._get_thread_working_mem())
+
+    def test_rejects_non_contiguous_target(self, w2v):
+        model = self._model(w2v)
+        target = np.zeros((model.sv.vectors.shape[0], 2 * w2v.wv.vector_size), np.float32)
+        with pytest.raises(TypeError, match="C-contiguous"):
+            train_average_cy(model, [(["the"], 0)], target[:, ::2], model._get_thread_working_mem())
+
+    def test_rejects_index_out_of_range(self, w2v):
+        model = self._model(w2v)
+        with pytest.raises(IndexError, match="out of range"):
+            train_average_cy(
+                model, [(["the"], 2)], model.sv.vectors, model._get_thread_working_mem()
+            )
+
+    def test_rejects_small_ngram_buffer(self, ft):
+        model = Average(ft)
+        _prepare(model, total_sentences=1)
+        mem, _ = model._get_thread_working_mem()
+        small = np.zeros((2, 2), dtype=np.uint32)
+        with pytest.raises(ValueError, match="memory\\[1\\] must hold"):
+            train_average_cy(model, [(["the"], 0)], model.sv.vectors, (mem, small))
+
+    def test_small_batch_settings_keep_full_ngram_buffer(self, ft):
+        """batch_words and batch_ngrams below the kernel limits must not shrink the buffer."""
+        model = Average(ft)
+        model.batch_words, model.batch_ngrams = 2, 2
+        _, oov_mem = model._get_thread_working_mem()
+        assert oov_mem.shape == (MAX_WORDS_IN_BATCH, MAX_NGRAMS_IN_BATCH)

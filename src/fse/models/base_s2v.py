@@ -76,6 +76,12 @@ from fse.models.utils import set_madvise_for_mmap
 
 logger = logging.getLogger(__name__)
 
+try:
+    from fse.models.average_inner import MAX_NGRAMS_IN_BATCH, MAX_WORDS_IN_BATCH
+except ImportError:  # pragma: no cover - the numpy fallback has no fixed buffer layout
+    MAX_WORDS_IN_BATCH = 10000
+    MAX_NGRAMS_IN_BATCH = 40
+
 EPS = finfo(REAL).eps
 
 
@@ -499,7 +505,15 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         mem = zeros_aligned(self.sv.vector_size, dtype=REAL)
-        oov_mem = zeros_aligned((self.batch_words, self.batch_ngrams), dtype=uINT)
+        # The Cython kernel strides through the ngram buffer by its compile-time limits,
+        # so the buffer must have at least that size whatever batch_words is set to.
+        oov_mem = zeros_aligned(
+            (
+                max(self.batch_words, MAX_WORDS_IN_BATCH),
+                max(self.batch_ngrams, MAX_NGRAMS_IN_BATCH),
+            ),
+            dtype=uINT,
+        )
         return (mem, oov_mem)
 
     def _do_train_job(
@@ -551,7 +565,6 @@ class BaseSentence2VecModel(SaveLoad):
 
         if model.wv_mapfile_path is not None:
             model._load_all_vectors_from_disk(model.wv_mapfile_path)
-        model.wv_mapfile_shapes = None
 
         set_madvise_for_mmap()
 
@@ -567,10 +580,20 @@ class BaseSentence2VecModel(SaveLoad):
             Path to the file.
 
         """
-        # Manually removes vectors from the wv class because we cannot modify the save method
-        if self.wv_mapfile_path is not None:
+        if self.wv_mapfile_path is None:
+            super().save(*args, **kwargs)
+            return
+
+        # wv.vectors lives in the mapfile and is reopened by load, so it is left out of the
+        # pickle. It is removed only for the duration of the save, because the model stays in
+        # use afterwards. gensim's FastText load needs vectors_vocab and vectors_ngrams, so
+        # those stay in the pickle.
+        vectors = self.wv.vectors
+        try:
             self.wv.vectors = None
-        super().save(*args, **kwargs)
+            super().save(*args, **kwargs)
+        finally:
+            self.wv.vectors = vectors
 
     def scan_sentences(self, sentences: Any = None, progress_per: int = 5) -> dict[str, Any]:
         """Performs an initial scan of the data and reports all corresponding statistics
