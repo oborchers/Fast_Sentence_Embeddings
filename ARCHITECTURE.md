@@ -58,7 +58,7 @@ Subclasses override `_check_parameter_sanity`, `_pre_train_calls`, `_post_train_
 
 Invalid input raises a clear exception at the API boundary. Nothing is coerced, ignored or truncated without an error, and an unexpected keyword argument is an error (`pydantic.ValidationError` at validated entry points). A slower but correct fallback, such as training with one worker, is logged as a warning.
 
-One known gap remains and is scheduled for the next performance change: the Cython kernel stops after 10,000 contributing words per sentence, while the numpy fallback averages the whole sentence.
+Two known gaps remain and are scheduled for the next performance change: the Cython kernel stops after 10,000 contributing words per sentence, and it always uses up to 40 ngrams per out-of-vocabulary word regardless of `batch_ngrams`. The numpy fallback does neither.
 
 Entry points whose own work dwarfs a few microseconds use `fse._validation.validate_arguments`, a strict pydantic `validate_call`: constructors, `train`, `infer`, `from_pretrained` and the similarity searches. Constraints such as `PositiveInt` live in the signatures. Two places check explicitly instead: methods called per element in loops (`similarity`, `get_vector`, `__getitem__`), where validation would add measurable overhead, and the training data, which pydantic would iterate or copy. Parameters that hold data stay `Any` in validated signatures for the same reason; the scan checks them. Integer constraints accept numpy integer scalars, float constraints reject infinity and NaN.
 
