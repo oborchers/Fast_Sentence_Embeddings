@@ -699,7 +699,15 @@ class BaseSentence2VecModel(SaveLoad):
 
         native = getattr(sentences, "_scan_native", None)
         native_stats = None
-        if native is not None and "_check_indexed_sent_valid" not in self.__dict__:
+        own_validator = (
+            "_check_indexed_sent_valid" in self.__dict__
+            or type(self)._check_indexed_sent_valid
+            is not BaseSentence2VecModel._check_indexed_sent_valid
+        )
+        if native is not None:
+            # A Python scan leaves no native chunks, so training then reads tuples too.
+            sentences._clear_native_scan()
+        if native is not None and not own_validator:
             # CorpusFile and TextList scan their bytes in parallel without the GIL; None
             # means the extension is missing and the Python loop below runs instead.
             native_stats = native(workers=self.workers, progress=progress)

@@ -477,12 +477,25 @@ _CHUNK_MAX_BYTES = 1 << 20
 
 
 class _NativeSource:
-    """A contiguous UTF-8 buffer: the lines of a file, or strings delimited by offsets."""
+    """A contiguous UTF-8 buffer: the lines of a file, or strings delimited by offsets.
 
-    def __init__(self, data: Any, offsets: ndarray | None, keep: Any = None):
+    For a file, the buffer is a read-only memory map. Its fingerprint is read from the
+    descriptor that was mapped; later checks compare it with the file at path.
+    """
+
+    def __init__(
+        self,
+        data: Any,
+        offsets: ndarray | None,
+        path: Path | None = None,
+        mapped: Any = None,
+        fingerprint: Any = None,
+    ):
         self.data = data
         self.offsets = offsets
-        self._keep = keep  # the mmap or file object that owns data
+        self._path = path
+        self._mapped = mapped
+        self.fingerprint = fingerprint
 
     @property
     def size(self) -> int:
@@ -493,8 +506,66 @@ class _NativeSource:
         """The first line start at or after position (line mode)."""
         if position == 0 or self.data[position - 1] == 10:
             return position
-        newline = self._keep.find(b"\n", position) if self._keep is not None else -1
+        newline = self._mapped.find(b"\n", position)
         return len(self.data) if newline < 0 else newline + 1
+
+    def sentence_bounds(self, byte: int) -> tuple[int, int, int]:
+        """Start and end byte of the sentence that contains byte, and its number."""
+        if self.offsets is not None:
+            k = int(numpy.searchsorted(self.offsets, byte, side="right")) - 1
+            return int(self.offsets[k]), int(self.offsets[k + 1]), k
+        start = self._mapped.rfind(b"\n", 0, byte) + 1
+        end = self._mapped.find(b"\n", byte)
+        return start, len(self.data) if end < 0 else end, -1
+
+    def close(self):
+        """Release the map early; otherwise it is released with the last reference."""
+        if self._mapped is not None:
+            self.data.release()
+            self._mapped.close()
+            self._mapped = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def changed(self) -> bool:
+        """Whether the file differs from the one this source mapped (always False for strings)."""
+        if self.fingerprint is None or self._path is None:
+            return False
+        try:
+            return _stat_fingerprint(os.stat(self._path)) != self.fingerprint
+        except OSError:
+            return True
+
+
+def _stat_fingerprint(stat: os.stat_result) -> tuple[int, int, int, int]:
+    """Identity and version of a file: device, inode, size and modification time."""
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+
+
+def _decode_error(source: _NativeSource, byte: int, sentence: int) -> UnicodeDecodeError:
+    """The error Python's decoder raises for the sentence, naming its number and offset."""
+    start, end, _ = source.sentence_bounds(byte)
+    raw = bytes(source.data[start:end])
+    try:
+        raw.decode("utf-8")
+    except UnicodeDecodeError as err:
+        return UnicodeDecodeError(
+            err.encoding,
+            err.object,
+            err.start,
+            err.end,
+            f"{err.reason} in sentence {sentence} (byte {start + err.start} of the source)",
+        )
+    raise RuntimeError(f"no UTF-8 error in the sentence at byte {byte}")  # pragma: no cover
+
+
+# Ranges of at most this many bytes per scan task, so progress is reported and a failed or
+# interrupted scan stops after a bounded amount of work.
+_SCAN_RANGE_MAX_BYTES = 1 << 26
 
 
 def _scan_native(owner: Any, workers: int, progress: Callable[[int, int], None]) -> dict | None:
@@ -507,9 +578,17 @@ def _scan_native(owner: Any, workers: int, progress: Callable[[int, int], None])
     if scan_spans is None:
         return None
 
-    source = owner._open_source()
+    with owner._open_source() as source:
+        return _scan_source(owner, source, workers, progress)
+
+
+def _scan_source(
+    owner: Any, source: _NativeSource, workers: int, progress: Callable[[int, int], None]
+) -> dict:
+    """The body of _scan_native for an open source."""
     size = source.size
-    n_ranges = max(1, min(4 * workers, size))
+    total_bytes = len(source.data)
+    n_ranges = max(1, min(max(4 * workers, -(-total_bytes // _SCAN_RANGE_MAX_BYTES)), size))
     bounds = [0]
     for k in range(1, n_ranges):
         position = size * k // n_ranges
@@ -519,39 +598,34 @@ def _scan_native(owner: Any, workers: int, progress: Callable[[int, int], None])
             bounds.append(position)
     if bounds[-1] != size:
         bounds.append(size)
-    bounds = sorted(set(bounds))
     ranges = list(pairwise(bounds))
-
-    total_bytes = len(source.data)
     chunk_bytes = max(_CHUNK_MIN_BYTES, min(_CHUNK_MAX_BYTES, total_bytes // max(8 * workers, 1)))
 
     def scan(span: tuple[int, int]):
         return scan_spans(source.data, source.offsets, span[0], span[1], chunk_bytes)
 
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        results = list(pool.map(scan, ranges))
-
     total_sentences = total_words = empty = 0
     chunks: list[tuple[int, int, int, int]] = []
-    for sentences, tokens, empty_here, range_chunks, error_byte, error_sentence in results:
-        if error_byte >= 0:
-            line = total_sentences + error_sentence
-            raise UnicodeDecodeError(
-                "utf-8",
-                bytes(source.data[error_byte : error_byte + 4]),
-                0,
-                1,
-                f"invalid UTF-8 in sentence {line} at byte {error_byte}",
-            )
-        bounds_here = [first for _, _, first in range_chunks] + [sentences]
-        for (start, end, first), next_first in zip(range_chunks, bounds_here[1:], strict=True):
-            chunks.append((start, end, total_sentences + first, next_first - first))
-        total_sentences += sentences
-        total_words += tokens
-        empty += empty_here
-        progress(total_sentences, total_words)
+    pool = ThreadPoolExecutor(max_workers=max(1, workers))
+    try:
+        # map yields the results in order as they finish, so progress and errors are
+        # handled during the scan; pending ranges are cancelled on an error.
+        for sentences, tokens, empty_here, range_chunks, error_byte, error_sentence in pool.map(
+            scan, ranges
+        ):
+            if error_byte >= 0:
+                raise _decode_error(source, error_byte, total_sentences + error_sentence)
+            firsts = [first for _, _, first in range_chunks] + [sentences]
+            for (start, end, first), following in zip(range_chunks, firsts[1:], strict=True):
+                chunks.append((start, end, total_sentences + first, following - first))
+            total_sentences += sentences
+            total_words += tokens
+            empty += empty_here
+            progress(total_sentences, total_words)
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
 
-    owner._scan_state = (owner._fingerprint(), chunks)
+    owner._scan_state = (source.fingerprint, chunks)
     return {
         "total_sentences": total_sentences,
         "total_words": total_words,
@@ -570,8 +644,11 @@ class CorpusFile:
     compiled extension, scan and training read, split and look up the words without the
     GIL in every worker; without it, CorpusFile is iterated like IndexedLineDocument.
 
-    Compressed or remote files are not supported; use IndexedLineDocument for those.
-    The file must not change between the scan and the end of training.
+    Compressed or remote files are not supported; use IndexedLineDocument for compressed
+    files. The file is memory-mapped and must not change from the scan to the end of
+    training: a replaced or modified file is detected through its device, inode, size and
+    modification time and raises, but a file truncated while it is read can end the
+    process with SIGBUS on Linux, as for any memory map.
     """
 
     @validate_arguments
@@ -585,10 +662,10 @@ class CorpusFile:
                 "Use IndexedLineDocument for compressed files."
             )
         self._scan_state: Any = None
-        self._line_offsets: ndarray | None = None
+        self._line_offsets: tuple[Any, ndarray] | None = None
 
     def __getstate__(self):
-        # The scan state and line offsets belong to one call and are rebuilt on demand.
+        # The scan state and line offsets belong to one file version and are rebuilt.
         return {"path": self.path}
 
     def __setstate__(self, state):
@@ -604,64 +681,79 @@ class CorpusFile:
 
     def __len__(self) -> int:
         """Number of lines."""
-        data = numpy.frombuffer(self._open_source().data, dtype=numpy.uint8)
-        if not len(data):
-            return 0
-        # Count in blocks, so the comparison never needs a temporary as large as the file.
-        block = 1 << 26
-        count = sum(
-            int(numpy.count_nonzero(data[i : i + block] == 10)) for i in range(0, len(data), block)
-        )
-        return count + (0 if data[-1] == 10 else 1)
+        with self._open_source() as source:
+            data = numpy.frombuffer(source.data, dtype=numpy.uint8)
+            if not len(data):
+                return 0
+            # Count in blocks, so no temporary is as large as the file.
+            block = 1 << 26
+            count = sum(
+                int(numpy.count_nonzero(data[i : i + block] == 10))
+                for i in range(0, len(data), block)
+            )
+            last_is_newline = data[-1] == 10
+            del data  # the map can only close without exported buffers
+        return count + (0 if last_is_newline else 1)
 
     def __getitem__(self, i: int) -> str:
-        """The line i without its line break, for the indexable of most_similar."""
-        if self._line_offsets is None:
-            data = numpy.frombuffer(self._open_source().data, dtype=numpy.uint8)
-            starts = numpy.flatnonzero(data == 10) + 1
-            if len(data) and data[-1] != 10:
-                starts = numpy.append(starts, len(data) + 1)
-            self._line_offsets = numpy.concatenate([[0], starts]).astype(numpy.int64)
-        offsets = self._line_offsets
-        if not -(len(offsets) - 1) <= i < len(offsets) - 1:
-            raise IndexError(f"line {i} is out of range for {len(offsets) - 1} lines")
-        i %= len(offsets) - 1
-        with builtins.open(self.path, "rb") as f:
-            f.seek(int(offsets[i]))
+        """The line i without trailing whitespace, for the indexable of most_similar."""
+        with self._open_source() as source:
+            if self._line_offsets is None or self._line_offsets[0] != source.fingerprint:
+                data = numpy.frombuffer(source.data, dtype=numpy.uint8)
+                starts = numpy.flatnonzero(data == 10) + 1
+                if len(data) and data[-1] != 10:
+                    starts = numpy.append(starts, len(data))
+                del data  # the map can only close without exported buffers
+                offsets = numpy.concatenate([[0], starts]).astype(numpy.int64)
+                self._line_offsets = (source.fingerprint, offsets)
+            offsets = self._line_offsets[1]
+            n = len(offsets) - 1
+            if not -n <= i < n:
+                raise IndexError(f"line {i} is out of range for {n} lines")
+            i %= n
             # rstrip() as in IndexedLineDocument.__getitem__.
-            return any2unicode(f.read(int(offsets[i + 1] - offsets[i]))).rstrip()
+            return any2unicode(bytes(source.data[offsets[i] : offsets[i + 1]])).rstrip()
 
-    def _fingerprint(self) -> tuple[int, int]:
-        stat = os.stat(self.path)
-        return (stat.st_size, stat.st_mtime_ns)
+    def _clear_native_scan(self):
+        self._scan_state = None
 
     def _open_source(self) -> _NativeSource:
-        with builtins.open(self.path, "rb") as f:
-            if os.fstat(f.fileno()).st_size == 0:
-                return _NativeSource(b"", None)
-            mapped = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-        return _NativeSource(memoryview(mapped), None, keep=mapped)
+        with builtins.open(self.path, "rb") as file:
+            # The fingerprint of exactly the file that is mapped, read from its descriptor.
+            fingerprint = _stat_fingerprint(os.fstat(file.fileno()))
+            if fingerprint[2] == 0:
+                return _NativeSource(b"", None, self.path, fingerprint=fingerprint)
+            # The map stays valid after the file is closed.
+            mapped = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+        return _NativeSource(memoryview(mapped), None, self.path, mapped, fingerprint)
 
     def _scan_native(self, workers: int, progress: Callable[[int, int], None]) -> dict | None:
         return _scan_native(self, workers, progress)
 
-    def _native_chunks(self) -> tuple[_NativeSource, list[tuple[int, int, int, int]]]:
-        """The source and the chunks of the last scan; raises if the file changed since."""
+    def _native_chunks(self) -> tuple[_NativeSource, list[tuple[int, int, int, int]]] | None:
+        """Source and chunks of the last native scan, or None after a Python scan.
+
+        Raises if the file now differs from the scanned one.
+        """
         if self._scan_state is None:
-            raise RuntimeError("CorpusFile must be scanned before training")
+            return None
         fingerprint, chunks = self._scan_state
-        if self._fingerprint() != fingerprint:
+        source = self._open_source()
+        if source.fingerprint != fingerprint:
+            source.close()
             raise RuntimeError(f"{self.path} changed between the scan and training")
-        return self._open_source(), chunks
+        return source, chunks
 
 
 class TextList:
     """Strings in memory, one sentence each, split natively like str.split().
 
-    The index of a sentence is its position. The strings are copied once into a UTF-8
-    buffer, so later changes to the passed list are not seen. The sentences equal those of
-    SplitIndexedList; with the compiled extension they are split and looked up without the
-    GIL in every worker.
+    The index of a sentence is its position. The strings are encoded once into a UTF-8
+    buffer when the TextList is created, so later changes to the passed list are not seen
+    and strings that cannot be encoded, such as lone surrogates, raise at once. Items must
+    be str or numpy str_; use SplitIndexedList for str subclasses with their own split().
+    The sentences equal those of SplitIndexedList; with the compiled extension they are
+    split and looked up without the GIL in every worker.
     """
 
     def __init__(self, strings: list | tuple | ndarray):
@@ -673,19 +765,35 @@ class TextList:
             raise TypeError(f"TextList takes a list, tuple or ndarray of str, got {type(strings)}")
         items = []
         for i, s in enumerate(strings):
-            if not isinstance(s, str):
-                raise TypeError(f"At {i}: TextList items must be str, got {type(s)}")
+            if type(s) is not str and not isinstance(s, numpy.str_):
+                raise TypeError(
+                    f"At {i}: TextList items must be str, got {type(s)}. "
+                    "Use SplitIndexedList for other types."
+                )
             items.append(str(s))
         self.items = tuple(items)
-        self._source: _NativeSource | None = None
+        self._source = self._encode()
         self._scan_state: Any = None
+
+    def _encode(self) -> _NativeSource:
+        encoded = []
+        for i, s in enumerate(self.items):
+            try:
+                encoded.append(s.encode("utf-8"))
+            except UnicodeEncodeError as err:
+                raise UnicodeEncodeError(
+                    err.encoding, err.object, err.start, err.end, f"{err.reason} in string {i}"
+                ) from None
+        offsets = numpy.zeros(len(encoded) + 1, dtype=numpy.int64)
+        numpy.cumsum([len(e) for e in encoded], out=offsets[1:])
+        return _NativeSource(b"".join(encoded), offsets)
 
     def __getstate__(self):
         return {"items": self.items}
 
     def __setstate__(self, state):
         self.items = state["items"]
-        self._source = None
+        self._source = self._encode()
         self._scan_state = None
 
     def __iter__(self) -> Iterator[tuple]:
@@ -699,21 +807,17 @@ class TextList:
         """The string i, for the indexable of most_similar."""
         return self.items[i]
 
-    def _fingerprint(self) -> None:
-        return None
+    def _clear_native_scan(self):
+        self._scan_state = None
 
     def _open_source(self) -> _NativeSource:
-        if self._source is None:
-            encoded = [s.encode("utf-8") for s in self.items]
-            offsets = numpy.zeros(len(encoded) + 1, dtype=numpy.int64)
-            numpy.cumsum([len(e) for e in encoded], out=offsets[1:])
-            self._source = _NativeSource(b"".join(encoded), offsets)
         return self._source
 
     def _scan_native(self, workers: int, progress: Callable[[int, int], None]) -> dict | None:
         return _scan_native(self, workers, progress)
 
-    def _native_chunks(self) -> tuple[_NativeSource, list[tuple[int, int, int, int]]]:
+    def _native_chunks(self) -> tuple[_NativeSource, list[tuple[int, int, int, int]]] | None:
+        """Source and chunks of the last native scan, or None after a Python scan."""
         if self._scan_state is None:
-            raise RuntimeError("TextList must be scanned before training")
-        return self._open_source(), self._scan_state[1]
+            return None
+        return self._source, self._scan_state[1]

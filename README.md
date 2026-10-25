@@ -179,7 +179,7 @@ Every model trains on `(tokens, index)` tuples; the input classes produce them. 
 | Tokenized sentences in memory | `IndexedList(sentences)` | already split | position |
 | Raw strings in memory | `TextList(strings)` | like `str.split()`, native | position |
 | A local UTF-8 text file, one sentence per line | `CorpusFile(path)` | like `str.split()`, native | line number |
-| A compressed or remote file (via smart_open) | `IndexedLineDocument(path)` | `str.split()` in Python | line number |
+| A compressed local file (`.gz`, `.bz2`, ... via smart_open) | `IndexedLineDocument(path)` | `str.split()` in Python | line number |
 | Your own splitting or indices | `CSplitIndexedList`, `CIndexedList`, `CSplitCIndexedList` | your function | yours |
 
 ```python
@@ -190,7 +190,7 @@ model.train(CorpusFile("sentences.txt"))  # line i of the file is sentence i
 vectors = model.infer(TextList(["cat say meow", "dog say woof"]))
 ```
 
-`CorpusFile` and `TextList` give exactly the sentences of `IndexedLineDocument` and `SplitIndexedList`: a line ends at `\n`, text is decoded strictly as UTF-8, and words are split at every character for which `str.isspace()` is true. Invalid UTF-8 raises a `UnicodeDecodeError` that names the sentence. The file must not change while it is trained on.
+`CorpusFile` and `TextList` give exactly the sentences of `IndexedLineDocument` and `SplitIndexedList`: a line ends at `\n`, text is decoded strictly as UTF-8, and words are split at every character for which `str.isspace()` is true. Invalid UTF-8 raises a `UnicodeDecodeError` that names the sentence. The file must not change from the scan to the end of training: a modified or replaced file raises an error, but truncating a memory-mapped file while it is read can end the process on Linux.
 
 To keep only close matches, pass `min_similarity` to `most_similar` or the `similar_by_*` methods:
 

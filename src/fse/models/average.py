@@ -324,8 +324,9 @@ class Average(BaseSentence2VecModel):
             offset, base = sentences.offset, sentences.sentences
         else:
             base = sentences
-        if hasattr(base, "_native_chunks"):
-            source, chunks = base._native_chunks()
+        native = base._native_chunks() if hasattr(base, "_native_chunks") else None
+        if native is not None:
+            source, chunks = native
             return _ChunkFeeder(source, VocabTable(self.wv.key_to_index), chunks, offset)
         return JobEncoder(context, sentences, self.batch_words)
 
@@ -334,7 +335,7 @@ class Average(BaseSentence2VecModel):
     ) -> tuple[int, int]:
         """Average an encoded job or a native chunk without the GIL."""
         if isinstance(job, _NativeChunk):
-            return run_chunk(
+            counts = run_chunk(
                 context,
                 job.table,
                 job.source.data,
@@ -344,6 +345,10 @@ class Average(BaseSentence2VecModel):
                 job.first_row,
                 memory[0],
             )
+            # A file changed while this chunk was read would have given wrong vectors.
+            if job.source.changed():
+                raise RuntimeError("the input file changed during training")
+            return counts
         return run_job(context, job, memory[0])
 
     def _do_train_job(

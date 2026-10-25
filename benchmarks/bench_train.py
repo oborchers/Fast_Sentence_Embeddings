@@ -3,8 +3,9 @@
 Every configuration runs in a fresh subprocess, so BLAS thread settings and
 interpreter state cannot leak between measurements. Each subprocess builds the
 same synthetic corpus from a fixed seed, trains several times and reports the
-median wall time of ``model.train`` end to end (scan, preparation, training and
-component removal) and of the training phase alone (``_train_manager``).
+median wall time of creating the input and ``model.train`` end to end (scan,
+preparation, training and component removal), and of the training phase alone
+(``_train_manager``).
 
 Results are only comparable on an idle machine. The script records the load
 average before every configuration and warns when it exceeds a quarter of the
@@ -85,19 +86,23 @@ def build_model(name: str, vocab: list[str], dim: int, workers: int, seed: int):
 
 
 def build_input(name: str, sentences: list[list[str]], tmpdir: Path):
-    """Wrap the corpus in the requested fse input class."""
+    """Return a function that creates the requested fse input class for the corpus.
+
+    The measurement includes creating the input, such as encoding the strings of a
+    TextList or indexing the lines of an IndexedLineDocument; writing the file does not.
+    """
     if name == "IndexedList":
-        return IndexedList(sentences)
+        return lambda: IndexedList(sentences)
     lines = [" ".join(s) for s in sentences]
     if name == "SplitIndexedList":
-        return SplitIndexedList(lines)
+        return lambda: SplitIndexedList(lines)
     if name == "TextList":
-        return TextList(lines)
+        return lambda: TextList(lines)
     path = tmpdir / "corpus.txt"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     if name == "CorpusFile":
-        return CorpusFile(path)
-    return IndexedLineDocument(str(path))
+        return lambda: CorpusFile(path)
+    return lambda: IndexedLineDocument(str(path))
 
 
 def run_one(cfg: dict) -> dict:
@@ -108,7 +113,7 @@ def run_one(cfg: dict) -> dict:
         cfg["sentences"], cfg["length"], cfg["vocab"], cfg["oov"], cfg["seed"]
     )
     with tempfile.TemporaryDirectory() as tmp:
-        data = build_input(cfg["input"], sentences, Path(tmp))
+        make_input = build_input(cfg["input"], sentences, Path(tmp))
         times, train_times = [], []
         for _ in range(cfg["repeats"]):
             model = build_model(cfg["model"], vocab, cfg["dim"], cfg["workers"], cfg["seed"])
@@ -124,7 +129,7 @@ def run_one(cfg: dict) -> dict:
 
             model._train_manager = timed_manager
             start = time.perf_counter()
-            model.train(data)
+            model.train(make_input())
             times.append(time.perf_counter() - start)
             train_times.append(phase[0])
     median = statistics.median(times)

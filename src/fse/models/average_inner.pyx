@@ -28,6 +28,7 @@ from cpython.pythread cimport (
     PyThread_free_lock,
     PyThread_release_lock,
 )
+from libc.stdint cimport SIZE_MAX
 from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport memchr, memcmp, memcpy, memset
 
@@ -156,6 +157,10 @@ cdef PyThread_type_lock *_row_locks_of(model):
 cdef uINT_t OOV_TOKEN = <uINT_t>0xFFFFFFFE
 
 
+# More ngrams than any word of a real corpus has; a bound that keeps buffer sizes in range.
+MAX_NGRAMS_LIMIT = 1 << 24
+
+
 cdef class KernelContext:
     """Read-only state of one train or infer call, shared by all workers.
 
@@ -185,6 +190,10 @@ cdef class KernelContext:
             self.params.min_n = wv.min_n
             self.params.max_n = wv.max_n
             self.params.bucket = wv.bucket
+            if not 1 <= model.batch_ngrams <= MAX_NGRAMS_LIMIT:
+                raise ValueError(
+                    f"batch_ngrams must be between 1 and {MAX_NGRAMS_LIMIT}, got {model.batch_ngrams}"
+                )
             self.params.max_ngrams = model.batch_ngrams
             # Unknown words are weighted like the most heavily weighted known word.
             self.params.oov_weight = <REAL_t>np.max(model.word_weights)
@@ -658,11 +667,11 @@ cdef inline int _utf8_len(const unsigned char *p, Py_ssize_t i, Py_ssize_t end) 
     if b < 0xC2:
         return 0
     if b < 0xE0:
-        if i + 1 < end and (p[i + 1] & 0xC0) == 0x80:
+        if end - i >= 2 and (p[i + 1] & 0xC0) == 0x80:
             return 2
         return 0
     if b < 0xF0:
-        if i + 2 >= end:
+        if end - i < 3:
             return 0
         c = p[i + 1]
         if (b == 0xE0 and c < 0xA0) or (b == 0xED and c > 0x9F):
@@ -671,7 +680,7 @@ cdef inline int _utf8_len(const unsigned char *p, Py_ssize_t i, Py_ssize_t end) 
             return 0
         return 3
     if b < 0xF5:
-        if i + 3 >= end:
+        if end - i < 4:
             return 0
         c = p[i + 1]
         if (b == 0xF0 and c < 0x90) or (b == 0xF4 and c > 0x8F):
@@ -830,6 +839,34 @@ cdef Py_ssize_t _count_tokens(
     return tokens
 
 
+def _check_span(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssize_t last):
+    """Raise unless [first, last) is a valid range of whole sentences of data.
+
+    The native routines read through raw pointers without bounds checks, so every range
+    and offset they get is checked here: lines must start at first and at last; offsets
+    must cover the range, stay inside data and never decrease.
+    """
+    cdef Py_ssize_t n = data.shape[0]
+    cdef np.int64_t[::1] item_offsets
+    cdef Py_ssize_t i
+    if offsets is None:
+        if not 0 <= first <= last <= n:
+            raise ValueError(f"range [{first}, {last}) is outside the {n} bytes of the source")
+        if first > 0 and data[first - 1] != 10:
+            raise ValueError(f"range start {first} is not the start of a line")
+        if 0 < last < n and data[last - 1] != 10:
+            raise ValueError(f"range end {last} is not the start of a line")
+        return
+    item_offsets = offsets
+    if not 0 <= first <= last <= item_offsets.shape[0] - 1:
+        raise ValueError(f"range [{first}, {last}) is outside the {item_offsets.shape[0] - 1} strings")
+    if item_offsets[first] < 0 or item_offsets[last] > n:
+        raise ValueError("string offsets point outside the source")
+    for i in range(first, last):
+        if item_offsets[i + 1] < item_offsets[i]:
+            raise ValueError(f"string offsets decrease at {i}")
+
+
 def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssize_t last,
                Py_ssize_t chunk_bytes):
     """Validate and count the sentences of one scan range, without the GIL.
@@ -842,6 +879,7 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
     list of (start, end, first_sentence) with positions in the same unit as the range and
     sentence numbers relative to the range; error_byte is -1 if the range is valid.
     """
+    _check_span(data, offsets, first, last)
     cdef Py_ssize_t n = data.shape[0]
     cdef const unsigned char *p = &data[0] if n else NULL
     cdef bint lines = offsets is None
@@ -905,7 +943,7 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
 
 
 cdef int _push_u32_nogil(_Buffer *b, uINT_t value) noexcept nogil:
-    if b.size + <Py_ssize_t>sizeof(uINT_t) > b.capacity:
+    if <Py_ssize_t>sizeof(uINT_t) > b.capacity - b.size:
         if _grow_nogil(b, sizeof(uINT_t)) != 0:
             return -1
     (<uINT_t *>(b.data + b.size))[0] = value
@@ -914,7 +952,7 @@ cdef int _push_u32_nogil(_Buffer *b, uINT_t value) noexcept nogil:
 
 
 cdef int _push_i64_nogil(_Buffer *b, np.int64_t value) noexcept nogil:
-    if b.size + <Py_ssize_t>sizeof(np.int64_t) > b.capacity:
+    if <Py_ssize_t>sizeof(np.int64_t) > b.capacity - b.size:
         if _grow_nogil(b, sizeof(np.int64_t)) != 0:
             return -1
     (<np.int64_t *>(b.data + b.size))[0] = value
@@ -923,7 +961,7 @@ cdef int _push_i64_nogil(_Buffer *b, np.int64_t value) noexcept nogil:
 
 
 cdef int _push_bytes_nogil(_Buffer *b, const unsigned char *data, Py_ssize_t n) noexcept nogil:
-    if b.size + n > b.capacity:
+    if n > b.capacity - b.size:
         if _grow_nogil(b, n) != 0:
             return -1
     memcpy(b.data + b.size, data, n)
@@ -970,6 +1008,7 @@ cdef int _average_spans(
     cdef bint lines = item_offsets == NULL
     cdef Py_ssize_t pos = first, span_start, span_end, next_pos, i, token_start, k
     cdef Py_ssize_t longest, capacity
+    cdef size_t per_word, needed
     cdef np.int64_t row = first_row
     cdef const unsigned char *newline
     cdef bint inside
@@ -1039,7 +1078,11 @@ cdef int _average_spans(
         if seen:
             eff_sentences[0] += 1
         if words.size:
-            capacity = min(<Py_ssize_t>p.max_ngrams, longest * max(<Py_ssize_t>p.max_n, 1))
+            # A word of b bytes has fewer than b * max_n ngrams; batch_ngrams is at most
+            # MAX_NGRAMS_LIMIT, so capacity * 4 cannot overflow.
+            per_word = max(<size_t>p.max_n, 1)
+            needed = <size_t>longest * per_word if <size_t>longest <= SIZE_MAX // per_word else SIZE_MAX
+            capacity = <Py_ssize_t>min(p.max_ngrams, needed)
             if capacity * <Py_ssize_t>sizeof(uINT_t) > ngrams.capacity:
                 if _grow_nogil(ngrams, capacity * sizeof(uINT_t) - ngrams.size) != 0:
                     return NATIVE_NO_MEMORY
@@ -1066,6 +1109,9 @@ def run_chunk(KernelContext ctx, VocabTable table, const unsigned char[::1] data
     _check_array(scratch, "scratch", np.float32)
     if scratch.size < ctx.params.size:
         raise ValueError(f"scratch must hold at least {ctx.params.size} entries")
+    _check_span(data, offsets, first, last)
+    if first_row < 0:
+        raise ValueError(f"first_row must be non-negative, got {first_row}")
     cdef Py_ssize_t n = data.shape[0]
     cdef const unsigned char *p = &data[0] if n else NULL
     cdef np.int64_t[::1] item_offsets

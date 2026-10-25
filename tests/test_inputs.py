@@ -419,15 +419,16 @@ class TestTextList:
         assert list(texts) == [(["the", "dog"], 0), (["is", "good"], 1)]
         assert all(type(s) is str for s in texts.items)
 
-    def test_rejects_unencodable_strings(self, native_w2v):
-        with pytest.raises(UnicodeEncodeError):
-            fse.Average(native_w2v).train(TextList(["the \ud800"]))
+    def test_rejects_unencodable_strings(self):
+        """Raised when the TextList is created, with and without the extension."""
+        with pytest.raises(UnicodeEncodeError, match="in string 1"):
+            TextList(["the dog", "the \ud800"])
 
     def test_pickles_without_native_state(self, native_w2v):
         texts = TextList(["the dog"])
         fse.Average(native_w2v).train(texts)
         restored = pickle.loads(pickle.dumps(texts))
-        assert restored._source is None
+        assert restored._scan_state is None
         assert list(restored) == list(texts)
 
 
@@ -471,16 +472,37 @@ def test_native_inputs_use_native_chunks(tmp_path, native_w2v, monkeypatch):
     assert calls
 
 
-def test_fallback_without_the_extension_gives_the_same_vectors(tmp_path, native_w2v, monkeypatch):
+@pytest.mark.parametrize("kind", ["w2v", "ft"])
+@pytest.mark.parametrize("input_name", ["CorpusFile", "TextList"])
+def test_fallback_without_the_extension_gives_the_same_vectors(
+    tmp_path, native_w2v, native_ft, monkeypatch, kind, input_name
+):
+    """With the scan, the kernel and train_average replaced by numpy, results match."""
     from fse import inputs
+    from fse.models import average
 
-    path = _write(tmp_path, _corpus_text(lines=500).encode())
-    native = fse.Average(native_w2v, workers=2)
-    native.train(CorpusFile(path))
+    text = _corpus_text(lines=500)
+    path = _write(tmp_path, text.encode())
+
+    def make():
+        return CorpusFile(path) if input_name == "CorpusFile" else TextList(text.splitlines())
+
+    wv = native_w2v if kind == "w2v" else native_ft
+    native = fse.Average(wv, workers=2)
+    native_counts = native.train(make())
+
+    calls = []
+
+    def numpy_only(*args, **kwargs):
+        calls.append(1)
+        return average.train_average_np(*args, **kwargs)
+
     monkeypatch.setattr(inputs, "scan_spans", None)
+    monkeypatch.setattr(average, "train_average", numpy_only)
     monkeypatch.setattr(fse.Average, "_kernel_context", lambda self, target: None)
-    fallback = fse.Average(native_w2v, workers=2)
-    fallback.train(CorpusFile(path))
+    fallback = fse.Average(wv, workers=2)
+    assert fallback.train(make()) == native_counts
+    assert calls
     np.testing.assert_allclose(native.sv.vectors, fallback.sv.vectors, rtol=1e-5, atol=1e-7)
 
 
@@ -578,6 +600,120 @@ def test_scan_hook_is_skipped_for_replaced_validators(tmp_path, native_w2v):
     model._check_indexed_sent_valid = reject
     with pytest.raises(ValueError, match="custom validator"):
         model.scan_sentences(CorpusFile(path))
+
+
+@pytest.mark.parametrize("where", ["instance", "subclass"])
+def test_own_validators_see_every_sentence_and_training_still_works(tmp_path, native_w2v, where):
+    """A custom validator forces the Python scan, and training then reads tuples as well."""
+    path = _write(tmp_path, _corpus_text(lines=300).encode())
+    seen = []
+
+    def validate(self, iter_pos, obj):
+        seen.append(iter_pos)
+        return fse.Average._check_indexed_sent_valid(self, iter_pos, obj)
+
+    if where == "subclass":
+        model = type("Checked", (fse.Average,), {"_check_indexed_sent_valid": validate})(native_w2v)
+    else:
+        model = fse.Average(native_w2v)
+        model._check_indexed_sent_valid = validate.__get__(model)
+    model.train(CorpusFile(path))
+    reference = fse.Average(native_w2v)
+    reference.train(IndexedLineDocument(path))
+    assert len(seen) == len(CorpusFile(path))
+    assert np.array_equal(model.sv.vectors, reference.sv.vectors)
+
+
+def test_utf8_errors_carry_the_attributes_of_python(tmp_path, native_w2v):
+    data = b"ok\nab\xff cd\nthe \xe2\x82"
+    path = _write(tmp_path, data)
+    with pytest.raises(UnicodeDecodeError) as native:
+        fse.Average(native_w2v).scan_sentences(CorpusFile(path))
+    with pytest.raises(UnicodeDecodeError) as python:
+        b"ab\xff cd".decode("utf-8")
+    assert (native.value.object, native.value.start, native.value.end) == (
+        python.value.object,
+        python.value.start,
+        python.value.end,
+    )
+    assert "sentence 1 (byte 5 of the source)" in str(native.value)
+
+
+def test_replaced_file_with_the_same_size_and_time_is_detected(tmp_path, native_w2v):
+    """The fingerprint includes device and inode, not only size and modification time."""
+    import os
+
+    path = _write(tmp_path, b"the dog\n")
+    corpus = CorpusFile(path)
+    fse.Average(native_w2v).scan_sentences(corpus)
+    stat = os.stat(path)
+    replacement = _write(tmp_path, b"dog the\n", "replacement.txt")
+    os.utime(replacement, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    os.replace(replacement, path)
+    with pytest.raises(RuntimeError, match="changed between the scan and training"):
+        corpus._native_chunks()
+
+
+def test_change_during_training_is_detected(tmp_path, native_w2v, monkeypatch):
+    """A file modified after the chunks were handed out raises at the end of training."""
+    import os
+
+    from fse.models import average
+
+    path = _write(tmp_path, _corpus_text(lines=200).encode())
+    original = average.run_chunk
+
+    def touch_then_run(*args):
+        os.utime(path, ns=(1, 1))
+        return original(*args)
+
+    monkeypatch.setattr(average, "run_chunk", touch_then_run)
+    with pytest.raises(RuntimeError, match="changed during training"):
+        fse.Average(native_w2v, workers=2).train(CorpusFile(path))
+
+
+@pytest.mark.parametrize(
+    ("offsets", "first", "last", "message"),
+    [
+        (None, 0, 99, "outside"),
+        (None, 3, 9, "not the start of a line"),
+        (None, -1, 2, "outside"),
+        (np.array([0, 4], dtype=np.int64), 0, 2, "outside"),
+        (np.array([0, 99], dtype=np.int64), 0, 1, "outside the source"),
+        (np.array([0, 5, 2, 9], dtype=np.int64), 0, 3, "decrease"),
+    ],
+)
+def test_native_entry_points_validate_ranges(native_w2v, offsets, first, last, message):
+    from fse.models.average_inner import KernelContext, VocabTable, run_chunk, scan_spans
+
+    data = b"the dog\nis\n"
+    with pytest.raises(ValueError, match=message):
+        scan_spans(data, offsets, first, last, 1 << 16)
+    model = fse.Average(native_w2v)
+    model.prep.prepare_vectors(sv=model.sv, total_sentences=3)
+    context = KernelContext(model, model.sv.vectors)
+    table = VocabTable(model.wv.key_to_index)
+    with pytest.raises(ValueError, match=message):
+        run_chunk(context, table, data, offsets, first, last, 0, model._get_thread_working_mem()[0])
+
+
+def test_text_list_infer_and_update_match_split_indexed_list(native_w2v):
+    first, second = ["the dog", "", "is good"], ["good dog", "ä 東京"]
+    native, python = fse.Average(native_w2v), fse.Average(native_w2v)
+    assert native.train(TextList(first)) == python.train(SplitIndexedList(first))
+    native.train(TextList(second), update=True)
+    python.train(SplitIndexedList(second), update=True)
+    assert np.array_equal(native.sv.vectors, python.sv.vectors)
+    assert np.array_equal(native.infer(TextList(second)), python.infer(SplitIndexedList(second)))
+
+
+def test_text_list_rejects_str_subclasses():
+    class Shouting(str):
+        def split(self):
+            return [self.upper()]
+
+    with pytest.raises(TypeError, match="SplitIndexedList"):
+        TextList([Shouting("a b")])
 
 
 def test_text_list_with_many_strings_per_chunk(native_w2v):
