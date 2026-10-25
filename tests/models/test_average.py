@@ -898,3 +898,49 @@ def _run_with_timeout(func, timeout=30):
     thread.join(timeout)
     assert not thread.is_alive(), "training did not finish; errors must not deadlock"
     return result.get("error")
+
+
+def test_average_trains_word_vectors_without_counts():
+    """Average needs no word frequencies; KeyedVectors built by hand have no counts."""
+    from gensim.models import KeyedVectors
+
+    from fse import IndexedList
+
+    kv = KeyedVectors(4)
+    kv.add_vectors(["a", "b"], np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float32))
+    model = Average(kv)
+    model.train(IndexedList([["a", "b"], ["b"]]))
+    np.testing.assert_allclose(model.sv.vectors, [[0.5, 0.5, 0, 0], [0, 1, 0, 0]], atol=1e-6)
+
+
+@pytest.mark.parametrize("model_name", ["SIF", "uSIF"])
+def test_frequency_models_require_counts(model_name):
+    from gensim.models import KeyedVectors
+
+    import fse
+
+    kv = KeyedVectors(4)
+    kv.add_vectors(["a", "b"], np.ones((2, 4), dtype=np.float32))
+    with pytest.raises(ValueError, match="no 'count' attribute"):
+        getattr(fse, model_name)(kv).train(fse.IndexedList([["a", "b"]]))
+
+
+def test_fasttext_without_ngram_buckets_trains():
+    """gensim supports bucket=0; unknown words then add no vector in both code paths."""
+    from gensim.models import FastText
+
+    from fse import IndexedList
+
+    ft = FastText(vector_size=4, min_count=1, bucket=0)
+    ft.build_vocab([["a", "b"]])
+    ft.wv.vectors_vocab[:] = 0
+    ft.wv.vectors_vocab[ft.wv.key_to_index["a"], 0] = 1
+    ft.wv.vectors_vocab[ft.wv.key_to_index["b"], 1] = 1
+    data = IndexedList([["a", "zz"], ["b"]])
+    model = Average(ft)
+    model.train(data)
+    expected = np.array([[0.5, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float32)
+    np.testing.assert_allclose(model.sv.vectors, expected, atol=1e-6)
+    _prepare(model, total_sentences=2)
+    train_average_np(model, list(data), model.sv.vectors, model._get_thread_working_mem())
+    np.testing.assert_allclose(model.sv.vectors, expected, atol=1e-6)

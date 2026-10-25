@@ -1,0 +1,45 @@
+fse includes code adapted from gensim
+=====================================
+
+fse is licensed under the GNU General Public License version 3 (see LICENSE).
+
+Parts of fse are adapted from gensim (https://github.com/piskvorky/gensim),
+which is licensed under the GNU Lesser General Public License version 2.1.
+Section 3 of the LGPL 2.1 permits applying the terms of the GNU GPL instead;
+fse applies the GPL version 3 to these parts. The copyright notices of the
+original files are reproduced below.
+
+Job pipeline
+------------
+
+The producer, worker and progress logic in src/fse/models/base_s2v.py
+(BaseSentence2VecModel._train_manager, _worker_loop, _job_producer and
+_log_train_progress) was adapted in 2019 from BaseAny2VecModel in
+gensim/models/base_any2vec.py (gensim 3.8). It has since been changed, among
+other things to propagate errors, to stop all threads on failure and to pass
+encoded jobs.
+
+    Author: Shiva Manne
+    Copyright (C) 2018 RaRe Technologies s.r.o.
+    Licensed under the GNU LGPL v2.1
+
+Cython kernel
+-------------
+
+src/fse/models/average_inner.pyx follows the conventions of
+gensim/models/word2vec_inner.pyx and gensim/models/fasttext_inner.pyx, such as
+taking BLAS saxpy from scipy through its capsule pointer and preparing the
+data while holding the GIL so the averaging can run without it.
+
+    Copyright (C) 2013 Radim Rehurek
+    Licensed under the GNU LGPL v2.1
+
+FastText ngram hashing
+----------------------
+
+_ft_hash and ft_ngram_hashes_into in src/fse/models/average_inner.pyx
+reimplement compute_ngrams_bytes and ft_hash_bytes of
+gensim/models/fasttext_inner.pyx (compared with gensim 4.4.0). gensim ported
+them from Facebook's fastText (src/dictionary.cc,
+https://github.com/facebookresearch/fastText), which is licensed under the
+MIT License, Copyright (c) 2016-present, Facebook, Inc.

@@ -8,6 +8,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
+# Parts adapted from gensim (LGPL 2.1, used under the GPL 3); see NOTICE.
 
 """Optimized cython functions for computing sentence embeddings"""
 

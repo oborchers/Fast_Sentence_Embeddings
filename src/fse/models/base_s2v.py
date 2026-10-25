@@ -2,6 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
+# Parts adapted from gensim (LGPL 2.1, used under the GPL 3); see NOTICE.
 # Licensed under GNU General Public License v3.0
 
 """Base class containing common methods for training, using & evaluating sentence embeddings.
@@ -229,9 +230,16 @@ class BaseSentence2VecModel(SaveLoad):
         Reads the ``count`` attribute of all words at once instead of one ``get_vecattr``
         call per word; the float32 result is identical to that loop.
         """
+        if "count" not in self.wv.expandos:
+            raise ValueError(
+                "the word vectors have no 'count' attribute, which SIF and uSIF need for word "
+                "frequencies; pass lang_freq to estimate them"
+            )
         counts = self.wv.expandos["count"][: len(self.wv)]
         if (counts < 0).any():
             raise ValueError("vocab count is negative")
+        if not counts.sum():
+            raise ValueError("all word counts are zero; pass lang_freq to estimate frequencies")
         pw = counts.astype(REAL)
         # Divide by the numpy integer sum as the loop did: numpy then divides in float64 and
         # rounds once, which a Python int divisor would not.
@@ -350,7 +358,8 @@ class BaseSentence2VecModel(SaveLoad):
         if not len(self.wv.vectors):
             raise RuntimeError("you must initialize vectors before computing sentence vectors")
 
-        if self.is_ft and not len(self.wv.vectors_ngrams):
+        # bucket=0 is a valid FastText model without ngrams; unknown words then add no vector.
+        if self.is_ft and self.wv.bucket and not len(self.wv.vectors_ngrams):
             raise RuntimeError(
                 "you must initialize ngram vectors before computing sentence vectors"
             )
@@ -359,8 +368,10 @@ class BaseSentence2VecModel(SaveLoad):
                 "you must initialize vectors_vocab before computing sentence vectors"
             )
 
-        # All counts at once instead of one get_vecattr call per word.
-        if int(self.wv.expandos["count"][: len(self.wv)].sum()) == len(self.wv):
+        # All counts at once instead of one get_vecattr call per word. Average needs no
+        # counts; SIF and uSIF check them when they compute the word weights.
+        counts = self.wv.expandos.get("count")
+        if counts is not None and int(counts[: len(self.wv)].sum()) == len(self.wv):
             logger.warning(
                 "The sum of the word counts is equal to its length (all word counts are 1). "
                 "Make sure to obtain proper word counts by using lang_freq for pretrained embeddings."
