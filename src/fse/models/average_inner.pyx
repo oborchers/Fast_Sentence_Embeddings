@@ -173,6 +173,8 @@ cdef class KernelContext:
     cdef Py_ssize_t n_rows
     cdef object _keep
     cdef object _locks
+    # Native sources opened for this call; closed when the call ends.
+    cdef public list sources
 
     def __init__(self, model, target):
         _check_inputs(model, target)
@@ -204,6 +206,7 @@ cdef class KernelContext:
             self.params.max_ngrams = 0
             self._keep = (model.word_weights, target, wv.vectors)
         self._locks = getattr(model, "_row_locks", None)
+        self.sources = []
 
     def __reduce__(self):
         raise TypeError("KernelContext only exists during a train or infer call")

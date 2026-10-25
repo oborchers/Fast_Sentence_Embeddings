@@ -327,8 +327,15 @@ class Average(BaseSentence2VecModel):
         native = base._native_chunks() if hasattr(base, "_native_chunks") else None
         if native is not None:
             source, chunks = native
+            context.sources.append(source)
             return _ChunkFeeder(source, VocabTable(self.wv.key_to_index), chunks, offset)
         return JobEncoder(context, sentences, self.batch_words)
+
+    def _finish_kernel_context(self, context: Any):
+        """Close the native sources of a call; every worker has finished by now."""
+        if context is not None:
+            for source in context.sources:
+                source.close()
 
     def _run_encoded_job(
         self, context: Any, job: Any, memory: tuple[ndarray, ndarray]

@@ -190,7 +190,7 @@ model.train(CorpusFile("sentences.txt"))  # line i of the file is sentence i
 vectors = model.infer(TextList(["cat say meow", "dog say woof"]))
 ```
 
-`CorpusFile` and `TextList` give exactly the sentences of `IndexedLineDocument` and `SplitIndexedList`: a line ends at `\n`, text is decoded strictly as UTF-8, and words are split at every character for which `str.isspace()` is true. Invalid UTF-8 raises a `UnicodeDecodeError` that names the sentence. The file must not change from the scan to the end of training: a modified or replaced file raises an error, but truncating a memory-mapped file while it is read can end the process on Linux.
+`CorpusFile` and `TextList` give exactly the sentences of `IndexedLineDocument` and `SplitIndexedList`: a line ends at `\n`, text is decoded strictly as UTF-8, and words are split at every character for which `str.isspace()` is true. Invalid UTF-8 raises a `UnicodeDecodeError` that names the sentence. The file must not change from the scan to the end of training: changes that alter its size, modification time or inode raise an error, but truncating a memory-mapped file while it is read can end the process on Linux.
 
 To keep only close matches, pass `min_similarity` to `most_similar` or the `similar_by_*` methods:
 

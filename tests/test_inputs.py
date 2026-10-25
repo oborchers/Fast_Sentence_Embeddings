@@ -624,19 +624,27 @@ def test_own_validators_see_every_sentence_and_training_still_works(tmp_path, na
     assert np.array_equal(model.sv.vectors, reference.sv.vectors)
 
 
-def test_utf8_errors_carry_the_attributes_of_python(tmp_path, native_w2v):
-    data = b"ok\nab\xff cd\nthe \xe2\x82"
+@pytest.mark.parametrize(
+    "data",
+    [
+        b"ok\nab\xff cd\nlast",  # invalid start byte
+        b"ok\n\xe2\x82\nlast",  # incomplete sequence before a line break
+        b"ok\nthe \xe2\x82",  # incomplete sequence at the end of the file
+        b"\xed\xa0\x80\n",  # surrogate
+    ],
+)
+def test_utf8_errors_carry_the_attributes_of_python(tmp_path, native_w2v, data):
+    """The error equals the one iterating IndexedLineDocument raises for that line."""
     path = _write(tmp_path, data)
+    with pytest.raises(UnicodeDecodeError) as python:
+        list(IndexedLineDocument(path))
     with pytest.raises(UnicodeDecodeError) as native:
         fse.Average(native_w2v).scan_sentences(CorpusFile(path))
-    with pytest.raises(UnicodeDecodeError) as python:
-        b"ab\xff cd".decode("utf-8")
-    assert (native.value.object, native.value.start, native.value.end) == (
-        python.value.object,
-        python.value.start,
-        python.value.end,
-    )
-    assert "sentence 1 (byte 5 of the source)" in str(native.value)
+    fields = ("encoding", "object", "start", "end")
+    assert [getattr(native.value, f) for f in fields] == [getattr(python.value, f) for f in fields]
+    assert str(native.value).startswith(str(python.value).split(" in position")[0])
+    line = next(i for i, raw in enumerate(data.split(b"\n")) if not _decodes(raw))
+    assert f"in sentence {line} (byte" in str(native.value)
 
 
 def test_replaced_file_with_the_same_size_and_time_is_detected(tmp_path, native_w2v):
@@ -732,3 +740,109 @@ def test_text_list_with_many_strings_per_chunk(native_w2v):
     native.train(texts)
     python.train(SplitIndexedList(strings))
     assert np.array_equal(native.sv.vectors, python.sv.vectors)
+
+
+@pytest.mark.parametrize("input_name", ["CorpusFile", "TextList"])
+def test_native_chunks_bound_batch_ngrams(tmp_path, native_ft, input_name):
+    """run_chunk sizes the ngram buffer safely at the limit and rejects more."""
+    from fse.models.average_inner import MAX_NGRAMS_LIMIT
+
+    lines = ["the averyveryverylongunknownword", "ünbekannt dog"]
+    path = _write(tmp_path, ("\n".join(lines) + "\n").encode())
+
+    def make():
+        return CorpusFile(path) if input_name == "CorpusFile" else TextList(lines)
+
+    native, python = fse.Average(native_ft), fse.Average(native_ft)
+    native.batch_ngrams = python.batch_ngrams = MAX_NGRAMS_LIMIT
+    native.train(make())
+    python.train(
+        IndexedLineDocument(path) if input_name == "CorpusFile" else SplitIndexedList(lines)
+    )
+    np.testing.assert_allclose(native.sv.vectors, python.sv.vectors, rtol=1e-5, atol=1e-7)
+    native.batch_ngrams = MAX_NGRAMS_LIMIT + 1
+    with pytest.raises(ValueError, match="batch_ngrams must be between"):
+        native.train(make())
+
+
+def test_custom_validator_after_a_native_scan_uses_tuples(tmp_path, native_w2v):
+    """A native scan state from before must not be used once a validator forces Python."""
+    path = _write(tmp_path, _corpus_text(lines=300).encode())
+    corpus = CorpusFile(path)
+    fse.Average(native_w2v).scan_sentences(corpus)
+    assert corpus._scan_state is not None
+    model = fse.Average(native_w2v)
+    model._check_indexed_sent_valid = lambda iter_pos, obj: fse.Average._check_indexed_sent_valid(
+        model, iter_pos, obj
+    )
+    model.train(corpus)
+    assert corpus._scan_state is None
+    reference = fse.Average(native_w2v)
+    reference.train(IndexedLineDocument(path))
+    assert np.array_equal(model.sv.vectors, reference.sv.vectors)
+
+
+def test_python_path_detects_a_change_between_scan_and_training(tmp_path, native_w2v, monkeypatch):
+    path = _write(tmp_path, b"the dog\nis good\n")
+    model = fse.Average(native_w2v)
+    model._check_indexed_sent_valid = lambda iter_pos, obj: fse.Average._check_indexed_sent_valid(
+        model, iter_pos, obj
+    )
+    original = model._pre_train_calls
+
+    def change_file(**kwargs):
+        path.write_bytes(b"good is\ndog the\n")
+        return original(**kwargs)
+
+    monkeypatch.setattr(model, "_pre_train_calls", change_file)
+    with pytest.raises(RuntimeError, match="changed between the scan and training"):
+        model.train(CorpusFile(path))
+
+
+def test_text_list_scan_ranges_are_split_by_bytes(monkeypatch):
+    """Few long strings and many empty ones: no range holds most of the bytes."""
+    from fse import inputs
+
+    strings = ["the " * 250_000] * 8 + [""] * 1000
+    spans = []
+    original = inputs.scan_spans
+
+    def record(data, offsets, first, last, chunk_bytes):
+        spans.append(int(offsets[last] - offsets[first]))
+        return original(data, offsets, first, last, chunk_bytes)
+
+    monkeypatch.setattr(inputs, "scan_spans", record)
+    TextList(strings)._scan_native(workers=1, progress=lambda *a: None)
+    total = sum(len(s) for s in strings)
+    assert len(spans) >= 4
+    assert max(spans) <= total // 4 + len(strings[0])
+
+
+def test_line_offsets_follow_a_changed_file(tmp_path):
+    path = _write(tmp_path, b"first line\nsecond\n")
+    corpus = CorpusFile(path)
+    assert corpus[1] == "second"
+    path.write_bytes(b"a\nb c d e f\nlonger third line\n")
+    assert corpus[1] == "b c d e f"
+    assert corpus[2] == "longer third line"
+
+
+def test_errors_inside_len_are_not_masked(tmp_path, monkeypatch):
+    """An error while the map is in use propagates; closing the map does not replace it."""
+    path = _write(tmp_path, b"a\nb\n")
+
+    def broken(*args, **kwargs):
+        raise MemoryError("no memory")
+
+    monkeypatch.setattr(np, "count_nonzero", broken)
+    with pytest.raises(MemoryError, match="no memory"):
+        len(CorpusFile(path))
+
+
+def test_text_list_rejects_numpy_string_subclasses():
+    class Special(np.str_):
+        def split(self):
+            return ["special"]
+
+    with pytest.raises(TypeError, match="SplitIndexedList"):
+        TextList([Special("a b")])

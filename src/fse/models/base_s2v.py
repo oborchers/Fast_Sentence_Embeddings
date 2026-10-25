@@ -564,6 +564,9 @@ class BaseSentence2VecModel(SaveLoad):
         """
         return None
 
+    def _finish_kernel_context(self, context: Any):
+        """Release what a kernel context holds once a call has ended."""
+
     def _job_encoder(self, context: Any, sentences: Iterable[tuple]) -> Any:
         """Return an object whose next_job() yields encoded jobs, then None."""
         raise NotImplementedError()
@@ -880,16 +883,20 @@ class BaseSentence2VecModel(SaveLoad):
                     "with one worker to avoid lost updates"
                 )
                 workers = 1
+        context = None
         try:
+            context = self._kernel_context(self.sv.vectors)
             _, eff_sentences, eff_words = self._train_manager(
                 data_iterable=_OffsetIndices(sentences, offset) if offset else sentences,
                 total_sentences=statistics["total_sentences"],
                 queue_factor=queue_factor,
                 report_delay=report_delay,
                 workers=workers,
-                context=self._kernel_context(self.sv.vectors),
+                context=context,
             )
         finally:
+            # All threads have ended here; resources of the call can be released.
+            self._finish_kernel_context(context)
             # The locks only exist during training and must never be pickled.
             self.__dict__.pop("_row_locks", None)
 
@@ -937,9 +944,12 @@ class BaseSentence2VecModel(SaveLoad):
         context = self._kernel_context(output)
 
         if context is not None:
-            encoder = self._job_encoder(context, sentences)
-            while (job := encoder.next_job()) is not None:
-                self._run_encoded_job(context, job, mem)
+            try:
+                encoder = self._job_encoder(context, sentences)
+                while (job := encoder.next_job()) is not None:
+                    self._run_encoded_job(context, job, mem)
+            finally:
+                self._finish_kernel_context(context)
         else:
             job_batch: list[tuple] = []
             batch_size = 0

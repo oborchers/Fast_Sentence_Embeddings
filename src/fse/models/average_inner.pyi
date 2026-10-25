@@ -43,6 +43,8 @@ def scan_indexed_sentences(
 class KernelContext:
     """Read-only state of one train or infer call, shared by all workers."""
 
+    sources: list[Any]
+
     def __init__(self, model: Any, target: ndarray) -> None: ...
 
 class EncodedJob:

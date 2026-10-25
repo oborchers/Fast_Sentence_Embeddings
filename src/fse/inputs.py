@@ -516,7 +516,8 @@ class _NativeSource:
             return int(self.offsets[k]), int(self.offsets[k + 1]), k
         start = self._mapped.rfind(b"\n", 0, byte) + 1
         end = self._mapped.find(b"\n", byte)
-        return start, len(self.data) if end < 0 else end, -1
+        # Including the line break, like the lines IndexedLineDocument decodes.
+        return start, len(self.data) if end < 0 else end + 1, -1
 
     def close(self):
         """Release the map early; otherwise it is released with the last reference."""
@@ -563,8 +564,8 @@ def _decode_error(source: _NativeSource, byte: int, sentence: int) -> UnicodeDec
     raise RuntimeError(f"no UTF-8 error in the sentence at byte {byte}")  # pragma: no cover
 
 
-# Ranges of at most this many bytes per scan task, so progress is reported and a failed or
-# interrupted scan stops after a bounded amount of work.
+# About this many bytes per scan task, so progress is reported and a failed or interrupted
+# scan stops after a bounded amount of work. A single longer sentence stays in one task.
 _SCAN_RANGE_MAX_BYTES = 1 << 26
 
 
@@ -591,9 +592,12 @@ def _scan_source(
     n_ranges = max(1, min(max(4 * workers, -(-total_bytes // _SCAN_RANGE_MAX_BYTES)), size))
     bounds = [0]
     for k in range(1, n_ranges):
-        position = size * k // n_ranges
+        # Ranges of similar byte size; for strings, the string that holds that byte.
+        target = total_bytes * k // n_ranges
         if source.offsets is None:
-            position = source.line_start_after(position)
+            position = source.line_start_after(target)
+        else:
+            position = int(numpy.searchsorted(source.offsets, target, side="right")) - 1
         if position > bounds[-1]:
             bounds.append(position)
     if bounds[-1] != size:
@@ -645,10 +649,10 @@ class CorpusFile:
     GIL in every worker; without it, CorpusFile is iterated like IndexedLineDocument.
 
     Compressed or remote files are not supported; use IndexedLineDocument for compressed
-    files. The file is memory-mapped and must not change from the scan to the end of
-    training: a replaced or modified file is detected through its device, inode, size and
-    modification time and raises, but a file truncated while it is read can end the
-    process with SIGBUS on Linux, as for any memory map.
+    files. The file must not change from the scan to the end of training. Changes that
+    alter its device, inode, size or modification time raise; a change that keeps all four
+    is not detected. The file is memory-mapped, so truncating it while it is read can end
+    the process with SIGBUS on Linux, as for any memory map.
     """
 
     @validate_arguments
@@ -662,6 +666,7 @@ class CorpusFile:
                 "Use IndexedLineDocument for compressed files."
             )
         self._scan_state: Any = None
+        self._python_fingerprint: Any = None
         self._line_offsets: tuple[Any, ndarray] | None = None
 
     def __getstate__(self):
@@ -671,28 +676,42 @@ class CorpusFile:
     def __setstate__(self, state):
         self.path = state["path"]
         self._scan_state = None
+        self._python_fingerprint = None
         self._line_offsets = None
 
     def __iter__(self) -> Iterator[tuple]:
-        """Yield (tokens, line number), exactly like IndexedLineDocument."""
+        """Yield (tokens, line number), exactly like IndexedLineDocument.
+
+        The Python scan and the Python training path both iterate; the file must be the one
+        the first iteration after the last scan read, which is checked before and after.
+        """
         with builtins.open(self.path, "rb") as f:
+            fingerprint = _stat_fingerprint(os.fstat(f.fileno()))
+            if self._python_fingerprint is None:
+                self._python_fingerprint = fingerprint
+            elif fingerprint != self._python_fingerprint:
+                raise RuntimeError(f"{self.path} changed between the scan and training")
             for i, line in enumerate(f):
                 yield (any2unicode(line).split(), i)
+            if _stat_fingerprint(os.fstat(f.fileno())) != fingerprint:
+                raise RuntimeError(f"{self.path} changed while it was read")
 
     def __len__(self) -> int:
         """Number of lines."""
         with self._open_source() as source:
             data = numpy.frombuffer(source.data, dtype=numpy.uint8)
-            if not len(data):
-                return 0
-            # Count in blocks, so no temporary is as large as the file.
-            block = 1 << 26
-            count = sum(
-                int(numpy.count_nonzero(data[i : i + block] == 10))
-                for i in range(0, len(data), block)
-            )
-            last_is_newline = data[-1] == 10
-            del data  # the map can only close without exported buffers
+            try:
+                if not len(data):
+                    return 0
+                # Count in blocks, so no temporary is as large as the file.
+                block = 1 << 26
+                count = sum(
+                    int(numpy.count_nonzero(data[i : i + block] == 10))
+                    for i in range(0, len(data), block)
+                )
+                last_is_newline = bool(data[-1] == 10)
+            finally:
+                del data  # the map can only close without exported buffers
         return count + (0 if last_is_newline else 1)
 
     def __getitem__(self, i: int) -> str:
@@ -700,10 +719,12 @@ class CorpusFile:
         with self._open_source() as source:
             if self._line_offsets is None or self._line_offsets[0] != source.fingerprint:
                 data = numpy.frombuffer(source.data, dtype=numpy.uint8)
-                starts = numpy.flatnonzero(data == 10) + 1
-                if len(data) and data[-1] != 10:
-                    starts = numpy.append(starts, len(data))
-                del data  # the map can only close without exported buffers
+                try:
+                    starts = numpy.flatnonzero(data == 10) + 1
+                    if len(data) and data[-1] != 10:
+                        starts = numpy.append(starts, len(data))
+                finally:
+                    del data  # the map can only close without exported buffers
                 offsets = numpy.concatenate([[0], starts]).astype(numpy.int64)
                 self._line_offsets = (source.fingerprint, offsets)
             offsets = self._line_offsets[1]
@@ -716,6 +737,7 @@ class CorpusFile:
 
     def _clear_native_scan(self):
         self._scan_state = None
+        self._python_fingerprint = None
 
     def _open_source(self) -> _NativeSource:
         with builtins.open(self.path, "rb") as file:
@@ -765,7 +787,7 @@ class TextList:
             raise TypeError(f"TextList takes a list, tuple or ndarray of str, got {type(strings)}")
         items = []
         for i, s in enumerate(strings):
-            if type(s) is not str and not isinstance(s, numpy.str_):
+            if type(s) not in (str, numpy.str_):
                 raise TypeError(
                     f"At {i}: TextList items must be str, got {type(s)}. "
                     "Use SplitIndexedList for other types."
