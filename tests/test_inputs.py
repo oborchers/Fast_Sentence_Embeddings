@@ -207,8 +207,7 @@ class TestIndexedLineDocument:
             ],
             99,
         )
-        for i, obj in enumerate(doc):
-            if i == 0:
-                assert obj == first
-            if i == 99:
-                assert obj == last
+        items = list(doc)
+        assert len(items) == 100
+        assert items[0] == first
+        assert items[99] == last

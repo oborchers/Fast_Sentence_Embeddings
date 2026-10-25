@@ -67,11 +67,13 @@ class TestBaseSentence2VecModel:
 
     def test_init_w_ft_model_wo_vecs(self, sentences):
         ft = FastText(sentences, vector_size=5)
+        vectors_vocab = ft.wv.vectors_vocab
         ft.wv.vectors_vocab = None
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError, match="vectors_vocab"):
             BaseSentence2VecModel(ft)
+        ft.wv.vectors_vocab = vectors_vocab
         ft.wv.vectors_ngrams = None
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError, match="Ngram vectors"):
             BaseSentence2VecModel(ft)
 
     def test_init_w_empty_ft_model(self):
@@ -366,10 +368,17 @@ class TestBaseSentence2VecModel:
 
         assert (tmp_path / "test_vecs_vocab.vectors").exists()
 
-    def test_train_manager(self, w2v, corpus_indexed):
-        # batch_words=100 splits the 1450 words of the corpus into 16 jobs,
-        # so both workers take jobs from the queue.
-        se = BaseSentence2VecModel(w2v, workers=2, batch_words=100)
+    @pytest.mark.parametrize(
+        ("batch_words", "expected_jobs"),
+        [
+            # The default batch holds the whole corpus of 1450 words in one job.
+            (10_000, 1),
+            # batch_words=100 splits the corpus into 16 jobs across both workers.
+            (100, 16),
+        ],
+    )
+    def test_train_manager(self, w2v, corpus_indexed, batch_words, expected_jobs):
+        se = BaseSentence2VecModel(w2v, workers=2, batch_words=batch_words)
         job_sizes = []
 
         def temp_train_job(data_iterable, target, memory):
@@ -384,7 +393,7 @@ class TestBaseSentence2VecModel:
             report_delay=0.01,
         )
         assert job_output == (100, 200, 300)
-        assert len(job_sizes) == 16
+        assert len(job_sizes) == expected_jobs
         assert sum(job_sizes) == 100
 
     def test_infer_method(self, w2v, corpus_indexed):
