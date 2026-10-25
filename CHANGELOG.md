@@ -15,6 +15,8 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 
 ### Changed
 
+- Arguments of the public entry points are validated strictly with pydantic: the model, `SentenceVectors` and `IndexedLineDocument` constructors, `train`, `infer`, `most_similar`, the `similar_by_*` methods and `from_pretrained`. Wrong types and out-of-range values such as `workers=0` or `alpha=-1` raise a `pydantic.ValidationError` (a `ValueError`) at the call, and nothing is coerced, so `workers="2"` is an error. Mapfile paths accept `str` and `pathlib.Path`.
+- New dependency: `pydantic>=2.5`.
 - Unknown keyword arguments to `Average` raise a `TypeError` instead of being silently ignored, as they already did for `SIF` and `uSIF`.
 - The input classes reject sets with a `TypeError`. A set has no order, so the sentence indices would be arbitrary; pass `sorted(...)` instead.
 - Every sentence is checked to be a list of `str`, not only the first one.

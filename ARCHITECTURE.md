@@ -56,6 +56,8 @@ Subclasses override `_check_parameter_sanity`, `_pre_train_calls`, `_post_train_
 
 Invalid input raises a clear exception at the API boundary. Nothing is coerced, ignored or truncated without an error, and an unexpected keyword argument is a `TypeError`. A slower but correct fallback, such as training with one worker, is logged as a warning.
 
+Entry points whose own work dwarfs a few microseconds use `fse._validation.validate_arguments`, a strict pydantic `validate_call`: constructors, `train`, `infer`, `from_pretrained` and the similarity searches. Constraints such as `PositiveInt` live in the signatures. Two places check explicitly instead: methods called per element in loops (`similarity`, `get_vector`, `__getitem__`), where validation would add measurable overhead, and the training data, which pydantic would iterate or copy. Parameters that hold data stay `Any` in validated signatures for the same reason.
+
 ### float32 throughout
 
 Word vectors, weights and sentence vectors are `float32` (`REAL`). The kernel takes raw pointers, so arrays must be `float32` and C-contiguous.
