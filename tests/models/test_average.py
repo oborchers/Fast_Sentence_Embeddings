@@ -936,7 +936,8 @@ def test_frequency_models_require_counts(model_name):
     kv = KeyedVectors(4)
     kv.add_vectors(["a", "b"], np.ones((2, 4), dtype=np.float32))
     with pytest.raises(ValueError, match="no 'count' attribute"):
-        getattr(fse, model_name)(kv).train(fse.IndexedList([["a", "b"]]))
+        # One component fits the single sentence, so the count check is what fails.
+        getattr(fse, model_name)(kv, components=1).train(fse.IndexedList([["a", "b"]]))
 
 
 def test_fasttext_without_ngram_buckets_trains():

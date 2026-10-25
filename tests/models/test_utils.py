@@ -7,6 +7,7 @@ import pytest
 from numpy.testing import assert_allclose, assert_raises
 
 from fse.models.utils import (
+    check_components_fit,
     compute_principal_components,
     remove_principal_components,
     set_madvise_for_mmap,
@@ -179,12 +180,26 @@ def test_compute_components_memory_is_bounded_by_a_block(tmp_path):
         (np.ones(4, dtype=np.float32), 1, "2-dimensional"),
         (np.array([[1.0, np.nan], [0.0, 1.0]], dtype=np.float32), 1, "NaN or infinite"),
         (np.array([[1.0, np.inf], [0.0, 1.0]], dtype=np.float32), 1, "NaN or infinite"),
+        (np.array([[np.inf, -np.inf], [0.0, 1.0]]), 1, "NaN or infinite"),
+        # Finite, but the sum of a row and the products overflow.
+        (np.array([[1e308, 1e308], [0.0, 1.0]]), 1, "overflows"),
         (np.array([[1e200, 0.0], [0.0, 1.0]]), 1, "overflows"),
+        (np.array([[1e200, -1e200], [1e200, 1e200]]), 1, "overflows"),
     ],
 )
 def test_compute_components_reject_invalid_input(vectors, components, message):
     with pytest.raises(ValueError, match=message):
         compute_principal_components(vectors, components=components)
+
+
+def test_invalid_values_behind_a_block_boundary_are_found(monkeypatch):
+    from fse.models import utils
+
+    monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 4)
+    vectors = np.ones((10, 3), dtype=np.float32)
+    vectors[9, 1] = np.nan
+    with pytest.raises(ValueError, match="in rows from 8"):
+        compute_principal_components(vectors, components=1)
 
 
 @pytest.mark.parametrize(
@@ -358,3 +373,23 @@ def test_remove_components_keeps_numpy_result_types():
     assert_allclose(out, expected)
     with pytest.raises(TypeError):
         remove_principal_components(vectors, svd_res, inplace=True)
+
+
+@pytest.mark.parametrize(
+    ("components", "update", "rows_before", "new_rows", "dim", "message"),
+    [
+        (3, False, 0, 2, 4, "training would give 2 vectors of dimension 4"),
+        (5, False, 10, 10, 4, "training would give 10 vectors of dimension 4"),
+        (3, True, 1, 1, 4, "training would give 2 vectors"),
+    ],
+)
+def test_check_components_fit_rejects(components, update, rows_before, new_rows, dim, message):
+    with pytest.raises(ValueError, match=message):
+        check_components_fit(components, None, update, rows_before, new_rows, dim)
+
+
+def test_check_components_fit_accepts_reuse_and_zero():
+    learned = (np.ones(3, dtype=np.float32), np.eye(3, 4, dtype=np.float32))
+    check_components_fit(3, learned, True, 5, 1, 4)
+    check_components_fit(0, None, False, 0, 1, 4)
+    check_components_fit(2, None, True, 1, 1, 4)

@@ -84,8 +84,8 @@ def compute_principal_components(
 
     Each block product runs in the precision of the vectors (float32 for float16), so
     directions whose variance is below the rounding of that precision are not determined;
-    their removal hardly changes the vectors, and a warning is logged when a requested
-    component is among them. Where singular values are equal, the basis inside their
+    their removal hardly changes the vectors. A warning is logged when a requested
+    component falls below a heuristic bound for that rounding. Where singular values are equal, the basis inside their
     subspace depends on LAPACK.
 
     Parameters
@@ -123,11 +123,11 @@ def compute_principal_components(
     gram = zeros((dim, dim), dtype=float64)
     for begin in range(0, num_vectors, REMOVAL_BLOCK_ROWS):
         block = asarray(vectors[begin : begin + REMOVAL_BLOCK_ROWS], dtype=block_dtype)
-        # The sum is cheap and NaN or infinite as soon as one entry is.
-        if not isfinite(block.sum(dtype=float64)):
+        if not isfinite(block).all():
             raise ValueError(f"the vectors contain NaN or infinite values in rows from {begin}")
-        # An overflow is reported below as an error, not as a warning of the product.
-        with errstate(over="ignore"):
+        # An overflow is reported below as an error, not as a warning of the product; some
+        # numpy builds also warn spuriously about finite BLAS results (numpy#28687).
+        with errstate(over="ignore", invalid="ignore", divide="ignore"):
             gram += block.T @ block
         del block  # release the block before the next one is converted
     if not isfinite(gram).all():
@@ -141,7 +141,9 @@ def compute_principal_components(
     # scikit-learn's svd_flip does, so v and -v from different LAPACK builds agree.
     largest = absolute(basis).argmax(axis=1)
     basis *= sign(basis[arange(components), largest])[:, None]
-    resolution = eigenvalues[0] * finfo(block_dtype).eps * dim
+    # A heuristic bound for the rounding of the block products: it grows with the length
+    # of the dot products (the block rows) and with the dimension.
+    resolution = eigenvalues[0] * finfo(block_dtype).eps * max(dim, REMOVAL_BLOCK_ROWS**0.5)
     if eigenvalues[-1] <= resolution:
         logger.warning(
             f"{int((eigenvalues <= resolution).sum())} of {components} principal components "
@@ -154,6 +156,24 @@ def compute_principal_components(
     elapsed = time()
     logger.info(f"computing {components} principal components took {int(elapsed - start)}s")
     return singular_values.astype(REAL), basis.astype(REAL)
+
+
+def check_components_fit(
+    components: int, svd_res: Any, update: bool, rows_before: int, new_rows: int, dim: int
+):
+    """Raise before training if the principal components cannot be computed afterwards.
+
+    Called before any state changes, so a failing train leaves the model as it was. An
+    update with learned components reuses them and needs no check.
+    """
+    if components == 0 or (update and isinstance(svd_res, tuple)):
+        return
+    rows = (rows_before if update else 0) + new_rows
+    if components > min(rows, dim):
+        raise ValueError(
+            f"components={components} needs at least as many sentence vectors and dimensions; "
+            f"training would give {rows} vectors of dimension {dim}"
+        )
 
 
 def warn_cache_size_gb_deprecated():

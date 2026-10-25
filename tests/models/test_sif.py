@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from fse.inputs import IndexedLineDocument
+from fse.inputs import IndexedLineDocument, IndexedList
 from fse.models.sif import SIF
 
 DIM = 50
@@ -176,3 +176,15 @@ def test_cache_size_gb_is_deprecated(w2v):
         model = SIF(w2v, cache_size_gb=2.0)
     assert record[0].filename == __file__
     assert model.cache_size_gb == 2.0
+
+
+def test_too_many_components_fail_before_the_model_changes(w2v):
+    """A failing retrain leaves the sentence vectors and components as they were."""
+    model = SIF(w2v, components=2)
+    model.train(IndexedList([["test", "is"], ["is", "it"], ["it", "test"]]))
+    vectors, svd_res = model.sv.vectors.copy(), model.svd_res
+    model.components = 3
+    with pytest.raises(ValueError, match="training would give 1 vectors"):
+        model.train(IndexedList([["test", "is"]]))
+    assert np.array_equal(model.sv.vectors, vectors)
+    assert model.svd_res is svd_res

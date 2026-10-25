@@ -19,6 +19,7 @@ from fse._validation import (
 )
 from fse.models.average import Average
 from fse.models.utils import (
+    check_components_fit,
     compute_principal_components,
     remove_principal_components,
     warn_cache_size_gb_deprecated,
@@ -80,8 +81,8 @@ class SIF(Average):
 
         self.alpha = float(alpha)
         self.components = int(components)
-        # Without effect since 1.1.0; kept until 2.0 for code that reads it.
-        self.cache_size_gb = cache_size_gb
+        # Without effect since 1.1.0; kept with its old default until 2.0 for code that reads it.
+        self.cache_size_gb = 1.0 if cache_size_gb is None else float(cache_size_gb)
         if cache_size_gb is not None:
             warn_cache_size_gb_deprecated()
         self.svd_res = None
@@ -97,6 +98,25 @@ class SIF(Average):
             wv_mapfile_path=wv_mapfile_path,
             workers=workers,
             lang_freq=lang_freq,
+        )
+
+    def _check_pre_training_sanity(
+        self,
+        total_sentences: int,
+        total_words: int,
+        average_length: int,
+        update: bool = False,
+        **kwargs,
+    ):
+        """Also check that the principal components can be computed after training."""
+        super()._check_pre_training_sanity(total_sentences, total_words, average_length, **kwargs)
+        check_components_fit(
+            self.components,
+            self.svd_res,
+            update,
+            len(self.sv.vectors),
+            kwargs["max_index"],
+            self.wv.vector_size,
         )
 
     def _check_parameter_sanity(self, **kwargs):
