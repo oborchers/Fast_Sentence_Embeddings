@@ -18,6 +18,7 @@ from numpy import (
     empty,
     finfo,
     float64,
+    integer,
     isfinite,
     maximum,
     ndarray,
@@ -74,10 +75,17 @@ def compute_principal_components(
     """Compute the first singular values and right singular vectors of a matrix, exactly.
 
     The vectors are not centered, as for a truncated SVD. The Gram matrix ``X^T X`` is
-    summed over blocks of rows in float64 and decomposed; its eigenvalues are the squared
-    singular values and its eigenvectors the right singular vectors. Every row is read
-    once, front to back, so a memmap streams from disk and memory stays at one block plus
-    a dim x dim matrix.
+    computed over blocks of rows, summed in float64 and decomposed; its eigenvalues are the
+    squared singular values and its eigenvectors the right singular vectors. There is no
+    random sample: every row is read once, front to back, so a memmap streams from disk.
+    Besides the dim x dim matrices, memory stays at about one block: float32 and float64
+    rows are used as they are, other types are converted per block.
+
+    Each block product runs in the precision of the vectors (float32 for float16), so
+    directions whose variance is below the rounding of that precision are not determined;
+    their removal hardly changes the vectors, and a warning is logged when a requested
+    component is among them. Where singular values are equal, the basis inside their
+    subspace depends on LAPACK.
 
     Parameters
     ----------
@@ -95,28 +103,48 @@ def compute_principal_components(
     """
     if cache_size_gb is not None:
         warn_cache_size_gb_deprecated()
+    if vectors.ndim != 2:
+        raise ValueError(f"vectors must be a 2-dimensional array, got {vectors.ndim} dimensions")
+    if vectors.dtype.kind not in "iuf":
+        raise TypeError(f"vectors must hold real numbers, got dtype {vectors.dtype}")
+    if isinstance(components, bool) or not isinstance(components, int | integer):
+        raise TypeError(f"components must be an int, got {type(components)}")
     num_vectors, dim = vectors.shape
-    if not 1 <= components <= dim:
-        raise ValueError(f"components must be between 1 and the dimension {dim}, got {components}")
-    if num_vectors == 0:
-        raise ValueError("cannot compute principal components of zero vectors")
+    if not 1 <= components <= min(num_vectors, dim):
+        raise ValueError(
+            f"components must be between 1 and the smaller of the number of vectors "
+            f"({num_vectors}) and their dimension ({dim}), got {components}"
+        )
 
     start = time()
+    # Integers are converted to float64, so large values are not rounded.
+    block_dtype = REAL if vectors.dtype.kind == "f" and vectors.dtype.itemsize <= 4 else float64
     gram = zeros((dim, dim), dtype=float64)
     for begin in range(0, num_vectors, REMOVAL_BLOCK_ROWS):
-        block = asarray(vectors[begin : begin + REMOVAL_BLOCK_ROWS], dtype=float64)
+        block = asarray(vectors[begin : begin + REMOVAL_BLOCK_ROWS], dtype=block_dtype)
+        # The sum is cheap and NaN or infinite as soon as one entry is.
+        if not isfinite(block.sum(dtype=float64)):
+            raise ValueError(f"the vectors contain NaN or infinite values in rows from {begin}")
         gram += block.T @ block
+        del block  # release the block before the next one is converted
     if not isfinite(gram).all():
-        raise ValueError("the vectors contain NaN or infinite values")
+        raise ValueError("the Gram matrix of the vectors overflows; scale the vectors down")
 
     # eigh returns the eigenvalues in ascending order; take the largest ones first.
     eigenvalues, eigenvectors = eigh(gram)
     eigenvalues = eigenvalues[::-1][:components]
     basis = eigenvectors[:, ::-1][:, :components].T
     # The sign of a singular vector is arbitrary; make the largest entry positive, as
-    # scikit-learn's svd_flip does, so the result does not depend on the LAPACK build.
+    # scikit-learn's svd_flip does, so v and -v from different LAPACK builds agree.
     largest = absolute(basis).argmax(axis=1)
     basis *= sign(basis[arange(components), largest])[:, None]
+    resolution = eigenvalues[0] * finfo(block_dtype).eps * dim
+    if eigenvalues[-1] <= resolution:
+        logger.warning(
+            f"{int((eigenvalues <= resolution).sum())} of {components} principal components "
+            "have a variance below the rounding of the vectors; their directions are not "
+            "determined by the data"
+        )
     # Rounding can make eigenvalues of a rank-deficient matrix slightly negative.
     singular_values = sqrt(maximum(eigenvalues, 0.0))
 

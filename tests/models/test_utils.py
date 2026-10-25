@@ -58,19 +58,57 @@ def test_compute_components_match_an_exact_svd(dtype):
     assert_allclose(np.linalg.norm(components, axis=1), 1.0, rtol=1e-6)
 
 
-def test_compute_components_with_nearly_equal_singular_values():
-    """Close singular values leave the basis open, but not the subspace or the removal."""
-    rng = np.random.default_rng(1)
-    q, _ = np.linalg.qr(rng.standard_normal((300, 12)))
-    scales = np.array([10.0, 10.0 - 1e-4, 10.0 - 2e-4, 5.0, 1.0, 0.5] + [0.1] * 6)
-    vectors = (rng.standard_normal((5_000, 12)) * scales @ q.T).astype(np.float32)
+def _with_singular_values(values, rows, dim, seed):
+    """A float32 matrix U diag(values) V^T with orthonormal U and V, and V^T."""
+    rng = np.random.default_rng(seed)
+    left, _ = np.linalg.qr(rng.standard_normal((rows, len(values))))
+    right, _ = np.linalg.qr(rng.standard_normal((dim, len(values))))
+    return (left * values @ right.T).astype(np.float32), right.T
+
+
+def test_compute_components_pair_values_and_vectors():
+    """Each singular value belongs to its own vector: X^T X v_i = s_i^2 v_i."""
+    vectors, _ = _with_singular_values([9.0, 7.0, 5.0, 3.0, 1.0], 400, 10, seed=3)
+    singular_values, components = compute_principal_components(vectors, components=4)
+    gram = vectors.astype(np.float64).T @ vectors.astype(np.float64)
+    assert_allclose(singular_values, [9.0, 7.0, 5.0, 3.0], rtol=1e-5)
+    for value, vector in zip(singular_values, components.astype(np.float64), strict=True):
+        assert_allclose(gram @ vector, value**2 * vector, atol=1e-3)
+
+
+def test_weighted_removal_matches_an_independent_svd():
+    """uSIF weights reach the right directions, compared with numpy's own SVD."""
+    vectors, _ = _with_singular_values([8.0, 4.0, 2.0, 1.0], 300, 6, seed=4)
     svd_res = compute_principal_components(vectors, components=3)
-    _, expected_components = _reference(vectors, 3)
+    _, s, vt = np.linalg.svd(vectors.astype(np.float64), full_matrices=False)
+    weights = s[:3] ** 2 / (s[:3] ** 2).sum()
+    v64 = vectors.astype(np.float64)
+    expected = v64 - (v64 @ vt[:3].T * weights) @ vt[:3]
+    out = remove_principal_components(
+        vectors, svd_res, weights=(svd_res[0] ** 2 / (svd_res[0] ** 2).sum()), inplace=False
+    )
+    assert_allclose(out, expected, atol=1e-5)
+
+
+@pytest.mark.parametrize(
+    ("values", "components", "selected"),
+    [
+        # Two equal values inside the selection: the subspace is determined.
+        ([10.0, 6.0, 6.0, 2.0, 1.0], 3, 3),
+        # Nearly equal values: the subspace of the first two is determined.
+        ([10.0, 10.0 - 1e-4, 3.0, 1.0], 2, 2),
+    ],
+)
+def test_compute_components_with_equal_singular_values(values, components, selected):
+    """Equal values leave the basis open, but not the subspace or the removal."""
+    vectors, right = _with_singular_values(values, 500, 12, seed=1)
+    svd_res = compute_principal_components(vectors, components=components)
+    expected_components = right[:selected]
     assert_allclose(_subspace_cosines(svd_res[1], expected_components), 1.0, atol=1e-4)
     removed = remove_principal_components(vectors, svd_res, inplace=False)
     v64 = vectors.astype(np.float64)
     expected = v64 - v64 @ expected_components.T @ expected_components
-    assert_allclose(removed, expected, atol=1e-3)
+    assert_allclose(removed, expected, atol=1e-4)
 
 
 def test_compute_components_have_a_fixed_sign():
@@ -93,8 +131,9 @@ def test_compute_components_over_blocks_equal_one_block(monkeypatch, tmp_path):
     whole = compute_principal_components(np.array(vectors), components=3)
     monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 7)
     blocked = compute_principal_components(vectors, components=3)
+    # Each block product is a float32 product: other blocks round differently.
     assert_allclose(blocked[0], whole[0], rtol=1e-6)
-    assert_allclose(blocked[1], whole[1], atol=1e-6)
+    assert_allclose(blocked[1], whole[1], atol=1e-5)
 
 
 def test_compute_components_are_reproducible():
@@ -133,16 +172,48 @@ def test_compute_components_memory_is_bounded_by_a_block(tmp_path):
 @pytest.mark.parametrize(
     ("vectors", "components", "message"),
     [
-        (np.ones((10, 4), dtype=np.float32), 5, "between 1 and the dimension 4"),
-        (np.ones((10, 4), dtype=np.float32), 0, "between 1 and the dimension 4"),
-        (np.ones((0, 4), dtype=np.float32), 1, "zero vectors"),
+        (np.ones((10, 4), dtype=np.float32), 5, r"dimension \(4\), got 5"),
+        (np.ones((10, 4), dtype=np.float32), 0, r"got 0"),
+        (np.ones((2, 4), dtype=np.float32), 3, r"number of vectors \(2\)"),
+        (np.ones((0, 4), dtype=np.float32), 1, r"number of vectors \(0\)"),
+        (np.ones(4, dtype=np.float32), 1, "2-dimensional"),
         (np.array([[1.0, np.nan], [0.0, 1.0]], dtype=np.float32), 1, "NaN or infinite"),
         (np.array([[1.0, np.inf], [0.0, 1.0]], dtype=np.float32), 1, "NaN or infinite"),
+        (np.array([[1e200, 0.0], [0.0, 1.0]]), 1, "overflows"),
     ],
 )
 def test_compute_components_reject_invalid_input(vectors, components, message):
     with pytest.raises(ValueError, match=message):
         compute_principal_components(vectors, components=components)
+
+
+@pytest.mark.parametrize(
+    ("vectors", "components"),
+    [
+        (np.array([["1", "2"], ["3", "4"]]), 1),
+        (np.ones((3, 2), dtype=np.complex64), 1),
+        (np.ones((3, 2), dtype=bool), 1),
+        (np.ones((3, 2), dtype=np.float32), 1.0),
+        (np.ones((3, 2), dtype=np.float32), True),
+    ],
+)
+def test_compute_components_reject_wrong_types(vectors, components):
+    with pytest.raises(TypeError):
+        compute_principal_components(vectors, components=components)
+
+
+def test_compute_components_accept_integers_exactly():
+    vectors = np.array([[3, 0], [0, 1], [3, 0]], dtype=np.int64)
+    singular_values, components = compute_principal_components(vectors, components=2)
+    assert_allclose(singular_values, [np.sqrt(18), 1.0], rtol=1e-6)
+    assert_allclose(np.abs(components), np.eye(2), atol=1e-6)
+
+
+def test_undetermined_components_are_logged(caplog):
+    vectors = np.ones((50, 4), dtype=np.float32)
+    with caplog.at_level("WARNING", logger="fse.models.utils"):
+        compute_principal_components(vectors, components=3)
+    assert "2 of 3 principal components have a variance below the rounding" in caplog.text
 
 
 def test_cache_size_gb_is_deprecated():

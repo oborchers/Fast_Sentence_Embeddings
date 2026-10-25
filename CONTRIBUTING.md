@@ -1,6 +1,6 @@
 # Contributing
 
-fse is in maintenance mode. Pull requests that keep it working with current versions of Python, numpy, scipy, scikit-learn, gensim or huggingface-hub are welcome. New features are out of scope and will be closed.
+fse is in maintenance mode. Pull requests that keep it working with current versions of Python, numpy, scipy, gensim or huggingface-hub are welcome. New features are out of scope and will be closed.
 
 ## Setup
 

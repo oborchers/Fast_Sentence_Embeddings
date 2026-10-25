@@ -175,4 +175,4 @@ def test_cache_size_gb_is_deprecated(w2v):
     with pytest.warns(DeprecationWarning, match="cache_size_gb has no effect") as record:
         model = SIF(w2v, cache_size_gb=2.0)
     assert record[0].filename == __file__
-    assert not hasattr(model, "cache_size_gb")
+    assert model.cache_size_gb == 2.0

@@ -80,6 +80,8 @@ class SIF(Average):
 
         self.alpha = float(alpha)
         self.components = int(components)
+        # Without effect since 1.1.0; kept until 2.0 for code that reads it.
+        self.cache_size_gb = cache_size_gb
         if cache_size_gb is not None:
             warn_cache_size_gb_deprecated()
         self.svd_res = None
