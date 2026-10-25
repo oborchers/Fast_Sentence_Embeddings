@@ -121,7 +121,10 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 xfail_strict = true
-markers = ["network: needs access to the Hugging Face Hub"]
+markers = [
+    "network: needs access to the Hugging Face Hub",
+    "memmap: deletes memory-mapped files while open, skipped on Windows",
+]
 filterwarnings = [
     "error",
     # The tiny test matrices make TruncatedSVD divide by a zero variance.
@@ -140,6 +143,8 @@ source = ["src/fse", "*/src/fse"]
 
 [tool.coverage.report]
 precision = 2
+# Measured baseline is about 94 percent of the Python code; Cython is not traced.
+fail_under = 90
 show_missing = true
 skip_covered = true
 

@@ -273,9 +273,11 @@ class BaseSentence2VecModel(SaveLoad):
             Time in seconds for the task to be completed.
 
         """
+        # Coarse timers (e.g. on Windows) can report zero for short runs.
+        rate = int(eff_sentences / overall_time) if overall_time > 0 else eff_sentences
         logger.info(
             f"training on {eff_sentences} effective sentences with {eff_words} effective words "
-            f"took {int(overall_time)}s with {int(eff_sentences / overall_time)} sentences/s"
+            f"took {int(overall_time)}s with {rate} sentences/s"
         )
 
     def _check_pre_training_sanity(

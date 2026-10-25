@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import pytest
 from gensim.models import Word2Vec
 
 from fse.inputs import IndexedLineDocument, IndexedList
@@ -87,6 +88,7 @@ class TestSentenceVectorsFunctions(unittest.TestCase):
         self.assertTrue((self.sv.vectors == sv2.vectors).all())
         p.unlink()
 
+    @pytest.mark.memmap
     def test_save_load_with_memmap(self):
         p = TEST_DATA / "test_vectors"
         p_target = TEST_DATA / "test_vectors.vectors"

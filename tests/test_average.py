@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import pytest
 from gensim.models import FastText, Word2Vec
 
 from fse.models.average import Average, train_average_np
@@ -277,6 +278,7 @@ class TestAverageFunctions(unittest.TestCase):
             (100, 1450), self.model.train([(s, i) for i, s in enumerate(SENTENCES)])
         )
 
+    @pytest.mark.memmap
     def test_train_single_from_disk(self):
         p = TEST_DATA / "test_vecs"
         p_res = TEST_DATA / "test_vecs.vectors"
@@ -297,6 +299,7 @@ class TestAverageFunctions(unittest.TestCase):
         p_res.unlink()
         p_target.unlink()
 
+    @pytest.mark.memmap
     def test_train_multi_from_disk(self):
         p = TEST_DATA / "test_vecs"
         p_res = TEST_DATA / "test_vecs.vectors"

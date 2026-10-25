@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import pytest
 from gensim.models import FastText, Word2Vec
 from gensim.models.keyedvectors import KeyedVectors
 from wordfreq import get_frequency_dict
@@ -28,6 +29,11 @@ W2V.build_vocab(SENTENCES)
 
 
 class TestBaseSentence2VecModelFunctions(unittest.TestCase):
+    def test_log_train_end_with_zero_time(self):
+        """Coarse timers can report zero seconds for a short training run."""
+        se = BaseSentence2VecModel(W2V)
+        se._log_train_end(eff_sentences=10, eff_words=50, overall_time=0.0)
+
     def test_init_w_wrong_model(self):
         with self.assertRaises(RuntimeError):
             BaseSentence2VecModel(int)
@@ -90,6 +96,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         self.assertEqual(se.workers, se2.workers)
         p.unlink()
 
+    @pytest.mark.memmap
     def test_save_load_with_memmap(self):
         ft = FastText(min_count=1, vector_size=5)
         ft.build_vocab(SENTENCES)
@@ -120,6 +127,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         for path in [p, p_vecs, p_ngrams, p_vocab]:
             path.unlink()
 
+    @pytest.mark.memmap
     def test_map_all_vectors_to_disk(self):
         ft = FastText(min_count=1, vector_size=5)
         ft.build_vocab(SENTENCES)
@@ -355,6 +363,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         with self.assertRaises(ValueError):
             se._check_post_training_sanity(1, 0)
 
+    @pytest.mark.memmap
     def test_move_ndarray_to_disk_w2v(self):
         se = BaseSentence2VecModel(W2V)
         p = TEST_DATA / "test_vecs"
@@ -369,6 +378,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         self.assertTrue((vecs == output).all())
         p_target.unlink()
 
+    @pytest.mark.memmap
     def test_move_w2v_vectors_to_disk_from_init(self):
         p = TEST_DATA / "test_vecs"
         se = BaseSentence2VecModel(W2V, wv_mapfile_path=str(p.absolute()))
@@ -377,6 +387,7 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         self.assertFalse(se.wv.vectors.flags.writeable)
         p_target.unlink()
 
+    @pytest.mark.memmap
     def test_move_ft_vectors_to_disk_from_init(self):
         ft = FastText(min_count=1, vector_size=DIM)
         ft.build_vocab(SENTENCES)
@@ -504,6 +515,7 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         self.assertTrue((EPS == se.sv.vectors).all())
         self.assertIsNone(se.sv.vectors_norm)
 
+    @pytest.mark.memmap
     def test_reset_vectors_memmap(self):
         p = TEST_DATA / "test_vectors"
         p_target = TEST_DATA / "test_vectors.vectors"
@@ -529,6 +541,7 @@ class TestBaseSentence2VecPreparerFunctions(unittest.TestCase):
         self.assertTrue((EPS == se.sv.vectors[20:]).all())
         self.assertIsNone(se.sv.vectors_norm)
 
+    @pytest.mark.memmap
     def test_update_vectors_memmap(self):
         p = TEST_DATA / "test_vectors"
         p_target = TEST_DATA / "test_vectors.vectors"
