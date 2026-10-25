@@ -96,6 +96,8 @@ class TestSentenceVectors:
         sv.init_sims(True)
         assert np.allclose(sv.vectors_norm, expected)
         assert np.allclose(np.linalg.norm(sv.vectors_norm, axis=1), 1.0)
+        # Row 0 is unit length, so it must be the same in both arrays.
+        assert np.allclose(sv.vectors[0], sv.vectors_norm[0])
 
     @pytest.mark.xfail(
         reason="init_sims(replace=True) stores the normalized copy in vectors_norm but "
