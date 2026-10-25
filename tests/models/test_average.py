@@ -618,23 +618,120 @@ def _python_batches(items, batch_words):
     return batches
 
 
-@pytest.mark.parametrize("batch_words", [1, 3, 10, 1000])
-def test_job_encoder_batches_like_the_job_path(w2v, batch_words):
+def _encode_all(model, items, batch_words):
+    """Encode every job first, so later calls reuse and grow the buffers, then return them."""
     from fse.models.average_inner import JobEncoder, KernelContext
 
+    context = KernelContext(model, model.sv.vectors)
+    encoder = JobEncoder(context, items, batch_words)
+    jobs = []
+    while (job := encoder.next_job()) is not None:
+        jobs.append(job)
+    assert encoder.next_job() is None  # end of input stays the end
+    return context, jobs
+
+
+@pytest.mark.parametrize("batch_words", [1, 3, 10, 1000])
+@pytest.mark.parametrize("kind", ["w2v", "ft"])
+def test_job_encoder_batches_and_encodes_like_the_job_path(w2v, ft, kind, batch_words):
+    """Same batches, counts and vectors as the numpy fallback on the Python batches."""
+    from fse.models.average_inner import run_job
+
     rng = np.random.default_rng(0)
-    words = list(w2v.wv.index_to_key)
+    model = Average(w2v if kind == "w2v" else ft)
+    words = [*model.wv.index_to_key, "unknownword", "ünbekannt"]
     items = [
         ([words[j] for j in rng.integers(0, len(words), n)], i)
         for i, n in enumerate(rng.choice([0, 0, 1, 2, 5, 12, 40], size=300))
     ]
-    model = Average(w2v)
     _prepare(model, total_sentences=len(items))
-    encoder = JobEncoder(KernelContext(model, model.sv.vectors), items, batch_words)
-    sizes = []
-    while (job := encoder.next_job()) is not None:
-        sizes.append(job.n_items)
-    assert sizes == [len(batch) for batch in _python_batches(items, batch_words)]
+    context, jobs = _encode_all(model, items, batch_words)
+    batches = _python_batches(items, batch_words)
+    assert [job.n_items for job in jobs] == [len(batch) for batch in batches]
+
+    mem = model._get_thread_working_mem()
+    counts = [run_job(context, job, mem[0]) for job in jobs]
+    encoded = np.array(model.sv.vectors)
+    _prepare(model, total_sentences=len(items))
+    expected_counts = [train_average_np(model, batch, model.sv.vectors, mem) for batch in batches]
+    assert counts == expected_counts
+    np.testing.assert_allclose(encoded, model.sv.vectors, rtol=1e-5, atol=1e-7)
+
+
+@pytest.mark.parametrize("items", [[], [([], 0), ([], 1), ([], 2)]], ids=["no input", "only empty"])
+def test_job_encoder_edge_inputs(w2v, items):
+    model = Average(w2v)
+    _prepare(model, total_sentences=max(len(items), 1))
+    _, jobs = _encode_all(model, items, 2)
+    assert [job.n_items for job in jobs] == [len(batch) for batch in _python_batches(items, 2)]
+    assert all(job.n_sentences == 0 and job.eff_words == 0 for job in jobs)
+
+
+def test_job_encoder_keeps_a_huge_reported_length_alone(w2v):
+    """A sentence reporting sys.maxsize words is a job of its own, without overflow."""
+    import sys
+
+    class Huge(list):
+        def __len__(self):
+            return sys.maxsize
+
+    model = Average(w2v)
+    _prepare(model, total_sentences=3)
+    word = model.wv.index_to_key[0]
+    _, jobs = _encode_all(model, [([word], 0), (Huge([word]), 1), ([word], 2)], 3)
+    assert [job.n_items for job in jobs] == [1, 1, 1]
+
+
+def test_job_encoder_refuses_to_continue_after_an_error(w2v):
+    from fse.models.average_inner import JobEncoder, KernelContext
+
+    model = Average(w2v)
+    _prepare(model, total_sentences=2)
+    word = model.wv.index_to_key[0]
+    encoder = JobEncoder(KernelContext(model, model.sv.vectors), [([word], 0), ([word], 5)], 10)
+    with pytest.raises(IndexError):
+        encoder.next_job()
+    with pytest.raises(RuntimeError, match="failed before"):
+        encoder.next_job()
+
+
+def test_cy_formats_str_subclasses_like_np(ft):
+    """An unknown word of a str subclass is hashed from str() of it, as gensim does."""
+
+    class Shouting(str):
+        def __str__(self):
+            return self.upper()
+
+    model = Average(ft)
+    outputs = []
+    for train_func in (train_average_np, train_average_cy):
+        _prepare(model, total_sentences=1)
+        train_func(
+            model, [([Shouting("ünbekannt")], 0)], model.sv.vectors, model._get_thread_working_mem()
+        )
+        outputs.append(np.array(model.sv.vectors))
+    np.testing.assert_allclose(outputs[0], outputs[1], rtol=1e-5, atol=1e-7)
+
+
+def test_cy_skips_falsy_sentences_like_np(w2v):
+    class Falsy(list):
+        def __bool__(self):
+            return False
+
+    model = Average(w2v)
+    words = list(model.wv.index_to_key)[:3]
+    outputs = []
+    for train_func in (train_average_np, train_average_cy):
+        _prepare(model, total_sentences=2)
+        counts = train_func(
+            model,
+            [(Falsy(words), 0), (words, 1)],
+            model.sv.vectors,
+            model._get_thread_working_mem(),
+        )
+        outputs.append((counts, np.array(model.sv.vectors)))
+    assert outputs[0][0] == outputs[1][0]
+    np.testing.assert_allclose(outputs[0][1], outputs[1][1], rtol=1e-5, atol=1e-7)
 
 
 def test_job_encoder_hashes_numpy_strings_like_str(ft):
@@ -755,8 +852,11 @@ def test_encoder_failure_after_queued_jobs_stops_training(w2v, corpus_indexed):
     model.prep.prepare_vectors(sv=model.sv, total_sentences=len(corpus_indexed))
     context = model._kernel_context(model.sv.vectors)
     threads_before = threading.active_count()
-    with pytest.raises(OSError, match="input failed"):
-        model._train_manager(data_iterable=Input(), total_sentences=100, context=context)
+    error = _run_with_timeout(
+        lambda: model._train_manager(data_iterable=Input(), total_sentences=100, context=context)
+    )
+    assert isinstance(error, OSError)
+    assert str(error) == "input failed"
     assert threading.active_count() <= threads_before
 
 
@@ -775,6 +875,26 @@ def test_worker_failure_with_encoded_jobs_stops_training(w2v, corpus_indexed, mo
 
     monkeypatch.setattr(model, "_run_encoded_job", failing)
     threads_before = threading.active_count()
-    with pytest.raises(RuntimeError, match="worker failed"):
-        model.train(corpus_indexed)
+    error = _run_with_timeout(lambda: model.train(corpus_indexed))
+    assert isinstance(error, RuntimeError)
+    assert str(error) == "worker failed"
     assert threading.active_count() <= threads_before
+
+
+def _run_with_timeout(func, timeout=30):
+    """Run func in a thread and return its exception, failing if it does not finish."""
+    import threading
+
+    result = {}
+
+    def target():
+        try:
+            func()
+        except BaseException as err:
+            result["error"] = err
+
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    assert not thread.is_alive(), "training did not finish; errors must not deadlock"
+    return result.get("error")

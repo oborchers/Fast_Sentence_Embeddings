@@ -17,6 +17,7 @@ import numpy as np
 cimport numpy as np
 
 from cpython.bytes cimport PyBytes_FromStringAndSize
+from cpython.pyport cimport PY_SSIZE_T_MAX
 from cpython.object cimport PyObject
 from cpython.pycapsule cimport PyCapsule_GetPointer
 from cpython.pythread cimport (
@@ -225,12 +226,16 @@ cdef struct _Buffer:
 
 cdef int _reserve(_Buffer *b, Py_ssize_t extra) except -1:
     """Grow b so that extra more bytes fit, doubling the capacity."""
-    cdef Py_ssize_t needed = b.size + extra
+    cdef Py_ssize_t needed
     cdef Py_ssize_t capacity
     cdef char *data
+    if extra > PY_SSIZE_T_MAX - b.size:
+        raise MemoryError("the job buffer would exceed the address space")
+    needed = b.size + extra
     if needed <= b.capacity:
         return 0
-    capacity = max(needed, 2 * b.capacity, 4096)
+    capacity = b.capacity * 2 if b.capacity <= PY_SSIZE_T_MAX // 2 else PY_SSIZE_T_MAX
+    capacity = max(needed, capacity, 4096)
     data = <char *>realloc(b.data, capacity)
     if data == NULL:
         raise MemoryError("could not grow the job buffer")
@@ -283,6 +288,7 @@ cdef class JobEncoder:
     cdef Py_ssize_t batch_words
     cdef object pending
     cdef bint has_pending
+    cdef bint failed
     cdef _Buffer words, offsets, targets, oov_bytes, oov_offsets
 
     def __cinit__(self):
@@ -299,6 +305,7 @@ cdef class JobEncoder:
         self.iterator = iter(iterable)
         self.batch_words = batch_words
         self.has_pending = False
+        self.failed = False
 
     def __dealloc__(self):
         free(self.words.data)
@@ -311,7 +318,20 @@ cdef class JobEncoder:
         raise TypeError("JobEncoder only exists during a train or infer call")
 
     def next_job(self):
-        """Return the next EncodedJob, or None once the input is exhausted."""
+        """Return the next EncodedJob, or None once the input is exhausted.
+
+        After an exception the encoder refuses further calls: the items it had already
+        read for the failed job are lost, so continuing would silently skip them.
+        """
+        if self.failed:
+            raise RuntimeError("the JobEncoder failed before and cannot continue")
+        try:
+            return self._next_job()
+        except BaseException:
+            self.failed = True
+            raise
+
+    cdef object _next_job(self):
         cdef dict vocab = self.ctx.vocab
         cdef bint is_ft = self.ctx.params.is_ft
         cdef Py_ssize_t n_rows = self.ctx.n_rows
@@ -343,29 +363,40 @@ cdef class JobEncoder:
                     break
             sentence = obj[0]
             length = len(sentence)
-            if n_items and (n_words + length > self.batch_words or n_items >= self.batch_words):
+            # Compared without n_words + length, which could overflow for a huge length.
+            if n_items and (
+                n_items >= self.batch_words
+                or n_words > self.batch_words
+                or length > self.batch_words - n_words
+            ):
                 self.pending = obj
                 self.has_pending = True
                 break
             n_items += 1
-            n_words += length
+            n_words = n_words + length if length <= PY_SSIZE_T_MAX - n_words else PY_SSIZE_T_MAX
 
             index = obj[1]
             # The kernel writes into target[index] through a raw pointer.
             if not 0 <= index < n_rows:
                 raise IndexError(f"sentence index {index} is out of range for {n_rows} target rows")
-            if not length:
+            # Truthiness, as in the numpy fallback.
+            if not sentence:
                 continue
             for token in sentence:
                 hit = PyDict_GetItemWithError(vocab, token)
                 if hit != NULL:
                     _push_u32(&self.words, <uINT_t>(<object>hit))
                 elif is_ft:
-                    # The UTF-8 bytes of "<token>", as fastText hashes them.
-                    utf8 = PyUnicode_AsUTF8AndSize(token, &utf8_size)
-                    _push_bytes(&self.oov_bytes, "<", 1)
-                    _push_bytes(&self.oov_bytes, utf8, utf8_size)
-                    _push_bytes(&self.oov_bytes, ">", 1)
+                    # The UTF-8 bytes of "<token>", as fastText hashes them. A subclass of
+                    # str is formatted like gensim does, which may call its __str__.
+                    if type(token) is str:
+                        utf8 = PyUnicode_AsUTF8AndSize(token, &utf8_size)
+                        _push_bytes(&self.oov_bytes, "<", 1)
+                        _push_bytes(&self.oov_bytes, utf8, utf8_size)
+                        _push_bytes(&self.oov_bytes, ">", 1)
+                    else:
+                        formatted = ("<%s>" % token).encode("utf-8")
+                        _push_bytes(&self.oov_bytes, formatted, len(formatted))
                     _push_i64(&self.oov_offsets, self.oov_bytes.size)
                     _push_u32(&self.words, OOV_TOKEN)
             _push_u32(&self.targets, <uINT_t>index)
@@ -492,6 +523,8 @@ def run_job(KernelContext ctx, EncodedJob job, scratch):
     for i in range(oov_offsets.shape[0] - 1):
         longest = max(longest, oov_offsets[i + 1] - oov_offsets[i])
     capacity = min(int(ctx.params.max_ngrams), int(longest) * max(int(ctx.params.max_n), 1))
+    if capacity > PY_SSIZE_T_MAX // sizeof(uINT_t):
+        raise OverflowError(f"cannot allocate an ngram buffer for {capacity} ngrams")
     cdef size_t ngram_capacity = capacity
     if ngram_capacity:
         ngram_buffer = <uINT_t *>malloc(ngram_capacity * sizeof(uINT_t))
