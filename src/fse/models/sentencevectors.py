@@ -13,7 +13,9 @@ from gensim.models.keyedvectors import KeyedVectors
 from numpy import (
     array,
     dot,
+    floating,
     integer,
+    issubdtype,
     ndarray,
     newaxis,
     sqrt,
@@ -149,6 +151,8 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         if index in self:
+            if use_norm:
+                self.init_sims()
             result = cast(ndarray, self.vectors_norm)[index] if use_norm else self.vectors[index]
 
             result.setflags(write=False)
@@ -162,18 +166,30 @@ class SentenceVectors(utils.SaveLoad):
         Parameters
         ----------
         replace : bool, optional
-            If True - forget the original vectors and only keep the normalized ones = saves lots of memory!
+            If True, normalize ``vectors`` themselves and keep no separate copy. This saves
+            memory, but the original vectors are lost.
         """
-        if getattr(self, "vectors_norm", None) is None or replace:
-            logger.info("precomputing L2-norms of sentence vectors")
-            if not replace and self.mapfile_path is not None:
-                self.vectors_norm = np_memmap(  # type: ignore[call-overload]
-                    self.mapfile_path + ".vectors_norm",  # type: ignore[operator]
-                    dtype=REAL,
-                    mode="w+",
-                    shape=self.vectors.shape,
+        if getattr(self, "vectors_norm", None) is not None and not replace:
+            return
+        logger.info("precomputing L2-norms of sentence vectors")
+        if replace:
+            self.vectors = _l2_norm(self.vectors, replace=True)
+            self.vectors_norm = self.vectors
+        elif self.mapfile_path is not None:
+            self.vectors_norm = np_memmap(
+                f"{self.mapfile_path}.vectors_norm",
+                dtype=REAL,
+                mode="w+",
+                shape=self.vectors.shape,
+            )
+            # Normalize in blocks so a memory-mapped matrix never has to fit into RAM.
+            block = 100_000
+            for start in range(0, len(self.vectors), block):
+                self.vectors_norm[start : start + block] = _l2_norm(
+                    self.vectors[start : start + block]
                 )
-            self.vectors_norm = _l2_norm(self.vectors, replace=replace)
+        else:
+            self.vectors_norm = _l2_norm(self.vectors)
 
     def similarity(self, d1: int, d2: int) -> float:
         """Compute cosine similarity between two sentences from the training set.
@@ -458,14 +474,14 @@ def _l2_norm(m, replace=False):
 
     Returns
     -------
-    The normalized matrix.  If replace=True, this will be the same as m.
-
-    NOTE: This part is copied from Gensim and modified as the call
-    m /= dist somtimes raises an exception and sometimes it does not.
+    The normalized matrix. Rows of zeros stay zero. If replace=True and m holds floats, m is
+    normalized in place and returned; other dtypes cannot be normalized in place, so a new
+    float32 matrix is returned.
     """
     dist = sqrt((m**2).sum(-1))[..., newaxis]
-    if replace:
-        m = m / dist
+    # A zero vector has no direction; leave it at zero instead of producing NaN.
+    dist[dist == 0] = 1
+    if replace and issubdtype(m.dtype, floating):
+        m /= dist
         return m
-    else:
-        return (m / dist).astype(REAL)
+    return (m / dist).astype(REAL)

@@ -275,3 +275,23 @@ class TestKernelInputChecks:
         model.batch_words, model.batch_ngrams = 2, 2
         _, oov_mem = model._get_thread_working_mem()
         assert oov_mem.shape == (MAX_WORDS_IN_BATCH, MAX_NGRAMS_IN_BATCH)
+
+
+def test_most_similar_with_sentence_mapfile(w2v, corpus_indexed, tmp_path):
+    """most_similar normalizes into a mapfile when the sentence vectors live on disk."""
+    on_disk = Average(w2v, sv_mapfile_path=str(tmp_path / "sv"))
+    on_disk.train(corpus_indexed)
+    in_ram = Average(w2v)
+    in_ram.train(corpus_indexed)
+    assert on_disk.sv.most_similar(positive=0, topn=5) == in_ram.sv.most_similar(positive=0, topn=5)
+    assert (tmp_path / "sv.vectors_norm").exists()
+
+
+def test_infer_use_norm_with_unknown_words(w2v, corpus_indexed):
+    """A sentence without known words has a zero vector, not NaN, after normalization."""
+    model = Average(w2v)
+    model.train(corpus_indexed)
+    known = next(w for w in w2v.wv.index_to_key if w2v.wv.key_to_index[w] > 0)
+    out = model.infer([(["unknownword"], 0), ([known], 1)], use_norm=True)
+    assert np.array_equal(out[0], np.zeros(w2v.wv.vector_size, dtype=np.float32))
+    assert np.isclose(np.linalg.norm(out[1]), 1.0)
