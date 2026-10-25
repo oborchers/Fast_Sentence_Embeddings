@@ -218,3 +218,17 @@ def test_check_parameter_sanity(w2v):
     se.word_weights = np.full(20, 2.0, dtype=np.float32)
     with pytest.raises(ValueError, match="word weights must equal one"):
         se._check_parameter_sanity()
+
+
+def test_train_with_numpy_custom_index(w2v, sentences):
+    """CIndexedList documents ndarray custom indices; training must accept them."""
+    from fse import CIndexedList
+
+    custom_index = np.arange(len(sentences), dtype=np.int64) // 2
+    model = Average(w2v)
+    model.train(CIndexedList(sentences, custom_index=custom_index))
+    assert model.sv.vectors.shape == (len(sentences) // 2, w2v.wv.vector_size)
+
+    expected = Average(w2v)
+    expected.train(CIndexedList(sentences, custom_index=custom_index.tolist()))
+    assert np.allclose(model.sv.vectors, expected.sv.vectors)

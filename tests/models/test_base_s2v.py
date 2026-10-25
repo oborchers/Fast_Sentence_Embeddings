@@ -211,6 +211,36 @@ class TestBaseSentence2VecModel:
         with pytest.raises(ValueError, match="Passed negative"):
             se.scan_sentences([(s, i - 1) for i, s in enumerate(sentences)])
 
+    @pytest.mark.parametrize(
+        ("bad_item", "error", "match"),
+        [
+            ((["a", "b"], -1), ValueError, "At 10: Passed negative"),
+            ((["a", "b"], "3"), TypeError, "At 10: .*tuple.index"),
+            ((["a", "b"], 2.0), TypeError, "At 10: .*tuple.index"),
+            (("a b", 3), TypeError, "At 10: .*tuple.words"),
+        ],
+    )
+    def test_scan_validates_every_item(self, w2v, sentences, bad_item, error, match):
+        """Invalid items are rejected wherever they appear, not only in first position."""
+        se = BaseSentence2VecModel(w2v)
+        items = [(s, i) for i, s in enumerate(sentences)]
+        items[10] = bad_item
+        with pytest.raises(error, match=match):
+            se.scan_sentences(items)
+
+    def test_scan_accepts_numpy_integer_index(self, w2v, sentences):
+        se = BaseSentence2VecModel(w2v)
+        items = [(s, np.int64(i)) for i, s in enumerate(sentences)]
+        assert se.scan_sentences(items)["max_index"] == len(sentences)
+
+    @pytest.mark.parametrize("method", ["train", "infer"])
+    def test_rejects_one_shot_iterators(self, w2v, sentences, method):
+        """A generator would be exhausted by the scan and then train on nothing."""
+        se = BaseSentence2VecModel(w2v)
+        generator = ((s, i) for i, s in enumerate(sentences))
+        with pytest.raises(TypeError, match="re-iterable"):
+            getattr(se, method)(generator)
+
     def test_scan_w_many_to_one_input(self, w2v, sentences):
         se = BaseSentence2VecModel(w2v)
         output = se.scan_sentences([(s, 0) for s in sentences])["max_index"]

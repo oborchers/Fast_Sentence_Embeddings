@@ -60,6 +60,9 @@ from numpy import (
     float32 as REAL,
 )
 from numpy import (
+    integer as np_integer,
+)
+from numpy import (
     memmap as np_memmap,
 )
 from numpy import (
@@ -243,8 +246,8 @@ class BaseSentence2VecModel(SaveLoad):
 
         Parameters
         ----------
-        data_iterable : tuple
-            The cumulative count of the vocabulary.
+        data_iterable : iterable of tuple
+            The input data to train on or to infer.
 
         """
         if data_iterable is None:
@@ -255,6 +258,13 @@ class BaseSentence2VecModel(SaveLoad):
             )
         elif not hasattr(data_iterable, "__iter__"):
             raise TypeError("Iterable must provide __iter__ function")
+        elif iter(data_iterable) is data_iterable:
+            # The data is read twice: once by scan_sentences and once for training.
+            raise TypeError(
+                "Input data must be re-iterable, for example a list, IndexedList or "
+                "IndexedLineDocument. Generators and other one-shot iterators are exhausted "
+                "by the initial scan."
+            )
 
     def _log_train_end(self, eff_sentences: int, eff_words: int, overall_time: float):
         """Log the end of training.
@@ -374,18 +384,21 @@ class BaseSentence2VecModel(SaveLoad):
         else:
             raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain tuple.")
 
-        if not checked:
-            if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
-                raise TypeError(
-                    f"At {iter_pos}: Passed {type(sent)}: {sent}. tuple.words must contain list of str."
-                )
-            if not isinstance(index, int):
-                raise TypeError(
-                    f"At {iter_pos}: Passed {type(index)}: {index}. tuple.index must contain index"
-                )
-            if index < 0:
-                raise ValueError(f"At {iter_pos}: Passed negative {index}")
-        return index, sent
+        # The cheap checks run on every item; only the per-word type check is limited to
+        # the first item to keep the scan fast.
+        if not isinstance(sent, list) or (
+            not checked and not all(isinstance(w, str) for w in sent)
+        ):
+            raise TypeError(
+                f"At {iter_pos}: Passed {type(sent)}: {sent}. tuple.words must contain list of str."
+            )
+        if isinstance(index, bool) or not isinstance(index, (int, np_integer)):
+            raise TypeError(
+                f"At {iter_pos}: Passed {type(index)}: {index}. tuple.index must contain index"
+            )
+        if index < 0:
+            raise ValueError(f"At {iter_pos}: Passed negative {index}")
+        return int(index), sent
 
     def _map_all_vectors_to_disk(self, mapfile_path: Path):
         """Maps all vectors to disk
