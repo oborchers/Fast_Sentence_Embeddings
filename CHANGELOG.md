@@ -28,6 +28,7 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 - `Vectors.from_pretrained` and `FTVectors.from_pretrained` raise `ValueError` again for a model that does not exist on the hub.
 - The SVD for SIF and uSIF sampled a fixed one million vectors and ignored `cache_size_gb`, which crashed for corpora between the sample size and one million sentences.
 - The numpy fallback now accumulates many-to-one sentence mappings like the Cython routine instead of overwriting them.
+- Training crashed with `ZeroDivisionError` when a run finished faster than the timer resolution, for example on Windows.
 - Wheels and source distributions no longer install a top-level `test` package.
 - `fse.__version__` reported 0.2.0.
 
