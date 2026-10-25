@@ -6,6 +6,7 @@
 
 """Automated tests for checking the input methods."""
 
+import itertools
 import pickle
 import random
 import sys
@@ -577,3 +578,21 @@ def test_scan_hook_is_skipped_for_replaced_validators(tmp_path, native_w2v):
     model._check_indexed_sent_valid = reject
     with pytest.raises(ValueError, match="custom validator"):
         model.scan_sentences(CorpusFile(path))
+
+
+def test_text_list_with_many_strings_per_chunk(native_w2v):
+    """More strings than bytes per chunk: the chunk table is sized by bytes, not strings."""
+    from fse.models.average_inner import scan_spans
+
+    strings = ["the dog", "is", "", "good ä"] * 50_000
+    texts = TextList(strings)
+    source = texts._open_source()
+    _, _, _, chunks, error, _ = scan_spans(source.data, source.offsets, 0, len(strings), 1 << 16)
+    assert error == -1
+    assert chunks[0][0] == 0
+    assert chunks[-1][1] == len(strings)
+    assert all(a[1] == b[0] for a, b in itertools.pairwise(chunks))
+    native, python = fse.Average(native_w2v, workers=1), fse.Average(native_w2v, workers=1)
+    native.train(texts)
+    python.train(SplitIndexedList(strings))
+    assert np.array_equal(native.sv.vectors, python.sv.vectors)

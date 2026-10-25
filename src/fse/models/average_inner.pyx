@@ -858,8 +858,13 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
     cdef np.int64_t[::1] chunk_buffer
     cdef Py_ssize_t n_chunks = 0
 
-    # Chunk boundaries are collected in C and converted to a list at the end.
-    chunk_arr = np.empty(3 * (1 + (last - first) // max(chunk_bytes, 1) + 2), dtype=np.int64)
+    # Chunk boundaries are collected in C and converted to a list at the end. Every chunk
+    # but the last holds at least chunk_bytes bytes, which bounds their number.
+    if chunk_bytes < 1:
+        raise ValueError(f"chunk_bytes must be positive, got {chunk_bytes}")
+    cdef Py_ssize_t span_bytes = (last - first) if lines else (item_ptr[last] - item_ptr[first])
+    cdef Py_ssize_t max_chunks = span_bytes // chunk_bytes + 2
+    chunk_arr = np.empty(3 * max_chunks, dtype=np.int64)
     chunk_buffer = chunk_arr
     with nogil:
         while pos < last:
@@ -881,7 +886,7 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
             if (
                 (lines and pos - chunk_start >= chunk_bytes)
                 or (not lines and (item_ptr[pos] - item_ptr[chunk_start]) >= chunk_bytes)
-            ) and pos < last:
+            ) and pos < last and n_chunks + 1 < max_chunks:
                 chunk_buffer[3 * n_chunks] = chunk_start
                 chunk_buffer[3 * n_chunks + 1] = pos
                 chunk_buffer[3 * n_chunks + 2] = chunk_first

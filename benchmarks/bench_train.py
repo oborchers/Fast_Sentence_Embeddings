@@ -34,10 +34,19 @@ from pathlib import Path
 import numpy as np
 from gensim.models import FastText, KeyedVectors
 
-from fse import SIF, Average, IndexedLineDocument, IndexedList, SplitIndexedList, uSIF
+from fse import (
+    SIF,
+    Average,
+    CorpusFile,
+    IndexedLineDocument,
+    IndexedList,
+    SplitIndexedList,
+    TextList,
+    uSIF,
+)
 from fse.models.average import FAST_VERSION
 
-INPUTS = ["IndexedList", "SplitIndexedList", "IndexedLineDocument"]
+INPUTS = ["IndexedList", "SplitIndexedList", "TextList", "IndexedLineDocument", "CorpusFile"]
 MODELS = ["Average", "SIF", "uSIF", "AverageFT"]
 
 
@@ -82,8 +91,12 @@ def build_input(name: str, sentences: list[list[str]], tmpdir: Path):
     lines = [" ".join(s) for s in sentences]
     if name == "SplitIndexedList":
         return SplitIndexedList(lines)
+    if name == "TextList":
+        return TextList(lines)
     path = tmpdir / "corpus.txt"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if name == "CorpusFile":
+        return CorpusFile(path)
     return IndexedLineDocument(str(path))
 
 
