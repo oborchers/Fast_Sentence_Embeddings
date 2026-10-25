@@ -8,6 +8,8 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 
 ### Added
 
+- `CorpusFile(path)` for a local UTF-8 text file with one sentence per line, and `TextList(strings)` for strings in memory. They give exactly the sentences of `IndexedLineDocument` and `SplitIndexedList`, but every worker reads, splits and looks up its part without the GIL, so training scales with `workers`.
+- `min_similarity` for `most_similar` and the `similar_by_*` methods returns only results at or above a cosine similarity (#34).
 - A `NOTICE` file documents the parts adapted from gensim (LGPL 2.1, used under the GPL 3) and fastText (MIT), with their original copyright notices.
 - Pre-built wheels for Linux (x86_64, aarch64), macOS (arm64, x86_64) and Windows (x86_64) on Python 3.11 to 3.13.
 - Support for numpy 2, Cython 3, current scipy, scikit-learn, gensim 4.4 and huggingface-hub 2.x.
@@ -31,6 +33,7 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 - Faster preparation and input handling, with identical results: sentence vectors are initialized in blocks instead of one row at a time, the list input classes iterate directly instead of through `__getitem__`, and SIF and uSIF read all word counts at once.
 - Removing principal components for SIF and uSIF works in blocks of rows. It used to allocate a second copy of the whole sentence matrix in RAM, also for vectors on disk (`sv_mapfile_path`). The SVD sample is read from the vectors in file order, which gives the same sample.
 - **More workers now help (#61).** The producer thread encodes each job and the workers average it without holding the GIL, so training no longer stalls at two workers; with the input in memory, the producer is the limit from two to four workers on. The input scan runs in Cython. With one row per sentence, results are bit-identical for any number of workers; when several sentences share a row, the order of additions can vary within float32 rounding. Before and after measurements are in the pull request; the README performance section follows with the release.
+- `batch_ngrams` above 2^24 (`fse.models.average_inner.MAX_NGRAMS_LIMIT`) raises a `ValueError` in the Cython routines; no word has that many ngrams, and the bound keeps buffer sizes in range.
 - The Cython routine averaged at most 10,000 words per sentence and always up to 40 ngrams per unknown FastText word; it now averages every word and uses `batch_ngrams`, like the numpy fallback.
 - FastText ngrams of out-of-vocabulary words are hashed in C instead of Python, with the same buckets as gensim. For a FastText model without ngram buckets (`bucket=0`), both averaging routines give unknown words no vector instead of the `ZeroDivisionError` of the numpy fallback; `train` still requires ngram vectors.
 - Jobs hold at most `batch_words` sentences as well as `batch_words` words, so long runs of empty sentences no longer form one large job.

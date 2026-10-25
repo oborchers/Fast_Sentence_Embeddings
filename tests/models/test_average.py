@@ -766,10 +766,24 @@ class _BrokenHash(str):
         raise RuntimeError("hash failed")
 
 
-def test_cy_handles_huge_batch_ngrams_like_np(ft):
+def test_cy_rejects_absurd_batch_ngrams(ft):
+    """batch_ngrams beyond MAX_NGRAMS_LIMIT cannot size a buffer safely and is an error."""
+    from fse.models.average_inner import MAX_NGRAMS_LIMIT
+
+    model = Average(ft)
+    model.batch_ngrams = 2**63
+    _prepare(model, total_sentences=1)
+    with pytest.raises(ValueError, match="batch_ngrams must be between"):
+        train_average_cy(
+            model, [(["unknownword"], 0)], model.sv.vectors, model._get_thread_working_mem()
+        )
+    assert MAX_NGRAMS_LIMIT == 2**24
+
+
+def test_cy_handles_large_batch_ngrams_like_np(ft):
     """The ngram buffer is sized by the longest unknown word, not by batch_ngrams."""
     model = Average(ft)
-    model.batch_ngrams = 2**62 + 1
+    model.batch_ngrams = 2**24
     sentences = [(["averyveryverylongunknownword", "the"], 0)]
     outputs = []
     for train_func in (train_average_np, train_average_cy):

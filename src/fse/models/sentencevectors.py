@@ -31,7 +31,7 @@ from numpy import (
     memmap as np_memmap,
 )
 
-from fse._validation import NonNegativeInt, PathLike, validate_arguments
+from fse._validation import NonNegativeInt, PathLike, Similarity, validate_arguments
 
 logger = logging.getLogger(__name__)
 
@@ -232,6 +232,7 @@ class SentenceVectors(utils.SaveLoad):
         indexable: Any = None,
         topn: NonNegativeInt | None = 10,
         restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
+        min_similarity: Similarity | None = None,
     ) -> list[tuple[Any, ...]] | ndarray:
         """Find the top-N most similar sentences.
         Positive sentences contribute positively towards the similarity, negative sentences negatively.
@@ -256,6 +257,10 @@ class SentenceVectors(utils.SaveLoad):
             only check the first 10000 sentence vectors.
             restrict_size=(500, 1000) would search the sentence vectors with indices between
             500 and 1000.
+        min_similarity : float, optional
+            Only return sentences whose cosine similarity is at least this value, in [-1, 1].
+            Fewer than `topn` sentences are returned when fewer reach it. Requires a positive
+            `topn`.
 
         Returns
         -------
@@ -310,6 +315,12 @@ class SentenceVectors(utils.SaveLoad):
                 f"restrict_size {restrict_size} has an upper bound below its lower bound"
             )
 
+        if min_similarity is not None and not topn:
+            raise ValueError(
+                "min_similarity filters the top-N list; it needs a positive topn, not "
+                f"topn={topn}, which returns the similarities to all sentences"
+            )
+
         vectors_norm = cast(ndarray, self.vectors_norm)
         limited = vectors_norm if restrict_size is None else vectors_norm[lo:hi]
         dists = dot(limited, mean)
@@ -331,7 +342,11 @@ class SentenceVectors(utils.SaveLoad):
                 for off_idx, idx in zip(best_off, best, strict=False)
                 if off_idx not in all_sents
             ]
-        return result[:topn]
+        result = result[:topn]
+        if min_similarity is not None:
+            # result is sorted by descending similarity.
+            result = [item for item in result if item[-1] >= min_similarity]
+        return result
 
     @validate_arguments
     def similar_by_word(
@@ -341,6 +356,7 @@ class SentenceVectors(utils.SaveLoad):
         indexable: Any = None,
         topn: NonNegativeInt | None = 10,
         restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
+        min_similarity: Similarity | None = None,
     ) -> list[tuple[Any, ...]] | ndarray:
         """Find the top-N most similar sentences to a given word.
 
@@ -361,6 +377,10 @@ class SentenceVectors(utils.SaveLoad):
             only check the first 10000 sentence vectors.
             restrict_size=(500, 1000) would search the sentence vectors with indices between
             500 and 1000.
+        min_similarity : float, optional
+            Only return sentences whose cosine similarity is at least this value, in [-1, 1].
+            Fewer than `topn` sentences are returned when fewer reach it. Requires a positive
+            `topn`.
 
         Returns
         -------
@@ -376,6 +396,7 @@ class SentenceVectors(utils.SaveLoad):
             indexable=indexable,
             topn=topn,
             restrict_size=restrict_size,
+            min_similarity=min_similarity,
         )
 
     @validate_arguments
@@ -386,6 +407,7 @@ class SentenceVectors(utils.SaveLoad):
         indexable: Any = None,
         topn: NonNegativeInt | None = 10,
         restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
+        min_similarity: Similarity | None = None,
     ) -> list[tuple[Any, ...]] | ndarray:
         """Find the top-N most similar sentences to a given sentence.
 
@@ -406,6 +428,10 @@ class SentenceVectors(utils.SaveLoad):
             only check the first 10000 sentence vectors.
             restrict_size=(500, 1000) would search the sentence vectors with indices between
             500 and 1000.
+        min_similarity : float, optional
+            Only return sentences whose cosine similarity is at least this value, in [-1, 1].
+            Fewer than `topn` sentences are returned when fewer reach it. Requires a positive
+            `topn`.
 
         Returns
         -------
@@ -424,7 +450,11 @@ class SentenceVectors(utils.SaveLoad):
 
         vector = model.infer([(sentence, 0)])
         return self.most_similar(
-            positive=vector, indexable=indexable, topn=topn, restrict_size=restrict_size
+            positive=vector,
+            indexable=indexable,
+            topn=topn,
+            restrict_size=restrict_size,
+            min_similarity=min_similarity,
         )
 
     @validate_arguments
@@ -434,6 +464,7 @@ class SentenceVectors(utils.SaveLoad):
         indexable: Any = None,
         topn: NonNegativeInt | None = 10,
         restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
+        min_similarity: Similarity | None = None,
     ) -> list[tuple[Any, ...]] | ndarray:
         """Find the top-N most similar sentences to a given vector.
 
@@ -452,6 +483,10 @@ class SentenceVectors(utils.SaveLoad):
             only check the first 10000 sentence vectors.
             restrict_size=(500, 1000) would search the sentence vectors with indices between
             500 and 1000.
+        min_similarity : float, optional
+            Only return sentences whose cosine similarity is at least this value, in [-1, 1].
+            Fewer than `topn` sentences are returned when fewer reach it. Requires a positive
+            `topn`.
 
         Returns
         -------
@@ -463,7 +498,11 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         return self.most_similar(
-            positive=vector, indexable=indexable, topn=topn, restrict_size=restrict_size
+            positive=vector,
+            indexable=indexable,
+            topn=topn,
+            restrict_size=restrict_size,
+            min_similarity=min_similarity,
         )
 
 

@@ -7,6 +7,7 @@ from numpy import ndarray
 MAX_WORDS_IN_BATCH: int
 MAX_NGRAMS_IN_BATCH: int
 FAST_VERSION: int
+MAX_NGRAMS_LIMIT: int
 
 def train_average_cy(
     model: Any,
@@ -15,12 +16,34 @@ def train_average_cy(
     memory: tuple[ndarray, ndarray],
 ) -> tuple[int, int]: ...
 def init() -> int: ...
+
+class VocabTable:
+    """Immutable map from the UTF-8 bytes of a word to its vocabulary index."""
+
+    def __init__(self, key_to_index: dict[str, int]) -> None: ...
+    def get(self, word: str) -> int | None: ...
+
+def scan_spans(
+    data: Any, offsets: ndarray | None, first: int, last: int, chunk_bytes: int
+) -> tuple[int, int, int, list[tuple[int, int, int]], int, int]: ...
+def run_chunk(
+    ctx: KernelContext,
+    table: VocabTable,
+    data: Any,
+    offsets: ndarray | None,
+    first: int,
+    last: int,
+    first_row: int,
+    scratch: ndarray,
+) -> tuple[int, int]: ...
 def scan_indexed_sentences(
     sentences: Any, progress_per: float, progress: Any
 ) -> tuple[int, int, int, int, bool]: ...
 
 class KernelContext:
     """Read-only state of one train or infer call, shared by all workers."""
+
+    sources: list[Any]
 
     def __init__(self, model: Any, target: ndarray) -> None: ...
 

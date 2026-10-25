@@ -57,3 +57,16 @@ PositiveInt = Annotated[int, BeforeValidator(_numpy_integer_to_int), Field(gt=0)
 NonNegativeInt = Annotated[int, BeforeValidator(_numpy_integer_to_int), Field(ge=0)]
 # Infinity would pass gt=0 and fail only after training, for example in int(cache_size_gb).
 PositiveFloat = Annotated[float, Field(gt=0, allow_inf_nan=False)]
+
+
+def _numpy_floating_to_float(value: object) -> object:
+    """Accept numpy float scalars such as ``np.float32(0.5)``, which strict mode rejects."""
+    if isinstance(value, np.floating):
+        return float(value)
+    return value
+
+
+#: A cosine similarity threshold.
+Similarity = Annotated[
+    float, BeforeValidator(_numpy_floating_to_float), Field(ge=-1, le=1, allow_inf_nan=False)
+]
