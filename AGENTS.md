@@ -9,12 +9,14 @@ fse (Fast Sentence Embeddings) computes sentence vectors on top of gensim word v
 - Python 3.10 to 3.13. Python 3.14 is blocked until gensim builds there (piskvorky/gensim#3640); CI runs it as an informational job.
 - Build backend is setuptools (pyproject.toml for metadata, setup.py only for the extension). Version comes from git tags (`v1.2.3`) via setuptools-scm.
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the data flow and the rules that keep the Cython and numpy paths consistent. It is the single source of truth for those rules.
+
 ## Commands
 
 Use uv and the Makefile; CI calls the same targets.
 
     make install       # uv sync --all-groups, builds the extension
-    make check         # format-check + lint + test
+    make check         # format-check + lint + typecheck + test
     make test          # tests without network
     make test-network  # tests that download from the Hugging Face Hub
     make rebuild-ext   # after editing .pyx or .pxd
