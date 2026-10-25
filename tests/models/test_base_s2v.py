@@ -571,6 +571,17 @@ class TestBaseSentence2VecPreparer:
         assert (se.sv.vectors[20:] == EPS).all()
         assert se.sv.vectors_norm is None
 
+    def test_fill_crosses_block_boundaries(self, se, trainables, monkeypatch):
+        """Rows are filled in blocks; sizes that are no multiple of the block are covered."""
+        from fse.models import base_s2v
+
+        monkeypatch.setattr(base_s2v, "_FILL_BLOCK_ROWS", 7)
+        trainables.reset_vectors(se.sv, 20)
+        se.sv.vectors[:] = 1.0
+        trainables.update_vectors(se.sv, 10)
+        assert (se.sv.vectors[:20] == 1.0).all()
+        assert (se.sv.vectors[20:] == EPS).all()
+
     def test_prepare_vectors(self, w2v, trainables):
         se = BaseSentence2VecModel(w2v)
         trainables.prepare_vectors(se.sv, 20, update=False)
@@ -733,3 +744,40 @@ def test_row_locks_are_removed_after_training(w2v, sentences, tmp_path):
     model.train([(s, i % 3) for i, s in enumerate(sentences)])
     assert "_row_locks" not in vars(model)
     model.save(str(tmp_path / "model"))
+
+
+@pytest.mark.parametrize("lang_freq", [None, "en"])
+def test_word_probabilities_match_the_per_word_loop(w2v, lang_freq):
+    """The vectorized probabilities are bit-identical to summing get_vecattr per word."""
+    se = BaseSentence2VecModel(w2v, lang_freq=lang_freq)
+    expected = np.zeros(len(se.wv), dtype=np.float32)
+    corpus_size = 0
+    for word, index in se.wv.key_to_index.items():
+        count = se.wv.get_vecattr(word, "count")
+        corpus_size += count
+        expected[index] = count
+    expected /= corpus_size
+    assert np.array_equal(se._word_probabilities(), expected)
+
+
+def test_word_probabilities_reject_negative_counts(w2v):
+    se = BaseSentence2VecModel(w2v)
+    se.wv.set_vecattr(se.wv.index_to_key[0], "count", -1)
+    with pytest.raises(ValueError, match="negative"):
+        se._word_probabilities()
+
+
+def test_job_producer_caps_jobs_by_sentence_count(w2v):
+    """Empty sentences add no words, so jobs are also capped at batch_words sentences."""
+    import threading
+    from queue import Queue
+
+    se = BaseSentence2VecModel(w2v, batch_words=10)
+    queue: Queue = Queue()
+    errors: list = []
+    se._job_producer([([], i) for i in range(25)], queue, errors, threading.Event(), workers=1)
+    jobs = []
+    while (job := queue.get()) is not None:
+        jobs.append(job)
+    assert not errors
+    assert [len(job) for job in jobs] == [10, 10, 5]

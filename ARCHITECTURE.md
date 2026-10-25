@@ -26,11 +26,11 @@ src/fse/
 
 1. **Scan:** `scan_sentences` makes one pass over the input. It counts sentences and words, finds the largest index, validates every item and reports whether all indices are unique.
 2. **Sanity and memory:** `_check_pre_training_sanity` checks the vectors and weights; `estimate_memory` warns when the result will not fit into RAM.
-3. **Prepare:** `BaseSentence2VecPreparer` allocates the sentence vectors (`max_index` rows, initialized to `EPS`), in RAM or as a memmap. With `train(update=True)` it appends the rows instead, and every sentence index is shifted by the previous number of rows.
+3. **Prepare:** `BaseSentence2VecPreparer` allocates the sentence vectors (`max_index` rows, initialized to `EPS`), in RAM or as a memmap. With `train(update=True)` it appends the rows instead, and every sentence index is shifted by the previous number of rows. Rows are initialized in blocks. An in-memory update copies all existing rows into a new array (`vstack`); a memmap grows in place.
 4. **Pre-train hook:** `_pre_train_calls` computes the word weights. All weights are 1 for Average; SIF and uSIF derive them from word frequencies.
-5. **Jobs:** `_train_manager` starts one producer thread and `workers` worker threads. The producer batches the input into jobs of up to `batch_words` words; a single longer sentence forms a job of its own. Each worker calls `_do_train_job`, which runs `train_average_cy` (or `train_average_np` when the extension is missing).
+5. **Jobs:** `_train_manager` starts one producer thread and `workers` worker threads. The producer batches the input into jobs of up to `batch_words` words and `batch_words` sentences; a single longer sentence forms a job of its own. Each worker calls `_do_train_job`, which runs `train_average_cy` (or `train_average_np` when the extension is missing).
 6. **Kernel:** `populate_*_config` turns tokens into word indices while holding the GIL. The averaging runs without the GIL and adds each sentence average into its target row with BLAS `saxpy`.
-7. **Post-train hook:** `_post_train_calls` removes principal components for SIF and uSIF. After `train(update=True)` it reuses the components of the first training for the appended rows only, as `infer` does.
+7. **Post-train hook:** `_post_train_calls` removes principal components for SIF and uSIF. The SVD runs on a sample bounded by `cache_size_gb`, and the removal works in blocks of rows, so neither needs memory proportional to the number of sentences. After `train(update=True)` it reuses the components of the first training for the appended rows only, as `infer` does.
 
 `infer(sentences)` takes a shorter path. It scans the input, allocates a zero-filled output matrix, runs the jobs in the calling thread with the weights learned in `train`, and finishes with `_post_inference_calls`, which removes the stored principal components for SIF and uSIF. It has no preparer, no pre-train hook and no threads.
 

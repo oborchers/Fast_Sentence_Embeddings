@@ -52,7 +52,6 @@ from numpy import (
     dtype,
     empty,
     finfo,
-    full,
     ndarray,
     ones,
     vstack,
@@ -219,6 +218,21 @@ class BaseSentence2VecModel(SaveLoad):
         if not hasattr(self.wv, "vectors") or self.wv.vectors is None:
             raise RuntimeError("Word vectors required for sentence embeddings not found.")
 
+    def _word_probabilities(self) -> ndarray:
+        """Return the relative frequency of every word, ordered by vocabulary index.
+
+        Reads the ``count`` attribute of all words at once instead of one ``get_vecattr``
+        call per word; the float32 result is identical to that loop.
+        """
+        counts = self.wv.expandos["count"][: len(self.wv)]
+        if (counts < 0).any():
+            raise ValueError("vocab count is negative")
+        pw = counts.astype(REAL)
+        # Divide by the numpy integer sum as the loop did: numpy then divides in float64 and
+        # rounds once, which a Python int divisor would not.
+        pw /= counts.sum()
+        return pw
+
     def _check_language_settings(self, lang_freq: str):
         """Check if the supplied language is a compatible with the wordfreq package
 
@@ -278,7 +292,13 @@ class BaseSentence2VecModel(SaveLoad):
                 "by the initial scan."
             )
 
-    def _log_train_end(self, eff_sentences: int, eff_words: int, overall_time: float):
+    def _log_train_end(
+        self,
+        eff_sentences: int,
+        eff_words: int,
+        overall_time: float,
+        total_time: float | None = None,
+    ):
         """Log the end of training.
 
         Parameters
@@ -288,15 +308,22 @@ class BaseSentence2VecModel(SaveLoad):
         eff_words : int
             Number of effective words used in training (after ignoring unknown words).
         overall_time : float
-            Time in seconds for the task to be completed.
+            Time in seconds of the training phase alone.
+        total_time : float, optional
+            Time in seconds of the whole call, including the scan, the preparation of the
+            vectors and post-processing such as removing principal components.
 
         """
         # Coarse timers (e.g. on Windows) can report zero for short runs.
         rate = int(eff_sentences / overall_time) if overall_time > 0 else eff_sentences
-        logger.info(
+        message = (
             f"training on {eff_sentences} effective sentences with {eff_words} effective words "
-            f"took {int(overall_time)}s with {rate} sentences/s"
+            f"took {overall_time:.2f}s with {rate} sentences/s"
         )
+        if total_time is not None:
+            total_rate = int(eff_sentences / total_time) if total_time > 0 else eff_sentences
+            message += f"; end to end {total_time:.2f}s with {total_rate} sentences/s"
+        logger.info(message)
 
     def _check_pre_training_sanity(
         self, total_sentences: int, total_words: int, average_length: int, **kwargs
@@ -762,6 +789,7 @@ class BaseSentence2VecModel(SaveLoad):
             Count of effective sentences and words encountered
 
         """
+        call_start = time()
         self._check_input_data_sanity(sentences)
         statistics = self.scan_sentences(sentences)
 
@@ -812,7 +840,10 @@ class BaseSentence2VecModel(SaveLoad):
         self._post_train_calls(update=update, offset=offset)
 
         self._log_train_end(
-            eff_sentences=eff_sentences, eff_words=eff_words, overall_time=overall_time
+            eff_sentences=eff_sentences,
+            eff_words=eff_words,
+            overall_time=overall_time,
+            total_time=time() - call_start,
         )
 
         return eff_sentences, eff_words
@@ -843,10 +874,13 @@ class BaseSentence2VecModel(SaveLoad):
         output = zeros((statistics["max_index"], self.sv.vector_size), dtype=REAL)
         mem = self._get_thread_working_mem()
 
-        job_batch, batch_size = [], 0
+        job_batch: list[tuple] = []
+        batch_size = 0
         for _data_idx, data in enumerate(sentences):
             data_length = len(data[0])
-            if batch_size + data_length <= self.batch_words:
+            # Jobs hold at most batch_words words and batch_words sentences, so a run of
+            # empty sentences cannot grow one job without bound.
+            if batch_size + data_length <= self.batch_words and len(job_batch) < self.batch_words:
                 job_batch.append(data)
                 batch_size += data_length
             else:
@@ -1015,7 +1049,8 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
 
-        job_batch, batch_size = [], 0
+        job_batch: list[tuple] = []
+        batch_size = 0
         job_no = 0
 
         try:
@@ -1023,7 +1058,10 @@ class BaseSentence2VecModel(SaveLoad):
                 if stop.is_set():
                     break
                 data_length = len(data[0])
-                if batch_size + data_length <= self.batch_words:
+                if (
+                    batch_size + data_length <= self.batch_words
+                    and len(job_batch) < self.batch_words
+                ):
                     job_batch.append(data)
                     batch_size += data_length
                 else:
@@ -1110,6 +1148,16 @@ class _OffsetIndices:
         return ((sentence, index + offset) for sentence, index in self.sentences)
 
 
+# Rows per block when initializing sentence vectors, so a memmap is written in bounded chunks.
+_FILL_BLOCK_ROWS = 100_000
+
+
+def _fill_eps(vectors: ndarray, start: int, stop: int):
+    """Set rows start to stop of vectors to EPS, in blocks of rows."""
+    for begin in range(start, stop, _FILL_BLOCK_ROWS):
+        vectors[begin : min(begin + _FILL_BLOCK_ROWS, stop)] = EPS
+
+
 class BaseSentence2VecPreparer(SaveLoad):
     """Contains helper functions to perpare the weights for the training of BaseSentence2VecModel"""
 
@@ -1133,8 +1181,7 @@ class BaseSentence2VecPreparer(SaveLoad):
         else:
             sv.vectors = empty((total_sentences, sv.vector_size), dtype=REAL)
 
-        for i in range(total_sentences):
-            sv.vectors[i] = full(shape=sv.vector_size, fill_value=EPS, dtype=REAL)
+        _fill_eps(sv.vectors, 0, total_sentences)
         sv.vectors_norm = None
 
     def update_vectors(self, sv: SentenceVectors, total_sentences: int):
@@ -1150,11 +1197,9 @@ class BaseSentence2VecPreparer(SaveLoad):
                 mode="r+",
                 shape=(sentences_after, sv.vector_size),
             )
-            for i in range(sentences_before, sentences_after):
-                sv.vectors[i] = full(shape=sv.vector_size, fill_value=EPS, dtype=REAL)
+            _fill_eps(sv.vectors, sentences_before, sentences_after)
         else:
             newvectors = empty((total_sentences, sv.vector_size), dtype=REAL)
-            for i in range(total_sentences):
-                newvectors[i] = full(shape=sv.vector_size, fill_value=EPS, dtype=REAL)
+            _fill_eps(newvectors, 0, total_sentences)
             sv.vectors = vstack([sv.vectors, newvectors])
         sv.vectors_norm = None
