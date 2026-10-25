@@ -6,9 +6,16 @@
 
 """Automated tests for checking the input methods."""
 
+import pickle
+import random
+import sys
+
 import numpy as np
 import pytest
+from gensim.models import FastText, Word2Vec
 
+import fse
+from fse import CorpusFile, TextList
 from fse.inputs import (
     BaseIndexedList,
     CIndexedList,
@@ -264,3 +271,309 @@ def test_iter_uses_a_subclass_getitem():
 
     il = Lower(["The Dog", "A Cat"])
     assert list(il) == [(["the", "dog"], 0), (["a", "cat"], 1)]
+
+
+# ---------------------------------------------------------------------------------------
+# CorpusFile and TextList, read natively without the GIL
+# ---------------------------------------------------------------------------------------
+
+SPACES = "".join(chr(c) for c in range(sys.maxunicode + 1) if chr(c).isspace())
+
+EDGE_FILES = [
+    b"",
+    b"\n",
+    b"a",
+    b"a\n",
+    b"a\n\n",
+    b"\n\na b\n",
+    b"a\r\nb\rc\n",
+    b"\xef\xbb\xbfa b\n",
+    b"a\x00b c\n",
+    "x\u3000y\u00a0z\u2028w\x1cv\n\u0085".encode(),
+    ("t " * 12_000 + "\n").encode(),
+]
+
+
+def _write(tmp_path, data, name="corpus.txt"):
+    path = tmp_path / name
+    path.write_bytes(data)
+    return path
+
+
+def _corpus_text(seed=0, lines=4000):
+    """Lines with known and unknown words, empty lines, Unicode spaces and a long line."""
+    rng = random.Random(seed)
+    words = ["the", "dog", "is", "good", "ä", "東京", "\U0001f600", "unknownword", "naïve"]
+    out = []
+    for i in range(lines):
+        if i % 97 == 0:
+            out.append("")
+            continue
+        n = rng.randrange(1, 15)
+        sep = [rng.choice(" \t" + SPACES) for _ in range(n)]
+        out.append("".join(rng.choice(words) + s for s in sep))
+    out.insert(lines // 2, " ".join(["dog"] * 30_000))  # longer than a chunk
+    return "\n".join(out) + "\n"
+
+
+@pytest.fixture
+def native_w2v():
+    model = Word2Vec(min_count=1, vector_size=8, seed=1, workers=1)
+    model.build_vocab([["the", "dog", "is", "good", "ä", "東京", "\U0001f600", "naïve"]])
+    model.wv.vectors[:] = np.random.default_rng(0).random(model.wv.vectors.shape, dtype=np.float32)
+    return model
+
+
+@pytest.fixture
+def native_ft():
+    model = FastText(min_count=1, vector_size=8, seed=1, workers=1, bucket=500)
+    model.build_vocab([["the", "dog", "is", "good", "ä", "東京"]])
+    rng = np.random.default_rng(1)
+    model.wv.vectors_vocab[:] = rng.random(model.wv.vectors_vocab.shape, dtype=np.float32)
+    model.wv.vectors_ngrams[:] = rng.random(model.wv.vectors_ngrams.shape, dtype=np.float32)
+    return model
+
+
+class TestCorpusFile:
+    @pytest.mark.parametrize("data", EDGE_FILES)
+    def test_sentences_equal_indexed_line_document(self, tmp_path, data):
+        path = _write(tmp_path, data)
+        assert list(CorpusFile(path)) == list(IndexedLineDocument(path))
+        assert len(CorpusFile(path)) == len(list(IndexedLineDocument(path)))
+
+    @pytest.mark.parametrize("data", EDGE_FILES)
+    def test_scan_statistics_equal_indexed_line_document(self, tmp_path, data, native_w2v):
+        path = _write(tmp_path, data)
+        model = fse.Average(native_w2v, workers=3)
+        assert model.scan_sentences(CorpusFile(path)) == model.scan_sentences(
+            IndexedLineDocument(path)
+        )
+
+    def test_getitem_equals_indexed_line_document(self, tmp_path):
+        path = _write(tmp_path, b"a b \n\nc\r\nlast")
+        corpus, reference = CorpusFile(path), IndexedLineDocument(path)
+        assert [corpus[i] for i in range(4)] == [reference[i] for i in range(4)]
+        assert corpus[-1] == "last"
+        with pytest.raises(IndexError):
+            corpus[4]
+
+    @pytest.mark.parametrize("name", ["corpus.txt.gz", "corpus.bz2", "corpus.XZ", "corpus.zst"])
+    def test_rejects_compressed_files(self, tmp_path, name):
+        path = _write(tmp_path, b"a\n", name)
+        with pytest.raises(ValueError, match="compressed"):
+            CorpusFile(path)
+
+    def test_rejects_missing_files_and_directories(self, tmp_path):
+        with pytest.raises(ValueError, match="not a file"):
+            CorpusFile(tmp_path / "missing.txt")
+        with pytest.raises(ValueError, match="not a file"):
+            CorpusFile(tmp_path)
+
+    def test_pickles_without_native_state(self, tmp_path, native_w2v):
+        path = _write(tmp_path, b"the dog\n")
+        corpus = CorpusFile(path)
+        fse.Average(native_w2v).train(corpus)
+        restored = pickle.loads(pickle.dumps(corpus))
+        assert restored._scan_state is None
+        assert list(restored) == list(corpus)
+
+    def test_change_after_the_scan_is_an_error(self, tmp_path, native_w2v):
+        path = _write(tmp_path, b"the dog\n")
+        corpus = CorpusFile(path)
+        fse.Average(native_w2v).scan_sentences(corpus)
+        path.write_bytes(b"the dog is good\n")
+        with pytest.raises(RuntimeError, match="changed between the scan and training"):
+            corpus._native_chunks()
+
+    def test_reads_paths_with_non_ascii_characters(self, tmp_path, native_w2v):
+        directory = tmp_path / "Ümlaut 東京"
+        directory.mkdir()
+        path = _write(directory, b"the dog\n\nis good\n", "Satz.txt")
+        native, reference = fse.Average(native_w2v), fse.Average(native_w2v)
+        native.train(CorpusFile(path))
+        reference.train(IndexedLineDocument(path))
+        assert np.array_equal(native.sv.vectors, reference.sv.vectors)
+
+
+class TestTextList:
+    def test_sentences_equal_split_indexed_list(self):
+        strings = ["the dog", "", "  ä\u3000東京 ", "a\nb"]
+        assert list(TextList(strings)) == list(SplitIndexedList(strings))
+        assert len(TextList(strings)) == 4
+        assert TextList(strings)[2] == strings[2]
+
+    def test_copies_the_strings(self):
+        strings = ["the dog"]
+        texts = TextList(strings)
+        strings[0] = "changed"
+        assert texts[0] == "the dog"
+
+    @pytest.mark.parametrize("value", [{"a", "b"}, "a b", ["a", 1]])
+    def test_rejects_invalid_input(self, value):
+        with pytest.raises(TypeError):
+            TextList(value)
+
+    def test_accepts_numpy_strings(self):
+        texts = TextList(np.array(["the dog", "is good"]))
+        assert list(texts) == [(["the", "dog"], 0), (["is", "good"], 1)]
+        assert all(type(s) is str for s in texts.items)
+
+    def test_rejects_unencodable_strings(self, native_w2v):
+        with pytest.raises(UnicodeEncodeError):
+            fse.Average(native_w2v).train(TextList(["the \ud800"]))
+
+    def test_pickles_without_native_state(self, native_w2v):
+        texts = TextList(["the dog"])
+        fse.Average(native_w2v).train(texts)
+        restored = pickle.loads(pickle.dumps(texts))
+        assert restored._source is None
+        assert list(restored) == list(texts)
+
+
+@pytest.mark.parametrize("workers", [1, 2, 4, 8])
+@pytest.mark.parametrize("model_name", ["Average", "SIF", "uSIF"])
+@pytest.mark.parametrize("kind", ["native_w2v", "native_ft"])
+def test_native_inputs_give_the_vectors_of_the_python_inputs(
+    tmp_path, native_w2v, native_ft, kind, model_name, workers
+):
+    """Bit-identical vectors for train and infer, with chunks and ranges across the file."""
+    text = _corpus_text()
+    path = _write(tmp_path, text.encode())
+    lines = text.splitlines()
+    wv = native_w2v if kind == "native_w2v" else native_ft
+    cls = getattr(fse, model_name)
+    kwargs = {"lang_freq": "en"} if model_name != "Average" else {}
+
+    def train(data):
+        model = cls(wv, workers=workers, **kwargs)
+        model.train(data)
+        return model
+
+    file_native, file_python = train(CorpusFile(path)), train(IndexedLineDocument(path))
+    assert np.array_equal(file_native.sv.vectors, file_python.sv.vectors)
+    assert np.array_equal(
+        file_native.infer(CorpusFile(path)), file_python.infer(IndexedLineDocument(path))
+    )
+
+    list_native, list_python = train(TextList(lines)), train(SplitIndexedList(lines))
+    assert np.array_equal(list_native.sv.vectors, list_python.sv.vectors)
+
+
+def test_native_inputs_use_native_chunks(tmp_path, native_w2v, monkeypatch):
+    from fse.models import average
+
+    calls = []
+    original = average.run_chunk
+    monkeypatch.setattr(average, "run_chunk", lambda *a: calls.append(1) or original(*a))
+    path = _write(tmp_path, _corpus_text(lines=200).encode())
+    fse.Average(native_w2v, workers=2).train(CorpusFile(path))
+    assert calls
+
+
+def test_fallback_without_the_extension_gives_the_same_vectors(tmp_path, native_w2v, monkeypatch):
+    from fse import inputs
+
+    path = _write(tmp_path, _corpus_text(lines=500).encode())
+    native = fse.Average(native_w2v, workers=2)
+    native.train(CorpusFile(path))
+    monkeypatch.setattr(inputs, "scan_spans", None)
+    monkeypatch.setattr(fse.Average, "_kernel_context", lambda self, target: None)
+    fallback = fse.Average(native_w2v, workers=2)
+    fallback.train(CorpusFile(path))
+    np.testing.assert_allclose(native.sv.vectors, fallback.sv.vectors, rtol=1e-5, atol=1e-7)
+
+
+def test_update_appends_after_the_existing_rows(tmp_path, native_w2v):
+    first = _write(tmp_path, b"the dog\nis good\n", "first.txt")
+    second = _write(tmp_path, b"good dog\n\nthe\n", "second.txt")
+    native, reference = fse.Average(native_w2v), fse.Average(native_w2v)
+    native.train(CorpusFile(first))
+    native.train(CorpusFile(second), update=True)
+    reference.train(IndexedLineDocument(first))
+    reference.train(IndexedLineDocument(second), update=True)
+    assert native.sv.vectors.shape == (5, 8)
+    assert np.array_equal(native.sv.vectors, reference.sv.vectors)
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        b"the\nab\xffcd\n",
+        b"\xc0\xaf",
+        b"ok\n\nx \xed\xa0\x80\n",
+        b"a\n\xf4\x90\x80\x80",
+        b"a b\n\xe2\x82",
+    ],
+)
+def test_invalid_utf8_raises_like_python(tmp_path, native_w2v, data):
+    path = _write(tmp_path, data)
+    with pytest.raises(UnicodeDecodeError):
+        list(IndexedLineDocument(path))
+    bad_line = next(i for i, line in enumerate(data.split(b"\n")) if not _decodes(line))
+    with pytest.raises(UnicodeDecodeError, match=f"sentence {bad_line} "):
+        fse.Average(native_w2v, workers=2).train(CorpusFile(path))
+
+
+def _decodes(line):
+    try:
+        line.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    return True
+
+
+def test_random_text_splits_like_python(tmp_path, native_w2v):
+    """Random Unicode text: scan statistics and vectors equal the Python inputs."""
+    rng = random.Random(1)
+    alphabet = ["the", "dog", "ä", "東京", "\U0001f600", "﻿", "\x00", "\r", "\n", *SPACES]
+    for case in range(60):
+        text = "".join(rng.choice(alphabet) for _ in range(rng.randrange(0, 200)))
+        path = _write(tmp_path, text.encode(), f"random{case}.txt")
+        model = fse.Average(native_w2v, workers=2)
+        assert model.scan_sentences(CorpusFile(path)) == model.scan_sentences(
+            IndexedLineDocument(path)
+        )
+        assert _train_outcome(native_w2v, CorpusFile(path)) == _train_outcome(
+            native_w2v, IndexedLineDocument(path)
+        )
+
+
+def _train_outcome(native_w2v, data):
+    """The trained vectors as bytes, or the type and message of the error."""
+    model = fse.Average(native_w2v, workers=2)
+    try:
+        model.train(data)
+    except Exception as err:
+        return type(err), str(err)
+    return model.sv.vectors.tobytes()
+
+
+def test_random_bytes_fail_where_python_fails(tmp_path, native_w2v):
+    rng = random.Random(2)
+    for case in range(300):
+        data = bytes(
+            rng.choice([rng.randrange(256), 10, 32, 97]) for _ in range(rng.randrange(1, 40))
+        )
+        path = _write(tmp_path, data, f"bytes{case}.txt")
+        lines = data.split(b"\n")
+        bad = [i for i, line in enumerate(lines) if not _decodes(line)]
+        model = fse.Average(native_w2v)
+        if bad:
+            with pytest.raises(UnicodeDecodeError, match=f"sentence {bad[0]} "):
+                model.scan_sentences(CorpusFile(path))
+        else:
+            assert model.scan_sentences(CorpusFile(path)) == model.scan_sentences(
+                IndexedLineDocument(path)
+            )
+
+
+def test_scan_hook_is_skipped_for_replaced_validators(tmp_path, native_w2v):
+    path = _write(tmp_path, b"the dog\n")
+    model = fse.Average(native_w2v)
+
+    def reject(iter_pos, obj):
+        raise ValueError("custom validator")
+
+    model._check_indexed_sent_valid = reject
+    with pytest.raises(ValueError, match="custom validator"):
+        model.scan_sentences(CorpusFile(path))

@@ -628,7 +628,8 @@ class CorpusFile:
         i %= len(offsets) - 1
         with builtins.open(self.path, "rb") as f:
             f.seek(int(offsets[i]))
-            return any2unicode(f.read(int(offsets[i + 1] - offsets[i]))).rstrip("\n")
+            # rstrip() as in IndexedLineDocument.__getitem__.
+            return any2unicode(f.read(int(offsets[i + 1] - offsets[i]))).rstrip()
 
     def _fingerprint(self) -> tuple[int, int]:
         stat = os.stat(self.path)
