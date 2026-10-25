@@ -13,11 +13,13 @@ from gensim.models.keyedvectors import KeyedVectors
 from numpy import (
     array,
     dot,
+    dtype,
     floating,
     integer,
     issubdtype,
     ndarray,
     newaxis,
+    prod,
     sqrt,
     vstack,
     zeros,
@@ -166,10 +168,15 @@ class SentenceVectors(utils.SaveLoad):
             self.vectors = _l2_norm(self.vectors, replace=True)
             self.vectors_norm = self.vectors
         elif self.mapfile_path is not None:
+            norm_path = Path(f"{self.mapfile_path}.vectors_norm")
+            # Reuse a file of the right size instead of truncating it: another model loaded
+            # from the same files may have it mapped, and Windows refuses to truncate then.
+            expected_size = int(prod(self.vectors.shape)) * dtype(REAL).itemsize
+            exists = norm_path.exists() and norm_path.stat().st_size == expected_size
             self.vectors_norm = np_memmap(
-                f"{self.mapfile_path}.vectors_norm",
+                norm_path,
                 dtype=REAL,
-                mode="w+",
+                mode="r+" if exists else "w+",
                 shape=self.vectors.shape,
             )
             # Normalize in blocks so a memory-mapped matrix never has to fit into RAM.

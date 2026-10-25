@@ -5,8 +5,10 @@ loading and the similarity searches. Per-element methods such as ``similarity`` 
 ``get_vector`` and the training data itself are checked explicitly instead.
 """
 
+import functools
+from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, TypeAlias
+from typing import Annotated, Any, TypeAlias, TypeVar
 
 import numpy as np
 from gensim.models import FastText, Word2Vec
@@ -15,7 +17,26 @@ from pydantic import BeforeValidator, ConfigDict, Field, validate_call
 
 # strict: nothing is coerced, for example "4" is not accepted for an int.
 # arbitrary_types_allowed: gensim and numpy objects are checked with isinstance.
-validate_arguments = validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+_validate = validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def validate_arguments(func: F) -> F:
+    """Validate the arguments of ``func`` strictly with pydantic.
+
+    The plain function wrapper binds to instances like any method. pydantic before 2.6
+    caches its own wrapper in the instance ``__dict__`` when a decorated method is
+    accessed, and that wrapper cannot be pickled, which breaks saving models.
+    """
+    validated = _validate(func)
+
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        return validated(*args, **kwargs)
+
+    return wrapper  # type: ignore[return-value]
+
 
 #: Word vectors or a gensim model that holds them in ``wv``.
 WordVectorModel: TypeAlias = KeyedVectors | Word2Vec | FastText
