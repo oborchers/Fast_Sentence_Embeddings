@@ -8,6 +8,7 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 
 ### Added
 
+- A `NOTICE` file documents the parts adapted from gensim (LGPL 2.1, used under the GPL 3) and fastText (MIT), with their original copyright notices.
 - Pre-built wheels for Linux (x86_64, aarch64), macOS (arm64, x86_64) and Windows (x86_64) on Python 3.11 to 3.13.
 - Support for numpy 2, Cython 3, current scipy, scikit-learn, gensim 4.4 and huggingface-hub 2.x.
 - A clear `ImportError` when gensim < 4 is installed.
@@ -37,6 +38,8 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 
 ### Fixed
 
+- `Average` failed with `KeyError: 'count'` for word vectors without frequency counts, such as `KeyedVectors` built with `add_vectors`, although averaging needs no frequencies. SIF and uSIF now raise a clear `ValueError` when counts are missing or all zero.
+- FastText models without ngram buckets (`bucket=0`), which gensim supports, were rejected by `train`. Unknown words of such models add no vector.
 - **uSIF results change.** uSIF removed each principal component weighted by λ² instead of λ, unlike the reference implementation ([kawine/usif](https://github.com/kawine/usif)). Embeddings from uSIF models trained with earlier versions differ from 1.1.0. On the STS Benchmark the fix raises uSIF scores on all 15 published vector sets, by 0.18 to 1.30 points (mean 0.75) when both formulas run in the same environment; the README table is remeasured. The previous table is in the [1.0.0 README](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/v1.0.0/README.md#results).
   uSIF models saved by earlier versions keep the old weighting when loaded, so `infer` and `train(update=True)` produce vectors that match their stored ones; a warning recommends retraining.
 - An exception in a worker thread or in the input iterable made `train()` hang forever. It is now raised in the calling thread after all threads have stopped.
