@@ -1,6 +1,7 @@
 import logging
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 from numpy.testing import assert_allclose, assert_raises
@@ -26,11 +27,20 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(5, len(out[1]))
 
     def test_compute_large_components(self):
-        m = np.random.uniform(size=(int(2e6), 100)).astype(np.float32)
-        out = compute_principal_components(vectors=m, cache_size_gb=0.2)
+        m = np.random.uniform(size=(int(2e6), 10)).astype(np.float32)
+        out = compute_principal_components(vectors=m, cache_size_gb=0.02)
         self.assertEqual(2, len(out))
         self.assertEqual(1, len(out[1]))
         self.assertEqual(np.float32, out[1].dtype)
+
+    def test_compute_components_sample_size(self):
+        """The sample follows cache_size_gb, also below one million vectors (#58)."""
+        m = np.random.uniform(size=(1000, 10)).astype(np.float32)
+        cache_size_gb = 500 * 10 * 4 / 1024**3
+        with patch("fse.models.utils.choice", wraps=np.random.choice) as choice:
+            out = compute_principal_components(vectors=m, cache_size_gb=cache_size_gb)
+        self.assertEqual(500, choice.call_args.kwargs["size"])
+        self.assertEqual(1, len(out[1]))
 
     def test_remove_components_inplace(self):
         m = np.ones((500, 10), dtype=np.float32)

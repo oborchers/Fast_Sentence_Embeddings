@@ -449,13 +449,14 @@ class TestBaseSentence2VecModelFunctions(unittest.TestCase):
         for _ in range(20):
             tmp.extend(SENTENCES)
         bs = 0
-        for s in tmp:
+        last = 0
+        for last, s in enumerate(tmp):  # noqa: B007
             if bs >= MAX_WORDS_IN_BATCH:
                 break
             bs += len(s)
         sents = [(s, i) for i, s in enumerate(tmp)]
         output = se.infer(sents)
-        output = output[i:]
+        output = output[last:]
         self.assertTrue((0 != output).all())
 
     def test_infer_many_to_one(self):

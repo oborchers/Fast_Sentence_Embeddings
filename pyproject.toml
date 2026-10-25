@@ -121,6 +121,11 @@ python_files = "test_*.py"
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 xfail_strict = true
 markers = ["network: needs access to the Hugging Face Hub"]
+filterwarnings = [
+    "error",
+    # The tiny test matrices make TruncatedSVD divide by a zero variance.
+    "ignore:.*encountered in divide:RuntimeWarning:sklearn.decomposition._truncated_svd",
+]
 
 # --- Coverage ---
 

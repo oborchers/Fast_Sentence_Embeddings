@@ -30,6 +30,15 @@ W2V.build_vocab(SENTENCES)
 W2V.wv.vectors[:,] = np.arange(len(W2V.wv.vectors), dtype=np.float32)[:, None]
 
 
+def _mean_index(words):
+    """Expected average for W2V, whose vector for each word is its vocabulary index.
+
+    The index of words with equal counts depends on the gensim version, so the
+    expectation is derived from key_to_index instead of being hard coded.
+    """
+    return np.mean([W2V.wv.key_to_index[w] for w in words])
+
+
 class TestAverageFunctions(unittest.TestCase):
     def setUp(self):
         self.sentences = [
@@ -63,8 +72,12 @@ class TestAverageFunctions(unittest.TestCase):
             self.model, self.sentences, self.model.sv.vectors, mem
         )
         self.assertEqual((4, 7), output)
-        self.assertTrue((179 == self.model.sv[0]).all())
-        self.assertTrue((140.75 == self.model.sv[1]).all())
+        self.assertTrue(np.allclose(_mean_index(["They", "admit"]), self.model.sv[0]))
+        self.assertTrue(
+            np.allclose(
+                _mean_index(["So", "Apple", "bought", "buds"]), self.model.sv[1]
+            )
+        )
         self.assertTrue((self.model.wv.key_to_index["go"] == self.model.sv[2]).all())
 
     def test_average_train_cy_w2v(self):
@@ -77,8 +90,12 @@ class TestAverageFunctions(unittest.TestCase):
             self.model, self.sentences, self.model.sv.vectors, mem
         )
         self.assertEqual((4, 7), output)
-        self.assertTrue((179 == self.model.sv[0]).all())
-        self.assertTrue((140.75 == self.model.sv[1]).all())
+        self.assertTrue(np.allclose(_mean_index(["They", "admit"]), self.model.sv[0]))
+        self.assertTrue(
+            np.allclose(
+                _mean_index(["So", "Apple", "bought", "buds"]), self.model.sv[1]
+            )
+        )
         self.assertTrue((self.model.wv.key_to_index["go"] == self.model.sv[2]).all())
 
     def test_average_train_np_ft(self):
@@ -94,9 +111,9 @@ class TestAverageFunctions(unittest.TestCase):
         mem = m._get_thread_working_mem()
         output = train_average_np(m, self.sentences, m.sv.vectors, mem)
         self.assertEqual((4, 10), output)
-        self.assertTrue((1.0 == m.sv[0]).all())
-        self.assertTrue((1.5 == m.sv[2]).all())
-        self.assertTrue((2 == m.sv[3]).all())
+        self.assertTrue((1.0 + EPS == m.sv[0]).all())
+        self.assertTrue(np.allclose(1.5, m.sv[2]))
+        self.assertTrue(np.allclose(2, m.sv[3]))
         # "go" -> [1,1...]
         # oov: "12345" -> (14 hashes * 2) / 14 =  2
         # (2 + 1) / 2 = 1.5
@@ -143,6 +160,46 @@ class TestAverageFunctions(unittest.TestCase):
 
         self.assertEqual(o1, o2)
         self.assertTrue((m1.sv.vectors == m2.sv.vectors).all())
+
+    def test_fast_version_loaded(self):
+        """The compiled extension must be importable, not the numpy fallback."""
+        from fse.models.average import FAST_VERSION
+
+        self.assertGreaterEqual(FAST_VERSION, 0)
+
+    def _train_many_to_one(self, model, train_func):
+        """Train sentences that share target rows (n:m mapping)."""
+        sentences = [(s, i // 2) for i, (s, _) in enumerate(self.sentences)]
+        model.prep.prepare_vectors(sv=model.sv, total_sentences=2, update=False)
+        model._pre_train_calls()
+        model.sv.vectors = np.zeros_like(model.sv.vectors, dtype=np.float32)
+        mem = model._get_thread_working_mem()
+        output = train_func(model, sentences, model.sv.vectors, mem)
+        return output, model.sv.vectors[:2]
+
+    def test_cy_equal_np_w2v_many_to_one(self):
+        from fse.models.average_inner import train_average_cy
+
+        o1, v1 = self._train_many_to_one(Average(W2V), train_average_np)
+        o2, v2 = self._train_many_to_one(Average(W2V), train_average_cy)
+        self.assertEqual(o1, o2)
+        self.assertTrue(np.allclose(v1, v2))
+        expected = _mean_index(["They", "admit"]) + _mean_index(
+            ["So", "Apple", "bought", "buds"]
+        )
+        self.assertTrue(np.allclose(expected, v1[0]))
+
+    def test_cy_equal_np_ft_many_to_one(self):
+        from fse.models.average_inner import MAX_NGRAMS_IN_BATCH, train_average_cy
+
+        ft = FastText(vector_size=DIM, min_count=1)
+        ft.build_vocab(SENTENCES)
+        m1 = Average(ft)
+        m1.batch_ngrams = MAX_NGRAMS_IN_BATCH
+        o1, v1 = self._train_many_to_one(m1, train_average_np)
+        o2, v2 = self._train_many_to_one(Average(ft), train_average_cy)
+        self.assertEqual(o1, o2)
+        self.assertTrue(np.allclose(v1, v2, atol=1e-6))
 
     def test_cy_equal_np_w2v_random(self):
         w2v = Word2Vec(min_count=1, vector_size=DIM)
