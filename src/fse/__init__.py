@@ -1,10 +1,15 @@
 import logging
+from importlib.metadata import PackageNotFoundError, version
 
-from fse import models
-from fse.models import SIF, Average, SentenceVectors, uSIF
-from fse.vectors import FTVectors, Vectors
+import gensim
 
-from .inputs import (
+if int(gensim.__version__.split(".")[0]) < 4:
+    raise ImportError(
+        f"fse requires gensim>=4.0, but gensim {gensim.__version__} is installed. "
+        "Upgrade gensim with: pip install -U 'gensim>=4'"
+    )
+
+from fse.inputs import (  # noqa: E402
     BaseIndexedList,
     CIndexedList,
     CSplitCIndexedList,
@@ -14,16 +19,30 @@ from .inputs import (
     SplitCIndexedList,
     SplitIndexedList,
 )
+from fse.models import SIF, Average, SentenceVectors, uSIF  # noqa: E402
+from fse.vectors import FTVectors, Vectors  # noqa: E402
 
+try:
+    __version__ = version("fse")
+except PackageNotFoundError:  # pragma: no cover
+    __version__ = "0+unknown"
 
-class NullHandler(logging.Handler):
-    def emit(self, record):
-        pass
+logging.getLogger("fse").addHandler(logging.NullHandler())
 
-
-logger = logging.getLogger("fse")
-if len(logger.handlers) == 0:  # To ensure reload() doesn't add another one
-    logger.addHandler(NullHandler())
-
-
-__version__ = "0.2.0"
+__all__ = [
+    "SIF",
+    "Average",
+    "BaseIndexedList",
+    "CIndexedList",
+    "CSplitCIndexedList",
+    "CSplitIndexedList",
+    "FTVectors",
+    "IndexedLineDocument",
+    "IndexedList",
+    "SentenceVectors",
+    "SplitCIndexedList",
+    "SplitIndexedList",
+    "Vectors",
+    "__version__",
+    "uSIF",
+]

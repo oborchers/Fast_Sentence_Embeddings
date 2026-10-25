@@ -138,6 +138,7 @@ class BaseSentence2VecModel(SaveLoad):
             warnings.warn(
                 "C extension not loaded, training/inferring will be slow. "
                 "Install a C compiler and reinstall fse.",
+                RuntimeWarning,
                 stacklevel=2,
             )
 
@@ -187,12 +188,8 @@ class BaseSentence2VecModel(SaveLoad):
             raise RuntimeError(
                 f"Model must be child of BaseWordEmbeddingsModel or KeyedVectors. Received {str(model)}"
             )
-        self.wv.vectors_norm = None
 
         if isinstance(self.wv, FastTextKeyedVectors):
-            self.wv.vectors_vocab_norm = None  # Save some space
-            self.wv.vectors_ngrams_norm = None
-            self.wv.vectors_vocab_norm = None
             self.is_ft = True
 
             if not self.wv.compatible_hash:

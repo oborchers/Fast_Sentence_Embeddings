@@ -81,7 +81,7 @@ def compute_principal_components(
         svd.fit(vectors)
     else:
         logger.info(f"sampling {sample_size} vectors to compute principal components")
-        sample_indices = choice(range(num_vectors), replace=False, size=int(1e6))
+        sample_indices = choice(range(num_vectors), replace=False, size=sample_size)
         svd.fit(vectors[sample_indices, :])
 
     elapsed = time()

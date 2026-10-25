@@ -11,9 +11,22 @@ from pathlib import Path
 from gensim.models.fasttext import FastTextKeyedVectors
 from gensim.models.keyedvectors import KeyedVectors
 from huggingface_hub import snapshot_download
-from requests import HTTPError
+from huggingface_hub.errors import RepositoryNotFoundError
 
 _SUFFIX: str = ".model"
+
+
+def _download(model: str) -> str:
+    """Download a pre-trained model from the hub and return the path to its file."""
+    try:
+        path = Path(snapshot_download(repo_id=f"fse/{model}"))
+    except RepositoryNotFoundError as err:
+        raise ValueError(f"model {model} does not exist") from err
+
+    if not path.exists():
+        raise FileNotFoundError(f"download of model {model} did not produce {path}")
+
+    return (path / (model + _SUFFIX)).as_posix()
 
 
 class Vectors(KeyedVectors):
@@ -33,16 +46,7 @@ class Vectors(KeyedVectors):
         Vectors
             An object of pretrained vectors.
         """
-        try:
-            path = Path(snapshot_download(repo_id=f"fse/{model}"))
-        except HTTPError as err:
-            if err.response.status_code == 404:
-                raise ValueError(f"model {model} does not exist")
-            raise
-
-        assert path.exists(), "something went wrong. the file wasn't downloaded."
-
-        return super().load((path / (model + _SUFFIX)).as_posix(), mmap=mmap)
+        return super().load(_download(model), mmap=mmap)
 
 
 class FTVectors(FastTextKeyedVectors):
@@ -62,13 +66,4 @@ class FTVectors(FastTextKeyedVectors):
         Vectors
             An object of pretrained vectors.
         """
-        try:
-            path = Path(snapshot_download(repo_id=f"fse/{model}"))
-        except HTTPError as err:
-            if err.response.status_code == 404:
-                raise ValueError(f"model {model} does not exist")
-            raise
-
-        assert path.exists(), "something went wrong. the file wasn't downloaded."
-
-        return super().load((path / (model + _SUFFIX)).as_posix(), mmap=mmap)
+        return super().load(_download(model), mmap=mmap)
