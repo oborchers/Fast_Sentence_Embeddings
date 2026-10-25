@@ -32,7 +32,6 @@ Initialize and train a :class:`~fse.models.average.Average` model
 import logging
 
 from gensim.models.fasttext import ft_ngram_hashes
-from gensim.models.keyedvectors import KeyedVectors
 from numpy import (
     float32 as REAL,
 )
@@ -50,6 +49,7 @@ from numpy import (
     sum as np_sum,
 )
 
+from fse._validation import PathLike, PositiveInt, WordVectorModel, validate_arguments
 from fse.models.base_s2v import BaseSentence2VecModel
 
 logger = logging.getLogger(__name__)
@@ -208,12 +208,13 @@ class Average(BaseSentence2VecModel):
 
     """
 
+    @validate_arguments
     def __init__(
         self,
-        model: KeyedVectors,
-        sv_mapfile_path: str | None = None,
-        wv_mapfile_path: str | None = None,
-        workers: int = 1,
+        model: WordVectorModel,
+        sv_mapfile_path: PathLike | None = None,
+        wv_mapfile_path: PathLike | None = None,
+        workers: PositiveInt = 1,
         lang_freq: str | None = None,
         **kwargs,
     ):

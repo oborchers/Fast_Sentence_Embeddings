@@ -73,6 +73,13 @@ from numpy import (
 from psutil import virtual_memory
 from wordfreq import available_languages, get_frequency_dict
 
+from fse._validation import (
+    PathLike,
+    PositiveFloat,
+    PositiveInt,
+    WordVectorModel,
+    validate_arguments,
+)
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
 
 logger = logging.getLogger(__name__)
@@ -93,16 +100,17 @@ class BaseSentence2VecModel(SaveLoad):
     wv_mapfile_path: Path | None
     wv_mapfile_shapes: dict[str, tuple[int, ...]]
 
+    @validate_arguments
     def __init__(
         self,
-        model: KeyedVectors,
-        sv_mapfile_path: str | None = None,
-        wv_mapfile_path: str | None = None,
-        workers: int = 1,
+        model: WordVectorModel,
+        sv_mapfile_path: PathLike | None = None,
+        wv_mapfile_path: PathLike | None = None,
+        workers: PositiveInt = 1,
         lang_freq: str | None = None,
         fast_version: int = 0,
-        batch_words: int = 10000,
-        batch_ngrams: int = 40,
+        batch_words: PositiveInt = 10000,
+        batch_ngrams: PositiveInt = 40,
         **kwargs,
     ):
         """Base class for all Sentence2Vec Models. Provides core functionality, such as
@@ -717,12 +725,13 @@ class BaseSentence2VecModel(SaveLoad):
             )
         return report
 
+    @validate_arguments
     def train(
         self,
         sentences: Any = None,
         update: bool = False,
-        queue_factor: int = 2,
-        report_delay: int = 5,
+        queue_factor: PositiveInt = 2,
+        report_delay: PositiveFloat = 5,
     ) -> tuple[int, int]:
         """Main routine to train an embedding. This method writes all sentences vectors into sv.vectors and is
         used for computing embeddings for large chunks of data. This method also handles post-training transformations,
@@ -804,6 +813,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         return eff_sentences, eff_words
 
+    @validate_arguments
     def infer(self, sentences: Any = None, use_norm: bool = False) -> ndarray:
         """Secondary routine to train an embedding. This method is essential for small batches of sentences,
         which require little computation. Note: This method does not apply post-training transformations,
@@ -852,7 +862,7 @@ class BaseSentence2VecModel(SaveLoad):
         data_iterable: Iterable[tuple],
         total_sentences: int | None = None,
         queue_factor: int = 2,
-        report_delay: int = 5,
+        report_delay: float = 5,
         workers: int | None = None,
     ):
         """Manager for the multi-core implementation. Directly adapted from gensim
@@ -1033,7 +1043,7 @@ class BaseSentence2VecModel(SaveLoad):
         self,
         progress_queue: Queue,
         total_sentences: int | None = None,
-        report_delay: int = 5,
+        report_delay: float = 5,
         workers: int | None = None,
     ):
         """Log the training process after a couple of seconds.

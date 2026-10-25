@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 from gensim.models import FastText, Word2Vec
 from gensim.models.keyedvectors import KeyedVectors
+from pydantic import ValidationError
 from wordfreq import get_frequency_dict
 
 from fse.models.average_inner import MAX_WORDS_IN_BATCH, train_average_cy
@@ -52,8 +53,20 @@ class TestBaseSentence2VecModel:
         se._log_train_end(eff_sentences=10, eff_words=50, overall_time=0.0)
 
     def test_init_w_wrong_model(self):
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValidationError, match="instance of KeyedVectors"):
             BaseSentence2VecModel(int)
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [{"workers": 0}, {"workers": "2"}, {"batch_words": 0}, {"sv_mapfile_path": 3}],
+    )
+    def test_init_rejects_invalid_arguments(self, w2v, kwargs):
+        with pytest.raises(ValidationError):
+            BaseSentence2VecModel(w2v, **kwargs)
+
+    def test_init_accepts_path_objects(self, w2v, tmp_path):
+        se = BaseSentence2VecModel(w2v, sv_mapfile_path=tmp_path / "sv")
+        assert se.sv.mapfile_path == tmp_path / "sv"
 
     def test_init_w_empty_w2v_model(self):
         w2v = Word2Vec(min_count=1, vector_size=DIM)

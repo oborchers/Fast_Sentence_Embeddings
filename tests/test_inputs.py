@@ -220,3 +220,13 @@ def test_indexed_list_rejects_set():
 
     with pytest.raises(TypeError, match="A set has no order"):
         IndexedList({"the dog", "a cat"})
+
+
+def test_indexed_line_document_validates_arguments(corpus_path):
+    from pydantic import ValidationError
+
+    from fse import IndexedLineDocument
+
+    assert len(list(IndexedLineDocument(corpus_path))) == 100
+    with pytest.raises(ValidationError):
+        IndexedLineDocument(corpus_path, get_able="yes")

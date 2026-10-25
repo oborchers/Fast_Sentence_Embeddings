@@ -11,6 +11,8 @@ from gensim.utils import any2unicode
 from numpy import concatenate, ndarray
 from smart_open import open
 
+from fse._validation import PathLike, validate_arguments
+
 
 class BaseIndexedList(MutableSequence):
     def __init__(self, *args: list | ndarray):
@@ -334,7 +336,8 @@ class CSplitCIndexedList(BaseIndexedList):
 
 
 class IndexedLineDocument:
-    def __init__(self, path, get_able=True):
+    @validate_arguments
+    def __init__(self, path: PathLike, get_able: bool = True):
         """Iterate over a file that contains sentences: one line = tuple([str], int).
 
         Words are expected to be already preprocessed and separated by whitespace. Sentence tags are constructed
@@ -351,8 +354,8 @@ class IndexedLineDocument:
 
         """
         self.path = Path(path)
-        self.line_offset = list()
-        self.get_able = bool(get_able)
+        self.line_offset: list[int] = []
+        self.get_able = get_able
 
         if self.get_able:
             self._build_offsets()

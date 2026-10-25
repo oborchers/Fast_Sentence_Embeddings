@@ -7,11 +7,14 @@
 """Class to obtain BaseKeyedVector from."""
 
 from pathlib import Path
+from typing import Literal
 
 from gensim.models.fasttext import FastTextKeyedVectors
 from gensim.models.keyedvectors import KeyedVectors
 from huggingface_hub import snapshot_download
 from huggingface_hub.utils import RepositoryNotFoundError
+
+from fse._validation import validate_arguments
 
 _SUFFIX: str = ".model"
 
@@ -33,7 +36,8 @@ class Vectors(KeyedVectors):
     """Class to instantiates vectors from pretrained models."""
 
     @classmethod
-    def from_pretrained(cls, model: str, mmap: str | None = None):
+    @validate_arguments
+    def from_pretrained(cls, model: str, mmap: Literal["r", "r+", "c"] | None = None):
         """Method to load vectors from a pre-trained model.
 
         Parameters
@@ -53,7 +57,8 @@ class FTVectors(FastTextKeyedVectors):
     """Class to instantiates FT vectors from pretrained models."""
 
     @classmethod
-    def from_pretrained(cls, model: str, mmap: str | None = None):
+    @validate_arguments
+    def from_pretrained(cls, model: str, mmap: Literal["r", "r+", "c"] | None = None):
         """Method to load vectors from a pre-trained model.
 
         Parameters

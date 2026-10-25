@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
 from fse.inputs import IndexedLineDocument
 from fse.models.usif import uSIF
@@ -32,12 +33,25 @@ def model(w2v):
 
 @pytest.mark.usefixtures("model")
 @pytest.mark.parametrize(
-    ("kwargs", "message"),
-    [({"length": 0}, "Length"), ({"components": -1, "length": 11}, "Components")],
+    ("kwargs", "field"),
+    [({"length": 0}, "length"), ({"components": -1, "length": 11}, "components")],
     ids=["length", "components"],
 )
-def test_parameter_sanity(w2v, kwargs, message):
-    m = uSIF(w2v, **kwargs)
+def test_constructor_rejects_invalid_parameters(w2v, kwargs, field):
+    with pytest.raises(ValidationError, match=field):
+        uSIF(w2v, **kwargs)
+
+
+@pytest.mark.usefixtures("model")
+@pytest.mark.parametrize(
+    ("attribute", "value", "message"),
+    [("length", 0, "Length"), ("components", -1, "Components")],
+    ids=["length", "components"],
+)
+def test_parameter_sanity(w2v, attribute, value, message):
+    """Attributes changed after construction are checked again before training."""
+    m = uSIF(w2v, length=11)
+    setattr(m, attribute, value)
     with pytest.raises(ValueError, match=message):
         m._check_parameter_sanity()
 

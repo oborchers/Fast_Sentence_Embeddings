@@ -29,7 +29,7 @@ from numpy import (
     memmap as np_memmap,
 )
 
-from fse.inputs import IndexedLineDocument, IndexedList
+from fse._validation import NonNegativeInt, PathLike, validate_arguments
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,8 @@ class SentenceVectors(utils.SaveLoad):
     vectors_norm: ndarray | None
     mapfile_shape: tuple[int, int] | None
 
-    def __init__(self, vector_size: int, mapfile_path: str | None = None):
+    @validate_arguments
+    def __init__(self, vector_size: NonNegativeInt, mapfile_path: PathLike | None = None):
 
         self.vector_size = vector_size  # Size of vectors
         self.vectors = zeros((0, vector_size), REAL)  # Vectors for sentences
@@ -216,13 +217,14 @@ class SentenceVectors(utils.SaveLoad):
         """
         return 1 - self.similarity(d1, d2)
 
+    @validate_arguments
     def most_similar(
         self,
         positive: Any = None,
         negative: Any = None,
-        indexable: IndexedList | IndexedLineDocument | None = None,
-        topn: int = 10,
-        restrict_size: int | tuple[int, int] | None = None,
+        indexable: Any = None,
+        topn: NonNegativeInt | None = 10,
+        restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
     ) -> list[tuple[Any, ...]]:
         """Find the top-N most similar sentences.
         Positive sentences contribute positively towards the similarity, negative sentences negatively.
@@ -320,13 +322,14 @@ class SentenceVectors(utils.SaveLoad):
             ]
         return result[:topn]
 
+    @validate_arguments
     def similar_by_word(
         self,
         word: str,
         wv: KeyedVectors,
-        indexable: IndexedList | IndexedLineDocument | None = None,
-        topn: int = 10,
-        restrict_size: int | tuple[int, int] | None = None,
+        indexable: Any = None,
+        topn: NonNegativeInt | None = 10,
+        restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
     ) -> list[tuple[Any, ...]]:
         """Find the top-N most similar sentences to a given word.
 
@@ -364,13 +367,14 @@ class SentenceVectors(utils.SaveLoad):
             restrict_size=restrict_size,
         )
 
+    @validate_arguments
     def similar_by_sentence(
         self,
         sentence: list[str],
-        model,
-        indexable: IndexedList | IndexedLineDocument | None = None,
-        topn: int = 10,
-        restrict_size: int | tuple[int, int] | None = None,
+        model: Any,
+        indexable: Any = None,
+        topn: NonNegativeInt | None = 10,
+        restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
     ) -> list[tuple[Any, ...]]:
         """Find the top-N most similar sentences to a given sentence.
 
@@ -412,12 +416,13 @@ class SentenceVectors(utils.SaveLoad):
             positive=vector, indexable=indexable, topn=topn, restrict_size=restrict_size
         )
 
+    @validate_arguments
     def similar_by_vector(
         self,
         vector: ndarray,
-        indexable: IndexedList | IndexedLineDocument | None = None,
-        topn: int = 10,
-        restrict_size: int | tuple[int, int] | None = None,
+        indexable: Any = None,
+        topn: NonNegativeInt | None = 10,
+        restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
     ) -> list[tuple[Any, ...]]:
         """Find the top-N most similar sentences to a given vector.
 

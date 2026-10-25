@@ -6,10 +6,17 @@
 import logging
 from typing import Any, cast
 
-from gensim.models.keyedvectors import KeyedVectors
 from numpy import float32 as REAL
 from numpy import isfinite, ndarray, zeros
 
+from fse._validation import (
+    NonNegativeInt,
+    PathLike,
+    PositiveFloat,
+    PositiveInt,
+    WordVectorModel,
+    validate_arguments,
+)
 from fse.models.average import Average
 from fse.models.utils import (
     EPS,
@@ -26,15 +33,16 @@ class uSIF(Average):
     svd_weights: Any
     length: Any
 
+    @validate_arguments
     def __init__(
         self,
-        model: KeyedVectors,
-        length: int | None = None,
-        components: int = 5,
-        cache_size_gb: float = 1.0,
-        sv_mapfile_path: str | None = None,
-        wv_mapfile_path: str | None = None,
-        workers: int = 1,
+        model: WordVectorModel,
+        length: PositiveInt | None = None,
+        components: NonNegativeInt = 5,
+        cache_size_gb: PositiveFloat = 1.0,
+        sv_mapfile_path: PathLike | None = None,
+        wv_mapfile_path: PathLike | None = None,
+        workers: PositiveInt = 1,
         lang_freq: str | None = None,
     ):
         """Unsupervised smooth-inverse frequency (uSIF) weighted sentence embeddings
