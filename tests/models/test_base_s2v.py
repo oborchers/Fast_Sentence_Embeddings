@@ -626,3 +626,52 @@ class TestSmallFixes:
 
         with pytest.warns(UserWarning, match="ignores unknown keyword arguments: foo"):
             Average(w2v, foo=1)
+
+
+class TestUniqueIndices:
+    @pytest.mark.parametrize(
+        ("indices", "unique"),
+        [
+            ([0, 1, 2, 3], True),
+            ([3, 1, 0, 2], True),
+            ([0, 1, 0, 2], False),
+            ([0, 0, 2], False),
+            ([1, 1, 1, 1], False),
+        ],
+    )
+    def test_scan_detects_duplicate_indices(self, w2v, indices, unique):
+        se = BaseSentence2VecModel(w2v)
+        items = [(["the"], index) for index in indices]
+        assert se.scan_sentences(items)["unique_indices"] is unique
+
+
+def test_many_to_one_without_extension_uses_one_worker(w2v, sentences, monkeypatch, caplog):
+    """Without the C extension there are no row locks, so training falls back to one worker."""
+    import logging
+
+    from fse.models import base_s2v
+    from fse.models.average import Average
+
+    monkeypatch.setattr(base_s2v, "RowLocks", None)
+    model = Average(w2v, workers=4)
+    used = []
+    original = model._train_manager
+
+    def recording_manager(*args, **kwargs):
+        used.append(kwargs["workers"])
+        return original(*args, **kwargs)
+
+    model._train_manager = recording_manager
+    with caplog.at_level(logging.WARNING, logger="fse.models.base_s2v"):
+        model.train([(s, i % 3) for i, s in enumerate(sentences)])
+    assert used == [1]
+    assert "one worker" in caplog.text
+
+
+def test_row_locks_are_removed_after_training(w2v, sentences, tmp_path):
+    from fse.models.average import Average
+
+    model = Average(w2v, workers=2)
+    model.train([(s, i % 3) for i, s in enumerate(sentences)])
+    assert "_row_locks" not in vars(model)
+    model.save(str(tmp_path / "model"))

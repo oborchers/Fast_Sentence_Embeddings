@@ -393,3 +393,33 @@ def test_np_counts_empty_sentences_like_cy(w2v):
             train_func(model, sentences, model.sv.vectors, model._get_thread_working_mem())
         )
     assert counts[0] == counts[1] == (1, 1)
+
+
+def test_many_to_one_with_workers_loses_no_updates():
+    """Workers that add into the same rows concurrently must not lose sentence averages.
+
+    50,000 sentences map onto 4 rows, so each row sums 12,500 averages. One lost update
+    changes a row by about 1/12,500 = 8e-5, far above float32 summation noise.
+    """
+    from gensim.models import KeyedVectors
+
+    from fse import CIndexedList
+
+    rng = np.random.default_rng(0)
+    vocab = [f"w{i}" for i in range(2000)]
+    kv = KeyedVectors(16)
+    kv.add_vectors(vocab, rng.random((len(vocab), 16), dtype=np.float32))
+    for word in vocab:
+        kv.set_vecattr(word, "count", 1)
+    sentences = [[vocab[j] for j in rng.integers(0, len(vocab), 12)] for _ in range(50_000)]
+    index = [i % 4 for i in range(len(sentences))]
+
+    vectors = kv.vectors.astype(np.float64)
+    expected = np.full((4, 16), EPS, dtype=np.float64)
+    for sentence, row in zip(sentences, index, strict=True):
+        expected[row] += vectors[[kv.key_to_index[w] for w in sentence]].mean(axis=0)
+
+    for _ in range(5):
+        model = Average(kv, workers=8)
+        model.train(CIndexedList(sentences, custom_index=index))
+        assert np.allclose(model.sv.vectors, expected, rtol=1e-5, atol=0)

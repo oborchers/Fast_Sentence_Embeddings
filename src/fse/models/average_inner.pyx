@@ -19,6 +19,13 @@ cimport numpy as np
 from gensim.models.fasttext import compute_ngrams_bytes, ft_hash_bytes
 
 from cpython.pycapsule cimport PyCapsule_GetPointer
+from cpython.pythread cimport (
+    WAIT_LOCK,
+    PyThread_acquire_lock,
+    PyThread_allocate_lock,
+    PyThread_free_lock,
+    PyThread_release_lock,
+)
 from libc.string cimport memset
 from libc.stdio cimport printf
 
@@ -36,6 +43,40 @@ cdef uINT_t NO_VECTOR = <uINT_t>0xFFFFFFFF
 
 cdef REAL_t ONEF = <REAL_t>1.0
 cdef REAL_t ZEROF = <REAL_t>0.0
+
+cdef class RowLocks:
+    """Striped locks that serialize adding sentence averages into shared target rows.
+
+    Only needed when several sentences map to the same row and more than one worker
+    trains at the same time. Row ``r`` uses lock ``r % N_ROW_LOCKS``.
+    """
+
+    def __cinit__(self):
+        cdef int i
+        for i in range(N_ROW_LOCKS):
+            self.locks[i] = NULL
+        for i in range(N_ROW_LOCKS):
+            self.locks[i] = PyThread_allocate_lock()
+            if self.locks[i] == NULL:
+                raise MemoryError("could not allocate row locks")
+
+    def __dealloc__(self):
+        cdef int i
+        for i in range(N_ROW_LOCKS):
+            if self.locks[i] != NULL:
+                PyThread_free_lock(self.locks[i])
+
+    def __reduce__(self):
+        raise TypeError("RowLocks only exist during training and cannot be pickled")
+
+
+cdef PyThread_type_lock *_row_locks_of(model):
+    """Return the row locks set on the model for the current training, or NULL."""
+    locks = getattr(model, "_row_locks", None)
+    if locks is None:
+        return NULL
+    return (<RowLocks?>locks).locks
+
 
 cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory):
     """Load the model parameters into a BaseSentenceVecsConfig struct.
@@ -62,6 +103,7 @@ cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory):
     c[0].word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
 
     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
+    c[0].locks = _row_locks_of(model)
 
 cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory):
     """Load Fasttext parameters into a FTSentenceVecsConfig struct.
@@ -98,6 +140,7 @@ cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory):
     c[0].word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
 
     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
+    c[0].locks = _row_locks_of(model)
 
 cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sentences, n_rows):
     """Prepare C structures for Word2Vec-style vectors so the kernel can release the Python GIL.
@@ -239,6 +282,7 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
         uINT_t i, word_idx, word_row
 
         REAL_t sent_len, inv_count
+        PyThread_type_lock lock
 
     for sent_idx in range(num_sentences):
         memset(c.mem, 0, size * cython.sizeof(REAL_t))
@@ -259,7 +303,13 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
             inv_count = ONEF / sent_len
             # If we perform the a*x on memory, the computation is compatible with many-to-one mappings
             # because it doesn't rescale the overall result
-            saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
+            if c.locks != NULL:
+                lock = c.locks[c.sent_adresses[sent_start] % N_ROW_LOCKS]
+                PyThread_acquire_lock(lock, WAIT_LOCK)
+                saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
+                PyThread_release_lock(lock)
+            else:
+                saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
 
 cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sentences) noexcept nogil:
     """Perform optimized sentence-level averaging for FastText model.
@@ -287,6 +337,7 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
 
         REAL_t sent_len
         REAL_t inv_count, inv_ngram
+        PyThread_type_lock lock
         REAL_t oov_weight = c.oov_weight
 
 
@@ -316,7 +367,13 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
 
         if sent_len > ZEROF:
             inv_count = ONEF / sent_len
-            saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
+            if c.locks != NULL:
+                lock = c.locks[c.sent_adresses[sent_start] % N_ROW_LOCKS]
+                PyThread_acquire_lock(lock, WAIT_LOCK)
+                saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
+                PyThread_release_lock(lock)
+            else:
+                saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
 
 def _check_array(array, name, dtype):
     """Raise unless array is a C-contiguous ndarray of dtype, because the kernel takes raw pointers."""

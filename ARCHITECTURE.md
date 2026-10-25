@@ -42,6 +42,8 @@ src/fse/
 
 Several sentences may share one index. Each sentence average is added into the row; a row is not overwritten.
 
+`scan_sentences` reports whether every index is unique. If it is not and more than one worker trains, the Cython kernel adds into rows under striped locks (`RowLocks`, 256 stripes), which exist only during `train` and are never pickled. Without the extension, such inputs train with one worker. Unique indices, the common case, take no lock.
+
 ### Appended rows never change existing rows
 
 `train(update=True)` writes only into the rows it appends. Existing sentence vectors, including their removed components, stay bit-identical.

@@ -77,10 +77,11 @@ from fse.models.sentencevectors import SentenceVectors, _l2_norm
 logger = logging.getLogger(__name__)
 
 try:
-    from fse.models.average_inner import MAX_NGRAMS_IN_BATCH, MAX_WORDS_IN_BATCH
+    from fse.models.average_inner import MAX_NGRAMS_IN_BATCH, MAX_WORDS_IN_BATCH, RowLocks
 except ImportError:  # pragma: no cover - the numpy fallback has no fixed buffer layout
     MAX_WORDS_IN_BATCH = 10000
     MAX_NGRAMS_IN_BATCH = 40
+    RowLocks = None  # type: ignore[assignment, misc]
 
 EPS = finfo(REAL).eps
 
@@ -622,6 +623,11 @@ class BaseSentence2VecModel(SaveLoad):
         average_length = 0
         empty_sentences = 0
         max_index = 0
+        # Whether every index occurs at most once. Most inputs use index == position, which
+        # needs no bookkeeping; any other order is tracked exactly with one byte per row.
+        unique_indices = True
+        identity = True
+        seen = bytearray()
 
         for i, obj in enumerate(sentences):
             # Only the first item is fully type checked to keep the scan fast.
@@ -634,6 +640,15 @@ class BaseSentence2VecModel(SaveLoad):
 
             max_index = max(max_index, index)
             total_sentences += 1
+            if identity and index != i:
+                identity = False
+                seen = bytearray(b"\x01") * i
+            if not identity and unique_indices:
+                if index >= len(seen):
+                    seen.extend(bytes(index + 1 - len(seen)))
+                if seen[index]:
+                    unique_indices = False
+                seen[index] = 1
             total_words += len(sent)
 
             if not len(sent):
@@ -659,6 +674,7 @@ class BaseSentence2VecModel(SaveLoad):
             "average_length": average_length,
             "empty_sentences": empty_sentences,
             "max_index": max_index + 1 if total_sentences else 0,
+            "unique_indices": unique_indices,
         }
         return statistics
 
@@ -755,12 +771,28 @@ class BaseSentence2VecModel(SaveLoad):
 
         logger.info("begin training")
 
-        _, eff_sentences, eff_words = self._train_manager(
-            data_iterable=_OffsetIndices(sentences, offset) if offset else sentences,
-            total_sentences=statistics["total_sentences"],
-            queue_factor=queue_factor,
-            report_delay=report_delay,
-        )
+        workers = self.workers
+        if workers > 1 and not statistics["unique_indices"]:
+            if RowLocks is not None:
+                # Several sentences share rows: serialize adding into each row.
+                self._row_locks = RowLocks()
+            else:
+                logger.warning(
+                    "several sentences map to the same row; the numpy fallback trains them "
+                    "with one worker to avoid lost updates"
+                )
+                workers = 1
+        try:
+            _, eff_sentences, eff_words = self._train_manager(
+                data_iterable=_OffsetIndices(sentences, offset) if offset else sentences,
+                total_sentences=statistics["total_sentences"],
+                queue_factor=queue_factor,
+                report_delay=report_delay,
+                workers=workers,
+            )
+        finally:
+            # The locks only exist during training and must never be pickled.
+            self.__dict__.pop("_row_locks", None)
 
         overall_time = time() - start_time
 
@@ -824,6 +856,7 @@ class BaseSentence2VecModel(SaveLoad):
         total_sentences: int | None = None,
         queue_factor: int = 2,
         report_delay: int = 5,
+        workers: int | None = None,
     ):
         """Manager for the multi-core implementation. Directly adapted from gensim
 
@@ -837,11 +870,14 @@ class BaseSentence2VecModel(SaveLoad):
             Multiplier for size of queue -> size = number of workers * queue_factor.
         report_delay : int
             Number of seconds between two consecutive progress report messages in the logger.
+        workers : int, optional
+            Number of worker threads. Defaults to the model's workers.
 
         """
-        job_queue: Queue[list[tuple] | None] = Queue(maxsize=queue_factor * self.workers)
+        n_workers = self.workers if workers is None else workers
+        job_queue: Queue[list[tuple] | None] = Queue(maxsize=queue_factor * n_workers)
         progress_queue: Queue[tuple[int, int, int] | None] = Queue(
-            maxsize=(queue_factor + 1) * self.workers
+            maxsize=(queue_factor + 1) * n_workers
         )
 
         # The first error of any thread is re-raised here once all threads are done.
@@ -853,11 +889,12 @@ class BaseSentence2VecModel(SaveLoad):
             threading.Thread(
                 target=self._worker_loop, args=(job_queue, progress_queue, errors, stop)
             )
-            for _ in range(self.workers)
+            for _ in range(n_workers)
         ]
         threads.append(
             threading.Thread(
-                target=self._job_producer, args=(data_iterable, job_queue, errors, stop)
+                target=self._job_producer,
+                args=(data_iterable, job_queue, errors, stop, n_workers),
             )
         )
 
@@ -867,7 +904,10 @@ class BaseSentence2VecModel(SaveLoad):
 
         try:
             jobs, eff_sentences, eff_words = self._log_train_progress(
-                progress_queue, total_sentences=total_sentences, report_delay=report_delay
+                progress_queue,
+                total_sentences=total_sentences,
+                report_delay=report_delay,
+                workers=n_workers,
             )
         finally:
             stop.set()
@@ -941,6 +981,7 @@ class BaseSentence2VecModel(SaveLoad):
         job_queue: Queue,
         errors: list[BaseException],
         stop: threading.Event,
+        workers: int | None = None,
     ):
         """Fill the jobs queue using the data found in the input stream.
 
@@ -984,12 +1025,16 @@ class BaseSentence2VecModel(SaveLoad):
             stop.set()
         finally:
             # Workers keep draining the queue, so these puts cannot block forever.
-            for _ in range(self.workers):
+            for _ in range(self.workers if workers is None else workers):
                 job_queue.put(None)
         logger.debug(f"job loop exiting, total {job_no} jobs")
 
     def _log_train_progress(
-        self, progress_queue: Queue, total_sentences: int | None = None, report_delay: int = 5
+        self,
+        progress_queue: Queue,
+        total_sentences: int | None = None,
+        report_delay: int = 5,
+        workers: int | None = None,
     ):
         """Log the training process after a couple of seconds.
 
@@ -1012,7 +1057,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         jobs, eff_sentences, eff_words = 0, 0, 0
-        unfinished_worker_count = self.workers
+        unfinished_worker_count = self.workers if workers is None else workers
         start_time = time()
         sentence_inc = 0
         while unfinished_worker_count > 0:

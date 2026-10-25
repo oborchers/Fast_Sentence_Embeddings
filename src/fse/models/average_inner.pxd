@@ -9,6 +9,7 @@
 # Copyright (C) Oliver Borchers
 
 cimport numpy as np
+from cpython.pythread cimport PyThread_type_lock
 
 ctypedef np.float32_t REAL_t
 ctypedef np.uint32_t uINT_t
@@ -30,6 +31,8 @@ cdef struct BaseSentenceVecsConfig:
     REAL_t *word_vectors
     REAL_t *word_weights
     REAL_t *sentence_vectors
+    # Striped row locks for many-to-one index mappings, or NULL for one row per sentence.
+    PyThread_type_lock *locks
 
     uINT_t word_indices[MAX_WORDS]
     uINT_t sent_adresses[MAX_WORDS]
@@ -47,6 +50,8 @@ cdef struct FTSentenceVecsConfig:
     REAL_t *word_weights
 
     REAL_t *sentence_vectors
+    # Striped row locks for many-to-one index mappings, or NULL for one row per sentence.
+    PyThread_type_lock *locks
 
     # REAL_t *work memory for summation?
     uINT_t word_indices[MAX_WORDS]
@@ -56,6 +61,12 @@ cdef struct FTSentenceVecsConfig:
     # For storing the oov items
     uINT_t subwords_idx_len[MAX_WORDS]
     uINT_t *subwords_idx
+
+cdef enum:
+    N_ROW_LOCKS = 256
+
+cdef class RowLocks:
+    cdef PyThread_type_lock locks[N_ROW_LOCKS]
 
 cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory)
 
