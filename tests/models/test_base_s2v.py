@@ -64,6 +64,22 @@ class TestBaseSentence2VecModel:
         with pytest.raises(ValidationError):
             BaseSentence2VecModel(w2v, **kwargs)
 
+    @pytest.mark.parametrize("kwargs", [{"cache_size_gb": float("inf")}, {"alpha": float("nan")}])
+    def test_init_rejects_non_finite_floats(self, w2v, kwargs):
+        from fse.models.sif import SIF
+
+        with pytest.raises(ValidationError):
+            SIF(w2v, **kwargs)
+
+    def test_init_accepts_numpy_integers(self, w2v):
+        from fse.models.sif import SIF
+
+        se = SIF(w2v, components=np.int64(2), workers=np.int32(2))
+        assert se.components == 2
+        assert type(se.components) is int
+        with pytest.raises(ValidationError):
+            SIF(w2v, workers=np.bool_(True))
+
     def test_init_accepts_path_objects(self, w2v, tmp_path):
         se = BaseSentence2VecModel(w2v, sv_mapfile_path=tmp_path / "sv")
         assert se.sv.mapfile_path == tmp_path / "sv"
@@ -659,8 +675,15 @@ class TestSmallFixes:
         """A typo such as worker=4 must not be ignored silently."""
         from fse.models.average import Average
 
-        with pytest.raises(TypeError, match="unexpected keyword arguments: foo"):
+        with pytest.raises(ValidationError, match="Unexpected keyword argument"):
             Average(w2v, foo=1)
+        with pytest.raises(ValidationError, match="Unexpected keyword argument"):
+            BaseSentence2VecModel(w2v, worker=4)
+
+    def test_tuple_with_extra_element_raises(self, w2v):
+        se = BaseSentence2VecModel(w2v)
+        with pytest.raises(ValueError, match="tuple of length 3"):
+            se.scan_sentences([(["the"], 0, "ignored")])
 
 
 class TestUniqueIndices:

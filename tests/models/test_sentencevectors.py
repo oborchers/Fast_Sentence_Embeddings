@@ -217,6 +217,14 @@ class TestMostSimilar:
         o = trained.sv.most_similar(positive=20, topn=20, restrict_size=5)
         assert len(o) == 5
 
+    def test_most_similar_restrict_size_numpy_integer(self, trained):
+        o = trained.sv.most_similar(positive=20, topn=20, restrict_size=np.int64(5))
+        assert len(o) == 5
+
+    def test_most_similar_restrict_size_reversed_raises(self, trained):
+        with pytest.raises(ValueError, match="upper bound below its lower bound"):
+            trained.sv.most_similar(positive=1, topn=20, restrict_size=(25, 5))
+
     def test_most_similar_restrict_size_tuple(self, trained, indexed_sentences):
         o = trained.sv.most_similar(positive=20, topn=20, restrict_size=(5, 25))
         assert len(o) == 19

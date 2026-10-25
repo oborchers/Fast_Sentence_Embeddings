@@ -122,7 +122,7 @@ class IndexedList(BaseIndexedList):
         Parameters
         ----------
         args : lists, ndarray
-            Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
+            Arguments to be merged into a single contianer. Can be single or multiple lists or arrays; sets are rejected.
         """
         super().__init__(*args)
 
@@ -145,7 +145,7 @@ class CIndexedList(BaseIndexedList):
         Parameters
         ----------
         args : lists, ndarray
-            Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
+            Arguments to be merged into a single contianer. Can be single or multiple lists or arrays; sets are rejected.
         custom_index : list, ndarray
             Custom index to support many to one mappings.
         """
@@ -192,7 +192,7 @@ class SplitIndexedList(BaseIndexedList):
         Parameters
         ----------
         args : lists, ndarray
-            Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
+            Arguments to be merged into a single contianer. Can be single or multiple lists or arrays; sets are rejected.
         """
         super().__init__(*args)
 
@@ -215,7 +215,7 @@ class SplitCIndexedList(BaseIndexedList):
         Parameters
         ----------
         args : lists, ndarray
-            Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
+            Arguments to be merged into a single contianer. Can be single or multiple lists or arrays; sets are rejected.
         custom_index : list, ndarray
             Custom index to support many to one mappings.
         """
@@ -262,7 +262,7 @@ class CSplitIndexedList(BaseIndexedList):
         Parameters
         ----------
         args : lists, ndarray
-            Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
+            Arguments to be merged into a single contianer. Can be single or multiple lists or arrays; sets are rejected.
         custom_split : callable
             Split function to be used to convert strings into list of str.
         """
@@ -293,7 +293,7 @@ class CSplitCIndexedList(BaseIndexedList):
         Parameters
         ----------
         args : lists, ndarray
-            Arguments to be merged into a single contianer. Can be single or multiple list/set objects.
+            Arguments to be merged into a single contianer. Can be single or multiple lists or arrays; sets are rejected.
         custom_split : callable
             Split function to be used to convert strings into list of str.
         custom_index : list, ndarray

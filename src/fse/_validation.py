@@ -8,9 +8,10 @@ loading and the similarity searches. Per-element methods such as ``similarity`` 
 from pathlib import Path
 from typing import Annotated, TypeAlias
 
+import numpy as np
 from gensim.models import FastText, Word2Vec
 from gensim.models.keyedvectors import KeyedVectors
-from pydantic import ConfigDict, Field, validate_call
+from pydantic import BeforeValidator, ConfigDict, Field, validate_call
 
 # strict: nothing is coerced, for example "4" is not accepted for an int.
 # arbitrary_types_allowed: gensim and numpy objects are checked with isinstance.
@@ -22,6 +23,16 @@ WordVectorModel: TypeAlias = KeyedVectors | Word2Vec | FastText
 #: A file system path given as str or Path.
 PathLike: TypeAlias = str | Path
 
-PositiveInt = Annotated[int, Field(gt=0)]
-NonNegativeInt = Annotated[int, Field(ge=0)]
-PositiveFloat = Annotated[float, Field(gt=0)]
+
+def _numpy_integer_to_int(value: object) -> object:
+    """Accept numpy integer scalars such as ``np.int64(4)``, which strict mode rejects."""
+    if isinstance(value, np.integer):
+        return int(value)
+    return value
+
+
+# bool stays an error: np.bool_ is no np.integer, and strict mode rejects a Python bool.
+PositiveInt = Annotated[int, BeforeValidator(_numpy_integer_to_int), Field(gt=0)]
+NonNegativeInt = Annotated[int, BeforeValidator(_numpy_integer_to_int), Field(ge=0)]
+# Infinity would pass gt=0 and fail only after training, for example in int(cache_size_gb).
+PositiveFloat = Annotated[float, Field(gt=0, allow_inf_nan=False)]

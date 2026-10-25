@@ -241,8 +241,8 @@ class SentenceVectors(utils.SaveLoad):
         indexable: list, IndexedList, IndexedLineDocument
             Provides an indexable object from where the most similar sentences are read
         topn : int or None, optional
-            Number of top-N similar sentences to return, when `topn` is int. When `topn` is None,
-            then similarities for all sentences are returned.
+            Number of top-N similar sentences to return, when `topn` is a positive int. When
+            `topn` is 0 or None, the similarities to all sentences are returned as an array.
         restrict_size : int or Tuple(int,int), optional
             Optional integer which limits the range of vectors which
             are searched for most-similar values. For example, restrict_size=10000 would
@@ -298,6 +298,10 @@ class SentenceVectors(utils.SaveLoad):
             lo, hi = restrict_size
         else:
             lo, hi = 0, None
+        if hi is not None and hi < lo:
+            raise ValueError(
+                f"restrict_size {restrict_size} has an upper bound below its lower bound"
+            )
 
         vectors_norm = cast(ndarray, self.vectors_norm)
         limited = vectors_norm if restrict_size is None else vectors_norm[lo:hi]
@@ -342,8 +346,8 @@ class SentenceVectors(utils.SaveLoad):
         indexable: list, IndexedList, IndexedLineDocument
             Provides an indexable object from where the most similar sentences are read
         topn : int or None, optional
-            Number of top-N similar sentences to return, when `topn` is int. When `topn` is None,
-            then similarities for all sentences are returned.
+            Number of top-N similar sentences to return, when `topn` is a positive int. When
+            `topn` is 0 or None, the similarities to all sentences are returned as an array.
         restrict_size : int or Tuple(int,int), optional
             Optional integer which limits the range of vectors which
             are searched for most-similar values. For example, restrict_size=10000 would
@@ -370,7 +374,7 @@ class SentenceVectors(utils.SaveLoad):
     @validate_arguments
     def similar_by_sentence(
         self,
-        sentence: list[str],
+        sentence: Any,
         model: Any,
         indexable: Any = None,
         topn: NonNegativeInt | None = 10,
@@ -387,8 +391,8 @@ class SentenceVectors(utils.SaveLoad):
         indexable: list, IndexedList, IndexedLineDocument
             Provides an indexable object from where the most similar sentences are read
         topn : int or None, optional
-            Number of top-N similar sentences to return, when `topn` is int. When `topn` is None,
-            then similarities for all sentences are returned.
+            Number of top-N similar sentences to return, when `topn` is a positive int. When
+            `topn` is 0 or None, the similarities to all sentences are returned as an array.
         restrict_size : int or Tuple(int,int), optional
             Optional integer which limits the range of vectors which
             are searched for most-similar values. For example, restrict_size=10000 would
@@ -433,8 +437,8 @@ class SentenceVectors(utils.SaveLoad):
         indexable: list, IndexedList, IndexedLineDocument
             Provides an indexable object from where the most similar sentences are read
         topn : int or None, optional
-            Number of top-N similar sentences to return, when `topn` is int. When `topn` is None,
-            then similarities for all sentences are returned.
+            Number of top-N similar sentences to return, when `topn` is a positive int. When
+            `topn` is 0 or None, the similarities to all sentences are returned as an array.
         restrict_size : int or Tuple(int,int), optional
             Optional integer which limits the range of vectors which
             are searched for most-similar values. For example, restrict_size=10000 would

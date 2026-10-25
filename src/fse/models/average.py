@@ -216,7 +216,6 @@ class Average(BaseSentence2VecModel):
         wv_mapfile_path: PathLike | None = None,
         workers: PositiveInt = 1,
         lang_freq: str | None = None,
-        **kwargs,
     ):
         """Average (unweighted) sentence embeddings model. Performs a simple averaging operation over all
         words in a sentences without further transformation.
@@ -246,11 +245,6 @@ class Average(BaseSentence2VecModel):
 
         """
 
-        if kwargs:
-            raise TypeError(
-                f"{type(self).__name__} got unexpected keyword arguments: "
-                f"{', '.join(sorted(kwargs))}"
-            )
         super().__init__(
             model=model,
             sv_mapfile_path=sv_mapfile_path,

@@ -111,7 +111,6 @@ class BaseSentence2VecModel(SaveLoad):
         fast_version: int = 0,
         batch_words: PositiveInt = 10000,
         batch_ngrams: PositiveInt = 40,
-        **kwargs,
     ):
         """Base class for all Sentence2Vec Models. Provides core functionality, such as
         save, load, sanity checking, frequency induction, data checking, scanning, etc.
@@ -141,8 +140,6 @@ class BaseSentence2VecModel(SaveLoad):
             Number of words to be processed by a single job.
         batch_ngrams : int, optional
             Number of maxium ngrams for oov words.
-        **kwargs : object
-            Key word arguments needed to allow children classes to accept more arguments.
 
         """
 
@@ -391,11 +388,14 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
 
-        if isinstance(obj, tuple):
-            sent = obj[0]  # Faster than obj.words
-            index = obj[1]
-        else:
+        if not isinstance(obj, tuple):
             raise TypeError(f"Passed {type(obj)}: {obj}. Iterable must contain tuple.")
+        if len(obj) != 2:
+            raise ValueError(
+                f"At {iter_pos}: Passed a tuple of length {len(obj)}. "
+                "Each item must be a (words, index) tuple."
+            )
+        sent, index = obj
 
         if not isinstance(sent, list) or not all(isinstance(w, str) for w in sent):
             raise TypeError(
