@@ -165,7 +165,8 @@ def test_remove_components_blockwise_matches_full_matrix(monkeypatch, inplace, w
 
     out = remove_principal_components(vectors, svd_res, weights=weights, inplace=inplace)
     result = vectors if inplace else out
-    assert_allclose(result, expected, rtol=1e-6, atol=1e-7)
+    # BLAS may sum a block in another order than the whole matrix: float32 rounding only.
+    assert_allclose(result, expected, rtol=1e-5, atol=1e-6)
 
 
 def test_remove_components_memory_is_bounded_by_a_block(tmp_path):
