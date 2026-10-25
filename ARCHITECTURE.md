@@ -32,6 +32,8 @@ src/fse/
 6. **Kernel:** `populate_*_config` turns tokens into word indices while holding the GIL. The averaging runs without the GIL and adds each sentence average into its target row with BLAS `saxpy`.
 7. **Post-train hook:** `_post_train_calls` removes principal components for SIF and uSIF. After `train(update=True)` it reuses the components of the first training for the appended rows only, as `infer` does.
 
+`infer(sentences)` takes a shorter path. It scans the input, allocates a zero-filled output matrix, runs the jobs in the calling thread with the weights learned in `train`, and finishes with `_post_inference_calls`, which removes the stored principal components for SIF and uSIF. It has no preparer, no pre-train hook and no threads.
+
 ## Rules
 
 ### The numpy fallback matches the Cython kernel

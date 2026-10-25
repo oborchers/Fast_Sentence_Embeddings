@@ -279,7 +279,7 @@ Development
 The project uses [uv](https://docs.astral.sh/uv/) and a Makefile:
 
     make install   # create the environment and build the extension
-    make check     # format check, lint and tests
+    make check     # format check, lint, type check and tests
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details and [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
