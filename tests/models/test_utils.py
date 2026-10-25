@@ -200,3 +200,15 @@ def test_sample_rows_in_file_order_equal_fancy_indexing(monkeypatch, tmp_path):
     vectors[:] = np.random.default_rng(0).random((rows, dim), dtype=np.float32)
     indices = np.random.default_rng(42).choice(rows, size=100, replace=False)
     assert np.array_equal(utils._take_rows_in_file_order(vectors, indices), vectors[indices])
+
+
+def test_remove_components_keeps_numpy_result_types():
+    """Integers give a float result, and in-place removal refuses to truncate."""
+    vectors = np.arange(40, dtype=np.int64).reshape(10, 4)
+    svd_res = (np.ones(1, dtype=np.float32), np.full((1, 4), 0.5, dtype=np.float32))
+    out = remove_principal_components(vectors, svd_res, inplace=False)
+    expected = vectors - vectors.dot(svd_res[1].T).dot(svd_res[1])
+    assert out.dtype == expected.dtype
+    assert_allclose(out, expected)
+    with pytest.raises(TypeError):
+        remove_principal_components(vectors, svd_res, inplace=True)

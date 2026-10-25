@@ -183,7 +183,8 @@ def main() -> None:
                         "repeats": args.repeats,
                         "seed": args.seed,
                     }
-                    load = os.getloadavg()[0]
+                    # os.getloadavg is not available on Windows; nan marks the load unknown.
+                    load = os.getloadavg()[0] if hasattr(os, "getloadavg") else float("nan")
                     if load > cpus / 4:
                         print(f"# warning: load average {load:.1f} on {cpus} CPUs", flush=True)
                     out = subprocess.run(

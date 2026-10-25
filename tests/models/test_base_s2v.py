@@ -817,3 +817,38 @@ def test_compiled_scan_matches_the_python_loop(w2v, data, monkeypatch):
     compiled = outcome()
     monkeypatch.setattr(base_s2v, "scan_indexed_sentences", None)
     assert outcome() == compiled
+
+
+class _IterOverridingList(list):
+    """Stores strings but iterates integers; the Python check iterates."""
+
+    def __iter__(self):
+        return iter([1, 2])
+
+
+def test_compiled_scan_iterates_list_subclasses(w2v, monkeypatch):
+    from fse.models import base_s2v
+
+    data = [(_IterOverridingList(["a", "b"]), 0)]
+
+    def outcome():
+        try:
+            return BaseSentence2VecModel(w2v).scan_sentences(data)
+        except Exception as err:
+            return type(err), str(err)
+
+    compiled = outcome()
+    assert compiled[0] is TypeError
+    monkeypatch.setattr(base_s2v, "scan_indexed_sentences", None)
+    assert outcome() == compiled
+
+
+def test_scan_uses_a_validator_replaced_on_the_instance(w2v):
+    se = BaseSentence2VecModel(w2v)
+
+    def reject(iter_pos, obj):
+        raise ValueError("custom validator")
+
+    se._check_indexed_sent_valid = reject
+    with pytest.raises(ValueError, match="custom validator"):
+        se.scan_sentences([(["a"], 0)])

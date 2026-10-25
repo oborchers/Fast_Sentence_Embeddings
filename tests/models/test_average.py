@@ -563,19 +563,6 @@ def test_results_do_not_depend_on_the_number_of_workers(
         assert np.array_equal(result, results[0])
 
 
-def test_train_and_infer_use_encoded_jobs(w2v, corpus_indexed, monkeypatch):
-    """The workers average encoded jobs; _do_train_job is not called."""
-    model = Average(w2v, workers=2)
-    calls = []
-    monkeypatch.setattr(
-        model, "_run_encoded_job", lambda *a: calls.append(1) or Average._run_encoded_job(model, *a)
-    )
-    model.train(corpus_indexed)
-    model.infer(corpus_indexed)
-    assert calls
-    assert "_kernel_context" not in model.__dict__
-
-
 def test_replaced_do_train_job_keeps_the_job_path(w2v, corpus_indexed):
     """An instance that replaces _do_train_job receives lists of tuples, as before."""
     model = Average(w2v)
@@ -668,3 +655,126 @@ def test_job_encoder_rejects_unencodable_unknown_words(ft):
         train_average_cy(
             model, [(["\ud800"], 0)], model.sv.vectors, model._get_thread_working_mem()
         )
+
+
+class _LyingList(list):
+    """A list subclass that reports a wrong length."""
+
+    def __len__(self):
+        return 1
+
+
+class _BrokenHash(str):
+    def __hash__(self):
+        raise RuntimeError("hash failed")
+
+
+def test_cy_handles_huge_batch_ngrams_like_np(ft):
+    """The ngram buffer is sized by the longest unknown word, not by batch_ngrams."""
+    model = Average(ft)
+    model.batch_ngrams = 2**62 + 1
+    sentences = [(["averyveryverylongunknownword", "the"], 0)]
+    outputs = []
+    for train_func in (train_average_np, train_average_cy):
+        _prepare(model, total_sentences=1)
+        train_func(model, sentences, model.sv.vectors, model._get_thread_working_mem())
+        outputs.append(np.array(model.sv.vectors))
+    np.testing.assert_allclose(outputs[0], outputs[1], rtol=1e-5, atol=1e-7)
+
+
+def test_cy_does_not_trust_the_reported_sentence_length(w2v):
+    """A sentence whose len() is wrong cannot overrun the job buffers."""
+    model = Average(w2v)
+    words = list(model.wv.index_to_key)[:50]
+    outputs = []
+    for train_func in (train_average_np, train_average_cy):
+        _prepare(model, total_sentences=1)
+        train_func(
+            model, [(_LyingList(words), 0)], model.sv.vectors, model._get_thread_working_mem()
+        )
+        outputs.append(np.array(model.sv.vectors))
+    np.testing.assert_allclose(outputs[0], outputs[1], rtol=1e-5, atol=1e-7)
+
+
+def test_cy_propagates_errors_of_the_vocabulary_lookup(w2v):
+    model = Average(w2v)
+    _prepare(model, total_sentences=1)
+    with pytest.raises(RuntimeError, match="hash failed"):
+        train_average_cy(
+            model, [([_BrokenHash("the")], 0)], model.sv.vectors, model._get_thread_working_mem()
+        )
+
+
+def test_train_and_infer_each_use_encoded_jobs(w2v, corpus_indexed, monkeypatch):
+    model = Average(w2v, workers=2)
+    calls = []
+    original = Average._run_encoded_job
+    monkeypatch.setattr(
+        model, "_run_encoded_job", lambda *a: calls.append(1) or original(model, *a)
+    )
+    model.train(corpus_indexed)
+    assert calls
+    calls.clear()
+    model.infer(corpus_indexed)
+    assert calls
+
+
+@pytest.mark.parametrize("call", ["train", "infer"])
+def test_subclass_with_own_do_train_job_keeps_the_job_path(w2v, corpus_indexed, call):
+    seen = []
+
+    class Custom(Average):
+        def _do_train_job(self, data_iterable, target, memory):
+            seen.append(type(data_iterable))
+            return super()._do_train_job(data_iterable, target, memory)
+
+    model = Custom(w2v)
+    if call == "infer":
+        model.train(corpus_indexed)
+        seen.clear()
+    getattr(model, call)(corpus_indexed)
+    assert seen
+    assert set(seen) == {list}
+
+
+def test_encoder_failure_after_queued_jobs_stops_training(w2v, corpus_indexed):
+    """The encoder fails after several jobs reached the workers; train raises and ends."""
+    import threading
+
+    model = Average(w2v, workers=2)
+    model.batch_words = 5
+
+    def failing_input():
+        yield from list(corpus_indexed)[:60]
+        raise OSError("input failed")
+
+    class Input:
+        def __iter__(self):
+            return failing_input()
+
+    model.prep.prepare_vectors(sv=model.sv, total_sentences=len(corpus_indexed))
+    context = model._kernel_context(model.sv.vectors)
+    threads_before = threading.active_count()
+    with pytest.raises(OSError, match="input failed"):
+        model._train_manager(data_iterable=Input(), total_sentences=100, context=context)
+    assert threading.active_count() <= threads_before
+
+
+def test_worker_failure_with_encoded_jobs_stops_training(w2v, corpus_indexed, monkeypatch):
+    import threading
+
+    model = Average(w2v, workers=3)
+    model.batch_words = 5
+    done = []
+
+    def failing(context, job, memory):
+        done.append(1)
+        if len(done) == 3:
+            raise RuntimeError("worker failed")
+        return job.n_sentences, job.eff_words
+
+    monkeypatch.setattr(model, "_run_encoded_job", failing)
+    threads_before = threading.active_count()
+    with pytest.raises(RuntimeError, match="worker failed"):
+        model.train(corpus_indexed)
+    assert threading.active_count() <= threads_before

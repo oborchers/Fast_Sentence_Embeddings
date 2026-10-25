@@ -17,7 +17,6 @@ import numpy as np
 cimport numpy as np
 
 from cpython.bytes cimport PyBytes_FromStringAndSize
-from cpython.dict cimport PyDict_GetItem
 from cpython.object cimport PyObject
 from cpython.pycapsule cimport PyCapsule_GetPointer
 from cpython.pythread cimport (
@@ -37,6 +36,9 @@ import scipy.linalg.blas as fblas
 cdef extern from "Python.h":
     # Raises (TypeError, UnicodeEncodeError) instead of returning NULL silently.
     const char *PyUnicode_AsUTF8AndSize(object unicode, Py_ssize_t *size) except NULL
+    # NULL with an exception set on errors in __hash__ or __eq__, NULL without one if the
+    # key is missing. Unlike PyDict_GetItem it does not swallow the errors.
+    PyObject *PyDict_GetItemWithError(object d, object key) except? NULL
 
 # y += alpha * x, taken from scipy's BLAS. Raises at import if scipy exposes no pointer.
 cdef saxpy_ptr saxpy=<saxpy_ptr>PyCapsule_GetPointer(fblas.saxpy._cpointer, NULL)
@@ -355,7 +357,7 @@ cdef class JobEncoder:
             if not length:
                 continue
             for token in sentence:
-                hit = PyDict_GetItem(vocab, token)
+                hit = PyDict_GetItemWithError(vocab, token)
                 if hit != NULL:
                     _push_u32(&self.words, <uINT_t>(<object>hit))
                 elif is_ft:
@@ -408,31 +410,34 @@ cdef void _average_job(
     const np.int64_t *oov_offsets,
     REAL_t *mem,
     uINT_t *ngram_buffer,
+    size_t ngram_capacity,
 ) noexcept nogil:
     """Add the average of every sentence of a job into its target row.
 
-    The order of operations matches the numpy fallback: the weighted word vectors of a
-    sentence are summed into mem, then mem / length is added into the row.
+    The weighted word vectors of a sentence are summed into mem, then mem / length is
+    added into the row, as in the numpy fallback. For an unknown FastText word, each
+    ngram vector is added scaled by oov_weight / ngrams, where numpy sums the ngram
+    vectors first and scales the sum: the same value within float32 rounding.
     """
     cdef int size = p.size
     cdef Py_ssize_t s, k = 0
-    cdef np.int64_t t
+    cdef np.int64_t t, sent_len
     cdef size_t j, ngrams, row
     cdef uINT_t word
-    cdef REAL_t sent_len, inv_count, inv_ngram
+    cdef REAL_t inv_count, inv_ngram
     cdef PyThread_type_lock lock
 
     for s in range(n_sentences):
         memset(mem, 0, size * cython.sizeof(REAL_t))
-        sent_len = ZEROF
+        # Every stored token counts for the length, also unknown words without ngrams.
+        sent_len = offsets[s + 1] - offsets[s]
         for t in range(offsets[s], offsets[s + 1]):
-            sent_len += ONEF
             word = words[t]
             if word == OOV_TOKEN:
                 ngrams = ft_ngram_hashes_into(
                     &oov_bytes[oov_offsets[k]],
                     <size_t>(oov_offsets[k + 1] - oov_offsets[k]),
-                    p.min_n, p.max_n, p.bucket, ngram_buffer, p.max_ngrams,
+                    p.min_n, p.max_n, p.bucket, ngram_buffer, ngram_capacity,
                 )
                 k += 1
                 if ngrams == 0:
@@ -446,8 +451,8 @@ cdef void _average_job(
                 row = <size_t>word * <size_t>size
                 saxpy(&size, &p.word_weights[word], &p.word_vectors[row], &ONE, mem, &ONE)
 
-        if sent_len > ZEROF:
-            inv_count = ONEF / sent_len
+        if sent_len > 0:
+            inv_count = ONEF / <REAL_t>sent_len
             row = <size_t>targets[s] * <size_t>size
             # Adding mem / length keeps many-to-one mappings correct: rows accumulate.
             if p.locks != NULL:
@@ -480,15 +485,23 @@ def run_job(KernelContext ctx, EncodedJob job, scratch):
     cdef const uINT_t *words_ptr = &words[0] if words.shape[0] else NULL
     cdef const uINT_t *targets_ptr = &targets[0] if targets.shape[0] else NULL
 
-    if ctx.params.is_ft and ctx.params.max_ngrams:
-        ngram_buffer = <uINT_t *>malloc(ctx.params.max_ngrams * sizeof(uINT_t))
+    # A word of b UTF-8 bytes has fewer than b * max_n ngrams, so the buffer needs at most
+    # that many entries for the longest unknown word, even if batch_ngrams is larger.
+    cdef Py_ssize_t longest = 0
+    cdef Py_ssize_t i
+    for i in range(oov_offsets.shape[0] - 1):
+        longest = max(longest, oov_offsets[i + 1] - oov_offsets[i])
+    capacity = min(int(ctx.params.max_ngrams), int(longest) * max(int(ctx.params.max_n), 1))
+    cdef size_t ngram_capacity = capacity
+    if ngram_capacity:
+        ngram_buffer = <uINT_t *>malloc(ngram_capacity * sizeof(uINT_t))
         if ngram_buffer == NULL:
             raise MemoryError("could not allocate the ngram buffer")
     try:
         with nogil:
             _average_job(
                 &ctx.params, words_ptr, &offsets[0], targets_ptr, n_sentences,
-                oov_bytes, &oov_offsets[0], mem, ngram_buffer,
+                oov_bytes, &oov_offsets[0], mem, ngram_buffer, ngram_capacity,
             )
     finally:
         free(ngram_buffer)
@@ -512,7 +525,6 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
     cdef bint identity = True
     cdef set seen = set()
     cdef double last = time()
-    cdef list sent
 
     for obj in sentences:
         if not isinstance(obj, tuple):
@@ -528,8 +540,8 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
             raise TypeError(
                 f"At {i}: Passed {type(words)}: {words}. tuple.words must contain list of str."
             )
-        sent = <list>words
-        for word in sent:
+        # Subclasses of list may override __iter__, which the Python check uses.
+        for word in (<list>words if type(words) is list else words):
             if not isinstance(word, str):
                 raise TypeError(
                     f"At {i}: Passed {type(words)}: {words}. tuple.words must contain list of str."
@@ -558,8 +570,8 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
                 seen.clear()
             else:
                 seen.add(index)
-        total_words += len(sent)
-        if not sent:
+        total_words += len(words)
+        if not len(words):
             empty_sentences += 1
         i += 1
 

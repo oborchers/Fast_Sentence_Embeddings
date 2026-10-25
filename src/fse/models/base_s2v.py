@@ -688,6 +688,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         if (
             scan_indexed_sentences is not None
+            and "_check_indexed_sent_valid" not in self.__dict__
             and type(self)._check_indexed_sent_valid
             is BaseSentence2VecModel._check_indexed_sent_valid
         ):

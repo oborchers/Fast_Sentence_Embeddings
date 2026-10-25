@@ -142,6 +142,9 @@ class IndexedList(BaseIndexedList):
 
     def __iter__(self) -> Iterator[tuple]:
         """Iterate over all sentences, faster than indexing each one."""
+        if type(self).__getitem__ is not IndexedList.__getitem__:
+            # A subclass that changes __getitem__ is iterated through it.
+            return MutableSequence.__iter__(self)
         return zip(self.items, range(len(self.items)), strict=True)
 
 
@@ -178,6 +181,9 @@ class CIndexedList(BaseIndexedList):
 
     def __iter__(self) -> Iterator[tuple]:
         """Iterate over all sentences, faster than indexing each one."""
+        if type(self).__getitem__ is not CIndexedList.__getitem__:
+            # A subclass that changes __getitem__ is iterated through it.
+            return MutableSequence.__iter__(self)
         return zip(self.items, self.custom_index, strict=True)
 
     def __delitem__(self, i: int):  # type: ignore[override]
@@ -220,6 +226,9 @@ class SplitIndexedList(BaseIndexedList):
 
     def __iter__(self) -> Iterator[tuple]:
         """Iterate over all sentences, faster than indexing each one."""
+        if type(self).__getitem__ is not SplitIndexedList.__getitem__:
+            # A subclass that changes __getitem__ is iterated through it.
+            return MutableSequence.__iter__(self)
         return zip(map(_split, self.items), range(len(self.items)), strict=True)
 
 
@@ -256,6 +265,9 @@ class SplitCIndexedList(BaseIndexedList):
 
     def __iter__(self) -> Iterator[tuple]:
         """Iterate over all sentences, faster than indexing each one."""
+        if type(self).__getitem__ is not SplitCIndexedList.__getitem__:
+            # A subclass that changes __getitem__ is iterated through it.
+            return MutableSequence.__iter__(self)
         return zip(map(_split, self.items), self.custom_index, strict=True)
 
     def __delitem__(self, i: int):  # type: ignore[override]
@@ -301,6 +313,9 @@ class CSplitIndexedList(BaseIndexedList):
 
     def __iter__(self) -> Iterator[tuple]:
         """Iterate over all sentences, faster than indexing each one."""
+        if type(self).__getitem__ is not CSplitIndexedList.__getitem__:
+            # A subclass that changes __getitem__ is iterated through it.
+            return MutableSequence.__iter__(self)
         return zip(map(self.custom_split, self.items), range(len(self.items)), strict=True)
 
 
@@ -345,6 +360,9 @@ class CSplitCIndexedList(BaseIndexedList):
 
     def __iter__(self) -> Iterator[tuple]:
         """Iterate over all sentences, faster than indexing each one."""
+        if type(self).__getitem__ is not CSplitCIndexedList.__getitem__:
+            # A subclass that changes __getitem__ is iterated through it.
+            return MutableSequence.__iter__(self)
         return zip(map(self.custom_split, self.items), self.custom_index, strict=True)
 
     def __delitem__(self, i: int):  # type: ignore[override]

@@ -9,7 +9,7 @@ from sys import platform
 from time import time
 from typing import Any
 
-from numpy import argsort, dtype, empty, empty_like, finfo, ndarray
+from numpy import argsort, dtype, empty, finfo, ndarray, result_type, subtract
 from numpy import float32 as REAL
 from numpy.random import default_rng
 from sklearn.decomposition import TruncatedSVD
@@ -133,7 +133,9 @@ def remove_principal_components(
     scale = None if weights is None else weights.astype(REAL)[None, :]
 
     start = time()
-    output = vectors if inplace else empty_like(vectors)
+    # The result type of vectors - projection, as for the whole matrix at once: an integer
+    # input gives a float result instead of being truncated.
+    output = vectors if inplace else empty(vectors.shape, dtype=result_type(vectors, components))
     # Work in blocks of rows, so the temporary projection never exceeds one block, also for
     # memory-mapped vectors that do not fit into RAM.
     for begin in range(0, len(vectors), REMOVAL_BLOCK_ROWS):
@@ -143,7 +145,10 @@ def remove_principal_components(
         coefficients = block.dot(components.transpose())
         if scale is not None:
             coefficients *= scale
-        output[begin : begin + REMOVAL_BLOCK_ROWS] = block - coefficients.dot(components)
+        # subtract with out raises for an unsafe cast, as vectors -= projection did.
+        subtract(
+            block, coefficients.dot(components), out=output[begin : begin + REMOVAL_BLOCK_ROWS]
+        )
     elapsed = time()
 
     logger.info(f"removing {len(components)} principal components took {int(elapsed - start)}s")
