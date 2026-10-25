@@ -97,9 +97,12 @@ class SIF(Average):
         """Function calls to perform before training"""
         self._compute_sif_weights()
 
-    def _post_train_calls(self, **kwargs):
+    def _post_train_calls(self, update: bool = False, offset: int = 0, **kwargs):
         """Function calls to perform after training, such as computing eigenvectors"""
-        if self.components > 0:
+        if self.components > 0 and update and isinstance(self.svd_res, tuple):
+            # Appended rows are treated like inference: reuse the learned components.
+            remove_principal_components(self.sv.vectors[offset:], svd_res=self.svd_res)
+        elif self.components > 0:
             self.svd_res = compute_principal_components(
                 self.sv.vectors,
                 components=self.components,

@@ -36,6 +36,7 @@ See Also
 import logging
 import threading
 import warnings
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from queue import Queue
 from time import time
@@ -716,7 +717,11 @@ class BaseSentence2VecModel(SaveLoad):
         sentences : (list, iterable)
             An iterable consisting of tuple objects
         update : bool
-            If bool is True, the sentence vector matrix will be updated in size (even with memmap)
+            If True, append the sentences to the existing sentence vectors instead of
+            replacing them (also with memmap). The sentences use their own indices starting
+            at 0, as produced by the input classes; sentence ``i`` is stored in row
+            ``len(sv) + i``. Models that remove principal components (SIF, uSIF) reuse the
+            components of the first training for the new rows, as ``infer`` does.
         queue_factor : int
             Multiplier for size of queue -> size = number of workers * queue_factor.
         report_delay : int
@@ -734,6 +739,7 @@ class BaseSentence2VecModel(SaveLoad):
         self._check_pre_training_sanity(**statistics)
 
         self.estimate_memory(**statistics)
+        offset = len(self.sv.vectors) if update else 0
         self.prep.prepare_vectors(
             sv=self.sv, total_sentences=statistics["max_index"], update=update
         )
@@ -747,7 +753,7 @@ class BaseSentence2VecModel(SaveLoad):
         logger.info("begin training")
 
         _, eff_sentences, eff_words = self._train_manager(
-            data_iterable=sentences,
+            data_iterable=_OffsetIndices(sentences, offset) if offset else sentences,
             total_sentences=statistics["total_sentences"],
             queue_factor=queue_factor,
             report_delay=report_delay,
@@ -758,7 +764,7 @@ class BaseSentence2VecModel(SaveLoad):
         self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
 
         # Preform post-tain calls (i.e principal component removal)
-        self._post_train_calls()
+        self._post_train_calls(update=update, offset=offset)
 
         self._log_train_end(
             eff_sentences=eff_sentences, eff_words=eff_words, overall_time=overall_time
@@ -811,7 +817,7 @@ class BaseSentence2VecModel(SaveLoad):
 
     def _train_manager(
         self,
-        data_iterable: list[tuple],
+        data_iterable: Iterable[tuple],
         total_sentences: int | None = None,
         queue_factor: int = 2,
         report_delay: int = 5,
@@ -928,7 +934,7 @@ class BaseSentence2VecModel(SaveLoad):
 
     def _job_producer(
         self,
-        data_iterable: list[tuple],
+        data_iterable: Iterable[tuple],
         job_queue: Queue,
         errors: list[BaseException],
         stop: threading.Event,
@@ -1028,6 +1034,18 @@ class BaseSentence2VecModel(SaveLoad):
                 sentence_inc = eff_sentences
 
         return jobs, eff_sentences, eff_words
+
+
+class _OffsetIndices:
+    """Re-iterable view of indexed sentences with every index shifted by offset."""
+
+    def __init__(self, sentences: Any, offset: int):
+        self.sentences = sentences
+        self.offset = offset
+
+    def __iter__(self) -> Iterator[tuple]:
+        offset = self.offset
+        return ((sentence, index + offset) for sentence, index in self.sentences)
 
 
 class BaseSentence2VecPreparer(SaveLoad):

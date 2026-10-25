@@ -295,3 +295,36 @@ def test_infer_use_norm_with_unknown_words(w2v, corpus_indexed):
     out = model.infer([(["unknownword"], 0), ([known], 1)], use_norm=True)
     assert np.array_equal(out[0], np.zeros(w2v.wv.vector_size, dtype=np.float32))
     assert np.isclose(np.linalg.norm(out[1]), 1.0)
+
+
+@pytest.mark.parametrize("model_name", ["Average", "SIF", "uSIF"])
+def test_train_update_appends_rows(make_w2v, sentences, model_name):
+    """update=True writes new sentences behind the existing rows and keeps the old ones.
+
+    The new sentences use indices 0..n-1 like any input; fse places them after the
+    existing rows. SIF and uSIF keep the components learned in the first training, so
+    the new rows equal infer() on the new sentences.
+    """
+    import fse
+
+    # Random vectors: the module's row-index vectors are all parallel, which leaves only
+    # rounding noise once SIF removes their common direction.
+    w2v = make_w2v(DIM)
+    w2v.wv.vectors[:] = np.random.default_rng(0).random(w2v.wv.vectors.shape, dtype=np.float32)
+    first = [(s, i) for i, s in enumerate(sentences[:60])]
+    second = [(s, i) for i, s in enumerate(sentences[60:])]
+    model = getattr(fse, model_name)(w2v)
+    model.train(first)
+    old_rows = np.array(model.sv.vectors)
+
+    model.train(second, update=True)
+
+    assert model.sv.vectors.shape == (100, w2v.wv.vector_size)
+    assert np.array_equal(model.sv.vectors[:60], old_rows)
+
+    # Trained rows start at EPS while infer starts at zero. Component removal is linear,
+    # so a trained row equals the inferred row plus the processed EPS offset.
+    offset = np.full((1, w2v.wv.vector_size), EPS, dtype=np.float32)
+    if model_name != "Average":
+        model._post_inference_calls(output=offset)
+    assert np.allclose(model.sv.vectors[60:], model.infer(second) + offset, rtol=1e-4, atol=1e-9)
