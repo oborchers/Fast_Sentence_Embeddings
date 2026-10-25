@@ -123,7 +123,6 @@ addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 xfail_strict = true
 markers = [
     "network: needs access to the Hugging Face Hub",
-    "memmap: deletes memory-mapped files while open, skipped on Windows",
 ]
 filterwarnings = [
     "error",
