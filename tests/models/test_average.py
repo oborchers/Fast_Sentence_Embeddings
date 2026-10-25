@@ -340,3 +340,25 @@ def test_train_twice_without_components(w2v, corpus_indexed, model_name):
     first = np.array(model.sv.vectors)
     model.train(corpus_indexed)
     assert np.allclose(model.sv.vectors, first)
+
+
+@pytest.mark.parametrize("token", ["", "§"])
+def test_ft_oov_without_ngrams_parity(make_ft, token):
+    """An OOV token without ngrams adds nothing in both paths but counts for the length.
+
+    With min_n=4 the token "§" ("<§>" has 3 characters) and the empty token have no ngrams.
+    Neither occurs in the test corpus.
+    """
+    ft = make_ft(5, min_n=4, max_n=4)
+    assert token not in ft.wv.key_to_index
+    sentences = [([token, "the"], 0), ([token], 1)]
+    results = []
+    for train_func in (train_average_np, train_average_cy):
+        model = Average(ft)
+        _prepare(model, total_sentences=2)
+        model.sv.vectors = np.zeros_like(model.sv.vectors)
+        train_func(model, sentences, model.sv.vectors, model._get_thread_working_mem())
+        results.append(np.array(model.sv.vectors))
+    np_out, cy_out = results
+    assert np.allclose(np_out, cy_out, atol=1e-6)
+    assert np.array_equal(cy_out[1], np.zeros(5, dtype=np.float32))

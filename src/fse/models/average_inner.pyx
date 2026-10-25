@@ -29,6 +29,10 @@ cdef sscal_ptr sscal=<sscal_ptr>PyCObject_AsVoidPtr(fblas.sscal._cpointer) # x =
 cdef int ONE = <int>1
 cdef int ZERO = <int>0
 
+# Marks an out-of-vocabulary token that has no ngrams: it counts for the sentence length
+# but adds no vector, as in the numpy fallback.
+cdef uINT_t NO_VECTOR = <uINT_t>0xFFFFFFFF
+
 cdef REAL_t ONEF = <REAL_t>1.0
 cdef REAL_t ZEROF = <REAL_t>0.0
 
@@ -190,9 +194,8 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentence
                 c.subwords_idx_len[eff_words] = ZERO
             else:
                 # OOV words --> write ngram indices to memory
-                c.word_indices[eff_words] = ZERO
-
                 encoded_ngrams = compute_ngrams_bytes(token, c.min_n, c.max_n)
+                c.word_indices[eff_words] = ZERO if encoded_ngrams else NO_VECTOR
                 hashes = [ft_hash_bytes(n) % c.bucket for n in encoded_ngrams]
 
                 c.subwords_idx_len[eff_words] = <uINT_t>min(len(encoded_ngrams), MAX_NGRAMS)
@@ -300,6 +303,8 @@ cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sente
             ngrams = c.subwords_idx_len[i]
 
             if ngrams == 0:
+                if word_idx == NO_VECTOR:
+                    continue
                 word_row = c.word_indices[i] * size
                 saxpy(&size, &c.word_weights[word_idx], &c.word_vectors[word_row], &ONE, c.mem, &ONE)
             else:
