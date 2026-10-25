@@ -22,6 +22,8 @@ Use uv and the Makefile; CI calls the same targets.
     make rebuild-ext   # after editing .pyx or .pxd
     make build         # sdist + wheel, twine check
 
+Performance changes report before and after numbers from `uv run python benchmarks/bench_train.py` on an idle machine (the script warns about a high load average).
+
 ## Rules
 
 - Validate strictly and never fail silently: raise a clear exception instead of coercing, ignoring or truncating input. Decorate new public entry points with `fse._validation.validate_arguments` unless they are called per element or receive bulk data; measure the overhead when in doubt. See ARCHITECTURE.md.
