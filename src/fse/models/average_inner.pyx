@@ -1,4 +1,5 @@
 #!/usr/bin/env cython
+# cython: language_level=3
 # cython: boundscheck=False
 # cython: wraparound=False
 # cython: cdivision=True
@@ -30,9 +31,6 @@ cdef int ZERO = <int>0
 
 cdef REAL_t ONEF = <REAL_t>1.0
 cdef REAL_t ZEROF = <REAL_t>0.0
-
-DEF MAX_WORDS = 10000
-DEF MAX_NGRAMS = 40
 
 cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory):
     """Load BaseAny2Vec parameters into a BaseSentenceVecsConfig struct.
@@ -208,7 +206,7 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentence
 
     return eff_sents, eff_words
 
-cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_sentences) nogil:
+cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_sentences) noexcept nogil:
     """Perform optimized sentence-level averaging for BaseAny2Vec model.
 
     Parameters
@@ -253,7 +251,7 @@ cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_s
             # because it doesn't rescale the overall result
             saxpy(&size, &inv_count, c.mem, &ONE, &c.sentence_vectors[sent_row], &ONE)
 
-cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sentences) nogil:
+cdef void compute_ft_sentence_averages(FTSentenceVecsConfig *c, uINT_t num_sentences) noexcept nogil:
     """Perform optimized sentence-level averaging for FastText model.
 
     Parameters

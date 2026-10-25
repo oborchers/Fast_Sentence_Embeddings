@@ -1,3 +1,4 @@
+# cython: language_level=3
 # cython: boundscheck=False
 # cython: wraparound=False
 # cython: cdivision=True
@@ -16,14 +17,15 @@ ctypedef np.float32_t REAL_t
 ctypedef np.uint32_t uINT_t
 
 # BLAS routine signatures
-ctypedef void (*saxpy_ptr) (const int *N, const float *alpha, const float *X, const int *incX, float *Y, const int *incY) nogil
-ctypedef void (*sscal_ptr) (const int *N, const float *alpha, const float *X, const int *incX) nogil
+ctypedef void (*saxpy_ptr) (const int *N, const float *alpha, const float *X, const int *incX, float *Y, const int *incY) noexcept nogil
+ctypedef void (*sscal_ptr) (const int *N, const float *alpha, const float *X, const int *incX) noexcept nogil
 
 cdef saxpy_ptr saxpy
 cdef sscal_ptr sscal
 
-DEF MAX_WORDS = 10000
-DEF MAX_NGRAMS = 40
+cdef enum:
+    MAX_WORDS = 10000
+    MAX_NGRAMS = 40
 
 cdef struct BaseSentenceVecsConfig:
     int size, workers
