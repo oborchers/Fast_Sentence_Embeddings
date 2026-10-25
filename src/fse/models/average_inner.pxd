@@ -10,18 +10,13 @@
 
 cimport numpy as np
 
-cdef extern from "voidptr.h":
-    void* PyCObject_AsVoidPtr(object obj)
-
 ctypedef np.float32_t REAL_t
 ctypedef np.uint32_t uINT_t
 
 # BLAS routine signatures
 ctypedef void (*saxpy_ptr) (const int *N, const float *alpha, const float *X, const int *incX, float *Y, const int *incY) noexcept nogil
-ctypedef void (*sscal_ptr) (const int *N, const float *alpha, const float *X, const int *incX) noexcept nogil
 
 cdef saxpy_ptr saxpy
-cdef sscal_ptr sscal
 
 cdef enum:
     MAX_WORDS = 10000

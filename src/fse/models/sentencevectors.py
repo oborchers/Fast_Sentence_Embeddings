@@ -30,7 +30,6 @@ from numpy import (
 )
 
 from fse.inputs import IndexedLineDocument, IndexedList
-from fse.models.utils import set_madvise_for_mmap
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +39,6 @@ class SentenceVectors(utils.SaveLoad):
     mapfile_shape: tuple[int, int] | None
 
     def __init__(self, vector_size: int, mapfile_path: str | None = None):
-
-        set_madvise_for_mmap()
 
         self.vector_size = vector_size  # Size of vectors
         self.vectors = zeros((0, vector_size), REAL)  # Vectors for sentences
@@ -77,17 +74,10 @@ class SentenceVectors(utils.SaveLoad):
 
         return vstack([self.get_vector(e) for e in entities])
 
-    def __contains__(self, index: int) -> bool:
-        if isinstance(
-            index,
-            (
-                int,
-                integer,
-            ),
-        ):
-            return index < len(self)
-        else:
-            raise KeyError(f"index {index} is not a valid index")
+    def __contains__(self, index: object) -> bool:
+        if isinstance(index, bool) or not isinstance(index, (int, integer)):
+            return False
+        return bool(0 <= index < len(self))
 
     def __len__(self) -> int:
         return len(self.vectors)
@@ -107,7 +97,7 @@ class SentenceVectors(utils.SaveLoad):
 
         See Also
         --------
-        :meth:`~gensim.models.keyedvectors.Doc2VecKeyedVectors.load`
+        :meth:`~fse.models.sentencevectors.SentenceVectors.load`
             Load object.
 
         """
@@ -126,7 +116,6 @@ class SentenceVectors(utils.SaveLoad):
         path = sv.mapfile_path
         if path is not None:
             sv._load_all_vectors_from_disk(mapfile_path=path)
-        set_madvise_for_mmap()
         return sv
 
     def get_vector(self, index: int, use_norm: bool = False) -> ndarray:
@@ -136,7 +125,7 @@ class SentenceVectors(utils.SaveLoad):
         ----------
         index : int
             Input index
-        norm : bool, optional
+        use_norm : bool, optional
             If True - resulting vector will be L2-normalized (unit euclidean length).
 
         Returns
@@ -158,7 +147,7 @@ class SentenceVectors(utils.SaveLoad):
             result.setflags(write=False)
             return result
         else:
-            raise KeyError("index {index} not found")
+            raise KeyError(f"index {index} not found")
 
     def init_sims(self, replace: bool = False):
         """Precompute L2-normalized vectors.
@@ -254,9 +243,9 @@ class SentenceVectors(utils.SaveLoad):
             then similarities for all sentences are returned.
         restrict_size : int or Tuple(int,int), optional
             Optional integer which limits the range of vectors which
-            are searched for most-similar values. For example, restrict_vocab=10000 would
+            are searched for most-similar values. For example, restrict_size=10000 would
             only check the first 10000 sentence vectors.
-            restrict_vocab=(500, 1000) would search the sentence vectors with indices between
+            restrict_size=(500, 1000) would search the sentence vectors with indices between
             500 and 1000.
 
         Returns
@@ -354,9 +343,9 @@ class SentenceVectors(utils.SaveLoad):
             then similarities for all sentences are returned.
         restrict_size : int or Tuple(int,int), optional
             Optional integer which limits the range of vectors which
-            are searched for most-similar values. For example, restrict_vocab=10000 would
+            are searched for most-similar values. For example, restrict_size=10000 would
             only check the first 10000 sentence vectors.
-            restrict_vocab=(500, 1000) would search the sentence vectors with indices between
+            restrict_size=(500, 1000) would search the sentence vectors with indices between
             500 and 1000.
 
         Returns
@@ -398,9 +387,9 @@ class SentenceVectors(utils.SaveLoad):
             then similarities for all sentences are returned.
         restrict_size : int or Tuple(int,int), optional
             Optional integer which limits the range of vectors which
-            are searched for most-similar values. For example, restrict_vocab=10000 would
+            are searched for most-similar values. For example, restrict_size=10000 would
             only check the first 10000 sentence vectors.
-            restrict_vocab=(500, 1000) would search the sentence vectors with indices between
+            restrict_size=(500, 1000) would search the sentence vectors with indices between
             500 and 1000.
 
         Returns
@@ -443,9 +432,9 @@ class SentenceVectors(utils.SaveLoad):
             then similarities for all sentences are returned.
         restrict_size : int or Tuple(int,int), optional
             Optional integer which limits the range of vectors which
-            are searched for most-similar values. For example, restrict_vocab=10000 would
+            are searched for most-similar values. For example, restrict_size=10000 would
             only check the first 10000 sentence vectors.
-            restrict_vocab=(500, 1000) would search the sentence vectors with indices between
+            restrict_size=(500, 1000) would search the sentence vectors with indices between
             500 and 1000.
 
         Returns

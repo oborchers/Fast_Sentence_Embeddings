@@ -261,3 +261,15 @@ def test_l2_norm():
     out = _l2_norm(out, True)
     lens = np.sqrt(np.sum((out**2), axis=-1))
     assert np.allclose(1, lens, atol=1e-6)
+
+
+class TestSentenceVectorsLookups:
+    def test_contains_rejects_invalid_indices(self, sv):
+        assert 0 in sv
+        assert -1 not in sv
+        assert "x" not in sv
+        assert 1.5 not in sv
+
+    def test_get_vector_missing_index_message(self, sv):
+        with pytest.raises(KeyError, match="index 99 not found"):
+            sv.get_vector(99)

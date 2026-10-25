@@ -11,7 +11,7 @@ from typing import Any
 
 from numpy import dtype, finfo, ndarray
 from numpy import float32 as REAL
-from numpy.random import choice
+from numpy.random import default_rng
 from sklearn.decomposition import TruncatedSVD
 
 logger = logging.getLogger(__name__)
@@ -78,7 +78,8 @@ def compute_principal_components(
         svd.fit(vectors)
     else:
         logger.info(f"sampling {sample_size} vectors to compute principal components")
-        sample_indices = choice(range(num_vectors), replace=False, size=sample_size)
+        # Seeded like the SVD itself, so repeated runs pick the same sample.
+        sample_indices = default_rng(42).choice(num_vectors, size=sample_size, replace=False)
         svd.fit(vectors[sample_indices, :])
 
     elapsed = time()

@@ -191,7 +191,7 @@ class TestBaseSentence2VecModel:
 
     def test_str_rep(self, w2v):
         output = str(BaseSentence2VecModel(w2v))
-        assert output == "BaseSentence2VecModel based on KeyedVectors, vector_size=0"
+        assert output == "BaseSentence2VecModel based on KeyedVectors, vector_size=5"
 
     def test_scan_w_ituple(self, w2v, sentences):
         # The unittest version ran after test_scan_w_empty, which emptied these
@@ -600,3 +600,29 @@ class TestTrainManagerErrors:
         )
         assert isinstance(error, OSError)
         assert str(error) == "input failed"
+
+
+class TestSmallFixes:
+    def test_str_shows_vector_size(self, w2v):
+        se = BaseSentence2VecModel(w2v)
+        assert f"vector_size={w2v.wv.vector_size}" in str(se)
+
+    def test_scan_short_sentences(self, w2v):
+        """An average below one word per sentence is valid input."""
+        se = BaseSentence2VecModel(w2v)
+        stats = se.scan_sentences([([], 0), ([], 1), (["the"], 2)])
+        assert stats["total_words"] == 1
+        assert stats["average_length"] >= 1
+
+    def test_scan_empty_input(self, w2v):
+        se = BaseSentence2VecModel(w2v)
+        stats = se.scan_sentences([])
+        assert stats["total_sentences"] == 0
+        with pytest.raises(ValueError, match="invalid values"):
+            se._check_pre_training_sanity(**stats)
+
+    def test_unknown_keyword_arguments_warn(self, w2v):
+        from fse.models.average import Average
+
+        with pytest.warns(UserWarning, match="ignores unknown keyword arguments: foo"):
+            Average(w2v, foo=1)

@@ -40,9 +40,9 @@ class SIF(Average):
 
         Parameters
         ----------
-        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
+        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or a gensim model with a ``wv`` attribute, such as :class:`~gensim.models.Word2Vec` or :class:`~gensim.models.FastText`
             This object essentially contains the mapping between words and embeddings. To compute the sentence embeddings
-            the wv.vocab and wv.vector elements are required.
+            its ``key_to_index`` and ``vectors`` are required.
         alpha : float, optional
             Alpha is the weighting factor used to downweigh each individual word.
         components : int, optional
@@ -60,7 +60,7 @@ class SIF(Average):
         lang_freq : str, optional
             Some pre-trained embeddings, i.e. "GoogleNews-vectors-negative300.bin", do not contain information about
             the frequency of a word. As the frequency is required for estimating the word weights, we induce
-            frequencies into the wv.vocab.count based on :class:`~wordfreq`
+            frequencies into the ``count`` attribute of each word based on :class:`~wordfreq`
             If no frequency information is available, you can choose the language to estimate the frequency.
             See https://github.com/LuminosoInsight/wordfreq
 

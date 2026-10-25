@@ -73,7 +73,6 @@ from psutil import virtual_memory
 from wordfreq import available_languages, get_frequency_dict
 
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
-from fse.models.utils import set_madvise_for_mmap
 
 logger = logging.getLogger(__name__)
 
@@ -109,9 +108,9 @@ class BaseSentence2VecModel(SaveLoad):
 
         Parameters
         ----------
-        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
+        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or a gensim model with a ``wv`` attribute, such as :class:`~gensim.models.Word2Vec` or :class:`~gensim.models.FastText`
             This object essentially contains the mapping between words and embeddings. To compute the sentence embeddings
-            the wv and wv.vector elements are required.
+            its ``key_to_index`` and ``vectors`` are required.
         sv_mapfile_path : str, optional
             Optional path to store the sentence-vectors in for very large datasets. Used for memmap.
         wv_mapfile_path : str, optional
@@ -136,7 +135,6 @@ class BaseSentence2VecModel(SaveLoad):
             Key word arguments needed to allow children classes to accept more arguments.
 
         """
-        set_madvise_for_mmap()
 
         self.workers = int(workers)
         self.batch_words = batch_words
@@ -179,14 +177,14 @@ class BaseSentence2VecModel(SaveLoad):
             Human readable representation of the model's state.
 
         """
-        return f"{self.__class__.__name__} based on {self.wv.__class__.__name__}, vector_size={len(self.sv)}"
+        return f"{self.__class__.__name__} based on {self.wv.__class__.__name__}, vector_size={self.sv.vector_size}"
 
     def _check_and_include_model(self, model: KeyedVectors):
         """Check if the supplied model is a compatible model. Performs all kinds of checks and small optimizations.
 
         Parameters
         ----------
-        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or :class:`~gensim.models.base_any2vec.BaseWordEmbeddingsModel`
+        model : :class:`~gensim.models.keyedvectors.KeyedVectors` or a gensim model with a ``wv`` attribute, such as :class:`~gensim.models.Word2Vec` or :class:`~gensim.models.FastText`
             The model to inject into this class.
 
         """
@@ -198,7 +196,7 @@ class BaseSentence2VecModel(SaveLoad):
             self.wv = model
         else:
             raise RuntimeError(
-                f"Model must be child of BaseWordEmbeddingsModel or KeyedVectors. Received {model!s}"
+                f"Model must be KeyedVectors or have a wv attribute with KeyedVectors. Received {model!s}"
             )
 
         if isinstance(self.wv, FastTextKeyedVectors):
@@ -569,8 +567,6 @@ class BaseSentence2VecModel(SaveLoad):
         if model.sv.mapfile_path is not None:
             model.sv._load_all_vectors_from_disk(mapfile_path=model.sv.mapfile_path)
 
-        set_madvise_for_mmap()
-
         return model
 
     def save(self, *args, **kwargs):
@@ -646,12 +642,13 @@ class BaseSentence2VecModel(SaveLoad):
         if empty_sentences:
             logger.warning(f"found {empty_sentences} empty sentences")
 
-        if max_index >= total_sentences:
+        if total_sentences and max_index >= total_sentences:
             raise RuntimeError(
                 f"Index {max_index} is larger than number of sentences {total_sentences}"
             )
 
-        average_length = int(total_words / total_sentences)
+        # At least 1 once there are words, so a corpus of mostly empty sentences is valid.
+        average_length = max(1, int(total_words / total_sentences)) if total_words else 0
 
         logger.info(
             f"finished scanning {total_sentences} sentences with an average length of {average_length} and {total_words} total words"
@@ -661,7 +658,7 @@ class BaseSentence2VecModel(SaveLoad):
             "total_words": total_words,
             "average_length": average_length,
             "empty_sentences": empty_sentences,
-            "max_index": max_index + 1,
+            "max_index": max_index + 1 if total_sentences else 0,
         }
         return statistics
 

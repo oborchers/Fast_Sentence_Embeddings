@@ -18,13 +18,14 @@ cimport numpy as np
 
 from gensim.models.fasttext import compute_ngrams_bytes, ft_hash_bytes
 
+from cpython.pycapsule cimport PyCapsule_GetPointer
 from libc.string cimport memset
 from libc.stdio cimport printf
 
 import scipy.linalg.blas as fblas
 
-cdef saxpy_ptr saxpy=<saxpy_ptr>PyCObject_AsVoidPtr(fblas.saxpy._cpointer)  # y += alpha * x
-cdef sscal_ptr sscal=<sscal_ptr>PyCObject_AsVoidPtr(fblas.sscal._cpointer) # x = alpha * x
+# y += alpha * x, taken from scipy's BLAS. Raises at import if scipy exposes no pointer.
+cdef saxpy_ptr saxpy=<saxpy_ptr>PyCapsule_GetPointer(fblas.saxpy._cpointer, NULL)
 
 cdef int ONE = <int>1
 cdef int ZERO = <int>0
@@ -37,7 +38,7 @@ cdef REAL_t ONEF = <REAL_t>1.0
 cdef REAL_t ZEROF = <REAL_t>0.0
 
 cdef init_base_s2v_config(BaseSentenceVecsConfig *c, model, target, memory):
-    """Load BaseAny2Vec parameters into a BaseSentenceVecsConfig struct.
+    """Load the model parameters into a BaseSentenceVecsConfig struct.
 
     Parameters
     ----------
@@ -99,7 +100,7 @@ cdef init_ft_s2v_config(FTSentenceVecsConfig *c, model, target, memory):
     c[0].sentence_vectors = <REAL_t *>(np.PyArray_DATA(target))
 
 cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sentences, n_rows):
-    """Prepare C structures for BaseAny2VecModel so we can go "full C" and release the Python GIL.
+    """Prepare C structures for Word2Vec-style vectors so the kernel can release the Python GIL.
 
     We create indices over the sentences.  We also perform some calculations for
     each token/ngram and store the result up front to save time.
@@ -115,10 +116,10 @@ cdef object populate_base_s2v_config(BaseSentenceVecsConfig *c, wv, indexed_sent
 
     Returns
     -------
-    eff_words : int
-        The number of in-vocabulary tokens.
     eff_sents : int
         The number of non-empty sentences.
+    eff_words : int
+        The number of in-vocabulary tokens.
 
     """
 
@@ -168,10 +169,10 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentence
 
     Returns
     -------
-    eff_words : int
-        The number of in-vocabulary tokens.
     eff_sents : int
         The number of non-empty sentences.
+    eff_words : int
+        The number of in-vocabulary tokens.
 
     """
 
@@ -216,7 +217,7 @@ cdef object populate_ft_s2v_config(FTSentenceVecsConfig *c, wv, indexed_sentence
     return eff_sents, eff_words
 
 cdef void compute_base_sentence_averages(BaseSentenceVecsConfig *c, uINT_t num_sentences) noexcept nogil:
-    """Perform optimized sentence-level averaging for BaseAny2Vec model.
+    """Perform optimized sentence-level averaging for Word2Vec-style vectors.
 
     Parameters
     ----------

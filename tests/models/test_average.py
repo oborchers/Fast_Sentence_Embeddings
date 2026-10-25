@@ -381,3 +381,15 @@ def test_save_load_with_sentence_mapfile(w2v, corpus_indexed, tmp_path):
     assert loaded.sv.vectors.filename == str((tmp_path / "sv.vectors").absolute())
     assert np.array_equal(loaded.sv.vectors, expected)
     assert loaded.sv.most_similar(positive=0, topn=3) == model.sv.most_similar(positive=0, topn=3)
+
+
+def test_np_counts_empty_sentences_like_cy(w2v):
+    sentences = [([], 0), (["the"], 1), ([], 2)]
+    counts = []
+    for train_func in (train_average_np, train_average_cy):
+        model = Average(w2v)
+        _prepare(model, total_sentences=3)
+        counts.append(
+            train_func(model, sentences, model.sv.vectors, model._get_thread_working_mem())
+        )
+    assert counts[0] == counts[1] == (1, 1)

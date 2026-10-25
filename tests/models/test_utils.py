@@ -6,6 +6,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose, assert_raises
+from sklearn.decomposition import TruncatedSVD
 
 from fse.models.utils import (
     compute_principal_components,
@@ -44,10 +45,25 @@ def test_compute_components_sample_size():
     """The sample follows cache_size_gb, also below one million vectors (#58)."""
     m = np.random.uniform(size=(1000, 10)).astype(np.float32)
     cache_size_gb = 500 * 10 * 4 / 1024**3
-    with patch("fse.models.utils.choice", wraps=np.random.choice) as choice:
+    fitted = []
+    original_fit = TruncatedSVD.fit
+
+    def recording_fit(self, x, *args, **kwargs):
+        fitted.append(x.shape)
+        return original_fit(self, x, *args, **kwargs)
+
+    with patch.object(TruncatedSVD, "fit", recording_fit):
         out = compute_principal_components(vectors=m, cache_size_gb=cache_size_gb)
-    assert choice.call_args.kwargs["size"] == 500
+    assert fitted == [(500, 10)]
     assert len(out[1]) == 1
+
+
+def test_compute_components_sampling_is_reproducible():
+    m = np.random.default_rng(1).random((1000, 10), dtype=np.float32)
+    cache_size_gb = 500 * 10 * 4 / 1024**3
+    first = compute_principal_components(vectors=m, cache_size_gb=cache_size_gb)
+    second = compute_principal_components(vectors=m, cache_size_gb=cache_size_gb)
+    assert np.array_equal(first[1], second[1])
 
 
 def test_remove_components_inplace(ones):
