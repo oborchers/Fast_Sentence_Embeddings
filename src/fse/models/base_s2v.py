@@ -359,7 +359,8 @@ class BaseSentence2VecModel(SaveLoad):
                 "you must initialize vectors_vocab before computing sentence vectors"
             )
 
-        if sum([self.wv.get_vecattr(w, "count") for w in self.wv.key_to_index]) == len(self.wv):
+        # All counts at once instead of one get_vecattr call per word.
+        if int(self.wv.expandos["count"][: len(self.wv)].sum()) == len(self.wv):
             logger.warning(
                 "The sum of the word counts is equal to its length (all word counts are 1). "
                 "Make sure to obtain proper word counts by using lang_freq for pretrained embeddings."
