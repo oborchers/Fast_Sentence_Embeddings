@@ -225,7 +225,7 @@ class SentenceVectors(utils.SaveLoad):
         indexable: Any = None,
         topn: NonNegativeInt | None = 10,
         restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
-    ) -> list[tuple[Any, ...]]:
+    ) -> list[tuple[Any, ...]] | ndarray:
         """Find the top-N most similar sentences.
         Positive sentences contribute positively towards the similarity, negative sentences negatively.
 
@@ -330,7 +330,7 @@ class SentenceVectors(utils.SaveLoad):
         indexable: Any = None,
         topn: NonNegativeInt | None = 10,
         restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
-    ) -> list[tuple[Any, ...]]:
+    ) -> list[tuple[Any, ...]] | ndarray:
         """Find the top-N most similar sentences to a given word.
 
         Parameters
@@ -375,7 +375,7 @@ class SentenceVectors(utils.SaveLoad):
         indexable: Any = None,
         topn: NonNegativeInt | None = 10,
         restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
-    ) -> list[tuple[Any, ...]]:
+    ) -> list[tuple[Any, ...]] | ndarray:
         """Find the top-N most similar sentences to a given sentence.
 
         Parameters
@@ -423,7 +423,7 @@ class SentenceVectors(utils.SaveLoad):
         indexable: Any = None,
         topn: NonNegativeInt | None = 10,
         restrict_size: NonNegativeInt | tuple[NonNegativeInt, NonNegativeInt] | None = None,
-    ) -> list[tuple[Any, ...]]:
+    ) -> list[tuple[Any, ...]] | ndarray:
         """Find the top-N most similar sentences to a given vector.
 
         Parameters

@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 class SIF(Average):
     # svd_res is None before training and 0 when no components are removed.
     svd_res: Any
-    svd_weights: Any
 
     @validate_arguments
     def __init__(
