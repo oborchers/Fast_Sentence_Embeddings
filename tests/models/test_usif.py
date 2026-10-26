@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from fse.inputs import IndexedLineDocument
+from fse.inputs import CIndexedList, IndexedLineDocument, IndexedList
 from fse.models.usif import uSIF
 
 DIM = 50
@@ -189,3 +189,66 @@ def test_load_keeps_current_weighting(model, indexed_sentences, tmp_path):
     loaded = uSIF.load(str(tmp_path / "new"))
     assert loaded.component_weighting == "lambda"
     np.testing.assert_array_equal(loaded.svd_weights, model.svd_weights)
+
+
+def test_cache_size_gb_is_deprecated(w2v):
+    """An explicit cache_size_gb warns at the caller's line and changes nothing."""
+    with pytest.warns(DeprecationWarning, match="cache_size_gb has no effect") as record:
+        model = uSIF(w2v, cache_size_gb=2.0)
+    assert record[0].filename == __file__
+    assert model.cache_size_gb == 2.0
+
+
+def test_too_many_components_fail_before_the_model_changes(w2v):
+    """A failing retrain leaves the sentence vectors and components as they were."""
+    model = uSIF(w2v, components=2)
+    model.train(IndexedList([["test", "is"], ["is", "it"], ["it", "test"]]))
+    vectors, svd_res = model.sv.vectors.copy(), model.svd_res
+    model.components = 3
+    with pytest.raises(ValueError, match="training would give 1 vectors"):
+        model.train(IndexedList([["test", "is"]]))
+    assert np.array_equal(model.sv.vectors, vectors)
+    assert model.svd_res is svd_res
+    assert model.cache_size_gb == 1.0
+
+
+def test_update_reuses_learned_components_for_few_new_rows(w2v):
+    model = uSIF(w2v, components=2)
+    model.train(IndexedList([["test", "is"], ["is", "it"], ["it", "test"]]))
+    svd_res = model.svd_res
+    model.train(IndexedList([["test", "is"]]), update=True)
+    assert model.svd_res is svd_res
+    assert len(model.sv.vectors) == 4
+
+
+@pytest.mark.parametrize(("components", "fits"), [(4, True), (5, False)])
+def test_update_without_learned_components_counts_all_rows(w2v, components, fits):
+    """The first components are computed on the existing and the appended rows."""
+    model = uSIF(w2v, components=0)
+    model.train(IndexedList([["test", "is"], ["is", "it"], ["it", "test"]]))
+    model.components = components
+    if fits:
+        model.train(IndexedList([["test", "is"]]), update=True)
+        assert len(model.svd_res[1]) == components
+    else:
+        with pytest.raises(ValueError, match="training would give 4 vectors"):
+            model.train(IndexedList([["test", "is"]]), update=True)
+        assert len(model.sv.vectors) == 3
+
+
+def test_components_are_checked_against_rows_not_sentences(w2v):
+    """Several sentences on one row give one vector."""
+    model = uSIF(w2v, components=2)
+    sentences = CIndexedList([["test", "is"], ["is", "it"], ["it", "test"]], custom_index=[0, 0, 0])
+    with pytest.raises(ValueError, match="training would give 1 vectors"):
+        model.train(sentences)
+
+
+def test_too_many_components_leave_a_memmap_unchanged(w2v, tmp_path):
+    model = uSIF(w2v, components=2, sv_mapfile_path=tmp_path / "sv")
+    model.train(IndexedList([["test", "is"], ["is", "it"], ["it", "test"]]))
+    before = {f.name: f.read_bytes() for f in tmp_path.iterdir()}
+    model.components = 3
+    with pytest.raises(ValueError, match="training would give 1 vectors"):
+        model.train(IndexedList([["test", "is"]]))
+    assert {f.name: f.read_bytes() for f in tmp_path.iterdir()} == before

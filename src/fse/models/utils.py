@@ -5,14 +5,32 @@
 
 import ctypes
 import logging
+import sys
+import warnings
 from sys import platform
 from time import time
 from typing import Any
 
-from numpy import argsort, dtype, empty, finfo, ndarray, result_type, subtract
+from numpy import (
+    absolute,
+    arange,
+    asarray,
+    empty,
+    errstate,
+    finfo,
+    float64,
+    integer,
+    isfinite,
+    maximum,
+    ndarray,
+    result_type,
+    sign,
+    sqrt,
+    subtract,
+    zeros,
+)
 from numpy import float32 as REAL
-from numpy.random import default_rng
-from sklearn.decomposition import TruncatedSVD
+from numpy.linalg import eigh
 
 logger = logging.getLogger(__name__)
 
@@ -53,56 +71,125 @@ def set_madvise_for_mmap(return_madvise: bool = False) -> Any:
 
 
 def compute_principal_components(
-    vectors: ndarray, components: int = 1, cache_size_gb: float = 1.0
+    vectors: ndarray, components: int = 1, cache_size_gb: float | None = None
 ) -> tuple[ndarray, ndarray]:
-    """Method used to compute the first singular vectors of a given (sub)matrix
+    """Compute the first singular values and right singular vectors of a matrix, exactly.
+
+    The vectors are not centered, as for a truncated SVD. The Gram matrix ``X^T X`` is
+    computed over blocks of rows, summed in float64 and decomposed; its eigenvalues are the
+    squared singular values and its eigenvectors the right singular vectors. There is no
+    random sample: every row is read once, front to back, so a memmap streams from disk.
+    Besides the dim x dim matrices, memory stays at about one block: float32 and float64
+    rows are used as they are, other types are converted per block.
+
+    Each block product runs in the precision of the vectors (float32 for float16), so
+    directions whose variance is below the rounding of that precision are not determined;
+    their removal hardly changes the vectors. A warning is logged when a requested
+    component falls below a heuristic bound for that rounding. Where singular values are equal, the basis inside their
+    subspace depends on LAPACK.
 
     Parameters
     ----------
     vectors : ndarray
-        (Sentence) vectors to compute the truncated SVD on
+        (Sentence) vectors, one per row
     components : int, optional
         Number of singular values/vectors to compute
     cache_size_gb : float, optional
-            Cache size for computing the principal components in GB
+        Deprecated and without effect since 1.1.0: all vectors are used. Removed in 2.0.
 
     Returns
     -------
     ndarray, ndarray
-        Singular values and singular vectors
+        Singular values, largest first, and the singular vectors as rows, both float32
     """
+    if cache_size_gb is not None:
+        warn_cache_size_gb_deprecated()
+    if vectors.ndim != 2:
+        raise ValueError(f"vectors must be a 2-dimensional array, got {vectors.ndim} dimensions")
+    if vectors.dtype.kind not in "iuf":
+        raise TypeError(f"vectors must hold real numbers, got dtype {vectors.dtype}")
+    if isinstance(components, bool) or not isinstance(components, int | integer):
+        raise TypeError(f"components must be an int, got {type(components)}")
+    num_vectors, dim = vectors.shape
+    if not 1 <= components <= min(num_vectors, dim):
+        raise ValueError(
+            f"components must be between 1 and the smaller of the number of vectors "
+            f"({num_vectors}) and their dimension ({dim}), got {components}"
+        )
+
     start = time()
-    num_vectors = vectors.shape[0]
-    svd = TruncatedSVD(n_components=components, n_iter=7, random_state=42, algorithm="randomized")
+    # Integers are converted to float64, so large values are not rounded.
+    block_dtype = REAL if vectors.dtype.kind == "f" and vectors.dtype.itemsize <= 4 else float64
+    gram = zeros((dim, dim), dtype=float64)
+    for begin in range(0, num_vectors, REMOVAL_BLOCK_ROWS):
+        block = asarray(vectors[begin : begin + REMOVAL_BLOCK_ROWS], dtype=block_dtype)
+        if not isfinite(block).all():
+            raise ValueError(f"the vectors contain NaN or infinite values in rows from {begin}")
+        # An overflow is reported below as an error, not as a warning of the product; some
+        # numpy builds also warn spuriously about finite BLAS results (numpy#28687).
+        with errstate(over="ignore", invalid="ignore", divide="ignore"):
+            gram += block.T @ block
+        del block  # release the block before the next one is converted
+    if not isfinite(gram).all():
+        raise ValueError("the Gram matrix of the vectors overflows; scale the vectors down")
 
-    sample_size = int(1024**3 * cache_size_gb / (vectors.shape[1] * dtype(REAL).itemsize))
-
-    if sample_size > num_vectors:
-        svd.fit(vectors)
-    else:
-        logger.info(f"sampling {sample_size} vectors to compute principal components")
-        # Seeded like the SVD itself, so repeated runs pick the same sample.
-        sample_indices = default_rng(42).choice(num_vectors, size=sample_size, replace=False)
-        svd.fit(_take_rows_in_file_order(vectors, sample_indices))
+    # eigh returns the eigenvalues in ascending order; take the largest ones first.
+    eigenvalues, eigenvectors = eigh(gram)
+    eigenvalues = eigenvalues[::-1][:components]
+    basis = eigenvectors[:, ::-1][:, :components].T
+    # The sign of a singular vector is arbitrary; make the largest entry positive, as
+    # scikit-learn's svd_flip does, so v and -v from different LAPACK builds agree.
+    largest = absolute(basis).argmax(axis=1)
+    basis *= sign(basis[arange(components), largest])[:, None]
+    # A heuristic bound for the rounding of the block products: it grows with the length
+    # of the dot products (the block rows) and with the dimension.
+    block_rows = min(num_vectors, REMOVAL_BLOCK_ROWS)
+    resolution = eigenvalues[0] * finfo(block_dtype).eps * max(dim, block_rows**0.5)
+    if eigenvalues[-1] <= resolution:
+        logger.warning(
+            f"{int((eigenvalues <= resolution).sum())} of {components} principal components "
+            "have a variance below a heuristic bound for the rounding of the vectors; their "
+            "directions may be affected by rounding"
+        )
+    # Rounding can make eigenvalues of a rank-deficient matrix slightly negative.
+    singular_values = sqrt(maximum(eigenvalues, 0.0))
 
     elapsed = time()
     logger.info(f"computing {components} principal components took {int(elapsed - start)}s")
-    return svd.singular_values_.astype(REAL), svd.components_.astype(REAL)
+    return singular_values.astype(REAL), basis.astype(REAL)
 
 
-def _take_rows_in_file_order(vectors: ndarray, indices: ndarray) -> ndarray:
-    """Return vectors[indices], reading the rows in ascending order.
+def check_components_fit(
+    components: int, svd_res: Any, update: bool, rows_before: int, new_rows: int, dim: int
+):
+    """Raise before training if the principal components cannot be computed afterwards.
 
-    The result is identical to fancy indexing, but a memmap is read front to back instead
-    of at random positions. Rows are gathered in blocks, so the only large allocation is
-    the result itself.
+    Called before any state changes, so a failing train leaves the model as it was. An
+    update with learned components reuses them and needs no check.
     """
-    order = argsort(indices, kind="stable")
-    sample = empty((len(indices), vectors.shape[1]), dtype=vectors.dtype)
-    for begin in range(0, len(order), REMOVAL_BLOCK_ROWS):
-        positions = order[begin : begin + REMOVAL_BLOCK_ROWS]
-        sample[positions] = vectors[indices[positions]]
-    return sample
+    if components == 0 or (update and isinstance(svd_res, tuple)):
+        return
+    rows = (rows_before if update else 0) + new_rows
+    if components > min(rows, dim):
+        raise ValueError(
+            f"components={components} needs at least as many sentence vectors and dimensions; "
+            f"training would give {rows} vectors of dimension {dim}"
+        )
+
+
+def warn_cache_size_gb_deprecated():
+    """Warn that cache_size_gb has no effect, pointing at the caller outside fse."""
+    frame, level = sys._getframe(1), 2
+    while frame.f_back is not None and frame.f_globals.get("__name__", "").startswith(
+        ("fse.", "pydantic")
+    ):
+        frame, level = frame.f_back, level + 1
+    warnings.warn(
+        "cache_size_gb has no effect since fse 1.1.0: principal components are computed "
+        "exactly over all vectors. It will be removed in fse 2.0.",
+        DeprecationWarning,
+        stacklevel=level,
+    )
 
 
 def remove_principal_components(

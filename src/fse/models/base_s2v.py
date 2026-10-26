@@ -856,7 +856,7 @@ class BaseSentence2VecModel(SaveLoad):
         self._check_input_data_sanity(sentences)
         statistics = self.scan_sentences(sentences)
 
-        self._check_pre_training_sanity(**statistics)
+        self._check_pre_training_sanity(update=update, **statistics)
 
         self.estimate_memory(**statistics)
         offset = len(self.sv.vectors) if update else 0
