@@ -391,6 +391,7 @@ class SentenceVectors(utils.SaveLoad):
         inv_norms = cast(ndarray, self.inv_norms)
         return inv_norms if self.scales is None else asarray(self.scales) * inv_norms
 
+    @validate_arguments
     def convert(self, dtype: StorageDtype):
         """Store the sentence vectors in another format, in place and in blocks of rows.
 
@@ -398,8 +399,6 @@ class SentenceVectors(utils.SaveLoad):
         vectors, which are written to new files that then replace the old ones. Converting
         to float16 or int8 rounds the vectors; converting back gives the rounded values.
         """
-        if dtype not in STORAGE_TYPES:
-            raise ValueError(f"dtype must be one of {sorted(STORAGE_TYPES)}, got {dtype!r}")
         if dtype == self.dtype:
             return
         rows = len(self)

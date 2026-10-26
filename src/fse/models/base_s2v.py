@@ -1069,7 +1069,8 @@ class BaseSentence2VecModel(SaveLoad):
         Returns
         -------
         ndarray
-            Computed sentence vectors
+            Computed sentence vectors, in float32 also for a model with
+            ``sv_dtype="float16"`` or ``"int8"``.
 
         """
         self._check_input_data_sanity(sentences)
