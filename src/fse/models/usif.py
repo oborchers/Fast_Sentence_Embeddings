@@ -17,6 +17,7 @@ from fse._validation import (
     WordVectorModel,
     validate_arguments,
 )
+from fse.models._quantize import StorageDtype
 from fse.models.average import Average
 from fse.models.utils import (
     EPS,
@@ -49,6 +50,7 @@ class uSIF(Average):
         wv_mapfile_path: PathLike | None = None,
         workers: PositiveInt = 1,
         lang_freq: str | None = None,
+        sv_dtype: StorageDtype = "float32",
     ):
         """Unsupervised smooth-inverse frequency (uSIF) weighted sentence embeddings
         model. Performs a weighted averaging operation over all words in a sentences.
@@ -87,6 +89,9 @@ class uSIF(Average):
             frequencies into the ``count`` attribute of each word based on :class:`~wordfreq`
             If no frequency information is available, you can choose the language to estimate the frequency.
             See https://github.com/LuminosoInsight/wordfreq
+        sv_dtype : {"float32", "float16", "int8"}, optional
+            Storage format of the sentence vectors: float16 halves and int8 quarters their
+            memory. They are computed in float32 and every read returns float32.
         """
 
         self.length = length
@@ -111,6 +116,7 @@ class uSIF(Average):
             wv_mapfile_path=wv_mapfile_path,
             workers=workers,
             lang_freq=lang_freq,
+            sv_dtype=sv_dtype,
         )
 
     def _check_pre_training_sanity(
@@ -130,6 +136,7 @@ class uSIF(Average):
             len(self.sv.vectors),
             kwargs["max_index"],
             self.wv.vector_size,
+            quantized=self.sv.quantized,
         )
 
     def _check_parameter_sanity(self, **kwargs):
@@ -159,11 +166,9 @@ class uSIF(Average):
         """Function calls to perform after training, such as computing eigenvectors."""
         if self.components > 0 and update and isinstance(self.svd_res, tuple):
             # Appended rows are treated like inference: reuse the learned components.
-            remove_principal_components(
-                self.sv.vectors[offset:], svd_res=self.svd_res, weights=self.svd_weights
-            )
+            self._remove_components(self.sv.vectors[offset:])
         elif self.components > 0:
-            self.svd_res = (
+            self._set_components(
                 compute_principal_components(self.sv.vectors, components=self.components)
                 if gram is None
                 # Summed during training, bit-identical to compute_principal_components.
@@ -174,17 +179,31 @@ class uSIF(Average):
                     gram_block_dtype(self.sv.vectors.dtype),
                 )
             )
-            self.svd_weights = (self.svd_res[0] ** 2) / (self.svd_res[0] ** 2).sum().astype(REAL)
-            self.component_weighting = "lambda"
-            remove_principal_components(
-                self.sv.vectors,
-                svd_res=self.svd_res,
-                weights=self.svd_weights,
-                inplace=True,
-            )
+            self._remove_components(self.sv.vectors)
         else:
+            self._set_components(None)
+
+    def _component_plan(self, update: bool) -> str:
+        """How training into windows treats the components: reuse, learn, or none."""
+        if self.components == 0:
+            return "none"
+        return "reuse" if update and isinstance(self.svd_res, tuple) else "learn"
+
+    def _set_components(self, svd_res: Any):
+        """Keep the learned components and their weights, or none (svd_res 0)."""
+        if svd_res is None:
             self.svd_res = 0
             logger.info("no removal of principal components")
+            return
+        self.svd_res = svd_res
+        self.svd_weights = (svd_res[0] ** 2) / (svd_res[0] ** 2).sum().astype(REAL)
+        self.component_weighting = "lambda"
+
+    def _remove_components(self, vectors: ndarray):
+        """Remove the learned components, weighted, from vectors in place, in blocks of rows."""
+        remove_principal_components(
+            vectors, svd_res=self.svd_res, weights=self.svd_weights, inplace=True
+        )
 
     def _post_load_calls(self):
         """Keep models saved before 1.1.0 consistent with their stored sentence vectors.
@@ -210,9 +229,7 @@ class uSIF(Average):
         if self.svd_res is None:
             raise RuntimeError("You must first train the model to obtain SVD components")
         elif self.components > 0:
-            remove_principal_components(
-                cast(ndarray, output), svd_res=self.svd_res, weights=self.svd_weights, inplace=True
-            )
+            self._remove_components(cast(ndarray, output))
         else:
             logger.info("no removal of principal components")
 

@@ -17,6 +17,7 @@ from fse._validation import (
     WordVectorModel,
     validate_arguments,
 )
+from fse.models._quantize import StorageDtype
 from fse.models.average import Average
 from fse.models.utils import (
     check_components_fit,
@@ -45,6 +46,7 @@ class SIF(Average):
         wv_mapfile_path: PathLike | None = None,
         workers: PositiveInt = 1,
         lang_freq: str | None = None,
+        sv_dtype: StorageDtype = "float32",
     ):
         """Smooth-inverse frequency (SIF) weighted sentence embeddings model. Performs a weighted averaging operation over all
         words in a sentences. After training, the model removes a number of singular vectors.
@@ -78,6 +80,9 @@ class SIF(Average):
             frequencies into the ``count`` attribute of each word based on :class:`~wordfreq`
             If no frequency information is available, you can choose the language to estimate the frequency.
             See https://github.com/LuminosoInsight/wordfreq
+        sv_dtype : {"float32", "float16", "int8"}, optional
+            Storage format of the sentence vectors: float16 halves and int8 quarters their
+            memory. They are computed in float32 and every read returns float32.
 
         """
 
@@ -100,6 +105,7 @@ class SIF(Average):
             wv_mapfile_path=wv_mapfile_path,
             workers=workers,
             lang_freq=lang_freq,
+            sv_dtype=sv_dtype,
         )
 
     def _check_pre_training_sanity(
@@ -119,6 +125,7 @@ class SIF(Average):
             len(self.sv.vectors),
             kwargs["max_index"],
             self.wv.vector_size,
+            quantized=self.sv.quantized,
         )
 
     def _check_parameter_sanity(self, **kwargs):
@@ -149,9 +156,9 @@ class SIF(Average):
         """Function calls to perform after training, such as computing eigenvectors"""
         if self.components > 0 and update and isinstance(self.svd_res, tuple):
             # Appended rows are treated like inference: reuse the learned components.
-            remove_principal_components(self.sv.vectors[offset:], svd_res=self.svd_res)
+            self._remove_components(self.sv.vectors[offset:])
         elif self.components > 0:
-            self.svd_res = (
+            self._set_components(
                 compute_principal_components(self.sv.vectors, components=self.components)
                 if gram is None
                 # Summed during training, bit-identical to compute_principal_components.
@@ -162,17 +169,34 @@ class SIF(Average):
                     gram_block_dtype(self.sv.vectors.dtype),
                 )
             )
-            remove_principal_components(self.sv.vectors, svd_res=self.svd_res, inplace=True)
+            self._remove_components(self.sv.vectors)
         else:
+            self._set_components(None)
+
+    def _component_plan(self, update: bool) -> str:
+        """How training into windows treats the components: reuse, learn, or none."""
+        if self.components == 0:
+            return "none"
+        return "reuse" if update and isinstance(self.svd_res, tuple) else "learn"
+
+    def _set_components(self, svd_res: Any):
+        """Keep the learned components, or none (svd_res 0) without components."""
+        if svd_res is None:
             self.svd_res = 0
             logger.info("no removal of principal components")
+        else:
+            self.svd_res = svd_res
+
+    def _remove_components(self, vectors: ndarray):
+        """Remove the learned components from vectors in place, in blocks of rows."""
+        remove_principal_components(vectors, svd_res=self.svd_res, inplace=True)
 
     def _post_inference_calls(self, output: ndarray | None = None, **kwargs):
         """Function calls to perform after training & inference"""
         if self.svd_res is None:
             raise RuntimeError("You must first train the model to obtain SVD components")
         elif self.components > 0:
-            remove_principal_components(cast(ndarray, output), svd_res=self.svd_res, inplace=True)
+            self._remove_components(cast(ndarray, output))
         else:
             logger.info("no removal of principal components")
 

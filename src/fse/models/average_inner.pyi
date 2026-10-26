@@ -8,6 +8,7 @@ MAX_WORDS_IN_BATCH: int
 MAX_NGRAMS_IN_BATCH: int
 FAST_VERSION: int
 MAX_NGRAMS_LIMIT: int
+MAX_CHUNK_ROWS: int
 
 def train_average_cy(
     model: Any,
@@ -48,6 +49,7 @@ class KernelContext:
     prefill_rows: bool
 
     def __init__(self, model: Any, target: ndarray) -> None: ...
+    def use_ring(self, n_rows: int) -> None: ...
 
 class EncodedJob:
     """A batch of sentences encoded for the kernel."""
@@ -75,3 +77,14 @@ class RowLocks:
     """Striped locks that serialize adding sentence averages into shared target rows."""
 
     def __init__(self) -> None: ...
+
+def score_rows(
+    codes: ndarray,
+    scales: ndarray | None,
+    weights_t: ndarray,
+    bias: ndarray | None,
+    factors: ndarray | None,
+    out: ndarray,
+    begin: int,
+    end: int,
+) -> None: ...

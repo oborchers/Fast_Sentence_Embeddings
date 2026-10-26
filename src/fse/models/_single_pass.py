@@ -156,14 +156,26 @@ class SinglePass:
     matrix, if one is summed.
     """
 
-    def __init__(self, target: ndarray, first_row: int, sum_gram: bool):
+    def __init__(
+        self,
+        target: ndarray,
+        first_row: int,
+        sum_gram: bool,
+        writer: Any = None,
+    ):
+        """With a WindowedWriter (fse.models._windowed), target is its ring of windows and
+        the rows are the writer's; finished rows go to the writer instead of a Gram matrix."""
         self.first_row = first_row
-        self.end_row = target.shape[0]
+        self.end_row = target.shape[0] if writer is None else writer.n_rows
         self._expected = first_row
-        self.gram = OrderedGram(target, first_row) if sum_gram else None
+        self.writer = writer
+        self.gram = OrderedGram(target, first_row) if sum_gram and writer is None else None
 
-    def check_job(self, job: Any):
-        """Raise unless the job starts at the next row and its rows are contiguous."""
+    def check_job(self, job: Any, stop: Any = None):
+        """Raise unless the job starts at the next row and its rows are contiguous.
+
+        With a writer, wait until the rows of the job have a free window first.
+        """
         if not getattr(job, "contiguous", True) or job.first_row != self._expected:
             raise RuntimeError(
                 f"the input yields other indices than the scan found: a job starts at row "
@@ -172,9 +184,13 @@ class SinglePass:
         self._expected += job.n_items
         if self._expected > self.end_row:
             raise RuntimeError("the input yields more sentences than the scan found")
+        if self.writer is not None:
+            self.writer.wait_for(self._expected, stop)
 
     def rows_done(self, first: int, last: int):
-        if self.gram is not None:
+        if self.writer is not None:
+            self.writer.rows_done(first, last)
+        elif self.gram is not None:
             self.gram.add_rows(first, last)
 
     def finish(self) -> ndarray | None:
@@ -185,4 +201,6 @@ class SinglePass:
                 f"{self.end_row - self.first_row} rows; the input yielded fewer sentences "
                 "than the scan found"
             )
+        if self.writer is not None:
+            self.writer.finish()
         return None if self.gram is None else self.gram.result()

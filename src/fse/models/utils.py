@@ -198,15 +198,29 @@ def components_from_gram(
 
 
 def check_components_fit(
-    components: int, svd_res: Any, update: bool, rows_before: int, new_rows: int, dim: int
+    components: int,
+    svd_res: Any,
+    update: bool,
+    rows_before: int,
+    new_rows: int,
+    dim: int,
+    quantized: bool = False,
 ):
     """Raise before training if the principal components cannot be computed afterwards.
 
     Called before any state changes, so a failing train leaves the model as it was. An
-    update with learned components reuses them and needs no check.
+    update with learned components reuses them and needs no check. With float16 or int8
+    vectors, an update cannot compute new components, which would need the existing rows
+    in float32.
     """
     if components == 0 or (update and isinstance(svd_res, tuple)):
         return
+    if update and quantized and rows_before:
+        raise ValueError(
+            "this update would compute new principal components from the existing sentence "
+            "vectors, which are stored as float16 or int8; train from scratch, or call "
+            "sv.convert('float32') first"
+        )
     rows = (rows_before if update else 0) + new_rows
     if components > min(rows, dim):
         raise ValueError(

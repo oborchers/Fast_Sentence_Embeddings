@@ -4,7 +4,7 @@ Guidance for coding agents working in this repository.
 
 ## Project
 
-fse (Fast Sentence Embeddings) computes sentence vectors on top of gensim word vectors, with a Cython core in `src/fse/models/average_inner.pyx`. The project is in maintenance mode: compatibility fixes only, no new features.
+fse (Fast Sentence Embeddings) computes sentence vectors on top of gensim word vectors, with a Cython core in `src/fse/models/average_inner.pyx`. The project is in maintenance mode: compatibility fixes and maintainer-planned scaling work, no feature work on request.
 
 - Python 3.11 to 3.13. Python 3.14 is blocked until gensim builds there (piskvorky/gensim#3640); CI runs it as an informational job.
 - Build backend is setuptools (pyproject.toml for metadata, setup.py only for the extension). Version comes from git tags (`v1.2.3`) via setuptools-scm.

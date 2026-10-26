@@ -4,10 +4,15 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [1.1.0] - Unreleased
 
-fse is now in maintenance mode: compatibility fixes only, no new features.
+fse is now in maintenance mode: compatibility fixes and maintainer-planned scaling work, no feature work on request.
 
 ### Added
 
+- **Smaller sentence vectors:** `sv_dtype="float16"` or `"int8"` on `Average`, `SIF` and `uSIF` (`dtype` on `SentenceVectors`) stores the sentence vectors in half or a quarter of the memory. They are computed in float32, and every read returns float32. Training, `train(update=True)`, `infer`, the similarity searches, `save`/`load` and `sv_mapfile_path` support both formats. int8 keeps one float32 scale per vector. On the STS Benchmark over the 15 vector sets of the README with CBOW, SIF-10 and uSIF, float16 changes the scores by at most 0.01 points and int8 by at most 0.02 points; float16 changes at most 0.4 % and int8 up to 7 % of the ten nearest neighbours of a sentence.
+  - With index i for the i-th sentence, training writes into a ring of float32 windows and stores each finished window, so no float32 matrix of all sentences exists; SIF and uSIF read the input twice to learn their components first. The stored vectors are bit-identical to a float32 training stored afterwards. Other inputs (custom or shared indices, no compiled extension, a replaced `_do_train_job` or `_post_train_calls`) train into a float32 matrix of the new rows first, and the log names the reason.
+  - float16 and int8 vectors are searched and scored by a compiled kernel directly on the stored values, in parallel, instead of being converted to float32 block by block.
+  - `SentenceVectors.convert(dtype)` changes the format of existing vectors, also of loaded and memory-mapped ones; `get_vectors` and `iter_blocks` read float32 rows, the latter in blocks for any number of vectors.
+- `SentenceVectors.score(weights, bias)` computes `X @ weights + bias` over all sentence vectors in blocks, for example the logits of a logistic regression, in any storage format and optionally into a memmap.
 - `CorpusFile(path)` for a local UTF-8 text file with one sentence per line, and `TextList(strings)` for strings in memory. They give exactly the sentences of `IndexedLineDocument` and `SplitIndexedList`, but every worker reads, splits and looks up its part without the GIL, so training scales with `workers`.
 - `min_similarity` for `most_similar` and the `similar_by_*` methods returns only results at or above a cosine similarity (#34).
 - A `NOTICE` file documents the parts adapted from gensim (LGPL 2.1, used under the GPL 3) and fastText (MIT), with their original copyright notices.

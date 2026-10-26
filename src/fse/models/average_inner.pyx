@@ -29,6 +29,7 @@ from cpython.pythread cimport (
     PyThread_release_lock,
 )
 from libc.float cimport FLT_EPSILON
+from libc.math cimport isfinite
 from libc.stdint cimport SIZE_MAX
 from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport memchr, memcmp, memcpy, memset
@@ -164,6 +165,10 @@ cdef uINT_t OOV_TOKEN = <uINT_t>0xFFFFFFFE
 # More ngrams than any word of a real corpus has; a bound that keeps buffer sizes in range.
 MAX_NGRAMS_LIMIT = 1 << 24
 
+# Sentences of a native chunk at most, besides its byte size (see scan_spans).
+cdef Py_ssize_t CHUNK_MAX_ROWS = 1 << 16
+MAX_CHUNK_ROWS = CHUNK_MAX_ROWS
+
 
 cdef class KernelContext:
     """Read-only state of one train or infer call, shared by all workers.
@@ -175,6 +180,8 @@ cdef class KernelContext:
     cdef KernelParams params
     cdef dict vocab
     cdef Py_ssize_t n_rows
+    # Rows of the target array itself, which a ring of windows never exceeds.
+    cdef Py_ssize_t target_rows
     cdef object _keep
     cdef object _locks
     # Native sources opened for this call; closed when the call ends.
@@ -188,10 +195,12 @@ cdef class KernelContext:
         wv = model.wv
         self.vocab = wv.key_to_index
         self.n_rows = target.shape[0]
+        self.target_rows = target.shape[0]
         self.params.size = model.sv.vector_size
         self.params.is_ft = model.is_ft
         self.params.word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
         self.params.target = <REAL_t *>(np.PyArray_DATA(target))
+        self.params.ring_rows = 0
         self.params.locks = _row_locks_of(model)
         if model.is_ft:
             self.params.word_vectors = <REAL_t *>(np.PyArray_DATA(wv.vectors_vocab))
@@ -215,6 +224,22 @@ cdef class KernelContext:
         self._locks = getattr(model, "_row_locks", None)
         self.sources = []
         self.prefill_rows = False
+
+    def use_ring(self, Py_ssize_t n_rows):
+        """Treat the target as a ring of windows for n_rows rows: row r goes to r % len(target).
+
+        For training into windows of rows that are stored once finished, so only the
+        window ring exists in float32. Requires prefill_rows, so every job writes its own
+        contiguous rows; the caller makes sure a window is free before its rows are written.
+        """
+        if self.params.ring_rows:
+            raise ValueError("the target is already a ring")
+        if n_rows < 0:
+            raise ValueError(f"n_rows must be non-negative, got {n_rows}")
+        if self.target_rows < 1:
+            raise ValueError("the target of a ring needs at least one row")
+        self.params.ring_rows = <size_t>self.target_rows
+        self.n_rows = n_rows
 
     def __reduce__(self):
         raise TypeError("KernelContext only exists during a train or infer call")
@@ -516,7 +541,7 @@ cdef void _average_sentence(
     # Every stored token counts for the length, also unknown words without ngrams.
     if n_tokens > 0:
         inv_count = ONEF / <REAL_t>n_tokens
-        row = <size_t>target * <size_t>size
+        row = _target_row(p, target) * <size_t>size
         # Adding mem / length keeps many-to-one mappings correct: rows accumulate.
         if p.locks != NULL:
             lock = p.locks[target % N_ROW_LOCKS]
@@ -548,13 +573,19 @@ cdef void _average_job(
         )
 
 
-cdef void _prefill(REAL_t *target, int size, np.int64_t first_row, Py_ssize_t n_rows) noexcept nogil:
+cdef inline size_t _target_row(const KernelParams *p, size_t row) noexcept nogil:
+    """The row of the target that holds sentence row ``row``: itself, or its ring slot."""
+    return row % p.ring_rows if p.ring_rows else row
+
+
+cdef void _prefill(const KernelParams *p, np.int64_t first_row, Py_ssize_t n_rows) noexcept nogil:
     """Set rows first_row to first_row + n_rows - 1 to EPS, as _fill_eps does in advance."""
-    cdef size_t i
-    cdef size_t begin = <size_t>first_row * <size_t>size
-    cdef size_t end = begin + <size_t>n_rows * <size_t>size
-    for i in range(begin, end):
-        target[i] = FLT_EPSILON
+    cdef size_t i, r, begin
+    cdef size_t size = <size_t>p.size
+    for r in range(<size_t>first_row, <size_t>first_row + <size_t>n_rows):
+        begin = _target_row(p, r) * size
+        for i in range(begin, begin + size):
+            p.target[i] = FLT_EPSILON
 
 
 cdef int _check_prefill(KernelContext ctx, np.int64_t first_row, Py_ssize_t n_items) except -1:
@@ -577,6 +608,8 @@ def run_job(KernelContext ctx, EncodedJob job, scratch):
     if scratch.size < ctx.params.size:
         raise ValueError(f"scratch must hold at least {ctx.params.size} entries")
     cdef bint prefill = ctx.prefill_rows
+    if ctx.params.ring_rows and not prefill:
+        raise ValueError("a ring of windows needs prefill_rows")
     if prefill:
         if not job.contiguous:
             raise ValueError("the indices of the job are not contiguous, so its rows cannot be prefilled")
@@ -610,7 +643,7 @@ def run_job(KernelContext ctx, EncodedJob job, scratch):
     try:
         with nogil:
             if prefill:
-                _prefill(ctx.params.target, ctx.params.size, job.first_row, job.n_items)
+                _prefill(&ctx.params, job.first_row, job.n_items)
             _average_job(
                 &ctx.params, words_ptr, &offsets[0], targets_ptr, n_sentences,
                 oov_bytes, &oov_offsets[0], mem, ngram_buffer, ngram_capacity,
@@ -983,11 +1016,15 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
     cdef Py_ssize_t n_chunks = 0
 
     # Chunk boundaries are collected in C and converted to a list at the end. Every chunk
-    # but the last holds at least chunk_bytes bytes, which bounds their number.
+    # but the last holds at least chunk_bytes bytes or CHUNK_MAX_ROWS sentences, which
+    # bounds their number. The row limit keeps a chunk of empty lines, which take no
+    # bytes, from holding all rows, so training into windows needs only a few of them.
     if chunk_bytes < 1:
         raise ValueError(f"chunk_bytes must be positive, got {chunk_bytes}")
     cdef Py_ssize_t span_bytes = (last - first) if lines else (item_ptr[last] - item_ptr[first])
-    cdef Py_ssize_t max_chunks = span_bytes // chunk_bytes + 2
+    # A line takes at least its "\n" (the last none), a string at least its entry.
+    cdef Py_ssize_t max_rows = (span_bytes + 1) if lines else (last - first)
+    cdef Py_ssize_t max_chunks = span_bytes // chunk_bytes + max_rows // CHUNK_MAX_ROWS + 2
     chunk_arr = np.empty(3 * max_chunks, dtype=np.int64)
     chunk_buffer = chunk_arr
     with nogil:
@@ -1010,6 +1047,7 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
             if (
                 (lines and pos - chunk_start >= chunk_bytes)
                 or (not lines and (item_ptr[pos] - item_ptr[chunk_start]) >= chunk_bytes)
+                or sentences - chunk_first >= CHUNK_MAX_ROWS
             ) and pos < last and n_chunks + 1 < max_chunks:
                 chunk_buffer[3 * n_chunks] = chunk_start
                 chunk_buffer[3 * n_chunks + 1] = pos
@@ -1203,6 +1241,8 @@ def run_chunk(KernelContext ctx, VocabTable table, const unsigned char[::1] data
     if first_row < 0:
         raise ValueError(f"first_row must be non-negative, got {first_row}")
     cdef bint prefill = ctx.prefill_rows
+    if ctx.params.ring_rows and not prefill:
+        raise ValueError("a ring of windows needs prefill_rows")
     if prefill:
         _check_prefill(ctx, first_row, n_items)
     cdef Py_ssize_t n = data.shape[0]
@@ -1225,7 +1265,7 @@ def run_chunk(KernelContext ctx, VocabTable table, const unsigned char[::1] data
     try:
         with nogil:
             if prefill:
-                _prefill(ctx.params.target, ctx.params.size, first_row, n_items)
+                _prefill(&ctx.params, first_row, n_items)
             status = _average_spans(
                 &ctx.params, &table.view, p, n, item_ptr, first, last, first_row, n_rows, mem,
                 &words, &oov_bytes, &oov_offsets, &ngrams, &eff_sentences, &eff_words, &error,
@@ -1344,3 +1384,141 @@ def init():
 MAX_WORDS_IN_BATCH = MAX_WORDS
 MAX_NGRAMS_IN_BATCH = MAX_NGRAMS
 FAST_VERSION = init()
+
+
+# ---------------------------------------------------------------------------------------
+# Reading float16 and int8 sentence vectors: dot products on the stored rows.
+# ---------------------------------------------------------------------------------------
+
+# Every float16 bit pattern as float32, so a stored float16 value is one table lookup.
+cdef REAL_t[65536] _HALF_TABLE
+with np.errstate(invalid="ignore"):
+    # The bit patterns include NaN payloads, whose conversion numpy reports.
+    _half_values = np.arange(65536, dtype=np.uint16).view(np.float16).astype(np.float32)
+for _i in range(65536):
+    _HALF_TABLE[_i] = _half_values[_i]
+del _half_values, _i
+
+
+cdef inline REAL_t _dot_int8(const signed char *row, const REAL_t *w, Py_ssize_t dim) noexcept nogil:
+    """Dot product of a row of int8 codes with float32 weights, in four float32 sums."""
+    cdef REAL_t a0 = 0, a1 = 0, a2 = 0, a3 = 0
+    cdef Py_ssize_t j = 0
+    while j + 4 <= dim:
+        a0 += <REAL_t>row[j] * w[j]
+        a1 += <REAL_t>row[j + 1] * w[j + 1]
+        a2 += <REAL_t>row[j + 2] * w[j + 2]
+        a3 += <REAL_t>row[j + 3] * w[j + 3]
+        j += 4
+    while j < dim:
+        a0 += <REAL_t>row[j] * w[j]
+        j += 1
+    return (a0 + a1) + (a2 + a3)
+
+
+cdef inline REAL_t _dot_half(const unsigned short *row, const REAL_t *w, Py_ssize_t dim) noexcept nogil:
+    """Dot product of a row of float16 values with float32 weights, in four float32 sums."""
+    cdef REAL_t a0 = 0, a1 = 0, a2 = 0, a3 = 0
+    cdef Py_ssize_t j = 0
+    while j + 4 <= dim:
+        a0 += _HALF_TABLE[row[j]] * w[j]
+        a1 += _HALF_TABLE[row[j + 1]] * w[j + 1]
+        a2 += _HALF_TABLE[row[j + 2]] * w[j + 2]
+        a3 += _HALF_TABLE[row[j + 3]] * w[j + 3]
+        j += 4
+    while j < dim:
+        a0 += _HALF_TABLE[row[j]] * w[j]
+        j += 1
+    return (a0 + a1) + (a2 + a3)
+
+
+cdef double _dot_wide(
+    const void *codes, bint half, size_t offset, const REAL_t *w, Py_ssize_t dim, double scale
+) noexcept nogil:
+    """The scaled dot product of one row in double, for rows whose float32 sum overflows.
+
+    An int8 code times a large weight can exceed float32 although the scaled result does
+    not; summing in double and scaling first gives the representable result.
+    """
+    cdef double total = 0
+    cdef Py_ssize_t j
+    for j in range(dim):
+        if half:
+            total += <double>_HALF_TABLE[(<const unsigned short *>codes)[offset + j]] * w[j]
+        else:
+            total += <double>(<const signed char *>codes)[offset + j] * w[j]
+    return total * scale
+
+
+cdef void _score(
+    const void *codes, bint half, Py_ssize_t dim, Py_ssize_t k, const REAL_t *weights_t,
+    const REAL_t *scales, const REAL_t *factors, const REAL_t *bias, REAL_t *out,
+    Py_ssize_t begin, Py_ssize_t end,
+) noexcept nogil:
+    """out[i, c] = dot(codes[i], weights_t[c]) * scale_i * factor_i + bias[c]."""
+    cdef Py_ssize_t i, c
+    cdef REAL_t scale, dot
+    cdef double wide
+    cdef size_t offset
+    for i in range(begin, end):
+        scale = (scales[i] if scales != NULL else ONEF) * (factors[i] if factors != NULL else ONEF)
+        offset = <size_t>i * <size_t>dim
+        for c in range(k):
+            if half:
+                dot = _dot_half(&(<const unsigned short *>codes)[offset], &weights_t[<size_t>c * <size_t>dim], dim)
+            else:
+                dot = _dot_int8(&(<const signed char *>codes)[offset], &weights_t[<size_t>c * <size_t>dim], dim)
+            dot = dot * scale
+            if not isfinite(dot):
+                # Rare: the unscaled sum left float32; NaN or infinite inputs stay so.
+                wide = _dot_wide(codes, half, offset, &weights_t[<size_t>c * <size_t>dim], dim, scale)
+                dot = <REAL_t>wide
+            out[<size_t>i * <size_t>k + c] = dot + (bias[c] if bias != NULL else 0)
+
+
+def score_rows(codes, scales, weights_t, bias, factors, out, Py_ssize_t begin, Py_ssize_t end):
+    """``out[i] = (codes[i] @ weights_t.T) * scales[i] * factors[i] + bias`` for rows begin to end.
+
+    codes are stored float16 or int8 sentence vectors of shape (n, dim); weights_t is
+    float32 of shape (k, dim), one row of weights per output; scales and factors are
+    float32 of shape (n,) or None; bias is float32 of shape (k,) or None; out is float32 of
+    shape (n, k). Sums run in float32 over the stored values in double, without the GIL and without
+    converting a block first.
+    """
+    if not isinstance(codes, np.ndarray) or codes.ndim != 2:
+        raise TypeError("codes must be a 2-dimensional numpy array")
+    if codes.dtype != np.int8 and codes.dtype != np.float16:
+        raise TypeError(f"codes must have dtype int8 or float16, got {codes.dtype}")
+    if not codes.flags.c_contiguous:
+        raise ValueError("codes must be C-contiguous")
+    cdef Py_ssize_t n = codes.shape[0], dim = codes.shape[1]
+    _check_array(weights_t, "weights_t", np.float32)
+    if weights_t.ndim != 2 or weights_t.shape[1] != dim:
+        raise ValueError(f"weights_t must have shape (k, {dim}), got {weights_t.shape}")
+    cdef Py_ssize_t k = weights_t.shape[0]
+    _check_array(out, "out", np.float32)
+    if not out.flags.writeable:
+        raise ValueError("out must be writeable")
+    if out.ndim != 2 or out.shape[0] != n or out.shape[1] != k:
+        raise ValueError(f"out must have shape ({n}, {k}), got {out.shape}")
+    for array, name, size in ((scales, "scales", n), (factors, "factors", n), (bias, "bias", k)):
+        if array is not None:
+            _check_array(array, name, np.float32)
+            if array.ndim != 1 or array.shape[0] != size:
+                raise ValueError(f"{name} must have shape ({size},), got {array.shape}")
+    if not 0 <= begin <= end <= n:
+        raise ValueError(f"rows [{begin}, {end}) are outside the {n} rows")
+    # Writing out while reading an overlapping input would change later results.
+    for array, name in ((codes, "codes"), (weights_t, "weights_t"), (scales, "scales"),
+                        (factors, "factors"), (bias, "bias")):
+        if array is not None and np.may_share_memory(out, array):
+            raise ValueError(f"out must not overlap {name}")
+    cdef const REAL_t *w = <const REAL_t *>np.PyArray_DATA(weights_t)
+    cdef const REAL_t *s = <const REAL_t *>np.PyArray_DATA(scales) if scales is not None else NULL
+    cdef const REAL_t *f = <const REAL_t *>np.PyArray_DATA(factors) if factors is not None else NULL
+    cdef const REAL_t *b = <const REAL_t *>np.PyArray_DATA(bias) if bias is not None else NULL
+    cdef REAL_t *o = <REAL_t *>np.PyArray_DATA(out)
+    cdef const void *data = np.PyArray_DATA(codes)
+    cdef bint half = codes.dtype == np.float16
+    with nogil:
+        _score(data, half, dim, k, w, s, f, b, o, begin, end)
