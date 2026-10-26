@@ -5,7 +5,9 @@
 
 """Automated tests for checking the base_s2v class."""
 
+import copy
 import threading
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -14,6 +16,7 @@ from gensim.models.keyedvectors import KeyedVectors
 from pydantic import ValidationError
 from wordfreq import get_frequency_dict
 
+from fse.models import base_s2v
 from fse.models.average_inner import MAX_WORDS_IN_BATCH, train_average_cy
 from fse.models.base_s2v import EPS, BaseSentence2VecModel, BaseSentence2VecPreparer
 
@@ -128,6 +131,74 @@ class TestBaseSentence2VecModel:
         freq = int((2**31 - 1) * get_frequency_dict("en", wordlist="best")["help"])
         assert se.wv.get_vecattr("help", "count") == freq
         assert se.wv.get_vecattr("79", "count") == 21
+
+    def test_language_leaves_the_passed_model_unchanged(self, w2v):
+        """lang_freq writes the counts of the model's own copy, not of w2v."""
+        counts = w2v.wv.expandos["count"].copy()
+        se = BaseSentence2VecModel(w2v, lang_freq="en")
+        assert se.wv is not w2v.wv
+        assert se.wv.vectors is w2v.wv.vectors
+        assert np.array_equal(w2v.wv.expandos["count"], counts)
+        assert not np.array_equal(se.wv.expandos["count"], counts)
+        # A second model from the same w2v sees the original counts.
+        assert np.array_equal(BaseSentence2VecModel(w2v).wv.expandos["count"], counts)
+
+    @pytest.mark.parametrize("option", ["lang_freq", "wv_mapfile_path"])
+    def test_vocabulary_added_to_the_passed_model_later(self, w2v, tmp_path, option):
+        """add_vectors on the passed model must not give the copy indices beyond its vectors."""
+        from fse.models.average import Average
+
+        kwargs = (
+            {"lang_freq": "en"}
+            if option == "lang_freq"
+            else {"wv_mapfile_path": str(tmp_path / "v")}
+        )
+        model = Average(w2v, **kwargs)
+        words = len(model.wv.key_to_index)
+        w2v.wv.add_vectors(["fse_new_word"], np.ones((1, DIM), dtype=np.float32))
+        assert len(model.wv.key_to_index) == len(model.wv.index_to_key) == words
+        assert "fse_new_word" not in model.wv
+        model.train([(["fse_new_word", "the"], 0)])
+        # Rows start at EPS, so compare absolutely.
+        np.testing.assert_allclose(model.sv[0], model.wv["the"], atol=1e-6)
+
+    def test_word_attributes_are_not_shared(self, w2v, tmp_path):
+        se = BaseSentence2VecModel(w2v, wv_mapfile_path=str(tmp_path / "v"))
+        counts = w2v.wv.expandos["count"].copy()
+        se.wv.set_vecattr("the", "count", 123456789)
+        assert np.array_equal(w2v.wv.expandos["count"], counts)
+        w2v.wv.set_vecattr("the", "count", 7)
+        assert se.wv.get_vecattr("the", "count") == 123456789
+
+    def test_copy_drops_the_norm_cache(self, w2v):
+        w2v.wv.fill_norms()
+        se = BaseSentence2VecModel(w2v, lang_freq="en")
+        assert se.wv.norms is None
+        assert w2v.wv.norms is not None
+
+    def test_kernel_rejects_a_vocabulary_larger_than_the_vectors(self, w2v):
+        from fse.models.average import Average
+
+        model = Average(w2v)
+        model.wv = copy.copy(model.wv)
+        model.wv.key_to_index = {**model.wv.key_to_index, "fse_extra": len(model.wv.vectors)}
+        with pytest.raises(ValueError, match=r"the vocabulary has .* words, but there are only"):
+            model.train([(["the"], 0)])
+
+    def test_without_options_the_passed_vectors_are_used(self, w2v):
+        assert BaseSentence2VecModel(w2v).wv is w2v.wv
+
+    @pytest.mark.parametrize("name", ["w2v", "ft"])
+    def test_mapfile_leaves_the_passed_model_unchanged(self, request, tmp_path, name):
+        model = request.getfixturevalue(name)
+        attrs = ["vectors"] + (["vectors_vocab", "vectors_ngrams"] if name == "ft" else [])
+        before = {attr: getattr(model.wv, attr) for attr in attrs}
+        se = BaseSentence2VecModel(model, wv_mapfile_path=str(tmp_path / "vecs"))
+        for attr in attrs:
+            assert getattr(model.wv, attr) is before[attr]
+            assert getattr(model.wv, attr).flags.writeable
+            assert not getattr(se.wv, attr).flags.writeable
+            assert np.array_equal(getattr(se.wv, attr), before[attr])
 
     def test_model_w_wrong_language(self, w2v):
         with pytest.raises(ValueError, match="not available in wordfreq"):
@@ -439,6 +510,76 @@ class TestBaseSentence2VecModel:
         assert not output.flags.writeable
         assert (vecs == output).all()
 
+    def test_matching_mapfile_is_reused(self, w2v, tmp_path):
+        p = str(tmp_path / "vecs")
+        first = BaseSentence2VecModel(w2v, wv_mapfile_path=p)
+        second = BaseSentence2VecModel(w2v, wv_mapfile_path=p)
+        assert np.array_equal(first.wv.vectors, second.wv.vectors)
+
+    @pytest.mark.parametrize("change", ["copy_on_write", "reversed_view"])
+    def test_memmap_of_the_same_file_is_compared(self, w2v, tmp_path, change):
+        """A map of the right file can still hold other values than the file."""
+        p = str(tmp_path / "vecs")
+        se = BaseSentence2VecModel(w2v, wv_mapfile_path=p)
+        path = f"{p}_wv.vectors"
+        shape = se.wv.vectors.shape
+        if change == "copy_on_write":
+            vector = np.memmap(path, dtype=np.float32, mode="c", shape=shape)
+            vector[-1, -1] += 1
+        else:
+            vector = np.memmap(path, dtype=np.float32, mode="r", shape=shape)[::-1]
+        with pytest.raises(ValueError, match="holds other vectors than the model"):
+            se._move_ndarray_to_disk(vector, mapfile_path=p, name="wv")
+        # The unchanged map of the file is reused.
+        same = np.memmap(path, dtype=np.float32, mode="r", shape=shape)
+        assert np.array_equal(se._move_ndarray_to_disk(same, mapfile_path=p, name="wv"), same)
+
+    MAPFILES = (("w2v", "wv"), ("ft", "wv"), ("ft", "vocab"), ("ft", "ngrams"))
+
+    @staticmethod
+    def _mapped_array(model, name):
+        """The array written to the mapfile with this suffix."""
+        attr = {"wv": "vectors", "vocab": "vectors_vocab", "ngrams": "vectors_ngrams"}[name]
+        return getattr(model.wv, attr)
+
+    @pytest.mark.parametrize(("model_name", "name"), MAPFILES)
+    def test_mapfile_of_another_size_raises(self, request, tmp_path, model_name, name):
+        model = request.getfixturevalue(model_name)
+        p = tmp_path / "vecs"
+        size = self._mapped_array(model, name).size
+        np.zeros(size + 1, dtype=np.float32).tofile(f"{p}_{name}.vectors")
+        with pytest.raises(ValueError, match=r"has .* bytes, but vectors of shape"):
+            BaseSentence2VecModel(model, wv_mapfile_path=str(p))
+
+    @pytest.mark.parametrize(("model_name", "name"), MAPFILES)
+    def test_mapfile_with_other_vectors_raises(self, request, tmp_path, model_name, name):
+        model = request.getfixturevalue(model_name)
+        p = tmp_path / "vecs"
+        other = self._mapped_array(model, name).copy()
+        other[-1, -1] += 1
+        other.tofile(f"{p}_{name}.vectors")
+        with pytest.raises(ValueError, match="holds other vectors than the model \\(from row"):
+            BaseSentence2VecModel(model, wv_mapfile_path=str(p))
+
+    @pytest.mark.parametrize(("model_name", "name"), MAPFILES)
+    @pytest.mark.parametrize("damage", ["truncated", "extended", "missing"])
+    def test_damaged_mapfile_raises_on_load(self, request, tmp_path, model_name, name, damage):
+        model = request.getfixturevalue(model_name)
+        p = tmp_path / "vecs"
+        se = BaseSentence2VecModel(model, wv_mapfile_path=str(p))
+        se.save(str(tmp_path / "model"))
+        del se
+        target = Path(f"{p}_{name}.vectors")
+        if damage == "missing":
+            target.unlink()
+            error, match = FileNotFoundError, "is missing"
+        else:
+            data = target.read_bytes()
+            target.write_bytes(data[:-4] if damage == "truncated" else data + bytes(4))
+            error, match = ValueError, r"has .* bytes"
+        with pytest.raises(error, match=match):
+            BaseSentence2VecModel.load(str(tmp_path / "model"))
+
     def test_move_w2v_vectors_to_disk_from_init(self, w2v, tmp_path):
         p = tmp_path / "test_vecs"
         se = BaseSentence2VecModel(w2v, wv_mapfile_path=str(p))
@@ -573,7 +714,6 @@ class TestBaseSentence2VecPreparer:
 
     def test_fill_crosses_block_boundaries(self, se, trainables, monkeypatch):
         """Rows are filled in blocks; sizes that are no multiple of the block are covered."""
-        from fse.models import base_s2v
 
         monkeypatch.setattr(base_s2v, "_FILL_BLOCK_ROWS", 7)
         trainables.reset_vectors(se.sv, 20)
@@ -718,7 +858,6 @@ def test_many_to_one_without_extension_uses_one_worker(w2v, sentences, monkeypat
     """Without the C extension there are no row locks, so training falls back to one worker."""
     import logging
 
-    from fse.models import base_s2v
     from fse.models.average import Average
 
     monkeypatch.setattr(base_s2v, "RowLocks", None)
@@ -805,7 +944,6 @@ SCAN_INPUTS = [
 @pytest.mark.parametrize("data", SCAN_INPUTS)
 def test_compiled_scan_matches_the_python_loop(w2v, data, monkeypatch):
     """Same statistics, or the same exception type and message, in both scan paths."""
-    from fse.models import base_s2v
 
     def outcome():
         se = BaseSentence2VecModel(w2v)
@@ -827,7 +965,6 @@ class _IterOverridingList(list):
 
 
 def test_compiled_scan_iterates_list_subclasses(w2v, monkeypatch):
-    from fse.models import base_s2v
 
     data = [(_IterOverridingList(["a", "b"]), 0)]
 

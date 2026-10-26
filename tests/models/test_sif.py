@@ -22,16 +22,10 @@ def indexed_sentences(corpus_path):
 
 @pytest.fixture
 def model(w2v):
-    """SIF model with English word frequencies.
-
-    lang_freq overwrites the word counts of ``w2v``. Tests that build further
-    models from ``w2v`` request this fixture as well, so they see the same
-    counts as in the original unittest suite, where setUp always built it.
-    """
+    """SIF model with English word frequencies."""
     return SIF(w2v, lang_freq="en")
 
 
-@pytest.mark.usefixtures("model")
 @pytest.mark.parametrize(
     ("kwargs", "field"),
     [({"alpha": -1.0}, "alpha"), ({"components": -1}, "components"), ({"alpha": "1"}, "alpha")],
@@ -42,7 +36,6 @@ def test_constructor_rejects_invalid_parameters(w2v, kwargs, field):
         SIF(w2v, **kwargs)
 
 
-@pytest.mark.usefixtures("model")
 @pytest.mark.parametrize(
     ("attribute", "value", "message"),
     [("alpha", -1.0, "Alpha"), ("components", -1, "Components")],
@@ -56,7 +49,6 @@ def test_parameter_sanity(w2v, attribute, value, message):
         m._check_parameter_sanity()
 
 
-@pytest.mark.usefixtures("model")
 def test_parameter_sanity_word_weights(w2v):
     m = SIF(w2v)
     m.word_weights = np.ones_like(m.word_weights) + 2
@@ -147,7 +139,6 @@ def test_train(model, indexed_sentences):
     assert len(model.svd_res) == 2
 
 
-@pytest.mark.usefixtures("model")
 def test_save_issue(w2v, indexed_sentences, tmp_path):
     model = SIF(w2v)
     model.train(indexed_sentences)

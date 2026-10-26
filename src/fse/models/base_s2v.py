@@ -38,6 +38,7 @@ import logging
 import threading
 import warnings
 from collections.abc import Iterable, Iterator
+from copy import copy
 from pathlib import Path
 from queue import Empty, Queue
 from time import time
@@ -49,11 +50,14 @@ from gensim.models.fasttext import FastTextKeyedVectors
 from gensim.models.keyedvectors import KeyedVectors
 from gensim.utils import SaveLoad
 from numpy import (
+    array_equal,
     dtype,
     empty,
     finfo,
+    int64,
     ndarray,
     ones,
+    prod,
     vstack,
     zeros,
 )
@@ -79,8 +83,10 @@ from fse._validation import (
     WordVectorModel,
     validate_arguments,
 )
+from fse.models._index_tracker import MAX_INDEX, IndexTracker, check_index_range
 from fse.models._single_pass import SinglePass
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
+from fse.models.utils import REMOVAL_BLOCK_ROWS
 
 try:
     from fse.models.average_inner import scan_indexed_sentences
@@ -167,6 +173,9 @@ class BaseSentence2VecModel(SaveLoad):
             )
 
         self._check_and_include_model(model)
+
+        if self.wv_mapfile_path is not None or lang_freq is not None:
+            self.wv = _own_word_vectors(self.wv)
 
         if self.wv_mapfile_path is not None:
             self._map_all_vectors_to_disk(self.wv_mapfile_path)
@@ -274,11 +283,11 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         freq_dict = get_frequency_dict(self.lang_freq, wordlist="best")
-        for word in self.wv.index_to_key:
-            if word in freq_dict:
-                self.wv.set_vecattr(word, "count", int(freq_dict[word] * domain))
-            else:
-                self.wv.set_vecattr(word, "count", int(1e-8 * domain))
+        counts = zeros(len(self.wv.index_to_key), dtype=int64)
+        for i, word in enumerate(self.wv.index_to_key):
+            counts[i] = int(freq_dict[word] * domain) if word in freq_dict else int(1e-8 * domain)
+        # A new array: the passed model may share the previous one with this copy.
+        self.wv.expandos["count"] = counts
 
     def _check_input_data_sanity(self, data_iterable: Any):
         """Check if the input data complies with the required formats
@@ -486,6 +495,14 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         path = str(mapfile_path.absolute())
+        _check_mapfile_size(Path(f"{path}_wv.vectors"), self.wv_mapfile_shapes["vectors"])
+        if self.is_ft:
+            _check_mapfile_size(
+                Path(f"{path}_vocab.vectors"), self.wv_mapfile_shapes["vectors_vocab"]
+            )
+            _check_mapfile_size(
+                Path(f"{path}_ngrams.vectors"), self.wv_mapfile_shapes["vectors_ngrams"]
+            )
 
         self.wv.vectors = np_memmap(
             f"{path}_wv.vectors",
@@ -535,11 +552,21 @@ class BaseSentence2VecModel(SaveLoad):
             memvecs = np_memmap(path, dtype=REAL, mode="w+", shape=shape)
             memvecs[:] = vector[:]
             del memvecs, vector
-        else:
-            # If multiple instances of this class exist, all can access the same files
-            logger.info(f"loading pre-existing {name} from {path}")
+            return np_memmap(path, dtype=REAL, mode="r", shape=shape)
 
+        # If multiple instances of this class exist, all can access the same files, but
+        # only files that hold exactly these vectors.
+        logger.info(f"loading pre-existing {name} from {path}")
+        _check_mapfile_size(path, shape)
         readonly_memvecs = np_memmap(path, dtype=REAL, mode="r", shape=shape)
+        # Also for a memmap of the same file: a copy-on-write map or a view may differ.
+        for begin in range(0, shape[0], REMOVAL_BLOCK_ROWS):
+            rows = slice(begin, begin + REMOVAL_BLOCK_ROWS)
+            if not array_equal(readonly_memvecs[rows], vector[rows], equal_nan=True):
+                raise ValueError(
+                    f"the existing file {path} holds other vectors than the model "
+                    f"(from row {begin}); delete it or pass another mapfile path"
+                )
         return readonly_memvecs
 
     def _get_thread_working_mem(self) -> tuple[ndarray, ndarray]:
@@ -702,11 +729,11 @@ class BaseSentence2VecModel(SaveLoad):
         empty_sentences = 0
         max_index = 0
         # Whether every index occurs at most once. Most inputs use index == position, which
-        # needs no bookkeeping; any other order is tracked exactly in a set of seen indices,
-        # whose size grows with the number of sentences, not with the largest index.
+        # needs no bookkeeping; any other order is tracked in an IndexTracker, a bitmap of
+        # about one byte per sentence.
         unique_indices = True
         identity = True
-        seen: set[int] = set()
+        tracker: IndexTracker | None = None
 
         def progress(sentences_done: int, words_done: int):
             logger.info(f"SCANNING : finished {sentences_done} sentences with {words_done} words")
@@ -756,19 +783,21 @@ class BaseSentence2VecModel(SaveLoad):
 
                 max_index = max(max_index, index)
                 total_sentences += 1
+                if index > MAX_INDEX:
+                    check_index_range(index, i)
                 if identity and index != i:
                     identity = False
-                    seen = set(range(i))
-                if not identity and unique_indices:
-                    if index in seen:
-                        unique_indices = False
-                        seen.clear()
-                    else:
-                        seen.add(index)
+                    tracker = IndexTracker(i)
+                if tracker is not None and not tracker.add(index, total_sentences):
+                    unique_indices = False
+                    tracker = None
                 total_words += len(sent)
 
                 if not len(sent):
                     empty_sentences += 1
+            if tracker is not None:
+                unique_indices = tracker.unique(total_sentences)
+                tracker = None
 
         if empty_sentences:
             logger.warning(f"found {empty_sentences} empty sentences")
@@ -1317,6 +1346,38 @@ class _OffsetIndices:
 
 # Rows per block when initializing sentence vectors, so a memmap is written in bounded chunks.
 _FILL_BLOCK_ROWS = 100_000
+
+
+def _own_word_vectors(wv: KeyedVectors) -> KeyedVectors:
+    """A copy of the word vectors whose attributes can be replaced without touching wv.
+
+    lang_freq and wv_mapfile_path replace attributes of the word vectors. The copy shares
+    the vector arrays, which are not copied, but has its own vocabulary containers and
+    per-word attributes: gensim's add_vectors on wv replaces wv's vectors and extends
+    those containers in place, which would otherwise give the copy word indices beyond
+    its vectors. Its norm cache is dropped and recomputed from the shared vectors when
+    gensim needs it. Changing the shared vectors in place still affects both.
+    """
+    own = copy(wv)
+    own.key_to_index = dict(wv.key_to_index)
+    own.index_to_key = list(wv.index_to_key)
+    # One array per attribute and word, a few bytes each, so copying them is cheap.
+    own.expandos = {attr: values.copy() for attr, values in wv.expandos.items()}
+    own.norms = None
+    return own
+
+
+def _check_mapfile_size(path: Path, shape: tuple[int, ...]):
+    """Raise unless the file holds exactly a float32 array of this shape."""
+    expected = int(prod(shape)) * dtype(REAL).itemsize
+    if not path.exists():
+        raise FileNotFoundError(f"the mapfile {path} of the word vectors is missing")
+    size = path.stat().st_size
+    if size != expected:
+        raise ValueError(
+            f"the existing file {path} has {size} bytes, but vectors of shape {tuple(shape)} "
+            f"need {expected}; delete it or pass another mapfile path"
+        )
 
 
 def _fill_eps(vectors: ndarray, start: int, stop: int):

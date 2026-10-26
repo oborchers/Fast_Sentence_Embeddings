@@ -5,6 +5,7 @@
 
 import builtins
 import mmap
+import operator
 import os
 from collections.abc import Callable, Iterator, MutableSequence
 from concurrent.futures import ThreadPoolExecutor
@@ -24,6 +25,9 @@ try:
     from fse.models.average_inner import scan_spans
 except ImportError:
     scan_spans = None  # type: ignore[assignment]
+
+# Bytes read at a time while IndexedLineDocument builds its line offsets.
+_OFFSET_BLOCK_BYTES = 1 << 26
 
 # Calls .split() on each item like __getitem__ does, also for numpy str_ items.
 _split = methodcaller("split")
@@ -411,19 +415,31 @@ class IndexedLineDocument:
 
         """
         self.path = Path(path)
-        self.line_offset: list[int] = []
+        self.line_offset: ndarray = numpy.empty(0, dtype=numpy.int64)
         self.get_able = get_able
 
         if self.get_able:
             self._build_offsets()
 
     def _build_offsets(self):
-        """Builds an offset table to index the file."""
+        """Builds an offset table to index the file: the start of every line, as int64.
+
+        A line ends after "\\n" and the last one needs none, as for ``for line in f``. The
+        file is read in blocks of ``_OFFSET_BLOCK_BYTES``; the finished offsets take 8 bytes
+        per line, and while the offsets of the blocks are joined they exist twice. For a
+        compressed file the offsets are positions in the decompressed stream, where
+        ``seek`` goes.
+        """
+        starts = [numpy.zeros(1, dtype=numpy.int64)]
+        position = 0
         with open(self.path, "rb") as f:
-            offset = f.tell()
-            for line in f:
-                self.line_offset.append(offset)
-                offset += len(line)
+            while block := f.read(_OFFSET_BLOCK_BYTES):
+                data = numpy.frombuffer(block, dtype=numpy.uint8)
+                starts.append(numpy.flatnonzero(data == 10).astype(numpy.int64) + (position + 1))
+                position += len(block)
+        offsets = concatenate(starts)
+        # The position after a final line break starts no line, nor does 0 in an empty file.
+        self.line_offset = offsets[:-1] if offsets[-1] == position else offsets
 
     def __getitem__(self, i):
         """Returns the line indexed by i. Primarily used for.
@@ -444,7 +460,8 @@ class IndexedLineDocument:
             raise RuntimeError("To index the lines, you must contruct with get_able=True")
 
         with open(self.path, "rb") as f:
-            f.seek(self.line_offset[i])
+            # A scalar index only, as for the list the offsets used to be.
+            f.seek(int(self.line_offset[operator.index(i)]))
             output = f.readline()
             f.seek(0)
             return any2unicode(output).rstrip()

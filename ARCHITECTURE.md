@@ -16,6 +16,8 @@ src/fse/
     sif.py, usif.py      # SIF and uSIF: word weights and principal component removal
     sentencevectors.py   # SentenceVectors: storage and similarity queries
     utils.py             # SVD helpers
+    _single_pass.py      # private: state of the single pass during train
+    _index_tracker.py    # private: bitmap of seen indices for the scan
 ```
 
 **Module paths under `fse.models` are part of the API.** Models are saved with gensim's `SaveLoad`, which pickles class paths such as `fse.models.average.Average`. Renaming or moving a module breaks loading of every saved model. New internal code goes into new private modules; existing ones stay where they are.
@@ -24,7 +26,7 @@ src/fse/
 
 `train(sentences)` and `infer(sentences)` take a re-iterable of `(tokens, index)` tuples. The `inputs` classes produce exactly that shape. `index` is the row of the output matrix the sentence contributes to.
 
-1. **Scan:** `scan_sentences` makes one pass over the input. It counts sentences and words, finds the largest index, validates every item and reports whether all indices are unique and whether every index is the position of its sentence (`identity_indices`). With the extension the loop runs in Cython (`scan_indexed_sentences`) with the same checks and messages; a subclass that overrides `_check_indexed_sent_valid` keeps the Python loop.
+1. **Scan:** `scan_sentences` makes one pass over the input. It counts sentences and words, finds the largest index, validates every item and reports whether all indices are unique and whether every index is the position of its sentence (`identity_indices`). Indices that are not the positions of their sentences are tracked in a bitmap (`IndexTracker` in the private module `fse.models._index_tracker`), which grows by doubling up to `max(BITMAP_MIN_BYTES, one byte per sentence)`; indices beyond it wait as int64 until it may double, and are sorted at the end if it never may cover them. With the extension the loop runs in Cython (`scan_indexed_sentences`) with the same checks, messages and tracker rules; a subclass that overrides `_check_indexed_sent_valid` keeps the Python loop.
 2. **Sanity and memory:** `_check_pre_training_sanity` checks the vectors and weights; `estimate_memory` warns when the result will not fit into RAM.
 3. **Prepare:** `BaseSentence2VecPreparer` allocates the sentence vectors (`max_index` rows, initialized to `EPS`), in RAM or as a memmap. With identity indices and the kernel, the rows are not initialized here: every job sets its own contiguous rows to `EPS` right before it averages them (see *Single pass*). With `train(update=True)` it appends the rows instead, and every sentence index is shifted by the previous number of rows. Rows are initialized in blocks. An in-memory update copies all existing rows into a new array (`vstack`); a memmap grows in place.
 4. **Pre-train hook:** `_pre_train_calls` computes the word weights. All weights are 1 for Average; SIF and uSIF derive them from word frequencies.
@@ -68,6 +70,10 @@ The input contract is the one of `IndexedLineDocument` and `SplitIndexedList`, a
 Several sentences may share one index. Each sentence average is added into the row; a row is not overwritten.
 
 `scan_sentences` reports whether every index is unique. If it is not and more than one worker trains, the Cython kernel adds into rows under striped locks (`RowLocks`, 256 stripes), which exist only during `train` and are never pickled. Without the extension, such inputs train with one worker. Unique indices, the common case, take no lock.
+
+### The passed word vectors stay unchanged
+
+A model never changes the `KeyedVectors` it was given. Where it replaces attributes (the counts for `lang_freq`, the vector arrays for `wv_mapfile_path`), it first makes a shallow copy (`_own_word_vectors`): the vector arrays are shared, while the vocabulary containers, the arrays of per-word attributes (`expandos`) and the replaced attributes are its own, so a later `add_vectors` on the passed model cannot give the copy word indices beyond its vectors. The kernel context checks that the vocabulary has no more words than there are word vectors. An existing word mapfile is reused only if its size and content equal the vectors.
 
 ### Appended rows never change existing rows
 

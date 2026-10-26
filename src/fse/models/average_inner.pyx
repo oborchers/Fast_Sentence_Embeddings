@@ -33,7 +33,10 @@ from libc.stdint cimport SIZE_MAX
 from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport memchr, memcmp, memcpy, memset
 
+from array import array
 from time import time
+
+from fse.models import _index_tracker
 
 import scipy.linalg.blas as fblas
 
@@ -632,8 +635,18 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
     cdef object max_index = 0
     cdef bint unique_indices = True
     cdef bint identity = True
-    cdef set seen = set()
     cdef double last = time()
+    # The bitmap of _index_tracker.IndexTracker with the same rules, inlined; it exists
+    # while the indices are tracked, from the first index that is not its position.
+    cdef bytearray bits = None
+    cdef unsigned char* bit_data = NULL
+    cdef Py_ssize_t bit_bytes = 0
+    cdef object pending = None
+    cdef long long pending_max = -1
+    cdef long long idx
+    cdef long long fold_bytes
+    cdef Py_ssize_t min_bytes = 0
+    cdef object max_supported = _index_tracker.MAX_INDEX
 
     for obj in sentences:
         if not isinstance(obj, tuple):
@@ -670,20 +683,46 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
 
         if index > max_index:
             max_index = index
+        if index > max_supported:
+            _index_tracker.check_index_range(index, i)
         if identity and index != i:
             identity = False
-            seen = set(range(i))
-        if not identity and unique_indices:
-            if index in seen:
-                unique_indices = False
-                seen.clear()
+            bits = _index_tracker.new_bitmap(i)
+            bit_data, bit_bytes = <unsigned char*><char*>bits, len(bits)
+            pending = array("q")
+            min_bytes = _index_tracker.BITMAP_MIN_BYTES
+        if bits is not None:
+            idx = index
+            if (idx >> 3) < bit_bytes:
+                if bit_data[idx >> 3] & (1 << (idx & 7)):
+                    unique_indices = False
+                    bits, bit_data, pending = None, NULL, None
+                else:
+                    bit_data[idx >> 3] |= 1 << (idx & 7)
             else:
-                seen.add(index)
+                pending.append(idx)
+                if idx > pending_max:
+                    pending_max = idx
+                # fold_size(final=False), in C: fold once the bitmap may double.
+                fold_bytes = max(pending_max // 8 + 1, 2 * bit_bytes)
+                if fold_bytes <= max(min_bytes, i + 1):
+                    if not _index_tracker.fold(bits, pending, fold_bytes):
+                        unique_indices = False
+                        bits, bit_data, pending = None, NULL, None
+                    else:
+                        bit_data, bit_bytes = <unsigned char*><char*>bits, len(bits)
+                    pending_max = -1
         total_words += len(words)
         if not len(words):
             empty_sentences += 1
         i += 1
 
+    if bits is not None and len(pending):
+        fold_bytes = _index_tracker.fold_size(bit_bytes, pending_max, i, True)
+        if fold_bytes:
+            unique_indices = _index_tracker.fold(bits, pending, fold_bytes)
+        else:
+            unique_indices = _index_tracker.sorted_unique(pending)
     return i, total_words, empty_sentences, max_index, unique_indices, identity
 
 
@@ -1247,6 +1286,12 @@ def _check_inputs(model, target, memory=None):
         _check_array(word_vectors, "wv.vectors", np.float32)
     if word_vectors.ndim != 2 or word_vectors.shape[1] != size:
         raise ValueError(f"word vectors must have shape (n, {size}), got {word_vectors.shape}")
+    # The encoder takes word indices from key_to_index and the kernel reads their rows.
+    if len(model.wv.key_to_index) > word_vectors.shape[0]:
+        raise ValueError(
+            f"the vocabulary has {len(model.wv.key_to_index)} words, but there are only "
+            f"{word_vectors.shape[0]} word vectors"
+        )
     if model.word_weights.shape != (word_vectors.shape[0],):
         raise ValueError(
             f"word_weights must have one weight per word vector ({word_vectors.shape[0]}), "
