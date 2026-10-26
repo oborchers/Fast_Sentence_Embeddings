@@ -289,13 +289,14 @@ def test_memory_estimate_reports_the_format(w2v):
 
 @pytest.mark.parametrize("dtype", QUANTIZED)
 @pytest.mark.parametrize("mapped", [False, True])
-def test_save_and_load(w2v, sentences, tmp_path, dtype, mapped):
+@pytest.mark.parametrize(("cls", "kwargs"), MODELS, ids=MODEL_IDS)
+def test_save_and_load(w2v, sentences, tmp_path, dtype, mapped, cls, kwargs):
     path = {"sv_mapfile_path": str(tmp_path / "sv")} if mapped else {}
-    model = SIF(w2v, sv_dtype=dtype, **path)
+    model = cls(w2v, sv_dtype=dtype, **kwargs, **path)
     model.train(IndexedList(sentences))
     expected = model.sv.most_similar(0, topn=5)
     model.save(str(tmp_path / "model"))
-    loaded = SIF.load(str(tmp_path / "model"))
+    loaded = cls.load(str(tmp_path / "model"))
     assert loaded.sv.dtype == dtype
     assert np.array_equal(np.asarray(loaded.sv.vectors), np.asarray(model.sv.vectors))
     if dtype == "int8":
@@ -463,3 +464,85 @@ def test_files_of_float32_vectors_keep_their_names(w2v, sentences, tmp_path):
     model.train(IndexedList(sentences))
     assert sorted(os.listdir(tmp_path)) == ["sv.vectors"]
     assert Path(model.sv.vectors.filename) == (tmp_path / "sv.vectors").absolute()
+
+
+def test_old_usif_model_converts_and_keeps_its_weighting(w2v, sentences, tmp_path):
+    """A uSIF model saved before 1.1.0 keeps lambda squared through convert and updates."""
+    model = uSIF(w2v, length=11, components=2)
+    model.train(IndexedList(sentences[:60]))
+    del model.component_weighting  # as saved by fse 1.0
+    model.save(str(tmp_path / "old"))
+    old = uSIF.load(str(tmp_path / "old"))
+    assert old.component_weighting == "lambda_squared"
+    weights = old.svd_weights.copy()
+    old.sv.convert("int8")
+    old.train(IndexedList(sentences[60:]), update=True)
+    old.save(str(tmp_path / "converted"))
+    loaded = uSIF.load(str(tmp_path / "converted"))
+    assert loaded.component_weighting == "lambda_squared"
+    np.testing.assert_array_equal(loaded.svd_weights, weights)
+    assert loaded.sv.dtype == "int8"
+    assert len(loaded.sv) == len(sentences)
+
+
+@pytest.mark.parametrize("bad", [True, 1.0, "1"])
+def test_get_vectors_takes_integers(trained, bad):
+    with pytest.raises(TypeError, match="must be an int"):
+        trained.sv.get_vectors(bad)
+    np.testing.assert_array_equal(trained.sv.get_vectors(-2), trained.sv.get_vectors()[-2:])
+    np.testing.assert_array_equal(
+        trained.sv.get_vectors(np.int64(1), 3), trained.sv.get_vectors()[1:3]
+    )
+
+
+def test_failed_file_replacement_restores_the_vectors(w2v, sentences, tmp_path, monkeypatch):
+    model = SIF(w2v, sv_mapfile_path=str(tmp_path / "sv"))
+    model.train(IndexedList(sentences))
+    before = model.sv.get_vectors()
+    original = os.replace
+    calls = []
+
+    def fail_second_written_file(src, dst):
+        calls.append((src, dst))
+        if str(src).endswith(".scales.converting"):
+            raise OSError("disk full")
+        return original(src, dst)
+
+    monkeypatch.setattr(os, "replace", fail_second_written_file)
+    with pytest.raises(OSError, match="disk full"):
+        model.sv.convert("int8")
+    monkeypatch.setattr(os, "replace", original)
+    assert model.sv.dtype == "float32"
+    np.testing.assert_array_equal(model.sv.get_vectors(), before)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["sv.vectors"]
+    model.sv.convert("int8")  # works once the disk is fine again
+    assert model.sv.dtype == "int8"
+
+
+def test_failed_writer_creation_cuts_grown_files_back(w2v, sentences, tmp_path, monkeypatch):
+    model = SIF(w2v, sv_dtype="int8", sv_mapfile_path=str(tmp_path / "sv"))
+    model.train(IndexedList(sentences[:50]))
+    sizes = {p.name: p.stat().st_size for p in tmp_path.iterdir()}
+    original = sentencevectors.np_memmap
+
+    def fail_on_scales(path, *args, **kwargs):
+        if str(path).endswith(".scales") and kwargs.get("mode") == "r+":
+            raise OSError("cannot map")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(sentencevectors, "np_memmap", fail_on_scales)
+    with pytest.raises(OSError, match="cannot map"):
+        model.train(IndexedList(sentences[50:]), update=True)
+    monkeypatch.setattr(sentencevectors, "np_memmap", original)
+    assert {p.name: p.stat().st_size for p in tmp_path.iterdir()} == sizes
+    assert len(model.sv) == 50
+
+
+def test_replaced_pre_train_calls_use_staging(w2v, sentences, caplog):
+    import logging
+
+    model = SIF(w2v, sv_dtype="int8")
+    model._pre_train_calls = model._pre_train_calls
+    with caplog.at_level(logging.INFO, logger="fse.models.base_s2v"):
+        model.train(IndexedList(sentences))
+    assert any("_pre_train_calls is replaced" in r.message for r in caplog.records)

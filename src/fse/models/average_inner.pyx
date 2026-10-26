@@ -29,6 +29,7 @@ from cpython.pythread cimport (
     PyThread_release_lock,
 )
 from libc.float cimport FLT_EPSILON
+from libc.math cimport isfinite
 from libc.stdint cimport SIZE_MAX
 from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport memchr, memcmp, memcpy, memset
@@ -175,6 +176,8 @@ cdef class KernelContext:
     cdef KernelParams params
     cdef dict vocab
     cdef Py_ssize_t n_rows
+    # Rows of the target array itself, which a ring of windows never exceeds.
+    cdef Py_ssize_t target_rows
     cdef object _keep
     cdef object _locks
     # Native sources opened for this call; closed when the call ends.
@@ -188,6 +191,7 @@ cdef class KernelContext:
         wv = model.wv
         self.vocab = wv.key_to_index
         self.n_rows = target.shape[0]
+        self.target_rows = target.shape[0]
         self.params.size = model.sv.vector_size
         self.params.is_ft = model.is_ft
         self.params.word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
@@ -224,11 +228,13 @@ cdef class KernelContext:
         window ring exists in float32. Requires prefill_rows, so every job writes its own
         contiguous rows; the caller makes sure a window is free before its rows are written.
         """
+        if self.params.ring_rows:
+            raise ValueError("the target is already a ring")
         if n_rows < 0:
             raise ValueError(f"n_rows must be non-negative, got {n_rows}")
-        if self.n_rows < 1:
+        if self.target_rows < 1:
             raise ValueError("the target of a ring needs at least one row")
-        self.params.ring_rows = <size_t>self.n_rows
+        self.params.ring_rows = <size_t>self.target_rows
         self.n_rows = n_rows
 
     def __reduce__(self):
@@ -1417,6 +1423,24 @@ cdef inline REAL_t _dot_half(const unsigned short *row, const REAL_t *w, Py_ssiz
     return (a0 + a1) + (a2 + a3)
 
 
+cdef double _dot_wide(
+    const void *codes, bint half, size_t offset, const REAL_t *w, Py_ssize_t dim, double scale
+) noexcept nogil:
+    """The scaled dot product of one row in double, for rows whose float32 sum overflows.
+
+    An int8 code times a large weight can exceed float32 although the scaled result does
+    not; summing in double and scaling first gives the representable result.
+    """
+    cdef double total = 0
+    cdef Py_ssize_t j
+    for j in range(dim):
+        if half:
+            total += <double>_HALF_TABLE[(<const unsigned short *>codes)[offset + j]] * w[j]
+        else:
+            total += <double>(<const signed char *>codes)[offset + j] * w[j]
+    return total * scale
+
+
 cdef void _score(
     const void *codes, bint half, Py_ssize_t dim, Py_ssize_t k, const REAL_t *weights_t,
     const REAL_t *scales, const REAL_t *factors, const REAL_t *bias, REAL_t *out,
@@ -1425,20 +1449,22 @@ cdef void _score(
     """out[i, c] = dot(codes[i], weights_t[c]) * scale_i * factor_i + bias[c]."""
     cdef Py_ssize_t i, c
     cdef REAL_t scale, dot
+    cdef double wide
+    cdef size_t offset
     for i in range(begin, end):
         scale = (scales[i] if scales != NULL else ONEF) * (factors[i] if factors != NULL else ONEF)
+        offset = <size_t>i * <size_t>dim
         for c in range(k):
             if half:
-                dot = _dot_half(
-                    &(<const unsigned short *>codes)[<size_t>i * <size_t>dim],
-                    &weights_t[<size_t>c * <size_t>dim], dim,
-                )
+                dot = _dot_half(&(<const unsigned short *>codes)[offset], &weights_t[<size_t>c * <size_t>dim], dim)
             else:
-                dot = _dot_int8(
-                    &(<const signed char *>codes)[<size_t>i * <size_t>dim],
-                    &weights_t[<size_t>c * <size_t>dim], dim,
-                )
-            out[<size_t>i * <size_t>k + c] = dot * scale + (bias[c] if bias != NULL else 0)
+                dot = _dot_int8(&(<const signed char *>codes)[offset], &weights_t[<size_t>c * <size_t>dim], dim)
+            dot = dot * scale
+            if not isfinite(dot):
+                # Rare: the unscaled sum left float32; NaN or infinite inputs stay so.
+                wide = _dot_wide(codes, half, offset, &weights_t[<size_t>c * <size_t>dim], dim, scale)
+                dot = <REAL_t>wide
+            out[<size_t>i * <size_t>k + c] = dot + (bias[c] if bias != NULL else 0)
 
 
 def score_rows(codes, scales, weights_t, bias, factors, out, Py_ssize_t begin, Py_ssize_t end):
@@ -1447,7 +1473,7 @@ def score_rows(codes, scales, weights_t, bias, factors, out, Py_ssize_t begin, P
     codes are stored float16 or int8 sentence vectors of shape (n, dim); weights_t is
     float32 of shape (k, dim), one row of weights per output; scales and factors are
     float32 of shape (n,) or None; bias is float32 of shape (k,) or None; out is float32 of
-    shape (n, k). Sums run in float32 over the stored values, without the GIL and without
+    shape (n, k). Sums run in float32 over the stored values in double, without the GIL and without
     converting a block first.
     """
     if not isinstance(codes, np.ndarray) or codes.ndim != 2:
@@ -1473,6 +1499,11 @@ def score_rows(codes, scales, weights_t, bias, factors, out, Py_ssize_t begin, P
                 raise ValueError(f"{name} must have shape ({size},), got {array.shape}")
     if not 0 <= begin <= end <= n:
         raise ValueError(f"rows [{begin}, {end}) are outside the {n} rows")
+    # Writing out while reading an overlapping input would change later results.
+    for array, name in ((codes, "codes"), (weights_t, "weights_t"), (scales, "scales"),
+                        (factors, "factors"), (bias, "bias")):
+        if array is not None and np.may_share_memory(out, array):
+            raise ValueError(f"out must not overlap {name}")
     cdef const REAL_t *w = <const REAL_t *>np.PyArray_DATA(weights_t)
     cdef const REAL_t *s = <const REAL_t *>np.PyArray_DATA(scales) if scales is not None else NULL
     cdef const REAL_t *f = <const REAL_t *>np.PyArray_DATA(factors) if factors is not None else NULL

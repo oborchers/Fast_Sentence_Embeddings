@@ -224,3 +224,87 @@ def test_search_with_and_without_the_kernel(dtype, monkeypatch):
     assert [i for i, _ in fallback] == [i for i, _ in compiled]
     assert [s for _, s in fallback] == pytest.approx([s for _, s in compiled], abs=1e-6)
     np.testing.assert_allclose(sv.most_similar(3, topn=None), everything, atol=1e-6)
+
+
+def test_int8_scores_do_not_overflow_before_the_scale():
+    """127 * 1e37 leaves float32, the scaled result 4e37 does not."""
+    sv = SentenceVectors(4)
+    sv.vectors = np.ones((3, 4), dtype=np.float32)
+    sv.convert("int8")
+    result = sv.score(np.full(4, 1e37, dtype=np.float32))
+    np.testing.assert_allclose(result, 4e37, rtol=1e-5)
+    codes = np.full((1, 4), 127, dtype=np.int8)
+    out = np.empty((1, 1), dtype=np.float32)
+    score_rows(
+        codes,
+        np.array([1 / 127], np.float32),
+        np.full((1, 4), 1e37, np.float32),
+        None,
+        None,
+        out,
+        0,
+        1,
+    )
+    np.testing.assert_allclose(out, 4e37, rtol=1e-5)
+
+
+def test_weights_beyond_float32_raise():
+    sv = SentenceVectors(4)
+    sv.vectors = np.ones((3, 4), dtype=np.float32)
+    with pytest.raises(ValueError, match="weights must be finite in float32"):
+        sv.score(np.full(4, 1e100))
+    with pytest.raises(ValueError, match="bias must be finite in float32"):
+        sv.score(np.ones(4), 1e100)
+
+
+def test_out_must_not_overlap_inputs():
+    sv = SentenceVectors(1)
+    sv.vectors = np.ones((5, 1), dtype=np.float32)
+    with pytest.raises(ValueError, match="out must not overlap the sentence vectors"):
+        sv.score(np.ones(1), out=sv.vectors.reshape(5))
+    weights_t = np.ones((1, 2), dtype=np.float32)
+    shared = np.zeros(4, dtype=np.float32)
+    with pytest.raises(ValueError, match="out must not overlap weights_t"):
+        score_rows(
+            np.zeros((2, 2), np.int8),
+            None,
+            shared[:2].reshape(1, 2),
+            None,
+            None,
+            shared[:2].reshape(2, 1),
+            0,
+            2,
+        )
+    with pytest.raises(ValueError, match="out must not overlap scales"):
+        score_rows(
+            np.zeros((2, 2), np.int8),
+            shared[:2],
+            weights_t,
+            None,
+            None,
+            shared[:2].reshape(2, 1),
+            0,
+            2,
+        )
+
+
+def test_search_factors_are_cached():
+    import tracemalloc
+
+    sv = SentenceVectors(8)
+    sv.vectors = RNG.standard_normal((100_000, 8), dtype=np.float32)
+    sv.convert("int8")
+    sv.most_similar(0, topn=5, restrict_size=10)
+    started = not tracemalloc.is_tracing()
+    if started:
+        tracemalloc.start()
+    try:
+        before, _ = tracemalloc.get_traced_memory()
+        tracemalloc.reset_peak()
+        sv.most_similar(0, topn=5, restrict_size=10)
+        peak = tracemalloc.get_traced_memory()[1] - before
+    finally:
+        if started:
+            tracemalloc.stop()
+    # An array of factors for all rows would take 400 KB.
+    assert peak < 100_000

@@ -83,17 +83,22 @@ def test_windows_store_the_float32_rows_exactly(
     reference = cls(w2v, workers=workers, **kwargs)
     reference.train(data)
     model = cls(w2v, workers=workers, sv_dtype=dtype, **kwargs)
+    # Small jobs, so Python inputs wrap the ring and wait for slots as native ones do.
+    model.batch_words = 8
     spy = []
     original = WindowedWriter.__init__
 
     def record(self, *args, **kw):
-        spy.append(args[0])
         original(self, *args, **kw)
+        spy.append(self)
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(WindowedWriter, "__init__", record)
         model.train(data)
     assert spy, "the windowed path did not run"
+    if kind in ("IndexedList", "IndexedLineDocument"):
+        assert all(len(writer.ring) < writer.n_rows for writer in spy)
+        assert all(writer.num_windows > writer.n_windows for writer in spy)
     _assert_stored(model, reference.sv.vectors)
     if cls is not Average:
         np.testing.assert_array_equal(model.svd_res[1], reference.svd_res[1])
@@ -294,3 +299,14 @@ def test_unfinished_windows_raise():
     writer.rows_done(0, 32)
     with pytest.raises(RuntimeError, match="only 1 of 2 windows"):
         writer.finish()
+
+
+def test_a_ring_is_set_up_once(w2v):
+    from fse.models.average_inner import KernelContext
+
+    model = Average(w2v)
+    model._pre_train_calls()
+    context = KernelContext(model, np.zeros((2, DIM), dtype=np.float32))
+    context.use_ring(100)
+    with pytest.raises(ValueError, match="already a ring"):
+        context.use_ring(100)

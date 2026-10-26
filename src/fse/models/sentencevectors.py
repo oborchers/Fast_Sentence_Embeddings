@@ -7,6 +7,7 @@
 import gc
 import logging
 import os
+import traceback
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -24,6 +25,8 @@ from numpy import (
     dot,
     dtype,
     empty,
+    errstate,
+    finfo,
     flatnonzero,
     float64,
     floating,
@@ -33,6 +36,7 @@ from numpy import (
     isnan,
     issubdtype,
     lexsort,
+    may_share_memory,
     ndarray,
     newaxis,
     partition,
@@ -106,10 +110,12 @@ class _StoredScores:
         if score_rows is None:
             for begin in range(0, n, REMOVAL_BLOCK_ROWS):
                 end = begin + REMOVAL_BLOCK_ROWS
-                block = dot(asarray(codes[begin:end], dtype=REAL), weights_t.T)
+                # Scaled rows first, so a code times a large weight cannot overflow.
+                rows = array(codes[begin:end], dtype=REAL)
                 for per_row in (scales, factors):
                     if per_row is not None:
-                        block *= per_row[begin:end, newaxis]
+                        rows *= per_row[begin:end, newaxis]
+                block = dot(rows, weights_t.T)
                 if bias is not None:
                     block += bias
                 out[begin:end] = block
@@ -322,7 +328,7 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         self.mapfile_shape = self.vectors.shape
-        ignore = ["vectors_norm", "inv_norms", "_saved"]
+        ignore = ["vectors_norm", "inv_norms", "_saved", "_factors"]
         # don't bother storing the cached normalized vectors
         if self.mapfile_path is not None:
             ignore += ["vectors", "scales"]
@@ -380,9 +386,16 @@ class SentenceVectors(utils.SaveLoad):
     def get_vectors(self, start: int = 0, stop: int | None = None) -> ndarray:
         """The float32 sentence vectors of rows start to stop, as a new array.
 
+        start and stop follow slice semantics, so negative values count from the end.
+
         Stored float16 and int8 rows are converted to float32. For many rows, prefer
         :meth:`iter_blocks`, which never holds more than one block in memory.
         """
+        for value, name in ((start, "start"), (stop, "stop")):
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, (int, integer))
+            ):
+                raise TypeError(f"{name} must be an int, got {type(value).__name__}")
         rows = slice(start, stop)
         scales = None if self.scales is None else self.scales[rows]
         return dequantize(self.vectors[rows], scales)
@@ -476,7 +489,14 @@ class SentenceVectors(utils.SaveLoad):
             return None
         self.init_sims()
         inv_norms = cast(ndarray, self.inv_norms)
-        return inv_norms if self.scales is None else asarray(self.scales) * inv_norms
+        if self.scales is None:
+            return inv_norms
+        # Cached with the inverse norms they belong to, so a search builds no array per row.
+        cached = self.__dict__.get("_factors")
+        if cached is None or cached[0] is not inv_norms:
+            cached = (inv_norms, asarray(self.scales, dtype=REAL) * inv_norms)
+            self._factors = cached
+        return cached[1]
 
     @validate_arguments
     def score(
@@ -517,13 +537,14 @@ class SentenceVectors(utils.SaveLoad):
                 f"with k > 0, got {w.shape}"
             )
         k = 1 if w.ndim == 1 else w.shape[1]
-        weights_t = ascontiguousarray(w.reshape(self.vector_size, k).T, dtype=REAL)
+        # Copies, so writing out can never change the weights while they are read.
+        weights_t = _float32_copy(w.reshape(self.vector_size, k).T, "weights")
         b = None
         if bias is not None:
             b = _real_array(bias, "bias")
             if b.shape not in ((), (k,)):
                 raise ValueError(f"bias must be a scalar or have shape ({k},), got {b.shape}")
-            b = ascontiguousarray(b.reshape(-1).repeat(k) if b.ndim == 0 else b, dtype=REAL)
+            b = _float32_copy(b.reshape(-1).repeat(k) if b.ndim == 0 else b, "bias")
         shape = (len(self),) if w.ndim == 1 else (len(self), k)
         if out is None:
             out = empty(shape, dtype=REAL)
@@ -531,6 +552,9 @@ class SentenceVectors(utils.SaveLoad):
             raise ValueError(f"out must be a float32 ndarray of shape {shape}")
         elif not out.flags.c_contiguous or not out.flags.writeable:
             raise ValueError("out must be C-contiguous and writeable")
+        for stored, name in ((self.vectors, "the sentence vectors"), (self.scales, "the scales")):
+            if stored is not None and may_share_memory(out, stored):
+                raise ValueError(f"out must not overlap {name}")
         rows = out.reshape(len(self), k)
         if not self.quantized:
             # Contiguous weights, and a vector for k = 1, so BLAS takes its fast routines.
@@ -558,14 +582,10 @@ class SentenceVectors(utils.SaveLoad):
         """
         if dtype == self.dtype:
             return
-        writer = _RowWriter(self, len(self), append=False, dtype=dtype, suffix=".converting")
-        try:
-            for begin, block in self.iter_blocks():
-                writer.store(begin, block)
-        except BaseException:
-            writer.abort()
-            raise
-        writer.commit()
+        _write_rows(
+            lambda: _RowWriter(self, len(self), append=False, dtype=dtype, suffix=".converting"),
+            lambda writer: [writer.store(begin, block) for begin, block in self.iter_blocks()],
+        )
 
     def _allocate(
         self, dtype: StorageDtype, rows: int, suffix: str = ""
@@ -603,15 +623,37 @@ class SentenceVectors(utils.SaveLoad):
         The caller has flushed and released the written arrays. Every map of the old
         files is released first, because Windows refuses to replace a mapped file.
         """
+        previous_dtype = self.dtype
         self.vectors = self.scales = None  # type: ignore[assignment]
         self.vectors_norm = None
         self.inv_norms = None
         self.__dict__.pop("_saved", None)
         _close_released_maps()
-        for written, final in files:
-            os.replace(written, final)
-        if not has_scales(dtype):
-            Path(f"{self.mapfile_path}.scales").unlink(missing_ok=True)
+        # The old files move aside first, so a failed replacement can put them back.
+        finals = [final for _, final in files]
+        stale = Path(f"{self.mapfile_path}.scales")
+        if not has_scales(dtype) and stale.exists():
+            finals.append(stale)
+        backups: list[tuple[Path, Path]] = []
+        try:
+            for final in finals:
+                if final.exists():
+                    backup = Path(f"{final}.previous")
+                    os.replace(final, backup)
+                    backups.append((backup, final))
+            for written, final in files:
+                os.replace(written, final)
+        except BaseException:
+            for written, final in files:
+                if final.exists() and (Path(f"{final}.previous"), final) in backups:
+                    os.replace(final, written)
+            for backup, final in backups:
+                os.replace(backup, final)
+            self.dtype = previous_dtype
+            self._open_files(rows=None)
+            raise
+        for backup, _ in backups:
+            backup.unlink()
         self.dtype = dtype
         self.mapfile_shape = None
         self._open_files()
@@ -658,18 +700,17 @@ class SentenceVectors(utils.SaveLoad):
 
     def _store_staged(self, append: bool):
         """Store the staged float32 rows in the format, after or instead of the saved ones."""
-        staging = self.vectors
+        # Held in a list the cleanup empties, so no reference keeps the staging map open.
+        staged = [self.vectors]
         self.vectors, self.scales = self.__dict__.pop("_saved")
+        rows = len(staged[0])
         try:
-            writer = self._begin_writing(len(staging), append)
-            try:
-                writer.store(0, staging)
-            except BaseException:
-                writer.abort()
-                raise
-            writer.commit()
+            _write_rows(
+                lambda: self._begin_writing(rows, append),
+                lambda writer: writer.store(0, staged[0]),
+            )
         finally:
-            del staging
+            staged.clear()
             self._drop_staging_file()
             self.vectors_norm = None
             self.inv_norms = None
@@ -695,13 +736,16 @@ class SentenceVectors(utils.SaveLoad):
         """Cut the mapfiles back to rows rows and reopen them; maps are released first."""
         self.vectors = self.scales = None  # type: ignore[assignment]
         _close_released_maps()
-        os.truncate(
-            Path(f"{self.mapfile_path}.vectors"),
-            rows * self.vector_size * dtype(STORAGE_TYPES[self.dtype]).itemsize,
-        )
-        if has_scales(self.dtype):
-            os.truncate(Path(f"{self.mapfile_path}.scales"), rows * dtype(REAL).itemsize)
-        self._open_files(rows)
+        try:
+            os.truncate(
+                Path(f"{self.mapfile_path}.vectors"),
+                rows * self.vector_size * dtype(STORAGE_TYPES[self.dtype]).itemsize,
+            )
+            if has_scales(self.dtype):
+                os.truncate(Path(f"{self.mapfile_path}.scales"), rows * dtype(REAL).itemsize)
+        finally:
+            # The existing rows stay usable even if a file could not be cut back.
+            self._open_files(rows)
 
     def _drop_staging_file(self):
         if self.mapfile_path is not None:
@@ -1106,26 +1150,49 @@ class _RowWriter:
         self.files: list[tuple[Path, Path]] = []
         self.codes: ndarray | None
         self.scales: ndarray | None
+        self.codes = self.scales = None
+        self.offset = 0
         if self.before and sv.mapfile_path is not None:
             # A memmap grows in place, like float32 vectors do; abort cuts it back.
-            total = self.before + rows
-            self.codes = np_memmap(
-                f"{sv.mapfile_path}.vectors",
-                dtype=STORAGE_TYPES[self.dtype],
-                mode="r+",
-                shape=(total, sv.vector_size),
-            )
-            self.scales = (
-                np_memmap(f"{sv.mapfile_path}.scales", dtype=REAL, mode="r+", shape=(total,))
-                if has_scales(self.dtype)
-                else None
-            )
-            self.offset = self.before
             self.mode = "grow"
+            total = self.before + rows
+            try:
+                self.codes = np_memmap(
+                    f"{sv.mapfile_path}.vectors",
+                    dtype=STORAGE_TYPES[self.dtype],
+                    mode="r+",
+                    shape=(total, sv.vector_size),
+                )
+                if has_scales(self.dtype):
+                    self.scales = np_memmap(
+                        f"{sv.mapfile_path}.scales", dtype=REAL, mode="r+", shape=(total,)
+                    )
+            except BaseException as err:
+                # A file may have grown already; cut both back before raising.
+                traceback.clear_frames(err.__traceback__)
+                self.abort()
+                raise
+            self.offset = self.before
         else:
-            self.codes, self.scales, self.files = sv._allocate(self.dtype, rows, suffix=suffix)
-            self.offset = 0
             self.mode = "concatenate" if self.before else "replace"
+            if sv.mapfile_path is not None:
+                # Known before allocating, so abort can delete what was created.
+                self.files = [
+                    (Path(f"{sv.mapfile_path}.vectors{suffix}"), Path(f"{sv.mapfile_path}.vectors"))
+                ]
+                if has_scales(self.dtype):
+                    self.files.append(
+                        (
+                            Path(f"{sv.mapfile_path}.scales{suffix}"),
+                            Path(f"{sv.mapfile_path}.scales"),
+                        )
+                    )
+            try:
+                self.codes, self.scales, _ = sv._allocate(self.dtype, rows, suffix=suffix)
+            except BaseException as err:
+                traceback.clear_frames(err.__traceback__)
+                self.abort()
+                raise
 
     def store(self, first: int, rows: ndarray):
         """Store float32 rows as rows first to first + len(rows) of this training."""
@@ -1150,10 +1217,11 @@ class _RowWriter:
             self._release()
             sv._open_files(self.before + self.rows)
         elif self.mode == "concatenate":
-            codes, scales = self.codes, self.scales
+            # Both arrays exist before either is installed, so a failure changes nothing.
+            vectors = vstack([sv.vectors, self.codes])
+            scales = None if sv.scales is None else concatenate([sv.scales, self.scales])
             self._release()
-            sv.vectors = vstack([sv.vectors, codes])
-            sv.scales = None if sv.scales is None else concatenate([sv.scales, scales])
+            sv.vectors, sv.scales = vectors, scales
         elif self.files:
             self._release()
             sv._replace_files(self.dtype, self.files)
@@ -1175,6 +1243,16 @@ class _RowWriter:
             written.unlink(missing_ok=True)
 
 
+def _float32_copy(value: ndarray, name: str) -> ndarray:
+    """A C-contiguous float32 copy of value; raise if a value does not fit into float32."""
+    with errstate(over="ignore"):
+        # An overflow is reported below as a clear error, not as a numpy warning.
+        converted = array(value, dtype=REAL, order="C", copy=True)
+    if not isfinite(converted).all():
+        raise ValueError(f"{name} must be finite in float32, beyond +-{float(finfo(REAL).max):g}")
+    return converted
+
+
 def _real_array(value: Any, name: str) -> ndarray:
     """value as a float array; raise for other types and for NaN or infinite values."""
     array = asarray(value)
@@ -1192,3 +1270,21 @@ def _close_released_maps():
     Windows refuses to replace, cut or delete a mapped file.
     """
     gc.collect()
+
+
+def _write_rows(make_writer: Any, store: Any):
+    """Create a writer, store rows with it and commit; on any failure, abort.
+
+    Finished frames of a failure may still hold slices of the written memmaps, so they are
+    cleared before abort deletes or cuts files (Windows refuses to while they are mapped).
+    """
+    writer = None
+    try:
+        writer = make_writer()
+        store(writer)
+        writer.commit()
+    except BaseException as err:
+        traceback.clear_frames(err.__traceback__)
+        if writer is not None:
+            writer.abort()
+        raise

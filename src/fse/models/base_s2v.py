@@ -1012,11 +1012,12 @@ class BaseSentence2VecModel(SaveLoad):
             return "the sentence indices are not their positions"
         if not self._uses_kernel():
             return "the compiled kernel is not used (no extension, or a replaced _do_train_job)"
-        own = self.__dict__.get("_post_train_calls") or type(self)._post_train_calls
-        if "_post_train_calls" in self.__dict__ or not getattr(own, "__module__", "").startswith(
-            "fse.models."
-        ):
-            return "_post_train_calls is replaced and may need all rows"
+        for hook in ("_pre_train_calls", "_post_train_calls"):
+            own = type(self).__dict__.get(hook) or getattr(type(self), hook)
+            if hook in self.__dict__ or not getattr(own, "__module__", "").startswith(
+                "fse.models."
+            ):
+                return f"{hook} is replaced and may expect all new rows in sv.vectors"
         return None
 
     def _component_plan(self, update: bool) -> str:
@@ -1050,8 +1051,9 @@ class BaseSentence2VecModel(SaveLoad):
         self._check_dtype_santiy()
         plan = self._component_plan(update)
         learned = {k: self.__dict__[k] for k in _COMPONENT_STATE if k in self.__dict__}
-        writer = self.sv._begin_writing(rows, append=update)
+        writer = None
         try:
+            writer = self.sv._begin_writing(rows, append=update)
             overall_time = 0.0
             if plan == "learn":
                 gram = zeros((self.sv.vector_size, self.sv.vector_size), dtype=float64)
@@ -1082,16 +1084,17 @@ class BaseSentence2VecModel(SaveLoad):
             overall_time += elapsed
             if plan == "none":
                 self._set_components(None)
+            writer.commit()
         except BaseException as err:
             # Finished frames of the failed pass may still reference the written arrays.
             traceback.clear_frames(err.__traceback__)
-            writer.abort()
+            if writer is not None:
+                writer.abort()
             # Components learned in the first pass belong to rows that were not stored.
             for key in _COMPONENT_STATE:
                 self.__dict__.pop(key, None)
             self.__dict__.update(learned)
             raise
-        writer.commit()
         return eff_sentences, eff_words, overall_time
 
     def _train_windows(

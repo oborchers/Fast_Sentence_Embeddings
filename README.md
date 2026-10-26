@@ -212,7 +212,7 @@ model.sv.most_similar(0, topn=10)
 model.sv.convert("float16")  # change the format of trained or loaded vectors
 ```
 
-int8 stores one float32 scale per vector, so the cosine of two stored int8 vectors equals the cosine of the vectors they represent. On the STS Benchmark (all 15 vector sets of the table below, with CBOW, SIF-10 and uSIF), float16 changes the scores by at most 0.01 points and int8 by at most 0.02 points. int8 changes up to 7 % of the 10 nearest neighbours of a sentence; use float16 where exact neighbour lists matter.
+int8 stores one float32 scale per vector, so the cosine of two stored int8 vectors equals the cosine of the vectors they represent. On the STS Benchmark (all 15 vector sets of the table below, with CBOW, SIF-10 and uSIF), float16 changes the scores by at most 0.01 points and int8 by at most 0.02 points. Both round the vectors, so close neighbours can swap places: float16 changes at most 0.4 % and int8 up to 7 % of the 10 nearest neighbours of a sentence. Keep float32 where neighbour lists must match it exactly.
 
 With index i for the i-th sentence (every input class except the `C*` lists with custom indices), training never holds a float32 matrix of all sentences: it writes into a few float32 windows of about 256 MB each and stores every finished window right away. SIF and uSIF read the input twice for that, once to learn the principal components and once to store the vectors. Other inputs train into a float32 matrix of all new rows first, and the log says why.
 
