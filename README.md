@@ -7,7 +7,10 @@
 <a href="https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"></a>
 </p>
 <p align="center">
-<a><img alt="fse" src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/master/media/fse.png"></a>
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/master/media/logo/fse-logo-dark.svg">
+<img alt="fse" width="200" src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/master/media/logo/fse-logo.svg">
+</picture>
 </p>
 
 Fast Sentence Embeddings
