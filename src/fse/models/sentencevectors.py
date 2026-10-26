@@ -9,7 +9,7 @@ import logging
 import os
 import traceback
 from collections.abc import Iterator
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Any, cast
 
@@ -133,8 +133,23 @@ class _StoredScores:
             self._pool.submit(score_rows, codes, scales, weights_t, bias, factors, out, b, e)
             for b, e in ranges
         ]
-        for future in futures:
-            future.result()
+        try:
+            for future in futures:
+                future.result()
+        except BaseException:
+            # No range may still write into out once this returns, also on a further
+            # interrupt while waiting: cancel what did not start, wait for the rest.
+            for future in futures:
+                future.cancel()
+            interrupted: BaseException | None = None
+            while not all(future.done() for future in futures):
+                try:
+                    wait(futures)
+                except KeyboardInterrupt as err:
+                    interrupted = err
+            if interrupted is not None:
+                raise interrupted from None
+            raise
 
 
 def _block_dots(
@@ -328,7 +343,7 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         self.mapfile_shape = self.vectors.shape
-        ignore = ["vectors_norm", "inv_norms", "_saved", "_factors"]
+        ignore = ["vectors_norm", "inv_norms", "_saved"]
         # don't bother storing the cached normalized vectors
         if self.mapfile_path is not None:
             ignore += ["vectors", "scales"]
@@ -366,11 +381,13 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         if index in self:
-            if self.quantized:
+            if self.quantized and use_norm:
+                # The direction of the stored row: its int8 scale cancels out.
+                self.init_sims()
+                result = array(self.vectors[index], dtype=REAL)
+                result *= cast(ndarray, self.inv_norms)[index]
+            elif self.quantized:
                 result = self.get_vectors(int(index), int(index) + 1)[0]
-                if use_norm:
-                    self.init_sims()
-                    result *= cast(ndarray, self.inv_norms)[index]
             else:
                 if use_norm:
                     self.init_sims()
@@ -458,25 +475,30 @@ class SentenceVectors(utils.SaveLoad):
             self.vectors_norm = _l2_norm(self.vectors)
 
     def _init_inverse_norms(self, replace: bool):
-        """The search cache of float16 and int8 storage: one inverse norm per row.
+        """The search cache of float16 and int8 storage: one inverse norm per stored row.
 
-        With replace, the stored rows themselves are normalized: for int8 only the scales
-        change, float16 rows are rewritten in blocks.
+        The norms are those of the stored values, the int8 codes without their scales: a
+        positive scale does not change the direction, and a code row of int8 values has a
+        norm of at least 1, so its inverse fits into float32 however small the vector is.
+        With replace, the rows themselves are normalized: for int8 the scales become the
+        inverse code norms, float16 rows are rewritten in blocks.
         """
         if self.inv_norms is not None and not replace:
             return
         logger.info("precomputing L2-norms of sentence vectors")
         inv_norms = empty(len(self), dtype=REAL)
-        for begin, block in self.iter_blocks():
-            norms = sqrt((block.astype(float64) ** 2).sum(axis=1))
+        for begin in range(0, len(self), REMOVAL_BLOCK_ROWS):
+            stored = asarray(self.vectors[begin : begin + REMOVAL_BLOCK_ROWS], dtype=float64)
+            end = begin + len(stored)
+            norms = sqrt((stored**2).sum(axis=1))
             # A zero vector has no direction; it stays at zero instead of producing NaN.
-            inv = where(norms > 0, 1 / where(norms > 0, norms, 1), 0).astype(REAL)
+            inv = where(norms > 0, 1 / where(norms > 0, norms, 1), 0)
             if replace:
                 if self.scales is not None:
-                    self.scales[begin : begin + len(block)] *= inv
+                    self.scales[begin:end] = inv
                 else:
-                    self.vectors[begin : begin + len(block)] = block * inv[:, newaxis]
-            inv_norms[begin : begin + len(block)] = inv
+                    self.vectors[begin:end] = stored * inv[:, newaxis]
+            inv_norms[begin:end] = inv
         self.inv_norms = inv_norms
         if replace:
             # The rows are normalized now, up to the rounding of their format.
@@ -484,19 +506,14 @@ class SentenceVectors(utils.SaveLoad):
             self._init_inverse_norms(replace=False)
 
     def _search_factors(self) -> ndarray | None:
-        """Per-row factors of the dot products of stored rows, for float16 and int8."""
+        """Per-row factors of the dot products of stored rows, for float16 and int8.
+
+        The inverse norms of the stored values: dot(codes, query) times them is the cosine.
+        """
         if not self.quantized:
             return None
         self.init_sims()
-        inv_norms = cast(ndarray, self.inv_norms)
-        if self.scales is None:
-            return inv_norms
-        # Cached with the inverse norms they belong to, so a search builds no array per row.
-        cached = self.__dict__.get("_factors")
-        if cached is None or cached[0] is not inv_norms:
-            cached = (inv_norms, asarray(self.scales, dtype=REAL) * inv_norms)
-            self._factors = cached
-        return cached[1]
+        return self.inv_norms
 
     @validate_arguments
     def score(
@@ -555,6 +572,13 @@ class SentenceVectors(utils.SaveLoad):
         for stored, name in ((self.vectors, "the sentence vectors"), (self.scales, "the scales")):
             if stored is not None and may_share_memory(out, stored):
                 raise ValueError(f"out must not overlap {name}")
+        # A second map of a mapfile has its own memory, but writing it changes the file.
+        written = _mapped_file(out)
+        if written is not None and self.mapfile_path is not None:
+            for suffix in (".vectors", ".scales"):
+                path = Path(f"{self.mapfile_path}{suffix}")
+                if path.exists() and os.path.samefile(written, path):
+                    raise ValueError(f"out must not be a map of the mapfile {path}")
         rows = out.reshape(len(self), k)
         if not self.quantized:
             # Contiguous weights, and a vector for k = 1, so BLAS takes its fast routines.
@@ -620,21 +644,31 @@ class SentenceVectors(utils.SaveLoad):
     def _replace_files(self, dtype: StorageDtype, files: list[tuple[Path, Path]]):
         """Make written files the mapfiles, replacing the old ones, and open them.
 
-        The caller has flushed and released the written arrays. Every map of the old
-        files is released first, because Windows refuses to replace a mapped file.
+        The caller has flushed and released the written arrays. Every map of the old files
+        is released first, because Windows refuses to replace a mapped file. The old files
+        move aside and come back if any step fails, including opening the new ones; vectors
+        in RAM before (a first training into a mapfile) are kept for that.
         """
-        previous_dtype = self.dtype
+        previous: tuple[StorageDtype, ndarray | None, ndarray | None] = (
+            self.dtype,
+            self.vectors,
+            self.scales,
+        )
+        mapped = isinstance(self.vectors, np_memmap)
         self.vectors = self.scales = None  # type: ignore[assignment]
         self.vectors_norm = None
         self.inv_norms = None
         self.__dict__.pop("_saved", None)
+        if mapped:
+            # Maps cannot survive the replacement; the restored files are opened again.
+            previous = (previous[0], None, None)
         _close_released_maps()
-        # The old files move aside first, so a failed replacement can put them back.
         finals = [final for _, final in files]
         stale = Path(f"{self.mapfile_path}.scales")
         if not has_scales(dtype) and stale.exists():
             finals.append(stale)
         backups: list[tuple[Path, Path]] = []
+        installed: list[Path] = []
         try:
             for final in finals:
                 if final.exists():
@@ -643,30 +677,43 @@ class SentenceVectors(utils.SaveLoad):
                     backups.append((backup, final))
             for written, final in files:
                 os.replace(written, final)
-        except BaseException:
-            for written, final in files:
-                if final.exists() and (Path(f"{final}.previous"), final) in backups:
-                    os.replace(final, written)
+                installed.append(final)
+            self.dtype = dtype
+            self.mapfile_shape = None
+            self._open_files()
+        except BaseException as err:
+            traceback.clear_frames(err.__traceback__)
+            self.vectors = self.scales = None  # type: ignore[assignment]
+            _close_released_maps()
+            for final in installed:
+                final.unlink(missing_ok=True)
             for backup, final in backups:
                 os.replace(backup, final)
-            self.dtype = previous_dtype
-            self._open_files(rows=None)
+            self.dtype = previous[0]
+            if previous[1] is not None:
+                self.vectors, self.scales = previous[1], previous[2]
+            else:
+                self._open_files()
             raise
         for backup, _ in backups:
-            backup.unlink()
-        self.dtype = dtype
-        self.mapfile_shape = None
-        self._open_files()
+            try:
+                backup.unlink()
+            except OSError as err:
+                # The new vectors are in place; a leftover copy of the old ones is harmless.
+                logger.warning(f"could not remove the previous mapfile {backup}: {err}")
 
     def _open_files(self, rows: int | None = None):
-        """Open the mapfiles in the current format, with rows rows or as large as they are."""
+        """Open the mapfiles in the current format, with rows rows or as large as they are.
+
+        Both maps are opened before either is installed, so a failure changes nothing.
+        """
         shape = None if rows is None else (rows, self.vector_size)
-        self.vectors = np_memmap(
+        vectors: ndarray = np_memmap(
             f"{self.mapfile_path}.vectors", dtype=STORAGE_TYPES[self.dtype], mode="r+", shape=shape
         )
         if rows is None:
-            self.vectors = self.vectors.reshape(-1, self.vector_size)
-        self.scales = (
+            vectors = vectors.reshape(-1, self.vector_size)
+        scales = (
             np_memmap(
                 f"{self.mapfile_path}.scales",
                 dtype=REAL,
@@ -676,6 +723,12 @@ class SentenceVectors(utils.SaveLoad):
             if has_scales(self.dtype)
             else None
         )
+        if scales is not None and len(scales) < len(vectors):
+            raise ValueError(
+                f"the mapfile {self.mapfile_path}.scales holds {len(scales)} scales for "
+                f"{len(vectors)} sentence vectors"
+            )
+        self.vectors, self.scales = vectors, scales
 
     def _stage(self, rows: int):
         """Replace the stored vectors by a float32 staging matrix for rows new rows.
@@ -685,12 +738,18 @@ class SentenceVectors(utils.SaveLoad):
         it. The stored vectors wait in ``_saved``, which only exists meanwhile, so no other
         reference keeps their maps open.
         """
-        self._saved = (self.vectors, self.scales)
         shape = (rows, self.vector_size)
         if self.mapfile_path is None:
-            self.vectors = empty(shape, dtype=REAL)
+            staging = empty(shape, dtype=REAL)
         else:
-            self.vectors = np_memmap(str(self._staging_path()), dtype=REAL, mode="w+", shape=shape)
+            try:
+                staging = np_memmap(str(self._staging_path()), dtype=REAL, mode="w+", shape=shape)
+            except BaseException as err:
+                traceback.clear_frames(err.__traceback__)
+                self._drop_staging_file()
+                raise
+        self._saved = (self.vectors, self.scales)
+        self.vectors = staging
         self.scales = None
         self.vectors_norm = None
         self.inv_norms = None
@@ -733,19 +792,28 @@ class SentenceVectors(utils.SaveLoad):
         self._drop_staging_file()
 
     def _shrink_files(self, rows: int):
-        """Cut the mapfiles back to rows rows and reopen them; maps are released first."""
+        """Cut the mapfiles back to rows rows and reopen them with rows rows.
+
+        Another map of the files (Windows refuses to cut a mapped file) can make cutting
+        fail; the files then stay larger, which loading accepts, and the vectors are still
+        reopened with exactly rows rows, so the model stays consistent.
+        """
         self.vectors = self.scales = None  # type: ignore[assignment]
         _close_released_maps()
-        try:
-            os.truncate(
+        paths = [
+            (
                 Path(f"{self.mapfile_path}.vectors"),
-                rows * self.vector_size * dtype(STORAGE_TYPES[self.dtype]).itemsize,
+                dtype(STORAGE_TYPES[self.dtype]).itemsize * self.vector_size,
             )
-            if has_scales(self.dtype):
-                os.truncate(Path(f"{self.mapfile_path}.scales"), rows * dtype(REAL).itemsize)
-        finally:
-            # The existing rows stay usable even if a file could not be cut back.
-            self._open_files(rows)
+        ]
+        if has_scales(self.dtype):
+            paths.append((Path(f"{self.mapfile_path}.scales"), dtype(REAL).itemsize))
+        for path, row_bytes in paths:
+            try:
+                os.truncate(path, rows * row_bytes)
+            except OSError as err:
+                logger.warning(f"could not cut {path} back to {rows} rows: {err}")
+        self._open_files(rows)
 
     def _drop_staging_file(self):
         if self.mapfile_path is not None:
@@ -1124,7 +1192,8 @@ def _open_mapfile(path: Path, kind: Any, shape: tuple[int, ...] | None) -> np_me
         return np_memmap(str(path), dtype=kind, mode="r+")
     size = path.stat().st_size
     expected = int(prod(shape)) * dtype(kind).itemsize
-    if size != expected:
+    # Larger is accepted: an append that failed may not have been able to cut it back.
+    if size < expected:
         raise ValueError(
             f"the mapfile {path} has {size} bytes, but sentence vectors of shape "
             f"{tuple(shape)} in {dtype(kind)} need {expected}"
@@ -1288,3 +1357,12 @@ def _write_rows(make_writer: Any, store: Any):
         if writer is not None:
             writer.abort()
         raise
+
+
+def _mapped_file(value: Any) -> str | None:
+    """The file that value or an array it is a view of maps, if any."""
+    while isinstance(value, ndarray):
+        if isinstance(value, np_memmap) and value.filename is not None:
+            return str(value.filename)
+        value = value.base
+    return None

@@ -308,3 +308,40 @@ def test_search_factors_are_cached():
             tracemalloc.stop()
     # An array of factors for all rows would take 400 KB.
     assert peak < 100_000
+
+
+def test_a_second_interrupt_waits_for_running_ranges(monkeypatch):
+    """After score returns, no range may still write into out."""
+    import threading
+
+    release = threading.Event()
+    finished = []
+
+    def fake_score_rows(codes, scales, weights_t, bias, factors, out, begin, end):
+        if begin == 0:
+            raise KeyboardInterrupt
+        release.wait(5)
+        out[begin:end] = 1
+        finished.append(begin)
+
+    original_wait = sentencevectors.wait
+    interrupts = []
+
+    def interrupted_wait(futures, *args, **kwargs):
+        if not interrupts:
+            interrupts.append(1)
+            release.set()
+            raise KeyboardInterrupt
+        return original_wait(futures, *args, **kwargs)
+
+    monkeypatch.setattr(sentencevectors, "score_rows", fake_score_rows)
+    monkeypatch.setattr(sentencevectors, "wait", interrupted_wait)
+    codes = np.zeros((16384 * 8, 2), dtype=np.int8)
+    out = np.zeros((len(codes), 1), dtype=np.float32)
+    with sentencevectors._StoredScores(4) as scores, pytest.raises(KeyboardInterrupt):
+        scores.run(codes, None, np.ones((1, 2), np.float32), None, None, out)
+    snapshot = out.copy()
+    started = len(finished)
+    release.set()
+    np.testing.assert_array_equal(out, snapshot)
+    assert len(finished) == started

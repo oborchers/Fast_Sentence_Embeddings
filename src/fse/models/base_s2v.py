@@ -89,7 +89,7 @@ from fse.models import utils
 from fse.models._index_tracker import MAX_INDEX, IndexTracker, check_index_range
 from fse.models._quantize import STORAGE_TYPES, StorageDtype, has_scales
 from fse.models._single_pass import SinglePass
-from fse.models._windowed import WindowedWriter
+from fse.models._windowed import WindowedWriter, window_rows
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
 from fse.models.utils import REMOVAL_BLOCK_ROWS
 
@@ -879,8 +879,13 @@ class BaseSentence2VecModel(SaveLoad):
         if has_scales(self.sv.dtype):
             report["Sentence Vector Scales"] = max_index * dtype(REAL).itemsize
         if self.sv.quantized:
-            # float16 and int8 rows are computed in float32 first (see train).
-            report["Staging"] = max_index * self.wv.vector_size * dtype(REAL).itemsize
+            # float16 and int8 rows are computed in float32 first (see train): in a ring of
+            # windows, or in a matrix of all new rows when train needs staging.
+            staging_rows = max_index
+            if kwargs.get("staging_reason", "") is None:
+                rows = window_rows(self.wv.vector_size, max_index)
+                staging_rows = min(max_index, 2 * rows)
+            report["Staging"] = staging_rows * self.wv.vector_size * dtype(REAL).itemsize
         if self.is_ft:
             report["Vocab Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
             report["Ngram Vectors"] = (
@@ -938,17 +943,17 @@ class BaseSentence2VecModel(SaveLoad):
 
         self._check_pre_training_sanity(update=update, **statistics)
 
-        self.estimate_memory(**statistics)
+        quantized = self.sv.quantized
+        reason = self._staging_reason(statistics) if quantized else ""
+        self.estimate_memory(staging_reason=reason, **statistics)
         # float16 and int8 vectors: the rows of this call are computed in a float32 staging
         # matrix, which is sv.vectors until they are stored (see ARCHITECTURE.md).
-        quantized = self.sv.quantized
         offset = len(self.sv.vectors) if update and not quantized else 0
         # With index i for the i-th sentence, every job covers its own contiguous rows, so
         # the kernel sets them to EPS itself instead of a separate pass over all rows, and
         # rows are final once their job is done (see fse.models._single_pass).
         prefill = bool(statistics["identity_indices"]) and self._uses_kernel()
         if quantized:
-            reason = self._staging_reason(statistics)
             if reason is None:
                 eff_sentences, eff_words, overall_time = self._train_windowed(
                     sentences, statistics, update, queue_factor, report_delay
@@ -965,9 +970,7 @@ class BaseSentence2VecModel(SaveLoad):
                 f"rows, because {reason}"
             )
         learned = {k: self.__dict__[k] for k in _COMPONENT_STATE if k in self.__dict__}
-        if quantized:
-            self.sv._stage(statistics["max_index"])
-        else:
+        if not quantized:
             self.prep.prepare_vectors(
                 sv=self.sv,
                 total_sentences=statistics["max_index"],
@@ -975,6 +978,8 @@ class BaseSentence2VecModel(SaveLoad):
                 fill=not prefill,
             )
         try:
+            if quantized:
+                self.sv._stage(statistics["max_index"])
             if quantized and not prefill:
                 _fill_eps(self.sv.vectors, 0, len(self.sv.vectors))
             eff_sentences, eff_words, overall_time = self._train_rows(
@@ -984,14 +989,15 @@ class BaseSentence2VecModel(SaveLoad):
                 self.sv._store_staged(append=update)
         except BaseException as err:
             if quantized:
+                # Components learned from rows that were not stored are dropped first, so a
+                # failing cleanup cannot leave them installed.
+                for key in _COMPONENT_STATE:
+                    self.__dict__.pop(key, None)
+                self.__dict__.update(learned)
                 # The finished frames of the failed call still reference the staging
                 # matrix; Windows cannot delete its file while it is mapped.
                 traceback.clear_frames(err.__traceback__)
                 self.sv._unstage()
-                # Components learned from rows that were not stored are dropped as well.
-                for key in _COMPONENT_STATE:
-                    self.__dict__.pop(key, None)
-                self.__dict__.update(learned)
             raise
 
         self._log_train_end(
@@ -1012,11 +1018,13 @@ class BaseSentence2VecModel(SaveLoad):
             return "the sentence indices are not their positions"
         if not self._uses_kernel():
             return "the compiled kernel is not used (no extension, or a replaced _do_train_job)"
+        # The hooks must be those of the fse model class this model is, so the window plan
+        # (which runs the component logic of that class itself) does what they would do.
+        builtin = next(
+            cls for cls in type(self).__mro__ if cls.__module__.startswith("fse.models.")
+        )
         for hook in ("_pre_train_calls", "_post_train_calls"):
-            own = type(self).__dict__.get(hook) or getattr(type(self), hook)
-            if hook in self.__dict__ or not getattr(own, "__module__", "").startswith(
-                "fse.models."
-            ):
+            if hook in self.__dict__ or getattr(type(self), hook) is not getattr(builtin, hook):
                 return f"{hook} is replaced and may expect all new rows in sv.vectors"
         return None
 
@@ -1086,14 +1094,15 @@ class BaseSentence2VecModel(SaveLoad):
                 self._set_components(None)
             writer.commit()
         except BaseException as err:
+            # Components learned in the first pass belong to rows that were not stored; they
+            # are dropped before the cleanup, which may fail itself.
+            for key in _COMPONENT_STATE:
+                self.__dict__.pop(key, None)
+            self.__dict__.update(learned)
             # Finished frames of the failed pass may still reference the written arrays.
             traceback.clear_frames(err.__traceback__)
             if writer is not None:
                 writer.abort()
-            # Components learned in the first pass belong to rows that were not stored.
-            for key in _COMPONENT_STATE:
-                self.__dict__.pop(key, None)
-            self.__dict__.update(learned)
             raise
         return eff_sentences, eff_words, overall_time
 

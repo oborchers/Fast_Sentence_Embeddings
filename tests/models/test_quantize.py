@@ -14,7 +14,7 @@ import pytest
 from pydantic import ValidationError
 
 from fse.inputs import CIndexedList, IndexedList
-from fse.models import _quantize, sentencevectors
+from fse.models import _quantize, _windowed, sentencevectors
 from fse.models._quantize import dequantize, quantize_into
 from fse.models.average import Average
 from fse.models.base_s2v import EPS
@@ -467,22 +467,44 @@ def test_files_of_float32_vectors_keep_their_names(w2v, sentences, tmp_path):
 
 
 def test_old_usif_model_converts_and_keeps_its_weighting(w2v, sentences, tmp_path):
-    """A uSIF model saved before 1.1.0 keeps lambda squared through convert and updates."""
+    """A uSIF model as fse 1.0 saved it keeps lambda squared through convert and updates.
+
+    fse 1.0 removed each component weighted by lambda squared and stored the unsquared
+    weights; loading squares them, so infer and appended rows match the stored ones.
+    """
+    from fse.models.utils import remove_principal_components
+
+    first, second = IndexedList(sentences[:60]), IndexedList(sentences[60:])
     model = uSIF(w2v, length=11, components=2)
-    model.train(IndexedList(sentences[:60]))
-    del model.component_weighting  # as saved by fse 1.0
+    model.train(first)
+    raw = uSIF(w2v, length=11, components=0)
+    raw.train(first)
+    weights = model.svd_weights.copy()
+    legacy_rows = raw.sv.vectors.copy()
+    remove_principal_components(legacy_rows, svd_res=model.svd_res, weights=weights**2)
+    model.sv.vectors = legacy_rows
+    del model.component_weighting  # as fse 1.0 saved it
     model.save(str(tmp_path / "old"))
+
     old = uSIF.load(str(tmp_path / "old"))
     assert old.component_weighting == "lambda_squared"
-    weights = old.svd_weights.copy()
+    # Training rows start at EPS, inferred ones at zero.
+    np.testing.assert_allclose(old.infer(first), legacy_rows, rtol=1e-5, atol=3e-7)
     old.sv.convert("int8")
-    old.train(IndexedList(sentences[60:]), update=True)
+    old.train(second, update=True)
     old.save(str(tmp_path / "converted"))
     loaded = uSIF.load(str(tmp_path / "converted"))
     assert loaded.component_weighting == "lambda_squared"
-    np.testing.assert_array_equal(loaded.svd_weights, weights)
-    assert loaded.sv.dtype == "int8"
-    assert len(loaded.sv) == len(sentences)
+    np.testing.assert_array_equal(loaded.svd_weights, weights**2)
+    # The same update of the old model in float32, stored afterwards.
+    reference = uSIF.load(str(tmp_path / "old"))
+    reference.train(second, update=True)
+    codes, scales = _stored(np.asarray(reference.sv.vectors[60:]), "int8")
+    assert np.array_equal(np.asarray(loaded.sv.vectors[60:]), codes)
+    assert np.array_equal(np.asarray(loaded.sv.scales[60:]), scales)
+    np.testing.assert_allclose(
+        loaded.sv.get_vectors(0, 60), legacy_rows, rtol=0, atol=np.abs(legacy_rows).max() / 127
+    )
 
 
 @pytest.mark.parametrize("bad", [True, 1.0, "1"])
@@ -523,19 +545,28 @@ def test_failed_writer_creation_cuts_grown_files_back(w2v, sentences, tmp_path, 
     model = SIF(w2v, sv_dtype="int8", sv_mapfile_path=str(tmp_path / "sv"))
     model.train(IndexedList(sentences[:50]))
     sizes = {p.name: p.stat().st_size for p in tmp_path.iterdir()}
+    codes, scales = np.array(model.sv.vectors), np.array(model.sv.scales)
+    expected = model.sv.most_similar(0, topn=5)
     original = sentencevectors.np_memmap
+    failures = []
 
-    def fail_on_scales(path, *args, **kwargs):
-        if str(path).endswith(".scales") and kwargs.get("mode") == "r+":
+    def fail_once_on_scales(path, *args, **kwargs):
+        # Only the first map of the grown scales fails, as when the disk is briefly full.
+        if str(path).endswith(".scales") and kwargs.get("mode") == "r+" and not failures:
+            failures.append(path)
             raise OSError("cannot map")
         return original(path, *args, **kwargs)
 
-    monkeypatch.setattr(sentencevectors, "np_memmap", fail_on_scales)
+    monkeypatch.setattr(sentencevectors, "np_memmap", fail_once_on_scales)
     with pytest.raises(OSError, match="cannot map"):
         model.train(IndexedList(sentences[50:]), update=True)
     monkeypatch.setattr(sentencevectors, "np_memmap", original)
     assert {p.name: p.stat().st_size for p in tmp_path.iterdir()} == sizes
-    assert len(model.sv) == 50
+    assert np.array_equal(model.sv.vectors, codes)
+    assert np.array_equal(model.sv.scales, scales)
+    assert model.sv.most_similar(0, topn=5) == expected
+    model.train(IndexedList(sentences[50:]), update=True)  # usable afterwards
+    assert len(model.sv) == len(sentences)
 
 
 def test_replaced_pre_train_calls_use_staging(w2v, sentences, caplog):
@@ -546,3 +577,92 @@ def test_replaced_pre_train_calls_use_staging(w2v, sentences, caplog):
     with caplog.at_level(logging.INFO, logger="fse.models.base_s2v"):
         model.train(IndexedList(sentences))
     assert any("_pre_train_calls is replaced" in r.message for r in caplog.records)
+
+
+def test_int8_scales_reconstruct_finite_values():
+    rows = np.array([[np.finfo(np.float32).max, 1.0], [-np.finfo(np.float32).max, 0.0]], np.float32)
+    codes, scales = _stored(rows, "int8")
+    restored = dequantize(codes, scales)
+    assert np.isfinite(restored).all()
+    np.testing.assert_allclose(restored[:, 0], rows[:, 0], rtol=1e-6)
+
+
+def test_tiny_int8_vectors_have_a_direction():
+    sv = SentenceVectors(3)
+    sv.vectors = np.array([[1e-38, 2e-38, 0], [1, 2, 0]], dtype=np.float32)
+    sv.convert("int8")
+    unit = sv.get_vector(0, use_norm=True)
+    assert np.isfinite(unit).all()
+    np.testing.assert_allclose(np.linalg.norm(unit), 1, rtol=1e-6)
+    # 1e-38 / (2e-38 / 127) = 63.5 rounds to 64, which turns the direction a little.
+    assert sv.most_similar(1, topn=1)[0][1] == pytest.approx(1.0, abs=1e-4)
+
+
+def test_first_training_into_a_mapfile_rolls_back(w2v, sentences, tmp_path, monkeypatch):
+    model = SIF(w2v, sv_dtype="int8", sv_mapfile_path=str(tmp_path / "sv"))
+    original = os.replace
+
+    def fail_on_scales(src, dst):
+        if str(dst).endswith(".scales"):
+            raise OSError("disk full")
+        return original(src, dst)
+
+    monkeypatch.setattr(os, "replace", fail_on_scales)
+    with pytest.raises(OSError, match="disk full"):
+        model.train(IndexedList(sentences))
+    monkeypatch.setattr(os, "replace", original)
+    assert list(tmp_path.iterdir()) == []
+    assert len(model.sv) == 0
+    model.train(IndexedList(sentences))
+    assert len(model.sv) == len(sentences)
+
+
+def test_failed_staging_allocation_keeps_the_model(w2v, sentences, tmp_path, monkeypatch):
+    model = SIF(w2v, sv_dtype="int8", sv_mapfile_path=str(tmp_path / "sv"))
+    model.train(IndexedList(sentences[:50]))
+    codes = np.array(model.sv.vectors)
+    original = sentencevectors.np_memmap
+
+    def no_space(path, *args, **kwargs):
+        if str(path).endswith(".staging.vectors"):
+            raise OSError("no space left")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(sentencevectors, "np_memmap", no_space)
+    data = CIndexedList(sentences[50:], custom_index=list(range(len(sentences) - 50))[::-1])
+    with pytest.raises(OSError, match="no space left"):
+        model.train(data, update=True)
+    assert "_saved" not in model.sv.__dict__
+    assert np.array_equal(model.sv.vectors, codes)
+    assert not (tmp_path / "sv.staging.vectors").exists()
+
+
+def test_score_rejects_a_second_map_of_the_mapfile(w2v, sentences, tmp_path):
+    model = SIF(w2v, sv_mapfile_path=str(tmp_path / "sv"))
+    model.train(IndexedList(sentences))
+    other = np.memmap(tmp_path / "sv.vectors", dtype=np.float32, mode="r+", shape=(len(sentences),))
+    with pytest.raises(ValueError, match="out must not be a map of the mapfile"):
+        model.sv.score(np.ones(DIM), out=other)
+
+
+def test_a_hook_borrowed_from_another_model_uses_staging(w2v, sentences, caplog):
+    import logging
+
+    class Borrowed(SIF):
+        _post_train_calls = Average._post_train_calls
+
+    model = Borrowed(w2v, sv_dtype="int8")
+    with caplog.at_level(logging.INFO, logger="fse.models.base_s2v"):
+        model.train(IndexedList(sentences))
+    assert any("_post_train_calls is replaced" in r.message for r in caplog.records)
+
+
+def test_memory_estimate_of_windowed_training(w2v, sentences):
+    model = SIF(w2v, sv_dtype="int8")
+    rows = 200_000_000
+    windowed = model.estimate_memory(max_index=rows, staging_reason=None)
+    staged = model.estimate_memory(max_index=rows, staging_reason="custom indices")
+    assert staged["Staging"] == rows * DIM * 4
+    # Two windows of about WINDOW_BYTES each, whatever the number of rows.
+    assert windowed["Staging"] <= 2 * _windowed.WINDOW_BYTES
+    assert windowed["Staging"] < staged["Staging"] / 10

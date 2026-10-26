@@ -53,6 +53,10 @@ def quantize_into(rows: ndarray, codes: ndarray, scales: ndarray | None, first_r
         if codes.dtype == numpy.int8:
             absmax = numpy.abs(block).max(axis=1) if block.shape[1] else numpy.zeros(len(block))
             scale = (absmax / _INT8_TOP).astype(numpy.float32)
+            # Rounding can lift 127 * scale past the float32 maximum; step the scale down.
+            with numpy.errstate(over="ignore"):
+                beyond = ~numpy.isfinite(scale * numpy.float32(_INT8_TOP))
+            scale[beyond] = numpy.nextafter(scale[beyond], numpy.float32(0))
             # A zero row has scale 0 and codes 0; dividing by 1 instead keeps it zero.
             divisor = numpy.where(scale > 0, scale, numpy.float32(1))[:, None]
             codes[begin:end] = numpy.clip(numpy.rint(block / divisor), -_INT8_TOP, _INT8_TOP)
