@@ -16,7 +16,7 @@ import pytest
 from gensim.models import FastText, Word2Vec
 
 import fse
-from fse import CorpusFile, TextList
+from fse import CorpusFile, TextList, inputs
 from fse.inputs import (
     BaseIndexedList,
     CIndexedList,
@@ -220,6 +220,56 @@ class TestIndexedLineDocument:
         assert len(items) == 100
         assert items[0] == first
         assert items[99] == last
+
+    @staticmethod
+    def _line_loop_offsets(path):
+        """The offsets of the former per-line loop."""
+        offsets, offset = [], 0
+        with open(path, "rb") as f:
+            for line in f:
+                offsets.append(offset)
+                offset += len(line)
+        return offsets
+
+    @pytest.mark.parametrize(
+        "content",
+        [
+            b"",
+            b"\n",
+            b"one",
+            b"one\n",
+            b"one\ntwo",
+            b"one\n\n\nfour\n",
+            b"crlf\r\nline\r\n",
+            b"a much longer line that spans several blocks\nb\n" * 5,
+        ],
+    )
+    def test_offsets_match_the_line_loop(self, tmp_path, monkeypatch, content):
+        # Tiny blocks, so line breaks fall on and across block boundaries.
+        monkeypatch.setattr(inputs, "_OFFSET_BLOCK_BYTES", 3)
+        path = tmp_path / "corpus.txt"
+        path.write_bytes(content)
+        doc = IndexedLineDocument(path)
+        assert doc.line_offset.dtype == np.int64
+        assert doc.line_offset.tolist() == self._line_loop_offsets(path)
+        with open(path, "rb") as f:
+            expected = [line.decode().rstrip() for line in f]
+        assert [doc[i] for i in range(len(doc.line_offset))] == expected
+
+    def test_offsets_of_a_compressed_file(self, tmp_path, monkeypatch):
+        import gzip
+
+        monkeypatch.setattr(inputs, "_OFFSET_BLOCK_BYTES", 5)
+        lines = [f"line {i} " * (i % 4) for i in range(50)]
+        path = tmp_path / "corpus.txt.gz"
+        with gzip.open(path, "wt") as f:
+            f.write("\n".join(lines))
+        doc = IndexedLineDocument(path)
+        assert len(doc.line_offset) == 50
+        assert [doc[i] for i in range(50)] == [line.rstrip() for line in lines]
+        assert doc[-1] == lines[-1].rstrip()
+        with pytest.raises(IndexError):
+            doc[50]
 
 
 def test_indexed_list_rejects_set():
@@ -478,7 +528,6 @@ def test_fallback_without_the_extension_gives_the_same_vectors(
     tmp_path, native_w2v, native_ft, monkeypatch, kind, input_name
 ):
     """With the scan, the kernel and train_average replaced by numpy, results match."""
-    from fse import inputs
     from fse.models import average
 
     text = _corpus_text(lines=500)
@@ -803,7 +852,6 @@ def test_python_path_detects_a_change_between_scan_and_training(tmp_path, native
 
 def test_text_list_scan_ranges_are_split_by_bytes(monkeypatch):
     """Few long strings and many empty ones: no range holds most of the bytes."""
-    from fse import inputs
 
     strings = ["the " * 250_000] * 8 + [""] * 1000
     spans = []
