@@ -6,6 +6,7 @@
 """Automated tests for checking the base_s2v class."""
 
 import threading
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -14,6 +15,7 @@ from gensim.models.keyedvectors import KeyedVectors
 from pydantic import ValidationError
 from wordfreq import get_frequency_dict
 
+from fse.models import base_s2v
 from fse.models.average_inner import MAX_WORDS_IN_BATCH, train_average_cy
 from fse.models.base_s2v import EPS, BaseSentence2VecModel, BaseSentence2VecPreparer
 
@@ -464,6 +466,47 @@ class TestBaseSentence2VecModel:
         assert p_target.exists()
         assert not output.flags.writeable
         assert (vecs == output).all()
+
+    def test_matching_mapfile_is_reused(self, w2v, tmp_path):
+        p = str(tmp_path / "vecs")
+        first = BaseSentence2VecModel(w2v, wv_mapfile_path=p)
+        second = BaseSentence2VecModel(w2v, wv_mapfile_path=p)
+        assert np.array_equal(first.wv.vectors, second.wv.vectors)
+
+    def test_mapfile_of_the_same_memmap_is_not_compared(self, w2v, tmp_path, monkeypatch):
+        p = str(tmp_path / "vecs")
+        se = BaseSentence2VecModel(w2v, wv_mapfile_path=p)
+
+        def fail(*args, **kwargs):
+            raise AssertionError("compared a file with itself")
+
+        monkeypatch.setattr(base_s2v, "array_equal", fail)
+        output = se._move_ndarray_to_disk(se.wv.vectors, mapfile_path=p, name="wv")
+        assert np.array_equal(output, w2v.wv.vectors)
+
+    def test_mapfile_of_another_size_raises(self, w2v, tmp_path):
+        p = tmp_path / "vecs"
+        np.zeros(w2v.wv.vectors.size + 1, dtype=np.float32).tofile(f"{p}_wv.vectors")
+        with pytest.raises(ValueError, match=r"has .* bytes, but vectors of shape"):
+            BaseSentence2VecModel(w2v, wv_mapfile_path=str(p))
+
+    def test_mapfile_with_other_vectors_raises(self, w2v, tmp_path):
+        p = tmp_path / "vecs"
+        other = w2v.wv.vectors.copy()
+        other[-1, -1] += 1
+        other.tofile(f"{p}_wv.vectors")
+        with pytest.raises(ValueError, match="holds other vectors than the model \\(from row"):
+            BaseSentence2VecModel(w2v, wv_mapfile_path=str(p))
+
+    def test_truncated_mapfile_raises_on_load(self, w2v, tmp_path):
+        p = tmp_path / "vecs"
+        se = BaseSentence2VecModel(w2v, wv_mapfile_path=str(p))
+        se.save(str(tmp_path / "model"))
+        del se
+        target = Path(f"{p}_wv.vectors")
+        target.write_bytes(target.read_bytes()[:-4])
+        with pytest.raises(ValueError, match=r"has .* bytes"):
+            BaseSentence2VecModel.load(str(tmp_path / "model"))
 
     def test_move_w2v_vectors_to_disk_from_init(self, w2v, tmp_path):
         p = tmp_path / "test_vecs"

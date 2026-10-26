@@ -50,12 +50,14 @@ from gensim.models.fasttext import FastTextKeyedVectors
 from gensim.models.keyedvectors import KeyedVectors
 from gensim.utils import SaveLoad
 from numpy import (
+    array_equal,
     dtype,
     empty,
     finfo,
     int64,
     ndarray,
     ones,
+    prod,
     vstack,
     zeros,
 )
@@ -83,6 +85,7 @@ from fse._validation import (
 )
 from fse.models._single_pass import SinglePass
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
+from fse.models.utils import REMOVAL_BLOCK_ROWS
 
 try:
     from fse.models.average_inner import scan_indexed_sentences
@@ -493,6 +496,14 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         path = str(mapfile_path.absolute())
+        _check_mapfile_size(Path(f"{path}_wv.vectors"), self.wv_mapfile_shapes["vectors"])
+        if self.is_ft:
+            _check_mapfile_size(
+                Path(f"{path}_vocab.vectors"), self.wv_mapfile_shapes["vectors_vocab"]
+            )
+            _check_mapfile_size(
+                Path(f"{path}_ngrams.vectors"), self.wv_mapfile_shapes["vectors_ngrams"]
+            )
 
         self.wv.vectors = np_memmap(
             f"{path}_wv.vectors",
@@ -542,11 +553,23 @@ class BaseSentence2VecModel(SaveLoad):
             memvecs = np_memmap(path, dtype=REAL, mode="w+", shape=shape)
             memvecs[:] = vector[:]
             del memvecs, vector
-        else:
-            # If multiple instances of this class exist, all can access the same files
-            logger.info(f"loading pre-existing {name} from {path}")
+            return np_memmap(path, dtype=REAL, mode="r", shape=shape)
 
+        # If multiple instances of this class exist, all can access the same files, but
+        # only files that hold exactly these vectors.
+        logger.info(f"loading pre-existing {name} from {path}")
+        _check_mapfile_size(path, shape)
         readonly_memvecs = np_memmap(path, dtype=REAL, mode="r", shape=shape)
+        if not (
+            isinstance(vector, np_memmap) and Path(str(vector.filename)).resolve() == path.resolve()
+        ):
+            for begin in range(0, shape[0], REMOVAL_BLOCK_ROWS):
+                rows = slice(begin, begin + REMOVAL_BLOCK_ROWS)
+                if not array_equal(readonly_memvecs[rows], vector[rows], equal_nan=True):
+                    raise ValueError(
+                        f"the existing file {path} holds other vectors than the model "
+                        f"(from row {begin}); delete it or pass another mapfile path"
+                    )
         return readonly_memvecs
 
     def _get_thread_working_mem(self) -> tuple[ndarray, ndarray]:
@@ -1324,6 +1347,19 @@ class _OffsetIndices:
 
 # Rows per block when initializing sentence vectors, so a memmap is written in bounded chunks.
 _FILL_BLOCK_ROWS = 100_000
+
+
+def _check_mapfile_size(path: Path, shape: tuple[int, ...]):
+    """Raise unless the file holds exactly a float32 array of this shape."""
+    expected = int(prod(shape)) * dtype(REAL).itemsize
+    if not path.exists():
+        raise FileNotFoundError(f"the mapfile {path} of the word vectors is missing")
+    size = path.stat().st_size
+    if size != expected:
+        raise ValueError(
+            f"the existing file {path} has {size} bytes, but vectors of shape {tuple(shape)} "
+            f"need {expected}; delete it or pass another mapfile path"
+        )
 
 
 def _fill_eps(vectors: ndarray, start: int, stop: int):
