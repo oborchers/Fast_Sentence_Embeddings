@@ -1369,3 +1369,116 @@ def init():
 MAX_WORDS_IN_BATCH = MAX_WORDS
 MAX_NGRAMS_IN_BATCH = MAX_NGRAMS
 FAST_VERSION = init()
+
+
+# ---------------------------------------------------------------------------------------
+# Reading float16 and int8 sentence vectors: dot products on the stored rows.
+# ---------------------------------------------------------------------------------------
+
+# Every float16 bit pattern as float32, so a stored float16 value is one table lookup.
+cdef REAL_t[65536] _HALF_TABLE
+with np.errstate(invalid="ignore"):
+    # The bit patterns include NaN payloads, whose conversion numpy reports.
+    _half_values = np.arange(65536, dtype=np.uint16).view(np.float16).astype(np.float32)
+for _i in range(65536):
+    _HALF_TABLE[_i] = _half_values[_i]
+del _half_values, _i
+
+
+cdef inline REAL_t _dot_int8(const signed char *row, const REAL_t *w, Py_ssize_t dim) noexcept nogil:
+    """Dot product of a row of int8 codes with float32 weights, in four float32 sums."""
+    cdef REAL_t a0 = 0, a1 = 0, a2 = 0, a3 = 0
+    cdef Py_ssize_t j = 0
+    while j + 4 <= dim:
+        a0 += <REAL_t>row[j] * w[j]
+        a1 += <REAL_t>row[j + 1] * w[j + 1]
+        a2 += <REAL_t>row[j + 2] * w[j + 2]
+        a3 += <REAL_t>row[j + 3] * w[j + 3]
+        j += 4
+    while j < dim:
+        a0 += <REAL_t>row[j] * w[j]
+        j += 1
+    return (a0 + a1) + (a2 + a3)
+
+
+cdef inline REAL_t _dot_half(const unsigned short *row, const REAL_t *w, Py_ssize_t dim) noexcept nogil:
+    """Dot product of a row of float16 values with float32 weights, in four float32 sums."""
+    cdef REAL_t a0 = 0, a1 = 0, a2 = 0, a3 = 0
+    cdef Py_ssize_t j = 0
+    while j + 4 <= dim:
+        a0 += _HALF_TABLE[row[j]] * w[j]
+        a1 += _HALF_TABLE[row[j + 1]] * w[j + 1]
+        a2 += _HALF_TABLE[row[j + 2]] * w[j + 2]
+        a3 += _HALF_TABLE[row[j + 3]] * w[j + 3]
+        j += 4
+    while j < dim:
+        a0 += _HALF_TABLE[row[j]] * w[j]
+        j += 1
+    return (a0 + a1) + (a2 + a3)
+
+
+cdef void _score(
+    const void *codes, bint half, Py_ssize_t dim, Py_ssize_t k, const REAL_t *weights_t,
+    const REAL_t *scales, const REAL_t *factors, const REAL_t *bias, REAL_t *out,
+    Py_ssize_t begin, Py_ssize_t end,
+) noexcept nogil:
+    """out[i, c] = dot(codes[i], weights_t[c]) * scale_i * factor_i + bias[c]."""
+    cdef Py_ssize_t i, c
+    cdef REAL_t scale, dot
+    for i in range(begin, end):
+        scale = (scales[i] if scales != NULL else ONEF) * (factors[i] if factors != NULL else ONEF)
+        for c in range(k):
+            if half:
+                dot = _dot_half(
+                    &(<const unsigned short *>codes)[<size_t>i * <size_t>dim],
+                    &weights_t[<size_t>c * <size_t>dim], dim,
+                )
+            else:
+                dot = _dot_int8(
+                    &(<const signed char *>codes)[<size_t>i * <size_t>dim],
+                    &weights_t[<size_t>c * <size_t>dim], dim,
+                )
+            out[<size_t>i * <size_t>k + c] = dot * scale + (bias[c] if bias != NULL else 0)
+
+
+def score_rows(codes, scales, weights_t, bias, factors, out, Py_ssize_t begin, Py_ssize_t end):
+    """``out[i] = (codes[i] @ weights_t.T) * scales[i] * factors[i] + bias`` for rows begin to end.
+
+    codes are stored float16 or int8 sentence vectors of shape (n, dim); weights_t is
+    float32 of shape (k, dim), one row of weights per output; scales and factors are
+    float32 of shape (n,) or None; bias is float32 of shape (k,) or None; out is float32 of
+    shape (n, k). Sums run in float32 over the stored values, without the GIL and without
+    converting a block first.
+    """
+    if not isinstance(codes, np.ndarray) or codes.ndim != 2:
+        raise TypeError("codes must be a 2-dimensional numpy array")
+    if codes.dtype != np.int8 and codes.dtype != np.float16:
+        raise TypeError(f"codes must have dtype int8 or float16, got {codes.dtype}")
+    if not codes.flags.c_contiguous:
+        raise ValueError("codes must be C-contiguous")
+    cdef Py_ssize_t n = codes.shape[0], dim = codes.shape[1]
+    _check_array(weights_t, "weights_t", np.float32)
+    if weights_t.ndim != 2 or weights_t.shape[1] != dim:
+        raise ValueError(f"weights_t must have shape (k, {dim}), got {weights_t.shape}")
+    cdef Py_ssize_t k = weights_t.shape[0]
+    _check_array(out, "out", np.float32)
+    if not out.flags.writeable:
+        raise ValueError("out must be writeable")
+    if out.ndim != 2 or out.shape[0] != n or out.shape[1] != k:
+        raise ValueError(f"out must have shape ({n}, {k}), got {out.shape}")
+    for array, name, size in ((scales, "scales", n), (factors, "factors", n), (bias, "bias", k)):
+        if array is not None:
+            _check_array(array, name, np.float32)
+            if array.ndim != 1 or array.shape[0] != size:
+                raise ValueError(f"{name} must have shape ({size},), got {array.shape}")
+    if not 0 <= begin <= end <= n:
+        raise ValueError(f"rows [{begin}, {end}) are outside the {n} rows")
+    cdef const REAL_t *w = <const REAL_t *>np.PyArray_DATA(weights_t)
+    cdef const REAL_t *s = <const REAL_t *>np.PyArray_DATA(scales) if scales is not None else NULL
+    cdef const REAL_t *f = <const REAL_t *>np.PyArray_DATA(factors) if factors is not None else NULL
+    cdef const REAL_t *b = <const REAL_t *>np.PyArray_DATA(bias) if bias is not None else NULL
+    cdef REAL_t *o = <REAL_t *>np.PyArray_DATA(out)
+    cdef const void *data = np.PyArray_DATA(codes)
+    cdef bint half = codes.dtype == np.float16
+    with nogil:
+        _score(data, half, dim, k, w, s, f, b, o, begin, end)

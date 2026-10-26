@@ -76,3 +76,14 @@ class RowLocks:
     """Striped locks that serialize adding sentence averages into shared target rows."""
 
     def __init__(self) -> None: ...
+
+def score_rows(
+    codes: ndarray,
+    scales: ndarray | None,
+    weights_t: ndarray,
+    bias: ndarray | None,
+    factors: ndarray | None,
+    out: ndarray,
+    begin: int,
+    end: int,
+) -> None: ...

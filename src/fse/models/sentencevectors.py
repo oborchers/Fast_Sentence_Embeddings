@@ -7,6 +7,7 @@
 import logging
 import os
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, cast
 
@@ -17,6 +18,7 @@ from numpy import (
     argsort,
     array,
     asarray,
+    ascontiguousarray,
     concatenate,
     dot,
     dtype,
@@ -26,6 +28,7 @@ from numpy import (
     floating,
     int64,
     integer,
+    isfinite,
     isnan,
     issubdtype,
     lexsort,
@@ -61,28 +64,107 @@ from fse.models._quantize import (
 )
 from fse.models.utils import REMOVAL_BLOCK_ROWS
 
+try:
+    from fse.models.average_inner import score_rows
+except ImportError:
+    score_rows = None  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
 
 
+class _StoredScores:
+    """Scores of stored float16 or int8 rows: the compiled kernel in threads, or numpy.
+
+    ``run(codes, scales, weights_t, bias, factors, out)`` sets
+    ``out[i] = (codes[i] @ weights_t.T) * scales[i] * factors[i] + bias``. With the
+    extension, row ranges run in parallel without the GIL and without converting a block
+    to float32 first; without it, blocks are converted and multiplied with numpy.
+    """
+
+    def __init__(self, workers: int | None):
+        self.workers = (os.cpu_count() or 1) if workers is None else int(workers)
+        self._pool: ThreadPoolExecutor | None = None
+
+    def __enter__(self) -> "_StoredScores":
+        return self
+
+    def __exit__(self, *exc: object):
+        if self._pool is not None:
+            self._pool.shutdown()
+
+    def run(
+        self,
+        codes: ndarray,
+        scales: ndarray | None,
+        weights_t: ndarray,
+        bias: ndarray | None,
+        factors: ndarray | None,
+        out: ndarray,
+    ):
+        n = len(codes)
+        if score_rows is None:
+            for begin in range(0, n, REMOVAL_BLOCK_ROWS):
+                end = begin + REMOVAL_BLOCK_ROWS
+                block = dot(asarray(codes[begin:end], dtype=REAL), weights_t.T)
+                for per_row in (scales, factors):
+                    if per_row is not None:
+                        block *= per_row[begin:end, newaxis]
+                if bias is not None:
+                    block += bias
+                out[begin:end] = block
+            return
+        # Ranges of at least one block, about four per worker.
+        step = max(REMOVAL_BLOCK_ROWS, -(-n // (self.workers * 4)))
+        ranges = [(begin, min(begin + step, n)) for begin in range(0, n, step)]
+        if self.workers == 1 or len(ranges) == 1:
+            for begin, end in ranges:
+                score_rows(codes, scales, weights_t, bias, factors, out, begin, end)
+            return
+        if self._pool is None:
+            self._pool = ThreadPoolExecutor(self.workers)
+        futures = [
+            self._pool.submit(score_rows, codes, scales, weights_t, bias, factors, out, b, e)
+            for b, e in ranges
+        ]
+        for future in futures:
+            future.result()
+
+
 def _block_dots(
-    vectors: ndarray, query: ndarray, factors: ndarray | None, begin: int, end: int
+    vectors: ndarray,
+    query: ndarray,
+    factors: ndarray | None,
+    begin: int,
+    end: int,
+    scores: _StoredScores | None = None,
 ) -> ndarray:
     """The dot products of rows begin to end with query, in float32.
 
-    Stored rows of float16 or int8 are converted per block; ``factors`` scales the dot
-    product of each row (its int8 scale and inverse norm), so no normalized copy of the
-    matrix is needed.
+    For stored float16 or int8 rows, ``factors`` scales the dot product of each row (its
+    int8 scale and inverse norm), so no normalized copy of the matrix is needed.
     """
     block = vectors[begin:end]
     if factors is None:
         return dot(block, query)
-    dots = dot(block.astype(REAL), query)
-    dots *= factors[begin:end]
-    return dots
+    dots = empty((len(block), 1), dtype=REAL)
+    runner = scores if scores is not None else _StoredScores(1)
+    runner.run(
+        ascontiguousarray(block),
+        None,
+        ascontiguousarray(query[newaxis, :], dtype=REAL),
+        None,
+        ascontiguousarray(factors[begin:end], dtype=REAL),
+        dots,
+    )
+    return dots[:, 0]
 
 
 def _most_similar_rows(
-    vectors: ndarray, query: ndarray, count: int, factors: ndarray | None = None
+    vectors: ndarray,
+    query: ndarray,
+    count: int,
+    factors: ndarray | None = None,
+    scores: _StoredScores | None = None,
 ) -> tuple[ndarray, ndarray]:
     """The rows with the ``count`` largest dot products with ``query``, largest first.
 
@@ -99,9 +181,13 @@ def _most_similar_rows(
     # At least as many rows per block as candidates, so the candidates are copied O(rows)
     # times in total, also for a count close to the number of rows.
     block = max(REMOVAL_BLOCK_ROWS, count)
+    if factors is not None and scores is not None:
+        # Stored rows are scored in parallel; larger blocks keep every worker busy.
+        block = max(block, REMOVAL_BLOCK_ROWS * scores.workers * 4)
     for begin in range(0, len(vectors), block):
         # Negated, so the best rows are the smallest keys and NaN sorts after them.
-        keys = concatenate([best_keys, -_block_dots(vectors, query, factors, begin, begin + block)])
+        dots = _block_dots(vectors, query, factors, begin, begin + block, scores)
+        keys = concatenate([best_keys, -dots])
         rows = concatenate([best_rows, arange(begin, begin + len(keys) - len(best_keys))])
         if len(keys) > count:
             kth = partition(keys, count - 1)[count - 1]
@@ -390,6 +476,76 @@ class SentenceVectors(utils.SaveLoad):
         self.init_sims()
         inv_norms = cast(ndarray, self.inv_norms)
         return inv_norms if self.scales is None else asarray(self.scales) * inv_norms
+
+    @validate_arguments
+    def score(
+        self,
+        weights: Any,
+        bias: Any = None,
+        workers: PositiveInt | None = None,
+        out: Any = None,
+    ) -> ndarray:
+        """``X @ weights + bias`` for the float32 sentence vectors X, in blocks of rows.
+
+        The way to apply a linear model to all sentence vectors, for example a logistic
+        regression with ``sigmoid(sv.score(coef.T, intercept))``. float16 and int8 rows are
+        scored as stored by the compiled kernel in ``workers`` threads (all cores by
+        default), without a float32 copy; float32 rows use BLAS block by block. Memory stays
+        at one block besides the result, which may be a memmap passed as ``out``.
+
+        Parameters
+        ----------
+        weights : ndarray
+            Finite float weights of shape (vector_size,) or (vector_size, k).
+        bias : float or ndarray, optional
+            Finite bias, a scalar or of shape (k,).
+        workers : int, optional
+            Threads for float16 and int8 rows; all cores by default.
+        out : ndarray, optional
+            float32 array of shape (n,) for vector weights or (n, k), written in place.
+
+        Returns
+        -------
+        ndarray
+            The scores, of shape (n,) or (n, k), in float32.
+        """
+        w = _real_array(weights, "weights")
+        if w.ndim not in (1, 2) or w.shape[0] != self.vector_size or w.size == 0:
+            raise ValueError(
+                f"weights must have shape ({self.vector_size},) or ({self.vector_size}, k) "
+                f"with k > 0, got {w.shape}"
+            )
+        k = 1 if w.ndim == 1 else w.shape[1]
+        weights_t = ascontiguousarray(w.reshape(self.vector_size, k).T, dtype=REAL)
+        b = None
+        if bias is not None:
+            b = _real_array(bias, "bias")
+            if b.shape not in ((), (k,)):
+                raise ValueError(f"bias must be a scalar or have shape ({k},), got {b.shape}")
+            b = ascontiguousarray(b.reshape(-1).repeat(k) if b.ndim == 0 else b, dtype=REAL)
+        shape = (len(self),) if w.ndim == 1 else (len(self), k)
+        if out is None:
+            out = empty(shape, dtype=REAL)
+        elif not isinstance(out, ndarray) or out.dtype != REAL or out.shape != shape:
+            raise ValueError(f"out must be a float32 ndarray of shape {shape}")
+        elif not out.flags.c_contiguous or not out.flags.writeable:
+            raise ValueError("out must be C-contiguous and writeable")
+        rows = out.reshape(len(self), k)
+        if not self.quantized:
+            # Contiguous weights, and a vector for k = 1, so BLAS takes its fast routines.
+            matrix = ascontiguousarray(weights_t.T)
+            right = matrix[:, 0] if k == 1 else matrix
+            for begin in range(0, len(self), REMOVAL_BLOCK_ROWS):
+                end = begin + REMOVAL_BLOCK_ROWS
+                block = dot(self.vectors[begin:end], right).reshape(-1, k)
+                if b is not None:
+                    block += b
+                rows[begin:end] = block
+            return out
+        scales = None if self.scales is None else ascontiguousarray(self.scales, dtype=REAL)
+        with _StoredScores(workers) as scores:
+            scores.run(self.vectors, scales, weights_t, b, None, rows)
+        return out
 
     @validate_arguments
     def convert(self, dtype: StorageDtype):
@@ -691,16 +847,12 @@ class SentenceVectors(utils.SaveLoad):
         if not topn:
             if factors is None:
                 return dot(limited, mean)
-            return concatenate(
-                [
-                    _block_dots(limited, mean, factors, begin, begin + REMOVAL_BLOCK_ROWS)
-                    for begin in range(0, len(limited), REMOVAL_BLOCK_ROWS)
-                ]
-                or [empty(0, dtype=REAL)]
+            with _StoredScores(None) as scores:
+                return _block_dots(limited, mean, factors, 0, len(limited), scores)
+        with _StoredScores(None) as scores:
+            best, similarities = _most_similar_rows(
+                limited, mean, topn + len(all_sents), factors=factors, scores=scores
             )
-        best, similarities = _most_similar_rows(
-            limited, mean, topn + len(all_sents), factors=factors
-        )
         best_off = best + lo
 
         result: list[tuple[Any, ...]]
@@ -1001,3 +1153,13 @@ class _RowWriter:
         elif self.mode == "replace":
             for written, _ in self.files:
                 written.unlink(missing_ok=True)
+
+
+def _real_array(value: Any, name: str) -> ndarray:
+    """value as a float array; raise for other types and for NaN or infinite values."""
+    array = asarray(value)
+    if array.dtype.kind != "f":
+        raise TypeError(f"{name} must hold floats, got dtype {array.dtype}")
+    if not isfinite(array).all():
+        raise ValueError(f"{name} must be finite")
+    return array
