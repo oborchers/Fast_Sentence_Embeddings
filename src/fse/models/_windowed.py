@@ -37,6 +37,19 @@ def window_rows(dim: int, rows: int) -> int:
     return max(1, min(int(blocks) * block_rows, rows))
 
 
+def plan_ring(dim: int, rows: int, max_job_rows: int, rows_per_window: int | None = None):
+    """Rows per window, slots of the ring and windows in total for a training of rows rows.
+
+    A job of r rows touches at most ceil(r / W) + 1 windows; all of them must fit into the
+    ring together, or its producer would wait for a slot forever. A ring never needs more
+    slots than there are windows, so small inputs fit into one.
+    """
+    size = rows_per_window or window_rows(dim, rows)
+    total = -(-rows // size)
+    slots = max(2, math.ceil(max(max_job_rows, 1) / size) + 1)
+    return size, max(1, min(slots, total)), total
+
+
 class WindowedWriter:
     """Finished rows of a ring of windows, finalized in order; lives only during train."""
 
@@ -49,13 +62,9 @@ class WindowedWriter:
         rows_per_window: int | None = None,
     ):
         self.n_rows = n_rows
-        self.window_rows = rows_per_window or window_rows(dim, n_rows)
-        # A job of r rows touches at most ceil(r / W) + 1 windows; all of them must fit
-        # into the ring together, or its producer would wait for a slot forever.
-        self.num_windows = -(-n_rows // self.window_rows)
-        self.n_windows = max(2, math.ceil(max(max_job_rows, 1) / self.window_rows) + 1)
-        # A ring never needs more slots than there are windows; small inputs fit one.
-        self.n_windows = max(1, min(self.n_windows, self.num_windows))
+        self.window_rows, self.n_windows, self.num_windows = plan_ring(
+            dim, n_rows, max_job_rows, rows_per_window
+        )
         self.ring = empty((self.window_rows * self.n_windows, dim), dtype=REAL)
         self._finalize = finalize
         self._written = [0] * self.num_windows

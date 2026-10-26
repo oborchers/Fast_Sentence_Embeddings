@@ -666,3 +666,64 @@ def test_memory_estimate_of_windowed_training(w2v, sentences):
     # Two windows of about WINDOW_BYTES each, whatever the number of rows.
     assert windowed["Staging"] <= 2 * _windowed.WINDOW_BYTES
     assert windowed["Staging"] < staged["Staging"] / 10
+
+
+def test_hooks_see_the_staged_rows_as_float32(w2v, sentences):
+    """During staging, a hook can read and search the new rows like float32 vectors."""
+    seen = []
+
+    class Reading(SIF):
+        def _post_train_calls(self, **kwargs):
+            super()._post_train_calls(**kwargs)
+            seen.append(
+                (self.sv.dtype, self.sv.score(np.ones(DIM)).shape, self.sv.most_similar(0, topn=1))
+            )
+
+    model = Reading(w2v, sv_dtype="int8")
+    model.train(IndexedList(sentences))
+    assert seen[0][0] == "float32"
+    assert seen[0][1] == (len(sentences),)
+    assert model.sv.dtype == "int8"
+
+
+def test_rollback_keeps_the_logical_rows_of_a_larger_file(w2v, sentences, tmp_path, monkeypatch):
+    model = SIF(w2v, sv_mapfile_path=str(tmp_path / "sv"))
+    model.train(IndexedList(sentences[:40]))
+    with (tmp_path / "sv.vectors").open("ab") as f:
+        f.write(bytes(4 * DIM * 3))  # as left by an append that could not cut it back
+    before = model.sv.get_vectors()
+    original = os.replace
+
+    def fail(src, dst):
+        if str(src).endswith(".converting"):
+            raise OSError("disk full")
+        return original(src, dst)
+
+    monkeypatch.setattr(os, "replace", fail)
+    with pytest.raises(OSError, match="disk full"):
+        model.sv.convert("float16")
+    assert len(model.sv) == 40
+    np.testing.assert_array_equal(model.sv.get_vectors(), before)
+
+
+def test_a_failure_after_the_commit_keeps_rows_and_components(
+    w2v, sentences, tmp_path, monkeypatch
+):
+    """Once the new rows are committed, they and their components stay together."""
+    model = SIF(w2v, components=2, sv_dtype="int8", sv_mapfile_path=str(tmp_path / "sv"))
+    model.train(IndexedList(sentences[:50]))
+    original = sentencevectors.SentenceVectors._replace_files
+
+    def fail_after(self, *args, **kwargs):
+        original(self, *args, **kwargs)
+        raise KeyboardInterrupt  # for example while the old files are removed
+
+    monkeypatch.setattr(sentencevectors.SentenceVectors, "_replace_files", fail_after)
+    with pytest.raises(KeyboardInterrupt):
+        model.train(IndexedList(sentences))
+    monkeypatch.setattr(sentencevectors.SentenceVectors, "_replace_files", original)
+    reference = SIF(w2v, components=2)
+    reference.train(IndexedList(sentences))
+    np.testing.assert_array_equal(model.svd_res[1], reference.svd_res[1])
+    codes, _ = _stored(np.asarray(reference.sv.vectors), "int8")
+    assert np.array_equal(np.asarray(model.sv.vectors), codes)

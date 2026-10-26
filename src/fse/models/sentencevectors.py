@@ -94,8 +94,9 @@ class _StoredScores:
         return self
 
     def __exit__(self, *exc: object):
+        # run has waited for every range it submitted, so no thread writes anymore here.
         if self._pool is not None:
-            self._pool.shutdown()
+            self._pool.shutdown(wait=False)
 
     def run(
         self,
@@ -129,11 +130,16 @@ class _StoredScores:
             return
         if self._pool is None:
             self._pool = ThreadPoolExecutor(self.workers)
-        futures = [
-            self._pool.submit(score_rows, codes, scales, weights_t, bias, factors, out, b, e)
-            for b, e in ranges
-        ]
+        futures: list[Any] = []
         try:
+            # Every future is registered as soon as it exists, so an interrupt while
+            # submitting still waits for the ranges that started.
+            for b, e in ranges:
+                futures.append(
+                    self._pool.submit(
+                        score_rows, codes, scales, weights_t, bias, factors, out, b, e
+                    )
+                )
             for future in futures:
                 future.result()
         except BaseException:
@@ -279,6 +285,12 @@ class SentenceVectors(utils.SaveLoad):
         self.__dict__.setdefault("inv_norms", None)
 
     @property
+    def commits(self) -> int:
+        """How often rows or a format were committed, so a caller can tell whether a failure
+        came before or after its commit. Not saved with the model."""
+        return self.__dict__.get("_commits", 0)
+
+    @property
     def quantized(self) -> bool:
         """Whether the vectors are stored in another format than float32."""
         return self.dtype != "float32"
@@ -343,7 +355,7 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         self.mapfile_shape = self.vectors.shape
-        ignore = ["vectors_norm", "inv_norms", "_saved"]
+        ignore = ["vectors_norm", "inv_norms", "_saved", "_commits"]
         # don't bother storing the cached normalized vectors
         if self.mapfile_path is not None:
             ignore += ["vectors", "scales"]
@@ -655,6 +667,9 @@ class SentenceVectors(utils.SaveLoad):
             self.scales,
         )
         mapped = isinstance(self.vectors, np_memmap)
+        # The logical rows: a file may be larger after an append that could not cut it back.
+        previous_rows = len(self.vectors) if self.vectors is not None else None
+        previous_shape = self.mapfile_shape
         self.vectors = self.scales = None  # type: ignore[assignment]
         self.vectors_norm = None
         self.inv_norms = None
@@ -681,6 +696,7 @@ class SentenceVectors(utils.SaveLoad):
             self.dtype = dtype
             self.mapfile_shape = None
             self._open_files()
+            self._commits = self.commits + 1
         except BaseException as err:
             traceback.clear_frames(err.__traceback__)
             self.vectors = self.scales = None  # type: ignore[assignment]
@@ -690,10 +706,11 @@ class SentenceVectors(utils.SaveLoad):
             for backup, final in backups:
                 os.replace(backup, final)
             self.dtype = previous[0]
+            self.mapfile_shape = previous_shape
             if previous[1] is not None:
                 self.vectors, self.scales = previous[1], previous[2]
             else:
-                self._open_files()
+                self._open_files(previous_rows)
             raise
         for backup, _ in backups:
             try:
@@ -748,9 +765,12 @@ class SentenceVectors(utils.SaveLoad):
                 traceback.clear_frames(err.__traceback__)
                 self._drop_staging_file()
                 raise
-        self._saved = (self.vectors, self.scales)
+        # The rows of this call are float32 until they are stored; reads and searches in
+        # the hooks see them as such.
+        self._saved = (self.vectors, self.scales, self.dtype)
         self.vectors = staging
         self.scales = None
+        self.dtype = "float32"
         self.vectors_norm = None
         self.inv_norms = None
 
@@ -759,14 +779,22 @@ class SentenceVectors(utils.SaveLoad):
 
     def _store_staged(self, append: bool):
         """Store the staged float32 rows in the format, after or instead of the saved ones."""
-        # Held in a list the cleanup empties, so no reference keeps the staging map open.
+        # Held in a list that is emptied before the commit, so no reference keeps the staging
+        # map open and its file is gone before the new rows are installed: a failure to
+        # remove it then fails the training instead of following a commit.
         staged = [self.vectors]
-        self.vectors, self.scales = self.__dict__.pop("_saved")
+        self.vectors, self.scales, self.dtype = self.__dict__.pop("_saved")
         rows = len(staged[0])
+
+        def release_staging():
+            staged.clear()
+            self._drop_staging_file()
+
         try:
             _write_rows(
                 lambda: self._begin_writing(rows, append),
                 lambda writer: writer.store(0, staged[0]),
+                before_commit=release_staging,
             )
         finally:
             staged.clear()
@@ -786,7 +814,7 @@ class SentenceVectors(utils.SaveLoad):
     def _unstage(self):
         """Drop the staging matrix and restore the saved vectors, after a failure."""
         if "_saved" in self.__dict__:
-            self.vectors, self.scales = self.__dict__.pop("_saved")
+            self.vectors, self.scales, self.dtype = self.__dict__.pop("_saved")
         self.vectors_norm = None
         self.inv_norms = None
         self._drop_staging_file()
@@ -1300,6 +1328,7 @@ class _RowWriter:
             sv._install(self.dtype, cast(ndarray, codes), scales)
         sv.vectors_norm = None
         sv.inv_norms = None
+        sv._commits = sv.commits + 1
 
     def abort(self):
         self.codes = self.scales = None
@@ -1341,16 +1370,20 @@ def _close_released_maps():
     gc.collect()
 
 
-def _write_rows(make_writer: Any, store: Any):
+def _write_rows(make_writer: Any, store: Any, before_commit: Any = None):
     """Create a writer, store rows with it and commit; on any failure, abort.
 
-    Finished frames of a failure may still hold slices of the written memmaps, so they are
-    cleared before abort deletes or cuts files (Windows refuses to while they are mapped).
+    ``before_commit`` runs after the rows are stored and before the commit, for cleanup
+    that must not fail after it. Finished frames of a failure may still hold slices of
+    the written memmaps, so they are cleared before abort deletes or cuts files (Windows
+    refuses to while they are mapped).
     """
     writer = None
     try:
         writer = make_writer()
         store(writer)
+        if before_commit is not None:
+            before_commit()
         writer.commit()
     except BaseException as err:
         traceback.clear_frames(err.__traceback__)

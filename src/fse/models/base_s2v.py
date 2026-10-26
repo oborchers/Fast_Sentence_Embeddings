@@ -89,7 +89,7 @@ from fse.models import utils
 from fse.models._index_tracker import MAX_INDEX, IndexTracker, check_index_range
 from fse.models._quantize import STORAGE_TYPES, StorageDtype, has_scales
 from fse.models._single_pass import SinglePass
-from fse.models._windowed import WindowedWriter, window_rows
+from fse.models._windowed import WindowedWriter, plan_ring
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
 from fse.models.utils import REMOVAL_BLOCK_ROWS
 
@@ -883,8 +883,10 @@ class BaseSentence2VecModel(SaveLoad):
             # windows, or in a matrix of all new rows when train needs staging.
             staging_rows = max_index
             if kwargs.get("staging_reason", "") is None:
-                rows = window_rows(self.wv.vector_size, max_index)
-                staging_rows = min(max_index, 2 * rows)
+                size, slots, _ = plan_ring(
+                    self.wv.vector_size, max_index, kwargs.get("max_job_rows", self.batch_words)
+                )
+                staging_rows = size * slots
             report["Staging"] = staging_rows * self.wv.vector_size * dtype(REAL).itemsize
         if self.is_ft:
             report["Vocab Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
@@ -945,7 +947,9 @@ class BaseSentence2VecModel(SaveLoad):
 
         quantized = self.sv.quantized
         reason = self._staging_reason(statistics) if quantized else ""
-        self.estimate_memory(staging_reason=reason, **statistics)
+        self.estimate_memory(
+            staging_reason=reason, max_job_rows=self._max_job_rows(sentences), **statistics
+        )
         # float16 and int8 vectors: the rows of this call are computed in a float32 staging
         # matrix, which is sv.vectors until they are stored (see ARCHITECTURE.md).
         offset = len(self.sv.vectors) if update and not quantized else 0
@@ -970,6 +974,7 @@ class BaseSentence2VecModel(SaveLoad):
                 f"rows, because {reason}"
             )
         learned = {k: self.__dict__[k] for k in _COMPONENT_STATE if k in self.__dict__}
+        commits = self.sv.commits
         if not quantized:
             self.prep.prepare_vectors(
                 sv=self.sv,
@@ -988,9 +993,10 @@ class BaseSentence2VecModel(SaveLoad):
             if quantized:
                 self.sv._store_staged(append=update)
         except BaseException as err:
-            if quantized:
+            if quantized and self.sv.commits == commits:
                 # Components learned from rows that were not stored are dropped first, so a
-                # failing cleanup cannot leave them installed.
+                # failing cleanup cannot leave them installed. Once rows are committed,
+                # they and their components stay together.
                 for key in _COMPONENT_STATE:
                     self.__dict__.pop(key, None)
                 self.__dict__.update(learned)
@@ -1059,6 +1065,7 @@ class BaseSentence2VecModel(SaveLoad):
         self._check_dtype_santiy()
         plan = self._component_plan(update)
         learned = {k: self.__dict__[k] for k in _COMPONENT_STATE if k in self.__dict__}
+        commits = self.sv.commits
         writer = None
         try:
             writer = self.sv._begin_writing(rows, append=update)
@@ -1094,6 +1101,8 @@ class BaseSentence2VecModel(SaveLoad):
                 self._set_components(None)
             writer.commit()
         except BaseException as err:
+            if self.sv.commits != commits:
+                raise  # committed: the rows and their components stay together
             # Components learned in the first pass belong to rows that were not stored; they
             # are dropped before the cleanup, which may fail itself.
             for key in _COMPONENT_STATE:

@@ -146,14 +146,37 @@ def test_other_inputs_use_the_staging_matrix(w2v, sentences, caplog, prepare, re
     np.testing.assert_allclose(model.sv.get_vectors(), reference.sv.vectors, atol=1e-2)
 
 
-def test_without_the_extension_the_staging_matrix_is_used(w2v, sentences, monkeypatch, caplog):
+@pytest.mark.parametrize("dtype", ["float16", "int8"])
+def test_without_the_extension_the_staging_matrix_is_used(
+    w2v, sentences, monkeypatch, caplog, dtype
+):
     from fse.models import average
 
+    reference = Average(w2v)
+    reference.train(IndexedList(sentences))
+    calls = []
+
+    def numpy_routine(*args, **kwargs):
+        calls.append(1)
+        return average.train_average_np(*args, **kwargs)
+
     monkeypatch.setattr(average, "CY_ROUTINES", False)
-    model = Average(w2v, sv_dtype="float16")
+    monkeypatch.setattr(average, "train_average", numpy_routine)
+    model = Average(w2v, sv_dtype=dtype)
     with caplog.at_level(logging.INFO, logger="fse.models.base_s2v"):
         model.train(IndexedList(sentences))
+    assert calls, "the numpy routine did not run"
     assert any("compiled kernel is not used" in r.message for r in caplog.records)
+    # The numpy routine equals the kernel within float32 rounding, stored afterwards.
+    np.testing.assert_allclose(
+        model.sv.get_vectors(), _stored_and_back(reference.sv.vectors, dtype), atol=1e-6
+    )
+
+
+def _stored_and_back(rows, dtype):
+    from fse.models._quantize import dequantize
+
+    return dequantize(*_stored(np.asarray(rows), dtype))
 
 
 def _training_peak(model, data):

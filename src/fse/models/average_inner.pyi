@@ -8,6 +8,7 @@ MAX_WORDS_IN_BATCH: int
 MAX_NGRAMS_IN_BATCH: int
 FAST_VERSION: int
 MAX_NGRAMS_LIMIT: int
+MAX_CHUNK_ROWS: int
 
 def train_average_cy(
     model: Any,

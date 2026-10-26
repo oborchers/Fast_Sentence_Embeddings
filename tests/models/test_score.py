@@ -310,38 +310,77 @@ def test_search_factors_are_cached():
     assert peak < 100_000
 
 
-def test_a_second_interrupt_waits_for_running_ranges(monkeypatch):
-    """After score returns, no range may still write into out."""
-    import threading
+def _blocking_kernel(started, release, finished, interrupt_first=True):
+    """A score_rows stand-in whose ranges block until release is set; the first range
+    raises KeyboardInterrupt unless interrupt_first is False."""
 
-    release = threading.Event()
-    finished = []
-
-    def fake_score_rows(codes, scales, weights_t, bias, factors, out, begin, end):
-        if begin == 0:
+    def fake(codes, scales, weights_t, bias, factors, out, begin, end):
+        if begin == 0 and interrupt_first:
             raise KeyboardInterrupt
+        started.append(begin)
         release.wait(5)
         out[begin:end] = 1
         finished.append(begin)
 
+    return fake
+
+
+def test_a_second_interrupt_waits_for_running_ranges(monkeypatch):
+    """When run raises, every range that started has finished writing into out."""
+    import threading
+
+    started, finished = [], []
+    release = threading.Event()
     original_wait = sentencevectors.wait
     interrupts = []
 
     def interrupted_wait(futures, *args, **kwargs):
         if not interrupts:
-            interrupts.append(1)
+            # The second interrupt arrives while ranges are still running.
+            interrupts.append(len(started) - len(finished))
             release.set()
             raise KeyboardInterrupt
         return original_wait(futures, *args, **kwargs)
 
-    monkeypatch.setattr(sentencevectors, "score_rows", fake_score_rows)
+    monkeypatch.setattr(sentencevectors, "score_rows", _blocking_kernel(started, release, finished))
     monkeypatch.setattr(sentencevectors, "wait", interrupted_wait)
     codes = np.zeros((16384 * 8, 2), dtype=np.int8)
     out = np.zeros((len(codes), 1), dtype=np.float32)
-    with sentencevectors._StoredScores(4) as scores, pytest.raises(KeyboardInterrupt):
+    scores = sentencevectors._StoredScores(4)
+    with pytest.raises(KeyboardInterrupt):
         scores.run(codes, None, np.ones((1, 2), np.float32), None, None, out)
-    snapshot = out.copy()
-    started = len(finished)
-    release.set()
-    np.testing.assert_array_equal(out, snapshot)
-    assert len(finished) == started
+    # Checked before any shutdown of the pool could wait for them.
+    assert interrupts, "the second interrupt was not raised"
+    assert sorted(finished) == sorted(started)
+    scores.__exit__(None, None, None)
+
+
+def test_an_interrupt_while_submitting_waits_for_started_ranges(monkeypatch):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    started, finished = [], []
+    release = threading.Event()
+    kernel = _blocking_kernel(started, release, finished, interrupt_first=False)
+    monkeypatch.setattr(sentencevectors, "score_rows", kernel)
+    scores = sentencevectors._StoredScores(4)
+    scores._pool = ThreadPoolExecutor(4)
+    original_submit = scores._pool.submit
+    calls = []
+
+    def submit(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 3:
+            release.set()
+            raise KeyboardInterrupt
+        return original_submit(*args, **kwargs)
+
+    scores._pool.submit = submit
+    codes = np.zeros((16384 * 8, 2), dtype=np.int8)
+    out = np.zeros((len(codes), 1), dtype=np.float32)
+    with pytest.raises(KeyboardInterrupt):
+        scores.run(codes, None, np.ones((1, 2), np.float32), None, None, out)
+    assert len(calls) == 3
+    assert len(started) == 2
+    assert sorted(finished) == sorted(started)
+    scores.__exit__(None, None, None)

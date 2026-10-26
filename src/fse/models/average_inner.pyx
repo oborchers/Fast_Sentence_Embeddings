@@ -165,6 +165,10 @@ cdef uINT_t OOV_TOKEN = <uINT_t>0xFFFFFFFE
 # More ngrams than any word of a real corpus has; a bound that keeps buffer sizes in range.
 MAX_NGRAMS_LIMIT = 1 << 24
 
+# Sentences of a native chunk at most, besides its byte size (see scan_spans).
+cdef Py_ssize_t CHUNK_MAX_ROWS = 1 << 16
+MAX_CHUNK_ROWS = CHUNK_MAX_ROWS
+
 
 cdef class KernelContext:
     """Read-only state of one train or infer call, shared by all workers.
@@ -1012,11 +1016,15 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
     cdef Py_ssize_t n_chunks = 0
 
     # Chunk boundaries are collected in C and converted to a list at the end. Every chunk
-    # but the last holds at least chunk_bytes bytes, which bounds their number.
+    # but the last holds at least chunk_bytes bytes or CHUNK_MAX_ROWS sentences, which
+    # bounds their number. The row limit keeps a chunk of empty lines, which take no
+    # bytes, from holding all rows, so training into windows needs only a few of them.
     if chunk_bytes < 1:
         raise ValueError(f"chunk_bytes must be positive, got {chunk_bytes}")
     cdef Py_ssize_t span_bytes = (last - first) if lines else (item_ptr[last] - item_ptr[first])
-    cdef Py_ssize_t max_chunks = span_bytes // chunk_bytes + 2
+    # A line takes at least its "\n" (the last none), a string at least its entry.
+    cdef Py_ssize_t max_rows = (span_bytes + 1) if lines else (last - first)
+    cdef Py_ssize_t max_chunks = span_bytes // chunk_bytes + max_rows // CHUNK_MAX_ROWS + 2
     chunk_arr = np.empty(3 * max_chunks, dtype=np.int64)
     chunk_buffer = chunk_arr
     with nogil:
@@ -1039,6 +1047,7 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
             if (
                 (lines and pos - chunk_start >= chunk_bytes)
                 or (not lines and (item_ptr[pos] - item_ptr[chunk_start]) >= chunk_bytes)
+                or sentences - chunk_first >= CHUNK_MAX_ROWS
             ) and pos < last and n_chunks + 1 < max_chunks:
                 chunk_buffer[3 * n_chunks] = chunk_start
                 chunk_buffer[3 * n_chunks + 1] = pos
