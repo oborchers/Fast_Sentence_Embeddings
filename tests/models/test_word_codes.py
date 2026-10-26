@@ -308,23 +308,36 @@ class TestModel:
         (tmp_path / "wv_wv.int8").unlink()
         assert caught.value is not None
 
+    @pytest.mark.parametrize("train", [train_average_cy, train_average_np], ids=["cy", "np"])
+    @pytest.mark.parametrize("words", [["go"], ["notaword"]], ids=["known", "unknown"])
     @pytest.mark.parametrize(
-        ("change", "message"),
+        "change",
         [
-            (lambda m: setattr(m, "wv_scales", None), "int8 codes need one float32 scale"),
-            (
-                lambda m: setattr(m, "wv_scales", m.wv_scales.astype(np.float64)),
-                "scales must have dtype float32",
-            ),
+            lambda scales: None,
+            lambda scales: scales.astype(np.float64),
+            lambda scales: scales[:1],
+            lambda scales: np.concatenate([scales, scales[:1]]),
         ],
+        ids=["missing", "float64", "short", "long"],
     )
-    def test_numpy_fallback_rejects_bad_scales(self, w2v_model, change, message):
+    def test_both_paths_reject_bad_word_scales(self, w2v_model, train, words, change):
+        """Also for a job whose words are all unknown, so no row is read."""
         model = _prepare(Average(w2v_model, wv_dtype="int8"), 1)
-        change(model)
-        with pytest.raises(TypeError, match=message):
-            train_average_np(
-                model, [(["go"], 0)], model.sv.vectors, model._get_thread_working_mem()
-            )
+        model.wv_scales = change(model.wv_scales)
+        with pytest.raises((TypeError, ValueError), match="scale"):
+            train(model, [(words, 0)], model.sv.vectors, model._get_thread_working_mem())
+
+    @pytest.mark.parametrize("train", [train_average_cy, train_average_np], ids=["cy", "np"])
+    @pytest.mark.parametrize(
+        "change",
+        [lambda scales: None, lambda scales: scales[:1]],
+        ids=["missing", "short"],
+    )
+    def test_both_paths_reject_bad_ngram_scales(self, make_ft, train, change):
+        model = _prepare(Average(make_ft(8, bucket=50), wv_dtype="int8"), 1)
+        model.ngram_scales = change(model.ngram_scales)
+        with pytest.raises((TypeError, ValueError), match="scale"):
+            train(model, [(["go"], 0)], model.sv.vectors, model._get_thread_working_mem())
 
     @pytest.mark.parametrize("bad", ["float64", "missing", "unexpected"])
     def test_training_rejects_bad_scales(self, w2v_model, bad):

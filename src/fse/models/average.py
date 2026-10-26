@@ -42,7 +42,6 @@ from numpy import (
 )
 from numpy import (
     full,
-    int8,
     ndarray,
     zeros,
 )
@@ -57,7 +56,7 @@ from numpy import (
 )
 
 from fse._validation import PathLike, PositiveInt, WordVectorModel, validate_arguments
-from fse.models._quantize import StorageDtype, dequantize
+from fse.models._quantize import STORAGE_TYPES, StorageDtype, dequantize, has_scales
 from fse.models.base_s2v import BaseSentence2VecModel, _OffsetIndices
 
 logger = logging.getLogger(__name__)
@@ -73,16 +72,39 @@ def _weighted_rows(
     """
     if vectors is None:
         raise RuntimeError("the model has no stored vectors for these rows")
-    # The checks of the kernel's _check_inputs, so both paths reject the same states.
-    if (vectors.dtype == int8) != (scales is not None):
-        raise TypeError("int8 codes need one float32 scale per row, other formats none")
-    if scales is not None and scales.dtype != REAL:
-        raise TypeError(f"scales must have dtype float32, got {scales.dtype}")
     weights = np_asarray(weights, dtype=REAL)
     if scales is not None:
         return dequantize(vectors[index], weights * scales[index])
     rows = vectors[index] if vectors.dtype == REAL else dequantize(vectors[index], None)
     return np_mult(rows, weights[:, None])
+
+
+def _check_stored_rows(model: BaseSentence2VecModel):
+    """Check the stored word (and ngram) rows and their scales, once per job.
+
+    The checks of the kernel's _check_inputs, so both paths reject the same model
+    states, whichever words a job contains.
+    """
+    fmt = getattr(model, "wv_dtype", "float32")
+    code_type = STORAGE_TYPES.get(fmt)
+    if code_type is None:
+        raise ValueError(f"unknown word vector format {fmt!r}")
+    words, word_scales, ngrams, ngram_scales = model._word_arrays()
+    pairs: list[tuple[str, ndarray | None, ndarray | None]] = [("word", words, word_scales)]
+    if model.is_ft:
+        pairs.append(("ngram", ngrams, ngram_scales))
+    for kind, codes, scales in pairs:
+        if not isinstance(codes, ndarray) or codes.dtype != code_type:
+            raise TypeError(f"the {kind} rows must be a {fmt} array")
+        if has_scales(model.wv_dtype):
+            if not isinstance(scales, ndarray) or scales.dtype != REAL:
+                raise TypeError(f"int8 {kind} codes need one float32 scale per row")
+            if scales.shape != (codes.shape[0],):
+                raise ValueError(
+                    f"the {kind} scales must have shape ({codes.shape[0]},), got {scales.shape}"
+                )
+        elif scales is not None:
+            raise TypeError(f"{fmt} {kind} rows take no scales")
 
 
 def train_average_np(
@@ -123,6 +145,7 @@ def train_average_np(
 
     # The rows the kernel reads: float32 vectors, or the float16 or int8 codes of a model
     # with wv_dtype, restored to float32 row by row.
+    _check_stored_rows(model)
     w_vectors, w_scales, ngram_vectors, ngram_scales = model._word_arrays()
     w_weights = model.word_weights
 
