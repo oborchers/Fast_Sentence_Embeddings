@@ -420,17 +420,23 @@ def test_a_failed_update_keeps_the_old_rows(monkeypatch, w2v, tmp_path, memmap, 
         monkeypatch.setattr(average, "run_chunk", fail)
     else:
         original = threading.Thread.start
-        started = []
+        workers = []
 
         def fail(self):
-            started.append(self)
-            if len(started) == 3:  # the producer, after both workers
+            # Only threads of _train_manager: the native scan starts threads of its own.
+            target = getattr(self, "_target", None)
+            if target == model._job_producer:
                 raise OSError("thread start failed")
+            if target == model._worker_loop:
+                workers.append(self)
             return original(self)
 
         monkeypatch.setattr(threading.Thread, "start", fail)
     with pytest.raises(OSError, match="failed"):
         model.train(TextList(_texts(100, seed=1)), update=True)
+    if where == "thread start":
+        assert len(workers) == 2
+        assert not any(worker.is_alive() for worker in workers)
     assert np.array_equal(model.sv.vectors[:200], old)
     assert np.all(model.sv.vectors[200:] == utils.EPS)
     assert "_single_pass" not in model.__dict__
@@ -481,8 +487,9 @@ class TestOrderedGram:
         assert np.array_equal(gram.result(), gram_matrix(vectors, np.float32))
 
     def test_concurrent_workers_stay_within_the_budget(self, monkeypatch):
-        """Workers finishing blocks at once while block 0 is late reserve before computing."""
+        """While two products are being computed, other workers defer their blocks."""
         import threading
+        import time
 
         from fse.models import _single_pass
 
@@ -491,30 +498,46 @@ class TestOrderedGram:
         vectors = self._vectors(200)
         gram = OrderedGram(vectors)
         assert gram.max_pending == 2
-        start = threading.Barrier(8)
-        # Block 0 is late, so every product of blocks 1 to 19 needs a reservation.
-        reserved_while_computing = []
+        release = threading.Event()
+        lock = threading.Lock()
+        live, most_live = [0], [0]
         original = utils.gram_block_product
 
-        def product(block):
-            reserved_while_computing.append(len(gram._reserved))
-            return original(block)
+        def held_product(block):
+            # Block 0 is late, so each product here needs a reservation; hold it open.
+            with lock:
+                live[0] += 1
+                most_live[0] = max(most_live[0], live[0])
+            try:
+                release.wait(timeout=5)
+                return original(block)
+            finally:
+                with lock:
+                    live[0] -= 1
 
-        monkeypatch.setattr(utils, "gram_block_product", product)
+        monkeypatch.setattr(utils, "gram_block_product", held_product)
 
         def report(blocks):
-            start.wait()
             for k in blocks:
                 gram.add_rows(10 * k, 10 * k + 10)
 
         threads = [threading.Thread(target=report, args=(range(1 + i, 20, 8),)) for i in range(8)]
         for t in threads:
             t.start()
+        # Wait until two products are held open; the other workers report meanwhile.
+        deadline = time.monotonic() + 5
+        while most_live[0] < 2 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        time.sleep(0.1)
+        assert most_live[0] == 2
+        assert len(gram._reserved) == 2
+        release.set()
         for t in threads:
-            t.join()
-        assert reserved_while_computing
-        assert max(reserved_while_computing) <= 2
+            t.join(timeout=5)
+            assert not t.is_alive()
+        assert most_live[0] == 2
         assert sum(p is not None for p in gram._pending.values()) <= 2
+        monkeypatch.setattr(utils, "gram_block_product", original)
         gram.add_rows(0, 10)
         assert np.array_equal(gram.result(), gram_matrix(vectors, np.float32))
 

@@ -34,7 +34,6 @@ See Also
 
 """
 
-import contextlib
 import logging
 import threading
 import warnings
@@ -1072,12 +1071,10 @@ class BaseSentence2VecModel(SaveLoad):
             )
         )
 
-        started: list[threading.Thread] = []
         try:
             for thread in threads:
                 thread.daemon = True  # make interrupting the process with ctrl+c easier
                 thread.start()
-                started.append(thread)
             jobs, eff_sentences, eff_words = self._log_train_progress(
                 progress_queue,
                 total_sentences=total_sentences,
@@ -1086,17 +1083,27 @@ class BaseSentence2VecModel(SaveLoad):
             )
         finally:
             stop.set()
-            if len(started) <= n_workers:
+            # A thread has an ident once it started, even if start() was interrupted after.
+            started = [thread for thread in threads if thread.ident is not None]
+            if threads[-1].ident is None:
                 # The producer never started, so it sends no end markers: send them for the
-                # workers that run. The queue holds at least n_workers items, and it is empty.
+                # workers that run. The queue holds n_workers items or more and is empty.
                 for _ in started:
-                    job_queue.put(None)
+                    job_queue.put_nowait(None)
             # If the main thread stopped consuming early, for example on KeyboardInterrupt,
             # workers may block on the full progress queue. Drain it until all threads end,
-            # so the caller only cleans up once no thread writes anymore.
+            # so the caller only cleans up once no thread writes anymore; a further
+            # interrupt meanwhile is raised after that.
+            interrupted: BaseException | None = None
             while any(thread.is_alive() for thread in started):
-                with contextlib.suppress(Empty):
+                try:
                     progress_queue.get(timeout=0.1)
+                except Empty:
+                    pass
+                except KeyboardInterrupt as err:
+                    interrupted = err
+            if interrupted is not None:
+                raise interrupted
 
         if errors:
             raise errors[0]

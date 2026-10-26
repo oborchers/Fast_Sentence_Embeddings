@@ -102,6 +102,8 @@ class OrderedGram:
                 product = None
             with self._lock:
                 self._pending[k] = product
+                # Only _pending holds it now, so the summed product is freed with it.
+                del product
         self._sum_in_order()
 
     def _sum_in_order(self):
@@ -125,6 +127,7 @@ class OrderedGram:
                 if held is None:
                     held = utils.gram_block_product(self._block(self._next))
                 utils.add_gram_block(self.gram, held)
+                del held
                 with self._lock:
                     self._next += 1
         except BaseException:
