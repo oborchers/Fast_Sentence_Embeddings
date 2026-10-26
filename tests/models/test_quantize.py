@@ -22,6 +22,9 @@ from fse.models.sentencevectors import SentenceVectors
 from fse.models.sif import SIF
 from fse.models.usif import uSIF
 
+# Every test also checks that no file is moved while a memmap still maps it (Windows).
+pytestmark = pytest.mark.usefixtures("windows_file_maps")
+
 DIM = 20
 QUANTIZED = ["float16", "int8"]
 
@@ -115,6 +118,20 @@ def _expected(cls, w2v, data, **kwargs):
 
 MODELS = [(Average, {}), (SIF, {"components": 2}), (uSIF, {"length": 11, "components": 2})]
 MODEL_IDS = ["Average", "SIF", "uSIF"]
+
+
+@pytest.mark.parametrize("dtype", ["float32", *QUANTIZED])
+@pytest.mark.parametrize("mapped", [False, True])
+def test_reads_are_copies(w2v, sentences, tmp_path, dtype, mapped):
+    """A read never aliases the stored vectors, also for float32 memmaps."""
+    path = {"sv_mapfile_path": str(tmp_path / "sv")} if mapped else {}
+    model = SIF(w2v, sv_dtype=dtype, **path)
+    model.train(IndexedList(sentences))
+    stored = np.array(model.sv.vectors)
+    for rows in (model.sv.get_vectors(), next(model.sv.iter_blocks())[1]):
+        assert not np.shares_memory(rows, model.sv.vectors)
+        rows += 1
+    assert np.array_equal(np.asarray(model.sv.vectors), stored)
 
 
 @pytest.mark.parametrize("dtype", QUANTIZED)

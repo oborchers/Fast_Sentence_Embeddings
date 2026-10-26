@@ -36,6 +36,7 @@ See Also
 
 import logging
 import threading
+import traceback
 import warnings
 from collections.abc import Iterable, Iterator
 from copy import copy
@@ -963,10 +964,9 @@ class BaseSentence2VecModel(SaveLoad):
                 f"storing {self.sv.dtype} sentence vectors through a float32 matrix of all new "
                 f"rows, because {reason}"
             )
-        saved = None
         learned = {k: self.__dict__[k] for k in _COMPONENT_STATE if k in self.__dict__}
         if quantized:
-            saved = self.sv._stage(statistics["max_index"])
+            self.sv._stage(statistics["max_index"])
         else:
             self.prep.prepare_vectors(
                 sv=self.sv,
@@ -980,16 +980,19 @@ class BaseSentence2VecModel(SaveLoad):
             eff_sentences, eff_words, overall_time = self._train_rows(
                 sentences, statistics, update, offset, prefill, queue_factor, report_delay
             )
-            if saved is not None:
-                self.sv._store_staged(saved, append=update)
-                saved = None
-        finally:
-            if saved is not None:
-                self.sv._unstage(saved)
+            if quantized:
+                self.sv._store_staged(append=update)
+        except BaseException as err:
+            if quantized:
+                # The finished frames of the failed call still reference the staging
+                # matrix; Windows cannot delete its file while it is mapped.
+                traceback.clear_frames(err.__traceback__)
+                self.sv._unstage()
                 # Components learned from rows that were not stored are dropped as well.
                 for key in _COMPONENT_STATE:
                     self.__dict__.pop(key, None)
                 self.__dict__.update(learned)
+            raise
 
         self._log_train_end(
             eff_sentences=eff_sentences,
@@ -1079,7 +1082,9 @@ class BaseSentence2VecModel(SaveLoad):
             overall_time += elapsed
             if plan == "none":
                 self._set_components(None)
-        except BaseException:
+        except BaseException as err:
+            # Finished frames of the failed pass may still reference the written arrays.
+            traceback.clear_frames(err.__traceback__)
             writer.abort()
             # Components learned in the first pass belong to rows that were not stored.
             for key in _COMPONENT_STATE:

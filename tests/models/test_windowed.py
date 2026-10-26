@@ -21,6 +21,9 @@ from fse.models.average import Average
 from fse.models.sif import SIF
 from fse.models.usif import uSIF
 
+# Every test also checks that no file is moved while a memmap still maps it (Windows).
+pytestmark = pytest.mark.usefixtures("windows_file_maps")
+
 DIM = 16
 MODELS = [(Average, {}), (SIF, {"components": 2}), (uSIF, {"length": 11, "components": 2})]
 MODEL_IDS = ["Average", "SIF", "uSIF"]

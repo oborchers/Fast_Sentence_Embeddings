@@ -4,6 +4,7 @@
 # Copyright (C) Oliver Borchers
 
 
+import gc
 import logging
 import os
 from collections.abc import Iterator
@@ -321,7 +322,7 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         self.mapfile_shape = self.vectors.shape
-        ignore = ["vectors_norm", "inv_norms"]
+        ignore = ["vectors_norm", "inv_norms", "_saved"]
         # don't bother storing the cached normalized vectors
         if self.mapfile_path is not None:
             ignore += ["vectors", "scales"]
@@ -557,17 +558,14 @@ class SentenceVectors(utils.SaveLoad):
         """
         if dtype == self.dtype:
             return
-        rows = len(self)
-        codes, scales, files = self._allocate(dtype, rows, suffix=".converting")
-        for begin, block in self.iter_blocks():
-            end = begin + len(block)
-            quantize_into(
-                block,
-                codes[begin:end],
-                None if scales is None else scales[begin:end],
-                first_row=begin,
-            )
-        self._replace_storage(dtype, codes, scales, files)
+        writer = _RowWriter(self, len(self), append=False, dtype=dtype, suffix=".converting")
+        try:
+            for begin, block in self.iter_blocks():
+                writer.store(begin, block)
+        except BaseException:
+            writer.abort()
+            raise
+        writer.commit()
 
     def _allocate(
         self, dtype: StorageDtype, rows: int, suffix: str = ""
@@ -592,50 +590,60 @@ class SentenceVectors(utils.SaveLoad):
             scales = np_memmap(str(files[1][0]), dtype=REAL, mode="w+", shape=(rows,))
         return codes, scales, files
 
-    def _replace_storage(
-        self,
-        dtype: StorageDtype,
-        codes: ndarray,
-        scales: ndarray | None,
-        files: list[tuple[Path, Path]],
-    ):
-        """Make codes and scales the stored vectors; written files replace the old ones."""
-        if files:
-            for array in (codes, scales):
-                if isinstance(array, np_memmap):
-                    array.flush()
-            # The old maps must be closed before their files are replaced.
-            self.vectors = self.scales = None  # type: ignore[assignment]
-            self.vectors_norm = None
-            del codes, scales
-            for written, final in files:
-                os.replace(written, final)
-            if not has_scales(dtype):
-                Path(f"{self.mapfile_path}.scales").unlink(missing_ok=True)
-            self.dtype = dtype
-            self.mapfile_shape = None
-            self.vectors = np_memmap(
-                f"{self.mapfile_path}.vectors", dtype=STORAGE_TYPES[dtype], mode="r+"
-            ).reshape(-1, self.vector_size)
-            self.scales = (
-                np_memmap(f"{self.mapfile_path}.scales", dtype=REAL, mode="r+")
-                if has_scales(dtype)
-                else None
-            )
-        else:
-            self.dtype = dtype
-            self.vectors, self.scales = codes, scales
+    def _install(self, dtype: StorageDtype, codes: ndarray, scales: ndarray | None):
+        """Make arrays in RAM the stored vectors."""
+        self.dtype = dtype
+        self.vectors, self.scales = codes, scales
         self.vectors_norm = None
         self.inv_norms = None
 
-    def _stage(self, rows: int) -> tuple[ndarray, ndarray | None]:
+    def _replace_files(self, dtype: StorageDtype, files: list[tuple[Path, Path]]):
+        """Make written files the mapfiles, replacing the old ones, and open them.
+
+        The caller has flushed and released the written arrays. Every map of the old
+        files is released first, because Windows refuses to replace a mapped file.
+        """
+        self.vectors = self.scales = None  # type: ignore[assignment]
+        self.vectors_norm = None
+        self.inv_norms = None
+        self.__dict__.pop("_saved", None)
+        _close_released_maps()
+        for written, final in files:
+            os.replace(written, final)
+        if not has_scales(dtype):
+            Path(f"{self.mapfile_path}.scales").unlink(missing_ok=True)
+        self.dtype = dtype
+        self.mapfile_shape = None
+        self._open_files()
+
+    def _open_files(self, rows: int | None = None):
+        """Open the mapfiles in the current format, with rows rows or as large as they are."""
+        shape = None if rows is None else (rows, self.vector_size)
+        self.vectors = np_memmap(
+            f"{self.mapfile_path}.vectors", dtype=STORAGE_TYPES[self.dtype], mode="r+", shape=shape
+        )
+        if rows is None:
+            self.vectors = self.vectors.reshape(-1, self.vector_size)
+        self.scales = (
+            np_memmap(
+                f"{self.mapfile_path}.scales",
+                dtype=REAL,
+                mode="r+",
+                shape=None if rows is None else (rows,),
+            )
+            if has_scales(self.dtype)
+            else None
+        )
+
+    def _stage(self, rows: int):
         """Replace the stored vectors by a float32 staging matrix for rows new rows.
 
         Training of float16 and int8 vectors writes into it, as into float32 vectors; then
         :meth:`_store_staged` stores its rows in the format, or :meth:`_unstage` drops
-        it. Returns the stored vectors and scales to pass to either.
+        it. The stored vectors wait in ``_saved``, which only exists meanwhile, so no other
+        reference keeps their maps open.
         """
-        saved = (self.vectors, self.scales)
+        self._saved = (self.vectors, self.scales)
         shape = (rows, self.vector_size)
         if self.mapfile_path is None:
             self.vectors = empty(shape, dtype=REAL)
@@ -644,15 +652,14 @@ class SentenceVectors(utils.SaveLoad):
         self.scales = None
         self.vectors_norm = None
         self.inv_norms = None
-        return saved
 
     def _staging_path(self) -> Path:
         return Path(f"{self.mapfile_path}.staging.vectors")
 
-    def _store_staged(self, saved: tuple[ndarray, ndarray | None], append: bool):
+    def _store_staged(self, append: bool):
         """Store the staged float32 rows in the format, after or instead of the saved ones."""
         staging = self.vectors
-        self.vectors, self.scales = saved
+        self.vectors, self.scales = self.__dict__.pop("_saved")
         try:
             writer = self._begin_writing(len(staging), append)
             try:
@@ -676,24 +683,29 @@ class SentenceVectors(utils.SaveLoad):
         """
         return _RowWriter(self, rows, append)
 
-    def _unstage(self, saved: tuple[ndarray, ndarray | None]):
+    def _unstage(self):
         """Drop the staging matrix and restore the saved vectors, after a failure."""
-        self.vectors, self.scales = saved
+        if "_saved" in self.__dict__:
+            self.vectors, self.scales = self.__dict__.pop("_saved")
         self.vectors_norm = None
         self.inv_norms = None
         self._drop_staging_file()
 
-    def _truncate_files(self, rows: int):
-        """Cut the mapfiles back to rows rows."""
+    def _shrink_files(self, rows: int):
+        """Cut the mapfiles back to rows rows and reopen them; maps are released first."""
+        self.vectors = self.scales = None  # type: ignore[assignment]
+        _close_released_maps()
         os.truncate(
             Path(f"{self.mapfile_path}.vectors"),
             rows * self.vector_size * dtype(STORAGE_TYPES[self.dtype]).itemsize,
         )
         if has_scales(self.dtype):
             os.truncate(Path(f"{self.mapfile_path}.scales"), rows * dtype(REAL).itemsize)
+        self._open_files(rows)
 
     def _drop_staging_file(self):
         if self.mapfile_path is not None:
+            _close_released_maps()
             self._staging_path().unlink(missing_ok=True)
 
     def similarity(self, d1: int, d2: int) -> float:
@@ -1077,82 +1089,90 @@ def _open_mapfile(path: Path, kind: Any, shape: tuple[int, ...] | None) -> np_me
 
 
 class _RowWriter:
-    """Stores float32 rows of a training into float16 or int8 vectors; see _begin_writing."""
+    """Stores float32 rows of a training (or a conversion) in a format; see _begin_writing."""
 
-    def __init__(self, sv: SentenceVectors, rows: int, append: bool):
+    def __init__(
+        self,
+        sv: SentenceVectors,
+        rows: int,
+        append: bool,
+        dtype: StorageDtype | None = None,
+        suffix: str = ".writing",
+    ):
         self.sv = sv
         self.rows = rows
+        self.dtype: StorageDtype = sv.dtype if dtype is None else dtype
         self.before = len(sv.vectors) if append else 0
         self.files: list[tuple[Path, Path]] = []
+        self.codes: ndarray | None
+        self.scales: ndarray | None
         if self.before and sv.mapfile_path is not None:
             # A memmap grows in place, like float32 vectors do; abort cuts it back.
             total = self.before + rows
             self.codes = np_memmap(
                 f"{sv.mapfile_path}.vectors",
-                dtype=STORAGE_TYPES[sv.dtype],
+                dtype=STORAGE_TYPES[self.dtype],
                 mode="r+",
                 shape=(total, sv.vector_size),
-            )[self.before :]
+            )
             self.scales = (
-                np_memmap(f"{sv.mapfile_path}.scales", dtype=REAL, mode="r+", shape=(total,))[
-                    self.before :
-                ]
-                if has_scales(sv.dtype)
+                np_memmap(f"{sv.mapfile_path}.scales", dtype=REAL, mode="r+", shape=(total,))
+                if has_scales(self.dtype)
                 else None
             )
+            self.offset = self.before
             self.mode = "grow"
-        elif self.before:
-            self.codes, self.scales, _ = sv._allocate(sv.dtype, rows)
-            self.mode = "concatenate"
         else:
-            self.codes, self.scales, self.files = sv._allocate(sv.dtype, rows, suffix=".writing")
-            self.mode = "replace"
+            self.codes, self.scales, self.files = sv._allocate(self.dtype, rows, suffix=suffix)
+            self.offset = 0
+            self.mode = "concatenate" if self.before else "replace"
 
     def store(self, first: int, rows: ndarray):
         """Store float32 rows as rows first to first + len(rows) of this training."""
-        end = first + len(rows)
+        begin, end = self.offset + first, self.offset + first + len(rows)
         quantize_into(
             rows,
-            self.codes[first:end],
-            None if self.scales is None else self.scales[first:end],
+            cast(ndarray, self.codes)[begin:end],
+            None if self.scales is None else self.scales[begin:end],
             first_row=self.before + first,
         )
+
+    def _release(self):
+        """Flush and drop the written arrays; their maps must close before files move."""
+        for written in (self.codes, self.scales):
+            if isinstance(written, np_memmap):
+                written.flush()
+        self.codes = self.scales = None
 
     def commit(self):
         sv = self.sv
         if self.mode == "grow":
-            for array in (self.codes, self.scales):
-                if isinstance(array, np_memmap):
-                    array.flush()
-            total = self.before + self.rows
-            sv.vectors = np_memmap(
-                f"{sv.mapfile_path}.vectors",
-                dtype=STORAGE_TYPES[sv.dtype],
-                mode="r+",
-                shape=(total, sv.vector_size),
-            )
-            sv.scales = (
-                np_memmap(f"{sv.mapfile_path}.scales", dtype=REAL, mode="r+", shape=(total,))
-                if has_scales(sv.dtype)
-                else None
-            )
+            self._release()
+            sv._open_files(self.before + self.rows)
         elif self.mode == "concatenate":
-            sv.vectors = vstack([sv.vectors, self.codes])
-            sv.scales = None if sv.scales is None else concatenate([sv.scales, self.scales])
+            codes, scales = self.codes, self.scales
+            self._release()
+            sv.vectors = vstack([sv.vectors, codes])
+            sv.scales = None if sv.scales is None else concatenate([sv.scales, scales])
+        elif self.files:
+            self._release()
+            sv._replace_files(self.dtype, self.files)
         else:
-            sv._replace_storage(sv.dtype, self.codes, self.scales, self.files)
-        self.codes = self.scales = None  # type: ignore[assignment]
+            codes, scales = self.codes, self.scales
+            self._release()
+            sv._install(self.dtype, cast(ndarray, codes), scales)
         sv.vectors_norm = None
         sv.inv_norms = None
 
     def abort(self):
-        self.codes = self.scales = None  # type: ignore[assignment]
+        self.codes = self.scales = None
         if self.mode == "grow":
             # Cut the files back, so they still match the existing vectors.
-            self.sv._truncate_files(self.before)
-        elif self.mode == "replace":
-            for written, _ in self.files:
-                written.unlink(missing_ok=True)
+            self.sv._shrink_files(self.before)
+        if self.files:
+            _close_released_maps()
+        for written, _ in self.files:
+            written.unlink(missing_ok=True)
 
 
 def _real_array(value: Any, name: str) -> ndarray:
@@ -1163,3 +1183,12 @@ def _real_array(value: Any, name: str) -> ndarray:
     if not isfinite(array).all():
         raise ValueError(f"{name} must be finite")
     return array
+
+
+def _close_released_maps():
+    """Close maps that are only waiting for the garbage collector.
+
+    A memmap in a reference cycle keeps its file mapped until the cycle is collected, and
+    Windows refuses to replace, cut or delete a mapped file.
+    """
+    gc.collect()

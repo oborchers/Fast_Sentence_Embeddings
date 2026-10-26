@@ -70,12 +70,14 @@ def quantize_into(rows: ndarray, codes: ndarray, scales: ndarray | None, first_r
 
 
 def dequantize(codes: ndarray, scales: ndarray | None) -> ndarray:
-    """The float32 rows stored in ``codes`` (and ``scales``), as a new array."""
-    rows = numpy.asarray(codes, dtype=numpy.float32)
+    """The float32 rows stored in ``codes`` (and ``scales``), as a new array.
+
+    Always a copy, also for float32 codes: a view would keep a memmap open and let
+    writes reach the stored vectors.
+    """
+    rows = numpy.array(codes, dtype=numpy.float32, copy=True)
     if scales is not None:
-        rows = rows * numpy.asarray(scales, dtype=numpy.float32)[:, None]
-    elif rows is codes:
-        rows = rows.copy()
+        rows *= numpy.asarray(scales, dtype=numpy.float32)[:, None]
     return rows
 
 
