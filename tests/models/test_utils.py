@@ -128,7 +128,8 @@ def test_compute_components_over_blocks_equal_one_block(monkeypatch, tmp_path):
 
     rows, dim = 1_000, 8
     vectors = np.memmap(tmp_path / "sv", dtype=np.float32, mode="w+", shape=(rows, dim))
-    vectors[:] = np.random.default_rng(0).random((rows, dim), dtype=np.float32)
+    # Well separated singular values, so float32 rounding cannot rotate the vectors.
+    vectors[:], _ = _with_singular_values([9.0, 7.0, 5.0, 3.0, 1.0], rows, dim, seed=5)
     whole = compute_principal_components(np.array(vectors), components=3)
     monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 7)
     blocked = compute_principal_components(vectors, components=3)
