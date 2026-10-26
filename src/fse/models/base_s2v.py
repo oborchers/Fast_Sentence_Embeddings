@@ -175,9 +175,7 @@ class BaseSentence2VecModel(SaveLoad):
         self._check_and_include_model(model)
 
         if self.wv_mapfile_path is not None or lang_freq is not None:
-            # Both replace attributes of the word vectors. A shallow copy keeps the passed
-            # model as it was, while the vectors themselves are shared, not copied.
-            self.wv = copy(self.wv)
+            self.wv = _own_word_vectors(self.wv)
 
         if self.wv_mapfile_path is not None:
             self._map_all_vectors_to_disk(self.wv_mapfile_path)
@@ -288,8 +286,8 @@ class BaseSentence2VecModel(SaveLoad):
         counts = zeros(len(self.wv.index_to_key), dtype=int64)
         for i, word in enumerate(self.wv.index_to_key):
             counts[i] = int(freq_dict[word] * domain) if word in freq_dict else int(1e-8 * domain)
-        # A new dict and array: the passed model may share expandos with this copy.
-        self.wv.expandos = {**self.wv.expandos, "count": counts}
+        # A new array: the passed model may share the previous one with this copy.
+        self.wv.expandos["count"] = counts
 
     def _check_input_data_sanity(self, data_iterable: Any):
         """Check if the input data complies with the required formats
@@ -1348,6 +1346,24 @@ class _OffsetIndices:
 
 # Rows per block when initializing sentence vectors, so a memmap is written in bounded chunks.
 _FILL_BLOCK_ROWS = 100_000
+
+
+def _own_word_vectors(wv: KeyedVectors) -> KeyedVectors:
+    """A copy of the word vectors whose attributes can be replaced without touching wv.
+
+    lang_freq and wv_mapfile_path replace attributes of the word vectors. The copy shares
+    the vector arrays, which are not copied, but has its own vocabulary containers and
+    per-word attributes: gensim's add_vectors on wv replaces wv's vectors and extends
+    those containers in place, which would otherwise give the copy word indices beyond
+    its vectors. Its norm cache is dropped and recomputed from the shared vectors when
+    gensim needs it. Changing the shared vectors in place still affects both.
+    """
+    own = copy(wv)
+    own.key_to_index = dict(wv.key_to_index)
+    own.index_to_key = list(wv.index_to_key)
+    own.expandos = dict(wv.expandos)
+    own.norms = None
+    return own
 
 
 def _check_mapfile_size(path: Path, shape: tuple[int, ...]):

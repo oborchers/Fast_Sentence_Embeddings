@@ -5,6 +5,7 @@
 
 """Automated tests for checking the base_s2v class."""
 
+import copy
 import threading
 from pathlib import Path
 
@@ -141,6 +142,40 @@ class TestBaseSentence2VecModel:
         assert not np.array_equal(se.wv.expandos["count"], counts)
         # A second model from the same w2v sees the original counts.
         assert np.array_equal(BaseSentence2VecModel(w2v).wv.expandos["count"], counts)
+
+    @pytest.mark.parametrize("option", ["lang_freq", "wv_mapfile_path"])
+    def test_vocabulary_added_to_the_passed_model_later(self, w2v, tmp_path, option):
+        """add_vectors on the passed model must not give the copy indices beyond its vectors."""
+        from fse.models.average import Average
+
+        kwargs = (
+            {"lang_freq": "en"}
+            if option == "lang_freq"
+            else {"wv_mapfile_path": str(tmp_path / "v")}
+        )
+        model = Average(w2v, **kwargs)
+        words = len(model.wv.key_to_index)
+        w2v.wv.add_vectors(["fse_new_word"], np.ones((1, DIM), dtype=np.float32))
+        assert len(model.wv.key_to_index) == len(model.wv.index_to_key) == words
+        assert "fse_new_word" not in model.wv
+        model.train([(["fse_new_word", "the"], 0)])
+        # Rows start at EPS, so compare absolutely.
+        np.testing.assert_allclose(model.sv[0], model.wv["the"], atol=1e-6)
+
+    def test_copy_drops_the_norm_cache(self, w2v):
+        w2v.wv.fill_norms()
+        se = BaseSentence2VecModel(w2v, lang_freq="en")
+        assert se.wv.norms is None
+        assert w2v.wv.norms is not None
+
+    def test_kernel_rejects_a_vocabulary_larger_than_the_vectors(self, w2v):
+        from fse.models.average import Average
+
+        model = Average(w2v)
+        model.wv = copy.copy(model.wv)
+        model.wv.key_to_index = {**model.wv.key_to_index, "fse_extra": len(model.wv.vectors)}
+        with pytest.raises(ValueError, match=r"the vocabulary has .* words, but there are only"):
+            model.train([(["the"], 0)])
 
     def test_without_options_the_passed_vectors_are_used(self, w2v):
         assert BaseSentence2VecModel(w2v).wv is w2v.wv

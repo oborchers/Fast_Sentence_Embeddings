@@ -339,7 +339,8 @@ class TestMinSimilarity:
 def _reference_rows(vectors, query, count):
     """All dot products at once, sorted by similarity and then by row."""
     sims = np.dot(vectors, query)
-    keys = np.where(np.isnan(sims), np.inf, -sims)
+    # NaN sorts after every number, also after -sims = inf.
+    keys = -sims
     order = np.lexsort((np.arange(len(sims)), keys))[:count]
     return order, sims[order]
 
@@ -356,6 +357,9 @@ class TestBlockwiseSearch:
         # The best rows: exact ties across block boundaries.
         vectors[[3, 7, 50, 51, 120, 199]] = 10
         vectors[[10, 90]] = np.nan
+        # A similarity of -inf, which still ranks before NaN.
+        vectors[150] = 0
+        vectors[150, 0] = -np.inf
         return vectors
 
     @pytest.mark.parametrize("block", [1, 7, 64, 1000])
@@ -387,6 +391,34 @@ class TestBlockwiseSearch:
         assert max(sizes) == min(largest, len(vectors))
         assert sum(sizes) == len(vectors)
         assert len(rows) == min(count, len(vectors))
+
+    def test_memory_does_not_grow_with_the_rows(self, monkeypatch):
+        import tracemalloc
+
+        from fse.models import sentencevectors
+
+        monkeypatch.setattr(sentencevectors, "REMOVAL_BLOCK_ROWS", 1000)
+        rng = np.random.default_rng(2)
+        query = rng.standard_normal(16).astype(np.float32)
+
+        def peak(rows):
+            vectors = rng.standard_normal((rows, 16)).astype(np.float32)
+            started = not tracemalloc.is_tracing()
+            if started:
+                tracemalloc.start()
+            try:
+                before, _ = tracemalloc.get_traced_memory()
+                tracemalloc.reset_peak()
+                sentencevectors._most_similar_rows(vectors, query, 10)
+                return tracemalloc.get_traced_memory()[1] - before
+            finally:
+                if started:
+                    tracemalloc.stop()
+
+        small, large = peak(10_000), peak(200_000)
+        # A similarity per row would take 800 KB for the larger matrix.
+        assert large < 2 * small + 4096
+        assert large < 200_000
 
     def test_ties_go_to_the_lower_index(self, vectors):
         from fse.models import sentencevectors

@@ -11,13 +11,13 @@ the positions of their sentences, a set of Python ints costs 60 to 70 bytes per 
 most ``max(BITMAP_MIN_BYTES, 1 byte per sentence)`` large. An index beyond the bitmap
 waits as int64 in ``pending`` until the number of sentences allows a bitmap that covers
 it. Valid indices are below the number of sentences, so for a permutation of n
-sentences at most about n / 8 indices wait (n bytes), and the bitmap ends with n / 8 to
-n / 4 bytes, as it grows by doubling. Folding the waiting indices into the bitmap takes
-a few temporary arrays of their size. Indices beyond any affordable bitmap, which the
+sentences the bitmap ends with n / 8 to n / 4 bytes, as it grows by doubling, and up to
+about n / 8 indices (n bytes) wait on the way. Folding the waiting indices into the
+bitmap takes a few temporary arrays of their size. Indices beyond any affordable bitmap, which the
 scan rejects afterwards, cost 8 bytes each and are sorted once at the end.
 
 ``scan_indexed_sentences`` in ``average_inner.pyx`` has a compiled twin with the same
-rules that calls ``fold`` and ``sorted_unique`` below; tests compare both.
+rules that calls ``fold_size``, ``fold`` and ``sorted_unique`` below; tests compare both.
 """
 
 from array import array
@@ -53,13 +53,19 @@ def new_bitmap(seen: int) -> bytearray:
     return bits
 
 
-def fold(bits: bytearray, pending: array, pending_max: int, sentences: int) -> bool:
-    """Grow the bitmap to cover the pending indices and mark them; False on a repeat.
+def fold_size(bits_bytes: int, pending_max: int, sentences: int, final: bool) -> int:
+    """The bitmap size in bytes to fold the pending indices into, or 0 to keep waiting.
 
-    The caller has checked that ``pending_max // 8 < bitmap_limit(sentences)``. The bitmap
-    at least doubles, up to the limit, so growing it costs amortized constant time.
+    During the scan the bitmap at least doubles, so it grows O(log n) times; it waits
+    until the number of sentences allows that. At the end it grows to what is needed.
     """
-    size = max(pending_max // 8 + 1, min(2 * len(bits), bitmap_limit(sentences)))
+    needed = pending_max // 8 + 1
+    size = needed if final else max(needed, 2 * bits_bytes)
+    return size if size <= bitmap_limit(sentences) else 0
+
+
+def fold(bits: bytearray, pending: array, size: int) -> bool:
+    """Grow the bitmap to ``size`` bytes and mark the pending indices; False on a repeat."""
     bits.extend(bytes(size - len(bits)))
     values = numpy.frombuffer(pending, dtype=numpy.int64)
     view = numpy.frombuffer(bits, dtype=numpy.uint8)
@@ -109,17 +115,18 @@ class IndexTracker:
             return True
         self.pending.append(index)
         self.pending_max = max(self.pending_max, index)
-        if self.pending_max // 8 < bitmap_limit(sentences):
-            ok = fold(self.bits, self.pending, self.pending_max, sentences)
+        size = fold_size(len(self.bits), self.pending_max, sentences, final=False)
+        if size:
             self.pending_max = -1
-            return ok
+            return fold(self.bits, self.pending, size)
         return True
 
     def unique(self, sentences: int) -> bool:
         """Whether no index occurred twice; call once after the last ``add``."""
         if not self.pending:
             return True
-        if self.pending_max // 8 < bitmap_limit(sentences):
-            return fold(self.bits, self.pending, self.pending_max, sentences)
+        size = fold_size(len(self.bits), self.pending_max, sentences, final=True)
+        if size:
+            return fold(self.bits, self.pending, size)
         # The pending indices all lie beyond the bitmap, so they can only repeat each other.
         return sorted_unique(self.pending)

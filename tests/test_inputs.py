@@ -256,6 +256,13 @@ class TestIndexedLineDocument:
             expected = [line.decode().rstrip() for line in f]
         assert [doc[i] for i in range(len(doc.line_offset))] == expected
 
+    def test_getitem_takes_scalar_integers_only(self, doc):
+        assert doc[np.int64(1)] == doc[1]
+        with pytest.raises(TypeError):
+            doc[(1,)]
+        with pytest.raises(TypeError):
+            doc[np.array([1])]
+
     def test_offsets_of_a_compressed_file(self, tmp_path, monkeypatch):
         import gzip
 

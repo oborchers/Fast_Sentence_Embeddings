@@ -9,6 +9,7 @@ import random
 import re
 import tracemalloc
 
+import numpy as np
 import pytest
 
 from fse.models import _index_tracker, base_s2v
@@ -137,3 +138,56 @@ def test_memory_of_a_permutation_is_bounded(monkeypatch):
     # About one byte per sentence waits on the way; folding it takes a few temporaries of
     # that size, and the final bitmap has n / 8 bytes.
     assert peak < 6 * n
+
+
+class _LazyPermutation:
+    """Yields its tuples without keeping them, so only the scan's memory is measured."""
+
+    def __init__(self, n):
+        self.order = np.random.default_rng(0).permutation(n)
+
+    def __iter__(self):
+        words = ["a"]
+        for index in self.order:
+            yield (words, int(index))
+
+
+def test_memory_of_the_compiled_scan_is_bounded(monkeypatch):
+    n = 10**6
+    data = _LazyPermutation(n)
+    monkeypatch.setattr(_index_tracker, "BITMAP_MIN_BYTES", 1024)
+    started = not tracemalloc.is_tracing()
+    if started:
+        tracemalloc.start()
+    try:
+        before, _ = tracemalloc.get_traced_memory()
+        tracemalloc.reset_peak()
+        assert scan_indexed_sentences(data, 1e9, lambda *args: None)[4]
+        peak = tracemalloc.get_traced_memory()[1] - before
+    finally:
+        if started:
+            tracemalloc.stop()
+    # A set of 10^6 ints would take about 60 MB.
+    assert peak < 6 * n
+
+
+@pytest.mark.parametrize("compiled", [True, False])
+def test_the_bitmap_grows_by_doubling(monkeypatch, compiled):
+    """Indices just beyond the bitmap must not fold one byte at a time."""
+    n = 2**14
+    # All multiples of 8 first, then the rest: a valid permutation that keeps reaching
+    # just beyond the bitmap while the number of sentences limits its size.
+    indices = list(range(0, n, 8)) + [i for i in range(n) if i % 8]
+    folds = []
+    original = _index_tracker.fold
+
+    def counting(*args):
+        folds.append(args[-1])
+        return original(*args)
+
+    monkeypatch.setattr(_index_tracker, "BITMAP_MIN_BYTES", 16)
+    monkeypatch.setattr(_index_tracker, "fold", counting)
+    result = _compiled(indices) if compiled else _tracked(indices)
+    assert bool(result)
+    assert folds
+    assert len(folds) <= 2 * (n // 8).bit_length()

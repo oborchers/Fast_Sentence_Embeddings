@@ -644,6 +644,7 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
     cdef object pending = None
     cdef long long pending_max = -1
     cdef long long idx
+    cdef long long fold_bytes
     cdef Py_ssize_t min_bytes = 0
     cdef object max_supported = _index_tracker.MAX_INDEX
 
@@ -702,8 +703,10 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
                 pending.append(idx)
                 if idx > pending_max:
                     pending_max = idx
-                if pending_max // 8 < max(min_bytes, i + 1):
-                    if not _index_tracker.fold(bits, pending, pending_max, i + 1):
+                # fold_size(final=False), in C: fold once the bitmap may double.
+                fold_bytes = max(pending_max // 8 + 1, 2 * bit_bytes)
+                if fold_bytes <= max(min_bytes, i + 1):
+                    if not _index_tracker.fold(bits, pending, fold_bytes):
                         unique_indices = False
                         bits, bit_data, pending = None, NULL, None
                     else:
@@ -715,8 +718,9 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
         i += 1
 
     if bits is not None and len(pending):
-        if pending_max // 8 < max(min_bytes, i):
-            unique_indices = _index_tracker.fold(bits, pending, pending_max, i)
+        fold_bytes = _index_tracker.fold_size(bit_bytes, pending_max, i, True)
+        if fold_bytes:
+            unique_indices = _index_tracker.fold(bits, pending, fold_bytes)
         else:
             unique_indices = _index_tracker.sorted_unique(pending)
     return i, total_words, empty_sentences, max_index, unique_indices, identity
@@ -1282,6 +1286,12 @@ def _check_inputs(model, target, memory=None):
         _check_array(word_vectors, "wv.vectors", np.float32)
     if word_vectors.ndim != 2 or word_vectors.shape[1] != size:
         raise ValueError(f"word vectors must have shape (n, {size}), got {word_vectors.shape}")
+    # The encoder takes word indices from key_to_index and the kernel reads their rows.
+    if len(model.wv.key_to_index) > word_vectors.shape[0]:
+        raise ValueError(
+            f"the vocabulary has {len(model.wv.key_to_index)} words, but there are only "
+            f"{word_vectors.shape[0]} word vectors"
+        )
     if model.word_weights.shape != (word_vectors.shape[0],):
         raise ValueError(
             f"word_weights must have one weight per word vector ({word_vectors.shape[0]}), "

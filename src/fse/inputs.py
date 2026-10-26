@@ -5,6 +5,7 @@
 
 import builtins
 import mmap
+import operator
 import os
 from collections.abc import Callable, Iterator, MutableSequence
 from concurrent.futures import ThreadPoolExecutor
@@ -459,7 +460,8 @@ class IndexedLineDocument:
             raise RuntimeError("To index the lines, you must contruct with get_able=True")
 
         with open(self.path, "rb") as f:
-            f.seek(int(self.line_offset[i]))
+            # A scalar index only, as for the list the offsets used to be.
+            f.seek(int(self.line_offset[operator.index(i)]))
             output = f.readline()
             f.seek(0)
             return any2unicode(output).rstrip()
