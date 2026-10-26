@@ -47,6 +47,7 @@ class SIF(Average):
         workers: PositiveInt = 1,
         lang_freq: str | None = None,
         sv_dtype: StorageDtype = "float32",
+        wv_dtype: StorageDtype = "float32",
     ):
         """Smooth-inverse frequency (SIF) weighted sentence embeddings model. Performs a weighted averaging operation over all
         words in a sentences. After training, the model removes a number of singular vectors.
@@ -83,6 +84,10 @@ class SIF(Average):
         sv_dtype : {"float32", "float16", "int8"}, optional
             Storage format of the sentence vectors: float16 halves and int8 quarters their
             memory. They are computed in float32 and every read returns float32.
+        wv_dtype : {"float32", "float16", "int8"}, optional
+            Format in which the model keeps the word vectors it averages: float16 halves
+            their memory and int8 quarters it, and both make averaging faster. The word
+            vectors passed in are not changed.
 
         """
 
@@ -106,6 +111,7 @@ class SIF(Average):
             workers=workers,
             lang_freq=lang_freq,
             sv_dtype=sv_dtype,
+            wv_dtype=wv_dtype,
         )
 
     def _check_pre_training_sanity(

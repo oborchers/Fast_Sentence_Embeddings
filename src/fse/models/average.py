@@ -52,10 +52,19 @@ from numpy import (
 )
 
 from fse._validation import PathLike, PositiveInt, WordVectorModel, validate_arguments
-from fse.models._quantize import StorageDtype
+from fse.models._quantize import StorageDtype, dequantize
 from fse.models.base_s2v import BaseSentence2VecModel, _OffsetIndices
 
 logger = logging.getLogger(__name__)
+
+
+def _rows(vectors: ndarray | None, scales: ndarray | None, index: list[int]) -> Any:
+    """The float32 rows at index of stored vectors (float32, float16 or int8 codes)."""
+    if vectors is None:
+        raise RuntimeError("the model has no stored vectors for these rows")
+    if vectors.dtype == REAL:
+        return vectors[index]
+    return dequantize(vectors[index], None if scales is None else scales[index])
 
 
 def train_average_np(
@@ -94,7 +103,9 @@ def train_average_np(
     """
     size = model.wv.vector_size
 
-    w_vectors = model.wv.vectors
+    # The rows the kernel reads: float32 vectors, or the float16 or int8 codes of a model
+    # with wv_dtype, restored to float32 row by row.
+    w_vectors, w_scales, ngram_vectors, ngram_scales = model._word_arrays()
     w_weights = model.word_weights
 
     s_vectors = target
@@ -110,8 +121,6 @@ def train_average_np(
         # wv.vectors_vocab + wv.vectors_ngrams, which will all point into very
         # similar directions.
         max_ngrams = model.batch_ngrams
-        w_vectors = model.wv.vectors_vocab
-        ngram_vectors = model.wv.vectors_ngrams
         min_n = model.wv.min_n
         max_n = model.wv.max_n
         bucket = model.wv.bucket
@@ -136,7 +145,7 @@ def train_average_np(
             eff_words += len(word_indices)
 
             mem += np_sum(
-                np_mult(w_vectors[word_indices], w_weights[word_indices][:, None]),
+                np_mult(_rows(w_vectors, w_scales, word_indices), w_weights[word_indices][:, None]),
                 axis=0,
             )
             mem *= 1 / len(word_indices)
@@ -157,7 +166,7 @@ def train_average_np(
             for word in sent:
                 if word in model.wv.key_to_index:
                     word_index = model.wv.key_to_index[word]
-                    mem += w_vectors[word_index] * w_weights[word_index]
+                    mem += _rows(w_vectors, w_scales, [word_index])[0] * w_weights[word_index]
                 else:
                     # A model without ngram buckets has no vector for an unknown word, as
                     # in the Cython routine.
@@ -167,7 +176,8 @@ def train_average_np(
                     if len(ngram_hashes) == 0:
                         continue
                     mem += oov_weight * (
-                        np_sum(ngram_vectors[ngram_hashes], axis=0) / len(ngram_hashes)
+                        np_sum(_rows(ngram_vectors, ngram_scales, ngram_hashes), axis=0)
+                        / len(ngram_hashes)
                     )
                 # Implicit addition of zero if oov does not contain any ngrams
             s_vectors[sent_adr] += mem / len(sent)
@@ -260,6 +270,7 @@ class Average(BaseSentence2VecModel):
         workers: PositiveInt = 1,
         lang_freq: str | None = None,
         sv_dtype: StorageDtype = "float32",
+        wv_dtype: StorageDtype = "float32",
     ):
         """Average (unweighted) sentence embeddings model. Performs a simple averaging operation over all
         words in a sentences without further transformation.
@@ -289,6 +300,10 @@ class Average(BaseSentence2VecModel):
         sv_dtype : {"float32", "float16", "int8"}, optional
             Storage format of the sentence vectors: float16 halves and int8 quarters their
             memory. They are computed in float32 and every read returns float32.
+        wv_dtype : {"float32", "float16", "int8"}, optional
+            Format in which the model keeps the word vectors it averages: float16 halves
+            their memory and int8 quarters it, and both make averaging faster. The word
+            vectors passed in are not changed.
 
         """
 
@@ -299,6 +314,7 @@ class Average(BaseSentence2VecModel):
             workers=workers,
             lang_freq=lang_freq,
             sv_dtype=sv_dtype,
+            wv_dtype=wv_dtype,
             batch_words=MAX_WORDS_IN_BATCH,
             batch_ngrams=MAX_NGRAMS_IN_BATCH,
             fast_version=FAST_VERSION,
