@@ -356,7 +356,9 @@ class Average(BaseSentence2VecModel):
         else:
             counts = run_job(context, job, memory[0])
         if context.gram is not None:
-            # Prefilled rows are contiguous; they are final once their job is done.
+            # With identity indices the rows of a job are contiguous and final now.
+            if not getattr(job, "contiguous", True):
+                raise RuntimeError("the rows of a job are not contiguous; the input changed")
             context.gram.add_rows(job.first_row, job.first_row + job.n_items)
         return counts
 

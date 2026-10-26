@@ -877,9 +877,11 @@ class BaseSentence2VecModel(SaveLoad):
 
         self.estimate_memory(**statistics)
         offset = len(self.sv.vectors) if update else 0
-        # With index i for the i-th sentence, every job covers its own contiguous rows: the
-        # kernel then sets them to EPS itself, so the rows are not written in advance.
-        prefill = bool(statistics["identity_indices"]) and self._uses_kernel()
+        # With index i for the i-th sentence, every job covers its own contiguous rows, so
+        # rows are final once their job is done, and the kernel sets them to EPS itself
+        # instead of a separate pass over all rows.
+        single_pass = bool(statistics["identity_indices"]) and self._uses_kernel()
+        prefill = single_pass
         self.prep.prepare_vectors(
             sv=self.sv, total_sentences=statistics["max_index"], update=update, fill=not prefill
         )
@@ -907,13 +909,14 @@ class BaseSentence2VecModel(SaveLoad):
         gram = None
         try:
             context = self._kernel_context(self.sv.vectors)
-            if prefill and context is None:
-                # No kernel after all: write the EPS rows in advance, as without prefill.
-                _fill_eps(self.sv.vectors, offset, len(self.sv.vectors))
-                prefill = False
-            if prefill and context is not None:
-                context.prefill_rows = True
-                if self._fuses_gram(update):
+            if context is None:
+                if prefill:
+                    # No kernel after all: write the EPS rows in advance, as without prefill.
+                    _fill_eps(self.sv.vectors, offset, len(self.sv.vectors))
+                single_pass = prefill = False
+            else:
+                context.prefill_rows = prefill
+                if single_pass and self._fuses_gram(update):
                     # The Gram matrix of the new rows, summed while they are still cached.
                     gram = context.gram = OrderedGram(self.sv.vectors)
             items, eff_sentences, eff_words = self._train_manager(
@@ -932,7 +935,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         overall_time = time() - start_time
 
-        if prefill and items != statistics["max_index"]:
+        if single_pass and items != statistics["max_index"]:
             # Rows of jobs that never ran would hold uninitialized memory.
             raise RuntimeError(
                 f"training wrote {items} of {statistics['max_index']} rows; the input "
