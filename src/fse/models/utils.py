@@ -6,7 +6,6 @@
 import ctypes
 import logging
 import sys
-import threading
 import warnings
 from sys import platform
 from time import time
@@ -147,6 +146,12 @@ def gram_block_product(block: ndarray) -> ndarray:
         return block.T @ block
 
 
+def add_gram_block(gram: ndarray, product: ndarray):
+    """Add a block product into the float64 sum; inf - inf of an overflow does not warn."""
+    with errstate(over="ignore", invalid="ignore"):
+        gram += product
+
+
 def gram_matrix(vectors: ndarray, block_dtype: Any) -> ndarray:
     """``X^T X`` summed in float64 over blocks of ``REMOVAL_BLOCK_ROWS`` rows, in order."""
     gram = zeros((vectors.shape[1], vectors.shape[1]), dtype=float64)
@@ -154,7 +159,7 @@ def gram_matrix(vectors: ndarray, block_dtype: Any) -> ndarray:
         block = asarray(vectors[begin : begin + REMOVAL_BLOCK_ROWS], dtype=block_dtype)
         if not isfinite(block).all():
             raise ValueError(f"the vectors contain NaN or infinite values in rows from {begin}")
-        gram += gram_block_product(block)
+        add_gram_block(gram, gram_block_product(block))
         del block  # release the block before the next one is converted
     return gram
 
@@ -190,75 +195,6 @@ def components_from_gram(
     # Rounding can make eigenvalues of a rank-deficient matrix slightly negative.
     singular_values = sqrt(maximum(eigenvalues, 0.0))
     return singular_values.astype(REAL), basis.astype(REAL)
-
-
-class OrderedGram:
-    """The Gram matrix of rows written during training, identical to gram_matrix.
-
-    Workers report finished row ranges with add_rows. Once all rows of a block of
-    ``REMOVAL_BLOCK_ROWS`` rows are written, the worker that finished it computes the block
-    product while the rows are still cached, and the products are summed in block order.
-    The result is therefore bit-identical to gram_matrix on the finished vectors, however
-    the jobs were distributed over the workers. Only products whose predecessors are not
-    summed yet are held, about as many as jobs are in flight.
-    """
-
-    def __init__(self, target: ndarray, first_row: int = 0):
-        self.target = target
-        self.first_row = first_row
-        self.num_rows = target.shape[0] - first_row
-        self.block_dtype = gram_block_dtype(target.dtype)
-        self.gram = zeros((target.shape[1], target.shape[1]), dtype=float64)
-        self.num_blocks = -(-self.num_rows // REMOVAL_BLOCK_ROWS)
-        self._block_rows = REMOVAL_BLOCK_ROWS
-        self._written = [0] * self.num_blocks
-        self._pending: dict[int, ndarray] = {}
-        self._next = 0
-        self._lock = threading.Lock()
-
-    def _block_size(self, k: int) -> int:
-        return min(self._block_rows, self.num_rows - k * self._block_rows)
-
-    def add_rows(self, first: int, last: int):
-        """Report that rows first to last (exclusive, rows of target) are final."""
-        first -= self.first_row
-        last -= self.first_row
-        if not 0 <= first <= last <= self.num_rows:
-            raise ValueError(f"rows [{first}, {last}) are outside the {self.num_rows} rows")
-        done = []
-        with self._lock:
-            k = first // self._block_rows
-            while first < last:
-                end = min(last, (k + 1) * self._block_rows)
-                self._written[k] += end - first
-                if self._written[k] > self._block_size(k):
-                    raise RuntimeError(f"more rows of block {k} were reported than it has")
-                if self._written[k] == self._block_size(k):
-                    done.append(k)
-                first, k = end, k + 1
-        for k in done:
-            begin = self.first_row + k * self._block_rows
-            block = asarray(
-                self.target[begin : begin + self._block_size(k)], dtype=self.block_dtype
-            )
-            product = gram_block_product(block)
-            with self._lock:
-                self._pending[k] = product
-                while self._next in self._pending:
-                    self.gram += self._pending.pop(self._next)
-                    self._next += 1
-
-    @property
-    def complete(self) -> bool:
-        return self._next == self.num_blocks
-
-    def result(self) -> ndarray:
-        """The Gram matrix; raises unless every row was reported."""
-        if not self.complete:
-            raise RuntimeError(
-                f"only {self._next} of {self.num_blocks} blocks of the Gram matrix are complete"
-            )
-        return self.gram
 
 
 def check_components_fit(

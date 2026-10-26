@@ -80,8 +80,8 @@ from fse._validation import (
     WordVectorModel,
     validate_arguments,
 )
+from fse.models._single_pass import SinglePass
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
-from fse.models.utils import OrderedGram
 
 try:
     from fse.models.average_inner import scan_indexed_sentences
@@ -563,7 +563,10 @@ class BaseSentence2VecModel(SaveLoad):
         return False
 
     def _fuses_gram(self, update: bool) -> bool:
-        """Whether training should sum the Gram matrix of the new rows for the post-train calls."""
+        """Whether training sums the Gram matrix of the new rows for the post-train calls.
+
+        It is passed to :meth:`_post_train_calls` as ``gram``, a float64 ndarray.
+        """
         return False
 
     def _kernel_context(self, target: ndarray) -> Any:
@@ -878,69 +881,70 @@ class BaseSentence2VecModel(SaveLoad):
         self.estimate_memory(**statistics)
         offset = len(self.sv.vectors) if update else 0
         # With index i for the i-th sentence, every job covers its own contiguous rows, so
-        # rows are final once their job is done, and the kernel sets them to EPS itself
-        # instead of a separate pass over all rows.
-        single_pass = bool(statistics["identity_indices"]) and self._uses_kernel()
-        prefill = single_pass
+        # the kernel sets them to EPS itself instead of a separate pass over all rows, and
+        # rows are final once their job is done (see fse.models._single_pass).
+        prefill = bool(statistics["identity_indices"]) and self._uses_kernel()
         self.prep.prepare_vectors(
             sv=self.sv, total_sentences=statistics["max_index"], update=update, fill=not prefill
         )
-
-        # Preform post-tain calls (i.e weight computation)
-        self._pre_train_calls(**statistics)
-        self._check_parameter_sanity()
-        self._check_dtype_santiy()
-        start_time = time()
-
-        logger.info("begin training")
-
-        workers = self.workers
-        if workers > 1 and not statistics["unique_indices"]:
-            if RowLocks is not None:
-                # Several sentences share rows: serialize adding into each row.
-                self._row_locks = RowLocks()
-            else:
-                logger.warning(
-                    "several sentences map to the same row; the numpy fallback trains them "
-                    "with one worker to avoid lost updates"
-                )
-                workers = 1
-        context = None
         gram = None
         try:
-            context = self._kernel_context(self.sv.vectors)
-            if context is None:
-                if prefill:
+            # Preform post-tain calls (i.e weight computation)
+            self._pre_train_calls(**statistics)
+            self._check_parameter_sanity()
+            self._check_dtype_santiy()
+            start_time = time()
+
+            logger.info("begin training")
+
+            workers = self.workers
+            if workers > 1 and not statistics["unique_indices"]:
+                if RowLocks is not None:
+                    # Several sentences share rows: serialize adding into each row.
+                    self._row_locks = RowLocks()
+                else:
+                    logger.warning(
+                        "several sentences map to the same row; the numpy fallback trains "
+                        "them with one worker to avoid lost updates"
+                    )
+                    workers = 1
+            context = None
+            try:
+                context = self._kernel_context(self.sv.vectors)
+                if context is None and prefill:
                     # No kernel after all: write the EPS rows in advance, as without prefill.
                     _fill_eps(self.sv.vectors, offset, len(self.sv.vectors))
-                single_pass = prefill = False
-            else:
-                context.prefill_rows = prefill
-                if single_pass and self._fuses_gram(update):
-                    # The Gram matrix of the new rows, summed while they are still cached.
-                    gram = context.gram = OrderedGram(self.sv.vectors)
-            items, eff_sentences, eff_words = self._train_manager(
-                data_iterable=_OffsetIndices(sentences, offset) if offset else sentences,
-                total_sentences=statistics["total_sentences"],
-                queue_factor=queue_factor,
-                report_delay=report_delay,
-                workers=workers,
-                context=context,
-            )
-        finally:
-            # All threads have ended here; resources of the call can be released.
-            self._finish_kernel_context(context)
-            # The locks only exist during training and must never be pickled.
-            self.__dict__.pop("_row_locks", None)
+                    prefill = False
+                if prefill and context is not None:
+                    context.prefill_rows = True
+                    # Only during training, like the row locks; never pickled.
+                    self._single_pass = SinglePass(
+                        self.sv.vectors, offset, sum_gram=self._fuses_gram(update)
+                    )
+                _, eff_sentences, eff_words = self._train_manager(
+                    data_iterable=_OffsetIndices(sentences, offset) if offset else sentences,
+                    total_sentences=statistics["total_sentences"],
+                    queue_factor=queue_factor,
+                    report_delay=report_delay,
+                    workers=workers,
+                    context=context,
+                )
+                if prefill:
+                    gram = self._single_pass.finish()
+            finally:
+                # All threads have ended here; resources of the call can be released.
+                self._finish_kernel_context(context)
+                # The locks only exist during training and must never be pickled.
+                self.__dict__.pop("_row_locks", None)
+                self.__dict__.pop("_single_pass", None)
+        except BaseException:
+            if prefill:
+                # A failed training must not leave uninitialized rows behind.
+                _fill_eps(self.sv.vectors, offset, len(self.sv.vectors))
+            raise
 
         overall_time = time() - start_time
 
-        if single_pass and items != statistics["max_index"]:
-            # Rows of jobs that never ran would hold uninitialized memory.
-            raise RuntimeError(
-                f"training wrote {items} of {statistics['max_index']} rows; the input "
-                "yielded fewer sentences than the scan found"
-            )
         self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
 
         # Preform post-tain calls (i.e principal component removal)
@@ -1195,7 +1199,11 @@ class BaseSentence2VecModel(SaveLoad):
         try:
             if context is not None:
                 encoder = self._job_encoder(context, data_iterable)
+                single_pass = self.__dict__.get("_single_pass")
                 while not stop.is_set() and (job := encoder.next_job()) is not None:
+                    if single_pass is not None:
+                        # Before any worker writes rows that another job could also cover.
+                        single_pass.check_job(job)
                     job_no += 1
                     job_queue.put((job.n_items, job))
                 data_iterable = ()

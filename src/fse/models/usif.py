@@ -23,6 +23,7 @@ from fse.models.utils import (
     check_components_fit,
     components_from_gram,
     compute_principal_components,
+    gram_block_dtype,
     remove_principal_components,
     warn_cache_size_gb_deprecated,
 )
@@ -144,8 +145,15 @@ class uSIF(Average):
         self._compute_usif_weights()
 
     def _fuses_gram(self, update: bool) -> bool:
-        """New components are computed from all rows, which training writes unless updating."""
-        return self.components > 0 and not update
+        """New components are computed from all rows, which training writes unless updating.
+
+        A replaced _post_train_calls might change the vectors before computing them, so it
+        gets no Gram matrix summed during training.
+        """
+        own_hook = "_post_train_calls" in self.__dict__ or (
+            type(self)._post_train_calls is not uSIF._post_train_calls
+        )
+        return self.components > 0 and not update and not own_hook
 
     def _post_train_calls(self, update: bool = False, offset: int = 0, gram: Any = None, **kwargs):
         """Function calls to perform after training, such as computing eigenvectors."""
@@ -160,7 +168,10 @@ class uSIF(Average):
                 if gram is None
                 # Summed during training, bit-identical to compute_principal_components.
                 else components_from_gram(
-                    gram.result(), len(self.sv.vectors), self.components, gram.block_dtype
+                    gram,
+                    len(self.sv.vectors),
+                    self.components,
+                    gram_block_dtype(self.sv.vectors.dtype),
                 )
             )
             self.svd_weights = (self.svd_res[0] ** 2) / (self.svd_res[0] ** 2).sum().astype(REAL)

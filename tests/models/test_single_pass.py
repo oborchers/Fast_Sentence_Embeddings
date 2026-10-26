@@ -15,8 +15,9 @@ from gensim.models import FastText, Word2Vec
 import fse
 from fse.inputs import CIndexedList, CorpusFile, IndexedList, TextList
 from fse.models import sif, usif, utils
+from fse.models._single_pass import OrderedGram
 from fse.models.average import CY_ROUTINES
-from fse.models.utils import OrderedGram, gram_block_dtype, gram_matrix
+from fse.models.utils import gram_block_dtype, gram_matrix
 
 pytestmark = pytest.mark.skipif(not CY_ROUTINES, reason="the single pass needs the extension")
 
@@ -208,7 +209,7 @@ def test_empty_sentences_keep_eps(w2v):
 
 
 def test_nan_in_word_vectors_raises_from_the_summed_gram_matrix(w2v):
-    w2v.wv.vectors[0, 0] = np.nan
+    w2v.wv.vectors[w2v.wv.key_to_index["the"], 0] = np.nan
     with pytest.raises(ValueError, match="Gram matrix of the sentence vectors is not finite"):
         fse.SIF(w2v, components=2).train(TextList(["the dog", "is good", "the cat runs"]))
 
@@ -286,6 +287,114 @@ def test_prefill_rejects_jobs_with_non_contiguous_rows(w2v):
         run_job(context, job, model._get_thread_working_mem()[0])
 
 
+def test_jobs_covering_rows_twice_raise_before_writing(w2v):
+    """The scan saw indices 0 to 3, training yields 0, 1, 0, 1: same count, rows twice."""
+
+    class Repeating(IndexedList):
+        repeat = False
+
+        def __iter__(self):
+            if not self.repeat:
+                return super().__iter__()
+            return iter([(["the"], 0), (["dog"], 1), (["is"], 0), (["good"], 1)])
+
+    sentences = Repeating([["the"], ["dog"], ["is"], ["good"]])
+    model = fse.Average(w2v)
+    model.batch_words = 2  # two sentences per job
+    scan = model.scan_sentences
+
+    def scan_then_repeat(*args, **kwargs):
+        statistics = scan(*args, **kwargs)
+        sentences.repeat = True
+        return statistics
+
+    model.scan_sentences = scan_then_repeat
+    with pytest.raises(RuntimeError, match="starts at row 0 instead of 2"):
+        model.train(sentences)
+    assert np.all(model.sv.vectors == utils.EPS)
+
+
+@pytest.mark.parametrize("cls", [fse.SIF, fse.uSIF])
+def test_a_failed_training_leaves_eps_rows(monkeypatch, w2v, tmp_path, cls):
+    from fse.models import average
+
+    original = average.run_chunk
+    calls = []
+
+    def fail_third(*args):
+        calls.append(1)
+        if len(calls) == 3:
+            raise OSError("disk full")
+        return original(*args)
+
+    monkeypatch.setattr(average, "run_chunk", fail_third)
+    monkeypatch.setattr("fse.inputs._CHUNK_MIN_BYTES", 256)
+    monkeypatch.setattr("fse.inputs._CHUNK_MAX_BYTES", 256)
+    model = cls(w2v, components=2, workers=2, sv_mapfile_path=tmp_path / "sv")
+    with pytest.raises(OSError, match="disk full"):
+        model.train(TextList(_texts(500)))
+    assert np.all(model.sv.vectors == utils.EPS)
+
+
+def test_update_on_a_memmap_with_an_unaligned_offset(monkeypatch, w2v, tmp_path):
+    monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 97)
+    single = fse.SIF(w2v, components=2, workers=4, sv_mapfile_path=tmp_path / "single")
+    separate = _separate_passes(
+        fse.SIF(w2v, components=2, workers=4, sv_mapfile_path=tmp_path / "separate")
+    )
+    for model in (single, separate):
+        model.train(TextList(_texts(301)))
+        model.train(TextList(["", *_texts(150, seed=2)]), update=True)
+    _same(single, separate)
+
+
+def test_a_replaced_post_train_hook_gets_no_summed_gram_matrix(monkeypatch, w2v):
+    calls = _spy_passes(monkeypatch, sif)
+
+    class Scaled(fse.SIF):
+        def _post_train_calls(self, **kwargs):
+            self.sv.vectors *= 2
+            super()._post_train_calls(**kwargs)
+
+    Scaled(w2v, components=2).train(TextList(_texts(200)))
+    assert calls == [1]
+
+
+@pytest.mark.parametrize("use_offsets", [True, False])
+def test_run_chunk_rejects_a_wrong_sentence_count(w2v, use_offsets):
+    from fse.models.average_inner import KernelContext, VocabTable, run_chunk
+
+    model = fse.Average(w2v)
+    model.prep.prepare_vectors(sv=model.sv, total_sentences=5)
+    context = KernelContext(model, model.sv.vectors)
+    context.prefill_rows = True
+    table = VocabTable(w2v.wv.key_to_index)
+    scratch = model._get_thread_working_mem()[0]
+    if use_offsets:
+        data, offsets, last = b"thedogis", np.array([0, 3, 6, 8], dtype=np.int64), 3
+    else:
+        data, offsets, last = b"the\ndog\nis\n", None, 11
+    with pytest.raises(ValueError, match="more than its 2 sentences"):
+        run_chunk(context, table, data, offsets, 0, last, 0, scratch, 2)
+    with pytest.raises(ValueError, match="holds 3 sentences instead of 4"):
+        run_chunk(context, table, data, offsets, 0, last, 0, scratch, 4)
+
+
+@pytest.mark.parametrize("path", ["separate", "ordered"])
+def test_overflow_of_opposite_signs_across_blocks_raises(monkeypatch, path):
+    """+inf and -inf from two blocks add up to NaN without a numpy warning."""
+    monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 1)
+    vectors = np.array([[1e20, 1e20], [1e20, -1e20]], dtype=np.float32)
+    if path == "separate":
+        with pytest.raises(ValueError, match="overflows"):
+            utils.compute_principal_components(vectors, components=1)
+    else:
+        gram = OrderedGram(vectors)
+        gram.add_rows(0, 2)
+        with pytest.raises(ValueError, match="not finite"):
+            utils.components_from_gram(gram.result(), 2, 1, np.float32)
+
+
 class TestOrderedGram:
     def _vectors(self, rows=1000, dim=6):
         return np.random.default_rng(3).random((rows, dim), dtype=np.float32)
@@ -301,6 +410,21 @@ class TestOrderedGram:
         for first, last in jobs:
             gram.add_rows(first, last)
         assert np.array_equal(gram.result(), gram_matrix(vectors, gram_block_dtype(vectors.dtype)))
+
+    def test_waiting_products_stay_within_the_budget(self, monkeypatch):
+        """A late first block holds at most max_pending products; the rest is recomputed."""
+        from fse.models import _single_pass
+
+        monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 10)
+        monkeypatch.setattr(_single_pass, "PENDING_BUDGET_BYTES", 3 * 6 * 6 * 4)
+        vectors = self._vectors(100)
+        gram = OrderedGram(vectors)
+        assert gram.max_pending == 3
+        for k in range(9, 0, -1):
+            gram.add_rows(10 * k, 10 * k + 10)
+            assert sum(p is not None for p in gram._pending.values()) <= 3
+        gram.add_rows(0, 10)
+        assert np.array_equal(gram.result(), gram_matrix(vectors, np.float32))
 
     def test_only_waiting_blocks_are_held(self, monkeypatch):
         monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 10)

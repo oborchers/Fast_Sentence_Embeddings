@@ -355,11 +355,10 @@ class Average(BaseSentence2VecModel):
                 raise RuntimeError("the input file changed during training")
         else:
             counts = run_job(context, job, memory[0])
-        if context.gram is not None:
-            # With identity indices the rows of a job are contiguous and final now.
-            if not getattr(job, "contiguous", True):
-                raise RuntimeError("the rows of a job are not contiguous; the input changed")
-            context.gram.add_rows(job.first_row, job.first_row + job.n_items)
+        single_pass = self.__dict__.get("_single_pass")
+        if single_pass is not None:
+            # The producer checked that these rows belong to this job only; they are final.
+            single_pass.rows_done(job.first_row, job.first_row + job.n_items)
         return counts
 
     def _do_train_job(

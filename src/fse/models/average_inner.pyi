@@ -46,7 +46,6 @@ class KernelContext:
 
     sources: list[Any]
     prefill_rows: bool
-    gram: Any
 
     def __init__(self, model: Any, target: ndarray) -> None: ...
 

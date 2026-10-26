@@ -179,8 +179,6 @@ cdef class KernelContext:
     # Set EPS in the rows of every job before averaging, instead of in all rows in advance.
     # Only for one row per sentence and contiguous rows per job (indices are positions).
     cdef public bint prefill_rows
-    # An OrderedGram that sums the Gram matrix of the finished rows during training, or None.
-    cdef public object gram
 
     def __init__(self, model, target):
         _check_inputs(model, target)
@@ -214,7 +212,6 @@ cdef class KernelContext:
         self._locks = getattr(model, "_row_locks", None)
         self.sources = []
         self.prefill_rows = False
-        self.gram = None
 
     def __reduce__(self):
         raise TypeError("KernelContext only exists during a train or infer call")
@@ -1053,6 +1050,7 @@ cdef int _average_spans(
     Py_ssize_t *eff_sentences,
     Py_ssize_t *eff_words,
     Py_ssize_t *error,
+    Py_ssize_t *n_sentences,
 ) noexcept nogil:
     """Tokenize, look up and average every sentence of a chunk without the GIL."""
     cdef bint lines = item_offsets == NULL
@@ -1145,6 +1143,7 @@ cdef int _average_spans(
             )
         row += 1
         pos = next_pos
+    n_sentences[0] = row - first_row
     return NATIVE_OK
 
 
@@ -1180,8 +1179,9 @@ def run_chunk(KernelContext ctx, VocabTable table, const unsigned char[::1] data
     memset(&oov_bytes, 0, sizeof(_Buffer))
     memset(&oov_offsets, 0, sizeof(_Buffer))
     memset(&ngrams, 0, sizeof(_Buffer))
-    cdef Py_ssize_t eff_sentences = 0, eff_words = 0, error = -1
-    cdef Py_ssize_t n_rows = ctx.n_rows
+    cdef Py_ssize_t eff_sentences = 0, eff_words = 0, error = -1, n_sentences = 0
+    # With prefill, no sentence may go past the rows that were set to EPS.
+    cdef Py_ssize_t n_rows = first_row + n_items if prefill else ctx.n_rows
     cdef int status
     try:
         with nogil:
@@ -1190,6 +1190,7 @@ def run_chunk(KernelContext ctx, VocabTable table, const unsigned char[::1] data
             status = _average_spans(
                 &ctx.params, &table.view, p, n, item_ptr, first, last, first_row, n_rows, mem,
                 &words, &oov_bytes, &oov_offsets, &ngrams, &eff_sentences, &eff_words, &error,
+                &n_sentences,
             )
     finally:
         free(words.data)
@@ -1204,7 +1205,11 @@ def run_chunk(KernelContext ctx, VocabTable table, const unsigned char[::1] data
             f"invalid UTF-8 at byte {error}; the input changed after the scan",
         )
     if status == NATIVE_BAD_ROW:
+        if prefill:
+            raise ValueError(f"the chunk holds more than its {n_items} sentences")
         raise IndexError(f"a sentence of the chunk maps past the {n_rows} target rows")
+    if prefill and n_sentences != n_items:
+        raise ValueError(f"the chunk holds {n_sentences} sentences instead of {n_items}")
     return eff_sentences, eff_words
 
 

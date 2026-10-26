@@ -22,6 +22,7 @@ from fse.models.utils import (
     check_components_fit,
     components_from_gram,
     compute_principal_components,
+    gram_block_dtype,
     remove_principal_components,
     warn_cache_size_gb_deprecated,
 )
@@ -134,8 +135,15 @@ class SIF(Average):
         self._compute_sif_weights()
 
     def _fuses_gram(self, update: bool) -> bool:
-        """New components are computed from all rows, which training writes unless updating."""
-        return self.components > 0 and not update
+        """New components are computed from all rows, which training writes unless updating.
+
+        A replaced _post_train_calls might change the vectors before computing them, so it
+        gets no Gram matrix summed during training.
+        """
+        own_hook = "_post_train_calls" in self.__dict__ or (
+            type(self)._post_train_calls is not SIF._post_train_calls
+        )
+        return self.components > 0 and not update and not own_hook
 
     def _post_train_calls(self, update: bool = False, offset: int = 0, gram: Any = None, **kwargs):
         """Function calls to perform after training, such as computing eigenvectors"""
@@ -148,7 +156,10 @@ class SIF(Average):
                 if gram is None
                 # Summed during training, bit-identical to compute_principal_components.
                 else components_from_gram(
-                    gram.result(), len(self.sv.vectors), self.components, gram.block_dtype
+                    gram,
+                    len(self.sv.vectors),
+                    self.components,
+                    gram_block_dtype(self.sv.vectors.dtype),
                 )
             )
             remove_principal_components(self.sv.vectors, svd_res=self.svd_res, inplace=True)
