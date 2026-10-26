@@ -5,6 +5,8 @@
 
 
 import logging
+import os
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, cast
 
@@ -14,11 +16,13 @@ from numpy import (
     arange,
     argsort,
     array,
+    asarray,
     concatenate,
     dot,
     dtype,
     empty,
     flatnonzero,
+    float64,
     floating,
     int64,
     integer,
@@ -31,6 +35,7 @@ from numpy import (
     prod,
     sqrt,
     vstack,
+    where,
     zeros,
 )
 from numpy import (
@@ -40,13 +45,45 @@ from numpy import (
     memmap as np_memmap,
 )
 
-from fse._validation import NonNegativeInt, PathLike, Similarity, validate_arguments
+from fse._validation import (
+    NonNegativeInt,
+    PathLike,
+    PositiveInt,
+    Similarity,
+    validate_arguments,
+)
+from fse.models._quantize import (
+    STORAGE_TYPES,
+    StorageDtype,
+    dequantize,
+    has_scales,
+    quantize_into,
+)
 from fse.models.utils import REMOVAL_BLOCK_ROWS
 
 logger = logging.getLogger(__name__)
 
 
-def _most_similar_rows(vectors: ndarray, query: ndarray, count: int) -> tuple[ndarray, ndarray]:
+def _block_dots(
+    vectors: ndarray, query: ndarray, factors: ndarray | None, begin: int, end: int
+) -> ndarray:
+    """The dot products of rows begin to end with query, in float32.
+
+    Stored rows of float16 or int8 are converted per block; ``factors`` scales the dot
+    product of each row (its int8 scale and inverse norm), so no normalized copy of the
+    matrix is needed.
+    """
+    block = vectors[begin:end]
+    if factors is None:
+        return dot(block, query)
+    dots = dot(block.astype(REAL), query)
+    dots *= factors[begin:end]
+    return dots
+
+
+def _most_similar_rows(
+    vectors: ndarray, query: ndarray, count: int, factors: ndarray | None = None
+) -> tuple[ndarray, ndarray]:
     """The rows with the ``count`` largest dot products with ``query``, largest first.
 
     The rows are read in blocks of ``max(REMOVAL_BLOCK_ROWS, count)``, and only the best
@@ -54,7 +91,8 @@ def _most_similar_rows(vectors: ndarray, query: ndarray, count: int) -> tuple[nd
     ``count``, not with the number of rows.
     The dot products equal those of a single ``dot(vectors, query)`` up to float32
     rounding, since BLAS may sum a block differently. Of equal products the lower row
-    wins; NaN ranks below every number, as in ``argsort``.
+    wins; NaN ranks below every number, as in ``argsort``. With ``factors``, each row's dot
+    product is multiplied by its factor (see ``_block_dots``).
     """
     best_rows = empty(0, dtype=int64)
     best_keys = empty(0, dtype=REAL)
@@ -63,7 +101,7 @@ def _most_similar_rows(vectors: ndarray, query: ndarray, count: int) -> tuple[nd
     block = max(REMOVAL_BLOCK_ROWS, count)
     for begin in range(0, len(vectors), block):
         # Negated, so the best rows are the smallest keys and NaN sorts after them.
-        keys = concatenate([best_keys, -dot(vectors[begin : begin + block], query)])
+        keys = concatenate([best_keys, -_block_dots(vectors, query, factors, begin, begin + block)])
         rows = concatenate([best_rows, arange(begin, begin + len(keys) - len(best_keys))])
         if len(keys) > count:
             kth = partition(keys, count - 1)[count - 1]
@@ -82,19 +120,60 @@ def _most_similar_rows(vectors: ndarray, query: ndarray, count: int) -> tuple[nd
 
 
 class SentenceVectors(utils.SaveLoad):
+    """The sentence vectors of a model, stored as float32, float16 or int8.
+
+    ``vectors`` holds the stored rows in ``dtype``; for int8 they are codes and ``scales``
+    holds one float32 scale per row (see :mod:`fse.models._quantize`). Every read, such as
+    ``sv[i]``, :meth:`get_vector`, :meth:`get_vectors` and :meth:`iter_blocks`, returns
+    float32 rows, whatever the storage format.
+    """
+
     vectors_norm: ndarray | None
     mapfile_shape: tuple[int, int] | None
+    scales: ndarray | None
+    inv_norms: ndarray | None
 
     @validate_arguments
-    def __init__(self, vector_size: NonNegativeInt, mapfile_path: PathLike | None = None):
-
+    def __init__(
+        self,
+        vector_size: NonNegativeInt,
+        mapfile_path: PathLike | None = None,
+        dtype: StorageDtype = "float32",
+    ):
+        """
+        Parameters
+        ----------
+        vector_size : int
+            Dimension of the sentence vectors.
+        mapfile_path : str, optional
+            Store the vectors in memory-mapped files with this path prefix.
+        dtype : {"float32", "float16", "int8"}, optional
+            Storage format. float16 halves and int8 quarters the memory of the vectors;
+            reads always return float32.
+        """
         self.vector_size = vector_size  # Size of vectors
-        self.vectors = zeros((0, vector_size), REAL)  # Vectors for sentences
+        self.dtype = dtype
+        self.vectors = zeros((0, vector_size), STORAGE_TYPES[dtype])  # Vectors for sentences
+        self.scales = zeros(0, REAL) if has_scales(dtype) else None
         self.vectors_norm = None
+        # Inverse norms of the rows, the search cache of float16 and int8 storage.
+        self.inv_norms = None
 
         # File for numpy memmap
         self.mapfile_path = Path(mapfile_path) if mapfile_path is not None else None
         self.mapfile_shape = None
+
+    def __setstate__(self, state: dict):
+        # Sentence vectors saved before 1.1.0 are float32 without scales.
+        self.__dict__.update(state)
+        self.__dict__.setdefault("dtype", "float32")
+        self.__dict__.setdefault("scales", None)
+        self.__dict__.setdefault("inv_norms", None)
+
+    @property
+    def quantized(self) -> bool:
+        """Whether the vectors are stored in another format than float32."""
+        return self.dtype != "float32"
 
     def __getitem__(self, entities: int) -> ndarray:
         """Get vector representation of `entities`.
@@ -131,9 +210,15 @@ class SentenceVectors(utils.SaveLoad):
         return len(self.vectors)
 
     def _load_all_vectors_from_disk(self, mapfile_path: Path):
-        """Reads all vectors from disk"""
+        """Reads all vectors (and int8 scales) from disk"""
         path = str(mapfile_path.absolute())
-        self.vectors = np_memmap(f"{path}.vectors", dtype=REAL, mode="r+", shape=self.mapfile_shape)
+        shape = self.mapfile_shape
+        self.vectors = _open_mapfile(Path(f"{path}.vectors"), STORAGE_TYPES[self.dtype], shape)
+        if shape is None:
+            self.vectors = self.vectors.reshape(-1, self.vector_size)
+        if has_scales(self.dtype):
+            rows = None if shape is None else (shape[0],)
+            self.scales = _open_mapfile(Path(f"{path}.scales"), REAL, rows)
 
     def save(self, *args, **kwargs):
         """Save object.
@@ -150,10 +235,10 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         self.mapfile_shape = self.vectors.shape
-        ignore = ["vectors_norm"]
+        ignore = ["vectors_norm", "inv_norms"]
         # don't bother storing the cached normalized vectors
         if self.mapfile_path is not None:
-            ignore.append("vectors")
+            ignore += ["vectors", "scales"]
         kwargs["ignore"] = kwargs.get("ignore", ignore)
         super().save(*args, **kwargs)
 
@@ -188,14 +273,50 @@ class SentenceVectors(utils.SaveLoad):
 
         """
         if index in self:
-            if use_norm:
-                self.init_sims()
-            result = cast(ndarray, self.vectors_norm)[index] if use_norm else self.vectors[index]
+            if self.quantized:
+                result = self.get_vectors(int(index), int(index) + 1)[0]
+                if use_norm:
+                    self.init_sims()
+                    result *= cast(ndarray, self.inv_norms)[index]
+            else:
+                if use_norm:
+                    self.init_sims()
+                result = (
+                    cast(ndarray, self.vectors_norm)[index] if use_norm else self.vectors[index]
+                )
 
             result.setflags(write=False)
             return result
         else:
             raise KeyError(f"index {index} not found")
+
+    def get_vectors(self, start: int = 0, stop: int | None = None) -> ndarray:
+        """The float32 sentence vectors of rows start to stop, as a new array.
+
+        Stored float16 and int8 rows are converted to float32. For many rows, prefer
+        :meth:`iter_blocks`, which never holds more than one block in memory.
+        """
+        rows = slice(start, stop)
+        scales = None if self.scales is None else self.scales[rows]
+        return dequantize(self.vectors[rows], scales)
+
+    def iter_blocks(
+        self, block_rows: PositiveInt = REMOVAL_BLOCK_ROWS
+    ) -> Iterator[tuple[int, ndarray]]:
+        """Yield ``(first_row, vectors)`` for consecutive blocks of float32 sentence vectors.
+
+        The streaming access to all vectors, for example to score a model over them: each
+        block is converted from the storage format on its own, so memory stays at one block
+        also for memory-mapped vectors larger than RAM.
+        """
+        if (
+            isinstance(block_rows, bool)
+            or not isinstance(block_rows, (int, integer))
+            or block_rows < 1
+        ):
+            raise ValueError(f"block_rows must be a positive int, got {block_rows!r}")
+        for begin in range(0, len(self), int(block_rows)):
+            yield begin, self.get_vectors(begin, begin + int(block_rows))
 
     def init_sims(self, replace: bool = False):
         """Precompute L2-normalized vectors.
@@ -206,6 +327,9 @@ class SentenceVectors(utils.SaveLoad):
             If True, normalize ``vectors`` themselves and keep no separate copy. This saves
             memory, but the original vectors are lost.
         """
+        if self.quantized:
+            self._init_inverse_norms(replace)
+            return
         if getattr(self, "vectors_norm", None) is not None and not replace:
             return
         logger.info("precomputing L2-norms of sentence vectors")
@@ -232,6 +356,222 @@ class SentenceVectors(utils.SaveLoad):
                 )
         else:
             self.vectors_norm = _l2_norm(self.vectors)
+
+    def _init_inverse_norms(self, replace: bool):
+        """The search cache of float16 and int8 storage: one inverse norm per row.
+
+        With replace, the stored rows themselves are normalized: for int8 only the scales
+        change, float16 rows are rewritten in blocks.
+        """
+        if self.inv_norms is not None and not replace:
+            return
+        logger.info("precomputing L2-norms of sentence vectors")
+        inv_norms = empty(len(self), dtype=REAL)
+        for begin, block in self.iter_blocks():
+            norms = sqrt((block.astype(float64) ** 2).sum(axis=1))
+            # A zero vector has no direction; it stays at zero instead of producing NaN.
+            inv = where(norms > 0, 1 / where(norms > 0, norms, 1), 0).astype(REAL)
+            if replace:
+                if self.scales is not None:
+                    self.scales[begin : begin + len(block)] *= inv
+                else:
+                    self.vectors[begin : begin + len(block)] = block * inv[:, newaxis]
+            inv_norms[begin : begin + len(block)] = inv
+        self.inv_norms = inv_norms
+        if replace:
+            # The rows are normalized now, up to the rounding of their format.
+            self.inv_norms = None
+            self._init_inverse_norms(replace=False)
+
+    def _search_factors(self) -> ndarray | None:
+        """Per-row factors of the dot products of stored rows, for float16 and int8."""
+        if not self.quantized:
+            return None
+        self.init_sims()
+        inv_norms = cast(ndarray, self.inv_norms)
+        return inv_norms if self.scales is None else asarray(self.scales) * inv_norms
+
+    def convert(self, dtype: StorageDtype):
+        """Store the sentence vectors in another format, in place and in blocks of rows.
+
+        Also converts vectors of models saved by earlier versions, and memory-mapped
+        vectors, which are written to new files that then replace the old ones. Converting
+        to float16 or int8 rounds the vectors; converting back gives the rounded values.
+        """
+        if dtype not in STORAGE_TYPES:
+            raise ValueError(f"dtype must be one of {sorted(STORAGE_TYPES)}, got {dtype!r}")
+        if dtype == self.dtype:
+            return
+        rows = len(self)
+        codes, scales, files = self._allocate(dtype, rows, suffix=".converting")
+        for begin, block in self.iter_blocks():
+            end = begin + len(block)
+            quantize_into(
+                block,
+                codes[begin:end],
+                None if scales is None else scales[begin:end],
+                first_row=begin,
+            )
+        self._replace_storage(dtype, codes, scales, files)
+
+    def _allocate(
+        self, dtype: StorageDtype, rows: int, suffix: str = ""
+    ) -> tuple[ndarray, ndarray | None, list[tuple[Path, Path]]]:
+        """Arrays for rows in a storage format, as memmaps next to the mapfile or in RAM.
+
+        Returns the arrays and, for memmaps, pairs of (written file, final file).
+        """
+        shape = (rows, self.vector_size)
+        if self.mapfile_path is None:
+            codes = empty(shape, dtype=STORAGE_TYPES[dtype])
+            return codes, (empty(rows, dtype=REAL) if has_scales(dtype) else None), []
+        files = [
+            (Path(f"{self.mapfile_path}.vectors{suffix}"), Path(f"{self.mapfile_path}.vectors"))
+        ]
+        codes = np_memmap(str(files[0][0]), dtype=STORAGE_TYPES[dtype], mode="w+", shape=shape)
+        scales = None
+        if has_scales(dtype):
+            files.append(
+                (Path(f"{self.mapfile_path}.scales{suffix}"), Path(f"{self.mapfile_path}.scales"))
+            )
+            scales = np_memmap(str(files[1][0]), dtype=REAL, mode="w+", shape=(rows,))
+        return codes, scales, files
+
+    def _replace_storage(
+        self,
+        dtype: StorageDtype,
+        codes: ndarray,
+        scales: ndarray | None,
+        files: list[tuple[Path, Path]],
+    ):
+        """Make codes and scales the stored vectors; written files replace the old ones."""
+        if files:
+            for array in (codes, scales):
+                if isinstance(array, np_memmap):
+                    array.flush()
+            # The old maps must be closed before their files are replaced.
+            self.vectors = self.scales = None  # type: ignore[assignment]
+            self.vectors_norm = None
+            del codes, scales
+            for written, final in files:
+                os.replace(written, final)
+            if not has_scales(dtype):
+                Path(f"{self.mapfile_path}.scales").unlink(missing_ok=True)
+            self.dtype = dtype
+            self.mapfile_shape = None
+            self.vectors = np_memmap(
+                f"{self.mapfile_path}.vectors", dtype=STORAGE_TYPES[dtype], mode="r+"
+            ).reshape(-1, self.vector_size)
+            self.scales = (
+                np_memmap(f"{self.mapfile_path}.scales", dtype=REAL, mode="r+")
+                if has_scales(dtype)
+                else None
+            )
+        else:
+            self.dtype = dtype
+            self.vectors, self.scales = codes, scales
+        self.vectors_norm = None
+        self.inv_norms = None
+
+    def _stage(self, rows: int) -> tuple[ndarray, ndarray | None]:
+        """Replace the stored vectors by a float32 staging matrix for rows new rows.
+
+        Training of float16 and int8 vectors writes into it, as into float32 vectors; then
+        :meth:`_store_staged` stores its rows in the format, or :meth:`_unstage` drops
+        it. Returns the stored vectors and scales to pass to either.
+        """
+        saved = (self.vectors, self.scales)
+        shape = (rows, self.vector_size)
+        if self.mapfile_path is None:
+            self.vectors = empty(shape, dtype=REAL)
+        else:
+            self.vectors = np_memmap(str(self._staging_path()), dtype=REAL, mode="w+", shape=shape)
+        self.scales = None
+        self.vectors_norm = None
+        self.inv_norms = None
+        return saved
+
+    def _staging_path(self) -> Path:
+        return Path(f"{self.mapfile_path}.staging.vectors")
+
+    def _store_staged(self, saved: tuple[ndarray, ndarray | None], append: bool):
+        """Store the staged float32 rows in the format, after or instead of the saved ones."""
+        staging = self.vectors
+        codes, scales = saved
+        before = len(codes) if append else 0
+        try:
+            if before and self.mapfile_path is not None:
+                # A memmap grows in place, like float32 vectors do.
+                rows = before + len(staging)
+                grown = np_memmap(
+                    f"{self.mapfile_path}.vectors",
+                    dtype=STORAGE_TYPES[self.dtype],
+                    mode="r+",
+                    shape=(rows, self.vector_size),
+                )
+                grown_scales = (
+                    np_memmap(f"{self.mapfile_path}.scales", dtype=REAL, mode="r+", shape=(rows,))
+                    if has_scales(self.dtype)
+                    else None
+                )
+                try:
+                    quantize_into(
+                        staging,
+                        grown[before:],
+                        None if grown_scales is None else grown_scales[before:],
+                        first_row=before,
+                    )
+                except BaseException:
+                    # Shrink the files back, so they still match the saved vectors.
+                    del grown, grown_scales
+                    self._truncate_files(before)
+                    raise
+                self.vectors, self.scales = grown, grown_scales
+            elif before:
+                new_codes, new_scales, _ = self._allocate(self.dtype, len(staging))
+                quantize_into(staging, new_codes, new_scales, first_row=before)
+                self.vectors = vstack([codes, new_codes])
+                self.scales = None if scales is None else concatenate([scales, new_scales])
+            else:
+                new_codes, new_scales, files = self._allocate(
+                    self.dtype, len(staging), suffix=".writing"
+                )
+                try:
+                    quantize_into(staging, new_codes, new_scales)
+                except BaseException:
+                    del new_codes, new_scales
+                    for written, _ in files:
+                        written.unlink(missing_ok=True)
+                    raise
+                self._replace_storage(self.dtype, new_codes, new_scales, files)
+        except BaseException:
+            del staging
+            self._unstage(saved)
+            raise
+        del staging
+        self._drop_staging_file()
+        self.vectors_norm = None
+        self.inv_norms = None
+
+    def _unstage(self, saved: tuple[ndarray, ndarray | None]):
+        """Drop the staging matrix and restore the saved vectors, after a failure."""
+        self.vectors, self.scales = saved
+        self.vectors_norm = None
+        self.inv_norms = None
+        self._drop_staging_file()
+
+    def _truncate_files(self, rows: int):
+        """Cut the mapfiles back to rows rows."""
+        os.truncate(
+            Path(f"{self.mapfile_path}.vectors"),
+            rows * self.vector_size * dtype(STORAGE_TYPES[self.dtype]).itemsize,
+        )
+        if has_scales(self.dtype):
+            os.truncate(Path(f"{self.mapfile_path}.scales"), rows * dtype(REAL).itemsize)
+
+    def _drop_staging_file(self):
+        if self.mapfile_path is not None:
+            self._staging_path().unlink(missing_ok=True)
 
     def similarity(self, d1: int, d2: int) -> float:
         """Compute cosine similarity between two sentences from the training set.
@@ -373,11 +713,27 @@ class SentenceVectors(utils.SaveLoad):
                 f"topn={topn}, which returns the similarities to all sentences"
             )
 
-        vectors_norm = cast(ndarray, self.vectors_norm)
-        limited = vectors_norm if restrict_size is None else vectors_norm[lo:hi]
+        factors = self._search_factors()
+        if factors is None:
+            vectors_norm = cast(ndarray, self.vectors_norm)
+            limited = vectors_norm if restrict_size is None else vectors_norm[lo:hi]
+        else:
+            # float16 and int8 rows are searched as stored, scaled by their factors.
+            limited = self.vectors if restrict_size is None else self.vectors[lo:hi]
+            factors = factors if restrict_size is None else factors[lo:hi]
         if not topn:
-            return dot(limited, mean)
-        best, similarities = _most_similar_rows(limited, mean, topn + len(all_sents))
+            if factors is None:
+                return dot(limited, mean)
+            return concatenate(
+                [
+                    _block_dots(limited, mean, factors, begin, begin + REMOVAL_BLOCK_ROWS)
+                    for begin in range(0, len(limited), REMOVAL_BLOCK_ROWS)
+                ]
+                or [empty(0, dtype=REAL)]
+            )
+        best, similarities = _most_similar_rows(
+            limited, mean, topn + len(all_sents), factors=factors
+        )
         best_off = best + lo
 
         result: list[tuple[Any, ...]]
@@ -580,3 +936,22 @@ def _l2_norm(m, replace=False):
         m /= dist
         return m
     return (m / dist).astype(REAL)
+
+
+def _open_mapfile(path: Path, kind: Any, shape: tuple[int, ...] | None) -> np_memmap:
+    """Open a mapfile of the sentence vectors; raise unless its size fits the shape.
+
+    Without a recorded shape (models saved before 1.1.0), the file is opened flat.
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"the mapfile {path} of the sentence vectors is missing")
+    if shape is None:
+        return np_memmap(str(path), dtype=kind, mode="r+")
+    size = path.stat().st_size
+    expected = int(prod(shape)) * dtype(kind).itemsize
+    if size != expected:
+        raise ValueError(
+            f"the mapfile {path} has {size} bytes, but sentence vectors of shape "
+            f"{tuple(shape)} in {dtype(kind)} need {expected}"
+        )
+    return np_memmap(str(path), dtype=kind, mode="r+", shape=shape)

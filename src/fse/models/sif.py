@@ -17,6 +17,7 @@ from fse._validation import (
     WordVectorModel,
     validate_arguments,
 )
+from fse.models._quantize import StorageDtype
 from fse.models.average import Average
 from fse.models.utils import (
     check_components_fit,
@@ -45,6 +46,7 @@ class SIF(Average):
         wv_mapfile_path: PathLike | None = None,
         workers: PositiveInt = 1,
         lang_freq: str | None = None,
+        sv_dtype: StorageDtype = "float32",
     ):
         """Smooth-inverse frequency (SIF) weighted sentence embeddings model. Performs a weighted averaging operation over all
         words in a sentences. After training, the model removes a number of singular vectors.
@@ -78,6 +80,9 @@ class SIF(Average):
             frequencies into the ``count`` attribute of each word based on :class:`~wordfreq`
             If no frequency information is available, you can choose the language to estimate the frequency.
             See https://github.com/LuminosoInsight/wordfreq
+        sv_dtype : {"float32", "float16", "int8"}, optional
+            Storage format of the sentence vectors: float16 halves and int8 quarters their
+            memory. They are computed in float32 and every read returns float32.
 
         """
 
@@ -100,6 +105,7 @@ class SIF(Average):
             wv_mapfile_path=wv_mapfile_path,
             workers=workers,
             lang_freq=lang_freq,
+            sv_dtype=sv_dtype,
         )
 
     def _check_pre_training_sanity(
@@ -119,6 +125,7 @@ class SIF(Average):
             len(self.sv.vectors),
             kwargs["max_index"],
             self.wv.vector_size,
+            quantized=self.sv.quantized,
         )
 
     def _check_parameter_sanity(self, **kwargs):

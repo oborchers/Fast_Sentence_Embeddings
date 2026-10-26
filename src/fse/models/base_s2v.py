@@ -84,6 +84,7 @@ from fse._validation import (
     validate_arguments,
 )
 from fse.models._index_tracker import MAX_INDEX, IndexTracker, check_index_range
+from fse.models._quantize import STORAGE_TYPES, StorageDtype, has_scales
 from fse.models._single_pass import SinglePass
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
 from fse.models.utils import REMOVAL_BLOCK_ROWS
@@ -122,6 +123,7 @@ class BaseSentence2VecModel(SaveLoad):
         fast_version: int = 0,
         batch_words: PositiveInt = 10000,
         batch_ngrams: PositiveInt = 40,
+        sv_dtype: StorageDtype = "float32",
     ):
         """Base class for all Sentence2Vec Models. Provides core functionality, such as
         save, load, sanity checking, frequency induction, data checking, scanning, etc.
@@ -151,6 +153,10 @@ class BaseSentence2VecModel(SaveLoad):
             Number of words to be processed by a single job.
         batch_ngrams : int, optional
             Number of maxium ngrams for oov words.
+        sv_dtype : {"float32", "float16", "int8"}, optional
+            Storage format of the sentence vectors. float16 halves their memory and int8,
+            with one float32 scale per vector, quarters it. They are computed in float32
+            and every read returns float32; see :class:`~fse.models.sentencevectors.SentenceVectors`.
 
         """
 
@@ -184,7 +190,9 @@ class BaseSentence2VecModel(SaveLoad):
             self._check_language_settings(lang_freq)
             self._induce_frequencies()
 
-        self.sv = SentenceVectors(vector_size=self.wv.vector_size, mapfile_path=sv_mapfile_path)
+        self.sv = SentenceVectors(
+            vector_size=self.wv.vector_size, mapfile_path=sv_mapfile_path, dtype=sv_dtype
+        )
         self.prep = BaseSentence2VecPreparer()
 
         self.word_weights = ones(len(self.wv), REAL)
@@ -400,8 +408,17 @@ class BaseSentence2VecModel(SaveLoad):
             raise TypeError(f"type of wv.vectors_ngrams is wrong: {self.wv.vectors_ngrams.dtype}")
         if self.is_ft and self.wv.vectors_vocab.dtype != REAL:
             raise TypeError(f"type of wv.vectors_vocab is wrong: {self.wv.vectors_vocab.dtype}")
-        if self.sv.vectors.dtype != REAL:
-            raise TypeError(f"type of sv.vectors is wrong: {self.sv.vectors.dtype}")
+        stored = STORAGE_TYPES.get(str(getattr(self.sv, "dtype", None)))
+        if stored is None:
+            raise TypeError(f"storage format of sv is unknown: {getattr(self.sv, 'dtype', None)!r}")
+        if self.sv.vectors.dtype != stored:
+            raise TypeError(
+                f"type of sv.vectors is wrong: {self.sv.vectors.dtype}, expected {dtype(stored)}"
+            )
+        if has_scales(self.sv.dtype) and (
+            self.sv.scales is None or self.sv.scales.shape != (len(self.sv.vectors),)
+        ):
+            raise TypeError("int8 sentence vectors need one float32 scale per row")
         if self.word_weights.dtype != REAL:
             raise TypeError(f"type of word_weights is wrong: {self.word_weights.dtype}")
 
@@ -694,7 +711,12 @@ class BaseSentence2VecModel(SaveLoad):
             removed.append((self.wv, "vectors"))
         if self.sv.mapfile_path is not None:
             self.sv.mapfile_shape = self.sv.vectors.shape
-            removed += [(self.sv, "vectors"), (self.sv, "vectors_norm")]
+            removed += [
+                (self.sv, "vectors"),
+                (self.sv, "vectors_norm"),
+                (self.sv, "scales"),
+                (self.sv, "inv_norms"),
+            ]
         stored = [(obj, name, getattr(obj, name)) for obj, name in removed]
         try:
             for obj, name in removed:
@@ -848,7 +870,13 @@ class BaseSentence2VecModel(SaveLoad):
         report = report or {}
         report["Word Weights"] = vocab_size * dtype(REAL).itemsize
         report["Word Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
-        report["Sentence Vectors"] = max_index * self.wv.vector_size * dtype(REAL).itemsize
+        stored = STORAGE_TYPES[self.sv.dtype]
+        report["Sentence Vectors"] = max_index * self.wv.vector_size * dtype(stored).itemsize
+        if has_scales(self.sv.dtype):
+            report["Sentence Vector Scales"] = max_index * dtype(REAL).itemsize
+        if self.sv.quantized:
+            # float16 and int8 rows are computed in float32 first (see train).
+            report["Staging"] = max_index * self.wv.vector_size * dtype(REAL).itemsize
         if self.is_ft:
             report["Vocab Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
             report["Ngram Vectors"] = (
@@ -907,14 +935,60 @@ class BaseSentence2VecModel(SaveLoad):
         self._check_pre_training_sanity(update=update, **statistics)
 
         self.estimate_memory(**statistics)
-        offset = len(self.sv.vectors) if update else 0
+        # float16 and int8 vectors: the rows of this call are computed in a float32 staging
+        # matrix, which is sv.vectors until they are stored (see ARCHITECTURE.md).
+        quantized = self.sv.quantized
+        offset = len(self.sv.vectors) if update and not quantized else 0
         # With index i for the i-th sentence, every job covers its own contiguous rows, so
         # the kernel sets them to EPS itself instead of a separate pass over all rows, and
         # rows are final once their job is done (see fse.models._single_pass).
         prefill = bool(statistics["identity_indices"]) and self._uses_kernel()
-        self.prep.prepare_vectors(
-            sv=self.sv, total_sentences=statistics["max_index"], update=update, fill=not prefill
+        saved = None
+        if quantized:
+            saved = self.sv._stage(statistics["max_index"])
+        else:
+            self.prep.prepare_vectors(
+                sv=self.sv,
+                total_sentences=statistics["max_index"],
+                update=update,
+                fill=not prefill,
+            )
+        try:
+            if quantized and not prefill:
+                _fill_eps(self.sv.vectors, 0, len(self.sv.vectors))
+            eff_sentences, eff_words, overall_time = self._train_rows(
+                sentences, statistics, update, offset, prefill, queue_factor, report_delay
+            )
+            if saved is not None:
+                self.sv._store_staged(saved, append=update)
+                saved = None
+        finally:
+            if saved is not None:
+                self.sv._unstage(saved)
+
+        self._log_train_end(
+            eff_sentences=eff_sentences,
+            eff_words=eff_words,
+            overall_time=overall_time,
+            total_time=time() - call_start,
         )
+
+        return eff_sentences, eff_words
+
+    def _train_rows(
+        self,
+        sentences: Any,
+        statistics: dict[str, Any],
+        update: bool,
+        offset: int,
+        prefill: bool,
+        queue_factor: int,
+        report_delay: float,
+    ) -> tuple[int, int, float]:
+        """Train into sv.vectors from row offset on and run the post-train hook.
+
+        Returns the effective sentences and words and the time of the training phase.
+        """
         gram = None
         try:
             # Preform post-tain calls (i.e weight computation)
@@ -977,15 +1051,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         # Preform post-tain calls (i.e principal component removal)
         self._post_train_calls(update=update, offset=offset, gram=gram)
-
-        self._log_train_end(
-            eff_sentences=eff_sentences,
-            eff_words=eff_words,
-            overall_time=overall_time,
-            total_time=time() - call_start,
-        )
-
-        return eff_sentences, eff_words
+        return eff_sentences, eff_words, overall_time
 
     @validate_arguments
     def infer(self, sentences: Any = None, use_norm: bool = False) -> ndarray:

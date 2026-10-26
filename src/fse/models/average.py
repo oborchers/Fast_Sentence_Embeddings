@@ -52,6 +52,7 @@ from numpy import (
 )
 
 from fse._validation import PathLike, PositiveInt, WordVectorModel, validate_arguments
+from fse.models._quantize import StorageDtype
 from fse.models.base_s2v import BaseSentence2VecModel, _OffsetIndices
 
 logger = logging.getLogger(__name__)
@@ -258,6 +259,7 @@ class Average(BaseSentence2VecModel):
         wv_mapfile_path: PathLike | None = None,
         workers: PositiveInt = 1,
         lang_freq: str | None = None,
+        sv_dtype: StorageDtype = "float32",
     ):
         """Average (unweighted) sentence embeddings model. Performs a simple averaging operation over all
         words in a sentences without further transformation.
@@ -284,6 +286,9 @@ class Average(BaseSentence2VecModel):
             frequencies into the ``count`` attribute of each word based on :class:`~wordfreq`
             If no frequency information is available, you can choose the language to estimate the frequency.
             See https://github.com/LuminosoInsight/wordfreq
+        sv_dtype : {"float32", "float16", "int8"}, optional
+            Storage format of the sentence vectors: float16 halves and int8 quarters their
+            memory. They are computed in float32 and every read returns float32.
 
         """
 
@@ -293,6 +298,7 @@ class Average(BaseSentence2VecModel):
             wv_mapfile_path=wv_mapfile_path,
             workers=workers,
             lang_freq=lang_freq,
+            sv_dtype=sv_dtype,
             batch_words=MAX_WORDS_IN_BATCH,
             batch_ngrams=MAX_NGRAMS_IN_BATCH,
             fast_version=FAST_VERSION,
