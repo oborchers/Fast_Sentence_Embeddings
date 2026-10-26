@@ -298,20 +298,17 @@ class Average(BaseSentence2VecModel):
             fast_version=FAST_VERSION,
         )
 
-    def _kernel_context(self, target: ndarray) -> Any:
-        """Kernel context for encoded jobs, or None for the job path of _do_train_job.
-
-        Encoded jobs need the extension, and they bypass _do_train_job, so a subclass or an
-        instance that replaces _do_train_job keeps the job path.
-        """
-        if not CY_ROUTINES:
-            return None
-        if (
+    def _uses_kernel(self) -> bool:
+        """Encoded jobs need the extension, and they bypass _do_train_job, so a subclass or
+        an instance that replaces _do_train_job keeps the job path."""
+        return bool(CY_ROUTINES) and not (
             "_do_train_job" in self.__dict__
             or type(self)._do_train_job is not Average._do_train_job
-        ):
-            return None
-        return KernelContext(self, target)
+        )
+
+    def _kernel_context(self, target: ndarray) -> Any:
+        """Kernel context for encoded jobs, or None for the job path of _do_train_job."""
+        return KernelContext(self, target) if self._uses_kernel() else None
 
     def _job_encoder(self, context: Any, sentences: Iterable[tuple]) -> Any:
         """Batch and encode the input in one pass while holding the GIL, in the producer.
@@ -351,12 +348,18 @@ class Average(BaseSentence2VecModel):
                 job.end,
                 job.first_row,
                 memory[0],
+                job.n_items,
             )
             # A file changed while this chunk was read would have given wrong vectors.
             if job.source.changed():
                 raise RuntimeError("the input file changed during training")
-            return counts
-        return run_job(context, job, memory[0])
+        else:
+            counts = run_job(context, job, memory[0])
+        single_pass = self.__dict__.get("_single_pass")
+        if single_pass is not None:
+            # The producer checked that these rows belong to this job only; they are final.
+            single_pass.rows_done(job.first_row, job.first_row + job.n_items)
+        return counts
 
     def _do_train_job(
         self, data_iterable: list[tuple], target: ndarray, memory: tuple[ndarray, ndarray]

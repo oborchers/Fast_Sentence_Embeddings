@@ -35,15 +35,17 @@ def run_chunk(
     last: int,
     first_row: int,
     scratch: ndarray,
+    n_items: int = -1,
 ) -> tuple[int, int]: ...
 def scan_indexed_sentences(
     sentences: Any, progress_per: float, progress: Any
-) -> tuple[int, int, int, int, bool]: ...
+) -> tuple[int, int, int, int, bool, bool]: ...
 
 class KernelContext:
     """Read-only state of one train or infer call, shared by all workers."""
 
     sources: list[Any]
+    prefill_rows: bool
 
     def __init__(self, model: Any, target: ndarray) -> None: ...
 
@@ -51,6 +53,8 @@ class EncodedJob:
     """A batch of sentences encoded for the kernel."""
 
     n_items: int
+    first_row: int
+    contiguous: bool
     n_sentences: int
     eff_words: int
 

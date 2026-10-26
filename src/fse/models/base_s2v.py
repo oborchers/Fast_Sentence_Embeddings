@@ -34,7 +34,6 @@ See Also
 
 """
 
-import contextlib
 import logging
 import threading
 import warnings
@@ -80,6 +79,7 @@ from fse._validation import (
     WordVectorModel,
     validate_arguments,
 )
+from fse.models._single_pass import SinglePass
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
 
 try:
@@ -557,6 +557,17 @@ class BaseSentence2VecModel(SaveLoad):
         oov_mem = zeros_aligned(0, dtype=uINT)
         return (mem, oov_mem)
 
+    def _uses_kernel(self) -> bool:
+        """Whether train and infer use encoded jobs and :meth:`_kernel_context`."""
+        return False
+
+    def _fuses_gram(self, update: bool) -> bool:
+        """Whether training sums the Gram matrix of the new rows for the post-train calls.
+
+        It is passed to :meth:`_post_train_calls` as ``gram``, a float64 ndarray.
+        """
+        return False
+
     def _kernel_context(self, target: ndarray) -> Any:
         """Return the state for encoded jobs that write into target, or None.
 
@@ -720,6 +731,7 @@ class BaseSentence2VecModel(SaveLoad):
             empty_sentences = native_stats["empty_sentences"]
             max_index = max(total_sentences - 1, 0)
             unique_indices = True
+            identity = True
         elif (
             scan_indexed_sentences is not None
             and "_check_indexed_sent_valid" not in self.__dict__
@@ -727,9 +739,14 @@ class BaseSentence2VecModel(SaveLoad):
             is BaseSentence2VecModel._check_indexed_sent_valid
         ):
             # The compiled scan runs the same checks with the same messages.
-            total_sentences, total_words, empty_sentences, max_index, unique_indices = (
-                scan_indexed_sentences(sentences, progress_per, progress)
-            )
+            (
+                total_sentences,
+                total_words,
+                empty_sentences,
+                max_index,
+                unique_indices,
+                identity,
+            ) = scan_indexed_sentences(sentences, progress_per, progress)
         else:
             for i, obj in enumerate(sentences):
                 index, sent = self._check_indexed_sent_valid(iter_pos=i, obj=obj)
@@ -774,6 +791,8 @@ class BaseSentence2VecModel(SaveLoad):
             "empty_sentences": empty_sentences,
             "max_index": max_index + 1 if total_sentences else 0,
             "unique_indices": unique_indices,
+            # Index i for the i-th sentence: one row per sentence, in order.
+            "identity_indices": identity,
         }
         return statistics
 
@@ -860,52 +879,75 @@ class BaseSentence2VecModel(SaveLoad):
 
         self.estimate_memory(**statistics)
         offset = len(self.sv.vectors) if update else 0
+        # With index i for the i-th sentence, every job covers its own contiguous rows, so
+        # the kernel sets them to EPS itself instead of a separate pass over all rows, and
+        # rows are final once their job is done (see fse.models._single_pass).
+        prefill = bool(statistics["identity_indices"]) and self._uses_kernel()
         self.prep.prepare_vectors(
-            sv=self.sv, total_sentences=statistics["max_index"], update=update
+            sv=self.sv, total_sentences=statistics["max_index"], update=update, fill=not prefill
         )
-
-        # Preform post-tain calls (i.e weight computation)
-        self._pre_train_calls(**statistics)
-        self._check_parameter_sanity()
-        self._check_dtype_santiy()
-        start_time = time()
-
-        logger.info("begin training")
-
-        workers = self.workers
-        if workers > 1 and not statistics["unique_indices"]:
-            if RowLocks is not None:
-                # Several sentences share rows: serialize adding into each row.
-                self._row_locks = RowLocks()
-            else:
-                logger.warning(
-                    "several sentences map to the same row; the numpy fallback trains them "
-                    "with one worker to avoid lost updates"
-                )
-                workers = 1
-        context = None
+        gram = None
         try:
-            context = self._kernel_context(self.sv.vectors)
-            _, eff_sentences, eff_words = self._train_manager(
-                data_iterable=_OffsetIndices(sentences, offset) if offset else sentences,
-                total_sentences=statistics["total_sentences"],
-                queue_factor=queue_factor,
-                report_delay=report_delay,
-                workers=workers,
-                context=context,
-            )
-        finally:
-            # All threads have ended here; resources of the call can be released.
-            self._finish_kernel_context(context)
-            # The locks only exist during training and must never be pickled.
-            self.__dict__.pop("_row_locks", None)
+            # Preform post-tain calls (i.e weight computation)
+            self._pre_train_calls(**statistics)
+            self._check_parameter_sanity()
+            self._check_dtype_santiy()
+            start_time = time()
+
+            logger.info("begin training")
+
+            workers = self.workers
+            if workers > 1 and not statistics["unique_indices"]:
+                if RowLocks is not None:
+                    # Several sentences share rows: serialize adding into each row.
+                    self._row_locks = RowLocks()
+                else:
+                    logger.warning(
+                        "several sentences map to the same row; the numpy fallback trains "
+                        "them with one worker to avoid lost updates"
+                    )
+                    workers = 1
+            context = None
+            try:
+                context = self._kernel_context(self.sv.vectors)
+                if context is None and prefill:
+                    # No kernel after all: write the EPS rows in advance, as without prefill.
+                    _fill_eps(self.sv.vectors, offset, len(self.sv.vectors))
+                    prefill = False
+                if prefill and context is not None:
+                    context.prefill_rows = True
+                    # Only during training, like the row locks; never pickled.
+                    self._single_pass = SinglePass(
+                        self.sv.vectors, offset, sum_gram=self._fuses_gram(update)
+                    )
+                _, eff_sentences, eff_words = self._train_manager(
+                    data_iterable=_OffsetIndices(sentences, offset) if offset else sentences,
+                    total_sentences=statistics["total_sentences"],
+                    queue_factor=queue_factor,
+                    report_delay=report_delay,
+                    workers=workers,
+                    context=context,
+                )
+                if prefill:
+                    gram = self._single_pass.finish()
+            finally:
+                # All threads have ended here; resources of the call can be released.
+                self._finish_kernel_context(context)
+                # The locks only exist during training and must never be pickled.
+                self.__dict__.pop("_row_locks", None)
+                self.__dict__.pop("_single_pass", None)
+        except BaseException:
+            if prefill:
+                # A failed training must not leave uninitialized rows behind.
+                _fill_eps(self.sv.vectors, offset, len(self.sv.vectors))
+            raise
 
         overall_time = time() - start_time
 
         self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
 
         # Preform post-tain calls (i.e principal component removal)
-        self._post_train_calls(update=update, offset=offset)
+        self._post_train_calls(update=update, offset=offset, gram=gram)
 
         self._log_train_end(
             eff_sentences=eff_sentences,
@@ -1029,11 +1071,10 @@ class BaseSentence2VecModel(SaveLoad):
             )
         )
 
-        for thread in threads:
-            thread.daemon = True  # make interrupting the process with ctrl+c easier
-            thread.start()
-
         try:
+            for thread in threads:
+                thread.daemon = True  # make interrupting the process with ctrl+c easier
+                thread.start()
             jobs, eff_sentences, eff_words = self._log_train_progress(
                 progress_queue,
                 total_sentences=total_sentences,
@@ -1042,11 +1083,27 @@ class BaseSentence2VecModel(SaveLoad):
             )
         finally:
             stop.set()
+            # A thread has an ident once it started, even if start() was interrupted after.
+            started = [thread for thread in threads if thread.ident is not None]
+            if threads[-1].ident is None:
+                # The producer never started, so it sends no end markers: send them for the
+                # workers that run. The queue holds n_workers items or more and is empty.
+                for _ in started:
+                    job_queue.put_nowait(None)
             # If the main thread stopped consuming early, for example on KeyboardInterrupt,
-            # workers may block on the full progress queue. Drain it until all threads end.
-            while any(thread.is_alive() for thread in threads):
-                with contextlib.suppress(Empty):
+            # workers may block on the full progress queue. Drain it until all threads end,
+            # so the caller only cleans up once no thread writes anymore; a further
+            # interrupt meanwhile is raised after that.
+            interrupted: BaseException | None = None
+            while any(thread.is_alive() for thread in started):
+                try:
                     progress_queue.get(timeout=0.1)
+                except Empty:
+                    pass
+                except KeyboardInterrupt as err:
+                    interrupted = err
+            if interrupted is not None:
+                raise interrupted
 
         if errors:
             raise errors[0]
@@ -1156,7 +1213,11 @@ class BaseSentence2VecModel(SaveLoad):
         try:
             if context is not None:
                 encoder = self._job_encoder(context, data_iterable)
+                single_pass = self.__dict__.get("_single_pass")
                 while not stop.is_set() and (job := encoder.next_job()) is not None:
+                    if single_pass is not None:
+                        # Before any worker writes rows that another job could also cover.
+                        single_pass.check_job(job)
                     job_no += 1
                     job_queue.put((job.n_items, job))
                 data_iterable = ()
@@ -1267,15 +1328,21 @@ def _fill_eps(vectors: ndarray, start: int, stop: int):
 class BaseSentence2VecPreparer(SaveLoad):
     """Contains helper functions to perpare the weights for the training of BaseSentence2VecModel"""
 
-    def prepare_vectors(self, sv: SentenceVectors, total_sentences: int, update: bool = False):
-        """Build tables and model weights based on final vocabulary settings."""
-        if not update:
-            self.reset_vectors(sv, total_sentences)
-        else:
-            self.update_vectors(sv, total_sentences)
+    def prepare_vectors(
+        self, sv: SentenceVectors, total_sentences: int, update: bool = False, fill: bool = True
+    ):
+        """Build tables and model weights based on final vocabulary settings.
 
-    def reset_vectors(self, sv: SentenceVectors, total_sentences: int):
-        """Initialize all sentence vectors to zero and overwrite existing files"""
+        With fill=False the new rows are left uninitialized, for a training whose jobs set
+        their own rows to EPS before averaging.
+        """
+        if not update:
+            self.reset_vectors(sv, total_sentences, fill=fill)
+        else:
+            self.update_vectors(sv, total_sentences, fill=fill)
+
+    def reset_vectors(self, sv: SentenceVectors, total_sentences: int, fill: bool = True):
+        """Initialize all sentence vectors to EPS and overwrite existing files"""
         logger.info(f"initializing sentence vectors for {total_sentences} sentences")
         if sv.mapfile_path:
             sv.vectors = np_memmap(
@@ -1287,10 +1354,11 @@ class BaseSentence2VecPreparer(SaveLoad):
         else:
             sv.vectors = empty((total_sentences, sv.vector_size), dtype=REAL)
 
-        _fill_eps(sv.vectors, 0, total_sentences)
+        if fill:
+            _fill_eps(sv.vectors, 0, total_sentences)
         sv.vectors_norm = None
 
-    def update_vectors(self, sv: SentenceVectors, total_sentences: int):
+    def update_vectors(self, sv: SentenceVectors, total_sentences: int, fill: bool = True):
         """Given existing sentence vectors, append new ones"""
         logger.info(f"appending sentence vectors for {total_sentences} sentences")
         sentences_before = len(sv.vectors)
@@ -1303,9 +1371,11 @@ class BaseSentence2VecPreparer(SaveLoad):
                 mode="r+",
                 shape=(sentences_after, sv.vector_size),
             )
-            _fill_eps(sv.vectors, sentences_before, sentences_after)
+            if fill:
+                _fill_eps(sv.vectors, sentences_before, sentences_after)
         else:
             newvectors = empty((total_sentences, sv.vector_size), dtype=REAL)
-            _fill_eps(newvectors, 0, total_sentences)
+            if fill:
+                _fill_eps(newvectors, 0, total_sentences)
             sv.vectors = vstack([sv.vectors, newvectors])
         sv.vectors_norm = None

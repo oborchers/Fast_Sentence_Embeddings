@@ -15,6 +15,7 @@ from numpy import (
     absolute,
     arange,
     asarray,
+    dtype,
     empty,
     errstate,
     finfo,
@@ -118,21 +119,61 @@ def compute_principal_components(
         )
 
     start = time()
-    # Integers are converted to float64, so large values are not rounded.
-    block_dtype = REAL if vectors.dtype.kind == "f" and vectors.dtype.itemsize <= 4 else float64
-    gram = zeros((dim, dim), dtype=float64)
-    for begin in range(0, num_vectors, REMOVAL_BLOCK_ROWS):
+    block_dtype = gram_block_dtype(vectors.dtype)
+    gram = gram_matrix(vectors, block_dtype)
+    if not isfinite(gram).all():
+        raise ValueError("the Gram matrix of the vectors overflows; scale the vectors down")
+    result = components_from_gram(gram, num_vectors, components, block_dtype)
+    logger.info(f"computing {components} principal components took {int(time() - start)}s")
+    return result
+
+
+def gram_block_dtype(vectors_dtype: dtype) -> Any:
+    """The type of the block products: float32 for float32 and float16, else float64.
+
+    Integers are converted to float64, so large values are not rounded.
+    """
+    return REAL if vectors_dtype.kind == "f" and vectors_dtype.itemsize <= 4 else float64
+
+
+def gram_block_product(block: ndarray) -> ndarray:
+    """``block.T @ block`` without numpy floating point warnings.
+
+    An overflow is reported by the caller as an error, not as a warning of the product;
+    some numpy builds also warn spuriously about finite BLAS results (numpy#28687).
+    """
+    with errstate(over="ignore", invalid="ignore", divide="ignore"):
+        return block.T @ block
+
+
+def add_gram_block(gram: ndarray, product: ndarray):
+    """Add a block product into the float64 sum; inf - inf of an overflow does not warn."""
+    with errstate(over="ignore", invalid="ignore"):
+        gram += product
+
+
+def gram_matrix(vectors: ndarray, block_dtype: Any) -> ndarray:
+    """``X^T X`` summed in float64 over blocks of ``REMOVAL_BLOCK_ROWS`` rows, in order."""
+    gram = zeros((vectors.shape[1], vectors.shape[1]), dtype=float64)
+    for begin in range(0, vectors.shape[0], REMOVAL_BLOCK_ROWS):
         block = asarray(vectors[begin : begin + REMOVAL_BLOCK_ROWS], dtype=block_dtype)
         if not isfinite(block).all():
             raise ValueError(f"the vectors contain NaN or infinite values in rows from {begin}")
-        # An overflow is reported below as an error, not as a warning of the product; some
-        # numpy builds also warn spuriously about finite BLAS results (numpy#28687).
-        with errstate(over="ignore", invalid="ignore", divide="ignore"):
-            gram += block.T @ block
+        add_gram_block(gram, gram_block_product(block))
         del block  # release the block before the next one is converted
-    if not isfinite(gram).all():
-        raise ValueError("the Gram matrix of the vectors overflows; scale the vectors down")
+    return gram
 
+
+def components_from_gram(
+    gram: ndarray, num_vectors: int, components: int, block_dtype: Any
+) -> tuple[ndarray, ndarray]:
+    """Singular values and right singular vectors from the Gram matrix of the vectors."""
+    if not isfinite(gram).all():
+        raise ValueError(
+            "the Gram matrix of the sentence vectors is not finite: they contain NaN or "
+            "infinite values, or values too large to square"
+        )
+    dim = gram.shape[0]
     # eigh returns the eigenvalues in ascending order; take the largest ones first.
     eigenvalues, eigenvectors = eigh(gram)
     eigenvalues = eigenvalues[::-1][:components]
@@ -153,9 +194,6 @@ def compute_principal_components(
         )
     # Rounding can make eigenvalues of a rank-deficient matrix slightly negative.
     singular_values = sqrt(maximum(eigenvalues, 0.0))
-
-    elapsed = time()
-    logger.info(f"computing {components} principal components took {int(elapsed - start)}s")
     return singular_values.astype(REAL), basis.astype(REAL)
 
 
