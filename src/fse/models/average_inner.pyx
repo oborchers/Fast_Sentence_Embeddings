@@ -70,6 +70,7 @@ cdef extern from *:
     #endif
     #if (defined(__x86_64__) || defined(_M_X64)) && (defined(__GNUC__) || defined(__clang__))
     #define FSE_X86_DISPATCH 1
+    #include <cpuid.h>
     #include <immintrin.h>
     #endif
     #if defined(__GNUC__) || defined(__clang__)
@@ -87,10 +88,13 @@ cdef extern from *:
     /* Every float16 bit pattern as float32, filled at import. */
     static float fse_half_table[65536];
 
-    /* Load every cache line of a row that is about to be added. */
+    /* Load every cache line of a row that is about to be added: one prefetch per 64
+       bytes from its start, and one at its last byte for a row that straddles a line. */
     static inline void fse_prefetch_row(const void *row, size_t bytes) {
         const char *p = (const char *)row;
+        if (!bytes) return;
         for (size_t offset = 0; offset < bytes; offset += 64) FSE_PREFETCH(p + offset);
+        FSE_PREFETCH(p + bytes - 1);
     }
 
     static void fse_add_f32_blas(float *mem, const void *row, float factor, int n) {
@@ -120,7 +124,7 @@ cdef extern from *:
         const float *v = (const float *)row;
         __m256 f = _mm256_set1_ps(factor);
         int i = 0;
-        for (; i + 8 <= n; i += 8)
+        for (; i <= n - 8; i += 8)
             _mm256_storeu_ps(mem + i, _mm256_fmadd_ps(f, _mm256_loadu_ps(v + i), _mm256_loadu_ps(mem + i)));
         for (; i < n; i++) mem[i] = __builtin_fmaf(factor, v[i], mem[i]);
     }
@@ -128,7 +132,7 @@ cdef extern from *:
         const uint16_t *v = (const uint16_t *)row;
         __m256 f = _mm256_set1_ps(factor);
         int i = 0;
-        for (; i + 8 <= n; i += 8) {
+        for (; i <= n - 8; i += 8) {
             __m256 x = _mm256_cvtph_ps(_mm_loadu_si128((const __m128i *)(v + i)));
             _mm256_storeu_ps(mem + i, _mm256_fmadd_ps(f, x, _mm256_loadu_ps(mem + i)));
         }
@@ -138,7 +142,7 @@ cdef extern from *:
         const int8_t *v = (const int8_t *)row;
         __m256 f = _mm256_set1_ps(factor);
         int i = 0;
-        for (; i + 8 <= n; i += 8) {
+        for (; i <= n - 8; i += 8) {
             __m256 x = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i *)(v + i))));
             _mm256_storeu_ps(mem + i, _mm256_fmadd_ps(f, x, _mm256_loadu_ps(mem + i)));
         }
@@ -165,8 +169,11 @@ cdef extern from *:
         fse_kernel_isa = "portable";
     #if defined(FSE_X86_DISPATCH)
         __builtin_cpu_init();
-        if (!portable && __builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma")
-                && __builtin_cpu_supports("f16c")) {
+        /* F16C through CPUID: __builtin_cpu_supports knows "f16c" only since Clang 18.
+           It is bit 29 of ECX in leaf 1; AVX2 implies that the OS saves the AVX state. */
+        unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
+        int f16c = __get_cpuid(1, &eax, &ebx, &ecx, &edx) && ((ecx >> 29) & 1u);
+        if (!portable && __builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma") && f16c) {
             fse_kernels[0] = fse_add_f32_avx2;
             fse_kernels[1] = fse_add_f16_avx2;
             fse_kernels[2] = fse_add_i8_avx2;

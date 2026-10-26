@@ -67,11 +67,11 @@ Reading: `most_similar`, `similar_by_*` and `score` call `score_rows` in the ext
 
 The kernel adds each stored row with a routine of type `add_row_ptr`, `mem += factor * row`; int8 rows fold their scale into the factor. The routines are chosen once at import (`fse_select_kernels`), not per call:
 
-- x86-64 with GCC or Clang and a CPU with AVX2, FMA and F16C: intrinsics in functions with `__attribute__((target(...)))`, so the build flags stay the baseline of the wheel. `_kernel_info()` returns `"avx2"`.
+- x86-64 with GCC or Clang and a CPU with AVX2, FMA and F16C: intrinsics in functions with `__attribute__((target(...)))`, so the build flags stay the baseline of the wheel. AVX2 and FMA are detected with `__builtin_cpu_supports`, F16C with CPUID (Clang knows `"f16c"` only since version 18). `_kernel_info()` returns `"avx2"`.
 - arm64: portable loops that the compiler vectorizes with NEON; float16 converts with `__fp16`. `"neon"`.
 - Everything else, including Windows (MSVC) and x86 CPUs without AVX2: float32 with BLAS `saxpy`, which dispatches by CPU itself, float16 through a 65,536-entry table and int8 with a portable loop. `"portable"`. `_use_portable_kernels(True)` selects this set for tests.
 
-While a row is added, the kernel prefetches every cache line of the row `PREFETCH_DISTANCE` (8) tokens ahead, and inside the ngrams of an unknown word the ngram row 8 ahead. 8 was the best or within noise of the best distance on Apple M1 and AMD Zen 4 for every format and vocabulary size measured. Every routine adds the values of a row in index order and a sentence's rows in token order, so the rule below (the same result for any number of workers) holds for every format. Different routines may round differently in the last bits, so vectors of the same model can differ in the last bits between CPUs.
+While a row is added, the kernel prefetches every cache line of the row `PREFETCH_DISTANCE` (8) tokens ahead (one prefetch per 64 bytes and one at its last byte), and inside the ngrams of an unknown word the ngram row 8 ahead. 8 was the best or within noise of the best distance on Apple M1 and AMD Zen 4 for every format and vocabulary size measured. Every routine adds the values of a row in index order and a sentence's rows in token order, so the rule below (the same result for any number of workers) holds for every format. Different routines may round differently in the last bits, so vectors of the same model can differ in the last bits between CPUs.
 
 ### Native inputs
 
@@ -86,7 +86,7 @@ The input contract is the one of `IndexedLineDocument` and `SplitIndexedList`, a
 
 ### The numpy fallback matches the Cython kernel
 
-`train_average_np` and `train_average_cy` must produce the same vectors, within float tolerance, for every input and every `wv_dtype`, including FastText out-of-vocabulary words and many-to-one index mappings. The fallback restores the rows it reads to float32 with `dequantize`. Tests compare both paths. A change to one path needs the same change and a parity test for the other.
+`train_average_np` and `train_average_cy` must produce the same vectors, within float tolerance, for every input and every `wv_dtype`, including FastText out-of-vocabulary words and many-to-one index mappings. The fallback restores the rows it reads to float32 with `dequantize`, multiplying int8 codes by `weight * scale` in the kernel's order, so tiny scales underflow alike. Tests compare both paths. A change to one path needs the same change and a parity test for the other.
 
 ### One kernel, the same result for any number of workers
 

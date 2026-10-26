@@ -566,8 +566,15 @@ class BaseSentence2VecModel(SaveLoad):
             logger.info(f"writing {name} codes to {path}")
             writing = path.with_name(path.name + ".writing")
             codes = np_memmap(writing, dtype=code_type, mode="w+", shape=shape)
-            quantize_into(rows, codes, scales, kind=kind, option="wv_dtype")
-            codes.flush()
+            try:
+                quantize_into(rows, codes, scales, kind=kind, option="wv_dtype")
+                codes.flush()
+            except BaseException as error:
+                # Release the map before removing the file (Windows refuses otherwise).
+                del codes
+                traceback.clear_frames(error.__traceback__)
+                writing.unlink(missing_ok=True)
+                raise
             del codes
             os.replace(writing, path)
             return np_memmap(path, dtype=code_type, mode="r", shape=shape), scales

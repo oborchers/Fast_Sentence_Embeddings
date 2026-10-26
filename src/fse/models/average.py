@@ -44,6 +44,10 @@ from numpy import (
     multiply as np_mult,
 )
 from numpy import (
+    asarray as np_asarray,
+)
+from numpy import (
+    full,
     ndarray,
     zeros,
 )
@@ -58,13 +62,21 @@ from fse.models.base_s2v import BaseSentence2VecModel, _OffsetIndices
 logger = logging.getLogger(__name__)
 
 
-def _rows(vectors: ndarray | None, scales: ndarray | None, index: list[int]) -> Any:
-    """The float32 rows at index of stored vectors (float32, float16 or int8 codes)."""
+def _weighted_rows(
+    vectors: ndarray | None, scales: ndarray | None, index: list[int], weights: Any
+) -> Any:
+    """``weights[:, None] * rows`` for the stored rows at index, in float32.
+
+    int8 codes are multiplied by ``weights * scales`` as the kernel does, so a tiny scale
+    times a weight underflows in both paths alike.
+    """
     if vectors is None:
         raise RuntimeError("the model has no stored vectors for these rows")
-    if vectors.dtype == REAL:
-        return vectors[index]
-    return dequantize(vectors[index], None if scales is None else scales[index])
+    weights = np_asarray(weights, dtype=REAL)
+    if scales is not None:
+        return dequantize(vectors[index], weights * scales[index])
+    rows = vectors[index] if vectors.dtype == REAL else dequantize(vectors[index], None)
+    return np_mult(rows, weights[:, None])
 
 
 def train_average_np(
@@ -145,7 +157,7 @@ def train_average_np(
             eff_words += len(word_indices)
 
             mem += np_sum(
-                np_mult(_rows(w_vectors, w_scales, word_indices), w_weights[word_indices][:, None]),
+                _weighted_rows(w_vectors, w_scales, word_indices, w_weights[word_indices]),
                 axis=0,
             )
             mem *= 1 / len(word_indices)
@@ -166,7 +178,9 @@ def train_average_np(
             for word in sent:
                 if word in model.wv.key_to_index:
                     word_index = model.wv.key_to_index[word]
-                    mem += _rows(w_vectors, w_scales, [word_index])[0] * w_weights[word_index]
+                    mem += _weighted_rows(
+                        w_vectors, w_scales, [word_index], w_weights[[word_index]]
+                    )[0]
                 else:
                     # A model without ngram buckets has no vector for an unknown word, as
                     # in the Cython routine.
@@ -175,9 +189,11 @@ def train_average_np(
                     )
                     if len(ngram_hashes) == 0:
                         continue
-                    mem += oov_weight * (
-                        np_sum(_rows(ngram_vectors, ngram_scales, ngram_hashes), axis=0)
-                        / len(ngram_hashes)
+                    # Each ngram row weighted by oov_weight / ngrams, as in the kernel.
+                    inv_ngram = REAL(1.0) / REAL(len(ngram_hashes)) * REAL(oov_weight)
+                    weights = full(len(ngram_hashes), inv_ngram, dtype=REAL)
+                    mem += np_sum(
+                        _weighted_rows(ngram_vectors, ngram_scales, ngram_hashes, weights), axis=0
                     )
                 # Implicit addition of zero if oov does not contain any ngrams
             s_vectors[sent_adr] += mem / len(sent)

@@ -231,12 +231,47 @@ class TestModel:
 
     @pytest.mark.parametrize("fmt", FORMATS)
     @pytest.mark.parametrize("sv_dtype", FORMATS)
-    def test_results_do_not_depend_on_the_workers(self, w2v_model, sentences, fmt, sv_dtype):
-        one = Average(w2v_model, wv_dtype=fmt, sv_dtype=sv_dtype, workers=1)
-        four = Average(w2v_model, wv_dtype=fmt, sv_dtype=sv_dtype, workers=4)
-        one.train(IndexedList(sentences))
-        four.train(IndexedList(sentences))
+    @pytest.mark.parametrize("cls", [Average, SIF])
+    def test_results_do_not_depend_on_the_workers(
+        self, kernels, w2v_model, sentences, cls, fmt, sv_dtype
+    ):
+        models = []
+        for workers in (1, 4):
+            model = cls(w2v_model, wv_dtype=fmt, sv_dtype=sv_dtype, workers=workers)
+            # Jobs of at most 50 words, so the 100 sentences spread over many jobs.
+            model.batch_words = 50
+            statistics = model.train(IndexedList(sentences))
+            models.append(model)
+        assert statistics[1] > 50
+        one, four = models
         np.testing.assert_array_equal(one.sv.vectors, four.sv.vectors)
+        if sv_dtype == "int8":
+            np.testing.assert_array_equal(one.sv.scales, four.sv.scales)
+
+    def test_tiny_int8_scales_underflow_like_the_kernel(self, w2v_model):
+        """A scale of 2**-149 times a weight of 0.5 rounds to zero in both paths."""
+        w2v_model.wv.vectors[:] = 1
+        tiny = np.float32(2.0**-149)
+        w2v_model.wv.vectors[0] = 0
+        w2v_model.wv.vectors[0, 0] = 127 * tiny
+        sentences = [([w2v_model.wv.index_to_key[0], w2v_model.wv.index_to_key[1]], 0)]
+        cy = _prepare(Average(w2v_model, wv_dtype="int8"), 1)
+        np_model = _prepare(Average(w2v_model, wv_dtype="int8"), 1)
+        assert cy.wv_scales[0] == tiny
+        for model in (cy, np_model):
+            model.word_weights[:] = 0.5
+        train_average_cy(cy, sentences, cy.sv.vectors, cy._get_thread_working_mem())
+        train_average_np(
+            np_model, sentences, np_model.sv.vectors, np_model._get_thread_working_mem()
+        )
+        np.testing.assert_array_equal(cy.sv.vectors, np_model.sv.vectors)
+
+    def test_failed_quantization_leaves_no_mapfile(self, w2v_model, tmp_path):
+        w2v_model.wv.vectors[7, 2] = np.inf
+        with pytest.raises(ValueError, match="word vector 7 contains NaN or infinite"):
+            Average(w2v_model, wv_dtype="int8", wv_mapfile_path=str(tmp_path / "wv"))
+        gc.collect()
+        assert not list(tmp_path.glob("*.int8*"))
 
     @pytest.mark.parametrize("fmt", QUANTIZED)
     def test_infer_and_update_read_the_codes(self, w2v_model, sentences, fmt):
