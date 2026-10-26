@@ -35,6 +35,7 @@ See Also
 """
 
 import logging
+import os
 import threading
 import traceback
 import warnings
@@ -87,7 +88,7 @@ from fse._validation import (
 )
 from fse.models import utils
 from fse.models._index_tracker import MAX_INDEX, IndexTracker, check_index_range
-from fse.models._quantize import STORAGE_TYPES, StorageDtype, has_scales
+from fse.models._quantize import STORAGE_TYPES, StorageDtype, has_scales, quantize_into
 from fse.models._single_pass import SinglePass
 from fse.models._windowed import WindowedWriter, plan_ring
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
@@ -115,6 +116,14 @@ class BaseSentence2VecModel(SaveLoad):
     sv: SentenceVectors
     wv_mapfile_path: Path | None
     wv_mapfile_shapes: dict[str, tuple[int, ...]]
+    # The storage format of the word vectors the kernel reads, and for float16 and int8
+    # their codes (int8 with one float32 scale per row). Class defaults keep models saved
+    # before 1.1.0, whose word vectors are float32, loadable.
+    wv_dtype: StorageDtype = "float32"
+    wv_codes: ndarray | None = None
+    wv_scales: ndarray | None = None
+    ngram_codes: ndarray | None = None
+    ngram_scales: ndarray | None = None
 
     @validate_arguments
     def __init__(
@@ -128,6 +137,7 @@ class BaseSentence2VecModel(SaveLoad):
         batch_words: PositiveInt = 10000,
         batch_ngrams: PositiveInt = 40,
         sv_dtype: StorageDtype = "float32",
+        wv_dtype: StorageDtype = "float32",
     ):
         """Base class for all Sentence2Vec Models. Provides core functionality, such as
         save, load, sanity checking, frequency induction, data checking, scanning, etc.
@@ -161,6 +171,13 @@ class BaseSentence2VecModel(SaveLoad):
             Storage format of the sentence vectors. float16 halves their memory and int8,
             with one float32 scale per vector, quarters it. They are computed in float32
             and every read returns float32; see :class:`~fse.models.sentencevectors.SentenceVectors`.
+        wv_dtype : {"float32", "float16", "int8"}, optional
+            Format in which the model keeps the word vectors (and FastText ngram vectors)
+            it averages: float16 halves their memory and int8, with one float32 scale per
+            vector, quarters it. With AVX2 or on arm64, averaging also gets somewhat
+            faster; without AVX2, including on Windows, it gets slower. The model quantizes
+            a copy once; the word vectors passed in are not changed. Load them with ``mmap="r"``
+            to keep their float32 values out of RAM.
 
         """
 
@@ -193,6 +210,10 @@ class BaseSentence2VecModel(SaveLoad):
         if lang_freq is not None:
             self._check_language_settings(lang_freq)
             self._induce_frequencies()
+
+        self.wv_dtype = wv_dtype
+        if wv_dtype != "float32":
+            self._quantize_word_vectors()
 
         self.sv = SentenceVectors(
             vector_size=self.wv.vector_size, mapfile_path=sv_mapfile_path, dtype=sv_dtype
@@ -412,6 +433,26 @@ class BaseSentence2VecModel(SaveLoad):
             raise TypeError(f"type of wv.vectors_ngrams is wrong: {self.wv.vectors_ngrams.dtype}")
         if self.is_ft and self.wv.vectors_vocab.dtype != REAL:
             raise TypeError(f"type of wv.vectors_vocab is wrong: {self.wv.vectors_vocab.dtype}")
+        if self.wv_dtype not in STORAGE_TYPES:
+            raise TypeError(f"storage format of the word vectors is unknown: {self.wv_dtype!r}")
+        words, word_scales, ngrams, ngram_scales = self._word_arrays()
+        code_type = dtype(STORAGE_TYPES[self.wv_dtype])
+        for name, codes, scales in (
+            ("wv_codes", words, word_scales),
+            ("ngram_codes", ngrams if self.is_ft else None, ngram_scales),
+        ):
+            if codes is None:
+                continue
+            if codes.dtype != code_type:
+                raise TypeError(f"type of {name} is wrong: {codes.dtype}, expected {code_type}")
+            if has_scales(self.wv_dtype) and (
+                scales is None or scales.dtype != REAL or scales.shape != (len(codes),)
+            ):
+                raise TypeError(f"{name} needs one float32 scale per row")
+            if not has_scales(self.wv_dtype) and scales is not None:
+                raise TypeError(f"{name} of {self.wv_dtype} word vectors take no scales")
+        if len(words) != len(self.word_weights):
+            raise RuntimeError("Number of stored word vectors and weights does not match")
         stored = STORAGE_TYPES.get(str(getattr(self.sv, "dtype", None)))
         if stored is None:
             raise TypeError(f"storage format of sv is unknown: {getattr(self.sv, 'dtype', None)!r}")
@@ -483,6 +524,65 @@ class BaseSentence2VecModel(SaveLoad):
             raise ValueError(f"At {iter_pos}: Passed negative {index}")
         return int(index), sent
 
+    def _word_arrays(self) -> tuple[ndarray, ndarray | None, ndarray | None, ndarray | None]:
+        """The word rows the kernel averages, their scales, the ngram rows and their scales.
+
+        float32 models read the word vectors themselves (``vectors_vocab`` for FastText);
+        float16 and int8 models read their codes. Scales exist for int8 only, ngram rows
+        for FastText only.
+        """
+        if self.wv_dtype == "float32":
+            words = self.wv.vectors_vocab if self.is_ft else self.wv.vectors
+            return words, None, self.wv.vectors_ngrams if self.is_ft else None, None
+        if self.wv_codes is None:
+            raise RuntimeError(f"the {self.wv_dtype} codes of the word vectors are missing")
+        return self.wv_codes, self.wv_scales, self.ngram_codes, self.ngram_scales
+
+    def _quantize_word_vectors(self):
+        """Store the word (and ngram) vectors as wv_dtype codes, in RAM or in mapfiles."""
+        words = self.wv.vectors_vocab if self.is_ft else self.wv.vectors
+        logger.info(f"storing {len(words)} word vectors as {self.wv_dtype}")
+        self.wv_codes, self.wv_scales = self._quantized_rows(words, "wv")
+        if self.is_ft:
+            logger.info(f"storing {len(self.wv.vectors_ngrams)} ngram vectors as {self.wv_dtype}")
+            self.ngram_codes, self.ngram_scales = self._quantized_rows(
+                self.wv.vectors_ngrams, "ngrams"
+            )
+
+    def _quantized_rows(self, rows: ndarray, name: str) -> tuple[ndarray, ndarray | None]:
+        """Codes (and int8 scales) of float32 rows, written block by block.
+
+        With wv_mapfile_path the codes go to the file ``<path>_<name>.<wv_dtype>``, written
+        under a temporary name and renamed when complete, and are memory-mapped read-only.
+        An existing file is reused only if it holds exactly these codes, as for the float32
+        mapfiles. The scales, 4 bytes per row, stay in RAM.
+        """
+        code_type = STORAGE_TYPES[self.wv_dtype]
+        shape = rows.shape
+        scales = empty(shape[0], dtype=REAL) if has_scales(self.wv_dtype) else None
+        kind = f"{'ngram' if name == 'ngrams' else 'word'} vector"
+        if self.wv_mapfile_path is None or not prod(shape):
+            codes = empty(shape, dtype=code_type)
+            quantize_into(rows, codes, scales, kind=kind, option="wv_dtype")
+            return codes, scales
+        path = Path(f"{self.wv_mapfile_path.absolute()}_{name}.{self.wv_dtype}")
+        self.wv_mapfile_shapes[f"{name}_codes"] = shape
+        if not path.exists():
+            logger.info(f"writing {name} codes to {path}")
+            _write_codes(rows, path, code_type, scales, kind)
+            return np_memmap(path, dtype=code_type, mode="r", shape=shape), scales
+        logger.info(f"loading pre-existing {name} codes from {path}")
+        _check_mapfile_size(path, shape, dtype(code_type).itemsize)
+        existing = np_memmap(path, dtype=code_type, mode="r", shape=shape)
+        try:
+            _check_codes(existing, rows, scales, kind, path)
+        except BaseException as error:
+            # Release the map, so the rejected file can be deleted (also on Windows).
+            del existing
+            traceback.clear_frames(error.__traceback__)
+            raise
+        return existing, scales
+
     def _map_all_vectors_to_disk(self, mapfile_path: Path):
         """Maps all vectors to disk
 
@@ -544,6 +644,22 @@ class BaseSentence2VecModel(SaveLoad):
                 mode="r",
                 shape=self.wv_mapfile_shapes["vectors_ngrams"],
             )
+
+    def _load_word_codes_from_disk(self, mapfile_path: Path):
+        """Reopen the float16 or int8 codes of the word (and ngram) vectors from their mapfiles."""
+        if self.wv_dtype == "float32":
+            return
+        code_type = STORAGE_TYPES[self.wv_dtype]
+        for name, attr in (("wv", "wv_codes"), ("ngrams", "ngram_codes")):
+            shape = self.wv_mapfile_shapes.get(f"{name}_codes")
+            if shape is None:
+                continue
+            path = Path(f"{mapfile_path.absolute()}_{name}.{self.wv_dtype}")
+            if not prod(shape):
+                setattr(self, attr, empty(shape, dtype=code_type))
+                continue
+            _check_mapfile_size(path, shape, dtype(code_type).itemsize)
+            setattr(self, attr, np_memmap(path, dtype=code_type, mode="r", shape=shape))
 
     def _move_ndarray_to_disk(
         self, vector: ndarray, mapfile_path: str | Path | None, name: str = ""
@@ -688,6 +804,7 @@ class BaseSentence2VecModel(SaveLoad):
 
         if model.wv_mapfile_path is not None:
             model._load_all_vectors_from_disk(model.wv_mapfile_path)
+            model._load_word_codes_from_disk(model.wv_mapfile_path)
         # Since 1.1.0, save leaves memmapped sentence vectors out of the pickle. Models saved
         # by earlier versions still carry them, without a recorded mapfile shape.
         if model.sv.mapfile_path is not None and model.sv.vectors is None:
@@ -713,6 +830,9 @@ class BaseSentence2VecModel(SaveLoad):
         removed = []
         if self.wv_mapfile_path is not None:
             removed.append((self.wv, "vectors"))
+            removed += [
+                (self, name) for name in ("wv_codes", "ngram_codes") if name in self.__dict__
+            ]
         if self.sv.mapfile_path is not None:
             self.sv.mapfile_shape = self.sv.vectors.shape
             removed += [
@@ -874,6 +994,13 @@ class BaseSentence2VecModel(SaveLoad):
         report = report or {}
         report["Word Weights"] = vocab_size * dtype(REAL).itemsize
         report["Word Vectors"] = vocab_size * self.wv.vector_size * dtype(REAL).itemsize
+        if self.wv_dtype != "float32":
+            # The quantized copy the kernel reads, next to the float32 vectors passed in.
+            codes = dtype(STORAGE_TYPES[self.wv_dtype]).itemsize
+            rows = vocab_size + (self.wv.vectors_ngrams.shape[0] if self.is_ft else 0)
+            report["Word Vector Codes"] = rows * self.wv.vector_size * codes
+            if has_scales(self.wv_dtype):
+                report["Word Vector Scales"] = rows * dtype(REAL).itemsize
         stored = STORAGE_TYPES[self.sv.dtype]
         report["Sentence Vectors"] = max_index * self.wv.vector_size * dtype(stored).itemsize
         if has_scales(self.sv.dtype):
@@ -1625,9 +1752,53 @@ def _own_word_vectors(wv: KeyedVectors) -> KeyedVectors:
     return own
 
 
-def _check_mapfile_size(path: Path, shape: tuple[int, ...]):
-    """Raise unless the file holds exactly a float32 array of this shape."""
-    expected = int(prod(shape)) * dtype(REAL).itemsize
+def _write_codes(rows: ndarray, path: Path, code_type: Any, scales: ndarray | None, kind: str):
+    """Quantize rows into the mapfile path, through a temporary file renamed when complete.
+
+    On any error the map is released and the temporary file removed, so no partial
+    file stays behind.
+    """
+    writing = path.with_name(path.name + ".writing")
+    codes = None
+    try:
+        codes = np_memmap(writing, dtype=code_type, mode="w+", shape=rows.shape)
+        quantize_into(rows, codes, scales, kind=kind, option="wv_dtype")
+        codes.flush()
+        # Release the map before the rename (Windows refuses otherwise).
+        codes = None
+        os.replace(writing, path)
+    except BaseException as error:
+        codes = None
+        traceback.clear_frames(error.__traceback__)
+        writing.unlink(missing_ok=True)
+        raise
+
+
+def _check_codes(existing: ndarray, rows: ndarray, scales: ndarray | None, kind: str, path: Path):
+    """Raise unless the existing codes equal the codes of rows; fills scales."""
+    shape = rows.shape
+    block = empty((min(REMOVAL_BLOCK_ROWS, shape[0]), shape[1]), dtype=existing.dtype)
+    for begin in range(0, shape[0], REMOVAL_BLOCK_ROWS):
+        end = min(begin + REMOVAL_BLOCK_ROWS, shape[0])
+        part = block[: end - begin]
+        quantize_into(
+            rows[begin:end],
+            part,
+            None if scales is None else scales[begin:end],
+            first_row=begin,
+            kind=kind,
+            option="wv_dtype",
+        )
+        if not array_equal(existing[begin:end], part):
+            raise ValueError(
+                f"the existing file {path} holds other codes than the model "
+                f"(from row {begin}); delete it or pass another mapfile path"
+            )
+
+
+def _check_mapfile_size(path: Path, shape: tuple[int, ...], itemsize: int = dtype(REAL).itemsize):
+    """Raise unless the file holds exactly an array of this shape, float32 unless itemsize says otherwise."""
+    expected = int(prod(shape)) * itemsize
     if not path.exists():
         raise FileNotFoundError(f"the mapfile {path} of the word vectors is missing")
     size = path.stat().st_size

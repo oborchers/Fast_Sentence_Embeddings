@@ -231,6 +231,29 @@ for first_row, block in model.sv.iter_blocks():  # float32 blocks, for anything 
     ...
 ```
 
+### Smaller word vectors
+
+`wv_dtype="float16"` or `"int8"` makes the model keep the word vectors it averages (and the ngram vectors of FastText models) in half or a quarter of the memory. The model quantizes a copy once when it is created; the word vectors you pass in stay unchanged. To keep their float32 values out of RAM as well, load them memory-mapped, for example `Vectors.from_pretrained("word2vec-google-news-300", mmap="r")`. With `wv_mapfile_path` the codes are written to a file and memory-mapped.
+
+```python
+from fse import SIF, CorpusFile, Vectors
+
+vectors = Vectors.from_pretrained("word2vec-google-news-300", mmap="r")
+model = SIF(vectors, wv_dtype="int8", sv_dtype="int8", workers=8)
+model.train(CorpusFile("sentences.txt"))
+```
+
+On the STS Benchmark (all 15 vector sets, with CBOW, SIF-10 and uSIF), float16 word vectors change the scores by at most 0.01 points and int8 by at most 0.12 points (`glove-twitter-25` with SIF-10; every 300-dimensional set stays within 0.02 points).
+
+The main benefit is memory. Averaging also gets somewhat faster where fse reads the codes with vector instructions: on x86-64 Linux and macOS with AVX2, FMA and F16C (Intel since Haswell, AMD since Zen), and on Apple Silicon and other arm64 CPUs with NEON; fse picks the routines when it is imported. Measured end to end (training from a `CorpusFile` of 2 million sentences, 300 dimensions, Average and SIF), int8 word vectors were, compared with float32 word vectors in fse 1.0:
+
+| Machine | 1 worker | 8 workers |
+|---|---|---|
+| Apple M1 Pro, 400,000 words | 1.4 to 1.5 times as fast | 1.2 to 1.4 times as fast |
+| AMD EPYC (Zen 5, shared cloud machine), 400,000 and 3 million words | 1.0 to 1.4 times as fast | 0.7 to 1.15 times, mostly about the same |
+
+On x86-64 CPUs without AVX2 and on Windows, fse uses portable routines instead: float16 and int8 then save memory but train 20 to 35 % slower (measured on the AMD machine with the portable routines forced). float32 itself keeps its results unchanged; prefetching the rows of the next words made it up to about 1.2 times as fast.
+
 Additional Information
 -------------
 

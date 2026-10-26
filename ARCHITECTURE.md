@@ -33,7 +33,7 @@ src/fse/
 3. **Prepare:** `BaseSentence2VecPreparer` allocates the sentence vectors (`max_index` rows, initialized to `EPS`), in RAM or as a memmap. With identity indices and the kernel, the rows are not initialized here: every job sets its own contiguous rows to `EPS` right before it averages them (see *Single pass*). With `train(update=True)` it appends the rows instead, and every sentence index is shifted by the previous number of rows. Rows are initialized in blocks. An in-memory update copies all existing rows into a new array (`vstack`); a memmap grows in place.
 4. **Pre-train hook:** `_pre_train_calls` computes the word weights. All weights are 1 for Average; SIF and uSIF derive them from word frequencies.
 5. **Jobs:** `_train_manager` starts one producer thread and `workers` worker threads. The producer batches the input into jobs of up to `batch_words` words and `batch_words` sentences; a single longer sentence forms a job of its own. With the extension, `_kernel_context` builds a `KernelContext` once per call, and the producer reads, batches and encodes the input in one pass with a `JobEncoder` while it holds the GIL. Each job copies its data out of the encoder's reusable buffers: word indices, sentence offsets, target rows, and the UTF-8 bytes of unknown FastText words. Without the extension, or when a subclass or instance replaces `_do_train_job`, the workers call `_do_train_job` on lists of tuples instead (`train_average_np` without the extension).
-6. **Kernel:** `run_job` averages an encoded job without the GIL: it hashes the ngrams of unknown FastText words in C, sums the weighted word vectors of each sentence and adds the average into its target row with BLAS `saxpy`. `infer` and `train_average_cy` use the same encoder and kernel in the calling thread. The producer still holds the GIL while it reads and encodes the input, so it bounds the throughput once two to four workers are busy.
+6. **Kernel:** `run_job` averages an encoded job without the GIL: it hashes the ngrams of unknown FastText words in C, sums the weighted word vectors of each sentence with a row kernel (see *Row kernels*) and adds the average into its target row with BLAS `saxpy`. `infer` and `train_average_cy` use the same encoder and kernel in the calling thread. The producer still holds the GIL while it reads and encodes the input, so it bounds the throughput once two to four workers are busy.
    For `CorpusFile` and `TextList`, scan and training work on bytes instead (see *Native inputs*).
 7. **Post-train hook:** `_post_train_calls` removes principal components for SIF and uSIF. The components are computed exactly from the Gram matrix `X^T X` of all sentence vectors, summed in float64 over blocks of rows and decomposed with `eigh`; the removal works in blocks of rows as well. Both read the vectors once from front to back, so neither needs memory proportional to the number of sentences, and a memmap streams from disk. With identity indices and the kernel, training has summed the Gram matrix already (see *Single pass*), so only the removal reads the vectors again. After `train(update=True)` it reuses the components of the first training for the appended rows only, as `infer` does.
 
@@ -61,6 +61,19 @@ Both plans store through `_RowWriter`: a new training writes `.writing` files th
 
 Reading: `most_similar`, `similar_by_*` and `score` call `score_rows` in the extension, which multiplies the stored values (float16 through a 65,536-entry table) with float32 weights, scaled per row, without the GIL; `_StoredScores` runs row ranges in a thread pool. For float16 and int8, `init_sims` keeps only one inverse norm per row of the stored values instead of a normalized copy; for int8 that is the norm of the codes, as the scale does not change the direction, so even tiny vectors have a finite inverse norm. Without the extension, numpy converts each block to float32; both give the same results within float32 rounding.
 
+### Word vector formats and row kernels
+
+`wv_dtype` is `"float32"` (the default), `"float16"` or `"int8"`. For float16 and int8 the model stores codes of the word vectors (`vectors`, or `vectors_vocab` and `vectors_ngrams` for FastText) in `wv_codes`/`wv_scales` and `ngram_codes`/`ngram_scales`, quantized once at construction with `quantize_into`, the same arithmetic as for sentence vectors. The passed `KeyedVectors` stay float32 and unchanged. `_word_arrays` returns the rows the kernel and the numpy fallback read: the float32 vectors themselves, or the codes. With `wv_mapfile_path`, codes live in `<path>_wv.<dtype>` (and `<path>_ngrams.<dtype>`), written under a `.writing` name and renamed when complete; an existing file is reused only if it holds exactly these codes. `save` leaves mapped codes out of the pickle and `load` reopens them; the scales stay in the pickle. Class attributes default models saved before `wv_dtype` to float32.
+
+The kernel adds each stored row with a routine of type `add_row_ptr`, `mem += factor * row`; int8 rows fold their scale into the factor. The routines are chosen once at import (`fse_select_kernels`), not per call:
+
+- float32 rows, on every platform: BLAS `saxpy`, which dispatches by CPU itself. End to end, an own loop was no faster on Apple M1 or AMD Zen 5, and `saxpy` keeps float32 results bit-identical to 1.0; prefetching does not change them.
+- x86-64 with GCC or Clang and a CPU with AVX2, FMA and F16C: float16 and int8 rows through intrinsics in functions with `__attribute__((target(...)))`, so the build flags stay the baseline of the wheel. AVX2 and FMA are detected with `__builtin_cpu_supports`, F16C with CPUID (Clang knows `"f16c"` only since version 18). `_kernel_info()` returns `"avx2"`.
+- arm64: float16 rows convert with the native `__fp16` type, and the compiler vectorizes them and the int8 loop with NEON. `"neon"`.
+- Everything else, including Windows (MSVC) and x86 CPUs without AVX2: float16 through a 65,536-entry table and int8 with a portable loop. `"portable"`. `_use_portable_kernels(True)` selects this set on every platform, for tests.
+
+While a row is added, the kernel prefetches every cache line of the row `PREFETCH_DISTANCE` (8) tokens ahead (one prefetch per 64 bytes and one at its last byte), and inside the ngrams of an unknown word the ngram row 8 ahead. 8 was the best or within noise of the best distance on Apple M1 and AMD Zen 4 for every format and vocabulary size measured. Every routine adds the values of a row in index order and a sentence's rows in token order, so the rule below (the same result for any number of workers) holds for every format. For float16 and int8 word vectors, different routines may round differently in the last bits, so their sentence vectors can differ in the last bits between CPUs.
+
 ### Native inputs
 
 `CorpusFile` (a memory-mapped local file) and `TextList` (strings copied once into a UTF-8 buffer with offsets) skip the Python producer:
@@ -74,7 +87,7 @@ The input contract is the one of `IndexedLineDocument` and `SplitIndexedList`, a
 
 ### The numpy fallback matches the Cython kernel
 
-`train_average_np` and `train_average_cy` must produce the same vectors, within float tolerance, for every input, including FastText out-of-vocabulary words and many-to-one index mappings. Tests compare both paths. A change to one path needs the same change and a parity test for the other.
+`train_average_np` and `train_average_cy` must produce the same vectors, within float tolerance, for every input and every `wv_dtype`, including FastText out-of-vocabulary words and many-to-one index mappings. The fallback restores the rows it reads to float32 with `dequantize`, multiplying int8 codes by `weight * scale` in the kernel's order, so tiny scales underflow alike. Tests compare both paths. A change to one path needs the same change and a parity test for the other.
 
 ### One kernel, the same result for any number of workers
 
@@ -110,7 +123,7 @@ Whatever the storage format, `sv[i]`, `get_vector`, `get_vectors`, `iter_blocks`
 
 ### float32 throughout
 
-Word vectors, weights and sentence vectors are computed in `float32` (`REAL`); sentence vectors may be stored as float16 or int8 (see *Storage formats*). The kernel takes raw pointers, so arrays must be `float32` and C-contiguous.
+Word vectors, weights and sentence vectors are computed in `float32` (`REAL`); word and sentence vectors may be stored as float16 or int8 (see *Storage formats* and *Word vector formats and row kernels*), and every sum runs in float32. The kernel takes raw pointers, so arrays must have the expected dtype and be C-contiguous, which `_check_inputs` checks before the GIL is released.
 
 ## Build
 

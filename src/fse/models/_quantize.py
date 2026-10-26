@@ -3,7 +3,7 @@
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
 
-"""Storage formats of the sentence vectors: float32, float16 and int8.
+"""Storage formats of the sentence and word vectors: float32, float16 and int8.
 
 Sentence vectors are always computed in float32 and only stored in a smaller format.
 Reading them gives float32 again. float16 is a plain cast. int8 is symmetric with one
@@ -12,7 +12,8 @@ so ``codes * scale`` restores the row. As the scale belongs to the row, the cosi
 rows of codes equals the cosine of the restored rows.
 
 An STS measurement over the 15 vector sets of the README with CBOW, SIF-10 and uSIF found
-float16 lossless and int8 within 0.02 points of float32.
+float16 lossless and int8 within 0.02 points of float32 for the sentence vectors; for the
+word vectors (``wv_dtype``), float16 within 0.01 points and int8 within 0.12 points.
 """
 
 from typing import Literal
@@ -36,12 +37,20 @@ def has_scales(dtype: StorageDtype) -> bool:
     return dtype == "int8"
 
 
-def quantize_into(rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int = 0):
+def quantize_into(
+    rows: ndarray,
+    codes: ndarray,
+    scales: ndarray | None,
+    first_row: int = 0,
+    kind: str = "sentence vector",
+    option: str = "sv_dtype",
+):
     """Store float32 ``rows`` into ``codes`` (and ``scales``), in blocks of rows.
 
     ``codes`` and ``scales`` may be memory-mapped; they are written block by block, so
     only one block of temporaries exists. ``first_row`` is the row number of ``rows[0]``
-    in error messages. Raises a ValueError for rows that are not finite or, for float16,
+    in error messages, which name the rows ``kind`` and the parameter that chose the
+    format ``option``. Raises a ValueError for rows that are not finite or, for float16,
     out of its range, instead of storing infinity.
     """
     if codes.shape != rows.shape:
@@ -49,7 +58,7 @@ def quantize_into(rows: ndarray, codes: ndarray, scales: ndarray | None, first_r
     for begin in range(0, len(rows), REMOVAL_BLOCK_ROWS):
         block = numpy.asarray(rows[begin : begin + REMOVAL_BLOCK_ROWS], dtype=numpy.float32)
         end = begin + len(block)
-        _check_finite(block, first_row + begin)
+        _check_finite(block, first_row + begin, kind)
         if codes.dtype == numpy.int8:
             absmax = numpy.abs(block).max(axis=1) if block.shape[1] else numpy.zeros(len(block))
             scale = (absmax / _INT8_TOP).astype(numpy.float32)
@@ -66,9 +75,9 @@ def quantize_into(rows: ndarray, codes: ndarray, scales: ndarray | None, first_r
                 large = numpy.flatnonzero((numpy.abs(block) > _FLOAT16_MAX).any(axis=1))
                 if len(large):
                     raise ValueError(
-                        f"sentence vector {first_row + begin + int(large[0])} has values "
+                        f"{kind} {first_row + begin + int(large[0])} has values "
                         f"beyond the float16 range of +-{_FLOAT16_MAX:g}; use "
-                        "sv_dtype='float32' or 'int8'"
+                        f"{option}='float32' or 'int8'"
                     )
             codes[begin:end] = block
 
@@ -91,10 +100,10 @@ def cast_scales(scales: ndarray | None) -> ndarray:
     return scales
 
 
-def _check_finite(block: ndarray, first_row: int):
+def _check_finite(block: ndarray, first_row: int, kind: str = "sentence vector"):
     bad = numpy.flatnonzero(~numpy.isfinite(block).all(axis=1))
     if len(bad):
         raise ValueError(
-            f"sentence vector {first_row + int(bad[0])} contains NaN or infinite values, "
+            f"{kind} {first_row + int(bad[0])} contains NaN or infinite values, "
             "which cannot be stored"
         )

@@ -51,6 +51,152 @@ cdef extern from "Python.h":
 # y += alpha * x, taken from scipy's BLAS. Raises at import if scipy exposes no pointer.
 cdef saxpy_ptr saxpy=<saxpy_ptr>PyCapsule_GetPointer(fblas.saxpy._cpointer, NULL)
 
+# Row kernels: mem += factor * row for one stored word or ngram row, in float32. float32
+# rows go through BLAS saxpy, which dispatches by CPU itself. float16 and int8 rows have
+# portable loops; on x86-64 with GCC or Clang, AVX2 versions are picked at import when the
+# CPU has AVX2, FMA and F16C, without changing the build flags. On arm64 the compiler
+# vectorizes the portable loops with NEON, and float16 converts with the native __fp16
+# type. Every kernel adds the values of a row in index order, so the sum of a sentence
+# does not depend on how jobs are split.
+cdef extern from *:
+    """
+    #include <stddef.h>
+    #include <stdint.h>
+    #include <string.h>
+    #if defined(_MSC_VER)
+    #define FSE_RESTRICT __restrict
+    #else
+    #define FSE_RESTRICT __restrict__
+    #endif
+    #if (defined(__x86_64__) || defined(_M_X64)) && (defined(__GNUC__) || defined(__clang__))
+    #define FSE_X86_DISPATCH 1
+    #include <cpuid.h>
+    #include <immintrin.h>
+    #endif
+    #if defined(__GNUC__) || defined(__clang__)
+    #define FSE_PREFETCH(p) __builtin_prefetch((const void *)(p), 0, 3)
+    #elif defined(_M_X64)
+    #include <xmmintrin.h>
+    #define FSE_PREFETCH(p) _mm_prefetch((const char *)(p), _MM_HINT_T0)
+    #else
+    #define FSE_PREFETCH(p) ((void)(p))
+    #endif
+
+    typedef void (*fse_saxpy_t)(const int *, const float *, const float *, const int *, float *, const int *);
+    typedef void (*fse_add_row_t)(float *, const void *, float, int);
+    static fse_saxpy_t fse_saxpy = NULL;
+    /* Every float16 bit pattern as float32, filled at import. */
+    static float fse_half_table[65536];
+
+    /* Load every cache line of a row that is about to be added: one prefetch per 64
+       bytes from its start, and one at its last byte for a row that straddles a line. */
+    static inline void fse_prefetch_row(const void *row, size_t bytes) {
+        const char *p = (const char *)row;
+        if (!bytes) return;
+        for (size_t offset = 0; offset < bytes; offset += 64) FSE_PREFETCH(p + offset);
+        FSE_PREFETCH(p + bytes - 1);
+    }
+
+    static void fse_add_f32_blas(float *mem, const void *row, float factor, int n) {
+        int one = 1;
+        fse_saxpy(&n, &factor, (const float *)row, &one, mem, &one);
+    }
+    static void fse_add_f16(float *FSE_RESTRICT mem, const void *row, float factor, int n) {
+        const uint16_t *FSE_RESTRICT v = (const uint16_t *)row;
+        for (int i = 0; i < n; i++) mem[i] += factor * fse_half_table[v[i]];
+    }
+    #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
+    static void fse_add_f16_neon(float *FSE_RESTRICT mem, const void *row, float factor, int n) {
+        const __fp16 *FSE_RESTRICT v = (const __fp16 *)row;
+        for (int i = 0; i < n; i++) mem[i] += factor * (float)v[i];
+    }
+    #endif
+    static void fse_add_i8(float *FSE_RESTRICT mem, const void *row, float factor, int n) {
+        const int8_t *FSE_RESTRICT v = (const int8_t *)row;
+        for (int i = 0; i < n; i++) mem[i] += factor * (float)v[i];
+    }
+
+    #if defined(FSE_X86_DISPATCH)
+    __attribute__((target("avx2,fma,f16c"))) static void fse_add_f16_avx2(float *mem, const void *row, float factor, int n) {
+        const uint16_t *v = (const uint16_t *)row;
+        __m256 f = _mm256_set1_ps(factor);
+        int i = 0;
+        for (; i <= n - 8; i += 8) {
+            __m256 x = _mm256_cvtph_ps(_mm_loadu_si128((const __m128i *)(v + i)));
+            _mm256_storeu_ps(mem + i, _mm256_fmadd_ps(f, x, _mm256_loadu_ps(mem + i)));
+        }
+        for (; i < n; i++) mem[i] = __builtin_fmaf(factor, fse_half_table[v[i]], mem[i]);
+    }
+    __attribute__((target("avx2,fma"))) static void fse_add_i8_avx2(float *mem, const void *row, float factor, int n) {
+        const int8_t *v = (const int8_t *)row;
+        __m256 f = _mm256_set1_ps(factor);
+        int i = 0;
+        for (; i <= n - 8; i += 8) {
+            __m256 x = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i *)(v + i))));
+            _mm256_storeu_ps(mem + i, _mm256_fmadd_ps(f, x, _mm256_loadu_ps(mem + i)));
+        }
+        for (; i < n; i++) mem[i] = __builtin_fmaf(factor, (float)v[i], mem[i]);
+    }
+    #endif
+
+    /* The kernels in use, by format (0 float32, 1 float16, 2 int8), and the instruction
+       set they were chosen for. */
+    static fse_add_row_t fse_kernels[3];
+    static const char *fse_kernel_isa = "portable";
+
+    /* Choose the kernels: the fastest the CPU supports, or with portable set, the
+       fallback of a CPU without AVX2 (saxpy for float32, the portable loops otherwise). */
+    static void fse_select_kernels(int portable) {
+        fse_kernels[1] = fse_add_f16;
+        fse_kernels[2] = fse_add_i8;
+        /* float32 rows go through BLAS everywhere: end to end, an own loop was no faster
+           on Apple M1 (NEON) or AMD Zen 5 (AVX2), and saxpy keeps float32 results as in
+           1.0. The gain for float32 comes from prefetching the rows. */
+        fse_kernels[0] = fse_add_f32_blas;
+    #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
+        if (!portable) {
+            fse_kernels[1] = fse_add_f16_neon;
+            fse_kernel_isa = "neon";
+        } else {
+            fse_kernel_isa = "portable";
+        }
+        return;
+    #else
+        fse_kernel_isa = "portable";
+    #if defined(FSE_X86_DISPATCH)
+        __builtin_cpu_init();
+        /* F16C through CPUID: __builtin_cpu_supports knows "f16c" only since Clang 18.
+           It is bit 29 of ECX in leaf 1; AVX2 implies that the OS saves the AVX state. */
+        unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
+        int f16c = __get_cpuid(1, &eax, &ebx, &ecx, &edx) && ((ecx >> 29) & 1u);
+        if (!portable && __builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma") && f16c) {
+            fse_kernels[1] = fse_add_f16_avx2;
+            fse_kernels[2] = fse_add_i8_avx2;
+            fse_kernel_isa = "avx2";
+        }
+    #endif
+    #endif
+    }
+    """
+    ctypedef void (*fse_saxpy_t)(const int *, const float *, const float *, const int *, float *, const int *) noexcept nogil
+    fse_saxpy_t fse_saxpy
+    float fse_half_table[65536]
+    add_row_ptr fse_kernels[3]
+    const char *fse_kernel_isa
+    void fse_select_kernels(int portable) noexcept nogil
+    void fse_prefetch_row(const void *row, size_t bytes) noexcept nogil
+
+fse_saxpy = <fse_saxpy_t>saxpy
+
+# Tokens ahead whose rows are prefetched while a row is added. Measured on Apple M1 and
+# AMD Zen 4: distance 8 was best or within noise of the best for every format and size.
+cdef enum:
+    PREFETCH_DISTANCE = 8
+
+# Code formats of the word vectors, as indices into fse_kernels.
+_FORMATS = {"float32": 0, "float16": 1, "int8": 2}
+_CODE_TYPES = {"float32": np.float32, "float16": np.float16, "int8": np.int8}
+
 cdef int ONE = <int>1
 cdef int ZERO = <int>0
 
@@ -202,9 +348,15 @@ cdef class KernelContext:
         self.params.target = <REAL_t *>(np.PyArray_DATA(target))
         self.params.ring_rows = 0
         self.params.locks = _row_locks_of(model)
+        fmt = _word_format(model)
+        words, word_scales, ngrams, ngram_scales = model._word_arrays()
+        self.params.add_row = fse_kernels[_FORMATS[fmt]]
+        self.params.row_bytes = <size_t>model.sv.vector_size * <size_t>np.dtype(_CODE_TYPES[fmt]).itemsize
+        self.params.word_vectors = np.PyArray_DATA(words)
+        self.params.word_scales = <const REAL_t *>np.PyArray_DATA(word_scales) if word_scales is not None else NULL
+        self.params.ngram_scales = <const REAL_t *>np.PyArray_DATA(ngram_scales) if ngram_scales is not None else NULL
         if model.is_ft:
-            self.params.word_vectors = <REAL_t *>(np.PyArray_DATA(wv.vectors_vocab))
-            self.params.ngram_vectors = <REAL_t *>(np.PyArray_DATA(wv.vectors_ngrams))
+            self.params.ngram_vectors = np.PyArray_DATA(ngrams)
             self.params.min_n = wv.min_n
             self.params.max_n = wv.max_n
             self.params.bucket = wv.bucket
@@ -215,12 +367,10 @@ cdef class KernelContext:
             self.params.max_ngrams = model.batch_ngrams
             # Unknown words are weighted like the most heavily weighted known word.
             self.params.oov_weight = <REAL_t>np.max(model.word_weights)
-            self._keep = (model.word_weights, target, wv.vectors_vocab, wv.vectors_ngrams)
         else:
-            self.params.word_vectors = <REAL_t *>(np.PyArray_DATA(wv.vectors))
             self.params.ngram_vectors = NULL
             self.params.max_ngrams = 0
-            self._keep = (model.word_weights, target, wv.vectors)
+        self._keep = (model.word_weights, target, words, word_scales, ngrams, ngram_scales)
         self._locks = getattr(model, "_row_locks", None)
         self.sources = []
         self.prefill_rows = False
@@ -509,17 +659,28 @@ cdef void _average_sentence(
     ngram vector is added scaled by oov_weight / ngrams, where numpy sums the ngram
     vectors first and scales the sum: the same value within float32 rounding. k is the
     index of the next unknown word in oov_offsets and is advanced past this sentence.
+
+    Word and ngram rows are read through p.add_row in their stored format; int8 rows
+    fold their scale into the factor. While a row is added, the row PREFETCH_DISTANCE
+    tokens (or ngrams) ahead is prefetched, so its cache misses overlap the work.
     """
     cdef int size = p.size
     cdef Py_ssize_t t
     cdef size_t j, ngrams, row
-    cdef uINT_t word
-    cdef REAL_t inv_count, inv_ngram
+    cdef uINT_t word, ahead
+    cdef REAL_t inv_count, inv_ngram, factor
     cdef PyThread_type_lock lock
+    cdef const char *word_rows = <const char *>p.word_vectors
+    cdef const char *ngram_rows = <const char *>p.ngram_vectors
+    cdef size_t row_bytes = p.row_bytes
 
     memset(mem, 0, size * cython.sizeof(REAL_t))
     for t in range(n_tokens):
         word = words[t]
+        if t + PREFETCH_DISTANCE < n_tokens:
+            ahead = words[t + PREFETCH_DISTANCE]
+            if ahead != OOV_TOKEN:
+                fse_prefetch_row(word_rows + <size_t>ahead * row_bytes, row_bytes)
         if word == OOV_TOKEN:
             ngrams = ft_ngram_hashes_into(
                 &oov_bytes[oov_offsets[k[0]]],
@@ -532,11 +693,18 @@ cdef void _average_sentence(
                 continue
             inv_ngram = (ONEF / <REAL_t>ngrams) * p.oov_weight
             for j in range(ngrams):
-                row = <size_t>ngram_buffer[j] * <size_t>size
-                saxpy(&size, &inv_ngram, &p.ngram_vectors[row], &ONE, mem, &ONE)
+                if j + PREFETCH_DISTANCE < ngrams:
+                    fse_prefetch_row(
+                        ngram_rows + <size_t>ngram_buffer[j + PREFETCH_DISTANCE] * row_bytes, row_bytes
+                    )
+                row = <size_t>ngram_buffer[j]
+                factor = inv_ngram * p.ngram_scales[row] if p.ngram_scales != NULL else inv_ngram
+                p.add_row(mem, ngram_rows + row * row_bytes, factor, size)
         else:
-            row = <size_t>word * <size_t>size
-            saxpy(&size, &p.word_weights[word], &p.word_vectors[row], &ONE, mem, &ONE)
+            factor = p.word_weights[word]
+            if p.word_scales != NULL:
+                factor = factor * p.word_scales[word]
+            p.add_row(mem, word_rows + <size_t>word * row_bytes, factor, size)
 
     # Every stored token counts for the length, also unknown words without ngrams.
     if n_tokens > 0:
@@ -1302,6 +1470,14 @@ def _check_array(array, name, dtype):
         raise TypeError(f"{name} must be C-contiguous")
 
 
+def _word_format(model):
+    """The storage format of the model's word vectors: float32, float16 or int8."""
+    fmt = getattr(model, "wv_dtype", "float32")
+    if fmt not in _FORMATS:
+        raise ValueError(f"unknown word vector format {fmt!r}")
+    return fmt
+
+
 def _check_inputs(model, target, memory=None):
     """Validate every array the kernel reads or writes through a raw pointer."""
     _check_array(target, "target", np.float32)
@@ -1310,20 +1486,38 @@ def _check_inputs(model, target, memory=None):
         raise ValueError("target must be writeable")
     # The kernel strides through all matrices by the sentence vector size.
     size = model.sv.vector_size
+    fmt = _word_format(model)
+    code_type = _CODE_TYPES[fmt]
+    word_vectors, word_scales, ngram_vectors, ngram_scales = model._word_arrays()
+    if fmt == "float32":
+        word_name = "wv.vectors_vocab" if model.is_ft else "wv.vectors"
+        ngram_name = "wv.vectors_ngrams"
+    else:
+        word_name, ngram_name = "wv_codes", "ngram_codes"
+    _check_array(word_vectors, word_name, code_type)
     if model.is_ft:
-        word_vectors = model.wv.vectors_vocab
-        _check_array(word_vectors, "wv.vectors_vocab", np.float32)
-        _check_array(model.wv.vectors_ngrams, "wv.vectors_ngrams", np.float32)
-        if model.wv.vectors_ngrams.shape != (model.wv.bucket, size):
+        _check_array(ngram_vectors, ngram_name, code_type)
+        if ngram_vectors.shape != (model.wv.bucket, size):
             raise ValueError(
-                f"wv.vectors_ngrams must have shape ({model.wv.bucket}, {size}), "
-                f"got {model.wv.vectors_ngrams.shape}"
+                f"{ngram_name} must have shape ({model.wv.bucket}, {size}), "
+                f"got {ngram_vectors.shape}"
             )
         if model.batch_ngrams < 1:
             raise ValueError(f"batch_ngrams must be positive, got {model.batch_ngrams}")
-    else:
-        word_vectors = model.wv.vectors
-        _check_array(word_vectors, "wv.vectors", np.float32)
+    # int8 codes need one float32 scale per row, the other formats none.
+    for codes, scales, name in (
+        (word_vectors, word_scales, "wv_scales"),
+        (ngram_vectors if model.is_ft else None, ngram_scales, "ngram_scales"),
+    ):
+        if fmt != "int8":
+            if scales is not None:
+                raise ValueError(f"{name} must be None for {fmt} word vectors")
+            continue
+        if codes is None:
+            continue
+        _check_array(scales, name, np.float32)
+        if scales.shape != (codes.shape[0],):
+            raise ValueError(f"{name} must have shape ({codes.shape[0]},), got {scales.shape}")
     if word_vectors.ndim != 2 or word_vectors.shape[1] != size:
         raise ValueError(f"word vectors must have shape (n, {size}), got {word_vectors.shape}")
     # The encoder takes word indices from key_to_index and the kernel reads their rows.
@@ -1397,7 +1591,23 @@ with np.errstate(invalid="ignore"):
     _half_values = np.arange(65536, dtype=np.uint16).view(np.float16).astype(np.float32)
 for _i in range(65536):
     _HALF_TABLE[_i] = _half_values[_i]
+    fse_half_table[_i] = _half_values[_i]
 del _half_values, _i
+
+fse_select_kernels(0)
+
+
+def _kernel_info():
+    """The instruction set of the row kernels in use: "avx2", "neon" or "portable"."""
+    return fse_kernel_isa.decode("ascii")
+
+
+def _use_portable_kernels(bint portable):
+    """Switch to the kernels of a CPU without AVX2 (True) or back to the fastest (False).
+
+    For tests of the fallback; affects kernel contexts created afterwards.
+    """
+    fse_select_kernels(portable)
 
 
 cdef inline REAL_t _dot_int8(const signed char *row, const REAL_t *w, Py_ssize_t dim) noexcept nogil:

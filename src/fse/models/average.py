@@ -35,7 +35,15 @@ from typing import Any
 
 from gensim.models.fasttext import ft_ngram_hashes
 from numpy import (
+    asarray as np_asarray,
+)
+from numpy import (
     float32 as REAL,
+)
+from numpy import (
+    full,
+    ndarray,
+    zeros,
 )
 from numpy import (
     max as np_max,
@@ -44,18 +52,59 @@ from numpy import (
     multiply as np_mult,
 )
 from numpy import (
-    ndarray,
-    zeros,
-)
-from numpy import (
     sum as np_sum,
 )
 
 from fse._validation import PathLike, PositiveInt, WordVectorModel, validate_arguments
-from fse.models._quantize import StorageDtype
+from fse.models._quantize import STORAGE_TYPES, StorageDtype, dequantize, has_scales
 from fse.models.base_s2v import BaseSentence2VecModel, _OffsetIndices
 
 logger = logging.getLogger(__name__)
+
+
+def _weighted_rows(
+    vectors: ndarray | None, scales: ndarray | None, index: list[int], weights: Any
+) -> Any:
+    """``weights[:, None] * rows`` for the stored rows at index, in float32.
+
+    int8 codes are multiplied by ``weights * scales`` as the kernel does, so a tiny scale
+    times a weight underflows in both paths alike.
+    """
+    if vectors is None:
+        raise RuntimeError("the model has no stored vectors for these rows")
+    weights = np_asarray(weights, dtype=REAL)
+    if scales is not None:
+        return dequantize(vectors[index], weights * scales[index])
+    rows = vectors[index] if vectors.dtype == REAL else dequantize(vectors[index], None)
+    return np_mult(rows, weights[:, None])
+
+
+def _check_stored_rows(model: BaseSentence2VecModel):
+    """Check the stored word (and ngram) rows and their scales, once per job.
+
+    The checks of the kernel's _check_inputs, so both paths reject the same model
+    states, whichever words a job contains.
+    """
+    fmt = getattr(model, "wv_dtype", "float32")
+    code_type = STORAGE_TYPES.get(fmt)
+    if code_type is None:
+        raise ValueError(f"unknown word vector format {fmt!r}")
+    words, word_scales, ngrams, ngram_scales = model._word_arrays()
+    pairs: list[tuple[str, ndarray | None, ndarray | None]] = [("word", words, word_scales)]
+    if model.is_ft:
+        pairs.append(("ngram", ngrams, ngram_scales))
+    for kind, codes, scales in pairs:
+        if not isinstance(codes, ndarray) or codes.dtype != code_type:
+            raise TypeError(f"the {kind} rows must be a {fmt} array")
+        if has_scales(model.wv_dtype):
+            if not isinstance(scales, ndarray) or scales.dtype != REAL:
+                raise TypeError(f"int8 {kind} codes need one float32 scale per row")
+            if scales.shape != (codes.shape[0],):
+                raise ValueError(
+                    f"the {kind} scales must have shape ({codes.shape[0]},), got {scales.shape}"
+                )
+        elif scales is not None:
+            raise TypeError(f"{fmt} {kind} rows take no scales")
 
 
 def train_average_np(
@@ -94,7 +143,10 @@ def train_average_np(
     """
     size = model.wv.vector_size
 
-    w_vectors = model.wv.vectors
+    # The rows the kernel reads: float32 vectors, or the float16 or int8 codes of a model
+    # with wv_dtype, restored to float32 row by row.
+    _check_stored_rows(model)
+    w_vectors, w_scales, ngram_vectors, ngram_scales = model._word_arrays()
     w_weights = model.word_weights
 
     s_vectors = target
@@ -110,8 +162,6 @@ def train_average_np(
         # wv.vectors_vocab + wv.vectors_ngrams, which will all point into very
         # similar directions.
         max_ngrams = model.batch_ngrams
-        w_vectors = model.wv.vectors_vocab
-        ngram_vectors = model.wv.vectors_ngrams
         min_n = model.wv.min_n
         max_n = model.wv.max_n
         bucket = model.wv.bucket
@@ -136,7 +186,7 @@ def train_average_np(
             eff_words += len(word_indices)
 
             mem += np_sum(
-                np_mult(w_vectors[word_indices], w_weights[word_indices][:, None]),
+                _weighted_rows(w_vectors, w_scales, word_indices, w_weights[word_indices]),
                 axis=0,
             )
             mem *= 1 / len(word_indices)
@@ -157,7 +207,9 @@ def train_average_np(
             for word in sent:
                 if word in model.wv.key_to_index:
                     word_index = model.wv.key_to_index[word]
-                    mem += w_vectors[word_index] * w_weights[word_index]
+                    mem += _weighted_rows(
+                        w_vectors, w_scales, [word_index], w_weights[[word_index]]
+                    )[0]
                 else:
                     # A model without ngram buckets has no vector for an unknown word, as
                     # in the Cython routine.
@@ -166,8 +218,11 @@ def train_average_np(
                     )
                     if len(ngram_hashes) == 0:
                         continue
-                    mem += oov_weight * (
-                        np_sum(ngram_vectors[ngram_hashes], axis=0) / len(ngram_hashes)
+                    # Each ngram row weighted by oov_weight / ngrams, as in the kernel.
+                    inv_ngram = REAL(1.0) / REAL(len(ngram_hashes)) * REAL(oov_weight)
+                    weights = full(len(ngram_hashes), inv_ngram, dtype=REAL)
+                    mem += np_sum(
+                        _weighted_rows(ngram_vectors, ngram_scales, ngram_hashes, weights), axis=0
                     )
                 # Implicit addition of zero if oov does not contain any ngrams
             s_vectors[sent_adr] += mem / len(sent)
@@ -260,6 +315,7 @@ class Average(BaseSentence2VecModel):
         workers: PositiveInt = 1,
         lang_freq: str | None = None,
         sv_dtype: StorageDtype = "float32",
+        wv_dtype: StorageDtype = "float32",
     ):
         """Average (unweighted) sentence embeddings model. Performs a simple averaging operation over all
         words in a sentences without further transformation.
@@ -289,6 +345,11 @@ class Average(BaseSentence2VecModel):
         sv_dtype : {"float32", "float16", "int8"}, optional
             Storage format of the sentence vectors: float16 halves and int8 quarters their
             memory. They are computed in float32 and every read returns float32.
+        wv_dtype : {"float32", "float16", "int8"}, optional
+            Format in which the model keeps the word vectors it averages: float16 halves
+            their memory and int8 quarters it. With AVX2 or on arm64, averaging also gets
+            somewhat faster; without AVX2, including on Windows, it gets slower. The word
+            vectors passed in are not changed.
 
         """
 
@@ -299,6 +360,7 @@ class Average(BaseSentence2VecModel):
             workers=workers,
             lang_freq=lang_freq,
             sv_dtype=sv_dtype,
+            wv_dtype=wv_dtype,
             batch_words=MAX_WORDS_IN_BATCH,
             batch_ngrams=MAX_NGRAMS_IN_BATCH,
             fast_version=FAST_VERSION,

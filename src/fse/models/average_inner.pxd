@@ -19,6 +19,9 @@ ctypedef void (*saxpy_ptr) (const int *N, const float *alpha, const float *X, co
 
 cdef saxpy_ptr saxpy
 
+# mem += factor * row for one stored row of n values (float32, float16 or int8).
+ctypedef void (*add_row_ptr) (REAL_t *mem, const void *row, REAL_t factor, int n) noexcept nogil
+
 # Defaults for batch_words (words per job) and batch_ngrams (ngrams per unknown FastText
 # word). They are no limits of the kernel, whose buffers fit every job.
 cdef enum:
@@ -34,8 +37,16 @@ cdef struct KernelParams:
     size_t max_ngrams
     REAL_t oov_weight
 
-    REAL_t *word_vectors  # wv.vectors, or wv.vectors_vocab for FastText
-    REAL_t *ngram_vectors  # wv.vectors_ngrams for FastText, else NULL
+    # Stored rows of the word vectors (wv.vectors, or wv.vectors_vocab for FastText) and of
+    # the ngram vectors (FastText only, else NULL), as float32, float16 or int8 codes.
+    const void *word_vectors
+    const void *ngram_vectors
+    # One float32 scale per row for int8 codes, else NULL.
+    const REAL_t *word_scales
+    const REAL_t *ngram_scales
+    # Bytes of one stored row, and the routine that adds a stored row into a float32 sum.
+    size_t row_bytes
+    add_row_ptr add_row
     REAL_t *word_weights
     REAL_t *target
     # 0, or the rows of a ring of windows in target: row r is then stored at r % ring_rows.

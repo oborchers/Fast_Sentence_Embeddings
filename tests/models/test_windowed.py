@@ -72,17 +72,18 @@ def _assert_stored(model, rows):
 
 
 @pytest.mark.usefixtures("small_windows")
+@pytest.mark.parametrize("wv_dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("dtype", ["float16", "int8"])
 @pytest.mark.parametrize(("cls", "kwargs"), MODELS, ids=MODEL_IDS)
 @pytest.mark.parametrize("kind", ["IndexedList", "TextList", "CorpusFile", "IndexedLineDocument"])
 @pytest.mark.parametrize("workers", [1, 2, 8])
 def test_windows_store_the_float32_rows_exactly(
-    w2v, lines, tmp_path, dtype, cls, kwargs, kind, workers
+    w2v, lines, tmp_path, wv_dtype, dtype, cls, kwargs, kind, workers
 ):
     data = _inputs(kind, lines, tmp_path)
-    reference = cls(w2v, workers=workers, **kwargs)
+    reference = cls(w2v, workers=workers, wv_dtype=wv_dtype, **kwargs)
     reference.train(data)
-    model = cls(w2v, workers=workers, sv_dtype=dtype, **kwargs)
+    model = cls(w2v, workers=workers, sv_dtype=dtype, wv_dtype=wv_dtype, **kwargs)
     # Small jobs, so Python inputs wrap the ring and wait for slots as native ones do.
     model.batch_words = 8
     spy = []
