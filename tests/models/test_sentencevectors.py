@@ -349,10 +349,12 @@ class TestBlockwiseSearch:
 
     @pytest.fixture
     def vectors(self):
+        # Small integers, so every dot product is exact in float32 whatever the BLAS and
+        # the block size; the selection is then compared bit for bit. They give many ties.
         rng = np.random.default_rng(5)
-        vectors = _l2_norm(rng.standard_normal((200, 8)).astype(np.float32))
-        # Exact ties across block boundaries, and rows without a similarity.
-        vectors[[3, 50, 51, 120, 199]] = vectors[7]
+        vectors = rng.integers(-4, 5, size=(200, 8)).astype(np.float32)
+        # The best rows: exact ties across block boundaries.
+        vectors[[3, 7, 50, 51, 120, 199]] = 10
         vectors[[10, 90]] = np.nan
         return vectors
 
@@ -387,7 +389,10 @@ class TestBlockwiseSearch:
 
         whole = query()
         monkeypatch.setattr(sentencevectors, "REMOVAL_BLOCK_ROWS", 3)
-        assert query() == whole
+        # BLAS may round the dot products of a small block differently than of all rows.
+        blocked = query()
+        assert [index for index, _ in blocked] == [index for index, _ in whole]
+        assert [sim for _, sim in blocked] == pytest.approx([sim for _, sim in whole], abs=1e-6)
         lo = 0 if not isinstance(restrict_size, tuple) else restrict_size[0]
         # The query vector exactly as most_similar builds it.
         norm = trained.sv.vectors_norm
@@ -396,5 +401,5 @@ class TestBlockwiseSearch:
         hi = {None: None, 50: 50}.get(restrict_size, 180)
         sims = np.dot(trained.sv.vectors_norm[lo:hi], mean)
         for index, sim in whole:
-            assert sim == float(sims[index - lo])
+            assert sim == pytest.approx(float(sims[index - lo]), abs=1e-6)
             assert index not in (1, 2, 4)

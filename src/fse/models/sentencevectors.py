@@ -51,8 +51,9 @@ def _most_similar_rows(vectors: ndarray, query: ndarray, count: int) -> tuple[nd
 
     The rows are read in blocks of ``REMOVAL_BLOCK_ROWS``, and only the best ``count``
     candidates are kept between blocks, so memory does not grow with the number of rows.
-    Each row gets the dot product a single ``dot(vectors, query)`` gives it. Of equal
-    products the lower row wins; NaN ranks below every number, as in ``argsort``.
+    The dot products equal those of a single ``dot(vectors, query)`` up to float32
+    rounding, since BLAS may sum a block differently. Of equal products the lower row
+    wins; NaN ranks below every number, as in ``argsort``.
     """
     best_rows = empty(0, dtype=int64)
     best_keys = empty(0, dtype=REAL)
