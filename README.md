@@ -231,6 +231,22 @@ for first_row, block in model.sv.iter_blocks():  # float32 blocks, for anything 
     ...
 ```
 
+### Smaller word vectors
+
+`wv_dtype="float16"` or `"int8"` makes the model keep the word vectors it averages (and the ngram vectors of FastText models) in half or a quarter of the memory, and averaging gets faster because fewer bytes move per word. The model quantizes a copy once when it is created; the word vectors you pass in stay unchanged. To keep their float32 values out of RAM as well, load them memory-mapped, for example `Vectors.from_pretrained("word2vec-google-news-300", mmap="r")`. With `wv_mapfile_path` the codes are written to a file and memory-mapped.
+
+```python
+from fse import SIF, CorpusFile, Vectors
+
+vectors = Vectors.from_pretrained("word2vec-google-news-300", mmap="r")
+model = SIF(vectors, wv_dtype="int8", sv_dtype="int8", workers=8)
+model.train(CorpusFile("sentences.txt"))
+```
+
+On the STS Benchmark (all 15 vector sets, with CBOW, SIF-10 and uSIF), float16 word vectors change the scores by at most 0.01 points and int8 by at most 0.12 points (`glove-twitter-25` with SIF-10; every 300-dimensional set stays within 0.02 points).
+
+The kernel picks its routines when fse is imported: on x86-64 Linux and macOS with AVX2, FMA and F16C (Intel since Haswell, AMD since Zen), it reads float16 and int8 with vector instructions; on Apple Silicon and other arm64 CPUs with NEON. Without them, including on Windows, float32 uses BLAS as before and int8 is about as fast as float32, while float16 then saves memory but is slower than float32.
+
 Additional Information
 -------------
 
