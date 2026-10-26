@@ -95,7 +95,8 @@ class uSIF(Average):
             memory. They are computed in float32 and every read returns float32.
         wv_dtype : {"float32", "float16", "int8"}, optional
             Format in which the model keeps the word vectors it averages: float16 halves
-            their memory and int8 quarters it, and both make averaging faster. The word
+            their memory and int8 quarters it. With AVX2 or on arm64, averaging also gets
+            somewhat faster; without AVX2, including on Windows, it gets slower. The word
             vectors passed in are not changed.
         """
 

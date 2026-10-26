@@ -42,6 +42,7 @@ from numpy import (
 )
 from numpy import (
     full,
+    int8,
     ndarray,
     zeros,
 )
@@ -72,6 +73,11 @@ def _weighted_rows(
     """
     if vectors is None:
         raise RuntimeError("the model has no stored vectors for these rows")
+    # The checks of the kernel's _check_inputs, so both paths reject the same states.
+    if (vectors.dtype == int8) != (scales is not None):
+        raise TypeError("int8 codes need one float32 scale per row, other formats none")
+    if scales is not None and scales.dtype != REAL:
+        raise TypeError(f"scales must have dtype float32, got {scales.dtype}")
     weights = np_asarray(weights, dtype=REAL)
     if scales is not None:
         return dequantize(vectors[index], weights * scales[index])
@@ -318,7 +324,8 @@ class Average(BaseSentence2VecModel):
             memory. They are computed in float32 and every read returns float32.
         wv_dtype : {"float32", "float16", "int8"}, optional
             Format in which the model keeps the word vectors it averages: float16 halves
-            their memory and int8 quarters it, and both make averaging faster. The word
+            their memory and int8 quarters it. With AVX2 or on arm64, averaging also gets
+            somewhat faster; without AVX2, including on Windows, it gets slower. The word
             vectors passed in are not changed.
 
         """

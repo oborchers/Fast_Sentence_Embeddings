@@ -252,7 +252,7 @@ The main benefit is memory. Averaging also gets somewhat faster where fse reads 
 | Apple M1 Pro, 400,000 words | 1.4 to 1.5 times as fast | 1.2 to 1.4 times as fast |
 | AMD EPYC (Zen 5, shared cloud machine), 400,000 and 3 million words | 1.0 to 1.4 times as fast | 0.7 to 1.15 times, mostly about the same |
 
-Without AVX2, including on Windows, float16 and int8 save memory but train 20 to 35 % slower (measured on the AMD machine with the fallback routines forced). float32 itself keeps its results unchanged; prefetching the rows of the next words made it up to about 1.2 times as fast.
+On x86-64 CPUs without AVX2 and on Windows, fse uses portable routines instead: float16 and int8 then save memory but train 20 to 35 % slower (measured on the AMD machine with the portable routines forced). float32 itself keeps its results unchanged; prefetching the rows of the next words made it up to about 1.2 times as fast.
 
 Additional Information
 -------------

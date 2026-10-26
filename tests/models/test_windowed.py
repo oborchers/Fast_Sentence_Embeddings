@@ -72,7 +72,7 @@ def _assert_stored(model, rows):
 
 
 @pytest.mark.usefixtures("small_windows")
-@pytest.mark.parametrize("wv_dtype", ["float32", "int8"])
+@pytest.mark.parametrize("wv_dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("dtype", ["float16", "int8"])
 @pytest.mark.parametrize(("cls", "kwargs"), MODELS, ids=MODEL_IDS)
 @pytest.mark.parametrize("kind", ["IndexedList", "TextList", "CorpusFile", "IndexedLineDocument"])

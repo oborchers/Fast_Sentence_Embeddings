@@ -174,8 +174,9 @@ class BaseSentence2VecModel(SaveLoad):
         wv_dtype : {"float32", "float16", "int8"}, optional
             Format in which the model keeps the word vectors (and FastText ngram vectors)
             it averages: float16 halves their memory and int8, with one float32 scale per
-            vector, quarters it, and both make averaging faster. The model quantizes a copy
-            once; the word vectors passed in are not changed. Load them with ``mmap="r"``
+            vector, quarters it. With AVX2 or on arm64, averaging also gets somewhat
+            faster; without AVX2, including on Windows, it gets slower. The model quantizes
+            a copy once; the word vectors passed in are not changed. Load them with ``mmap="r"``
             to keep their float32 values out of RAM.
 
         """
@@ -444,8 +445,12 @@ class BaseSentence2VecModel(SaveLoad):
                 continue
             if codes.dtype != code_type:
                 raise TypeError(f"type of {name} is wrong: {codes.dtype}, expected {code_type}")
-            if has_scales(self.wv_dtype) and (scales is None or scales.shape != (len(codes),)):
+            if has_scales(self.wv_dtype) and (
+                scales is None or scales.dtype != REAL or scales.shape != (len(codes),)
+            ):
                 raise TypeError(f"{name} needs one float32 scale per row")
+            if not has_scales(self.wv_dtype) and scales is not None:
+                raise TypeError(f"{name} of {self.wv_dtype} word vectors take no scales")
         if len(words) != len(self.word_weights):
             raise RuntimeError("Number of stored word vectors and weights does not match")
         stored = STORAGE_TYPES.get(str(getattr(self.sv, "dtype", None)))
@@ -564,40 +569,18 @@ class BaseSentence2VecModel(SaveLoad):
         self.wv_mapfile_shapes[f"{name}_codes"] = shape
         if not path.exists():
             logger.info(f"writing {name} codes to {path}")
-            writing = path.with_name(path.name + ".writing")
-            codes = np_memmap(writing, dtype=code_type, mode="w+", shape=shape)
-            try:
-                quantize_into(rows, codes, scales, kind=kind, option="wv_dtype")
-                codes.flush()
-            except BaseException as error:
-                # Release the map before removing the file (Windows refuses otherwise).
-                del codes
-                traceback.clear_frames(error.__traceback__)
-                writing.unlink(missing_ok=True)
-                raise
-            del codes
-            os.replace(writing, path)
+            _write_codes(rows, path, code_type, scales, kind)
             return np_memmap(path, dtype=code_type, mode="r", shape=shape), scales
         logger.info(f"loading pre-existing {name} codes from {path}")
         _check_mapfile_size(path, shape, dtype(code_type).itemsize)
         existing = np_memmap(path, dtype=code_type, mode="r", shape=shape)
-        block = empty((min(REMOVAL_BLOCK_ROWS, shape[0]), shape[1]), dtype=code_type)
-        for begin in range(0, shape[0], REMOVAL_BLOCK_ROWS):
-            end = min(begin + REMOVAL_BLOCK_ROWS, shape[0])
-            part = block[: end - begin]
-            quantize_into(
-                rows[begin:end],
-                part,
-                None if scales is None else scales[begin:end],
-                first_row=begin,
-                kind=kind,
-                option="wv_dtype",
-            )
-            if not array_equal(existing[begin:end], part):
-                raise ValueError(
-                    f"the existing file {path} holds other codes than the model "
-                    f"(from row {begin}); delete it or pass another mapfile path"
-                )
+        try:
+            _check_codes(existing, rows, scales, kind, path)
+        except BaseException as error:
+            # Release the map, so the rejected file can be deleted (also on Windows).
+            del existing
+            traceback.clear_frames(error.__traceback__)
+            raise
         return existing, scales
 
     def _map_all_vectors_to_disk(self, mapfile_path: Path):
@@ -1767,6 +1750,50 @@ def _own_word_vectors(wv: KeyedVectors) -> KeyedVectors:
     own.expandos = {attr: values.copy() for attr, values in wv.expandos.items()}
     own.norms = None
     return own
+
+
+def _write_codes(rows: ndarray, path: Path, code_type: Any, scales: ndarray | None, kind: str):
+    """Quantize rows into the mapfile path, through a temporary file renamed when complete.
+
+    On any error the map is released and the temporary file removed, so no partial
+    file stays behind.
+    """
+    writing = path.with_name(path.name + ".writing")
+    codes = None
+    try:
+        codes = np_memmap(writing, dtype=code_type, mode="w+", shape=rows.shape)
+        quantize_into(rows, codes, scales, kind=kind, option="wv_dtype")
+        codes.flush()
+        # Release the map before the rename (Windows refuses otherwise).
+        codes = None
+        os.replace(writing, path)
+    except BaseException as error:
+        codes = None
+        traceback.clear_frames(error.__traceback__)
+        writing.unlink(missing_ok=True)
+        raise
+
+
+def _check_codes(existing: ndarray, rows: ndarray, scales: ndarray | None, kind: str, path: Path):
+    """Raise unless the existing codes equal the codes of rows; fills scales."""
+    shape = rows.shape
+    block = empty((min(REMOVAL_BLOCK_ROWS, shape[0]), shape[1]), dtype=existing.dtype)
+    for begin in range(0, shape[0], REMOVAL_BLOCK_ROWS):
+        end = min(begin + REMOVAL_BLOCK_ROWS, shape[0])
+        part = block[: end - begin]
+        quantize_into(
+            rows[begin:end],
+            part,
+            None if scales is None else scales[begin:end],
+            first_row=begin,
+            kind=kind,
+            option="wv_dtype",
+        )
+        if not array_equal(existing[begin:end], part):
+            raise ValueError(
+                f"the existing file {path} holds other codes than the model "
+                f"(from row {begin}); delete it or pass another mapfile path"
+            )
 
 
 def _check_mapfile_size(path: Path, shape: tuple[int, ...], itemsize: int = dtype(REAL).itemsize):

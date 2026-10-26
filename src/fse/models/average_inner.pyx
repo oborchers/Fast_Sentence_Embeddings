@@ -102,14 +102,15 @@ cdef extern from *:
         fse_saxpy(&n, &factor, (const float *)row, &one, mem, &one);
     }
     static void fse_add_f16(float *FSE_RESTRICT mem, const void *row, float factor, int n) {
-    #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
-        const __fp16 *FSE_RESTRICT v = (const __fp16 *)row;
-        for (int i = 0; i < n; i++) mem[i] += factor * (float)v[i];
-    #else
         const uint16_t *FSE_RESTRICT v = (const uint16_t *)row;
         for (int i = 0; i < n; i++) mem[i] += factor * fse_half_table[v[i]];
-    #endif
     }
+    #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
+    static void fse_add_f16_neon(float *FSE_RESTRICT mem, const void *row, float factor, int n) {
+        const __fp16 *FSE_RESTRICT v = (const __fp16 *)row;
+        for (int i = 0; i < n; i++) mem[i] += factor * (float)v[i];
+    }
+    #endif
     static void fse_add_i8(float *FSE_RESTRICT mem, const void *row, float factor, int n) {
         const int8_t *FSE_RESTRICT v = (const int8_t *)row;
         for (int i = 0; i < n; i++) mem[i] += factor * (float)v[i];
@@ -153,7 +154,12 @@ cdef extern from *:
            1.0. The gain for float32 comes from prefetching the rows. */
         fse_kernels[0] = fse_add_f32_blas;
     #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
-        fse_kernel_isa = portable ? "portable" : "neon";
+        if (!portable) {
+            fse_kernels[1] = fse_add_f16_neon;
+            fse_kernel_isa = "neon";
+        } else {
+            fse_kernel_isa = "portable";
+        }
         return;
     #else
         fse_kernel_isa = "portable";

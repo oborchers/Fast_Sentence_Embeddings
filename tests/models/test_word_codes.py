@@ -248,23 +248,33 @@ class TestModel:
         if sv_dtype == "int8":
             np.testing.assert_array_equal(one.sv.scales, four.sv.scales)
 
-    def test_tiny_int8_scales_underflow_like_the_kernel(self, w2v_model):
-        """A scale of 2**-149 times a weight of 0.5 rounds to zero in both paths."""
-        w2v_model.wv.vectors[:] = 1
+    def test_tiny_int8_scales_underflow_like_the_kernel(self, kernels, w2v_model):
+        """A scale of 2**-149 times a weight of 0.5 rounds to zero in both paths.
+
+        Multiplying the codes by the scale first would give 64 * 2**-149 instead.
+        """
         tiny = np.float32(2.0**-149)
         w2v_model.wv.vectors[0] = 0
         w2v_model.wv.vectors[0, 0] = 127 * tiny
-        sentences = [([w2v_model.wv.index_to_key[0], w2v_model.wv.index_to_key[1]], 0)]
-        cy = _prepare(Average(w2v_model, wv_dtype="int8"), 1)
-        np_model = _prepare(Average(w2v_model, wv_dtype="int8"), 1)
-        assert cy.wv_scales[0] == tiny
-        for model in (cy, np_model):
+        sentences = [([w2v_model.wv.index_to_key[0]], 0)]
+        for train in (train_average_cy, train_average_np):
+            model = _prepare(Average(w2v_model, wv_dtype="int8"), 1)
+            assert model.wv_scales[0] == tiny
             model.word_weights[:] = 0.5
-        train_average_cy(cy, sentences, cy.sv.vectors, cy._get_thread_working_mem())
-        train_average_np(
-            np_model, sentences, np_model.sv.vectors, np_model._get_thread_working_mem()
-        )
-        np.testing.assert_array_equal(cy.sv.vectors, np_model.sv.vectors)
+            train(model, sentences, model.sv.vectors, model._get_thread_working_mem())
+            assert (model.sv.vectors == 0).all(), train.__name__
+
+    def test_tiny_int8_ngram_scales_underflow_like_the_kernel(self, kernels, make_ft):
+        ft = make_ft(8, bucket=50)
+        tiny = np.float32(2.0**-149)
+        ft.wv.vectors_ngrams[:] = 0
+        ft.wv.vectors_ngrams[:, 0] = 127 * tiny
+        sentences = [(["unknownword"], 0)]
+        for train in (train_average_cy, train_average_np):
+            model = _prepare(Average(ft, wv_dtype="int8"), 1)
+            model.word_weights[:] = 0.5
+            train(model, sentences, model.sv.vectors, model._get_thread_working_mem())
+            assert (model.sv.vectors == 0).all(), train.__name__
 
     def test_failed_quantization_leaves_no_mapfile(self, w2v_model, tmp_path):
         w2v_model.wv.vectors[7, 2] = np.inf
@@ -272,6 +282,62 @@ class TestModel:
             Average(w2v_model, wv_dtype="int8", wv_mapfile_path=str(tmp_path / "wv"))
         gc.collect()
         assert not list(tmp_path.glob("*.int8*"))
+
+    def test_failed_rename_leaves_no_mapfile(self, w2v_model, tmp_path, monkeypatch):
+        import os
+
+        def fail(*args, **kwargs):
+            raise OSError("rename failed")
+
+        monkeypatch.setattr(os, "replace", fail)
+        with pytest.raises(OSError, match="rename failed"):
+            Average(w2v_model, wv_dtype="int8", wv_mapfile_path=str(tmp_path / "wv"))
+        monkeypatch.undo()
+        assert not list(tmp_path.glob("*.int8*"))
+
+    def test_rejected_codes_file_can_be_deleted_while_the_error_is_kept(self, w2v_model, tmp_path):
+        mapfile = tmp_path / "wv"
+        first = Average(w2v_model, wv_dtype="int8", wv_mapfile_path=str(mapfile))
+        del first
+        gc.collect()
+        (tmp_path / "wv_wv.vectors").unlink()
+        w2v_model.wv.vectors[0] += 1
+        with pytest.raises(ValueError, match="holds other codes") as caught:
+            Average(w2v_model, wv_dtype="int8", wv_mapfile_path=str(mapfile))
+        # The fixture fails like Windows if the rejected file is still mapped.
+        (tmp_path / "wv_wv.int8").unlink()
+        assert caught.value is not None
+
+    @pytest.mark.parametrize(
+        ("change", "message"),
+        [
+            (lambda m: setattr(m, "wv_scales", None), "int8 codes need one float32 scale"),
+            (
+                lambda m: setattr(m, "wv_scales", m.wv_scales.astype(np.float64)),
+                "scales must have dtype float32",
+            ),
+        ],
+    )
+    def test_numpy_fallback_rejects_bad_scales(self, w2v_model, change, message):
+        model = _prepare(Average(w2v_model, wv_dtype="int8"), 1)
+        change(model)
+        with pytest.raises(TypeError, match=message):
+            train_average_np(
+                model, [(["go"], 0)], model.sv.vectors, model._get_thread_working_mem()
+            )
+
+    @pytest.mark.parametrize("bad", ["float64", "missing", "unexpected"])
+    def test_training_rejects_bad_scales(self, w2v_model, bad):
+        fmt = "float16" if bad == "unexpected" else "int8"
+        model = Average(w2v_model, wv_dtype=fmt)
+        if bad == "float64":
+            model.wv_scales = model.wv_scales.astype(np.float64)
+        elif bad == "missing":
+            model.wv_scales = None
+        else:
+            model.wv_scales = np.ones(len(model.wv_codes), dtype=np.float32)
+        with pytest.raises(TypeError, match="scale"):
+            model.train(IndexedList([["go"]]))
 
     @pytest.mark.parametrize("fmt", QUANTIZED)
     def test_infer_and_update_read_the_codes(self, w2v_model, sentences, fmt):
