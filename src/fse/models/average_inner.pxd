@@ -38,6 +38,8 @@ cdef struct KernelParams:
     REAL_t *ngram_vectors  # wv.vectors_ngrams for FastText, else NULL
     REAL_t *word_weights
     REAL_t *target
+    # 0, or the rows of a ring of windows in target: row r is then stored at r % ring_rows.
+    size_t ring_rows
     # Striped row locks for many-to-one index mappings, or NULL for one row per sentence.
     PyThread_type_lock *locks
 

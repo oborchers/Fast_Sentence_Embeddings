@@ -54,6 +54,7 @@ from numpy import (
     dtype,
     empty,
     finfo,
+    float64,
     int64,
     ndarray,
     ones,
@@ -83,9 +84,11 @@ from fse._validation import (
     WordVectorModel,
     validate_arguments,
 )
+from fse.models import utils
 from fse.models._index_tracker import MAX_INDEX, IndexTracker, check_index_range
 from fse.models._quantize import STORAGE_TYPES, StorageDtype, has_scales
 from fse.models._single_pass import SinglePass
+from fse.models._windowed import WindowedWriter
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
 from fse.models.utils import REMOVAL_BLOCK_ROWS
 
@@ -943,6 +946,23 @@ class BaseSentence2VecModel(SaveLoad):
         # the kernel sets them to EPS itself instead of a separate pass over all rows, and
         # rows are final once their job is done (see fse.models._single_pass).
         prefill = bool(statistics["identity_indices"]) and self._uses_kernel()
+        if quantized:
+            reason = self._staging_reason(statistics)
+            if reason is None:
+                eff_sentences, eff_words, overall_time = self._train_windowed(
+                    sentences, statistics, update, queue_factor, report_delay
+                )
+                self._log_train_end(
+                    eff_sentences=eff_sentences,
+                    eff_words=eff_words,
+                    overall_time=overall_time,
+                    total_time=time() - call_start,
+                )
+                return eff_sentences, eff_words
+            logger.info(
+                f"storing {self.sv.dtype} sentence vectors through a float32 matrix of all new "
+                f"rows, because {reason}"
+            )
         saved = None
         if quantized:
             saved = self.sv._stage(statistics["max_index"])
@@ -974,6 +994,142 @@ class BaseSentence2VecModel(SaveLoad):
         )
 
         return eff_sentences, eff_words
+
+    def _staging_reason(self, statistics: dict[str, Any]) -> str | None:
+        """Why float16 or int8 rows need a float32 matrix of all new rows, or None.
+
+        Without a reason, training writes into windows that are stored once finished.
+        """
+        if not statistics["identity_indices"]:
+            return "the sentence indices are not their positions"
+        if not self._uses_kernel():
+            return "the compiled kernel is not used (no extension, or a replaced _do_train_job)"
+        own = self.__dict__.get("_post_train_calls") or type(self)._post_train_calls
+        if "_post_train_calls" in self.__dict__ or not getattr(own, "__module__", "").startswith(
+            "fse.models."
+        ):
+            return "_post_train_calls is replaced and may need all rows"
+        return None
+
+    def _component_plan(self, update: bool) -> str:
+        """How training into windows treats principal components: none, reuse or learn."""
+        return "none"
+
+    def _set_components(self, svd_res: Any):
+        """Keep the components learned from all rows; Average has none."""
+
+    def _remove_components(self, vectors: ndarray):
+        """Remove the learned components from vectors in place; Average has none."""
+
+    def _train_windowed(
+        self,
+        sentences: Any,
+        statistics: dict[str, Any],
+        update: bool,
+        queue_factor: int,
+        report_delay: float,
+    ) -> tuple[int, int, float]:
+        """Train float16 or int8 rows through windows, without a float32 matrix of all rows.
+
+        One pass stores each finished window, after removing components that are known.
+        Components learned from all rows need a first pass that only sums the Gram matrix
+        of the windows, in block order as gram_matrix does, so the stored rows are
+        bit-identical to a float32 training stored afterwards.
+        """
+        rows = statistics["max_index"]
+        self._pre_train_calls(**statistics)
+        self._check_parameter_sanity()
+        self._check_dtype_santiy()
+        plan = self._component_plan(update)
+        learned = {k: self.__dict__[k] for k in _COMPONENT_STATE if k in self.__dict__}
+        writer = self.sv._begin_writing(rows, append=update)
+        try:
+            overall_time = 0.0
+            if plan == "learn":
+                gram = zeros((self.sv.vector_size, self.sv.vector_size), dtype=float64)
+
+                def add_gram(first: int, window: ndarray):
+                    for begin in range(0, len(window), utils.REMOVAL_BLOCK_ROWS):
+                        block = window[begin : begin + utils.REMOVAL_BLOCK_ROWS]
+                        utils.add_gram_block(gram, utils.gram_block_product(block))
+
+                *_, elapsed = self._train_windows(
+                    sentences, statistics, add_gram, queue_factor, report_delay
+                )
+                overall_time += elapsed
+                self._set_components(
+                    utils.components_from_gram(
+                        gram, rows, self.components, utils.gram_block_dtype(dtype(REAL))
+                    )
+                )
+
+            def store(first: int, window: ndarray):
+                if plan != "none":
+                    self._remove_components(window)
+                writer.store(first, window)
+
+            eff_sentences, eff_words, elapsed = self._train_windows(
+                sentences, statistics, store, queue_factor, report_delay
+            )
+            overall_time += elapsed
+            if plan == "none":
+                self._set_components(None)
+        except BaseException:
+            writer.abort()
+            # Components learned in the first pass belong to rows that were not stored.
+            for key in _COMPONENT_STATE:
+                self.__dict__.pop(key, None)
+            self.__dict__.update(learned)
+            raise
+        writer.commit()
+        return eff_sentences, eff_words, overall_time
+
+    def _train_windows(
+        self,
+        sentences: Any,
+        statistics: dict[str, Any],
+        finalize: Any,
+        queue_factor: int,
+        report_delay: float,
+    ) -> tuple[int, int, float]:
+        """One training pass into a ring of windows; finalize(first_row, rows) gets each."""
+        writer = WindowedWriter(
+            statistics["max_index"],
+            self.sv.vector_size,
+            finalize,
+            max_job_rows=self._max_job_rows(sentences),
+        )
+        context = self._kernel_context(writer.ring)
+        if context is None:
+            raise RuntimeError("training into windows needs the compiled kernel")
+        try:
+            context.use_ring(statistics["max_index"])
+            context.prefill_rows = True
+            # Only during training, like the row locks; never pickled.
+            self._single_pass = SinglePass(writer.ring, 0, sum_gram=False, writer=writer)
+            start_time = time()
+            _, eff_sentences, eff_words = self._train_manager(
+                data_iterable=sentences,
+                total_sentences=statistics["total_sentences"],
+                queue_factor=queue_factor,
+                report_delay=report_delay,
+                workers=self.workers,
+                context=context,
+            )
+            self._single_pass.finish()
+            elapsed = time() - start_time
+        finally:
+            self._finish_kernel_context(context)
+            self.__dict__.pop("_single_pass", None)
+        self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
+        return eff_sentences, eff_words, elapsed
+
+    def _max_job_rows(self, sentences: Any) -> int:
+        """The most rows one job can hold: a native chunk of the scan, or batch_words."""
+        state = getattr(sentences, "_scan_state", None)
+        if state is not None and state[1]:
+            return max(int(count) for *_, count in state[1])
+        return self.batch_words
 
     def _train_rows(
         self,
@@ -1313,7 +1469,7 @@ class BaseSentence2VecModel(SaveLoad):
                 while not stop.is_set() and (job := encoder.next_job()) is not None:
                     if single_pass is not None:
                         # Before any worker writes rows that another job could also cover.
-                        single_pass.check_job(job)
+                        single_pass.check_job(job, stop)
                     job_no += 1
                     job_queue.put((job.n_items, job))
                 data_iterable = ()
@@ -1413,6 +1569,10 @@ class _OffsetIndices:
 
 # Rows per block when initializing sentence vectors, so a memmap is written in bounded chunks.
 _FILL_BLOCK_ROWS = 100_000
+
+
+# Attributes that hold learned principal components (SIF and uSIF).
+_COMPONENT_STATE = ("svd_res", "svd_weights", "component_weighting")
 
 
 def _own_word_vectors(wv: KeyedVectors) -> KeyedVectors:

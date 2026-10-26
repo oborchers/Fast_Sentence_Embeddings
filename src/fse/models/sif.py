@@ -156,9 +156,9 @@ class SIF(Average):
         """Function calls to perform after training, such as computing eigenvectors"""
         if self.components > 0 and update and isinstance(self.svd_res, tuple):
             # Appended rows are treated like inference: reuse the learned components.
-            remove_principal_components(self.sv.vectors[offset:], svd_res=self.svd_res)
+            self._remove_components(self.sv.vectors[offset:])
         elif self.components > 0:
-            self.svd_res = (
+            self._set_components(
                 compute_principal_components(self.sv.vectors, components=self.components)
                 if gram is None
                 # Summed during training, bit-identical to compute_principal_components.
@@ -169,17 +169,34 @@ class SIF(Average):
                     gram_block_dtype(self.sv.vectors.dtype),
                 )
             )
-            remove_principal_components(self.sv.vectors, svd_res=self.svd_res, inplace=True)
+            self._remove_components(self.sv.vectors)
         else:
+            self._set_components(None)
+
+    def _component_plan(self, update: bool) -> str:
+        """How training into windows treats the components: reuse, learn, or none."""
+        if self.components == 0:
+            return "none"
+        return "reuse" if update and isinstance(self.svd_res, tuple) else "learn"
+
+    def _set_components(self, svd_res: Any):
+        """Keep the learned components, or none (svd_res 0) without components."""
+        if svd_res is None:
             self.svd_res = 0
             logger.info("no removal of principal components")
+        else:
+            self.svd_res = svd_res
+
+    def _remove_components(self, vectors: ndarray):
+        """Remove the learned components from vectors in place, in blocks of rows."""
+        remove_principal_components(vectors, svd_res=self.svd_res, inplace=True)
 
     def _post_inference_calls(self, output: ndarray | None = None, **kwargs):
         """Function calls to perform after training & inference"""
         if self.svd_res is None:
             raise RuntimeError("You must first train the model to obtain SVD components")
         elif self.components > 0:
-            remove_principal_components(cast(ndarray, output), svd_res=self.svd_res, inplace=True)
+            self._remove_components(cast(ndarray, output))
         else:
             logger.info("no removal of principal components")
 

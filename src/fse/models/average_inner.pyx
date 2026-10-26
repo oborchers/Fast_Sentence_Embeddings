@@ -192,6 +192,7 @@ cdef class KernelContext:
         self.params.is_ft = model.is_ft
         self.params.word_weights = <REAL_t *>(np.PyArray_DATA(model.word_weights))
         self.params.target = <REAL_t *>(np.PyArray_DATA(target))
+        self.params.ring_rows = 0
         self.params.locks = _row_locks_of(model)
         if model.is_ft:
             self.params.word_vectors = <REAL_t *>(np.PyArray_DATA(wv.vectors_vocab))
@@ -215,6 +216,20 @@ cdef class KernelContext:
         self._locks = getattr(model, "_row_locks", None)
         self.sources = []
         self.prefill_rows = False
+
+    def use_ring(self, Py_ssize_t n_rows):
+        """Treat the target as a ring of windows for n_rows rows: row r goes to r % len(target).
+
+        For training into windows of rows that are stored once finished, so only the
+        window ring exists in float32. Requires prefill_rows, so every job writes its own
+        contiguous rows; the caller makes sure a window is free before its rows are written.
+        """
+        if n_rows < 0:
+            raise ValueError(f"n_rows must be non-negative, got {n_rows}")
+        if self.n_rows < 1:
+            raise ValueError("the target of a ring needs at least one row")
+        self.params.ring_rows = <size_t>self.n_rows
+        self.n_rows = n_rows
 
     def __reduce__(self):
         raise TypeError("KernelContext only exists during a train or infer call")
@@ -516,7 +531,7 @@ cdef void _average_sentence(
     # Every stored token counts for the length, also unknown words without ngrams.
     if n_tokens > 0:
         inv_count = ONEF / <REAL_t>n_tokens
-        row = <size_t>target * <size_t>size
+        row = _target_row(p, target) * <size_t>size
         # Adding mem / length keeps many-to-one mappings correct: rows accumulate.
         if p.locks != NULL:
             lock = p.locks[target % N_ROW_LOCKS]
@@ -548,13 +563,19 @@ cdef void _average_job(
         )
 
 
-cdef void _prefill(REAL_t *target, int size, np.int64_t first_row, Py_ssize_t n_rows) noexcept nogil:
+cdef inline size_t _target_row(const KernelParams *p, size_t row) noexcept nogil:
+    """The row of the target that holds sentence row ``row``: itself, or its ring slot."""
+    return row % p.ring_rows if p.ring_rows else row
+
+
+cdef void _prefill(const KernelParams *p, np.int64_t first_row, Py_ssize_t n_rows) noexcept nogil:
     """Set rows first_row to first_row + n_rows - 1 to EPS, as _fill_eps does in advance."""
-    cdef size_t i
-    cdef size_t begin = <size_t>first_row * <size_t>size
-    cdef size_t end = begin + <size_t>n_rows * <size_t>size
-    for i in range(begin, end):
-        target[i] = FLT_EPSILON
+    cdef size_t i, r, begin
+    cdef size_t size = <size_t>p.size
+    for r in range(<size_t>first_row, <size_t>first_row + <size_t>n_rows):
+        begin = _target_row(p, r) * size
+        for i in range(begin, begin + size):
+            p.target[i] = FLT_EPSILON
 
 
 cdef int _check_prefill(KernelContext ctx, np.int64_t first_row, Py_ssize_t n_items) except -1:
@@ -577,6 +598,8 @@ def run_job(KernelContext ctx, EncodedJob job, scratch):
     if scratch.size < ctx.params.size:
         raise ValueError(f"scratch must hold at least {ctx.params.size} entries")
     cdef bint prefill = ctx.prefill_rows
+    if ctx.params.ring_rows and not prefill:
+        raise ValueError("a ring of windows needs prefill_rows")
     if prefill:
         if not job.contiguous:
             raise ValueError("the indices of the job are not contiguous, so its rows cannot be prefilled")
@@ -610,7 +633,7 @@ def run_job(KernelContext ctx, EncodedJob job, scratch):
     try:
         with nogil:
             if prefill:
-                _prefill(ctx.params.target, ctx.params.size, job.first_row, job.n_items)
+                _prefill(&ctx.params, job.first_row, job.n_items)
             _average_job(
                 &ctx.params, words_ptr, &offsets[0], targets_ptr, n_sentences,
                 oov_bytes, &oov_offsets[0], mem, ngram_buffer, ngram_capacity,
@@ -1203,6 +1226,8 @@ def run_chunk(KernelContext ctx, VocabTable table, const unsigned char[::1] data
     if first_row < 0:
         raise ValueError(f"first_row must be non-negative, got {first_row}")
     cdef bint prefill = ctx.prefill_rows
+    if ctx.params.ring_rows and not prefill:
+        raise ValueError("a ring of windows needs prefill_rows")
     if prefill:
         _check_prefill(ctx, first_row, n_items)
     cdef Py_ssize_t n = data.shape[0]
@@ -1225,7 +1250,7 @@ def run_chunk(KernelContext ctx, VocabTable table, const unsigned char[::1] data
     try:
         with nogil:
             if prefill:
-                _prefill(ctx.params.target, ctx.params.size, first_row, n_items)
+                _prefill(&ctx.params, first_row, n_items)
             status = _average_spans(
                 &ctx.params, &table.view, p, n, item_ptr, first, last, first_row, n_rows, mem,
                 &words, &oov_bytes, &oov_offsets, &ngrams, &eff_sentences, &eff_words, &error,

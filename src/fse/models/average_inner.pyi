@@ -48,6 +48,7 @@ class KernelContext:
     prefill_rows: bool
 
     def __init__(self, model: Any, target: ndarray) -> None: ...
+    def use_ring(self, n_rows: int) -> None: ...
 
 class EncodedJob:
     """A batch of sentences encoded for the kernel."""
