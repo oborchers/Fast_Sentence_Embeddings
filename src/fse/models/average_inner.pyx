@@ -51,13 +51,13 @@ cdef extern from "Python.h":
 # y += alpha * x, taken from scipy's BLAS. Raises at import if scipy exposes no pointer.
 cdef saxpy_ptr saxpy=<saxpy_ptr>PyCapsule_GetPointer(fblas.saxpy._cpointer, NULL)
 
-# Row kernels: mem += factor * row for one stored word or ngram row, in float32. Each
-# format has a portable loop; on x86-64 with GCC or Clang an AVX2 version is picked at
-# import when the CPU has AVX2, FMA and F16C, without changing the build flags. Without
-# them (also on Windows), float32 rows go through BLAS saxpy, which dispatches by CPU
-# itself. On arm64 the portable loops are vectorized with NEON by the compiler, and
-# float16 converts with the native __fp16 type. Every kernel adds the values of a row in
-# index order, so the sum of a sentence does not depend on how jobs are split.
+# Row kernels: mem += factor * row for one stored word or ngram row, in float32. float32
+# rows go through BLAS saxpy, which dispatches by CPU itself. float16 and int8 rows have
+# portable loops; on x86-64 with GCC or Clang, AVX2 versions are picked at import when the
+# CPU has AVX2, FMA and F16C, without changing the build flags. On arm64 the compiler
+# vectorizes the portable loops with NEON, and float16 converts with the native __fp16
+# type. Every kernel adds the values of a row in index order, so the sum of a sentence
+# does not depend on how jobs are split.
 cdef extern from *:
     """
     #include <stddef.h>
@@ -101,10 +101,6 @@ cdef extern from *:
         int one = 1;
         fse_saxpy(&n, &factor, (const float *)row, &one, mem, &one);
     }
-    static void fse_add_f32(float *FSE_RESTRICT mem, const void *row, float factor, int n) {
-        const float *FSE_RESTRICT v = (const float *)row;
-        for (int i = 0; i < n; i++) mem[i] += factor * v[i];
-    }
     static void fse_add_f16(float *FSE_RESTRICT mem, const void *row, float factor, int n) {
     #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
         const __fp16 *FSE_RESTRICT v = (const __fp16 *)row;
@@ -120,14 +116,6 @@ cdef extern from *:
     }
 
     #if defined(FSE_X86_DISPATCH)
-    __attribute__((target("avx2,fma"))) static void fse_add_f32_avx2(float *mem, const void *row, float factor, int n) {
-        const float *v = (const float *)row;
-        __m256 f = _mm256_set1_ps(factor);
-        int i = 0;
-        for (; i <= n - 8; i += 8)
-            _mm256_storeu_ps(mem + i, _mm256_fmadd_ps(f, _mm256_loadu_ps(v + i), _mm256_loadu_ps(mem + i)));
-        for (; i < n; i++) mem[i] = __builtin_fmaf(factor, v[i], mem[i]);
-    }
     __attribute__((target("avx2,fma,f16c"))) static void fse_add_f16_avx2(float *mem, const void *row, float factor, int n) {
         const uint16_t *v = (const uint16_t *)row;
         __m256 f = _mm256_set1_ps(factor);
@@ -160,12 +148,14 @@ cdef extern from *:
     static void fse_select_kernels(int portable) {
         fse_kernels[1] = fse_add_f16;
         fse_kernels[2] = fse_add_i8;
+        /* float32 rows go through BLAS everywhere: end to end, an own loop was no faster
+           on Apple M1 (NEON) or AMD Zen 5 (AVX2), and saxpy keeps float32 results as in
+           1.0. The gain for float32 comes from prefetching the rows. */
+        fse_kernels[0] = fse_add_f32_blas;
     #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
-        fse_kernels[0] = portable ? fse_add_f32_blas : fse_add_f32;
         fse_kernel_isa = portable ? "portable" : "neon";
         return;
     #else
-        fse_kernels[0] = fse_add_f32_blas;
         fse_kernel_isa = "portable";
     #if defined(FSE_X86_DISPATCH)
         __builtin_cpu_init();
@@ -174,7 +164,6 @@ cdef extern from *:
         unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
         int f16c = __get_cpuid(1, &eax, &ebx, &ecx, &edx) && ((ecx >> 29) & 1u);
         if (!portable && __builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma") && f16c) {
-            fse_kernels[0] = fse_add_f32_avx2;
             fse_kernels[1] = fse_add_f16_avx2;
             fse_kernels[2] = fse_add_i8_avx2;
             fse_kernel_isa = "avx2";
