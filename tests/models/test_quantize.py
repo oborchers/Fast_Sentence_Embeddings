@@ -46,7 +46,8 @@ class TestArithmetic:
     def test_int8_round_trip_is_within_half_a_step(self):
         rows = np.random.default_rng(0).standard_normal((100, 30)).astype(np.float32)
         codes, scales = _stored(rows, "int8")
-        assert codes.dtype == np.int8 and np.abs(codes).max() == 127
+        assert codes.dtype == np.int8
+        assert np.abs(codes).max() == 127
         np.testing.assert_allclose(scales, np.abs(rows).max(axis=1) / 127, rtol=1e-6)
         error = np.abs(dequantize(codes, scales) - rows)
         assert (error <= scales[:, None] / 2 + 1e-7).all()
@@ -94,7 +95,8 @@ class TestArithmetic:
         whole = _stored(rows, "int8")
         monkeypatch.setattr(_quantize, "REMOVAL_BLOCK_ROWS", 7)
         blocked = _stored(rows, "int8")
-        assert np.array_equal(whole[0], blocked[0]) and np.array_equal(whole[1], blocked[1])
+        assert np.array_equal(whole[0], blocked[0])
+        assert np.array_equal(whole[1], blocked[1])
 
     def test_shape_mismatch_raises(self):
         with pytest.raises(ValueError, match="cannot hold rows"):
@@ -151,9 +153,11 @@ def test_training_stores_the_float32_vectors_exactly(
 
 def test_float32_stays_the_default(w2v, sentences):
     model = SIF(w2v)
-    assert model.sv.dtype == "float32" and not model.sv.quantized
+    assert model.sv.dtype == "float32"
+    assert not model.sv.quantized
     model.train(IndexedList(sentences))
-    assert model.sv.vectors.dtype == np.float32 and model.sv.scales is None
+    assert model.sv.vectors.dtype == np.float32
+    assert model.sv.scales is None
 
 
 @pytest.mark.parametrize("dtype", QUANTIZED)
@@ -294,7 +298,8 @@ def test_pickles_without_a_format_load_as_float32(tmp_path):
         del state[attr]
     old = SentenceVectors.__new__(SentenceVectors)
     old.__setstate__(state)
-    assert old.dtype == "float32" and old.scales is None
+    assert old.dtype == "float32"
+    assert old.scales is None
     assert old.most_similar(0, topn=1) == [(1, pytest.approx(1.0))]
 
 
