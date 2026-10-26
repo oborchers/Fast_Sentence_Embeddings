@@ -143,12 +143,13 @@ def compute_principal_components(
     basis *= sign(basis[arange(components), largest])[:, None]
     # A heuristic bound for the rounding of the block products: it grows with the length
     # of the dot products (the block rows) and with the dimension.
-    resolution = eigenvalues[0] * finfo(block_dtype).eps * max(dim, REMOVAL_BLOCK_ROWS**0.5)
+    block_rows = min(num_vectors, REMOVAL_BLOCK_ROWS)
+    resolution = eigenvalues[0] * finfo(block_dtype).eps * max(dim, block_rows**0.5)
     if eigenvalues[-1] <= resolution:
         logger.warning(
             f"{int((eigenvalues <= resolution).sum())} of {components} principal components "
-            "have a variance below the rounding of the vectors; their directions are not "
-            "determined by the data"
+            "have a variance below a heuristic bound for the rounding of the vectors; their "
+            "directions may be affected by rounding"
         )
     # Rounding can make eigenvalues of a rank-deficient matrix slightly negative.
     singular_values = sqrt(maximum(eigenvalues, 0.0))

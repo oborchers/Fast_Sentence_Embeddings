@@ -229,7 +229,7 @@ def test_undetermined_components_are_logged(caplog):
     vectors = np.ones((50, 4), dtype=np.float32)
     with caplog.at_level("WARNING", logger="fse.models.utils"):
         compute_principal_components(vectors, components=3)
-    assert "2 of 3 principal components have a variance below the rounding" in caplog.text
+    assert "2 of 3 principal components have a variance below a heuristic bound" in caplog.text
 
 
 def test_cache_size_gb_is_deprecated():
@@ -391,6 +391,7 @@ def test_check_components_fit_rejects(components, update, rows_before, new_rows,
 
 def test_check_components_fit_accepts_reuse_and_zero():
     learned = (np.ones(3, dtype=np.float32), np.eye(3, 4, dtype=np.float32))
-    check_components_fit(3, learned, True, 5, 1, 4)
+    # Two rows could not give three components: only the reuse lets this pass.
+    check_components_fit(3, learned, True, 1, 1, 4)
     check_components_fit(0, None, False, 0, 1, 4)
     check_components_fit(2, None, True, 1, 1, 4)
