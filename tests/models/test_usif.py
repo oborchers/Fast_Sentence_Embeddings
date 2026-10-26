@@ -22,16 +22,10 @@ def indexed_sentences(corpus_path):
 
 @pytest.fixture
 def model(w2v):
-    """uSIF model with English word frequencies.
-
-    lang_freq overwrites the word counts of ``w2v``. Tests that build further
-    models from ``w2v`` request this fixture as well, so they see the same
-    counts as in the original unittest suite, where setUp always built it.
-    """
+    """uSIF model with English word frequencies."""
     return uSIF(w2v, lang_freq="en")
 
 
-@pytest.mark.usefixtures("model")
 @pytest.mark.parametrize(
     ("kwargs", "field"),
     [({"length": 0}, "length"), ({"components": -1, "length": 11}, "components")],
@@ -42,7 +36,6 @@ def test_constructor_rejects_invalid_parameters(w2v, kwargs, field):
         uSIF(w2v, **kwargs)
 
 
-@pytest.mark.usefixtures("model")
 @pytest.mark.parametrize(
     ("attribute", "value", "message"),
     [("length", 0, "Length"), ("components", -1, "Components")],
@@ -151,7 +144,6 @@ def test_broken_vocab(make_w2v, indexed_sentences):
         model.train(indexed_sentences)
 
 
-@pytest.mark.usefixtures("model")
 def test_zero_div_error(w2v):
     """From issue: #47."""
     model = uSIF(w2v, length=12, components=1)

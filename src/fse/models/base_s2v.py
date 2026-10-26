@@ -38,6 +38,7 @@ import logging
 import threading
 import warnings
 from collections.abc import Iterable, Iterator
+from copy import copy
 from pathlib import Path
 from queue import Empty, Queue
 from time import time
@@ -52,6 +53,7 @@ from numpy import (
     dtype,
     empty,
     finfo,
+    int64,
     ndarray,
     ones,
     vstack,
@@ -168,6 +170,11 @@ class BaseSentence2VecModel(SaveLoad):
 
         self._check_and_include_model(model)
 
+        if self.wv_mapfile_path is not None or lang_freq is not None:
+            # Both replace attributes of the word vectors. A shallow copy keeps the passed
+            # model as it was, while the vectors themselves are shared, not copied.
+            self.wv = copy(self.wv)
+
         if self.wv_mapfile_path is not None:
             self._map_all_vectors_to_disk(self.wv_mapfile_path)
 
@@ -274,11 +281,11 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         freq_dict = get_frequency_dict(self.lang_freq, wordlist="best")
-        for word in self.wv.index_to_key:
-            if word in freq_dict:
-                self.wv.set_vecattr(word, "count", int(freq_dict[word] * domain))
-            else:
-                self.wv.set_vecattr(word, "count", int(1e-8 * domain))
+        counts = zeros(len(self.wv.index_to_key), dtype=int64)
+        for i, word in enumerate(self.wv.index_to_key):
+            counts[i] = int(freq_dict[word] * domain) if word in freq_dict else int(1e-8 * domain)
+        # A new dict and array: the passed model may share expandos with this copy.
+        self.wv.expandos = {**self.wv.expandos, "count": counts}
 
     def _check_input_data_sanity(self, data_iterable: Any):
         """Check if the input data complies with the required formats

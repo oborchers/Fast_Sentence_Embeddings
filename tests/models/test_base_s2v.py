@@ -129,6 +129,32 @@ class TestBaseSentence2VecModel:
         assert se.wv.get_vecattr("help", "count") == freq
         assert se.wv.get_vecattr("79", "count") == 21
 
+    def test_language_leaves_the_passed_model_unchanged(self, w2v):
+        """lang_freq writes the counts of the model's own copy, not of w2v."""
+        counts = w2v.wv.expandos["count"].copy()
+        se = BaseSentence2VecModel(w2v, lang_freq="en")
+        assert se.wv is not w2v.wv
+        assert se.wv.vectors is w2v.wv.vectors
+        assert np.array_equal(w2v.wv.expandos["count"], counts)
+        assert not np.array_equal(se.wv.expandos["count"], counts)
+        # A second model from the same w2v sees the original counts.
+        assert np.array_equal(BaseSentence2VecModel(w2v).wv.expandos["count"], counts)
+
+    def test_without_options_the_passed_vectors_are_used(self, w2v):
+        assert BaseSentence2VecModel(w2v).wv is w2v.wv
+
+    @pytest.mark.parametrize("name", ["w2v", "ft"])
+    def test_mapfile_leaves_the_passed_model_unchanged(self, request, tmp_path, name):
+        model = request.getfixturevalue(name)
+        attrs = ["vectors"] + (["vectors_vocab", "vectors_ngrams"] if name == "ft" else [])
+        before = {attr: getattr(model.wv, attr) for attr in attrs}
+        se = BaseSentence2VecModel(model, wv_mapfile_path=str(tmp_path / "vecs"))
+        for attr in attrs:
+            assert getattr(model.wv, attr) is before[attr]
+            assert getattr(model.wv, attr).flags.writeable
+            assert not getattr(se.wv, attr).flags.writeable
+            assert np.array_equal(getattr(se.wv, attr), before[attr])
+
     def test_model_w_wrong_language(self, w2v):
         with pytest.raises(ValueError, match="not available in wordfreq"):
             BaseSentence2VecModel(w2v, lang_freq="test")
