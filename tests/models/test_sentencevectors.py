@@ -8,6 +8,7 @@
 
 import numpy as np
 import pytest
+from gensim import matutils
 
 from fse.inputs import IndexedLineDocument, IndexedList
 from fse.models.average import Average
@@ -333,3 +334,67 @@ class TestMinSimilarity:
     def test_requires_a_top_n_list(self, trained, topn):
         with pytest.raises(ValueError, match="needs a positive topn"):
             trained.sv.most_similar(positive=0, topn=topn, min_similarity=0.5)
+
+
+def _reference_rows(vectors, query, count):
+    """All dot products at once, sorted by similarity and then by row."""
+    sims = np.dot(vectors, query)
+    keys = np.where(np.isnan(sims), np.inf, -sims)
+    order = np.lexsort((np.arange(len(sims)), keys))[:count]
+    return order, sims[order]
+
+
+class TestBlockwiseSearch:
+    """most_similar keeps a running top-k over blocks of rows."""
+
+    @pytest.fixture
+    def vectors(self):
+        rng = np.random.default_rng(5)
+        vectors = _l2_norm(rng.standard_normal((200, 8)).astype(np.float32))
+        # Exact ties across block boundaries, and rows without a similarity.
+        vectors[[3, 50, 51, 120, 199]] = vectors[7]
+        vectors[[10, 90]] = np.nan
+        return vectors
+
+    @pytest.mark.parametrize("block", [1, 7, 64, 1000])
+    @pytest.mark.parametrize("count", [1, 3, 6, 25, 199, 500])
+    def test_matches_a_full_sort(self, vectors, monkeypatch, block, count):
+        from fse.models import sentencevectors
+
+        monkeypatch.setattr(sentencevectors, "REMOVAL_BLOCK_ROWS", block)
+        query = vectors[7]
+        rows, sims = sentencevectors._most_similar_rows(vectors, query, count)
+        expected_rows, expected_sims = _reference_rows(vectors, query, count)
+        assert rows.tolist() == expected_rows.tolist()
+        np.testing.assert_array_equal(sims, expected_sims)
+
+    def test_ties_go_to_the_lower_index(self, vectors):
+        from fse.models import sentencevectors
+
+        rows, _ = sentencevectors._most_similar_rows(vectors, vectors[7], 6)
+        assert rows.tolist() == [3, 7, 50, 51, 120, 199]
+
+    @pytest.mark.parametrize("restrict_size", [None, 50, (20, 180)])
+    def test_most_similar_does_not_depend_on_the_block_size(
+        self, trained, monkeypatch, restrict_size
+    ):
+        from fse.models import sentencevectors
+
+        def query():
+            return trained.sv.most_similar(
+                positive=[1, 4], negative=[2], topn=15, restrict_size=restrict_size
+            )
+
+        whole = query()
+        monkeypatch.setattr(sentencevectors, "REMOVAL_BLOCK_ROWS", 3)
+        assert query() == whole
+        lo = 0 if not isinstance(restrict_size, tuple) else restrict_size[0]
+        # The query vector exactly as most_similar builds it.
+        norm = trained.sv.vectors_norm
+        mean = matutils.unitvec(np.array([norm[1], norm[4], -norm[2]]).mean(axis=0))
+        mean = mean.astype(np.float32)
+        hi = {None: None, 50: 50}.get(restrict_size, 180)
+        sims = np.dot(trained.sv.vectors_norm[lo:hi], mean)
+        for index, sim in whole:
+            assert sim == float(sims[index - lo])
+            assert index not in (1, 2, 4)

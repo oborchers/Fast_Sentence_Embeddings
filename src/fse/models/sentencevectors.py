@@ -11,14 +11,23 @@ from typing import Any, cast
 from gensim import matutils, utils
 from gensim.models.keyedvectors import KeyedVectors
 from numpy import (
+    arange,
+    argsort,
     array,
+    concatenate,
     dot,
     dtype,
+    empty,
+    flatnonzero,
     floating,
+    int64,
     integer,
+    isnan,
     issubdtype,
+    lexsort,
     ndarray,
     newaxis,
+    partition,
     prod,
     sqrt,
     vstack,
@@ -32,8 +41,39 @@ from numpy import (
 )
 
 from fse._validation import NonNegativeInt, PathLike, Similarity, validate_arguments
+from fse.models.utils import REMOVAL_BLOCK_ROWS
 
 logger = logging.getLogger(__name__)
+
+
+def _most_similar_rows(vectors: ndarray, query: ndarray, count: int) -> tuple[ndarray, ndarray]:
+    """The rows with the ``count`` largest dot products with ``query``, largest first.
+
+    The rows are read in blocks of ``REMOVAL_BLOCK_ROWS``, and only the best ``count``
+    candidates are kept between blocks, so memory does not grow with the number of rows.
+    Each row gets the dot product a single ``dot(vectors, query)`` gives it. Of equal
+    products the lower row wins; NaN ranks below every number, as in ``argsort``.
+    """
+    best_rows = empty(0, dtype=int64)
+    best_keys = empty(0, dtype=REAL)
+    for begin in range(0, len(vectors), REMOVAL_BLOCK_ROWS):
+        # Negated, so the best rows are the smallest keys and NaN sorts after them.
+        keys = concatenate([best_keys, -dot(vectors[begin : begin + REMOVAL_BLOCK_ROWS], query)])
+        rows = concatenate([best_rows, arange(begin, begin + len(keys) - len(best_keys))])
+        if len(keys) > count:
+            kth = partition(keys, count - 1)[count - 1]
+            if isnan(kth):
+                # Fewer numbers than places: all of them, then NaN rows fill up.
+                better, ties = flatnonzero(~isnan(keys)), flatnonzero(isnan(keys))
+            else:
+                better, ties = flatnonzero(keys < kth), flatnonzero(keys == kth)
+            # Of the rows tied with the count-th, the lowest ones fill the remaining places.
+            ties = ties[argsort(rows[ties], kind="stable")[: count - len(better)]]
+            keep = concatenate([better, ties])
+            keys, rows = keys[keep], rows[keep]
+        best_keys, best_rows = keys, rows
+    order = lexsort((best_rows, best_keys))
+    return best_rows[order], -best_keys[order]
 
 
 class SentenceVectors(utils.SaveLoad):
@@ -239,6 +279,10 @@ class SentenceVectors(utils.SaveLoad):
 
         This method computes cosine similarity between a simple mean of the projection
         weight vectors of the given sentences and the vectors for each sentence in the model.
+        It is an exact search: every query reads all (normalized) sentence vectors in blocks,
+        with memory independent of their number. Of equally similar sentences the lower
+        index comes first. For many queries over very many sentences, build an approximate
+        nearest neighbor index (for example FAISS) from the vectors instead.
 
         Parameters
         ----------
@@ -323,23 +367,22 @@ class SentenceVectors(utils.SaveLoad):
 
         vectors_norm = cast(ndarray, self.vectors_norm)
         limited = vectors_norm if restrict_size is None else vectors_norm[lo:hi]
-        dists = dot(limited, mean)
         if not topn:
-            return dists
-        best = matutils.argsort(dists, topn=topn + len(all_sents), reverse=True)
+            return dot(limited, mean)
+        best, similarities = _most_similar_rows(limited, mean, topn + len(all_sents))
         best_off = best + lo
 
         result: list[tuple[Any, ...]]
         if indexable is not None:
             result = [
-                (indexable[off_idx], off_idx, float(dists[idx]))
-                for off_idx, idx in zip(best_off, best, strict=False)
+                (indexable[off_idx], off_idx, float(sim))
+                for off_idx, sim in zip(best_off.tolist(), similarities, strict=True)
                 if off_idx not in all_sents
             ]
         else:
             result = [
-                (off_idx, float(dists[idx]))
-                for off_idx, idx in zip(best_off, best, strict=False)
+                (off_idx, float(sim))
+                for off_idx, sim in zip(best_off.tolist(), similarities, strict=True)
                 if off_idx not in all_sents
             ]
         result = result[:topn]
