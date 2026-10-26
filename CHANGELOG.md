@@ -26,6 +26,7 @@ fse is now in maintenance mode: compatibility fixes and maintainer-planned scali
 
 - Arguments of the public entry points are validated strictly with pydantic: the model, `SentenceVectors` and `IndexedLineDocument` constructors, `train`, `infer`, `most_similar`, the `similar_by_*` methods and `from_pretrained`. Wrong types and out-of-range values such as `workers=0` or `alpha=-1` raise a `pydantic.ValidationError` (a `ValueError`) at the call, and nothing is coerced, so `workers="2"` is an error. Integer arguments accept numpy integer scalars, float arguments must be finite, and mapfile paths accept `str` and `pathlib.Path`.
 - New dependency: `pydantic>=2.5`.
+- A new logo, with a light and a dark variant that the README picks by color scheme. The sources and their generator are in `media/logo/`; `media/fse.png` stays for the READMEs of earlier releases.
 - Unknown keyword arguments to `Average` and `BaseSentence2VecModel` raise a `pydantic.ValidationError` instead of being silently ignored, like at every other validated entry point.
 - Sentence tuples must have exactly two elements, `(words, index)`; longer tuples raise a `ValueError` instead of losing the extra element. `restrict_size=(lo, hi)` with `hi < lo` raises a `ValueError` instead of returning nothing.
 - The input classes reject sets with a `TypeError`. A set has no order, so the sentence indices would be arbitrary; pass `sorted(...)` instead.
