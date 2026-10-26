@@ -83,6 +83,7 @@ from fse._validation import (
     WordVectorModel,
     validate_arguments,
 )
+from fse.models._index_tracker import IndexTracker, check_index_range
 from fse.models._single_pass import SinglePass
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
 from fse.models.utils import REMOVAL_BLOCK_ROWS
@@ -732,11 +733,11 @@ class BaseSentence2VecModel(SaveLoad):
         empty_sentences = 0
         max_index = 0
         # Whether every index occurs at most once. Most inputs use index == position, which
-        # needs no bookkeeping; any other order is tracked exactly in a set of seen indices,
-        # whose size grows with the number of sentences, not with the largest index.
+        # needs no bookkeeping; any other order is tracked in an IndexTracker, a bitmap of
+        # about one byte per sentence.
         unique_indices = True
         identity = True
-        seen: set[int] = set()
+        tracker: IndexTracker | None = None
 
         def progress(sentences_done: int, words_done: int):
             logger.info(f"SCANNING : finished {sentences_done} sentences with {words_done} words")
@@ -788,17 +789,19 @@ class BaseSentence2VecModel(SaveLoad):
                 total_sentences += 1
                 if identity and index != i:
                     identity = False
-                    seen = set(range(i))
-                if not identity and unique_indices:
-                    if index in seen:
+                    tracker = IndexTracker(i)
+                if tracker is not None:
+                    check_index_range(index, i)
+                    if not tracker.add(index, total_sentences):
                         unique_indices = False
-                        seen.clear()
-                    else:
-                        seen.add(index)
+                        tracker = None
                 total_words += len(sent)
 
                 if not len(sent):
                     empty_sentences += 1
+            if tracker is not None:
+                unique_indices = tracker.unique(total_sentences)
+                tracker = None
 
         if empty_sentences:
             logger.warning(f"found {empty_sentences} empty sentences")
