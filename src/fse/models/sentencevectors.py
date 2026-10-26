@@ -49,17 +49,21 @@ logger = logging.getLogger(__name__)
 def _most_similar_rows(vectors: ndarray, query: ndarray, count: int) -> tuple[ndarray, ndarray]:
     """The rows with the ``count`` largest dot products with ``query``, largest first.
 
-    The rows are read in blocks of ``REMOVAL_BLOCK_ROWS``, and only the best ``count``
-    candidates are kept between blocks, so memory does not grow with the number of rows.
+    The rows are read in blocks of ``max(REMOVAL_BLOCK_ROWS, count)``, and only the best
+    ``count`` candidates are kept between blocks, so the memory of the search grows with
+    ``count``, not with the number of rows.
     The dot products equal those of a single ``dot(vectors, query)`` up to float32
     rounding, since BLAS may sum a block differently. Of equal products the lower row
     wins; NaN ranks below every number, as in ``argsort``.
     """
     best_rows = empty(0, dtype=int64)
     best_keys = empty(0, dtype=REAL)
-    for begin in range(0, len(vectors), REMOVAL_BLOCK_ROWS):
+    # At least as many rows per block as candidates, so the candidates are copied O(rows)
+    # times in total, also for a count close to the number of rows.
+    block = max(REMOVAL_BLOCK_ROWS, count)
+    for begin in range(0, len(vectors), block):
         # Negated, so the best rows are the smallest keys and NaN sorts after them.
-        keys = concatenate([best_keys, -dot(vectors[begin : begin + REMOVAL_BLOCK_ROWS], query)])
+        keys = concatenate([best_keys, -dot(vectors[begin : begin + block], query)])
         rows = concatenate([best_rows, arange(begin, begin + len(keys) - len(best_keys))])
         if len(keys) > count:
             kth = partition(keys, count - 1)[count - 1]
@@ -280,8 +284,11 @@ class SentenceVectors(utils.SaveLoad):
 
         This method computes cosine similarity between a simple mean of the projection
         weight vectors of the given sentences and the vectors for each sentence in the model.
-        It is an exact search: every query reads all (normalized) sentence vectors in blocks,
-        with memory independent of their number. Of equally similar sentences the lower
+        It is an exact search: every query reads all normalized sentence vectors in blocks.
+        With a positive `topn`, the search needs memory for one block and `topn` candidates,
+        not for a similarity per sentence; the normalized vectors themselves are computed
+        once by :meth:`init_sims`, in RAM unless the vectors are memory-mapped. Of equally
+        similar sentences the lower
         index comes first. For many queries over very many sentences, build an approximate
         nearest neighbor index (for example FAISS) from the vectors instead.
 

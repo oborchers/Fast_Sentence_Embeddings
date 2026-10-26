@@ -370,6 +370,24 @@ class TestBlockwiseSearch:
         assert rows.tolist() == expected_rows.tolist()
         np.testing.assert_array_equal(sims, expected_sims)
 
+    @pytest.mark.parametrize(("count", "largest"), [(5, 7), (30, 30), (300, 300)])
+    def test_reads_blocks_of_bounded_size(self, vectors, monkeypatch, count, largest):
+        """No dot product covers more rows than max(block, count)."""
+        from fse.models import sentencevectors
+
+        sizes = []
+
+        def spy(rows, query):
+            sizes.append(len(rows))
+            return np.dot(rows, query)
+
+        monkeypatch.setattr(sentencevectors, "REMOVAL_BLOCK_ROWS", 7)
+        monkeypatch.setattr(sentencevectors, "dot", spy)
+        rows, _ = sentencevectors._most_similar_rows(vectors, vectors[7], count)
+        assert max(sizes) == min(largest, len(vectors))
+        assert sum(sizes) == len(vectors)
+        assert len(rows) == min(count, len(vectors))
+
     def test_ties_go_to_the_lower_index(self, vectors):
         from fse.models import sentencevectors
 

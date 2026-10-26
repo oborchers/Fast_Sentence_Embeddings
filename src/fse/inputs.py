@@ -424,8 +424,10 @@ class IndexedLineDocument:
         """Builds an offset table to index the file: the start of every line, as int64.
 
         A line ends after "\\n" and the last one needs none, as for ``for line in f``. The
-        file is read in blocks, so no temporary is as large as the file; for a compressed
-        file the offsets are positions in the decompressed stream, where ``seek`` goes.
+        file is read in blocks of ``_OFFSET_BLOCK_BYTES``; the finished offsets take 8 bytes
+        per line, and while the offsets of the blocks are joined they exist twice. For a
+        compressed file the offsets are positions in the decompressed stream, where
+        ``seek`` goes.
         """
         starts = [numpy.zeros(1, dtype=numpy.int64)]
         position = 0

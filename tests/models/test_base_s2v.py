@@ -473,16 +473,23 @@ class TestBaseSentence2VecModel:
         second = BaseSentence2VecModel(w2v, wv_mapfile_path=p)
         assert np.array_equal(first.wv.vectors, second.wv.vectors)
 
-    def test_mapfile_of_the_same_memmap_is_not_compared(self, w2v, tmp_path, monkeypatch):
+    @pytest.mark.parametrize("change", ["copy_on_write", "reversed_view"])
+    def test_memmap_of_the_same_file_is_compared(self, w2v, tmp_path, change):
+        """A map of the right file can still hold other values than the file."""
         p = str(tmp_path / "vecs")
         se = BaseSentence2VecModel(w2v, wv_mapfile_path=p)
-
-        def fail(*args, **kwargs):
-            raise AssertionError("compared a file with itself")
-
-        monkeypatch.setattr(base_s2v, "array_equal", fail)
-        output = se._move_ndarray_to_disk(se.wv.vectors, mapfile_path=p, name="wv")
-        assert np.array_equal(output, w2v.wv.vectors)
+        path = f"{p}_wv.vectors"
+        shape = se.wv.vectors.shape
+        if change == "copy_on_write":
+            vector = np.memmap(path, dtype=np.float32, mode="c", shape=shape)
+            vector[-1, -1] += 1
+        else:
+            vector = np.memmap(path, dtype=np.float32, mode="r", shape=shape)[::-1]
+        with pytest.raises(ValueError, match="holds other vectors than the model"):
+            se._move_ndarray_to_disk(vector, mapfile_path=p, name="wv")
+        # The unchanged map of the file is reused.
+        same = np.memmap(path, dtype=np.float32, mode="r", shape=shape)
+        assert np.array_equal(se._move_ndarray_to_disk(same, mapfile_path=p, name="wv"), same)
 
     def test_mapfile_of_another_size_raises(self, w2v, tmp_path):
         p = tmp_path / "vecs"
@@ -642,7 +649,6 @@ class TestBaseSentence2VecPreparer:
 
     def test_fill_crosses_block_boundaries(self, se, trainables, monkeypatch):
         """Rows are filled in blocks; sizes that are no multiple of the block are covered."""
-        from fse.models import base_s2v
 
         monkeypatch.setattr(base_s2v, "_FILL_BLOCK_ROWS", 7)
         trainables.reset_vectors(se.sv, 20)
@@ -787,7 +793,6 @@ def test_many_to_one_without_extension_uses_one_worker(w2v, sentences, monkeypat
     """Without the C extension there are no row locks, so training falls back to one worker."""
     import logging
 
-    from fse.models import base_s2v
     from fse.models.average import Average
 
     monkeypatch.setattr(base_s2v, "RowLocks", None)
@@ -874,7 +879,6 @@ SCAN_INPUTS = [
 @pytest.mark.parametrize("data", SCAN_INPUTS)
 def test_compiled_scan_matches_the_python_loop(w2v, data, monkeypatch):
     """Same statistics, or the same exception type and message, in both scan paths."""
-    from fse.models import base_s2v
 
     def outcome():
         se = BaseSentence2VecModel(w2v)
@@ -896,7 +900,6 @@ class _IterOverridingList(list):
 
 
 def test_compiled_scan_iterates_list_subclasses(w2v, monkeypatch):
-    from fse.models import base_s2v
 
     data = [(_IterOverridingList(["a", "b"]), 0)]
 

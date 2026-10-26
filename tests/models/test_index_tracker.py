@@ -6,6 +6,7 @@
 """The bitmap that tracks repeated indices in the scan, in Python and compiled."""
 
 import random
+import re
 import tracemalloc
 
 import pytest
@@ -91,11 +92,25 @@ def test_both_scan_paths_agree(w2v, monkeypatch, indices):
 
 
 @pytest.mark.parametrize("compiled", [True, False])
-def test_index_beyond_int64_raises(w2v, monkeypatch, compiled):
+@pytest.mark.parametrize(
+    ("indices", "position"),
+    [
+        ([0, MAX_INDEX + 1], 1),
+        ([MAX_INDEX + 1, 0], 0),
+        # After a repeat the tracker is gone; the bound still applies.
+        ([0, 0, MAX_INDEX + 1], 2),
+        ([1, 1, 2**70], 2),
+    ],
+)
+def test_index_beyond_int64_raises(w2v, monkeypatch, compiled, indices, position):
     if not compiled:
         monkeypatch.setattr(base_s2v, "scan_indexed_sentences", None)
-    items = [(["the"], 0), (["the"], MAX_INDEX + 1)]
-    with pytest.raises(ValueError, match=r"At 1: Passed index .* larger than the largest"):
+    items = [(["the"], index) for index in indices]
+    message = (
+        f"At {position}: Passed index {indices[position]}, larger than the largest "
+        f"supported index {MAX_INDEX}"
+    )
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
         BaseSentence2VecModel(w2v).scan_sentences(items)
 
 
@@ -106,12 +121,19 @@ def test_memory_of_a_permutation_is_bounded(monkeypatch):
     indices = list(range(n))
     rng.shuffle(indices)
     monkeypatch.setattr(_index_tracker, "BITMAP_MIN_BYTES", 1024)
-    tracemalloc.start()
+    # Count only what the tracker allocates, also if tracemalloc already runs.
+    started = not tracemalloc.is_tracing()
+    if started:
+        tracemalloc.start()
     try:
+        before, _ = tracemalloc.get_traced_memory()
+        tracemalloc.reset_peak()
         assert _tracked(indices)
         _, peak = tracemalloc.get_traced_memory()
+        peak -= before
     finally:
-        tracemalloc.stop()
+        if started:
+            tracemalloc.stop()
     # About one byte per sentence waits on the way; folding it takes a few temporaries of
     # that size, and the final bitmap has n / 8 bytes.
     assert peak < 6 * n

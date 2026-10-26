@@ -41,8 +41,8 @@ fse is now in maintenance mode: compatibility fixes only, no new features.
 - Jobs hold at most `batch_words` sentences as well as `batch_words` words, so long runs of empty sentences no longer form one large job.
 - The training log reports the end-to-end time, including the scan and component removal, next to the time of the training phase.
 - `IndexedLineDocument` stores its line offsets as an int64 array, 8 bytes per line instead of about 40 in a Python list, and finds them with numpy in blocks instead of line by line in Python.
-- The scan tracks indices that are not the positions of their sentences in a bitmap of at most about one byte per sentence instead of a Python set (60 to 70 bytes per sentence). Indices above 2⁶³ - 2 raise a `ValueError`, since their output could not be allocated anyway.
-- `most_similar` keeps a running top-N over blocks of rows instead of computing and sorting the similarities of all sentences at once, so its memory no longer grows with their number. Equally similar sentences are ordered by index; the order used to be arbitrary.
+- The scan tracks indices that are not the positions of their sentences in a bitmap instead of a Python set (60 to 70 bytes per sentence): for a permutation, at most about one byte per sentence on the way and a bitmap of an eighth to a quarter byte per sentence at the end. Indices above 2⁶³ - 2 raise a `ValueError`, since their output could not be allocated anyway.
+- `most_similar` keeps a running top-N over blocks of rows instead of computing and sorting the similarities of all sentences at once, so with a positive `topn` the search needs memory for one block and the candidates instead of a similarity per sentence. The normalized vectors from `init_sims` are unchanged. Equally similar sentences are ordered by index; the order used to be arbitrary.
 
 ### Fixed
 

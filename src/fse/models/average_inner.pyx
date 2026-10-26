@@ -682,6 +682,8 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
 
         if index > max_index:
             max_index = index
+        if index > max_supported:
+            _index_tracker.check_index_range(index, i)
         if identity and index != i:
             identity = False
             bits = _index_tracker.new_bitmap(i)
@@ -689,8 +691,6 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
             pending = array("q")
             min_bytes = _index_tracker.BITMAP_MIN_BYTES
         if bits is not None:
-            if index > max_supported:
-                _index_tracker.check_index_range(index, i)
             idx = index
             if (idx >> 3) < bit_bytes:
                 if bit_data[idx >> 3] & (1 << (idx & 7)):

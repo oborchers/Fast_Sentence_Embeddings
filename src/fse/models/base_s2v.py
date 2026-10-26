@@ -83,7 +83,7 @@ from fse._validation import (
     WordVectorModel,
     validate_arguments,
 )
-from fse.models._index_tracker import IndexTracker, check_index_range
+from fse.models._index_tracker import MAX_INDEX, IndexTracker, check_index_range
 from fse.models._single_pass import SinglePass
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
 from fse.models.utils import REMOVAL_BLOCK_ROWS
@@ -561,16 +561,14 @@ class BaseSentence2VecModel(SaveLoad):
         logger.info(f"loading pre-existing {name} from {path}")
         _check_mapfile_size(path, shape)
         readonly_memvecs = np_memmap(path, dtype=REAL, mode="r", shape=shape)
-        if not (
-            isinstance(vector, np_memmap) and Path(str(vector.filename)).resolve() == path.resolve()
-        ):
-            for begin in range(0, shape[0], REMOVAL_BLOCK_ROWS):
-                rows = slice(begin, begin + REMOVAL_BLOCK_ROWS)
-                if not array_equal(readonly_memvecs[rows], vector[rows], equal_nan=True):
-                    raise ValueError(
-                        f"the existing file {path} holds other vectors than the model "
-                        f"(from row {begin}); delete it or pass another mapfile path"
-                    )
+        # Also for a memmap of the same file: a copy-on-write map or a view may differ.
+        for begin in range(0, shape[0], REMOVAL_BLOCK_ROWS):
+            rows = slice(begin, begin + REMOVAL_BLOCK_ROWS)
+            if not array_equal(readonly_memvecs[rows], vector[rows], equal_nan=True):
+                raise ValueError(
+                    f"the existing file {path} holds other vectors than the model "
+                    f"(from row {begin}); delete it or pass another mapfile path"
+                )
         return readonly_memvecs
 
     def _get_thread_working_mem(self) -> tuple[ndarray, ndarray]:
@@ -787,14 +785,14 @@ class BaseSentence2VecModel(SaveLoad):
 
                 max_index = max(max_index, index)
                 total_sentences += 1
+                if index > MAX_INDEX:
+                    check_index_range(index, i)
                 if identity and index != i:
                     identity = False
                     tracker = IndexTracker(i)
-                if tracker is not None:
-                    check_index_range(index, i)
-                    if not tracker.add(index, total_sentences):
-                        unique_indices = False
-                        tracker = None
+                if tracker is not None and not tracker.add(index, total_sentences):
+                    unique_indices = False
+                    tracker = None
                 total_words += len(sent)
 
                 if not len(sent):

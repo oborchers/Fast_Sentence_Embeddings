@@ -3,17 +3,18 @@
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
 
-"""Whether sentence indices repeat, in about 1 byte per sentence instead of a set.
+"""Whether sentence indices repeat, in a bitmap instead of a set of Python ints.
 
 The scan needs to know whether every index occurs at most once. For indices that are not
 the positions of their sentences, a set of Python ints costs 60 to 70 bytes per sentence.
 ``IndexTracker`` marks indices in a bitmap instead, one bit per index value, which is at
 most ``max(BITMAP_MIN_BYTES, 1 byte per sentence)`` large. An index beyond the bitmap
 waits as int64 in ``pending`` until the number of sentences allows a bitmap that covers
-it. Valid indices are below the number of sentences, so a permutation of n sentences
-needs at most about n bytes on the way and ends with a bitmap of n / 8 bytes; indices
-beyond any affordable bitmap, which the scan rejects afterwards, cost 8 bytes each and
-are sorted once at the end.
+it. Valid indices are below the number of sentences, so for a permutation of n
+sentences at most about n / 8 indices wait (n bytes), and the bitmap ends with n / 8 to
+n / 4 bytes, as it grows by doubling. Folding the waiting indices into the bitmap takes
+a few temporary arrays of their size. Indices beyond any affordable bitmap, which the
+scan rejects afterwards, cost 8 bytes each and are sorted once at the end.
 
 ``scan_indexed_sentences`` in ``average_inner.pyx`` has a compiled twin with the same
 rules that calls ``fold`` and ``sorted_unique`` below; tests compare both.
