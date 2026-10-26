@@ -31,7 +31,9 @@ class OrderedGram:
     block product while the rows are cached, and the products are summed in block order.
     The result is therefore bit-identical to gram_matrix on the finished vectors, however
     the jobs were distributed over the workers. At most PENDING_BUDGET_BYTES of products
-    wait for a missing predecessor; further blocks are recomputed from the rows instead.
+    wait for a missing predecessor, besides the product of the block summed next; further
+    blocks are recomputed from their rows when they are summed. One thread at a time sums,
+    outside the lock.
     """
 
     def __init__(self, target: ndarray, first_row: int = 0):
@@ -44,11 +46,17 @@ class OrderedGram:
         self._block_rows = utils.REMOVAL_BLOCK_ROWS
         self.num_blocks = -(-self.num_rows // self._block_rows)
         product_bytes = dim * dim * asarray(0, dtype=self.block_dtype).itemsize
-        self.max_pending = max(1, PENDING_BUDGET_BYTES // max(product_bytes, 1))
+        # Possibly 0: then every block that waits is recomputed.
+        self.max_pending = PENDING_BUDGET_BYTES // max(product_bytes, 1)
         self._written = [0] * self.num_blocks
         # Block number to its product, or to None for a finished block to recompute.
         self._pending: dict[int, ndarray | None] = {}
+        # Blocks whose products are held in _pending or being computed for it, reserved
+        # before computing; never more than max_pending.
+        self._reserved: set[int] = set()
         self._next = 0
+        # Whether a thread is summing; only that thread touches gram and _next.
+        self._summing = False
         self._lock = threading.Lock()
 
     def _block(self, k: int) -> ndarray:
@@ -78,16 +86,51 @@ class OrderedGram:
                 first, k = end, k + 1
         for k in done:
             with self._lock:
-                waiting = k != self._next and len(self._pending) >= self.max_pending
-            product = None if waiting else utils.gram_block_product(self._block(k))
+                # The block that is summed next is never held; others only within budget,
+                # reserved before the product is computed.
+                keep = k != self._next and len(self._reserved) < self.max_pending
+                if keep:
+                    self._reserved.add(k)
+            if keep or k == self._next:
+                try:
+                    product = utils.gram_block_product(self._block(k))
+                except BaseException:
+                    with self._lock:
+                        self._reserved.discard(k)
+                    raise
+            else:
+                product = None
             with self._lock:
                 self._pending[k] = product
-                while self._next in self._pending:
+        self._sum_in_order()
+
+    def _sum_in_order(self):
+        """Sum the products from block _next on while they are there, by one thread at a time.
+
+        Recomputing a block that was not held happens outside the lock, so other workers can
+        report their rows meanwhile; a block reported then is summed by the running thread.
+        """
+        with self._lock:
+            if self._summing:
+                return
+            self._summing = True
+        try:
+            while True:
+                with self._lock:
+                    if self._next not in self._pending:
+                        self._summing = False
+                        return
                     held = self._pending.pop(self._next)
-                    if held is None:  # rare: recomputed from its final rows
-                        held = utils.gram_block_product(self._block(self._next))
-                    utils.add_gram_block(self.gram, held)
+                    self._reserved.discard(self._next)
+                if held is None:
+                    held = utils.gram_block_product(self._block(self._next))
+                utils.add_gram_block(self.gram, held)
+                with self._lock:
                     self._next += 1
+        except BaseException:
+            with self._lock:
+                self._summing = False
+            raise
 
     @property
     def complete(self) -> bool:

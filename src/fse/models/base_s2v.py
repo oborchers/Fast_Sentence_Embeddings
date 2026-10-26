@@ -1072,11 +1072,12 @@ class BaseSentence2VecModel(SaveLoad):
             )
         )
 
-        for thread in threads:
-            thread.daemon = True  # make interrupting the process with ctrl+c easier
-            thread.start()
-
+        started: list[threading.Thread] = []
         try:
+            for thread in threads:
+                thread.daemon = True  # make interrupting the process with ctrl+c easier
+                thread.start()
+                started.append(thread)
             jobs, eff_sentences, eff_words = self._log_train_progress(
                 progress_queue,
                 total_sentences=total_sentences,
@@ -1085,9 +1086,15 @@ class BaseSentence2VecModel(SaveLoad):
             )
         finally:
             stop.set()
+            if len(started) <= n_workers:
+                # The producer never started, so it sends no end markers: send them for the
+                # workers that run. The queue holds at least n_workers items, and it is empty.
+                for _ in started:
+                    job_queue.put(None)
             # If the main thread stopped consuming early, for example on KeyboardInterrupt,
-            # workers may block on the full progress queue. Drain it until all threads end.
-            while any(thread.is_alive() for thread in threads):
+            # workers may block on the full progress queue. Drain it until all threads end,
+            # so the caller only cleans up once no thread writes anymore.
+            while any(thread.is_alive() for thread in started):
                 with contextlib.suppress(Empty):
                     progress_queue.get(timeout=0.1)
 

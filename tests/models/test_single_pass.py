@@ -395,6 +395,47 @@ def test_overflow_of_opposite_signs_across_blocks_raises(monkeypatch, path):
             utils.components_from_gram(gram.result(), 2, 1, np.float32)
 
 
+@pytest.mark.parametrize("memmap", [False, True])
+@pytest.mark.parametrize("where", ["pre-train", "worker", "thread start"])
+def test_a_failed_update_keeps_the_old_rows(monkeypatch, w2v, tmp_path, memmap, where):
+    import threading
+
+    from fse.models import average
+
+    kwargs = {"sv_mapfile_path": tmp_path / "sv"} if memmap else {}
+    model = fse.SIF(w2v, components=2, workers=2, **kwargs)
+    model.train(TextList(_texts(200)))
+    old = np.array(model.sv.vectors)
+    if where == "pre-train":
+
+        def fail(*args, **kwargs):
+            raise OSError("pre-train failed")
+
+        monkeypatch.setattr(fse.SIF, "_pre_train_calls", fail)
+    elif where == "worker":
+
+        def fail(*args):
+            raise OSError("worker failed")
+
+        monkeypatch.setattr(average, "run_chunk", fail)
+    else:
+        original = threading.Thread.start
+        started = []
+
+        def fail(self):
+            started.append(self)
+            if len(started) == 3:  # the producer, after both workers
+                raise OSError("thread start failed")
+            return original(self)
+
+        monkeypatch.setattr(threading.Thread, "start", fail)
+    with pytest.raises(OSError, match="failed"):
+        model.train(TextList(_texts(100, seed=1)), update=True)
+    assert np.array_equal(model.sv.vectors[:200], old)
+    assert np.all(model.sv.vectors[200:] == utils.EPS)
+    assert "_single_pass" not in model.__dict__
+
+
 class TestOrderedGram:
     def _vectors(self, rows=1000, dim=6):
         return np.random.default_rng(3).random((rows, dim), dtype=np.float32)
@@ -423,6 +464,57 @@ class TestOrderedGram:
         for k in range(9, 0, -1):
             gram.add_rows(10 * k, 10 * k + 10)
             assert sum(p is not None for p in gram._pending.values()) <= 3
+        gram.add_rows(0, 10)
+        assert np.array_equal(gram.result(), gram_matrix(vectors, np.float32))
+
+    def test_a_budget_below_one_product_holds_none(self, monkeypatch):
+        from fse.models import _single_pass
+
+        monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 10)
+        monkeypatch.setattr(_single_pass, "PENDING_BUDGET_BYTES", 10)
+        vectors = self._vectors(50)
+        gram = OrderedGram(vectors)
+        assert gram.max_pending == 0
+        gram.add_rows(10, 50)
+        assert all(p is None for p in gram._pending.values())
+        gram.add_rows(0, 10)
+        assert np.array_equal(gram.result(), gram_matrix(vectors, np.float32))
+
+    def test_concurrent_workers_stay_within_the_budget(self, monkeypatch):
+        """Workers finishing blocks at once while block 0 is late reserve before computing."""
+        import threading
+
+        from fse.models import _single_pass
+
+        monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 10)
+        monkeypatch.setattr(_single_pass, "PENDING_BUDGET_BYTES", 2 * 6 * 6 * 4)
+        vectors = self._vectors(200)
+        gram = OrderedGram(vectors)
+        assert gram.max_pending == 2
+        start = threading.Barrier(8)
+        # Block 0 is late, so every product of blocks 1 to 19 needs a reservation.
+        reserved_while_computing = []
+        original = utils.gram_block_product
+
+        def product(block):
+            reserved_while_computing.append(len(gram._reserved))
+            return original(block)
+
+        monkeypatch.setattr(utils, "gram_block_product", product)
+
+        def report(blocks):
+            start.wait()
+            for k in blocks:
+                gram.add_rows(10 * k, 10 * k + 10)
+
+        threads = [threading.Thread(target=report, args=(range(1 + i, 20, 8),)) for i in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert reserved_while_computing
+        assert max(reserved_while_computing) <= 2
+        assert sum(p is not None for p in gram._pending.values()) <= 2
         gram.add_rows(0, 10)
         assert np.array_equal(gram.result(), gram_matrix(vectors, np.float32))
 
