@@ -35,21 +35,21 @@ from typing import Any
 
 from gensim.models.fasttext import ft_ngram_hashes
 from numpy import (
+    asarray as np_asarray,
+)
+from numpy import (
     float32 as REAL,
+)
+from numpy import (
+    full,
+    ndarray,
+    zeros,
 )
 from numpy import (
     max as np_max,
 )
 from numpy import (
     multiply as np_mult,
-)
-from numpy import (
-    asarray as np_asarray,
-)
-from numpy import (
-    full,
-    ndarray,
-    zeros,
 )
 from numpy import (
     sum as np_sum,
