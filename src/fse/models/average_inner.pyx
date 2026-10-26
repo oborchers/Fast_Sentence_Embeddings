@@ -28,6 +28,7 @@ from cpython.pythread cimport (
     PyThread_free_lock,
     PyThread_release_lock,
 )
+from libc.float cimport FLT_EPSILON
 from libc.stdint cimport SIZE_MAX
 from libc.stdlib cimport free, malloc, realloc
 from libc.string cimport memchr, memcmp, memcpy, memset
@@ -175,6 +176,11 @@ cdef class KernelContext:
     cdef object _locks
     # Native sources opened for this call; closed when the call ends.
     cdef public list sources
+    # Set EPS in the rows of every job before averaging, instead of in all rows in advance.
+    # Only for one row per sentence and contiguous rows per job (indices are positions).
+    cdef public bint prefill_rows
+    # An OrderedGram that sums the Gram matrix of the finished rows during training, or None.
+    cdef public object gram
 
     def __init__(self, model, target):
         _check_inputs(model, target)
@@ -207,6 +213,8 @@ cdef class KernelContext:
             self._keep = (model.word_weights, target, wv.vectors)
         self._locks = getattr(model, "_row_locks", None)
         self.sources = []
+        self.prefill_rows = False
+        self.gram = None
 
     def __reduce__(self):
         raise TypeError("KernelContext only exists during a train or infer call")
@@ -219,9 +227,13 @@ cdef class EncodedJob:
     into row ``targets[s]``: vocabulary indices, or ``OOV_TOKEN`` for an unknown FastText
     word whose bytes are ``oov_bytes[oov_offsets[k]:oov_offsets[k + 1]]``, in order.
     ``n_items`` counts every input item of the job, including empty sentences.
+    ``first_row`` is the index of the first item; ``contiguous`` says whether the items
+    have the indices ``first_row`` to ``first_row + n_items - 1`` in order.
     """
 
     cdef readonly Py_ssize_t n_items
+    cdef readonly np.int64_t first_row
+    cdef readonly bint contiguous
     cdef readonly Py_ssize_t n_sentences
     cdef readonly Py_ssize_t eff_words
     cdef object words
@@ -353,6 +365,8 @@ cdef class JobEncoder:
         cdef Py_ssize_t n_sentences = 0
         cdef Py_ssize_t length
         cdef Py_ssize_t utf8_size
+        cdef np.int64_t first_row = -1, previous = -1
+        cdef bint contiguous = True
         cdef const char *utf8
         cdef PyObject *hit
 
@@ -392,6 +406,11 @@ cdef class JobEncoder:
             # The kernel writes into target[index] through a raw pointer.
             if not 0 <= index < n_rows:
                 raise IndexError(f"sentence index {index} is out of range for {n_rows} target rows")
+            if n_items == 1:
+                first_row = index
+            elif index != previous + 1:
+                contiguous = False
+            previous = index
             # Truthiness, as in the numpy fallback.
             if not sentence:
                 continue
@@ -420,6 +439,8 @@ cdef class JobEncoder:
             return None
         cdef EncodedJob job = EncodedJob.__new__(EncodedJob)
         job.n_items = n_items
+        job.first_row = first_row
+        job.contiguous = contiguous
         job.n_sentences = n_sentences
         job.eff_words = self.words.size // sizeof(uINT_t)
         job.words = _to_array(&self.words, np.uint32)
@@ -527,15 +548,39 @@ cdef void _average_job(
         )
 
 
+cdef void _prefill(REAL_t *target, int size, np.int64_t first_row, Py_ssize_t n_rows) noexcept nogil:
+    """Set rows first_row to first_row + n_rows - 1 to EPS, as _fill_eps does in advance."""
+    cdef size_t i
+    cdef size_t begin = <size_t>first_row * <size_t>size
+    cdef size_t end = begin + <size_t>n_rows * <size_t>size
+    for i in range(begin, end):
+        target[i] = FLT_EPSILON
+
+
+cdef int _check_prefill(KernelContext ctx, np.int64_t first_row, Py_ssize_t n_items) except -1:
+    """Raise unless rows first_row to first_row + n_items - 1 exist in the target."""
+    if first_row < 0 or n_items < 0 or first_row > ctx.n_rows - n_items:
+        raise ValueError(
+            f"rows [{first_row}, {first_row + n_items}) are outside the {ctx.n_rows} target rows"
+        )
+    return 0
+
+
 def run_job(KernelContext ctx, EncodedJob job, scratch):
     """Average an encoded job into the target of ctx without holding the GIL.
 
     scratch is the worker's private float32 buffer of at least the vector size. Returns
-    the number of sentences and of tokens the job used.
+    the number of sentences and of tokens the job used. With ``ctx.prefill_rows``, the rows
+    of the job are set to EPS first; their indices must be contiguous.
     """
     _check_array(scratch, "scratch", np.float32)
     if scratch.size < ctx.params.size:
         raise ValueError(f"scratch must hold at least {ctx.params.size} entries")
+    cdef bint prefill = ctx.prefill_rows
+    if prefill:
+        if not job.contiguous:
+            raise ValueError("the indices of the job are not contiguous, so its rows cannot be prefilled")
+        _check_prefill(ctx, job.first_row, job.n_items)
     cdef uINT_t[::1] words = job.words
     cdef np.int64_t[::1] offsets = job.offsets
     cdef uINT_t[::1] targets = job.targets
@@ -564,6 +609,8 @@ def run_job(KernelContext ctx, EncodedJob job, scratch):
             raise MemoryError("could not allocate the ngram buffer")
     try:
         with nogil:
+            if prefill:
+                _prefill(ctx.params.target, ctx.params.size, job.first_row, job.n_items)
             _average_job(
                 &ctx.params, words_ptr, &offsets[0], targets_ptr, n_sentences,
                 oov_bytes, &oov_offsets[0], mem, ngram_buffer, ngram_capacity,
@@ -579,8 +626,8 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
     The checks and their messages are those of
     ``BaseSentence2VecModel._check_indexed_sent_valid``. ``progress(sentences, words)`` is
     called about every ``progress_per`` seconds. Returns the number of sentences and
-    words, the number of empty sentences, the largest index and whether every index
-    occurs at most once.
+    words, the number of empty sentences, the largest index, whether every index
+    occurs at most once, and whether every index equals the position of its sentence.
     """
     cdef Py_ssize_t i = 0
     cdef Py_ssize_t total_words = 0
@@ -640,7 +687,7 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
             empty_sentences += 1
         i += 1
 
-    return i, total_words, empty_sentences, max_index, unique_indices
+    return i, total_words, empty_sentences, max_index, unique_indices, identity
 
 
 # ---------------------------------------------------------------------------------------
@@ -1102,12 +1149,14 @@ cdef int _average_spans(
 
 
 def run_chunk(KernelContext ctx, VocabTable table, const unsigned char[::1] data, offsets,
-              Py_ssize_t first, Py_ssize_t last, np.int64_t first_row, scratch):
+              Py_ssize_t first, Py_ssize_t last, np.int64_t first_row, scratch,
+              Py_ssize_t n_items=-1):
     """Average the sentences first to last - 1 of a native source without the GIL.
 
     Positions are bytes in line mode (offsets is None) and string numbers otherwise; the
     first sentence goes into row first_row. Returns the number of non-empty sentences and
-    of used tokens, like run_job.
+    of used tokens, like run_job. With ``ctx.prefill_rows``, n_items is the number of
+    sentences of the chunk, and their rows are set to EPS first.
     """
     _check_array(scratch, "scratch", np.float32)
     if scratch.size < ctx.params.size:
@@ -1115,6 +1164,9 @@ def run_chunk(KernelContext ctx, VocabTable table, const unsigned char[::1] data
     _check_span(data, offsets, first, last)
     if first_row < 0:
         raise ValueError(f"first_row must be non-negative, got {first_row}")
+    cdef bint prefill = ctx.prefill_rows
+    if prefill:
+        _check_prefill(ctx, first_row, n_items)
     cdef Py_ssize_t n = data.shape[0]
     cdef const unsigned char *p = &data[0] if n else NULL
     cdef np.int64_t[::1] item_offsets
@@ -1133,6 +1185,8 @@ def run_chunk(KernelContext ctx, VocabTable table, const unsigned char[::1] data
     cdef int status
     try:
         with nogil:
+            if prefill:
+                _prefill(ctx.params.target, ctx.params.size, first_row, n_items)
             status = _average_spans(
                 &ctx.params, &table.view, p, n, item_ptr, first, last, first_row, n_rows, mem,
                 &words, &oov_bytes, &oov_offsets, &ngrams, &eff_sentences, &eff_words, &error,

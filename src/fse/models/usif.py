@@ -21,6 +21,7 @@ from fse.models.average import Average
 from fse.models.utils import (
     EPS,
     check_components_fit,
+    components_from_gram,
     compute_principal_components,
     remove_principal_components,
     warn_cache_size_gb_deprecated,
@@ -142,7 +143,11 @@ class uSIF(Average):
         self.length = kwargs["average_length"] if self.length is None else self.length
         self._compute_usif_weights()
 
-    def _post_train_calls(self, update: bool = False, offset: int = 0, **kwargs):
+    def _fuses_gram(self, update: bool) -> bool:
+        """New components are computed from all rows, which training writes unless updating."""
+        return self.components > 0 and not update
+
+    def _post_train_calls(self, update: bool = False, offset: int = 0, gram: Any = None, **kwargs):
         """Function calls to perform after training, such as computing eigenvectors."""
         if self.components > 0 and update and isinstance(self.svd_res, tuple):
             # Appended rows are treated like inference: reuse the learned components.
@@ -150,9 +155,13 @@ class uSIF(Average):
                 self.sv.vectors[offset:], svd_res=self.svd_res, weights=self.svd_weights
             )
         elif self.components > 0:
-            self.svd_res = compute_principal_components(
-                self.sv.vectors,
-                components=self.components,
+            self.svd_res = (
+                compute_principal_components(self.sv.vectors, components=self.components)
+                if gram is None
+                # Summed during training, bit-identical to compute_principal_components.
+                else components_from_gram(
+                    gram.result(), len(self.sv.vectors), self.components, gram.block_dtype
+                )
             )
             self.svd_weights = (self.svd_res[0] ** 2) / (self.svd_res[0] ** 2).sum().astype(REAL)
             self.component_weighting = "lambda"

@@ -81,6 +81,7 @@ from fse._validation import (
     validate_arguments,
 )
 from fse.models.sentencevectors import SentenceVectors, _l2_norm
+from fse.models.utils import OrderedGram
 
 try:
     from fse.models.average_inner import scan_indexed_sentences
@@ -557,6 +558,14 @@ class BaseSentence2VecModel(SaveLoad):
         oov_mem = zeros_aligned(0, dtype=uINT)
         return (mem, oov_mem)
 
+    def _uses_kernel(self) -> bool:
+        """Whether train and infer use encoded jobs and :meth:`_kernel_context`."""
+        return False
+
+    def _fuses_gram(self, update: bool) -> bool:
+        """Whether training should sum the Gram matrix of the new rows for the post-train calls."""
+        return False
+
     def _kernel_context(self, target: ndarray) -> Any:
         """Return the state for encoded jobs that write into target, or None.
 
@@ -720,6 +729,7 @@ class BaseSentence2VecModel(SaveLoad):
             empty_sentences = native_stats["empty_sentences"]
             max_index = max(total_sentences - 1, 0)
             unique_indices = True
+            identity = True
         elif (
             scan_indexed_sentences is not None
             and "_check_indexed_sent_valid" not in self.__dict__
@@ -727,9 +737,14 @@ class BaseSentence2VecModel(SaveLoad):
             is BaseSentence2VecModel._check_indexed_sent_valid
         ):
             # The compiled scan runs the same checks with the same messages.
-            total_sentences, total_words, empty_sentences, max_index, unique_indices = (
-                scan_indexed_sentences(sentences, progress_per, progress)
-            )
+            (
+                total_sentences,
+                total_words,
+                empty_sentences,
+                max_index,
+                unique_indices,
+                identity,
+            ) = scan_indexed_sentences(sentences, progress_per, progress)
         else:
             for i, obj in enumerate(sentences):
                 index, sent = self._check_indexed_sent_valid(iter_pos=i, obj=obj)
@@ -774,6 +789,8 @@ class BaseSentence2VecModel(SaveLoad):
             "empty_sentences": empty_sentences,
             "max_index": max_index + 1 if total_sentences else 0,
             "unique_indices": unique_indices,
+            # Index i for the i-th sentence: one row per sentence, in order.
+            "identity_indices": identity,
         }
         return statistics
 
@@ -860,8 +877,11 @@ class BaseSentence2VecModel(SaveLoad):
 
         self.estimate_memory(**statistics)
         offset = len(self.sv.vectors) if update else 0
+        # With index i for the i-th sentence, every job covers its own contiguous rows: the
+        # kernel then sets them to EPS itself, so the rows are not written in advance.
+        prefill = bool(statistics["identity_indices"]) and self._uses_kernel()
         self.prep.prepare_vectors(
-            sv=self.sv, total_sentences=statistics["max_index"], update=update
+            sv=self.sv, total_sentences=statistics["max_index"], update=update, fill=not prefill
         )
 
         # Preform post-tain calls (i.e weight computation)
@@ -884,9 +904,19 @@ class BaseSentence2VecModel(SaveLoad):
                 )
                 workers = 1
         context = None
+        gram = None
         try:
             context = self._kernel_context(self.sv.vectors)
-            _, eff_sentences, eff_words = self._train_manager(
+            if prefill and context is None:
+                # No kernel after all: write the EPS rows in advance, as without prefill.
+                _fill_eps(self.sv.vectors, offset, len(self.sv.vectors))
+                prefill = False
+            if prefill and context is not None:
+                context.prefill_rows = True
+                if self._fuses_gram(update):
+                    # The Gram matrix of the new rows, summed while they are still cached.
+                    gram = context.gram = OrderedGram(self.sv.vectors)
+            items, eff_sentences, eff_words = self._train_manager(
                 data_iterable=_OffsetIndices(sentences, offset) if offset else sentences,
                 total_sentences=statistics["total_sentences"],
                 queue_factor=queue_factor,
@@ -902,10 +932,16 @@ class BaseSentence2VecModel(SaveLoad):
 
         overall_time = time() - start_time
 
+        if prefill and items != statistics["max_index"]:
+            # Rows of jobs that never ran would hold uninitialized memory.
+            raise RuntimeError(
+                f"training wrote {items} of {statistics['max_index']} rows; the input "
+                "yielded fewer sentences than the scan found"
+            )
         self._check_post_training_sanity(eff_sentences=eff_sentences, eff_words=eff_words)
 
         # Preform post-tain calls (i.e principal component removal)
-        self._post_train_calls(update=update, offset=offset)
+        self._post_train_calls(update=update, offset=offset, gram=gram)
 
         self._log_train_end(
             eff_sentences=eff_sentences,
@@ -1267,15 +1303,21 @@ def _fill_eps(vectors: ndarray, start: int, stop: int):
 class BaseSentence2VecPreparer(SaveLoad):
     """Contains helper functions to perpare the weights for the training of BaseSentence2VecModel"""
 
-    def prepare_vectors(self, sv: SentenceVectors, total_sentences: int, update: bool = False):
-        """Build tables and model weights based on final vocabulary settings."""
-        if not update:
-            self.reset_vectors(sv, total_sentences)
-        else:
-            self.update_vectors(sv, total_sentences)
+    def prepare_vectors(
+        self, sv: SentenceVectors, total_sentences: int, update: bool = False, fill: bool = True
+    ):
+        """Build tables and model weights based on final vocabulary settings.
 
-    def reset_vectors(self, sv: SentenceVectors, total_sentences: int):
-        """Initialize all sentence vectors to zero and overwrite existing files"""
+        With fill=False the new rows are left uninitialized, for a training whose jobs set
+        their own rows to EPS before averaging.
+        """
+        if not update:
+            self.reset_vectors(sv, total_sentences, fill=fill)
+        else:
+            self.update_vectors(sv, total_sentences, fill=fill)
+
+    def reset_vectors(self, sv: SentenceVectors, total_sentences: int, fill: bool = True):
+        """Initialize all sentence vectors to EPS and overwrite existing files"""
         logger.info(f"initializing sentence vectors for {total_sentences} sentences")
         if sv.mapfile_path:
             sv.vectors = np_memmap(
@@ -1287,10 +1329,11 @@ class BaseSentence2VecPreparer(SaveLoad):
         else:
             sv.vectors = empty((total_sentences, sv.vector_size), dtype=REAL)
 
-        _fill_eps(sv.vectors, 0, total_sentences)
+        if fill:
+            _fill_eps(sv.vectors, 0, total_sentences)
         sv.vectors_norm = None
 
-    def update_vectors(self, sv: SentenceVectors, total_sentences: int):
+    def update_vectors(self, sv: SentenceVectors, total_sentences: int, fill: bool = True):
         """Given existing sentence vectors, append new ones"""
         logger.info(f"appending sentence vectors for {total_sentences} sentences")
         sentences_before = len(sv.vectors)
@@ -1303,9 +1346,11 @@ class BaseSentence2VecPreparer(SaveLoad):
                 mode="r+",
                 shape=(sentences_after, sv.vector_size),
             )
-            _fill_eps(sv.vectors, sentences_before, sentences_after)
+            if fill:
+                _fill_eps(sv.vectors, sentences_before, sentences_after)
         else:
             newvectors = empty((total_sentences, sv.vector_size), dtype=REAL)
-            _fill_eps(newvectors, 0, total_sentences)
+            if fill:
+                _fill_eps(newvectors, 0, total_sentences)
             sv.vectors = vstack([sv.vectors, newvectors])
         sv.vectors_norm = None
