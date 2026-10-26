@@ -14,7 +14,7 @@ import pytest
 from pydantic import ValidationError
 
 from fse.inputs import CIndexedList, IndexedList
-from fse.models import _quantize
+from fse.models import _quantize, sentencevectors
 from fse.models._quantize import dequantize, quantize_into
 from fse.models.average import Average
 from fse.models.base_s2v import EPS
@@ -209,6 +209,21 @@ def test_failed_training_keeps_the_stored_rows(w2v, sentences, tmp_path, mapped)
     assert np.array_equal(model.sv.vectors, codes)
     assert np.array_equal(model.sv.scales, scales)
     assert not (tmp_path / "sv.staging.vectors").exists()
+
+
+def test_failed_staging_keeps_the_components(w2v, sentences, monkeypatch):
+    """Staging: components learned before storing fails are dropped with the rows."""
+    model = SIF(w2v, components=2, sv_dtype="int8")
+    model.train(CIndexedList(sentences, custom_index=[i // 2 for i in range(len(sentences))]))
+    before = model.svd_res[1].copy()
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("storing failed")
+
+    monkeypatch.setattr(sentencevectors, "quantize_into", fail)
+    with pytest.raises(RuntimeError, match="storing failed"):
+        model.train(CIndexedList(sentences[::-1], custom_index=list(range(len(sentences)))[::-1]))
+    np.testing.assert_array_equal(model.svd_res[1], before)
 
 
 @pytest.mark.parametrize("mapped", [False, True])

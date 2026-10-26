@@ -18,6 +18,8 @@ src/fse/
     utils.py             # SVD helpers
     _single_pass.py      # private: state of the single pass during train
     _index_tracker.py    # private: bitmap of seen indices for the scan
+    _quantize.py         # private: float16 and int8 storage arithmetic
+    _windowed.py         # private: training into a ring of float32 windows
 ```
 
 **Module paths under `fse.models` are part of the API.** Models are saved with gensim's `SaveLoad`, which pickles class paths such as `fse.models.average.Average`. Renaming or moving a module breaks loading of every saved model. New internal code goes into new private modules; existing ones stay where they are.
@@ -45,6 +47,19 @@ For a memmap larger than the RAM, every pass over the sentence vectors goes to d
 - **Gram matrix** (SIF and uSIF with `components > 0`, without `update=True`, and without a replaced `_post_train_calls`): after each job the worker reports its rows to an `OrderedGram`; the worker that completes a block of `REMOVAL_BLOCK_ROWS` rows computes the block product while the rows are cached, and the products are summed in block order. Blocks, products and summation order are those of `gram_matrix`, so the components are bit-identical to a separate pass for any number of workers. Products that wait for a missing predecessor are bounded by `PENDING_BUDGET_BYTES`, reserved before they are computed; beyond it, a finished block is recomputed from its rows when it is summed. One thread at a time sums, outside the lock, so other workers keep reporting. `_post_train_calls` receives the finished matrix as `gram`.
 
 Other indices, the numpy fallback and a replaced `_do_train_job` take the separate passes. An update that computes new components from old and new rows prefills the new rows but reads all rows for the Gram matrix.
+
+### Storage formats
+
+`SentenceVectors.dtype` is `"float32"` (the default), `"float16"` or `"int8"`. Sentence vectors are always computed in float32 and stored in the format; every read returns float32. int8 rows are symmetric codes with one float32 scale per row in `scales` (`codes * scale` restores the row), so the cosine of two code rows equals the cosine of the rows they represent. With a mapfile, codes live in `<path>.vectors` and scales in `<path>.scales`. All format arithmetic is in `fse.models._quantize`; `quantize_into` raises for non-finite rows and float16 overflow instead of storing infinity.
+
+For float16 and int8, training takes one of two plans:
+
+- **Windows** (index i for the i-th sentence, the compiled kernel, built-in `_do_train_job` and `_post_train_calls`): `KernelContext.use_ring` makes the kernel write row r into row `r % ring_rows` of a ring of float32 windows of about `WINDOW_BYTES` (a multiple of `REMOVAL_BLOCK_ROWS`). A `WindowedWriter` counts finished rows per window; the worker that completes the next window in row order finalizes it outside the lock, one thread at a time, and frees its slot. The producer waits in `SinglePass.check_job` until the rows of a job have a free slot, and stops waiting once training fails. The ring has enough slots for the longest job (a native chunk can hold many empty lines). Average and updates that reuse learned components take one pass, which removes known components from each window and stores it. SIF and uSIF learning components take two passes: the first sums the Gram blocks of each window in block order, as `gram_matrix` does, the second removes the components and stores. Windows and removal blocks coincide with those of a float32 training, so the stored rows are bit-identical to a float32 training stored afterwards. `_set_components` and `_remove_components` hold the component logic both plans and inference share.
+- **Staging** (every other case, logged with the reason): `SentenceVectors._stage` replaces `sv.vectors` by a float32 matrix of the rows of this call, which training and the hooks use as for float32 vectors, with `offset` 0; afterwards its rows are stored in the format. During the hooks, `sv.vectors` therefore holds only the rows of this call.
+
+Both plans store through `_RowWriter`: a new training writes `.writing` files that replace the old ones only when it succeeds, an update grows a memmap in place and cuts it back on failure, and a failure leaves the stored vectors and learned components as they were. An update that would compute new components from stored float16 or int8 rows raises before training.
+
+Reading: `most_similar`, `similar_by_*` and `score` call `score_rows` in the extension, which multiplies the stored values (float16 through a 65,536-entry table) with float32 weights, scaled per row, without the GIL; `_StoredScores` runs row ranges in a thread pool. For float16 and int8, `init_sims` keeps only one inverse norm per row instead of a normalized copy. Without the extension, numpy converts each block to float32; both give the same results within float32 rounding.
 
 ### Native inputs
 
@@ -89,9 +104,13 @@ Invalid input raises a clear exception at the API boundary. Nothing is coerced, 
 
 Entry points whose own work dwarfs a few microseconds use `fse._validation.validate_arguments`, a strict pydantic `validate_call`: constructors, `train`, `infer`, `from_pretrained` and the similarity searches. Constraints such as `PositiveInt` live in the signatures. Two places check explicitly instead: methods called per element in loops (`similarity`, `get_vector`, `__getitem__`), where validation would add measurable overhead, and the training data, which pydantic would iterate or copy. Parameters that hold data stay `Any` in validated signatures for the same reason; the scan checks them. Integer constraints accept numpy integer scalars, float constraints reject infinity and NaN.
 
+### Reads return float32
+
+Whatever the storage format, `sv[i]`, `get_vector`, `get_vectors`, `iter_blocks`, `similarity`, the searches and `score` return float32. Only `sv.vectors` (and `sv.scales`) expose the stored values.
+
 ### float32 throughout
 
-Word vectors, weights and sentence vectors are `float32` (`REAL`). The kernel takes raw pointers, so arrays must be `float32` and C-contiguous.
+Word vectors, weights and sentence vectors are computed in `float32` (`REAL`); sentence vectors may be stored as float16 or int8 (see *Storage formats*). The kernel takes raw pointers, so arrays must be `float32` and C-contiguous.
 
 ## Build
 

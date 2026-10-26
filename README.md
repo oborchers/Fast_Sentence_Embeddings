@@ -16,7 +16,7 @@ Fast Sentence Embeddings
 Maintenance mode
 ------------
 
-**fse is no longer actively developed.** It stays available and installable, and it receives compatibility fixes when time allows, but no new features.
+**fse is no longer actively developed.** It stays available and installable, and it receives compatibility fixes and maintainer-planned scaling work when time allows, but no feature work on request.
 
 - Version 1.1.0 is tested on Python 3.11 to 3.13 with current numpy, scipy, gensim and huggingface-hub releases.
 - Python 3.14 and newer are not supported yet, because gensim does not build there (see [gensim#3640](https://github.com/piskvorky/gensim/issues/3640)).
@@ -196,6 +196,36 @@ To keep only close matches, pass `min_similarity` to `most_similar` or the `simi
 
 ```python
 model.sv.most_similar(0, topn=10, min_similarity=0.8)
+```
+
+### Smaller sentence vectors
+
+`sv_dtype="float16"` halves the memory of the sentence vectors and `sv_dtype="int8"` quarters it. The vectors are still computed in float32; they are only stored smaller, and every read (`sv[i]`, `get_vector`, `get_vectors`, `iter_blocks`) returns float32. Training, updates, `infer`, the similarity searches, `save`/`load` and memory-mapped files (`sv_mapfile_path`) work as with float32.
+
+```python
+from fse import SIF, CorpusFile
+
+model = SIF(ft, sv_dtype="int8", sv_mapfile_path="vectors", workers=8)
+model.train(CorpusFile("sentences.txt"))
+model.sv.most_similar(0, topn=10)
+
+model.sv.convert("float16")  # change the format of trained or loaded vectors
+```
+
+int8 stores one float32 scale per vector, so the cosine of two stored int8 vectors equals the cosine of the vectors they represent. On the STS Benchmark (all 15 vector sets of the table below, with CBOW, SIF-10 and uSIF), float16 changes the scores by at most 0.01 points and int8 by at most 0.02 points. int8 changes up to 7 % of the 10 nearest neighbours of a sentence; use float16 where exact neighbour lists matter.
+
+With index i for the i-th sentence (every input class except the `C*` lists with custom indices), training never holds a float32 matrix of all sentences: it writes into a few float32 windows of about 256 MB each and stores every finished window right away. SIF and uSIF read the input twice for that, once to learn the principal components and once to store the vectors. Other inputs train into a float32 matrix of all new rows first, and the log says why.
+
+To apply a model to all vectors, for example a logistic regression, use `score`. It reads float16 and int8 vectors as stored, in parallel, and can write into a memmap:
+
+```python
+import numpy as np
+
+logits = model.sv.score(clf.coef_.T, clf.intercept_)  # X @ W + b, in blocks of rows
+probabilities = 1 / (1 + np.exp(-logits))
+
+for first_row, block in model.sv.iter_blocks():  # float32 blocks, for anything else
+    ...
 ```
 
 Additional Information

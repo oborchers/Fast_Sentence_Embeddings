@@ -964,6 +964,7 @@ class BaseSentence2VecModel(SaveLoad):
                 f"rows, because {reason}"
             )
         saved = None
+        learned = {k: self.__dict__[k] for k in _COMPONENT_STATE if k in self.__dict__}
         if quantized:
             saved = self.sv._stage(statistics["max_index"])
         else:
@@ -985,6 +986,10 @@ class BaseSentence2VecModel(SaveLoad):
         finally:
             if saved is not None:
                 self.sv._unstage(saved)
+                # Components learned from rows that were not stored are dropped as well.
+                for key in _COMPONENT_STATE:
+                    self.__dict__.pop(key, None)
+                self.__dict__.update(learned)
 
         self._log_train_end(
             eff_sentences=eff_sentences,
