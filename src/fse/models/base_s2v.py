@@ -1361,7 +1361,8 @@ def _own_word_vectors(wv: KeyedVectors) -> KeyedVectors:
     own = copy(wv)
     own.key_to_index = dict(wv.key_to_index)
     own.index_to_key = list(wv.index_to_key)
-    own.expandos = dict(wv.expandos)
+    # One array per attribute and word, a few bytes each, so copying them is cheap.
+    own.expandos = {attr: values.copy() for attr, values in wv.expandos.items()}
     own.norms = None
     return own
 

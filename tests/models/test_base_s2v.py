@@ -162,6 +162,14 @@ class TestBaseSentence2VecModel:
         # Rows start at EPS, so compare absolutely.
         np.testing.assert_allclose(model.sv[0], model.wv["the"], atol=1e-6)
 
+    def test_word_attributes_are_not_shared(self, w2v, tmp_path):
+        se = BaseSentence2VecModel(w2v, wv_mapfile_path=str(tmp_path / "v"))
+        counts = w2v.wv.expandos["count"].copy()
+        se.wv.set_vecattr("the", "count", 123456789)
+        assert np.array_equal(w2v.wv.expandos["count"], counts)
+        w2v.wv.set_vecattr("the", "count", 7)
+        assert se.wv.get_vecattr("the", "count") == 123456789
+
     def test_copy_drops_the_norm_cache(self, w2v):
         w2v.wv.fill_norms()
         se = BaseSentence2VecModel(w2v, lang_freq="en")
@@ -526,28 +534,50 @@ class TestBaseSentence2VecModel:
         same = np.memmap(path, dtype=np.float32, mode="r", shape=shape)
         assert np.array_equal(se._move_ndarray_to_disk(same, mapfile_path=p, name="wv"), same)
 
-    def test_mapfile_of_another_size_raises(self, w2v, tmp_path):
+    MAPFILES = (("w2v", "wv"), ("ft", "wv"), ("ft", "vocab"), ("ft", "ngrams"))
+
+    @staticmethod
+    def _mapped_array(model, name):
+        """The array written to the mapfile with this suffix."""
+        attr = {"wv": "vectors", "vocab": "vectors_vocab", "ngrams": "vectors_ngrams"}[name]
+        return getattr(model.wv, attr)
+
+    @pytest.mark.parametrize(("model_name", "name"), MAPFILES)
+    def test_mapfile_of_another_size_raises(self, request, tmp_path, model_name, name):
+        model = request.getfixturevalue(model_name)
         p = tmp_path / "vecs"
-        np.zeros(w2v.wv.vectors.size + 1, dtype=np.float32).tofile(f"{p}_wv.vectors")
+        size = self._mapped_array(model, name).size
+        np.zeros(size + 1, dtype=np.float32).tofile(f"{p}_{name}.vectors")
         with pytest.raises(ValueError, match=r"has .* bytes, but vectors of shape"):
-            BaseSentence2VecModel(w2v, wv_mapfile_path=str(p))
+            BaseSentence2VecModel(model, wv_mapfile_path=str(p))
 
-    def test_mapfile_with_other_vectors_raises(self, w2v, tmp_path):
+    @pytest.mark.parametrize(("model_name", "name"), MAPFILES)
+    def test_mapfile_with_other_vectors_raises(self, request, tmp_path, model_name, name):
+        model = request.getfixturevalue(model_name)
         p = tmp_path / "vecs"
-        other = w2v.wv.vectors.copy()
+        other = self._mapped_array(model, name).copy()
         other[-1, -1] += 1
-        other.tofile(f"{p}_wv.vectors")
+        other.tofile(f"{p}_{name}.vectors")
         with pytest.raises(ValueError, match="holds other vectors than the model \\(from row"):
-            BaseSentence2VecModel(w2v, wv_mapfile_path=str(p))
+            BaseSentence2VecModel(model, wv_mapfile_path=str(p))
 
-    def test_truncated_mapfile_raises_on_load(self, w2v, tmp_path):
+    @pytest.mark.parametrize(("model_name", "name"), MAPFILES)
+    @pytest.mark.parametrize("damage", ["truncated", "extended", "missing"])
+    def test_damaged_mapfile_raises_on_load(self, request, tmp_path, model_name, name, damage):
+        model = request.getfixturevalue(model_name)
         p = tmp_path / "vecs"
-        se = BaseSentence2VecModel(w2v, wv_mapfile_path=str(p))
+        se = BaseSentence2VecModel(model, wv_mapfile_path=str(p))
         se.save(str(tmp_path / "model"))
         del se
-        target = Path(f"{p}_wv.vectors")
-        target.write_bytes(target.read_bytes()[:-4])
-        with pytest.raises(ValueError, match=r"has .* bytes"):
+        target = Path(f"{p}_{name}.vectors")
+        if damage == "missing":
+            target.unlink()
+            error, match = FileNotFoundError, "is missing"
+        else:
+            data = target.read_bytes()
+            target.write_bytes(data[:-4] if damage == "truncated" else data + bytes(4))
+            error, match = ValueError, r"has .* bytes"
+        with pytest.raises(error, match=match):
             BaseSentence2VecModel.load(str(tmp_path / "model"))
 
     def test_move_w2v_vectors_to_disk_from_init(self, w2v, tmp_path):
