@@ -218,16 +218,27 @@ def _check_vector(array: ndarray, name: str, code: str, length: int):
         )
 
 
-def _check_utf8(data: ndarray, offsets: ndarray):
-    raw = data.tobytes()
-    try:
-        raw.decode("utf-8")
-    except UnicodeDecodeError as err:
-        raise ValueError(f"the vocabulary is not valid UTF-8: {err}") from None
-    inner = offsets[1:-1]
-    inner = inner[inner < len(data)]
-    if len(inner) and ((data[inner] & 0xC0) == 0x80).any():
-        raise ValueError("a word of the vocabulary starts inside a UTF-8 character")
+def _check_utf8(data: ndarray, offsets: ndarray, chunk_bytes: int = 2**24):
+    """Check that the vocabulary is UTF-8 and every word starts at a character boundary.
+
+    Decodes in chunks that end at word boundaries, so no copy of the whole vocabulary
+    exists; a chunk that splits a character is caught by the boundary check first.
+    """
+    for begin in range(1, len(offsets) - 1, 2**20):
+        inner = np.asarray(offsets[begin : min(begin + 2**20, len(offsets) - 1)])
+        inner = inner[inner < len(data)]
+        if len(inner) and ((np.asarray(data[inner]) & 0xC0) == 0x80).any():
+            raise ValueError("a word of the vocabulary starts inside a UTF-8 character")
+    start = 0
+    while start < len(data):
+        # The last word boundary at or before start + chunk_bytes, or the next one after.
+        k = int(np.searchsorted(offsets, start + chunk_bytes, side="right")) - 1
+        stop = int(offsets[k]) if offsets[k] > start else int(offsets[min(k + 1, len(offsets) - 1)])
+        try:
+            data[start:stop].tobytes().decode("utf-8")
+        except UnicodeDecodeError as err:
+            raise ValueError(f"the vocabulary is not valid UTF-8: {err}") from None
+        start = stop
 
 
 def _parse_fasttext(text: str) -> FastTextParams:

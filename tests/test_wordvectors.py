@@ -550,3 +550,16 @@ def test_golden_word_vectors(test_data_dir, dtype, mmap):
     )
     rebuilt = rebuilt if dtype == "float32" else rebuilt.quantize(dtype)
     assert rebuilt.fingerprint == GOLDEN[dtype]
+
+
+@pytest.mark.parametrize("chunk", [1, 2, 7, 64])
+def test_utf8_check_in_chunks(chunk):
+    from fse._wordvectors import _check_utf8, _encode_words
+
+    words = ["é" * 5, "", "a", "日本" * 3, "", ""] * 50
+    data, offsets = _encode_words(words)
+    _check_utf8(data, offsets, chunk_bytes=chunk)
+    bad = data.copy()
+    bad[len(bad) // 2] = 0xFF
+    with pytest.raises(ValueError, match="UTF-8"):
+        _check_utf8(bad, offsets, chunk_bytes=chunk)

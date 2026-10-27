@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+fse 2.0 is in development on master; it changes the API and the file format (see ARCHITECTURE.md, section 2.0). Entries collect here until the release.
+
+### Added
+
+- `fse.WordVectors`: word vectors in an own format without pickle (a directory of `.npy` files and a manifest with checksums and a fingerprint), memory-mappable, stored as float32, float16 or int8 and read as float32, with FastText ngrams. Loading int8 vectors needs no float32 copy.
+- `fse.gensim.from_gensim` converts gensim `KeyedVectors`, `Word2Vec` and `FastText` into `WordVectors`.
+
+### Changed
+
+- gensim is no longer a dependency: install `fse[gensim]` for `fse.gensim` and for the 1.x classes (`Average`, `SIF`, `uSIF`, the inputs and `Vectors`), which are loaded on first access and raise an `ImportError` naming the extra without it.
+
 ## [1.1.0] - 2026-10-27
 
 1.1.0 is the last feature release of the 1.x line; 1.x receives bug and compatibility fixes from here on, while fse 2.0 is developed as a rewrite.
@@ -136,6 +149,7 @@ Changes from 0.1.11:
 - Fixed overflow when infer method is used with too many sentences.
 - Fixed similar_by_sentence bug.
 
+[Unreleased]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v1.1.0...HEAD
 [1.1.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v0.1.17...v0.2.0
