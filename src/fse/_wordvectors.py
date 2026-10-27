@@ -33,7 +33,7 @@ from fse._container import (
     FINGERPRINT_KEY,
     INTEGER,
     CorruptArtifactError,
-    NpyContainer,
+    SafetensorsContainer,
     array_sha256,
     canonical_json,
     fingerprint,
@@ -458,12 +458,17 @@ class WordVectors:
         ``verify``). Codes are never converted to float32.
         """
         path = Path(path)
-        tensors, metadata = NpyContainer().open(path, mmap=mmap)
+        if path.is_dir():
+            raise ValueError(
+                f"{path} is a directory; word vectors are one {SafetensorsContainer.suffix} "
+                "file (directories of .npy files hold stored sentence vectors)"
+            )
+        tensors, metadata = SafetensorsContainer().open(path, mmap=mmap)
         return cls(tensors, metadata, path)
 
     @validate_arguments
     def save(self, path: PathLike):
-        """Write the word vectors into the new directory ``path``.
+        """Write the word vectors into the new ``.safetensors`` file ``path``.
 
         Loaded vectors are checked first, and every tensor is compared with the checksum
         it was loaded with while it is written, so damaged or changed data never gets new
@@ -477,7 +482,7 @@ class WordVectors:
             if k != FINGERPRINT_KEY and k != CREATED_BY_KEY and not k.startswith(CHECKSUM_PREFIX)
         }
         metadata[CREATED_BY_KEY] = _created_by()
-        NpyContainer().write(Path(path), self._tensors, metadata, expected=self._checksums())
+        SafetensorsContainer().write(Path(path), self._tensors, metadata, expected=self._checksums())
 
     def _mapped(self) -> bool:
         return any(isinstance(t, np.memmap) for t in self._tensors.values())
@@ -514,7 +519,7 @@ class WordVectors:
         """
         self._check_contents()
         if self._path is not None:
-            NpyContainer().verify(self._path)
+            SafetensorsContainer().verify(self._path)
 
     @validate_arguments
     def quantize(self, dtype: Literal["float16", "int8"]):  # -> WordVectors, as for load

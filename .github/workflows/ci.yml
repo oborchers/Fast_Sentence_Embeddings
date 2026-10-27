@@ -154,7 +154,7 @@ jobs:
           assert importlib.util.find_spec('gensim') is None, 'gensim is installed'
           import fse
           wv = fse.WordVectors.from_arrays(np.ones((2, 3), np.float32), words=['a', 'b']).quantize('int8')
-          path = pathlib.Path(tempfile.mkdtemp()) / 'wv'
+          path = pathlib.Path(tempfile.mkdtemp()) / 'wv.safetensors'
           wv.save(path)
           for mmap in (False, True):
               assert fse.WordVectors.load(path, mmap=mmap).fingerprint == wv.fingerprint
