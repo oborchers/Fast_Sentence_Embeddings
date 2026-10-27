@@ -252,6 +252,8 @@ class SplitIndexedList(BaseIndexedList):
     # built anew for every train or infer call, so changes to the list are seen, and
     # released when the call ends (_release_native). Other items, an override of
     # __getitem__ or __iter__, or strings that cannot be encoded keep the Python path.
+    _native_source: "_NativeSource | None" = None
+    _scan_state: Any = None
 
     def _clear_native_scan(self):
         self._scan_state = None
@@ -261,6 +263,8 @@ class SplitIndexedList(BaseIndexedList):
         self._clear_native_scan()
 
     def _open_source(self) -> "_NativeSource":
+        if self._native_source is None:
+            raise RuntimeError("the strings are only encoded during a train or infer call")
         return self._native_source
 
     def _scan_native(self, workers: int, progress: Callable[[int, int], None]) -> dict | None:
@@ -280,7 +284,7 @@ class SplitIndexedList(BaseIndexedList):
 
     def _native_chunks(self) -> "tuple[_NativeSource, list[tuple[int, int, int, int]]] | None":
         """Source and chunks of the last native scan, or None after a Python scan."""
-        if getattr(self, "_scan_state", None) is None:
+        if self._scan_state is None or self._native_source is None:
             return None
         return self._native_source, self._scan_state[1]
 

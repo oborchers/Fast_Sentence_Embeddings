@@ -963,7 +963,8 @@ def test_split_indexed_list_sees_changes_and_releases_its_buffer(native_w2v):
     texts = SplitIndexedList(["the dog", "is good"])
     model = fse.Average(native_w2v)
     model.train(texts)
-    assert texts._native_source is None and texts._scan_state is None
+    assert texts._native_source is None
+    assert texts._scan_state is None
     texts[1] = "good dog"
     model.train(texts)
     reference = fse.Average(native_w2v)
