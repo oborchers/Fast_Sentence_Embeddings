@@ -175,7 +175,19 @@ model.sv.similarity(0,1)
 
 ### Choosing an input class
 
-Every model trains on `(tokens, index)` tuples; the input classes produce them. `CorpusFile` and `TextList` read and split their text natively, without the GIL in every worker, so they scale with `workers`. The other classes are read in Python by one producer thread, which limits them from about two to four workers on.
+Every model trains on `(tokens, index)` tuples; the input classes produce them. Training uses one thread unless you pass `workers`; on a machine with several cores, pass `workers=os.cpu_count()`. With two or more workers, `IndexedList`, `CIndexedList`, `SplitIndexedList`, `TextList` and `CorpusFile` are read by every worker for its own part of the input, so they scale with `workers`; `IndexedLineDocument`, `SplitCIndexedList` and the classes with your own splitting are read in Python by one producer thread, which limits them from about two to four workers on. While a model with several workers trains, fse limits the threads of BLAS (OpenBLAS, MKL, Accelerate) to share the cores, for the whole process.
+
+Measured on 16 vCPUs of an AMD EPYC (2 million sentences of 20 tokens, 300 dimensions; the vectors are bit-identical to those of the single producer thread), in sentences per second:
+
+| Input | Model | 1 worker | 8 workers | 16 workers |
+|---|---|---|---|---|
+| `IndexedList` | Average | 439k | 1.5M | 1.7M |
+| `SplitIndexedList` | Average | 284k | 939k | 1.1M |
+| `CorpusFile` | Average | 311k | 1.6M | 2.2M |
+| `IndexedList` | SIF | 239k | 611k | 1.4M |
+| `CorpusFile` | SIF | 179k | 624k | 1.7M |
+
+With the single producer thread before #88, 8 workers reached 325k (`IndexedList`, Average) and 191k (`IndexedList`, SIF) sentences per second on the same machine. The numbers vary with the load of the machine; measure your own setup with `benchmarks/bench_train.py`.
 
 | Your data | Input class | Splitting | Index |
 |---|---|---|---|
@@ -186,9 +198,11 @@ Every model trains on `(tokens, index)` tuples; the input classes produce them. 
 | Your own splitting or indices | `CSplitIndexedList`, `CIndexedList`, `CSplitCIndexedList` | your function | yours |
 
 ```python
+import os
+
 from fse import Average, CorpusFile, TextList
 
-model = Average(ft, workers=8)
+model = Average(ft, workers=os.cpu_count())
 model.train(CorpusFile("sentences.txt"))  # line i of the file is sentence i
 vectors = model.infer(TextList(["cat say meow", "dog say woof"]))
 ```
