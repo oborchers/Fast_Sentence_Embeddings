@@ -610,3 +610,35 @@ def test_native_restores_the_environment_after_an_error(backend):
 def test_a_bias_beyond_float32_raises_the_overflow(backend):
     with pytest.raises(ValueError, match="score of row 0 overflows"):
         backend.score(np.zeros((1, 2), F32), None, np.ones(2, F32), 1e100)
+
+
+@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
+def test_score_weights_beyond_float32_raise_the_overflow(backend):
+    with pytest.raises(ValueError, match="score of row 0 overflows"):
+        backend.score(np.ones((1, 2), F32), None, np.array([1e100, 0.0]), 0.0)
+
+
+def _oov_case(oov_weight, unknown):
+    tokens = np.array([OOV_TOKEN, 0] if unknown else [0], np.uint32)
+    batch = Batch(
+        0,
+        np.array([0, len(tokens)], np.int64),
+        tokens,
+        np.array([0, 1] if unknown else [0], np.int64),
+        np.zeros(1 if unknown else 0, np.uint32),
+    )
+    args = (np.ones((1, 2), F32), np.ones(1, F32), None, np.ones((1, 2), F32), None, oov_weight)
+    return batch, args
+
+
+def test_an_oov_weight_beyond_float32_behaves_as_in_the_reference():
+    batch, args = _oov_case(1e100, unknown=False)
+    want = _reference.pool_weighted_mean(batch, *args)
+    for isa in _native.available_isas():
+        assert_bits_equal(_native.pool_weighted_mean(batch, *args, isa=isa), want, isa)
+    batch, args = _oov_case(1e100, unknown=True)
+    with pytest.raises(ValueError, match="row 0 contains NaN or infinite"):
+        _reference.pool_weighted_mean(batch, *args)
+    for isa in _native.available_isas():
+        with pytest.raises(ValueError, match="row 0 contains NaN or infinite"):
+            _native.pool_weighted_mean(batch, *args, isa=isa)

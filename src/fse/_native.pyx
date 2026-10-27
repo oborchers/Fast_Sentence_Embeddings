@@ -705,7 +705,7 @@ cdef class WeightedMean:
             <const float *>np.PyArray_DATA(ngram_scales) if self.fasttext and int8 else NULL
         )
         # As the reference: float32(oov_weight); None only without unknown words.
-        with _KernelEnv():
+        with _KernelEnv(), np.errstate(over="ignore", invalid="ignore"):  # as the reference
             self.params.oov_weight = np.float32(oov_weight) if oov_weight is not None else 0
         self._keep = (vectors, weights, scales, ngram_vectors, ngram_scales, oov_weight)
 
@@ -934,7 +934,8 @@ def _score(stored, scales, weights, bias, isa):
     stored = _rows(stored, "stored")
     cdef Py_ssize_t n = stored.shape[0]
     cdef int dim = _check_dim(stored.shape[1])
-    weights = np.ascontiguousarray(weights, dtype=np.float32)
+    with np.errstate(over="ignore", invalid="ignore"):  # as the reference
+        weights = np.ascontiguousarray(weights, dtype=np.float32)
     if weights.shape != (dim,):
         raise ValueError(f"weights must hold {dim} values")
     cdef bint int8 = stored.dtype == np.int8
