@@ -74,7 +74,7 @@ A frozen encoder is a pure function from one sentence to one finished row. Every
 | 4 postprocessing | versioned steps on the row, such as removing components | backend | the Encoder's steps |
 | 5 store | quantize per row and write | Sink | the Sink |
 
-The tokenizer is part of the encoder contract: the manifest names it with an identifier like the aggregation (`fse.tokenizer`), and reading an encoder with an unknown tokenizer raises. `external` means the tokens were given by the caller, who then owns reproducing them; a native, specified tokenizer can be added as a further identifier without changing anything else.
+The tokenizer is part of the encoder contract: the manifest names it with an identifier like the aggregation (`fse.tokenizer`), and reading an encoder with an unknown tokenizer raises. `external` means the tokens were given by the caller, who then owns reproducing them; `fse_words@1` is the native tokenizer specified under *Tokenizers*. A text Source runs stages 1 and 2 in one native pass without the GIL.
 
 There are no Python hooks per row: they would hold the GIL, could not run on a device, could not be saved and would break bit-identity. Two escape hatches remain: own tokenization in Python inside the Source (stage 1, once per sentence, slower), and own processing of the finished output arrays. Models in which a row depends on more than its own sentence (attention over neighbors, sentence pairs) are out of scope.
 
@@ -116,11 +116,68 @@ The Gram matrix of `fit` is summed from float32 block products in float64 in blo
 
 ### Identifiers and versions
 
-Aggregations and steps are written `"<name>@<version>"` (name `[a-z][a-z0-9_]*`, version a decimal integer without leading zeros), for example `weighted_mean@1`, `remove_components@1`, `normalize@1`. `transform_version` versions the shared rules above, the identifier versions the rules of one operation. Any change of arithmetic bumps the matching version; a released identifier is never removed or given another meaning within 2.x. Reading an artifact with an unknown name, version or `transform_version`, or a disallowed step list, raises `UnsupportedArtifactError` (a `ValueError`) that names the supported ones; nothing is skipped. Data exported from 1.x carries `transform_version` 1: it can be read and searched, but not extended with a 2.0 encoder.
+Aggregations, steps and tokenizers are written `"<name>@<version>"` (name `[a-z][a-z0-9_]*`, version a decimal integer without leading zeros), for example `weighted_mean@1`, `remove_components@1`, `normalize@1`, `fse_words@1`. `transform_version` versions the shared rules above, the identifier versions the rules of one operation. Any change of arithmetic bumps the matching version; a released identifier is never removed or given another meaning within 2.x. Reading an artifact with an unknown name, version or `transform_version`, or a disallowed step list, raises `UnsupportedArtifactError` (a `ValueError`) that names the supported ones; nothing is skipped. Data exported from 1.x carries `transform_version` 1: it can be read and searched, but not extended with a 2.0 encoder.
 
 ### Batch
 
 A `Batch` is the input of an aggregation: `first_row` (the row of its first sentence), `offsets` (int64, n + 1 entries, from 0 to the number of tokens), `tokens` (uint32 vocabulary ids, or `OOV_TOKEN` for an unknown FastText word) and, for FastText, `ngram_offsets` and `ngrams` (uint32 buckets, one range per unknown word, in order). Sentence s is row `first_row + s`. Weights are not part of a batch, so a Source does not depend on the encoder; 2.1 adds token ids from Arrow and `TokenIds` as further Sources of the same batches, and group mode adds a target per sentence.
+
+### Tokenizers
+
+The manifest key `fse.tokenizer` holds `external` or the identifier of a native tokenizer; reading anything else raises `UnsupportedArtifactError` naming the supported ones (`fse._contract.check_tokenizer`). A tokenizer is part of the encoder contract like its aggregation: any change of its rules, its tables or its Unicode version is a new identifier. `fse._reference_text` defines the tokens of every tokenizer, and the native code gives the same bytes.
+
+- `external`: the caller gives the tokens. Text input is split at the whitespace W below, as `str.split()` does, and the tokens are not changed.
+- `fse_words@1`: the native tokenizer specified here.
+
+**Input.** One sentence is a `str`, or one line of a UTF-8 file: a line ends at the byte `\n`, which is not part of it; the last line needs no `\n`, a final `\n` starts no empty line, and an empty file has no lines. Bytes are decoded strictly, as CPython's UTF-8 decoder does, and invalid UTF-8 raises. Sentences are not split further and not normalized: NFC and NFD spellings stay different.
+
+**Output.** A list of non-empty tokens, matched to the vocabulary by the exact equality of their UTF-8 bytes. `fse_words@1` computes it in five steps.
+
+1. **Lowercase.** Every code point is replaced by its simple lowercase mapping (field 13 of `UnicodeData.txt` of Unicode 15.1.0, from the checked-in table `fse._unicode`); code points without a mapping stay. There is no SpecialCasing and no context: U+0130 becomes `i`, and Σ always becomes σ.
+2. **Classes** of the lowercased code points:
+   - whitespace W: U+0009 to U+000D, U+001C to U+0020, U+0085, U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F, U+205F, U+3000;
+   - separators S: ``! " # $ % & ( ) * ; < > ? @ [ ] ` { }`` and U+00AB, U+00BB, U+2012 to U+2015, U+2018, U+2019, U+201C, U+201D, U+201E;
+   - token characters: every other code point, subject to step 3;
+   - word characters: `a` to `z`, `0` to `9`, `_`, and every code point from U+0080 that is in neither W nor S;
+   - digits: `0` to `9`.
+3. **Context.** Applied from left to right; t(i) says whether s[i] is a token character.
+   - A `.` directly before or after another `.` is not a token character; the same holds for `-`.
+   - A `,` or `:` is a token character exactly if the next code point is a digit.
+   - A `'` directly before or after another `'` is not a token character. Otherwise it is not one if i > 0, t(i-1) holds, s[i-1] is not a word character, and s[i+1] exists and is a word character.
+4. **Spans.** Every maximal run of token characters is a candidate u.
+5. **Per candidate u.** Strip `.` and `:` from both ends. Split u into parts by the first rule that applies:
+   - the table: `cannot` to can, not; `gimme` to gim, me; `gonna` to gon, na; `gotta` to got, ta; `lemme` to lem, me; `wanna` to wan, na; `more'n` to more, n; `d'ye` to d, ye; `'tis` to t, is; `'twas` to t, was;
+   - u is `n't`: the part `not`;
+   - u ends with `n't` after a non-empty rest that does not end with `'`: the rest and `not`;
+   - u ends with the first matching one of `'s`, `'m`, `'d`, `'ll`, `'re`, `'ve` after a non-empty rest that does not end with `'`: the rest and the clitic without `'`;
+   - otherwise u itself.
+
+   From every part, strip `.`, `:` and `'` from both ends; drop it if it holds no `a` to `z` and no `0` to `9`; otherwise split it at every `-` and emit the non-empty pieces in order.
+
+Apart from W, S, the lowercase table and the word characters from U+0080, every rule refers to ASCII only, so an implementation may apply them to UTF-8 bytes.
+
+**Stage 2**, for every tokenizer: a token whose bytes are a vocabulary word becomes its id. Otherwise, with FastText it becomes `OOV_TOKEN` with the first `max_ngrams` `fasttext@1` buckets of `<token>` (possibly none, which still counts for the length); without FastText it is no token.
+
+| Input | `fse_words@1` |
+|---|---|
+| `I don't know.` | i, do, not, know |
+| `Can't, won't` | ca, not, wo, not |
+| `'Tis` | t, is |
+| `O'Reilly's` | o'reilly, s |
+| `James' book` | james, book |
+| `rock'n'roll` / `rock’n’roll` | rock'n'roll / rock, n, roll |
+| `x='abc'` | x=, abc |
+| `U.S. e.g.` | u.s, e.g |
+| `Wait... what?` | wait, what |
+| `1,000 and 10:30` / `a,b c:d` | 1,000, and, 10:30 / a, b, c, d |
+| `http://example.com/a-b?x=1` | http, //example.com/a, b, x=1 |
+| `well-known --- a--b -x` | well, known, a, b, x |
+| `café 中国 Paris` | café, paris |
+| `İstanbul` / `ΣΟΦΟΣ 2Σ` | istanbul / 2σ |
+| `snake_case foo/bar a+b` | snake_case, foo/bar, a+b |
+| `...`, an empty or blank sentence | none |
+
+The rules reproduce the preprocessing of the published 1.x tables on all STS sentences; on WikiText 99.98 % of the paragraphs agree, the rest differ only by the simple lowercase of İ and final sigma.
 
 ### Backends
 

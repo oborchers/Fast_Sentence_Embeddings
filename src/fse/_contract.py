@@ -96,7 +96,30 @@ class Op(_Versioned):
     NORMALIZE = ("normalize", 1)
 
 
-_KINDS = {"Aggregation": "aggregation", "Op": "postprocessing step"}
+class Tokenizer(_Versioned):
+    """A native tokenizer that splits the text of a sentence into tokens (stage 1)."""
+
+    FSE_WORDS = ("fse_words", 1)
+
+
+# The tokens were given by the caller (or split at whitespace), who owns reproducing them.
+EXTERNAL_TOKENIZER = "external"
+
+
+def check_tokenizer(text: object) -> str:
+    """Return ``text`` if it names a supported tokenizer, or raise UnsupportedArtifactError."""
+    if text == EXTERNAL_TOKENIZER and isinstance(text, str):
+        return EXTERNAL_TOKENIZER
+    supported = ", ".join([EXTERNAL_TOKENIZER, *(member.id for member in Tokenizer)])
+    try:
+        return Tokenizer.parse(text).id
+    except ValueError:
+        raise UnsupportedArtifactError(
+            f"tokenizer {text!r} is not supported by this fse; supported: {supported}"
+        ) from None
+
+
+_KINDS = {"Aggregation": "aggregation", "Op": "postprocessing step", "Tokenizer": "tokenizer"}
 
 
 def check_dim(dim: object, name: str = "dim") -> int:
