@@ -482,7 +482,9 @@ class WordVectors:
             if k != FINGERPRINT_KEY and k != CREATED_BY_KEY and not k.startswith(CHECKSUM_PREFIX)
         }
         metadata[CREATED_BY_KEY] = _created_by()
-        SafetensorsContainer().write(Path(path), self._tensors, metadata, expected=self._checksums())
+        SafetensorsContainer().write(
+            Path(path), self._tensors, metadata, expected=self._checksums()
+        )
 
     def _mapped(self) -> bool:
         return any(isinstance(t, np.memmap) for t in self._tensors.values())

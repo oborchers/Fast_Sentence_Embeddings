@@ -725,7 +725,9 @@ def test_word_vectors_are_never_a_directory(tmp_path):
         if k != "fse.fingerprint" and not k.startswith("fse.checksum.")
     }
     NpyContainer().write(tmp_path / "as_npy", tensors, plain)
-    with pytest.raises(ValueError, match=r"is a directory; word vectors are one \.safetensors file"):
+    with pytest.raises(
+        ValueError, match=r"is a directory; word vectors are one \.safetensors file"
+    ):
         WordVectors.load(tmp_path / "as_npy")
 
 
