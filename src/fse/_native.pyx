@@ -1010,9 +1010,9 @@ def _score(stored, scales, weights, bias, isa):
 
 cdef extern from "_native_text.h":
     ctypedef struct fse_tokens:
-        unsigned char *bytes
+        const unsigned char *bytes
+        int64_t *starts
         int64_t *ends
-        int64_t n_bytes
         int64_t n_tokens
     void fse_text_init()
     uint32_t fse_simple_lower(uint32_t cp) nogil
@@ -1058,29 +1058,24 @@ def tokenize(text, tokenizer="fse_words@1"):
     cdef const unsigned char *p = data
     cdef int64_t n = len(data)
     cdef unsigned char *cand = <unsigned char *>malloc(2 * n + 8)
-    cdef unsigned char *raw = <unsigned char *>malloc(2 * n + 8)
-    cdef int64_t *ends = <int64_t *>malloc((2 * n + 8) * sizeof(int64_t))
+    cdef int64_t *starts = <int64_t *>malloc((n + 1) * sizeof(int64_t))
+    cdef int64_t *ends = <int64_t *>malloc((n + 1) * sizeof(int64_t))
     cdef fse_tokens out
     cdef int64_t bad
     try:
-        if cand == NULL or raw == NULL or ends == NULL:
+        if cand == NULL or starts == NULL or ends == NULL:
             raise MemoryError("could not allocate the token buffers")
-        out.bytes = raw
+        out.starts = starts
         out.ends = ends
         with nogil:
             bad = fse_tokenize(code, p, n, cand, &out)
         if bad >= 0:
             data.decode("utf-8")  # raises the error CPython gives at that byte
             raise AssertionError("the native decoder rejected valid UTF-8")  # pragma: no cover
-        tokens = []
-        start = 0
-        for i in range(out.n_tokens):
-            tokens.append(raw[start:ends[i]].decode("utf-8"))
-            start = ends[i]
-        return tokens
+        return [out.bytes[starts[i]:ends[i]].decode("utf-8") for i in range(out.n_tokens)]
     finally:
         free(cand)
-        free(raw)
+        free(starts)
         free(ends)
 
 
@@ -1112,12 +1107,12 @@ cdef class Workspace:
     A Workspace is used by one thread at a time; give every worker its own.
     """
 
-    cdef _Buffer cand, token_bytes, ends, word, tokens, offsets, ngram_offsets, ngrams
+    cdef _Buffer cand, starts, ends, word, tokens, offsets, ngram_offsets, ngrams
     cdef bint busy
 
     def __dealloc__(self):
         free(self.cand.data)
-        free(self.token_bytes.data)
+        free(self.starts.data)
         free(self.ends.data)
         free(self.word.data)
         free(self.tokens.data)
@@ -1166,30 +1161,27 @@ cdef class TextLookup:
                        Py_ssize_t *bad) noexcept nogil:
         """Append the tokens of the sentence p[0:n] to the batch buffers of ws."""
         cdef fse_tokens out
-        cdef Py_ssize_t k, start, length, cap, need
+        cdef Py_ssize_t k, start, length, cap
         cdef int64_t err
         cdef uINT_t index
         cdef size_t written
-        cdef const int64_t *ends
         if n > _MAX_SENTENCE_BYTES:
             return ENCODE_TOO_LONG
-        need = 2 * n + 8
         ws.cand.size = 0
-        ws.token_bytes.size = 0
+        ws.starts.size = 0
         ws.ends.size = 0
-        if (_ensure(&ws.cand, need) or _ensure(&ws.token_bytes, need)
-                or _ensure(&ws.ends, need * <Py_ssize_t>sizeof(int64_t))):
+        if (_ensure(&ws.cand, 2 * n + 8) or _ensure(&ws.starts, (n + 1) * <Py_ssize_t>sizeof(int64_t))
+                or _ensure(&ws.ends, (n + 1) * <Py_ssize_t>sizeof(int64_t))):
             return ENCODE_NO_MEMORY
-        out.bytes = <unsigned char *>ws.token_bytes.data
+        out.starts = <int64_t *>ws.starts.data
         out.ends = <int64_t *>ws.ends.data
         err = fse_tokenize(self.tokenizer, p, n, <unsigned char *>ws.cand.data, &out)
         if err >= 0:
             bad[0] = err
             return ENCODE_BAD_UTF8
-        ends = out.ends
-        start = 0
         for k in range(out.n_tokens):
-            length = ends[k] - start
+            start = out.starts[k]
+            length = out.ends[k] - start
             index = _vocab_lookup(&self.table.view, out.bytes + start, length)
             if index != NOT_FOUND:
                 if _push_u32_nogil(&ws.tokens, index):
@@ -1214,7 +1206,6 @@ cdef class TextLookup:
                 ws.ngrams.size += written * sizeof(uINT_t)
                 if _push_i64_nogil(&ws.ngram_offsets, ws.ngrams.size // sizeof(uINT_t)):
                     return ENCODE_NO_MEMORY
-            start = ends[k]
         if _push_i64_nogil(&ws.offsets, ws.tokens.size // sizeof(uINT_t)):
             return ENCODE_NO_MEMORY
         return ENCODE_OK
