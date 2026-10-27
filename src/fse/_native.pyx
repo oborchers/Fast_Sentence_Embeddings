@@ -1002,3 +1002,83 @@ def _score(stored, scales, weights, bias, isa):
     if bad >= 0:
         raise ValueError(f"the score of row {bad} overflows float32")
     return out
+
+
+# ---------------------------------------------------------------------------------------
+# Tokenizers (ARCHITECTURE.md, "Tokenizers"), as in fse._reference_text.
+# ---------------------------------------------------------------------------------------
+
+cdef extern from "_native_text.h":
+    ctypedef struct fse_tokens:
+        unsigned char *bytes
+        int64_t *ends
+        int64_t n_bytes
+        int64_t n_tokens
+    void fse_text_init()
+    uint32_t fse_simple_lower(uint32_t cp) nogil
+    int64_t fse_tokenize(int tokenizer, const unsigned char *p, int64_t n, unsigned char *cand,
+                         fse_tokens *out) nogil
+    int FSE_TOKENIZER_EXTERNAL
+    int FSE_TOKENIZER_FSE_WORDS
+
+fse_text_init()
+
+TOKENIZER_EXTERNAL = FSE_TOKENIZER_EXTERNAL
+TOKENIZER_FSE_WORDS = FSE_TOKENIZER_FSE_WORDS
+_TOKENIZERS = {"external": FSE_TOKENIZER_EXTERNAL, "fse_words@1": FSE_TOKENIZER_FSE_WORDS}
+
+
+def _tokenizer_code(tokenizer):
+    from fse._contract import check_tokenizer
+
+    return _TOKENIZERS[check_tokenizer(tokenizer)]
+
+
+def _simple_lower(code_points):
+    """The simple lowercase of every uint32 code point, by the native table; for tests."""
+    cdef const uint32_t[::1] cps = np.ascontiguousarray(code_points, dtype=np.uint32)
+    out = np.empty(cps.shape[0], dtype=np.uint32)
+    cdef uint32_t[::1] o = out
+    cdef Py_ssize_t i
+    with nogil:
+        for i in range(cps.shape[0]):
+            o[i] = fse_simple_lower(cps[i])
+    return out
+
+
+def tokenize(text, tokenizer="fse_words@1"):
+    """The tokens of one sentence (str, or UTF-8 bytes) by the native tokenizer."""
+    cdef int code = _tokenizer_code(tokenizer)
+    if isinstance(text, str):
+        data = (<str>text).encode("utf-8")
+    elif isinstance(text, bytes):
+        data = text
+    else:
+        raise TypeError(f"text must be str or bytes, not {type(text).__name__}")
+    cdef const unsigned char *p = data
+    cdef int64_t n = len(data)
+    cdef unsigned char *cand = <unsigned char *>malloc(2 * n + 8)
+    cdef unsigned char *raw = <unsigned char *>malloc(2 * n + 8)
+    cdef int64_t *ends = <int64_t *>malloc((2 * n + 8) * sizeof(int64_t))
+    cdef fse_tokens out
+    cdef int64_t bad
+    try:
+        if cand == NULL or raw == NULL or ends == NULL:
+            raise MemoryError("could not allocate the token buffers")
+        out.bytes = raw
+        out.ends = ends
+        with nogil:
+            bad = fse_tokenize(code, p, n, cand, &out)
+        if bad >= 0:
+            data.decode("utf-8")  # raises the error CPython gives at that byte
+            raise AssertionError("the native decoder rejected valid UTF-8")  # pragma: no cover
+        tokens = []
+        start = 0
+        for i in range(out.n_tokens):
+            tokens.append(raw[start:ends[i]].decode("utf-8"))
+            start = ends[i]
+        return tokens
+    finally:
+        free(cand)
+        free(raw)
+        free(ends)
