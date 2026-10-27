@@ -557,8 +557,11 @@ def test_nested_headers_never_escape_as_recursion_errors(tmp_path, depth):
         SafetensorsContainer().verify(path)
 
 
-def test_changing_metadata_and_shapes_while_writing(tmp_path, monkeypatch):
+@pytest.mark.parametrize("container_name", ["npy", "safetensors"])
+def test_changing_metadata_and_shapes_while_writing(tmp_path, monkeypatch, container_name):
     """The writer works on snapshots: changes by the caller during the write do not reach it."""
+    import warnings
+
     import fse._container as container
 
     monkeypatch.setattr(container, "_CHUNK", 8)
@@ -575,17 +578,21 @@ def test_changing_metadata_and_shapes_while_writing(tmp_path, monkeypatch):
             self.inner.update(data)
             metadata["note"] = "x" * 5000
             tensors["y"] = np.ones(3, F32)
-            tensors["x"] = source.reshape(4, 4)
+            with warnings.catch_warnings():
+                # Setting a shape is deprecated in numpy 2.5; it is what a caller might do.
+                warnings.simplefilter("ignore", DeprecationWarning)
+                source.shape = (4, 4)
 
         def hexdigest(self):
             return self.inner.hexdigest()
 
     monkeypatch.setattr(container.hashlib, "sha256", Changing)
-    path = tmp_path / "a.safetensors"
-    SafetensorsContainer().write(path, tensors, metadata)
+    writer = container.CONTAINERS[container_name]
+    path = tmp_path / f"a{writer.suffix}"
+    writer.write(path, tensors, metadata)
     monkeypatch.setattr(container.hashlib, "sha256", real_sha256)
-    SafetensorsContainer().verify(path)
-    opened, read = SafetensorsContainer().open(path, mmap=False)
+    writer.verify(path)
+    opened, read = writer.open(path, mmap=False)
     assert set(opened) == {"x"}
     assert opened["x"].shape == (16,)
     assert read["note"] == ""
