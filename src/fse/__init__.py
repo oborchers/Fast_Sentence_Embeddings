@@ -1,11 +1,11 @@
 import logging
 from importlib.metadata import PackageNotFoundError, version
 
-import gensim
+import gensim as _gensim
 
-if int(gensim.__version__.split(".")[0]) < 4:
+if int(_gensim.__version__.split(".")[0]) < 4:
     raise ImportError(
-        f"fse requires gensim>=4.0, but gensim {gensim.__version__} is installed. "
+        f"fse requires gensim>=4.0, but gensim {_gensim.__version__} is installed. "
         "Upgrade gensim with: pip install -U 'gensim>=4'"
     )
 
