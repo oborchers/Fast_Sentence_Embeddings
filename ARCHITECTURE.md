@@ -17,6 +17,11 @@ src/fse/
   _gram.py               # Gram matrix helpers for fit
   _native.pyx            # native routines: kernel wrappers, hashing, vocabulary table
   _native_kernel.h       # the C kernel: weighted mean, dot16, steps, score per ISA
+  _native_text.h         # the native tokenizers fse_words@1 and external
+  _native_unicode.h      # generated: the simple lowercase table for the native code
+  _unicode.py            # generated: the same table for the reference
+  _reference_text.py     # the reference of stages 1 and 2: tokenizers and lookup
+  _text.py               # text sources (strings, files, token lists) to batches
   gensim.py              # adapter from gensim word vectors (extra fse[gensim])
 ```
 
@@ -32,6 +37,10 @@ src/fse/
 - A row that is not finite raises with its row number, as the reference does.
 
 `tests/test_conformance.py` compares every backend in `BACKENDS` with the reference bit for bit for every dtype, step list, empty, long and unknown-word sentences and subnormal values. Its meta-tests check that the suite fails for a kernel without fma, with `acc / n`, with an EPS start or with zero-padded `dot16`, so a weakened comparison cannot pass unnoticed.
+
+## Text sources
+
+`fse._text` turns text into batches (stages 1 and 2). A source holds its sentences as one UTF-8 buffer: strings in memory with their offsets, or the memory-mapped lines of a file. `scan` validates the UTF-8 of every sentence in threads without the GIL and cuts the source into chunks of about 64 KiB to 1 MiB (at most `MAX_CHUNK_ROWS` sentences); `encode` turns one chunk into a Batch with a `TextLookup` (the tokenizer, the `VocabTable` built from the vocabulary bytes of the word vectors, and the FastText buckets) and a `Workspace`, the buffers one worker reuses. Every sentence is one row, empty ones included. Tokens are matched to the vocabulary by their exact UTF-8 bytes, so with `fse_words@1` a word with uppercase letters or whitespace (such as `New_York` in GoogleNews) is never matched. `tools/make_unicode_tables.py` generates the lowercase tables from `UnicodeData.txt`; both generated files are checked in and compared with each other in the tests.
 
 ## Rules
 
