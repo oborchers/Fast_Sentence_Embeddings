@@ -241,8 +241,6 @@ untested-modules = ["src/fse/_version.py"]
 [tool.fse.guardrails.ratchet.lines]
 "src/fse/_container.py" = 854
 "src/fse/_wordvectors.py" = 712
-"tests/test_container.py" = 551
-"tests/test_container_safetensors.py" = 646
 
 [tool.fse.guardrails.ratchet.functions]
 "benchmarks/baseline/make_v1_fixture.py::main" = { C901 = 11, cognitive = 39 }

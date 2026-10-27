@@ -1,3 +1,5 @@
+"""SafetensorsContainer 1: layout, corrupted files, limits and files on disk."""
+
 import json
 import os
 
@@ -10,28 +12,9 @@ from fse._container import (
     SafetensorsContainer,
     array_sha256,
     fingerprint,
-    tensor_code,
 )
 from fse._contract import UnsupportedArtifactError
-
-F32 = np.float32
-FINGERPRINT = "sha256:98a86ce422b1d61979da4b088934ebbb5c4f128463ca20123f7508d0f74f32db"
-
-
-def _tensors():
-    return {
-        "vectors": np.array([[1.0, -0.0], [0.5, 2.0]], dtype=F32),
-        "vocab.bytes": np.frombuffer("aé".encode(), dtype=np.uint8).copy(),
-        "vocab.offsets": np.array([0, 1, 3], dtype=np.int64),
-    }
-
-
-_METADATA = {
-    "fse.kind": "word_vectors",
-    "fse.format_version": "1",
-    "fse.dim": "2",
-    "fse.dtype": "float32",
-}
+from support.container import _METADATA, F32, FINGERPRINT, _assemble, _tensors
 
 
 def _written(tmp_path):
@@ -44,12 +27,6 @@ def _parts(path):
     raw = path.read_bytes()
     length = int.from_bytes(raw[:8], "little")
     return json.loads(raw[8 : 8 + length]), raw[8 + length :]
-
-
-def _assemble(path, header, data, pad_to=64, raw_header=None):
-    text = raw_header if raw_header is not None else json.dumps(header).encode()
-    text += b" " * (-(8 + len(text)) % pad_to)
-    path.write_bytes(len(text).to_bytes(8, "little") + text + data)
 
 
 def _refingerprint(header):
@@ -373,33 +350,6 @@ def test_mapped_file_can_be_removed_after_release(tmp_path):
     path.unlink()
 
 
-def test_the_reference_library_reads_our_files(tmp_path):
-    safetensors = pytest.importorskip("safetensors")
-    from safetensors.numpy import load_file
-
-    tensors = {f"t.{code.lower()}": np.arange(4).astype(d) for code, d in DTYPE_CODES.items()}
-    path = tmp_path / "a.safetensors"
-    SafetensorsContainer().write(path, tensors, {"note": "é"})
-    loaded = load_file(str(path))
-    for name, array in tensors.items():
-        assert loaded[name].tobytes() == array.tobytes()
-        assert tensor_code(loaded[name]) == tensor_code(array)
-    with safetensors.safe_open(str(path), "np") as f:
-        metadata = f.metadata()
-    assert metadata["note"] == "é"
-    assert metadata["fse.fingerprint"].startswith("sha256:")
-
-
-def test_files_of_the_reference_library_lack_our_checksums(tmp_path):
-    pytest.importorskip("safetensors")
-    from safetensors.numpy import save_file
-
-    path = tmp_path / "a.safetensors"
-    save_file({"x": np.ones(2, F32)}, str(path), metadata={"a": "b"})
-    with pytest.raises(CorruptArtifactError, match="checksum keys"):
-        SafetensorsContainer().open(path, mmap=False)
-
-
 def test_reserved_names_are_no_tensor_names(tmp_path):
     with pytest.raises(ValueError, match="not __metadata__"):
         SafetensorsContainer().write(
@@ -415,13 +365,6 @@ def test_strings_without_utf8_form_are_rejected(tmp_path):
     )
     _assemble(path, None, data, raw_header=text.encode())
     with pytest.raises(CorruptArtifactError, match="not valid UTF-8"):
-        SafetensorsContainer().open(path, mmap=False)
-
-
-def test_deeply_nested_headers_are_corrupt_not_a_crash(tmp_path):
-    path = tmp_path / "a.safetensors"
-    _assemble(path, None, b"", raw_header=b'{"x": ' + b"[" * 100_000 + b"]" * 100_000 + b"}")
-    with pytest.raises(CorruptArtifactError):  # the parser of Python 3.14 takes the depth
         SafetensorsContainer().open(path, mmap=False)
 
 
@@ -478,32 +421,6 @@ def test_written_bytes_are_the_hashed_bytes(tmp_path, monkeypatch, with_expected
     SafetensorsContainer().open(path, mmap=False)
 
 
-def test_our_reader_takes_files_of_the_reference_library_with_fse_metadata(tmp_path):
-    pytest.importorskip("safetensors")
-    from safetensors.numpy import save_file
-
-    tensors = {
-        "scalar": np.array(F32(3.5)),
-        "empty_a": np.zeros((0, 4), F32),
-        "empty_b": np.zeros(0, np.int8),
-        "matrix": np.arange(6, dtype=np.int64).reshape(2, 3),
-    }
-    metadata = {"fse.kind": "test"}
-    entries = {k: (tensor_code(v), v.shape, array_sha256(v)) for k, v in tensors.items()}
-    for name, (_, _, digest) in entries.items():
-        metadata[f"fse.checksum.{name}"] = digest
-    metadata["fse.fingerprint"] = fingerprint(entries, metadata)
-    path = tmp_path / "ref.safetensors"
-    save_file(tensors, str(path), metadata=metadata)
-    for mmap in (False, True):
-        opened, read = SafetensorsContainer().open(path, mmap=mmap)
-        assert read["fse.fingerprint"] == metadata["fse.fingerprint"]
-        for name, array in tensors.items():
-            assert opened[name].shape == array.shape
-            assert opened[name].tobytes() == array.tobytes()
-    SafetensorsContainer().verify(path)
-
-
 def test_only_empty_tensors_and_no_tensors(tmp_path):
     for name, tensors in (
         ("empty", {"a": np.zeros((0, 2), F32), "b": np.zeros(0, np.int8)}),
@@ -517,98 +434,6 @@ def test_only_empty_tensors_and_no_tensors(tmp_path):
                 k: v.shape for k, v in tensors.items()
             }
         SafetensorsContainer().verify(path)
-
-
-def test_empty_tensors_with_huge_dimensions_round_trip(tmp_path):
-    from fse._container import CONTAINERS
-
-    tensors = {"bytes": np.zeros((0, 2**60), np.uint8), "x": np.ones(2, F32)}
-    for name, container in CONTAINERS.items():
-        path = tmp_path / f"{name}{container.suffix}"
-        container.write(path, tensors, {})
-        for mmap in (False, True):
-            opened, _ = container.open(path, mmap=mmap)
-            assert opened["bytes"].shape == (0, 2**60)
-        container.verify(path)
-
-
-@pytest.mark.parametrize("depth", [500, 900, 3000])
-def test_nested_headers_never_escape_as_recursion_errors(tmp_path, depth):
-    path = tmp_path / "a.safetensors"
-    _assemble(
-        path,
-        None,
-        b"",
-        raw_header=b'{"__metadata__": {}, "x": ' + b"[" * depth + b"]" * depth + b"}",
-    )
-    for mmap in (False, True):
-        with pytest.raises(CorruptArtifactError):
-            SafetensorsContainer().open(path, mmap=mmap)
-    with pytest.raises(CorruptArtifactError):
-        SafetensorsContainer().verify(path)
-
-
-@pytest.mark.parametrize("container_name", ["npy", "safetensors"])
-def test_changing_metadata_and_shapes_while_writing(tmp_path, monkeypatch, container_name):
-    """The writer works on snapshots: changes by the caller during the write do not reach it."""
-    import warnings
-
-    import fse._container as container
-
-    monkeypatch.setattr(container, "_CHUNK", 8)
-    source = np.arange(16, dtype=F32)
-    tensors = {"x": source}
-    metadata = {"note": ""}
-    real_sha256 = container.hashlib.sha256
-
-    class Changing:
-        def __init__(self, data=b""):
-            self.inner = real_sha256(data)
-
-        def update(self, data):
-            self.inner.update(data)
-            metadata["note"] = "x" * 5000
-            tensors["y"] = np.ones(3, F32)
-            with warnings.catch_warnings():
-                # Setting a shape is deprecated in numpy 2.5; it is what a caller might do.
-                warnings.simplefilter("ignore", DeprecationWarning)
-                source.shape = (4, 4)
-
-        def hexdigest(self):
-            return self.inner.hexdigest()
-
-    monkeypatch.setattr(container.hashlib, "sha256", Changing)
-    writer = container.CONTAINERS[container_name]
-    path = tmp_path / f"a{writer.suffix}"
-    writer.write(path, tensors, metadata)
-    monkeypatch.setattr(container.hashlib, "sha256", real_sha256)
-    writer.verify(path)
-    opened, read = writer.open(path, mmap=False)
-    assert set(opened) == {"x"}
-    assert opened["x"].shape == (16,)
-    assert read["note"] == ""
-
-
-def test_the_reference_library_reads_scalars_and_empty_files(tmp_path):
-    pytest.importorskip("safetensors")
-    from safetensors.numpy import load_file
-
-    cases = {
-        "scalar": {"s": np.array(F32(2.5))},
-        "empties": {
-            "a": np.zeros((0, 3), F32),
-            "b": np.zeros(0, np.int8),
-            "c": np.zeros((2, 0), np.int64),
-        },
-        "none": {},
-    }
-    for name, tensors in cases.items():
-        path = tmp_path / f"{name}.safetensors"
-        SafetensorsContainer().write(path, tensors, {"k": "v"})
-        loaded = load_file(str(path))
-        assert {k: v.shape for k, v in loaded.items()} == {k: v.shape for k, v in tensors.items()}
-        for key, array in tensors.items():
-            assert loaded[key].tobytes() == array.tobytes()
 
 
 @pytest.mark.parametrize("failing", ["write", "fsync", "publish"])
