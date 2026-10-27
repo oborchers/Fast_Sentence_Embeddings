@@ -272,3 +272,33 @@ untested-modules = ["src/fse/_validation.py", "src/fse/_version.py"]
 "tests/test_conformance.py::_random_case" = { PLR0913 = 9 }
 "tests/test_conformance.py::test_v1_fixture_batches" = { cognitive = 20 }
 "tests/test_wordvectors.py::_wv" = { PLR0913 = 6, PLR0917 = 6 }
+
+# --- Import contracts (import-linter; the Cython extension is invisible to it and is
+# checked by tools/check_guardrails.py) ---
+
+[tool.importlinter]
+root_package = "fse"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Layers (ARCHITECTURE.md, Layout): a module imports only from layers below it"
+type = "layers"
+containers = ["fse"]
+# Every new module must be placed in a layer.
+exhaustive = true
+exhaustive_ignores = ["_version"]
+layers = [
+    "gensim",
+    "_text",
+    "_wordvectors",
+    # Independent of each other: the references never share code with what they check.
+    "_container | _codes | _gram | _reference | _reference_text | _validation",
+    "_contract | _unicode",
+]
+
+[[tool.importlinter.contracts]]
+name = "Optional and 1.x packages stay out of fse; gensim only in fse.gensim"
+type = "forbidden"
+source_modules = ["fse"]
+forbidden_modules = ["gensim", "scipy", "smart_open", "psutil", "threadpoolctl", "wordfreq", "mlx", "torch", "sklearn"]
+ignore_imports = ["fse.gensim -> gensim"]
