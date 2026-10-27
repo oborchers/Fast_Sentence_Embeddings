@@ -15,6 +15,7 @@ read as float32. FastText vectors also hold their ngram rows and hashing paramet
 from __future__ import annotations
 
 import codecs
+import hashlib
 import json
 import re
 from collections.abc import Sequence
@@ -517,22 +518,53 @@ class WordVectors:
 
     @validate_arguments
     def quantize(self, dtype: Literal["float16", "int8"]):  # -> WordVectors, as for load
-        """float16 or int8 copies of float32 word vectors, quantized in blocks."""
+        """float16 or int8 copies of float32 word vectors, quantized in blocks.
+
+        The result owns all its arrays. For loaded vectors, every block is read once, and
+        the same copy is hashed and quantized, so the result is exactly the content the
+        checksums describe, even if the file changes meanwhile.
+        """
         if self.dtype != "float32":
             raise ValueError(f"only float32 word vectors can be quantized, these are {self.dtype}")
-        if not self._verified or self._mapped():
+        if not self._verified:
             self._check_contents()
-        tensors = {k: v for k, v in self._tensors.items() if k not in ("vectors", "ngrams")}
-        for name, scales in (("vectors", "scales"), ("ngrams", "ngram_scales")):
-            if name in self._tensors:
-                codes, codes_scales = _codes.quantize(
-                    self._tensors[name], dtype, kind=f"row of {name}"
+        expected = self._checksums()
+        tensors: dict[str, ndarray] = {}
+        for name, array in self._tensors.items():
+            if name in ("vectors", "ngrams"):
+                continue
+            copy = _frozen(array)
+            if expected is not None and array_sha256(copy) != expected[name]:
+                raise CorruptArtifactError(
+                    f"tensor {name} of {self._path} changed since it was loaded"
                 )
-                codes.setflags(write=False)
-                tensors[name] = codes
-                if codes_scales is not None:
-                    codes_scales.setflags(write=False)
-                    tensors[scales] = codes_scales
+            tensors[name] = copy
+        for name, scales in (("vectors", "scales"), ("ngrams", "ngram_scales")):
+            if name not in self._tensors:
+                continue
+            source = self._tensors[name]
+            codes = np.empty(source.shape, dtype=_codes.STORAGE_TYPES[dtype])
+            codes_scales = np.empty(len(source), dtype=np.float32) if dtype == "int8" else None
+            digest = hashlib.sha256()
+            for begin in range(0, len(source), _BLOCK_ROWS):
+                block = np.array(source[begin : begin + _BLOCK_ROWS], dtype=np.float32, copy=True)
+                digest.update(memoryview(block.reshape(-1).view(np.uint8)))
+                _codes.quantize_into(
+                    block,
+                    codes[begin : begin + len(block)],
+                    None if codes_scales is None else codes_scales[begin : begin + len(block)],
+                    first_row=begin,
+                    kind=f"row of {name}",
+                )
+            if expected is not None and digest.hexdigest() != expected[name]:
+                raise CorruptArtifactError(
+                    f"tensor {name} of {self._path} changed since it was loaded"
+                )
+            codes.setflags(write=False)
+            tensors[name] = codes
+            if codes_scales is not None:
+                codes_scales.setflags(write=False)
+                tensors[scales] = codes_scales
         metadata = {
             k: v
             for k, v in self._metadata.items()
@@ -541,6 +573,7 @@ class WordVectors:
         metadata["fse.dtype"] = dtype
         metadata["fse.quantization"] = QUANTIZATION
         metadata["fse.quantized_from"] = self.fingerprint
+        # The copied vocabulary matches the checksums, so the checked lookup still holds.
         return WordVectors._new(tensors, metadata, self._index)
 
     def __reduce__(self):

@@ -454,8 +454,10 @@ def test_expected_checksums_guard_the_write(tmp_path):
 def test_writer_keeps_its_own_limits(tmp_path, monkeypatch):
     import fse._container as container
 
-    with pytest.raises(ValueError, match="more than 32 dimensions"):
-        NpyContainer().write(tmp_path / "a", {"x": np.zeros((1,) * 33, F32)}, {})
+    # numpy 1.26 has no arrays of more than 32 dimensions; test the rule with a lower limit.
+    monkeypatch.setattr(container, "MAX_RANK", 2)
+    with pytest.raises(ValueError, match="more than 2 dimensions"):
+        NpyContainer().write(tmp_path / "a", {"x": np.zeros((1, 1, 1), F32)}, {})
     monkeypatch.setattr(container, "MAX_MANIFEST_BYTES", 200)
     with pytest.raises(ValueError, match="manifest would exceed 200 bytes"):
         NpyContainer().write(tmp_path / "b", _tensors(), {"note": "x" * 300})

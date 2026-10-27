@@ -498,7 +498,8 @@ def test_quantize_makes_no_float32_copy():
     q, peak = _peak(lambda: wv.quantize("int8"))
     float32_copy = 4 * codes
     block = 16_384 * dim * 4  # bytes of one block of float32 temporaries
-    assert peak < codes + 4 * rows + 10 * block, peak  # codes, scales, a few block temporaries
+    vocabulary = wv.vocab_bytes.nbytes + wv.vocab_offsets.nbytes  # copied into the result
+    assert peak < codes + 4 * rows + vocabulary + 10 * block, peak
     assert peak < float32_copy, peak
     assert q.dtype == "int8"
 
@@ -647,3 +648,34 @@ def test_mapped_data_changed_after_verify_is_never_saved(tmp_path):
     with pytest.raises(ValueError, match="does not match its checksum"):
         wv.save(tmp_path / "copy")
     assert not (tmp_path / "copy").exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows does not let a mapped file change")
+def test_quantized_vectors_own_their_arrays(tmp_path):
+    _wv().save(tmp_path / "wv")
+    wv = WordVectors.load(tmp_path / "wv", mmap=True)
+    q = wv.quantize("int8")
+    for name in ("vectors", "scales", "counts", "vocab_bytes", "vocab_offsets"):
+        assert not isinstance(getattr(q, name), np.memmap), name
+    # Changing the source file afterwards changes nothing in the quantized vectors.
+    file = tmp_path / "wv" / "vocab.bytes.npy"
+    with file.open("r+b") as f:
+        f.seek(-1, 2)
+        f.write(b"x")
+    assert [q.word(i) for i in range(len(q))] == WORDS
+    q.verify()
+    q.save(tmp_path / "q")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows does not let a mapped file change")
+def test_quantize_of_changed_mapped_vectors_raises(tmp_path):
+    _wv().save(tmp_path / "wv")
+    wv = WordVectors.load(tmp_path / "wv", mmap=True)
+    wv.verify()
+    with (tmp_path / "wv" / "vectors.npy").open("r+b") as f:
+        f.seek(-4, 2)
+        f.write(np.float32(7).tobytes())
+    with pytest.raises(
+        ValueError, match=r"does not match its checksum|changed since it was loaded"
+    ):
+        wv.quantize("int8")
