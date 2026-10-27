@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=77", "setuptools-scm>=8", "Cython>=3.0.11", "numpy>=2.0"]
+requires = ["setuptools>=77", "setuptools-scm>=8", "Cython>=3.1.0", "numpy>=2.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "fse"
 dynamic = ["version"]
-description = "Fast Sentence Embeddings for Gensim"
+description = "Fast Sentence Embeddings from word vectors"
 readme = "README.md"
 license = "GPL-3.0-only"
 license-files = ["LICENSE", "NOTICE"]
@@ -31,23 +31,18 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Text Processing :: Linguistic",
 ]
 # Lower bounds are the versions the min-deps CI job tests.
 dependencies = [
     "numpy>=1.26.4",
-    "scipy>=1.11.4",
-    "smart_open>=6.4.0",
-    "wordfreq>=3.1.0",
-    "huggingface-hub>=0.23.0",
-    "psutil>=5.9.0",
     "pydantic>=2.5.0",
-    "threadpoolctl>=3.1.0",
 ]
 
 [project.optional-dependencies]
-# The gensim adapter fse.gensim and the 1.x classes, which 2.0 replaces.
+# The gensim adapter fse.gensim.
 gensim = ["gensim>=4.3.3"]
 
 [project.urls]
@@ -62,8 +57,7 @@ Changelog = "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/C
 where = ["src"]
 
 [tool.setuptools.package-data]
-"fse" = ["py.typed"]
-"fse.models" = ["*.pyx", "*.pxd", "*.h", "*.pyi"]
+"fse" = ["py.typed", "*.pyx", "*.pxd", "*.h", "*.pyi"]
 
 [tool.setuptools_scm]
 version_file = "src/fse/_version.py"
@@ -74,14 +68,16 @@ version_file = "src/fse/_version.py"
 dev = [
     "pre-commit>=3.0.0",
     "cibuildwheel>=3.0.0",
+    # benchmarks/bench_wordvectors.py finds the hub vectors in the local cache.
+    "huggingface-hub>=0.23.0",
 ]
 lint = [
     "ruff>=0.17.2",
     "mypy>=1.18.0",
 ]
 test = [
-    # The 1.x classes and their tests, and the tests of fse.gensim.
-    "gensim>=4.3.3",
+    # The tests of fse.gensim; gensim does not build on Python 3.14 yet (gensim#3640).
+    "gensim>=4.3.3; python_version < '3.14'",
     # Checks that the reference implementation reads fse's safetensors files.
     "safetensors>=0.4.0",
     "pytest>=8.0.0",
@@ -98,8 +94,9 @@ all = [
 cache-keys = [
     { file = "pyproject.toml" },
     { file = "setup.py" },
-    { file = "src/fse/models/*.pyx" },
-    { file = "src/fse/models/*.pxd" },
+    { file = "src/fse/*.pyx" },
+    { file = "src/fse/*.pxd" },
+    { file = "src/fse/*.h" },
     { git = { commit = true, tags = true } },
 ]
 
@@ -120,8 +117,6 @@ ignore = ["E501", "N812"]
 known-first-party = ["fse"]
 
 [tool.ruff.lint.per-file-ignores]
-# uSIF is a public class name; renaming it would break the API and saved models.
-"src/fse/models/usif.py" = ["N801"]
 "tests/**" = ["PLC0415", "E741"]
 
 [tool.ruff.format]
@@ -140,7 +135,7 @@ check_untyped_defs = true
 
 # These dependencies ship no type information.
 [[tool.mypy.overrides]]
-module = ["gensim.*", "wordfreq.*", "smart_open.*", "psutil.*", "scipy.*", "threadpoolctl.*"]
+module = ["gensim.*", "safetensors.*", "huggingface_hub.*"]
 ignore_missing_imports = true
 
 # --- pytest ---
@@ -185,7 +180,7 @@ exclude_lines = [
 # --- cibuildwheel ---
 
 [tool.cibuildwheel]
-build = "cp311-* cp312-* cp313-*"
+build = "cp311-* cp312-* cp313-* cp314-*"
 skip = "*-musllinux_* *-win32 *_i686"
 build-frontend = "build[uv]"
 test-groups = ["test"]

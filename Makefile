@@ -62,7 +62,7 @@ build: clean ## Build sdist and wheel
 clean: ## Remove build artifacts and caches
 	rm -rf build/ dist/ wheelhouse/ *.egg-info src/*.egg-info
 	rm -rf .pytest_cache .ruff_cache htmlcov .coverage .coverage.*
-	rm -f $(SRC)/models/*.c
+	rm -f $(SRC)/*.c
 	find . -type d -name __pycache__ -not -path "./.venv/*" -exec rm -rf {} + 2>/dev/null || true
 
 ##@ Hooks
