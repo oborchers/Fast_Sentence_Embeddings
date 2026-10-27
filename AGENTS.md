@@ -37,10 +37,10 @@ Performance changes report before and after numbers on an idle machine (the scri
 
 ## Guardrails
 
-`make lint` enforces, and CI and pre-commit run the same:
+`make lint` enforces, and CI and the pre-commit hooks run the same:
 
-- at most 500 lines per hand-written source file (the generated Unicode tables excepted);
-- the ruff complexity limits (C901 10, PLR0911 6, PLR0912 12, PLR0913 and PLR0917 5, PLR0915 50) and a cognitive complexity of at most 15 per function (complexipy);
+- at most 500 lines per source file under the `paths` of `[tool.fse.guardrails]` (src, tests, tools, benchmarks, media, setup.py; the generated Unicode tables excepted); a new top-level folder of code joins `paths`;
+- the ruff complexity limits (C901 10, PLR0911 6, PLR0912 12, PLR0913 and PLR0917 5, PLR0915 50) and a cognitive complexity of at most 15 per Python function (complexipy; Cython and C functions are limited by their file length);
 - the import layers and forbidden packages in `[tool.importlinter]`;
 - that only `fse._text` imports `fse._native` and the extension imports only `fse._contract` from fse;
 - a test file for every module of fse (`fse/_a.py` is `tests/test_a.py`, `fse/_b/_c.py` is `tests/test_b_c.py`; only the generated `_version.py` has none);

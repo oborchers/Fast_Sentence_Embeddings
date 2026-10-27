@@ -41,4 +41,17 @@ repos:
         entry: uv run --no-sync python tools/check_guardrails.py
         language: system
         pass_filenames: false
+        # The paths of [tool.fse.guardrails].
+        files: ^(src|tests|tools|benchmarks|media)/|^(setup\.py|pyproject\.toml)$
+      - id: vulture
+        name: unused code
+        entry: uv run --no-sync vulture
+        language: system
+        pass_filenames: false
         files: ^(src|tests|tools|benchmarks)/|^pyproject\.toml$
+      - id: deptry
+        name: dependencies
+        entry: uv run --no-sync deptry src
+        language: system
+        pass_filenames: false
+        files: ^src/|^pyproject\.toml$

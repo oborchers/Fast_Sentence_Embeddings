@@ -41,11 +41,7 @@ RUFF_RULES = ["C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917"]
 _RUFF = [sys.executable, "-m", "ruff", "check", "--output-format", "json", "--exit-zero"]
 _RUFF += ["--no-cache", "--quiet", "--ignore-noqa"]
 _VALUE = re.compile(r"\((\d+) > \d+\)")
-_STRINGS = re.compile(
-    r'"""(?:.|\n)*?"""|\'\'\'(?:.|\n)*?\'\'\'|"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\''
-)
-_COMMENT = re.compile(r"#[^\n]*")
-_FROM = re.compile(r"^\s*from\s+(\.*[\w.]*)\s+c?import\s+\(?([^)\n]*)", re.MULTILINE)
+_FROM = re.compile(r"^\s*from\s+(\.*[\w.]*)\s+c?import\s+(\([^)]*\)|[^\n]*)", re.MULTILINE)
 _IMPORT = re.compile(r"^\s*c?import\s+([^\n]+)", re.MULTILINE)
 
 
@@ -119,6 +115,12 @@ def qualnames(source: str) -> dict[int, str]:
     return names
 
 
+def _keep_highest(found: dict, key: str, metric: str, value: int) -> None:
+    """Record a finding; two definitions with one qualified name keep the higher value."""
+    values = found.setdefault(key, {})
+    values[metric] = max(value, values.get(metric, value))
+
+
 def ruff_findings(root: Path, py_files: list[str]) -> dict[str, dict[str, int]]:
     """The ruff complexity findings by path::qualname and rule, noqa ignored."""
     if not py_files:
@@ -133,7 +135,7 @@ def ruff_findings(root: Path, py_files: list[str]) -> dict[str, dict[str, int]]:
         row = item["location"]["row"]
         match = _VALUE.search(item["message"])
         key = f"{path}::{names[path].get(row, f'line {row}')}"
-        found.setdefault(key, {})[item["code"]] = int(match.group(1)) if match else 0
+        _keep_highest(found, key, item["code"], int(match.group(1)) if match else 0)
     return found
 
 
@@ -146,28 +148,69 @@ def cognitive_findings(root: Path, py_files: list[str], limit: int) -> dict[str,
         raise ToolError("complexipy is not installed; run `uv sync --group lint`") from None
     found: dict[str, dict[str, int]] = {}
     for path in py_files:
-        for function in file_complexity(
-            str(root / path), no_ignore=True, with_plans=False
-        ).functions:
+        try:
+            functions = file_complexity(
+                str(root / path), no_ignore=True, with_plans=False
+            ).functions
+        except ValueError as err:
+            raise ToolError(f"complexipy cannot read {path}: {err}") from None
+        for function in functions:
             if function.complexity > limit:
-                found[f"{path}::{function.name.replace('::', '.')}"] = {
-                    "cognitive": function.complexity
-                }
+                name = function.name.replace("::", ".")
+                _keep_highest(found, f"{path}::{name}", "cognitive", function.complexity)
     return found
+
+
+def _string_end(source: str, start: int) -> int:
+    """The index after the string literal that starts at start."""
+    quote = (
+        source[start : start + 3] if source[start : start + 3] in ('"""', "'''") else source[start]
+    )
+    end = start + len(quote)
+    while True:
+        end = source.find(quote, end)
+        if end < 0:
+            return len(source)
+        if len(quote) == 3 or source[end - 1] != "\\":
+            return end + len(quote)
+        end += 1
+
+
+def code_only(source: str) -> str:
+    """source with string literals emptied and comments removed, in one pass that knows
+    whether a quote or a # starts inside a string or a comment."""
+    out, i = [], 0
+    while i < len(source):
+        if source[i] == "#":
+            newline = source.find("\n", i)
+            i = len(source) if newline < 0 else newline
+        elif source[i] in "'\"":
+            out.append('""')
+            i = _string_end(source, i)
+        else:
+            out.append(source[i])
+            i += 1
+    return "".join(out)
+
+
+def _names(text: str) -> list[str]:
+    """The module names of an import list, aliases and parentheses removed."""
+    parts = text.strip().strip("()").replace("\\\n", " ").split(",")
+    return [part.split(" as ")[0].strip() for part in parts if part.strip()]
 
 
 def extension_imports(source: str) -> list[str]:
     """Every module a Cython source imports or cimports, strings and comments removed."""
-    code = _COMMENT.sub("", _STRINGS.sub('""', source))
+    code = code_only(source)
     modules = []
     for base, names in _FROM.findall(code):
         if base.rstrip(".") in ("", "fse"):  # from fse import x, from . import x
-            modules += ["fse." + n.split(" as ")[0].strip() for n in names.split(",") if n.strip()]
+            modules += ["fse." + name for name in _names(names)]
         else:
             # A relative import inside fse names a module of fse.
             modules.append("fse." + base.lstrip(".") if base.startswith(".") else base)
     for names in _IMPORT.findall(code):
-        modules += [n.split(" as ")[0].strip() for n in names.split(",") if n.strip()]
+        modules += _names(names)
     return modules
 
 
@@ -179,7 +222,7 @@ def _breaks_rules(module: str, cfg: dict) -> bool:
 
 def _extension_import_errors(root: Path, cfg: dict) -> list[str]:
     errors = []
-    for path in sorted((root / "src" / "fse").rglob("_native*")):
+    for path in sorted((root / "src" / "fse").rglob("*")):
         if path.suffix in (".pyx", ".pxd", ".pxi"):
             for module in extension_imports(path.read_text(encoding="utf-8")):
                 if _breaks_rules(module, cfg):
@@ -244,7 +287,7 @@ def untested_modules(root: Path, cfg: dict) -> list[str]:
     """Modules of fse, in subpackages too, without their test file."""
     package = root / "src" / "fse"
     missing = []
-    for path in sorted(package.rglob("*.py")):
+    for path in sorted([*package.rglob("*.py"), *package.rglob("*.pyx")]):
         rel = path.relative_to(root).as_posix()
         test = test_file_for(path, package)
         if rel not in cfg["untested-modules"] and not (root / test).exists():
@@ -308,10 +351,12 @@ def ratchet_growth(ratchet: dict, base: dict) -> list[str]:
     return errors
 
 
-def base_ratchet(root: Path, ref: str) -> dict:
-    """The ratchet in the pyproject.toml of git ref, empty before the guardrails came."""
-    tool = tomllib.loads(_run(["git", "show", f"{ref}:pyproject.toml"], root))["tool"]
-    return tool.get("fse", {}).get("guardrails", {}).get("ratchet", {})
+def base_ratchet(root: Path, ref: str) -> dict | None:
+    """The ratchet in the pyproject.toml of git ref ({} once it is empty), or None if the
+    guardrails did not exist there yet."""
+    tool = tomllib.loads(_run(["git", "show", f"{ref}:pyproject.toml"], root)).get("tool", {})
+    guardrails = tool.get("fse", {}).get("guardrails")
+    return None if guardrails is None else guardrails.get("ratchet", {})
 
 
 def check(root: Path, base: str | None = None) -> tuple[list[str], dict, dict]:
@@ -330,8 +375,8 @@ def check(root: Path, base: str | None = None) -> tuple[list[str], dict, dict]:
         *native_import_errors(root, cfg),
         *untested_modules(root, cfg),
     ]
-    old = base_ratchet(root, base) if base else {}
-    return [*errors, *(ratchet_growth(ratchet, old) if old else [])], lines, functions
+    old = base_ratchet(root, base) if base else None
+    return [*errors, *(ratchet_growth(ratchet, old) if old is not None else [])], lines, functions
 
 
 def print_ratchet(lines: dict, functions: dict) -> None:
@@ -352,7 +397,7 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     args = parser.parse_args(argv)
     try:
         errors, lines, functions = check(root, args.base)
-    except ToolError as err:
+    except (ToolError, OSError, SyntaxError, ValueError, KeyError) as err:
         print(f"check_guardrails: {err}", file=sys.stderr)
         return 2
     if args.print_ratchet:

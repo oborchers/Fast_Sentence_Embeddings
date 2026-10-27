@@ -203,3 +203,58 @@ def test_the_command_reports_a_failing_tool(tool, tmp_path, capsys):
     (tmp_path / "pyproject.toml").write_text((ROOT / "pyproject.toml").read_text())
     assert tool["main"]([], root=tmp_path) == 2  # not a git repository
     assert "check_guardrails: git" in capsys.readouterr().err
+
+
+def test_extension_imports_across_lines_and_against_comment_tricks(tool):
+    source = 'from fse import (\n    _contract,\n    _wordvectors,\n)\n# """\nimport torch\n# """\nx = "# not a comment"\n'
+    assert tool["extension_imports"](source) == ["fse._contract", "fse._wordvectors", "torch"]
+
+
+def _commit(repo, message):
+    env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t"}
+    env |= {"GIT_COMMITTER_EMAIL": "t@t", "PATH": __import__("os").environ["PATH"]}
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, env=env)
+    subprocess.run(["git", "commit", "-q", "-m", message], cwd=repo, check=True, env=env)
+
+
+RATCHET = '\n[tool.fse.guardrails.ratchet.functions]\n"src/fse/_mod.py::f" = {{ PLR0911 = {} }}\n'
+
+
+@needs_lint_tools
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+def test_the_command_rejects_a_ratchet_that_grows_against_its_base(tool, tmp_path, capsys):
+    repo = _repo(tmp_path, BRANCHY, RATCHET.format(9))
+    _commit(repo, "base")
+    # One more return: the finding grows to 10, and the ratchet is raised to match it.
+    grown = BRANCHY.replace("    return -1\n", "    if x == 8:\n        return 8\n    return -1\n")
+    (repo / "src" / "fse" / "_mod.py").write_text(grown)
+    pyproject = (repo / "pyproject.toml").read_text().replace("PLR0911 = 9", "PLR0911 = 10")
+    (repo / "pyproject.toml").write_text(pyproject)
+    assert tool["main"]([], root=repo) == 0
+    assert tool["main"](["--base", "HEAD"], root=repo) == 1
+    assert "is new or higher than on the base" in capsys.readouterr().out
+
+
+@needs_lint_tools
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+def test_an_empty_base_ratchet_still_forbids_new_entries(tool, tmp_path):
+    repo = _repo(tmp_path, "def f():\n    return 1\n", "\n[tool.fse.guardrails.ratchet]\n")
+    _commit(repo, "base with an empty ratchet")
+    (repo / "src" / "fse" / "_mod.py").write_text(BRANCHY)
+    pyproject = (repo / "pyproject.toml").read_text() + RATCHET.format(9)
+    (repo / "pyproject.toml").write_text(
+        pyproject.replace("\n[tool.fse.guardrails.ratchet]\n", "\n")
+    )
+    assert tool["main"]([], root=repo) == 0
+    assert tool["main"](["--base", "HEAD"], root=repo) == 1
+
+
+@needs_lint_tools
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+def test_the_command_rejects_a_forbidden_native_import(tool, tmp_path, capsys):
+    repo = _repo(tmp_path, "def f():\n    return 1\n")
+    (repo / "src" / "fse" / "_native_part.pxi").write_text(
+        "from fse import (\n    _wordvectors,\n)\n"
+    )
+    assert tool["main"]([], root=repo) == 1
+    assert "_native_part.pxi imports fse._wordvectors" in capsys.readouterr().out

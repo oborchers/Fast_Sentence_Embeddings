@@ -11,7 +11,7 @@ uv venv -p 3.12 .venv-baseline
 uv pip install -p .venv-baseline/bin/python "fse==1.1.0" -r benchmarks/quality/requirements.txt psutil
 ```
 
-The scripts that measure only fse 1.1.0 (`sts.py`, `numerics.py`, `bench_train.py`, `bench_lifecycle.py`) were removed from the repository with the 1.x API; they are at commit 4931f5e. Run them from a checkout of that commit, so their paths to `evaluation/` and `benchmarks/baseline/results/` hold: `git worktree add ../fse-4931f5e 4931f5e`, then the commands below from `../fse-4931f5e`. `make_v1_fixture.py` stays, frozen: it wrote the fixture `tests/test_data/v1_reference/` that the tests read. The results below never change.
+The scripts that measure only fse 1.1.0 (`sts.py`, `numerics.py`, `bench_train.py`, `bench_lifecycle.py`) were removed from the repository with the 1.x API; they are at commit 4931f5e. Run them from a checkout of that commit, so their paths to `evaluation/` and `benchmarks/baseline/results/` hold: `git worktree add ../fse-4931f5e 4931f5e && cd ../fse-4931f5e` first, then the setup and the commands below there. `make_v1_fixture.py` stays, frozen: it wrote the fixture `tests/test_data/v1_reference/` that the tests read. The results below never change.
 
 | Result | Command (from the repository root; for removed scripts, of the checkout of 4931f5e) |
 |---|---|
