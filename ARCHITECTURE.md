@@ -22,10 +22,11 @@ src/fse/
 
 ## Native kernel
 
-`_native_kernel.h` implements every operation of the numerical contract below once as a C loop, instantiated per ISA: portable (`fmaf`), AVX2 with FMA and F16C on x86 (selected at run time by cpuid and xgetbv, so one wheel serves every x86 machine) and NEON on arm64. `_native.pyx` validates all arrays before it releases the GIL, then calls the loop of the chosen ISA (`available_isas`, `default_isa`; `isa=` selects one for tests). The rules that make it bit-identical to `fse._reference`:
+`_native_kernel.h` implements `weighted_mean@1` (pool and accumulate), `dot16`, the steps `remove_components@1`, `project@1` and `normalize@1`, and the linear score of the numerical contract below; group mode, storage quantization, inverse norms and cosine search follow with their PRs. Each is one C loop, instantiated per ISA: portable (`fmaf`), AVX2 with FMA and F16C on x86 (selected at run time by cpuid and xgetbv, so one wheel serves every x86 machine) and NEON on arm64. `_native.pyx` validates all arrays before it releases the GIL, then calls the loop of the chosen ISA (`available_isas`, `default_isa`; `isa=` selects one for tests). The rules that make it bit-identical to `fse._reference`:
 
-- Every multiply-add is an explicit fused multiply-add in token order; the compiler must not contract or reorder anything else. The extension is built with `-ffp-contract=off -fno-fast-math` (`/fp:precise` on MSVC), see `setup.py`.
-- The floating-point environment is fixed for the duration of a call: round to nearest, no flush-to-zero or denormals-are-zero (MXCSR on x86, FPCR on arm64). The previous state is restored afterwards.
+- Every multiply-add is an explicit fused multiply-add in token order; the compiler must not contract or reorder anything else. The extension is built with `-ffp-contract=off -fno-fast-math` (`/fp:precise` on MSVC), see `setup.py`. MinGW is refused, because its runtime computes `fmaf` with two roundings.
+- The floating-point environment is fixed for the duration of every call: round to nearest, no flush-to-zero or denormals-are-zero (MXCSR on x86, FPCR on arm64). The previous state is restored afterwards, also after an error. Each entry point sets it and then calls the arithmetic through a function that is never inlined (or a function pointer), so no compiler can move the arithmetic before it.
+- Dimensions are limited to `MAX_DIM` (2**30), because the loops index a row with `int`. Batches are read-only views and are checked again at the kernel, and `out` must not overlap the rows, weights or the batch.
 - Reductions over the dimension use `dot16`: 16 lanes, element i in lane i % 16, then a tree 8/4/2/1. Lanes are not padded with zeros, because a lane can hold -0.0.
 - Word rows are prefetched 8 tokens ahead, also across sentence boundaries; prefetching changes no result.
 - A row that is not finite raises with its row number, as the reference does.

@@ -94,11 +94,13 @@ def child_v2(cfg: dict, data: dict) -> float:
     for first, last in _jobs(offsets, cfg["batch"]):
         local = offsets[first : last + 1] - offsets[first]
         batches.append(Batch(first, local, ids[offsets[first] : offsets[last]]))
-    out = np.empty((cfg["batch"], cfg["dim"]), np.float32)
+    # One row per sentence, as the target of 1.1.0, so both write the same amount of memory.
+    out = np.zeros((offsets.shape[0] - 1, cfg["dim"]), np.float32)
+    views = [out[b.first_row : b.first_row + b.n_sentences] for b in batches]
 
     def run():
-        for b in batches:
-            kernel.pool(b, out[: b.offsets.shape[0] - 1])
+        for b, view in zip(batches, views, strict=True):
+            kernel.pool(b, view)
 
     return _measure(run, cfg["repeats"])
 
@@ -116,6 +118,7 @@ def child_v1(cfg: dict, data: dict) -> float:
     model = Average(kv, wv_dtype=cfg["dtype"])
     offsets, ids = data["offsets"], data["ids"]
     n = offsets.shape[0] - 1
+    # 1.1.0 adds into its target, so repeated passes accumulate; the work is the same.
     target = np.zeros((n, cfg["dim"]), np.float32)
     ctx = kernel.KernelContext(model, target)
     jobs = []

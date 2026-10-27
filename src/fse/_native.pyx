@@ -524,7 +524,7 @@ cdef int _grow_nogil(_Buffer *b, Py_ssize_t extra) noexcept nogil:
 # The weighted mean kernel (weighted_mean@1): stages 2 and 3 of a batch, without the GIL.
 # ---------------------------------------------------------------------------------------
 
-from libc.stdint cimport int64_t, uint32_t
+from libc.stdint cimport int64_t, uint32_t, uint64_t
 
 cdef extern from "_native_kernel.h":
     ctypedef struct fse_params:
@@ -547,7 +547,10 @@ cdef extern from "_native_kernel.h":
     int fse_has_isa(int isa) nogil
     int64_t fse_run(int isa, const fse_params *p, const fse_batch *b, float *out,
                     int64_t *counts, int finish) nogil
-    float fse_dot16(int isa, const float *a, const float *b, int n) nogil
+    void fse_dot16_rows(int isa, const float *a, const float *b, int64_t n, int dim, float *out) nogil
+    uint64_t fse_test_fpenv_flush(int on)
+    void fse_test_fpenv_restore(uint64_t saved)
+    uint64_t fse_test_fpenv_get()
     int64_t fse_remove_components(int isa, float *rows, int64_t n, int dim,
                                   const float *components, int k, const float *weights,
                                   float *scratch) nogil
@@ -577,6 +580,31 @@ def default_isa():
     """The instruction set the kernel uses unless told otherwise."""
     isas = available_isas()
     return isas[len(isas) - 1]
+
+
+# The kernel indexes a row with int, and its loops step up to 32 values past an index.
+MAX_DIM = 1 << 30
+
+
+def _check_dim(dim):
+    if dim > MAX_DIM:
+        raise ValueError(f"the kernel supports at most {MAX_DIM} dimensions, not {dim}")
+    return dim
+
+
+def _test_fpenv_flush(on):
+    """For the tests: set or clear flush-to-zero; returns the previous environment."""
+    return fse_test_fpenv_flush(1 if on else 0)
+
+
+def _test_fpenv_restore(saved):
+    """For the tests: restore an environment returned by _test_fpenv_flush."""
+    fse_test_fpenv_restore(saved)
+
+
+def _test_fpenv_get():
+    """For the tests: the floating-point control register (MXCSR or FPCR)."""
+    return fse_test_fpenv_get()
 
 
 def _check_isa(isa):
@@ -628,7 +656,8 @@ cdef class WeightedMean:
         self.isa = _check_isa(isa)
         self.isa_name = next(k for k, v in _ISAS.items() if v == self.isa)
         vectors = _rows(vectors, "vectors")
-        self.n_words, self.dim = vectors.shape
+        self.n_words = vectors.shape[0]
+        self.dim = _check_dim(vectors.shape[1])
         if self.dim < 1:
             raise ValueError("vectors need at least one dimension")
         int8 = vectors.dtype == np.int8
@@ -664,15 +693,22 @@ cdef class WeightedMean:
         self._keep = (vectors, weights, scales, ngram_vectors, ngram_scales, oov_weight)
 
     def _check_batch(self, batch):
-        from fse._contract import OOV_TOKEN, Batch
+        from fse._contract import OOV_TOKEN, Batch, _check_offsets
 
         if not isinstance(batch, Batch):
             raise TypeError(f"batch must be a Batch, not {type(batch).__name__}")
         tokens = batch.tokens
+        # Batch checked its arrays when it was made; the kernel reads through raw pointers,
+        # so the offsets are checked again here.
+        _check_offsets(batch.offsets, len(tokens), "offsets")
         unknown = tokens == OOV_TOKEN
         if unknown.any():
             if batch.ngrams is None or batch.ngram_offsets is None:
                 raise ValueError("an unknown FastText word needs ngram buckets")
+            n_unknown = int(np.count_nonzero(unknown))
+            if len(batch.ngram_offsets) != n_unknown + 1:
+                raise ValueError(f"ngram_offsets must have {n_unknown + 1} entries for {n_unknown} unknown words")
+            _check_offsets(batch.ngram_offsets, len(batch.ngrams), "ngram_offsets")
             if not self.fasttext:
                 raise ValueError("an unknown FastText word needs ngram vectors")
             if self._keep[5] is None:
@@ -707,7 +743,8 @@ cdef class WeightedMean:
             bad = fse_run(self.isa, &self.params, &b, target, counts, finish)
         return bad
 
-    def _out(self, n, out):
+    def _out(self, batch, out):
+        n = batch.n_sentences
         if out is None:
             return np.empty((n, self.dim), dtype=np.float32)
         if (
@@ -721,12 +758,15 @@ cdef class WeightedMean:
         for kept in self._keep[:5]:
             if kept is not None and np.may_share_memory(out, kept):
                 raise ValueError("out must not share memory with the vectors or weights")
+        for kept in (batch.offsets, batch.tokens, batch.ngram_offsets, batch.ngrams):
+            if kept is not None and np.may_share_memory(out, kept):
+                raise ValueError("out must not share memory with the batch")
         return out
 
     def pool(self, batch, out=None):
         """weighted_mean@1 of every sentence of ``batch``, into ``out`` or a new array."""
         self._check_batch(batch)
-        out = self._out(batch.n_sentences, out)
+        out = self._out(batch, out)
         bad = self._run(batch, out, NULL, 1)
         if bad >= 0:
             raise ValueError(f"row {batch.first_row + bad} contains NaN or infinite values")
@@ -776,11 +816,12 @@ def dot16(rows, other, *, isa=None):
     cdef const float[:, ::1] b = other
     out = np.empty(rows.shape[0], dtype=np.float32)
     cdef float[::1] o = out
-    cdef Py_ssize_t r
-    cdef int n = rows.shape[1]
+    cdef int n = _check_dim(rows.shape[1])
+    if a.shape[0] == 0 or n == 0:
+        out[:] = 0
+        return out
     with nogil:
-        for r in range(a.shape[0]):
-            o[r] = fse_dot16(code, &a[r, 0] if n else NULL, &b[r, 0] if n else NULL, n)
+        fse_dot16_rows(code, &a[0, 0], &b[0, 0], a.shape[0], n, &o[0])
     return out
 
 
@@ -792,6 +833,7 @@ def postprocess(rows, steps, first_row=0, *, isa=None):
     out = np.array(rows, dtype=np.float32, copy=True, order="C")
     if out.ndim != 2:
         raise ValueError("rows must be a matrix")
+    _check_dim(out.shape[1])
     _check_finite_rows(out, first_row)
     cdef float[:, ::1] view
     cdef const float[:, ::1] params
@@ -851,7 +893,7 @@ def score(stored, scales, weights, bias=0.0, *, isa=None):
     cdef int code = _check_isa(isa)
     stored = _rows(stored, "stored")
     cdef Py_ssize_t n = stored.shape[0]
-    cdef int dim = stored.shape[1]
+    cdef int dim = _check_dim(stored.shape[1])
     weights = np.ascontiguousarray(weights, dtype=np.float32)
     if weights.shape != (dim,):
         raise ValueError(f"weights must hold {dim} values")

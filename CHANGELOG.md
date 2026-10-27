@@ -15,6 +15,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 ### Changed
 
 - gensim is no longer a dependency: install `fse[gensim]` for `fse.gensim`.
+- Building from source needs MSVC on Windows, or GCC or Clang elsewhere; MinGW is refused, because its `fmaf` rounds twice.
 - The only dependencies are numpy and pydantic. scipy, smart_open, wordfreq, huggingface-hub, psutil and threadpoolctl are no longer needed; the Hugging Face Hub returns with the 2.0 loader.
 
 ### Removed

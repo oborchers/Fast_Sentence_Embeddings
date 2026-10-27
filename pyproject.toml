@@ -187,3 +187,7 @@ build-frontend = "build[uv]"
 test-groups = ["test"]
 # Double quotes, because the Windows shell does not understand single quotes.
 test-command = 'pytest {project}/tests -m "not network" -p no:cacheprovider'
+
+[tool.cibuildwheel.linux]
+# The Linux tests run in a container; CI makes them require the NEON or AVX2 kernel.
+environment-pass = ["CI"]

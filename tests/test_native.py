@@ -1,6 +1,8 @@
 """Tests of the native routines of fse._native that do not average."""
 
 import json
+import os
+import platform
 import random
 import sys
 
@@ -186,3 +188,57 @@ def test_pooling_runs_in_threads():
     with ThreadPoolExecutor(4) as pool:
         for got in pool.map(lambda _: wm.pool(batch), range(8)):
             np.testing.assert_array_equal(got.view(np.uint32), want.view(np.uint32))
+
+
+def test_out_must_not_share_memory_with_the_batch():
+    tokens = np.zeros(2, dtype=np.uint32)
+    batch = Batch(0, np.array([0, 2], np.int64), tokens)
+    kernel = _native.WeightedMean(np.ones((1, 2), F32), np.ones(1, F32))
+    with pytest.raises(ValueError, match="share memory with the batch"):
+        kernel.pool(batch, tokens.view(F32).reshape(1, 2))
+
+
+def test_batch_fields_are_read_only():
+    batch = Batch(0, np.array([0, 1], np.int64), np.zeros(1, np.uint32))
+    with pytest.raises(ValueError, match="read-only"):
+        batch.offsets[-1] = 5
+
+
+def test_offsets_are_checked_again_at_the_kernel():
+    offsets = np.array([0, 1], np.int64)
+    batch = Batch(0, offsets, np.zeros(1, np.uint32))
+    offsets[-1] = 1000  # the caller still holds a writable array
+    kernel = _native.WeightedMean(np.ones((1, 2), F32), np.ones(1, F32))
+    with pytest.raises(ValueError, match="offsets must end with 1"):
+        kernel.pool(batch)
+
+
+def test_ngram_offsets_are_checked_again_at_the_kernel():
+    ngram_offsets = np.array([0, 1], np.int64)
+    batch = Batch(
+        0,
+        np.array([0, 1], np.int64),
+        np.array([OOV_TOKEN], np.uint32),
+        ngram_offsets,
+        np.zeros(1, np.uint32),
+    )
+    ngram_offsets[-1] = 1000
+    kernel = _native.WeightedMean(
+        np.ones((1, 2), F32), np.ones(1, F32), ngram_vectors=np.ones((1, 2), F32), oov_weight=1.0
+    )
+    with pytest.raises(ValueError, match="ngram_offsets must end with 1"):
+        kernel.pool(batch)
+
+
+def test_the_kernel_limits_the_dimension():
+    assert _native._check_dim(_native.MAX_DIM) == _native.MAX_DIM
+    with pytest.raises(ValueError, match="at most"):
+        _native._check_dim(_native.MAX_DIM + 1)
+
+
+@pytest.mark.skipif(not os.environ.get("CI"), reason="CI runners have the expected ISA")
+def test_ci_runs_the_vector_kernel():
+    """A build that lost its NEON or AVX2 kernel would otherwise test only the portable one."""
+    machine = platform.machine().lower()
+    want = "neon" if machine in ("arm64", "aarch64") else "avx2"
+    assert want in _native.available_isas()

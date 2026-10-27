@@ -200,7 +200,8 @@ def _cases():
     f, x = F32(1 + 2**-12), F32(1 + 2**-12)
     fused = np.array([[x], [-(f * x)]], dtype=F32)
     out.append(
-        Case("fused, not rounded products", "float32", fused, np.array([f, 1], F32), ((0, 1),))
+        # The rounded negative product first, so the fma of word 0 keeps the rounding error.
+        Case("fused, not rounded products", "float32", fused, np.array([f, 1], F32), ((1, 0),))
     )
     v = F32(1 + 2**-23)
     out.append(
@@ -505,6 +506,12 @@ def test_the_suite_catches(mistake, kwargs):
     assert failures, f"no case catches {mistake}"
 
 
+def test_the_fused_case_catches_a_missing_fma():
+    index = next(i for i, c in enumerate(CASES) if c.name == "fused, not rounded products")
+    with pytest.raises(AssertionError):
+        assert_bits_equal(_numpy_pool(CASES[index], fused=False), expected(index, "pool"))
+
+
 def test_the_suite_catches_zero_padded_dot16():
     """Padding a tail with zeros turns a -0.0 lane into +0.0."""
     rows = np.full((1, 17), -(2.0**-149), dtype=F32)
@@ -512,3 +519,66 @@ def test_the_suite_catches_zero_padded_dot16():
     padded = _reference.dot16(np.pad(rows, ((0, 0), (0, 15))), np.pad(vector, (0, 15)))
     with pytest.raises(AssertionError):
         assert_bits_equal(padded[None, :], _reference.dot16(rows, vector)[None, :])
+
+
+# --- The floating-point environment ----------------------------------------------------------
+
+NATIVE = [b for b in BACKENDS if isinstance(b, Native)]
+
+
+def _subnormal_calls(backend):
+    """Every native entry point on inputs whose results are subnormal."""
+    rows = np.full((3, 20), TINY, dtype=F32) * np.arange(1, 61, dtype=F32).reshape(3, 20)
+    unit = np.zeros((1, 20), dtype=F32)
+    unit[0, 0] = 1
+    pool_case = next(c for c in CASES if c.name == "subnormal rows" and c.dtype == "float32")
+    return {
+        "pool": lambda: backend.pool(pool_case),
+        "accumulate": lambda: backend.accumulate(pool_case)[0],
+        "remove_components": lambda: backend.postprocess(rows, [RemoveComponents(unit)]),
+        "project": lambda: backend.postprocess(
+            rows, [Project(np.ascontiguousarray(np.eye(2, 20, dtype=F32)))]
+        ),
+        "dot16": lambda: backend.dot16(rows, np.full(20, 0.5, F32))[:, None],
+        "score": lambda: backend.score(rows, None, np.full(20, 0.5, F32), 0.0)[:, None],
+    }
+
+
+def test_flush_to_zero_changes_numpy():
+    """The switch the next test uses really flushes subnormals in this process."""
+    saved = _native._test_fpenv_flush(True)
+    try:
+        flushed = np.array([TINY * 64], F32) * F32(0.5)
+    finally:
+        _native._test_fpenv_restore(saved)
+    assert flushed[0] == 0
+    assert (np.array([TINY * 64], F32) * F32(0.5))[0] != 0
+
+
+@pytest.mark.parametrize("backend", NATIVE, ids=lambda b: b.name)
+def test_native_ignores_and_restores_flush_to_zero(backend):
+    want = {name: call() for name, call in _subnormal_calls(Reference()).items()}
+    for name, call in _subnormal_calls(backend).items():
+        saved = _native._test_fpenv_flush(True)
+        try:
+            flushed = _native._test_fpenv_get()
+            got = call()
+            after = _native._test_fpenv_get()
+        finally:
+            _native._test_fpenv_restore(saved)
+        assert after == flushed, f"{name} did not restore the floating-point environment"
+        assert_bits_equal(got, want[name], name)
+    assert np.any(want["pool"] != 0)
+
+
+@pytest.mark.parametrize("backend", NATIVE, ids=lambda b: b.name)
+def test_native_restores_the_environment_after_an_error(backend):
+    saved = _native._test_fpenv_flush(True)
+    try:
+        flushed = _native._test_fpenv_get()
+        with pytest.raises(ValueError, match="score of row 0 overflows"):
+            backend.score(np.array([[BIG, 0]], dtype=F32), None, np.array([2, 0], F32), 0.0)
+        after = _native._test_fpenv_get()
+    finally:
+        _native._test_fpenv_restore(saved)
+    assert after == flushed

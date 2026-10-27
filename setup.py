@@ -9,14 +9,19 @@ from setuptools.command.build_ext import build_ext
 # other than the explicit ones, and no fast math (ARCHITECTURE.md, "Numerical contract").
 FLAGS = {
     "unix": ["-ffp-contract=off", "-fno-fast-math"],
-    "mingw32": ["-ffp-contract=off", "-fno-fast-math"],
     "msvc": ["/fp:precise"],
 }
 
 
 class BuildExt(build_ext):
     def build_extensions(self):
-        flags = FLAGS.get(self.compiler.compiler_type, [])
+        if self.compiler.compiler_type not in FLAGS:
+            # MinGW links fmaf from a runtime that rounds twice, which breaks the contract.
+            raise RuntimeError(
+                f"fse cannot be built with the {self.compiler.compiler_type} compiler; "
+                "use MSVC on Windows, or GCC or Clang elsewhere"
+            )
+        flags = FLAGS[self.compiler.compiler_type]
         for extension in self.extensions:
             extension.extra_compile_args = [*extension.extra_compile_args, *flags]
         super().build_extensions()

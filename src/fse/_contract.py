@@ -270,6 +270,12 @@ def _int_array(value: object, name: str, dtype: type) -> ndarray:
     return value
 
 
+def _readonly(array: ndarray) -> ndarray:
+    view = array.view()
+    view.flags.writeable = False
+    return view
+
+
 def _check_offsets(offsets: ndarray, total: int, name: str):
     if len(offsets) == 0 or offsets[0] != 0:
         raise ValueError(f"{name} must start with 0")
@@ -305,6 +311,9 @@ class Batch:
         tokens = _int_array(self.tokens, "tokens", np.uint32)
         offsets = _int_array(self.offsets, "offsets", np.int64)
         _check_offsets(offsets, len(tokens), "offsets")
+        # Read-only views, so a checked batch cannot be changed through its fields.
+        object.__setattr__(self, "tokens", _readonly(tokens))
+        object.__setattr__(self, "offsets", _readonly(offsets))
         if int(self.first_row) + len(offsets) - 2 > _INT64_MAX:
             raise ValueError(f"the rows of a batch from {self.first_row} exceed the int64 range")
         unknown = int(np.count_nonzero(tokens == OOV_TOKEN))
@@ -322,6 +331,8 @@ class Batch:
                 f"not {len(ngram_offsets)}"
             )
         _check_offsets(ngram_offsets, len(ngrams), "ngram_offsets")
+        object.__setattr__(self, "ngrams", _readonly(ngrams))
+        object.__setattr__(self, "ngram_offsets", _readonly(ngram_offsets))
 
     @property
     def n_sentences(self) -> int:

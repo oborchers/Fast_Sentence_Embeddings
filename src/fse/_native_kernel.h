@@ -30,9 +30,11 @@
 #if defined(_MSC_VER)
 #define FSE_RESTRICT __restrict
 #define FSE_INLINE static __forceinline
+#define FSE_NOINLINE __declspec(noinline)
 #else
 #define FSE_RESTRICT __restrict__
 #define FSE_INLINE static inline __attribute__((always_inline))
+#define FSE_NOINLINE __attribute__((noinline))
 #endif
 
 #if defined(__x86_64__) || defined(_M_X64)
@@ -470,10 +472,9 @@ static int fse_finite_row(const float *row, int n) {
 
 /* remove_components@1 on every row, in place; scratch holds dim floats. Returns the first
    row that is not finite afterwards, or -1. */
-static int64_t fse_remove_components(int isa, float *rows, int64_t n, int dim,
+FSE_NOINLINE static int64_t fse_remove_components_body(int isa, float *rows, int64_t n, int dim,
                                      const float *components, int k, const float *weights,
                                      float *scratch) {
-    fse_fpenv env = fse_fpenv_enter();
     int64_t bad = -1;
     for (int64_t r = 0; r < n; r++) {
         float *row = rows + (size_t)r * (size_t)dim;
@@ -487,14 +488,12 @@ static int64_t fse_remove_components(int isa, float *rows, int64_t n, int dim,
         for (int i = 0; i < dim; i++) row[i] = row[i] - scratch[i];
         if (bad < 0 && !fse_finite_row(row, dim)) bad = r;
     }
-    fse_fpenv_leave(env);
     return bad;
 }
 
 /* project@1: out row r holds the k values dot16(row, basis_j). */
-static int64_t fse_project(int isa, const float *rows, int64_t n, int dim, const float *basis,
+FSE_NOINLINE static int64_t fse_project_body(int isa, const float *rows, int64_t n, int dim, const float *basis,
                            int k, float *out) {
-    fse_fpenv env = fse_fpenv_enter();
     int64_t bad = -1;
     for (int64_t r = 0; r < n; r++) {
         const float *row = rows + (size_t)r * (size_t)dim;
@@ -502,14 +501,12 @@ static int64_t fse_project(int isa, const float *rows, int64_t n, int dim, const
         for (int j = 0; j < k; j++) o[j] = fse_dot16(isa, row, basis + (size_t)j * (size_t)dim, dim);
         if (bad < 0 && !fse_finite_row(o, k)) bad = r;
     }
-    fse_fpenv_leave(env);
     return bad;
 }
 
 /* normalize@1 in place. Returns the first nonzero row whose sum of squares underflows to
    0 or overflows in *unnormalizable (else -1), and the first non-finite row, or -1. */
-static int64_t fse_normalize(int isa, float *rows, int64_t n, int dim, int64_t *unnormalizable) {
-    fse_fpenv env = fse_fpenv_enter();
+FSE_NOINLINE static int64_t fse_normalize_body(int isa, float *rows, int64_t n, int dim, int64_t *unnormalizable) {
     int64_t bad = -1;
     *unnormalizable = -1;
     for (int64_t r = 0; r < n; r++) {
@@ -527,15 +524,13 @@ static int64_t fse_normalize(int isa, float *rows, int64_t n, int dim, int64_t *
         for (int i = 0; i < dim; i++) row[i] = row[i] * inv;
         if (bad < 0 && !fse_finite_row(row, dim)) bad = r;
     }
-    fse_fpenv_leave(env);
     return bad;
 }
 
 /* score: dot16(stored row as float32, w) * scale + bias for every stored row; scratch holds
    dim floats. Returns the first row whose score is not finite, or -1. */
-static int64_t fse_score(int isa, int dtype, const void *stored, const float *scales, int64_t n,
+FSE_NOINLINE static int64_t fse_score_body(int isa, int dtype, const void *stored, const float *scales, int64_t n,
                          int dim, const float *w, float bias, float *out, float *scratch) {
-    fse_fpenv env = fse_fpenv_enter();
     int64_t bad = -1;
     const size_t item = dtype == FSE_F32 ? 4 : dtype == FSE_F16 ? 2 : 1;
     for (int64_t r = 0; r < n; r++) {
@@ -553,8 +548,88 @@ static int64_t fse_score(int isa, int dtype, const void *stored, const float *sc
         out[r] = dot + bias;
         if (bad < 0 && !isfinite(out[r])) bad = r;
     }
+    return bad;
+}
+
+/* dot16 of rows a[r] and b[r] for r < n into out. */
+FSE_NOINLINE static void fse_dot16_rows_body(int isa, const float *a, const float *b, int64_t n,
+                                             int dim, float *out) {
+    for (int64_t r = 0; r < n; r++)
+        out[r] = fse_dot16(isa, a + (size_t)r * (size_t)dim, b + (size_t)r * (size_t)dim, dim);
+}
+
+/* The entry points: each sets the floating-point environment, then calls a function that
+   is never inlined, so no compiler can move its arithmetic before the environment is set
+   (MSVC's /fp:precise assumes an unchanged environment within a function). */
+static void fse_dot16_rows(int isa, const float *a, const float *b, int64_t n, int dim,
+                           float *out) {
+    fse_fpenv env = fse_fpenv_enter();
+    fse_dot16_rows_body(isa, a, b, n, dim, out);
+    fse_fpenv_leave(env);
+}
+static int64_t fse_remove_components(int isa, float *rows, int64_t n, int dim,
+                                     const float *components, int k, const float *weights,
+                                     float *scratch) {
+    fse_fpenv env = fse_fpenv_enter();
+    int64_t bad = fse_remove_components_body(isa, rows, n, dim, components, k, weights, scratch);
     fse_fpenv_leave(env);
     return bad;
+}
+static int64_t fse_project(int isa, const float *rows, int64_t n, int dim, const float *basis,
+                           int k, float *out) {
+    fse_fpenv env = fse_fpenv_enter();
+    int64_t bad = fse_project_body(isa, rows, n, dim, basis, k, out);
+    fse_fpenv_leave(env);
+    return bad;
+}
+static int64_t fse_normalize(int isa, float *rows, int64_t n, int dim, int64_t *unnormalizable) {
+    fse_fpenv env = fse_fpenv_enter();
+    int64_t bad = fse_normalize_body(isa, rows, n, dim, unnormalizable);
+    fse_fpenv_leave(env);
+    return bad;
+}
+static int64_t fse_score(int isa, int dtype, const void *stored, const float *scales, int64_t n,
+                         int dim, const float *w, float bias, float *out, float *scratch) {
+    fse_fpenv env = fse_fpenv_enter();
+    int64_t bad = fse_score_body(isa, dtype, stored, scales, n, dim, w, bias, out, scratch);
+    fse_fpenv_leave(env);
+    return bad;
+}
+
+/* For the tests: set (on = 1) or clear flush-to-zero and denormals-are-zero (FZ on arm64)
+   and return the previous environment, or restore one with fse_test_fpenv_restore. */
+static uint64_t fse_test_fpenv_flush(int on) {
+    fse_fpenv env = {0};
+#if defined(FSE_X86)
+    unsigned int csr = _mm_getcsr();
+    env.saved = csr;
+    _mm_setcsr(on ? (csr | 0x8000u | 0x0040u) : (csr & ~(0x8000u | 0x0040u)));
+#elif defined(FSE_NEON)
+    uint64_t fpcr;
+    __asm__ __volatile__("mrs %0, fpcr" : "=r"(fpcr));
+    env.saved = fpcr;
+    uint64_t want = on ? (fpcr | (1ull << 24)) : (fpcr & ~(1ull << 24));
+    __asm__ __volatile__("msr fpcr, %0" : : "r"(want));
+#else
+    (void)on;
+#endif
+    return env.saved;
+}
+static void fse_test_fpenv_restore(uint64_t saved) {
+    fse_fpenv env;
+    env.saved = saved;
+    fse_fpenv_leave(env);
+}
+static uint64_t fse_test_fpenv_get(void) {
+#if defined(FSE_X86)
+    return _mm_getcsr();
+#elif defined(FSE_NEON)
+    uint64_t fpcr;
+    __asm__ __volatile__("mrs %0, fpcr" : "=r"(fpcr));
+    return fpcr;
+#else
+    return 0;
+#endif
 }
 
 /* --- Instruction sets ---------------------------------------------------------------- */
@@ -606,6 +681,7 @@ static fse_loop_t fse_loop_for(int isa, int dtype) {
 static int64_t fse_run(int isa, const fse_params *p, const fse_batch *b, float *out,
                        int64_t *counts, int finish) {
     fse_fpenv env = fse_fpenv_enter();
+    /* Called through a pointer, so its arithmetic cannot move before the environment. */
     int64_t bad = fse_loop_for(isa, p->dtype)(p, b, out, counts, finish);
     fse_fpenv_leave(env);
     return bad;
