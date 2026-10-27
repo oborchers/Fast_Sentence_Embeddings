@@ -1,0 +1,280 @@
+from fractions import Fraction
+
+import numpy as np
+import pytest
+
+from fse._contract import OOV_TOKEN, Batch, Normalize, RemoveComponents
+from fse._reference import (
+    dequantize,
+    dot16,
+    fma32,
+    pool_weighted_mean,
+    postprocess,
+    quantize_rows,
+)
+from fse.models._quantize import quantize_into
+
+F32 = np.float32
+
+
+def bits(x):
+    return np.asarray(x, dtype=F32).view(np.uint32)
+
+
+def round_f32(value: Fraction) -> np.float32:
+    """The float32 nearest to an exact rational, ties to even."""
+    guess = F32(float(value))
+    candidates = {guess, np.nextafter(guess, F32(np.inf)), np.nextafter(guess, F32(-np.inf))}
+    candidates = [c for c in candidates if np.isfinite(c)]
+
+    def key(c):
+        return (abs(Fraction(float(c)) - value), int(bits(c)) & 1)
+
+    return min(candidates, key=key)
+
+
+def exact_fma(a, b, c):
+    return round_f32(Fraction(float(a)) * Fraction(float(b)) + Fraction(float(c)))
+
+
+def test_fma32_matches_exact_rounding_on_random_triples():
+    rng = np.random.default_rng(0)
+    n = 20_000
+    a = (rng.standard_normal(n) * 2.0 ** rng.integers(-30, 30, n)).astype(F32)
+    b = (rng.standard_normal(n) * 2.0 ** rng.integers(-30, 30, n)).astype(F32)
+    # c close to -a*b gives cancellation, the hard case for a double rounding.
+    c = np.where(rng.random(n) < 0.5, -(a * b), rng.standard_normal(n)).astype(F32)
+    c = (c * (1 + rng.standard_normal(n).astype(F32) * F32(1e-6))).astype(F32)
+    got = fma32(a, b, c)
+    expected = np.array([exact_fma(x, y, z) for x, y, z in zip(a, b, c, strict=True)])
+    np.testing.assert_array_equal(bits(got), bits(expected))
+
+
+def test_fma32_edge_cases():
+    tiny = F32(np.finfo(F32).smallest_subnormal)
+    big = np.finfo(F32).max
+    cases = [
+        (F32(1 + 2**-12), F32(1 + 2**-12), F32(-1)),  # cancellation
+        (F32(1 + 2**-23), F32(1 - 2**-23), F32(-1)),
+        (tiny, F32(0.5), F32(0)),  # subnormal result, tie
+        (tiny, F32(1.5), F32(0)),
+        (F32(3), tiny, -tiny),
+        (F32(1), F32(1), F32(2**-24)),  # tie at the last bit
+        (F32(1), F32(1), F32(3 * 2**-25)),
+        (F32(2**60), F32(2**60), F32(-1)),  # large exponent gaps
+        (F32(1e-30), F32(1e-30), F32(1)),
+        (F32(-0.0), F32(1), F32(0.0)),
+    ]
+    for a, b, c in cases:
+        assert bits(fma32(a, b, c)) == bits(exact_fma(a, b, c)), (a, b, c)
+    assert np.isposinf(fma32(big, F32(2), F32(0)))
+    # Not the same as rounding the product first.
+    a, b, c = cases[0]
+    assert bits(fma32(a, b, c)) != bits(F32(a * b) + c)
+    # A zero result has a positive sign unless both terms are negative zeros.
+    assert bits(fma32(F32(-0.0), F32(1), F32(0))) == 0
+    assert bits(fma32(F32(-0.0), F32(1), F32(-0.0))) == bits(F32(-0.0))
+
+
+def dot16_loop(row, vector):
+    partial = [F32(0)] * 16
+    for i, (x, y) in enumerate(zip(row, vector, strict=True)):
+        partial[i % 16] = F32(fma32(x, y, partial[i % 16]))
+    for width in (8, 4, 2, 1):
+        for lane in range(width):
+            partial[lane] = F32(partial[lane] + partial[lane + width])
+    return partial[0]
+
+
+@pytest.mark.parametrize("dim", [0, 1, 15, 16, 17, 300])
+def test_dot16_follows_its_order(dim):
+    rng = np.random.default_rng(dim)
+    rows = rng.standard_normal((3, dim)).astype(F32)
+    vector = rng.standard_normal(dim).astype(F32)
+    got = dot16(rows, vector)
+    assert got.dtype == F32
+    for row, value in zip(rows, got, strict=True):
+        assert bits(value) == bits(dot16_loop(row, vector))
+
+
+def test_dot16_ignores_zero_padding():
+    rng = np.random.default_rng(1)
+    rows = rng.standard_normal((4, 37)).astype(F32)
+    vector = rng.standard_normal(37).astype(F32)
+    padded = np.concatenate([rows, np.zeros((4, 11), dtype=F32)], axis=1)
+    np.testing.assert_array_equal(
+        bits(dot16(rows, vector)), bits(dot16(padded, np.concatenate([vector, np.zeros(11, F32)])))
+    )
+
+
+def _batch(sentences, first_row=0, ngrams=None):
+    offsets = np.cumsum([0, *map(len, sentences)]).astype(np.int64)
+    tokens = np.array([t for s in sentences for t in s], dtype=np.uint32)
+    if ngrams is None:
+        return Batch(first_row, offsets, tokens)
+    ngram_offsets = np.cumsum([0, *map(len, ngrams)]).astype(np.int64)
+    flat = np.array([b for n in ngrams for b in n], dtype=np.uint32)
+    return Batch(first_row, offsets, tokens, ngram_offsets, flat)
+
+
+def pool_loop(sentences, vectors, weights, scales=None):
+    rows = []
+    for sentence in sentences:
+        acc = np.zeros(vectors.shape[1], dtype=F32)
+        for t in sentence:
+            factor = F32(weights[t]) if scales is None else F32(F32(weights[t]) * F32(scales[t]))
+            for i in range(len(acc)):
+                acc[i] = fma32(factor, F32(vectors[t, i]), acc[i])
+        if sentence:
+            acc = F32(F32(1) / F32(len(sentence))) * acc
+        rows.append(acc)
+    return np.array(rows, dtype=F32)
+
+
+def test_pool_by_hand():
+    vectors = np.array([[1, 2], [3, -4], [0.5, 0.25]], dtype=F32)
+    weights = np.array([1, 0.5, 2], dtype=F32)
+    rows = pool_weighted_mean(_batch([[0, 1], [], [2, 2, 0]]), vectors, weights)
+    np.testing.assert_array_equal(rows[0], [1.25, 0.0])
+    np.testing.assert_array_equal(bits(rows[1]), [0, 0])  # +0.0, no EPS
+    np.testing.assert_array_equal(rows[2], F32(1 / 3) * np.array([3, 3], dtype=F32))
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+def test_pool_matches_a_loop(dtype):
+    rng = np.random.default_rng(7)
+    rows = rng.standard_normal((50, 19)).astype(F32)
+    vectors, scales = quantize_rows(rows, dtype)
+    weights = rng.random(50).astype(F32)
+    sentences = [list(rng.integers(0, 50, rng.integers(0, 12))) for _ in range(30)]
+    got = pool_weighted_mean(_batch(sentences), vectors, weights, scales)
+    np.testing.assert_array_equal(bits(got), bits(pool_loop(sentences, vectors, weights, scales)))
+
+
+def test_pool_is_independent_of_batch_splits():
+    rng = np.random.default_rng(3)
+    vectors = rng.standard_normal((40, 9)).astype(F32)
+    weights = rng.random(40).astype(F32)
+    sentences = [list(rng.integers(0, 40, rng.integers(0, 9))) for _ in range(17)]
+    whole = pool_weighted_mean(_batch(sentences), vectors, weights)
+    for cut in range(len(sentences) + 1):
+        parts = [
+            pool_weighted_mean(_batch(sentences[:cut]), vectors, weights),
+            pool_weighted_mean(_batch(sentences[cut:], first_row=cut), vectors, weights),
+        ]
+        np.testing.assert_array_equal(bits(np.concatenate(parts)), bits(whole))
+
+
+def test_pool_finishes_with_the_inverse_length():
+    # (1/3) * acc and acc / 3 differ for this value; the contract takes (1/3) * acc.
+    value = F32(1 + 2**-23)
+    vectors = np.array([[value]], dtype=F32)
+    weights = np.array([1], dtype=F32)
+    rows = pool_weighted_mean(_batch([[0], [0, 0, 0]]), vectors, weights)
+    acc = fma32(value, F32(1), fma32(value, F32(1), value))
+    assert F32(F32(1) / F32(3)) * acc != acc / F32(3)
+    assert bits(rows[1, 0]) == bits(F32(F32(1) / F32(3)) * acc)
+
+
+def test_pool_fasttext_words():
+    vectors = np.array([[1, 1]], dtype=F32)
+    ngram_vectors = np.array([[2, 0], [0, 4], [8, 8]], dtype=F32)
+    weights = np.array([1], dtype=F32)
+    batch = _batch([[0, OOV_TOKEN], [OOV_TOKEN, 0]], ngrams=[[0, 1], []])
+    rows = pool_weighted_mean(batch, vectors, weights, None, ngram_vectors, None, oov_weight=0.5)
+    # Unknown word: (1/2) * 0.5 per ngram; one without ngrams counts for the length only.
+    np.testing.assert_array_equal(rows[0], [0.5 * (1 + 0.5), 0.5 * (1 + 1)])
+    np.testing.assert_array_equal(rows[1], [0.5, 0.5])
+    codes, scales = quantize_rows(ngram_vectors, "int8")
+    int8_rows = pool_weighted_mean(batch, vectors, weights, None, codes, scales, oov_weight=0.5)
+    shared = F32(F32(F32(1) / F32(2)) * F32(0.5))
+    acc = fma32(F32(1), vectors[0], np.zeros(2, F32))
+    for b in (0, 1):
+        acc = fma32(F32(shared * scales[b]), codes[b].astype(F32), acc)
+    np.testing.assert_array_equal(bits(int8_rows[0]), bits(F32(0.5) * acc))
+    with pytest.raises(ValueError, match="needs ngram vectors"):
+        pool_weighted_mean(batch, vectors, weights)
+    with pytest.raises(ValueError, match="needs oov_weight"):
+        pool_weighted_mean(batch, vectors, weights, None, ngram_vectors)
+
+
+def test_remove_components_matches_a_loop():
+    rng = np.random.default_rng(5)
+    rows = rng.standard_normal((6, 20)).astype(F32)
+    q, _ = np.linalg.qr(rng.standard_normal((20, 3)))
+    components = np.ascontiguousarray(q.T, dtype=F32)
+    weights = np.array([1, 0.5, 0.25], dtype=F32)
+    for w in (None, weights):
+        got = postprocess(rows, [RemoveComponents(components, w)])
+        for row, out in zip(rows, got, strict=True):
+            projection = np.zeros(20, dtype=F32)
+            for j, u in enumerate(components):
+                c = dot16_loop(row, u)
+                c = c if w is None else F32(c * w[j])
+                projection = fma32(c, u, projection)
+            np.testing.assert_array_equal(bits(out), bits(row - projection))
+    removed = postprocess(rows, [RemoveComponents(components)])
+    np.testing.assert_allclose(removed @ components.T, 0, atol=1e-5)
+
+
+def test_normalize():
+    rng = np.random.default_rng(6)
+    rows = np.concatenate([rng.standard_normal((4, 30)), np.zeros((1, 30))]).astype(F32)
+    out = postprocess(rows, [Normalize()], first_row=10)
+    np.testing.assert_allclose(np.linalg.norm(out[:4], axis=1), 1, rtol=1e-6)
+    np.testing.assert_array_equal(bits(out[4]), 0)
+    np.testing.assert_array_equal(out[0], rows[0] * (F32(1) / np.sqrt(dot16(rows[:1], rows[0]))))
+    with pytest.raises(ValueError, match="row 11 cannot be normalized"):
+        postprocess(np.array([[1, 1], [1e-30, 0]], dtype=F32), [Normalize()], first_row=10)
+    with pytest.raises(ValueError, match="row 0 cannot be normalized"):
+        postprocess(np.array([[3e38, 3e38]], dtype=F32), [Normalize()])
+
+
+def test_postprocess_rejects_non_finite_rows():
+    with pytest.raises(ValueError, match="row 4 contains NaN"):
+        postprocess(np.array([[1, 0], [np.inf, 0]], dtype=F32), [], first_row=3)
+    rows = np.array([[1, 2]], dtype=F32)
+    out = postprocess(rows, [])
+    assert out is not rows
+    np.testing.assert_array_equal(out, rows)
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+def test_quantize_rows_matches_1x(dtype):
+    rng = np.random.default_rng(8)
+    big = np.finfo(F32).max
+    rows = np.concatenate(
+        [
+            rng.standard_normal((40, 7)) * 10.0 ** rng.integers(-40, 4, (40, 1)),
+            np.zeros((1, 7)),
+            np.full((1, 7), 65504.0),
+            np.array([[big, -big, 0, 1, 2, 3, 4]]) if dtype == "int8" else np.ones((1, 7)),
+        ]
+    ).astype(F32)
+    codes, scales = quantize_rows(rows, dtype)
+    expected = np.empty_like(
+        rows, dtype={"float32": F32, "float16": np.float16, "int8": np.int8}[dtype]
+    )
+    expected_scales = np.empty(len(rows), dtype=F32) if dtype == "int8" else None
+    quantize_into(rows, expected, expected_scales)
+    np.testing.assert_array_equal(codes.view(np.uint8), expected.view(np.uint8))
+    if dtype == "int8":
+        np.testing.assert_array_equal(bits(scales), bits(expected_scales))
+        np.testing.assert_array_equal(
+            bits(dequantize(codes, scales)), bits(codes.astype(F32) * scales[:, None])
+        )
+    else:
+        assert scales is None
+        np.testing.assert_array_equal(dequantize(codes, None), codes.astype(F32))
+
+
+def test_quantize_rows_rejects():
+    with pytest.raises(ValueError, match="finite"):
+        quantize_rows(np.array([[np.nan]], dtype=F32), "int8")
+    with pytest.raises(ValueError, match="float16 range"):
+        quantize_rows(np.array([[65520]], dtype=F32), "float16")
+    with pytest.raises(ValueError, match="unknown storage dtype"):
+        quantize_rows(np.ones((1, 1), dtype=F32), "int4")
+    codes, scales = quantize_rows(np.zeros((2, 0), dtype=F32), "int8")
+    assert codes.shape == (2, 0)
+    np.testing.assert_array_equal(scales, 0)
