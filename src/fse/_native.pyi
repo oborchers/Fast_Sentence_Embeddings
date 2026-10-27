@@ -69,3 +69,31 @@ def score(
     *,
     isa: str | None = None,
 ) -> ndarray: ...
+
+TOKENIZER_EXTERNAL: int
+TOKENIZER_FSE_WORDS: int
+MAX_SENTENCE_BYTES: int
+
+def tokenize(text: str | bytes, tokenizer: str = "fse_words@1") -> list[str]: ...
+
+class Workspace:
+    def __init__(self) -> None: ...
+
+class TextLookup:
+    tokenizer: int
+    def __init__(
+        self,
+        table: VocabTable,
+        tokenizer: str,
+        fasttext: tuple[int, int, int] | None = None,
+        max_ngrams: int = 0,
+    ) -> None: ...
+    def encode(
+        self,
+        data: object,
+        offsets: ndarray | None,
+        first: int,
+        last: int,
+        first_row: int,
+        ws: Workspace,
+    ) -> object: ...

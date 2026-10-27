@@ -5,6 +5,7 @@ code with it. Meta-tests at the end check that the corpus catches typical mistak
 the comparison cannot pass by accident.
 """
 
+import itertools
 import json
 import random
 import sys
@@ -147,3 +148,137 @@ def test_the_corpus_catches(monkeypatch, mistake, attribute, value):
         ref.tokenize_fse_words(text) != tokens for text, tokens in zip(CORPUS, want, strict=True)
     )
     assert wrong, f"no text catches {mistake}"
+
+
+# --- Stage 2: batches -------------------------------------------------------------------------
+
+
+def _lookup_setup(texts, share=0.5):
+    from fse._wordvectors import WordVectors
+
+    vocab = sorted(
+        {t for s in texts for t in ref.tokenize_fse_words(s)}
+        | {t for s in texts for t in s.split()}
+    )
+    keep = vocab[: int(len(vocab) * share)]
+    wv = WordVectors.from_arrays(np.zeros((len(keep), 2), np.float32), words=keep)
+    table = _native.VocabTable(wv.vocab_bytes, wv.vocab_offsets)
+    return table, {w.encode(): i for i, w in enumerate(keep)}
+
+
+def _items(texts):
+    encoded = [s.encode() for s in texts]
+    offsets = np.zeros(len(texts) + 1, np.int64)
+    np.cumsum([len(b) for b in encoded], out=offsets[1:])
+    return np.frombuffer(b"".join(encoded), np.uint8), offsets
+
+
+def assert_batches_equal(got, want):
+    assert got.first_row == want.first_row
+    for name in ("offsets", "tokens", "ngram_offsets", "ngrams"):
+        a, b = getattr(got, name), getattr(want, name)
+        assert (a is None) == (b is None), name
+        if a is not None:
+            assert a.dtype == b.dtype, name
+            np.testing.assert_array_equal(a, b, err_msg=name)
+
+
+ENCODE_TEXTS = CORPUS[:4000]
+FASTTEXT = [(None, 0), ((3, 5, 1000), 0), ((3, 5, 1000), 2), ((1, 3, 97), 1000), ((2, 2, 0), 5)]
+
+
+@pytest.mark.parametrize("tokenizer", TOKENIZERS)
+@pytest.mark.parametrize(("fasttext", "max_ngrams"), FASTTEXT)
+def test_native_batches_match_the_reference(tokenizer, fasttext, max_ngrams):
+    table, words = _lookup_setup(ENCODE_TEXTS)
+    lookup = _native.TextLookup(table, tokenizer, fasttext, max_ngrams)
+    data, offsets = _items(ENCODE_TEXTS)
+    got = lookup.encode(data, offsets, 0, len(ENCODE_TEXTS), 7, _native.Workspace())
+    want = ref.encode_texts(
+        ENCODE_TEXTS,
+        words,
+        tokenizer=tokenizer,
+        fasttext=fasttext,
+        max_ngrams=max_ngrams,
+        first_row=7,
+    )
+    assert_batches_equal(got, want)
+
+
+def test_lines_give_the_batches_of_their_strings():
+    texts = [t.replace("\n", " ").replace("\r", " ") for t in ENCODE_TEXTS]
+    table, words = _lookup_setup(texts)
+    lookup = _native.TextLookup(table, "fse_words@1", (3, 5, 1000), 3)
+    data = np.frombuffer(("\n".join(texts) + "\n").encode(), np.uint8)
+    got = lookup.encode(data, None, 0, len(data), 0, _native.Workspace())
+    want = ref.encode_texts(
+        texts, words, tokenizer="fse_words@1", fasttext=(3, 5, 1000), max_ngrams=3
+    )
+    assert_batches_equal(got, want)
+
+
+def test_ranges_split_a_source_without_changing_its_batches():
+    table, words = _lookup_setup(ENCODE_TEXTS)
+    lookup = _native.TextLookup(table, "fse_words@1", (3, 5, 1000), 4)
+    data, offsets = _items(ENCODE_TEXTS)
+    ws = _native.Workspace()
+    cuts = [0, 1, 1, 17, 500, 2048, len(ENCODE_TEXTS)]
+    for a, b in itertools.pairwise(cuts):
+        got = lookup.encode(data, offsets, a, b, a, ws)
+        want = ref.encode_texts(
+            ENCODE_TEXTS[a:b],
+            words,
+            tokenizer="fse_words@1",
+            fasttext=(3, 5, 1000),
+            max_ngrams=4,
+            first_row=a,
+        )
+        assert_batches_equal(got, want)
+
+
+def test_encoding_runs_in_threads():
+    from concurrent.futures import ThreadPoolExecutor
+
+    table, _ = _lookup_setup(ENCODE_TEXTS)
+    lookup = _native.TextLookup(table, "fse_words@1", (3, 5, 1000), 3)
+    data, offsets = _items(ENCODE_TEXTS)
+    ranges = [(i, min(i + 250, len(ENCODE_TEXTS))) for i in range(0, len(ENCODE_TEXTS), 250)]
+    alone = [lookup.encode(data, offsets, a, b, a, _native.Workspace()) for a, b in ranges]
+
+    def work(chunk):
+        ws = _native.Workspace()
+        return [lookup.encode(data, offsets, a, b, a, ws) for a, b in chunk]
+
+    with ThreadPoolExecutor(4) as pool:
+        parts = list(pool.map(work, [ranges[k::4] for k in range(4)]))
+    together = {b.first_row: b for part in parts for b in part}
+    for batch in alone:
+        assert_batches_equal(together[batch.first_row], batch)
+
+
+def test_encode_reports_invalid_utf8_with_its_sentence():
+    table, _ = _lookup_setup(["a b"], share=1)
+    lookup = _native.TextLookup(table, "fse_words@1")
+    data = np.frombuffer(b"a b\nok\nx \xff y\n", np.uint8)
+    with pytest.raises(
+        UnicodeDecodeError, match=r"in sentence 2 of the range \(byte 9 of the source\)"
+    ):
+        lookup.encode(data, None, 0, len(data), 0, _native.Workspace())
+
+
+def test_text_lookup_validates():
+    table, _ = _lookup_setup(["a"], share=1)
+    with pytest.raises(ValueError, match="not supported"):
+        _native.TextLookup(table, "nltk@1")
+    with pytest.raises(ValueError, match="max_ngrams needs fasttext"):
+        _native.TextLookup(table, "external", None, 3)
+    with pytest.raises(ValueError, match="min_n <= max_n"):
+        _native.TextLookup(table, "external", (4, 3, 10))
+    with pytest.raises(ValueError, match="max_ngrams must be between"):
+        _native.TextLookup(table, "external", (3, 4, 10), -1)
+    lookup = _native.TextLookup(table, "external")
+    data, offsets = _items(["a", "b"])
+    with pytest.raises(ValueError, match="outside"):
+        lookup.encode(data, offsets, 0, 3, 0, _native.Workspace())
+    with pytest.raises(ValueError, match="start of a line"):
+        lookup.encode(np.frombuffer(b"ab\ncd\n", np.uint8), None, 1, 6, 0, _native.Workspace())

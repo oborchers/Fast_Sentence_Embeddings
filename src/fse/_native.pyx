@@ -338,7 +338,7 @@ cdef class VocabTable:
             or vocab_offsets[len(vocab_offsets) - 1] != len(vocab_bytes)
         ):
             raise ValueError(f"vocab_offsets must run from 0 to {len(vocab_bytes)}, the number of bytes")
-        if (vocab_offsets[1:] < vocab_offsets[:-1]).any():
+        if (vocab_offsets[1:] < vocab_offsets[: len(vocab_offsets) - 1]).any():
             raise ValueError("vocab_offsets must not decrease")
         cdef Py_ssize_t n = len(vocab_offsets) - 1
         # Ids from OOV_TOKEN on are reserved.
@@ -1082,3 +1082,214 @@ def tokenize(text, tokenizer="fse_words@1"):
         free(cand)
         free(raw)
         free(ends)
+
+
+# ---------------------------------------------------------------------------------------
+# Stages 1 and 2: sentences of text to batches, without the GIL.
+# ---------------------------------------------------------------------------------------
+
+# A sentence longer than this is an error: fse reads one sentence per line or string.
+cdef Py_ssize_t _MAX_SENTENCE_BYTES = 1 << 30
+MAX_SENTENCE_BYTES = _MAX_SENTENCE_BYTES
+
+cdef enum:
+    ENCODE_OK = 0
+    ENCODE_NO_MEMORY = 1
+    ENCODE_BAD_UTF8 = 2
+    ENCODE_TOO_LONG = 3
+
+
+cdef inline int _ensure(_Buffer *b, Py_ssize_t extra) noexcept nogil:
+    """Make room for extra more bytes; returns -1 if memory runs out."""
+    if extra <= b.capacity - b.size:
+        return 0
+    return _grow_nogil(b, extra)
+
+
+cdef class Workspace:
+    """The buffers one worker reuses for every batch it encodes from text.
+
+    A Workspace is used by one thread at a time; give every worker its own.
+    """
+
+    cdef _Buffer cand, token_bytes, ends, word, tokens, offsets, ngram_offsets, ngrams
+    cdef bint busy
+
+    def __dealloc__(self):
+        free(self.cand.data)
+        free(self.token_bytes.data)
+        free(self.ends.data)
+        free(self.word.data)
+        free(self.tokens.data)
+        free(self.offsets.data)
+        free(self.ngram_offsets.data)
+        free(self.ngrams.data)
+
+    def __reduce__(self):
+        raise TypeError("a Workspace belongs to one worker and cannot be pickled")
+
+
+cdef class TextLookup:
+    """Stages 1 and 2 for one vocabulary: the tokenizer, the lookup and FastText hashing.
+
+    Immutable and shared by all workers; ``encode`` turns a range of sentences into a
+    Batch. Without ``fasttext`` (min_n, max_n, bucket), a token that is no word is dropped;
+    with it, it becomes OOV_TOKEN with its first ``max_ngrams`` ngram buckets.
+    """
+
+    cdef VocabTable table
+    cdef readonly int tokenizer
+    cdef bint fasttext
+    cdef unsigned int min_n, max_n
+    cdef uINT_t bucket
+    cdef size_t max_ngrams
+
+    def __init__(self, VocabTable table not None, tokenizer, fasttext=None, max_ngrams=0):
+        self.table = table
+        self.tokenizer = _tokenizer_code(tokenizer)
+        self.fasttext = fasttext is not None
+        if self.fasttext:
+            min_n, max_n, bucket = fasttext
+            if not 1 <= min_n <= max_n or bucket < 0 or bucket >= 2**32:
+                raise ValueError(f"fasttext must be (min_n, max_n, bucket) with 1 <= min_n <= max_n, not {fasttext}")
+            if not 0 <= max_ngrams <= MAX_NGRAMS_LIMIT:
+                raise ValueError(f"max_ngrams must be between 0 and {MAX_NGRAMS_LIMIT}, not {max_ngrams}")
+            self.min_n, self.max_n, self.bucket = min_n, max_n, bucket
+            self.max_ngrams = max_ngrams
+        elif max_ngrams != 0:
+            raise ValueError("max_ngrams needs fasttext")
+
+    def __reduce__(self):
+        raise TypeError("a TextLookup cannot be pickled; build it from the word vectors")
+
+    cdef int _sentence(self, const unsigned char *p, Py_ssize_t n, Workspace ws,
+                       Py_ssize_t *bad) noexcept nogil:
+        """Append the tokens of the sentence p[0:n] to the batch buffers of ws."""
+        cdef fse_tokens out
+        cdef Py_ssize_t k, start, length, cap, need
+        cdef int64_t err
+        cdef uINT_t index
+        cdef size_t written
+        cdef const int64_t *ends
+        if n > _MAX_SENTENCE_BYTES:
+            return ENCODE_TOO_LONG
+        need = 2 * n + 8
+        ws.cand.size = 0
+        ws.token_bytes.size = 0
+        ws.ends.size = 0
+        if (_ensure(&ws.cand, need) or _ensure(&ws.token_bytes, need)
+                or _ensure(&ws.ends, need * <Py_ssize_t>sizeof(int64_t))):
+            return ENCODE_NO_MEMORY
+        out.bytes = <unsigned char *>ws.token_bytes.data
+        out.ends = <int64_t *>ws.ends.data
+        err = fse_tokenize(self.tokenizer, p, n, <unsigned char *>ws.cand.data, &out)
+        if err >= 0:
+            bad[0] = err
+            return ENCODE_BAD_UTF8
+        ends = out.ends
+        start = 0
+        for k in range(out.n_tokens):
+            length = ends[k] - start
+            index = _vocab_lookup(&self.table.view, out.bytes + start, length)
+            if index != NOT_FOUND:
+                if _push_u32_nogil(&ws.tokens, index):
+                    return ENCODE_NO_MEMORY
+            elif self.fasttext:
+                if _push_u32_nogil(&ws.tokens, OOV_TOKEN):
+                    return ENCODE_NO_MEMORY
+                # The ngrams of "<token>": fewer than (length + 2) * max_n of them.
+                ws.word.size = 0
+                if _ensure(&ws.word, length + 2):
+                    return ENCODE_NO_MEMORY
+                ws.word.data[0] = b"<"
+                memcpy(ws.word.data + 1, out.bytes + start, length)
+                ws.word.data[length + 1] = b">"
+                cap = min(<Py_ssize_t>self.max_ngrams, (length + 2) * <Py_ssize_t>self.max_n)
+                if _ensure(&ws.ngrams, cap * <Py_ssize_t>sizeof(uINT_t)):
+                    return ENCODE_NO_MEMORY
+                written = ft_ngram_hashes_into(
+                    <const unsigned char *>ws.word.data, length + 2, self.min_n, self.max_n,
+                    self.bucket, <uINT_t *>(ws.ngrams.data + ws.ngrams.size), cap,
+                )
+                ws.ngrams.size += written * sizeof(uINT_t)
+                if _push_i64_nogil(&ws.ngram_offsets, ws.ngrams.size // sizeof(uINT_t)):
+                    return ENCODE_NO_MEMORY
+            start = ends[k]
+        if _push_i64_nogil(&ws.offsets, ws.tokens.size // sizeof(uINT_t)):
+            return ENCODE_NO_MEMORY
+        return ENCODE_OK
+
+    def encode(self, const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssize_t last,
+               first_row, Workspace ws not None):
+        """The Batch of one range of sentences of data, which starts at row first_row.
+
+        Line mode (offsets is None): the sentences are the lines that start in the bytes
+        [first, last), which the caller aligns to line starts. Item mode: the sentences
+        are the strings first to last - 1, delimited by the int64 offsets.
+        """
+        from fse._contract import Batch
+
+        _check_span(data, offsets, first, last)
+        if ws.busy:
+            raise RuntimeError("a Workspace is used by one thread at a time")
+        cdef Py_ssize_t n = data.shape[0]
+        cdef const unsigned char *p = &data[0] if n else NULL
+        cdef bint lines = offsets is None
+        cdef const np.int64_t[::1] item_offsets
+        cdef const np.int64_t *items = NULL
+        if not lines:
+            item_offsets = offsets
+            items = &item_offsets[0]
+        cdef Py_ssize_t pos = first, start, end, sentence = 0, bad = -1
+        cdef const unsigned char *newline
+        cdef int status = ENCODE_OK
+        ws.busy = True
+        try:
+            ws.tokens.size = 0
+            ws.offsets.size = 0
+            ws.ngram_offsets.size = 0
+            ws.ngrams.size = 0
+            with nogil:
+                if _push_i64_nogil(&ws.offsets, 0) or _push_i64_nogil(&ws.ngram_offsets, 0):
+                    status = ENCODE_NO_MEMORY
+                while status == ENCODE_OK and pos < last:
+                    if lines:
+                        newline = <const unsigned char *>memchr(p + pos, 10, n - pos)
+                        start = pos
+                        end = (newline - p) if newline != NULL else n
+                        pos = end + 1 if newline != NULL else n
+                    else:
+                        start = items[pos]
+                        end = items[pos + 1]
+                        pos += 1
+                    status = self._sentence(p + start, end - start, ws, &bad)
+                    if status == ENCODE_OK:
+                        sentence += 1
+            if status == ENCODE_NO_MEMORY:
+                raise MemoryError("could not grow the buffers of the Workspace")
+            if status == ENCODE_TOO_LONG:
+                raise ValueError(
+                    f"sentence {sentence} of the range has {end - start} bytes, more than "
+                    f"{MAX_SENTENCE_BYTES}; fse reads one sentence per line or string"
+                )
+            if status == ENCODE_BAD_UTF8:
+                raw = bytes(data[start:end])
+                try:
+                    raw.decode("utf-8")
+                except UnicodeDecodeError as err:
+                    raise UnicodeDecodeError(
+                        err.encoding, err.object, err.start, err.end,
+                        f"{err.reason} in sentence {sentence} of the range "
+                        f"(byte {start + err.start} of the source)",
+                    ) from None
+                raise AssertionError("the native decoder rejected valid UTF-8")  # pragma: no cover
+            tokens = _to_array(&ws.tokens, np.uint32)
+            batch_offsets = _to_array(&ws.offsets, np.int64)
+            if not self.fasttext:
+                return Batch(first_row, batch_offsets, tokens)
+            return Batch(
+                first_row, batch_offsets, tokens,
+                _to_array(&ws.ngram_offsets, np.int64), _to_array(&ws.ngrams, np.uint32),
+            )
+        finally:
+            ws.busy = False
