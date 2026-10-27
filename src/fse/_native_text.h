@@ -197,7 +197,8 @@ static void fse_emit_candidate(fse_tokens *out, uint8_t *c, int64_t s, int64_t e
     if (n >= 4 && n <= 6 && (u[0] == 'c' || u[0] == 'g' || u[0] == 'l' || u[0] == 'w' ||
                              u[0] == 'm' || u[0] == 'd' || u[0] == '\'')) {
         for (size_t k = 0; k < sizeof fse_contractions / sizeof fse_contractions[0]; k++) {
-            if (n == fse_contractions[k].len && memcmp(u, fse_contractions[k].word, (size_t)n) == 0) {
+            if (n == fse_contractions[k].len && u[0] == (uint8_t)fse_contractions[k].word[0] &&
+                memcmp(u, fse_contractions[k].word, (size_t)n) == 0) {
                 /* 'tis and 'twas: the first part is "'t", which stripping makes "t". */
                 fse_emit_part(out, c, s, s + fse_contractions[k].first);
                 fse_emit_part(out, c, s + fse_contractions[k].second, e);
@@ -213,7 +214,8 @@ static void fse_emit_candidate(fse_tokens *out, uint8_t *c, int64_t s, int64_t e
             return;
         }
     }
-    if (n >= 3) {
+    /* Every clitic starts with ' two or three bytes before the end. */
+    if (n >= 3 && (u[n - 2] == '\'' || u[n - 3] == '\'')) {
         for (size_t k = 0; k < sizeof fse_clitics / sizeof fse_clitics[0]; k++) {
             int64_t m = fse_clitics[k].len;
             if (n > m && memcmp(u + n - m, fse_clitics[k].suffix, (size_t)m) == 0 && u[n - m - 1] != '\'') {

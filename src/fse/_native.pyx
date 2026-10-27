@@ -225,19 +225,63 @@ cdef inline bint _is_space(const unsigned char *p, Py_ssize_t i, int n) noexcept
     return False
 
 
-cdef inline np.uint64_t _fnv1a64(const unsigned char *p, Py_ssize_t n) noexcept nogil:
-    cdef np.uint64_t h = 14695981039346656037ULL
-    cdef Py_ssize_t i
-    for i in range(n):
-        h ^= p[i]
-        h *= 1099511628211ULL
-    return h
-
-
 # Words of at most this many UTF-8 bytes are stored in their slot, so looking one up
 # usually reads a single cache line; longer words are compared in the arena.
 cdef enum:
     INLINE_KEY_BYTES = 16
+
+
+cdef inline np.uint64_t _load_partial(const unsigned char *p, Py_ssize_t k) noexcept nogil:
+    """The k <= 8 bytes at p as a little-endian word, zero above them."""
+    cdef np.uint64_t w = 0
+    cdef Py_ssize_t i
+    if k == 8:
+        memcpy(&w, p, 8)
+        return w
+    for i in range(k):
+        w |= (<np.uint64_t>p[i]) << (8 * i)
+    return w
+
+
+cdef inline np.uint64_t _mix(np.uint64_t h, np.uint64_t w) noexcept nogil:
+    h = (h ^ w) * 0xBF58476D1CE4E5B9ULL
+    return h ^ (h >> 29)
+
+
+cdef inline np.uint64_t _load_masked(const unsigned char *p, Py_ssize_t k) noexcept nogil:
+    """The k <= 8 bytes at p as a word, zero above them; reads 8 bytes."""
+    cdef np.uint64_t w
+    memcpy(&w, p, 8)
+    return w if k >= 8 else w & ((1ULL << (8 * k)) - 1)
+
+
+cdef inline np.uint64_t _hash_word(
+    const unsigned char *p, Py_ssize_t n, np.uint64_t *key, bint padded
+) noexcept nogil:
+    """The slot hash of a word, 8 bytes per step. For a word of at most INLINE_KEY_BYTES
+    bytes, key receives its bytes as two zero-padded words, as a slot stores them. With
+    padded, 16 bytes from p are readable, so the words are loaded whole and masked.
+
+    Only VocabTable uses it, for building and looking up, so it is no persistence format.
+    """
+    cdef np.uint64_t h = 0x9E3779B97F4A7C15ULL ^ <np.uint64_t>n
+    cdef Py_ssize_t left = n
+    if n <= INLINE_KEY_BYTES:
+        if padded:
+            key[0] = _load_masked(p, n)
+            key[1] = _load_masked(p + 8, n - 8) if n > 8 else 0
+        else:
+            key[0] = _load_partial(p, n if n < 8 else 8)
+            key[1] = _load_partial(p + 8, n - 8) if n > 8 else 0
+        h = _mix(_mix(h, key[0]), key[1])
+    else:
+        while left >= 8:
+            h = _mix(h, _load_partial(p, 8))
+            p += 8
+            left -= 8
+        h = _mix(h, _load_partial(p, left))
+    h *= 0x94D049BB133111EBULL
+    return h ^ (h >> 32)
 
 
 # One slot of the open-addressing table, 32 bytes. value is NOT_FOUND for a free slot.
@@ -245,8 +289,9 @@ cdef struct VocabSlot:
     np.uint64_t hash
     uINT_t value
     np.uint32_t length
-    # The word itself if length <= INLINE_KEY_BYTES, else its offset in the arena (int64).
-    unsigned char key[INLINE_KEY_BYTES]
+    # The word itself, zero-padded, if length <= INLINE_KEY_BYTES, else its offset in the
+    # arena (int64).
+    np.uint64_t key[2]
 
 
 cdef struct VocabView:
@@ -255,24 +300,24 @@ cdef struct VocabView:
     np.uint64_t mask
 
 
-cdef inline uINT_t _vocab_lookup(const VocabView *v, const unsigned char *p, Py_ssize_t n) noexcept nogil:
-    """Vocabulary index of the n bytes at p, or NOT_FOUND."""
-    cdef np.uint64_t h = _fnv1a64(p, n)
+cdef inline uINT_t _vocab_lookup(
+    const VocabView *v, const unsigned char *p, Py_ssize_t n, bint padded=False
+) noexcept nogil:
+    """Vocabulary index of the n bytes at p, or NOT_FOUND; padded as for _hash_word."""
+    cdef np.uint64_t key[2]
+    cdef np.uint64_t h = _hash_word(p, n, key, padded)
     cdef np.uint64_t j = h & v.mask
     cdef const VocabSlot *slot
-    cdef np.int64_t offset
     while True:
         slot = &v.slots[j]
         if slot.value == NOT_FOUND:
             return NOT_FOUND
         if slot.hash == h and slot.length == n:
             if n <= INLINE_KEY_BYTES:
-                if memcmp(slot.key, p, n) == 0:
+                if slot.key[0] == key[0] and slot.key[1] == key[1]:
                     return slot.value
-            else:
-                memcpy(&offset, slot.key, sizeof(np.int64_t))
-                if memcmp(v.arena + offset, p, n) == 0:
-                    return slot.value
+            elif memcmp(v.arena + <np.int64_t>slot.key[0], p, n) == 0:
+                return slot.value
         j = (j + 1) & v.mask
 
 
@@ -283,26 +328,26 @@ cdef inline np.int64_t _vocab_insert(
     """Insert the n bytes at arena[offset] as word index; returns -1, or the index of the
     word already stored with the same bytes."""
     cdef const unsigned char *p = arena + offset
-    cdef np.uint64_t h = _fnv1a64(p, n)
+    cdef np.uint64_t key[2]
+    cdef np.uint64_t h = _hash_word(p, n, key, False)
     cdef np.uint64_t j = h & mask
-    cdef np.int64_t other
     while slots[j].value != NOT_FOUND:
         if slots[j].hash == h and slots[j].length == n:
             if n <= INLINE_KEY_BYTES:
-                if memcmp(slots[j].key, p, n) == 0:
+                if slots[j].key[0] == key[0] and slots[j].key[1] == key[1]:
                     return slots[j].value
-            else:
-                memcpy(&other, slots[j].key, sizeof(np.int64_t))
-                if memcmp(arena + other, p, n) == 0:
-                    return slots[j].value
+            elif memcmp(arena + <np.int64_t>slots[j].key[0], p, n) == 0:
+                return slots[j].value
         j = (j + 1) & mask
     slots[j].hash = h
     slots[j].value = index
     slots[j].length = <np.uint32_t>n
     if n <= INLINE_KEY_BYTES:
-        memcpy(slots[j].key, p, n)
+        slots[j].key[0] = key[0]
+        slots[j].key[1] = key[1]
     else:
-        memcpy(slots[j].key, &offset, sizeof(np.int64_t))
+        slots[j].key[0] = <np.uint64_t>offset
+        slots[j].key[1] = 0
     return -1
 
 
@@ -1161,7 +1206,9 @@ cdef class TextLookup:
                        Py_ssize_t *bad) noexcept nogil:
         """Append the tokens of the sentence p[0:n] to the batch buffers of ws."""
         cdef fse_tokens out
-        cdef Py_ssize_t k, start, length, cap
+        cdef Py_ssize_t k, start, length, cap, kept
+        cdef bint padded
+        cdef uINT_t *ids
         cdef int64_t err
         cdef uINT_t index
         cdef size_t written
@@ -1170,25 +1217,32 @@ cdef class TextLookup:
         ws.cand.size = 0
         ws.starts.size = 0
         ws.ends.size = 0
-        if (_ensure(&ws.cand, 2 * n + 8) or _ensure(&ws.starts, (n + 1) * <Py_ssize_t>sizeof(int64_t))
+        # 32 bytes of slack, so every token of the candidates can be read 16 bytes wide.
+        if (_ensure(&ws.cand, 2 * n + 32) or _ensure(&ws.starts, (n + 1) * <Py_ssize_t>sizeof(int64_t))
                 or _ensure(&ws.ends, (n + 1) * <Py_ssize_t>sizeof(int64_t))):
             return ENCODE_NO_MEMORY
         out.starts = <int64_t *>ws.starts.data
         out.ends = <int64_t *>ws.ends.data
         err = fse_tokenize(self.tokenizer, p, n, <unsigned char *>ws.cand.data, &out)
+        # fse_words@1 tokens lie in the candidate buffer, external ones in the input.
+        padded = self.tokenizer == FSE_TOKENIZER_FSE_WORDS
         if err >= 0:
             bad[0] = err
             return ENCODE_BAD_UTF8
+        if _ensure(&ws.tokens, out.n_tokens * <Py_ssize_t>sizeof(uINT_t)):
+            return ENCODE_NO_MEMORY
+        ids = <uINT_t *>(ws.tokens.data + ws.tokens.size)
+        kept = 0
         for k in range(out.n_tokens):
             start = out.starts[k]
             length = out.ends[k] - start
-            index = _vocab_lookup(&self.table.view, out.bytes + start, length)
+            index = _vocab_lookup(&self.table.view, out.bytes + start, length, padded)
             if index != NOT_FOUND:
-                if _push_u32_nogil(&ws.tokens, index):
-                    return ENCODE_NO_MEMORY
+                ids[kept] = index
+                kept += 1
             elif self.fasttext:
-                if _push_u32_nogil(&ws.tokens, OOV_TOKEN):
-                    return ENCODE_NO_MEMORY
+                ids[kept] = OOV_TOKEN
+                kept += 1
                 # The ngrams of "<token>": fewer than (length + 2) * max_n of them.
                 ws.word.size = 0
                 if _ensure(&ws.word, length + 2):
@@ -1206,6 +1260,7 @@ cdef class TextLookup:
                 ws.ngrams.size += written * sizeof(uINT_t)
                 if _push_i64_nogil(&ws.ngram_offsets, ws.ngrams.size // sizeof(uINT_t)):
                     return ENCODE_NO_MEMORY
+        ws.tokens.size += kept * sizeof(uINT_t)
         if _push_i64_nogil(&ws.offsets, ws.tokens.size // sizeof(uINT_t)):
             return ENCODE_NO_MEMORY
         return ENCODE_OK

@@ -48,3 +48,12 @@ def test_the_table_matches_unicodedata():
             assert ord(lower) == want, hex(cp)
         else:
             assert cp == 0x0130, hex(cp)
+
+
+def test_lowercase_grows_utf8_by_at_most_half():
+    """The native tokenizer sizes its candidate buffer at 2 n + 32 bytes for n input bytes
+    and reads tokens 16 bytes wide, which needs lowercasing to grow UTF-8 by at most 1.5."""
+    growth = max(
+        len(chr(lower).encode()) / len(chr(cp).encode()) for cp, lower in SIMPLE_LOWERCASE.items()
+    )
+    assert growth == 1.5
