@@ -917,3 +917,78 @@ def test_text_list_rejects_numpy_string_subclasses():
 
     with pytest.raises(TypeError, match="SplitIndexedList"):
         TextList([Special("a b")])
+
+
+# SplitIndexedList of str takes the native path of TextList; the reference is its Python
+# path, forced by hiding the native scan.
+
+SPLIT_TEXTS = ["the dog", "", "is  good\tdog", "ä 東京 naïve", "unknown words here", " 　 "]
+
+
+def _python_split_path(monkeypatch):
+    monkeypatch.setattr(inputs, "scan_spans", None)
+
+
+@pytest.mark.parametrize("vectors", ["native_w2v", "native_ft"])
+@pytest.mark.parametrize("workers", [1, 3])
+def test_split_indexed_list_native_path_equals_python_path(request, monkeypatch, vectors, workers):
+    wv = request.getfixturevalue(vectors)
+    texts = SPLIT_TEXTS * 40
+    native = fse.SIF(wv, components=2, workers=workers)
+    native.batch_words = 50
+    calls = []
+    original = SplitIndexedList._scan_native
+
+    def spy(self, *args, **kwargs):
+        stats = original(self, *args, **kwargs)
+        calls.append(stats is not None)
+        return stats
+
+    monkeypatch.setattr(SplitIndexedList, "_scan_native", spy)
+    counts = native.train(SplitIndexedList(texts))
+    inferred = native.infer(SplitIndexedList(texts[:7]))
+    assert calls == [True, True]
+
+    with monkeypatch.context() as m:
+        _python_split_path(m)
+        python = fse.SIF(wv, components=2, workers=workers)
+        python.batch_words = 50
+        assert python.train(SplitIndexedList(texts)) == counts
+        expected = python.infer(SplitIndexedList(texts[:7]))
+    assert np.array_equal(native.sv.vectors, python.sv.vectors)
+    assert np.array_equal(inferred, expected)
+
+
+def test_split_indexed_list_sees_changes_and_releases_its_buffer(native_w2v):
+    texts = SplitIndexedList(["the dog", "is good"])
+    model = fse.Average(native_w2v)
+    model.train(texts)
+    assert texts._native_source is None and texts._scan_state is None
+    texts[1] = "good dog"
+    model.train(texts)
+    reference = fse.Average(native_w2v)
+    reference.train(TextList(["the dog", "good dog"]))
+    assert np.array_equal(model.sv.vectors, reference.sv.vectors)
+
+
+def test_split_indexed_list_keeps_the_python_path_for_other_items(monkeypatch, native_w2v):
+    class Commas(str):
+        def split(self):  # type: ignore[override]
+            return str.split(self, ",")
+
+    class Reversed(SplitIndexedList):
+        def __iter__(self):
+            return iter([(s.split()[::-1], i) for i, s in enumerate(self.items)])
+
+    surrogate = "the \ud800 dog"
+    for sentences, expected in (
+        (SplitIndexedList([Commas("the,dog"), "is good"]), [["the", "dog"], ["is", "good"]]),
+        (SplitIndexedList([surrogate]), [["the", "\ud800", "dog"]]),
+        (Reversed(["the dog"]), [["dog", "the"]]),
+    ):
+        assert sentences._scan_native(workers=2, progress=lambda *a: None) is None
+        model = fse.Average(native_w2v)
+        model.train(sentences)
+        reference = fse.Average(native_w2v)
+        reference.train(IndexedList(expected))
+        assert np.array_equal(model.sv.vectors, reference.sv.vectors)

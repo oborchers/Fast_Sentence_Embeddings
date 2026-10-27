@@ -246,6 +246,44 @@ class SplitIndexedList(BaseIndexedList):
             return MutableSequence.__iter__(self)
         return zip(map(_split, self.items), range(len(self.items)), strict=True)
 
+    # With the compiled extension, a SplitIndexedList of str is read like a TextList: the
+    # scan encodes the strings into one UTF-8 buffer, and every worker splits and looks
+    # up its own chunk without the GIL. The sentences are those of __iter__. The buffer is
+    # built anew for every train or infer call, so changes to the list are seen, and
+    # released when the call ends (_release_native). Other items, an override of
+    # __getitem__ or __iter__, or strings that cannot be encoded keep the Python path.
+
+    def _clear_native_scan(self):
+        self._scan_state = None
+        self._native_source = None
+
+    def _release_native(self):
+        self._clear_native_scan()
+
+    def _open_source(self) -> "_NativeSource":
+        return self._native_source
+
+    def _scan_native(self, workers: int, progress: Callable[[int, int], None]) -> dict | None:
+        if (
+            scan_spans is None
+            or type(self).__getitem__ is not SplitIndexedList.__getitem__
+            or type(self).__iter__ is not SplitIndexedList.__iter__
+            or any(type(s) not in (str, numpy.str_) for s in self.items)
+        ):
+            return None
+        try:
+            self._native_source = _encode_strings(self.items)
+        except UnicodeEncodeError:
+            # The Python path splits such strings and treats their words as unknown.
+            return None
+        return _scan_native(self, workers, progress)
+
+    def _native_chunks(self) -> "tuple[_NativeSource, list[tuple[int, int, int, int]]] | None":
+        """Source and chunks of the last native scan, or None after a Python scan."""
+        if getattr(self, "_scan_state", None) is None:
+            return None
+        return self._native_source, self._scan_state[1]
+
 
 class SplitCIndexedList(BaseIndexedList):
     def __init__(self, *args: list | ndarray, custom_index: list | ndarray):
@@ -559,6 +597,21 @@ class _NativeSource:
             return True
 
 
+def _encode_strings(items: Any) -> _NativeSource:
+    """The strings as one UTF-8 buffer with their offsets, for the native routines."""
+    encoded = []
+    for i, s in enumerate(items):
+        try:
+            encoded.append(s.encode("utf-8"))
+        except UnicodeEncodeError as err:
+            raise UnicodeEncodeError(
+                err.encoding, err.object, err.start, err.end, f"{err.reason} in string {i}"
+            ) from None
+    offsets = numpy.zeros(len(encoded) + 1, dtype=numpy.int64)
+    numpy.cumsum([len(e) for e in encoded], out=offsets[1:])
+    return _NativeSource(b"".join(encoded), offsets)
+
+
 def _stat_fingerprint(stat: os.stat_result) -> tuple[int, int, int, int]:
     """Identity and version of a file: device, inode, size and modification time."""
     return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
@@ -811,28 +864,15 @@ class TextList:
                 )
             items.append(str(s))
         self.items = tuple(items)
-        self._source = self._encode()
+        self._source = _encode_strings(self.items)
         self._scan_state: Any = None
-
-    def _encode(self) -> _NativeSource:
-        encoded = []
-        for i, s in enumerate(self.items):
-            try:
-                encoded.append(s.encode("utf-8"))
-            except UnicodeEncodeError as err:
-                raise UnicodeEncodeError(
-                    err.encoding, err.object, err.start, err.end, f"{err.reason} in string {i}"
-                ) from None
-        offsets = numpy.zeros(len(encoded) + 1, dtype=numpy.int64)
-        numpy.cumsum([len(e) for e in encoded], out=offsets[1:])
-        return _NativeSource(b"".join(encoded), offsets)
 
     def __getstate__(self):
         return {"items": self.items}
 
     def __setstate__(self, state):
         self.items = state["items"]
-        self._source = self._encode()
+        self._source = _encode_strings(self.items)
         self._scan_state = None
 
     def __iter__(self) -> Iterator[tuple]:

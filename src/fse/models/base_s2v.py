@@ -1067,8 +1067,11 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         # Workers and the removal of components call BLAS; it shares the cores among them.
-        with utils.blas_threads(self.workers):
-            return self._train(sentences, update, queue_factor, report_delay)
+        try:
+            with utils.blas_threads(self.workers):
+                return self._train(sentences, update, queue_factor, report_delay)
+        finally:
+            _release_native(sentences)
 
     def _train(
         self, sentences: Any, update: bool, queue_factor: int, report_delay: float
@@ -1396,6 +1399,13 @@ class BaseSentence2VecModel(SaveLoad):
             ``sv_dtype="float16"`` or ``"int8"``.
 
         """
+        try:
+            return self._infer(sentences, use_norm)
+        finally:
+            _release_native(sentences)
+
+    def _infer(self, sentences: Any, use_norm: bool) -> ndarray:
+        """The body of :meth:`infer`."""
         self._check_input_data_sanity(sentences)
 
         statistics = self.scan_sentences(sentences)
@@ -1817,6 +1827,13 @@ def _check_mapfile_size(path: Path, shape: tuple[int, ...], itemsize: int = dtyp
             f"the existing file {path} has {size} bytes, but vectors of shape {tuple(shape)} "
             f"need {expected}; delete it or pass another mapfile path"
         )
+
+
+def _release_native(sentences: Any):
+    """Let an input drop the buffer it built for the native path of one call."""
+    release = getattr(sentences, "_release_native", None)
+    if release is not None:
+        release()
 
 
 def _fill_eps(vectors: ndarray, start: int, stop: int):
