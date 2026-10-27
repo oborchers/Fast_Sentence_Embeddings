@@ -276,70 +276,111 @@ cdef inline uINT_t _vocab_lookup(const VocabView *v, const unsigned char *p, Py_
         j = (j + 1) & v.mask
 
 
+cdef inline np.int64_t _vocab_insert(
+    VocabSlot *slots, np.uint64_t mask, const unsigned char *arena, np.int64_t offset,
+    Py_ssize_t n, uINT_t index,
+) noexcept nogil:
+    """Insert the n bytes at arena[offset] as word index; returns -1, or the index of the
+    word already stored with the same bytes."""
+    cdef const unsigned char *p = arena + offset
+    cdef np.uint64_t h = _fnv1a64(p, n)
+    cdef np.uint64_t j = h & mask
+    cdef np.int64_t other
+    while slots[j].value != NOT_FOUND:
+        if slots[j].hash == h and slots[j].length == n:
+            if n <= INLINE_KEY_BYTES:
+                if memcmp(slots[j].key, p, n) == 0:
+                    return slots[j].value
+            else:
+                memcpy(&other, slots[j].key, sizeof(np.int64_t))
+                if memcmp(arena + other, p, n) == 0:
+                    return slots[j].value
+        j = (j + 1) & mask
+    slots[j].hash = h
+    slots[j].value = index
+    slots[j].length = <np.uint32_t>n
+    if n <= INLINE_KEY_BYTES:
+        memcpy(slots[j].key, p, n)
+    else:
+        memcpy(slots[j].key, &offset, sizeof(np.int64_t))
+    return -1
+
+
 cdef class VocabTable:
     """Immutable map from the UTF-8 bytes of a word to its vocabulary index.
 
-    Built once per train or infer call from key_to_index while holding the GIL, then
-    read without it: open addressing with linear probing, at most half full. Each slot
-    holds the hash, the index and, for words of up to INLINE_KEY_BYTES bytes, the word
-    itself, so a lookup touches one slot instead of several arrays.
+    Built without the GIL from the vocabulary of word vectors: ``vocab_bytes`` (uint8)
+    holds the words one after another, word i is ``vocab_bytes[vocab_offsets[i]:
+    vocab_offsets[i + 1]]``. Open addressing with linear probing, at most half full. Each
+    32-byte slot holds the hash, the index and, for words of up to INLINE_KEY_BYTES bytes,
+    the word itself, so a lookup usually reads one cache line; longer words are compared
+    in vocab_bytes, which the table keeps (it may be memory-mapped).
     """
 
-    cdef bytes arena
+    cdef object _bytes
     cdef object _slots
+    cdef Py_ssize_t n_words
     cdef VocabView view
 
-    def __init__(self, dict key_to_index):
-        cdef Py_ssize_t n = len(key_to_index)
+    def __init__(self, vocab_bytes, vocab_offsets):
+        if (
+            not isinstance(vocab_bytes, np.ndarray) or vocab_bytes.dtype != np.uint8
+            or vocab_bytes.ndim != 1 or not vocab_bytes.flags.c_contiguous
+        ):
+            raise ValueError("vocab_bytes must be a C-contiguous uint8 vector")
+        if (
+            not isinstance(vocab_offsets, np.ndarray) or vocab_offsets.dtype != np.int64
+            or vocab_offsets.ndim != 1 or not vocab_offsets.flags.c_contiguous
+        ):
+            raise ValueError("vocab_offsets must be a C-contiguous int64 vector")
+        if (
+            len(vocab_offsets) == 0 or vocab_offsets[0] != 0
+            or vocab_offsets[len(vocab_offsets) - 1] != len(vocab_bytes)
+        ):
+            raise ValueError(f"vocab_offsets must run from 0 to {len(vocab_bytes)}, the number of bytes")
+        if (vocab_offsets[1:] < vocab_offsets[:-1]).any():
+            raise ValueError("vocab_offsets must not decrease")
+        cdef Py_ssize_t n = len(vocab_offsets) - 1
+        # Ids from OOV_TOKEN on are reserved.
+        if n >= <Py_ssize_t>OOV_TOKEN:
+            raise ValueError(f"a vocabulary holds fewer than {OOV_TOKEN} words, not {n}")
         cdef np.uint64_t size = 2
         while size < 2 * <np.uint64_t>n:
             size <<= 1
         # Raw bytes, so the slot layout is the C struct's, whatever numpy would pad.
-        self._slots = np.zeros(size * sizeof(VocabSlot), dtype=np.uint8)
+        self._slots = np.empty(size * sizeof(VocabSlot), dtype=np.uint8)
+        self._bytes = vocab_bytes
+        self.n_words = n
         cdef VocabSlot *slots = <VocabSlot *>np.PyArray_DATA(self._slots)
+        cdef const unsigned char *arena = <const unsigned char *>np.PyArray_DATA(vocab_bytes)
+        cdef const np.int64_t[::1] offsets = vocab_offsets
+        cdef np.uint64_t mask = size - 1
         cdef np.uint64_t j
-        for j in range(size):
-            slots[j].value = NOT_FOUND
-
-        cdef list words = []
-        cdef list parts = []
-        cdef np.int64_t position = 0
-        for word, index in key_to_index.items():
-            encoded = (<str?>word).encode("utf-8")
-            words.append((encoded, index, position))
-            if len(encoded) > INLINE_KEY_BYTES:
-                parts.append(encoded)
-                position += len(encoded)
-        self.arena = b"".join(parts)
+        cdef Py_ssize_t i
+        cdef np.int64_t dup = -1
+        with nogil:
+            memset(slots, 0, size * sizeof(VocabSlot))
+            for j in range(size):
+                slots[j].value = NOT_FOUND
+            for i in range(n):
+                dup = _vocab_insert(slots, mask, arena, offsets[i], offsets[i + 1] - offsets[i], <uINT_t>i)
+                if dup >= 0:
+                    break
+        if dup >= 0:
+            raise ValueError(f"word {i} is also word {dup} of the vocabulary")
         self.view.slots = slots
-        self.view.arena = self.arena
-        self.view.mask = size - 1
-
-        cdef np.uint64_t h
-        cdef np.int64_t offset
-        cdef const unsigned char *raw
-        cdef Py_ssize_t length
-        for encoded, index, offset in words:
-            raw = <bytes>encoded
-            length = len(encoded)
-            h = _fnv1a64(raw, length)
-            j = h & self.view.mask
-            while slots[j].value != NOT_FOUND:
-                j = (j + 1) & self.view.mask
-            slots[j].hash = h
-            slots[j].value = <uINT_t>index
-            slots[j].length = <np.uint32_t>length
-            if length <= INLINE_KEY_BYTES:
-                memcpy(slots[j].key, raw, length)
-            else:
-                memcpy(slots[j].key, &offset, sizeof(np.int64_t))
+        self.view.arena = arena
+        self.view.mask = mask
 
     def __reduce__(self):
-        raise TypeError("VocabTable only exists during a train or infer call")
+        raise TypeError("a VocabTable cannot be pickled; build it from the word vectors")
+
+    def __len__(self):
+        return self.n_words
 
     def get(self, word):
-        """Vocabulary index of word (str), or None; for tests."""
-        encoded = (<str?>word).encode("utf-8")
+        """Vocabulary index of word (str or bytes), or None; for tests."""
+        encoded = word if isinstance(word, bytes) else (<str?>word).encode("utf-8")
         cdef uINT_t index = _vocab_lookup(&self.view, encoded, len(encoded))
         return None if index == NOT_FOUND else index
 
