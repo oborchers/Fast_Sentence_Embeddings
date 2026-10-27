@@ -64,8 +64,9 @@ def test_every_container_round_trips_bit_for_bit(tmp_path, name, mmap):
         "empty": np.zeros((0, 4), dtype=F32),
         "scalar_like": np.array([F32(-0.0)]),
     }
-    container.write(tmp_path / "a", tensors, {**_METADATA, "fse.created_by": "test"})
-    opened, metadata = container.open(tmp_path / "a", mmap=mmap)
+    path = tmp_path / f"a{container.suffix}"
+    container.write(path, tensors, {**_METADATA, "fse.created_by": "test"})
+    opened, metadata = container.open(path, mmap=mmap)
     assert set(opened) == set(tensors)
     for key, array in tensors.items():
         got = opened[key]
@@ -79,7 +80,7 @@ def test_every_container_round_trips_bit_for_bit(tmp_path, name, mmap):
     entries = {k: (tensor_code(v), v.shape, array_sha256(v)) for k, v in tensors.items()}
     assert metadata["fse.fingerprint"] == fingerprint(entries, metadata)
     assert metadata["fse.checksum.empty"] == array_sha256(tensors["empty"])
-    container.verify(tmp_path / "a")
+    container.verify(path)
 
 
 def test_same_content_same_fingerprint(tmp_path):

@@ -56,6 +56,7 @@ _MANIFEST = "manifest.json"
 MAX_MANIFEST_BYTES = 16 * 2**20
 MAX_HEADER_BYTES = 65_536
 MAX_RANK = 32
+MAX_SAFETENSORS_HEADER_BYTES = 16 * 2**20
 _EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
 
 
@@ -68,6 +69,7 @@ class TensorContainer(Protocol):
 
     name: str
     version: int
+    suffix: str  # of the path of an artifact: "" for a directory, ".safetensors" for a file
 
     def write(self, path: Path, tensors: Mapping[str, ndarray], metadata: Mapping[str, str]):
         """Write a new artifact at ``path``; adds checksums and the fingerprint."""
@@ -142,6 +144,75 @@ def _check_metadata(metadata: Mapping[str, str]):
             raise ValueError(f"metadata must map str to str, not {key!r}: {value!r}")
 
 
+def _check_for_writing(tensors: Mapping[str, ndarray], metadata: Mapping[str, str]) -> dict:
+    """Check tensors and metadata a container is asked to write; return the dtype codes."""
+    _check_metadata(metadata)
+    for key in metadata:
+        if key == FINGERPRINT_KEY or key.startswith(CHECKSUM_PREFIX):
+            raise ValueError(f"{key} is written by the container, not by the caller")
+    codes = {}
+    for name, array in tensors.items():
+        if not isinstance(name, str) or not TENSOR_NAME.fullmatch(name):
+            raise ValueError(f"{name!r} is not a tensor name: [a-z0-9_]+ parts joined by dots")
+        if not isinstance(array, ndarray):
+            raise TypeError(f"tensor {name} must be a numpy array, not {type(array).__name__}")
+        if not array.flags.c_contiguous:
+            raise ValueError(f"tensor {name} must be C-contiguous")
+        if array.ndim > MAX_RANK:
+            raise ValueError(f"tensor {name} has more than {MAX_RANK} dimensions")
+        codes[name] = tensor_code(array)
+    return codes
+
+
+def _integrity(
+    path: Path, specs: Mapping[str, tuple[str, tuple[int, ...]]], metadata: dict
+) -> dict:
+    """Check the checksum keys and the fingerprint of tensors given as ``name -> (code,
+    shape)``; return ``name -> (code, shape, checksum)``.
+    """
+    checksums = {
+        k[len(CHECKSUM_PREFIX) :]: v for k, v in metadata.items() if k.startswith(CHECKSUM_PREFIX)
+    }
+    if set(checksums) != set(specs):
+        raise CorruptArtifactError(f"{path}: the checksum keys do not match the tensors")
+    for name, digest in checksums.items():
+        if not _SHA256.fullmatch(digest):
+            raise CorruptArtifactError(f"{path}: the checksum of {name} is malformed")
+    recorded = metadata.get(FINGERPRINT_KEY)
+    if recorded is None or not _FINGERPRINT.fullmatch(recorded):
+        raise CorruptArtifactError(f"{path}: {FINGERPRINT_KEY} is missing or malformed")
+    entries = {name: (code, shape, checksums[name]) for name, (code, shape) in specs.items()}
+    if fingerprint(entries, metadata) != recorded:
+        raise CorruptArtifactError(f"{path}: {FINGERPRINT_KEY} does not match the content")
+    return entries
+
+
+def _strict_json(raw: bytes, file: Path) -> Any:
+    """Parse JSON without duplicate keys and without NaN or infinity."""
+
+    def pairs(items):
+        keys = [k for k, _ in items]
+        if len(keys) != len(set(keys)):
+            raise CorruptArtifactError(f"{file} has a duplicate key")
+        return dict(items)
+
+    def constant(name):
+        raise CorruptArtifactError(f"{file} contains {name}, which is not JSON")
+
+    try:
+        return json.loads(raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=constant)
+    except (UnicodeDecodeError, json.JSONDecodeError) as err:
+        raise CorruptArtifactError(f"{file} is not valid JSON: {err}") from err
+
+
+def _shape(value: Any) -> bool:
+    return (
+        isinstance(value, list)
+        and len(value) <= MAX_RANK
+        and all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in value)
+    )
+
+
 def _open_regular(file: Path):
     """Open ``file`` for reading if it is a regular file and no symbolic link.
 
@@ -182,19 +253,7 @@ def _read_manifest(path: Path) -> dict[str, Any]:
             raise CorruptArtifactError(f"{file} is larger than {MAX_MANIFEST_BYTES} bytes")
         raw = handle.read(size)
 
-    def pairs(items):
-        keys = [k for k, _ in items]
-        if len(keys) != len(set(keys)):
-            raise CorruptArtifactError(f"{file} has a duplicate key")
-        return dict(items)
-
-    def constant(name):
-        raise CorruptArtifactError(f"{file} contains {name}, which is not JSON")
-
-    try:
-        manifest = json.loads(raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=constant)
-    except (UnicodeDecodeError, json.JSONDecodeError) as err:
-        raise CorruptArtifactError(f"{file} is not valid JSON: {err}") from err
+    manifest = _strict_json(raw, file)
     if not isinstance(manifest, dict) or set(manifest) != {
         "container",
         "container_version",
@@ -311,6 +370,7 @@ class NpyContainer:
 
     name = "npy"
     version = 1
+    suffix = ""  # a directory
 
     def write(
         self,
@@ -328,21 +388,7 @@ class NpyContainer:
         path = Path(path)
         if path.exists() or path.is_symlink():
             raise FileExistsError(f"{path} exists; an artifact is never overwritten")
-        _check_metadata(metadata)
-        for key in metadata:
-            if key == FINGERPRINT_KEY or key.startswith(CHECKSUM_PREFIX):
-                raise ValueError(f"{key} is written by the container, not by the caller")
-        codes = {}
-        for name, array in tensors.items():
-            if not isinstance(name, str) or not TENSOR_NAME.fullmatch(name):
-                raise ValueError(f"{name!r} is not a tensor name: [a-z0-9_]+ parts joined by dots")
-            if not isinstance(array, ndarray):
-                raise TypeError(f"tensor {name} must be a numpy array, not {type(array).__name__}")
-            if not array.flags.c_contiguous:
-                raise ValueError(f"tensor {name} must be C-contiguous")
-            if array.ndim > MAX_RANK:
-                raise ValueError(f"tensor {name} has more than {MAX_RANK} dimensions")
-            codes[name] = tensor_code(array)
+        codes = _check_for_writing(tensors, metadata)
         # Creating the directory reserves the path atomically; the manifest, renamed into
         # place last, commits the artifact: without it, readers see no artifact.
         path.mkdir()
@@ -446,27 +492,8 @@ class NpyContainer:
 
     @staticmethod
     def _check_integrity_keys(path: Path, manifest: dict, metadata: dict[str, str]) -> dict:
-        tensors = manifest["tensors"]
-        checksums = {
-            k[len(CHECKSUM_PREFIX) :]: v
-            for k, v in metadata.items()
-            if k.startswith(CHECKSUM_PREFIX)
-        }
-        if set(checksums) != set(tensors):
-            raise CorruptArtifactError(f"{path}: the checksum keys do not match the tensors")
-        for name, digest in checksums.items():
-            if not _SHA256.fullmatch(digest):
-                raise CorruptArtifactError(f"{path}: the checksum of {name} is malformed")
-        recorded = metadata.get(FINGERPRINT_KEY)
-        if recorded is None or not _FINGERPRINT.fullmatch(recorded):
-            raise CorruptArtifactError(f"{path}: {FINGERPRINT_KEY} is missing or malformed")
-        entries = {
-            name: (entry["dtype"], tuple(entry["shape"]), checksums[name])
-            for name, entry in tensors.items()
-        }
-        if fingerprint(entries, metadata) != recorded:
-            raise CorruptArtifactError(f"{path}: {FINGERPRINT_KEY} does not match the content")
-        return entries
+        specs = {n: (e["dtype"], tuple(e["shape"])) for n, e in manifest["tensors"].items()}
+        return _integrity(path, specs, metadata)
 
     def verify(self, path):
         path = Path(path)
@@ -484,5 +511,262 @@ class NpyContainer:
                 raise CorruptArtifactError(f"{file} does not match its checksum")
 
 
+_SAFETENSORS_LENGTH = 8  # bytes of the little-endian header length
+
+
+def _read_safetensors_header(handle, file: Path) -> tuple[int, dict, dict[str, str]]:
+    """Parse and check the header of a safetensors file.
+
+    Returns the offset of the data, ``name -> (code, shape, begin, end)`` and the metadata.
+    """
+    size = os.fstat(handle.fileno()).st_size
+    prefix = handle.read(_SAFETENSORS_LENGTH)
+    if len(prefix) != _SAFETENSORS_LENGTH:
+        raise CorruptArtifactError(f"{file} is too short for a safetensors file")
+    length = int.from_bytes(prefix, "little")
+    if length > MAX_SAFETENSORS_HEADER_BYTES or _SAFETENSORS_LENGTH + length > size:
+        raise CorruptArtifactError(f"{file} declares a header of {length} bytes")
+    raw = handle.read(length)
+    if len(raw) != length:
+        raise CorruptArtifactError(f"{file} ended inside its header")
+    # The JSON starts with "{" and may be padded with spaces only.
+    text = raw.rstrip(b" ")
+    if not text.startswith(b"{") or not text.endswith(b"}"):
+        raise CorruptArtifactError(f"{file} has a header that is no JSON object padded with spaces")
+    header = _strict_json(text, file)
+    if not isinstance(header, dict):
+        raise CorruptArtifactError(f"{file} has a header that is no JSON object")
+    metadata = header.pop("__metadata__", None)
+    if not isinstance(metadata, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in metadata.items()
+    ):
+        raise CorruptArtifactError(f"{file} needs __metadata__ mapping strings to strings")
+    start = _SAFETENSORS_LENGTH + length
+    if start % 8:
+        raise CorruptArtifactError(f"the data of {file} starts at {start}, not at a multiple of 8")
+    entries = {}
+    for name, entry in header.items():
+        if not TENSOR_NAME.fullmatch(name):
+            raise CorruptArtifactError(f"{file}: {name!r} is not a tensor name")
+        if not isinstance(entry, dict) or set(entry) != {"dtype", "shape", "data_offsets"}:
+            raise CorruptArtifactError(
+                f"{file}: tensor {name} must hold exactly dtype, shape and data_offsets"
+            )
+        code = entry["dtype"]
+        if not isinstance(code, str):
+            raise CorruptArtifactError(f"{file}: tensor {name} has no dtype string")
+        if code not in DTYPE_CODES:
+            raise UnsupportedArtifactError(
+                f"{file}: tensor {name} has dtype {code}; fse reads {', '.join(DTYPE_CODES)}"
+            )
+        if not _shape(entry["shape"]):
+            raise CorruptArtifactError(
+                f"{file}: the shape of tensor {name} must be non-negative ints"
+            )
+        offsets = entry["data_offsets"]
+        if (
+            not isinstance(offsets, list)
+            or len(offsets) != 2
+            or not all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in offsets)
+        ):
+            raise CorruptArtifactError(f"{file}: tensor {name} needs two data offsets")
+        begin, end = offsets
+        itemsize = np.dtype(DTYPE_CODES[code]).itemsize
+        shape = tuple(entry["shape"])
+        if end - begin != math.prod(shape) * itemsize:  # Python ints: no overflow
+            raise CorruptArtifactError(
+                f"{file}: the data offsets of tensor {name} do not fit its shape"
+            )
+        if begin % itemsize:
+            raise CorruptArtifactError(f"{file}: tensor {name} is not aligned to its type")
+        entries[name] = (code, shape, begin, end)
+    # The tensors cover the data without gaps or overlaps, up to the end of the file.
+    position = 0
+    for name, (_, _, begin, end) in sorted(
+        entries.items(), key=lambda item: (item[1][2], item[1][3])
+    ):
+        if begin != position:
+            raise CorruptArtifactError(
+                f"{file}: the data of tensor {name} leaves a gap or overlaps"
+            )
+        position = end
+    if start + position != size:
+        raise CorruptArtifactError(f"{file} has {size} bytes, {start + position} expected")
+    return start, entries, metadata
+
+
+class SafetensorsContainer:
+    """All tensors in one ``.safetensors`` file: the container of models and of the hub.
+
+    The format of safetensors (ARCHITECTURE.md, "safetensors 1"): an 8-byte little-endian
+    header length, a JSON header with every tensor's dtype, shape and data offsets and the
+    metadata in ``__metadata__``, then the data. Tensors are laid out by descending item
+    size, then name, without gaps, so each is aligned to its type; the header is padded
+    with spaces so that the data start at a multiple of 64 bytes.
+    """
+
+    name = "safetensors"
+    version = 1
+    suffix = ".safetensors"
+
+    def write(
+        self,
+        path,
+        tensors: Mapping[str, ndarray],
+        metadata: Mapping[str, str],
+        expected: Mapping[str, str] | None = None,
+    ):
+        """Write a new file; ``expected`` checksums, if given, must match the data.
+
+        The data are hashed while they are written; the header, whose length does not
+        depend on the checksums, is completed afterwards.
+        """
+        path = Path(path)
+        if path.suffix != self.suffix:
+            raise ValueError(f"{path} must end with {self.suffix}")
+        if path.exists() or path.is_symlink():
+            raise FileExistsError(f"{path} exists; an artifact is never overwritten")
+        codes = _check_for_writing(tensors, metadata)
+        order = sorted(tensors, key=lambda n: (-tensors[n].dtype.itemsize, n))
+        layout = {}
+        position = 0
+        for name in order:
+            layout[name] = (position, position + tensors[name].nbytes)
+            position += tensors[name].nbytes
+        placeholder = dict(metadata)
+        for name in tensors:
+            placeholder[CHECKSUM_PREFIX + name] = "0" * 64
+        placeholder[FINGERPRINT_KEY] = "sha256:" + "0" * 64
+        length = len(self._header(tensors, codes, layout, placeholder))
+        length += -(_SAFETENSORS_LENGTH + length) % ALIGNMENT
+        if length > MAX_SAFETENSORS_HEADER_BYTES:
+            raise ValueError(f"the header would exceed {MAX_SAFETENSORS_HEADER_BYTES} bytes")
+        tmp = path.parent / f".{path.name}.writing-{secrets.token_hex(4)}"
+        try:
+            with tmp.open("xb") as f:
+                f.write(b"\0" * (_SAFETENSORS_LENGTH + length))
+                checksums = {}
+                for name in order:
+                    digest = hashlib.sha256()
+                    array = tensors[name]
+                    if array.size:
+                        view = memoryview(array.reshape(-1).view(np.uint8))
+                        for begin in range(0, len(view), _CHUNK):
+                            part = view[begin : begin + _CHUNK]
+                            digest.update(part)
+                            f.write(part)
+                    checksums[name] = digest.hexdigest()
+                    if expected is not None and expected.get(name) != checksums[name]:
+                        raise CorruptArtifactError(
+                            f"tensor {name} changed since it was checked; nothing was written"
+                        )
+                full = dict(metadata)
+                for name, checksum in checksums.items():
+                    full[CHECKSUM_PREFIX + name] = checksum
+                entries = {
+                    n: (codes[n], tuple(int(d) for d in tensors[n].shape), checksums[n])
+                    for n in tensors
+                }
+                full[FINGERPRINT_KEY] = fingerprint(entries, full)
+                header = self._header(tensors, codes, layout, full)
+                f.seek(0)
+                f.write(length.to_bytes(_SAFETENSORS_LENGTH, "little"))
+                f.write(header + b" " * (length - len(header)))
+                f.flush()
+                os.fsync(f.fileno())
+            _publish(tmp, path)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
+        _sync_directory(path.parent)
+
+    @staticmethod
+    def _header(tensors, codes, layout, metadata) -> bytes:
+        header: dict[str, Any] = {"__metadata__": dict(metadata)}
+        for name, (begin, end) in layout.items():
+            header[name] = {
+                "dtype": codes[name],
+                "shape": [int(d) for d in tensors[name].shape],
+                "data_offsets": [begin, end],
+            }
+        return canonical_json(header).encode("utf-8")
+
+    def open(self, path, *, mmap: bool) -> tuple[dict[str, ndarray], dict[str, str]]:
+        path = Path(path)
+        with _open_regular(path) as handle:
+            start, layout, metadata = _read_safetensors_header(handle, path)
+            entries = _integrity(path, {n: (c, s) for n, (c, s, _, _) in layout.items()}, metadata)
+            size = max((end for _, _, _, end in layout.values()), default=0)
+            if mmap:
+                data = (
+                    np.memmap(handle, dtype=np.uint8, mode="r", offset=start, shape=(size,))
+                    if size
+                    else None
+                )
+            else:
+                raw = handle.read(size)
+                if len(raw) != size:
+                    raise CorruptArtifactError(f"{path} ended early")
+        tensors = {}
+        for name, (code, shape, begin, end) in layout.items():
+            dtype = np.dtype(DTYPE_CODES[code])
+            if begin == end:
+                if entries[name][2] != _EMPTY_SHA256:
+                    raise CorruptArtifactError(
+                        f"tensor {name} of {path} does not match its checksum"
+                    )
+                array = np.empty(shape, dtype=dtype)
+                array.setflags(write=False)
+            elif mmap:
+                assert data is not None
+                array = data[begin:end].view(dtype).reshape(shape)
+            else:
+                view = memoryview(raw)[begin:end]
+                digest = hashlib.sha256()
+                for offset in range(0, len(view), _CHUNK):
+                    digest.update(view[offset : offset + _CHUNK])
+                if digest.hexdigest() != entries[name][2]:
+                    raise CorruptArtifactError(
+                        f"tensor {name} of {path} does not match its checksum"
+                    )
+                array = np.frombuffer(
+                    raw, dtype=dtype, count=math.prod(shape), offset=begin
+                ).reshape(shape)
+            tensors[name] = array
+        return tensors, dict(metadata)
+
+    def verify(self, path):
+        path = Path(path)
+        with _open_regular(path) as handle:
+            start, layout, metadata = _read_safetensors_header(handle, path)
+            entries = _integrity(path, {n: (c, s) for n, (c, s, _, _) in layout.items()}, metadata)
+            for name, (_, _, begin, end) in layout.items():
+                handle.seek(start + begin)
+                digest = hashlib.sha256()
+                remaining = end - begin
+                while remaining:
+                    chunk = handle.read(min(_CHUNK, remaining))
+                    if not chunk:
+                        raise CorruptArtifactError(f"{path} ended early")
+                    digest.update(chunk)
+                    remaining -= len(chunk)
+                if digest.hexdigest() != entries[name][2]:
+                    raise CorruptArtifactError(
+                        f"tensor {name} of {path} does not match its checksum"
+                    )
+
+
+def _publish(tmp: Path, path: Path):
+    """Move the finished ``tmp`` to ``path`` without ever replacing an existing file."""
+    if os.name == "nt":
+        os.rename(tmp, path)  # Windows never replaces an existing target
+        return
+    os.link(tmp, path)  # fails with FileExistsError if path exists meanwhile
+    tmp.unlink()
+
+
 #: Every container this fse can write and read; the golden test runs over all of them.
-CONTAINERS: dict[str, TensorContainer] = {NpyContainer.name: NpyContainer()}
+CONTAINERS: dict[str, TensorContainer] = {
+    NpyContainer.name: NpyContainer(),
+    SafetensorsContainer.name: SafetensorsContainer(),
+}
