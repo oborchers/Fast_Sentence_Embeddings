@@ -87,9 +87,21 @@ def main() -> None:
     sentences = CSplitIndexedList(first, second, custom_split=prep_sentence)
     versions = {p: version(p) for p in ("numpy", "scipy", "gensim", "wordfreq", "nltk")}
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    fields = ["vectors", "algo", "wv_dtype", "sv_dtype", "pearson", "spearman", "pairs", "seconds", "load_average"]
+    fields = [
+        "vectors",
+        "algo",
+        "wv_dtype",
+        "sv_dtype",
+        "pearson",
+        "spearman",
+        "pairs",
+        "seconds",
+        "load_average",
+    ]
     with OUT.open("w", newline="", encoding="utf-8") as f:
-        f.write(f"# fse {fse.__version__} | {platform.platform()} | Python {platform.python_version()} | {versions}\n")
+        f.write(
+            f"# fse {fse.__version__} | {platform.platform()} | Python {platform.python_version()} | {versions}\n"
+        )
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
         for name in VECTORS:
@@ -99,7 +111,9 @@ def main() -> None:
                 for wv_dtype, sv_dtype in FORMATS:
                     load = os.getloadavg()[0]
                     start = time.perf_counter()
-                    model = cls(vectors, lang_freq="en", wv_dtype=wv_dtype, sv_dtype=sv_dtype, **kwargs)
+                    model = cls(
+                        vectors, lang_freq="en", wv_dtype=wv_dtype, sv_dtype=sv_dtype, **kwargs
+                    )
                     model.train(sentences)
                     sims = np.array([model.sv.similarity(i, i + n) for i in range(n)])
                     row = {

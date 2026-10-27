@@ -57,7 +57,9 @@ def sentences(rng):
     out.append(["w0", "w1", "w2", "w3"])  # tiny rows only
     while len(out) < 96:
         n = int(rng.integers(0, 15))
-        out.append([known[i] if rng.random() > 0.15 else f"x{i}" for i in rng.integers(0, VOCAB, n)])
+        out.append(
+            [known[i] if rng.random() > 0.15 else f"x{i}" for i in rng.integers(0, VOCAB, n)]
+        )
     return out
 
 
@@ -92,10 +94,14 @@ def main() -> None:
     data = IndexedList(sents)
     arrays: dict[str, np.ndarray] = {
         "kv.vectors": kv.vectors,
-        "kv.counts": np.array([kv.get_vecattr(w, "count") for w in kv.index_to_key], dtype=np.int64),
+        "kv.counts": np.array(
+            [kv.get_vecattr(w, "count") for w in kv.index_to_key], dtype=np.int64
+        ),
         "ft.vectors_vocab": ftv.vectors_vocab,
         "ft.vectors_ngrams": ftv.vectors_ngrams,
-        "ft.counts": np.array([ftv.get_vecattr(w, "count") for w in ftv.index_to_key], dtype=np.int64),
+        "ft.counts": np.array(
+            [ftv.get_vecattr(w, "count") for w in ftv.index_to_key], dtype=np.int64
+        ),
     }
     configs = {
         "Average": (Average, kv, {}),

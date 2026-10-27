@@ -41,7 +41,12 @@ def principal_angles(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 def neighbors(model, queries, topn):
-    return np.array([[i for i, _ in model.sv.most_similar(int(q), topn=topn + 1) if i != q][:topn] for q in queries])
+    return np.array(
+        [
+            [i for i, _ in model.sv.most_similar(int(q), topn=topn + 1) if i != q][:topn]
+            for q in queries
+        ]
+    )
 
 
 def main() -> None:
@@ -72,18 +77,24 @@ def main() -> None:
         n = len(x)
         _, c32 = components_from_gram(gram32, n, 10, np.float32)
         _, c64 = components_from_gram(gram64, n, 10, np.float64)
-        out["gram_max_relative_difference"] = float(np.abs(gram32 - gram64).max() / np.abs(gram64).max())
+        out["gram_max_relative_difference"] = float(
+            np.abs(gram32 - gram64).max() / np.abs(gram64).max()
+        )
         out["component_angles_degrees"] = principal_angles(c32, c64).tolist()
 
         models = {}
         for dtype in ("float32", "float16", "int8"):
-            model = SIF(vectors, components=10, lang_freq="en", sv_dtype=dtype, workers=os.cpu_count())
+            model = SIF(
+                vectors, components=10, lang_freq="en", sv_dtype=dtype, workers=os.cpu_count()
+            )
             model.train(corpus)
             models[dtype] = model
         one = SIF(vectors, components=10, lang_freq="en", workers=1)
         one.train(corpus)
         out["components_bit_identical_1_vs_10_workers"] = bool(
-            np.array_equal(one.svd_res[1].view(np.uint32), models["float32"].svd_res[1].view(np.uint32))
+            np.array_equal(
+                one.svd_res[1].view(np.uint32), models["float32"].svd_res[1].view(np.uint32)
+            )
         )
         queries = np.random.default_rng(0).choice(n, 1000, replace=False)
         reference = neighbors(models["float32"], queries, 100)
@@ -98,9 +109,17 @@ def main() -> None:
         top = sv.get_vectors()[reference.ravel()].reshape(len(queries), 100, -1)
         top /= np.linalg.norm(top, axis=2, keepdims=True)
         cos = np.einsum("qd,qkd->qk", q, top)
-        out["top100_cosine_at_least"] = {str(t): float((cos >= t).sum(axis=1).mean()) for t in (0.5, 0.7, 0.9)}
-        np.savez_compressed(HERE / "results" / f"neighbors-{fse.__version__}.npz", queries=queries.astype(np.int32), top10=reference[:, :10].astype(np.int32))
-    (HERE / "results" / f"numerics-{fse.__version__}.json").write_text(json.dumps(out, indent=2) + "\n")
+        out["top100_cosine_at_least"] = {
+            str(t): float((cos >= t).sum(axis=1).mean()) for t in (0.5, 0.7, 0.9)
+        }
+        np.savez_compressed(
+            HERE / "results" / f"neighbors-{fse.__version__}.npz",
+            queries=queries.astype(np.int32),
+            top10=reference[:, :10].astype(np.int32),
+        )
+    (HERE / "results" / f"numerics-{fse.__version__}.json").write_text(
+        json.dumps(out, indent=2) + "\n"
+    )
     print(json.dumps(out, indent=2))
 
 

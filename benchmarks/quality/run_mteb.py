@@ -54,11 +54,28 @@ from mteb.models.abs_encoder import AbsEncoder
 from mteb.models.model_meta import ModelMeta, ScoringFunction
 
 HERE = Path(__file__).resolve().parent
-RESULTS = HERE / "results.jsonl"
+RESULTS = HERE / "results.jsonl"  # the default of --results
 CACHE = Path(os.environ.get("FSE_QUALITY_CACHE", Path.home() / ".cache" / "fse-quality"))
 
 BENCHMARKS = ["MTEB(eng, v2)", "NanoBEIR"]
-WIKITEXT = ("Salesforce/wikitext", "wikitext-103-raw-v1", "b08601e04326c79dfdd32d625aee71d232d685c3")
+# A selection of both that runs in about 8 minutes per model on an M1 Pro, for baselines:
+# every task type of MTEB(eng, v2) without its slowest tasks, and all of NanoBEIR.
+BASELINE_TASKS = [
+    "BIOSSES", "SICK-R", "STS12", "STS13", "STS14", "STS15", "STS17", "STS22.v2", "STSBenchmark",
+    "SprintDuplicateQuestions", "TwitterSemEval2015", "TwitterURLCorpus",
+    "Banking77Classification", "MTOPDomainClassification", "MassiveScenarioClassification",
+    "MedrxivClusteringS2S.v2", "MedrxivClusteringP2P.v2", "BiorxivClusteringP2P.v2",
+    "ArXivHierarchicalClusteringS2S", "AskUbuntuDupQuestions", "ArguAna", "SummEvalSummarization.v2",
+    "NanoArguAnaRetrieval", "NanoClimateFeverRetrieval", "NanoDBPediaRetrieval", "NanoFEVERRetrieval",
+    "NanoFiQA2018Retrieval", "NanoHotpotQARetrieval", "NanoMSMARCORetrieval", "NanoNFCorpusRetrieval",
+    "NanoNQRetrieval", "NanoQuoraRetrieval", "NanoSCIDOCSRetrieval", "NanoSciFactRetrieval",
+    "NanoTouche2020Retrieval",
+]  # fmt: skip
+WIKITEXT = (
+    "Salesforce/wikitext",
+    "wikitext-103-raw-v1",
+    "b08601e04326c79dfdd32d625aee71d232d685c3",
+)
 
 FSE_VECTORS = [
     "glove-wiki-gigaword-300",
@@ -130,18 +147,30 @@ class FseEncoder(AbsEncoder):
     """Encode with a frozen fse model: trained once on the fit corpus, then only ``infer``."""
 
     def __init__(self, model_name: str, revision: str | None = None, **kwargs: Any) -> None:
-        from fse import SIF, Average, CorpusFile, Vectors, uSIF
+        from fse import SIF, Average, CorpusFile, FTVectors, Vectors, uSIF
 
         algo, rest = model_name.removeprefix("fse/").split("-", 1)
         vectors_name, dtype = rest.rsplit("-", 1)
         cls = {"Average": Average, "SIF": SIF, "uSIF": uSIF}[algo]
-        vectors = Vectors.from_pretrained(vectors_name, mmap="r")
+        # The dtype names the format of the word vectors (wv_dtype); the README loads the
+        # crawl FastText vectors with their ngrams.
+        loader = FTVectors if vectors_name == "fasttext-crawl-subwords-300" else Vectors
+        vectors = loader.from_pretrained(vectors_name, mmap="r")
         self.model = cls(vectors, wv_dtype=dtype, workers=os.cpu_count(), **FSE_ALGOS[algo])
         start = time.perf_counter()
         self.model.train(CorpusFile(str(fit_corpus())))
         logger.info("fitted %s in %.1f s", model_name, time.perf_counter() - start)
 
-    def encode(self, inputs: Any, *, task_metadata: Any, hf_split: str, hf_subset: str, prompt_type: Any = None, **kwargs: Any) -> np.ndarray:
+    def encode(
+        self,
+        inputs: Any,
+        *,
+        task_metadata: Any,
+        hf_split: str,
+        hf_subset: str,
+        prompt_type: Any = None,
+        **kwargs: Any,
+    ) -> np.ndarray:
         from fse import IndexedList
 
         sentences = [tokenize(text) for batch in inputs for text in batch["text"]]
@@ -200,7 +229,7 @@ def tasks_for(names: list[str] | None) -> list[Any]:
     return tasks
 
 
-def run(models: list[str], task_names: list[str] | None) -> None:
+def run(models: list[str], task_names: list[str] | None, results: Path = RESULTS) -> None:
     from nltk import download
 
     download("punkt_tab", quiet=True)
@@ -211,8 +240,10 @@ def run(models: list[str], task_names: list[str] | None) -> None:
         meta = fse_meta(name) if name.startswith("fse/") else mteb.get_model_meta(name)
         model = meta.load_model()
         timer = EncodeTimer(model)
-        result = mteb.evaluate(model, tasks, cache=cache, overwrite_strategy="always", show_progress_bar=False)
-        with RESULTS.open("a", encoding="utf-8") as f:
+        result = mteb.evaluate(
+            model, tasks, cache=cache, overwrite_strategy="always", show_progress_bar=False
+        )
+        with results.open("a", encoding="utf-8") as f:
             for task_result in result.task_results:
                 task = task_result.task_name
                 f.write(
@@ -237,10 +268,10 @@ def run(models: list[str], task_names: list[str] | None) -> None:
         logger.info("finished %s", name)
 
 
-def summarize() -> None:
+def summarize(results: Path = RESULTS) -> None:
     """Print a Markdown table of the latest result per model and task."""
     latest: dict[tuple[str, str], dict[str, Any]] = {}
-    for line in RESULTS.read_text(encoding="utf-8").splitlines():
+    for line in results.read_text(encoding="utf-8").splitlines():
         row = json.loads(line)
         latest[row["model"], row["task"]] = row
     by_model: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -248,7 +279,9 @@ def summarize() -> None:
         by_model[model].append(row)
     eng = {t.metadata.name for t in mteb.get_benchmark("MTEB(eng, v2)").tasks}
     types = sorted({t.metadata.type for t in mteb.get_benchmark("MTEB(eng, v2)").tasks})
-    print("| Model | Mean (Task) | Mean (TaskType) | " + " | ".join(types) + " | NanoBEIR | texts/s |")
+    print(
+        "| Model | Mean (Task) | Mean (TaskType) | " + " | ".join(types) + " | NanoBEIR | texts/s |"
+    )
     print("|---" * (len(types) + 5) + "|")
     for model, rows in sorted(by_model.items()):
         main = [r for r in rows if r["task"] in eng]
@@ -256,7 +289,11 @@ def summarize() -> None:
         per_type = {ty: [r["main_score"] for r in main if r["type"] == ty] for ty in types}
         complete = len(main) == len(eng)
         mean_task = statistics.mean(r["main_score"] for r in main) if complete else float("nan")
-        mean_type = statistics.mean(statistics.mean(v) for v in per_type.values()) if complete else float("nan")
+        mean_type = (
+            statistics.mean(statistics.mean(v) for v in per_type.values())
+            if complete
+            else float("nan")
+        )
         texts = sum(r.get("texts", 0) for r in rows)
         seconds = sum(r.get("seconds", 0.0) for r in rows)
         cells = [f"{100 * statistics.mean(v):.2f}" if v else "" for v in per_type.values()]
@@ -265,25 +302,36 @@ def summarize() -> None:
             + " | ".join(cells)
             + f" | {100 * statistics.mean(nano):.2f} | {texts / seconds:,.0f} |"
             if nano and seconds
-            else f"| {model} | {100 * mean_task:.2f} | {100 * mean_type:.2f} | " + " | ".join(cells) + " | | |"
+            else f"| {model} | {100 * mean_task:.2f} | {100 * mean_type:.2f} | "
+            + " | ".join(cells)
+            + " | | |"
         )
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     run_parser = sub.add_parser("run")
-    run_parser.add_argument("--models", nargs="+", required=True, help="model names, 'fse', 'others' or 'all'")
-    run_parser.add_argument("--tasks", nargs="+", help="restrict to these task names")
-    sub.add_parser("summarize")
+    run_parser.add_argument(
+        "--models", nargs="+", required=True, help="model names, 'fse', 'others' or 'all'"
+    )
+    run_parser.add_argument(
+        "--tasks", nargs="+", help="restrict to these task names, or 'baseline'"
+    )
+    run_parser.add_argument("--results", type=Path, default=RESULTS)
+    summary = sub.add_parser("summarize")
+    summary.add_argument("--results", type=Path, default=RESULTS)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     if args.command == "summarize":
-        summarize()
+        summarize(args.results)
         return
     groups = {"fse": FSE_MODELS, "others": OTHER_MODELS, "all": FSE_MODELS + OTHER_MODELS}
     models = [m for name in args.models for m in groups.get(name, [name])]
-    run(models, args.tasks)
+    tasks = BASELINE_TASKS if args.tasks == ["baseline"] else args.tasks
+    run(models, tasks, args.results)
 
 
 if __name__ == "__main__":
