@@ -90,6 +90,7 @@ class Op(_Versioned):
     """A postprocessing step applied to every aggregated row (stage 4)."""
 
     REMOVE_COMPONENTS = ("remove_components", 1)
+    PROJECT = ("project", 1)
     NORMALIZE = ("normalize", 1)
 
 
@@ -149,6 +150,32 @@ class RemoveComponents:
         return int(self.components.shape[1])
 
 
+@dataclass(frozen=True, eq=False)
+class Project:
+    """Replace a row of d values by its k coordinates along the rows of ``basis`` (k <= d).
+
+    The basis holds k orthonormal rows, such as the leading principal axes from ``fit``;
+    the step reduces the dimension of every row from d to k.
+    """
+
+    basis: ndarray
+    op = Op.PROJECT
+
+    def __post_init__(self):
+        basis = _float32_matrix(self.basis, "basis", 2)
+        k, d = basis.shape
+        if not 1 <= k <= d:
+            raise ValueError(f"basis must hold between 1 and {d} rows, not {k}")
+
+    @property
+    def dim(self) -> int:
+        return int(self.basis.shape[1])
+
+    @property
+    def output_dim(self) -> int:
+        return int(self.basis.shape[0])
+
+
 @dataclass(frozen=True)
 class Normalize:
     """Scale a row to unit length; an all-zero row stays zero."""
@@ -156,29 +183,45 @@ class Normalize:
     op = Op.NORMALIZE
 
 
-Step = RemoveComponents | Normalize
+Step = RemoveComponents | Project | Normalize
 
-# Every allowed order of steps: each step at most once, removal before normalization.
-_STEP_ORDERS = {(), (Op.REMOVE_COMPONENTS,), (Op.NORMALIZE,), (Op.REMOVE_COMPONENTS, Op.NORMALIZE)}
+# Steps that are linear in the row: an encoder may fold them into its word vectors.
+LINEAR_OPS = frozenset({Op.REMOVE_COMPONENTS, Op.PROJECT})
+
+# The order of steps: each at most once, removal before projection before normalization.
+_STEP_ORDER = (Op.REMOVE_COMPONENTS, Op.PROJECT, Op.NORMALIZE)
 
 
 def check_steps(steps: Sequence[object], dim: int) -> tuple[Step, ...]:
     """Return ``steps`` as a tuple if they form an allowed list for rows of ``dim`` values."""
     checked: list[Step] = []
     for step in steps:
-        if not isinstance(step, RemoveComponents | Normalize):
+        if not isinstance(step, RemoveComponents | Project | Normalize):
             raise TypeError(f"{step!r} is not a postprocessing step")
         checked.append(step)
-    ops = tuple(step.op for step in checked)
-    if ops not in _STEP_ORDERS:
+    ops = [step.op for step in checked]
+    if ops != [op for op in _STEP_ORDER if op in ops]:
         raise ValueError(
-            "postprocessing steps must be remove_components, normalize, or both in this "
-            f"order, each at most once, not {[op.id for op in ops]}"
+            "postprocessing steps must be a subset of remove_components, project and "
+            f"normalize in this order, each at most once, not {[op.id for op in ops]}"
         )
     for step in checked:
-        if isinstance(step, RemoveComponents) and step.dim != dim:
-            raise ValueError(f"components have {step.dim} values per row, the rows {dim}")
+        if isinstance(step, RemoveComponents | Project):
+            if step.dim != dim:
+                raise ValueError(
+                    f"the {step.op.id} step takes rows of {step.dim} values, not {dim}"
+                )
+            if isinstance(step, Project):
+                dim = step.output_dim
     return tuple(checked)
+
+
+def output_dim(steps: Sequence[Step], dim: int) -> int:
+    """The dimension of rows of ``dim`` values after ``steps``."""
+    for step in check_steps(steps, dim):
+        if isinstance(step, Project):
+            dim = step.output_dim
+    return dim
 
 
 def _int_array(value: object, name: str, dtype: type) -> ndarray:

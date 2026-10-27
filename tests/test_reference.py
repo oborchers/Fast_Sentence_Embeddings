@@ -3,7 +3,7 @@ from fractions import Fraction
 import numpy as np
 import pytest
 
-from fse._contract import OOV_TOKEN, Batch, Normalize, RemoveComponents
+from fse._contract import OOV_TOKEN, Batch, Normalize, Project, RemoveComponents
 from fse._reference import (
     dequantize,
     dot16,
@@ -215,6 +215,41 @@ def test_remove_components_matches_a_loop():
             np.testing.assert_array_equal(bits(out), bits(row - projection))
     removed = postprocess(rows, [RemoveComponents(components)])
     np.testing.assert_allclose(removed @ components.T, 0, atol=1e-5)
+
+
+def test_project():
+    rng = np.random.default_rng(9)
+    rows = rng.standard_normal((5, 20)).astype(F32)
+    q, _ = np.linalg.qr(rng.standard_normal((20, 4)))
+    basis = np.ascontiguousarray(q.T, dtype=F32)
+    out = postprocess(rows, [Project(basis), Normalize()])
+    assert out.shape == (5, 4)
+    projected = postprocess(rows, [Project(basis)])
+    for row, got in zip(rows, projected, strict=True):
+        np.testing.assert_array_equal(bits(got), bits([dot16_loop(row, axis) for axis in basis]))
+    np.testing.assert_allclose(projected, rows @ basis.T, rtol=1e-5, atol=1e-6)
+    assert postprocess(np.zeros((0, 20), dtype=F32), [Project(basis)]).shape == (0, 4)
+
+
+def test_folding_linear_steps_matches_within_rounding():
+    """Removing components and projecting commute with the weighted mean.
+
+    An encoder may therefore fold both steps into its word vectors; the rows then agree
+    with the unfolded steps within float32 rounding, not bit for bit.
+    """
+    rng = np.random.default_rng(10)
+    vectors = rng.standard_normal((30, 16)).astype(F32)
+    weights = rng.random(30).astype(F32)
+    q, _ = np.linalg.qr(rng.standard_normal((16, 6)))
+    steps = [
+        RemoveComponents(np.ascontiguousarray(q[:, :2].T, dtype=F32), np.array([1, 0.5], F32)),
+        Project(np.ascontiguousarray(q[:, 2:].T, dtype=F32)),
+    ]
+    sentences = [list(rng.integers(0, 30, rng.integers(1, 10))) for _ in range(20)]
+    unfolded = postprocess(pool_weighted_mean(_batch(sentences), vectors, weights), steps)
+    folded_vectors = postprocess(vectors, steps)
+    folded = pool_weighted_mean(_batch(sentences), folded_vectors, weights)
+    np.testing.assert_allclose(folded, unfolded, rtol=1e-5, atol=1e-6)
 
 
 def test_normalize():

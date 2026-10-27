@@ -23,7 +23,15 @@ from collections.abc import Sequence
 import numpy as np
 from numpy import ndarray
 
-from fse._contract import OOV_TOKEN, Batch, Normalize, RemoveComponents, Step, check_steps
+from fse._contract import (
+    OOV_TOKEN,
+    Batch,
+    Normalize,
+    Project,
+    RemoveComponents,
+    Step,
+    check_steps,
+)
 
 _F32 = np.float32
 _LANES = 16
@@ -138,6 +146,8 @@ def postprocess(rows: ndarray, steps: Sequence[Step], first_row: int = 0) -> nda
                     coefficient = coefficient * step.weights[j]
                 projection = fma32(coefficient[:, None], component[None, :], projection)
             out = out - projection
+        elif isinstance(step, Project):
+            out = np.stack([dot16(out, axis) for axis in step.basis], axis=1).astype(_F32)
         elif isinstance(step, Normalize):
             with np.errstate(over="ignore"):
                 squares = dot16(out, out)

@@ -169,7 +169,9 @@ Three rules keep new models possible without a new layer:
 
 1. **An aggregation is not a sum.** It is defined by an initial accumulator, a combine step `combine(acc, f, x)` per weighted token row, a finish step `finish(acc, n)`, the result of an empty sentence and its output dimension. Group mode (many sentences to one row, CPU only) combines the finished rows of a group by the rule of the aggregation: a mean sums the sentence means, as 1.x does; a later max would take the maximum.
 2. **Weights (stage 2) are separate from the aggregation (stage 3).** Stage 2 supplies a factor and a stored row per contribution; the aggregation never sees weights or scales. A later max over SIF-weighted rows therefore needs no own kernel.
-3. **The output dimension belongs to the encoder.** `Aggregation.output_dim(d)` gives it (d for the weighted mean; a concatenation such as SWEM would give 2d). It is written into the manifest, and Sinks and Store read it from there, never from the word vectors. Every step of 2.0 keeps the dimension.
+3. **The output dimension belongs to the encoder.** The aggregation gives the dimension of its rows (`Aggregation.output_dim(d)`: d for the weighted mean; a concatenation such as SWEM would give 2d), and a step may reduce it (`project`). The result is written into the manifest, and Sinks and Store read it from there, never from the word vectors.
+
+**Linear steps are folded into the word vectors.** The weighted mean is linear, and so are `remove_components` and `project`: applying them to every word and ngram row before averaging gives the same rows, within float32 rounding, as applying them to every averaged row. `fit` of SIF and uSIF therefore folds its learned steps into the word vectors by default, and encoding only averages, as fast as Average; `normalize` is not linear and stays a step per row. A folded encoder owns its word vectors (they are tensors of the encoder, with their own fingerprint) and records the folded steps and the fingerprint of the original vectors as provenance; an unfolded encoder references the original word vectors and applies its steps per row. Folded word vectors in float16 or int8 are quantized after folding. Average learns nothing and needs no corpus; its encoder references the word vectors and holds no tensors of its own, unless `fit` learns a projection.
 
 ### Numerical contract (`transform_version` 2)
 
@@ -180,8 +182,9 @@ Three rules keep new models possible without a new layer:
 - **`weighted_mean@1`.** The accumulator starts at +0.0 per value; every contribution does `acc[i] = fma(f, x[i], acc[i])` in token order (ngrams in bucket order); `n` counts the tokens. The row is `(1/n) * acc` with `1/n` rounded first, not `acc / n`. An empty sentence is the zero row; there is no EPS. Group mode starts a group at +0.0 and adds each non-empty sentence s with `g[i] = fma(1/n_s, acc_s[i], g[i])` in source order, so a group of one sentence equals the sentence's row.
 - **`dot16`**, the dot product of every row reduction: 16 partial sums start at +0.0; index i goes into lane `i % 16` by fma in index order; the lanes are then added 8, 4, 2 and 1 lanes apart, and lane 0 is the result. It vectorizes on NEON, AVX2, AVX-512 and Metal, and zero padding does not change it.
 - **`remove_components@1`** with k unit components `u_j` (1 <= k <= d) and optional weights `w_j`: `c_j = dot16(row, u_j)`, times `w_j` if given; `p` starts at +0.0 and takes `p[i] = fma(c_j, u_j[i], p[i])` for j ascending; the result is `row - p`. All coefficients use the unmodified row, as 1.x does.
+- **`project@1`** with a basis of k orthonormal rows `b_j` (1 <= k <= d): the new row has the k values `dot16(row, b_j)`; it reduces the dimension from d to k. `fit` takes the basis from the leading principal axes of the Gram matrix it already computes.
 - **`normalize@1`**: `s = dot16(row, row)`; an all-zero row stays zero; a nonzero row whose `s` underflows to 0 or overflows raises; otherwise every value is multiplied by `1 / sqrt(s)`.
-- **Step lists.** 2.0 allows `[]`, `[remove_components]`, `[normalize]` and `[remove_components, normalize]`; anything else is rejected when an encoder is built or loaded. After stage 4 every row must be finite, otherwise the row id is reported.
+- **Step lists.** Any subset of `remove_components`, `project` and `normalize`, in this order and each at most once; anything else is rejected when an encoder is built or loaded. In a folded encoder only `normalize` remains. After stage 4 every row must be finite, otherwise the row id is reported.
 - **Stage 5, storage.** float32 as is; float16 rounds to nearest even and raises beyond +-65504; int8 is symmetric per row: `s = absmax / 127` in float32, stepped down once with `nextafter` if `127 * s` overflows, `code = clip(rint(x / s), -127, 127)` (a zero row has scale 0 and codes 0). Reading gives `code * s` with one rounding. These are the 1.x rules of `fse.models._quantize`, which the reference reproduces bit for bit.
 - **Stored inverse norms** are the float64 norms of the stored values (int8 codes without their scale), rounded to float32; a zero row has 0. `score` computes `dot16(stored, w) * (scale * inverse norm) + bias` and raises on overflow; top-k ties go to the smaller row id.
 
@@ -228,7 +231,7 @@ class TensorContainer(Protocol):
 ```
 
 - **Tensors** follow the rules of safetensors: numeric dtypes only (F32, F16, I8, U8, U32, I64), little-endian, C order, data aligned to 64 bytes, names matching `[a-z0-9_]+(\.[a-z0-9_]+)*`. Strings are UTF-8 bytes (U8) plus int64 offsets, so the vocabulary is `vocab.bytes` and `vocab.offsets`. Every number that affects the result, such as `oov_weight`, is a tensor, never a decimal string.
-- **Names.** Word vectors: `vectors`, `scales` (int8), `counts` (optional), `vocab.bytes`, `vocab.offsets`, and for FastText `ngrams` and `ngram_scales`. Encoder: `weights`, `oov_weight`, `step.<i>.components`, `step.<i>.weights`. Stored sentence vectors and shards: `vectors`, `scales`, `inv_norms`; `row_ids` is reserved for 2.1.
+- **Names.** Word vectors: `vectors`, `scales` (int8), `counts` (optional), `vocab.bytes`, `vocab.offsets`, and for FastText `ngrams` and `ngram_scales`. Encoder: `weights`, `oov_weight`, `step.<i>.components`, `step.<i>.weights`, `step.<i>.basis`, and for a folded encoder its word vectors under the names above. Stored sentence vectors and shards: `vectors`, `scales`, `inv_norms`; `row_ids` is reserved for 2.1.
 - **Metadata** (`fse.` keys, mapped one to one to the `__metadata__` of safetensors): `fse.kind`, `fse.format_version`, `fse.created_by` and a `fse.checksum.<tensor>` (sha256) per tensor for all; `fse.dim`, `fse.dtype`, `fse.fasttext` (min_n, max_n, bucket) and the quantization rule for word vectors; `fse.transform_version`, `fse.tokenizer`, `fse.aggregation`, `fse.steps`, `fse.input_dim`, `fse.output_dim`, `fse.max_ngrams`, the fingerprints of the word vectors and the vocabulary, and the recipe and its parameters (provenance only) for an encoder; the encoder fingerprint, `fse.transform_version`, the storage dtype, `fse.output_dim` and the range of rows for stored vectors.
 - **`NpyContainer`** (2.0) writes one `.npy` file per tensor and a `manifest.json` with the container name and version, the tensors (file, dtype, shape) and the metadata; numpy already aligns `.npy` data to 64 bytes. Files are written under a temporary name and renamed when complete. A normal open checks every checksum; an `mmap` open checks sizes and headers and leaves the full check to an explicit `verify()`. A safetensors container can follow as a pure addition; a golden test writes the same tensors through every available container and checks that `open` returns them bit for bit.
 
@@ -237,7 +240,7 @@ class TensorContainer(Protocol):
 - A **row id** is the int64 position of a sentence in its source, from 0.
 - A **shard** is a contiguous range of rows; 2.1 splits sources with `shard=(i, n)` at multiples of 16,384 rows.
 - A **fingerprint** is the sha256 of a fixed prefix, the canonical JSON of the metadata without `fse.created_by`, and, per tensor in name order, its name, dtype, shape and the sha256 of its bytes. It describes the content, not the container, so every container gives the same fingerprint.
-- An encoder references its word vectors and vocabulary by fingerprint, and stored vectors reference their encoder; opening them with a mismatch raises. 2.1 adds the fingerprint of the source for resuming.
+- An unfolded encoder references its word vectors and vocabulary by fingerprint, a folded one holds them and names the original fingerprint as provenance; stored vectors reference their encoder; opening them with a mismatch raises. 2.1 adds the fingerprint of the source for resuming.
 
 ### Persistence names replace class paths
 
@@ -245,11 +248,15 @@ Saved 2.0 artifacts contain no Python class paths. Their persistence API is the 
 
 ### Migration
 
-2.0 has no pickle loader. A last 1.x release, 1.2.0 on the branch `1.x`, adds `export_v2`, which writes the word vectors of a model and its encoder (weights, `oov_weight`, and the learned components as a `remove_components` step) into the 2.0 format, and optionally its sentence vectors as data with `transform_version` 1. uSIF models saved before 1.1 keep their weighting by lambda squared, because the export takes the weights the model applies. The hub models are converted the same way. A golden manifest and fingerprint of a tiny model, written by 1.2.0 and loaded by 2.0 in the tests, catch drift between the two writers.
+2.0 has no pickle loader. A last 1.x release, 1.2.0 on the branch `1.x`, adds `export_v2`, which writes the word vectors of a model and its encoder (weights, `oov_weight`, and the learned components as a `remove_components` step) into the 2.0 format, and optionally its sentence vectors as data with `transform_version` 1. uSIF models saved before 1.1 keep their weighting by lambda squared, because the export takes the weights the model applies. The hub word vectors are converted the same way. The hub also gets pretrained, frozen encoders: Average for every vector set, SIF and uSIF for a selection, fitted once on WikiText-103 with the native tokenizer, so `from_pretrained` encodes at once and gives the values of the published tables. A golden manifest and fingerprint of a tiny model, written by 1.2.0 and loaded by 2.0 in the tests, catch drift between the two writers.
 
 ### Layout
 
 New 2.0 code goes into private modules of `fse`: `_contract` and `_reference` (contracts and reference), then the container and word vectors, the gensim adapter `fse.gensim` (extra `fse[gensim]`), the runtime and backends, the encoder and recipes, sinks and store, and the thin `train`/`infer` facade of the release. The 1.x modules under `fse.models` are deleted once their replacement is in; `fse` must import without gensim before Python 3.14 joins the CI matrix.
+
+### Defaults
+
+Defaults are part of the API and chosen for speed: `workers` is the number of usable CPUs (small inputs run inline in the calling thread), and new encoders, also the pretrained ones on the hub, end with `normalize`, so the cosine of two rows is their dot product. A server that encodes many small requests in parallel sets `workers=1`.
 
 ### Baseline
 

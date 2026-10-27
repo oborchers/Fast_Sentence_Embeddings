@@ -8,10 +8,12 @@ from fse._contract import (
     Batch,
     Normalize,
     Op,
+    Project,
     RemoveComponents,
     UnsupportedArtifactError,
     check_steps,
     check_transform_version,
+    output_dim,
     parse_id,
 )
 
@@ -65,18 +67,32 @@ def _components(k=2, d=4):
 
 
 def test_step_lists():
-    rc, n = RemoveComponents(_components()), Normalize()
-    for steps in ([], [rc], [n], [rc, n]):
+    rc, p, n = RemoveComponents(_components()), Project(_components(3, 4)), Normalize()
+    for steps in ([], [rc], [p], [n], [rc, p], [rc, n], [p, n], [rc, p, n]):
         assert check_steps(steps, 4) == tuple(steps)
-    for steps in ([n, rc], [rc, rc], [n, n], [rc, n, n]):
+    for steps in ([n, rc], [p, rc], [n, p], [rc, rc], [n, n], [rc, n, n]):
         with pytest.raises(ValueError, match="each at most once"):
             check_steps(steps, 4)
     with pytest.raises(TypeError, match="not a postprocessing step"):
         check_steps(["normalize"], 4)
-    with pytest.raises(ValueError, match="4 values per row, the rows 5"):
+    with pytest.raises(ValueError, match="remove_components@1 step takes rows of 4 values, not 5"):
         check_steps([rc], 5)
+    with pytest.raises(ValueError, match="project@1 step takes rows of 4 values, not 5"):
+        check_steps([p], 5)
+    # A projection changes the dimension that later steps see.
+    assert output_dim([rc, p, n], 4) == 3
+    assert output_dim([rc, n], 4) == 4
     assert rc.op is Op.REMOVE_COMPONENTS
+    assert p.op is Op.PROJECT
     assert n.op is Op.NORMALIZE
+
+
+def test_project_validates():
+    assert Project(_components(2, 5)).output_dim == 2
+    with pytest.raises(ValueError, match="between 1 and 2 rows, not 3"):
+        Project(np.ones((3, 2), dtype=np.float32))
+    with pytest.raises(TypeError, match="float32"):
+        Project(np.eye(2))
 
 
 def test_remove_components_validates():
