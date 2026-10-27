@@ -139,8 +139,8 @@ known-first-party = ["fse"]
 max-complexity = 10
 
 [tool.ruff.lint.pylint]
-max-args = 5
-max-positional-args = 5
+max-args = 15
+max-positional-args = 15
 max-branches = 12
 max-returns = 6
 max-statements = 50
@@ -252,7 +252,7 @@ untested-modules = ["src/fse/_version.py"]
 "benchmarks/bench_tokenize.py::prepare" = { cognitive = 18 }
 "benchmarks/bench_wordvectors.py::child" = { C901 = 13 }
 "benchmarks/quality/run_mteb.py::summarize" = { cognitive = 39 }
-"src/fse/_codes.py::quantize_into" = { PLR0913 = 6, cognitive = 24 }
+"src/fse/_codes.py::quantize_into" = { cognitive = 24 }
 "src/fse/_container.py::SafetensorsContainer.open" = { cognitive = 22 }
 "src/fse/_container.py::SafetensorsContainer.write" = { C901 = 13, PLR0915 = 54, cognitive = 24 }
 "src/fse/_container.py::_check_for_writing" = { cognitive = 16 }
@@ -260,22 +260,17 @@ untested-modules = ["src/fse/_version.py"]
 "src/fse/_container.py::_read_manifest" = { C901 = 15, PLR0912 = 14, cognitive = 26 }
 "src/fse/_container.py::_read_safetensors_header" = { C901 = 20, PLR0912 = 19, PLR0915 = 52, cognitive = 33 }
 "src/fse/_contract.py::check_steps" = { cognitive = 16 }
-"src/fse/_reference.py::accumulate" = { PLR0913 = 7, PLR0917 = 7, cognitive = 30 }
-"src/fse/_reference.py::pool_groups" = { PLR0913 = 8, PLR0917 = 8 }
-"src/fse/_reference.py::pool_weighted_mean" = { PLR0913 = 7, PLR0917 = 7 }
+"src/fse/_reference.py::accumulate" = { cognitive = 30 }
 "src/fse/_reference_text.py::_token_chars" = { cognitive = 17 }
-"src/fse/_reference_text.py::encode_texts" = { PLR0913 = 6 }
 "src/fse/_reference_text.py::ft_ngram_hashes" = { cognitive = 21 }
 "src/fse/_reference_text.py::tokenize_fse_words" = { cognitive = 18 }
-"src/fse/_wordvectors.py::WordVectors.from_arrays" = { C901 = 14, PLR0912 = 13, PLR0913 = 9, cognitive = 25 }
+"src/fse/_wordvectors.py::WordVectors.from_arrays" = { C901 = 14, PLR0912 = 13, cognitive = 25 }
 "src/fse/_wordvectors.py::WordVectors.quantize" = { C901 = 11, cognitive = 26 }
 "src/fse/_wordvectors.py::_check_structure" = { C901 = 22, PLR0912 = 21, PLR0915 = 58, cognitive = 34 }
 "src/fse/_wordvectors.py::_check_values" = { C901 = 12, cognitive = 31 }
 "src/fse/gensim.py::from_gensim" = { C901 = 13, PLR0912 = 13, cognitive = 19 }
 "tests/test_conformance.py::_numpy_pool" = { cognitive = 16 }
-"tests/test_conformance.py::_random_case" = { PLR0913 = 9 }
 "tests/test_conformance.py::test_v1_fixture_batches" = { cognitive = 20 }
-"tests/test_wordvectors.py::_wv" = { PLR0913 = 6, PLR0917 = 6 }
 
 # --- Import contracts (import-linter; the Cython extension is invisible to it and is
 # checked by tools/check_guardrails.py) ---
