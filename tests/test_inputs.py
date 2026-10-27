@@ -382,6 +382,13 @@ def native_w2v():
     return model
 
 
+class PythonSplitIndexedList(SplitIndexedList):
+    """A SplitIndexedList that keeps the Python path, as reference for the native one."""
+
+    def _scan_native(self, workers, progress):
+        return None
+
+
 @pytest.fixture
 def native_ft():
     model = FastText(min_count=1, vector_size=8, seed=1, workers=1, bucket=500)
@@ -514,7 +521,7 @@ def test_native_inputs_give_the_vectors_of_the_python_inputs(
         file_native.infer(CorpusFile(path)), file_python.infer(IndexedLineDocument(path))
     )
 
-    list_native, list_python = train(TextList(lines)), train(SplitIndexedList(lines))
+    list_native, list_python = train(TextList(lines)), train(PythonSplitIndexedList(lines))
     assert np.array_equal(list_native.sv.vectors, list_python.sv.vectors)
 
 
@@ -778,11 +785,13 @@ def test_vocab_table_finds_every_word_inline_and_in_the_arena():
 def test_text_list_infer_and_update_match_split_indexed_list(native_w2v):
     first, second = ["the dog", "", "is good"], ["good dog", "ä 東京"]
     native, python = fse.Average(native_w2v), fse.Average(native_w2v)
-    assert native.train(TextList(first)) == python.train(SplitIndexedList(first))
+    assert native.train(TextList(first)) == python.train(PythonSplitIndexedList(first))
     native.train(TextList(second), update=True)
-    python.train(SplitIndexedList(second), update=True)
+    python.train(PythonSplitIndexedList(second), update=True)
     assert np.array_equal(native.sv.vectors, python.sv.vectors)
-    assert np.array_equal(native.infer(TextList(second)), python.infer(SplitIndexedList(second)))
+    assert np.array_equal(
+        native.infer(TextList(second)), python.infer(PythonSplitIndexedList(second))
+    )
 
 
 def test_text_list_rejects_str_subclasses():
@@ -808,7 +817,7 @@ def test_text_list_with_many_strings_per_chunk(native_w2v):
     assert all(a[1] == b[0] for a, b in itertools.pairwise(chunks))
     native, python = fse.Average(native_w2v, workers=1), fse.Average(native_w2v, workers=1)
     native.train(texts)
-    python.train(SplitIndexedList(strings))
+    python.train(PythonSplitIndexedList(strings))
     assert np.array_equal(native.sv.vectors, python.sv.vectors)
 
 
@@ -827,7 +836,7 @@ def test_native_chunks_bound_batch_ngrams(tmp_path, native_ft, input_name):
     native.batch_ngrams = python.batch_ngrams = MAX_NGRAMS_LIMIT
     native.train(make())
     python.train(
-        IndexedLineDocument(path) if input_name == "CorpusFile" else SplitIndexedList(lines)
+        IndexedLineDocument(path) if input_name == "CorpusFile" else PythonSplitIndexedList(lines)
     )
     np.testing.assert_allclose(native.sv.vectors, python.sv.vectors, rtol=1e-5, atol=1e-7)
     native.batch_ngrams = MAX_NGRAMS_LIMIT + 1
@@ -1014,3 +1023,17 @@ def test_split_indexed_list_changed_between_scan_and_training_raises(native_w2v)
 def test_split_indexed_list_of_an_ndarray_keeps_the_python_path(native_w2v):
     texts = SplitIndexedList(np.array(["the dog", "is good"]))
     assert texts._scan_native(workers=2, progress=lambda *a: None) is None
+
+
+def test_a_vocabulary_without_utf8_reads_native_inputs_through_their_iterator():
+    """A word without a UTF-8 form cannot be in the byte table; the inputs still train."""
+    model = Word2Vec(min_count=1, vector_size=8, seed=1, workers=1)
+    model.build_vocab([["the", "dog", "\ud800"]])
+    texts = ["the dog", "dog the dog"]
+    reference = fse.Average(model, workers=2)
+    reference.train(PythonSplitIndexedList(texts))
+    for data in (SplitIndexedList(texts), TextList(texts)):
+        trained = fse.Average(model, workers=2)
+        trained.train(data)
+        assert np.array_equal(trained.sv.vectors, reference.sv.vectors)
+        assert np.array_equal(trained.infer(data), reference.infer(PythonSplitIndexedList(texts)))

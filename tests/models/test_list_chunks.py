@@ -328,3 +328,45 @@ def test_a_model_saved_during_training_holds_no_list_plan(monkeypatch, w2v, tmp_
     model.train(IndexedList([["the", "dog"]] * 10))
     assert "_list_plan" not in model.__dict__
     assert "_list_plan" not in Average.load(str(tmp_path / "model")).__dict__
+
+
+def test_infer_in_a_training_hook_keeps_the_job_encoder(monkeypatch, w2v):
+    """A hook that infers other sentences during training does not use the training's plan."""
+    calls = _spy(monkeypatch)
+    post = Average._post_train_calls
+    inferred = []
+
+    def infer_then_post(self, **kwargs):
+        trained = len(calls)
+        inferred.append(self.infer(IndexedList([["the"], ["dog"], ["is"]])))
+        assert len(calls) == trained
+        return post(self, **kwargs)
+
+    monkeypatch.setattr(Average, "_post_train_calls", infer_then_post)
+    model = fse.Average(w2v, workers=2)
+    model.train(IndexedList([["the", "dog"]] * 20))
+    assert calls
+    assert inferred[0].shape == (3, 12)
+
+
+def test_a_garbage_collection_while_encoding_fails_is_memory_safe(w2v):
+    """The exception of a word without a UTF-8 form may run the garbage collector, and a
+    callback may then change the sentence that is being read."""
+    import gc
+
+    sentences = [["the", "\ud800", "dog", "\ud800", "is"] for _ in range(50)]
+
+    def shrink(phase, info):
+        if phase == "start":
+            for sentence in sentences:
+                del sentence[1:]
+
+    threshold = gc.get_threshold()
+    gc.callbacks.append(shrink)
+    gc.set_threshold(1, 1, 1)
+    try:
+        fse.Average(w2v, workers=2).train(IndexedList(sentences))
+    finally:
+        gc.set_threshold(*threshold)
+        gc.callbacks.remove(shrink)
+    assert all(sentence == ["the"] for sentence in sentences)

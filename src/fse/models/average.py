@@ -499,7 +499,13 @@ class Average(BaseSentence2VecModel):
         if native is not None:
             source, chunks = native
             context.sources.append(source)
-            return _ChunkFeeder(source, VocabTable(self.wv.key_to_index), chunks, offset)
+            try:
+                table = VocabTable(self.wv.key_to_index)
+            except UnicodeEncodeError:
+                # A vocabulary word without a UTF-8 form cannot be looked up by bytes; the
+                # JobEncoder reads the same sentences through the input's iterator.
+                return JobEncoder(context, sentences, self.batch_words)
+            return _ChunkFeeder(source, table, chunks, offset)
         plan = self.__dict__.get("_list_plan")
         listed = _list_source(base) if plan is not None else None
         if plan is not None and listed is not None:

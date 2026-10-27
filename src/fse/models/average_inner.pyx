@@ -1504,6 +1504,12 @@ cdef extern from "Python.h":
     # The same call without raising: NULL with the error set, as for lone surrogates.
     const char *_str_utf8_or_null "PyUnicode_AsUTF8AndSize"(PyObject *, Py_ssize_t *)
     void _clear_error "PyErr_Clear"()
+    bint _error_matches "PyErr_ExceptionMatches"(object)
+
+
+cdef int _raise_set_error() except -1:
+    """Propagate the exception a C call has set."""
+    return -1
 
 
 cdef int _average_token_spans(
@@ -1614,6 +1620,7 @@ def run_list_chunk(KernelContext ctx, VocabTable table, list items, indices,
     memset(&oov_offsets, 0, sizeof(_Buffer))
     memset(&ngrams, 0, sizeof(_Buffer))
     cdef PyObject *sentence
+    cdef object sentence_ref
     cdef PyObject *token
     cdef Py_ssize_t i, t, n, size, kept, n_tokens = 0, n_sentences = 0, eff_words = 0
     cdef bint is_ft = ctx.params.is_ft
@@ -1625,7 +1632,8 @@ def run_list_chunk(KernelContext ctx, VocabTable table, list items, indices,
         # One byte, so the token spans point into a buffer even if all tokens are empty.
         _reserve(&data, 1)
         for i in range(begin, end):
-            # The index first: reading it may run Python code, the tokens below do not.
+            # The index first: reading it may run Python code. Copying the tokens runs none,
+            # except when an encoding fails (see below).
             if indices is None:
                 row = i + offset
             else:
@@ -1646,25 +1654,33 @@ def run_list_chunk(KernelContext ctx, VocabTable table, list items, indices,
             n = _list_size(sentence)
             if n == 0:
                 continue
+            # A failed encoding creates an exception, and that allocation may run the garbage
+            # collector and so Python code, which could change or free the sentence. Hence a
+            # strong reference, and its length and items are read again for every token.
+            sentence_ref = <object>sentence
             kept = 0
-            for t in range(n):
+            t = 0
+            while t < _list_size(sentence):
                 token = _list_item(sentence, t)
+                t += 1
                 if not _is_exact_str(token):
                     raise RuntimeError(
                         f"sentence {i} no longer holds only str: the input changed after the scan"
                     )
                 utf8 = _str_utf8_or_null(token, &size)
                 if utf8 == NULL:
-                    # No UTF-8 form (a lone surrogate), so not in the VocabTable either. The
-                    # JobEncoder skips such an unknown word of a Word2Vec-style model, and
-                    # raises for FastText, which hashes it: raise the same error.
+                    # A word without a UTF-8 form (a lone surrogate) is not in the VocabTable
+                    # either. The JobEncoder skips such an unknown word of a Word2Vec-style
+                    # model and raises for FastText, which hashes it; any other error, such as
+                    # a MemoryError, is raised as well.
+                    if is_ft or not _error_matches(UnicodeEncodeError):
+                        _raise_set_error()
                     _clear_error()
-                    if is_ft:
-                        _str_utf8(token, &size)  # raises the UnicodeEncodeError again
                     continue
                 _push_bytes(&data, utf8, size)
                 _push_i64(&token_ends, data.size)
                 kept += 1
+            sentence_ref = None
             n_tokens += kept
             n_sentences += 1
             _push_i64(&sentence_ends, n_tokens)

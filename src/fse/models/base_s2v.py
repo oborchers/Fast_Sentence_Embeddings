@@ -1433,10 +1433,14 @@ class BaseSentence2VecModel(SaveLoad):
             ``sv_dtype="float16"`` or ``"int8"``.
 
         """
+        # A hook that infers during training must not read its input like the training does.
+        plan = self.__dict__.pop("_list_plan", None)
         try:
             return self._infer(sentences, use_norm)
         finally:
             _release_native(sentences)
+            if plan is not None:
+                self.__dict__["_list_plan"] = plan
 
     def _infer(self, sentences: Any, use_norm: bool) -> ndarray:
         """The body of :meth:`infer`."""
