@@ -502,3 +502,51 @@ def test_fingerprint_of_unsaved_vectors_equals_the_saved_one(tmp_path):
     assert manifest["metadata"]["fse.fingerprint"] == wv.fingerprint
     assert manifest["metadata"]["fse.ngram_hash"] == "fasttext@1"
     assert manifest["metadata"]["fse.fasttext"] == '{"bucket":7,"max_n":5,"min_n":3}'
+
+
+GOLDEN = {
+    "float32": "sha256:2700466c5f0e3b1c47624e9e52a4b5064e911e7fc1827e48070345d90cab89f1",
+    "int8": "sha256:efce97495ce0ec596486aa46091b4afa5f27dc0ec2aa039da48dcd6616b68f37",
+}
+
+
+@pytest.mark.parametrize("dtype", sorted(GOLDEN))
+@pytest.mark.parametrize("mmap", [False, True])
+def test_golden_word_vectors(test_data_dir, dtype, mmap):
+    """The committed artifacts of tests/test_data/v2: the format must keep reading them."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "make_golden", test_data_dir / "v2" / "make_golden.py"
+    )
+    make_golden = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(make_golden)
+    a = make_golden.arrays()
+    wv = WordVectors.load(test_data_dir / "v2" / f"word_vectors_{dtype}", mmap=mmap)
+    wv.verify()
+    assert wv.fingerprint == GOLDEN[dtype]
+    assert [wv.word(i) for i in range(len(wv))] == a["words"]
+    np.testing.assert_array_equal(wv.counts, a["counts"])
+    assert wv.fasttext == a["fasttext"]
+    if dtype == "float32":
+        assert wv.vectors.tobytes() == a["vectors"].tobytes()
+        assert wv.ngrams.tobytes() == a["ngrams"].tobytes()
+    else:
+        codes, scales = quantize_rows(a["vectors"], dtype)
+        assert wv.vectors.tobytes() == codes.tobytes()
+        assert wv.scales.tobytes() == scales.tobytes()
+        assert wv.metadata["fse.quantized_from"] == GOLDEN["float32"]
+    # Writing the same content again, through every container, gives the same fingerprint.
+    from fse._container import CONTAINERS
+
+    for container in CONTAINERS.values():
+        assert container.name == "npy"
+    rebuilt = WordVectors.from_arrays(
+        a["vectors"],
+        words=a["words"],
+        counts=a["counts"],
+        fasttext=a["fasttext"],
+        ngrams=a["ngrams"],
+    )
+    rebuilt = rebuilt if dtype == "float32" else rebuilt.quantize(dtype)
+    assert rebuilt.fingerprint == GOLDEN[dtype]
