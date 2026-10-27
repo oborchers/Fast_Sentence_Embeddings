@@ -1,0 +1,17 @@
+{
+  "fse": "1.1.0",
+  "python": "3.12.12",
+  "machine": "macOS-27.0.1-arm64-arm-64bit",
+  "kernel": "neon",
+  "versions": {
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "gensim": "4.4.0"
+  },
+  "blas": [],
+  "sha256": {
+    "outputs.npz": "7fa37438e00816d47cbea2d285eb5e9cf70a6ffdeaa2d10a036443ea3a25610b",
+    "sentences.json": "7889d4ed3b6e37fac8cb2e78a228c7a995c2542f69df15ef9e757e50c50e898e",
+    "words.json": "31e5112492196cb45055ef6418e3c359ed4ba474f8f7f77d3b646edb074234a2"
+  }
+}

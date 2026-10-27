@@ -4,7 +4,7 @@ Guidance for coding agents working in this repository.
 
 ## Project
 
-fse (Fast Sentence Embeddings) computes sentence vectors on top of gensim word vectors, with a Cython core in `src/fse/models/average_inner.pyx`. The project is in maintenance mode: compatibility fixes and maintainer-planned scaling work, no feature work on request.
+fse (Fast Sentence Embeddings) computes sentence vectors on top of gensim word vectors, with a Cython core in `src/fse/models/average_inner.pyx`. master is the development branch of fse 2.0, a rewrite planned by the maintainer (ARCHITECTURE.md, section 2.0); 1.x is in maintenance mode on the branch `1.x`. No feature work on request.
 
 - Python 3.11 to 3.13. Python 3.14 is blocked until gensim builds there (piskvorky/gensim#3640); CI runs it as an informational job.
 - Build backend is setuptools (pyproject.toml for metadata, setup.py only for the extension). Version comes from git tags (`v1.2.3`) via setuptools-scm.
@@ -27,7 +27,8 @@ Performance changes report before and after numbers from `uv run python benchmar
 ## Rules
 
 - Validate strictly and never fail silently: raise a clear exception instead of coercing, ignoring or truncating input. Decorate new public entry points with `fse._validation.validate_arguments` unless they are called per element or receive bulk data; measure the overhead when in doubt. See ARCHITECTURE.md.
-- Never rename modules under `fse.models`. Saved models pickle class paths such as `fse.models.average.Average`.
+- Never rename modules under `fse.models` while master still ships them: saved 1.x models pickle class paths such as `fse.models.average.Average`. 2.0 artifacts store no class paths; never rename or reuse their persistence names (identifiers such as `weighted_mean@1`, `fse.` metadata keys, tensor names). See ARCHITECTURE.md, section 2.0.
+- New 2.0 code follows the numerical contract in ARCHITECTURE.md and matches the numpy reference in `fse._reference` bit for bit; compare bit patterns, not values. Any change of arithmetic bumps the version of the aggregation or step it changes.
 - Keep the numpy fallback in `average.py` and the Cython routines in `average_inner.pyx` numerically identical; tests compare them.
 - Do not hard-code vocabulary positions in tests. gensim versions order words with equal counts differently; derive expectations from `key_to_index`.
 - The dependency lower bounds in pyproject.toml must match the pins of the minimum job in `.github/workflows/ci.yml`.

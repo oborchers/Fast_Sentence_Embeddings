@@ -1,0 +1,112 @@
+{
+  "config": {
+    "vectors": "glove-wiki-gigaword-300",
+    "corpus": "/Users/oliverborchers/.cache/fse-quality/wikitext-103-b08601e0.txt",
+    "sentences": "1000000",
+    "model": "SIF",
+    "wv_dtype": "float32",
+    "sv_dtype": "float32",
+    "workers": "10",
+    "queries": "200",
+    "json": "benchmarks/baseline/results/lifecycle-1.1.0-m1pro-sif-float32.json"
+  },
+  "rows": 859346,
+  "machine": "macOS-27.0.1-arm64-arm-64bit",
+  "python": "3.12.12",
+  "fse": "1.1.0",
+  "kernel": "neon",
+  "phases": {
+    "load_vectors": {
+      "seconds": 2.3888648750144057,
+      "rss_before": 102531072,
+      "peak_rss": 673857536,
+      "load_average": 3.267578125
+    },
+    "load_vectors_mmap": {
+      "seconds": 1.4209837499656714,
+      "rss_before": 531775488,
+      "peak_rss": 685146112,
+      "load_average": 3.7265625
+    },
+    "construct": {
+      "seconds": 0.22622458299156278,
+      "rss_before": 606552064,
+      "peak_rss": 606552064,
+      "load_average": 3.7265625
+    },
+    "scan": {
+      "seconds": 0.08365195896476507,
+      "rss_before": 436518912,
+      "peak_rss": 919420928,
+      "load_average": 3.7265625
+    },
+    "train": {
+      "seconds": 1.2812910840148106,
+      "rss_before": 428130304,
+      "peak_rss": 2402942976,
+      "load_average": 3.7265625,
+      "average": 1.0426165839890018
+    },
+    "save": {
+      "seconds": 0.696773707983084,
+      "rss_before": 2075230208,
+      "peak_rss": 2085863424,
+      "load_average": 3.7265625,
+      "bytes_on_disk": 1527256482,
+      "vector_bytes": 1031215200
+    },
+    "load": {
+      "seconds": 0.38712558295810595,
+      "rss_before": 1855799296,
+      "peak_rss": 2350366720,
+      "load_average": 3.748046875
+    },
+    "first_search": {
+      "seconds": 1.5162025419995189,
+      "rss_before": 2351546368,
+      "peak_rss": 3089514496,
+      "load_average": 3.748046875
+    },
+    "search": {
+      "p50_s": 0.046108667040243745,
+      "p95_s": 0.050692582968622446,
+      "queries": 199
+    },
+    "score": {
+      "seconds": 1.9380378340138122,
+      "rss_before": 1511407616,
+      "peak_rss": 2752692224,
+      "load_average": 3.853515625
+    },
+    "infer_1": {
+      "p50_s": 0.0016384589835070074,
+      "p95_s": 0.019232458027545363,
+      "sentences": 1
+    },
+    "infer_10": {
+      "p50_s": 0.0015746660064905882,
+      "p95_s": 0.024581874953582883,
+      "sentences": 10
+    },
+    "infer_100": {
+      "p50_s": 0.0042955829994753,
+      "p95_s": 0.011611542024184018,
+      "sentences": 100
+    },
+    "infer_1000": {
+      "p50_s": 0.014788625005166978,
+      "p95_s": 0.08583350002299994,
+      "sentences": 1000
+    },
+    "infer_10000": {
+      "p50_s": 0.12113966600736603,
+      "p95_s": 0.22273016697727144,
+      "sentences": 10000
+    },
+    "infer_100000": {
+      "p50_s": 1.1001329170539975,
+      "p95_s": 1.34251258301083,
+      "sentences": 100000
+    }
+  }
+}
