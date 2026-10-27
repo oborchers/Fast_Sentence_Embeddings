@@ -22,7 +22,11 @@ def bits(x):
 
 
 def round_f32(value: Fraction) -> np.float32:
-    """The float32 nearest to an exact rational, ties to even."""
+    """The float32 nearest to an exact rational, ties to even.
+
+    For finite results only, and blind to the sign of zero: the tests that use it stay
+    in that range, and signed zeros and overflow have explicit cases.
+    """
     guess = F32(float(value))
     candidates = {guess, np.nextafter(guess, F32(np.inf)), np.nextafter(guess, F32(-np.inf))}
     candidates = [c for c in candidates if np.isfinite(c)]
@@ -76,6 +80,18 @@ def test_fma32_edge_cases():
     assert bits(fma32(F32(-0.0), F32(1), F32(-0.0))) == bits(F32(-0.0))
 
 
+@pytest.mark.parametrize("sign", [1, -1])
+def test_fma32_needs_round_to_odd(sign):
+    # a * b lies exactly halfway between two float32 values; the tiny c decides the
+    # rounding but vanishes in a plain float64 addition, which would then round to even.
+    a = F32(sign * (1 + 2**-12))
+    b = F32(1 + 2**-12)
+    c = F32(sign * 2**-80)
+    expected = F32(sign * (1 + 2**-11 + 2**-23))
+    assert bits(fma32(a, b, c)) == bits(expected)
+    assert bits(F32(np.float64(a) * np.float64(b) + np.float64(c))) != bits(expected)
+
+
 def dot16_loop(row, vector):
     partial = [F32(0)] * 16
     for i, (x, y) in enumerate(zip(row, vector, strict=True)):
@@ -97,14 +113,14 @@ def test_dot16_follows_its_order(dim):
         assert bits(value) == bits(dot16_loop(row, vector))
 
 
-def test_dot16_ignores_zero_padding():
-    rng = np.random.default_rng(1)
-    rows = rng.standard_normal((4, 37)).astype(F32)
-    vector = rng.standard_normal(37).astype(F32)
-    padded = np.concatenate([rows, np.zeros((4, 11), dtype=F32)], axis=1)
-    np.testing.assert_array_equal(
-        bits(dot16(rows, vector)), bits(dot16(padded, np.concatenate([vector, np.zeros(11, F32)])))
-    )
+def test_dot16_keeps_negative_zero_lanes():
+    # Products that round to -0.0 leave a lane at -0.0, so zero padding is not neutral:
+    # an implementation must not pad the reduction with zeros.
+    rows = np.full((1, 16), -(2.0**-149), dtype=F32)
+    vector = np.full(16, 0.5, dtype=F32)
+    assert bits(dot16(rows, vector)[0]) == bits(F32(-0.0))
+    padded = np.concatenate([rows, np.zeros((1, 16), F32)], axis=1)
+    assert bits(dot16(padded, np.concatenate([vector, np.zeros(16, F32)]))[0]) == 0
 
 
 def _batch(sentences, first_row=0, ngrams=None):
@@ -265,6 +281,13 @@ def test_normalize():
         postprocess(np.array([[3e38, 3e38]], dtype=F32), [Normalize()])
 
 
+def test_postprocess_reports_overflow_with_the_row():
+    rows = np.array([[1, 0], [np.finfo(F32).max, 0]], dtype=F32)
+    step = RemoveComponents(np.array([[1, 0]], dtype=F32), np.array([-2], dtype=F32))
+    with pytest.raises(ValueError, match="row 8 contains NaN or infinite"):
+        postprocess(rows, [step], first_row=7)
+
+
 def test_postprocess_rejects_non_finite_rows():
     with pytest.raises(ValueError, match="row 4 contains NaN"):
         postprocess(np.array([[1, 0], [np.inf, 0]], dtype=F32), [], first_row=3)
@@ -301,6 +324,18 @@ def test_quantize_rows_matches_1x(dtype):
     else:
         assert scales is None
         np.testing.assert_array_equal(dequantize(codes, None), codes.astype(F32))
+
+
+def test_quantize_rows_with_a_scale_that_rounds_to_zero():
+    # absmax / 127 underflows to 0 for the smallest subnormal: the codes are 0, as for a
+    # zero row, and as in 1.x.
+    rows = np.array([[2.0**-149, 0], [0, 0]], dtype=F32)
+    codes, scales = quantize_rows(rows, "int8")
+    np.testing.assert_array_equal(codes, 0)
+    np.testing.assert_array_equal(bits(scales), 0)
+    expected = np.empty((2, 2), dtype=np.int8)
+    quantize_into(rows, expected, np.empty(2, dtype=F32))
+    np.testing.assert_array_equal(codes, expected)
 
 
 def test_quantize_rows_rejects():

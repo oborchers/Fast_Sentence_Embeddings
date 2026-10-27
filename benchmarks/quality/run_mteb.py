@@ -270,10 +270,13 @@ def run(models: list[str], task_names: list[str] | None, results: Path = RESULTS
 
 def summarize(results: Path = RESULTS) -> None:
     """Print a Markdown table of the latest result per model and task."""
+    # One row per model, fse version and machine: results of different versions or
+    # machines are never averaged together.
     latest: dict[tuple[str, str], dict[str, Any]] = {}
     for line in results.read_text(encoding="utf-8").splitlines():
         row = json.loads(line)
-        latest[row["model"], row["task"]] = row
+        model = f"{row['model']} ({row['fse']}, {row['machine']})"
+        latest[model, row["task"]] = row
     by_model: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for (model, _), row in latest.items():
         by_model[model].append(row)

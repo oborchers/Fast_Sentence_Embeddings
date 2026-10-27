@@ -134,35 +134,44 @@ def pool_weighted_mean(
     return out
 
 
-def postprocess(rows: ndarray, steps: Sequence[Step], first_row: int = 0) -> ndarray:
-    """Apply ``steps`` to every float32 row; returns new rows and checks they are finite."""
-    out = np.array(rows, dtype=_F32, copy=True)
-    for step in check_steps(steps, out.shape[1]):
-        if isinstance(step, RemoveComponents):
-            projection = np.zeros_like(out)
-            for j, component in enumerate(step.components):
-                coefficient = dot16(out, component)
-                if step.weights is not None:
-                    coefficient = coefficient * step.weights[j]
-                projection = fma32(coefficient[:, None], component[None, :], projection)
-            out = out - projection
-        elif isinstance(step, Project):
-            out = np.stack([dot16(out, axis) for axis in step.basis], axis=1).astype(_F32)
-        elif isinstance(step, Normalize):
-            with np.errstate(over="ignore"):
-                squares = dot16(out, out)
-            nonzero = (out != 0).any(axis=1)
-            bad = np.flatnonzero(nonzero & ((squares == 0) | ~np.isfinite(squares)))
-            if len(bad):
-                raise ValueError(
-                    f"row {first_row + int(bad[0])} cannot be normalized: the sum of its "
-                    "squares underflows or overflows float32"
-                )
-            inverse = np.where(nonzero, _F32(1) / np.sqrt(np.where(nonzero, squares, 1)), 0)
-            out = out * inverse.astype(_F32)[:, None]
-    bad = np.flatnonzero(~np.isfinite(out).all(axis=1))
+def _check_finite(rows: ndarray, first_row: int):
+    bad = np.flatnonzero(~np.isfinite(rows).all(axis=1))
     if len(bad):
         raise ValueError(f"row {first_row + int(bad[0])} contains NaN or infinite values")
+
+
+def postprocess(rows: ndarray, steps: Sequence[Step], first_row: int = 0) -> ndarray:
+    """Apply ``steps`` to every float32 row; returns new rows and checks they are finite.
+
+    A step whose result overflows raises a ValueError naming the row, as the contract
+    requires, instead of a numpy warning.
+    """
+    out = np.array(rows, dtype=_F32, copy=True)
+    _check_finite(out, first_row)
+    with np.errstate(over="ignore", invalid="ignore"):
+        for step in check_steps(steps, out.shape[1]):
+            if isinstance(step, RemoveComponents):
+                projection = np.zeros_like(out)
+                for j, component in enumerate(step.components):
+                    coefficient = dot16(out, component)
+                    if step.weights is not None:
+                        coefficient = coefficient * step.weights[j]
+                    projection = fma32(coefficient[:, None], component[None, :], projection)
+                out = out - projection
+            elif isinstance(step, Project):
+                out = np.stack([dot16(out, axis) for axis in step.basis], axis=1).astype(_F32)
+            elif isinstance(step, Normalize):
+                squares = dot16(out, out)
+                nonzero = (out != 0).any(axis=1)
+                bad = np.flatnonzero(nonzero & ((squares == 0) | ~np.isfinite(squares)))
+                if len(bad):
+                    raise ValueError(
+                        f"row {first_row + int(bad[0])} cannot be normalized: the sum of its "
+                        "squares underflows or overflows float32"
+                    )
+                inverse = np.where(nonzero, _F32(1) / np.sqrt(np.where(nonzero, squares, 1)), 0)
+                out = out * inverse.astype(_F32)[:, None]
+            _check_finite(out, first_row)
     return out
 
 

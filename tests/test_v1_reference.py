@@ -69,8 +69,18 @@ def test_1x_reproduces_1_1_0(ref, name, dtype):
     data = IndexedList(sentences)
     model.train(data)
     prefix = f"{name}.{dtype}"
-    np.testing.assert_allclose(model.sv.vectors, arrays[f"{prefix}.train"], rtol=1e-5, atol=1e-6)
-    np.testing.assert_allclose(model.infer(data), arrays[f"{prefix}.infer"], rtol=1e-5, atol=1e-6)
+    assert_rows_close(model.sv.vectors, arrays[f"{prefix}.train"])
+    assert_rows_close(model.infer(data), arrays[f"{prefix}.infer"])
+
+
+def assert_rows_close(got, expected, tolerance=1e-5):
+    """Equal within ``tolerance`` of each row's largest value, also for tiny rows."""
+    got = np.asarray(got, dtype=np.float32)
+    scale = np.abs(expected).max(axis=1, keepdims=True)
+    zero = (scale == 0).ravel()
+    np.testing.assert_array_equal(got[zero], 0)
+    relative = np.abs(got - expected)[~zero] / scale[~zero]
+    assert relative.max(initial=0) < tolerance, float(relative.max())
 
 
 def _batch(arrays, kind):
@@ -117,9 +127,7 @@ def test_v2_reference_is_close_to_1_1_0_infer(ref, name, dtype):
     # Measured on Apple M1 (Accelerate): averaging is bit-identical, the removal of
     # components (BLAS in 1.x, dot16 in 2.0) differs by at most 3e-7 of the largest value
     # of a row. Other BLAS libraries may not fuse saxpy, which adds a rounding per token.
-    scale = np.maximum(np.abs(expected).max(axis=1, keepdims=True), np.finfo(np.float32).tiny)
-    relative = float((np.abs(got - expected) / scale).max())
-    assert relative < 1e-5, relative
+    assert_rows_close(got, expected)
     # Empty sentences are zero rows in both; train in 1.x fills them with EPS instead.
     empty = np.flatnonzero(
         np.diff(arrays[f"batch.{'ft' if name == 'AverageFT' else 'kv'}.offsets"]) == 0

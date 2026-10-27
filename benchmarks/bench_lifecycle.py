@@ -7,8 +7,9 @@ Phases:
 - ``load_vectors``: pretrained vectors from the Hugging Face Hub cache, without and with mmap;
 - ``construct``: the model, which quantizes the word vectors for ``--wv-dtype``;
 - ``scan``: one scan of the corpus;
-- ``train``: ``train`` end to end, with ``average`` (the averaging threads) and ``components``
-  (learning and removing principal components) inside it;
+- ``train``: ``train`` end to end, with ``average`` (the averaging threads) inside it; the
+  rest of ``train`` is scanning, preparing and the principal components (a replaced
+  ``_post_train_calls`` would change how SIF and uSIF learn them, so it is not timed apart);
 - ``save``, ``load``: the trained model, with the bytes on disk;
 - ``first_search``, ``search``: ``most_similar`` for one sentence vector, the first call
   (which prepares norms) and the warm calls (p50 and p95 over ``--queries``);
@@ -165,11 +166,10 @@ def main() -> None:
             return wrapper
 
         model._train_manager = timed("average", model._train_manager)
-        model._post_train_calls = timed("components", model._post_train_calls)
         with p.phase("train"):
             model.train(CorpusFile(str(corpus)))
         p.results["train"].update(inner)
-        del model._train_manager, model._post_train_calls
+        del model._train_manager
         rows = len(model.sv)
 
         path = tmp / "model"
@@ -198,6 +198,8 @@ def main() -> None:
 
         lines = corpus.read_text(encoding="utf-8").splitlines()
         for n in (1, 10, 100, 1_000, 10_000, 100_000):
+            if n > len(lines):
+                break
             batch = IndexedList([line.split() for line in lines[:n]])
             times = []
             for _ in range(5):

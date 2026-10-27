@@ -5,7 +5,7 @@ interpreter state cannot leak between measurements. Each subprocess builds the
 same synthetic corpus from a fixed seed, trains several times and reports the
 median wall time of creating the input and ``model.train`` end to end (scan,
 preparation, training and component removal), and of the training phase alone
-(``_train_manager``).
+(every call of ``_train_manager``), and the peak RSS of the subprocess.
 
 Results are only comparable on an idle machine. The script records the load
 average before every configuration and warns when it exceeds a quarter of the
@@ -21,6 +21,7 @@ Examples::
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import logging
 import os
@@ -143,7 +144,12 @@ def run_one(cfg: dict) -> dict:
             start = time.perf_counter()
             model.train(make_input())
             times.append(time.perf_counter() - start)
-            train_times.append(phase[0])
+            # float16 and int8 SIF and uSIF pass over the windows twice (Gram matrix, then
+            # removal and storing); both passes count.
+            train_times.append(sum(phase))
+            # The wrapper holds the model; drop it, so no earlier model inflates the RSS.
+            del model._train_manager, model, manager, timed_manager
+            gc.collect()
     median = statistics.median(times)
     train_median = statistics.median(train_times)
     # ru_maxrss is in bytes on macOS and in kilobytes on Linux.

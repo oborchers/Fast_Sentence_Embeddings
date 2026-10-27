@@ -6,7 +6,7 @@ corpus of benchmarks/quality/run_mteb.py) with paranmt-300:
 - **Gram matrix:** the SIF-weighted sentence vectors (``components=0``) give the Gram
   matrix as 1.1.0 sums it (float32 block products, float64 sum) and exactly in float64;
   reported are the largest relative difference and the principal angles between the 10
-  components of both. 1 and 10 workers must give bit-identical components.
+  components of both. 1 and ``os.cpu_count()`` workers must give bit-identical components.
 - **Search:** SIF-10 with ``sv_dtype`` float32, float16 and int8; for 1,000 fixed query
   rows, recall@10 of ``most_similar`` against float32, and how many neighbors in the
   float32 top 100 reach a cosine of 0.5, 0.7 and 0.9 (what ``min_similarity`` keeps).
@@ -91,7 +91,8 @@ def main() -> None:
             models[dtype] = model
         one = SIF(vectors, components=10, lang_freq="en", workers=1)
         one.train(corpus)
-        out["components_bit_identical_1_vs_10_workers"] = bool(
+        out["workers_compared"] = [1, os.cpu_count()]
+        out["components_bit_identical_across_workers"] = bool(
             np.array_equal(
                 one.svd_res[1].view(np.uint32), models["float32"].svd_res[1].view(np.uint32)
             )

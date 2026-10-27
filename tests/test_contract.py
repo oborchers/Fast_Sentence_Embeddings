@@ -58,8 +58,14 @@ def test_transform_version():
 
 def test_output_dim():
     assert Aggregation.WEIGHTED_MEAN.output_dim(300) == 300
+    assert Aggregation.WEIGHTED_MEAN.output_dim(np.int64(3)) == 3
     with pytest.raises(ValueError, match="at least 1"):
         Aggregation.WEIGHTED_MEAN.output_dim(0)
+    for value in (True, 1.5, float("nan"), "3"):
+        with pytest.raises(TypeError, match="must be an int"):
+            Aggregation.WEIGHTED_MEAN.output_dim(value)
+    with pytest.raises(ValueError, match="at least 1"):
+        output_dim([], -2)
 
 
 def _components(k=2, d=4):
@@ -85,6 +91,16 @@ def test_step_lists():
     assert rc.op is Op.REMOVE_COMPONENTS
     assert p.op is Op.PROJECT
     assert n.op is Op.NORMALIZE
+
+
+def test_components_and_bases_must_be_orthonormal():
+    for rows in ([[2, 0]], [[0, 0]], [[1, 0], [1, 0]], [[1, 0], [0.7071, 0.7071]]):
+        with pytest.raises(ValueError, match="must be orthonormal"):
+            RemoveComponents(np.array(rows, dtype=np.float32))
+        with pytest.raises(ValueError, match="must be orthonormal"):
+            Project(np.array(rows, dtype=np.float32))
+    # Within float32 rounding is fine.
+    Project(np.array([[1 + 1e-6, 0], [0, 1]], dtype=np.float32))
 
 
 def test_project_validates():
@@ -146,6 +162,10 @@ def test_batch_accepts_valid_input():
         ({"offsets": _i64(1, 1)}, ValueError, "start with 0"),
         ({"offsets": _i64()}, ValueError, "start with 0"),
         ({"offsets": _i64(0, 1, 0, 1)}, ValueError, "not decrease"),
+        # np.diff of these offsets wraps around to positive values only.
+        ({"offsets": _i64(0, 2**63 - 1, -2, 1)}, ValueError, "not decrease"),
+        ({"first_row": 2**63}, ValueError, "int64 range"),
+        ({"first_row": 2**63 - 1, "offsets": _i64(0, 1, 1)}, ValueError, "int64 range"),
         ({"offsets": _i64(0, 2)}, ValueError, "end with 1"),
         ({"offsets": _i64(0, 1).reshape(1, 2)}, ValueError, "one dimension"),
         ({"tokens": np.array([1], dtype=np.int64)}, TypeError, "uint32"),

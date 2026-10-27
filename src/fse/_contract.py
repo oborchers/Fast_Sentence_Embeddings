@@ -32,6 +32,10 @@ SUPPORTED_TRANSFORM_VERSIONS = frozenset({TRANSFORM_VERSION})
 OOV_TOKEN = 0xFFFFFFFE
 
 _ID = re.compile(r"([a-z][a-z0-9_]*)@([1-9][0-9]*)")
+_INT64_MAX = 2**63 - 1
+# How far the rows of components and bases may be from orthonormal: float32 eigenvectors
+# of a 300 x 300 Gram matrix are orthonormal to about 1e-6.
+ORTHONORMAL_TOLERANCE = 1e-4
 
 
 class UnsupportedArtifactError(ValueError):
@@ -81,9 +85,7 @@ class Aggregation(_Versioned):
 
     def output_dim(self, input_dim: int) -> int:
         """The dimension of a row aggregated from rows of ``input_dim`` values."""
-        if input_dim < 1:
-            raise ValueError(f"input_dim must be at least 1, not {input_dim}")
-        return input_dim
+        return check_dim(input_dim, "input_dim")
 
 
 class Op(_Versioned):
@@ -95,6 +97,25 @@ class Op(_Versioned):
 
 
 _KINDS = {"Aggregation": "aggregation", "Op": "postprocessing step"}
+
+
+def check_dim(dim: object, name: str = "dim") -> int:
+    """Return ``dim`` if it is a positive int (not a bool), or raise."""
+    if isinstance(dim, bool) or not isinstance(dim, int | np.integer):
+        raise TypeError(f"{name} must be an int, not {type(dim).__name__}")
+    if dim < 1:
+        raise ValueError(f"{name} must be at least 1, not {dim}")
+    return int(dim)
+
+
+def _check_orthonormal(rows: ndarray, name: str):
+    gram = rows.astype(np.float64) @ rows.astype(np.float64).T
+    error = float(np.abs(gram - np.eye(len(rows))).max())
+    if error > ORTHONORMAL_TOLERANCE:
+        raise ValueError(
+            f"the rows of {name} must be orthonormal; their Gram matrix differs from the "
+            f"identity by {error:.3g}, more than {ORTHONORMAL_TOLERANCE}"
+        )
 
 
 def check_transform_version(version: object) -> int:
@@ -140,6 +161,7 @@ class RemoveComponents:
         k, d = components.shape
         if not 1 <= k <= d:
             raise ValueError(f"components must hold between 1 and {d} rows, not {k}")
+        _check_orthonormal(components, "components")
         if self.weights is not None:
             weights = _float32_matrix(self.weights, "weights", 1)
             if weights.shape != (k,):
@@ -166,6 +188,7 @@ class Project:
         k, d = basis.shape
         if not 1 <= k <= d:
             raise ValueError(f"basis must hold between 1 and {d} rows, not {k}")
+        _check_orthonormal(basis, "basis")
 
     @property
     def dim(self) -> int:
@@ -194,6 +217,7 @@ _STEP_ORDER = (Op.REMOVE_COMPONENTS, Op.PROJECT, Op.NORMALIZE)
 
 def check_steps(steps: Sequence[object], dim: int) -> tuple[Step, ...]:
     """Return ``steps`` as a tuple if they form an allowed list for rows of ``dim`` values."""
+    dim = check_dim(dim)
     checked: list[Step] = []
     for step in steps:
         if not isinstance(step, RemoveComponents | Project | Normalize):
@@ -239,7 +263,8 @@ def _int_array(value: object, name: str, dtype: type) -> ndarray:
 def _check_offsets(offsets: ndarray, total: int, name: str):
     if len(offsets) == 0 or offsets[0] != 0:
         raise ValueError(f"{name} must start with 0")
-    if (np.diff(offsets) < 0).any():
+    # Compare neighbors instead of np.diff, whose int64 differences can wrap around.
+    if (offsets[1:] < offsets[:-1]).any():
         raise ValueError(f"{name} must not decrease")
     if offsets[-1] != total:
         raise ValueError(f"{name} must end with {total}, the number of entries, not {offsets[-1]}")
@@ -268,7 +293,10 @@ class Batch:
         if self.first_row < 0:
             raise ValueError(f"first_row must not be negative, not {self.first_row}")
         tokens = _int_array(self.tokens, "tokens", np.uint32)
-        _check_offsets(_int_array(self.offsets, "offsets", np.int64), len(tokens), "offsets")
+        offsets = _int_array(self.offsets, "offsets", np.int64)
+        _check_offsets(offsets, len(tokens), "offsets")
+        if int(self.first_row) + len(offsets) - 2 > _INT64_MAX:
+            raise ValueError(f"the rows of a batch from {self.first_row} exceed the int64 range")
         unknown = int(np.count_nonzero(tokens == OOV_TOKEN))
         if (self.ngram_offsets is None) != (self.ngrams is None):
             raise ValueError("ngram_offsets and ngrams must be given together")
