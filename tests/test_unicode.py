@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 GENERATOR = ROOT / "tools" / "make_unicode_tables.py"
-pytestmark = pytest.mark.skipif(
+needs_generator = pytest.mark.skipif(
     not GENERATOR.exists(), reason="tools/ is not part of this checkout"
 )
 
@@ -22,6 +22,7 @@ def _generator():
     return SimpleNamespace(**runpy.run_path(str(GENERATOR)))
 
 
+@needs_generator
 def test_the_table_has_the_pinned_version():
     gen = _generator()
     assert UNICODE_VERSION == gen.UNICODE_VERSION == "15.1.0"
@@ -32,6 +33,7 @@ def test_the_table_has_the_pinned_version():
     assert 0x03C2 not in SIMPLE_LOWERCASE
 
 
+@needs_generator
 def test_both_generated_files_hold_the_same_table():
     """Generating both files from the Python table reproduces them byte for byte."""
     gen = _generator()

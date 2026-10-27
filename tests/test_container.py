@@ -405,7 +405,8 @@ def test_unlisted_files_are_ignored(tmp_path):
     assert set(tensors) == {"vectors", "vocab.bytes", "vocab.offsets"}
 
 
-def test_mapped_artifact_can_be_removed_after_release(tmp_path, windows_file_maps):
+@pytest.mark.usefixtures("windows_file_maps")
+def test_mapped_artifact_can_be_removed_after_release(tmp_path):
     import gc
     import shutil
 
@@ -526,7 +527,7 @@ def test_write_reserves_the_target(tmp_path, monkeypatch):
     c = NpyContainer()
     original = NpyContainer._write_tensor
 
-    def failing(file, array):
+    def failing(file, _array):
         assert file.parent == tmp_path / "a"  # written in place, committed by the manifest
         assert not (tmp_path / "a" / "manifest.json").exists()
         raise OSError("disk full")

@@ -33,10 +33,12 @@ format: ## Format code with ruff
 format-check: ## Check formatting (CI mode)
 	$(UV) run ruff format --check $(LINT_PATHS)
 
-lint: ## Lint with ruff, the import contracts and the guardrails
+lint: ## Lint with ruff, the import contracts, the guardrails, unused code and dependencies
 	$(UV) run ruff check $(LINT_PATHS)
 	$(UV) run lint-imports --no-cache
 	$(UV) run python tools/check_guardrails.py
+	$(UV) run vulture
+	$(UV) run deptry src
 
 lint-fix: ## Lint and auto-fix
 	$(UV) run ruff check --fix $(LINT_PATHS)

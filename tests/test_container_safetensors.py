@@ -167,16 +167,6 @@ def _edit(edit):
     return apply
 
 
-def _edit_refingerprinted(edit):
-    def apply(path):
-        header, data = _parts(path)
-        edit(header)
-        _refingerprint(header)
-        _assemble(path, header, data)
-
-    return apply
-
-
 def _raw(make):
     def apply(path):
         raw = make(path.read_bytes())
@@ -370,7 +360,8 @@ def test_symbolic_links_are_rejected(tmp_path):
         SafetensorsContainer().open(path, mmap=True)
 
 
-def test_mapped_file_can_be_removed_after_release(tmp_path, windows_file_maps):
+@pytest.mark.usefixtures("windows_file_maps")
+def test_mapped_file_can_be_removed_after_release(tmp_path):
     import gc
 
     path = _written(tmp_path)
@@ -629,11 +620,11 @@ def test_failed_writes_publish_nothing_and_keep_other_files(tmp_path, monkeypatc
     path = tmp_path / "a.safetensors"
     if failing == "fsync":
         monkeypatch.setattr(
-            container.os, "fsync", lambda fd: (_ for _ in ()).throw(OSError("fsync"))
+            container.os, "fsync", lambda _fd: (_ for _ in ()).throw(OSError("fsync"))
         )
     elif failing == "publish":
         monkeypatch.setattr(
-            container, "_publish", lambda tmp, target: (_ for _ in ()).throw(OSError("publish"))
+            container, "_publish", lambda _tmp, _target: (_ for _ in ()).throw(OSError("publish"))
         )
     else:
         real_sha256 = container.hashlib.sha256
@@ -642,7 +633,7 @@ def test_failed_writes_publish_nothing_and_keep_other_files(tmp_path, monkeypatc
             def __init__(self, data=b""):
                 self.inner = real_sha256(data)
 
-            def update(self, data):
+            def update(self, _data):
                 raise OSError("write")
 
             def hexdigest(self):  # pragma: no cover - never reached

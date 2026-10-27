@@ -151,7 +151,7 @@ def test_tokenize_validates_its_arguments():
         ),
         ("no contraction table", "CONTRACTIONS", {}),
         ("no clitics", "CLITICS", ()),
-        ("every character a word character", "_is_word", lambda ch: True),
+        ("every character a word character", "_is_word", lambda _ch: True),
         ("the separators of the 1.x regex only", "SEPARATORS", frozenset('!"#$%&()*;<>?@[]`{}')),
     ],
 )

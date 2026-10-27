@@ -282,7 +282,7 @@ The modules form layers, and a module imports only from layers below it. The imp
 4. `_container`, `_codes`, `_gram`, `_reference`, `_reference_text`, `_validation`, independent of each other: the references never share code with what they check
 5. `_contract`, `_unicode`
 
-The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` imports it and that it imports only `_contract`. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, mlx, torch and sklearn anywhere but in `fse.gensim`. The runtime, backends, encoder, sinks and store of the coming PRs add their layers above `_text`.
+The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` imports it and that it imports only `_contract` from fse. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, mlx, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list to the extension. The runtime, backends, encoder, sinks and store of the coming PRs add their layers above `_text`.
 
 ### Defaults
 

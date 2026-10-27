@@ -470,7 +470,8 @@ def test_save_never_overwrites(tmp_path):
         wv.save(3)
 
 
-def test_released_maps_allow_removal(tmp_path, windows_file_maps):
+@pytest.mark.usefixtures("windows_file_maps")
+def test_released_maps_allow_removal(tmp_path):
     _wv("int8").save(tmp_path / "wv.safetensors")
     wv = WordVectors.load(tmp_path / "wv.safetensors", mmap=True)
     assert wv.index("é") == 1  # the lookup holds no map

@@ -49,10 +49,6 @@ def model_file(name: str) -> str:
     return str(Path(snapshot_download(f"fse/{name}", local_files_only=True)) / f"{name}.model")
 
 
-def disk_bytes(path: Path) -> int:
-    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
-
-
 def child(case: str, vectors: str, dtype: str, store: Path) -> dict:
     """Prepare the case, then measure only its operation: time, RSS and allocations."""
     import fse  # every case imports fse before the measurement

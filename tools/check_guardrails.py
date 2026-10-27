@@ -1,21 +1,25 @@
 """Check the guardrails of the repository against the ratchet in pyproject.toml.
 
-The guardrails ([tool.fse.guardrails]) keep the code reviewable:
+The guardrails ([tool.fse.guardrails]; AGENTS.md, Guardrails) keep the code reviewable:
 
-- at most ``max-lines`` lines per hand-written source file;
+- at most ``max-lines`` lines per hand-written source file under ``paths``;
 - the ruff complexity limits of [tool.ruff.lint.mccabe] and [tool.ruff.lint.pylint]
   (C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917) and a cognitive complexity of at
   most ``max-cognitive-complexity`` per function (complexipy);
-- the imports of the native extension, which import-linter cannot see: only
-  ``native-importers`` import ``fse._native``, and the extension imports only
-  ``native-imports`` from fse;
-- a ``tests/test_<module>.py`` for every module of fse.
+- the imports of and by the native extension, which import-linter cannot see: only
+  ``native-importers`` import ``fse._native``, the extension imports only
+  ``native-imports`` from fse, and nothing imports the forbidden packages of the
+  import-linter contract;
+- a test file for every module of fse.
 
 What exceeded a limit when the guardrails came is the ratchet. It only shrinks: a new
 finding fails, a value above its entry fails, a value below its entry or within the
-limit fails until the entry is lowered or removed. Inline suppressions are ignored.
+limit fails until the entry is lowered or removed. Inline suppressions (``noqa``,
+``complexipy: ignore``) are ignored. With ``--base REF``, the ratchet must not have
+new entries or higher numbers than in the pyproject.toml of REF.
 
     uv run python tools/check_guardrails.py
+    uv run python tools/check_guardrails.py --base origin/master
     uv run python tools/check_guardrails.py --print-ratchet   # the current findings as TOML
 """
 
@@ -35,28 +39,49 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE_SUFFIXES = {".py", ".pyx", ".pxd", ".pxi", ".pyi", ".h", ".c"}
 RUFF_RULES = ["C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917"]
 _RUFF = [sys.executable, "-m", "ruff", "check", "--output-format", "json", "--exit-zero"]
-_RUFF += ["--no-cache", "--quiet"]
+_RUFF += ["--no-cache", "--quiet", "--ignore-noqa"]
 _VALUE = re.compile(r"\((\d+) > \d+\)")
-_NATIVE_IMPORT = re.compile(r"^\s*(?:from\s+(\S+)\s+c?import|c?import\s+(\S+))", re.MULTILINE)
-_FORBIDDEN = ("gensim", "scipy", "smart_open", "psutil", "threadpoolctl", "wordfreq")
+_STRINGS = re.compile(
+    r'"""(?:.|\n)*?"""|\'\'\'(?:.|\n)*?\'\'\'|"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\''
+)
+_COMMENT = re.compile(r"#[^\n]*")
+_FROM = re.compile(r"^\s*from\s+(\.*[\w.]*)\s+c?import\s+\(?([^)\n]*)", re.MULTILINE)
+_IMPORT = re.compile(r"^\s*c?import\s+([^\n]+)", re.MULTILINE)
+
+
+class ToolError(Exception):
+    """A tool the checker runs failed; the message says why."""
+
+
+def load_pyproject(root: Path) -> dict:
+    with open(root / "pyproject.toml", "rb") as f:
+        return tomllib.load(f)
 
 
 def load_config(root: Path) -> dict:
-    """The [tool.fse.guardrails] table of the pyproject.toml in root."""
-    with open(root / "pyproject.toml", "rb") as f:
-        return tomllib.load(f)["tool"]["fse"]["guardrails"]
+    """The [tool.fse.guardrails] table, with the forbidden packages of import-linter."""
+    tool = load_pyproject(root)["tool"]
+    cfg = dict(tool["fse"]["guardrails"])
+    forbidden = [c for c in tool["importlinter"]["contracts"] if c["type"] == "forbidden"]
+    cfg["forbidden"] = sorted({m for c in forbidden for m in c["forbidden_modules"]})
+    return cfg
+
+
+def _run(command: list[str], root: Path) -> str:
+    try:
+        return subprocess.run(command, cwd=root, capture_output=True, check=True).stdout.decode()
+    except FileNotFoundError as err:
+        raise ToolError(f"{command[0]} is not installed: {err}") from None
+    except subprocess.CalledProcessError as err:
+        raise ToolError(f"{' '.join(command[:4])} failed:\n{err.stderr.decode()}") from None
 
 
 def source_files(root: Path, paths: list[str]) -> list[str]:
     """Tracked and untracked, not ignored source files under paths, relative to root."""
-    out = subprocess.run(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "--", *paths],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-    files = {f for f in out.splitlines() if Path(f).suffix in SOURCE_SUFFIXES}
+    out = _run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", *paths], root
+    )
+    files = {f for f in out.split("\0") if Path(f).suffix in SOURCE_SUFFIXES}
     return sorted(f for f in files if (root / f).is_file())
 
 
@@ -66,67 +91,136 @@ def long_files(
     """The line count of every file longer than max_lines, generated files excepted."""
     found = {}
     for name in files:
-        if name in generated:
-            continue
-        lines = len((root / name).read_text(encoding="utf-8").splitlines())
-        if lines > max_lines:
-            found[name] = lines
+        if name not in generated:
+            lines = len((root / name).read_text(encoding="utf-8").splitlines())
+            if lines > max_lines:
+                found[name] = lines
     return found
 
 
 def qualnames(source: str) -> dict[int, str]:
-    """The qualified name (Class.method) of every function by the line of its def."""
+    """The qualified name (Class.method) of every function by the lines of its def and
+    decorators, also for functions inside if, try or with blocks."""
     names: dict[int, str] = {}
 
     def visit(node: ast.AST, prefix: str) -> None:
         for child in ast.iter_child_nodes(node):
-            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
                 name = f"{prefix}{child.name}"
-                if not isinstance(child, ast.ClassDef):
-                    names[child.lineno] = name
-                    for decorator in child.decorator_list:
-                        names[decorator.lineno] = name
+                for line in [child.lineno, *(d.lineno for d in child.decorator_list)]:
+                    names[line] = name
                 visit(child, name + ".")
+            elif isinstance(child, ast.ClassDef):
+                visit(child, f"{prefix}{child.name}.")
+            else:
+                visit(child, prefix)
 
     visit(ast.parse(source), "")
     return names
 
 
 def ruff_findings(root: Path, py_files: list[str]) -> dict[str, dict[str, int]]:
-    """The ruff complexity findings by path::qualname and rule."""
+    """The ruff complexity findings by path::qualname and rule, noqa ignored."""
     if not py_files:
         return {}
-    out = subprocess.run(
-        [*_RUFF, "--select", ",".join(RUFF_RULES), *py_files],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
+    out = _run([*_RUFF, "--select", ",".join(RUFF_RULES), *py_files], root)
     found: dict[str, dict[str, int]] = {}
-    names_by_file: dict[str, dict[int, str]] = {}
+    names: dict[str, dict[int, str]] = {}
     for item in json.loads(out or "[]"):
         path = Path(item["filename"]).resolve().relative_to(root).as_posix()
-        if path not in names_by_file:
-            names_by_file[path] = qualnames((root / path).read_text(encoding="utf-8"))
-        name = names_by_file[path].get(item["location"]["row"], f"line {item['location']['row']}")
+        if path not in names:
+            names[path] = qualnames((root / path).read_text(encoding="utf-8"))
+        row = item["location"]["row"]
         match = _VALUE.search(item["message"])
-        found.setdefault(f"{path}::{name}", {})[item["code"]] = int(match.group(1)) if match else 0
+        key = f"{path}::{names[path].get(row, f'line {row}')}"
+        found.setdefault(key, {})[item["code"]] = int(match.group(1)) if match else 0
     return found
 
 
 def cognitive_findings(root: Path, py_files: list[str], limit: int) -> dict[str, dict[str, int]]:
     """The functions whose cognitive complexity exceeds limit, by path::qualname."""
-    # Imported here: the tests of this tool run without the lint group.
-    file_complexity = importlib.import_module("complexipy").file_complexity
+    try:
+        # Imported here: the tests of this tool run without the lint group.
+        file_complexity = importlib.import_module("complexipy").file_complexity
+    except ImportError:
+        raise ToolError("complexipy is not installed; run `uv sync --group lint`") from None
     found: dict[str, dict[str, int]] = {}
     for path in py_files:
-        result = file_complexity(str(root / path), no_ignore=True, with_plans=False)
-        for function in result.functions:
+        for function in file_complexity(
+            str(root / path), no_ignore=True, with_plans=False
+        ).functions:
             if function.complexity > limit:
-                name = function.name.replace("::", ".")
-                found.setdefault(f"{path}::{name}", {})["cognitive"] = function.complexity
+                found[f"{path}::{function.name.replace('::', '.')}"] = {
+                    "cognitive": function.complexity
+                }
     return found
+
+
+def extension_imports(source: str) -> list[str]:
+    """Every module a Cython source imports or cimports, strings and comments removed."""
+    code = _COMMENT.sub("", _STRINGS.sub('""', source))
+    modules = []
+    for base, names in _FROM.findall(code):
+        if base.rstrip(".") in ("", "fse"):  # from fse import x, from . import x
+            modules += ["fse." + n.split(" as ")[0].strip() for n in names.split(",") if n.strip()]
+        else:
+            # A relative import inside fse names a module of fse.
+            modules.append("fse." + base.lstrip(".") if base.startswith(".") else base)
+    for names in _IMPORT.findall(code):
+        modules += [n.split(" as ")[0].strip() for n in names.split(",") if n.strip()]
+    return modules
+
+
+def _breaks_rules(module: str, cfg: dict) -> bool:
+    if module.split(".", maxsplit=1)[0] in cfg["forbidden"]:
+        return True
+    return module.startswith("fse") and module not in cfg["native-imports"]
+
+
+def _extension_import_errors(root: Path, cfg: dict) -> list[str]:
+    errors = []
+    for path in sorted((root / "src" / "fse").rglob("_native*")):
+        if path.suffix in (".pyx", ".pxd", ".pxi"):
+            for module in extension_imports(path.read_text(encoding="utf-8")):
+                if _breaks_rules(module, cfg):
+                    allowed = cfg["native-imports"]
+                    errors.append(
+                        f"{path.relative_to(root)} imports {module}; from fse only {allowed}"
+                    )
+    return errors
+
+
+def _absolute(node: ast.ImportFrom, package: str) -> str:
+    """The module of a from-import, with a relative one resolved against package."""
+    base = node.module or ""
+    if not node.level:
+        return base
+    parent = package.rsplit(".", node.level - 1)[0] if node.level > 1 else package
+    return f"{parent}.{base}" if base else parent
+
+
+def imported_modules(tree: ast.AST, module: str) -> list[str]:
+    """The absolute names of every module and imported name of a Python module of fse."""
+    package = module.rsplit(".", 1)[0]
+    names = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names += [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            base = _absolute(node, package)
+            names += [base, *(f"{base}.{alias.name}" for alias in node.names)]
+    return names
+
+
+def _native_importer_errors(root: Path, cfg: dict) -> list[str]:
+    errors = []
+    for path in sorted((root / "src" / "fse").rglob("*.py")):
+        rel = path.relative_to(root).as_posix()
+        module = ".".join(path.relative_to(root / "src").with_suffix("").parts)
+        names = imported_modules(ast.parse(path.read_text(encoding="utf-8")), module)
+        if rel not in cfg["native-importers"] and any(n.startswith("fse._native") for n in names):
+            errors.append(f"{rel} imports fse._native; only {cfg['native-importers']} may")
+    return errors
 
 
 def native_import_errors(root: Path, cfg: dict) -> list[str]:
@@ -134,54 +228,27 @@ def native_import_errors(root: Path, cfg: dict) -> list[str]:
     return [*_extension_import_errors(root, cfg), *_native_importer_errors(root, cfg)]
 
 
-def _extension_import_errors(root: Path, cfg: dict) -> list[str]:
-    errors = []
-    allowed = set(cfg["native-imports"])
-    for path in sorted((root / "src" / "fse").glob("_native*.p[yx]*")):
-        if path.suffix == ".pyi":
-            continue
-        for match in _NATIVE_IMPORT.finditer(path.read_text(encoding="utf-8")):
-            module = (match.group(1) or match.group(2)).rstrip(",")
-            if (module.startswith("fse") and module not in allowed) or module.split(".")[
-                0
-            ] in _FORBIDDEN:
-                errors.append(
-                    f"{path.relative_to(root)} imports {module}; it may import only {sorted(allowed)}"
-                )
-    return errors
-
-
-def _native_importer_errors(root: Path, cfg: dict) -> list[str]:
-    errors = []
-    for path in sorted((root / "src" / "fse").rglob("*.py")):
-        rel = path.relative_to(root).as_posix()
-        if rel in cfg["native-importers"]:
-            continue
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        if any(_imports_native(node) for node in ast.walk(tree)):
-            errors.append(f"{rel} imports fse._native; only {cfg['native-importers']} may")
-    return errors
-
-
-def _imports_native(node: ast.AST) -> bool:
-    if isinstance(node, ast.Import):
-        return any(alias.name.startswith("fse._native") for alias in node.names)
-    if isinstance(node, ast.ImportFrom):
-        module = node.module or ""
-        return module.startswith("fse._native") or (
-            module == "fse" and any(alias.name == "_native" for alias in node.names)
-        )
-    return False
+def test_file_for(path: Path, package: Path) -> str:
+    """tests/test_<parts>.py for a module: fse/_a.py is test_a, fse/_b/_c.py is test_b_c,
+    fse/_b/__init__.py is test_b, fse/__init__.py is test_init."""
+    parts = [
+        "init" if p == "__init__" else p.lstrip("_")
+        for p in path.relative_to(package).with_suffix("").parts
+    ]
+    if parts[-1] == "init" and len(parts) > 1:
+        parts.pop()
+    return "tests/test_" + "_".join(parts) + ".py"
 
 
 def untested_modules(root: Path, cfg: dict) -> list[str]:
-    """Modules of fse without a tests/test_<name>.py."""
+    """Modules of fse, in subpackages too, without their test file."""
+    package = root / "src" / "fse"
     missing = []
-    for path in sorted((root / "src" / "fse").glob("*.py")):
+    for path in sorted(package.rglob("*.py")):
         rel = path.relative_to(root).as_posix()
-        name = "init" if path.stem == "__init__" else path.stem.lstrip("_")
-        if rel not in cfg["untested-modules"] and not (root / "tests" / f"test_{name}.py").exists():
-            missing.append(f"{rel} has no tests/test_{name}.py")
+        test = test_file_for(path, package)
+        if rel not in cfg["untested-modules"] and not (root / test).exists():
+            missing.append(f"{rel} has no {test}")
     return missing
 
 
@@ -212,15 +279,42 @@ def _compare_finding(
         if allowed is None:
             errors.append(f"{key}: {metric} {value} exceeds its limit; split or simplify it")
         elif value != allowed:
-            change = "grew" if value > allowed else "improved"
-            fix = (
-                "split or simplify it" if value > allowed else f"lower its ratchet entry to {value}"
+            grew = value > allowed
+            fix = "split or simplify it" if grew else f"lower its ratchet entry to {value}"
+            errors.append(
+                f"{key}: {metric} {'grew' if grew else 'improved'} from {allowed} to {value}; {fix}"
             )
-            errors.append(f"{key}: {metric} {change} from {allowed} to {value}; {fix}")
     return errors
 
 
-def check(root: Path) -> tuple[list[str], dict, dict]:
+def _as_metrics(entry: dict | int | None) -> dict:
+    if entry is None:
+        return {}
+    return entry if isinstance(entry, dict) else {"lines": entry}
+
+
+def ratchet_growth(ratchet: dict, base: dict) -> list[str]:
+    """Entries of ratchet that base does not have, or with higher numbers than in base."""
+    errors = []
+    for table in ("lines", "functions"):
+        old = base.get(table, {})
+        for key, entry in ratchet.get(table, {}).items():
+            before = _as_metrics(old.get(key))
+            for metric, value in _as_metrics(entry).items():
+                if metric not in before or value > before[metric]:
+                    errors.append(
+                        f"ratchet {key}: {metric} {value} is new or higher than on the base"
+                    )
+    return errors
+
+
+def base_ratchet(root: Path, ref: str) -> dict:
+    """The ratchet in the pyproject.toml of git ref, empty before the guardrails came."""
+    tool = tomllib.loads(_run(["git", "show", f"{ref}:pyproject.toml"], root))["tool"]
+    return tool.get("fse", {}).get("guardrails", {}).get("ratchet", {})
+
+
+def check(root: Path, base: str | None = None) -> tuple[list[str], dict, dict]:
     """Every guardrail error, and the current file and function findings."""
     cfg = load_config(root)
     files = source_files(root, cfg["paths"])
@@ -236,7 +330,8 @@ def check(root: Path) -> tuple[list[str], dict, dict]:
         *native_import_errors(root, cfg),
         *untested_modules(root, cfg),
     ]
-    return errors, lines, functions
+    old = base_ratchet(root, base) if base else {}
+    return [*errors, *(ratchet_growth(ratchet, old) if old else [])], lines, functions
 
 
 def print_ratchet(lines: dict, functions: dict) -> None:
@@ -249,21 +344,28 @@ def print_ratchet(lines: dict, functions: dict) -> None:
         print(f'"{key}" = {{ {inner} }}')
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
+    """0 if the guardrails pass, 1 for guardrail errors, 2 if a tool failed."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--print-ratchet", action="store_true", help="print the findings as TOML")
+    parser.add_argument("--base", help="a git ref whose ratchet this one must not exceed")
     args = parser.parse_args(argv)
-    errors, lines, functions = check(ROOT)
+    try:
+        errors, lines, functions = check(root, args.base)
+    except ToolError as err:
+        print(f"check_guardrails: {err}", file=sys.stderr)
+        return 2
     if args.print_ratchet:
         print_ratchet(lines, functions)
         return 0
     for error in errors:
         print(error)
-    if errors:
-        print(f"\n{len(errors)} guardrail errors; see AGENTS.md, Guardrails")
-        return 1
-    print("guardrails pass")
-    return 0
+    print(
+        f"\n{len(errors)} guardrail errors; see AGENTS.md, Guardrails"
+        if errors
+        else "guardrails pass"
+    )
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":
