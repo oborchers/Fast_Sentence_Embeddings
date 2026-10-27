@@ -761,6 +761,20 @@ def test_native_entry_points_validate_ranges(native_w2v, offsets, first, last, m
         run_chunk(context, table, data, offsets, first, last, 0, model._get_thread_working_mem()[0])
 
 
+def test_vocab_table_finds_every_word_inline_and_in_the_arena():
+    """Words up to 16 UTF-8 bytes live in their slot, longer ones in the arena."""
+    from fse.models.average_inner import VocabTable
+
+    words = ["", "a" * 16, "b" * 17, "ü" * 8, "ü" * 9, "東京" * 50, "x"]
+    words += [f"w{i}" for i in range(3000)]  # collisions in a table at most half full
+    key_to_index = {w: i for i, w in enumerate(words)}
+    table = VocabTable(key_to_index)
+    assert all(table.get(w) == i for w, i in key_to_index.items())
+    for missing in ("a" * 15, "a" * 17, "b" * 16, "ü" * 7, "東京" * 49, "w3000", "y"):
+        assert table.get(missing) is None
+    assert VocabTable({}).get("a") is None
+
+
 def test_text_list_infer_and_update_match_split_indexed_list(native_w2v):
     first, second = ["the dog", "", "is good"], ["good dog", "ä 東京"]
     native, python = fse.Average(native_w2v), fse.Average(native_w2v)
