@@ -241,9 +241,6 @@ class Normalize:
 
 Step = RemoveComponents | Project | Normalize
 
-# Steps that are linear in the row: an encoder may fold them into its word vectors.
-LINEAR_OPS = frozenset({Op.REMOVE_COMPONENTS, Op.PROJECT})
-
 # The order of steps: each at most once, removal before projection before normalization.
 _STEP_ORDER = (Op.REMOVE_COMPONENTS, Op.PROJECT, Op.NORMALIZE)
 

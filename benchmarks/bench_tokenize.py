@@ -1,4 +1,3 @@
-# ruff: noqa: PLC0415  (each child imports only what its own interpreter has)
 """Measure the native tokenizer from raw text to batches and rows, against fse 1.1.0.
 
 Every measurement starts from a list of str (``v1 CorpusFile`` from the pre-tokenized

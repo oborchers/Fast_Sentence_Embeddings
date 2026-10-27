@@ -1,4 +1,3 @@
-# ruff: noqa: PLC0415  (each child imports only the fse of its own interpreter)
 """Compare the 2.0 weighted mean kernel with the kernel of fse 1.1.0 on prepared batches.
 
 Both kernels average the same sentences of word ids in one thread: the 2.0 kernel

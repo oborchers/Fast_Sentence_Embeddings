@@ -1,10 +1,11 @@
 UV := uv
 PACKAGE := fse
 SRC := src/$(PACKAGE)
+LINT_PATHS := $(SRC) tests tools benchmarks
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env install init sync rebuild-ext format format-check lint lint-fix typecheck test test-network test-cov check build clean pre-commit
+.PHONY: help env install init sync rebuild-ext format format-check lint lint-fix guardrails typecheck test test-network test-cov check build clean pre-commit
 
 ##@ Setup
 help: ## Show this help
@@ -26,17 +27,24 @@ rebuild-ext: ## Rebuild the Cython extension after editing .pyx or .pxd files
 
 ##@ Quality
 format: ## Format code with ruff
-	$(UV) run ruff format $(SRC) tests tools
-	$(UV) run ruff check --fix --fix-only $(SRC) tests tools
+	$(UV) run ruff format $(LINT_PATHS)
+	$(UV) run ruff check --fix --fix-only $(LINT_PATHS)
 
 format-check: ## Check formatting (CI mode)
-	$(UV) run ruff format --check $(SRC) tests tools
+	$(UV) run ruff format --check $(LINT_PATHS)
 
-lint: ## Lint code with ruff
-	$(UV) run ruff check $(SRC) tests tools
+lint: ## Lint with ruff, the import contracts, the guardrails, unused code and dependencies
+	$(UV) run ruff check $(LINT_PATHS)
+	$(UV) run lint-imports --no-cache
+	$(UV) run python tools/check_guardrails.py
+	$(UV) run vulture
+	$(UV) run deptry src
 
 lint-fix: ## Lint and auto-fix
-	$(UV) run ruff check --fix $(SRC) tests
+	$(UV) run ruff check --fix $(LINT_PATHS)
+
+guardrails: ## File length, complexity, native imports and test files against the ratchet
+	$(UV) run python tools/check_guardrails.py
 
 typecheck: ## Type check with mypy
 	$(UV) run mypy

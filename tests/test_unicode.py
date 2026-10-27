@@ -1,7 +1,8 @@
-import importlib.util
+import runpy
 import sys
 import unicodedata
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -10,15 +11,18 @@ from fse._unicode import SIMPLE_LOWERCASE, UNICODE_VERSION
 ROOT = Path(__file__).resolve().parent.parent
 
 
+GENERATOR = ROOT / "tools" / "make_unicode_tables.py"
+needs_generator = pytest.mark.skipif(
+    not GENERATOR.exists(), reason="tools/ is not part of this checkout"
+)
+
+
 def _generator():
-    spec = importlib.util.spec_from_file_location(
-        "make_unicode_tables", ROOT / "tools" / "make_unicode_tables.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    # runpy writes no bytecode next to the generator.
+    return SimpleNamespace(**runpy.run_path(str(GENERATOR)))
 
 
+@needs_generator
 def test_the_table_has_the_pinned_version():
     gen = _generator()
     assert UNICODE_VERSION == gen.UNICODE_VERSION == "15.1.0"
@@ -29,6 +33,7 @@ def test_the_table_has_the_pinned_version():
     assert 0x03C2 not in SIMPLE_LOWERCASE
 
 
+@needs_generator
 def test_both_generated_files_hold_the_same_table():
     """Generating both files from the Python table reproduces them byte for byte."""
     gen = _generator()

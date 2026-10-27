@@ -85,3 +85,10 @@ def test_native_imports_no_optional_packages():
     for name in FORBIDDEN:
         # Import statements only; comments may name gensim, from which code was adapted.
         assert not re.search(rf"^\s*(c?import|from)\s+{name}\b", text, re.MULTILINE), name
+
+
+def test_public_api_is_pinned():
+    """A new public name needs a deliberate change of this test."""
+    assert fse.__all__ == ["WordVectors", "__version__"]
+    public = {name for name in dir(fse) if not name.startswith("_")}
+    assert public - {"gensim"} == {"WordVectors"}

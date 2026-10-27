@@ -470,7 +470,8 @@ def test_save_never_overwrites(tmp_path):
         wv.save(3)
 
 
-def test_released_maps_allow_removal(tmp_path, windows_file_maps):
+@pytest.mark.usefixtures("windows_file_maps")
+def test_released_maps_allow_removal(tmp_path):
     _wv("int8").save(tmp_path / "wv.safetensors")
     wv = WordVectors.load(tmp_path / "wv.safetensors", mmap=True)
     assert wv.index("é") == 1  # the lookup holds no map
@@ -542,14 +543,10 @@ GOLDEN = {
 @pytest.mark.parametrize("mmap", [False, True])
 def test_golden_word_vectors(test_data_dir, dtype, mmap):
     """The committed artifacts of tests/test_data/v2: the format must keep reading them."""
-    import importlib.util
+    import runpy
 
-    spec = importlib.util.spec_from_file_location(
-        "make_golden", test_data_dir / "v2" / "make_golden.py"
-    )
-    make_golden = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(make_golden)
-    a = make_golden.arrays()
+    # runpy writes no bytecode, so tests/test_data stays untouched.
+    a = runpy.run_path(str(test_data_dir / "v2" / "make_golden.py"))["arrays"]()
     wv = WordVectors.load(test_data_dir / "v2" / f"word_vectors_{dtype}.safetensors", mmap=mmap)
     wv.verify()
     assert wv.fingerprint == GOLDEN[dtype]

@@ -14,6 +14,7 @@ Run `make help` for all targets.
 ## Notes
 
 - Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing the contracts or the native kernel.
+- `make lint` checks file length, function complexity and the import layers against a ratchet that only shrinks; see the Guardrails section of [AGENTS.md](AGENTS.md). Split code that does not fit instead of adding exceptions.
 - After editing `src/fse/_native.pyx`, `.pxd` or `_native_kernel.h`, run `make rebuild-ext`.
 - For performance changes, compare `uv run python benchmarks/bench_kernel.py --python-v1 <python of fse 1.1.0>` before and after on an idle machine and put both tables in the pull request. `--help` lists the dtypes, dimensions and vocabulary sizes it covers.
 - Tests that download from the Hugging Face Hub are marked `network`. `make test` skips them, `make test-network` runs them.

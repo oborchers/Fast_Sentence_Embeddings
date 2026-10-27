@@ -72,8 +72,8 @@ def windows_file_maps(monkeypatch):
 
         return wrapper
 
-    monkeypatch.setattr(os, "replace", guard(os.replace, lambda src, dst, *a: (src, dst)))
-    monkeypatch.setattr(os, "truncate", guard(os.truncate, lambda path, *a: (path,)))
+    monkeypatch.setattr(os, "replace", guard(os.replace, lambda src, dst, *_args: (src, dst)))
+    monkeypatch.setattr(os, "truncate", guard(os.truncate, lambda path, *_args: (path,)))
     monkeypatch.setattr(
-        pathlib.Path, "unlink", guard(pathlib.Path.unlink, lambda self, *a: (str(self),))
+        pathlib.Path, "unlink", guard(pathlib.Path.unlink, lambda self, *_args: (str(self),))
     )

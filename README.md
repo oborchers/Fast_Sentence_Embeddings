@@ -106,7 +106,7 @@ Key features of **fse** are:
 
 **[X]** Optimized Input Classes
 
-(1) Measured on 16 vCPUs of an AMD EPYC with 16 workers: up to 2.2 million sentences per second for Average and 1.7 million for SIF, reading a `CorpusFile` of 2 million sentences with 20 tokens and 300 dimensions; one worker reaches 180k to 440k. The numbers vary with the machine and its load; see [Choosing an input class](#choosing-an-input-class) and measure your own setup with `benchmarks/bench_train.py`.
+(1) Measured on 16 vCPUs of an AMD EPYC with 16 workers: up to 2.2 million sentences per second for Average and 1.7 million for SIF, reading a `CorpusFile` of 2 million sentences with 20 tokens and 300 dimensions; one worker reaches 180k to 440k. The numbers vary with the machine and its load; see [Choosing an input class](#choosing-an-input-class) and measure your own setup with `benchmarks/bench_train.py` of fse 1.1.0 (see `benchmarks/baseline/README.md`).
 
 Installation
 ------------
@@ -195,7 +195,7 @@ Measured on 16 vCPUs of an AMD EPYC (2 million sentences of 20 tokens, 300 dimen
 | `IndexedList` | SIF | 239k | 611k | 1.4M |
 | `CorpusFile` | SIF | 179k | 624k | 1.7M |
 
-With the single producer thread before #88, 8 workers reached 325k (`IndexedList`, Average) and 191k (`IndexedList`, SIF) sentences per second on the same machine. The numbers vary with the load of the machine; measure your own setup with `benchmarks/bench_train.py`.
+With the single producer thread before #88, 8 workers reached 325k (`IndexedList`, Average) and 191k (`IndexedList`, SIF) sentences per second on the same machine. The numbers vary with the load of the machine; measure your own setup with `benchmarks/bench_train.py` of fse 1.1.0 (see `benchmarks/baseline/README.md`).
 
 | Your data | Input class | Splitting | Index |
 |---|---|---|---|

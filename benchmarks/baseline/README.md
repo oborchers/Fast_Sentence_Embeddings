@@ -11,12 +11,14 @@ uv venv -p 3.12 .venv-baseline
 uv pip install -p .venv-baseline/bin/python "fse==1.1.0" -r benchmarks/quality/requirements.txt psutil
 ```
 
-| Result | Command (from the repository root) |
+The scripts that measure only fse 1.1.0 (`sts.py`, `numerics.py`, `bench_train.py`, `bench_lifecycle.py`) were removed from the repository with the 1.x API; they are at commit 4931f5e. Run them from a checkout of that commit, so their paths to `evaluation/` and `benchmarks/baseline/results/` hold: `git worktree add ../fse-4931f5e 4931f5e && cd ../fse-4931f5e` first, then the setup and the commands below there. `make_v1_fixture.py` stays, frozen: it wrote the fixture `tests/test_data/v1_reference/` that the tests read. The results below never change.
+
+| Result | Command (from the repository root; for removed scripts, of the checkout of 4931f5e) |
 |---|---|
 | `tests/test_data/v1_reference/` | `.venv-baseline/bin/python benchmarks/baseline/make_v1_fixture.py` |
-| `results/sts-1.1.0.csv` | `.venv-baseline/bin/python benchmarks/baseline/sts.py` |
+| `results/sts-1.1.0.csv` | `.venv-baseline/bin/python benchmarks/baseline/sts.py` (at 4931f5e) |
 | `results/mteb-1.1.0.jsonl` | `.venv-baseline/bin/python benchmarks/quality/run_mteb.py run --results benchmarks/baseline/results/mteb-1.1.0.jsonl --tasks baseline --models fse/Average-paranmt-300-float32 fse/SIF-paranmt-300-float32 fse/uSIF-paranmt-300-float32 fse/uSIF-paranmt-300-int8 fse/uSIF-glove-wiki-gigaword-300-float32 minishlab/potion-base-8M` |
-| `results/numerics-1.1.0.json`, `results/neighbors-1.1.0.npz` | `.venv-baseline/bin/python benchmarks/baseline/numerics.py` |
+| `results/numerics-1.1.0.json`, `results/neighbors-1.1.0.npz` | `.venv-baseline/bin/python benchmarks/baseline/numerics.py` (at 4931f5e) |
 | `results/train-1.1.0-m1pro.json` | `.venv-baseline/bin/python benchmarks/bench_train.py --models Average SIF uSIF AverageFT --dims 100 300 --workers 1 2 4 8 10 --repeats 3 --json ...` |
 | `results/train-dtypes-1.1.0-m1pro.json` | `... bench_train.py --inputs IndexedList TextList CorpusFile --models Average SIF --dims 300 --wv-dtypes float32 int8 --sv-dtypes float32 int8 --workers 1 4 10 --repeats 3 --json ...` |
 | `results/lifecycle-1.1.0-m1pro-sif-<sv>.json` | `.venv-baseline/bin/python benchmarks/bench_lifecycle.py --vectors glove-wiki-gigaword-300 --corpus ~/.cache/fse-quality/wikitext-103-b08601e0.txt --model SIF --sv-dtype <sv> --json ...` |
@@ -62,7 +64,7 @@ The fixture test (`tests/test_v1_reference.py`) compares the 2.0 reference with 
 
 ## Training throughput
 
-Synthetic corpus of `bench_train.py` (200,000 sentences of 12 tokens, a Zipf vocabulary of 50,000 words, 10 % unknown words), median of three runs, sentences per second end to end, in millions. 300 dimensions:
+Synthetic corpus of `bench_train.py` (at 4931f5e; 200,000 sentences of 12 tokens, a Zipf vocabulary of 50,000 words, 10 % unknown words), median of three runs, sentences per second end to end, in millions. 300 dimensions:
 
 | Input | Model | 1 | 2 | 4 | 8 | 10 workers | peak RSS (MiB) |
 |---|---|---|---|---|---|---|---|
@@ -89,7 +91,7 @@ int8 word vectors are faster, as fewer bytes are read; int8 sentence vectors cut
 
 ## Lifecycle
 
-SIF-10 over glove-wiki-gigaword-300 on the 859,346 WikiText paragraphs, 10 workers (`bench_lifecycle.py`):
+SIF-10 over glove-wiki-gigaword-300 on the 859,346 WikiText paragraphs, 10 workers (`bench_lifecycle.py` at 4931f5e):
 
 | Phase | sv float32 | sv int8 |
 |---|---|---|

@@ -22,7 +22,7 @@ Use uv and the Makefile; CI calls the same targets.
     make rebuild-ext   # after editing .pyx, .pxd or .h
     make build         # sdist + wheel, twine check
 
-Performance changes report before and after numbers on an idle machine (the scripts warn about a high load average): `uv run python benchmarks/bench_kernel.py --python-v1 <python of fse 1.1.0>` for the kernel; `benchmarks/bench_train.py` measures 1.1.0 end to end.
+Performance changes report before and after numbers on an idle machine (the scripts warn about a high load average): `uv run python benchmarks/bench_kernel.py --python-v1 <python of fse 1.1.0>` for the kernel and `benchmarks/bench_tokenize.py` from raw text; `benchmarks/baseline/` holds the 1.1.0 values 2.0 is compared with.
 
 ## Rules
 
@@ -34,6 +34,19 @@ Performance changes report before and after numbers on an idle machine (the scri
 - The dependency lower bounds in pyproject.toml must match the pins of the minimum job in `.github/workflows/ci.yml`.
 - pytest treats warnings as errors. Add a narrow, commented `filterwarnings` ignore only for warnings from third-party code.
 - Record user-visible changes in `CHANGELOG.md`.
+
+## Guardrails
+
+`make lint` enforces, and CI and the pre-commit hooks run the same:
+
+- at most 500 lines per source file under the `paths` of `[tool.fse.guardrails]` (src, tests, tools, benchmarks, media, setup.py; the generated Unicode tables excepted); a new top-level folder of code joins `paths`;
+- the ruff complexity limits (C901 10, PLR0911 6, PLR0912 12, PLR0913 and PLR0917 5, PLR0915 50) and a cognitive complexity of at most 15 per Python function (complexipy; Cython and C functions are limited by their file length);
+- the import layers and forbidden packages in `[tool.importlinter]`;
+- that only `fse._text` imports `fse._native` and the extension imports only `fse._contract` from fse;
+- a test file for every module of fse (`fse/_a.py` is `tests/test_a.py`, `fse/_b/_c.py` is `tests/test_b_c.py`; only the generated `_version.py` has none);
+- no unused code (vulture, with the names Python, pytest or a library use by name in `[tool.vulture]`) and no undeclared or unused dependency (deptry).
+
+What exceeded a limit when the guardrails came is the ratchet in `[tool.fse.guardrails.ratchet]`, which only shrinks; CI also checks it against the base branch. Never add an entry, raise a number, add an inline suppression (`# noqa: C901`, `# complexipy: ignore`) or an `ignore_imports`. When code does not fit, split it: private modules may be split and renamed freely, persistence names never. When you improve an entry, lower or remove it (`tools/check_guardrails.py` says which). Place every new module in a layer of the import contract.
 
 ## Releases
 

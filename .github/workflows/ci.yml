@@ -38,6 +38,11 @@ jobs:
       - run: uv sync $UV_SYNC_FLAGS --group lint
       - run: make format-check
       - run: make lint
+      - name: The ratchet of the guardrails does not grow against the base branch
+        if: github.event_name == 'pull_request'
+        run: uv run python tools/check_guardrails.py --base "origin/${{ github.base_ref }}"
+      - name: Tests of the guardrail checker with its tools installed
+        run: uv run --group test pytest tests/test_check_guardrails.py -p no:cacheprovider
       - run: make typecheck
 
   test:

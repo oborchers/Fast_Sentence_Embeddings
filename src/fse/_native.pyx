@@ -10,8 +10,8 @@
 # Copyright (C) Oliver Borchers
 # Parts adapted from gensim (LGPL 2.1, used under the GPL 3); see NOTICE.
 
-"""Native routines of fse 2.0: FastText ngram hashing, the vocabulary table and the
-UTF-8 scan of text, all without the GIL. The weighted mean kernel follows."""
+"""Native routines of fse 2.0 without the GIL: ngram hashing, vocabulary table, UTF-8 scan,
+the weighted mean kernel, dot16, steps and score, the tokenizers and the text lookup."""
 
 import cython
 import numpy as np
