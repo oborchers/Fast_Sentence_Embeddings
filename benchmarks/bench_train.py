@@ -7,15 +7,19 @@ median wall time of creating the input and ``model.train`` end to end (scan,
 preparation, training and component removal), and of the training phase alone
 (every call of ``_train_manager``), and the peak RSS of the subprocess.
 
+Master no longer contains the 1.x API, so run the script with the interpreter of an
+environment with fse 1.1.0, such as ``.venv-baseline/bin/python`` of ``benchmarks/baseline``;
+its subprocesses use the same interpreter.
+
 Results are only comparable on an idle machine. The script records the load
 average before every configuration and warns when it exceeds a quarter of the
 logical CPUs.
 
 Examples::
 
-    uv run python benchmarks/bench_train.py
-    uv run python benchmarks/bench_train.py --workers 1 2 4 8 --dims 100 300
-    uv run python benchmarks/bench_train.py --inputs IndexedList --models Average --json out.json
+    .venv-baseline/bin/python benchmarks/bench_train.py
+    .venv-baseline/bin/python benchmarks/bench_train.py --workers 1 2 4 8 --dims 100 300
+    .venv-baseline/bin/python benchmarks/bench_train.py --inputs IndexedList --models Average --json out.json
 """
 
 from __future__ import annotations

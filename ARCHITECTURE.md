@@ -1,153 +1,65 @@
 # Architecture
 
-This document describes how fse is put together and the rules that keep it correct. It is the reference for changes to the training loop, the Cython kernel and the tests. When a change alters one of these rules, update this file in the same pull request.
+This document describes how fse is put together and the rules that keep it correct. It is the reference for changes to the contracts, the native kernel and the tests. When a change alters one of these rules, update this file in the same pull request.
+
+master is the development branch of 2.0, a rewrite around a frozen encoder. The 1.x API (`Average`, `SIF`, `uSIF`, the inputs and `SentenceVectors`) was removed from master; it lives on the branch `1.x` and in fse 1.1.0 on PyPI, and accessing one of its names on `fse` raises an `AttributeError` that says so. Items marked 2.1 are additions that must fit without changing anything below.
 
 ## Package Layout
 
 ```
 src/fse/
-  __init__.py            # public API, __all__, version, gensim>=4 guard
-  inputs.py              # input containers that yield (tokens, index) tuples
-  vectors.py             # Vectors / FTVectors: pretrained vectors from the Hugging Face Hub
-  models/
-    base_s2v.py          # BaseSentence2VecModel: scan, sanity checks, threads, save/load
-    average.py           # Average model and the numpy fallback train_average_np
-    average_inner.pyx    # Cython kernel train_average_cy (with .pxd and .pyi stub)
-    sif.py, usif.py      # SIF and uSIF: word weights and principal component removal
-    sentencevectors.py   # SentenceVectors: storage and similarity queries
-    utils.py             # SVD helpers
-    _single_pass.py      # private: state of the single pass during train
-    _index_tracker.py    # private: bitmap of seen indices for the scan
-    _quantize.py         # private: float16 and int8 storage arithmetic
-    _windowed.py         # private: training into a ring of float32 windows
+  __init__.py            # public API, __all__, version, the hint for removed 1.x names
+  _contract.py           # Batch, identifiers, step lists, errors
+  _reference.py          # the reference: numpy code that defines every result
+  _codes.py              # float16 and int8 storage arithmetic in blocks
+  _container.py          # SafetensorsContainer (models) and NpyContainer (output)
+  _wordvectors.py        # WordVectors
+  _gram.py               # Gram matrix helpers for fit
+  _native.pyx            # native routines: kernel wrappers, hashing, vocabulary table
+  _native_kernel.h       # the C kernel: weighted mean, dot16, steps, score per ISA
+  gensim.py              # adapter from gensim word vectors (extra fse[gensim])
 ```
 
-**Module paths under `fse.models` are part of the API.** Models are saved with gensim's `SaveLoad`, which pickles class paths such as `fse.models.average.Average`. Renaming or moving a module breaks loading of every saved model. New internal code goes into new private modules; existing ones stay where they are.
+## Native kernel
 
-## Data Flow
+`_native_kernel.h` implements every operation of the numerical contract below once as a C loop, instantiated per ISA: portable (`fmaf`), AVX2 with FMA and F16C on x86 (selected at run time by cpuid and xgetbv, so one wheel serves every x86 machine) and NEON on arm64. `_native.pyx` validates all arrays before it releases the GIL, then calls the loop of the chosen ISA (`available_isas`, `default_isa`; `isa=` selects one for tests). The rules that make it bit-identical to `fse._reference`:
 
-`train(sentences)` and `infer(sentences)` take a re-iterable of `(tokens, index)` tuples. The `inputs` classes produce exactly that shape. `index` is the row of the output matrix the sentence contributes to.
+- Every multiply-add is an explicit fused multiply-add in token order; the compiler must not contract or reorder anything else. The extension is built with `-ffp-contract=off -fno-fast-math` (`/fp:precise` on MSVC), see `setup.py`.
+- The floating-point environment is fixed for the duration of a call: round to nearest, no flush-to-zero or denormals-are-zero (MXCSR on x86, FPCR on arm64). The previous state is restored afterwards.
+- Reductions over the dimension use `dot16`: 16 lanes, element i in lane i % 16, then a tree 8/4/2/1. Lanes are not padded with zeros, because a lane can hold -0.0.
+- Word rows are prefetched 8 tokens ahead, also across sentence boundaries; prefetching changes no result.
+- A row that is not finite raises with its row number, as the reference does.
 
-1. **Scan:** `scan_sentences` makes one pass over the input. It counts sentences and words, finds the largest index, validates every item and reports whether all indices are unique and whether every index is the position of its sentence (`identity_indices`). Indices that are not the positions of their sentences are tracked in a bitmap (`IndexTracker` in the private module `fse.models._index_tracker`), which grows by doubling up to `max(BITMAP_MIN_BYTES, one byte per sentence)`; indices beyond it wait as int64 until it may double, and are sorted at the end if it never may cover them. With the extension the loop runs in Cython (`scan_indexed_sentences`) with the same checks, messages and tracker rules; a subclass that overrides `_check_indexed_sent_valid` keeps the Python loop.
-2. **Sanity and memory:** `_check_pre_training_sanity` checks the vectors and weights; `estimate_memory` warns when the result will not fit into RAM.
-3. **Prepare:** `BaseSentence2VecPreparer` allocates the sentence vectors (`max_index` rows, initialized to `EPS`), in RAM or as a memmap. With identity indices and the kernel, the rows are not initialized here: every job sets its own contiguous rows to `EPS` right before it averages them (see *Single pass*). With `train(update=True)` it appends the rows instead, and every sentence index is shifted by the previous number of rows. Rows are initialized in blocks. An in-memory update copies all existing rows into a new array (`vstack`); a memmap grows in place.
-4. **Pre-train hook:** `_pre_train_calls` computes the word weights. All weights are 1 for Average; SIF and uSIF derive them from word frequencies.
-5. **Jobs:** `_train_manager` starts one producer thread and `workers` worker threads. The producer batches the input into jobs of up to `batch_words` words and `batch_words` sentences; a single longer sentence forms a job of its own. With the extension, `_kernel_context` builds a `KernelContext` once per call, and the producer reads, batches and encodes the input in one pass with a `JobEncoder` while it holds the GIL. Each job copies its data out of the encoder's reusable buffers: word indices, sentence offsets, target rows, and the UTF-8 bytes of unknown FastText words. Without the extension, or when a subclass or instance replaces `_do_train_job`, the workers call `_do_train_job` on lists of tuples instead (`train_average_np` without the extension).
-6. **Kernel:** `run_job` averages an encoded job without the GIL: it hashes the ngrams of unknown FastText words in C, sums the weighted word vectors of each sentence with a row kernel (see *Row kernels*) and adds the average into its target row with BLAS `saxpy`. `infer` and `train_average_cy` use the same encoder and kernel in the calling thread. The producer holds the GIL while it reads and encodes the input, so it bounds the throughput once two to four workers are busy; native inputs and list chunks (below) avoid it.
-   For `CorpusFile` and `TextList`, scan and training work on bytes instead (see *Native inputs*).
-7. **Post-train hook:** `_post_train_calls` removes principal components for SIF and uSIF. The components are computed exactly from the Gram matrix `X^T X` of all sentence vectors, summed in float64 over blocks of rows and decomposed with `eigh`; the removal works in blocks of rows as well, removed by `workers` threads in parallel. Both read the vectors once from front to back, so neither needs memory proportional to the number of sentences, and a memmap streams from disk. With identity indices and the kernel, training has summed the Gram matrix already (see *Single pass*), so only the removal reads the vectors again. After `train(update=True)` it reuses the components of the first training for the appended rows only, as `infer` does.
-
-`infer(sentences)` takes a shorter path. It scans the input, allocates a zero-filled output matrix, runs the jobs in the calling thread with the weights learned in `train`, and finishes with `_post_inference_calls`, which removes the stored principal components for SIF and uSIF. It has no preparer and no pre-train hook, and it averages in the calling thread; a native scan and the removal of components use `workers` threads.
-
-### Single pass
-
-For a memmap larger than the RAM, every pass over the sentence vectors goes to disk. With identity indices (index i for the i-th sentence, as for every input class except the `C*` lists with custom indices) and the kernel, training saves up to two separate full passes. The state of one such call is a `SinglePass` in the private module `fse.models._single_pass`, held by the model only during `train`, like the row locks.
-
-- **Prefill** (every model, also for `update=True`): `KernelContext.prefill_rows` makes `run_job` and `run_chunk` set the rows of their job to `EPS` before averaging, instead of `_fill_eps` writing all new rows in advance. The arithmetic is the same, so the vectors are bit-identical. The producer checks before a worker writes that every job starts at the next row and covers contiguous rows, so jobs neither overlap nor leave gaps, and training checks at the end that the jobs covered every new row. `run_chunk` checks that a chunk holds exactly the announced number of sentences. If allocation succeeded but the pre-train hook, the threads or a job fail, training sets the new rows to `EPS` and keeps the existing rows, so no uninitialized row remains; an error in the post-train hook, for example a non-finite Gram matrix, leaves the trained rows as they are.
-- **Gram matrix** (SIF and uSIF with `components > 0`, without `update=True`, and without a replaced `_post_train_calls`): after each job the worker reports its rows to an `OrderedGram`; the worker that completes a block of `REMOVAL_BLOCK_ROWS` rows computes the block product while the rows are cached, and the products are summed in block order. Blocks, products and summation order are those of `gram_matrix`, so the components are bit-identical to a separate pass for any number of workers. Products that wait for a missing predecessor are bounded by `PENDING_BUDGET_BYTES`, reserved before they are computed; beyond it, a finished block is recomputed from its rows when it is summed. One thread at a time sums, outside the lock, so other workers keep reporting. `_post_train_calls` receives the finished matrix as `gram`.
-
-Other indices, the numpy fallback and a replaced `_do_train_job` take the separate passes. An update that computes new components from old and new rows prefills the new rows but reads all rows for the Gram matrix.
-
-### Storage formats
-
-`SentenceVectors.dtype` is `"float32"` (the default), `"float16"` or `"int8"`. Sentence vectors are always computed in float32 and stored in the format; every read returns float32. int8 rows are symmetric codes with one float32 scale per row in `scales` (`codes * scale` restores the row), so the cosine of two code rows equals the cosine of the rows they represent. With a mapfile, codes live in `<path>.vectors` and scales in `<path>.scales`. All format arithmetic is in `fse.models._quantize`; `quantize_into` raises for non-finite rows and float16 overflow instead of storing infinity.
-
-For float16 and int8, training takes one of two plans:
-
-- **Windows** (index i for the i-th sentence, the compiled kernel, built-in `_do_train_job` and `_post_train_calls`): `KernelContext.use_ring` makes the kernel write row r into row `r % ring_rows` of a ring of float32 windows of about `WINDOW_BYTES` (a multiple of `REMOVAL_BLOCK_ROWS`). A `WindowedWriter` counts finished rows per window; the worker that completes the next window in row order finalizes it outside the lock, one thread at a time, and frees its slot. The producer waits in `SinglePass.check_job` until the rows of a job have a free slot, and stops waiting once training fails. The ring has enough slots for the longest job; jobs hold at most `batch_words` sentences, native chunks at most `MAX_CHUNK_ROWS` (65,536) and list chunks at most 8,192, so with windows of at least that many rows the ring has two slots. `estimate_memory` uses the same ring planning (`plan_ring`). Average and updates that reuse learned components take one pass, which removes known components from each window and stores it. SIF and uSIF learning components take two passes: the first sums the Gram blocks of each window in block order, as `gram_matrix` does, the second removes the components and stores. Windows and removal blocks coincide with those of a float32 training, so the stored rows are bit-identical to a float32 training stored afterwards. `_set_components` and `_remove_components` hold the component logic both plans and inference share.
-- **Staging** (every other case, logged with the reason): `SentenceVectors._stage` replaces `sv.vectors` by a float32 matrix of the rows of this call, which training and the hooks use as for float32 vectors, with `offset` 0; afterwards its rows are stored in the format. During the hooks, `sv.vectors` therefore holds only the rows of this call, and `sv.dtype` is float32, so reads, searches and `score` in a hook work as for float32 vectors.
-
-Both plans store through `_RowWriter`: a new training writes `.writing` files that replace the old ones only when it succeeds (the old files move aside and come back if any step fails, including opening the new ones), an update grows a memmap in place and cuts it back on failure, and a failure leaves the stored vectors and learned components as they were. A failure before the commit restores the learned components before any file is cleaned up; once the new rows are committed (`SentenceVectors.commits` counts that), a later failure keeps them and their components together. The staging file is removed before the commit, so its removal cannot fail after it. If another map of a file prevents cutting it back (Windows), the file stays larger; loading accepts sentence vector mapfiles larger than their recorded shape for that reason. Before files move, every map of them is released and cyclic garbage is collected, because Windows refuses to replace, cut or delete a mapped file; `tests/conftest.py` emulates that rule on every platform. An update that would compute new components from stored float16 or int8 rows raises before training.
-
-Reading: `most_similar`, `similar_by_*` and `score` call `score_rows` in the extension, which multiplies the stored values (float16 through a 65,536-entry table) with float32 weights, scaled per row, without the GIL; `_StoredScores` runs row ranges in a thread pool. For float16 and int8, `init_sims` keeps only one inverse norm per row of the stored values instead of a normalized copy; for int8 that is the norm of the codes, as the scale does not change the direction, so even tiny vectors have a finite inverse norm. Without the extension, numpy converts each block to float32; both give the same results within float32 rounding.
-
-### Word vector formats and row kernels
-
-`wv_dtype` is `"float32"` (the default), `"float16"` or `"int8"`. For float16 and int8 the model stores codes of the word vectors (`vectors`, or `vectors_vocab` and `vectors_ngrams` for FastText) in `wv_codes`/`wv_scales` and `ngram_codes`/`ngram_scales`, quantized once at construction with `quantize_into`, the same arithmetic as for sentence vectors. The passed `KeyedVectors` stay float32 and unchanged. `_word_arrays` returns the rows the kernel and the numpy fallback read: the float32 vectors themselves, or the codes. With `wv_mapfile_path`, codes live in `<path>_wv.<dtype>` (and `<path>_ngrams.<dtype>`), written under a `.writing` name and renamed when complete; an existing file is reused only if it holds exactly these codes. `save` leaves mapped codes out of the pickle and `load` reopens them; the scales stay in the pickle. Class attributes default models saved before `wv_dtype` to float32.
-
-The kernel adds each stored row with a routine of type `add_row_ptr`, `mem += factor * row`; int8 rows fold their scale into the factor. The routines are chosen once at import (`fse_select_kernels`), not per call:
-
-- float32 rows, on every platform: BLAS `saxpy`, which dispatches by CPU itself. End to end, an own loop was no faster on Apple M1 or AMD Zen 5, and `saxpy` keeps float32 results bit-identical to 1.0; prefetching does not change them.
-- x86-64 with GCC or Clang and a CPU with AVX2, FMA and F16C: float16 and int8 rows through intrinsics in functions with `__attribute__((target(...)))`, so the build flags stay the baseline of the wheel. AVX2 and FMA are detected with `__builtin_cpu_supports`, F16C with CPUID (Clang knows `"f16c"` only since version 18). `_kernel_info()` returns `"avx2"`.
-- arm64: float16 rows convert with the native `__fp16` type, and the compiler vectorizes them and the int8 loop with NEON. `"neon"`.
-- Everything else, including Windows (MSVC) and x86 CPUs without AVX2: float16 through a 65,536-entry table and int8 with a portable loop. `"portable"`. `_use_portable_kernels(True)` selects this set on every platform, for tests.
-
-While a row is added, the kernel prefetches every cache line of the row `PREFETCH_DISTANCE` (8) tokens ahead (one prefetch per 64 bytes and one at its last byte), and inside the ngrams of an unknown word the ngram row 8 ahead. 8 was the best or within noise of the best distance on Apple M1 and AMD Zen 4 for every format and vocabulary size measured. Every routine adds the values of a row in index order and a sentence's rows in token order, so the rule below (the same result for any number of workers) holds for every format. For float16 and int8 word vectors, different routines may round differently in the last bits, so their sentence vectors can differ in the last bits between CPUs.
-
-### Native inputs
-
-`CorpusFile` (a memory-mapped local file), `TextList` (strings copied once into a UTF-8 buffer with offsets) and a `SplitIndexedList` whose items are a `list` of `str` or numpy `str_` (copied into such a buffer by every scan, released when the call ends; a list changed between the scan and training raises; only in `train`, as `infer` of a few sentences would build a `VocabTable` of the whole vocabulary) skip the Python producer. A `SplitIndexedList` with other items, an `ndarray`, `__getitem__` or `__iter__` overridden, or strings that cannot be encoded as UTF-8 (lone surrogates) keeps the Python path, whose sentences the native path reproduces:
-
-1. **Scan:** `scan_sentences` calls their `_scan_native`. The source is split into about `4 × workers` ranges that start at sentence starts, so every sentence belongs to exactly one range; threads validate and count the ranges with `scan_spans` without the GIL and record chunks of 64 KB to 1 MB and at most 65,536 sentences. Prefix sums turn range-local sentence numbers into indices. The chunks and the file's size and modification time are kept on the input until training.
-2. **Training:** `Average._job_encoder` returns a `_ChunkFeeder` that hands out the chunks. Each worker runs `run_chunk`: it splits its chunk, looks up every word in a `VocabTable` (open addressing over the UTF-8 bytes of `key_to_index`, built once per call; each 32-byte slot holds the hash, the index and words of up to 16 bytes inline, so a lookup usually reads one cache line) and averages each sentence with `_average_sentence`, the routine encoded jobs use too, all without the GIL. Every sentence has its own row, so no locks are needed.
-
-The input contract is the one of `IndexedLineDocument` and `SplitIndexedList`, and tests compare the vectors bit for bit: a line ends after `\n` and the last needs none; text is decoded strictly as UTF-8; words are split at every code point with `str.isspace()`. Invalid UTF-8 raises the `UnicodeDecodeError` Python raises for that sentence, with its number and byte offset added. The fingerprint of a `CorpusFile` (device, inode, size, modification time) is read from the descriptor that was mapped and compared again before training and after every chunk, so a change that alters one of them raises; a change that keeps all four is not detected. The Python path of `CorpusFile` checks the same fingerprint before and after every iteration. A file truncated while it is mapped can still end the process with SIGBUS on Linux; only a private copy would prevent that. `scan_spans` and `run_chunk` check every range and offset before they release the GIL. A validator replaced on the instance or in a subclass forces the Python scan, and training then reads tuples as well. Without the extension, both classes are iterated in Python like their counterparts.
-
-### List chunks
-
-With two or more workers, `train` lets the workers read an `IndexedList` or `CIndexedList` themselves (`Average._list_plan_for`): the class or a subclass that keeps its `__getitem__` and `__iter__`, `items` a `list`, and a scan that saw only exact `list` sentences of exact `str` (`scan_indexed_sentences` reports it). The producer hands out `_ListChunk` row ranges of about 65,536 tokens (256 to 8,192 sentences) and reads nothing itself. Each worker runs `run_list_chunk`: holding the GIL, it copies the UTF-8 bytes of the tokens of its chunk into private buffers (a custom index is read first, as it may run Python code; the sentence is held by a strong reference and its length read again for every token, because a failed encoding may run the garbage collector); without the GIL it looks them up in the `VocabTable` and averages with `_average_sentence`. Empty tokens are looked up like any word. Words without a UTF-8 form (lone surrogates) cannot be in the `VocabTable` and are unknown words, as for the `JobEncoder`; FastText raises for them on both paths, and any other error of the encoding is raised. The vectors equal the `JobEncoder`'s; tests compare them. One worker, `infer`, other types, `ndarray` items, custom indices other than an exact list or a one-dimensional integer array, a vocabulary without a UTF-8 form for every word, and subclasses that change how items are read keep the `JobEncoder`, which is faster for a single thread. A list that changed after the scan (another type, another length, an index out of range or, with prefill, not at its position) raises instead of being read differently; the plan (`_ListPlan`, with the `VocabTable`) exists only during `train`, is not used by an `infer` that a hook calls meanwhile, and is never saved. A vocabulary word without a UTF-8 form makes native inputs read their sentences through their iterator with the `JobEncoder` as well.
-
-### BLAS threads
-
-Workers call BLAS for the Gram block products, and SIF and uSIF remove components with BLAS after training and `infer`. `train` and the removal after `infer` run inside `utils.blas_threads(workers)`, which, with more than one worker, limits BLAS (threadpoolctl) to `usable_cpus() // workers` threads, at least one; without it, OpenBLAS started its own threads in every worker. The limit holds for the whole process: blocks that overlap, also from calls in other threads, apply the smallest active limit, and the last one to end restores the limits from before the first. `remove_principal_components(..., workers=n)` removes its blocks of `REMOVAL_BLOCK_ROWS` rows in a thread pool; every block is computed as before, so the result does not depend on `n`.
+`tests/test_conformance.py` compares every backend in `BACKENDS` with the reference bit for bit for every dtype, step list, empty, long and unknown-word sentences and subnormal values. Its meta-tests check that the suite fails for a kernel without fma, with `acc / n`, with an EPS start or with zero-padded `dot16`, so a weakened comparison cannot pass unnoticed.
 
 ## Rules
 
-### The numpy fallback matches the Cython kernel
-
-`train_average_np` and `train_average_cy` must produce the same vectors, within float tolerance, for every input and every `wv_dtype`, including FastText out-of-vocabulary words and many-to-one index mappings. The fallback restores the rows it reads to float32 with `dequantize`, multiplying int8 codes by `weight * scale` in the kernel's order, so tiny scales underflow alike. Tests compare both paths. A change to one path needs the same change and a parity test for the other.
-
-### One kernel, the same result for any number of workers
-
-`train` and `infer` encode with `JobEncoder`, `train_average_cy` with its wrapper `encode_job`, and all three average with `run_job`; `run_chunk` and `run_list_chunk` only find the word indices differently and average with the same `_average_sentence`, so there is no second averaging code path to keep in sync. Every sentence is summed in the same order whatever the job size or worker count, so with one row per sentence the vectors are bit-identical for 1 to n workers, which tests check. The kernel has no length limits: `batch_words` and `batch_ngrams` only size jobs and cap the ngrams of unknown FastText words, as in the numpy fallback.
-
-### Many-to-one mappings accumulate
-
-Several sentences may share one index. Each sentence average is added into the row; a row is not overwritten.
-
-`scan_sentences` reports whether every index is unique. If it is not and more than one worker trains, the Cython kernel adds into rows under striped locks (`RowLocks`, 256 stripes), which exist only during `train` and are never pickled. Without the extension, such inputs train with one worker. Unique indices, the common case, take no lock.
-
-### The passed word vectors stay unchanged
-
-A model never changes the `KeyedVectors` it was given. Where it replaces attributes (the counts for `lang_freq`, the vector arrays for `wv_mapfile_path`), it first makes a shallow copy (`_own_word_vectors`): the vector arrays are shared, while the vocabulary containers, the arrays of per-word attributes (`expandos`) and the replaced attributes are its own, so a later `add_vectors` on the passed model cannot give the copy word indices beyond its vectors. The kernel context checks that the vocabulary has no more words than there are word vectors. An existing word mapfile is reused only if its size and content equal the vectors.
-
-### Appended rows never change existing rows
-
-`train(update=True)` writes only into the rows it appends. Existing sentence vectors, including their removed components, stay bit-identical.
-
-### Hooks keep their signatures
-
-Subclasses override `_check_parameter_sanity`, `_pre_train_calls`, `_post_train_calls`, `_post_inference_calls` and `_check_dtype_santiy`, all of which accept `**kwargs`, and `_post_load_calls`, which migrates models saved by earlier versions. Tests replace `_do_train_job` on instances, so the job path must keep calling it; `_kernel_context` returns `None` for such instances and subclasses, which disables encoded jobs.
-
 ### Validate strictly, never fail silently
 
-Invalid input raises a clear exception at the API boundary. Nothing is coerced, ignored or truncated without an error, and an unexpected keyword argument is an error (`pydantic.ValidationError` at validated entry points). A slower but correct fallback, such as training with one worker, is logged as a warning.
+Invalid input raises a clear exception at the API boundary. Nothing is coerced, ignored or truncated without an error, and an unexpected keyword argument is an error (`pydantic.ValidationError` at validated entry points). A slower but correct fallback is logged as a warning.
 
-Entry points whose own work dwarfs a few microseconds use `fse._validation.validate_arguments`, a strict pydantic `validate_call`: constructors, `train`, `infer`, `from_pretrained` and the similarity searches. Constraints such as `PositiveInt` live in the signatures. Two places check explicitly instead: methods called per element in loops (`similarity`, `get_vector`, `__getitem__`), where validation would add measurable overhead, and the training data, which pydantic would iterate or copy. Parameters that hold data stay `Any` in validated signatures for the same reason; the scan checks them. Integer constraints accept numpy integer scalars, float constraints reject infinity and NaN.
-
-### Reads return float32
-
-Whatever the storage format, `sv[i]`, `get_vector`, `get_vectors`, `iter_blocks`, `similarity`, the searches and `score` return float32. Only `sv.vectors` (and `sv.scales`) expose the stored values.
+Public entry points whose own work dwarfs a few microseconds use `fse._validation.validate_arguments`, a strict pydantic `validate_call`, with constraints such as `PositiveInt` in the signatures. Methods called per element in loops, and parameters that hold bulk data, check explicitly instead, because validation would add measurable overhead or copy the data; such parameters stay `Any` in validated signatures. Integer constraints accept numpy integer scalars, float constraints reject infinity and NaN.
 
 ### float32 throughout
 
-Word vectors, weights and sentence vectors are computed in `float32` (`REAL`); word and sentence vectors may be stored as float16 or int8 (see *Storage formats* and *Word vector formats and row kernels*), and every sum runs in float32. The kernel takes raw pointers, so arrays must have the expected dtype and be C-contiguous, which `_check_inputs` checks before the GIL is released.
+Word vectors, weights and sentence vectors are computed in float32. Word vectors may be stored as float16 or int8 and are widened exactly; every sum runs in float32. The kernel takes raw pointers, so arrays must have the expected dtype and be C-contiguous, which `_native.pyx` checks before the GIL is released.
 
 ## Build
 
-The extension is compiled from `average_inner.pyx` at build time with Cython 3 against numpy 2 headers; generated C is never committed. Wheels built this way also run with numpy 1.x. `make rebuild-ext` rebuilds it in the development environment after edits to `.pyx` or `.pxd` files.
+The extension is compiled from `_native.pyx` and `_native_kernel.h` at build time with Cython 3 against numpy 2 headers; generated C is never committed. Wheels built this way also run with numpy 1.x. `make rebuild-ext` rebuilds it in the development environment after edits to `.pyx`, `.pxd` or `.h` files.
 
 ## Tests
 
-- Tests mirror `src/`: `tests/models/test_average.py` tests `src/fse/models/average.py`.
-- Tests use pytest fixtures from `tests/conftest.py` and write files only into `tmp_path`; `tests/test_data` is read-only input.
+- Tests mirror `src/`: `tests/test_wordvectors.py` tests `src/fse/_wordvectors.py`.
+- Tests write files only into `tmp_path`; `tests/test_data` is read-only input.
 - Expected values never depend on vocabulary positions, because gensim versions order words with equal counts differently. Derive them from `key_to_index`.
 - Tests that download from the Hugging Face Hub are marked `network`.
 - pytest treats warnings as errors. Narrow, commented ignores are allowed only for third-party warnings.
+- gensim does not build on Python 3.14 and newer yet; the tests of `fse.gensim` are skipped there, everything else runs.
 
-## 2.0 (in development)
+## 2.0 design
 
-master is the development branch of 2.0, a rewrite around a frozen encoder; 1.x lives on the branch `1.x`. The sections above describe the 1.x code, which master keeps running until each part is replaced. This section is binding for every new 2.0 module. Items marked 2.1 are additions that must fit without changing anything below.
+This section is binding for every 2.0 module.
 
 ### Principle and stages
 
@@ -163,11 +75,11 @@ A frozen encoder is a pure function from one sentence to one finished row. Every
 
 The tokenizer is part of the encoder contract: the manifest names it with an identifier like the aggregation (`fse.tokenizer`), and reading an encoder with an unknown tokenizer raises. `external` means the tokens were given by the caller, who then owns reproducing them; a native, specified tokenizer can be added as a further identifier without changing anything else.
 
-There are no Python hooks per row: they would hold the GIL, could not run on a device, could not be saved and would break bit-identity. Two escape hatches remain: own tokenization in Python inside the Source (stage 1, once per sentence, like `CSplitIndexedList` today, slower), and own processing of the finished output arrays. Models in which a row depends on more than its own sentence (attention over neighbors, sentence pairs) are out of scope.
+There are no Python hooks per row: they would hold the GIL, could not run on a device, could not be saved and would break bit-identity. Two escape hatches remain: own tokenization in Python inside the Source (stage 1, once per sentence, slower), and own processing of the finished output arrays. Models in which a row depends on more than its own sentence (attention over neighbors, sentence pairs) are out of scope.
 
 Three rules keep new models possible without a new layer:
 
-1. **An aggregation is not a sum.** It is defined by an initial accumulator, a combine step `combine(acc, f, x)` per weighted token row, a finish step `finish(acc, n)`, the result of an empty sentence and its output dimension. Group mode (many sentences to one row, CPU only) combines the sentences of a group by the rule of the aggregation, defined below for the weighted mean: a mean sums the sentence means, as 1.x does; a later max would take the maximum.
+1. **An aggregation is not a sum.** It is defined by an initial accumulator, a combine step `combine(acc, f, x)` per weighted token row, a finish step `finish(acc, n)`, the result of an empty sentence and its output dimension. Group mode (many sentences to one row, CPU only) combines the sentences of a group by the rule of the aggregation, defined below for the weighted mean: a mean sums the sentence means, as 1.x did; a later max would take the maximum.
 2. **Weights (stage 2) are separate from the aggregation (stage 3).** Stage 2 supplies a factor and a stored row per contribution; the aggregation never sees weights or scales. A later max over SIF-weighted rows therefore needs no own kernel.
 3. **The output dimension belongs to the encoder.** The aggregation gives the dimension of its rows (`Aggregation.output_dim(d)`: d for the weighted mean; a concatenation such as SWEM would give 2d), and a step may reduce it (`project`). The result is written into the manifest, and Sinks and Store read it from there, never from the word vectors.
 
@@ -181,11 +93,11 @@ Three rules keep new models possible without a new layer:
 - **Stage 2.** A known word w contributes the stored row `x` (float32 as is, float16 widened exactly, int8 codes converted exactly) with the factor `f = weight[w]`, or `f = weight[w] * scale[w]` with one rounding for int8. An unknown FastText word with m >= 1 ngram buckets (in the order of the hashing, capped at `max_ngrams`) contributes each ngram row with `g = (1/m) * oov_weight`, each product rounded, times the ngram scale for int8; with m = 0 it counts for the length and adds nothing. Without FastText, unknown words are no tokens. The scale of int8 rows always goes into the factor, never into the row.
 - **`weighted_mean@1`.** The accumulator starts at +0.0 per value; every contribution does `acc[i] = fma(f, x[i], acc[i])` in token order (ngrams in bucket order); `n` counts the tokens. The row is `(1/n) * acc` with `1/n` rounded first, not `acc / n`. An empty sentence is the zero row; there is no EPS. In group mode, the first non-empty sentence of a group gives `g = (1/n) * acc` as above, and every further non-empty sentence s adds `g[i] = fma(1/n_s, acc_s[i], g[i])` in source order (the mean is not rounded before it is added); a group of one sentence therefore equals that sentence's row bit for bit, and a group of empty sentences is the zero row. Stages 4 and 5 then run once per group on this row (normalizing the group's mean, not summing normalized sentences). The sentences of a group are consecutive in the source, and a worker always gets whole groups, so a group never spans batches or workers. Group mode cannot be combined with shards (2.1 raises for `shard=` with groups), so the fixed shard boundaries never cut a group.
 - **`dot16`**, the dot product of every row reduction: 16 partial sums start at +0.0; index i goes into lane `i % 16` by fma in index order; the lanes are then added 8, 4, 2 and 1 lanes apart, and lane 0 is the result. It vectorizes on NEON, AVX2, AVX-512 and Metal. A lane can hold -0.0 (a product that rounds to zero keeps its sign), so implementations must not pad the reduction with zeros: a tail shorter than a vector updates only its own lanes.
-- **`remove_components@1`** with k unit components `u_j` (1 <= k <= d) and optional weights `w_j`: `c_j = dot16(row, u_j)`, times `w_j` if given; `p` starts at +0.0 and takes `p[i] = fma(c_j, u_j[i], p[i])` for j ascending; the result is `row - p`. All coefficients use the unmodified row, as 1.x does.
+- **`remove_components@1`** with k unit components `u_j` (1 <= k <= d) and optional weights `w_j`: `c_j = dot16(row, u_j)`, times `w_j` if given; `p` starts at +0.0 and takes `p[i] = fma(c_j, u_j[i], p[i])` for j ascending; the result is `row - p`. All coefficients use the unmodified row, as 1.x did.
 - **`project@1`** with a basis of k orthonormal rows `b_j` (1 <= k <= d): the new row has the k values `dot16(row, b_j)`; it reduces the dimension from d to k. `fit` takes the basis from the rows after `remove_components`: with `M = I - Σ_j w_j u_j u_jᵀ` (w_j = 1 without weights) their Gram matrix is `Mᵀ G M`, computed in float64 from the Gram matrix G that `fit` already has, without another pass over the rows. Components removed with weight 1 are gone from every row, so the eigenproblem is solved on their orthogonal complement (`Qᵀ Mᵀ G M Q`, Q an orthonormal basis of it) and k is at most d minus their number; `fit` raises if one of the k axes has a variance below the rounding bound of the Gram matrix, instead of picking a direction from noise.
 - **`normalize@1`**: `s = dot16(row, row)`; an all-zero row stays zero; a nonzero row whose `s` underflows to 0 or overflows raises; otherwise every value is multiplied by `1 / sqrt(s)`.
 - **Step lists.** Any subset of `remove_components`, `project` and `normalize`, in this order and each at most once; anything else is rejected when an encoder is built or loaded. In a folded encoder only `normalize` remains. After stage 4 every row must be finite, otherwise the row id is reported.
-- **Stage 5, storage.** float32 as is; float16 rounds to nearest even and raises beyond +-65504; int8 is symmetric per row: `s = absmax / 127` in float32, stepped down once with `nextafter` if `127 * s` overflows, `code = clip(rint(x / s), -127, 127)`; a row whose scale is 0 (a zero row, or one whose largest value divided by 127 underflows) has codes 0. Reading gives `code * s` with one rounding. These are the 1.x rules of `fse.models._quantize`, which the reference reproduces bit for bit.
+- **Stage 5, storage.** float32 as is; float16 rounds to nearest even and raises beyond +-65504; int8 is symmetric per row: `s = absmax / 127` in float32, stepped down once with `nextafter` if `127 * s` overflows, `code = clip(rint(x / s), -127, 127)`; a row whose scale is 0 (a zero row, or one whose largest value divided by 127 underflows) has codes 0. Reading gives `code * s` with one rounding. These are the 1.x rules (`fse.models._quantize` in 1.1.0), which `fse._codes` and the reference reproduce bit for bit.
 - **Reading stored rows.** The inverse norm of a stored row is `float32(1 / sqrt(s))`, where s is the sum of the squares of the stored values (int8 codes without their scale) in float64 and index order; a zero row has 0. A linear `score(w, bias)` of a row is `dot16(stored, w) * scale + bias` (scale 1 for float32 and float16). A cosine search normalizes the query by `normalize@1` (a zero query, or one whose norm underflows or overflows, raises) and scores `dot16(stored, q) * inverse norm`; the scale cancels and is not used. A score, inverse norm or cosine beyond float32 raises; top-k ties go to the smaller row id.
 
 What is bit-identical across what:
@@ -283,7 +195,7 @@ class TensorContainer(Protocol):
 
 ### Persistence names replace class paths
 
-Saved 2.0 artifacts contain no Python class paths. Their persistence API is the set of strings above: `fse.kind` values, identifiers, dtype codes, tensor and metadata names. These are never renamed or reused with another meaning. The public Python API is `fse.__all__`; private modules (with a leading underscore) may move freely. The rule not to rename modules under `fse.models` holds only while master still ships the 1.x models.
+Saved 2.0 artifacts contain no Python class paths. Their persistence API is the set of strings above: `fse.kind` values, identifiers, dtype codes, tensor and metadata names. These are never renamed or reused with another meaning. The public Python API is `fse.__all__`; private modules (with a leading underscore) may move freely.
 
 ### Migration
 
@@ -291,7 +203,7 @@ Saved 2.0 artifacts contain no Python class paths. Their persistence API is the 
 
 ### Layout
 
-New 2.0 code goes into private modules of `fse`: `_contract` and `_reference` (contracts and reference), `_codes` (storage arithmetic in blocks), `_container` and `_wordvectors`, the gensim adapter `fse.gensim` (extra `fse[gensim]`), then the runtime and backends, the encoder and recipes, sinks and store, and the thin `train`/`infer` facade of the release. The 1.x modules under `fse.models` are deleted once their replacement is in. gensim is not a dependency of fse: `import fse` and every 2.0 class work without it (tests check it, and a static check keeps the 2.0 modules free of gensim, scipy and smart_open); the 1.x classes are loaded from `fse` on first access and need gensim, which the extra and the test group provide.
+New 2.0 code goes into private modules of `fse`: `_contract` and `_reference` (contracts and reference), `_codes` (storage arithmetic in blocks), `_container` and `_wordvectors`, the gensim adapter `fse.gensim` (extra `fse[gensim]`), then the runtime and backends, the encoder and recipes, sinks and store, and the thin `train`/`infer` facade of the release. gensim is not a dependency of fse: `import fse` and every 2.0 class work without it (tests check it, and a static check keeps the 2.0 modules free of gensim, scipy and smart_open).
 
 ### Defaults
 

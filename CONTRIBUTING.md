@@ -1,6 +1,6 @@
 # Contributing
 
-fse is in maintenance mode. Pull requests that keep it working with current versions of Python, numpy, scipy, gensim or huggingface-hub are welcome. Feature requests and feature pull requests are out of scope and will be closed.
+master is the development branch of fse 2.0, which the maintainer plans and writes; 1.x is in maintenance mode on the branch `1.x`. Pull requests that keep 1.x working with current versions of Python, numpy, scipy, gensim or huggingface-hub are welcome there. Feature requests and feature pull requests are out of scope and will be closed.
 
 ## Setup
 
@@ -13,11 +13,11 @@ Run `make help` for all targets.
 
 ## Notes
 
-- Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing the training loop or the Cython kernel.
-- After editing `src/fse/models/average_inner.pyx` or `.pxd`, run `make rebuild-ext`. The tests check that the compiled extension is loaded and fail on the slow numpy fallback.
-- For performance changes, compare `uv run python benchmarks/bench_train.py` before and after on an idle machine and put both tables in the pull request. `--help` lists the inputs, models, worker counts and dimensions it covers.
+- Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing the contracts or the native kernel.
+- After editing `src/fse/_native.pyx`, `.pxd` or `_native_kernel.h`, run `make rebuild-ext`.
+- For performance changes, compare `uv run python benchmarks/bench_kernel.py --python-v1 <python of fse 1.1.0>` before and after on an idle machine and put both tables in the pull request. `--help` lists the dtypes, dimensions and vocabulary sizes it covers.
 - Tests that download from the Hugging Face Hub are marked `network`. `make test` skips them, `make test-network` runs them.
-- Do not rename modules under `fse.models`. Saved models store their class paths, such as `fse.models.average.Average`, and would no longer load.
+- Do not rename or reuse the persistence names of 2.0 artifacts (identifiers, `fse.` metadata keys, tensor names).
 - Add an entry to `CHANGELOG.md` for every user-visible change.
 
 ## Releases

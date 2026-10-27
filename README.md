@@ -21,7 +21,7 @@ Status
 
 **fse 1.x is in maintenance mode.** 1.1.0 is the last feature release of the 1.x line. From here on, 1.x receives bug and compatibility fixes only.
 
-**fse 2.0 is in development** as a rewrite by the maintainer. It will change the API and the file format of saved models; a migration guide and a way to export 1.x models will come with it. Until then, feature requests are closed.
+**fse 2.0 is in development** on master as a rewrite by the maintainer; master no longer contains the 1.x API, so install fse 1.1.0 from PyPI or use the branch `1.x`. It will change the API and the file format of saved models; a migration guide and a way to export 1.x models will come with it. Until then, feature requests are closed.
 
 - Version 1.1.0 is tested on Python 3.11 to 3.13 with current numpy, scipy, gensim and huggingface-hub releases.
 - Python 3.14 and newer are not supported yet, because gensim does not build there (see [gensim#3640](https://github.com/piskvorky/gensim/issues/3640)).
