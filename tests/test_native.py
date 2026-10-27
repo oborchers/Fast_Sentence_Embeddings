@@ -242,3 +242,18 @@ def test_ci_runs_the_vector_kernel():
     machine = platform.machine().lower()
     want = "neon" if machine in ("arm64", "aarch64") else "avx2"
     assert want in _native.available_isas()
+
+
+def test_reshaped_step_arrays_are_rejected_at_the_kernel():
+    from fse._contract import Project, RemoveComponents
+
+    step = RemoveComponents(np.array([[1, 0]], F32), np.array([1], F32))
+    # A caller can still change the arrays of a checked step (numpy below 2.5 even lets
+    # it reshape a read-only array in place); the kernel must not trust them.
+    object.__setattr__(step, "components", step.components.reshape(2, 1))
+    with pytest.raises(ValueError, match="components must have shape"):
+        _native.postprocess(np.ones((1, 1), F32), [step])
+    project = Project(np.array([[1, 0]], F32))
+    object.__setattr__(project, "basis", project.basis.reshape(2, 1))
+    with pytest.raises(ValueError, match="basis must have shape"):
+        _native.postprocess(np.ones((1, 1), F32), [project])

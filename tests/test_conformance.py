@@ -524,61 +524,89 @@ def test_the_suite_catches_zero_padded_dot16():
 # --- The floating-point environment ----------------------------------------------------------
 
 NATIVE = [b for b in BACKENDS if isinstance(b, Native)]
+# Flush-to-zero changes subnormal results, rounding up changes inexact ones.
+ENVIRONMENTS = {"flush to zero": {"flush": True}, "round up": {"round_up": True}}
 
 
-def _subnormal_calls(backend):
-    """Every native entry point on inputs whose results are subnormal."""
+def _environment_calls(backend):
+    """Every native entry point, on inputs whose results depend on the environment."""
     rows = np.full((3, 20), TINY, dtype=F32) * np.arange(1, 61, dtype=F32).reshape(3, 20)
+    inexact = _rng(5).standard_normal((3, 20)).astype(F32)
     unit = np.zeros((1, 20), dtype=F32)
     unit[0, 0] = 1
-    pool_case = next(c for c in CASES if c.name == "subnormal rows" and c.dtype == "float32")
-    return {
-        "pool": lambda: backend.pool(pool_case),
-        "accumulate": lambda: backend.accumulate(pool_case)[0],
-        "remove_components": lambda: backend.postprocess(rows, [RemoveComponents(unit)]),
-        "project": lambda: backend.postprocess(
-            rows, [Project(np.ascontiguousarray(np.eye(2, 20, dtype=F32)))]
-        ),
-        "dot16": lambda: backend.dot16(rows, np.full(20, 0.5, F32))[:, None],
-        "score": lambda: backend.score(rows, None, np.full(20, 0.5, F32), 0.0)[:, None],
-    }
+    # Normal values whose sum of squares is subnormal.
+    small = np.full((1, 4), F32(2.0**-70), dtype=F32)
+    # Inputs are made here, before the environment changes: the calls must only run kernels.
+    tiny, shifted = float(TINY), {"subnormal": rows + F32(1), "inexact": inexact + F32(1)}
+    third = np.full(20, 0.3, F32)
+    pool_cases = [
+        c for c in CASES if c.dtype == "float32" and c.name in ("subnormal rows", "random 1")
+    ]
+    calls = {}
+    for case in pool_cases:
+        calls[f"pool {case.name}"] = lambda case=case: backend.pool(case)
+        calls[f"accumulate {case.name}"] = lambda case=case: backend.accumulate(case)[0]
+    for label, x in (("subnormal", rows), ("inexact", inexact)):
+        calls[f"remove_components {label}"] = lambda x=x: backend.postprocess(
+            x, [RemoveComponents(unit)]
+        )
+        calls[f"project {label}"] = lambda x=x: backend.postprocess(
+            x, [Project(np.ascontiguousarray(np.eye(2, 20, dtype=F32)))]
+        )
+        calls[f"normalize {label}"] = lambda y=shifted[label]: backend.postprocess(y, [Normalize()])
+        calls[f"dot16 {label}"] = lambda x=x: backend.dot16(x, third)[:, None]
+        calls[f"score {label}"] = lambda x=x: backend.score(x, None, third, tiny)[:, None]
+    calls["normalize small"] = lambda: backend.postprocess(small, [Normalize()])
+    zeros, ones = np.zeros((1, 3), F32), np.ones(3, F32)
+    calls["score subnormal bias"] = lambda: backend.score(zeros, None, ones, 2.0**-149)[:, None]
+    return calls
 
 
-def test_flush_to_zero_changes_numpy():
-    """The switch the next test uses really flushes subnormals in this process."""
-    saved = _native._test_fpenv_flush(True)
+@pytest.mark.parametrize("env", ENVIRONMENTS, ids=list(ENVIRONMENTS))
+def test_the_environment_changes_numpy(env):
+    """The switches the next tests use really change results in this process."""
+    a, b, c = np.array([TINY * 64], F32), np.ones(1, F32), np.array([2.0**-30], F32)
+    before = (a * F32(0.5), b + c)
+    saved = _native._test_fpenv_set(**ENVIRONMENTS[env])
     try:
-        flushed = np.array([TINY * 64], F32) * F32(0.5)
+        after = (a * F32(0.5), b + c)
     finally:
         _native._test_fpenv_restore(saved)
-    assert flushed[0] == 0
-    assert (np.array([TINY * 64], F32) * F32(0.5))[0] != 0
+    assert after[0][0] != before[0][0] or after[1][0] != before[1][0]
 
 
+@pytest.mark.parametrize("env", ENVIRONMENTS, ids=list(ENVIRONMENTS))
 @pytest.mark.parametrize("backend", NATIVE, ids=lambda b: b.name)
-def test_native_ignores_and_restores_flush_to_zero(backend):
-    want = {name: call() for name, call in _subnormal_calls(Reference()).items()}
-    for name, call in _subnormal_calls(backend).items():
-        saved = _native._test_fpenv_flush(True)
+def test_native_ignores_and_restores_the_environment(backend, env):
+    want = {name: call() for name, call in _environment_calls(Reference()).items()}
+    for name, call in _environment_calls(backend).items():
+        saved = _native._test_fpenv_set(**ENVIRONMENTS[env])
         try:
-            flushed = _native._test_fpenv_get()
+            changed = _native._test_fpenv_get()
             got = call()
             after = _native._test_fpenv_get()
         finally:
             _native._test_fpenv_restore(saved)
-        assert after == flushed, f"{name} did not restore the floating-point environment"
+        assert after == changed, f"{name} did not restore the floating-point environment"
         assert_bits_equal(got, want[name], name)
-    assert np.any(want["pool"] != 0)
+    assert np.any(want["pool subnormal rows"] != 0)
+    assert want["score subnormal bias"][0, 0] != 0
 
 
 @pytest.mark.parametrize("backend", NATIVE, ids=lambda b: b.name)
 def test_native_restores_the_environment_after_an_error(backend):
-    saved = _native._test_fpenv_flush(True)
+    saved = _native._test_fpenv_set(flush=True, round_up=True)
     try:
-        flushed = _native._test_fpenv_get()
+        changed = _native._test_fpenv_get()
         with pytest.raises(ValueError, match="score of row 0 overflows"):
             backend.score(np.array([[BIG, 0]], dtype=F32), None, np.array([2, 0], F32), 0.0)
         after = _native._test_fpenv_get()
     finally:
         _native._test_fpenv_restore(saved)
-    assert after == flushed
+    assert after == changed
+
+
+@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
+def test_a_bias_beyond_float32_raises_the_overflow(backend):
+    with pytest.raises(ValueError, match="score of row 0 overflows"):
+        backend.score(np.zeros((1, 2), F32), None, np.ones(2, F32), 1e100)

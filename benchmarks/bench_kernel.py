@@ -4,7 +4,9 @@
 Both kernels average the same sentences of word ids in one thread: the 2.0 kernel
 through ``fse._native.WeightedMean.pool`` on a ``Batch``, the 1.1.0 kernel through
 ``fse.models.average_inner.run_job`` on an ``EncodedJob``. Encoding the sentences into
-batches happens before the clock starts, so only the kernel is measured.
+batches happens before the clock starts. The 2.0 time includes the checks ``pool`` runs on
+every batch (token ids, offsets, overlap), which the encoded jobs of 1.1.0 did when they
+were encoded, so the ratio slightly favors 1.1.0.
 
 The 1.1.0 kernel runs in the interpreter given by ``--python-v1``, an environment with
 ``fse==1.1.0`` and gensim installed. Every configuration runs in fresh subprocesses,

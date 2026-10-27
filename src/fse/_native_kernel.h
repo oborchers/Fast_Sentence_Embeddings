@@ -295,7 +295,7 @@ static inline int fse_finish_row(float *FSE_RESTRICT acc, int dim, float inv, in
    row of p->dim floats per sentence; counts receives the tokens per sentence if not NULL.
    Returns -1, or the first sentence whose accumulator is not finite. */
 #define FSE_DEFINE_LOOP(NAME, TARGET, FMA, SCALED)                                          \
-    TARGET static int64_t NAME(const fse_params *p, const fse_batch *b, float *out,         \
+    FSE_NOINLINE TARGET static int64_t NAME(const fse_params *p, const fse_batch *b, float *out, \
                                int64_t *counts, int finish) {                               \
         const int dim = p->dim;                                                             \
         const size_t rb = p->row_bytes;                                                     \
@@ -596,25 +596,39 @@ static int64_t fse_score(int isa, int dtype, const void *stored, const float *sc
     return bad;
 }
 
-/* For the tests: set (on = 1) or clear flush-to-zero and denormals-are-zero (FZ on arm64)
-   and return the previous environment, or restore one with fse_test_fpenv_restore. */
-static uint64_t fse_test_fpenv_flush(int on) {
+/* For the tests: set flush-to-zero and denormals-are-zero (FZ on arm64) and rounding
+   toward +infinity, each if asked, and return the previous environment. */
+static uint64_t fse_test_fpenv_set(int flush, int round_up) {
     fse_fpenv env = {0};
 #if defined(FSE_X86)
     unsigned int csr = _mm_getcsr();
     env.saved = csr;
-    _mm_setcsr(on ? (csr | 0x8000u | 0x0040u) : (csr & ~(0x8000u | 0x0040u)));
+    csr &= ~(0x8000u | 0x0040u | 0x6000u);
+    if (flush) csr |= 0x8000u | 0x0040u;
+    if (round_up) csr |= 0x4000u;
+    _mm_setcsr(csr);
 #elif defined(FSE_NEON)
     uint64_t fpcr;
     __asm__ __volatile__("mrs %0, fpcr" : "=r"(fpcr));
     env.saved = fpcr;
-    uint64_t want = on ? (fpcr | (1ull << 24)) : (fpcr & ~(1ull << 24));
+    uint64_t want = fpcr & ~((1ull << 24) | (3ull << 22));
+    if (flush) want |= 1ull << 24;
+    if (round_up) want |= 1ull << 22;
     __asm__ __volatile__("msr fpcr, %0" : : "r"(want));
 #else
-    (void)on;
+    (void)flush;
+    (void)round_up;
 #endif
     return env.saved;
 }
+/* The environment of the kernel for a whole Python call, numpy conversions included. */
+static uint64_t fse_fpenv_push(void) { return fse_fpenv_enter().saved; }
+static void fse_fpenv_pop(uint64_t saved) {
+    fse_fpenv env;
+    env.saved = saved;
+    fse_fpenv_leave(env);
+}
+
 static void fse_test_fpenv_restore(uint64_t saved) {
     fse_fpenv env;
     env.saved = saved;
@@ -681,7 +695,6 @@ static fse_loop_t fse_loop_for(int isa, int dtype) {
 static int64_t fse_run(int isa, const fse_params *p, const fse_batch *b, float *out,
                        int64_t *counts, int finish) {
     fse_fpenv env = fse_fpenv_enter();
-    /* Called through a pointer, so its arithmetic cannot move before the environment. */
     int64_t bad = fse_loop_for(isa, p->dtype)(p, b, out, counts, finish);
     fse_fpenv_leave(env);
     return bad;

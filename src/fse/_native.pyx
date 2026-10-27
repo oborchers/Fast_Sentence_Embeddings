@@ -548,7 +548,9 @@ cdef extern from "_native_kernel.h":
     int64_t fse_run(int isa, const fse_params *p, const fse_batch *b, float *out,
                     int64_t *counts, int finish) nogil
     void fse_dot16_rows(int isa, const float *a, const float *b, int64_t n, int dim, float *out) nogil
-    uint64_t fse_test_fpenv_flush(int on)
+    uint64_t fse_test_fpenv_set(int flush, int round_up)
+    uint64_t fse_fpenv_push()
+    void fse_fpenv_pop(uint64_t saved)
     void fse_test_fpenv_restore(uint64_t saved)
     uint64_t fse_test_fpenv_get()
     int64_t fse_remove_components(int isa, float *rows, int64_t n, int dim,
@@ -592,13 +594,27 @@ def _check_dim(dim):
     return dim
 
 
-def _test_fpenv_flush(on):
-    """For the tests: set or clear flush-to-zero; returns the previous environment."""
-    return fse_test_fpenv_flush(1 if on else 0)
+cdef class _KernelEnv:
+    """The floating-point environment of the kernel for a whole call: the arithmetic and the
+    numpy conversions of the wrapper (bias, oov_weight, input arrays) run in it."""
+
+    cdef uint64_t saved
+
+    def __enter__(self):
+        self.saved = fse_fpenv_push()
+
+    def __exit__(self, *exc):
+        fse_fpenv_pop(self.saved)
+        return False
+
+
+def _test_fpenv_set(flush=False, round_up=False):
+    """For the tests: set flush-to-zero and rounding up; returns the previous environment."""
+    return fse_test_fpenv_set(1 if flush else 0, 1 if round_up else 0)
 
 
 def _test_fpenv_restore(saved):
-    """For the tests: restore an environment returned by _test_fpenv_flush."""
+    """For the tests: restore an environment returned by _test_fpenv_set."""
     fse_test_fpenv_restore(saved)
 
 
@@ -689,7 +705,8 @@ cdef class WeightedMean:
             <const float *>np.PyArray_DATA(ngram_scales) if self.fasttext and int8 else NULL
         )
         # As the reference: float32(oov_weight); None only without unknown words.
-        self.params.oov_weight = np.float32(oov_weight) if oov_weight is not None else 0
+        with _KernelEnv():
+            self.params.oov_weight = np.float32(oov_weight) if oov_weight is not None else 0
         self._keep = (vectors, weights, scales, ngram_vectors, ngram_scales, oov_weight)
 
     def _check_batch(self, batch):
@@ -809,6 +826,11 @@ def _float32_rows(rows, name="rows"):
 
 def dot16(rows, other, *, isa=None):
     """dot16 of every row with ``other`` (one vector, or one row per row)."""
+    with _KernelEnv():
+        return _dot16(rows, other, isa)
+
+
+def _dot16(rows, other, isa):
     cdef int code = _check_isa(isa)
     rows = _float32_rows(rows)
     other = np.ascontiguousarray(np.broadcast_to(np.asarray(other, dtype=np.float32), rows.shape))
@@ -827,6 +849,11 @@ def dot16(rows, other, *, isa=None):
 
 def postprocess(rows, steps, first_row=0, *, isa=None):
     """``fse._reference.postprocess`` in the kernel: the same rows, bits and errors."""
+    with _KernelEnv():
+        return _postprocess(rows, steps, first_row, isa)
+
+
+def _postprocess(rows, steps, first_row, isa):
     from fse._contract import Normalize, Project, RemoveComponents, check_steps
 
     cdef int code = _check_isa(isa)
@@ -853,6 +880,12 @@ def postprocess(rows, steps, first_row=0, *, isa=None):
         if isinstance(step, RemoveComponents):
             params = step.components
             k = params.shape[0]
+            # The kernel reads through raw pointers: check the shapes again, as numpy lets
+            # a caller reshape the arrays of a checked step.
+            if not 1 <= k <= dim or params.shape[1] != dim:
+                raise ValueError(f"components must have shape (k, {dim}) with 1 <= k <= {dim}")
+            if step.weights is not None and step.weights.shape != (k,):
+                raise ValueError(f"weights must have shape ({k},)")
             scratch = np.empty(dim, dtype=np.float32)
             if step.weights is not None:
                 weights = step.weights
@@ -864,6 +897,8 @@ def postprocess(rows, steps, first_row=0, *, isa=None):
         elif isinstance(step, Project):
             params = step.basis
             k = params.shape[0]
+            if not 1 <= k <= dim or params.shape[1] != dim:
+                raise ValueError(f"basis must have shape (k, {dim}) with 1 <= k <= {dim}")
             result = np.empty((n, k), dtype=np.float32)
             projected = result
             with nogil:
@@ -890,6 +925,11 @@ def _check_finite_rows(rows, first_row):
 
 def score(stored, scales, weights, bias=0.0, *, isa=None):
     """``fse._reference.score`` in the kernel: dot16(stored, w) * scale + bias per row."""
+    with _KernelEnv():
+        return _score(stored, scales, weights, bias, isa)
+
+
+def _score(stored, scales, weights, bias, isa):
     cdef int code = _check_isa(isa)
     stored = _rows(stored, "stored")
     cdef Py_ssize_t n = stored.shape[0]
@@ -911,7 +951,9 @@ def score(stored, scales, weights, bias=0.0, *, isa=None):
     cdef const void *data = np.PyArray_DATA(stored)
     cdef const float *sc = <const float *>np.PyArray_DATA(scales) if int8 else NULL
     cdef int dtype = _DTYPES[stored.dtype]
-    cdef float b = np.float32(bias)
+    cdef float b
+    with np.errstate(over="ignore", invalid="ignore"):  # as the reference
+        b = np.float32(bias)
     cdef int64_t bad
     with nogil:
         bad = fse_score(code, dtype, data, sc, n, dim, &w[0] if dim else NULL, b, &o[0], &scratch[0])
