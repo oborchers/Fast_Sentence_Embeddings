@@ -850,8 +850,9 @@ class BaseSentence2VecModel(SaveLoad):
                 (self.sv, "inv_norms"),
             ]
         stored = [(obj, name, getattr(obj, name)) for obj, name in removed]
-        # Only exists during training, for example when a hook saves the model.
+        # Only exist during training, for example when a hook saves the model.
         plan = self.__dict__.pop("_list_plan", None)
+        training = self.__dict__.pop("_training", None)
         try:
             for obj, name in removed:
                 setattr(obj, name, None)
@@ -861,6 +862,8 @@ class BaseSentence2VecModel(SaveLoad):
                 setattr(obj, name, value)
             if plan is not None:
                 self.__dict__["_list_plan"] = plan
+            if training is not None:
+                self.__dict__["_training"] = training
 
     def scan_sentences(self, sentences: Any = None, progress_per: int = 5) -> dict[str, Any]:
         """Performs an initial scan of the data and reports all corresponding statistics
@@ -1090,13 +1093,15 @@ class BaseSentence2VecModel(SaveLoad):
 
         """
         # Workers and the removal of components call BLAS; it shares the cores among them.
+        self.__dict__["_training"] = True
         try:
             with utils.blas_threads(self.workers):
                 return self._train(sentences, update, queue_factor, report_delay)
         finally:
             _release_native(sentences)
-            # Only exists during training and must never be pickled.
+            # Only exist during training and must never be pickled.
             self.__dict__.pop("_list_plan", None)
+            self.__dict__.pop("_training", None)
 
     def _train(
         self, sentences: Any, update: bool, queue_factor: int, report_delay: float
@@ -1437,12 +1442,15 @@ class BaseSentence2VecModel(SaveLoad):
         """
         # A hook that infers during training must not read its input like the training does.
         plan = self.__dict__.pop("_list_plan", None)
+        training = self.__dict__.pop("_training", None)
         try:
             return self._infer(sentences, use_norm)
         finally:
             _release_native(sentences)
             if plan is not None:
                 self.__dict__["_list_plan"] = plan
+            if training is not None:
+                self.__dict__["_training"] = training
 
     def _infer(self, sentences: Any, use_norm: bool) -> ndarray:
         """The body of :meth:`infer`."""

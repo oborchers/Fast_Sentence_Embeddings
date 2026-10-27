@@ -504,6 +504,10 @@ class Average(BaseSentence2VecModel):
         else:
             base = sentences
         native = base._native_chunks() if hasattr(base, "_native_chunks") else None
+        if getattr(base, "_native_for_training_only", False) and not self.__dict__.get("_training"):
+            # infer of a few sentences would build a VocabTable of the whole vocabulary; the
+            # JobEncoder reads them through the dictionary instead, as before.
+            native = None
         if native is not None:
             source, chunks = native
             context.sources.append(source)

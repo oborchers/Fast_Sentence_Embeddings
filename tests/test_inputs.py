@@ -1037,3 +1037,23 @@ def test_a_vocabulary_without_utf8_reads_native_inputs_through_their_iterator():
         trained.train(data)
         assert np.array_equal(trained.sv.vectors, reference.sv.vectors)
         assert np.array_equal(trained.infer(data), reference.infer(PythonSplitIndexedList(texts)))
+
+
+def test_split_indexed_list_infer_builds_no_vocab_table(monkeypatch, native_w2v):
+    """infer is often called with a few sentences, for which a table of the whole
+    vocabulary would cost more than the dictionary lookups of the JobEncoder."""
+    from fse.models import average
+
+    model = fse.Average(native_w2v, workers=2)
+    model.train(SplitIndexedList(["the dog", "is good"]))
+    built = []
+    original = average.VocabTable
+
+    def spy(*args):
+        built.append(1)
+        return original(*args)
+
+    monkeypatch.setattr(average, "VocabTable", spy)
+    inferred = model.infer(SplitIndexedList(["good dog"]))
+    assert built == []
+    assert np.array_equal(inferred, model.infer(PythonSplitIndexedList(["good dog"])))

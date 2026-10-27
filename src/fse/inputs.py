@@ -255,6 +255,8 @@ class SplitIndexedList(BaseIndexedList):
     # __getitem__ or __iter__, or strings that cannot be encoded keep the Python path.
     _native_source: "_NativeSource | None" = None
     _scan_state: Any = None
+    # Only train reads it natively; infer, often of a few sentences, keeps the JobEncoder.
+    _native_for_training_only = True
     # The str objects the scan encoded; immutable, so the same objects mean the same text.
     _scanned_items: tuple | None = None
 
