@@ -127,4 +127,5 @@ def components_from_gram(
         )
     # Rounding can make eigenvalues of a rank-deficient matrix slightly negative.
     singular_values = np.sqrt(np.maximum(eigenvalues, 0.0))
-    return singular_values.astype(np.float32), basis.astype(np.float32)
+    # C order, so the basis can be a step of an encoder as it is.
+    return singular_values.astype(np.float32), np.ascontiguousarray(basis, dtype=np.float32)
