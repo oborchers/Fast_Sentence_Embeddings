@@ -102,7 +102,7 @@ def main() -> None:
         f.write(
             f"# fse {fse.__version__} | {platform.platform()} | Python {platform.python_version()} | {versions}\n"
         )
-        writer = csv.DictWriter(f, fieldnames=fields)
+        writer = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         for name in VECTORS:
             loader = FTVectors if name == "fasttext-crawl-subwords-300" else Vectors
