@@ -43,7 +43,7 @@ from collections.abc import Iterable, Iterator
 from copy import copy
 from pathlib import Path
 from queue import Empty, Queue
-from time import time
+from time import perf_counter, time
 from typing import Any
 
 from gensim.matutils import zeros_aligned
@@ -1512,11 +1512,13 @@ class BaseSentence2VecModel(SaveLoad):
         # stop tells the producer to stop reading and the workers to skip their jobs.
         errors: list[BaseException] = []
         stop = threading.Event()
+        times = _StageTimes()
 
         threads = [
             threading.Thread(
                 target=self._worker_loop,
                 args=(job_queue, progress_queue, errors, stop, context),
+                kwargs={"times": times},
             )
             for _ in range(n_workers)
         ]
@@ -1524,8 +1526,10 @@ class BaseSentence2VecModel(SaveLoad):
             threading.Thread(
                 target=self._job_producer,
                 args=(data_iterable, job_queue, errors, stop, n_workers, context),
+                kwargs={"times": times},
             )
         )
+        start = perf_counter()
 
         try:
             for thread in threads:
@@ -1563,6 +1567,8 @@ class BaseSentence2VecModel(SaveLoad):
 
         if errors:
             raise errors[0]
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(times.summary(perf_counter() - start, n_workers))
         return jobs, eff_sentences, eff_words
 
     def _worker_loop(
@@ -1572,6 +1578,7 @@ class BaseSentence2VecModel(SaveLoad):
         errors: list[BaseException],
         stop: threading.Event,
         context: Any = None,
+        times: "_StageTimes | None" = None,
     ):
         """Train the model, lifting batches of data from the queue.
 
@@ -1594,9 +1601,12 @@ class BaseSentence2VecModel(SaveLoad):
             Set once any thread failed. The worker then drains the queue without training.
         context : object, optional
             Kernel context; the jobs are then (size, encoded job) pairs.
+        times : _StageTimes, optional
+            Collects how long the worker waits for jobs and how long it averages them.
 
         """
         jobs_processed = 0
+        waiting = averaging = 0.0
         try:
             mem = self._get_thread_working_mem()
         except BaseException as err:
@@ -1607,7 +1617,10 @@ class BaseSentence2VecModel(SaveLoad):
         # on a full queue, and always report the end, so the main thread never waits
         # for a worker that is gone.
         while True:
+            waited = perf_counter()
             job = job_queue.get()
+            started = perf_counter()
+            waiting += started - waited
             if job is None:
                 break
             if stop.is_set():
@@ -1625,8 +1638,11 @@ class BaseSentence2VecModel(SaveLoad):
                 errors.append(err)
                 stop.set()
                 continue
+            averaging += perf_counter() - started
             progress_queue.put((size, eff_sentences, eff_words))
             jobs_processed += 1
+        if times is not None:
+            times.add(workers_wait=waiting, workers_average=averaging)
         progress_queue.put(None)
         logger.debug(f"worker exiting, processed {jobs_processed} jobs")
 
@@ -1638,6 +1654,7 @@ class BaseSentence2VecModel(SaveLoad):
         stop: threading.Event,
         workers: int | None = None,
         context: Any = None,
+        times: "_StageTimes | None" = None,
     ):
         """Fill the jobs queue using the data found in the input stream.
 
@@ -1659,12 +1676,16 @@ class BaseSentence2VecModel(SaveLoad):
         context : object, optional
             Kernel context. The producer then reads, batches and encodes the input in one
             pass while holding the GIL, so the workers can average it without the GIL.
+        times : _StageTimes, optional
+            Collects how long the producer reads and how long it waits for a free job slot.
 
         """
 
         job_batch: list[tuple] = []
         batch_size = 0
         job_no = 0
+        started = perf_counter()
+        blocked = 0.0
 
         try:
             if context is not None:
@@ -1675,7 +1696,9 @@ class BaseSentence2VecModel(SaveLoad):
                         # Before any worker writes rows that another job could also cover.
                         single_pass.check_job(job, stop)
                     job_no += 1
+                    put = perf_counter()
                     job_queue.put((job.n_items, job))
+                    blocked += perf_counter() - put
                 data_iterable = ()
             for data in data_iterable:
                 if stop.is_set():
@@ -1699,6 +1722,9 @@ class BaseSentence2VecModel(SaveLoad):
             errors.append(err)
             stop.set()
         finally:
+            if times is not None:
+                busy = perf_counter() - started - blocked
+                times.add(producer_reads=busy, producer_waits=blocked)
             # Workers keep draining the queue, so these puts cannot block forever.
             for _ in range(self.workers if workers is None else workers):
                 job_queue.put(None)
@@ -1852,6 +1878,49 @@ def _check_mapfile_size(path: Path, shape: tuple[int, ...], itemsize: int = dtyp
         raise ValueError(
             f"the existing file {path} has {size} bytes, but vectors of shape {tuple(shape)} "
             f"need {expected}; delete it or pass another mapfile path"
+        )
+
+
+class _StageTimes:
+    """Seconds the threads of one _train_manager call spent per stage, for the DEBUG log.
+
+    The producer reads (and encodes) the input or waits for a free place in the queue;
+    the workers wait for jobs or average them. Each thread adds its sums once at its end.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.seconds = dict.fromkeys(
+            ("producer_reads", "producer_waits", "workers_wait", "workers_average"), 0.0
+        )
+
+    def add(self, **seconds: float):
+        with self._lock:
+            for key, value in seconds.items():
+                self.seconds[key] += value
+
+    def summary(self, elapsed: float, workers: int) -> str:
+        """One line with the shares of the wall time, and which side limits training."""
+        s = self.seconds
+        wall = max(elapsed, 1e-9)
+        produce = s["producer_reads"] / wall
+        blocked = s["producer_waits"] / wall
+        busy = s["workers_average"] / (wall * max(workers, 1))
+        idle = s["workers_wait"] / (wall * max(workers, 1))
+        # Workers that wait for the GIL count as averaging, so a producer that reads almost
+        # all the time also limits training.
+        if workers < 2:
+            limit = "one worker"
+        elif blocked > 0.25:
+            limit = "the workers limit training"
+        elif idle > 0.25 or produce > 0.8:
+            limit = "the producer limits training, so more workers would not help"
+        else:
+            limit = "producer and workers are balanced"
+        return (
+            f"training threads over {elapsed:.2f}s: the producer reads {produce:.0%} and waits "
+            f"for a free job slot {blocked:.0%} of the time; {workers} workers average "
+            f"{busy:.0%} and wait for jobs {idle:.0%} of the time; {limit}"
         )
 
 

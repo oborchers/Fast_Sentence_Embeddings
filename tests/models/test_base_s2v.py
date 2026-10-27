@@ -989,3 +989,86 @@ def test_scan_uses_a_validator_replaced_on_the_instance(w2v):
     se._check_indexed_sent_valid = reject
     with pytest.raises(ValueError, match="custom validator"):
         se.scan_sentences([(["a"], 0)])
+
+
+def test_training_logs_where_the_threads_spend_their_time(caplog):
+    """One DEBUG line per training splits the time of the producer and the workers."""
+    import logging
+
+    from fse import Average, IndexedList
+
+    w2v = Word2Vec(min_count=1, vector_size=8, seed=1, workers=1)
+    w2v.build_vocab([["the", "dog", "is", "good"]])
+    model = Average(w2v, workers=2)
+    with caplog.at_level(logging.INFO, logger="fse.models.base_s2v"):
+        model.train(IndexedList([["the", "dog"]] * 50))
+    assert not any("training threads" in r.getMessage() for r in caplog.records)
+    caplog.clear()
+    with caplog.at_level(logging.DEBUG, logger="fse.models.base_s2v"):
+        model.train(IndexedList([["the", "dog"]] * 50))
+    lines = [r.getMessage() for r in caplog.records if "training threads" in r.getMessage()]
+    assert len(lines) == 1
+    assert "2 workers average" in lines[0]
+
+
+@pytest.mark.parametrize(
+    ("seconds", "workers", "verdict"),
+    [
+        (
+            {
+                "producer_reads": 9.5,
+                "producer_waits": 0.0,
+                "workers_wait": 12,
+                "workers_average": 8,
+            },
+            2,
+            "the producer limits",
+        ),
+        (
+            {
+                "producer_reads": 9.0,
+                "producer_waits": 0.2,
+                "workers_wait": 1,
+                "workers_average": 19,
+            },
+            2,
+            "the producer limits",
+        ),
+        (
+            {
+                "producer_reads": 2.0,
+                "producer_waits": 8.0,
+                "workers_wait": 0,
+                "workers_average": 20,
+            },
+            2,
+            "the workers limit",
+        ),
+        (
+            {
+                "producer_reads": 6.0,
+                "producer_waits": 1.0,
+                "workers_wait": 2,
+                "workers_average": 18,
+            },
+            2,
+            "balanced",
+        ),
+        (
+            {
+                "producer_reads": 9.0,
+                "producer_waits": 1.0,
+                "workers_wait": 0,
+                "workers_average": 10,
+            },
+            1,
+            "one worker",
+        ),
+    ],
+)
+def test_stage_times_name_the_limit(seconds, workers, verdict):
+    from fse.models.base_s2v import _StageTimes
+
+    times = _StageTimes()
+    times.add(**seconds)
+    assert verdict in times.summary(10.0, workers)
