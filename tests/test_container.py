@@ -536,3 +536,15 @@ def test_write_reserves_the_target(tmp_path, monkeypatch):
         c.write(tmp_path / "a", _tensors(), _METADATA)
     assert not (tmp_path / "a").exists()
     monkeypatch.setattr(NpyContainer, "_write_tensor", staticmethod(original))
+
+
+def test_reserved_names_are_rejected_on_read(tmp_path):
+    path = _written(tmp_path)
+    manifest = _manifest(path)
+    entry = manifest["tensors"].pop("vectors")
+    entry["file"] = "__metadata__.npy"
+    manifest["tensors"]["__metadata__"] = entry
+    os.replace(path / "vectors.npy", path / "__metadata__.npy")
+    _save_manifest(path, manifest)
+    with pytest.raises(CorruptArtifactError, match="not a tensor name"):
+        NpyContainer().open(path, mmap=False)

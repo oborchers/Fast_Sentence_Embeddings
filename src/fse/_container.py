@@ -169,6 +169,8 @@ def _check_for_writing(tensors: Mapping[str, ndarray], metadata: Mapping[str, st
         if array.ndim > MAX_RANK:
             raise ValueError(f"tensor {name} has more than {MAX_RANK} dimensions")
         codes[name] = tensor_code(array)
+        if not _shape(list(array.shape), array.itemsize):
+            raise ValueError(f"the shape of tensor {name} is beyond what readers accept")
     return codes
 
 
@@ -219,32 +221,39 @@ def _strict_json(raw: bytes, file: Path) -> Any:
     return value
 
 
-def _check_strings(value: Any, file: Path, depth: int = 0):
+def _strings(value: Any):
+    """Every string of a parsed JSON value, keys included, without recursion."""
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, str):
+            yield item
+        elif isinstance(item, dict):
+            stack.extend(item.keys())
+            stack.extend(item.values())
+        elif isinstance(item, list):
+            stack.extend(item)
+
+
+def _check_strings(value: Any, file: Path):
     """Reject strings without a UTF-8 form (lone surrogates from \\u escapes)."""
-    if isinstance(value, str):
+    for text in _strings(value):
         try:
-            value.encode("utf-8")
+            text.encode("utf-8")
         except UnicodeEncodeError:
             raise CorruptArtifactError(f"{file} holds a string that is not valid UTF-8") from None
-    elif isinstance(value, dict):
-        for key, item in value.items():
-            _check_strings(key, file)
-            _check_strings(item, file, depth + 1)
-    elif isinstance(value, list):
-        for item in value:
-            _check_strings(item, file, depth + 1)
 
 
-def _shape(value: Any) -> bool:
+def _shape(value: Any, itemsize: int) -> bool:
     """A shape numpy can describe: at most MAX_RANK non-negative int64 dimensions whose
-    non-zero product stays within int64 (also for tensors with a zero dimension)."""
+    non-zero product, in bytes, stays within int64 (also for tensors with a zero dimension)."""
     if not isinstance(value, list) or len(value) > MAX_RANK:
         return False
     if not all(
         isinstance(n, int) and not isinstance(n, bool) and 0 <= n <= MAX_INT64 for n in value
     ):
         return False
-    return math.prod(n for n in value if n) * 8 <= MAX_INT64
+    return math.prod(n for n in value if n) * itemsize <= MAX_INT64
 
 
 def _open_regular(file: Path):
@@ -315,7 +324,7 @@ def _read_manifest(path: Path) -> dict[str, Any]:
         if not isinstance(value, str):
             raise CorruptArtifactError(f"{file}: metadata {key} must be a string")
     for name, entry in manifest["tensors"].items():
-        if not TENSOR_NAME.fullmatch(name):
+        if not TENSOR_NAME.fullmatch(name) or name in RESERVED_NAMES:
             raise CorruptArtifactError(f"{file}: {name!r} is not a tensor name")
         if not isinstance(entry, dict) or set(entry) != {"file", "dtype", "shape"}:
             raise CorruptArtifactError(
@@ -328,7 +337,7 @@ def _read_manifest(path: Path) -> dict[str, Any]:
                 f"{file}: tensor {name} has the unknown dtype {entry['dtype']!r}"
             )
         shape = entry["shape"]
-        if not _shape(shape):
+        if not _shape(shape, np.dtype(DTYPE_CODES[entry["dtype"]]).itemsize):
             raise CorruptArtifactError(
                 f"{file}: the shape of tensor {name} must be non-negative ints that numpy can hold"
             )
@@ -418,6 +427,10 @@ class NpyContainer:
         path = Path(path)
         if path.exists() or path.is_symlink():
             raise FileExistsError(f"{path} exists; an artifact is never overwritten")
+        tensors = {
+            n: a.view() if isinstance(a, ndarray) else a for n, a in tensors.items()
+        }  # snapshots
+        metadata = dict(metadata)
         codes = _check_for_writing(tensors, metadata)
         # Creating the directory reserves the path atomically; the manifest, renamed into
         # place last, commits the artifact: without it, readers see no artifact.
@@ -589,7 +602,7 @@ def _read_safetensors_header(handle, file: Path) -> tuple[int, dict, dict[str, s
             raise UnsupportedArtifactError(
                 f"{file}: tensor {name} has dtype {code}; fse reads {', '.join(DTYPE_CODES)}"
             )
-        if not _shape(entry["shape"]):
+        if not _shape(entry["shape"], np.dtype(DTYPE_CODES[code]).itemsize):
             raise CorruptArtifactError(
                 f"{file}: the shape of tensor {name} must be non-negative ints that numpy can hold"
             )
@@ -656,6 +669,10 @@ class SafetensorsContainer:
             raise ValueError(f"{path} must end with {self.suffix}")
         if path.exists() or path.is_symlink():
             raise FileExistsError(f"{path} exists; an artifact is never overwritten")
+        # Snapshots: the header and the fingerprint use only these, so a caller that changes
+        # its mapping, an array's shape or the metadata meanwhile cannot change the file.
+        tensors = {n: a.view() if isinstance(a, ndarray) else a for n, a in tensors.items()}
+        metadata = dict(metadata)
         codes = _check_for_writing(tensors, metadata)
         order = sorted(tensors, key=lambda n: (-tensors[n].dtype.itemsize, n))
         layout = {}
@@ -702,6 +719,8 @@ class SafetensorsContainer:
                 }
                 full[FINGERPRINT_KEY] = fingerprint(entries, full)
                 header = self._header(tensors, codes, layout, full)
+                if len(header) > length:  # pragma: no cover - the snapshots rule it out
+                    raise RuntimeError("the header outgrew the space reserved for it")
                 f.seek(0)
                 f.write(length.to_bytes(_SAFETENSORS_LENGTH, "little"))
                 f.write(header + b" " * (length - len(header)))

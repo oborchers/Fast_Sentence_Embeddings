@@ -526,3 +526,123 @@ def test_only_empty_tensors_and_no_tensors(tmp_path):
                 k: v.shape for k, v in tensors.items()
             }
         SafetensorsContainer().verify(path)
+
+
+def test_empty_tensors_with_huge_dimensions_round_trip(tmp_path):
+    from fse._container import CONTAINERS
+
+    tensors = {"bytes": np.zeros((0, 2**60), np.uint8), "x": np.ones(2, F32)}
+    for name, container in CONTAINERS.items():
+        path = tmp_path / f"{name}{container.suffix}"
+        container.write(path, tensors, {})
+        for mmap in (False, True):
+            opened, _ = container.open(path, mmap=mmap)
+            assert opened["bytes"].shape == (0, 2**60)
+        container.verify(path)
+
+
+@pytest.mark.parametrize("depth", [500, 900, 3000])
+def test_nested_headers_never_escape_as_recursion_errors(tmp_path, depth):
+    path = tmp_path / "a.safetensors"
+    _assemble(
+        path,
+        None,
+        b"",
+        raw_header=b'{"__metadata__": {}, "x": ' + b"[" * depth + b"]" * depth + b"}",
+    )
+    for mmap in (False, True):
+        with pytest.raises(CorruptArtifactError):
+            SafetensorsContainer().open(path, mmap=mmap)
+    with pytest.raises(CorruptArtifactError):
+        SafetensorsContainer().verify(path)
+
+
+def test_changing_metadata_and_shapes_while_writing(tmp_path, monkeypatch):
+    """The writer works on snapshots: changes by the caller during the write do not reach it."""
+    import fse._container as container
+
+    monkeypatch.setattr(container, "_CHUNK", 8)
+    source = np.arange(16, dtype=F32)
+    tensors = {"x": source}
+    metadata = {"note": ""}
+    real_sha256 = container.hashlib.sha256
+
+    class Changing:
+        def __init__(self, data=b""):
+            self.inner = real_sha256(data)
+
+        def update(self, data):
+            self.inner.update(data)
+            metadata["note"] = "x" * 5000
+            tensors["y"] = np.ones(3, F32)
+            tensors["x"] = source.reshape(4, 4)
+
+        def hexdigest(self):
+            return self.inner.hexdigest()
+
+    monkeypatch.setattr(container.hashlib, "sha256", Changing)
+    path = tmp_path / "a.safetensors"
+    SafetensorsContainer().write(path, tensors, metadata)
+    monkeypatch.setattr(container.hashlib, "sha256", real_sha256)
+    SafetensorsContainer().verify(path)
+    opened, read = SafetensorsContainer().open(path, mmap=False)
+    assert set(opened) == {"x"}
+    assert opened["x"].shape == (16,)
+    assert read["note"] == ""
+
+
+def test_the_reference_library_reads_scalars_and_empty_files(tmp_path):
+    pytest.importorskip("safetensors")
+    from safetensors.numpy import load_file
+
+    cases = {
+        "scalar": {"s": np.array(F32(2.5))},
+        "empties": {
+            "a": np.zeros((0, 3), F32),
+            "b": np.zeros(0, np.int8),
+            "c": np.zeros((2, 0), np.int64),
+        },
+        "none": {},
+    }
+    for name, tensors in cases.items():
+        path = tmp_path / f"{name}.safetensors"
+        SafetensorsContainer().write(path, tensors, {"k": "v"})
+        loaded = load_file(str(path))
+        assert {k: v.shape for k, v in loaded.items()} == {k: v.shape for k, v in tensors.items()}
+        for key, array in tensors.items():
+            assert loaded[key].tobytes() == array.tobytes()
+
+
+@pytest.mark.parametrize("failing", ["write", "fsync", "publish"])
+def test_failed_writes_publish_nothing_and_keep_other_files(tmp_path, monkeypatch, failing):
+    import fse._container as container
+
+    foreign = tmp_path / ".a.safetensors.writing-foreign"
+    foreign.write_bytes(b"another writer")
+    path = tmp_path / "a.safetensors"
+    if failing == "fsync":
+        monkeypatch.setattr(
+            container.os, "fsync", lambda fd: (_ for _ in ()).throw(OSError("fsync"))
+        )
+    elif failing == "publish":
+        monkeypatch.setattr(
+            container, "_publish", lambda tmp, target: (_ for _ in ()).throw(OSError("publish"))
+        )
+    else:
+        real_sha256 = container.hashlib.sha256
+
+        class Failing:
+            def __init__(self, data=b""):
+                self.inner = real_sha256(data)
+
+            def update(self, data):
+                raise OSError("write")
+
+            def hexdigest(self):  # pragma: no cover - never reached
+                return self.inner.hexdigest()
+
+        monkeypatch.setattr(container.hashlib, "sha256", Failing)
+    with pytest.raises(OSError, match=failing):
+        SafetensorsContainer().write(path, _tensors(), {})
+    assert sorted(p.name for p in tmp_path.iterdir()) == [foreign.name]
+    assert foreign.read_bytes() == b"another writer"
