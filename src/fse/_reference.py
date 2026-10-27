@@ -198,33 +198,57 @@ def pool_groups(
 
 
 def inverse_norms(stored: ndarray) -> ndarray:
-    """``float32(1 / sqrt(s))`` per stored row, s the float64 sum of squares; 0 for zero rows."""
+    """``float32(1 / sqrt(s))`` per stored row, s the float64 sum of squares; 0 for zero rows.
+
+    Raises a ValueError if an inverse norm is beyond float32 (a nonzero row too small).
+    """
     values = np.asarray(stored, dtype=np.float64)
     squares = np.zeros(len(values))
     for i in range(values.shape[1]):
         squares += values[:, i] * values[:, i]
     out = np.zeros(len(values), dtype=_F32)
     nonzero = squares > 0
-    out[nonzero] = (1 / np.sqrt(squares[nonzero])).astype(_F32)
+    inverse = 1 / np.sqrt(squares[nonzero])
+    with np.errstate(over="ignore"):
+        out[nonzero] = inverse.astype(_F32)
+    bad = np.flatnonzero(~np.isfinite(out))
+    if len(bad):
+        raise ValueError(f"the inverse norm of row {int(bad[0])} is beyond float32")
     return out
 
 
 def score(stored: ndarray, scales: ndarray | None, weights: ndarray, bias=0.0) -> ndarray:
-    """The linear score ``dot16(stored, w) * scale + bias`` of every stored row."""
-    dots = dot16(np.asarray(stored, dtype=_F32), np.asarray(weights, dtype=_F32))
-    if scales is not None:
-        dots = dots * np.asarray(scales, dtype=_F32)
-    return (dots + _F32(bias)).astype(_F32)
+    """The linear score ``dot16(stored, w) * scale + bias`` of every stored row.
+
+    Raises a ValueError naming the row if a score overflows.
+    """
+    with np.errstate(over="ignore", invalid="ignore"):
+        dots = dot16(np.asarray(stored, dtype=_F32), np.asarray(weights, dtype=_F32))
+        if scales is not None:
+            dots = dots * np.asarray(scales, dtype=_F32)
+        out = (dots + _F32(bias)).astype(_F32)
+    bad = np.flatnonzero(~np.isfinite(out))
+    if len(bad):
+        raise ValueError(f"the score of row {int(bad[0])} overflows float32")
+    return out
 
 
 def cosine(stored: ndarray, inverse: ndarray, query: ndarray) -> ndarray:
     """The cosine of every stored row with ``query``: ``dot16(stored, q) * inverse norm``.
 
-    ``query`` is normalized first; the int8 scale cancels and is not used.
+    ``query`` is normalized by ``normalize@1`` first, so a zero query or one whose norm
+    underflows or overflows raises; the int8 scale cancels and is not used.
     """
     query = np.asarray(query, dtype=_F32)
-    norm = np.sqrt(dot16(query[None, :], query)[0])
-    return (dot16(np.asarray(stored, dtype=_F32), query / norm) * inverse).astype(_F32)
+    if not (query != 0).any():
+        raise ValueError("the query is the zero vector and has no direction")
+    unit = postprocess(query[None, :], [Normalize()])[0]
+    with np.errstate(over="ignore", invalid="ignore"):
+        out = (dot16(np.asarray(stored, dtype=_F32), unit) * inverse).astype(_F32)
+    bad = np.flatnonzero(~np.isfinite(out))
+    if len(bad):
+        raise ValueError(f"the cosine of row {int(bad[0])} is not finite")
+    return out
 
 
 def top_k(scores: ndarray, k: int) -> ndarray:

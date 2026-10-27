@@ -338,6 +338,40 @@ def test_scores_and_cosine():
     assert top_k(np.array([0.5, 0.9, 0.9, 0.1], F32), 3).tolist() == [1, 2, 0]
 
 
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+def test_reads_follow_their_formulas_bit_for_bit(dtype):
+    rng = np.random.default_rng(12)
+    rows = rng.standard_normal((9, 37)).astype(F32)
+    stored, scales = quantize_rows(rows, dtype)
+    weights = rng.standard_normal(37).astype(F32)
+    query = rng.standard_normal(37).astype(F32)
+    got = score(stored, scales, weights, 0.25)
+    inverse = inverse_norms(stored)
+    unit = postprocess(query[None, :], [Normalize()])[0]
+    cos = cosine(stored, inverse, query)
+    for r in range(len(rows)):
+        dot = dot16_loop(stored[r].astype(F32), weights)
+        dot = dot if scales is None else F32(dot * scales[r])
+        assert bits(got[r]) == bits(F32(dot + F32(0.25)))
+        squares = sum(float(v) * float(v) for v in stored[r].astype(np.float64))
+        assert bits(inverse[r]) == bits(F32(1 / np.sqrt(squares)))
+        assert bits(cos[r]) == bits(F32(dot16_loop(stored[r].astype(F32), unit) * inverse[r]))
+
+
+def test_reads_raise_on_overflow():
+    big = np.array([[np.finfo(F32).max, 0]], dtype=F32)
+    with pytest.raises(ValueError, match="score of row 0 overflows"):
+        score(big, None, np.array([2, 0], F32))
+    with pytest.raises(ValueError, match="inverse norm of row 0 is beyond float32"):
+        inverse_norms(np.array([[2.0**-149, 0]], dtype=F32))
+    stored = np.array([[1, 0]], dtype=F32)
+    with pytest.raises(ValueError, match="zero vector"):
+        cosine(stored, inverse_norms(stored), np.zeros(2, F32))
+    for query in ([3e38, 3e38], [1e-30, 0]):
+        with pytest.raises(ValueError, match="cannot be normalized"):
+            cosine(stored, inverse_norms(stored), np.array(query, F32))
+
+
 def test_normalize():
     rng = np.random.default_rng(6)
     rows = np.concatenate([rng.standard_normal((4, 30)), np.zeros((1, 30))]).astype(F32)
