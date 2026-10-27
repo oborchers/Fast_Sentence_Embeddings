@@ -418,17 +418,60 @@ def test_mapped_artifact_can_be_removed_after_release(tmp_path, windows_file_map
 
 
 def test_shape_products_do_not_overflow(tmp_path):
-    """(2**32, 2**32) wraps to 0 in int64; the size check must still fail."""
-    path = _written(tmp_path)
+    """(2**32, 2**32) wraps to 0 in int64; the size check must still fail.
+
+    The manifest is consistent (checksum of no data, fingerprint), so the open reaches
+    the size check, which an int64 product would pass for an empty file.
+    """
+    path = tmp_path / "a"
+    NpyContainer().write(path, {"vectors": np.zeros((0, 0), F32)}, {})
     manifest = _manifest(path)
-    manifest["tensors"]["vectors"]["shape"] = [2**32, 2**32]
+    shape = (2**32, 2**32)
+    manifest["tensors"]["vectors"]["shape"] = list(shape)
+    metadata = manifest["metadata"]
+    metadata["fse.fingerprint"] = fingerprint(
+        {"vectors": ("F32", shape, metadata["fse.checksum.vectors"])}, metadata
+    )
     _save_manifest(path, manifest)
-    _header(path, "vectors", _npy_header(shape=(2**32, 2**32)), b"")
+    (path / "vectors.npy").write_bytes(_npy_header(shape=shape))
     for mmap in (False, True):
-        with pytest.raises(CorruptArtifactError):
+        with pytest.raises(CorruptArtifactError, match="bytes,"):
             NpyContainer().open(path, mmap=mmap)
-    with pytest.raises(CorruptArtifactError):
+    with pytest.raises(CorruptArtifactError, match="bytes,"):
         NpyContainer().verify(path)
+
+
+def test_expected_checksums_guard_the_write(tmp_path):
+    tensors = _tensors()
+    expected = {k: array_sha256(v) for k, v in tensors.items()}
+    NpyContainer().write(tmp_path / "a", tensors, _METADATA, expected=expected)
+    expected["vectors"] = "0" * 64
+    with pytest.raises(CorruptArtifactError, match="changed since it was checked"):
+        NpyContainer().write(tmp_path / "b", tensors, _METADATA, expected=expected)
+    assert not (tmp_path / "b").exists()
+
+
+def test_writer_keeps_its_own_limits(tmp_path, monkeypatch):
+    import fse._container as container
+
+    with pytest.raises(ValueError, match="more than 32 dimensions"):
+        NpyContainer().write(tmp_path / "a", {"x": np.zeros((1,) * 33, F32)}, {})
+    monkeypatch.setattr(container, "MAX_MANIFEST_BYTES", 200)
+    with pytest.raises(ValueError, match="manifest would exceed 200 bytes"):
+        NpyContainer().write(tmp_path / "b", _tensors(), {"note": "x" * 300})
+    assert not (tmp_path / "b").exists()
+
+
+def test_normal_open_gives_immutable_arrays(tmp_path):
+    path = _written(tmp_path)
+    tensors, _ = NpyContainer().open(path, mmap=False)
+    for array in tensors.values():
+        base = array
+        while isinstance(base, np.ndarray):
+            with pytest.raises(ValueError, match=r"WRITEABLE|read-only|cannot set"):
+                base.setflags(write=True)
+            base = base.base
+        assert isinstance(base, bytes)
 
 
 def test_huge_declared_header_is_rejected_before_reading(tmp_path):

@@ -160,8 +160,11 @@ def main() -> None:
             load = os.getloadavg()[0]
             if load > cpus / 4:
                 print(f"# warning: load average {load:.1f} on {cpus} CPUs", flush=True)
+            # Offline: 1.1 resolves the hub cache through snapshot_download, which would
+            # otherwise ask the hub inside the measurement.
             out = subprocess.run(
                 [python, __file__, "--_child", case, vectors, dtype, tmp],
+                env={**os.environ, "HF_HUB_OFFLINE": "1"},
                 capture_output=True,
                 text=True,
                 check=True,

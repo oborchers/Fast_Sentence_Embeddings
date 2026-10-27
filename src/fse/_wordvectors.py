@@ -31,6 +31,7 @@ from fse._container import (
     CREATED_BY_KEY,
     FINGERPRINT_KEY,
     INTEGER,
+    CorruptArtifactError,
     NpyContainer,
     array_sha256,
     canonical_json,
@@ -463,35 +464,64 @@ class WordVectors:
     def save(self, path: PathLike):
         """Write the word vectors into the new directory ``path``.
 
-        Loaded vectors are verified first, so damaged data never gets new checksums.
+        Loaded vectors are checked first, and every tensor is compared with the checksum
+        it was loaded with while it is written, so damaged or changed data never gets new
+        checksums.
         """
-        if not self._verified:
-            self.verify()
+        if not self._verified or self._mapped():
+            self._check_contents()
         metadata = {
             k: v
             for k, v in self._metadata.items()
             if k != FINGERPRINT_KEY and k != CREATED_BY_KEY and not k.startswith(CHECKSUM_PREFIX)
         }
         metadata[CREATED_BY_KEY] = _created_by()
-        NpyContainer().write(Path(path), self._tensors, metadata)
+        NpyContainer().write(Path(path), self._tensors, metadata, expected=self._checksums())
 
-    def verify(self):
-        """Check everything: the data on disk against its checksums, the values and words."""
-        if self._path is not None:
-            NpyContainer().verify(self._path)
+    def _mapped(self) -> bool:
+        return any(isinstance(t, np.memmap) for t in self._tensors.values())
+
+    def _checksums(self) -> dict[str, str] | None:
+        """The checksums the tensors were loaded with, or None for vectors made in memory."""
+        if self._path is None:
+            return None
+        return {
+            k[len(CHECKSUM_PREFIX) :]: v
+            for k, v in self._metadata.items()
+            if k.startswith(CHECKSUM_PREFIX)
+        }
+
+    def _check_contents(self):
+        """Check the data this object holds: checksums (if loaded), values and words."""
+        expected = self._checksums()
+        if expected is not None:
+            for name, array in self._tensors.items():
+                if array_sha256(array) != expected[name]:
+                    raise CorruptArtifactError(
+                        f"tensor {name} of {self._path} does not match its checksum"
+                    )
         _check_structure(self._tensors, self._metadata)
         _check_values(self._tensors)
         if self._index is None:
             self._index = _lookup(self._tensors["vocab.bytes"], self._tensors["vocab.offsets"])
-        self._verified = True
+        # Mapped data can change through the file, so its check is never remembered.
+        self._verified = not self._mapped()
+
+    def verify(self):
+        """Check everything: the data this object holds against the checksums it was loaded
+        with, the files on disk, the values and the words.
+        """
+        self._check_contents()
+        if self._path is not None:
+            NpyContainer().verify(self._path)
 
     @validate_arguments
     def quantize(self, dtype: Literal["float16", "int8"]):  # -> WordVectors, as for load
         """float16 or int8 copies of float32 word vectors, quantized in blocks."""
         if self.dtype != "float32":
             raise ValueError(f"only float32 word vectors can be quantized, these are {self.dtype}")
-        if not self._verified:
-            self.verify()
+        if not self._verified or self._mapped():
+            self._check_contents()
         tensors = {k: v for k, v in self._tensors.items() if k not in ("vectors", "ngrams")}
         for name, scales in (("vectors", "scales"), ("ngrams", "ngram_scales")):
             if name in self._tensors:

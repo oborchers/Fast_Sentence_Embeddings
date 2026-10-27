@@ -18,6 +18,7 @@ Only the standard library and numpy are used, so the 1.x export can copy this mo
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import math
 import os
@@ -153,9 +154,17 @@ def _open_regular(file: Path):
         raise CorruptArtifactError(f"{file} is missing") from None
     if not stat.S_ISREG(before.st_mode):
         raise CorruptArtifactError(f"{file} is not a regular file (a symbolic link or else)")
-    handle = file.open("rb")
+    # Without following a link, and without blocking if a FIFO was swapped in meanwhile.
+    extra = getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    try:
+        handle = open(file, "rb", opener=lambda name, flags: os.open(name, flags | extra))  # noqa: SIM115
+    except OSError as err:
+        raise CorruptArtifactError(f"{file} cannot be opened as a regular file: {err}") from err
     after = os.fstat(handle.fileno())
-    if (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino):
+    if not stat.S_ISREG(after.st_mode) or (after.st_dev, after.st_ino) != (
+        before.st_dev,
+        before.st_ino,
+    ):
         handle.close()
         raise CorruptArtifactError(f"{file} changed while it was opened")
     return handle
@@ -252,17 +261,18 @@ def _read_header(handle, file: Path, code: str, shape: tuple[int, ...]) -> int:
     declared = int.from_bytes(prefix[8 : 8 + width], "little")
     if declared > MAX_HEADER_BYTES or 8 + width + declared > size:
         raise CorruptArtifactError(f"{file} declares a header of {declared} bytes")
+    # numpy parses one bounded copy of the header, never the file itself again.
     handle.seek(0)
+    raw = handle.read(8 + width + declared)
+    if len(raw) != 8 + width + declared:
+        raise CorruptArtifactError(f"{file} ended inside its header")
+    buffer = io.BytesIO(raw)
     try:
-        version = npy_format.read_magic(handle)
-        if version == (1, 0):
-            header = npy_format.read_array_header_1_0(handle, max_header_size=MAX_HEADER_BYTES)
-        elif version == (2, 0):
-            header = npy_format.read_array_header_2_0(handle, max_header_size=MAX_HEADER_BYTES)
-        else:
-            raise CorruptArtifactError(f"{file} has the unsupported .npy version {version}")
-    except CorruptArtifactError:
-        raise
+        npy_format.read_magic(buffer)
+        reader = (
+            npy_format.read_array_header_1_0 if width == 2 else npy_format.read_array_header_2_0
+        )
+        header = reader(buffer, max_header_size=MAX_HEADER_BYTES)
     except (ValueError, OSError) as err:
         raise CorruptArtifactError(f"{file} has no valid .npy header: {err}") from err
     found_shape, fortran, dtype = header
@@ -274,7 +284,7 @@ def _read_header(handle, file: Path, code: str, shape: tuple[int, ...]) -> int:
         raise CorruptArtifactError(f"{file} is in Fortran order")
     if tuple(found_shape) != shape:
         raise CorruptArtifactError(f"{file} has shape {found_shape}, the manifest says {shape}")
-    offset = handle.tell()
+    offset = len(raw)
     if offset % ALIGNMENT:
         raise CorruptArtifactError(
             f"the data of {file} starts at {offset}, not at a multiple of {ALIGNMENT}"
@@ -302,7 +312,19 @@ class NpyContainer:
     name = "npy"
     version = 1
 
-    def write(self, path, tensors: Mapping[str, ndarray], metadata: Mapping[str, str]):
+    def write(
+        self,
+        path,
+        tensors: Mapping[str, ndarray],
+        metadata: Mapping[str, str],
+        expected: Mapping[str, str] | None = None,
+    ):
+        """Write a new artifact; ``expected`` checksums, if given, must match the data.
+
+        With ``expected``, every tensor is hashed while it is written and compared with
+        its expected checksum, so data that changed since it was checked (a mapped file
+        changed by another process) is never committed.
+        """
         path = Path(path)
         if path.exists() or path.is_symlink():
             raise FileExistsError(f"{path} exists; an artifact is never overwritten")
@@ -318,6 +340,8 @@ class NpyContainer:
                 raise TypeError(f"tensor {name} must be a numpy array, not {type(array).__name__}")
             if not array.flags.c_contiguous:
                 raise ValueError(f"tensor {name} must be C-contiguous")
+            if array.ndim > MAX_RANK:
+                raise ValueError(f"tensor {name} has more than {MAX_RANK} dimensions")
             codes[name] = tensor_code(array)
         # Creating the directory reserves the path atomically; the manifest, renamed into
         # place last, commits the artifact: without it, readers see no artifact.
@@ -327,6 +351,10 @@ class NpyContainer:
             entries = {}
             for name, array in tensors.items():
                 digest = self._write_tensor(path / f"{name}.npy", array)
+                if expected is not None and expected.get(name) != digest:
+                    raise CorruptArtifactError(
+                        f"tensor {name} changed since it was checked; nothing was written"
+                    )
                 entries[name] = (codes[name], tuple(int(n) for n in array.shape), digest)
             full = dict(metadata)
             for name, (_, _, digest) in entries.items():
@@ -341,8 +369,11 @@ class NpyContainer:
                 },
                 "metadata": full,
             }
+            text = json.dumps(manifest, sort_keys=True, indent=1, ensure_ascii=False) + "\n"
+            if len(text.encode("utf-8")) > MAX_MANIFEST_BYTES:
+                raise ValueError(f"the manifest would exceed {MAX_MANIFEST_BYTES} bytes")
             with tmp.open("w", encoding="utf-8") as f:
-                f.write(json.dumps(manifest, sort_keys=True, indent=1, ensure_ascii=False) + "\n")
+                f.write(text)
                 f.flush()
                 os.fsync(f.fileno())
             _sync_directory(path)
@@ -397,18 +428,21 @@ class NpyContainer:
 
     @staticmethod
     def _read(handle, file: Path, code: str, shape: tuple[int, ...], expected: str) -> ndarray:
-        array = np.empty(shape, dtype=DTYPE_CODES[code])
-        view = memoryview(array.reshape(-1).view(np.uint8))
+        """Read a tensor into immutable ``bytes``, checked against its checksum.
+
+        An array over ``bytes`` cannot be made writable again, so the data cannot change.
+        """
+        nbytes = math.prod(shape) * np.dtype(DTYPE_CODES[code]).itemsize
+        data = handle.read(nbytes)
+        if len(data) != nbytes:
+            raise CorruptArtifactError(f"{file} ended early")
         digest = hashlib.sha256()
-        for begin in range(0, len(view), _CHUNK):
-            part = view[begin : begin + _CHUNK]
-            if handle.readinto(part) != len(part):
-                raise CorruptArtifactError(f"{file} ended early")
-            digest.update(part)
+        view = memoryview(data)
+        for begin in range(0, nbytes, _CHUNK):
+            digest.update(view[begin : begin + _CHUNK])
         if digest.hexdigest() != expected:
             raise CorruptArtifactError(f"{file} does not match its checksum")
-        array.setflags(write=False)
-        return array
+        return np.frombuffer(data, dtype=DTYPE_CODES[code]).reshape(shape)
 
     @staticmethod
     def _check_integrity_keys(path: Path, manifest: dict, metadata: dict[str, str]) -> dict:

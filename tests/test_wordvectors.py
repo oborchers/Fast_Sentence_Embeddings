@@ -1,6 +1,7 @@
 import gc
 import json
 import pickle
+import sys
 import tracemalloc
 
 import numpy as np
@@ -630,4 +631,19 @@ def test_save_of_damaged_mapped_vectors_raises(tmp_path):
         wv.save(tmp_path / "copy")
     with pytest.raises(ValueError, match="does not match its checksum"):
         wv.quantize("int8")
+    assert not (tmp_path / "copy").exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows does not let a mapped file change")
+def test_mapped_data_changed_after_verify_is_never_saved(tmp_path):
+    _wv().save(tmp_path / "wv")
+    wv = WordVectors.load(tmp_path / "wv", mmap=True)
+    wv.verify()
+    with (tmp_path / "wv" / "vectors.npy").open("r+b") as f:
+        f.seek(-1, 2)
+        last = f.read(1)
+        f.seek(-1, 2)
+        f.write(bytes([last[0] ^ 1]))
+    with pytest.raises(ValueError, match="does not match its checksum"):
+        wv.save(tmp_path / "copy")
     assert not (tmp_path / "copy").exists()
