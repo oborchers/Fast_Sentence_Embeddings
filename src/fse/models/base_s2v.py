@@ -1332,7 +1332,9 @@ class BaseSentence2VecModel(SaveLoad):
             return int(plan.rows)
         state = getattr(sentences, "_scan_state", None)
         if state is not None and state[1]:
-            return max(int(count) for *_, count in state[1])
+            # A native input may still be read by the JobEncoder (a vocabulary word without
+            # a UTF-8 form), whose jobs hold up to batch_words rows.
+            return max(self.batch_words, *(int(count) for *_, count in state[1]))
         return self.batch_words
 
     def _train_rows(

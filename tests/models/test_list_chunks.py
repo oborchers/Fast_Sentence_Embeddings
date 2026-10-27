@@ -7,6 +7,7 @@ equal the JobEncoder of the producer thread, which stays for one worker and for 
 
 import contextlib
 import random
+import sys
 
 import numpy as np
 import pytest
@@ -349,24 +350,51 @@ def test_infer_in_a_training_hook_keeps_the_job_encoder(monkeypatch, w2v):
     assert inferred[0].shape == (3, 12)
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 12),
+    reason="since Python 3.12 the garbage collector runs only between bytecodes, not inside C",
+)
 def test_a_garbage_collection_while_encoding_fails_is_memory_safe(w2v):
     """The exception of a word without a UTF-8 form may run the garbage collector, and a
-    callback may then change the sentence that is being read."""
+    callback may then change the sentence that is being read. The callback acts only when
+    it runs inside the kernel, below the frame of _run_encoded_job."""
     import gc
 
     sentences = [["the", "\ud800", "dog", "\ud800", "is"] for _ in range(50)]
+    hits = []
 
     def shrink(phase, info):
-        if phase == "start":
+        if phase == "start" and sys._getframe(1).f_code.co_name == "_run_encoded_job":
+            hits.append(1)
             for sentence in sentences:
                 del sentence[1:]
 
+    model = fse.Average(w2v, workers=2)
     threshold = gc.get_threshold()
     gc.callbacks.append(shrink)
     gc.set_threshold(1, 1, 1)
     try:
-        fse.Average(w2v, workers=2).train(IndexedList(sentences))
+        model.train(IndexedList(sentences))
     finally:
         gc.set_threshold(*threshold)
         gc.callbacks.remove(shrink)
+    assert hits, "no garbage collection ran inside the kernel"
     assert all(sentence == ["the"] for sentence in sentences)
+
+
+@pytest.mark.usefixtures("small_chunks")
+def test_a_list_that_grows_during_training_raises(monkeypatch, w2v):
+    sentences = [["the", "dog"] for _ in range(30)]
+    original = average._ListFeeder.next_job
+    grown = []
+
+    def next_then_grow(self):
+        job = original(self)
+        if job is not None and not grown:
+            sentences.append(["dog"])
+            grown.append(1)
+        return job
+
+    monkeypatch.setattr(average._ListFeeder, "next_job", next_then_grow)
+    with pytest.raises(RuntimeError, match="changed during training"):
+        fse.Average(w2v, workers=2).train(IndexedList(sentences))

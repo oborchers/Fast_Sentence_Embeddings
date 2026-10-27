@@ -339,3 +339,20 @@ def test_a_ring_is_set_up_once(w2v):
     context.use_ring(100)
     with pytest.raises(ValueError, match="already a ring"):
         context.use_ring(100)
+
+
+@pytest.mark.usefixtures("small_windows")
+@pytest.mark.parametrize("dtype", ["float16", "int8"])
+def test_native_inputs_with_a_vocabulary_without_utf8_fill_the_windows(lines, tmp_path, dtype):
+    """Such a vocabulary makes native inputs fall back to the JobEncoder, whose jobs the
+    ring of windows must hold as well."""
+    from gensim.models import Word2Vec
+
+    w2v = Word2Vec(min_count=1, vector_size=DIM, seed=1, workers=1)
+    w2v.build_vocab([[*sorted({w for line in lines for w in line.split()}), "\ud800"]])
+    reference = Average(w2v, workers=2)
+    reference.train(IndexedList([line.split() for line in lines]))
+    model = Average(w2v, workers=2, sv_dtype=dtype)
+    model.batch_words = 100  # jobs much larger than a window of 32 rows
+    model.train(TextList(lines))
+    _assert_stored(model, reference.sv.vectors)

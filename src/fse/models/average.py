@@ -347,6 +347,14 @@ class _ListFeeder:
             return _ListChunk(
                 self._items, self._indices, plan.table, begin, end, self._offset, plan.contiguous
             )
+        # Like the strict zip of the JobEncoder's iterator: a list that grew is an error.
+        if len(self._items) != plan.n_items or (
+            self._indices is not None and len(self._indices) != plan.n_items
+        ):
+            raise RuntimeError(
+                f"the list holds {len(self._items)} sentences, but the scan found {plan.n_items}: "
+                "the input changed during training"
+            )
         return None
 
 
