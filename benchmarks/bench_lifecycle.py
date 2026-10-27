@@ -186,11 +186,12 @@ def main() -> None:
         with p.phase("first_search"):
             model.sv.most_similar(int(ids[0]), topn=10)
         times = []
+        load = os.getloadavg()[0]
         for i in ids[1:]:
             start = time.perf_counter()
             model.sv.most_similar(int(i), topn=10)
             times.append(time.perf_counter() - start)
-        p.results["search"] = {**percentiles(times), "queries": len(times)}
+        p.results["search"] = {**percentiles(times), "queries": len(times), "load_average": load}
         print(f"{'search':<16} p50 {p.results['search']['p50_s'] * 1e3:.2f} ms", flush=True)
         weights = rng.standard_normal((model.sv.vector_size, 1000)).astype(np.float32)
         with p.phase("score"):
@@ -202,11 +203,12 @@ def main() -> None:
                 break
             batch = IndexedList([line.split() for line in lines[:n]])
             times = []
+            load = os.getloadavg()[0]
             for _ in range(5):
                 start = time.perf_counter()
                 model.infer(batch)
                 times.append(time.perf_counter() - start)
-            p.results[f"infer_{n}"] = {**percentiles(times), "sentences": n}
+            p.results[f"infer_{n}"] = {**percentiles(times), "sentences": n, "load_average": load}
             print(
                 f"{'infer_' + str(n):<16} p50 {p.results[f'infer_{n}']['p50_s'] * 1e3:.2f} ms",
                 flush=True,

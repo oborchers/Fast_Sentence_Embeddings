@@ -103,6 +103,23 @@ def test_components_and_bases_must_be_orthonormal():
     Project(np.array([[1 + 1e-6, 0], [0, 1]], dtype=np.float32))
 
 
+def test_steps_keep_their_own_read_only_arrays():
+    components = _components()
+    weights = np.ones(2, dtype=np.float32)
+    step = RemoveComponents(components, weights)
+    components *= 2
+    weights *= 3
+    np.testing.assert_array_equal(step.components, _components())
+    np.testing.assert_array_equal(step.weights, 1)
+    basis = _components(3, 4)
+    project = Project(basis)
+    basis[:] = 0
+    np.testing.assert_array_equal(project.basis, _components(3, 4))
+    for array in (step.components, step.weights, project.basis):
+        with pytest.raises(ValueError, match="read-only"):
+            array[0] = 5
+
+
 def test_project_validates():
     assert Project(_components(2, 5)).output_dim == 2
     with pytest.raises(ValueError, match="between 1 and 2 rows, not 3"):
@@ -154,7 +171,7 @@ def test_batch_accepts_valid_input():
 @pytest.mark.parametrize(
     ("kwargs", "error", "match"),
     [
-        ({"first_row": -1}, ValueError, "negative"),
+        ({"first_row": -1}, ValueError, "between 0 and"),
         ({"first_row": True}, TypeError, "first_row must be an int"),
         ({"first_row": 1.0}, TypeError, "first_row must be an int"),
         ({"offsets": [0, 1]}, TypeError, "numpy array"),
@@ -164,7 +181,8 @@ def test_batch_accepts_valid_input():
         ({"offsets": _i64(0, 1, 0, 1)}, ValueError, "not decrease"),
         # np.diff of these offsets wraps around to positive values only.
         ({"offsets": _i64(0, 2**63 - 1, -2, 1)}, ValueError, "not decrease"),
-        ({"first_row": 2**63}, ValueError, "int64 range"),
+        ({"first_row": 2**63}, ValueError, "between 0 and"),
+        ({"first_row": 2**63, "offsets": _i64(0), "tokens": _u32()}, ValueError, "between 0 and"),
         ({"first_row": 2**63 - 1, "offsets": _i64(0, 1, 1)}, ValueError, "int64 range"),
         ({"offsets": _i64(0, 2)}, ValueError, "end with 1"),
         ({"offsets": _i64(0, 1).reshape(1, 2)}, ValueError, "one dimension"),

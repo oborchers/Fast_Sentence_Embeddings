@@ -5,12 +5,18 @@ import pytest
 
 from fse._contract import OOV_TOKEN, Batch, Normalize, Project, RemoveComponents
 from fse._reference import (
+    accumulate,
+    cosine,
     dequantize,
     dot16,
     fma32,
+    inverse_norms,
+    pool_groups,
     pool_weighted_mean,
     postprocess,
     quantize_rows,
+    score,
+    top_k,
 )
 from fse.models._quantize import quantize_into
 
@@ -247,25 +253,89 @@ def test_project():
     assert postprocess(np.zeros((0, 20), dtype=F32), [Project(basis)]).shape == (0, 4)
 
 
-def test_folding_linear_steps_matches_within_rounding():
+@pytest.mark.parametrize("which", ["remove", "project", "both"])
+def test_folding_linear_steps_matches_within_rounding(which):
     """Removing components and projecting commute with the weighted mean.
 
-    An encoder may therefore fold both steps into its word vectors; the rows then agree
-    with the unfolded steps within float32 rounding, not bit for bit.
+    An encoder may therefore fold both steps into its word and ngram vectors; the rows
+    then agree with the unfolded steps within float32 rounding, not bit for bit. The
+    projection basis is independent of the components, so both steps show in the result.
     """
     rng = np.random.default_rng(10)
     vectors = rng.standard_normal((30, 16)).astype(F32)
+    ngram_vectors = rng.standard_normal((50, 16)).astype(F32)
     weights = rng.random(30).astype(F32)
-    q, _ = np.linalg.qr(rng.standard_normal((16, 6)))
-    steps = [
-        RemoveComponents(np.ascontiguousarray(q[:, :2].T, dtype=F32), np.array([1, 0.5], F32)),
-        Project(np.ascontiguousarray(q[:, 2:].T, dtype=F32)),
-    ]
+    removal = RemoveComponents(
+        np.ascontiguousarray(np.linalg.qr(rng.standard_normal((16, 2)))[0].T, dtype=F32),
+        np.array([1, 0.5], F32),
+    )
+    projection = Project(
+        np.ascontiguousarray(np.linalg.qr(rng.standard_normal((16, 6)))[0].T, dtype=F32)
+    )
+    steps = {"remove": [removal], "project": [projection], "both": [removal, projection]}[which]
     sentences = [list(rng.integers(0, 30, rng.integers(1, 10))) for _ in range(20)]
-    unfolded = postprocess(pool_weighted_mean(_batch(sentences), vectors, weights), steps)
-    folded_vectors = postprocess(vectors, steps)
-    folded = pool_weighted_mean(_batch(sentences), folded_vectors, weights)
-    np.testing.assert_allclose(folded, unfolded, rtol=1e-5, atol=1e-6)
+    sentences[3].append(OOV_TOKEN)
+    ngrams = [list(rng.integers(0, 50, 4))]
+    batch = _batch(sentences, ngrams=ngrams)
+    kwargs = {"oov_weight": 0.7}
+    unfolded = postprocess(
+        pool_weighted_mean(batch, vectors, weights, None, ngram_vectors, **kwargs), steps
+    )
+    folded = pool_weighted_mean(
+        batch,
+        postprocess(vectors, steps),
+        weights,
+        None,
+        postprocess(ngram_vectors, steps),
+        **kwargs,
+    )
+    np.testing.assert_allclose(folded, unfolded, rtol=1e-5, atol=1e-5)
+    # Each step changes the rows, so a fold that skipped one would fail.
+    plain = pool_weighted_mean(batch, vectors, weights, None, ngram_vectors, **kwargs)
+    for step in steps:
+        assert not np.allclose(postprocess(plain, [step])[:, :6], plain[:, :6], atol=1e-3)
+
+
+def test_pool_reports_overflow_with_the_row():
+    vectors = np.array([[127, 1]], dtype=np.int8)
+    weights = np.array([np.finfo(F32).max], dtype=F32)
+    scales = np.array([2], dtype=F32)
+    with pytest.raises(ValueError, match="row 5 contains NaN or infinite"):
+        pool_weighted_mean(_batch([[0]], first_row=5), vectors, weights, scales)
+
+
+def test_group_mode():
+    rng = np.random.default_rng(11)
+    vectors = rng.standard_normal((20, 7)).astype(F32)
+    weights = rng.random(20).astype(F32)
+    sentences = [[1, 2], [], [3], [4, 5, 6], [], [], [7]]
+    batch = _batch(sentences)
+    groups = np.array([0, 1, 4, 6, 7], dtype=np.int64)
+    rows = pool_weighted_mean(batch, vectors, weights)
+    got = pool_groups(batch, groups, vectors, weights)
+    # A group of one sentence is that sentence's row, bit for bit.
+    assert bits(got[0]).tolist() == bits(rows[0]).tolist()
+    # Empty sentences before the first tokens contribute nothing.
+    accs = [pool_weighted_mean(_batch([s]), vectors, weights) for s in sentences]
+    acc, _ = accumulate(batch, vectors, weights)
+    expected = F32(F32(1) / F32(1)) * acc[2]
+    expected = fma32(F32(F32(1) / F32(3)), acc[3], expected)
+    np.testing.assert_array_equal(bits(got[1]), bits(expected))
+    # The fma is not the sum of rounded means.
+    assert not np.array_equal(bits(got[1]), bits(accs[2][0] + accs[3][0]))
+    np.testing.assert_array_equal(bits(got[2]), 0)  # only empty sentences
+    assert bits(got[3]).tolist() == bits(rows[6]).tolist()
+
+
+def test_scores_and_cosine():
+    stored = np.array([[127, 0], [0, 64], [0, 0]], dtype=np.int8)
+    scales = np.array([2, 0.5, 0], dtype=F32)
+    np.testing.assert_array_equal(score(stored, scales, np.array([1, 1], F32), 1), [255, 33, 1])
+    inverse = inverse_norms(stored)
+    np.testing.assert_array_equal(inverse, [F32(1 / 127), F32(1 / 64), 0])
+    # The cosine ignores the scale: [127, 0] with scale 2 points along the query.
+    np.testing.assert_allclose(cosine(stored, inverse, np.array([3, 0], F32)), [1, 0, 0])
+    assert top_k(np.array([0.5, 0.9, 0.9, 0.1], F32), 3).tolist() == [1, 2, 0]
 
 
 def test_normalize():

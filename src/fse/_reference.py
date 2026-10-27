@@ -91,6 +91,54 @@ def _factor(weight, scales: ndarray | None, index: int) -> np.float32:
     return weight if scales is None else _F32(weight * _F32(scales[index]))
 
 
+def accumulate(
+    batch: Batch,
+    vectors: ndarray,
+    weights: ndarray,
+    scales: ndarray | None = None,
+    ngram_vectors: ndarray | None = None,
+    ngram_scales: ndarray | None = None,
+    oov_weight: float | None = None,
+) -> tuple[ndarray, ndarray]:
+    """The accumulators of ``weighted_mean@1`` and the token counts of every sentence.
+
+    ``vectors`` (and ``ngram_vectors``) hold the stored word (and ngram) rows as float32,
+    float16 or int8 codes, with ``scales`` (``ngram_scales``) for int8. ``weights`` holds
+    one float32 weight per word, ``oov_weight`` the weight of unknown FastText words.
+    Raises a ValueError naming the row if an accumulator overflows.
+    """
+    dim = vectors.shape[1]
+    accs = np.zeros((batch.n_sentences, dim), dtype=_F32)
+    counts = np.diff(batch.offsets)
+    k = 0  # the next unknown word of the batch
+    with np.errstate(over="ignore", invalid="ignore"):
+        for s in range(batch.n_sentences):
+            acc = np.zeros(dim, dtype=_F32)
+            for token in batch.tokens[batch.offsets[s] : batch.offsets[s + 1]]:
+                if token == OOV_TOKEN:
+                    if batch.ngrams is None or batch.ngram_offsets is None:
+                        raise ValueError("an unknown FastText word needs ngram buckets")
+                    if ngram_vectors is None:
+                        raise ValueError("an unknown FastText word needs ngram vectors")
+                    if oov_weight is None:
+                        raise ValueError("an unknown FastText word needs oov_weight")
+                    buckets = batch.ngrams[batch.ngram_offsets[k] : batch.ngram_offsets[k + 1]]
+                    k += 1
+                    if len(buckets) == 0:
+                        continue  # counts for the length, adds nothing
+                    shared = _F32(_F32(_F32(1) / _F32(len(buckets))) * _F32(oov_weight))
+                    for bucket in buckets:
+                        factor = _factor(shared, ngram_scales, int(bucket))
+                        acc = fma32(factor, _stored(ngram_vectors, int(bucket)), acc)
+                else:
+                    factor = _factor(weights[token], scales, int(token))
+                    acc = fma32(factor, _stored(vectors, int(token)), acc)
+            if not np.isfinite(acc).all():
+                raise ValueError(f"row {batch.first_row + s} contains NaN or infinite values")
+            accs[s] = acc
+    return accs, counts
+
+
 def pool_weighted_mean(
     batch: Batch,
     vectors: ndarray,
@@ -102,36 +150,87 @@ def pool_weighted_mean(
 ) -> ndarray:
     """``weighted_mean@1`` of every sentence of ``batch``, as float32 rows.
 
-    ``vectors`` (and ``ngram_vectors``) hold the stored word (and ngram) rows as float32,
-    float16 or int8 codes, with ``scales`` (``ngram_scales``) for int8. ``weights`` holds
-    one float32 weight per word, ``oov_weight`` the weight of unknown FastText words.
+    Takes the arguments of ``accumulate``; an empty sentence is the zero row.
     """
-    dim = vectors.shape[1]
-    out = np.zeros((batch.n_sentences, dim), dtype=_F32)
-    k = 0  # the next unknown word of the batch
-    for s in range(batch.n_sentences):
-        acc = np.zeros(dim, dtype=_F32)
-        tokens = batch.tokens[batch.offsets[s] : batch.offsets[s + 1]]
-        for token in tokens:
-            if token == OOV_TOKEN:
-                if batch.ngrams is None or batch.ngram_offsets is None or ngram_vectors is None:
-                    raise ValueError("an unknown FastText word needs ngram vectors")
-                if oov_weight is None:
-                    raise ValueError("an unknown FastText word needs oov_weight")
-                buckets = batch.ngrams[batch.ngram_offsets[k] : batch.ngram_offsets[k + 1]]
-                k += 1
-                if len(buckets) == 0:
-                    continue  # counts for the length, adds nothing
-                shared = _F32(_F32(_F32(1) / _F32(len(buckets))) * _F32(oov_weight))
-                for bucket in buckets:
-                    factor = _factor(shared, ngram_scales, int(bucket))
-                    acc = fma32(factor, _stored(ngram_vectors, int(bucket)), acc)
-            else:
-                factor = _factor(weights[token], scales, int(token))
-                acc = fma32(factor, _stored(vectors, int(token)), acc)
-        if len(tokens):
-            out[s] = _F32(_F32(1) / _F32(len(tokens))) * acc
+    accs, counts = accumulate(
+        batch, vectors, weights, scales, ngram_vectors, ngram_scales, oov_weight
+    )
+    out = np.zeros_like(accs)
+    for s, (acc, n) in enumerate(zip(accs, counts, strict=True)):
+        if n:
+            out[s] = _F32(_F32(1) / _F32(n)) * acc
     return out
+
+
+def pool_groups(
+    batch: Batch,
+    group_offsets: ndarray,
+    vectors: ndarray,
+    weights: ndarray,
+    scales: ndarray | None = None,
+    ngram_vectors: ndarray | None = None,
+    ngram_scales: ndarray | None = None,
+    oov_weight: float | None = None,
+) -> ndarray:
+    """``weighted_mean@1`` in group mode: one row per group of consecutive sentences.
+
+    Group g holds the sentences ``group_offsets[g]`` to ``group_offsets[g + 1] - 1``. The
+    first non-empty sentence gives ``(1/n) * acc``, every further one adds ``fma(1/n,
+    acc, g)``; a group without tokens is the zero row. Postprocessing follows per group.
+    """
+    accs, counts = accumulate(
+        batch, vectors, weights, scales, ngram_vectors, ngram_scales, oov_weight
+    )
+    out = np.zeros((len(group_offsets) - 1, accs.shape[1]), dtype=_F32)
+    with np.errstate(over="ignore", invalid="ignore"):
+        for g in range(len(out)):
+            row = None
+            for s in range(int(group_offsets[g]), int(group_offsets[g + 1])):
+                if not counts[s]:
+                    continue
+                inverse = _F32(_F32(1) / _F32(counts[s]))
+                row = inverse * accs[s] if row is None else fma32(inverse, accs[s], row)
+            if row is not None:
+                if not np.isfinite(row).all():
+                    raise ValueError(f"group {g} contains NaN or infinite values")
+                out[g] = row
+    return out
+
+
+def inverse_norms(stored: ndarray) -> ndarray:
+    """``float32(1 / sqrt(s))`` per stored row, s the float64 sum of squares; 0 for zero rows."""
+    values = np.asarray(stored, dtype=np.float64)
+    squares = np.zeros(len(values))
+    for i in range(values.shape[1]):
+        squares += values[:, i] * values[:, i]
+    out = np.zeros(len(values), dtype=_F32)
+    nonzero = squares > 0
+    out[nonzero] = (1 / np.sqrt(squares[nonzero])).astype(_F32)
+    return out
+
+
+def score(stored: ndarray, scales: ndarray | None, weights: ndarray, bias=0.0) -> ndarray:
+    """The linear score ``dot16(stored, w) * scale + bias`` of every stored row."""
+    dots = dot16(np.asarray(stored, dtype=_F32), np.asarray(weights, dtype=_F32))
+    if scales is not None:
+        dots = dots * np.asarray(scales, dtype=_F32)
+    return (dots + _F32(bias)).astype(_F32)
+
+
+def cosine(stored: ndarray, inverse: ndarray, query: ndarray) -> ndarray:
+    """The cosine of every stored row with ``query``: ``dot16(stored, q) * inverse norm``.
+
+    ``query`` is normalized first; the int8 scale cancels and is not used.
+    """
+    query = np.asarray(query, dtype=_F32)
+    norm = np.sqrt(dot16(query[None, :], query)[0])
+    return (dot16(np.asarray(stored, dtype=_F32), query / norm) * inverse).astype(_F32)
+
+
+def top_k(scores: ndarray, k: int) -> ndarray:
+    """The rows of the k largest scores; equal scores go to the smaller row id."""
+    order = np.lexsort((np.arange(len(scores)), -scores.astype(np.float64)))
+    return order[:k]
 
 
 def _check_finite(rows: ndarray, first_row: int):

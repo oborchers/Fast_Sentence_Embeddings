@@ -35,8 +35,14 @@ DEFAULT_CORPUS = Path.home() / ".cache" / "fse-quality" / "wikitext-103-b08601e0
 
 
 def principal_angles(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """Angles in degrees between the row spaces of two orthonormal bases."""
-    s = np.linalg.svd(a.astype(np.float64) @ b.astype(np.float64).T, compute_uv=False)
+    """Angles in degrees between the row spaces of two bases.
+
+    The float32 bases are only orthonormal to their rounding, so both are
+    orthonormalized in float64 first.
+    """
+    qa = np.linalg.qr(a.astype(np.float64).T)[0]
+    qb = np.linalg.qr(b.astype(np.float64).T)[0]
+    s = np.linalg.svd(qa.T @ qb, compute_uv=False)
     return np.degrees(np.arccos(np.clip(s, -1, 1)))
 
 

@@ -108,6 +108,13 @@ def check_dim(dim: object, name: str = "dim") -> int:
     return int(dim)
 
 
+def _frozen(array: ndarray) -> ndarray:
+    """A read-only copy, so a validated step cannot change through the caller's array."""
+    copy = array.copy()
+    copy.setflags(write=False)
+    return copy
+
+
 def _check_orthonormal(rows: ndarray, name: str):
     gram = rows.astype(np.float64) @ rows.astype(np.float64).T
     error = float(np.abs(gram - np.eye(len(rows))).max())
@@ -157,13 +164,15 @@ class RemoveComponents:
     op = Op.REMOVE_COMPONENTS
 
     def __post_init__(self):
-        components = _float32_matrix(self.components, "components", 2)
+        components = _frozen(_float32_matrix(self.components, "components", 2))
+        object.__setattr__(self, "components", components)
         k, d = components.shape
         if not 1 <= k <= d:
             raise ValueError(f"components must hold between 1 and {d} rows, not {k}")
         _check_orthonormal(components, "components")
         if self.weights is not None:
-            weights = _float32_matrix(self.weights, "weights", 1)
+            weights = _frozen(_float32_matrix(self.weights, "weights", 1))
+            object.__setattr__(self, "weights", weights)
             if weights.shape != (k,):
                 raise ValueError(f"weights must have shape ({k},), not {weights.shape}")
 
@@ -184,7 +193,8 @@ class Project:
     op = Op.PROJECT
 
     def __post_init__(self):
-        basis = _float32_matrix(self.basis, "basis", 2)
+        basis = _frozen(_float32_matrix(self.basis, "basis", 2))
+        object.__setattr__(self, "basis", basis)
         k, d = basis.shape
         if not 1 <= k <= d:
             raise ValueError(f"basis must hold between 1 and {d} rows, not {k}")
@@ -290,8 +300,8 @@ class Batch:
     def __post_init__(self):
         if isinstance(self.first_row, bool) or not isinstance(self.first_row, int | np.integer):
             raise TypeError(f"first_row must be an int, not {type(self.first_row).__name__}")
-        if self.first_row < 0:
-            raise ValueError(f"first_row must not be negative, not {self.first_row}")
+        if not 0 <= self.first_row <= _INT64_MAX:
+            raise ValueError(f"first_row must be between 0 and 2**63 - 1, not {self.first_row}")
         tokens = _int_array(self.tokens, "tokens", np.uint32)
         offsets = _int_array(self.offsets, "offsets", np.int64)
         _check_offsets(offsets, len(tokens), "offsets")
