@@ -258,3 +258,47 @@ def test_the_command_rejects_a_forbidden_native_import(tool, tmp_path, capsys):
     )
     assert tool["main"]([], root=repo) == 1
     assert "_native_part.pxi imports fse._wordvectors" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'slash = "\\\\"\nimport torch\n',
+        "slash = '\\\\'\nimport torch\n",
+        '"""ends with a backslash \\\\"""\nimport torch\n',
+        "import numpy; import torch\n",
+        "if True: import torch\n",
+        "import numpy, \\\n    torch\n",
+        "cdef int x = 1; from torch import nn\n",
+    ],
+)
+def test_hidden_imports_are_found(tool, source):
+    assert any(m.split(".")[0] == "torch" for m in tool["extension_imports"](source)), source
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        's = "import torch"\n',
+        "s = 'from torch import x'\n",
+        '"""\nimport torch\n"""\n',
+        "# import torch\n",
+        'quote = "\\""  # import torch\n',
+        "importance = 1\nreimport = 2\n",
+        'cdef extern from "torch.h":\n    pass\n',
+    ],
+)
+def test_imports_in_strings_and_comments_are_ignored(tool, source):
+    assert not any(m.split(".")[0] == "torch" for m in tool["extension_imports"](source)), source
+
+
+@needs_lint_tools
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+def test_the_command_finds_an_import_after_an_escaped_quote(tool, tmp_path, capsys):
+    repo = _repo(tmp_path, "def f():\n    return 1\n")
+    (repo / "src" / "fse" / "_native.pyx").write_text(
+        'slash = "\\\\"\nimport numpy; import torch\n'
+    )
+    (repo / "tests" / "test_native.py").write_text("")
+    assert tool["main"]([], root=repo) == 1
+    assert "_native.pyx imports torch" in capsys.readouterr().out

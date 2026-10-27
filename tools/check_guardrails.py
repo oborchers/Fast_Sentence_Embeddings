@@ -41,8 +41,10 @@ RUFF_RULES = ["C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917"]
 _RUFF = [sys.executable, "-m", "ruff", "check", "--output-format", "json", "--exit-zero"]
 _RUFF += ["--no-cache", "--quiet", "--ignore-noqa"]
 _VALUE = re.compile(r"\((\d+) > \d+\)")
-_FROM = re.compile(r"^\s*from\s+(\.*[\w.]*)\s+c?import\s+(\([^)]*\)|[^\n]*)", re.MULTILINE)
-_IMPORT = re.compile(r"^\s*c?import\s+([^\n]+)", re.MULTILINE)
+# On code without strings, comments and line continuations: an import statement may
+# start anywhere (after ; or the : of a one-line block) and ends at ; or the line end.
+_FROM = re.compile(r"\bfrom\s+(\.*[\w.]*)\s+c?import\s+(\([^)]*\)|[^;\n]*)")
+_IMPORT = re.compile(r"\bc?import\s+([^;\n]+)")
 
 
 class ToolError(Exception):
@@ -171,7 +173,8 @@ def _string_end(source: str, start: int) -> int:
         end = source.find(quote, end)
         if end < 0:
             return len(source)
-        if len(quote) == 3 or source[end - 1] != "\\":
+        backslashes = len(source[:end]) - len(source[:end].rstrip("\\"))
+        if backslashes % 2 == 0:  # an odd number escapes the quote
             return end + len(quote)
         end += 1
 
@@ -195,13 +198,13 @@ def code_only(source: str) -> str:
 
 def _names(text: str) -> list[str]:
     """The module names of an import list, aliases and parentheses removed."""
-    parts = text.strip().strip("()").replace("\\\n", " ").split(",")
+    parts = text.strip().strip("()").split(",")
     return [part.split(" as ")[0].strip() for part in parts if part.strip()]
 
 
 def extension_imports(source: str) -> list[str]:
     """Every module a Cython source imports or cimports, strings and comments removed."""
-    code = code_only(source)
+    code = code_only(source).replace("\\\n", " ")
     modules = []
     for base, names in _FROM.findall(code):
         if base.rstrip(".") in ("", "fse"):  # from fse import x, from . import x
@@ -209,7 +212,8 @@ def extension_imports(source: str) -> list[str]:
         else:
             # A relative import inside fse names a module of fse.
             modules.append("fse." + base.lstrip(".") if base.startswith(".") else base)
-    for names in _IMPORT.findall(code):
+    # The plain imports, with the from-imports (whose names are no modules) taken out.
+    for names in _IMPORT.findall(_FROM.sub("", code)):
         modules += _names(names)
     return modules
 
