@@ -56,7 +56,7 @@ def test_import_without_gensim():
         "try:\n"
         "    fse.Average\n"
         "except ImportError as err:\n"
-        "    assert 'blocked' in str(err)\n"
+        "    assert \"pip install 'fse[gensim]'\" in str(err), err\n"
         "else:\n"
         "    raise AssertionError('Average imported without gensim')\n"
     )

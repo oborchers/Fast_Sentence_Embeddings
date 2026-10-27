@@ -81,6 +81,14 @@ def _frozen(array: ndarray) -> ndarray:
     return copy
 
 
+def _read_only(array: ndarray) -> ndarray:
+    """``array`` itself, made read-only, if it is C-contiguous; otherwise a copy."""
+    if not array.flags.c_contiguous:
+        return _frozen(array)
+    array.setflags(write=False)
+    return array
+
+
 def _encode_words(words: Sequence[str]) -> tuple[ndarray, ndarray]:
     """The UTF-8 bytes and offsets of ``words``, without a list of bytes objects."""
     for i, word in enumerate(words):
@@ -317,6 +325,7 @@ class WordVectors:
         fasttext: FastTextParams | None = None,
         ngrams: Any = None,
         ngram_scales: Any = None,
+        _copy: bool = True,
     ) -> WordVectors:
         """Word vectors from arrays, copied and checked.
 
@@ -325,6 +334,7 @@ class WordVectors:
         int64 ``vocab_offsets``. FastText vectors also take ``fasttext`` and the ``ngrams``
         rows (with ``ngram_scales`` for int8).
         """
+        copy = _copy  # False only for arrays the caller created and hands over
         if not isinstance(vectors, ndarray):
             raise TypeError(f"vectors must be a numpy array, not {type(vectors).__name__}")
         if (words is None) == (vocab_bytes is None or vocab_offsets is None) or (
@@ -367,7 +377,9 @@ class WordVectors:
             _check_fasttext(fasttext)
             metadata["fse.fasttext"] = canonical_json(fasttext._asdict())
             metadata["fse.ngram_hash"] = NGRAM_HASH
-        return cls._new({k: _frozen(v) for k, v in tensors.items()}, metadata)
+        return cls._new(
+            {k: _frozen(v) if copy else _read_only(v) for k, v in tensors.items()}, metadata
+        )
 
     @classmethod
     def _new(cls, tensors: dict[str, ndarray], metadata: dict[str, str]) -> WordVectors:

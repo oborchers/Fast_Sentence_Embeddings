@@ -341,7 +341,6 @@ wheels = [
 name = "fse"
 source = { editable = "." }
 dependencies = [
-    { name = "gensim" },
     { name = "huggingface-hub" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -354,10 +353,16 @@ dependencies = [
     { name = "wordfreq" },
 ]
 
+[package.optional-dependencies]
+gensim = [
+    { name = "gensim" },
+]
+
 [package.dev-dependencies]
 all = [
     { name = "cibuildwheel" },
     { name = "coverage" },
+    { name = "gensim" },
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -374,13 +379,14 @@ lint = [
 ]
 test = [
     { name = "coverage" },
+    { name = "gensim" },
     { name = "pytest" },
     { name = "pytest-cov" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "gensim", specifier = ">=4.3.3" },
+    { name = "gensim", marker = "extra == 'gensim'", specifier = ">=4.3.3" },
     { name = "huggingface-hub", specifier = ">=0.23.0" },
     { name = "numpy", specifier = ">=1.26.4" },
     { name = "psutil", specifier = ">=5.9.0" },
@@ -390,11 +396,13 @@ requires-dist = [
     { name = "threadpoolctl", specifier = ">=3.1.0" },
     { name = "wordfreq", specifier = ">=3.1.0" },
 ]
+provides-extras = ["gensim"]
 
 [package.metadata.requires-dev]
 all = [
     { name = "cibuildwheel", specifier = ">=3.0.0" },
     { name = "coverage", extras = ["toml"], specifier = ">=7.0.0" },
+    { name = "gensim", specifier = ">=4.3.3" },
     { name = "mypy", specifier = ">=1.18.0" },
     { name = "pre-commit", specifier = ">=3.0.0" },
     { name = "pytest", specifier = ">=8.0.0" },
@@ -411,6 +419,7 @@ lint = [
 ]
 test = [
     { name = "coverage", extras = ["toml"], specifier = ">=7.0.0" },
+    { name = "gensim", specifier = ">=4.3.3" },
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "pytest-cov", specifier = ">=5.0.0" },
 ]

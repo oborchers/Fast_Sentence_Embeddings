@@ -143,7 +143,7 @@ jobs:
       - name: Install the sdist into a clean environment and run the tests
         run: |
           uv venv --python 3.13 /tmp/sdist-env
-          uv pip install --python /tmp/sdist-env dist/*.tar.gz pytest
+          uv pip install --python /tmp/sdist-env "$(ls dist/*.tar.gz)[gensim]" pytest
           /tmp/sdist-env/bin/python -m pytest tests -m "not network" -p no:cacheprovider
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:

@@ -33,7 +33,12 @@ _LEGACY = {
 
 
 def _require_gensim_4():
-    import gensim  # noqa: PLC0415 - only the 1.x classes need it
+    try:
+        import gensim  # noqa: PLC0415 - only the 1.x classes need it
+    except ImportError as err:
+        raise ImportError(
+            "the 1.x classes of fse need gensim; install it with: pip install 'fse[gensim]'"
+        ) from err
 
     if int(gensim.__version__.split(".")[0]) < 4:
         raise ImportError(
