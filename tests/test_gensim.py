@@ -4,7 +4,7 @@ from collections.abc import Callable
 import numpy as np
 import pytest
 
-# gensim does not build on Python 3.14 yet (piskvorky/gensim#3640); everywhere else the
+# gensim does not build on Python 3.14 and newer yet (piskvorky/gensim#3640); everywhere else the
 # test group installs it, so a missing gensim is an error there, not a skip.
 if sys.version_info >= (3, 14):
     pytest.importorskip("gensim")

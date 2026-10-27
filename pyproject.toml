@@ -32,6 +32,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Text Processing :: Linguistic",
 ]
@@ -76,7 +77,7 @@ lint = [
     "mypy>=1.18.0",
 ]
 test = [
-    # The tests of fse.gensim; gensim does not build on Python 3.14 yet (gensim#3640).
+    # The tests of fse.gensim; gensim does not build on Python 3.14 and newer yet (gensim#3640).
     "gensim>=4.3.3; python_version < '3.14'",
     # Checks that the reference implementation reads fse's safetensors files.
     "safetensors>=0.4.0",
@@ -180,7 +181,7 @@ exclude_lines = [
 # --- cibuildwheel ---
 
 [tool.cibuildwheel]
-build = "cp311-* cp312-* cp313-* cp314-*"
+build = "cp311-* cp312-* cp313-* cp314-* cp315-*"
 skip = "*-musllinux_* *-win32 *_i686"
 build-frontend = "build[uv]"
 test-groups = ["test"]
