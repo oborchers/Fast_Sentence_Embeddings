@@ -2,7 +2,7 @@
 
     uv run python tests/test_data/v2/make_golden.py
 
-They pin the format "word_vectors 1" in "NpyContainer 1": tests/test_wordvectors.py
+They pin the format "word_vectors 1" in "safetensors 1": tests/test_wordvectors.py
 reads them and compares the arrays and the fingerprint, and the export of fse 1.2.0
 writes the same vectors and must give the same fingerprint.
 """
@@ -37,8 +37,8 @@ def main():
         fasttext=a["fasttext"],
         ngrams=a["ngrams"],
     )
-    wv.save(HERE / "word_vectors_float32")
-    wv.quantize("int8").save(HERE / "word_vectors_int8")
+    wv.save(HERE / "word_vectors_float32.safetensors")
+    wv.quantize("int8").save(HERE / "word_vectors_int8.safetensors")
 
 
 if __name__ == "__main__":

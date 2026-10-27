@@ -64,8 +64,9 @@ def test_every_container_round_trips_bit_for_bit(tmp_path, name, mmap):
         "empty": np.zeros((0, 4), dtype=F32),
         "scalar_like": np.array([F32(-0.0)]),
     }
-    container.write(tmp_path / "a", tensors, {**_METADATA, "fse.created_by": "test"})
-    opened, metadata = container.open(tmp_path / "a", mmap=mmap)
+    path = tmp_path / f"a{container.suffix}"
+    container.write(path, tensors, {**_METADATA, "fse.created_by": "test"})
+    opened, metadata = container.open(path, mmap=mmap)
     assert set(opened) == set(tensors)
     for key, array in tensors.items():
         got = opened[key]
@@ -79,7 +80,7 @@ def test_every_container_round_trips_bit_for_bit(tmp_path, name, mmap):
     entries = {k: (tensor_code(v), v.shape, array_sha256(v)) for k, v in tensors.items()}
     assert metadata["fse.fingerprint"] == fingerprint(entries, metadata)
     assert metadata["fse.checksum.empty"] == array_sha256(tensors["empty"])
-    container.verify(tmp_path / "a")
+    container.verify(path)
 
 
 def test_same_content_same_fingerprint(tmp_path):
@@ -418,10 +419,10 @@ def test_mapped_artifact_can_be_removed_after_release(tmp_path, windows_file_map
 
 
 def test_shape_products_do_not_overflow(tmp_path):
-    """(2**32, 2**32) wraps to 0 in int64; the size check must still fail.
+    """(2**32, 2**32) wraps to 0 in int64; such a shape is rejected before any size.
 
-    The manifest is consistent (checksum of no data, fingerprint), so the open reaches
-    the size check, which an int64 product would pass for an empty file.
+    The manifest is consistent (checksum of no data, fingerprint), so only the shape
+    rule can reject it.
     """
     path = tmp_path / "a"
     NpyContainer().write(path, {"vectors": np.zeros((0, 0), F32)}, {})
@@ -435,9 +436,9 @@ def test_shape_products_do_not_overflow(tmp_path):
     _save_manifest(path, manifest)
     (path / "vectors.npy").write_bytes(_npy_header(shape=shape))
     for mmap in (False, True):
-        with pytest.raises(CorruptArtifactError, match="bytes,"):
+        with pytest.raises(CorruptArtifactError, match="numpy can hold"):
             NpyContainer().open(path, mmap=mmap)
-    with pytest.raises(CorruptArtifactError, match="bytes,"):
+    with pytest.raises(CorruptArtifactError, match="numpy can hold"):
         NpyContainer().verify(path)
 
 
@@ -535,3 +536,15 @@ def test_write_reserves_the_target(tmp_path, monkeypatch):
         c.write(tmp_path / "a", _tensors(), _METADATA)
     assert not (tmp_path / "a").exists()
     monkeypatch.setattr(NpyContainer, "_write_tensor", staticmethod(original))
+
+
+def test_reserved_names_are_rejected_on_read(tmp_path):
+    path = _written(tmp_path)
+    manifest = _manifest(path)
+    entry = manifest["tensors"].pop("vectors")
+    entry["file"] = "__metadata__.npy"
+    manifest["tensors"]["__metadata__"] = entry
+    os.replace(path / "vectors.npy", path / "__metadata__.npy")
+    _save_manifest(path, manifest)
+    with pytest.raises(CorruptArtifactError, match="not a tensor name"):
+        NpyContainer().open(path, mmap=False)

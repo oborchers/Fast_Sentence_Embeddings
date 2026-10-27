@@ -7,7 +7,7 @@ import tracemalloc
 import numpy as np
 import pytest
 
-from fse._container import NpyContainer
+from fse._container import SafetensorsContainer
 from fse._contract import UnsupportedArtifactError
 from fse._reference import dequantize, quantize_rows
 from fse._wordvectors import FastTextParams, WordVectors
@@ -53,17 +53,17 @@ def _same(a: WordVectors, b: WordVectors):
 @pytest.mark.parametrize("mmap", [False, True])
 def test_round_trip(tmp_path, dtype, fasttext, mmap):
     wv = _wv(dtype, fasttext)
-    wv.save(tmp_path / "wv")
-    loaded = WordVectors.load(tmp_path / "wv", mmap=mmap)
+    wv.save(tmp_path / "wv.safetensors")
+    loaded = WordVectors.load(tmp_path / "wv.safetensors", mmap=mmap)
     _same(wv, loaded)
-    assert loaded.path == tmp_path / "wv"
+    assert loaded.path == tmp_path / "wv.safetensors"
     assert loaded.dtype == dtype
     assert isinstance(loaded.vectors, np.memmap) == mmap
     loaded.verify()
     assert loaded.metadata["fse.created_by"].startswith("fse")
     # Saving again gives the same content and fingerprint.
-    loaded.save(tmp_path / "again")
-    _same(loaded, WordVectors.load(tmp_path / "again"))
+    loaded.save(tmp_path / "again.safetensors")
+    _same(loaded, WordVectors.load(tmp_path / "again.safetensors"))
 
 
 def test_lookup_is_byte_exact():
@@ -224,9 +224,31 @@ def test_from_arrays_rejects(kwargs, error, match):
         WordVectors.from_arrays(**args)
 
 
+def _tensor_end(path, name):
+    """The file offset after the data of tensor ``name`` of a safetensors file."""
+    raw = path.read_bytes()
+    length = int.from_bytes(raw[:8], "little")
+    header = json.loads(raw[8 : 8 + length])
+    return 8 + length + header[name]["data_offsets"][1]
+
+
+def _overwrite(path, name, data: bytes):
+    """Overwrite the last bytes of tensor ``name`` in place (a mapped file sees it)."""
+    with path.open("r+b") as f:
+        f.seek(_tensor_end(path, name) - len(data))
+        f.write(data)
+
+
+def _flip_last_byte(path, name):
+    with path.open("rb") as f:
+        f.seek(_tensor_end(path, name) - 1)
+        last = f.read(1)
+    _overwrite(path, name, bytes([last[0] ^ 1]))
+
+
 def _rewrite(path, edit_tensors=None, edit_metadata=None, name="edited"):
     """Rewrite a saved artifact with edited tensors or metadata (fresh checksums)."""
-    tensors, metadata = NpyContainer().open(path, mmap=False)
+    tensors, metadata = SafetensorsContainer().open(path, mmap=False)
     tensors = {k: np.array(v) for k, v in tensors.items()}
     metadata = {
         k: v
@@ -237,8 +259,8 @@ def _rewrite(path, edit_tensors=None, edit_metadata=None, name="edited"):
         edit_tensors(tensors)
     if edit_metadata:
         edit_metadata(metadata)
-    target = path.parent / name
-    NpyContainer().write(target, tensors, metadata)
+    target = path.parent / f"{name}.safetensors"
+    SafetensorsContainer().write(target, tensors, metadata)
     return target
 
 
@@ -392,8 +414,8 @@ SCHEMA_ERRORS = {
 @pytest.mark.parametrize("case", sorted(SCHEMA_ERRORS))
 def test_load_rejects_broken_word_vectors(tmp_path, case):
     edit_tensors, edit_metadata, error, match = SCHEMA_ERRORS[case]
-    _wv("int8", fasttext=True).save(tmp_path / "wv")
-    path = _rewrite(tmp_path / "wv", edit_tensors, edit_metadata)
+    _wv("int8", fasttext=True).save(tmp_path / "wv.safetensors")
+    path = _rewrite(tmp_path / "wv.safetensors", edit_tensors, edit_metadata)
     for mmap in (False, True):
         with pytest.raises(error, match=match):
             WordVectors.load(path, mmap=mmap)
@@ -422,44 +444,39 @@ def test_verify_checks_values(tmp_path, case):
         scales=np.ones(3, F32),
         counts=np.ones(3, np.int64),
     )
-    wv.save(tmp_path / "wv")
-    path = _rewrite(tmp_path / "wv", edit)
+    wv.save(tmp_path / "wv.safetensors")
+    path = _rewrite(tmp_path / "wv.safetensors", edit)
     loaded = WordVectors.load(path)  # values are checked by verify, not by every open
     with pytest.raises(ValueError, match=match or "is also word"):
         loaded.verify()
 
 
 def test_verify_checks_the_files(tmp_path):
-    _wv().save(tmp_path / "wv")
-    file = tmp_path / "wv" / "vectors.npy"
-    raw = bytearray(file.read_bytes())
-    raw[-1] ^= 1
-    file.write_bytes(bytes(raw))
-    wv = WordVectors.load(tmp_path / "wv", mmap=True)
+    _wv().save(tmp_path / "wv.safetensors")
+    _flip_last_byte(tmp_path / "wv.safetensors", "vectors")
+    wv = WordVectors.load(tmp_path / "wv.safetensors", mmap=True)
     with pytest.raises(ValueError, match="does not match its checksum"):
         wv.verify()
     with pytest.raises(ValueError, match="does not match its checksum"):
-        WordVectors.load(tmp_path / "wv")
+        WordVectors.load(tmp_path / "wv.safetensors")
 
 
 def test_save_never_overwrites(tmp_path):
     wv = _wv()
-    wv.save(tmp_path / "wv")
+    wv.save(tmp_path / "wv.safetensors")
     with pytest.raises(FileExistsError):
-        wv.save(tmp_path / "wv")
+        wv.save(tmp_path / "wv.safetensors")
     with pytest.raises(Exception, match="path"):
         wv.save(3)
 
 
 def test_released_maps_allow_removal(tmp_path, windows_file_maps):
-    import shutil
-
-    _wv("int8").save(tmp_path / "wv")
-    wv = WordVectors.load(tmp_path / "wv", mmap=True)
+    _wv("int8").save(tmp_path / "wv.safetensors")
+    wv = WordVectors.load(tmp_path / "wv.safetensors", mmap=True)
     assert wv.index("é") == 1  # the lookup holds no map
     del wv
     gc.collect()
-    shutil.rmtree(tmp_path / "wv")
+    (tmp_path / "wv.safetensors").unlink()
 
 
 def _peak(fn):
@@ -475,14 +492,14 @@ def _peak(fn):
 def test_loading_int8_makes_no_float32_copy(tmp_path):
     """The gate of the board entry: loading codes needs about their bytes, not float32."""
     wv = _wv("int8", n=20_000, dim=300, counts=False)
-    wv.save(tmp_path / "wv")
+    wv.save(tmp_path / "wv.safetensors")
     codes = 20_000 * 300
-    loaded, peak = _peak(lambda: WordVectors.load(tmp_path / "wv"))
+    loaded, peak = _peak(lambda: WordVectors.load(tmp_path / "wv.safetensors"))
     assert loaded.vectors.dtype == np.int8
     float32_copy = 4 * codes
     assert peak < codes + 2 * 2**20, peak  # codes, scales and vocabulary, far below float32
     assert peak < float32_copy / 3
-    _, mapped = _peak(lambda: WordVectors.load(tmp_path / "wv", mmap=True))
+    _, mapped = _peak(lambda: WordVectors.load(tmp_path / "wv.safetensors", mmap=True))
     assert mapped < 2 * 2**20, mapped
 
 
@@ -506,12 +523,13 @@ def test_quantize_makes_no_float32_copy():
 
 def test_fingerprint_of_unsaved_vectors_equals_the_saved_one(tmp_path):
     wv = _wv("int8", fasttext=True)
-    wv.save(tmp_path / "wv")
-    assert wv.fingerprint == WordVectors.load(tmp_path / "wv", mmap=True).fingerprint
-    manifest = json.loads((tmp_path / "wv" / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["metadata"]["fse.fingerprint"] == wv.fingerprint
-    assert manifest["metadata"]["fse.ngram_hash"] == "fasttext@1"
-    assert manifest["metadata"]["fse.fasttext"] == '{"bucket":7,"max_n":5,"min_n":3}'
+    wv.save(tmp_path / "wv.safetensors")
+    assert wv.fingerprint == WordVectors.load(tmp_path / "wv.safetensors", mmap=True).fingerprint
+    raw = (tmp_path / "wv.safetensors").read_bytes()
+    metadata = json.loads(raw[8 : 8 + int.from_bytes(raw[:8], "little")])["__metadata__"]
+    assert metadata["fse.fingerprint"] == wv.fingerprint
+    assert metadata["fse.ngram_hash"] == "fasttext@1"
+    assert metadata["fse.fasttext"] == '{"bucket":7,"max_n":5,"min_n":3}'
 
 
 GOLDEN = {
@@ -532,7 +550,7 @@ def test_golden_word_vectors(test_data_dir, dtype, mmap):
     make_golden = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(make_golden)
     a = make_golden.arrays()
-    wv = WordVectors.load(test_data_dir / "v2" / f"word_vectors_{dtype}", mmap=mmap)
+    wv = WordVectors.load(test_data_dir / "v2" / f"word_vectors_{dtype}.safetensors", mmap=mmap)
     wv.verify()
     assert wv.fingerprint == GOLDEN[dtype]
     assert [wv.word(i) for i in range(len(wv))] == a["words"]
@@ -546,11 +564,6 @@ def test_golden_word_vectors(test_data_dir, dtype, mmap):
         assert wv.vectors.tobytes() == codes.tobytes()
         assert wv.scales.tobytes() == scales.tobytes()
         assert wv.metadata["fse.quantized_from"] == GOLDEN["float32"]
-    # Writing the same content again, through every container, gives the same fingerprint.
-    from fse._container import CONTAINERS
-
-    for container in CONTAINERS.values():
-        assert container.name == "npy"
     rebuilt = WordVectors.from_arrays(
         a["vectors"],
         words=a["words"],
@@ -560,6 +573,31 @@ def test_golden_word_vectors(test_data_dir, dtype, mmap):
     )
     rebuilt = rebuilt if dtype == "float32" else rebuilt.quantize(dtype)
     assert rebuilt.fingerprint == GOLDEN[dtype]
+
+
+@pytest.mark.parametrize("dtype", sorted(GOLDEN))
+def test_every_container_gives_the_golden_fingerprint(tmp_path, test_data_dir, dtype):
+    """The same tensors and metadata written through every container: same content, same
+    fingerprint, as the fingerprint describes the content, not the container.
+    """
+    from fse._container import CONTAINERS
+
+    golden = test_data_dir / "v2" / f"word_vectors_{dtype}.safetensors"
+    tensors, metadata = SafetensorsContainer().open(golden, mmap=False)
+    plain = {
+        k: v
+        for k, v in metadata.items()
+        if k != "fse.fingerprint" and not k.startswith("fse.checksum.")
+    }
+    assert len(CONTAINERS) == 2
+    for name, container in CONTAINERS.items():
+        path = tmp_path / f"{name}{container.suffix}"
+        container.write(path, tensors, plain)
+        for mmap in (False, True):
+            opened, written = container.open(path, mmap=mmap)
+            assert written["fse.fingerprint"] == GOLDEN[dtype], name
+            for key, array in tensors.items():
+                assert opened[key].tobytes() == array.tobytes(), (name, key)
 
 
 @pytest.mark.parametrize("chunk", [1, 2, 7, 64])
@@ -608,74 +646,92 @@ def test_get_vectors_of_an_empty_list():
 
 
 def test_quantized_from_must_be_a_fingerprint(tmp_path):
-    _wv("int8").save(tmp_path / "wv")
-    path = _rewrite(tmp_path / "wv", None, lambda m: m.update({"fse.quantized_from": "yesterday"}))
+    _wv("int8").save(tmp_path / "wv.safetensors")
+    path = _rewrite(
+        tmp_path / "wv.safetensors", None, lambda m: m.update({"fse.quantized_from": "yesterday"})
+    )
     with pytest.raises(ValueError, match=r"fse\.quantized_from must be the fingerprint"):
         WordVectors.load(path)
-    _wv().save(tmp_path / "f32")
+    _wv().save(tmp_path / "f32.safetensors")
     fake = "sha256:" + "0" * 64
     path = _rewrite(
-        tmp_path / "f32", None, lambda m: m.update({"fse.quantized_from": fake}), "edited32"
+        tmp_path / "f32.safetensors",
+        None,
+        lambda m: m.update({"fse.quantized_from": fake}),
+        "edited32",
     )
     with pytest.raises(ValueError, match="only for float16 and int8"):
         WordVectors.load(path)
 
 
 def test_save_of_damaged_mapped_vectors_raises(tmp_path):
-    _wv().save(tmp_path / "wv")
-    file = tmp_path / "wv" / "vectors.npy"
-    raw = bytearray(file.read_bytes())
-    raw[-1] ^= 1
-    file.write_bytes(bytes(raw))
-    wv = WordVectors.load(tmp_path / "wv", mmap=True)
+    _wv().save(tmp_path / "wv.safetensors")
+    _flip_last_byte(tmp_path / "wv.safetensors", "vectors")
+    wv = WordVectors.load(tmp_path / "wv.safetensors", mmap=True)
     with pytest.raises(ValueError, match="does not match its checksum"):
-        wv.save(tmp_path / "copy")
+        wv.save(tmp_path / "copy.safetensors")
     with pytest.raises(ValueError, match="does not match its checksum"):
         wv.quantize("int8")
-    assert not (tmp_path / "copy").exists()
+    assert not (tmp_path / "copy.safetensors").exists()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Windows does not let a mapped file change")
 def test_mapped_data_changed_after_verify_is_never_saved(tmp_path):
-    _wv().save(tmp_path / "wv")
-    wv = WordVectors.load(tmp_path / "wv", mmap=True)
+    _wv().save(tmp_path / "wv.safetensors")
+    wv = WordVectors.load(tmp_path / "wv.safetensors", mmap=True)
     wv.verify()
-    with (tmp_path / "wv" / "vectors.npy").open("r+b") as f:
-        f.seek(-1, 2)
-        last = f.read(1)
-        f.seek(-1, 2)
-        f.write(bytes([last[0] ^ 1]))
+    _flip_last_byte(tmp_path / "wv.safetensors", "vectors")
     with pytest.raises(ValueError, match="does not match its checksum"):
-        wv.save(tmp_path / "copy")
-    assert not (tmp_path / "copy").exists()
+        wv.save(tmp_path / "copy.safetensors")
+    assert not (tmp_path / "copy.safetensors").exists()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Windows does not let a mapped file change")
 def test_quantized_vectors_own_their_arrays(tmp_path):
-    _wv().save(tmp_path / "wv")
-    wv = WordVectors.load(tmp_path / "wv", mmap=True)
+    _wv().save(tmp_path / "wv.safetensors")
+    wv = WordVectors.load(tmp_path / "wv.safetensors", mmap=True)
     q = wv.quantize("int8")
     for name in ("vectors", "scales", "counts", "vocab_bytes", "vocab_offsets"):
         assert not isinstance(getattr(q, name), np.memmap), name
     # Changing the source file afterwards changes nothing in the quantized vectors.
-    file = tmp_path / "wv" / "vocab.bytes.npy"
-    with file.open("r+b") as f:
-        f.seek(-1, 2)
-        f.write(b"x")
+    _overwrite(tmp_path / "wv.safetensors", "vocab.bytes", b"x")
     assert [q.word(i) for i in range(len(q))] == WORDS
     q.verify()
-    q.save(tmp_path / "q")
+    q.save(tmp_path / "q.safetensors")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Windows does not let a mapped file change")
 def test_quantize_of_changed_mapped_vectors_raises(tmp_path):
-    _wv().save(tmp_path / "wv")
-    wv = WordVectors.load(tmp_path / "wv", mmap=True)
+    _wv().save(tmp_path / "wv.safetensors")
+    wv = WordVectors.load(tmp_path / "wv.safetensors", mmap=True)
     wv.verify()
-    with (tmp_path / "wv" / "vectors.npy").open("r+b") as f:
-        f.seek(-4, 2)
-        f.write(np.float32(7).tobytes())
+    _overwrite(tmp_path / "wv.safetensors", "vectors", np.float32(7).tobytes())
     with pytest.raises(
         ValueError, match=r"does not match its checksum|changed since it was loaded"
     ):
         wv.quantize("int8")
+
+
+def test_word_vectors_are_never_a_directory(tmp_path):
+    from fse._container import NpyContainer
+
+    wv = _wv()
+    with pytest.raises(ValueError, match=r"must end with \.safetensors"):
+        wv.save(tmp_path / "wv")
+    tensors, metadata = SafetensorsContainer().open(_saved(wv, tmp_path), mmap=False)
+    plain = {
+        k: v
+        for k, v in metadata.items()
+        if k != "fse.fingerprint" and not k.startswith("fse.checksum.")
+    }
+    NpyContainer().write(tmp_path / "as_npy", tensors, plain)
+    with pytest.raises(
+        ValueError, match=r"is a directory; word vectors are one \.safetensors file"
+    ):
+        WordVectors.load(tmp_path / "as_npy")
+
+
+def _saved(wv, tmp_path):
+    path = tmp_path / "saved.safetensors"
+    wv.save(path)
+    return path

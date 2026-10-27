@@ -8,7 +8,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Added
 
-- `fse.WordVectors`: word vectors in an own format without pickle (a directory of `.npy` files and a manifest with checksums and a fingerprint), memory-mappable, stored as float32, float16 or int8 and read as float32, with FastText ngrams. Loading int8 vectors needs no float32 copy.
+- `fse.WordVectors`: word vectors saved as one `.safetensors` file with checksums and a fingerprint, without pickle, memory-mappable, stored as float32, float16 or int8 and read as float32, with FastText ngrams. Loading int8 vectors needs no float32 copy, and other safetensors readers can open the files.
 - `fse.gensim.from_gensim` converts gensim `KeyedVectors`, `Word2Vec` and `FastText` into `WordVectors`.
 
 ### Changed

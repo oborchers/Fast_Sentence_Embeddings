@@ -67,8 +67,8 @@ def test_save_and_load(tmp_path, make_ft):
     from fse import WordVectors
 
     wv = from_gensim(make_ft(vector_size=4, bucket=50), "int8")
-    wv.save(tmp_path / "wv")
-    assert WordVectors.load(tmp_path / "wv", mmap=True).fingerprint == wv.fingerprint
+    wv.save(tmp_path / "wv.safetensors")
+    assert WordVectors.load(tmp_path / "wv.safetensors", mmap=True).fingerprint == wv.fingerprint
 
 
 def test_rejects():

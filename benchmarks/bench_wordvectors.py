@@ -57,7 +57,7 @@ def child(case: str, vectors: str, dtype: str, store: Path) -> dict:
     """Prepare the case, then measure only its operation: time, RSS and allocations."""
     import fse  # every case imports fse before the measurement
 
-    target = store / f"{vectors}-{dtype}"
+    target = store / f"{vectors}.{dtype}.safetensors"
     extra: dict = {}
     if case == "convert":
         from gensim.models import KeyedVectors
@@ -67,7 +67,7 @@ def child(case: str, vectors: str, dtype: str, store: Path) -> dict:
         def operation():
             wv = from_gensim(KeyedVectors.load(model_file(vectors), mmap="r"), dtype)
             wv.save(target)
-            extra["bytes_on_disk"] = disk_bytes(target)
+            extra["bytes_on_disk"] = target.stat().st_size
             return wv
     elif case in ("load", "load_mmap"):
 

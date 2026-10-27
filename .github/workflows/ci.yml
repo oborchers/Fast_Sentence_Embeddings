@@ -68,7 +68,7 @@ jobs:
         if: matrix.deps == 'min'
         run: >-
           uv pip install
-          "numpy==1.26.4" "scipy==1.11.4" "gensim==4.3.3"
+          "numpy==1.26.4" "scipy==1.11.4" "gensim==4.3.3" "safetensors==0.4.0"
           "smart_open==6.4.0" "wordfreq==3.1.0" "huggingface-hub==0.23.0"
           "psutil==5.9.0" "pydantic==2.5.0" "threadpoolctl==3.1.0"
       - name: Run tests with coverage
@@ -154,7 +154,7 @@ jobs:
           assert importlib.util.find_spec('gensim') is None, 'gensim is installed'
           import fse
           wv = fse.WordVectors.from_arrays(np.ones((2, 3), np.float32), words=['a', 'b']).quantize('int8')
-          path = pathlib.Path(tempfile.mkdtemp()) / 'wv'
+          path = pathlib.Path(tempfile.mkdtemp()) / 'wv.safetensors'
           wv.save(path)
           for mmap in (False, True):
               assert fse.WordVectors.load(path, mmap=mmap).fingerprint == wv.fingerprint
