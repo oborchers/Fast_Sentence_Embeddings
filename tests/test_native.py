@@ -30,7 +30,9 @@ def test_ft_ngram_hashes_match_the_pinned_gensim_values(case):
     )
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 14), reason="gensim does not build on Python 3.14 and newer")
+@pytest.mark.skipif(
+    sys.version_info >= (3, 14), reason="gensim does not build on Python 3.14 and newer"
+)
 def test_ft_ngram_hashes_match_gensim_on_random_unicode():
     """Random code points across all planes, including control and private use characters."""
     from gensim.models.fasttext import ft_ngram_hashes as gensim_ft_ngram_hashes
