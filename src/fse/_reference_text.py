@@ -100,8 +100,14 @@ def _parts(u: str) -> Sequence[str]:
     return (u,)
 
 
+def _check_text(text: str) -> None:
+    """A sentence is a str that UTF-8 can encode: lone surrogates raise."""
+    text.encode("utf-8")
+
+
 def tokenize_fse_words(text: str) -> list[str]:
     """The tokens of one sentence by fse_words@1."""
+    _check_text(text)
     s = simple_lower(text)
     t = _token_chars(s)
     out: list[str] = []
@@ -125,6 +131,7 @@ def tokenize_fse_words(text: str) -> list[str]:
 
 def tokenize_external(text: str) -> list[str]:
     """The tokens of one sentence by external: split at whitespace, unchanged."""
+    _check_text(text)
     out: list[str] = []
     token: list[str] = []
     for ch in text:

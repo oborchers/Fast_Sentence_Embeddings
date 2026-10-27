@@ -159,6 +159,10 @@ def test_file_source_notices_changes_and_closing(tmp_path):
     os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
     with pytest.raises(RuntimeError, match="changed while it was read"):
         source.encode(scan.chunks[0], lookup, _native.Workspace())
+    with pytest.raises(RuntimeError, match="changed while it was read"):
+        source.scan()
+    with pytest.raises(RuntimeError, match="changed while it was read"):
+        len(source)
     source.close()
     with pytest.raises(ValueError, match="is closed"):
         source.scan()

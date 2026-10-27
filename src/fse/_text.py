@@ -308,8 +308,10 @@ class FileSource(_Buffered):
             raise ValueError(f"{self.path} starts with a UTF-8 byte order mark; remove it")
 
     def _check_open(self) -> None:
+        """Raise if the source is closed, or the file differs from the mapped one."""
         if self._closed:
             raise ValueError(f"the FileSource of {self.path} is closed")
+        self._check_unchanged()
 
     def __len__(self) -> int:
         data = self._array()
@@ -333,8 +335,12 @@ class FileSource(_Buffered):
         self, chunk: Chunk, lookup: _native.TextLookup, workspace: _native.Workspace
     ) -> Batch:
         self._check_open()
-        self._check_unchanged()
         return super().encode(chunk, lookup, workspace)
+
+    def scan(self, *, workers: int = 1, chunk_bytes: int | None = None) -> Scan:
+        result = super().scan(workers=workers, chunk_bytes=chunk_bytes)
+        self._check_unchanged()  # a change during the scan
+        return result
 
     def close(self) -> None:
         """Release the memory map."""

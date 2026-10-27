@@ -16,6 +16,7 @@ import pytest
 
 from fse import _native
 from fse import _reference_text as ref
+from fse._contract import OOV_TOKEN, Batch
 from fse._unicode import SIMPLE_LOWERCASE
 
 GOLDEN = json.loads(
@@ -282,3 +283,47 @@ def test_text_lookup_validates():
         lookup.encode(data, offsets, 0, 3, 0, _native.Workspace())
     with pytest.raises(ValueError, match="start of a line"):
         lookup.encode(np.frombuffer(b"ab\ncd\n", np.uint8), None, 1, 6, 0, _native.Workspace())
+
+
+def _batch(tokens=(0, OOV_TOKEN, 1), offsets=(0, 2, 3), ngrams=(5, 6)):
+    return Batch(
+        0,
+        np.array(offsets, np.int64),
+        np.array(tokens, np.uint32),
+        np.array([0, len(ngrams)], np.int64),
+        np.array(ngrams, np.uint32),
+    )
+
+
+def test_the_batch_comparison_catches_wrong_batches():
+    """assert_batches_equal fails for wrong ids, offsets, ngram order and ngram values."""
+    assert_batches_equal(_batch(), _batch())
+    wrong = [
+        _batch(tokens=(1, OOV_TOKEN, 0)),
+        _batch(offsets=(0, 1, 3)),
+        _batch(ngrams=(6, 5)),
+        _batch(ngrams=(5, 7)),
+    ]
+    for batch in wrong:
+        with pytest.raises(AssertionError):
+            assert_batches_equal(batch, _batch())
+
+
+def test_text_lookup_checks_its_types():
+    table, _ = _lookup_setup(["a"], share=1)
+    with pytest.raises(TypeError, match="three ints"):
+        _native.TextLookup(table, "external", (True, 3, 100))
+    with pytest.raises(TypeError, match="three ints"):
+        _native.TextLookup(table, "external", [3, 4, 100], 2)
+    with pytest.raises(TypeError, match="max_ngrams must be an int"):
+        _native.TextLookup(table, "external", (3, 4, 100), True)
+
+
+def test_vocab_table_keeps_its_own_copy():
+    words = np.frombuffer(b"abcd", np.uint8).copy()
+    offsets = np.array([0, 2, 4], np.int64)
+    table = _native.VocabTable(words, offsets)
+    words[:] = ord("z")
+    offsets[1] = 3
+    assert table.get("ab") == 0
+    assert table.get("cd") == 1

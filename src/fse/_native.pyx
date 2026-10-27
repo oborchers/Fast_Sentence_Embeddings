@@ -383,8 +383,16 @@ cdef class VocabTable:
             or vocab_offsets[len(vocab_offsets) - 1] != len(vocab_bytes)
         ):
             raise ValueError(f"vocab_offsets must run from 0 to {len(vocab_bytes)}, the number of bytes")
-        if (vocab_offsets[1:] < vocab_offsets[: len(vocab_offsets) - 1]).any():
+        # Own copies, so arrays the caller still holds cannot change a checked table; a
+        # read-only vocab_bytes (word vectors, a memory map) is kept as it is.
+        vocab_offsets = vocab_offsets.copy()
+        if vocab_bytes.flags.writeable:
+            vocab_bytes = vocab_bytes.copy()
+        lengths = vocab_offsets[1:] - vocab_offsets[: len(vocab_offsets) - 1]
+        if (lengths < 0).any():
             raise ValueError("vocab_offsets must not decrease")
+        if len(lengths) and int(lengths.max()) >= 2**32:
+            raise ValueError(f"word {int(lengths.argmax())} has 2**32 or more bytes")
         cdef Py_ssize_t n = len(vocab_offsets) - 1
         # Ids from OOV_TOKEN on are reserved.
         if n >= <Py_ssize_t>OOV_TOKEN:
@@ -1091,6 +1099,20 @@ def _simple_lower(code_points):
     return out
 
 
+def _raise_decode_error(data, position, where):
+    """Raise CPython's error for invalid UTF-8 data, whose first bad byte the native
+    decoder found at position; a disagreement between the two is a bug and says so."""
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError as err:
+        if err.start != position:
+            raise AssertionError(
+                f"the native decoder stopped at byte {position}, CPython at {err.start}"
+            ) from err
+        raise UnicodeDecodeError(err.encoding, err.object, err.start, err.end, err.reason + where) from None
+    raise AssertionError(f"the native decoder rejected valid UTF-8 at byte {position}")
+
+
 def tokenize(text, tokenizer="fse_words@1"):
     """The tokens of one sentence (str, or UTF-8 bytes) by the native tokenizer."""
     cdef int code = _tokenizer_code(tokenizer)
@@ -1115,8 +1137,7 @@ def tokenize(text, tokenizer="fse_words@1"):
         with nogil:
             bad = fse_tokenize(code, p, n, cand, &out)
         if bad >= 0:
-            data.decode("utf-8")  # raises the error CPython gives at that byte
-            raise AssertionError("the native decoder rejected valid UTF-8")  # pragma: no cover
+            _raise_decode_error(data, bad, "")
         return [out.bytes[starts[i]:ends[i]].decode("utf-8") for i in range(out.n_tokens)]
     finally:
         free(cand)
@@ -1188,7 +1209,13 @@ cdef class TextLookup:
         self.table = table
         self.tokenizer = _tokenizer_code(tokenizer)
         self.fasttext = fasttext is not None
+        if isinstance(max_ngrams, bool) or not isinstance(max_ngrams, (int, np.integer)):
+            raise TypeError(f"max_ngrams must be an int, not {type(max_ngrams).__name__}")
         if self.fasttext:
+            if not isinstance(fasttext, tuple) or len(fasttext) != 3 or any(
+                isinstance(v, bool) or not isinstance(v, (int, np.integer)) for v in fasttext
+            ):
+                raise TypeError(f"fasttext must be a tuple of three ints (min_n, max_n, bucket), not {fasttext!r}")
             min_n, max_n, bucket = fasttext
             if not 1 <= min_n <= max_n or bucket < 0 or bucket >= 2**32:
                 raise ValueError(f"fasttext must be (min_n, max_n, bucket) with 1 <= min_n <= max_n, not {fasttext}")
@@ -1319,16 +1346,10 @@ cdef class TextLookup:
                     f"{MAX_SENTENCE_BYTES}; fse reads one sentence per line or string"
                 )
             if status == ENCODE_BAD_UTF8:
-                raw = bytes(data[start:end])
-                try:
-                    raw.decode("utf-8")
-                except UnicodeDecodeError as err:
-                    raise UnicodeDecodeError(
-                        err.encoding, err.object, err.start, err.end,
-                        f"{err.reason} in sentence {sentence} of the range "
-                        f"(byte {start + err.start} of the source)",
-                    ) from None
-                raise AssertionError("the native decoder rejected valid UTF-8")  # pragma: no cover
+                _raise_decode_error(
+                    bytes(data[start:end]), bad,
+                    f" in sentence {sentence} of the range (byte {start + bad} of the source)",
+                )
             tokens = _to_array(&ws.tokens, np.uint32)
             batch_offsets = _to_array(&ws.offsets, np.int64)
             if not self.fasttext:

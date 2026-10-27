@@ -90,12 +90,13 @@ def child_v2(cfg: dict) -> float:
     if cfg["dtype"] != "float32":
         wv = wv.quantize(cfg["dtype"])
     tokenizer = "external" if cfg["kind"] == "v2 external" else "fse_words@1"
-    lookup = make_lookup(wv, tokenizer)
     pool_rows = cfg["kind"] != "v2 batch"
     kernel = _native.WeightedMean(wv.vectors, np.ones(len(vocab), np.float32), wv.scales)
     threads = cfg["threads"]
 
     def run():
+        # The vocabulary table is built in every pass, as 1.1.0 builds it in every train.
+        lookup = make_lookup(wv, tokenizer)
         source = StringSource(texts)
         scan = source.scan(workers=threads)
         out = np.empty((scan.sentences, cfg["dim"]), np.float32)
@@ -185,8 +186,15 @@ def child_hf(cfg: dict) -> float:
 CHILDREN = {"v2": child_v2, "v1": child_v1, "nltk": child_nltk, "hf": child_hf}
 
 
+def _cpus() -> int:
+    """The CPUs this process may use (a container can see more than it gets)."""
+    if hasattr(os, "sched_getaffinity"):
+        return len(os.sched_getaffinity(0))
+    return os.cpu_count() or 1
+
+
 def spawn(python: str, cfg: dict) -> float:
-    cpus = os.cpu_count() or 1
+    cpus = _cpus()
     load = os.getloadavg()[0] if hasattr(os, "getloadavg") else float("nan")
     if load > cpus / 4:
         print(f"# warning: load average {load:.1f} on {cpus} CPUs", flush=True)
@@ -233,7 +241,9 @@ def prepare(args, tmp: Path) -> dict:
         refs = json.loads(out.stdout)
     counts = Counter(t for text in texts for t in _native.tokenize(text))
     vocab = [w for w, _ in counts.most_common(args.vocab)]
-    vocab += [f"pad{i}" for i in range(args.vocab - len(vocab))]
+    used = set(vocab)
+    pads = (f"pad{i}" for i in range(2 * args.vocab + 1))
+    vocab += [w for w in pads if w not in used][: args.vocab - len(vocab)]
     (tmp / "texts.txt").write_text("".join(t + "\n" for t in texts), encoding="utf-8")
     (tmp / "pretok.txt").write_text("".join(" ".join(r) + "\n" for r in refs), encoding="utf-8")
     (tmp / "vocab.txt").write_text("".join(w + "\n" for w in vocab), encoding="utf-8")
@@ -289,51 +299,65 @@ def main() -> None:
             f"# fse_words@1 equals the 1.x preprocessing on {data['agreement']:.3%} of the sentences"
         )
 
-        def measure(kind, python, **extra):
-            cfg = {
-                **data,
-                "kind": kind,
-                "repeats": args.repeats,
-                "dim": 100,
-                "dtype": "float32",
-                "threads": 1,
-                **extra,
-            }
-            seconds = statistics.median(spawn(python, cfg) for _ in range(args.rounds))
-            row = {
-                **extra,
-                "kind": kind,
-                "seconds": seconds,
-                "sentences_per_s": data["sentences"] / seconds,
-                "mb_per_s": mb / seconds,
-            }
-            results.append(row)
-            label = " ".join(f"{k}={v}" for k, v in extra.items())
-            print(
-                f"{kind:14} {label:36} {row['sentences_per_s']:12,.0f} sent/s {row['mb_per_s']:8.1f} MB/s",
-                flush=True,
-            )
-            return row
+        def measure(contenders, **extra):
+            """Median seconds of every (kind, python), the rounds alternating between them."""
+            times: dict[str, list[float]] = {kind: [] for kind, _ in contenders}
+            for r in range(args.rounds):
+                for kind, python in contenders if r % 2 == 0 else contenders[::-1]:
+                    cfg = {
+                        **data,
+                        "kind": kind,
+                        "repeats": args.repeats,
+                        "dim": 100,
+                        "dtype": "float32",
+                        "threads": 1,
+                        **extra,
+                    }
+                    times[kind].append(spawn(python, cfg))
+            rows = {}
+            for kind, _ in contenders:
+                seconds = statistics.median(times[kind])
+                row = {
+                    **extra,
+                    "kind": kind,
+                    "seconds": seconds,
+                    "sentences_per_s": data["sentences"] / seconds,
+                    "mb_per_s": mb / seconds,
+                }
+                results.append(row)
+                rows[kind] = row
+                label = " ".join(f"{k}={v}" for k, v in extra.items())
+                print(
+                    f"{kind:14} {label:36} {row['sentences_per_s']:12,.0f} sent/s {row['mb_per_s']:8.1f} MB/s",
+                    flush=True,
+                )
+            return rows
 
+        v2, v1 = sys.executable, args.python_v1
         for threads in args.threads:
-            measure("v2 batch", sys.executable, threads=threads)
-        measure("nltk", args.python_v1)
-        hf = [measure("hf", args.python_v1, threads=t) for t in (1, os.cpu_count() or 1)]
+            measure([("v2 batch", v2)], threads=threads)
+        measure([("nltk", v1)])
+        hf = [measure([("hf", v1)], threads=t)["hf"] for t in (1, _cpus())]
         ratios = []
+        contenders = [
+            ("v2 rows", v2),
+            ("v2 external", v2),
+            ("v1 TextList", v1),
+            ("v1 CorpusFile", v1),
+        ]
         for dtype in args.dtypes:
             for dim in args.dims:
                 for threads in args.threads:
                     cfg = {"dtype": dtype, "dim": dim, "threads": threads}
-                    v2 = measure("v2 rows", sys.executable, **cfg)
-                    ext = measure("v2 external", sys.executable, **cfg)
+                    rows = measure(contenders, **cfg)
                     for kind in ("v1 TextList", "v1 CorpusFile"):
-                        v1 = measure(kind, args.python_v1, **cfg)
+                        base = rows[kind]["sentences_per_s"]
                         ratios.append(
                             (
                                 kind,
                                 cfg,
-                                v2["sentences_per_s"] / v1["sentences_per_s"],
-                                ext["sentences_per_s"] / v1["sentences_per_s"],
+                                rows["v2 rows"]["sentences_per_s"] / base,
+                                rows["v2 external"]["sentences_per_s"] / base,
                             )
                         )
     print(

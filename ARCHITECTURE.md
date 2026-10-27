@@ -138,7 +138,7 @@ The manifest key `fse.tokenizer` holds `external` or the identifier of a native 
 - `external`: the caller gives the tokens. Text input is split at the whitespace W below, as `str.split()` does, and the tokens are not changed.
 - `fse_words@1`: the native tokenizer specified here.
 
-**Input.** One sentence is a `str`, or one line of a UTF-8 file: a line ends at the byte `\n`, which is not part of it; the last line needs no `\n`, a final `\n` starts no empty line, and an empty file has no lines. Bytes are decoded strictly, as CPython's UTF-8 decoder does, and invalid UTF-8 raises. Sentences are not split further and not normalized: NFC and NFD spellings stay different.
+**Input.** One sentence is a `str` that UTF-8 can encode (a lone surrogate raises), or one line of a UTF-8 file: a line ends at the byte `\n`, which is not part of it; the last line needs no `\n`, a final `\n` starts no empty line, and an empty file has no lines. A file must not start with a UTF-8 byte order mark, which would otherwise stick to the first token as U+FEFF; it raises. Bytes are decoded strictly, as CPython's UTF-8 decoder does, and invalid UTF-8 raises. Sentences are not split further and not normalized: NFC and NFD spellings stay different.
 
 **Output.** A list of non-empty tokens, matched to the vocabulary by the exact equality of their UTF-8 bytes. `fse_words@1` computes it in five steps.
 

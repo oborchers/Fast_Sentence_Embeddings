@@ -171,3 +171,9 @@ def test_reference_matches_the_golden_tokens():
     assert len(GOLDEN["cases"]) > 2700
     for text, tokens in GOLDEN["cases"]:
         assert tokenize_fse_words(text) == tokens, text
+
+
+@pytest.mark.parametrize("tokenize_one", [tokenize_fse_words, tokenize_external])
+def test_lone_surrogates_raise_as_in_the_native_tokenizer(tokenize_one):
+    with pytest.raises(UnicodeEncodeError):
+        tokenize_one("a\ud800b")

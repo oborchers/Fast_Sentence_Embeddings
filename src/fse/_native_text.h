@@ -16,6 +16,11 @@
 
 #include "_native_unicode.h"
 
+/* The vocabulary keys load words as little-endian integers in two ways that must agree. */
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#error "fse supports little-endian platforms only"
+#endif
+
 #define FSE_TOKENIZER_EXTERNAL 0
 #define FSE_TOKENIZER_FSE_WORDS 1
 
