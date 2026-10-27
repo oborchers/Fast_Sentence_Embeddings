@@ -25,7 +25,10 @@ src/fse/
   _native_steps.pxi      #   dot16, steps and score,
   _native_text.pxi       #   the tokenizers and the text lookup
   _native.pxd, .pyi      # shared C types of the extension, and its type stubs
-  _native_kernel.h       # the C kernel: weighted mean, dot16, steps, score per ISA
+  _native_kernel.h       # the C kernel: its contract, ISA detection and dispatch, and
+  _native_kernel_base.h  #   build checks, macros and shared types,
+  _native_kernel_mean.h  #   the weighted mean loops per ISA and dtype,
+  _native_kernel_steps.h #   FP environment, dot16, steps and score
   _native_text.h         # the native tokenizers fse_words@1 and external
   _native_unicode.h      # generated: the simple lowercase table for the native code
   _unicode.py            # generated: the same table for the reference
@@ -36,7 +39,7 @@ src/fse/
 
 ## Native kernel
 
-`_native_kernel.h` implements `weighted_mean@1` (pool and accumulate), `dot16`, the steps `remove_components@1`, `project@1` and `normalize@1`, and the linear score of the numerical contract below; group mode, storage quantization, inverse norms and cosine search follow with their PRs. Each is one C loop, instantiated per ISA: portable (`fmaf`), AVX2 with FMA and F16C on x86 (selected at run time by cpuid and xgetbv, so one wheel serves every x86 machine) and NEON on arm64. `_native.pyx` validates all arrays before it releases the GIL, then calls the loop of the chosen ISA (`available_isas`, `default_isa`; `isa=` selects one for tests). The rules that make it bit-identical to `fse._reference`:
+`_native_kernel.h` and the headers it includes implement `weighted_mean@1` (pool and accumulate), `dot16`, the steps `remove_components@1`, `project@1` and `normalize@1`, and the linear score of the numerical contract below; group mode, storage quantization, inverse norms and cosine search follow with their PRs. Each is one C loop, instantiated per ISA: portable (`fmaf`), AVX2 with FMA and F16C on x86 (selected at run time by cpuid and xgetbv, so one wheel serves every x86 machine) and NEON on arm64. `_native.pyx` validates all arrays before it releases the GIL, then calls the loop of the chosen ISA (`available_isas`, `default_isa`; `isa=` selects one for tests). The rules that make it bit-identical to `fse._reference`:
 
 - Every multiply-add is an explicit fused multiply-add in token order; the compiler must not contract or reorder anything else. The extension is built with `-ffp-contract=off -fno-fast-math` (`/fp:precise` on MSVC), see `setup.py`. MinGW is refused, because its runtime computes `fmaf` with two roundings.
 - The floating-point environment is fixed for the duration of every call: round to nearest, no flush-to-zero or denormals-are-zero (MXCSR on x86, FPCR on arm64). The previous state is restored afterwards, also after an error. Each Python entry point sets it for the whole call, so the numpy conversions of its arguments (such as `bias`) run in it too, and each C entry point sets it again and calls its arithmetic only through functions marked never to be inlined, so no compiler can move the arithmetic before it.

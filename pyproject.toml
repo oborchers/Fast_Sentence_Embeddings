@@ -238,7 +238,6 @@ untested-modules = ["src/fse/_version.py"]
 # removed. Never add an entry or raise a number; split or simplify the code instead.
 [tool.fse.guardrails.ratchet.lines]
 "src/fse/_container.py" = 854
-"src/fse/_native_kernel.h" = 703
 "src/fse/_wordvectors.py" = 712
 "tests/test_conformance.py" = 644
 "tests/test_container.py" = 551
