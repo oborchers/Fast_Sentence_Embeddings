@@ -56,7 +56,8 @@ from numpy import (
     sum as np_sum,
 )
 
-from fse._validation import PathLike, PositiveInt, WordVectorModel, validate_arguments
+from fse._validation import PathLike, PositiveInt, validate_arguments
+from fse.models._gensim_types import WordVectorModel
 from fse.models._quantize import STORAGE_TYPES, StorageDtype, dequantize, has_scales
 from fse.models.base_s2v import BaseSentence2VecModel, _OffsetIndices
 

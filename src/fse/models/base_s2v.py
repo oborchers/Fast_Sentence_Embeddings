@@ -83,10 +83,10 @@ from fse._validation import (
     PathLike,
     PositiveFloat,
     PositiveInt,
-    WordVectorModel,
     validate_arguments,
 )
 from fse.models import utils
+from fse.models._gensim_types import WordVectorModel
 from fse.models._index_tracker import MAX_INDEX, IndexTracker, check_index_range
 from fse.models._quantize import STORAGE_TYPES, StorageDtype, has_scales, quantize_into
 from fse.models._single_pass import SinglePass
