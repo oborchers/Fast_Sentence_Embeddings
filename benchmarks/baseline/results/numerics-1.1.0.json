@@ -17,7 +17,11 @@
     0.007588881495413293,
     0.01578846914735998
   ],
-  "components_bit_identical_1_vs_10_workers": true,
+  "workers_compared": [
+    1,
+    10
+  ],
+  "components_bit_identical_across_workers": true,
   "recall_at_10": {
     "float16": 0.9943,
     "int8": 0.9880000000000001
