@@ -1,0 +1,76 @@
+{
+ "container": "npy",
+ "container_version": 1,
+ "metadata": {
+  "fse.checksum.counts": "cddd9767c8e51844069fa2fae6bf58a1a01bc2d6f5c41adbb0cbc76414247e0f",
+  "fse.checksum.ngram_scales": "650dfabffaaa58fce9cd2e22c05856ee78743802ee0790626982ebbbb55a7540",
+  "fse.checksum.ngrams": "4c89ea50c42ad90b5f433e5d0b3c445f462019dca4ca2de9966004ffcee10649",
+  "fse.checksum.scales": "96d978ddc07bdad3778047fd111d8cea7dfab1c0dac7969311259b3a0f2fc8a7",
+  "fse.checksum.vectors": "fb25b19df79dca02e72e3cba163eaf72e9941b424dc06e63b4282cfab506da78",
+  "fse.checksum.vocab.bytes": "f8527f3a9ab0966393d44808f69fa2126ea478b78b48bf0800716faafc816ab6",
+  "fse.checksum.vocab.offsets": "ad270b5c9b4977f8c8545c95e8212a9b2aa4de65ed4e0052470820ca2a77315a",
+  "fse.created_by": "fse 1.1.1.dev27+g4a9cb556d",
+  "fse.dim": "3",
+  "fse.dtype": "int8",
+  "fse.fasttext": "{\"bucket\":2,\"max_n\":4,\"min_n\":2}",
+  "fse.fingerprint": "sha256:efce97495ce0ec596486aa46091b4afa5f27dc0ec2aa039da48dcd6616b68f37",
+  "fse.format_version": "1",
+  "fse.kind": "word_vectors",
+  "fse.ngram_hash": "fasttext@1",
+  "fse.quantization": "quantize_rows@1",
+  "fse.quantized_from": "sha256:2700466c5f0e3b1c47624e9e52a4b5064e911e7fc1827e48070345d90cab89f1"
+ },
+ "tensors": {
+  "counts": {
+   "dtype": "I64",
+   "file": "counts.npy",
+   "shape": [
+    3
+   ]
+  },
+  "ngram_scales": {
+   "dtype": "F32",
+   "file": "ngram_scales.npy",
+   "shape": [
+    2
+   ]
+  },
+  "ngrams": {
+   "dtype": "I8",
+   "file": "ngrams.npy",
+   "shape": [
+    2,
+    3
+   ]
+  },
+  "scales": {
+   "dtype": "F32",
+   "file": "scales.npy",
+   "shape": [
+    3
+   ]
+  },
+  "vectors": {
+   "dtype": "I8",
+   "file": "vectors.npy",
+   "shape": [
+    3,
+    3
+   ]
+  },
+  "vocab.bytes": {
+   "dtype": "U8",
+   "file": "vocab.bytes.npy",
+   "shape": [
+    11
+   ]
+  },
+  "vocab.offsets": {
+   "dtype": "I64",
+   "file": "vocab.offsets.npy",
+   "shape": [
+    4
+   ]
+  }
+ }
+}

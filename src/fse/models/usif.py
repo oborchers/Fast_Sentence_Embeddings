@@ -14,9 +14,9 @@ from fse._validation import (
     PathLike,
     PositiveFloat,
     PositiveInt,
-    WordVectorModel,
     validate_arguments,
 )
+from fse.models._gensim_types import WordVectorModel
 from fse.models._quantize import StorageDtype
 from fse.models.average import Average
 from fse.models.utils import (

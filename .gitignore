@@ -32,6 +32,10 @@
 *.bak
 *.npy
 *.npz
+# Committed test data and baselines.
+!tests/test_data/**/*.npy
+!tests/test_data/**/*.npz
+!benchmarks/baseline/results/*.npz
 *.code-workspace
 
 # OS generated files #

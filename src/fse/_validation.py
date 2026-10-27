@@ -11,12 +11,11 @@ from pathlib import Path
 from typing import Annotated, Any, TypeAlias, TypeVar
 
 import numpy as np
-from gensim.models import FastText, Word2Vec
-from gensim.models.keyedvectors import KeyedVectors
 from pydantic import BeforeValidator, ConfigDict, Field, validate_call
 
 # strict: nothing is coerced, for example "4" is not accepted for an int.
 # arbitrary_types_allowed: gensim and numpy objects are checked with isinstance.
+# fse._validation imports no gensim, so 2.0 modules can use it without gensim installed.
 _validate = validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -37,9 +36,6 @@ def validate_arguments(func: F) -> F:
 
     return wrapper  # type: ignore[return-value]
 
-
-#: Word vectors or a gensim model that holds them in ``wv``.
-WordVectorModel: TypeAlias = KeyedVectors | Word2Vec | FastText
 
 #: A file system path given as str or Path.
 PathLike: TypeAlias = str | Path
