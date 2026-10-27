@@ -81,7 +81,10 @@ def test_modules_import_no_optional_packages(module):
 def test_native_imports_no_optional_packages():
     import re
 
-    text = (SRC / "_native.pyx").read_text(encoding="utf-8")
+    # The extension and the .pxi parts it includes.
+    parts = sorted(p for p in SRC.glob("_native*") if p.suffix in (".pyx", ".pxi", ".pxd"))
+    text = "".join(p.read_text(encoding="utf-8") for p in parts)
+    assert "cdef class VocabTable" in text
     for name in FORBIDDEN:
         # Import statements only; comments may name gensim, from which code was adapted.
         assert not re.search(rf"^\s*(c?import|from)\s+{name}\b", text, re.MULTILINE), name

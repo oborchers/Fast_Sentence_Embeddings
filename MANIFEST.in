@@ -1,5 +1,5 @@
 include LICENSE NOTICE README.md CHANGELOG.md
-recursive-include src/fse *.pyx *.pxd *.h *.pyi py.typed
+recursive-include src/fse *.pyx *.pxi *.pxd *.h *.pyi py.typed
 graft tests
 # The generators and checkers the tests use.
 graft tools

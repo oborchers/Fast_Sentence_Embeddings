@@ -58,7 +58,7 @@ Changelog = "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/C
 where = ["src"]
 
 [tool.setuptools.package-data]
-"fse" = ["py.typed", "*.pyx", "*.pxd", "*.h", "*.pyi"]
+"fse" = ["py.typed", "*.pyx", "*.pxi", "*.pxd", "*.h", "*.pyi"]
 
 [tool.setuptools_scm]
 version_file = "src/fse/_version.py"
@@ -104,6 +104,7 @@ cache-keys = [
     { file = "pyproject.toml" },
     { file = "setup.py" },
     { file = "src/fse/*.pyx" },
+    { file = "src/fse/*.pxi" },
     { file = "src/fse/*.pxd" },
     { file = "src/fse/*.h" },
     { git = { commit = true, tags = true } },

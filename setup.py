@@ -1,5 +1,7 @@
 """Build the Cython extension. All package metadata lives in pyproject.toml."""
 
+from glob import glob
+
 import numpy
 from Cython.Build import cythonize
 from setuptools import Extension, setup
@@ -31,7 +33,8 @@ extensions = [
     Extension(
         "fse._native",
         sources=["src/fse/_native.pyx"],
-        depends=["src/fse/_native_kernel.h", "src/fse/_native_text.h", "src/fse/_native_unicode.h"],
+        # The headers and the .pxi parts the .pyx includes: a change to any rebuilds it.
+        depends=sorted(glob("src/fse/_native*.h") + glob("src/fse/_native*.pxi")),
         include_dirs=[numpy.get_include(), "src/fse"],
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
     )
