@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from fse._contract import (
+    EXTERNAL_TOKENIZER,
     OOV_TOKEN,
     TRANSFORM_VERSION,
     Aggregation,
@@ -10,8 +11,10 @@ from fse._contract import (
     Op,
     Project,
     RemoveComponents,
+    Tokenizer,
     UnsupportedArtifactError,
     check_steps,
+    check_tokenizer,
     check_transform_version,
     output_dim,
     parse_id,
@@ -207,3 +210,18 @@ def test_batch_checks_ngrams():
         Batch(0, offsets, tokens, _i64(0, 1, 3), _u32(4, 5))
     with pytest.raises(TypeError, match="uint32"):
         Batch(0, offsets, tokens, _i64(0, 1, 2), np.array([4, 5], dtype=np.int64))
+
+
+def test_tokenizer_identifiers():
+    assert Tokenizer.FSE_WORDS.id == "fse_words@1"
+    assert check_tokenizer("fse_words@1") == "fse_words@1"
+    assert check_tokenizer("external") == EXTERNAL_TOKENIZER == "external"
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["fse_words@2", "nltk@1", "External", "external@1", "", 1, None, np.array(["external", "x"])],
+)
+def test_unknown_tokenizer_is_rejected(text):
+    with pytest.raises(UnsupportedArtifactError, match="supported: external, fse_words@1"):
+        check_tokenizer(text)

@@ -10,6 +10,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 - `fse.WordVectors`: word vectors saved as one `.safetensors` file with checksums and a fingerprint, without pickle, memory-mappable, stored as float32, float16 or int8 and read as float32, with FastText ngrams. Loading int8 vectors needs no float32 copy, and other safetensors readers can open the files.
 - `fse.gensim.from_gensim` converts gensim `KeyedVectors`, `Word2Vec` and `FastText` into `WordVectors`.
+- The native tokenizer `fse_words@1`: lowercase, split at whitespace and punctuation, and expand contractions like the preprocessing of the published 1.x tables, specified in ARCHITECTURE.md and fixed for 2.x. It gives the tokens of that preprocessing on every STS Benchmark sentence and on 99.98 % of the WikiText paragraphs, and runs without the GIL from raw text to token ids.
 - Python 3.14 and 3.15, with pre-built wheels. On 3.14 and newer, `fse.gensim` needs gensim, which does not build there yet; everything else works.
 
 ### Changed
