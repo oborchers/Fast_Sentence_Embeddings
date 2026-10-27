@@ -22,7 +22,7 @@ Use uv and the Makefile; CI calls the same targets.
     make rebuild-ext   # after editing .pyx, .pxd or .h
     make build         # sdist + wheel, twine check
 
-Performance changes report before and after numbers on an idle machine (the scripts warn about a high load average): `uv run python benchmarks/bench_kernel.py --python-v1 <python of fse 1.1.0>` for the kernel; `benchmarks/bench_train.py` measures 1.1.0 end to end.
+Performance changes report before and after numbers on an idle machine (the scripts warn about a high load average): `uv run python benchmarks/bench_kernel.py --python-v1 <python of fse 1.1.0>` for the kernel and `benchmarks/bench_tokenize.py` from raw text; `benchmarks/baseline/` holds the 1.1.0 values 2.0 is compared with.
 
 ## Rules
 
