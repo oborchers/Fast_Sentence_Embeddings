@@ -121,7 +121,30 @@ def _cases():
             ),
             Case("one word repeated", dtype, base, w, ((7,) * 1000, (7,) * 3)),
         ]
-        for dim in (1, 3, 4, 7, 8, 9, 15, 16, 17, 31, 32, 33, 300, 301):
+        for dim in (
+            1,
+            3,
+            4,
+            7,
+            8,
+            9,
+            12,
+            15,
+            16,
+            17,
+            20,
+            28,
+            31,
+            32,
+            33,
+            36,
+            63,
+            64,
+            65,
+            100,
+            300,
+            301,
+        ):
             out.append(_random_case(f"dim {dim}", dtype, dim, dim=dim, n=6))
         out.append(_random_case("fasttext", dtype, 11, ft=True))
         out.append(

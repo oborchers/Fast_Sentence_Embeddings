@@ -139,6 +139,16 @@ FSE_AVX2_TARGET static inline void fse_fma_f16_avx2(float *acc, const void *row,
     const uint16_t *x = (const uint16_t *)row;
     __m256 fv = _mm256_set1_ps(f);
     int i = 0;
+    for (; i + 32 <= n; i += 32) {
+        __m256 a0 = _mm256_fmadd_ps(fv, _mm256_cvtph_ps(_mm_loadu_si128((const __m128i *)(x + i))), _mm256_loadu_ps(acc + i));
+        __m256 a1 = _mm256_fmadd_ps(fv, _mm256_cvtph_ps(_mm_loadu_si128((const __m128i *)(x + i + 8))), _mm256_loadu_ps(acc + i + 8));
+        __m256 a2 = _mm256_fmadd_ps(fv, _mm256_cvtph_ps(_mm_loadu_si128((const __m128i *)(x + i + 16))), _mm256_loadu_ps(acc + i + 16));
+        __m256 a3 = _mm256_fmadd_ps(fv, _mm256_cvtph_ps(_mm_loadu_si128((const __m128i *)(x + i + 24))), _mm256_loadu_ps(acc + i + 24));
+        _mm256_storeu_ps(acc + i, a0);
+        _mm256_storeu_ps(acc + i + 8, a1);
+        _mm256_storeu_ps(acc + i + 16, a2);
+        _mm256_storeu_ps(acc + i + 24, a3);
+    }
     for (; i + 8 <= n; i += 8) {
         __m256 v = _mm256_cvtph_ps(_mm_loadu_si128((const __m128i *)(x + i)));
         _mm256_storeu_ps(acc + i, _mm256_fmadd_ps(fv, v, _mm256_loadu_ps(acc + i)));
@@ -149,6 +159,22 @@ FSE_AVX2_TARGET static inline void fse_fma_i8_avx2(float *acc, const void *row, 
     const int8_t *x = (const int8_t *)row;
     __m256 fv = _mm256_set1_ps(f);
     int i = 0;
+    for (; i + 32 <= n; i += 32) {
+        __m256i c = _mm256_loadu_si256((const __m256i *)(x + i));
+        __m128i lo = _mm256_castsi256_si128(c), hi = _mm256_extracti128_si256(c, 1);
+        __m256 v0 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(lo));
+        __m256 v1 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(lo, 8)));
+        __m256 v2 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(hi));
+        __m256 v3 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(hi, 8)));
+        __m256 a0 = _mm256_fmadd_ps(fv, v0, _mm256_loadu_ps(acc + i));
+        __m256 a1 = _mm256_fmadd_ps(fv, v1, _mm256_loadu_ps(acc + i + 8));
+        __m256 a2 = _mm256_fmadd_ps(fv, v2, _mm256_loadu_ps(acc + i + 16));
+        __m256 a3 = _mm256_fmadd_ps(fv, v3, _mm256_loadu_ps(acc + i + 24));
+        _mm256_storeu_ps(acc + i, a0);
+        _mm256_storeu_ps(acc + i + 8, a1);
+        _mm256_storeu_ps(acc + i + 16, a2);
+        _mm256_storeu_ps(acc + i + 24, a3);
+    }
     for (; i + 8 <= n; i += 8) {
         __m256 v = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i *)(x + i))));
         _mm256_storeu_ps(acc + i, _mm256_fmadd_ps(fv, v, _mm256_loadu_ps(acc + i)));
@@ -179,6 +205,20 @@ static inline void fse_fma_f16_neon(float *acc, const void *row, float f, int n)
     const uint16_t *x = (const uint16_t *)row;
     float32x4_t fv = vdupq_n_f32(f);
     int i = 0;
+    /* 16 values per step, as for float32: one conversion per 4 halves is cheap, but the
+       loop overhead of 4 values per step costs more than the arithmetic. */
+    for (; i + 16 <= n; i += 16) {
+        float16x8_t h0 = vreinterpretq_f16_u16(vld1q_u16(x + i));
+        float16x8_t h1 = vreinterpretq_f16_u16(vld1q_u16(x + i + 8));
+        float32x4_t a0 = vfmaq_f32(vld1q_f32(acc + i), fv, vcvt_f32_f16(vget_low_f16(h0)));
+        float32x4_t a1 = vfmaq_f32(vld1q_f32(acc + i + 4), fv, vcvt_high_f32_f16(h0));
+        float32x4_t a2 = vfmaq_f32(vld1q_f32(acc + i + 8), fv, vcvt_f32_f16(vget_low_f16(h1)));
+        float32x4_t a3 = vfmaq_f32(vld1q_f32(acc + i + 12), fv, vcvt_high_f32_f16(h1));
+        vst1q_f32(acc + i, a0);
+        vst1q_f32(acc + i + 4, a1);
+        vst1q_f32(acc + i + 8, a2);
+        vst1q_f32(acc + i + 12, a3);
+    }
     for (; i + 4 <= n; i += 4) {
         float32x4_t v = vcvt_f32_f16(vreinterpret_f16_u16(vld1_u16(x + i)));
         vst1q_f32(acc + i, vfmaq_f32(vld1q_f32(acc + i), fv, v));
@@ -189,6 +229,22 @@ static inline void fse_fma_i8_neon(float *acc, const void *row, float f, int n) 
     const int8_t *x = (const int8_t *)row;
     float32x4_t fv = vdupq_n_f32(f);
     int i = 0;
+    for (; i + 16 <= n; i += 16) {
+        int8x16_t c = vld1q_s8(x + i);
+        int16x8_t lo = vmovl_s8(vget_low_s8(c)), hi = vmovl_high_s8(c);
+        float32x4_t v0 = vcvtq_f32_s32(vmovl_s16(vget_low_s16(lo)));
+        float32x4_t v1 = vcvtq_f32_s32(vmovl_high_s16(lo));
+        float32x4_t v2 = vcvtq_f32_s32(vmovl_s16(vget_low_s16(hi)));
+        float32x4_t v3 = vcvtq_f32_s32(vmovl_high_s16(hi));
+        float32x4_t a0 = vfmaq_f32(vld1q_f32(acc + i), fv, v0);
+        float32x4_t a1 = vfmaq_f32(vld1q_f32(acc + i + 4), fv, v1);
+        float32x4_t a2 = vfmaq_f32(vld1q_f32(acc + i + 8), fv, v2);
+        float32x4_t a3 = vfmaq_f32(vld1q_f32(acc + i + 12), fv, v3);
+        vst1q_f32(acc + i, a0);
+        vst1q_f32(acc + i + 4, a1);
+        vst1q_f32(acc + i + 8, a2);
+        vst1q_f32(acc + i + 12, a3);
+    }
     for (; i + 8 <= n; i += 8) {
         int16x8_t w = vmovl_s8(vld1_s8(x + i));
         float32x4_t lo = vcvtq_f32_s32(vmovl_s16(vget_low_s16(w)));
@@ -196,9 +252,40 @@ static inline void fse_fma_i8_neon(float *acc, const void *row, float f, int n) 
         vst1q_f32(acc + i, vfmaq_f32(vld1q_f32(acc + i), fv, lo));
         vst1q_f32(acc + i + 4, vfmaq_f32(vld1q_f32(acc + i + 4), fv, hi));
     }
+    if (i + 4 <= n) { /* 4 bytes through memcpy, so the load never reads past the row */
+        int32_t four;
+        memcpy(&four, x + i, sizeof four);
+        int16x8_t w = vmovl_s8(vreinterpret_s8_s32(vdup_n_s32(four)));
+        vst1q_f32(acc + i, vfmaq_f32(vld1q_f32(acc + i), fv, vcvtq_f32_s32(vmovl_s16(vget_low_s16(w)))));
+        i += 4;
+    }
     for (; i < n; i++) acc[i] = fmaf(f, (float)x[i], acc[i]);
 }
 #endif
+
+/* Multiply the row by inv if scale is set, and return whether it is not finite. One pass
+   without an early exit, so the compiler vectorizes it: a value is not finite exactly when
+   its exponent bits are all set. A finite accumulator stays finite times inv <= 1, so
+   checking after the scaling gives the same answer as checking before. */
+static inline int fse_finish_row(float *FSE_RESTRICT acc, int dim, float inv, int scale) {
+    uint32_t bad = 0;
+    if (scale) {
+        for (int i = 0; i < dim; i++) {
+            float v = inv * acc[i];
+            uint32_t u;
+            memcpy(&u, &v, sizeof u);
+            bad |= (uint32_t)((u & 0x7F800000u) == 0x7F800000u);
+            acc[i] = v;
+        }
+    } else {
+        for (int i = 0; i < dim; i++) {
+            uint32_t u;
+            memcpy(&u, &acc[i], sizeof u);
+            bad |= (uint32_t)((u & 0x7F800000u) == 0x7F800000u);
+        }
+    }
+    return bad != 0;
+}
 
 /* --- The batch loop, once per instruction set and dtype ----------------------------- */
 
@@ -242,14 +329,10 @@ static inline void fse_fma_i8_neon(float *acc, const void *row, float f, int n) 
                     FMA(acc, rows + (size_t)w * rb, f, dim);                                \
                 }                                                                           \
             }                                                                               \
-            for (int i = 0; i < dim; i++)                                                   \
-                if (!isfinite(acc[i])) return s;                                            \
             const int64_t n = end - begin;                                                  \
             if (counts) counts[s] = n;                                                      \
-            if (finish && n) {                                                              \
-                const float inv = 1.0f / (float)n;                                          \
-                for (int i = 0; i < dim; i++) acc[i] = inv * acc[i];                        \
-            }                                                                               \
+            if (fse_finish_row(acc, dim, finish && n ? 1.0f / (float)n : 1.0f, finish && n)) \
+                return s;                                                                   \
         }                                                                                   \
         return -1;                                                                          \
     }
