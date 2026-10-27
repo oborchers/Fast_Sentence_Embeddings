@@ -1,0 +1,30 @@
+{
+  "fse": "1.1.0",
+  "machine": "macOS-27.0.1-arm64-arm-64bit",
+  "vectors": "paranmt-300",
+  "sentences": 1000000,
+  "load_average": 7.21923828125,
+  "gram_max_relative_difference": 1.687036644236033e-07,
+  "component_angles_degrees": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.003234231606057606,
+    0.0043370939055387145,
+    0.005129733181766066,
+    0.007588881495413293,
+    0.01578846914735998
+  ],
+  "components_bit_identical_1_vs_10_workers": true,
+  "recall_at_10": {
+    "float16": 0.9943,
+    "int8": 0.9880000000000001
+  },
+  "top100_cosine_at_least": {
+    "0.5": 36.646,
+    "0.7": 4.95,
+    "0.9": 1.323
+  }
+}
