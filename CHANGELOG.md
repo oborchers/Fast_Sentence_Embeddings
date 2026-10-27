@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows [Semantic Versioning](https://semver.org/).
 
-## [1.1.0] - Unreleased
+## [1.1.0] - 2026-10-27
 
 1.1.0 is the last feature release of the 1.x line; 1.x receives bug and compatibility fixes from here on, while fse 2.0 is developed as a rewrite.
 
@@ -136,7 +136,7 @@ Changes from 0.1.11:
 - Fixed overflow when infer method is used with too many sentences.
 - Fixed similar_by_sentence bug.
 
-[1.1.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v1.0.0...HEAD
+[1.1.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v0.1.17...v0.2.0
 [0.1.17]: https://github.com/oborchers/Fast_Sentence_Embeddings/releases/tag/v0.1.17
