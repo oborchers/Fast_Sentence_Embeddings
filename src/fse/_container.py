@@ -26,6 +26,7 @@ import re
 import secrets
 import shutil
 import stat
+import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Protocol
@@ -40,6 +41,10 @@ from fse._contract import UnsupportedArtifactError
 DTYPE_CODES = {"F32": "<f4", "F16": "<f2", "I8": "|i1", "U8": "|u1", "U32": "<u4", "I64": "<i8"}
 
 TENSOR_NAME = re.compile(r"[a-z0-9_]+(\.[a-z0-9_]+)*")
+# Names safetensors reserves in its header; never names of tensors.
+RESERVED_NAMES = frozenset({"__metadata__"})
+# The largest dimension and number of bytes of a tensor, so numpy can describe it.
+MAX_INT64 = 2**63 - 1
 INTEGER = re.compile(r"0|[1-9][0-9]*")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _FINGERPRINT = re.compile(r"sha256:[0-9a-f]{64}")
@@ -152,8 +157,11 @@ def _check_for_writing(tensors: Mapping[str, ndarray], metadata: Mapping[str, st
             raise ValueError(f"{key} is written by the container, not by the caller")
     codes = {}
     for name, array in tensors.items():
-        if not isinstance(name, str) or not TENSOR_NAME.fullmatch(name):
-            raise ValueError(f"{name!r} is not a tensor name: [a-z0-9_]+ parts joined by dots")
+        if not isinstance(name, str) or not TENSOR_NAME.fullmatch(name) or name in RESERVED_NAMES:
+            raise ValueError(
+                f"{name!r} is not a tensor name: [a-z0-9_]+ parts joined by dots, "
+                f"not {', '.join(sorted(RESERVED_NAMES))}"
+            )
         if not isinstance(array, ndarray):
             raise TypeError(f"tensor {name} must be a numpy array, not {type(array).__name__}")
         if not array.flags.c_contiguous:
@@ -200,17 +208,43 @@ def _strict_json(raw: bytes, file: Path) -> Any:
         raise CorruptArtifactError(f"{file} contains {name}, which is not JSON")
 
     try:
-        return json.loads(raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=constant)
-    except (UnicodeDecodeError, json.JSONDecodeError) as err:
+        value = json.loads(raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=constant)
+    except CorruptArtifactError:
+        raise
+    except (UnicodeDecodeError, ValueError, RecursionError) as err:
+        # ValueError covers json.JSONDecodeError and integers beyond Python's digit limit,
+        # RecursionError a nesting too deep for the parser.
         raise CorruptArtifactError(f"{file} is not valid JSON: {err}") from err
+    _check_strings(value, file)
+    return value
+
+
+def _check_strings(value: Any, file: Path, depth: int = 0):
+    """Reject strings without a UTF-8 form (lone surrogates from \\u escapes)."""
+    if isinstance(value, str):
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError:
+            raise CorruptArtifactError(f"{file} holds a string that is not valid UTF-8") from None
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            _check_strings(key, file)
+            _check_strings(item, file, depth + 1)
+    elif isinstance(value, list):
+        for item in value:
+            _check_strings(item, file, depth + 1)
 
 
 def _shape(value: Any) -> bool:
-    return (
-        isinstance(value, list)
-        and len(value) <= MAX_RANK
-        and all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in value)
-    )
+    """A shape numpy can describe: at most MAX_RANK non-negative int64 dimensions whose
+    non-zero product stays within int64 (also for tensors with a zero dimension)."""
+    if not isinstance(value, list) or len(value) > MAX_RANK:
+        return False
+    if not all(
+        isinstance(n, int) and not isinstance(n, bool) and 0 <= n <= MAX_INT64 for n in value
+    ):
+        return False
+    return math.prod(n for n in value if n) * 8 <= MAX_INT64
 
 
 def _open_regular(file: Path):
@@ -294,13 +328,9 @@ def _read_manifest(path: Path) -> dict[str, Any]:
                 f"{file}: tensor {name} has the unknown dtype {entry['dtype']!r}"
             )
         shape = entry["shape"]
-        if (
-            not isinstance(shape, list)
-            or len(shape) > MAX_RANK
-            or not all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in shape)
-        ):
+        if not _shape(shape):
             raise CorruptArtifactError(
-                f"{file}: the shape of tensor {name} must be non-negative ints"
+                f"{file}: the shape of tensor {name} must be non-negative ints that numpy can hold"
             )
     return manifest
 
@@ -561,7 +591,7 @@ def _read_safetensors_header(handle, file: Path) -> tuple[int, dict, dict[str, s
             )
         if not _shape(entry["shape"]):
             raise CorruptArtifactError(
-                f"{file}: the shape of tensor {name} must be non-negative ints"
+                f"{file}: the shape of tensor {name} must be non-negative ints that numpy can hold"
             )
         offsets = entry["data_offsets"]
         if (
@@ -641,9 +671,10 @@ class SafetensorsContainer:
         length += -(_SAFETENSORS_LENGTH + length) % ALIGNMENT
         if length > MAX_SAFETENSORS_HEADER_BYTES:
             raise ValueError(f"the header would exceed {MAX_SAFETENSORS_HEADER_BYTES} bytes")
-        tmp = path.parent / f".{path.name}.writing-{secrets.token_hex(4)}"
+        descriptor, name = tempfile.mkstemp(prefix=f".{path.name}.writing-", dir=path.parent)
+        tmp = Path(name)  # created by this call, so only this call removes it
         try:
-            with tmp.open("xb") as f:
+            with os.fdopen(descriptor, "wb") as f:
                 f.write(b"\0" * (_SAFETENSORS_LENGTH + length))
                 checksums = {}
                 for name in order:
@@ -652,7 +683,9 @@ class SafetensorsContainer:
                     if array.size:
                         view = memoryview(array.reshape(-1).view(np.uint8))
                         for begin in range(0, len(view), _CHUNK):
-                            part = view[begin : begin + _CHUNK]
+                            # One immutable copy is hashed and written, so the file holds
+                            # exactly what its checksum describes even if the source changes.
+                            part = bytes(view[begin : begin + _CHUNK])
                             digest.update(part)
                             f.write(part)
                     checksums[name] = digest.hexdigest()
@@ -694,6 +727,7 @@ class SafetensorsContainer:
     def open(self, path, *, mmap: bool) -> tuple[dict[str, ndarray], dict[str, str]]:
         path = Path(path)
         with _open_regular(path) as handle:
+            before = _identity(handle)
             start, layout, metadata = _read_safetensors_header(handle, path)
             entries = _integrity(path, {n: (c, s) for n, (c, s, _, _) in layout.items()}, metadata)
             size = max((end for _, _, _, end in layout.values()), default=0)
@@ -707,6 +741,7 @@ class SafetensorsContainer:
                 raw = handle.read(size)
                 if len(raw) != size:
                     raise CorruptArtifactError(f"{path} ended early")
+                _unchanged(handle, path, before)
         tensors = {}
         for name, (code, shape, begin, end) in layout.items():
             dtype = np.dtype(DTYPE_CODES[code])
@@ -738,6 +773,7 @@ class SafetensorsContainer:
     def verify(self, path):
         path = Path(path)
         with _open_regular(path) as handle:
+            before = _identity(handle)
             start, layout, metadata = _read_safetensors_header(handle, path)
             entries = _integrity(path, {n: (c, s) for n, (c, s, _, _) in layout.items()}, metadata)
             for name, (_, _, begin, end) in layout.items():
@@ -754,12 +790,39 @@ class SafetensorsContainer:
                     raise CorruptArtifactError(
                         f"tensor {name} of {path} does not match its checksum"
                     )
+            _unchanged(handle, path, before)
+
+
+def _identity(handle) -> tuple[int, int]:
+    info = os.fstat(handle.fileno())
+    return info.st_size, info.st_mtime_ns
+
+
+def _unchanged(handle, path: Path, before: tuple[int, int]):
+    """Raise if the file changed size or time while it was read (another writer)."""
+    if _identity(handle) != before:
+        raise CorruptArtifactError(f"{path} changed while it was read")
+
+
+def _move_write_through(tmp: Path, path: Path):  # pragma: no cover - Windows only
+    """MoveFileExW with MOVEFILE_WRITE_THROUGH and without MOVEFILE_REPLACE_EXISTING."""
+    import ctypes  # noqa: PLC0415 - Windows only
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+    move = kernel32.MoveFileExW
+    move.argtypes = (ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32)
+    move.restype = ctypes.c_int
+    if not move(str(tmp), str(path), 0x8):
+        error = ctypes.get_last_error()  # type: ignore[attr-defined]
+        if error in (80, 183):  # ERROR_FILE_EXISTS, ERROR_ALREADY_EXISTS
+            raise FileExistsError(f"{path} exists; an artifact is never overwritten")
+        raise ctypes.WinError(error)  # type: ignore[attr-defined]
 
 
 def _publish(tmp: Path, path: Path):
     """Move the finished ``tmp`` to ``path`` without ever replacing an existing file."""
-    if os.name == "nt":
-        os.rename(tmp, path)  # Windows never replaces an existing target
+    if os.name == "nt":  # pragma: no cover - tested on the Windows runners of CI
+        _move_write_through(tmp, path)
         return
     os.link(tmp, path)  # fails with FileExistsError if path exists meanwhile
     tmp.unlink()

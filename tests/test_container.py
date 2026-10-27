@@ -419,10 +419,10 @@ def test_mapped_artifact_can_be_removed_after_release(tmp_path, windows_file_map
 
 
 def test_shape_products_do_not_overflow(tmp_path):
-    """(2**32, 2**32) wraps to 0 in int64; the size check must still fail.
+    """(2**32, 2**32) wraps to 0 in int64; such a shape is rejected before any size.
 
-    The manifest is consistent (checksum of no data, fingerprint), so the open reaches
-    the size check, which an int64 product would pass for an empty file.
+    The manifest is consistent (checksum of no data, fingerprint), so only the shape
+    rule can reject it.
     """
     path = tmp_path / "a"
     NpyContainer().write(path, {"vectors": np.zeros((0, 0), F32)}, {})
@@ -436,9 +436,9 @@ def test_shape_products_do_not_overflow(tmp_path):
     _save_manifest(path, manifest)
     (path / "vectors.npy").write_bytes(_npy_header(shape=shape))
     for mmap in (False, True):
-        with pytest.raises(CorruptArtifactError, match="bytes,"):
+        with pytest.raises(CorruptArtifactError, match="numpy can hold"):
             NpyContainer().open(path, mmap=mmap)
-    with pytest.raises(CorruptArtifactError, match="bytes,"):
+    with pytest.raises(CorruptArtifactError, match="numpy can hold"):
         NpyContainer().verify(path)
 
 

@@ -265,7 +265,12 @@ CORRUPTIONS = {
     "overflowing shape": (
         _edit(_vectors({"shape": [2**32, 2**32]})),
         CorruptArtifactError,
-        "do not fit its shape",
+        "numpy can hold",
+    ),
+    "huge empty shape": (
+        _edit(_vectors({"shape": [0, 2**64]})),
+        CorruptArtifactError,
+        "numpy can hold",
     ),
     "unaligned tensor": (
         _edit(lambda h: [h["vocab.offsets"].update(data_offsets=[17, 41])]),
@@ -402,3 +407,122 @@ def test_files_of_the_reference_library_lack_our_checksums(tmp_path):
     save_file({"x": np.ones(2, F32)}, str(path), metadata={"a": "b"})
     with pytest.raises(CorruptArtifactError, match="checksum keys"):
         SafetensorsContainer().open(path, mmap=False)
+
+
+def test_reserved_names_are_no_tensor_names(tmp_path):
+    with pytest.raises(ValueError, match="not __metadata__"):
+        SafetensorsContainer().write(
+            tmp_path / "a.safetensors", {"__metadata__": np.ones(1, F32)}, {}
+        )
+
+
+def test_strings_without_utf8_form_are_rejected(tmp_path):
+    path = _written(tmp_path)
+    header, data = _parts(path)
+    text = json.dumps(header).replace(
+        '"fse.dim": "2"', '"fse.dim": "2", "fse.created_by": "\\ud800"'
+    )
+    _assemble(path, None, data, raw_header=text.encode())
+    with pytest.raises(CorruptArtifactError, match="not valid UTF-8"):
+        SafetensorsContainer().open(path, mmap=False)
+
+
+def test_deeply_nested_headers_are_corrupt_not_a_crash(tmp_path):
+    path = tmp_path / "a.safetensors"
+    _assemble(path, None, b"", raw_header=b'{"x": ' + b"[" * 100_000 + b"]" * 100_000 + b"}")
+    with pytest.raises(CorruptArtifactError, match="not valid JSON"):
+        SafetensorsContainer().open(path, mmap=False)
+
+
+def test_a_file_changed_while_read_raises(tmp_path, monkeypatch):
+    import fse._container as container
+
+    path = _written(tmp_path)
+    calls = []
+    original = container._identity
+
+    def changing(handle):
+        calls.append(1)
+        size, time = original(handle)
+        return (size, time + len(calls))  # a different time on every call
+
+    monkeypatch.setattr(container, "_identity", changing)
+    with pytest.raises(CorruptArtifactError, match="changed while it was read"):
+        SafetensorsContainer().open(path, mmap=False)
+    with pytest.raises(CorruptArtifactError, match="changed while it was read"):
+        SafetensorsContainer().verify(path)
+
+
+@pytest.mark.parametrize("with_expected", [False, True])
+def test_written_bytes_are_the_hashed_bytes(tmp_path, monkeypatch, with_expected):
+    """A source that changes while it is written never gives a file that breaks its checksums."""
+    import fse._container as container
+
+    monkeypatch.setattr(container, "_CHUNK", 8)
+    source = np.arange(16, dtype=F32)
+    expected = {"x": array_sha256(source)} if with_expected else None
+    real_sha256 = container.hashlib.sha256
+
+    class Changing:
+        def __init__(self, data=b""):
+            self.inner = real_sha256(data)
+
+        def update(self, data):
+            self.inner.update(data)
+            source[:] += 1  # the source changes right after every hashed block
+
+        def hexdigest(self):
+            return self.inner.hexdigest()
+
+    monkeypatch.setattr(container.hashlib, "sha256", Changing)
+    path = tmp_path / "a.safetensors"
+    if with_expected:
+        with pytest.raises(CorruptArtifactError, match="changed since it was checked"):
+            SafetensorsContainer().write(path, {"x": source}, {}, expected=expected)
+        assert not path.exists()
+        return
+    SafetensorsContainer().write(path, {"x": source}, {})
+    monkeypatch.setattr(container.hashlib, "sha256", real_sha256)
+    SafetensorsContainer().verify(path)  # the file matches its own checksums
+    SafetensorsContainer().open(path, mmap=False)
+
+
+def test_our_reader_takes_files_of_the_reference_library_with_fse_metadata(tmp_path):
+    pytest.importorskip("safetensors")
+    from safetensors.numpy import save_file
+
+    tensors = {
+        "scalar": np.array(F32(3.5)),
+        "empty_a": np.zeros((0, 4), F32),
+        "empty_b": np.zeros(0, np.int8),
+        "matrix": np.arange(6, dtype=np.int64).reshape(2, 3),
+    }
+    metadata = {"fse.kind": "test"}
+    entries = {k: (tensor_code(v), v.shape, array_sha256(v)) for k, v in tensors.items()}
+    for name, (_, _, digest) in entries.items():
+        metadata[f"fse.checksum.{name}"] = digest
+    metadata["fse.fingerprint"] = fingerprint(entries, metadata)
+    path = tmp_path / "ref.safetensors"
+    save_file(tensors, str(path), metadata=metadata)
+    for mmap in (False, True):
+        opened, read = SafetensorsContainer().open(path, mmap=mmap)
+        assert read["fse.fingerprint"] == metadata["fse.fingerprint"]
+        for name, array in tensors.items():
+            assert opened[name].shape == array.shape
+            assert opened[name].tobytes() == array.tobytes()
+    SafetensorsContainer().verify(path)
+
+
+def test_only_empty_tensors_and_no_tensors(tmp_path):
+    for name, tensors in (
+        ("empty", {"a": np.zeros((0, 2), F32), "b": np.zeros(0, np.int8)}),
+        ("none", {}),
+    ):
+        path = tmp_path / f"{name}.safetensors"
+        SafetensorsContainer().write(path, tensors, {"fse.kind": "test"})
+        for mmap in (False, True):
+            opened, _ = SafetensorsContainer().open(path, mmap=mmap)
+            assert {k: v.shape for k, v in opened.items()} == {
+                k: v.shape for k, v in tensors.items()
+            }
+        SafetensorsContainer().verify(path)
