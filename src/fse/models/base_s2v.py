@@ -746,12 +746,13 @@ class BaseSentence2VecModel(SaveLoad):
         """Return an object whose next_job() yields encoded jobs, then None."""
         raise NotImplementedError()
 
-    def _list_chunk_rows(self, sentences: Any, statistics: dict[str, Any]) -> int:
-        """Rows per chunk when workers read a Python list themselves, or 0 for the producer.
+    def _list_plan_for(self, sentences: Any, statistics: dict[str, Any]) -> Any:
+        """How workers read a Python list themselves, or None for the producer.
 
-        Set for one training as ``_list_plan``; infer keeps the producer path.
+        Kept for one training as ``_list_plan``, whose ``rows`` bound the rows of a job;
+        infer keeps the producer path.
         """
-        return 0
+        return None
 
     def _run_encoded_job(
         self, context: Any, job: Any, memory: tuple[ndarray, ndarray]
@@ -849,6 +850,8 @@ class BaseSentence2VecModel(SaveLoad):
                 (self.sv, "inv_norms"),
             ]
         stored = [(obj, name, getattr(obj, name)) for obj, name in removed]
+        # Only exists during training, for example when a hook saves the model.
+        plan = self.__dict__.pop("_list_plan", None)
         try:
             for obj, name in removed:
                 setattr(obj, name, None)
@@ -856,6 +859,8 @@ class BaseSentence2VecModel(SaveLoad):
         finally:
             for obj, name, value in stored:
                 setattr(obj, name, value)
+            if plan is not None:
+                self.__dict__["_list_plan"] = plan
 
     def scan_sentences(self, sentences: Any = None, progress_per: int = 5) -> dict[str, Any]:
         """Performs an initial scan of the data and reports all corresponding statistics
@@ -1099,10 +1104,13 @@ class BaseSentence2VecModel(SaveLoad):
         """The body of :meth:`train`, after validation of its arguments."""
         call_start = time()
         self._check_input_data_sanity(sentences)
+        # A plan of an earlier call, for example from a hook that saved the model, never
+        # carries over.
+        self.__dict__.pop("_list_plan", None)
         statistics = self.scan_sentences(sentences)
-        rows = self._list_chunk_rows(sentences, statistics)
-        if rows:
-            self.__dict__["_list_plan"] = (rows, bool(statistics["identity_indices"]))
+        plan = self._list_plan_for(sentences, statistics)
+        if plan is not None:
+            self.__dict__["_list_plan"] = plan
 
         self._check_pre_training_sanity(update=update, **statistics)
 
@@ -1321,7 +1329,7 @@ class BaseSentence2VecModel(SaveLoad):
         """The most rows one job can hold: a native or list chunk, or batch_words."""
         plan = self.__dict__.get("_list_plan")
         if plan is not None:
-            return plan[0]
+            return int(plan.rows)
         state = getattr(sentences, "_scan_state", None)
         if state is not None and state[1]:
             return max(int(count) for *_, count in state[1])
@@ -1692,11 +1700,12 @@ class BaseSentence2VecModel(SaveLoad):
                 encoder = self._job_encoder(context, data_iterable)
                 single_pass = self.__dict__.get("_single_pass")
                 while not stop.is_set() and (job := encoder.next_job()) is not None:
+                    put = perf_counter()
                     if single_pass is not None:
                         # Before any worker writes rows that another job could also cover.
+                        # It may wait for a free window, which counts as waiting.
                         single_pass.check_job(job, stop)
                     job_no += 1
-                    put = perf_counter()
                     job_queue.put((job.n_items, job))
                     blocked += perf_counter() - put
                 data_iterable = ()
@@ -1712,12 +1721,16 @@ class BaseSentence2VecModel(SaveLoad):
                     batch_size += data_length
                 else:
                     job_no += 1
+                    put = perf_counter()
                     job_queue.put(job_batch)
+                    blocked += perf_counter() - put
                     job_batch, batch_size = [data], data_length
 
             if job_batch and not stop.is_set():
                 job_no += 1
+                put = perf_counter()
                 job_queue.put(job_batch)
+                blocked += perf_counter() - put
         except BaseException as err:
             errors.append(err)
             stop.set()

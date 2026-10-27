@@ -7,6 +7,7 @@ import ctypes
 import logging
 import os
 import sys
+import threading
 import warnings
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -46,6 +47,13 @@ EPS = finfo(REAL).eps
 REMOVAL_BLOCK_ROWS = 16_384
 
 
+# Limits of the blas_threads blocks that are active in any thread, and the threadpoolctl
+# object of the first one, which restores the limits from before all of them.
+_blas_lock = threading.Lock()
+_blas_active: list[int] = []
+_blas_original: Any = None
+
+
 @contextmanager
 def blas_threads(workers: int) -> Iterator[None]:
     """Share the cores between ``workers`` threads that each call BLAS.
@@ -53,15 +61,32 @@ def blas_threads(workers: int) -> Iterator[None]:
     Workers compute Gram block products and remove components with BLAS. Without a limit,
     a multithreaded BLAS such as OpenBLAS starts its own threads in every worker, and
     workers times cores threads compete for the cores. With more than one worker, BLAS
-    gets ``usable_cpus() // workers`` threads (at least one) until the block ends, and the
-    previous limits are restored afterwards. The limit holds for the whole process,
-    also for other threads that call BLAS meanwhile.
+    gets ``usable_cpus() // workers`` threads (at least one) until the block ends. The
+    limit holds for the whole process: blocks that overlap, also in other threads, apply
+    the smallest active limit, and the last one to end restores the limits from before
+    the first, whatever order they end in.
     """
+    global _blas_original
     if workers <= 1:
         yield
         return
-    with threadpool_limits(limits=max(1, usable_cpus() // workers), user_api="blas"):
+    limit = max(1, usable_cpus() // workers)
+    with _blas_lock:
+        if not _blas_active:
+            _blas_original = threadpool_limits(limits=limit, user_api="blas")
+        else:
+            threadpool_limits(limits=min(*_blas_active, limit), user_api="blas")
+        _blas_active.append(limit)
+    try:
         yield
+    finally:
+        with _blas_lock:
+            _blas_active.remove(limit)
+            if _blas_active:
+                threadpool_limits(limits=min(_blas_active), user_api="blas")
+            else:
+                original, _blas_original = _blas_original, None
+                original.restore_original_limits()
 
 
 def usable_cpus() -> int:

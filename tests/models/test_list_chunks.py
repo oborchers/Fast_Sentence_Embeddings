@@ -5,6 +5,7 @@ bytes while holding the GIL, then looks them up and averages without it. Every r
 equal the JobEncoder of the producer thread, which stays for one worker and for infer.
 """
 
+import contextlib
 import random
 
 import numpy as np
@@ -71,7 +72,7 @@ def _spy(monkeypatch):
 
 
 def _producer_only(model):
-    model._list_chunk_rows = lambda sentences, statistics: 0
+    model._list_plan_for = lambda sentences, statistics: None
     return model
 
 
@@ -140,8 +141,11 @@ def test_c_indexed_list_reads_its_indices(monkeypatch, w2v, index):
     assert sum(calls) == len(sentences)
     reference = _producer_only(fse.Average(w2v, workers=3))
     assert reference.train(CIndexedList(sentences, custom_index=custom)) == counts
-    # Several sentences on one row are added in any order: float32 rounding only.
-    np.testing.assert_allclose(model.sv.vectors, reference.sv.vectors, rtol=1e-6, atol=1e-7)
+    if len(set(np.asarray(custom).tolist())) == len(custom):
+        assert np.array_equal(model.sv.vectors, reference.sv.vectors)
+    else:
+        # Several sentences on one row are added in any order: float32 rounding only.
+        np.testing.assert_allclose(model.sv.vectors, reference.sv.vectors, rtol=1e-6, atol=1e-7)
 
 
 class _Words(list):
@@ -246,3 +250,81 @@ def test_run_list_chunk_validates_its_arguments(w2v):
     with pytest.raises(IndexError, match="out of range"):
         run_list_chunk(context, table, items, None, 0, 3, 1, scratch)
     assert run_list_chunk(context, table, items, None, 0, 3, 0, scratch) == (2, 2)
+
+
+@pytest.mark.usefixtures("small_chunks")
+def test_empty_tokens_and_lone_surrogates_match_the_job_encoder(monkeypatch, w2v):
+    """An empty token and a word without a UTF-8 form are unknown words, as for the
+    JobEncoder; FastText hashes unknown words, so both paths raise for a surrogate."""
+    sentences = [["", "the", "\ud800", "dog"], [""], ["\ud800"], ["is", "", "good"]] * 30
+    calls = _spy(monkeypatch)
+    model = fse.Average(w2v, workers=2)
+    counts = model.train(IndexedList(sentences))
+    assert calls
+    reference = _producer_only(fse.Average(w2v, workers=2))
+    assert reference.train(IndexedList(sentences)) == counts
+    assert np.array_equal(model.sv.vectors, reference.sv.vectors)
+
+
+def test_fasttext_raises_for_a_lone_surrogate_on_both_paths(ft):
+    sentences = [["the", "\ud800"]] * 20
+    for model in (fse.Average(ft, workers=2), _producer_only(fse.Average(ft, workers=2))):
+        with pytest.raises(UnicodeEncodeError):
+            model.train(IndexedList(sentences))
+
+
+def test_a_vocabulary_without_utf8_keeps_the_job_encoder(monkeypatch):
+    model = Word2Vec(min_count=1, vector_size=8, seed=1, workers=1)
+    model.build_vocab([["the", "dog", "\ud800"]])
+    calls = _spy(monkeypatch)
+    fse.Average(model, workers=2).train(IndexedList([["the", "\ud800"]] * 10))
+    assert calls == []
+
+
+class _ConstantIndex(list):
+    def __getitem__(self, i):
+        return 0
+
+
+@pytest.mark.parametrize(
+    "custom",
+    [_ConstantIndex([1, 0, 3, 2]), np.array([1.0, 0.0, 3.0, 2.0]), np.array([[1], [0], [3], [2]])],
+    ids=["list-subclass", "float-array", "2d-array"],
+)
+def test_other_index_containers_keep_the_job_encoder(monkeypatch, w2v, custom):
+    calls = _spy(monkeypatch)
+    model = fse.Average(w2v, workers=2)
+    # The scan may reject the container itself; it must not reach list chunks.
+    with contextlib.suppress(TypeError, ValueError):
+        model.train(CIndexedList([["the"], ["dog"], ["is"], ["good"]], custom_index=custom))
+    assert calls == []
+
+
+@pytest.mark.usefixtures("small_chunks")
+def test_a_c_indexed_list_that_shrinks_after_the_scan_raises(w2v):
+    sentences = [["the", "dog"] for _ in range(20)]
+    custom = list(range(19, -1, -1))
+    model = fse.Average(w2v, workers=2)
+
+    def shrink():
+        del sentences[10:]
+        del custom[10:]
+
+    _change_after_scan(model, shrink)
+    with pytest.raises(RuntimeError, match="the scan found 20"):
+        model.train(CIndexedList(sentences, custom_index=custom))
+
+
+def test_a_model_saved_during_training_holds_no_list_plan(monkeypatch, w2v, tmp_path):
+    model = fse.Average(w2v, workers=2)
+    post = Average._post_train_calls
+
+    def save_then_post(self, **kwargs):
+        assert "_list_plan" in self.__dict__
+        self.save(str(tmp_path / "model"))
+        return post(self, **kwargs)
+
+    monkeypatch.setattr(Average, "_post_train_calls", save_then_post)
+    model.train(IndexedList([["the", "dog"]] * 10))
+    assert "_list_plan" not in model.__dict__
+    assert "_list_plan" not in Average.load(str(tmp_path / "model")).__dict__

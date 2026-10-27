@@ -993,3 +993,24 @@ def test_split_indexed_list_keeps_the_python_path_for_other_items(monkeypatch, n
         reference = fse.Average(native_w2v)
         reference.train(IndexedList(expected))
         assert np.array_equal(model.sv.vectors, reference.sv.vectors)
+
+
+def test_split_indexed_list_changed_between_scan_and_training_raises(native_w2v):
+    texts = SplitIndexedList(["the dog", "is good"])
+    model = fse.Average(native_w2v, workers=2)
+    scan = model.scan_sentences
+
+    def scan_then_change(*args, **kwargs):
+        statistics = scan(*args, **kwargs)
+        texts[0] = "good dog"
+        return statistics
+
+    model.scan_sentences = scan_then_change
+    with pytest.raises(RuntimeError, match="changed between the scan and training"):
+        model.train(texts)
+    assert texts._native_source is None
+
+
+def test_split_indexed_list_of_an_ndarray_keeps_the_python_path(native_w2v):
+    texts = SplitIndexedList(np.array(["the dog", "is good"]))
+    assert texts._scan_native(workers=2, progress=lambda *a: None) is None

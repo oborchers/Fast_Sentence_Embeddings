@@ -1,6 +1,8 @@
 """Automated tests for the principal component helpers."""
 
 import sys
+import threading
+from typing import ClassVar
 
 import numpy as np
 import pytest
@@ -405,32 +407,64 @@ def _blas_limits():
     return [(i["filepath"], i["num_threads"]) for i in threadpool_info() if i["user_api"] == "blas"]
 
 
-def test_blas_threads_shares_the_cores_and_restores_the_limits(monkeypatch):
+class _FakeLimits:
+    """Records threadpool_limits calls; restore_original_limits marks the end."""
+
+    calls: ClassVar[list] = []
+
+    def __init__(self, limits, user_api):
+        _FakeLimits.calls.append(limits)
+
+    def restore_original_limits(self):
+        _FakeLimits.calls.append("restored")
+
+
+@pytest.fixture
+def fake_limits(monkeypatch):
+    from fse.models import utils
+
+    _FakeLimits.calls = []
+    monkeypatch.setattr(utils, "threadpool_limits", _FakeLimits)
+    monkeypatch.setattr(utils, "usable_cpus", lambda: 16)
+    return _FakeLimits.calls
+
+
+def test_blas_threads_shares_the_cores_and_restores_the_limits(fake_limits):
     """With several workers BLAS gets its share of the cores, also after an error."""
     from fse.models import utils
 
-    calls = []
-
-    class Limits:
-        def __init__(self, limits, user_api):
-            calls.append((limits, user_api))
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *exc):
-            calls.append("restored")
-
-    monkeypatch.setattr(utils, "threadpool_limits", Limits)
-    monkeypatch.setattr(utils, "usable_cpus", lambda: 16)
     with utils.blas_threads(1):
         pass
-    assert calls == []
+    assert fake_limits == []
     with utils.blas_threads(4):
         pass
     with pytest.raises(RuntimeError), utils.blas_threads(32):
         raise RuntimeError("worker failed")
-    assert calls == [(4, "blas"), "restored", (1, "blas"), "restored"]
+    assert fake_limits == [4, "restored", 1, "restored"]
+
+
+def test_overlapping_blas_threads_restore_once_in_any_order(fake_limits):
+    """Blocks in two threads that end in the other order keep the smallest active limit
+    and restore the original limits only when the last one ends."""
+    from fse.models import utils
+
+    entered, release_first = threading.Event(), threading.Event()
+
+    def first():
+        with utils.blas_threads(4):  # 4 threads
+            entered.set()
+            release_first.wait()
+
+    thread = threading.Thread(target=first)
+    thread.start()
+    entered.wait()
+    second = utils.blas_threads(8)  # 2 threads
+    second.__enter__()
+    release_first.set()
+    thread.join()
+    assert fake_limits == [4, 2, 2]  # the first ended: the second's limit stays
+    second.__exit__(None, None, None)
+    assert fake_limits == [4, 2, 2, "restored"]
 
 
 def test_blas_threads_leaves_the_real_limits_as_they_were():

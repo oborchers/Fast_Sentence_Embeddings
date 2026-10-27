@@ -461,6 +461,8 @@ cdef inline int _push_i64(_Buffer *b, np.int64_t value) except -1:
 
 
 cdef inline int _push_bytes(_Buffer *b, const char *data, Py_ssize_t n) except -1:
+    if n == 0:
+        return 0  # b.data may still be NULL, and memcpy needs valid pointers
     _reserve(b, n)
     memcpy(b.data + b.size, data, n)
     b.size += n
@@ -1276,6 +1278,8 @@ cdef int _push_i64_nogil(_Buffer *b, np.int64_t value) noexcept nogil:
 
 
 cdef int _push_bytes_nogil(_Buffer *b, const unsigned char *data, Py_ssize_t n) noexcept nogil:
+    if n == 0:
+        return 0  # b.data may still be NULL, and memcpy needs valid pointers
     if n > b.capacity - b.size:
         if _grow_nogil(b, n) != 0:
             return -1
@@ -1497,6 +1501,9 @@ cdef extern from "Python.h":
     bint _is_exact_list "PyList_CheckExact"(PyObject *)
     bint _is_exact_str "PyUnicode_CheckExact"(PyObject *)
     const char *_str_utf8 "PyUnicode_AsUTF8AndSize"(PyObject *, Py_ssize_t *) except NULL
+    # The same call without raising: NULL with the error set, as for lone surrogates.
+    const char *_str_utf8_or_null "PyUnicode_AsUTF8AndSize"(PyObject *, Py_ssize_t *)
+    void _clear_error "PyErr_Clear"()
 
 
 cdef int _average_token_spans(
@@ -1608,12 +1615,15 @@ def run_list_chunk(KernelContext ctx, VocabTable table, list items, indices,
     memset(&ngrams, 0, sizeof(_Buffer))
     cdef PyObject *sentence
     cdef PyObject *token
-    cdef Py_ssize_t i, t, n, size, n_tokens = 0, n_sentences = 0, eff_words = 0
+    cdef Py_ssize_t i, t, n, size, kept, n_tokens = 0, n_sentences = 0, eff_words = 0
+    cdef bint is_ft = ctx.params.is_ft
     cdef np.int64_t row
     cdef const char *utf8
     cdef REAL_t *mem = <REAL_t *>(np.PyArray_DATA(scratch))
     cdef int status
     try:
+        # One byte, so the token spans point into a buffer even if all tokens are empty.
+        _reserve(&data, 1)
         for i in range(begin, end):
             # The index first: reading it may run Python code, the tokens below do not.
             if indices is None:
@@ -1636,16 +1646,26 @@ def run_list_chunk(KernelContext ctx, VocabTable table, list items, indices,
             n = _list_size(sentence)
             if n == 0:
                 continue
+            kept = 0
             for t in range(n):
                 token = _list_item(sentence, t)
                 if not _is_exact_str(token):
                     raise RuntimeError(
                         f"sentence {i} no longer holds only str: the input changed after the scan"
                     )
-                utf8 = _str_utf8(token, &size)
+                utf8 = _str_utf8_or_null(token, &size)
+                if utf8 == NULL:
+                    # No UTF-8 form (a lone surrogate), so not in the VocabTable either. The
+                    # JobEncoder skips such an unknown word of a Word2Vec-style model, and
+                    # raises for FastText, which hashes it: raise the same error.
+                    _clear_error()
+                    if is_ft:
+                        _str_utf8(token, &size)  # raises the UnicodeEncodeError again
+                    continue
                 _push_bytes(&data, utf8, size)
                 _push_i64(&token_ends, data.size)
-            n_tokens += n
+                kept += 1
+            n_tokens += kept
             n_sentences += 1
             _push_i64(&sentence_ends, n_tokens)
             _push_u32(&targets, <uINT_t>row)
