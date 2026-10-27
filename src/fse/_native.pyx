@@ -359,7 +359,7 @@ cdef class VocabTable:
     vocab_offsets[i + 1]]``. Open addressing with linear probing, at most half full. Each
     32-byte slot holds the hash, the index and, for words of up to INLINE_KEY_BYTES bytes,
     the word itself, so a lookup usually reads one cache line; longer words are compared
-    in vocab_bytes, which the table keeps (it may be memory-mapped).
+    in the table's own copy of vocab_bytes.
     """
 
     cdef object _bytes
@@ -384,10 +384,9 @@ cdef class VocabTable:
         ):
             raise ValueError(f"vocab_offsets must run from 0 to {len(vocab_bytes)}, the number of bytes")
         # Own copies, so arrays the caller still holds cannot change a checked table; a
-        # read-only vocab_bytes (word vectors, a memory map) is kept as it is.
+        # read-only view can still have a writable base.
         vocab_offsets = vocab_offsets.copy()
-        if vocab_bytes.flags.writeable:
-            vocab_bytes = vocab_bytes.copy()
+        vocab_bytes = vocab_bytes.copy()
         lengths = vocab_offsets[1:] - vocab_offsets[: len(vocab_offsets) - 1]
         if (lengths < 0).any():
             raise ValueError("vocab_offsets must not decrease")
@@ -1302,6 +1301,16 @@ cdef class TextLookup:
         """
         from fse._contract import Batch
 
+        if offsets is not None:
+            # An own copy of the offsets of the range, so the caller cannot change them
+            # between the check and the reads without the GIL.
+            if not isinstance(offsets, np.ndarray) or offsets.dtype != np.int64 or offsets.ndim != 1:
+                raise ValueError("offsets must be an int64 vector")
+            if not 0 <= first <= last <= len(offsets) - 1:
+                raise ValueError(f"range [{first}, {last}) is outside the {len(offsets) - 1} strings")
+            offsets = offsets[first : last + 1].copy()
+            last -= first
+            first = 0
         _check_span(data, offsets, first, last)
         if ws.busy:
             raise RuntimeError("a Workspace is used by one thread at a time")

@@ -66,16 +66,29 @@ def _corpus() -> list[str]:
 CORPUS = _corpus()
 
 
+def assert_tokens_equal(got: list[str], want: list[str], text: str) -> None:
+    """The comparison of every token test: the same tokens in the same order."""
+    if got != want:
+        raise AssertionError(f"{text!r}: {got!r} != {want!r}")
+
+
+def test_the_token_comparison_catches_wrong_tokens():
+    assert_tokens_equal(["a", "b"], ["a", "b"], "a b")
+    for wrong in (["b", "a"], ["a"], ["a", "b", "c"], ["a", "B"], []):
+        with pytest.raises(AssertionError):
+            assert_tokens_equal(wrong, ["a", "b"], "a b")
+
+
 def test_native_matches_the_golden_tokens():
     for text, tokens in GOLDEN["cases"]:
-        assert _native.tokenize(text) == tokens, text
+        assert_tokens_equal(_native.tokenize(text), tokens, text)
 
 
 @pytest.mark.parametrize("tokenizer", TOKENIZERS)
 def test_native_matches_the_reference_on_random_unicode(tokenizer):
     want = REFERENCE[tokenizer]
     for text in CORPUS:
-        assert _native.tokenize(text, tokenizer) == want(text), repr(text)
+        assert_tokens_equal(_native.tokenize(text, tokenizer), want(text), text)
 
 
 @pytest.mark.parametrize("tokenizer", TOKENIZERS)
@@ -145,10 +158,13 @@ def test_tokenize_validates_its_arguments():
 def test_the_corpus_catches(monkeypatch, mistake, attribute, value):
     want = [ref.tokenize_fse_words(text) for text in CORPUS]
     monkeypatch.setattr(ref, attribute, value)
-    wrong = sum(
-        ref.tokenize_fse_words(text) != tokens for text, tokens in zip(CORPUS, want, strict=True)
-    )
-    assert wrong, f"no text catches {mistake}"
+    caught = 0
+    for text, tokens in zip(CORPUS, want, strict=True):
+        try:
+            assert_tokens_equal(ref.tokenize_fse_words(text), tokens, text)
+        except AssertionError:
+            caught += 1
+    assert caught, f"no text catches {mistake}"
 
 
 # --- Stage 2: batches -------------------------------------------------------------------------
@@ -320,10 +336,22 @@ def test_text_lookup_checks_its_types():
 
 
 def test_vocab_table_keeps_its_own_copy():
-    words = np.frombuffer(b"abcd", np.uint8).copy()
-    offsets = np.array([0, 2, 4], np.int64)
-    table = _native.VocabTable(words, offsets)
-    words[:] = ord("z")
-    offsets[1] = 3
-    assert table.get("ab") == 0
-    assert table.get("cd") == 1
+    long = b"a word longer than sixteen bytes"
+    base = np.frombuffer(b"ab" + long, np.uint8).copy()
+    view = base.view()
+    view.flags.writeable = False  # read-only, but its base stays writable
+    offsets = np.array([0, 2, 2 + len(long)], np.int64)
+    table = _native.VocabTable(view, offsets)
+    base[:] = ord("z")
+    offsets[1] = 1
+    assert table.get(b"ab") == 0
+    assert table.get(long) == 1
+
+
+def test_encode_keeps_its_own_offsets():
+    table, _ = _lookup_setup(["a b"], share=1)
+    lookup = _native.TextLookup(table, "external")
+    data, offsets = _items(["a", "b"])
+    batch = lookup.encode(data, offsets, 1, 2, 1, _native.Workspace())
+    offsets[:] = 10**9  # changing the caller's array afterwards changes nothing
+    assert batch.tokens.tolist() == [table.get("b")]

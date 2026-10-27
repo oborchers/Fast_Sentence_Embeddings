@@ -108,7 +108,7 @@ EXTERNAL_TOKENIZER = "external"
 
 def check_tokenizer(text: object) -> str:
     """Return ``text`` if it names a supported tokenizer, or raise UnsupportedArtifactError."""
-    if text == EXTERNAL_TOKENIZER and isinstance(text, str):
+    if isinstance(text, str) and text == EXTERNAL_TOKENIZER:
         return EXTERNAL_TOKENIZER
     supported = ", ".join([EXTERNAL_TOKENIZER, *(member.id for member in Tokenizer)])
     try:

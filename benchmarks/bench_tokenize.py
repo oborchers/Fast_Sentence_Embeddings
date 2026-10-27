@@ -1,10 +1,14 @@
 # ruff: noqa: PLC0415  (each child imports only what its own interpreter has)
 """Measure the native tokenizer from raw text to batches and rows, against fse 1.1.0.
 
-Every measurement starts from a list of str and runs in a fresh subprocess; rounds
-alternate between the contenders, each the median of ``--repeats`` passes.
+Every measurement starts from a list of str (``v1 CorpusFile`` from the pre-tokenized
+file, opening and mapping it) and runs in a fresh subprocess; rounds alternate between
+the contenders, each the median of ``--repeats`` passes.
 
 - ``v2 batch``: StringSource, scan and encode of every chunk with ``fse_words@1``.
+- ``v2 workers``: only scan, encode and pool in ``--threads`` threads, with the source
+  and the vocabulary table built once before, as an encoder holds them: the scaling of
+  the workers.
 - ``v2 rows``: the same plus ``WeightedMean.pool`` of every batch (float32 or int8 word
   vectors, ``--dims``), in ``--threads`` threads with one Workspace each.
 - ``v2 external``: the rows from text pre-tokenized by the 1.x preprocessing, split at
@@ -91,13 +95,15 @@ def child_v2(cfg: dict) -> float:
         wv = wv.quantize(cfg["dtype"])
     tokenizer = "external" if cfg["kind"] == "v2 external" else "fse_words@1"
     pool_rows = cfg["kind"] != "v2 batch"
+    once = cfg["kind"] == "v2 workers"
+    built = (make_lookup(wv, tokenizer), StringSource(texts)) if once else None
     kernel = _native.WeightedMean(wv.vectors, np.ones(len(vocab), np.float32), wv.scales)
     threads = cfg["threads"]
 
     def run():
-        # The vocabulary table is built in every pass, as 1.1.0 builds it in every train.
-        lookup = make_lookup(wv, tokenizer)
-        source = StringSource(texts)
+        # The vocabulary table is built in every pass, as 1.1.0 builds it in every train;
+        # v2 workers measures the workers alone.
+        lookup, source = built if built else (make_lookup(wv, tokenizer), StringSource(texts))
         scan = source.scan(workers=threads)
         out = np.empty((scan.sentences, cfg["dim"]), np.float32)
 
@@ -283,7 +289,8 @@ def main() -> None:
         print(CHILDREN[cfg["kind"].split()[0]](cfg))
         return
     if args._preprocess:
-        print(json.dumps([preprocess_1x(t) for t in json.loads(sys.stdin.read())]))
+        texts = json.loads(sys.stdin.read())
+        print(json.dumps([[t for t in preprocess_1x(text) if t] for text in texts]))
         return
     if not (args.corpus and args.python_v1):
         parser.error("--corpus and --python-v1 are required")
@@ -336,6 +343,8 @@ def main() -> None:
         v2, v1 = sys.executable, args.python_v1
         for threads in args.threads:
             measure([("v2 batch", v2)], threads=threads)
+        for threads in args.threads:
+            measure([("v2 workers", v2)], threads=threads)
         measure([("nltk", v1)])
         hf = [measure([("hf", v1)], threads=t)["hf"] for t in (1, _cpus())]
         ratios = []

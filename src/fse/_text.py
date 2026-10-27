@@ -321,6 +321,7 @@ class FileSource(_Buffered):
             int(np.count_nonzero(data[i : i + (1 << 26)] == 10))
             for i in range(0, len(data), 1 << 26)
         )
+        self._check_unchanged()
         return count + (0 if data[-1] == 10 else 1)
 
     def _check_unchanged(self) -> None:
@@ -335,7 +336,9 @@ class FileSource(_Buffered):
         self, chunk: Chunk, lookup: _native.TextLookup, workspace: _native.Workspace
     ) -> Batch:
         self._check_open()
-        return super().encode(chunk, lookup, workspace)
+        batch = super().encode(chunk, lookup, workspace)
+        self._check_unchanged()  # a change while the chunk was encoded
+        return batch
 
     def scan(self, *, workers: int = 1, chunk_bytes: int | None = None) -> Scan:
         result = super().scan(workers=workers, chunk_bytes=chunk_bytes)
