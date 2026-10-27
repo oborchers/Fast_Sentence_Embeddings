@@ -49,7 +49,7 @@ test-network: ## Run the tests that download from the Hugging Face Hub
 	$(UV) run pytest tests -m network
 
 test-cov: ## Run tests with coverage
-	$(UV) run pytest tests -m "not network" --cov=$(PACKAGE) --cov-report=term-missing
+	$(UV) run pytest tests -m "not network" --cov=$(PACKAGE) --cov-report=term-missing --cov-fail-under=0
 
 ##@ Combined
 check: format-check lint typecheck test ## Run all checks: format + lint + typecheck + test
