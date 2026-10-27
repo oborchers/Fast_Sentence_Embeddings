@@ -16,16 +16,26 @@
 Fast Sentence Embeddings
 ==================================
 
-Maintenance mode
+Status
 ------------
 
-**fse is no longer actively developed.** It stays available and installable, and it receives compatibility fixes and maintainer-planned scaling work when time allows, but no feature work on request.
+**fse 1.x is in maintenance mode.** 1.1.0 is the last feature release of the 1.x line. From here on, 1.x receives bug and compatibility fixes only.
+
+**fse 2.0 is in development** as a rewrite by the maintainer. It will change the API and the file format of saved models; a migration guide and a way to export 1.x models will come with it. Until then, feature requests are closed.
 
 - Version 1.1.0 is tested on Python 3.11 to 3.13 with current numpy, scipy, gensim and huggingface-hub releases.
 - Python 3.14 and newer are not supported yet, because gensim does not build there (see [gensim#3640](https://github.com/piskvorky/gensim/issues/3640)).
-- Bug reports about compatibility are welcome. Feature requests will be closed.
+- Bug reports are welcome.
 
 If you start a new project, also look at actively maintained libraries such as [sentence-transformers](https://github.com/huggingface/sentence-transformers) or [model2vec](https://github.com/MinishLab/model2vec).
+
+### Upgrading from 1.0
+
+- **SIF and uSIF give different vectors than 1.0.** Their principal components are now computed exactly over all sentence vectors instead of from a random sample, and uSIF now weights the removed components like the reference implementation. Retrain SIF and uSIF models to get vectors that are comparable with new ones; uSIF models saved by 1.0 keep their old weighting when loaded. The STS Benchmark table below is remeasured.
+- Arguments are validated strictly: wrong types and out-of-range values raise a `pydantic.ValidationError` instead of being coerced or ignored.
+- fse 1.1 requires Python 3.11 or newer and adds the dependencies pydantic and threadpoolctl.
+
+All changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 About
 ------------
@@ -68,7 +78,7 @@ between *unweighted sentence averages*,  *smooth inverse frequency averages*, an
 
 Key features of **fse** are:
 
-**[X]** Up to 500.000 sentences / second (1)
+**[X]** Millions of sentences per second with several workers (1)
 
 **[X]** Provides HUB access to various pre-trained models for convenience
 
@@ -96,9 +106,7 @@ Key features of **fse** are:
 
 **[X]** Optimized Input Classes
 
-(1) May vary significantly from system to system (i.e. by using swap memory) and processing.
-I regularly observe 300k-500k sentences/s for preprocessed data on my Macbook (2016).
-Visit **Tutorial.ipynb** for an example.
+(1) Measured on 16 vCPUs of an AMD EPYC with 16 workers: up to 2.2 million sentences per second for Average and 1.7 million for SIF, reading a `CorpusFile` of 2 million sentences with 20 tokens and 300 dimensions; one worker reaches 180k to 440k. The numbers vary with the machine and its load; see [Choosing an input class](#choosing-an-input-class) and measure your own setup with `benchmarks/bench_train.py`.
 
 Installation
 ------------
@@ -271,14 +279,14 @@ On x86-64 CPUs without AVX2 and on Windows, fse uses portable routines instead: 
 Additional Information
 -------------
 
-Within the folder notebooks you can find the following guides. They were written for older versions of fse and gensim and have not been re-run against 1.1.0, so some calls may need small changes:
+Within the folder notebooks you can find the following guides, run with fse 1.1.0:
 
-**Tutorial.ipynb** offers a detailed walk-through of some of the most important functions fse has to offer.
+**Tutorial.ipynb** offers a walk-through of the most important functions: the input classes, training with several workers, inference, similarity queries, smaller vectors and `score`.
 
 **STS-Benchmarks.ipynb** contains an example of how to use the library with pre-trained models to
-replicate the STS Benchmark results [4] reported in the papers.
+replicate the STS Benchmark results [4] reported in the papers; it produces the table under [Results](#results).
 
-**Speed Comparision.ipynb** compares the speed between the numpy and the cython routines.
+**Speed Comparison.ipynb** times training for the input classes, numbers of workers and storage formats. It replaces *Speed Comparision.ipynb*, which compared the numpy and Cython routines through internals that no longer exist.
 
 In order to use the **fse** model, you first need some pre-trained gensim
 word embedding model, which is then used by **fse** to compute the sentence embeddings.
