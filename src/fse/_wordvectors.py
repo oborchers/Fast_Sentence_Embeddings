@@ -14,7 +14,9 @@ read as float32. FastText vectors also hold their ngram rows and hashing paramet
 
 from __future__ import annotations
 
+import codecs
 import json
+import re
 from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -57,6 +59,7 @@ _KEYS = {
 _TENSORS = {"vectors", "scales", "counts", "vocab.bytes", "vocab.offsets", "ngrams", "ngram_scales"}
 _DTYPE_OF = {"F32": "float32", "F16": "float16", "I8": "int8"}
 _BLOCK_ROWS = 16_384
+_FINGERPRINT = re.compile(r"sha256:[0-9a-f]{64}")
 _MAX_WORDS = OOV_TOKEN  # word ids must stay below the reserved token ids
 
 
@@ -73,6 +76,11 @@ def _created_by() -> str:
         return f"fse {version('fse')}"
     except PackageNotFoundError:  # pragma: no cover
         return "fse"
+
+
+def _view(array: ndarray | None) -> ndarray | None:
+    """A new read-only header on internal data: neither writable nor reshaping the data."""
+    return None if array is None else array.view()
 
 
 def _frozen(array: ndarray) -> ndarray:
@@ -169,6 +177,12 @@ def _check_structure(tensors: dict[str, ndarray], metadata: dict[str, str]):
     quantized = dtype != "float32"
     if quantized != ("fse.quantization" in metadata):
         raise ValueError("fse.quantization is given exactly for float16 and int8 vectors")
+    origin = metadata.get("fse.quantized_from")
+    if origin is not None and (not quantized or not _FINGERPRINT.fullmatch(origin)):
+        raise ValueError(
+            f"fse.quantized_from must be the fingerprint of float32 vectors and is given "
+            f"only for float16 and int8, not {origin!r}"
+        )
     if quantized and metadata["fse.quantization"] != QUANTIZATION:
         raise UnsupportedArtifactError(
             f"quantization {metadata['fse.quantization']!r} is not supported; supported: {QUANTIZATION}"
@@ -181,7 +195,7 @@ def _check_structure(tensors: dict[str, ndarray], metadata: dict[str, str]):
     offsets = tensors["vocab.offsets"]
     _check_vector(data, "vocab.bytes", "U8", len(data))
     _check_vector(offsets, "vocab.offsets", "I64", n + 1)
-    if offsets[0] != 0 or (offsets[1:] < offsets[:-1]).any() or offsets[-1] != len(data):
+    if offsets[0] != 0 or offsets[-1] != len(data) or _decreases(offsets):
         raise ValueError(
             f"vocab.offsets must rise from 0 to {len(data)}, the number of vocabulary bytes"
         )
@@ -218,27 +232,35 @@ def _check_vector(array: ndarray, name: str, code: str, length: int):
         )
 
 
+def _decreases(offsets: ndarray) -> bool:
+    """Whether ``offsets`` ever decrease, compared in blocks to bound the temporaries."""
+    step = 2**20
+    for begin in range(0, len(offsets) - 1, step):
+        block = np.asarray(offsets[begin : begin + step + 1])
+        if (block[1:] < block[:-1]).any():
+            return True
+    return False
+
+
 def _check_utf8(data: ndarray, offsets: ndarray, chunk_bytes: int = 2**24):
     """Check that the vocabulary is UTF-8 and every word starts at a character boundary.
 
-    Decodes in chunks that end at word boundaries, so no copy of the whole vocabulary
-    exists; a chunk that splits a character is caught by the boundary check first.
+    An incremental decoder takes fixed blocks of bytes, whatever the words, so memory
+    stays bounded also for a single huge word.
     """
-    for begin in range(1, len(offsets) - 1, 2**20):
-        inner = np.asarray(offsets[begin : min(begin + 2**20, len(offsets) - 1)])
+    step = 2**20
+    for begin in range(1, len(offsets) - 1, step):
+        inner = np.asarray(offsets[begin : min(begin + step, len(offsets) - 1)])
         inner = inner[inner < len(data)]
         if len(inner) and ((np.asarray(data[inner]) & 0xC0) == 0x80).any():
             raise ValueError("a word of the vocabulary starts inside a UTF-8 character")
-    start = 0
-    while start < len(data):
-        # The last word boundary at or before start + chunk_bytes, or the next one after.
-        k = int(np.searchsorted(offsets, start + chunk_bytes, side="right")) - 1
-        stop = int(offsets[k]) if offsets[k] > start else int(offsets[min(k + 1, len(offsets) - 1)])
-        try:
-            data[start:stop].tobytes().decode("utf-8")
-        except UnicodeDecodeError as err:
-            raise ValueError(f"the vocabulary is not valid UTF-8: {err}") from None
-        start = stop
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="strict")
+    try:
+        for begin in range(0, len(data), chunk_bytes):
+            decoder.decode(data[begin : begin + chunk_bytes].tobytes())
+        decoder.decode(b"", final=True)
+    except UnicodeDecodeError as err:
+        raise ValueError(f"the vocabulary is not valid UTF-8: {err}") from None
 
 
 def _parse_fasttext(text: str) -> FastTextParams:
@@ -287,6 +309,17 @@ def _check_values(tensors: dict[str, ndarray]):
             bad = np.flatnonzero(~np.isfinite(values) | (values < 0))
             if len(bad):
                 raise ValueError(f"{scales} {int(bad[0])} is negative or not finite")
+            # code * scale must stay finite, or reading the row would give infinity.
+            for begin in range(0, len(rows), _BLOCK_ROWS):
+                block = np.asarray(rows[begin : begin + _BLOCK_ROWS])
+                top = np.abs(block.astype(np.float32)).max(axis=1) if block.shape[1] else 0
+                with np.errstate(over="ignore"):
+                    product = top * values[begin : begin + _BLOCK_ROWS]
+                bad = np.flatnonzero(~np.isfinite(product))
+                if len(bad):
+                    raise ValueError(
+                        f"row {begin + int(bad[0])} of {name} overflows float32 with its scale"
+                    )
     if "counts" in tensors:
         bad = np.flatnonzero(np.asarray(tensors["counts"]) < 0)
         if len(bad):
@@ -311,7 +344,7 @@ class WordVectors:
     be changed afterwards. ``quantize`` gives float16 or int8 copies, ``save`` writes them.
     """
 
-    __slots__ = ("_fingerprint", "_index", "_metadata", "_path", "_tensors")
+    __slots__ = ("_fingerprint", "_index", "_metadata", "_path", "_tensors", "_verified")
 
     def __init__(
         self, tensors: dict[str, ndarray], metadata: dict[str, str], path: Path | None = None
@@ -322,6 +355,8 @@ class WordVectors:
         self._path = path
         self._index: dict[bytes, int] | None = None
         self._fingerprint: str | None = metadata.get(FINGERPRINT_KEY)
+        # Whether the values, the words and (if loaded) the data on disk were checked.
+        self._verified = False
 
     @classmethod
     def from_arrays(
@@ -393,11 +428,20 @@ class WordVectors:
         )
 
     @classmethod
-    def _new(cls, tensors: dict[str, ndarray], metadata: dict[str, str]) -> WordVectors:
-        """New word vectors from arrays this module owns; checks values and words."""
+    def _new(
+        cls,
+        tensors: dict[str, ndarray],
+        metadata: dict[str, str],
+        index: dict[bytes, int] | None = None,
+    ) -> WordVectors:
+        """New word vectors from arrays this module owns; checks values and words.
+
+        ``index`` is the checked lookup of the same vocabulary, if there is one.
+        """
         out = cls(tensors, metadata)
         _check_values(tensors)
-        out._index = _lookup(tensors["vocab.bytes"], tensors["vocab.offsets"])
+        out._index = index or _lookup(tensors["vocab.bytes"], tensors["vocab.offsets"])
+        out._verified = True
         return out
 
     @classmethod
@@ -417,7 +461,12 @@ class WordVectors:
 
     @validate_arguments
     def save(self, path: PathLike):
-        """Write the word vectors into the new directory ``path``."""
+        """Write the word vectors into the new directory ``path``.
+
+        Loaded vectors are verified first, so damaged data never gets new checksums.
+        """
+        if not self._verified:
+            self.verify()
         metadata = {
             k: v
             for k, v in self._metadata.items()
@@ -434,12 +483,15 @@ class WordVectors:
         _check_values(self._tensors)
         if self._index is None:
             self._index = _lookup(self._tensors["vocab.bytes"], self._tensors["vocab.offsets"])
+        self._verified = True
 
     @validate_arguments
     def quantize(self, dtype: Literal["float16", "int8"]):  # -> WordVectors, as for load
         """float16 or int8 copies of float32 word vectors, quantized in blocks."""
         if self.dtype != "float32":
             raise ValueError(f"only float32 word vectors can be quantized, these are {self.dtype}")
+        if not self._verified:
+            self.verify()
         tensors = {k: v for k, v in self._tensors.items() if k not in ("vectors", "ngrams")}
         for name, scales in (("vectors", "scales"), ("ngrams", "ngram_scales")):
             if name in self._tensors:
@@ -459,7 +511,7 @@ class WordVectors:
         metadata["fse.dtype"] = dtype
         metadata["fse.quantization"] = QUANTIZATION
         metadata["fse.quantized_from"] = self.fingerprint
-        return WordVectors._new(tensors, metadata)
+        return WordVectors._new(tensors, metadata, self._index)
 
     def __reduce__(self):
         raise TypeError("WordVectors cannot be pickled; use save() and WordVectors.load()")
@@ -482,23 +534,23 @@ class WordVectors:
     @property
     def vectors(self) -> ndarray:
         """The stored rows: float32 values, or float16 or int8 codes."""
-        return self._tensors["vectors"]
+        return self._tensors["vectors"].view()
 
     @property
     def scales(self) -> ndarray | None:
-        return self._tensors.get("scales")
+        return _view(self._tensors.get("scales"))
 
     @property
     def counts(self) -> ndarray | None:
-        return self._tensors.get("counts")
+        return _view(self._tensors.get("counts"))
 
     @property
     def vocab_bytes(self) -> ndarray:
-        return self._tensors["vocab.bytes"]
+        return self._tensors["vocab.bytes"].view()
 
     @property
     def vocab_offsets(self) -> ndarray:
-        return self._tensors["vocab.offsets"]
+        return self._tensors["vocab.offsets"].view()
 
     @property
     def fasttext(self) -> FastTextParams | None:
@@ -507,11 +559,11 @@ class WordVectors:
 
     @property
     def ngrams(self) -> ndarray | None:
-        return self._tensors.get("ngrams")
+        return _view(self._tensors.get("ngrams"))
 
     @property
     def ngram_scales(self) -> ndarray | None:
-        return self._tensors.get("ngram_scales")
+        return _view(self._tensors.get("ngram_scales"))
 
     @property
     def path(self) -> Path | None:
@@ -580,7 +632,9 @@ class WordVectors:
     def get_vectors(self, indices: Any) -> ndarray:
         """The float32 rows of the word ids ``indices``, as a new (k, dim) array."""
         ids = np.asarray(indices)
-        if ids.ndim != 1 or (ids.size and ids.dtype.kind not in "iu"):
+        if ids.size == 0 and ids.ndim == 1:
+            ids = ids.astype(np.int64)
+        if ids.ndim != 1 or ids.dtype.kind not in "iu":
             raise TypeError("indices must be a one-dimensional array of integers")
         if ids.size and (ids.min() < 0 or ids.max() >= len(self)):
             raise IndexError(f"indices must be between 0 and {len(self) - 1}")

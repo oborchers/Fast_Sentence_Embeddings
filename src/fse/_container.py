@@ -19,10 +19,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import secrets
 import shutil
+import stat
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Protocol
@@ -48,6 +50,12 @@ CREATED_BY_KEY = "fse.created_by"
 ALIGNMENT = 64
 _CHUNK = 64 * 2**20
 _MANIFEST = "manifest.json"
+# Limits that keep a damaged or crafted artifact from making the reader allocate much
+# before anything is checked: the manifest, a .npy header, and the rank of a tensor.
+MAX_MANIFEST_BYTES = 16 * 2**20
+MAX_HEADER_BYTES = 65_536
+MAX_RANK = 32
+_EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
 
 
 class CorruptArtifactError(ValueError):
@@ -114,7 +122,13 @@ def fingerprint(
 def array_sha256(array: ndarray) -> str:
     """The sha256 of the little-endian C-order bytes of ``array``, in chunks."""
     digest = hashlib.sha256()
-    flat = np.ascontiguousarray(array).reshape(-1)
+    if array.flags.c_contiguous:
+        # Hash the memory itself, without a copy of the data.
+        view = memoryview(array.reshape(-1).view(np.uint8))
+        for begin in range(0, len(view), _CHUNK):
+            digest.update(view[begin : begin + _CHUNK])
+        return digest.hexdigest()
+    flat = array.reshape(-1)
     step = max(1, _CHUNK // max(1, array.itemsize))
     for begin in range(0, len(flat), step):
         digest.update(flat[begin : begin + step].tobytes())
@@ -127,12 +141,37 @@ def _check_metadata(metadata: Mapping[str, str]):
             raise ValueError(f"metadata must map str to str, not {key!r}: {value!r}")
 
 
+def _open_regular(file: Path):
+    """Open ``file`` for reading if it is a regular file and no symbolic link.
+
+    The descriptor is compared with the checked path, so a file swapped in between is
+    caught; everything is read and mapped through this one handle.
+    """
+    try:
+        before = os.lstat(file)
+    except FileNotFoundError:
+        raise CorruptArtifactError(f"{file} is missing") from None
+    if not stat.S_ISREG(before.st_mode):
+        raise CorruptArtifactError(f"{file} is not a regular file (a symbolic link or else)")
+    handle = file.open("rb")
+    after = os.fstat(handle.fileno())
+    if (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino):
+        handle.close()
+        raise CorruptArtifactError(f"{file} changed while it was opened")
+    return handle
+
+
 def _read_manifest(path: Path) -> dict[str, Any]:
     file = path / _MANIFEST
     if not path.is_dir():
         raise FileNotFoundError(f"{path} is not a directory with an artifact")
-    if not file.is_file():
+    if not os.path.lexists(file):
         raise CorruptArtifactError(f"{path} has no {_MANIFEST}")
+    with _open_regular(file) as handle:
+        size = os.fstat(handle.fileno()).st_size
+        if size > MAX_MANIFEST_BYTES:
+            raise CorruptArtifactError(f"{file} is larger than {MAX_MANIFEST_BYTES} bytes")
+        raw = handle.read(size)
 
     def pairs(items):
         keys = [k for k, _ in items]
@@ -144,9 +183,7 @@ def _read_manifest(path: Path) -> dict[str, Any]:
         raise CorruptArtifactError(f"{file} contains {name}, which is not JSON")
 
     try:
-        manifest = json.loads(
-            file.read_text(encoding="utf-8"), object_pairs_hook=pairs, parse_constant=constant
-        )
+        manifest = json.loads(raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=constant)
     except (UnicodeDecodeError, json.JSONDecodeError) as err:
         raise CorruptArtifactError(f"{file} is not valid JSON: {err}") from err
     if not isinstance(manifest, dict) or set(manifest) != {
@@ -158,8 +195,11 @@ def _read_manifest(path: Path) -> dict[str, Any]:
         raise CorruptArtifactError(
             f"{file} must hold exactly container, container_version, tensors and metadata"
         )
+    version = manifest["container_version"]
     if (
-        manifest["container"] != NpyContainer.name
+        not isinstance(version, int)
+        or isinstance(version, bool)
+        or manifest["container"] != NpyContainer.name
         or manifest["container_version"] != NpyContainer.version
     ):
         raise UnsupportedArtifactError(
@@ -181,13 +221,15 @@ def _read_manifest(path: Path) -> dict[str, Any]:
             )
         if entry["file"] != name + ".npy":
             raise CorruptArtifactError(f"{file}: tensor {name} must be stored in {name}.npy")
-        if entry["dtype"] not in DTYPE_CODES:
+        if not isinstance(entry["dtype"], str) or entry["dtype"] not in DTYPE_CODES:
             raise CorruptArtifactError(
                 f"{file}: tensor {name} has the unknown dtype {entry['dtype']!r}"
             )
         shape = entry["shape"]
-        if not isinstance(shape, list) or not all(
-            isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in shape
+        if (
+            not isinstance(shape, list)
+            or len(shape) > MAX_RANK
+            or not all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in shape)
         ):
             raise CorruptArtifactError(
                 f"{file}: the shape of tensor {name} must be non-negative ints"
@@ -197,12 +239,26 @@ def _read_manifest(path: Path) -> dict[str, Any]:
 
 def _read_header(handle, file: Path, code: str, shape: tuple[int, ...]) -> int:
     """Check the .npy header of ``handle`` and return the offset of its data."""
+    size = os.fstat(handle.fileno()).st_size
+    # The declared header length, checked before numpy reads that many bytes.
+    prefix = handle.read(12)
+    if len(prefix) < 10 or prefix[:6] != b"\x93NUMPY":
+        raise CorruptArtifactError(f"{file} has no valid .npy header: no .npy magic")
+    if prefix[6:8] not in (b"\x01\x00", b"\x02\x00"):
+        raise CorruptArtifactError(
+            f"{file} has the unsupported .npy version {(prefix[6], prefix[7])}"
+        )
+    width = 2 if prefix[6] == 1 else 4
+    declared = int.from_bytes(prefix[8 : 8 + width], "little")
+    if declared > MAX_HEADER_BYTES or 8 + width + declared > size:
+        raise CorruptArtifactError(f"{file} declares a header of {declared} bytes")
+    handle.seek(0)
     try:
         version = npy_format.read_magic(handle)
         if version == (1, 0):
-            header = npy_format.read_array_header_1_0(handle)
+            header = npy_format.read_array_header_1_0(handle, max_header_size=MAX_HEADER_BYTES)
         elif version == (2, 0):
-            header = npy_format.read_array_header_2_0(handle)
+            header = npy_format.read_array_header_2_0(handle, max_header_size=MAX_HEADER_BYTES)
         else:
             raise CorruptArtifactError(f"{file} has the unsupported .npy version {version}")
     except CorruptArtifactError:
@@ -223,11 +279,21 @@ def _read_header(handle, file: Path, code: str, shape: tuple[int, ...]) -> int:
         raise CorruptArtifactError(
             f"the data of {file} starts at {offset}, not at a multiple of {ALIGNMENT}"
         )
-    nbytes = int(np.prod(shape, dtype=np.int64)) * dtype.itemsize
-    size = os.fstat(handle.fileno()).st_size
+    nbytes = math.prod(shape) * dtype.itemsize  # Python ints: no overflow
     if size != offset + nbytes:
         raise CorruptArtifactError(f"{file} has {size} bytes, {offset + nbytes} expected")
     return offset
+
+
+def _sync_directory(path: Path):
+    """Make the entries of a directory durable (POSIX; Windows has no directory fsync)."""
+    if os.name == "nt":
+        return
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 class NpyContainer:
@@ -253,12 +319,14 @@ class NpyContainer:
             if not array.flags.c_contiguous:
                 raise ValueError(f"tensor {name} must be C-contiguous")
             codes[name] = tensor_code(array)
-        tmp = path.parent / f".{path.name}.writing-{secrets.token_hex(4)}"
-        tmp.mkdir()
+        # Creating the directory reserves the path atomically; the manifest, renamed into
+        # place last, commits the artifact: without it, readers see no artifact.
+        path.mkdir()
+        tmp = path / f".{_MANIFEST}.writing-{secrets.token_hex(4)}"
         try:
             entries = {}
             for name, array in tensors.items():
-                digest = self._write_tensor(tmp / f"{name}.npy", array)
+                digest = self._write_tensor(path / f"{name}.npy", array)
                 entries[name] = (codes[name], tuple(int(n) for n in array.shape), digest)
             full = dict(metadata)
             for name, (_, _, digest) in entries.items():
@@ -273,20 +341,17 @@ class NpyContainer:
                 },
                 "metadata": full,
             }
-            with (tmp / _MANIFEST).open("w", encoding="utf-8") as f:
+            with tmp.open("w", encoding="utf-8") as f:
                 f.write(json.dumps(manifest, sort_keys=True, indent=1, ensure_ascii=False) + "\n")
                 f.flush()
                 os.fsync(f.fileno())
-            os.rename(tmp, path)
+            _sync_directory(path)
+            os.replace(tmp, path / _MANIFEST)
+            _sync_directory(path)
         except BaseException:
-            shutil.rmtree(tmp, ignore_errors=True)
+            shutil.rmtree(path, ignore_errors=True)
             raise
-        if os.name != "nt":
-            descriptor = os.open(path.parent, os.O_RDONLY)
-            try:
-                os.fsync(descriptor)
-            finally:
-                os.close(descriptor)
+        _sync_directory(path.parent)
 
     @staticmethod
     def _write_tensor(file: Path, array: ndarray) -> str:
@@ -314,25 +379,21 @@ class NpyContainer:
             file = path / entry["file"]
             shape = tuple(entry["shape"])
             code = entry["dtype"]
-            if not file.is_file():
-                raise CorruptArtifactError(f"{file} is missing")
-            with file.open("rb") as handle:
+            with _open_regular(file) as handle:
                 offset = _read_header(handle, file, code, shape)
-                if mmap or 0 in shape:
-                    array = self._map(file, code, shape, offset)
+                if 0 in shape:
+                    if entries[name][2] != _EMPTY_SHA256:
+                        raise CorruptArtifactError(f"{file} does not match its checksum")
+                    array = np.empty(shape, dtype=DTYPE_CODES[code])  # nothing to map
+                    array.setflags(write=False)
+                elif mmap:
+                    array = np.memmap(
+                        handle, dtype=DTYPE_CODES[code], mode="r", offset=offset, shape=shape
+                    )
                 else:
                     array = self._read(handle, file, code, shape, entries[name][2])
             tensors[name] = array
         return tensors, metadata
-
-    @staticmethod
-    def _map(file: Path, code: str, shape: tuple[int, ...], offset: int) -> ndarray:
-        if 0 in shape:
-            # np.memmap cannot map zero bytes.
-            array = np.empty(shape, dtype=DTYPE_CODES[code])
-            array.setflags(write=False)
-            return array
-        return np.memmap(file, dtype=DTYPE_CODES[code], mode="r", offset=offset, shape=shape)
 
     @staticmethod
     def _read(handle, file: Path, code: str, shape: tuple[int, ...], expected: str) -> ndarray:
@@ -380,9 +441,7 @@ class NpyContainer:
         entries = self._check_integrity_keys(path, manifest, metadata)
         for name, entry in manifest["tensors"].items():
             file = path / entry["file"]
-            if not file.is_file():
-                raise CorruptArtifactError(f"{file} is missing")
-            with file.open("rb") as handle:
+            with _open_regular(file) as handle:
                 _read_header(handle, file, entry["dtype"], tuple(entry["shape"]))
                 digest = hashlib.sha256()
                 while chunk := handle.read(_CHUNK):

@@ -54,64 +54,75 @@ def disk_bytes(path: Path) -> int:
 
 
 def child(case: str, vectors: str, dtype: str, store: Path) -> dict:
-    tracemalloc.start()
-    before = peak_bytes()
-    start = time.perf_counter()
+    """Prepare the case, then measure only its operation: time, RSS and allocations."""
+    import fse  # every case imports fse before the measurement
+
+    target = store / f"{vectors}-{dtype}"
     extra: dict = {}
-    if case in CASES_20:
-        import fse
+    if case == "convert":
+        from gensim.models import KeyedVectors
 
-        target = store / f"{vectors}-{dtype}"
-        if case == "convert":
-            from gensim.models import KeyedVectors
+        from fse.gensim import from_gensim
 
-            from fse.gensim import from_gensim
-
-            before = peak_bytes()
-            tracemalloc.reset_peak()
-            start = time.perf_counter()
-            kv = KeyedVectors.load(model_file(vectors), mmap="r")
-            wv = from_gensim(kv, dtype)
+        def operation():
+            wv = from_gensim(KeyedVectors.load(model_file(vectors), mmap="r"), dtype)
             wv.save(target)
             extra["bytes_on_disk"] = disk_bytes(target)
-        else:
-            wv = fse.WordVectors.load(target, mmap=case != "load")
-            if case == "verify":
-                wv.verify()
-            if case == "lookup":
-                before = peak_bytes()
-                tracemalloc.reset_peak()
-                start = time.perf_counter()
-                wv.index(wv.word(len(wv) - 1))
-        extra["words"] = len(wv)
-    else:
-        import fse
+            return wv
+    elif case in ("load", "load_mmap"):
 
-        if case == "wv_int8":
-            vectors_object = fse.Vectors.from_pretrained(vectors, mmap="r")
-            before = peak_bytes()
-            tracemalloc.reset_peak()
-            start = time.perf_counter()
-            fse.Average(vectors_object, wv_dtype="int8")
-        else:
-            fse.Vectors.from_pretrained(vectors, mmap="r" if case == "pickle_mmap" else None)
-        extra["bytes_on_disk"] = sum(
-            f.stat().st_size for f in Path(model_file(vectors)).parent.iterdir() if f.is_file()
-        )
+        def operation():
+            return fse.WordVectors.load(target, mmap=case == "load_mmap")
+    elif case == "verify":
+
+        def operation():
+            wv = fse.WordVectors.load(target, mmap=True)
+            wv.verify()
+            return wv
+    elif case == "lookup":
+        prepared = fse.WordVectors.load(target, mmap=True)
+        last = prepared.word(len(prepared) - 1)
+
+        def operation():
+            prepared.index(last)
+            return prepared
+    elif case == "wv_int8":
+        source = fse.Vectors.from_pretrained(vectors, mmap="r")
+
+        def operation():
+            fse.Average(source, wv_dtype="int8")
+            return source
+    else:  # pickle, pickle_mmap
+
+        def operation():
+            return fse.Vectors.from_pretrained(vectors, mmap="r" if case == "pickle_mmap" else None)
+
+    tracemalloc.start()
+    baseline = tracemalloc.get_traced_memory()[0]
+    before = peak_bytes()
+    start = time.perf_counter()
+    result = operation()
     seconds = time.perf_counter() - start
     after = peak_bytes()
-    allocated = tracemalloc.get_traced_memory()[1]
+    allocated = tracemalloc.get_traced_memory()[1] - baseline
+    tracemalloc.stop()
+    if case in CASES_11:
+        files = Path(model_file(vectors)).parent.iterdir()
+        extra["bytes_on_disk"] = sum(f.stat().st_size for f in files if f.is_file())
     return {
         "case": case,
         "vectors": vectors,
         "dtype": dtype,
         "fse": fse.__version__,
+        "words": len(result),
         "seconds": seconds,
+        # The process peak before and after the operation; macOS counts touched pages of
+        # mapped files, and compressed pages not at all.
         "peak_before": before,
         "peak_after": after,
         "peak_delta": after - before,
-        # Bytes Python and numpy allocated at most during the case (tracemalloc): no file
-        # pages, no compression, unlike the resident memory.
+        # Bytes Python and numpy allocated at most during the operation, beyond what
+        # was allocated before it (tracemalloc).
         "allocated_peak": allocated,
         **extra,
     }

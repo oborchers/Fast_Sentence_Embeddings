@@ -213,6 +213,26 @@ CORRUPTIONS = {
         UnsupportedArtifactError,
         "this fse reads",
     ),
+    "container version bool": (
+        _edit(lambda m: m.update(container_version=True)),
+        UnsupportedArtifactError,
+        "this fse reads",
+    ),
+    "container version float": (
+        _edit(lambda m: m.update(container_version=1.0)),
+        UnsupportedArtifactError,
+        "this fse reads",
+    ),
+    "dtype list": (
+        _edit(lambda m: m["tensors"]["vectors"].update(dtype=["F32"])),
+        CorruptArtifactError,
+        "unknown dtype",
+    ),
+    "rank": (
+        _edit(lambda m: m["tensors"]["vectors"].update(shape=[1] * 33)),
+        CorruptArtifactError,
+        "non-negative ints",
+    ),
     "container version": (
         _edit(lambda m: m.update(container_version=2)),
         UnsupportedArtifactError,
@@ -395,3 +415,78 @@ def test_mapped_artifact_can_be_removed_after_release(tmp_path, windows_file_map
     del tensors
     gc.collect()
     shutil.rmtree(path)
+
+
+def test_shape_products_do_not_overflow(tmp_path):
+    """(2**32, 2**32) wraps to 0 in int64; the size check must still fail."""
+    path = _written(tmp_path)
+    manifest = _manifest(path)
+    manifest["tensors"]["vectors"]["shape"] = [2**32, 2**32]
+    _save_manifest(path, manifest)
+    _header(path, "vectors", _npy_header(shape=(2**32, 2**32)), b"")
+    for mmap in (False, True):
+        with pytest.raises(CorruptArtifactError):
+            NpyContainer().open(path, mmap=mmap)
+    with pytest.raises(CorruptArtifactError):
+        NpyContainer().verify(path)
+
+
+def test_huge_declared_header_is_rejected_before_reading(tmp_path):
+    path = _written(tmp_path)
+    file = path / "vectors.npy"
+    # Version 2.0 with a declared header of 2**31 bytes.
+    file.write_bytes(b"\x93NUMPY\x02\x00" + (2**31).to_bytes(4, "little") + b" " * 116)
+    with pytest.raises(CorruptArtifactError, match="declares a header"):
+        NpyContainer().open(path, mmap=False)
+
+
+def test_oversized_manifest_is_rejected(tmp_path, monkeypatch):
+    import fse._container as container
+
+    path = _written(tmp_path)
+    monkeypatch.setattr(container, "MAX_MANIFEST_BYTES", 100)
+    with pytest.raises(CorruptArtifactError, match="larger than 100 bytes"):
+        NpyContainer().open(path, mmap=False)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symbolic links need privileges on Windows")
+@pytest.mark.parametrize("target", ["vectors.npy", "manifest.json"])
+def test_symbolic_links_are_rejected(tmp_path, target):
+    path = _written(tmp_path)
+    outside = tmp_path / "outside"
+    os.replace(path / target, outside)
+    os.symlink(outside, path / target)
+    with pytest.raises(CorruptArtifactError, match="not a regular file"):
+        NpyContainer().open(path, mmap=True)
+    with pytest.raises(CorruptArtifactError, match="not a regular file"):
+        NpyContainer().verify(path)
+
+
+def test_empty_tensors_are_checked_on_a_normal_open(tmp_path):
+    path = tmp_path / "a"
+    NpyContainer().write(path, {"empty": np.zeros((0, 3), F32)}, {})
+    manifest = _manifest(path)
+    metadata = manifest["metadata"]
+    metadata["fse.checksum.empty"] = "1" * 64
+    entries = {"empty": ("F32", (0, 3), "1" * 64)}
+    metadata["fse.fingerprint"] = fingerprint(entries, metadata)
+    _save_manifest(path, manifest)
+    with pytest.raises(CorruptArtifactError, match="does not match its checksum"):
+        NpyContainer().open(path, mmap=False)
+
+
+def test_write_reserves_the_target(tmp_path, monkeypatch):
+    """The directory is created exclusively; a failed write removes it again."""
+    c = NpyContainer()
+    original = NpyContainer._write_tensor
+
+    def failing(file, array):
+        assert file.parent == tmp_path / "a"  # written in place, committed by the manifest
+        assert not (tmp_path / "a" / "manifest.json").exists()
+        raise OSError("disk full")
+
+    monkeypatch.setattr(NpyContainer, "_write_tensor", staticmethod(failing))
+    with pytest.raises(OSError, match="disk full"):
+        c.write(tmp_path / "a", _tensors(), _METADATA)
+    assert not (tmp_path / "a").exists()
+    monkeypatch.setattr(NpyContainer, "_write_tensor", staticmethod(original))

@@ -223,7 +223,7 @@ def test_from_arrays_rejects(kwargs, error, match):
         WordVectors.from_arrays(**args)
 
 
-def _rewrite(path, edit_tensors=None, edit_metadata=None):
+def _rewrite(path, edit_tensors=None, edit_metadata=None, name="edited"):
     """Rewrite a saved artifact with edited tensors or metadata (fresh checksums)."""
     tensors, metadata = NpyContainer().open(path, mmap=False)
     tensors = {k: np.array(v) for k, v in tensors.items()}
@@ -236,7 +236,7 @@ def _rewrite(path, edit_tensors=None, edit_metadata=None):
         edit_tensors(tensors)
     if edit_metadata:
         edit_metadata(metadata)
-    target = path.parent / "edited"
+    target = path.parent / name
     NpyContainer().write(target, tensors, metadata)
     return target
 
@@ -486,11 +486,19 @@ def test_loading_int8_makes_no_float32_copy(tmp_path):
 
 
 def test_quantize_makes_no_float32_copy():
-    wv = _wv(n=20_000, dim=300, counts=False)
-    codes = 20_000 * 300
+    # Many rows of few values: a float32 copy (4 bytes per value) would exceed the bound
+    # of the codes (1 byte per value) plus a few blocks of float32 temporaries.
+    rows, dim = 400_000, 16
+    words = [str(i) for i in range(rows)]
+    wv = WordVectors.from_arrays(
+        np.random.default_rng(0).standard_normal((rows, dim)).astype(F32), words=words
+    )
+    codes = rows * dim
     q, peak = _peak(lambda: wv.quantize("int8"))
-    # The codes plus one block of float32 temporaries.
-    assert peak < codes + 4 * 16_384 * 300 * 3, peak
+    float32_copy = 4 * codes
+    block = 16_384 * dim * 4  # bytes of one block of float32 temporaries
+    assert peak < codes + 4 * rows + 10 * block, peak  # codes, scales, a few block temporaries
+    assert peak < float32_copy, peak
     assert q.dtype == "int8"
 
 
@@ -563,3 +571,63 @@ def test_utf8_check_in_chunks(chunk):
     bad[len(bad) // 2] = 0xFF
     with pytest.raises(ValueError, match="UTF-8"):
         _check_utf8(bad, offsets, chunk_bytes=chunk)
+
+
+def test_returned_arrays_cannot_change_the_vectors():
+    wv = _wv("int8", fasttext=True)
+    fingerprint = wv.fingerprint
+    for name in (
+        "vectors",
+        "scales",
+        "counts",
+        "vocab_bytes",
+        "vocab_offsets",
+        "ngrams",
+        "ngram_scales",
+    ):
+        array = getattr(wv, name)
+        with pytest.raises(ValueError, match=r"WRITEABLE|read-only"):
+            array.setflags(write=True)
+        assert array is not getattr(wv, name)  # a new header each time
+    assert wv.vectors.shape == (len(WORDS), 5)
+    assert wv.fingerprint == fingerprint
+    assert wv.index("é") == 1
+
+
+def test_int8_scales_that_overflow_are_rejected():
+    with pytest.raises(ValueError, match="row 0 of vectors overflows float32 with its scale"):
+        WordVectors.from_arrays(
+            np.array([[127, 0]], np.int8), words=["a"], scales=np.array([np.finfo(F32).max], F32)
+        )
+
+
+def test_get_vectors_of_an_empty_list():
+    assert _wv().get_vectors([]).shape == (0, 5)
+
+
+def test_quantized_from_must_be_a_fingerprint(tmp_path):
+    _wv("int8").save(tmp_path / "wv")
+    path = _rewrite(tmp_path / "wv", None, lambda m: m.update({"fse.quantized_from": "yesterday"}))
+    with pytest.raises(ValueError, match=r"fse\.quantized_from must be the fingerprint"):
+        WordVectors.load(path)
+    _wv().save(tmp_path / "f32")
+    fake = "sha256:" + "0" * 64
+    path = _rewrite(
+        tmp_path / "f32", None, lambda m: m.update({"fse.quantized_from": fake}), "edited32"
+    )
+    with pytest.raises(ValueError, match="only for float16 and int8"):
+        WordVectors.load(path)
+
+
+def test_save_of_damaged_mapped_vectors_raises(tmp_path):
+    _wv().save(tmp_path / "wv")
+    file = tmp_path / "wv" / "vectors.npy"
+    raw = bytearray(file.read_bytes())
+    raw[-1] ^= 1
+    file.write_bytes(bytes(raw))
+    wv = WordVectors.load(tmp_path / "wv", mmap=True)
+    with pytest.raises(ValueError, match="does not match its checksum"):
+        wv.save(tmp_path / "copy")
+    with pytest.raises(ValueError, match="does not match its checksum"):
+        wv.quantize("int8")
+    assert not (tmp_path / "copy").exists()
