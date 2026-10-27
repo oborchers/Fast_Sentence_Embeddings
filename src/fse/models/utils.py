@@ -5,8 +5,12 @@
 
 import ctypes
 import logging
+import os
 import sys
 import warnings
+from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from sys import platform
 from time import time
 from typing import Any
@@ -32,6 +36,7 @@ from numpy import (
 )
 from numpy import float32 as REAL
 from numpy.linalg import eigh
+from threadpoolctl import threadpool_limits
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +44,31 @@ EPS = finfo(REAL).eps
 
 # Rows per block when removing principal components: about 20 MB at 300 dimensions.
 REMOVAL_BLOCK_ROWS = 16_384
+
+
+@contextmanager
+def blas_threads(workers: int) -> Iterator[None]:
+    """Share the cores between ``workers`` threads that each call BLAS.
+
+    Workers compute Gram block products and remove components with BLAS. Without a limit,
+    a multithreaded BLAS such as OpenBLAS starts its own threads in every worker, and
+    workers times cores threads compete for the cores. With more than one worker, BLAS
+    gets ``usable_cpus() // workers`` threads (at least one) until the block ends, and the
+    previous limits are restored afterwards. The limit holds for the whole process,
+    also for other threads that call BLAS meanwhile.
+    """
+    if workers <= 1:
+        yield
+        return
+    with threadpool_limits(limits=max(1, usable_cpus() // workers), user_api="blas"):
+        yield
+
+
+def usable_cpus() -> int:
+    """CPUs this process may run on: its affinity where the OS reports it, as in a container."""
+    if hasattr(os, "sched_getaffinity"):
+        return max(1, len(os.sched_getaffinity(0)))
+    return os.cpu_count() or 1
 
 
 def set_madvise_for_mmap(return_madvise: bool = False) -> Any:
@@ -249,6 +279,7 @@ def remove_principal_components(
     svd_res: tuple[ndarray, ndarray],
     weights: ndarray | None = None,
     inplace: bool = True,
+    workers: int = 1,
 ) -> ndarray | None:
     """Method used to remove the first singular vectors of a given matrix
 
@@ -262,6 +293,10 @@ def remove_principal_components(
         Weights to be used to weigh the components which are removed from the vectors
     inplace : bool, optional
         If true, removes the components from the vectors inplace (memory efficient)
+    workers : int, optional
+        Threads that remove the components from blocks of rows in parallel. Each block is
+        computed the same way by any thread, so the result does not depend on it; up to
+        ``workers`` blocks of temporaries exist at a time.
 
     Returns
     -------
@@ -275,9 +310,10 @@ def remove_principal_components(
     # The result type of vectors - projection, as for the whole matrix at once: an integer
     # input gives a float result instead of being truncated.
     output = vectors if inplace else empty(vectors.shape, dtype=result_type(vectors, components))
+
     # Work in blocks of rows, so the temporary projection never exceeds one block, also for
     # memory-mapped vectors that do not fit into RAM.
-    for begin in range(0, len(vectors), REMOVAL_BLOCK_ROWS):
+    def remove(begin: int):
         block = vectors[begin : begin + REMOVAL_BLOCK_ROWS]
         # Coefficients of each vector on each component, scaled by the component weight.
         # The weight is applied once, so each component is removed as weight * projection.
@@ -288,6 +324,17 @@ def remove_principal_components(
         subtract(
             block, coefficients.dot(components), out=output[begin : begin + REMOVAL_BLOCK_ROWS]
         )
+
+    begins = range(0, len(vectors), REMOVAL_BLOCK_ROWS)
+    threads = max(1, min(workers, len(begins)))
+    if threads == 1:
+        for begin in begins:
+            remove(begin)
+    else:
+        # numpy releases the GIL in dot and subtract, so the blocks run in parallel.
+        with blas_threads(threads), ThreadPoolExecutor(max_workers=threads) as pool:
+            for _ in pool.map(remove, begins):
+                pass
     elapsed = time()
 
     logger.info(f"removing {len(components)} principal components took {int(elapsed - start)}s")

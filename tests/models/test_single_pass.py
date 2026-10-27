@@ -572,3 +572,19 @@ class TestOrderedGram:
     def test_rows_outside_raise(self, first, last):
         with pytest.raises(ValueError, match="outside the 1000 rows"):
             OrderedGram(self._vectors()).add_rows(first, last)
+
+
+@pytest.mark.parametrize("cls", [fse.SIF, fse.uSIF])
+def test_components_do_not_depend_on_the_workers(monkeypatch, w2v, cls):
+    """With several workers BLAS gets fewer threads (utils.blas_threads) and the components
+    are removed in parallel; components and vectors stay bit-identical to one worker."""
+    monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 97)
+    models = []
+    for workers in (1, 4):
+        model = cls(w2v, components=3, workers=workers)
+        model.batch_words = 300
+        model.train(TextList(_texts()))
+        models.append(model)
+    _same(*models)
+    inferred = [m.infer(TextList(_texts(500, seed=3))) for m in models]
+    np.testing.assert_array_equal(*inferred)

@@ -1066,6 +1066,14 @@ class BaseSentence2VecModel(SaveLoad):
             Count of effective sentences and words encountered
 
         """
+        # Workers and the removal of components call BLAS; it shares the cores among them.
+        with utils.blas_threads(self.workers):
+            return self._train(sentences, update, queue_factor, report_delay)
+
+    def _train(
+        self, sentences: Any, update: bool, queue_factor: int, report_delay: float
+    ) -> tuple[int, int]:
+        """The body of :meth:`train`, after validation of its arguments."""
         call_start = time()
         self._check_input_data_sanity(sentences)
         statistics = self.scan_sentences(sentences)
@@ -1168,8 +1176,9 @@ class BaseSentence2VecModel(SaveLoad):
     def _set_components(self, svd_res: Any):
         """Keep the components learned from all rows; Average has none."""
 
-    def _remove_components(self, vectors: ndarray):
-        """Remove the learned components from vectors in place; Average has none."""
+    def _remove_components(self, vectors: ndarray, workers: int = 1):
+        """Remove the learned components from vectors in place, with workers threads;
+        Average has none."""
 
     def _train_windowed(
         self,
@@ -1421,7 +1430,8 @@ class BaseSentence2VecModel(SaveLoad):
             if job_batch:
                 self._do_train_job(data_iterable=job_batch, target=output, memory=mem)
 
-        self._post_inference_calls(output=output)
+        with utils.blas_threads(self.workers):
+            self._post_inference_calls(output=output)
 
         if use_norm:
             output = _l2_norm(output)

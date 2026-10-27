@@ -173,7 +173,7 @@ class uSIF(Average):
         """Function calls to perform after training, such as computing eigenvectors."""
         if self.components > 0 and update and isinstance(self.svd_res, tuple):
             # Appended rows are treated like inference: reuse the learned components.
-            self._remove_components(self.sv.vectors[offset:])
+            self._remove_components(self.sv.vectors[offset:], self.workers)
         elif self.components > 0:
             self._set_components(
                 compute_principal_components(self.sv.vectors, components=self.components)
@@ -186,7 +186,7 @@ class uSIF(Average):
                     gram_block_dtype(self.sv.vectors.dtype),
                 )
             )
-            self._remove_components(self.sv.vectors)
+            self._remove_components(self.sv.vectors, self.workers)
         else:
             self._set_components(None)
 
@@ -206,10 +206,10 @@ class uSIF(Average):
         self.svd_weights = (svd_res[0] ** 2) / (svd_res[0] ** 2).sum().astype(REAL)
         self.component_weighting = "lambda"
 
-    def _remove_components(self, vectors: ndarray):
+    def _remove_components(self, vectors: ndarray, workers: int = 1):
         """Remove the learned components, weighted, from vectors in place, in blocks of rows."""
         remove_principal_components(
-            vectors, svd_res=self.svd_res, weights=self.svd_weights, inplace=True
+            vectors, svd_res=self.svd_res, weights=self.svd_weights, inplace=True, workers=workers
         )
 
     def _post_load_calls(self):
@@ -236,7 +236,7 @@ class uSIF(Average):
         if self.svd_res is None:
             raise RuntimeError("You must first train the model to obtain SVD components")
         elif self.components > 0:
-            self._remove_components(cast(ndarray, output))
+            self._remove_components(cast(ndarray, output), self.workers)
         else:
             logger.info("no removal of principal components")
 

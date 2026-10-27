@@ -364,6 +364,91 @@ def test_remove_components_memory_is_bounded_by_a_block(tmp_path):
     assert peak < matrix / 4
 
 
+@pytest.mark.parametrize("weighted", [False, True])
+@pytest.mark.parametrize("memmap", [False, True])
+def test_remove_components_in_parallel_equals_serial(monkeypatch, tmp_path, weighted, memmap):
+    """Blocks removed by several threads give exactly the serial result."""
+    from fse.models import utils
+
+    monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 7)
+    rng = np.random.default_rng(1)
+    data = rng.random((64, 10), dtype=np.float32)
+    svd_res = compute_principal_components(data, components=3)
+    weights = np.array([0.5, 0.3, 0.2], dtype=np.float32) if weighted else None
+    serial = data.copy()
+    remove_principal_components(serial, svd_res, weights=weights, inplace=True)
+    if memmap:
+        vectors = np.memmap(tmp_path / "sv", dtype=np.float32, mode="w+", shape=data.shape)
+        vectors[:] = data
+    else:
+        vectors = data.copy()
+    remove_principal_components(vectors, svd_res, weights=weights, inplace=True, workers=4)
+    np.testing.assert_array_equal(np.asarray(vectors), serial)
+    out = remove_principal_components(data, svd_res, weights=weights, inplace=False, workers=4)
+    np.testing.assert_array_equal(out, serial)
+
+
+def test_remove_components_in_parallel_raises_the_error_of_a_block(monkeypatch):
+    """An error in one block reaches the caller."""
+    from fse.models import utils
+
+    monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 4)
+    vectors = np.arange(40, dtype=np.int64).reshape(10, 4)
+    svd_res = (np.ones(1, dtype=np.float32), np.full((1, 4), 0.5, dtype=np.float32))
+    with pytest.raises(TypeError):
+        remove_principal_components(vectors, svd_res, inplace=True, workers=3)
+
+
+def _blas_limits():
+    from threadpoolctl import threadpool_info
+
+    return [(i["filepath"], i["num_threads"]) for i in threadpool_info() if i["user_api"] == "blas"]
+
+
+def test_blas_threads_shares_the_cores_and_restores_the_limits(monkeypatch):
+    """With several workers BLAS gets its share of the cores, also after an error."""
+    from fse.models import utils
+
+    calls = []
+
+    class Limits:
+        def __init__(self, limits, user_api):
+            calls.append((limits, user_api))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            calls.append("restored")
+
+    monkeypatch.setattr(utils, "threadpool_limits", Limits)
+    monkeypatch.setattr(utils, "usable_cpus", lambda: 16)
+    with utils.blas_threads(1):
+        pass
+    assert calls == []
+    with utils.blas_threads(4):
+        pass
+    with pytest.raises(RuntimeError), utils.blas_threads(32):
+        raise RuntimeError("worker failed")
+    assert calls == [(4, "blas"), "restored", (1, "blas"), "restored"]
+
+
+def test_blas_threads_leaves_the_real_limits_as_they_were():
+    """The real threadpoolctl limits are back after the block."""
+    from fse.models import utils
+
+    before = _blas_limits()
+    with utils.blas_threads(64):
+        pass
+    assert _blas_limits() == before
+
+
+def test_usable_cpus_is_positive():
+    from fse.models import utils
+
+    assert utils.usable_cpus() >= 1
+
+
 def test_remove_components_keeps_numpy_result_types():
     """Integers give a float result, and in-place removal refuses to truncate."""
     vectors = np.arange(40, dtype=np.int64).reshape(10, 4)
