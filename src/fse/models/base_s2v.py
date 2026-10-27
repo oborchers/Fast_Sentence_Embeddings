@@ -43,7 +43,7 @@ from collections.abc import Iterable, Iterator
 from copy import copy
 from pathlib import Path
 from queue import Empty, Queue
-from time import time
+from time import perf_counter, time
 from typing import Any
 
 from gensim.matutils import zeros_aligned
@@ -746,6 +746,14 @@ class BaseSentence2VecModel(SaveLoad):
         """Return an object whose next_job() yields encoded jobs, then None."""
         raise NotImplementedError()
 
+    def _list_plan_for(self, sentences: Any, statistics: dict[str, Any]) -> Any:
+        """How workers read a Python list themselves, or None for the producer.
+
+        Kept for one training as ``_list_plan``, whose ``rows`` bound the rows of a job;
+        infer keeps the producer path.
+        """
+        return None
+
     def _run_encoded_job(
         self, context: Any, job: Any, memory: tuple[ndarray, ndarray]
     ) -> tuple[int, int]:
@@ -842,6 +850,9 @@ class BaseSentence2VecModel(SaveLoad):
                 (self.sv, "inv_norms"),
             ]
         stored = [(obj, name, getattr(obj, name)) for obj, name in removed]
+        # Only exist during training, for example when a hook saves the model.
+        plan = self.__dict__.pop("_list_plan", None)
+        training = self.__dict__.pop("_training", None)
         try:
             for obj, name in removed:
                 setattr(obj, name, None)
@@ -849,6 +860,10 @@ class BaseSentence2VecModel(SaveLoad):
         finally:
             for obj, name, value in stored:
                 setattr(obj, name, value)
+            if plan is not None:
+                self.__dict__["_list_plan"] = plan
+            if training is not None:
+                self.__dict__["_training"] = training
 
     def scan_sentences(self, sentences: Any = None, progress_per: int = 5) -> dict[str, Any]:
         """Performs an initial scan of the data and reports all corresponding statistics
@@ -879,6 +894,8 @@ class BaseSentence2VecModel(SaveLoad):
         # about one byte per sentence.
         unique_indices = True
         identity = True
+        # Whether every sentence is an exact list of exact str (see Average._list_chunk_rows).
+        exact_types = False
         tracker: IndexTracker | None = None
 
         def progress(sentences_done: int, words_done: int):
@@ -905,6 +922,8 @@ class BaseSentence2VecModel(SaveLoad):
             max_index = max(total_sentences - 1, 0)
             unique_indices = True
             identity = True
+            # Split natively into lists of str, like str.split() in Python.
+            exact_types = True
         elif (
             scan_indexed_sentences is not None
             and "_check_indexed_sent_valid" not in self.__dict__
@@ -919,10 +938,16 @@ class BaseSentence2VecModel(SaveLoad):
                 max_index,
                 unique_indices,
                 identity,
+                exact_types,
             ) = scan_indexed_sentences(sentences, progress_per, progress)
         else:
+            exact_types = True
             for i, obj in enumerate(sentences):
                 index, sent = self._check_indexed_sent_valid(iter_pos=i, obj=obj)
+                if exact_types and (
+                    type(sent) is not list or any(type(word) is not str for word in sent)
+                ):
+                    exact_types = False
                 if time() - current_time > progress_per:
                     current_time = time()
                     progress(total_sentences, total_words)
@@ -968,6 +993,7 @@ class BaseSentence2VecModel(SaveLoad):
             "unique_indices": unique_indices,
             # Index i for the i-th sentence: one row per sentence, in order.
             "identity_indices": identity,
+            "exact_types": exact_types,
         }
         return statistics
 
@@ -1066,9 +1092,30 @@ class BaseSentence2VecModel(SaveLoad):
             Count of effective sentences and words encountered
 
         """
+        # Workers and the removal of components call BLAS; it shares the cores among them.
+        self.__dict__["_training"] = True
+        try:
+            with utils.blas_threads(self.workers):
+                return self._train(sentences, update, queue_factor, report_delay)
+        finally:
+            _release_native(sentences)
+            # Only exist during training and must never be pickled.
+            self.__dict__.pop("_list_plan", None)
+            self.__dict__.pop("_training", None)
+
+    def _train(
+        self, sentences: Any, update: bool, queue_factor: int, report_delay: float
+    ) -> tuple[int, int]:
+        """The body of :meth:`train`, after validation of its arguments."""
         call_start = time()
         self._check_input_data_sanity(sentences)
+        # A plan of an earlier call, for example from a hook that saved the model, never
+        # carries over.
+        self.__dict__.pop("_list_plan", None)
         statistics = self.scan_sentences(sentences)
+        plan = self._list_plan_for(sentences, statistics)
+        if plan is not None:
+            self.__dict__["_list_plan"] = plan
 
         self._check_pre_training_sanity(update=update, **statistics)
 
@@ -1168,8 +1215,9 @@ class BaseSentence2VecModel(SaveLoad):
     def _set_components(self, svd_res: Any):
         """Keep the components learned from all rows; Average has none."""
 
-    def _remove_components(self, vectors: ndarray):
-        """Remove the learned components from vectors in place; Average has none."""
+    def _remove_components(self, vectors: ndarray, workers: int = 1):
+        """Remove the learned components from vectors in place, with workers threads;
+        Average has none."""
 
     def _train_windowed(
         self,
@@ -1283,10 +1331,15 @@ class BaseSentence2VecModel(SaveLoad):
         return eff_sentences, eff_words, elapsed
 
     def _max_job_rows(self, sentences: Any) -> int:
-        """The most rows one job can hold: a native chunk of the scan, or batch_words."""
+        """The most rows one job can hold: a native or list chunk, or batch_words."""
+        plan = self.__dict__.get("_list_plan")
+        if plan is not None:
+            return int(plan.rows)
         state = getattr(sentences, "_scan_state", None)
         if state is not None and state[1]:
-            return max(int(count) for *_, count in state[1])
+            # A native input may still be read by the JobEncoder (a vocabulary word without
+            # a UTF-8 form), whose jobs hold up to batch_words rows.
+            return max(self.batch_words, *(int(count) for *_, count in state[1]))
         return self.batch_words
 
     def _train_rows(
@@ -1387,6 +1440,20 @@ class BaseSentence2VecModel(SaveLoad):
             ``sv_dtype="float16"`` or ``"int8"``.
 
         """
+        # A hook that infers during training must not read its input like the training does.
+        plan = self.__dict__.pop("_list_plan", None)
+        training = self.__dict__.pop("_training", None)
+        try:
+            return self._infer(sentences, use_norm)
+        finally:
+            _release_native(sentences)
+            if plan is not None:
+                self.__dict__["_list_plan"] = plan
+            if training is not None:
+                self.__dict__["_training"] = training
+
+    def _infer(self, sentences: Any, use_norm: bool) -> ndarray:
+        """The body of :meth:`infer`."""
         self._check_input_data_sanity(sentences)
 
         statistics = self.scan_sentences(sentences)
@@ -1421,7 +1488,8 @@ class BaseSentence2VecModel(SaveLoad):
             if job_batch:
                 self._do_train_job(data_iterable=job_batch, target=output, memory=mem)
 
-        self._post_inference_calls(output=output)
+        with utils.blas_threads(self.workers):
+            self._post_inference_calls(output=output)
 
         if use_norm:
             output = _l2_norm(output)
@@ -1466,11 +1534,13 @@ class BaseSentence2VecModel(SaveLoad):
         # stop tells the producer to stop reading and the workers to skip their jobs.
         errors: list[BaseException] = []
         stop = threading.Event()
+        times = _StageTimes()
 
         threads = [
             threading.Thread(
                 target=self._worker_loop,
                 args=(job_queue, progress_queue, errors, stop, context),
+                kwargs={"times": times},
             )
             for _ in range(n_workers)
         ]
@@ -1478,8 +1548,10 @@ class BaseSentence2VecModel(SaveLoad):
             threading.Thread(
                 target=self._job_producer,
                 args=(data_iterable, job_queue, errors, stop, n_workers, context),
+                kwargs={"times": times},
             )
         )
+        start = perf_counter()
 
         try:
             for thread in threads:
@@ -1517,6 +1589,8 @@ class BaseSentence2VecModel(SaveLoad):
 
         if errors:
             raise errors[0]
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(times.summary(perf_counter() - start, n_workers))
         return jobs, eff_sentences, eff_words
 
     def _worker_loop(
@@ -1526,6 +1600,7 @@ class BaseSentence2VecModel(SaveLoad):
         errors: list[BaseException],
         stop: threading.Event,
         context: Any = None,
+        times: "_StageTimes | None" = None,
     ):
         """Train the model, lifting batches of data from the queue.
 
@@ -1548,9 +1623,12 @@ class BaseSentence2VecModel(SaveLoad):
             Set once any thread failed. The worker then drains the queue without training.
         context : object, optional
             Kernel context; the jobs are then (size, encoded job) pairs.
+        times : _StageTimes, optional
+            Collects how long the worker waits for jobs and how long it averages them.
 
         """
         jobs_processed = 0
+        waiting = averaging = 0.0
         try:
             mem = self._get_thread_working_mem()
         except BaseException as err:
@@ -1561,7 +1639,10 @@ class BaseSentence2VecModel(SaveLoad):
         # on a full queue, and always report the end, so the main thread never waits
         # for a worker that is gone.
         while True:
+            waited = perf_counter()
             job = job_queue.get()
+            started = perf_counter()
+            waiting += started - waited
             if job is None:
                 break
             if stop.is_set():
@@ -1579,8 +1660,11 @@ class BaseSentence2VecModel(SaveLoad):
                 errors.append(err)
                 stop.set()
                 continue
+            averaging += perf_counter() - started
             progress_queue.put((size, eff_sentences, eff_words))
             jobs_processed += 1
+        if times is not None:
+            times.add(workers_wait=waiting, workers_average=averaging)
         progress_queue.put(None)
         logger.debug(f"worker exiting, processed {jobs_processed} jobs")
 
@@ -1592,6 +1676,7 @@ class BaseSentence2VecModel(SaveLoad):
         stop: threading.Event,
         workers: int | None = None,
         context: Any = None,
+        times: "_StageTimes | None" = None,
     ):
         """Fill the jobs queue using the data found in the input stream.
 
@@ -1613,23 +1698,30 @@ class BaseSentence2VecModel(SaveLoad):
         context : object, optional
             Kernel context. The producer then reads, batches and encodes the input in one
             pass while holding the GIL, so the workers can average it without the GIL.
+        times : _StageTimes, optional
+            Collects how long the producer reads and how long it waits for a free job slot.
 
         """
 
         job_batch: list[tuple] = []
         batch_size = 0
         job_no = 0
+        started = perf_counter()
+        blocked = 0.0
 
         try:
             if context is not None:
                 encoder = self._job_encoder(context, data_iterable)
                 single_pass = self.__dict__.get("_single_pass")
                 while not stop.is_set() and (job := encoder.next_job()) is not None:
+                    put = perf_counter()
                     if single_pass is not None:
                         # Before any worker writes rows that another job could also cover.
+                        # It may wait for a free window, which counts as waiting.
                         single_pass.check_job(job, stop)
                     job_no += 1
                     job_queue.put((job.n_items, job))
+                    blocked += perf_counter() - put
                 data_iterable = ()
             for data in data_iterable:
                 if stop.is_set():
@@ -1643,16 +1735,23 @@ class BaseSentence2VecModel(SaveLoad):
                     batch_size += data_length
                 else:
                     job_no += 1
+                    put = perf_counter()
                     job_queue.put(job_batch)
+                    blocked += perf_counter() - put
                     job_batch, batch_size = [data], data_length
 
             if job_batch and not stop.is_set():
                 job_no += 1
+                put = perf_counter()
                 job_queue.put(job_batch)
+                blocked += perf_counter() - put
         except BaseException as err:
             errors.append(err)
             stop.set()
         finally:
+            if times is not None:
+                busy = perf_counter() - started - blocked
+                times.add(producer_reads=busy, producer_waits=blocked)
             # Workers keep draining the queue, so these puts cannot block forever.
             for _ in range(self.workers if workers is None else workers):
                 job_queue.put(None)
@@ -1807,6 +1906,56 @@ def _check_mapfile_size(path: Path, shape: tuple[int, ...], itemsize: int = dtyp
             f"the existing file {path} has {size} bytes, but vectors of shape {tuple(shape)} "
             f"need {expected}; delete it or pass another mapfile path"
         )
+
+
+class _StageTimes:
+    """Seconds the threads of one _train_manager call spent per stage, for the DEBUG log.
+
+    The producer reads (and encodes) the input or waits for a free place in the queue;
+    the workers wait for jobs or average them. Each thread adds its sums once at its end.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.seconds = dict.fromkeys(
+            ("producer_reads", "producer_waits", "workers_wait", "workers_average"), 0.0
+        )
+
+    def add(self, **seconds: float):
+        with self._lock:
+            for key, value in seconds.items():
+                self.seconds[key] += value
+
+    def summary(self, elapsed: float, workers: int) -> str:
+        """One line with the shares of the wall time, and which side limits training."""
+        s = self.seconds
+        wall = max(elapsed, 1e-9)
+        produce = s["producer_reads"] / wall
+        blocked = s["producer_waits"] / wall
+        busy = s["workers_average"] / (wall * max(workers, 1))
+        idle = s["workers_wait"] / (wall * max(workers, 1))
+        # Workers that wait for the GIL count as averaging, so a producer that reads almost
+        # all the time also limits training.
+        if workers < 2:
+            limit = "one worker"
+        elif blocked > 0.25:
+            limit = "the workers limit training"
+        elif idle > 0.25 or produce > 0.8:
+            limit = "the producer limits training, so more workers would not help"
+        else:
+            limit = "producer and workers are balanced"
+        return (
+            f"training threads over {elapsed:.2f}s: the producer reads {produce:.0%} and waits "
+            f"for a free job slot {blocked:.0%} of the time; {workers} workers average "
+            f"{busy:.0%} and wait for jobs {idle:.0%} of the time; {limit}"
+        )
+
+
+def _release_native(sentences: Any):
+    """Let an input drop the buffer it built for the native path of one call."""
+    release = getattr(sentences, "_release_native", None)
+    if release is not None:
+        release()
 
 
 def _fill_eps(vectors: ndarray, start: int, stop: int):

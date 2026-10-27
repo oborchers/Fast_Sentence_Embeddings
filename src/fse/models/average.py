@@ -30,6 +30,7 @@ Initialize and train a :class:`~fse.models.average.Average` model
 """
 
 import logging
+import sys
 from collections.abc import Iterable
 from typing import Any
 
@@ -240,6 +241,7 @@ try:
         VocabTable,
         run_chunk,
         run_job,
+        run_list_chunk,
         train_average_cy,
     )
 
@@ -280,6 +282,118 @@ class _ChunkFeeder:
         for start, end, first, count in self._chunks:
             return _NativeChunk(self._source, self._table, start, end, first + self._offset, count)
         return None
+
+
+class _ListChunk:
+    """Sentences begin to end of a Python list for one worker, which reads them itself."""
+
+    __slots__ = (
+        "begin",
+        "contiguous",
+        "end",
+        "first_row",
+        "indices",
+        "items",
+        "n_items",
+        "offset",
+        "table",
+    )
+
+    def __init__(self, items, indices, table, begin, end, offset, contiguous):
+        self.items = items
+        self.indices = indices
+        self.table = table
+        self.begin = begin
+        self.end = end
+        self.offset = offset
+        self.first_row = begin + offset
+        self.n_items = end - begin
+        self.contiguous = contiguous
+
+
+class _ListPlan:
+    """How the workers of one training read a list: chunk rows, the lookup table, and the
+    number of sentences and the identity of the indices the scan found."""
+
+    __slots__ = ("contiguous", "n_items", "rows", "table")
+
+    def __init__(self, rows, table, n_items, contiguous):
+        self.rows = rows
+        self.table = table
+        self.n_items = n_items
+        self.contiguous = contiguous
+
+
+class _ListFeeder:
+    """Hands out chunks of rows of a list; the producer itself reads no sentence."""
+
+    def __init__(self, items, indices, plan, offset):
+        # Chunks follow the scan; a list of another length now changed after it.
+        if len(items) != plan.n_items or (indices is not None and len(indices) != plan.n_items):
+            raise RuntimeError(
+                f"the list holds {len(items)} sentences, but the scan found {plan.n_items}: "
+                "the input changed after the scan"
+            )
+        self._items = items
+        self._indices = indices
+        self._plan = plan
+        self._starts = iter(range(0, plan.n_items, plan.rows))
+        self._offset = offset
+
+    def next_job(self):
+        plan = self._plan
+        for begin in self._starts:
+            end = min(begin + plan.rows, plan.n_items)
+            return _ListChunk(
+                self._items, self._indices, plan.table, begin, end, self._offset, plan.contiguous
+            )
+        # Like the strict zip of the JobEncoder's iterator: a list that grew is an error.
+        if len(self._items) != plan.n_items or (
+            self._indices is not None and len(self._indices) != plan.n_items
+        ):
+            raise RuntimeError(
+                f"the list holds {len(self._items)} sentences, but the scan found {plan.n_items}: "
+                "the input changed during training"
+            )
+        return None
+
+
+# About this many tokens per list chunk, and its bounds in sentences. The spike measured
+# 2,000 to 8,000 sentences of 20 tokens as best for many workers.
+_LIST_CHUNK_TOKENS = 1 << 16
+_LIST_CHUNK_MIN_ROWS = 256
+_LIST_CHUNK_MAX_ROWS = 8192
+
+
+def _list_source(sentences: Any) -> tuple[list, Any] | None:
+    """The list and indices of an IndexedList or CIndexedList that workers can read
+    directly, or None. Subclasses that change how items are read keep the producer."""
+    # fse.inputs imports the extension, so it cannot be imported while fse.models loads; an
+    # IndexedList passed in means it is loaded.
+    inputs = sys.modules.get("fse.inputs")
+    if inputs is None:
+        return None
+    for cls, indices in ((inputs.IndexedList, None), (inputs.CIndexedList, "custom_index")):
+        if (
+            isinstance(sentences, cls)
+            and type(sentences).__getitem__ is cls.__getitem__
+            and type(sentences).__iter__ is cls.__iter__
+            and type(sentences.items) is list
+        ):
+            if indices is None:
+                return sentences.items, None
+            index = sentences.custom_index
+            # Read by position in the kernel, so only containers whose positions are what
+            # iteration yields: an exact list, or a one-dimensional integer array.
+            readable = type(index) is list or (
+                type(index) is ndarray and index.ndim == 1 and index.dtype.kind in "iu"
+            )
+            return (
+                (sentences.items, index)
+                if readable and len(index) == len(sentences.items)
+                else None
+            )
+    return None
 
 
 class Average(BaseSentence2VecModel):
@@ -390,11 +504,49 @@ class Average(BaseSentence2VecModel):
         else:
             base = sentences
         native = base._native_chunks() if hasattr(base, "_native_chunks") else None
+        if getattr(base, "_native_for_training_only", False) and not self.__dict__.get("_training"):
+            # infer of a few sentences would build a VocabTable of the whole vocabulary; the
+            # JobEncoder reads them through the dictionary instead, as before.
+            native = None
         if native is not None:
             source, chunks = native
             context.sources.append(source)
-            return _ChunkFeeder(source, VocabTable(self.wv.key_to_index), chunks, offset)
+            try:
+                table = VocabTable(self.wv.key_to_index)
+            except UnicodeEncodeError:
+                # A vocabulary word without a UTF-8 form cannot be looked up by bytes; the
+                # JobEncoder reads the same sentences through the input's iterator.
+                return JobEncoder(context, sentences, self.batch_words)
+            return _ChunkFeeder(source, table, chunks, offset)
+        plan = self.__dict__.get("_list_plan")
+        listed = _list_source(base) if plan is not None else None
+        if plan is not None and listed is not None:
+            items, indices = listed
+            return _ListFeeder(items, indices, plan, offset)
         return JobEncoder(context, sentences, self.batch_words)
+
+    def _list_plan_for(self, sentences: Any, statistics: dict[str, Any]) -> Any:
+        """With two or more workers, each reads its own chunks of an IndexedList or
+        CIndexedList of exact lists of str: the tokens are copied with the GIL, and lookup
+        and averaging run without it. One worker keeps the JobEncoder, which is faster
+        alone, and so does a vocabulary without a UTF-8 form for every word."""
+        if (
+            self.workers < 2
+            or not self._uses_kernel()
+            or not statistics.get("exact_types")
+            or not statistics["total_sentences"]
+            or _list_source(sentences) is None
+        ):
+            return None
+        try:
+            table = VocabTable(self.wv.key_to_index)
+        except UnicodeEncodeError:
+            return None
+        rows = _LIST_CHUNK_TOKENS // max(1, statistics["average_length"])
+        rows = max(_LIST_CHUNK_MIN_ROWS, min(_LIST_CHUNK_MAX_ROWS, rows))
+        return _ListPlan(
+            rows, table, statistics["total_sentences"], bool(statistics["identity_indices"])
+        )
 
     def _finish_kernel_context(self, context: Any):
         """Close the native sources of a call; every worker has finished by now."""
@@ -406,7 +558,18 @@ class Average(BaseSentence2VecModel):
         self, context: Any, job: Any, memory: tuple[ndarray, ndarray]
     ) -> tuple[int, int]:
         """Average an encoded job or a native chunk without the GIL."""
-        if isinstance(job, _NativeChunk):
+        if isinstance(job, _ListChunk):
+            counts = run_list_chunk(
+                context,
+                job.table,
+                job.items,
+                job.indices,
+                job.begin,
+                job.end,
+                job.offset,
+                memory[0],
+            )
+        elif isinstance(job, _NativeChunk):
             counts = run_chunk(
                 context,
                 job.table,

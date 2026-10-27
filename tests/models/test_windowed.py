@@ -14,7 +14,7 @@ import pytest
 
 from fse import CorpusFile, TextList
 from fse.inputs import CIndexedList, IndexedLineDocument, IndexedList
-from fse.models import _windowed, sentencevectors, utils
+from fse.models import _windowed, average, sentencevectors, utils
 from fse.models._quantize import STORAGE_TYPES, quantize_into
 from fse.models._windowed import WindowedWriter
 from fse.models.average import Average
@@ -36,9 +36,14 @@ def w2v(make_w2v):
 
 @pytest.fixture
 def small_windows(monkeypatch):
-    """Blocks of 16 rows and windows of 32, so jobs span windows and wait for slots."""
+    """Blocks of 16 rows and windows of 32, so jobs span windows and wait for slots.
+
+    List chunks, which workers read themselves, get 4 to 8 rows for the same reason."""
     monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 16)
     monkeypatch.setattr(_windowed, "WINDOW_BYTES", 32 * DIM * 4)
+    monkeypatch.setattr(average, "_LIST_CHUNK_TOKENS", 16)
+    monkeypatch.setattr(average, "_LIST_CHUNK_MIN_ROWS", 4)
+    monkeypatch.setattr(average, "_LIST_CHUNK_MAX_ROWS", 8)
 
 
 @pytest.fixture
@@ -334,3 +339,20 @@ def test_a_ring_is_set_up_once(w2v):
     context.use_ring(100)
     with pytest.raises(ValueError, match="already a ring"):
         context.use_ring(100)
+
+
+@pytest.mark.usefixtures("small_windows")
+@pytest.mark.parametrize("dtype", ["float16", "int8"])
+def test_native_inputs_with_a_vocabulary_without_utf8_fill_the_windows(lines, tmp_path, dtype):
+    """Such a vocabulary makes native inputs fall back to the JobEncoder, whose jobs the
+    ring of windows must hold as well."""
+    from gensim.models import Word2Vec
+
+    w2v = Word2Vec(min_count=1, vector_size=DIM, seed=1, workers=1)
+    w2v.build_vocab([[*sorted({w for line in lines for w in line.split()}), "\ud800"]])
+    reference = Average(w2v, workers=2)
+    reference.train(IndexedList([line.split() for line in lines]))
+    model = Average(w2v, workers=2, sv_dtype=dtype)
+    model.batch_words = 100  # jobs much larger than a window of 32 rows
+    model.train(TextList(lines))
+    _assert_stored(model, reference.sv.vectors)
