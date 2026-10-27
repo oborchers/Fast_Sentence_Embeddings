@@ -378,15 +378,15 @@ cdef class VocabTable:
             or vocab_offsets.ndim != 1 or not vocab_offsets.flags.c_contiguous
         ):
             raise ValueError("vocab_offsets must be a C-contiguous int64 vector")
+        # Own copies first, and every check on them: arrays the caller still holds (or a
+        # writable base of a read-only view) could change while numpy copies them.
+        vocab_offsets = vocab_offsets.copy()
+        vocab_bytes = vocab_bytes.copy()
         if (
             len(vocab_offsets) == 0 or vocab_offsets[0] != 0
             or vocab_offsets[len(vocab_offsets) - 1] != len(vocab_bytes)
         ):
             raise ValueError(f"vocab_offsets must run from 0 to {len(vocab_bytes)}, the number of bytes")
-        # Own copies, so arrays the caller still holds cannot change a checked table; a
-        # read-only view can still have a writable base.
-        vocab_offsets = vocab_offsets.copy()
-        vocab_bytes = vocab_bytes.copy()
         lengths = vocab_offsets[1:] - vocab_offsets[: len(vocab_offsets) - 1]
         if (lengths < 0).any():
             raise ValueError("vocab_offsets must not decrease")
