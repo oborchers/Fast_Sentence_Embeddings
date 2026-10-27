@@ -16,7 +16,14 @@ src/fse/
   _wordvectors.py        # WordVectors
   _gram.py               # Gram matrix helpers for fit
   _validation.py         # validate_arguments: strict pydantic checks of entry points
-  _native.pyx            # native routines: kernel wrappers, hashing, vocabulary table
+  _native.pyx            # the extension: directives, imports and its parts, in order
+  _native_hash.pxi       # its parts: FastText ngram hashing and chunk limits,
+  _native_buffer.pxi     #   growable buffers,
+  _native_vocab.pxi      #   UTF-8 classes, word hashing and the vocabulary table,
+  _native_scan.pxi       #   the UTF-8 scan of sentence spans,
+  _native_kernel.pxi     #   the kernel wrappers, ISA dispatch and FP environment,
+  _native_steps.pxi      #   dot16, steps and score,
+  _native_text.pxi       #   the tokenizers and the text lookup
   _native.pxd, .pyi      # shared C types of the extension, and its type stubs
   _native_kernel.h       # the C kernel: weighted mean, dot16, steps, score per ISA
   _native_text.h         # the native tokenizers fse_words@1 and external
@@ -58,7 +65,7 @@ Word vectors, weights and sentence vectors are computed in float32. Word vectors
 
 ## Build
 
-The extension is compiled from `_native.pyx` and `_native_kernel.h` at build time with Cython 3 against numpy 2 headers; generated C is never committed. Wheels built this way also run with numpy 1.x. `make rebuild-ext` rebuilds it in the development environment after edits to `.pyx`, `.pxd` or `.h` files.
+The extension is compiled from `_native.pyx`, the `.pxi` parts it includes (one translation unit, so `cdef inline` functions inline across parts) and the `_native*.h` headers at build time with Cython 3 against numpy 2 headers; generated C is never committed. Wheels built this way also run with numpy 1.x. `make rebuild-ext` rebuilds it in the development environment after edits to `.pyx`, `.pxi`, `.pxd` or `.h` files.
 
 ## Tests
 
