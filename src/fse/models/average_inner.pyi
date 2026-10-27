@@ -38,9 +38,19 @@ def run_chunk(
     scratch: ndarray,
     n_items: int = -1,
 ) -> tuple[int, int]: ...
+def run_list_chunk(
+    ctx: KernelContext,
+    table: VocabTable,
+    items: list,
+    indices: Any,
+    begin: int,
+    end: int,
+    offset: int,
+    scratch: ndarray,
+) -> tuple[int, int]: ...
 def scan_indexed_sentences(
     sentences: Any, progress_per: float, progress: Any
-) -> tuple[int, int, int, int, bool, bool]: ...
+) -> tuple[int, int, int, int, bool, bool, bool]: ...
 
 class KernelContext:
     """Read-only state of one train or infer call, shared by all workers."""

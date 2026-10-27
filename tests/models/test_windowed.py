@@ -14,7 +14,7 @@ import pytest
 
 from fse import CorpusFile, TextList
 from fse.inputs import CIndexedList, IndexedLineDocument, IndexedList
-from fse.models import _windowed, sentencevectors, utils
+from fse.models import _windowed, average, sentencevectors, utils
 from fse.models._quantize import STORAGE_TYPES, quantize_into
 from fse.models._windowed import WindowedWriter
 from fse.models.average import Average
@@ -36,9 +36,14 @@ def w2v(make_w2v):
 
 @pytest.fixture
 def small_windows(monkeypatch):
-    """Blocks of 16 rows and windows of 32, so jobs span windows and wait for slots."""
+    """Blocks of 16 rows and windows of 32, so jobs span windows and wait for slots.
+
+    List chunks, which workers read themselves, get 4 to 8 rows for the same reason."""
     monkeypatch.setattr(utils, "REMOVAL_BLOCK_ROWS", 16)
     monkeypatch.setattr(_windowed, "WINDOW_BYTES", 32 * DIM * 4)
+    monkeypatch.setattr(average, "_LIST_CHUNK_TOKENS", 16)
+    monkeypatch.setattr(average, "_LIST_CHUNK_MIN_ROWS", 4)
+    monkeypatch.setattr(average, "_LIST_CHUNK_MAX_ROWS", 8)
 
 
 @pytest.fixture

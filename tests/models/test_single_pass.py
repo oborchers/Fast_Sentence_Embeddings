@@ -243,16 +243,22 @@ def test_fewer_sentences_in_training_than_in_the_scan_raise(w2v):
 def test_a_worker_error_is_not_hidden_by_the_gram_matrix(monkeypatch, w2v):
     from fse.models import average
 
-    original = average.run_job
     calls = []
 
-    def fail_second(*args):
-        calls.append(1)
-        if len(calls) == 2:
-            raise OSError("disk full")
-        return original(*args)
+    def failing(original):
+        def fail_second(*args):
+            calls.append(1)
+            if len(calls) == 2:
+                raise OSError("disk full")
+            return original(*args)
 
-    monkeypatch.setattr(average, "run_job", fail_second)
+        return fail_second
+
+    # The producer's jobs, and the list chunks that workers read themselves (small ones).
+    for name in ("run_job", "run_list_chunk"):
+        monkeypatch.setattr(average, name, failing(getattr(average, name)))
+    monkeypatch.setattr(average, "_LIST_CHUNK_MIN_ROWS", 10)
+    monkeypatch.setattr(average, "_LIST_CHUNK_MAX_ROWS", 10)
     model = fse.SIF(w2v, components=2, workers=2)
     model.batch_words = 50
     with pytest.raises(OSError, match="disk full"):

@@ -12,6 +12,8 @@
 
 """Optimized cython functions for computing sentence embeddings"""
 
+import operator
+
 import cython
 import numpy as np
 
@@ -828,7 +830,8 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
     ``BaseSentence2VecModel._check_indexed_sent_valid``. ``progress(sentences, words)`` is
     called about every ``progress_per`` seconds. Returns the number of sentences and
     words, the number of empty sentences, the largest index, whether every index
-    occurs at most once, and whether every index equals the position of its sentence.
+    occurs at most once, whether every index equals the position of its sentence, and
+    whether every sentence is an exact list of exact str (for run_list_chunk).
     """
     cdef Py_ssize_t i = 0
     cdef Py_ssize_t total_words = 0
@@ -836,6 +839,7 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
     cdef object max_index = 0
     cdef bint unique_indices = True
     cdef bint identity = True
+    cdef bint exact_types = True
     cdef double last = time()
     # The bitmap of _index_tracker.IndexTracker with the same rules, inlined; it exists
     # while the indices are tracked, from the first index that is not its position.
@@ -863,12 +867,16 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
             raise TypeError(
                 f"At {i}: Passed {type(words)}: {words}. tuple.words must contain list of str."
             )
+        if type(words) is not list:
+            exact_types = False
         # Subclasses of list may override __iter__, which the Python check uses.
         for word in (<list>words if type(words) is list else words):
-            if not isinstance(word, str):
-                raise TypeError(
-                    f"At {i}: Passed {type(words)}: {words}. tuple.words must contain list of str."
-                )
+            if type(word) is not str:
+                if not isinstance(word, str):
+                    raise TypeError(
+                        f"At {i}: Passed {type(words)}: {words}. tuple.words must contain list of str."
+                    )
+                exact_types = False
         if type(index) is not int:
             if isinstance(index, bool) or not isinstance(index, (int, np.integer)):
                 raise TypeError(
@@ -924,7 +932,7 @@ def scan_indexed_sentences(sentences, double progress_per, progress):
             unique_indices = _index_tracker.fold(bits, pending, fold_bytes)
         else:
             unique_indices = _index_tracker.sorted_unique(pending)
-    return i, total_words, empty_sentences, max_index, unique_indices, identity
+    return i, total_words, empty_sentences, max_index, unique_indices, identity, exact_types
 
 
 # ---------------------------------------------------------------------------------------
@@ -1473,6 +1481,195 @@ def run_chunk(KernelContext ctx, VocabTable table, const unsigned char[::1] data
     if prefill and n_sentences != n_items:
         raise ValueError(f"the chunk holds {n_sentences} sentences instead of {n_items}")
     return eff_sentences, eff_words
+
+
+# ---------------------------------------------------------------------------------------
+# Python lists (IndexedList, CIndexedList): the tokens of a chunk are copied as UTF-8 bytes
+# while holding the GIL, then looked up and averaged without it, by every worker for its
+# own chunk. The GIL part is a fraction of what the JobEncoder does per token.
+# ---------------------------------------------------------------------------------------
+
+cdef extern from "Python.h":
+    # Borrowed references and exact type checks; valid while the GIL is held and no Python
+    # code runs, so a chunk reads every sentence without calling into Python.
+    PyObject *_list_item "PyList_GET_ITEM"(PyObject *, Py_ssize_t)
+    Py_ssize_t _list_size "PyList_GET_SIZE"(PyObject *)
+    bint _is_exact_list "PyList_CheckExact"(PyObject *)
+    bint _is_exact_str "PyUnicode_CheckExact"(PyObject *)
+    const char *_str_utf8 "PyUnicode_AsUTF8AndSize"(PyObject *, Py_ssize_t *) except NULL
+
+
+cdef int _average_token_spans(
+    const KernelParams *p,
+    const VocabView *table,
+    const unsigned char *data,
+    const np.int64_t *token_ends,
+    const np.int64_t *sentence_ends,
+    const uINT_t *targets,
+    Py_ssize_t n_sentences,
+    REAL_t *mem,
+    _Buffer *words,
+    _Buffer *oov_bytes,
+    _Buffer *oov_offsets,
+    _Buffer *ngrams,
+    Py_ssize_t *eff_words,
+) noexcept nogil:
+    """Look up and average sentences whose tokens are given as byte spans, without the GIL.
+
+    Token t is data[token_ends[t - 1]:token_ends[t]] (token_ends[-1] is 0), and sentence s
+    holds tokens sentence_ends[s - 1] to sentence_ends[s] - 1. Unknown words are handled
+    as in _average_spans, so results equal the job path.
+    """
+    cdef Py_ssize_t s, t, longest, capacity, k
+    cdef np.int64_t start, end, first_token = 0
+    cdef size_t per_word, needed
+    cdef uINT_t index
+    cdef unsigned char open_mark = 60, close_mark = 62  # "<" and ">"
+    for s in range(n_sentences):
+        words.size = 0
+        oov_bytes.size = 0
+        oov_offsets.size = 0
+        if _push_i64_nogil(oov_offsets, 0) != 0:
+            return NATIVE_NO_MEMORY
+        longest = 0
+        for t in range(first_token, sentence_ends[s]):
+            start = token_ends[t - 1] if t else 0
+            end = token_ends[t]
+            index = _vocab_lookup(table, data + start, end - start)
+            if index != NOT_FOUND:
+                if _push_u32_nogil(words, index) != 0:
+                    return NATIVE_NO_MEMORY
+            elif p.is_ft:
+                # The UTF-8 bytes of "<token>", as fastText hashes them.
+                if (
+                    _push_bytes_nogil(oov_bytes, &open_mark, 1) != 0
+                    or _push_bytes_nogil(oov_bytes, data + start, end - start) != 0
+                    or _push_bytes_nogil(oov_bytes, &close_mark, 1) != 0
+                    or _push_i64_nogil(oov_offsets, oov_bytes.size) != 0
+                    or _push_u32_nogil(words, OOV_TOKEN) != 0
+                ):
+                    return NATIVE_NO_MEMORY
+                longest = max(longest, end - start + 2)
+        first_token = sentence_ends[s]
+        if words.size:
+            # As in _average_spans: fewer than b * max_n ngrams for a word of b bytes.
+            per_word = max(<size_t>p.max_n, 1)
+            needed = <size_t>longest * per_word if <size_t>longest <= SIZE_MAX // per_word else SIZE_MAX
+            capacity = <Py_ssize_t>min(p.max_ngrams, needed)
+            if capacity * <Py_ssize_t>sizeof(uINT_t) > ngrams.capacity:
+                if _grow_nogil(ngrams, capacity * sizeof(uINT_t) - ngrams.size) != 0:
+                    return NATIVE_NO_MEMORY
+            k = 0
+            eff_words[0] += words.size // sizeof(uINT_t)
+            _average_sentence(
+                p, <const uINT_t *>words.data, words.size // sizeof(uINT_t),
+                <const unsigned char *>oov_bytes.data, <const np.int64_t *>oov_offsets.data,
+                &k, targets[s], mem, <uINT_t *>ngrams.data, <size_t>capacity,
+            )
+    return NATIVE_OK
+
+
+def run_list_chunk(KernelContext ctx, VocabTable table, list items, indices,
+                   Py_ssize_t begin, Py_ssize_t end, np.int64_t offset, scratch):
+    """Average the sentences items[begin:end] of a list of lists of str.
+
+    Sentence s goes into row ``s + offset``, or ``indices[s] + offset`` if indices is not
+    None. The tokens are copied as UTF-8 bytes while holding the GIL; lookup and
+    averaging run without it. Every sentence must be an exact list of exact str, as the
+    scan found; anything else raises, because the input changed after the scan. Returns
+    the number of non-empty sentences and of used tokens, like run_job. With
+    ``ctx.prefill_rows``, the rows must be contiguous and are set to EPS first.
+    """
+    _check_array(scratch, "scratch", np.float32)
+    if scratch.size < ctx.params.size:
+        raise ValueError(f"scratch must hold at least {ctx.params.size} entries")
+    if not 0 <= begin <= end <= len(items):
+        raise ValueError(f"sentences [{begin}, {end}) are outside the {len(items)} items")
+    if offset < 0:
+        raise ValueError(f"offset must be non-negative, got {offset}")
+    cdef bint prefill = ctx.prefill_rows
+    if ctx.params.ring_rows and not prefill:
+        raise ValueError("a ring of windows needs prefill_rows")
+    cdef Py_ssize_t n_items = end - begin
+    cdef np.int64_t first_row = begin + offset
+    if prefill:
+        _check_prefill(ctx, first_row, n_items)
+    # With prefill, no sentence may go past the rows that were set to EPS.
+    cdef Py_ssize_t n_rows = first_row + n_items if prefill else ctx.n_rows
+
+    cdef _Buffer data, token_ends, sentence_ends, targets, words, oov_bytes, oov_offsets, ngrams
+    memset(&data, 0, sizeof(_Buffer))
+    memset(&token_ends, 0, sizeof(_Buffer))
+    memset(&sentence_ends, 0, sizeof(_Buffer))
+    memset(&targets, 0, sizeof(_Buffer))
+    memset(&words, 0, sizeof(_Buffer))
+    memset(&oov_bytes, 0, sizeof(_Buffer))
+    memset(&oov_offsets, 0, sizeof(_Buffer))
+    memset(&ngrams, 0, sizeof(_Buffer))
+    cdef PyObject *sentence
+    cdef PyObject *token
+    cdef Py_ssize_t i, t, n, size, n_tokens = 0, n_sentences = 0, eff_words = 0
+    cdef np.int64_t row
+    cdef const char *utf8
+    cdef REAL_t *mem = <REAL_t *>(np.PyArray_DATA(scratch))
+    cdef int status
+    try:
+        for i in range(begin, end):
+            # The index first: reading it may run Python code, the tokens below do not.
+            if indices is None:
+                row = i + offset
+            else:
+                row = operator.index(indices[i]) + offset
+            if i >= len(items):
+                raise RuntimeError("the list got shorter after the scan")
+            if prefill and row != first_row + (i - begin):
+                raise RuntimeError(
+                    f"sentence {i} has index {row - offset}, but the scan found its position"
+                )
+            if not 0 <= row < n_rows:
+                raise IndexError(f"sentence index {row - offset} is out of range for {n_rows} target rows")
+            sentence = _list_item(<PyObject *>items, i)
+            if not _is_exact_list(sentence):
+                raise RuntimeError(
+                    f"sentence {i} is no longer a list: the input changed after the scan"
+                )
+            n = _list_size(sentence)
+            if n == 0:
+                continue
+            for t in range(n):
+                token = _list_item(sentence, t)
+                if not _is_exact_str(token):
+                    raise RuntimeError(
+                        f"sentence {i} no longer holds only str: the input changed after the scan"
+                    )
+                utf8 = _str_utf8(token, &size)
+                _push_bytes(&data, utf8, size)
+                _push_i64(&token_ends, data.size)
+            n_tokens += n
+            n_sentences += 1
+            _push_i64(&sentence_ends, n_tokens)
+            _push_u32(&targets, <uINT_t>row)
+        with nogil:
+            if prefill:
+                _prefill(&ctx.params, first_row, n_items)
+            status = _average_token_spans(
+                &ctx.params, &table.view, <const unsigned char *>data.data,
+                <const np.int64_t *>token_ends.data, <const np.int64_t *>sentence_ends.data,
+                <const uINT_t *>targets.data, n_sentences, mem,
+                &words, &oov_bytes, &oov_offsets, &ngrams, &eff_words,
+            )
+    finally:
+        free(data.data)
+        free(token_ends.data)
+        free(sentence_ends.data)
+        free(targets.data)
+        free(words.data)
+        free(oov_bytes.data)
+        free(oov_offsets.data)
+        free(ngrams.data)
+    if status == NATIVE_NO_MEMORY:
+        raise MemoryError("could not grow the buffers of a list chunk")
+    return n_sentences, eff_words
 
 
 def _check_array(array, name, dtype):

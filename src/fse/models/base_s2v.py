@@ -746,6 +746,13 @@ class BaseSentence2VecModel(SaveLoad):
         """Return an object whose next_job() yields encoded jobs, then None."""
         raise NotImplementedError()
 
+    def _list_chunk_rows(self, sentences: Any, statistics: dict[str, Any]) -> int:
+        """Rows per chunk when workers read a Python list themselves, or 0 for the producer.
+
+        Set for one training as ``_list_plan``; infer keeps the producer path.
+        """
+        return 0
+
     def _run_encoded_job(
         self, context: Any, job: Any, memory: tuple[ndarray, ndarray]
     ) -> tuple[int, int]:
@@ -879,6 +886,8 @@ class BaseSentence2VecModel(SaveLoad):
         # about one byte per sentence.
         unique_indices = True
         identity = True
+        # Whether every sentence is an exact list of exact str (see Average._list_chunk_rows).
+        exact_types = False
         tracker: IndexTracker | None = None
 
         def progress(sentences_done: int, words_done: int):
@@ -905,6 +914,8 @@ class BaseSentence2VecModel(SaveLoad):
             max_index = max(total_sentences - 1, 0)
             unique_indices = True
             identity = True
+            # Split natively into lists of str, like str.split() in Python.
+            exact_types = True
         elif (
             scan_indexed_sentences is not None
             and "_check_indexed_sent_valid" not in self.__dict__
@@ -919,10 +930,16 @@ class BaseSentence2VecModel(SaveLoad):
                 max_index,
                 unique_indices,
                 identity,
+                exact_types,
             ) = scan_indexed_sentences(sentences, progress_per, progress)
         else:
+            exact_types = True
             for i, obj in enumerate(sentences):
                 index, sent = self._check_indexed_sent_valid(iter_pos=i, obj=obj)
+                if exact_types and (
+                    type(sent) is not list or any(type(word) is not str for word in sent)
+                ):
+                    exact_types = False
                 if time() - current_time > progress_per:
                     current_time = time()
                     progress(total_sentences, total_words)
@@ -968,6 +985,7 @@ class BaseSentence2VecModel(SaveLoad):
             "unique_indices": unique_indices,
             # Index i for the i-th sentence: one row per sentence, in order.
             "identity_indices": identity,
+            "exact_types": exact_types,
         }
         return statistics
 
@@ -1072,6 +1090,8 @@ class BaseSentence2VecModel(SaveLoad):
                 return self._train(sentences, update, queue_factor, report_delay)
         finally:
             _release_native(sentences)
+            # Only exists during training and must never be pickled.
+            self.__dict__.pop("_list_plan", None)
 
     def _train(
         self, sentences: Any, update: bool, queue_factor: int, report_delay: float
@@ -1080,6 +1100,9 @@ class BaseSentence2VecModel(SaveLoad):
         call_start = time()
         self._check_input_data_sanity(sentences)
         statistics = self.scan_sentences(sentences)
+        rows = self._list_chunk_rows(sentences, statistics)
+        if rows:
+            self.__dict__["_list_plan"] = (rows, bool(statistics["identity_indices"]))
 
         self._check_pre_training_sanity(update=update, **statistics)
 
@@ -1295,7 +1318,10 @@ class BaseSentence2VecModel(SaveLoad):
         return eff_sentences, eff_words, elapsed
 
     def _max_job_rows(self, sentences: Any) -> int:
-        """The most rows one job can hold: a native chunk of the scan, or batch_words."""
+        """The most rows one job can hold: a native or list chunk, or batch_words."""
+        plan = self.__dict__.get("_list_plan")
+        if plan is not None:
+            return plan[0]
         state = getattr(sentences, "_scan_state", None)
         if state is not None and state[1]:
             return max(int(count) for *_, count in state[1])
