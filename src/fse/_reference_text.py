@@ -125,7 +125,8 @@ def tokenize_fse_words(text: str) -> list[str]:
 
 def tokenize_external(text: str) -> list[str]:
     """The tokens of one sentence by external: split at whitespace, unchanged."""
-    out, token = [], []
+    out: list[str] = []
+    token: list[str] = []
     for ch in text:
         if ch in WHITESPACE:
             if token:
