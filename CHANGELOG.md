@@ -10,10 +10,17 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 - `fse.WordVectors`: word vectors saved as one `.safetensors` file with checksums and a fingerprint, without pickle, memory-mappable, stored as float32, float16 or int8 and read as float32, with FastText ngrams. Loading int8 vectors needs no float32 copy, and other safetensors readers can open the files.
 - `fse.gensim.from_gensim` converts gensim `KeyedVectors`, `Word2Vec` and `FastText` into `WordVectors`.
+- Python 3.14 and 3.15, with pre-built wheels. On 3.14 and newer, `fse.gensim` needs gensim, which does not build there yet; everything else works.
 
 ### Changed
 
-- gensim is no longer a dependency: install `fse[gensim]` for `fse.gensim` and for the 1.x classes (`Average`, `SIF`, `uSIF`, the inputs and `Vectors`), which are loaded on first access and raise an `ImportError` naming the extra without it.
+- gensim is no longer a dependency: install `fse[gensim]` for `fse.gensim`.
+- Building from source needs MSVC on Windows, or GCC or Clang elsewhere; MinGW is refused, because its `fmaf` rounds twice.
+- The only dependencies are numpy and pydantic. scipy, smart_open, wordfreq, huggingface-hub, psutil and threadpoolctl are no longer needed; the Hugging Face Hub returns with the 2.0 loader.
+
+### Removed
+
+- The 1.x API: `Average`, `SIF`, `uSIF`, `SentenceVectors`, the input classes, `Vectors` and `FTVectors`, and the modules `fse.models`, `fse.inputs` and `fse.vectors`. Accessing one of these names on `fse` raises an `AttributeError` that points to fse 1.1.0 on PyPI and the branch `1.x`. Models saved with 1.x are converted with `export_v2` of a later 1.x release.
 
 ## [1.1.0] - 2026-10-27
 

@@ -3,6 +3,7 @@ from fractions import Fraction
 import numpy as np
 import pytest
 
+from fse._codes import quantize_into
 from fse._contract import OOV_TOKEN, Batch, Normalize, Project, RemoveComponents
 from fse._reference import (
     accumulate,
@@ -18,7 +19,6 @@ from fse._reference import (
     score,
     top_k,
 )
-from fse.models._quantize import quantize_into
 
 F32 = np.float32
 

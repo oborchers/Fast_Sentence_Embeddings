@@ -1,4 +1,4 @@
-"""The 1.1.0 reference fixture: 1.x keeps its results, and the 2.0 reference stays close.
+"""The 1.1.0 reference fixture: the 2.0 reference stays close to what 1.1.0 computed.
 
 The fixture in tests/test_data/v1_reference was written by fse 1.1.0 from PyPI with
 benchmarks/baseline/make_v1_fixture.py.
@@ -35,42 +35,16 @@ def test_fixture_is_intact():
         assert hashlib.sha256((FIXTURE / name).read_bytes()).hexdigest() == digest, name
 
 
-def _model(name, dtype, arrays, words):
-    from gensim.models import FastText, KeyedVectors
+@pytest.mark.parametrize("dtype", ["float16", "int8"])
+def test_storage_rules_reproduce_the_codes_of_1_1_0(ref, dtype):
+    """The 2.0 quantization equals the word vector codes 1.1.0 computed."""
+    from fse._reference import quantize_rows
 
-    from fse import SIF, Average, uSIF
-
-    if name == "AverageFT":
-        ft = FastText(vector_size=12, min_count=1, bucket=500, seed=0)
-        ft.build_vocab([words["ft"]])
-        wv = ft.wv
-        order = [wv.key_to_index[w] for w in words["ft"]]
-        wv.vectors_vocab[order] = arrays["ft.vectors_vocab"]
-        wv.vectors_ngrams[:] = arrays["ft.vectors_ngrams"]
-        counts = arrays["ft.counts"]
-    else:
-        wv = KeyedVectors(12)
-        wv.add_vectors(words["kv"], arrays["kv.vectors"])
-        counts = arrays["kv.counts"]
-    for word, count in zip(words["ft" if name == "AverageFT" else "kv"], counts, strict=True):
-        wv.set_vecattr(word, "count", int(count))
-    kwargs = {"SIF": {"components": 2}, "uSIF": {"components": 2, "length": 11}}.get(name, {})
-    cls = {"SIF": SIF, "uSIF": uSIF}.get(name, Average)
-    return cls(wv, wv_dtype=dtype, **kwargs)
-
-
-@pytest.mark.parametrize("dtype", DTYPES)
-@pytest.mark.parametrize("name", CONFIGS)
-def test_1x_reproduces_1_1_0(ref, name, dtype):
-    from fse import IndexedList
-
-    arrays, sentences, words = ref
-    model = _model(name, dtype, arrays, words)
-    data = IndexedList(sentences)
-    model.train(data)
-    prefix = f"{name}.{dtype}"
-    assert_rows_close(model.sv.vectors, arrays[f"{prefix}.train"])
-    assert_rows_close(model.infer(data), arrays[f"{prefix}.infer"])
+    arrays, _, _ = ref
+    codes, scales = quantize_rows(arrays["kv.vectors"], dtype)
+    assert codes.tobytes() == arrays[f"Average.{dtype}.rows"].tobytes()
+    if dtype == "int8":
+        assert scales.tobytes() == arrays[f"Average.{dtype}.scales"].tobytes()
 
 
 def assert_rows_close(got, expected, tolerance=1e-5):

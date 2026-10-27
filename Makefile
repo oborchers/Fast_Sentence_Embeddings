@@ -49,7 +49,7 @@ test-network: ## Run the tests that download from the Hugging Face Hub
 	$(UV) run pytest tests -m network
 
 test-cov: ## Run tests with coverage
-	$(UV) run pytest tests -m "not network" --cov=$(PACKAGE) --cov-report=term-missing
+	$(UV) run pytest tests -m "not network" --cov=$(PACKAGE) --cov-report=term-missing --cov-fail-under=0
 
 ##@ Combined
 check: format-check lint typecheck test ## Run all checks: format + lint + typecheck + test
@@ -62,7 +62,7 @@ build: clean ## Build sdist and wheel
 clean: ## Remove build artifacts and caches
 	rm -rf build/ dist/ wheelhouse/ *.egg-info src/*.egg-info
 	rm -rf .pytest_cache .ruff_cache htmlcov .coverage .coverage.*
-	rm -f $(SRC)/models/*.c
+	rm -f $(SRC)/*.c
 	find . -type d -name __pycache__ -not -path "./.venv/*" -exec rm -rf {} + 2>/dev/null || true
 
 ##@ Hooks

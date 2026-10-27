@@ -16,12 +16,15 @@ Phases:
 - ``score``: ``score`` of 1,000 random vectors;
 - ``infer_<n>``: ``infer`` of n sentences (p50 and p95 over five calls).
 
-The script uses the 1.x API. Results are only comparable on an idle machine; the load
+The script uses the 1.x API. Master no longer contains the 1.x API, so run the script with the interpreter of an
+environment with fse 1.1.0, such as ``.venv-baseline/bin/python`` of ``benchmarks/baseline``;
+its subprocesses use the same interpreter.
+Results are only comparable on an idle machine; the load
 average is recorded before every phase.
 
 Example::
 
-    uv run python benchmarks/bench_lifecycle.py --vectors glove-wiki-gigaword-300 \\
+    .venv-baseline/bin/python benchmarks/bench_lifecycle.py --vectors glove-wiki-gigaword-300 \\
         --corpus ~/.cache/fse-quality/wikitext-103-b08601e0.txt --sentences 1000000 \\
         --json lifecycle.json
 """

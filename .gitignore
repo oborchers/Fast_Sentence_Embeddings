@@ -84,7 +84,7 @@ test_emb*
 #####################
 .venv/
 src/fse/_version.py
-src/fse/models/average_inner.c
+src/fse/_native.c
 *.egg-info/
 .pytest_cache/
 .ruff_cache/

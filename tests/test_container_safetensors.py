@@ -430,7 +430,7 @@ def test_strings_without_utf8_form_are_rejected(tmp_path):
 def test_deeply_nested_headers_are_corrupt_not_a_crash(tmp_path):
     path = tmp_path / "a.safetensors"
     _assemble(path, None, b"", raw_header=b'{"x": ' + b"[" * 100_000 + b"]" * 100_000 + b"}")
-    with pytest.raises(CorruptArtifactError, match="not valid JSON"):
+    with pytest.raises(CorruptArtifactError):  # the parser of Python 3.14 takes the depth
         SafetensorsContainer().open(path, mmap=False)
 
 

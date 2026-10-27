@@ -46,7 +46,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
         deps: ["latest"]
         include:
           # Lowest supported versions, matching the bounds in pyproject.toml.
@@ -68,9 +68,7 @@ jobs:
         if: matrix.deps == 'min'
         run: >-
           uv pip install
-          "numpy==1.26.4" "scipy==1.11.4" "gensim==4.3.3" "safetensors==0.4.0"
-          "smart_open==6.4.0" "wordfreq==3.1.0" "huggingface-hub==0.23.0"
-          "psutil==5.9.0" "pydantic==2.5.0" "threadpoolctl==3.1.0"
+          "numpy==1.26.4" "pydantic==2.5.0" "gensim==4.3.3" "safetensors==0.4.0"
       - name: Run tests with coverage
         if: matrix.deps != 'min'
         run: make test-cov
@@ -111,23 +109,6 @@ jobs:
           uv run coverage combine
           uv run coverage report
 
-  # gensim cannot be built on Python 3.14 yet (piskvorky/gensim#3640). This job
-  # only reports when that changes and never blocks a merge or release.
-  python-314:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
-        with:
-          enable-cache: true
-      - run: uv python install 3.14
-      - run: uv sync --upgrade --group test --python 3.14
-      - run: make test
-
   sdist:
     runs-on: ubuntu-latest
     steps:
@@ -151,20 +132,27 @@ jobs:
           uv pip install --python /tmp/plain-env dist/*.tar.gz
           cd /tmp && /tmp/plain-env/bin/python -c "
           import importlib.util, tempfile, pathlib, numpy as np
-          assert importlib.util.find_spec('gensim') is None, 'gensim is installed'
+          for name in ('gensim', 'scipy'):
+              assert importlib.util.find_spec(name) is None, name + ' is installed'
           import fse
+          from fse import _native, _reference
+          from fse._contract import Batch
           wv = fse.WordVectors.from_arrays(np.ones((2, 3), np.float32), words=['a', 'b']).quantize('int8')
           path = pathlib.Path(tempfile.mkdtemp()) / 'wv.safetensors'
           wv.save(path)
           for mmap in (False, True):
               assert fse.WordVectors.load(path, mmap=mmap).fingerprint == wv.fingerprint
+          batch = Batch(0, np.array([0, 2], np.int64), np.array([0, 1], np.uint32))
+          args = (wv.vectors, np.ones(2, np.float32), wv.scales)
+          got, want = _native.pool_weighted_mean(batch, *args), _reference.pool_weighted_mean(batch, *args)
+          assert got.view(np.uint32).tolist() == want.view(np.uint32).tolist()
           try:
               fse.Average
-          except ImportError as err:
-              assert 'fse[gensim]' in str(err), err
+          except AttributeError as err:
+              assert 'fse==1.1.0' in str(err), err
           else:
-              raise AssertionError('Average without gensim')
-          print('fse without gensim works')
+              raise AssertionError('Average exists')
+          print('fse without gensim and scipy works')
           "
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
@@ -194,12 +182,11 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, test, coverage, python-314, sdist, wheels]
+    needs: [lint, test, coverage, sdist, wheels]
     runs-on: ubuntu-latest
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35  # v1.3.0
         with:
-          allowed-failures: python-314
           jobs: ${{ toJSON(needs) }}
 
   release:

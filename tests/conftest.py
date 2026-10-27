@@ -3,16 +3,12 @@
 The corpus in ``tests/test_data`` is read-only input. Tests that write files
 use pytest's ``tmp_path``.
 
-The word vector models are function scoped on purpose: several tests change
-the vectors, the word counts or map the vectors to disk, and the models must
-not carry that state into other tests. Building them is cheap.
+gensim is only needed by tests/test_gensim.py, which builds its own models.
 """
 
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from gensim.models import FastText, Word2Vec
 
 TEST_DATA = Path(__file__).parent / "test_data"
 
@@ -40,30 +36,6 @@ def corpus(corpus_path: Path) -> tuple[tuple[str, ...], ...]:
 def sentences(corpus: tuple[tuple[str, ...], ...]) -> list[list[str]]:
     """A fresh, mutable copy of the tokenized corpus."""
     return [list(sentence) for sentence in corpus]
-
-
-@pytest.fixture
-def make_w2v(corpus: tuple[tuple[str, ...], ...]) -> Callable[..., Word2Vec]:
-    """Build a Word2Vec model with the vocabulary of the corpus."""
-
-    def _make(vector_size: int, **kwargs) -> Word2Vec:
-        w2v = Word2Vec(min_count=1, vector_size=vector_size, **kwargs)
-        w2v.build_vocab([list(sentence) for sentence in corpus])
-        return w2v
-
-    return _make
-
-
-@pytest.fixture
-def make_ft(corpus: tuple[tuple[str, ...], ...]) -> Callable[..., FastText]:
-    """Build a FastText model with the vocabulary of the corpus."""
-
-    def _make(vector_size: int, **kwargs) -> FastText:
-        ft = FastText(min_count=1, vector_size=vector_size, **kwargs)
-        ft.build_vocab([list(sentence) for sentence in corpus])
-        return ft
-
-    return _make
 
 
 @pytest.fixture

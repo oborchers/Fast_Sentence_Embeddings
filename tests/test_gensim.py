@@ -1,11 +1,41 @@
 import sys
+from collections.abc import Callable
 
 import numpy as np
 import pytest
-from gensim.models import KeyedVectors
+
+# gensim does not build on Python 3.14 and newer yet (piskvorky/gensim#3640); everywhere else the
+# test group installs it, so a missing gensim is an error there, not a skip.
+if sys.version_info >= (3, 14):
+    pytest.importorskip("gensim")
+from gensim.models import FastText, KeyedVectors, Word2Vec
 
 from fse._reference import quantize_rows
 from fse.gensim import from_gensim
+
+
+@pytest.fixture
+def make_w2v(corpus: tuple[tuple[str, ...], ...]) -> Callable[..., Word2Vec]:
+    """Build a Word2Vec model with the vocabulary of the corpus."""
+
+    def _make(vector_size: int, **kwargs) -> Word2Vec:
+        w2v = Word2Vec(min_count=1, vector_size=vector_size, **kwargs)
+        w2v.build_vocab([list(sentence) for sentence in corpus])
+        return w2v
+
+    return _make
+
+
+@pytest.fixture
+def make_ft(corpus: tuple[tuple[str, ...], ...]) -> Callable[..., FastText]:
+    """Build a FastText model with the vocabulary of the corpus."""
+
+    def _make(vector_size: int, **kwargs) -> FastText:
+        ft = FastText(min_count=1, vector_size=vector_size, **kwargs)
+        ft.build_vocab([list(sentence) for sentence in corpus])
+        return ft
+
+    return _make
 
 
 def _kv(words, dim=4, seed=0):
