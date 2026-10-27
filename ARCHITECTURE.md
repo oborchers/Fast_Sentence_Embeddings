@@ -15,7 +15,9 @@ src/fse/
   _container.py          # SafetensorsContainer (models) and NpyContainer (output)
   _wordvectors.py        # WordVectors
   _gram.py               # Gram matrix helpers for fit
+  _validation.py         # validate_arguments: strict pydantic checks of entry points
   _native.pyx            # native routines: kernel wrappers, hashing, vocabulary table
+  _native.pxd, .pyi      # shared C types of the extension, and its type stubs
   _native_kernel.h       # the C kernel: weighted mean, dot16, steps, score per ISA
   _native_text.h         # the native tokenizers fse_words@1 and external
   _native_unicode.h      # generated: the simple lowercase table for the native code
@@ -270,7 +272,17 @@ Saved 2.0 artifacts contain no Python class paths. Their persistence API is the 
 
 ### Layout
 
-New 2.0 code goes into private modules of `fse`: `_contract` and `_reference` (contracts and reference), `_codes` (storage arithmetic in blocks), `_container` and `_wordvectors`, the gensim adapter `fse.gensim` (extra `fse[gensim]`), then the runtime and backends, the encoder and recipes, sinks and store, and the thin `train`/`infer` facade of the release. gensim is not a dependency of fse: `import fse` and every 2.0 class work without it (tests check it, and a static check keeps the 2.0 modules free of gensim, scipy and smart_open).
+New 2.0 code goes into private modules of `fse`: `_contract` and `_reference` (contracts and reference), `_codes` (storage arithmetic in blocks), `_container` and `_wordvectors`, the gensim adapter `fse.gensim` (extra `fse[gensim]`), then the runtime and backends, the encoder and recipes, sinks and store, and the thin `train`/`infer` facade of the release. gensim is not a dependency of fse: `import fse` and every 2.0 class work without it (tests check it in a subprocess that blocks gensim and scipy).
+
+The modules form layers, and a module imports only from layers below it. The import contracts in `pyproject.toml` (`[tool.importlinter]`, run by `make lint`) enforce this, and every new module must take a layer there:
+
+1. `gensim` (the adapter, the only module that imports gensim)
+2. `_text`
+3. `_wordvectors`
+4. `_container`, `_codes`, `_gram`, `_reference`, `_reference_text`, `_validation`, independent of each other: the references never share code with what they check
+5. `_contract`, `_unicode`
+
+The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` imports it and that it imports only `_contract`. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, mlx, torch and sklearn anywhere but in `fse.gensim`. The runtime, backends, encoder, sinks and store of the coming PRs add their layers above `_text`.
 
 ### Defaults
 

@@ -35,6 +35,18 @@ Performance changes report before and after numbers on an idle machine (the scri
 - pytest treats warnings as errors. Add a narrow, commented `filterwarnings` ignore only for warnings from third-party code.
 - Record user-visible changes in `CHANGELOG.md`.
 
+## Guardrails
+
+`make lint` enforces, and CI and pre-commit run the same:
+
+- at most 500 lines per hand-written source file (the generated Unicode tables excepted);
+- the ruff complexity limits (C901 10, PLR0911 6, PLR0912 12, PLR0913 and PLR0917 5, PLR0915 50) and a cognitive complexity of at most 15 per function (complexipy);
+- the import layers and forbidden packages in `[tool.importlinter]`;
+- that only `fse._text` imports `fse._native` and the extension imports only `fse._contract`;
+- a `tests/test_<module>.py` for every module of fse.
+
+What exceeded a limit when the guardrails came is the ratchet in `[tool.fse.guardrails.ratchet]`, which only shrinks. Never add an entry, raise a number, add an inline suppression (`# noqa: C901`, `# complexipy: ignore`) or an `ignore_imports`. When code does not fit, split it: private modules may be split and renamed freely, persistence names never. When you improve an entry, lower or remove it (`tools/check_guardrails.py` says which). Place every new module in a layer of the import contract.
+
 ## Releases
 
 A pushed `v*` tag on `master` runs the release job in CI. It waits for approval in the `release` environment and publishes to PyPI with trusted publishing. Never create tags or releases without the maintainer's explicit approval.
