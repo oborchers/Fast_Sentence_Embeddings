@@ -2,9 +2,11 @@
 
 All notable changes to this project are documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows [Semantic Versioning](https://semver.org/).
 
-## [1.1.0] - Unreleased
+## [1.1.0] - 2026-10-27
 
-fse is now in maintenance mode: compatibility fixes and maintainer-planned scaling work, no feature work on request.
+1.1.0 is the last feature release of the 1.x line; 1.x receives bug and compatibility fixes from here on, while fse 2.0 is developed as a rewrite.
+
+**Upgrading from 1.0:** SIF and uSIF give different vectors than 1.0, because their principal components are computed exactly and uSIF weights the removed components like the reference implementation; retrain such models for comparable vectors (see Changed and Fixed). Arguments are validated strictly and raise a `pydantic.ValidationError`. fse requires Python 3.11 or newer and adds the dependencies pydantic and threadpoolctl.
 
 ### Added
 
@@ -46,7 +48,7 @@ fse is now in maintenance mode: compatibility fixes and maintainer-planned scali
 - Removing principal components for SIF and uSIF works in blocks of rows. It used to allocate a second copy of the whole sentence matrix in RAM, also for vectors on disk (`sv_mapfile_path`).
 - **Training writes the sentence vectors in one pass.** With index i for the i-th sentence (every input class except the `C*` lists with custom indices) and the compiled extension, each job sets its own rows to EPS instead of a separate pass over all rows, and SIF and uSIF sum the Gram matrix of the finished rows during training instead of reading them again. Results are bit-identical. For SIF and uSIF trained from scratch on a memmap larger than the RAM, this removes two separate full passes over the file (about 28 percent less time and 43 GB less read for 15 million sentences of dimension 300); measurements are in #83.
 - **SIF and uSIF compute their principal components exactly, over all sentence vectors.** They used a randomized SVD from scikit-learn on a sample of at most `cache_size_gb` (one million vectors in 1.0). Now the Gram matrix of all vectors is summed over blocks in float64 and decomposed, without a random sample: every vector is read once, memory stays at about one block, and repeated runs give the same components. The components change, so SIF and uSIF embeddings differ from earlier versions; on the STS Benchmark, SIF-10 scores move by at most 0.04 points and uSIF scores not at all, and the README table is remeasured. Computing the components is about 6 times faster for one million vectors of dimension 300 in memory, and SIF and uSIF train 2.5 to 4.5 times faster end to end on that corpus; measurements are in #82. When a training computes new components, SIF and uSIF raise a `ValueError` before it starts, leaving the model unchanged, if `components` exceeds the number of sentence vectors or their dimension; `train(update=True)` with learned components reuses them and is not checked; `compute_principal_components` raises a `ValueError` for more components than vectors or dimensions and for NaN or infinite values, and a `TypeError` for vectors that do not hold real numbers.
-- **More workers now help (#61).** The producer thread encodes each job and the workers average it without holding the GIL, so training no longer stalls at two workers; with the input in memory, the producer is the limit from two to four workers on. The input scan runs in Cython. With one row per sentence, results are bit-identical for any number of workers; when several sentences share a row, the order of additions can vary within float32 rounding. Before and after measurements are in the pull request; the README performance section follows with the release.
+- **More workers now help (#61).** The producer thread encodes each job and the workers average it without holding the GIL, so training no longer stalls at two workers; with the input in memory, the producer is the limit from two to four workers on. The input scan runs in Cython. With one row per sentence, results are bit-identical for any number of workers; when several sentences share a row, the order of additions can vary within float32 rounding. Before and after measurements are in the pull request; the throughput of the current release is in the README.
 - `batch_ngrams` above 2^24 (`fse.models.average_inner.MAX_NGRAMS_LIMIT`) raises a `ValueError` in the Cython routines; no word has that many ngrams, and the bound keeps buffer sizes in range.
 - The Cython routine averaged at most 10,000 words per sentence and always up to 40 ngrams per unknown FastText word; it now averages every word and uses `batch_ngrams`, like the numpy fallback.
 - FastText ngrams of out-of-vocabulary words are hashed in C instead of Python, with the same buckets as gensim. For a FastText model without ngram buckets (`bucket=0`), both averaging routines give unknown words no vector instead of the `ZeroDivisionError` of the numpy fallback; `train` still requires ngram vectors.
@@ -134,7 +136,7 @@ Changes from 0.1.11:
 - Fixed overflow when infer method is used with too many sentences.
 - Fixed similar_by_sentence bug.
 
-[1.1.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v1.0.0...HEAD
+[1.1.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v0.1.17...v0.2.0
 [0.1.17]: https://github.com/oborchers/Fast_Sentence_Embeddings/releases/tag/v0.1.17
