@@ -26,14 +26,14 @@ rebuild-ext: ## Rebuild the Cython extension after editing .pyx or .pxd files
 
 ##@ Quality
 format: ## Format code with ruff
-	$(UV) run ruff format $(SRC) tests
-	$(UV) run ruff check --fix --fix-only $(SRC) tests
+	$(UV) run ruff format $(SRC) tests tools
+	$(UV) run ruff check --fix --fix-only $(SRC) tests tools
 
 format-check: ## Check formatting (CI mode)
-	$(UV) run ruff format --check $(SRC) tests
+	$(UV) run ruff format --check $(SRC) tests tools
 
 lint: ## Lint code with ruff
-	$(UV) run ruff check $(SRC) tests
+	$(UV) run ruff check $(SRC) tests tools
 
 lint-fix: ## Lint and auto-fix
 	$(UV) run ruff check --fix $(SRC) tests

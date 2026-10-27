@@ -31,7 +31,7 @@ extensions = [
     Extension(
         "fse._native",
         sources=["src/fse/_native.pyx"],
-        depends=["src/fse/_native_kernel.h"],
+        depends=["src/fse/_native_kernel.h", "src/fse/_native_unicode.h"],
         include_dirs=[numpy.get_include(), "src/fse"],
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
     )
