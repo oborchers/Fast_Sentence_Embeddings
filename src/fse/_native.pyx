@@ -547,6 +547,15 @@ cdef extern from "_native_kernel.h":
     int fse_has_isa(int isa) nogil
     int64_t fse_run(int isa, const fse_params *p, const fse_batch *b, float *out,
                     int64_t *counts, int finish) nogil
+    float fse_dot16(int isa, const float *a, const float *b, int n) nogil
+    int64_t fse_remove_components(int isa, float *rows, int64_t n, int dim,
+                                  const float *components, int k, const float *weights,
+                                  float *scratch) nogil
+    int64_t fse_project(int isa, const float *rows, int64_t n, int dim, const float *basis,
+                        int k, float *out) nogil
+    int64_t fse_normalize(int isa, float *rows, int64_t n, int dim, int64_t *unnormalizable) nogil
+    int64_t fse_score(int isa, int dtype, const void *stored, const float *scales, int64_t n,
+                      int dim, const float *w, float bias, float *out, float *scratch) nogil
 
 _ISAS = {"portable": 0, "avx2": 1, "neon": 2}
 _DTYPES = {np.dtype(np.float32): 0, np.dtype(np.float16): 1, np.dtype(np.int8): 2}
@@ -745,3 +754,125 @@ def accumulate(batch, vectors, weights, scales=None, ngram_vectors=None, ngram_s
                oov_weight=None, *, isa=None):
     """``fse._reference.accumulate`` in the kernel."""
     return WeightedMean(vectors, weights, scales, ngram_vectors, ngram_scales, oov_weight, isa=isa).accumulate(batch)
+
+
+# ---------------------------------------------------------------------------------------
+# dot16, the postprocessing steps and score, as in fse._reference.
+# ---------------------------------------------------------------------------------------
+
+
+def _float32_rows(rows, name="rows"):
+    if not isinstance(rows, np.ndarray) or rows.dtype != np.float32 or rows.ndim != 2:
+        raise ValueError(f"{name} must be a float32 matrix")
+    return np.ascontiguousarray(rows)
+
+
+def dot16(rows, other, *, isa=None):
+    """dot16 of every row with ``other`` (one vector, or one row per row)."""
+    cdef int code = _check_isa(isa)
+    rows = _float32_rows(rows)
+    other = np.ascontiguousarray(np.broadcast_to(np.asarray(other, dtype=np.float32), rows.shape))
+    cdef const float[:, ::1] a = rows
+    cdef const float[:, ::1] b = other
+    out = np.empty(rows.shape[0], dtype=np.float32)
+    cdef float[::1] o = out
+    cdef Py_ssize_t r
+    cdef int n = rows.shape[1]
+    with nogil:
+        for r in range(a.shape[0]):
+            o[r] = fse_dot16(code, &a[r, 0] if n else NULL, &b[r, 0] if n else NULL, n)
+    return out
+
+
+def postprocess(rows, steps, first_row=0, *, isa=None):
+    """``fse._reference.postprocess`` in the kernel: the same rows, bits and errors."""
+    from fse._contract import Normalize, Project, RemoveComponents, check_steps
+
+    cdef int code = _check_isa(isa)
+    out = np.array(rows, dtype=np.float32, copy=True, order="C")
+    if out.ndim != 2:
+        raise ValueError("rows must be a matrix")
+    _check_finite_rows(out, first_row)
+    cdef float[:, ::1] view
+    cdef const float[:, ::1] params
+    cdef const float[::1] weights
+    cdef float[::1] scratch
+    cdef float[:, ::1] projected
+    cdef int64_t bad, unnormalizable
+    cdef int64_t n
+    cdef int dim, k
+    for step in check_steps(steps, out.shape[1]):
+        n, dim = out.shape[0], out.shape[1]
+        if n == 0:
+            if isinstance(step, Project):
+                out = np.empty((0, step.output_dim), dtype=np.float32)
+            continue
+        view = out
+        if isinstance(step, RemoveComponents):
+            params = step.components
+            k = params.shape[0]
+            scratch = np.empty(dim, dtype=np.float32)
+            if step.weights is not None:
+                weights = step.weights
+                with nogil:
+                    bad = fse_remove_components(code, &view[0, 0], n, dim, &params[0, 0], k, &weights[0], &scratch[0])
+            else:
+                with nogil:
+                    bad = fse_remove_components(code, &view[0, 0], n, dim, &params[0, 0], k, NULL, &scratch[0])
+        elif isinstance(step, Project):
+            params = step.basis
+            k = params.shape[0]
+            result = np.empty((n, k), dtype=np.float32)
+            projected = result
+            with nogil:
+                bad = fse_project(code, &view[0, 0], n, dim, &params[0, 0], k, &projected[0, 0])
+            out = result
+        else:
+            with nogil:
+                bad = fse_normalize(code, &view[0, 0], n, dim, &unnormalizable)
+            if unnormalizable >= 0:
+                raise ValueError(
+                    f"row {first_row + unnormalizable} cannot be normalized: the sum of its "
+                    "squares underflows or overflows float32"
+                )
+        if bad >= 0:
+            raise ValueError(f"row {first_row + bad} contains NaN or infinite values")
+    return out
+
+
+def _check_finite_rows(rows, first_row):
+    bad = np.flatnonzero(~np.isfinite(rows).all(axis=1))
+    if len(bad):
+        raise ValueError(f"row {first_row + int(bad[0])} contains NaN or infinite values")
+
+
+def score(stored, scales, weights, bias=0.0, *, isa=None):
+    """``fse._reference.score`` in the kernel: dot16(stored, w) * scale + bias per row."""
+    cdef int code = _check_isa(isa)
+    stored = _rows(stored, "stored")
+    cdef Py_ssize_t n = stored.shape[0]
+    cdef int dim = stored.shape[1]
+    weights = np.ascontiguousarray(weights, dtype=np.float32)
+    if weights.shape != (dim,):
+        raise ValueError(f"weights must hold {dim} values")
+    cdef bint int8 = stored.dtype == np.int8
+    if int8 != (scales is not None):
+        raise ValueError("scales are given exactly for int8 rows")
+    if int8:
+        scales = _float32_vector(scales, "scales", n)
+    out = np.empty(n, dtype=np.float32)
+    if n == 0:
+        return out
+    cdef float[::1] o = out
+    cdef const float[::1] w = weights
+    cdef float[::1] scratch = np.empty(max(dim, 1), dtype=np.float32)
+    cdef const void *data = np.PyArray_DATA(stored)
+    cdef const float *sc = <const float *>np.PyArray_DATA(scales) if int8 else NULL
+    cdef int dtype = _DTYPES[stored.dtype]
+    cdef float b = np.float32(bias)
+    cdef int64_t bad
+    with nogil:
+        bad = fse_score(code, dtype, data, sc, n, dim, &w[0] if dim else NULL, b, &o[0], &scratch[0])
+    if bad >= 0:
+        raise ValueError(f"the score of row {bad} overflows float32")
+    return out

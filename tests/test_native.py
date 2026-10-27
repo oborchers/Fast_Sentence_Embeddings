@@ -158,7 +158,12 @@ def test_out():
     out = np.full((1, 2), 9, F32)
     assert wm.pool(_batch([0, 1]), out) is out
     np.testing.assert_array_equal(out, [[1, 2]])
-    for bad in (np.empty((2, 2), F32), np.empty((1, 2)), np.empty((1, 4), F32)[:, ::2], vectors[:1]):
+    for bad in (
+        np.empty((2, 2), F32),
+        np.empty((1, 2)),
+        np.empty((1, 4), F32)[:, ::2],
+        vectors[:1],
+    ):
         with pytest.raises(ValueError, match="out must"):
             wm.pool(_batch([0, 1]), bad)
     readonly = np.empty((1, 2), F32)

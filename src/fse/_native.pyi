@@ -56,3 +56,16 @@ def accumulate(
     *,
     isa: str | None = None,
 ) -> tuple[ndarray, ndarray]: ...
+
+def dot16(rows: ndarray, other: ndarray, *, isa: str | None = None) -> ndarray: ...
+def postprocess(
+    rows: ndarray, steps: object, first_row: int = 0, *, isa: str | None = None
+) -> ndarray: ...
+def score(
+    stored: ndarray,
+    scales: ndarray | None,
+    weights: ndarray,
+    bias: float = 0.0,
+    *,
+    isa: str | None = None,
+) -> ndarray: ...

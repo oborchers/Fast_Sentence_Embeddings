@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 from fse import _native, _reference
-from fse._contract import OOV_TOKEN, Batch
+from fse._contract import OOV_TOKEN, Batch, Normalize, Project, RemoveComponents
 
 F32 = np.float32
 TINY = F32(np.finfo(F32).smallest_subnormal)
@@ -220,6 +220,15 @@ def expected(index: int, kind: str):
 class Reference:
     name = "reference"
 
+    def postprocess(self, rows, steps, first_row=0):
+        return _reference.postprocess(rows, steps, first_row)
+
+    def score(self, stored, scales, weights, bias):
+        return _reference.score(stored, scales, weights, bias)
+
+    def dot16(self, rows, other):
+        return _reference.dot16(rows, other)
+
     def pool(self, case):
         return _reference.pool_weighted_mean(case.batch, *case.args())
 
@@ -237,6 +246,15 @@ class Native:
 
     def accumulate(self, case):
         return _native.accumulate(case.batch, *case.args(), isa=self.isa)
+
+    def postprocess(self, rows, steps, first_row=0):
+        return _native.postprocess(rows, steps, first_row, isa=self.isa)
+
+    def score(self, stored, scales, weights, bias):
+        return _native.score(stored, scales, weights, bias, isa=self.isa)
+
+    def dot16(self, rows, other):
+        return _native.dot16(rows, other, isa=self.isa)
 
 
 BACKENDS = [Reference(), *(Native(isa) for isa in _native.available_isas())]
@@ -340,6 +358,87 @@ def test_v1_fixture_batches(backend, test_data_dir):
             assert_bits_equal(got, want, prefix)
 
 
+# --- Steps, dot16 and score -------------------------------------------------------------
+
+
+def _basis(dim, k, seed):
+    q = np.linalg.qr(_rng(seed).standard_normal((dim, k)))[0]
+    return np.ascontiguousarray(q.T, dtype=F32)
+
+
+def _step_lists(dim):
+    k = min(3, dim)
+    removal = RemoveComponents(_basis(dim, k, dim), np.array([1, 0.5, 0.25], F32)[:k])
+    plain = RemoveComponents(_basis(dim, 1, dim + 1))
+    project = Project(_basis(dim, max(1, dim // 2), dim + 2))
+    return {
+        "none": [],
+        "normalize": [Normalize()],
+        "remove weighted": [removal],
+        "remove one": [plain],
+        "project": [project],
+        "all three": [removal, project, Normalize()],
+    }
+
+
+STEP_CASES = [
+    (dim, name) for dim in (1, 3, 4, 7, 15, 16, 17, 31, 33, 300) for name in _step_lists(dim)
+]
+
+
+def _step_rows(dim):
+    rows = _rng(dim).standard_normal((12, dim)).astype(F32)
+    rows[3] = 0  # zero rows stay zero through normalize
+    rows[5] *= F32(1e-20)
+    return rows
+
+
+@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
+@pytest.mark.parametrize(("dim", "steps"), STEP_CASES, ids=[f"{d}-{n}" for d, n in STEP_CASES])
+def test_steps(backend, dim, steps):
+    rows = _step_rows(dim)
+    lists = _step_lists(dim)
+    want = _reference.postprocess(rows, lists[steps])
+    assert_bits_equal(backend.postprocess(rows, lists[steps]), want, f"{dim} {steps}")
+
+
+@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
+def test_step_errors_like_the_reference(backend):
+    rows = np.array([[1, 1], [1e-30, 0], [3e38, 3e38]], dtype=F32)
+    with pytest.raises(ValueError, match="row 11 cannot be normalized"):
+        backend.postprocess(rows, [Normalize()], first_row=10)
+    big = np.array([[1, 0], [np.finfo(F32).max, 0]], dtype=F32)
+    step = RemoveComponents(np.array([[1, 0]], dtype=F32), np.array([-2], dtype=F32))
+    with pytest.raises(ValueError, match="row 8 contains NaN or infinite"):
+        backend.postprocess(big, [step], first_row=7)
+    with pytest.raises(ValueError, match="row 4 contains NaN"):
+        backend.postprocess(np.array([[1, 0], [np.inf, 0]], dtype=F32), [], first_row=3)
+
+
+@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
+def test_dot16_keeps_negative_zero_lanes(backend):
+    rows = np.full((1, 17), -(2.0**-149), dtype=F32)
+    vector = np.full(17, 0.5, dtype=F32)
+    assert_bits_equal(backend.dot16(rows, vector)[None, :], _reference.dot16(rows, vector)[None, :])
+
+
+@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+@pytest.mark.parametrize("dim", [1, 7, 16, 17, 300])
+def test_score(backend, dtype, dim):
+    rng = _rng(dim)
+    stored, scales = _reference.quantize_rows(rng.standard_normal((20, dim)).astype(F32), dtype)
+    weights = rng.standard_normal(dim).astype(F32)
+    want = _reference.score(stored, scales, weights, 0.25)
+    assert_bits_equal(backend.score(stored, scales, weights, 0.25)[None, :], want[None, :])
+
+
+@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
+def test_score_overflow_raises(backend):
+    with pytest.raises(ValueError, match="score of row 0 overflows"):
+        backend.score(np.array([[BIG, 0]], dtype=F32), None, np.array([2, 0], F32), 0.0)
+
+
 # --- Meta-tests: the suite catches typical mistakes ----------------------------------------
 
 
@@ -381,3 +480,12 @@ def test_the_suite_catches(mistake, kwargs):
         except AssertionError:
             failures += 1
     assert failures, f"no case catches {mistake}"
+
+
+def test_the_suite_catches_zero_padded_dot16():
+    """Padding a tail with zeros turns a -0.0 lane into +0.0."""
+    rows = np.full((1, 17), -(2.0**-149), dtype=F32)
+    vector = np.full(17, 0.5, dtype=F32)
+    padded = _reference.dot16(np.pad(rows, ((0, 0), (0, 15))), np.pad(vector, (0, 15)))
+    with pytest.raises(AssertionError):
+        assert_bits_equal(padded[None, :], _reference.dot16(rows, vector)[None, :])
