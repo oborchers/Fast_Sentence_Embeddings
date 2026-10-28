@@ -291,6 +291,13 @@ exhaustive = true
 layers = ["_cpu | _numpy", "_base"]
 
 [[tool.importlinter.contracts]]
+name = "Runtime: the pipeline on tasks, sinks and the executor"
+type = "layers"
+containers = ["fse._runtime"]
+exhaustive = true
+layers = ["_pipeline", "_tasks | _sinks | _executor | _spec"]
+
+[[tool.importlinter.contracts]]
 name = "Optional and 1.x packages stay out of fse; gensim only in fse.gensim"
 type = "forbidden"
 source_modules = ["fse"]

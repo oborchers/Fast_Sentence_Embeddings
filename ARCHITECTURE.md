@@ -26,6 +26,12 @@ src/fse/
     _base.py             #   Capabilities, PoolInput, Prepared, the Backend protocol and checks,
     _cpu.py              #   the cpu backend on the native kernel,
     _numpy.py            #   the numpy backend on fse._reference (the oracle)
+  _runtime/              # the runtime of train and infer:
+    _executor.py         #   run: inline or threads, ordered commits, a window, errors in order,
+    _tasks.py            #   the tasks of a source and the inline rule,
+    _sinks.py            #   Sink, ArrayRows, GrowingRows,
+    _spec.py             #   EncodeSpec: what an encoder hands to the runtime,
+    _pipeline.py         #   Pipeline: an encoder on one backend, infer
   _validation.py         # validate_arguments: strict pydantic checks of entry points
   _native.pyx            # the extension: directives, imports and its parts, in order
   _native_hash.pxi       # its parts: FastText ngram hashing and chunk limits,
@@ -299,14 +305,15 @@ New 2.0 code goes into private modules of `fse`: `_contract` and `_reference` (c
 The modules form layers, and a module imports only from layers below it. The import contracts in `pyproject.toml` (`[tool.importlinter]`, run by `make lint`) enforce this, and every new module must take a layer there:
 
 1. `gensim` (the adapter, the only module that imports gensim)
-2. `_backends`
-3. `_text`
-4. `_wordvectors`
-5. `_wordvectors_format`
-6. `_container`, `_codes`, `_gram`, `_reference`, `_reference_text`, `_validation`, independent of each other: the references never share code with what they check
-7. `_contract`, `_cpus`, `_unicode`
+2. `_runtime`
+3. `_backends`
+4. `_text`
+5. `_wordvectors`
+6. `_wordvectors_format`
+7. `_container`, `_codes`, `_gram`, `_reference`, `_reference_text`, `_validation`, independent of each other: the references never share code with what they check
+8. `_contract`, `_cpus`, `_unicode`
 
-Inside a package, an import contract keeps its parts apart: `_npy` and `_safetensors` share only `_common`, each backend shares only `_base`.
+Inside a package, an import contract keeps its parts apart: `_npy` and `_safetensors` share only `_common`, each backend shares only `_base`, and the runtime's pipeline sits on its tasks, sinks, spec and executor.
 
 The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` (stages 1 and 2) and the cpu backend `_backends._cpu` (the kernels) import it and that it imports only `_contract` from fse. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, mlx, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list to the extension. The runtime, backends, encoder, sinks and store of the coming PRs add their layers above `_text`.
 

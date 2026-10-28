@@ -93,6 +93,14 @@ def make_lookup(
     return _native.TextLookup(table, tokenizer, params, max_ngrams)
 
 
+MAX_CHUNK_ROWS = _native.MAX_CHUNK_ROWS
+
+
+def new_workspace() -> _native.Workspace:
+    """The buffers one worker thread reuses for every chunk it encodes."""
+    return _native.Workspace()
+
+
 def _decode_error(data: Any, start: int, end: int, sentence: int) -> UnicodeDecodeError:
     raw = bytes(data[start:end])
     try:
@@ -144,6 +152,11 @@ class _Buffered:
 
     _data: Any
     _offsets: ndarray | None
+
+    @property
+    def nbytes(self) -> int:
+        """The bytes of the UTF-8 text of all sentences (with newlines for a file)."""
+        return len(self._data)
 
     def _positions(self) -> int:
         """Bytes in line mode, strings otherwise."""
