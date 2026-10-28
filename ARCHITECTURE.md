@@ -36,8 +36,8 @@ src/fse/
   _native.pyx            # the extension: directives, imports and its parts, in order
   _native_hash.pxi       # its parts: FastText ngram hashing and chunk limits,
   _native_buffer.pxi     #   growable buffers,
-  _native_vocab.pxi      #   UTF-8 classes, word hashing and the vocabulary table,
-  _native_scan.pxi       #   the UTF-8 scan of sentence spans,
+  _native_vocab.pxi      #   word hashing and the vocabulary table,
+  _native_scan.pxi       #   UTF-8 classes and the scan of sentence spans,
   _native_kernel.pxi     #   the kernel wrappers, ISA dispatch and FP environment,
   _native_steps.pxi      #   dot16, steps and score,
   _native_text.pxi       #   the tokenizers and the text lookup

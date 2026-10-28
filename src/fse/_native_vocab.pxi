@@ -1,4 +1,4 @@
-# Included by _native.pyx: UTF-8 classes, word hashing and the vocabulary table.
+# Included by _native.pyx: word hashing and the vocabulary table.
 
 cdef uINT_t NOT_FOUND = <uINT_t>0xFFFFFFFF
 
@@ -8,61 +8,6 @@ cdef enum:
     NATIVE_NO_MEMORY = -1
     NATIVE_BAD_UTF8 = -2
     NATIVE_BAD_ROW = -3
-
-
-cdef inline int _utf8_len(const unsigned char *p, Py_ssize_t i, Py_ssize_t end) noexcept nogil:
-    """Length of the valid UTF-8 sequence at p[i], or 0 where CPython's decoder fails."""
-    cdef unsigned char b = p[i]
-    cdef unsigned char c
-    if b < 0x80:
-        return 1
-    if b < 0xC2:
-        return 0
-    if b < 0xE0:
-        if end - i >= 2 and (p[i + 1] & 0xC0) == 0x80:
-            return 2
-        return 0
-    if b < 0xF0:
-        if end - i < 3:
-            return 0
-        c = p[i + 1]
-        if (b == 0xE0 and c < 0xA0) or (b == 0xED and c > 0x9F):
-            return 0
-        if (c & 0xC0) != 0x80 or (p[i + 2] & 0xC0) != 0x80:
-            return 0
-        return 3
-    if b < 0xF5:
-        if end - i < 4:
-            return 0
-        c = p[i + 1]
-        if (b == 0xF0 and c < 0x90) or (b == 0xF4 and c > 0x8F):
-            return 0
-        if (c & 0xC0) != 0x80 or (p[i + 2] & 0xC0) != 0x80 or (p[i + 3] & 0xC0) != 0x80:
-            return 0
-        return 4
-    return 0
-
-
-cdef inline bint _is_space(const unsigned char *p, Py_ssize_t i, int n) noexcept nogil:
-    """Whether the valid UTF-8 sequence of length n at p[i] satisfies str.isspace()."""
-    cdef unsigned char b = p[i]
-    cdef unsigned char c, d
-    if n == 1:
-        return (9 <= b <= 13) or (28 <= b <= 32)
-    if n == 2:
-        return b == 0xC2 and (p[i + 1] == 0x85 or p[i + 1] == 0xA0)
-    if n == 3:
-        c = p[i + 1]
-        d = p[i + 2]
-        if b == 0xE1:
-            return c == 0x9A and d == 0x80  # U+1680
-        if b == 0xE2:
-            if c == 0x80:  # U+2000 to U+200A, U+2028, U+2029, U+202F
-                return d <= 0x8A or d == 0xA8 or d == 0xA9 or d == 0xAF
-            return c == 0x81 and d == 0x9F  # U+205F
-        if b == 0xE3:
-            return c == 0x80 and d == 0x80  # U+3000
-    return False
 
 
 # Words of at most this many UTF-8 bytes are stored in their slot, so looking one up
