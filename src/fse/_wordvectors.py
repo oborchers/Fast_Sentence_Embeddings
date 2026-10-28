@@ -6,7 +6,7 @@
 
 """Word vectors in the 2.0 format: immutable, memory-mappable, without pickle.
 
-ARCHITECTURE.md, "word_vectors 1", specifies the artifact. The vocabulary is the UTF-8
+ARCHITECTURE.md, "word_vectors 2", specifies the artifact. The vocabulary is the UTF-8
 bytes of the words with int64 offsets; a word is found by an exact match of its bytes.
 Vectors are stored as float32, float16 or int8 codes with a float32 scale per row, and
 read as float32. FastText vectors also hold their ngram rows and hashing parameters.
@@ -14,7 +14,6 @@ read as float32. FastText vectors also hold their ngram rows and hashing paramet
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -29,8 +28,9 @@ from fse._container import (
     CREATED_BY_KEY,
     FINGERPRINT_KEY,
     CorruptArtifactError,
+    Hasher,
     SafetensorsContainer,
-    array_sha256,
+    checksum,
     fingerprint,
     tensor_code,
 )
@@ -238,7 +238,7 @@ class WordVectors:
         expected = self._checksums()
         if expected is not None:
             for name, array in self._tensors.items():
-                if array_sha256(array) != expected[name]:
+                if checksum(array) != expected[name]:
                     raise CorruptArtifactError(
                         f"tensor {name} of {self._path} does not match its checksum"
                     )
@@ -291,7 +291,7 @@ class WordVectors:
     def _checked_copy(self, name: str, array: ndarray, expected) -> ndarray:
         """A frozen copy of tensor ``name``, which must still match its loaded checksum."""
         copy = _frozen(array)
-        if expected is not None and array_sha256(copy) != expected[name]:
+        if expected is not None and checksum(copy) != expected[name]:
             raise CorruptArtifactError(f"tensor {name} of {self._path} changed since it was loaded")
         return copy
 
@@ -301,10 +301,10 @@ class WordVectors:
         source = self._tensors[name]
         codes = np.empty(source.shape, dtype=_codes.STORAGE_TYPES[dtype])
         codes_scales = np.empty(len(source), dtype=np.float32) if dtype == "int8" else None
-        digest = hashlib.sha256()
+        digest = Hasher()
         for begin in range(0, len(source), _BLOCK_ROWS):
             block = np.array(source[begin : begin + _BLOCK_ROWS], dtype=np.float32, copy=True)
-            digest.update(memoryview(block.reshape(-1).view(np.uint8)))
+            digest.update(block)
             _codes.quantize_into(
                 block,
                 codes[begin : begin + len(block)],
@@ -312,7 +312,7 @@ class WordVectors:
                 first_row=begin,
                 kind=f"row of {name}",
             )
-        if expected is not None and digest.hexdigest() != expected[name]:
+        if expected is not None and digest.checksum() != expected[name]:
             raise CorruptArtifactError(f"tensor {name} of {self._path} changed since it was loaded")
         codes.setflags(write=False)
         if codes_scales is not None:
@@ -395,9 +395,7 @@ class WordVectors:
     def fingerprint(self) -> str:
         """The fingerprint of the content (ARCHITECTURE.md, "Identities")."""
         if self._fingerprint is None:
-            entries = {
-                k: (tensor_code(v), v.shape, array_sha256(v)) for k, v in self._tensors.items()
-            }
+            entries = {k: (tensor_code(v), v.shape, checksum(v)) for k, v in self._tensors.items()}
             self._fingerprint = fingerprint(entries, self._metadata)
         return self._fingerprint
 
@@ -411,7 +409,7 @@ class WordVectors:
             entries = {}
             for name in ("vocab.bytes", "vocab.offsets"):
                 array = self._tensors[name]
-                digest = recorded.get(name) or array_sha256(array)
+                digest = recorded.get(name) or checksum(array)
                 entries[name] = (tensor_code(array), array.shape, digest)
             self._vocabulary = fingerprint(entries, {"fse.kind": "vocabulary"})
         return self._vocabulary
@@ -425,7 +423,7 @@ class WordVectors:
         copies, entries = [], {}
         for name in ("vocab.bytes", "vocab.offsets"):
             copy = np.array(self._tensors[name], copy=True)
-            digest = array_sha256(copy)
+            digest = checksum(copy)
             if name in recorded and digest != recorded[name]:
                 raise CorruptArtifactError(
                     f"tensor {name} of {self._path} does not match its checksum"

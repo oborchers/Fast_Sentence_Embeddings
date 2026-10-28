@@ -9,8 +9,8 @@ from fse._container import (
     CorruptArtifactError,
     NpyContainer,
     SafetensorsContainer,
-    array_sha256,
     canonical_json,
+    checksum,
     fingerprint,
     tensor_code,
 )
@@ -18,18 +18,15 @@ from support.container import _METADATA, F32, _assemble, _tensors
 
 
 def test_fingerprint_test_vector():
-    """The pinned fingerprint of ARCHITECTURE.md, "NpyContainer 1"; never change it."""
+    """The pinned fingerprint of ARCHITECTURE.md, "Identities"; never change it."""
     tensors = _tensors()
-    entries = {k: (tensor_code(v), v.shape, array_sha256(v)) for k, v in tensors.items()}
+    entries = {k: (tensor_code(v), v.shape, checksum(v)) for k, v in tensors.items()}
     metadata = {**_METADATA, "fse.created_by": "anything", "fse.checksum.vectors": "ignored"}
-    assert (
-        fingerprint(entries, metadata)
-        == "sha256:98a86ce422b1d61979da4b088934ebbb5c4f128463ca20123f7508d0f74f32db"
-    )
+    assert fingerprint(entries, metadata) == "xxh3-128:18063af8c78a3bc9bb2ca036e75551d5"
     # Non-ASCII metadata is hashed unescaped.
     assert (
         fingerprint(entries, {**metadata, "fse.note": "é"})
-        == "sha256:e8a4430e2ed0639a7022bef9a9c70618e4151ba933ed975f5d31d119a2b847d8"
+        == "xxh3-128:1e8ccfcd098312032ff5bc787870e72c"
     )
     assert canonical_json({"b": [1, "é"], "a": 1}) == '{"a":1,"b":[1,"é"]}'
 

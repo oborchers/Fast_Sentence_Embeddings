@@ -4,26 +4,33 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The format rules of encoder 1 (ARCHITECTURE.md, "encoder 1").
+"""The format rules of encoder 2 (ARCHITECTURE.md, "encoder 2").
 
 ``to_artifact`` turns the content of an encoder into its tensors and metadata,
 ``from_artifact`` checks and parses them back. The keys and tensors of an encoder are a
 closed set derived from its content: anything else raises. A folded encoder holds its
-word vectors under their own names (word_vectors 1, without counts); the embedded word
+word vectors under their own names (word_vectors 2, without counts); the embedded word
 vectors are built by the caller from what ``from_artifact`` returns.
 """
 
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
 from numpy import ndarray
 
-from fse._container import CHECKSUM_PREFIX, CREATED_BY_KEY, FINGERPRINT_KEY, INTEGER, canonical_json
+from fse._container import (
+    CHECKSUM_PREFIX,
+    CREATED_BY_KEY,
+    FINGERPRINT_FORM,
+    FINGERPRINT_KEY,
+    INTEGER,
+    canonical_json,
+    is_fingerprint,
+)
 from fse._contract import (
     TRANSFORM_VERSION,
     Aggregation,
@@ -40,7 +47,7 @@ from fse._contract import (
 )
 
 KIND = "encoder"
-FORMAT_VERSION = "1"
+FORMAT_VERSION = "2"
 # The keys of the word vectors a folded encoder holds, and their tensors (no counts: the
 # weights of the encoder already took them in).
 WORD_VECTOR_KEYS = frozenset(
@@ -78,7 +85,6 @@ _KEYS = frozenset(
 )
 # The tensors of each step, by the name of their field; weights are optional.
 _STEP_FIELDS = {Op.REMOVE_COMPONENTS: ("components", "weights"), Op.PROJECT: ("basis",)}
-_FINGERPRINT = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 @dataclass(frozen=True, eq=False)
@@ -244,8 +250,8 @@ def _integer(metadata: dict[str, str], key: str) -> int:
 
 def _fingerprint(metadata: dict[str, str], key: str) -> str:
     value = metadata[key]
-    if not _FINGERPRINT.fullmatch(value):
-        raise ValueError(f"{key} must be a fingerprint (sha256: and 64 hex digits), not {value!r}")
+    if not is_fingerprint(value):
+        raise ValueError(f"{key} must be a fingerprint ({FINGERPRINT_FORM}), not {value!r}")
     return value
 
 

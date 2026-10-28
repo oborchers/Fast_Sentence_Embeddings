@@ -40,6 +40,7 @@ classifiers = [
 dependencies = [
     "numpy>=1.26.4",
     "pydantic>=2.5.0",
+    "xxhash>=3.2.0",
 ]
 
 [project.optional-dependencies]
@@ -286,11 +287,11 @@ layers = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "Containers: npy and safetensors share only _common"
+name = "Containers: npy and safetensors share only _common, all of them hash with _hash"
 type = "layers"
 containers = ["fse._container"]
 exhaustive = true
-layers = ["_npy | _safetensors", "_common"]
+layers = ["_npy | _safetensors", "_common", "_hash"]
 
 [[tool.importlinter.contracts]]
 name = "Backends: each shares only _base with the others"

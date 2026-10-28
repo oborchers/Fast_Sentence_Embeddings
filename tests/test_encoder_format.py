@@ -3,11 +3,12 @@ import pytest
 
 from fse._contract import Normalize, Project, RemoveComponents, UnsupportedArtifactError
 from fse._encoder._format import EncoderContent, from_artifact, to_artifact
+from support.container import LEGACY, fake_fingerprint
 
 F32 = np.float32
-FP_A = "sha256:" + "a" * 64
-FP_B = "sha256:" + "b" * 64
-FP_C = "sha256:" + "c" * 64
+FP_A = fake_fingerprint("a")
+FP_B = fake_fingerprint("b")
+FP_C = fake_fingerprint("c")
 
 
 def _basis(k, d, seed=0):
@@ -121,7 +122,9 @@ def _changed_metadata(key, value):
     ("key", "value", "error", "match"),
     [
         ("fse.kind", "word_vectors", UnsupportedArtifactError, "not 'encoder'"),
-        ("fse.format_version", "2", UnsupportedArtifactError, "format version '2'"),
+        ("fse.format_version", "3", UnsupportedArtifactError, "format version '3'"),
+        # The pre-release format with sha256 fingerprints.
+        ("fse.format_version", "1", UnsupportedArtifactError, "format version '1'"),
         ("fse.color", "blue", UnsupportedArtifactError, "unknown metadata keys"),
         ("fse.transform_version", "1", UnsupportedArtifactError, "transform_version 1"),
         ("fse.tokenizer", "bert@1", UnsupportedArtifactError, "tokenizer"),
@@ -132,6 +135,7 @@ def _changed_metadata(key, value):
         ("fse.output_dim", "6", ValueError, "the steps give 3"),
         ("fse.input_dim", "06", ValueError, "decimal integer"),
         ("fse.word_vectors", "sha256:x", ValueError, "fingerprint"),
+        ("fse.word_vectors", LEGACY, ValueError, r"fingerprint \(xxh3-128: and 32"),
         ("fse.recipe", "[]", ValueError, "JSON object"),
         ("fse.vocabulary", None, ValueError, "needs the metadata key fse.vocabulary"),
         ("fse.folded_from", FP_C, ValueError, "only a folded encoder"),

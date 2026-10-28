@@ -9,7 +9,7 @@
 An Encoder does not change once made (by ``fit`` of a recipe or ``load``). It builds the
 VocabTable of its vocabulary once and one Pipeline per backend, both on first use, and
 several threads may encode with it at once. It is saved as one safetensors file
-(ARCHITECTURE.md, "encoder 1").
+(ARCHITECTURE.md, "encoder 2").
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from fse._container import (
     FINGERPRINT_KEY,
     CorruptArtifactError,
     SafetensorsContainer,
-    array_sha256,
+    checksum,
     fingerprint,
     tensor_code,
 )
@@ -38,6 +38,7 @@ from fse._runtime import EncodeSpec, Pipeline
 from fse._text import Vocabulary, make_vocabulary
 from fse._validation import PathLike, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
+from fse._wordvectors_format import FORMAT_VERSION as WORD_VECTORS_VERSION
 
 from ._format import (
     WORD_VECTOR_KEYS,
@@ -233,7 +234,7 @@ class Encoder:
             tensors, _, _ = self._artifact()
             held = {k: v for k, v in tensors.items() if k in self._checksums}
             for name, array in held.items():
-                if name not in WORD_VECTOR_TENSORS and array_sha256(array) != self._checksums[name]:
+                if name not in WORD_VECTOR_TENSORS and checksum(array) != self._checksums[name]:
                     raise CorruptArtifactError(
                         f"tensor {name} of {self._path} does not match its checksum"
                     )
@@ -251,7 +252,7 @@ class Encoder:
             tensors, metadata, expected = self._artifact()
             known = expected or {}
             entries = {
-                k: (tensor_code(v), v.shape, known.get(k) or array_sha256(v))
+                k: (tensor_code(v), v.shape, known.get(k) or checksum(v))
                 for k, v in tensors.items()
             }
             self._fingerprint = fingerprint(entries, metadata)
@@ -325,7 +326,7 @@ def _embedded(
     """The word vectors a folded encoder holds, as loaded word vectors of its file; their
     fingerprint from the recorded checksums must be the one the encoder names."""
     tensors, keys = embedded
-    content = {"fse.kind": "word_vectors", "fse.format_version": "1", **keys}
+    content = {"fse.kind": "word_vectors", "fse.format_version": WORD_VECTORS_VERSION, **keys}
     entries = {k: (tensor_code(v), v.shape, checksums[k]) for k, v in tensors.items()}
     if fingerprint(entries, content) != recorded:
         raise CorruptArtifactError(

@@ -4,11 +4,10 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""safetensors 1: one file of tensors with string metadata, for models."""
+"""safetensors 2: one file of tensors with string metadata, for models."""
 
 from __future__ import annotations
 
-import hashlib
 import math
 import os
 import tempfile
@@ -21,9 +20,9 @@ from numpy import ndarray
 
 from fse._contract import UnsupportedArtifactError
 
+from . import _hash
 from ._common import (
     _CHUNK,
-    _EMPTY_SHA256,
     ALIGNMENT,
     CHECKSUM_PREFIX,
     DTYPE_CODES,
@@ -147,7 +146,7 @@ def _check_coverage(file: Path, entries: dict, start: int, size: int):
 class SafetensorsContainer:
     """All tensors in one ``.safetensors`` file: the container of models and of the hub.
 
-    The format of safetensors (ARCHITECTURE.md, "safetensors 1"): an 8-byte little-endian
+    The format of safetensors (ARCHITECTURE.md, "safetensors 2"): an 8-byte little-endian
     header length, a JSON header with every tensor's dtype, shape and data offsets and the
     metadata in ``__metadata__``, then the data. Tensors are laid out by descending item
     size, then name, without gaps, so each is aligned to its type; the header is padded
@@ -155,7 +154,7 @@ class SafetensorsContainer:
     """
 
     name = "safetensors"
-    version = 1
+    version = 2
     suffix = ".safetensors"
 
     def write(
@@ -215,8 +214,8 @@ class SafetensorsContainer:
         fingerprint of the same length, padded so the data start at ALIGNMENT."""
         placeholder = dict(metadata)
         for name in tensors:
-            placeholder[CHECKSUM_PREFIX + name] = "0" * 64
-        placeholder[FINGERPRINT_KEY] = "sha256:" + "0" * 64
+            placeholder[CHECKSUM_PREFIX + name] = _hash.PLACEHOLDER
+        placeholder[FINGERPRINT_KEY] = _hash.PLACEHOLDER
         length = len(self._header(tensors, codes, layout, placeholder))
         length += -(_SAFETENSORS_LENGTH + length) % ALIGNMENT
         if length > MAX_SAFETENSORS_HEADER_BYTES:
@@ -256,7 +255,7 @@ class SafetensorsContainer:
             entries = _integrity(path, {n: (c, s) for n, (c, s, _, _) in layout.items()}, metadata)
             for name, (_, _, begin, end) in layout.items():
                 handle.seek(start + begin)
-                digest = hashlib.sha256()
+                digest = _hash.Hasher()
                 remaining = end - begin
                 while remaining:
                     chunk = handle.read(min(_CHUNK, remaining))
@@ -264,7 +263,7 @@ class SafetensorsContainer:
                         raise CorruptArtifactError(f"{path} ended early")
                     digest.update(chunk)
                     remaining -= len(chunk)
-                if digest.hexdigest() != entries[name][2]:
+                if digest.checksum() != entries[name][2]:
                     raise CorruptArtifactError(
                         f"tensor {name} of {path} does not match its checksum"
                     )
@@ -286,7 +285,7 @@ def _write_data(f, tensors: dict[str, ndarray], order: list[str], expected) -> d
     """Hash and write the data of every tensor in ``order``; return their checksums."""
     checksums = {}
     for name in order:
-        digest = hashlib.sha256()
+        digest = _hash.Hasher()
         array = tensors[name]
         if array.size:
             view = memoryview(array.reshape(-1).view(np.uint8))
@@ -296,7 +295,7 @@ def _write_data(f, tensors: dict[str, ndarray], order: list[str], expected) -> d
                 part = bytes(view[begin : begin + _CHUNK])
                 digest.update(part)
                 f.write(part)
-        checksums[name] = digest.hexdigest()
+        checksums[name] = digest.checksum()
         if expected is not None and expected.get(name) != checksums[name]:
             raise CorruptArtifactError(
                 f"tensor {name} changed since it was checked; nothing was written"
@@ -325,7 +324,7 @@ def _open_tensor(path: Path, name: str, spec, data, checksum: str) -> ndarray:
     code, shape, begin, end = spec
     dtype = np.dtype(DTYPE_CODES[code])
     if begin == end:
-        if checksum != _EMPTY_SHA256:
+        if checksum != _hash.EMPTY:
             raise CorruptArtifactError(f"tensor {name} of {path} does not match its checksum")
         array = np.empty(shape, dtype=dtype)
         array.setflags(write=False)
@@ -333,10 +332,10 @@ def _open_tensor(path: Path, name: str, spec, data, checksum: str) -> ndarray:
     if isinstance(data, np.memmap):
         return data[begin:end].view(dtype).reshape(shape)
     view = memoryview(data)[begin:end]
-    digest = hashlib.sha256()
+    digest = _hash.Hasher()
     for offset in range(0, len(view), _CHUNK):
         digest.update(view[offset : offset + _CHUNK])
-    if digest.hexdigest() != checksum:
+    if digest.checksum() != checksum:
         raise CorruptArtifactError(f"tensor {name} of {path} does not match its checksum")
     return np.frombuffer(data, dtype=dtype, count=math.prod(shape), offset=begin).reshape(shape)
 

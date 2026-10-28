@@ -6,7 +6,7 @@ import pytest
 from fse._container import (
     CONTAINERS,
     DTYPE_CODES,
-    array_sha256,
+    checksum,
     fingerprint,
     tensor_code,
 )
@@ -38,9 +38,9 @@ def test_every_container_round_trips_bit_for_bit(tmp_path, name, mmap):
         if mmap and got.size:
             assert isinstance(got, np.memmap)
     assert metadata["fse.created_by"] == "test"
-    entries = {k: (tensor_code(v), v.shape, array_sha256(v)) for k, v in tensors.items()}
+    entries = {k: (tensor_code(v), v.shape, checksum(v)) for k, v in tensors.items()}
     assert metadata["fse.fingerprint"] == fingerprint(entries, metadata)
-    assert metadata["fse.checksum.empty"] == array_sha256(tensors["empty"])
+    assert metadata["fse.checksum.empty"] == checksum(tensors["empty"])
     container.verify(path)
 
 
@@ -60,20 +60,20 @@ def test_empty_tensors_with_huge_dimensions_round_trip(tmp_path):
 @pytest.mark.parametrize("container_name", ["npy", "safetensors"])
 def test_changing_metadata_and_shapes_while_writing(tmp_path, monkeypatch, container_name):
     """The writer works on snapshots: changes by the caller during the write do not reach it."""
-    import hashlib
     import warnings
 
     import fse._container as container
+    from fse._container import _hash
 
     _small_chunks(monkeypatch)
     source = np.arange(16, dtype=F32)
     tensors = {"x": source}
     metadata = {"note": ""}
-    real_sha256 = hashlib.sha256
+    real_hasher = _hash.Hasher
 
     class Changing:
-        def __init__(self, data=b""):
-            self.inner = real_sha256(data)
+        def __init__(self):
+            self.inner = real_hasher()
 
         def update(self, data):
             self.inner.update(data)
@@ -84,14 +84,14 @@ def test_changing_metadata_and_shapes_while_writing(tmp_path, monkeypatch, conta
                 warnings.simplefilter("ignore", DeprecationWarning)
                 source.shape = (4, 4)
 
-        def hexdigest(self):
-            return self.inner.hexdigest()
+        def checksum(self):
+            return self.inner.checksum()
 
-    monkeypatch.setattr(hashlib, "sha256", Changing)
+    monkeypatch.setattr(_hash, "Hasher", Changing)
     writer = container.CONTAINERS[container_name]
     path = tmp_path / f"a{writer.suffix}"
     writer.write(path, tensors, metadata)
-    monkeypatch.setattr(hashlib, "sha256", real_sha256)
+    monkeypatch.setattr(_hash, "Hasher", real_hasher)
     writer.verify(path)
     opened, read = writer.open(path, mmap=False)
     assert set(opened) == {"x"}

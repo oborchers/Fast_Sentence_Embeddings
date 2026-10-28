@@ -73,7 +73,7 @@ jobs:
         if: matrix.deps == 'min'
         run: >-
           uv pip install
-          "numpy==1.26.4" "pydantic==2.5.0" "gensim==4.3.3" "safetensors==0.4.0"
+          "numpy==1.26.4" "pydantic==2.5.0" "xxhash==3.2.0" "gensim==4.3.3" "safetensors==0.4.0"
       - name: Run tests with coverage
         if: matrix.deps != 'min'
         run: make test-cov
@@ -139,12 +139,14 @@ jobs:
           import importlib.util, tempfile, pathlib, numpy as np
           for name in ('gensim', 'scipy'):
               assert importlib.util.find_spec(name) is None, name + ' is installed'
+          assert importlib.util.find_spec('xxhash') is not None, 'xxhash is not installed'
           import fse
           from fse import _native, _reference
           from fse._contract import Batch
           wv = fse.WordVectors.from_arrays(np.ones((2, 3), np.float32), words=['a', 'b']).quantize('int8')
           path = pathlib.Path(tempfile.mkdtemp()) / 'wv.safetensors'
           wv.save(path)
+          assert wv.fingerprint.startswith('xxh3-128:'), wv.fingerprint
           for mmap in (False, True):
               assert fse.WordVectors.load(path, mmap=mmap).fingerprint == wv.fingerprint
           batch = Batch(0, np.array([0, 2], np.int64), np.array([0, 1], np.uint32))

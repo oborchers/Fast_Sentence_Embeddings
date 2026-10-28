@@ -6,30 +6,33 @@
 
 """Artifacts as named tensors with string metadata, and the containers that store them.
 
-ARCHITECTURE.md, "Artifacts", "safetensors 1" and "NpyContainer 1", specifies the format.
+ARCHITECTURE.md, "Artifacts", "safetensors 2" and "NpyContainer 2", specifies the format.
 A container writes a mapping of names to numpy arrays plus a flat ``str`` to ``str``
 metadata map and opens it again, bit for bit. It adds the integrity keys itself: the
-sha256 of every tensor (``fse.checksum.<name>``) and the fingerprint of the content
-(``fse.fingerprint``), which does not depend on the container.
+xxh3-128 checksum of every tensor (``fse.checksum.<name>``) and the fingerprint of the
+content (``fse.fingerprint``), which does not depend on the container.
 
-Only the standard library and numpy are used, and the modules import each other
-relatively, so the 1.x export can copy this package; from fse they import only
-``UnsupportedArtifactError`` of ``fse._contract``.
+Only the standard library, numpy and (in ``_hash``) xxhash are used, and the modules
+import each other relatively, so the 1.x export can copy this package; from fse they
+import only ``UnsupportedArtifactError`` of ``fse._contract``.
 """
 
 from ._common import (
     CHECKSUM_PREFIX,
     CREATED_BY_KEY,
     DTYPE_CODES,
+    FINGERPRINT_FORM,
     FINGERPRINT_KEY,
     INTEGER,
     CorruptArtifactError,
     TensorContainer,
-    array_sha256,
     canonical_json,
+    checksum,
     fingerprint,
+    is_fingerprint,
     tensor_code,
 )
+from ._hash import Hasher
 from ._npy import NpyContainer
 from ._safetensors import SafetensorsContainer
 
@@ -38,15 +41,18 @@ __all__ = [
     "CONTAINERS",
     "CREATED_BY_KEY",
     "DTYPE_CODES",
+    "FINGERPRINT_FORM",
     "FINGERPRINT_KEY",
     "INTEGER",
     "CorruptArtifactError",
+    "Hasher",
     "NpyContainer",
     "SafetensorsContainer",
     "TensorContainer",
-    "array_sha256",
     "canonical_json",
+    "checksum",
     "fingerprint",
+    "is_fingerprint",
     "tensor_code",
 ]
 
