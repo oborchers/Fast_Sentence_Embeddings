@@ -66,7 +66,8 @@ def fold(word_vectors: WordVectors, steps: Sequence[RemoveComponents | Project])
         out[rows] = stored
         if stored_scales is not None:
             out[scales] = stored_scales
-        float32[rows] = ("F32", (len(stored), a.shape[0]), digest)
+        if digest is not None:
+            float32[rows] = ("F32", (len(stored), a.shape[0]), digest)
     new = {
         "fse.kind": "word_vectors",
         "fse.format_version": "1",
@@ -98,9 +99,9 @@ def _fold_rows(
     a: ndarray,
     dtype: str,
     expected: dict[str, str] | None,
-) -> tuple[ndarray, ndarray | None, str]:
-    """The folded rows of tensor ``rows``, stored as ``dtype``, and the sha256 of the
-    folded float32 rows."""
+) -> tuple[ndarray, ndarray | None, str | None]:
+    """The folded rows of tensor ``rows``, stored as ``dtype``, and for float16 and int8
+    the sha256 of the folded float32 rows."""
     source = tensors[rows]
     source_scales = (
         None if scales not in tensors else _checked_copy(tensors[scales], scales, expected)
@@ -109,15 +110,20 @@ def _fold_rows(
     stored = np.empty((n, k), dtype=source.dtype)
     stored_scales = np.empty(n, dtype=np.float32) if source_scales is not None else None
     store = get_backend("cpu")
-    read, folded = hashlib.sha256(), hashlib.sha256()
+    # Hashed only where needed: data loaded with checksums, and the folded float32 rows
+    # of vectors stored again (their fingerprint is quantized_from).
+    read = hashlib.sha256() if expected is not None else None
+    folded = hashlib.sha256() if dtype != "float32" else None
     for begin in range(0, n, BLOCK_ROWS):
         block = np.array(source[begin : begin + BLOCK_ROWS], copy=True)
-        read.update(memoryview(block.reshape(-1).view(np.uint8)))
+        if read is not None:
+            read.update(memoryview(block.reshape(-1).view(np.uint8)))
         x = block.astype(np.float32)
         if source_scales is not None:
             x *= source_scales[begin : begin + len(block), None]  # code * scale, rounded once
         y = np.ascontiguousarray((x.astype(np.float64) @ a.T).astype(np.float32))
-        folded.update(memoryview(y.reshape(-1).view(np.uint8)))
+        if folded is not None:
+            folded.update(memoryview(y.reshape(-1).view(np.uint8)))
         end = begin + len(block)
         if dtype == "float32":
             stored[begin:end] = y
@@ -128,9 +134,9 @@ def _fold_rows(
                 None if stored_scales is None else stored_scales[begin:end],
                 begin,
             )
-    if expected is not None and read.hexdigest() != expected[rows]:
+    if read is not None and expected is not None and read.hexdigest() != expected[rows]:
         raise CorruptArtifactError(f"tensor {rows} changed since it was loaded")
     stored.setflags(write=False)
     if stored_scales is not None:
         stored_scales.setflags(write=False)
-    return stored, stored_scales, folded.hexdigest()
+    return stored, stored_scales, None if folded is None else folded.hexdigest()
