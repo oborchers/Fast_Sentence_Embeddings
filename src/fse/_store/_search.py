@@ -32,6 +32,7 @@ to 12 queries; for 1 query 11 against 39 ms on int8 rows).
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -156,7 +157,28 @@ def check_queries(backend: Any, queries: ndarray) -> None:
 
 def _blas_cosines(stored: ndarray, inverse: ndarray, unit: ndarray) -> ndarray:
     with np.errstate(over="ignore", invalid="ignore"):
-        return (np.asarray(stored, F32) @ unit.T) * inverse[:, None]
+        scores = (np.asarray(stored, F32) @ unit.T) * inverse[:, None]
+    bad = np.argwhere(~np.isfinite(scores.T))  # (query, row) order, as the kernel names it
+    if len(bad):
+        query, row = bad[0]
+        raise ValueError(f"query {query}: the cosine of row {row} is not finite")
+    return scores
+
+
+def _block_cosines(backend, tensors, block, queries, normalized) -> ndarray:
+    """The cosines of one block of rows with one block of queries; an error names where
+    they are in the store and among the queries."""
+    (_, begin, end, first_row), qb = block
+    stored, inverse = tensors["vectors"][begin:end], tensors["inv_norms"][begin:end]
+    try:
+        if normalized is None:
+            return backend.cosines(stored, inverse, queries[qb])
+        return _blas_cosines(stored, inverse, normalized[qb])
+    except ValueError as error:
+        raise ValueError(
+            f"rows {first_row} to {first_row + end - begin - 1} of the store, queries "
+            f"{qb.start} to {qb.stop - 1}: {error}"
+        ) from None
 
 
 def search(
@@ -180,14 +202,9 @@ def search(
     candidates = Candidates(len(queries), k)
 
     def run(task):
-        (index, begin, end, first_row), qb = task
+        (index, _, _, first_row), qb = task
         floor = candidates.floor[qb]
-        tensors = shards[index][1]
-        stored, inverse = tensors["vectors"][begin:end], tensors["inv_norms"][begin:end]
-        if normalized is None:
-            scores = backend.cosines(stored, inverse, queries[qb])
-        else:
-            scores = _blas_cosines(stored, inverse, normalized[qb])
+        scores = _block_cosines(backend, shards[index][1], task, queries, normalized)
         return qb.start, best(scores, first_row, k, floor)
 
     for result in _run(run, tasks, workers, "fse-search"):
@@ -239,12 +256,20 @@ def _score_block(backend, tensors, begin, end, first_row, weights, biases, exact
 
 
 def _run(fn, tasks: list, workers: int, name: str) -> Iterator[Any]:
-    """The results of ``fn`` on every task, in task order: in this thread, or in a pool."""
+    """The results of ``fn`` on every task, in task order: in this thread, or in a pool
+    with at most two tasks per worker in flight, so finished results stay bounded and a
+    task starts with the floors merged so far."""
     if workers == 1 or len(tasks) < 2:
         yield from map(fn, tasks)
         return
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix=name) as pool:
-        yield from pool.map(fn, tasks)
+        pending: deque = deque()
+        for task in tasks:
+            pending.append(pool.submit(fn, task))
+            if len(pending) >= 2 * workers:
+                yield pending.popleft().result()
+        while pending:
+            yield pending.popleft().result()
 
 
 def _biases(backend: Any, bias: Any, n: int) -> ndarray:

@@ -95,3 +95,31 @@ def test_modes():
     assert not _search.is_exact("auto", _search.AUTO_EXACT_MAX + 1)
     with pytest.raises(ValueError, match="mode must be one of"):
         _search.is_exact("fast", 1)
+
+
+@pytest.mark.parametrize("exact", [True, False])
+def test_a_cosine_beyond_float32_raises_naming_its_rows_and_queries(exact):
+    from fse._backends import get_backend
+
+    vectors = np.full((6, 2), 3e38, F32)  # finite rows whose dot product overflows
+    inverse = _reference.inverse_norms(vectors)
+    shards = [
+        (Shard("a", 0, 2), {"vectors": vectors[:2], "inv_norms": inverse[:2]}),
+        (Shard("b", 2, 4), {"vectors": vectors[2:], "inv_norms": inverse[2:]}),
+    ]
+    queries = np.ones((3, 2), F32)
+    with pytest.raises(ValueError, match=r"rows 0 to 1 of the store, queries 0 to 2: query 0"):
+        _search.search(get_backend("cpu"), shards, queries, 2, workers=1, exact=exact)
+
+
+def test_at_most_two_tasks_per_worker_are_in_flight():
+    started = []
+
+    def fn(task):
+        started.append(task)
+        return task
+
+    for k, result in enumerate(_search._run(fn, list(range(100)), 3, "t")):
+        assert result == k  # in task order
+        assert len(started) <= k + 1 + 2 * 3
+    assert len(started) == 100
