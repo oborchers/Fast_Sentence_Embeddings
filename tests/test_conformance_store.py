@@ -25,6 +25,11 @@ def _cases():
     ties = np.array([[0.5, 1.5, -0.5, 2.5, 127.0], [63.5, -63.5, 0.25, 1.0, 127.0]], F32)
     return {
         "normal": normal,
+        # Every lane and tail of the vector paths; rows from subnormal to 1e4 in size.
+        "wide": (rng.standard_normal((64, 301)) * np.exp(rng.uniform(-40, 8, (64, 1)))).astype(
+            F32
+        ),
+        "half-ties": (np.arange(-2048, 2048, dtype=F32) + F32(0.5)).reshape(-1, 32) / F32(1 << 14),
         "zeros": np.zeros((3, 4), F32),
         "negative-zeros": np.full((2, 4), -0.0, F32),
         "subnormal": np.array([[TINY, -TINY, 0, 3 * TINY], [TINY * 1000, 0, 0, 0]], F32),
@@ -174,3 +179,12 @@ def test_the_environment_matters_without_the_guard():
         finally:
             _native._test_fpenv_restore(saved)
         assert codes.tobytes() + scales.tobytes() != want.tobytes() + want_scales.tobytes()
+
+
+@pytest.mark.parametrize(("name", "options"), BACKENDS, ids=IDS)
+def test_a_row_that_is_not_finite_comes_before_a_row_beyond_float16(name, options):
+    rows = np.ones((6, 2), F32)
+    rows[1, 0] = 70_000
+    rows[4, 1] = np.nan
+    with pytest.raises(ValueError, match=r"^row 4 contains NaN"):
+        _store(get_backend(name, **options), rows, "float16")

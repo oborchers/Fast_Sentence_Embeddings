@@ -88,13 +88,6 @@ cdef class _KernelEnv:
         return False
 
 
-def kernel_env():
-    """A context manager that runs its block in the floating-point environment of the
-    kernel (round to nearest, no flush-to-zero) and restores the thread's afterwards, also
-    after an error: for numpy arithmetic of the contract, such as the storage of rows."""
-    return _KernelEnv()
-
-
 def _test_fpenv_set(flush=False, round_up=False):
     """For the tests: set flush-to-zero and rounding up; returns the previous environment."""
     return fse_test_fpenv_set(1 if flush else 0, 1 if round_up else 0)

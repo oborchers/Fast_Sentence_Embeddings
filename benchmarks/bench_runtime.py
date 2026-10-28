@@ -13,10 +13,12 @@ latency: p50 and p99 of small inputs with workers=1 and the default workers.
 stream: a StreamSource of an iterator against a StringSource of the same list (its
 construction included), and the peak memory of streams of 1x and 4x the sentences into a
 sink that keeps nothing (equal peaks: the memory does not grow with the stream).
+store: float16 and int8 output against float32 output, stored in the workers.
 
     uv run python benchmarks/bench_runtime.py throughput --workers 1 2 4 8 10
     uv run python benchmarks/bench_runtime.py latency
     uv run python benchmarks/bench_runtime.py stream
+    uv run python benchmarks/bench_runtime.py store --workers 1 2 4 8 10
 
 Synthetic data, nothing is downloaded. Keep a run to a few minutes (AGENTS.md).
 """
@@ -156,6 +158,52 @@ def _line(r: dict) -> str:
     )
 
 
+def store(args) -> list[dict]:
+    """float16 and int8 output against float32 output of the same pipeline (stage 5 in the
+    workers); the stored bytes must not depend on the workers or the chunks."""
+    s = spec(args.vocab, args.dim, "float32", True)
+    pipeline = Pipeline(s)
+    sentences = corpus(args.sentences, args.vocab)
+    stores = ["float32", "float16", "int8"]
+    first = {d: _bytes(pipeline.infer(StringSource(sentences), workers=1, dtype=d)) for d in stores}
+    results = []
+    for workers in args.workers:
+        times: dict[str, list[float]] = {d: [] for d in stores}
+        for _ in range(args.rounds):
+            for d in stores:
+                times[d].append(
+                    _timed(
+                        lambda d=d, w=workers: pipeline.infer(
+                            StringSource(sentences), workers=w, dtype=d
+                        )
+                    )
+                )
+        for d in stores[1:]:
+            got = pipeline.infer(
+                StringSource(sentences), workers=workers, chunk_bytes=4096, dtype=d
+            )
+            assert _bytes(got) == first[d], f"{d} differs with {workers} workers"
+        base = statistics.median(times["float32"])
+        row = {
+            "workers": workers,
+            "load": os.getloadavg()[0] if hasattr(os, "getloadavg") else None,
+        }
+        for d in stores:
+            row[f"{d}_per_s"] = len(sentences) / statistics.median(times[d])
+            row[f"{d}_ratio"] = base / statistics.median(times[d])
+        results.append(row)
+        print(
+            f"workers={workers:3d} float32 {row['float32_per_s']:12,.0f}/s  "
+            f"float16 {row['float16_ratio']:.3f}  int8 {row['int8_ratio']:.3f}",
+            flush=True,
+        )
+    return results
+
+
+def _bytes(stored) -> bytes:
+    return b"".join(a.tobytes() for a in stored) if isinstance(stored, tuple) else stored.tobytes()
+
+
 SIZES = {1: 1000, 8: 1000, 64: 500, 512: 200, 1000: 200, 4096: 50, 32768: 10}
 
 
@@ -279,7 +327,7 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] == "_peak":
         return _peak(*map(int, argv[1:]))
-    parser.add_argument("mode", choices=["throughput", "latency", "stream"])
+    parser.add_argument("mode", choices=["throughput", "latency", "stream", "store"])
     parser.add_argument("--sentences", type=int, default=200_000)
     parser.add_argument("--vocab", type=int, default=100_000)
     parser.add_argument("--dim", type=int, default=300)
@@ -290,7 +338,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     load = os.getloadavg()[0] if hasattr(os, "getloadavg") else float("nan")
     print(f"# {platform.platform()} | {usable_cpus()} usable CPUs | load {load:.1f}")
-    results = {"throughput": throughput, "latency": latency, "stream": stream}[args.mode](args)
+    modes = {"throughput": throughput, "latency": latency, "stream": stream, "store": store}
+    results = modes[args.mode](args)
     if args.json:
         with open(args.json, "w") as f:
             json.dump(results, f, indent=1)

@@ -327,3 +327,41 @@ def test_vocab_table_reads_mapped_vectors(tmp_path):
     wv = WordVectors.load(tmp_path / "wv.safetensors", mmap=True)
     table = _native.VocabTable(wv.vocab_bytes, wv.vocab_offsets)
     assert [table.get(w) for w in words] == [0, 1]
+
+
+def test_store_rows_checks_its_arguments_and_edges():
+    rows = np.ones((3, 2), np.float32)
+    with pytest.raises(ValueError, match="float32 matrix"):
+        _native.store_rows(
+            rows.astype(np.float64), np.empty((3, 2), np.int8), np.empty(3, np.float32)
+        )
+    with pytest.raises(ValueError, match="C-contiguous"):
+        _native.store_rows(
+            np.asfortranarray(np.ones((3, 2), np.float32)),
+            np.empty((3, 2), np.int8),
+            np.empty(3, np.float32),
+        )
+    with pytest.raises(ValueError, match="codes must be"):
+        _native.store_rows(rows, np.empty((2, 2), np.float16))
+    with pytest.raises(ValueError, match="scales must be"):
+        _native.store_rows(rows, np.empty((3, 2), np.int8), None)
+    with pytest.raises(ValueError, match="have no scales"):
+        _native.store_rows(rows, np.empty((3, 2), np.float16), np.empty(3, np.float32))
+    buffer = np.empty(9, np.float32)
+    with pytest.raises(ValueError, match="share memory"):
+        _native.store_rows(buffer[:6].reshape(3, 2), np.empty((3, 2), np.int8), buffer[4:7])
+    scales = np.full(3, 7, np.float32)
+    _native.store_rows(np.zeros((3, 0), np.float32), np.empty((3, 0), np.int8), scales)
+    assert scales.tolist() == [0, 0, 0]
+    _native.store_rows(np.zeros((0, 4), np.float32), np.empty((0, 4), np.float16))
+
+
+def test_store_rows_names_the_first_bad_row_of_the_call():
+    rows = np.ones((6, 2), np.float32)
+    rows[1, 0] = 70_000  # beyond float16, before the infinite row
+    rows[4, 1] = np.inf
+    with pytest.raises(ValueError, match=r"^row 14 contains NaN or infinite values$"):
+        _native.store_rows(rows, np.empty((6, 2), np.float16), None, 10)
+    rows[4, 1] = 1
+    with pytest.raises(ValueError, match=r"^row 11 has values beyond the float16 range"):
+        _native.store_rows(rows, np.empty((6, 2), np.float16), None, 10)

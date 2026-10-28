@@ -1,7 +1,5 @@
 # Type stubs of the compiled extension fse._native.
 
-from contextlib import AbstractContextManager
-
 from numpy import ndarray
 
 from fse._contract import Batch
@@ -28,7 +26,6 @@ def scan_spans(
     chunk_rows: int = ...,
 ) -> tuple[int, int, int, list[tuple[int, int, int]], int, int]: ...
 def available_isas() -> tuple[str, ...]: ...
-def kernel_env() -> AbstractContextManager[None]: ...
 def default_isa() -> str: ...
 
 class WeightedMean:
@@ -74,6 +71,14 @@ def dot16(rows: ndarray, other: ndarray, *, isa: str | None = None) -> ndarray: 
 def postprocess(
     rows: ndarray, steps: object, first_row: int = 0, *, isa: str | None = None
 ) -> ndarray: ...
+def store_rows(
+    rows: ndarray,
+    codes: ndarray,
+    scales: ndarray | None = None,
+    first_row: int = 0,
+    *,
+    isa: str | None = None,
+) -> None: ...
 def score(
     stored: ndarray,
     scales: ndarray | None,
