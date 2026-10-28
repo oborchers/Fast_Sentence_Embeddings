@@ -5,7 +5,7 @@ LINT_PATHS := $(SRC) tests tools benchmarks
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env install init sync rebuild-ext format format-check lint lint-fix guardrails typecheck test test-network test-cov check build clean pre-commit
+.PHONY: help env install init sync rebuild-ext format format-check lint lint-fix guardrails typecheck test test-network test-cov check build clean pre-commit profile-cpu profile-mem profile-rss
 
 ##@ Setup
 help: ## Show this help
@@ -48,6 +48,35 @@ guardrails: ## File length, complexity, native imports and test files against th
 
 typecheck: ## Type check with mypy
 	$(UV) run mypy
+
+##@ Profiling
+# make profile-cpu RUN="benchmarks/bench_store.py write --workers 10"; the outputs go to
+# PROFILE_DIR (one file per kind, overwritten).
+PROFILE_DIR ?= profiles
+RUN ?=
+
+profile-cpu: ## CPU profile of RUN with native frames: samply on macOS, py-spy --native on Linux
+	@mkdir -p $(PROFILE_DIR)
+	@if [ "$$(uname)" = "Darwin" ]; then \
+		command -v samply >/dev/null || { echo "samply is missing: cargo install --locked samply"; exit 1; }; \
+		samply record --save-only --unstable-presymbolicate -o $(PROFILE_DIR)/cpu.json -- $(UV) run python $(RUN); \
+		$(UV) run python tools/profile_top.py $(PROFILE_DIR)/cpu.json; \
+		echo "the flame graph: samply load $(PROFILE_DIR)/cpu.json"; \
+	else \
+		$(UV) run py-spy record --native --threads --subprocesses -f speedscope -o $(PROFILE_DIR)/cpu.speedscope.json -- python $(RUN); \
+		echo "open it at https://www.speedscope.app"; \
+	fi
+
+profile-mem: ## Memory profile of RUN with native allocations (memray), as a flame graph over time
+	@mkdir -p $(PROFILE_DIR)
+	rm -f $(PROFILE_DIR)/mem.bin
+	$(UV) run memray run --native --follow-fork -o $(PROFILE_DIR)/mem.bin $(RUN)
+	$(UV) run memray flamegraph --temporal -f -o $(PROFILE_DIR)/mem.html $(PROFILE_DIR)/mem.bin
+	$(UV) run memray stats $(PROFILE_DIR)/mem.bin | head -40
+
+profile-rss: ## Resident memory of RUN and its child processes over time
+	@mkdir -p $(PROFILE_DIR)
+	$(UV) run python tools/rss.py --csv $(PROFILE_DIR)/rss.csv -- $(UV) run python $(RUN)
 
 ##@ Testing
 test: ## Run tests without network access

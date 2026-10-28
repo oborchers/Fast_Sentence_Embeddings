@@ -91,3 +91,4 @@ src/fse/_native.c
 .coverage.*
 htmlcov/
 wheelhouse/
+profiles/
