@@ -224,6 +224,8 @@ def _timed_stream(table, path: Path, tokenizer: str, repeats: int) -> dict:
     lookup = _native.TextLookup(table, tokenizer)
     ws = _native.Workspace()
     tokens, batches = _encode_all(source, scan, lookup, ws)
+    if not tokens:  # an empty stream, as hits17 of a short corpus can be
+        return None
     digest = _ids_digest(batches)
     del batches
     times = []
@@ -278,12 +280,17 @@ def _threaded(table, path: Path, threads: int, repeats: int) -> dict:
 def child(args) -> None:
     tmp = Path(args.tmp)
     table, row = _build(tmp, args.vocab)
-    streams = {
-        "real@fse_words": _timed_stream(table, tmp / "real.txt", "fse_words@1", args.repeats)
-    }
+    real = _timed_stream(table, tmp / "real.txt", "fse_words@1", args.repeats)
+    if real is None:
+        raise SystemExit("the real text has no tokens: prepare with --sentences of real lines")
+    streams = {"real@fse_words": real}
     for stream in STREAMS:
         path = tmp / "real.txt" if stream == "real" else tmp / f"{args.vocab}.{stream}.txt"
-        streams[stream] = _timed_stream(table, path, "external", args.repeats)
+        timed = _timed_stream(table, path, "external", args.repeats)
+        if timed is None:
+            print(f"{args.vocab}: the stream {stream} is empty, skipped", file=sys.stderr)
+        else:
+            streams[stream] = timed
     if args.threads > 1:
         streams["real@threads"] = _threaded(table, tmp / "real.txt", args.threads, args.repeats)
     row["streams"] = streams
