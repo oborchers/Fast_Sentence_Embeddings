@@ -8,10 +8,11 @@
 
 The shards published when the store is opened are mapped read-only (a snapshot: later
 appends need a new open), and every search runs on the stored float32, float16 or int8
-rows directly, through their inverse norms, without a normalized float32 copy. With
-``exact=True`` (the default) the cosines, scores and the order of the results are the
-ones of ``fse._reference``, bit for bit; ``exact=False`` uses BLAS, whose sums differ in
-the last bits.
+rows directly, through their inverse norms, without a normalized float32 copy. By
+default (``exact=False``) each block is decoded to float32 and multiplied with BLAS, whose
+sums differ from the contract in the last bits; ``exact=True`` gives the cosines, scores
+and the order of the results of ``fse._reference``, bit for bit, at a fraction of the
+speed of BLAS for many queries (it is fast for a few).
 """
 
 from __future__ import annotations
@@ -44,7 +45,7 @@ class SearchResult(NamedTuple):
 
 
 class VectorStore:
-    """The rows of a store at the time it was opened, searched exactly (``search``) or
+    """The rows of a store at the time it was opened, searched by cosine (``search``) or
     scored with linear weights (``score``). Close it (or use it as a context manager) to
     release the mappings; a closed store raises."""
 
@@ -95,7 +96,7 @@ class VectorStore:
         k: PositiveInt = 10,
         *,
         workers: PositiveInt | None = None,
-        exact: bool = True,
+        exact: bool = False,
     ) -> SearchResult:
         """The ``k`` rows with the largest cosine to every query (a vector, or a matrix of one
         per row): ids and scores of shape (k,), or (queries, k)."""
@@ -121,7 +122,7 @@ class VectorStore:
         bias: Any = 0.0,
         *,
         workers: PositiveInt | None = None,
-        exact: bool = True,
+        exact: bool = False,
     ) -> ndarray:
         """The linear score ``dot16(row, w) * scale + bias`` of every row with every weight
         vector (``weights`` a vector or a matrix of one per row; ``bias`` one number or one

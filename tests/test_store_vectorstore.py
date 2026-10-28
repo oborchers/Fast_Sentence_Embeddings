@@ -43,7 +43,7 @@ def test_search_gives_the_reference(tmp_path, monkeypatch, dtype, workers, q):
     path, codes, _ = _store(tmp_path, dtype, texts(300))
     queries = np.random.default_rng(q).standard_normal((q, ENCODER.output_dim)).astype(F32)
     with fse.VectorStore.open(path, encoder=ENCODER) as store:
-        got = store.search(queries, k=17, workers=workers)
+        got = store.search(queries, k=17, workers=workers, exact=True)
     ids, scores = _want_search(codes, queries, 17)
     np.testing.assert_array_equal(got.ids, ids)
     np.testing.assert_array_equal(bits(got.scores), bits(scores))
@@ -56,7 +56,7 @@ def test_ties_go_to_the_smaller_row_across_blocks_and_shards(tmp_path, monkeypat
     path, codes, _ = _store(tmp_path, "int8", sentences, shard_rows=7)
     query = np.asarray(ENCODER.encode(["w1 w2"])[0], F32)
     with fse.VectorStore.open(path) as store:
-        got = store.search(query, k=40, workers=3)
+        got = store.search(query, k=40, workers=3, exact=True)
     ids, scores = _want_search(codes, query[None, :], 40)
     assert got.ids.shape == (40,)
     np.testing.assert_array_equal(got.ids, ids[0])
@@ -64,12 +64,12 @@ def test_ties_go_to_the_smaller_row_across_blocks_and_shards(tmp_path, monkeypat
     assert got.ids[:5].tolist() == [0, 2, 4, 5, 7]
 
 
-def test_the_blas_mode_is_close_but_not_bit_defined(tmp_path):
+def test_the_default_blas_mode_is_close_but_not_bit_defined(tmp_path):
     path = _store(tmp_path, "float16", texts(400))[0]
     queries = np.random.default_rng(5).standard_normal((40, ENCODER.output_dim)).astype(F32)
     with fse.VectorStore.open(path) as store:
-        fast = store.search(queries, k=5, exact=False)
-        exact = store.search(queries, k=5)
+        fast = store.search(queries, k=5)
+        exact = store.search(queries, k=5, exact=True)
     np.testing.assert_allclose(fast.scores, exact.scores, rtol=1e-5, atol=1e-6)
     assert (fast.ids[:, 0] == exact.ids[:, 0]).mean() > 0.95
 
@@ -82,8 +82,8 @@ def test_score_gives_the_reference(tmp_path, monkeypatch, dtype):
     weights = np.random.default_rng(2).standard_normal((3, ENCODER.output_dim)).astype(F32)
     biases = np.array([0.5, -1, 2], F32)
     with fse.VectorStore.open(path) as store:
-        got = store.score(weights, biases, workers=3)
-        one = store.score(weights[0], 0.5)
+        got = store.score(weights, biases, workers=3, exact=True)
+        one = store.score(weights[0], 0.5, exact=True)
         fast = store.score(weights, biases, exact=False)
     want = _reference.scores(codes, scales, weights, biases)
     np.testing.assert_array_equal(bits(got), bits(want))
