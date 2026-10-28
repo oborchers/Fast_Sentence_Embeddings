@@ -143,8 +143,8 @@ class Contract:
     The steps run on pooled rows, as in the runtime: ``postprocess`` pools every row by
     itself with weight 1, which gives the row back bit for bit (fma(1, x, 0) = x and
     1 * x = x), except that -0.0 would become 0.0, so such input is refused. accumulate
-    and dot16 are no operations of the contract (accumulate is group mode, PR 8); the
-    kernel tests above cover them directly.
+    and dot16 are no operations of the contract; the kernel tests above cover them
+    directly.
     """
 
     def __init__(self, name, **options):
@@ -179,7 +179,7 @@ class Contract:
         return self.backend.scores(stored, scales, weights, bias)
 
     def accumulate(self, *_case):
-        pytest.skip(f"{self.name}: accumulate is no contract operation (group mode, PR 8)")
+        pytest.skip(f"{self.name}: accumulate is no contract operation")
 
     def dot16(self, *_rows):
         pytest.skip(f"{self.name}: dot16 is no contract operation")

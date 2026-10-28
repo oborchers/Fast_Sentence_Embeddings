@@ -8,8 +8,7 @@
 
 A task turns its sentences (the input interval) into the rows ``first_row`` to
 ``first_row + n_rows - 1`` (the output interval); with one row per sentence both have
-the same length. Group mode (PR 8) and token-id inputs (2.1) add task types with their
-own ``batch``.
+the same length. Token-id inputs (2.1) add task types with their own ``batch``.
 """
 
 from __future__ import annotations

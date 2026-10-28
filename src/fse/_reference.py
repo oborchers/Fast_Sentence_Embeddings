@@ -176,41 +176,6 @@ def pool_weighted_mean(
     return out
 
 
-def pool_groups(
-    batch: Batch,
-    group_offsets: ndarray,
-    vectors: ndarray,
-    weights: ndarray,
-    scales: ndarray | None = None,
-    ngram_vectors: ndarray | None = None,
-    ngram_scales: ndarray | None = None,
-    oov_weight: float | None = None,
-) -> ndarray:
-    """``weighted_mean@1`` in group mode: one row per group of consecutive sentences.
-
-    Group g holds the sentences ``group_offsets[g]`` to ``group_offsets[g + 1] - 1``. The
-    first non-empty sentence gives ``(1/n) * acc``, every further one adds ``fma(1/n,
-    acc, g)``; a group without tokens is the zero row. Postprocessing follows per group.
-    """
-    accs, counts = accumulate(
-        batch, vectors, weights, scales, ngram_vectors, ngram_scales, oov_weight
-    )
-    out = np.zeros((len(group_offsets) - 1, accs.shape[1]), dtype=_F32)
-    with np.errstate(over="ignore", invalid="ignore"):
-        for g in range(len(out)):
-            row = None
-            for s in range(int(group_offsets[g]), int(group_offsets[g + 1])):
-                if not counts[s]:
-                    continue
-                inverse = _F32(_F32(1) / _F32(counts[s]))
-                row = inverse * accs[s] if row is None else fma32(inverse, accs[s], row)
-            if row is not None:
-                if not np.isfinite(row).all():
-                    raise ValueError(f"group {g} contains NaN or infinite values")
-                out[g] = row
-    return out
-
-
 def inverse_norms(stored: ndarray) -> ndarray:
     """``float32(1 / sqrt(s))`` per stored row, s the float64 sum of squares; 0 for zero rows.
 
