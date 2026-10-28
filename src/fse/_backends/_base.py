@@ -136,7 +136,7 @@ class Backend(Protocol):
         ...
 
     def scores(
-        self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: object
+        self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float | ndarray
     ) -> ndarray:
         """The linear score of every stored row with every weight vector, a (rows,
         vectors) array, as ``fse._reference.scores``; ``bias`` one number or one per

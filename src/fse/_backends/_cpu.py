@@ -113,7 +113,7 @@ class CpuBackend:
         return _native.cosines(stored, inverse, queries, isa=self.isa)
 
     def scores(
-        self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: object
+        self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float | ndarray
     ) -> ndarray:
         check_scores_input(stored, scales, weights, bias)
         return _native.scores(stored, scales, weights, bias, isa=self.isa)
