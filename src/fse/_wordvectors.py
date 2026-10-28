@@ -192,6 +192,14 @@ class WordVectors:
         it was loaded with while it is written, so damaged or changed data never gets new
         checksums.
         """
+        tensors, metadata, expected = self._parts()
+        metadata[CREATED_BY_KEY] = _created_by()
+        SafetensorsContainer().write(Path(path), tensors, metadata, expected=expected)
+
+    def _parts(self) -> tuple[dict[str, ndarray], dict[str, str], dict[str, str] | None]:
+        """For an encoder that holds these vectors: the tensors, the metadata of the
+        content (without the keys a container writes) and the checksums they were loaded
+        with, after the checks ``save`` makes."""
         if not self._verified or self._mapped():
             self._check_contents()
         metadata = {
@@ -199,10 +207,7 @@ class WordVectors:
             for k, v in self._metadata.items()
             if k != FINGERPRINT_KEY and k != CREATED_BY_KEY and not k.startswith(CHECKSUM_PREFIX)
         }
-        metadata[CREATED_BY_KEY] = _created_by()
-        SafetensorsContainer().write(
-            Path(path), self._tensors, metadata, expected=self._checksums()
-        )
+        return dict(self._tensors), metadata, self._checksums()
 
     def _mapped(self) -> bool:
         return any(isinstance(t, np.memmap) for t in self._tensors.values())
