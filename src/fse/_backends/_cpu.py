@@ -9,7 +9,8 @@
 The second of the two modules that import fse._native: fse._text uses it for stages 1
 and 2 (text to batches), this one for the kernels of stages 2 to 4. Every native entry
 point sets the floating-point environment of its thread itself, so worker threads need
-none; several threads may call ``rows`` at once.
+none; ``store`` runs the numpy arithmetic of ``fse._codes`` in that environment too.
+Several threads may call ``rows`` and ``store`` at once.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy import ndarray
 
-from fse import _gram, _native
+from fse import _codes, _gram, _native
 from fse._contract import Aggregation, Batch, Op, Step
 
 from ._base import (
@@ -31,6 +32,7 @@ from ._base import (
     check_pool_input,
     check_prepared,
     check_score_input,
+    check_store_input,
     dims,
 )
 
@@ -99,3 +101,9 @@ class CpuBackend:
     ) -> ndarray:
         check_score_input(stored, scales, weights, bias)
         return _native.score(stored, scales, weights, bias, isa=self.isa)
+
+    def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
+        check_store_input(rows, codes, scales, first_row)
+        # numpy arithmetic, but in the kernel's floating-point environment, not the thread's.
+        with _native.kernel_env():
+            _codes.quantize_into(rows, codes, scales, first_row=int(first_row))

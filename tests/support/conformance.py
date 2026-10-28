@@ -166,14 +166,20 @@ BACKENDS = [
 ]
 
 
+_UINT = {1: np.uint8, 2: np.uint16, 4: np.uint32, 8: np.uint64}
+
+
 def assert_bits_equal(got, want, name=""):
+    """``got`` and ``want`` have the same shape, dtype and bits (so -0.0 is not 0.0)."""
     assert got.shape == want.shape, (name, got.shape, want.shape)
     assert got.dtype == want.dtype, (name, got.dtype, want.dtype)
-    g = got.view(np.uint32) if got.dtype == F32 else got
-    w = want.view(np.uint32) if want.dtype == F32 else want
+    unsigned = _UINT[got.dtype.itemsize]
+    g = np.ascontiguousarray(got).view(unsigned)
+    w = np.ascontiguousarray(want).view(unsigned)
     if not np.array_equal(g, w):
-        row, col = (int(i) for i in np.argwhere(g != w)[0])
+        where = tuple(int(i) for i in np.argwhere(g != w)[0])
+        digits = 2 * got.dtype.itemsize
         raise AssertionError(
-            f"{name}: row {row}, column {col}: {got[row, col]!r} ({g[row, col]:#010x}) "
-            f"!= {want[row, col]!r} ({w[row, col]:#010x})"
+            f"{name}: at {where}: {got[where]!r} ({int(g[where]):#0{digits + 2}x}) "
+            f"!= {want[where]!r} ({int(w[where]):#0{digits + 2}x})"
         )

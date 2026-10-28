@@ -1,5 +1,7 @@
 # Type stubs of the compiled extension fse._native.
 
+from contextlib import AbstractContextManager
+
 from numpy import ndarray
 
 from fse._contract import Batch
@@ -26,6 +28,7 @@ def scan_spans(
     chunk_rows: int = ...,
 ) -> tuple[int, int, int, list[tuple[int, int, int]], int, int]: ...
 def available_isas() -> tuple[str, ...]: ...
+def kernel_env() -> AbstractContextManager[None]: ...
 def default_isa() -> str: ...
 
 class WeightedMean:
