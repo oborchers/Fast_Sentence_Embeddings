@@ -22,7 +22,11 @@ Use uv and the Makefile; CI calls the same targets.
     make rebuild-ext   # after editing .pyx, .pxi, .pxd or .h
     make build         # sdist + wheel, twine check
 
-Performance changes report before and after numbers on an idle machine (the scripts warn about a high load average): `uv run python benchmarks/bench_kernel.py --python-v1 <python of fse 1.1.0>` for the kernel and `benchmarks/bench_tokenize.py` from raw text; `benchmarks/baseline/` holds the 1.1.0 values 2.0 is compared with.
+Performance changes report before and after numbers: `uv run python benchmarks/bench_kernel.py --python-v1 <python of fse 1.1.0>` for the kernel and `benchmarks/bench_tokenize.py` from raw text; `benchmarks/baseline/` holds the 1.1.0 values 2.0 is compared with. Keep measurements proportionate:
+
+- at most 5 to 10 minutes per comparison; alternate the base commit and the branch in a few paired runs and note the load average (the scripts warn about a high one);
+- when code only moves (the same machine code, shown by comparing the disassembly of the native functions of both builds with addresses normalized, or the same preprocessed header), that comparison replaces the timing;
+- longer series only where code that computes or runs hot really changes.
 
 ## Rules
 
@@ -34,6 +38,7 @@ Performance changes report before and after numbers on an idle machine (the scri
 - The dependency lower bounds in pyproject.toml must match the pins of the minimum job in `.github/workflows/ci.yml`.
 - pytest treats warnings as errors. Add a narrow, commented `filterwarnings` ignore only for warnings from third-party code.
 - Record user-visible changes in `CHANGELOG.md`.
+- Test modules never import each other. Helpers several of them share live in `tests/support/` (on the pytest `pythonpath`); a long test module splits by topic into `test_<module>_<topic>.py`.
 
 ## Guardrails
 
