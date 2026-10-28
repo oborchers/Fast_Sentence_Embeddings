@@ -69,6 +69,9 @@ def read_v1(name):
     plain = {k: v for k, v in metadata.items() if k != "fse.fingerprint"}
     plain = {k: v for k, v in plain.items() if not k.startswith("fse.checksum.")}
     # Check the file of format 1 before its hashes are dropped.
+    keys = {k.removeprefix("fse.checksum.") for k in metadata if k.startswith("fse.checksum.")}
+    if keys != set(tensors):
+        raise SystemExit(f"{name}: the checksum keys do not match the tensors")
     for n, a in tensors.items():
         if hashlib.sha256(a.tobytes()).hexdigest() != metadata[f"fse.checksum.{n}"]:
             raise SystemExit(f"{name}: the checksum of {n} does not match")
@@ -93,6 +96,41 @@ def vocabulary(tensors, sha256):
 def word_vectors_v1(name):
     tensors, metadata = read_v1(name)
     return sha256_fingerprint(tensors, metadata), tensors
+
+
+def same_word_vectors(name_v1, name_v2):
+    """Stop unless the word vectors of format 2 hold the tensors and keys of format 1."""
+    from safetensors import safe_open
+    from safetensors.numpy import load_file
+
+    old, old_keys = read_v1(name_v1)
+    new = load_file(str(HERE / name_v2))
+    with safe_open(str(HERE / name_v2), "np") as f:
+        new_keys = f.metadata()
+    if set(old) != set(new) or any(
+        old[n].dtype != new[n].dtype
+        or old[n].shape != new[n].shape
+        or old[n].tobytes() != new[n].tobytes()
+        for n in old
+    ):
+        raise SystemExit(f"{name_v2} does not hold the tensors of {name_v1}")
+    if "fse.quantized_from" in old_keys:  # an identity: of the float32 vectors of each format
+        float32_v1, _ = word_vectors_v1("word_vectors_float32.safetensors")
+        float32 = WordVectors.load(HERE / "word_vectors2_float32.safetensors")
+        if (old_keys["fse.quantized_from"], new_keys.get("fse.quantized_from")) != (
+            float32_v1,
+            float32.fingerprint,
+        ):
+            raise SystemExit(f"fse.quantized_from of {name_v2} does not name its float32 vectors")
+    ignored = ("fse.format_version", "fse.created_by", "fse.fingerprint", "fse.quantized_from")
+
+    def content(keys):
+        return {
+            k: v for k, v in keys.items() if k not in ignored and not k.startswith("fse.checksum.")
+        }
+
+    if content(old_keys) != content(new_keys):
+        raise SystemExit(f"{name_v2} does not hold the keys of {name_v1}")
 
 
 def folded_rows(int8, steps):
@@ -131,6 +169,7 @@ def quantized_from(old_tensors, old, int8, steps):
 def transcode_unfolded():
     tensors, old = read_v1("encoder_sif_unfolded.safetensors")
     wv_v1, wv_tensors = word_vectors_v1("word_vectors_float32.safetensors")
+    same_word_vectors("word_vectors_float32.safetensors", "word_vectors2_float32.safetensors")
     wv = WordVectors.load(HERE / "word_vectors2_float32.safetensors")
     new = {**old, "fse.format_version": "2"}
     new["fse.word_vectors"] = renamed(old, wv_v1, wv.fingerprint, "fse.word_vectors")
@@ -143,6 +182,7 @@ def transcode_unfolded():
 def transcode_folded():
     tensors, old = read_v1("encoder_usif_folded_int8.safetensors")
     int8_v1, _ = word_vectors_v1("word_vectors_int8.safetensors")
+    same_word_vectors("word_vectors_int8.safetensors", "word_vectors2_int8.safetensors")
     int8 = WordVectors.load(HERE / "word_vectors2_int8.safetensors")
     new = {**old, "fse.format_version": "2"}
     new["fse.folded_from"] = renamed(old, int8_v1, int8.fingerprint, "fse.folded_from")

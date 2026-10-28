@@ -1,4 +1,4 @@
-"""NpyContainer 1: layout, corrupted artifacts, limits and files on disk."""
+"""NpyContainer 2: layout, corrupted artifacts, limits and files on disk."""
 
 import json
 import os
@@ -128,7 +128,7 @@ CORRUPTIONS = {
         "this fse reads",
     ),
     "container version float": (
-        _edit(lambda m: m.update(container_version=1.0)),
+        _edit(lambda m: m.update(container_version=2.0)),
         UnsupportedArtifactError,
         "this fse reads",
     ),
