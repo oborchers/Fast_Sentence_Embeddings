@@ -262,20 +262,26 @@ def _check_container(texts: object, what: str) -> None:
         raise TypeError(f"{what} must be a list, tuple or numpy array, not {type(texts).__name__}")
 
 
-def _encode_strings(texts: Any, what: str) -> tuple[bytes, ndarray]:
-    encoded = []
-    for i, text in enumerate(texts):
-        if not isinstance(text, str):
-            raise TypeError(f"{what} {i} is a {type(text).__name__}, not a str")
-        try:
-            encoded.append(text.encode("utf-8"))
-        except UnicodeEncodeError as err:
-            raise UnicodeEncodeError(
-                err.encoding, err.object, err.start, err.end, f"{err.reason} in {what} {i}"
-            ) from None
+def encode_string(text: object, what: str, row: int) -> bytes:
+    """The UTF-8 bytes of sentence ``row``; a non-str or a lone surrogate raises."""
+    if not isinstance(text, str):
+        raise TypeError(f"{what} {row} is a {type(text).__name__}, not a str")
+    try:
+        return text.encode("utf-8")
+    except UnicodeEncodeError as err:
+        raise UnicodeEncodeError(
+            err.encoding, err.object, err.start, err.end, f"{err.reason} in {what} {row}"
+        ) from None
+
+
+def _join(encoded: list[bytes]) -> tuple[bytes, ndarray]:
     offsets = np.zeros(len(encoded) + 1, dtype=np.int64)
     np.cumsum([len(e) for e in encoded], out=offsets[1:])
     return b"".join(encoded), offsets
+
+
+def _encode_strings(texts: Any, what: str) -> tuple[bytes, ndarray]:
+    return _join([encode_string(text, what, i) for i, text in enumerate(texts)])
 
 
 class StringSource(_Buffered):
@@ -284,6 +290,13 @@ class StringSource(_Buffered):
     def __init__(self, texts: Any):
         _check_container(texts, "texts")
         self._data, self._offsets = _encode_strings(texts, "string")
+
+    @classmethod
+    def encoded(cls, sentences: list[bytes]) -> StringSource:
+        """A source of sentences already encoded (and checked) as UTF-8."""
+        source = cls.__new__(cls)
+        source._data, source._offsets = _join(sentences)
+        return source
 
     def __len__(self) -> int:
         return self._positions()
