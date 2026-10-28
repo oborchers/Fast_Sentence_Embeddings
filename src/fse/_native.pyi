@@ -1,5 +1,7 @@
 # Type stubs of the compiled extension fse._native.
 
+from typing import Literal
+
 from numpy import ndarray
 
 from fse._contract import Batch
@@ -27,7 +29,7 @@ def scan_spans(
     chunk_bytes: int,
     chunk_rows: int = ...,
 ) -> tuple[int, int, int, list[tuple[int, int, int]], int, int]: ...
-def join_token_lists(sentences: object) -> tuple[bytes, ndarray] | bool | None: ...
+def join_token_lists(sentences: object) -> tuple[bytes, ndarray] | Literal[False] | None: ...
 def available_isas() -> tuple[str, ...]: ...
 def default_isa() -> str: ...
 
