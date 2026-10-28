@@ -5,7 +5,7 @@
 # Licensed under GNU General Public License v3.0
 
 """One shard being written: rows reserved for the workers, committed in order, then
-published whole (ARCHITECTURE.md, "sentence_vectors 2").
+published whole (ARCHITECTURE.md, "sentence_vectors 1").
 
 A shard is written in a temporary directory ``.shard-<first row>.writing-<hex>`` of the
 store. The worker of a task writes its rows into a buffer of the task (the window of the

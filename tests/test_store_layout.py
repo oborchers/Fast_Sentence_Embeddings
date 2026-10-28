@@ -89,14 +89,9 @@ def test_store_json_is_read_strictly(tmp_path):
         ({"store_version": 2}, UnsupportedArtifactError, "version 2"),
         ({"extra": 1}, CorruptArtifactError, "exactly store, store_version and metadata"),
         (
-            {"metadata": {**store["metadata"], "fse.format_version": "3"}},
+            {"metadata": {**store["metadata"], "fse.format_version": "2"}},
             UnsupportedArtifactError,
-            "format '3'",
-        ),
-        (  # the pre-release format with sha256 fingerprints
-            {"metadata": {**store["metadata"], "fse.format_version": "1"}},
-            UnsupportedArtifactError,
-            "format '1'",
+            "format '2'",
         ),
         (
             {"metadata": {**store["metadata"], "fse.encoder": LEGACY}},

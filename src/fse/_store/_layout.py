@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The layout of a store of sentence vectors (ARCHITECTURE.md, "sentence_vectors 2").
+"""The layout of a store of sentence vectors (ARCHITECTURE.md, "sentence_vectors 1").
 
 A store is a directory: ``store.json``, written once when the store is created and
 never changed, names the encoder, the storage dtype and the dimension; the rows are
@@ -42,8 +42,9 @@ from fse._contract import UnsupportedArtifactError
 STORE_FILE = "store.json"
 STORE_NAME = "fse_shards"
 STORE_VERSION = 1
-# The format of the sentence vectors: 2 since every checksum is xxh3-128.
-FORMAT_VERSION = "2"
+# The format of the sentence vectors; it starts with the xxh3-128 checksums (maintainer
+# decision: the store was never released with sha256).
+FORMAT_VERSION = "1"
 SHARD_PREFIX = "shard-"
 DTYPES = ("float32", "float16", "int8")
 # The metadata every shard shares with store.json.
