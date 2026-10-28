@@ -4,12 +4,12 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The format rules of encoder 2 (ARCHITECTURE.md, "encoder 2").
+"""The format rules of encoder 1 (ARCHITECTURE.md, "encoder 1").
 
 ``to_artifact`` turns the content of an encoder into its tensors and metadata,
 ``from_artifact`` checks and parses them back. The keys and tensors of an encoder are a
 closed set derived from its content: anything else raises. A folded encoder holds its
-word vectors under their own names (word_vectors 2, without counts); the embedded word
+word vectors under their own names (word_vectors 1, without counts); the embedded word
 vectors are built by the caller from what ``from_artifact`` returns.
 """
 
@@ -47,7 +47,7 @@ from fse._contract import (
 )
 
 KIND = "encoder"
-FORMAT_VERSION = "2"
+FORMAT_VERSION = "1"
 # The keys of the word vectors a folded encoder holds, and their tensors (no counts: the
 # weights of the encoder already took them in).
 WORD_VECTOR_KEYS = frozenset(

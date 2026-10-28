@@ -112,7 +112,7 @@ def fingerprint(
     tensors = [
         [name, code, list(shape), digest] for name, (code, shape, digest) in sorted(entries.items())
     ]
-    document = {"fingerprint": 2, "metadata": content, "tensors": tensors}
+    document = {"fingerprint": 1, "metadata": content, "tensors": tensors}
     return _hash.checksum(canonical_json(document).encode("utf-8"))
 
 

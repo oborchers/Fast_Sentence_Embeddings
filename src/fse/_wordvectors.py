@@ -6,7 +6,7 @@
 
 """Word vectors in the 2.0 format: immutable, memory-mappable, without pickle.
 
-ARCHITECTURE.md, "word_vectors 2", specifies the artifact. The vocabulary is the UTF-8
+ARCHITECTURE.md, "word_vectors 1", specifies the artifact. The vocabulary is the UTF-8
 bytes of the words with int64 offsets; a word is found by an exact match of its bytes.
 Vectors are stored as float32, float16 or int8 codes with a float32 scale per row, and
 read as float32. FastText vectors also hold their ngram rows and hashing parameters.

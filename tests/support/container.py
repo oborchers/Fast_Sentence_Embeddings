@@ -5,7 +5,7 @@ import json
 import numpy as np
 
 F32 = np.float32
-FINGERPRINT = "xxh3-128:18063af8c78a3bc9bb2ca036e75551d5"
+FINGERPRINT = "xxh3-128:8011e82efda8fabff21969cbaad4fae3"
 
 
 def _tensors():
@@ -18,7 +18,7 @@ def _tensors():
 
 _METADATA = {
     "fse.kind": "word_vectors",
-    "fse.format_version": "2",
+    "fse.format_version": "1",
     "fse.dim": "2",
     "fse.dtype": "float32",
 }

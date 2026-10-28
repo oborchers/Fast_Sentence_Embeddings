@@ -1,23 +1,23 @@
-"""Write the golden encoders of format 2 in tests/test_data/v2 (never rewrite them).
+"""Write the golden encoders in tests/test_data/v2 (never rewrite them once committed).
 
     uv run python tests/test_data/v2/make_encoder_golden.py
 
-They pin the format "encoder 2": an unfolded SIF encoder on the golden float32 word
+They pin the format "encoder 1": an unfolded SIF encoder on the golden float32 word
 vectors and a folded uSIF encoder that holds its int8 word vectors. tests/test_encoder_
 encoder.py loads them and compares their fingerprints and the rows they give.
 
-encoder_sif_unfolded.safetensors and encoder_usif_folded_int8.safetensors are the same
-encoders in the pre-release format 1 with sha256 checksums, fitted at commit 7f3cb32 on
-CORPUS: ``SIF(components=1, fold=False)`` on the float32 vectors, ``USIF(components=1,
-length=3)`` on the int8 ones with the float32 counts. They are kept byte for byte as files
-that must be rejected. Fit depends on BLAS, so the files of format 2 are not fitted again
-but transcoded: every tensor is taken byte for byte from format 1, and each fingerprint
-they name is made anew only after its sha256 value of format 1 was recomputed from the
-same content and matched. ``fse.quantized_from`` of the folded encoder names folded
-float32 rows the file does not hold; they are folded again with the kernel and must give
-the stored rows and the recorded sha256 value, or nothing is written. Every checksum and
-the fingerprint of a file of format 1 are checked before its tensors are used. The new word vectors
-(make_golden.py) must exist first.
+sha256/encoder_sif_unfolded.safetensors and sha256/encoder_usif_folded_int8.safetensors
+are the same encoders with the sha256 checksums of a pre-release of 2.0, fitted at commit
+7f3cb32 on CORPUS: ``SIF(components=1, fold=False)`` on the float32 vectors,
+``USIF(components=1, length=3)`` on the int8 ones with the float32 counts. They are kept
+byte for byte, only as files that must be rejected. Fit depends on BLAS, so the encoders
+are not fitted again but transcoded from them: every checksum and the fingerprint of a
+sha256 file are checked first, every tensor is taken byte for byte, and each fingerprint
+they name is made anew only after its sha256 value was recomputed from the same content
+and matched. ``fse.quantized_from`` of the folded encoder names folded float32 rows the
+file does not hold; they are folded again with the kernel and must give the stored rows
+and the recorded sha256 value, or nothing is written. The golden word vectors
+(make_golden.py) must exist first and must hold the tensors and keys of their sha256 files.
 """
 
 import hashlib
@@ -32,6 +32,7 @@ from fse._encoder._fold import BLOCK_ROWS, _folded_block, fold, linear_map
 from fse._wordvectors import WordVectors
 
 HERE = Path(__file__).parent
+SHA256 = HERE / "sha256"
 CORPUS = ["the é 日本", "the the é", "日本 x", "é", "the 日本 é é", "zz the", "", "日本 日本"]
 VOCAB = ("vocab.bytes", "vocab.offsets")
 EMBEDDED = ("vectors", "scales", "vocab.bytes", "vocab.offsets", "ngrams", "ngram_scales")
@@ -40,7 +41,7 @@ EMBEDDED_KEYS += ("fse.fasttext", "fse.ngram_hash")
 
 
 def sha256_fingerprint(tensors, metadata):
-    """The fingerprint of format 1: sha256 of the canonical JSON of scheme 1."""
+    """The fingerprint of the sha256 files: sha256 of the same canonical JSON."""
     rows = [
         [n, tensor_code(a), list(a.shape), hashlib.sha256(a.tobytes()).hexdigest()]
         for n, a in sorted(tensors.items())
@@ -57,18 +58,18 @@ def new_fingerprint(tensors, metadata):
     )
 
 
-def read_v1(name):
-    """The tensors of a file of format 1 and its metadata without checksums and fingerprint,
-    read with the safetensors package (fse rejects format 1)."""
+def read_sha256(name):
+    """The tensors of a sha256 file and its metadata without checksums and fingerprint, read
+    with the safetensors package (fse rejects these files)."""
     from safetensors import safe_open
     from safetensors.numpy import load_file
 
-    with safe_open(str(HERE / name), "np") as f:
+    with safe_open(str(SHA256 / name), "np") as f:
         metadata = f.metadata()
-    tensors = load_file(str(HERE / name))
+    tensors = load_file(str(SHA256 / name))
     plain = {k: v for k, v in metadata.items() if k != "fse.fingerprint"}
     plain = {k: v for k, v in plain.items() if not k.startswith("fse.checksum.")}
-    # Check the file of format 1 before its hashes are dropped.
+    # Check the sha256 file before its hashes are dropped.
     keys = {k.removeprefix("fse.checksum.") for k in metadata if k.startswith("fse.checksum.")}
     if keys != set(tensors):
         raise SystemExit(f"{name}: the checksum keys do not match the tensors")
@@ -76,14 +77,14 @@ def read_v1(name):
         if hashlib.sha256(a.tobytes()).hexdigest() != metadata[f"fse.checksum.{n}"]:
             raise SystemExit(f"{name}: the checksum of {n} does not match")
     if sha256_fingerprint(tensors, plain) != metadata["fse.fingerprint"]:
-        raise SystemExit(f"{name}: the fingerprint of format 1 does not match")
+        raise SystemExit(f"{name}: the sha256 fingerprint does not match")
     return tensors, plain
 
 
 def renamed(old, recomputed, new, key):
-    """The new fingerprint of ``key``, after the recomputed value of format 1 matched."""
+    """The new fingerprint of ``key``, after the recomputed sha256 value matched."""
     if recomputed != old[key]:
-        raise SystemExit(f"{key}: recomputed {recomputed}, the file of format 1 has {old[key]}")
+        raise SystemExit(f"{key}: recomputed {recomputed}, the sha256 file has {old[key]}")
     return new
 
 
@@ -93,19 +94,19 @@ def vocabulary(tensors, sha256):
     return sha256_fingerprint(vocab, meta) if sha256 else new_fingerprint(vocab, meta)
 
 
-def word_vectors_v1(name):
-    tensors, metadata = read_v1(name)
+def word_vectors_sha256(name):
+    tensors, metadata = read_sha256(name)
     return sha256_fingerprint(tensors, metadata), tensors
 
 
-def same_word_vectors(name_v1, name_v2):
-    """Stop unless the word vectors of format 2 hold the tensors and keys of format 1."""
+def same_word_vectors(name):
+    """Stop unless the golden word vectors hold the tensors and keys of their sha256 file."""
     from safetensors import safe_open
     from safetensors.numpy import load_file
 
-    old, old_keys = read_v1(name_v1)
-    new = load_file(str(HERE / name_v2))
-    with safe_open(str(HERE / name_v2), "np") as f:
+    old, old_keys = read_sha256(name)
+    new = load_file(str(HERE / name))
+    with safe_open(str(HERE / name), "np") as f:
         new_keys = f.metadata()
     if set(old) != set(new) or any(
         old[n].dtype != new[n].dtype
@@ -113,16 +114,16 @@ def same_word_vectors(name_v1, name_v2):
         or old[n].tobytes() != new[n].tobytes()
         for n in old
     ):
-        raise SystemExit(f"{name_v2} does not hold the tensors of {name_v1}")
-    if "fse.quantized_from" in old_keys:  # an identity: of the float32 vectors of each format
-        float32_v1, _ = word_vectors_v1("word_vectors_float32.safetensors")
-        float32 = WordVectors.load(HERE / "word_vectors2_float32.safetensors")
+        raise SystemExit(f"{name} does not hold the tensors of its sha256 file")
+    if "fse.quantized_from" in old_keys:  # an identity: of the float32 vectors of each hash
+        float32_sha256, _ = word_vectors_sha256("word_vectors_float32.safetensors")
+        float32 = WordVectors.load(HERE / "word_vectors_float32.safetensors")
         if (old_keys["fse.quantized_from"], new_keys.get("fse.quantized_from")) != (
-            float32_v1,
+            float32_sha256,
             float32.fingerprint,
         ):
-            raise SystemExit(f"fse.quantized_from of {name_v2} does not name its float32 vectors")
-    ignored = ("fse.format_version", "fse.created_by", "fse.fingerprint", "fse.quantized_from")
+            raise SystemExit(f"fse.quantized_from of {name} does not name its float32 vectors")
+    ignored = ("fse.created_by", "fse.fingerprint", "fse.quantized_from")
 
     def content(keys):
         return {
@@ -130,7 +131,7 @@ def same_word_vectors(name_v1, name_v2):
         }
 
     if content(old_keys) != content(new_keys):
-        raise SystemExit(f"{name_v2} does not hold the keys of {name_v1}")
+        raise SystemExit(f"{name} does not hold the keys of its sha256 file")
 
 
 def folded_rows(int8, steps):
@@ -157,35 +158,36 @@ def quantized_from(old_tensors, old, int8, steps):
     rows = {**folded_rows(int8, steps), **{n: old_tensors[n] for n in VOCAB}}
     keys = {"fse.kind": "word_vectors", "fse.dim": old["fse.dim"], "fse.dtype": "float32"}
     keys |= {k: old[k] for k in ("fse.fasttext", "fse.ngram_hash")}
-    if sha256_fingerprint(rows, {**keys, "fse.format_version": "1"}) != old["fse.quantized_from"]:
+    keys["fse.format_version"] = "1"
+    if sha256_fingerprint(rows, keys) != old["fse.quantized_from"]:
         raise SystemExit(
             "the folded float32 rows do not match the sha256 value; nothing is written"
         )
-    new = new_fingerprint(rows, {**keys, "fse.format_version": "2"})
+    new = new_fingerprint(rows, keys)
     assert new == again.metadata["fse.quantized_from"], "fold and the transcoder disagree"
     return new
 
 
 def transcode_unfolded():
-    tensors, old = read_v1("encoder_sif_unfolded.safetensors")
-    wv_v1, wv_tensors = word_vectors_v1("word_vectors_float32.safetensors")
-    same_word_vectors("word_vectors_float32.safetensors", "word_vectors2_float32.safetensors")
-    wv = WordVectors.load(HERE / "word_vectors2_float32.safetensors")
-    new = {**old, "fse.format_version": "2"}
-    new["fse.word_vectors"] = renamed(old, wv_v1, wv.fingerprint, "fse.word_vectors")
+    tensors, old = read_sha256("encoder_sif_unfolded.safetensors")
+    wv_sha256, wv_tensors = word_vectors_sha256("word_vectors_float32.safetensors")
+    same_word_vectors("word_vectors_float32.safetensors")
+    wv = WordVectors.load(HERE / "word_vectors_float32.safetensors")
+    new = dict(old)
+    new["fse.word_vectors"] = renamed(old, wv_sha256, wv.fingerprint, "fse.word_vectors")
     new["fse.vocabulary"] = renamed(
         old, vocabulary(wv_tensors, True), wv.vocabulary_fingerprint, "fse.vocabulary"
     )
-    SafetensorsContainer().write(HERE / "encoder2_sif_unfolded.safetensors", tensors, new)
+    SafetensorsContainer().write(HERE / "encoder_sif_unfolded.safetensors", tensors, new)
 
 
 def transcode_folded():
-    tensors, old = read_v1("encoder_usif_folded_int8.safetensors")
-    int8_v1, _ = word_vectors_v1("word_vectors_int8.safetensors")
-    same_word_vectors("word_vectors_int8.safetensors", "word_vectors2_int8.safetensors")
-    int8 = WordVectors.load(HERE / "word_vectors2_int8.safetensors")
-    new = {**old, "fse.format_version": "2"}
-    new["fse.folded_from"] = renamed(old, int8_v1, int8.fingerprint, "fse.folded_from")
+    tensors, old = read_sha256("encoder_usif_folded_int8.safetensors")
+    int8_sha256, _ = word_vectors_sha256("word_vectors_int8.safetensors")
+    same_word_vectors("word_vectors_int8.safetensors")
+    int8 = WordVectors.load(HERE / "word_vectors_int8.safetensors")
+    new = dict(old)
+    new["fse.folded_from"] = renamed(old, int8_sha256, int8.fingerprint, "fse.folded_from")
     new["fse.vocabulary"] = renamed(
         old, vocabulary(tensors, True), vocabulary(tensors, False), "fse.vocabulary"
     )
@@ -194,15 +196,13 @@ def transcode_folded():
     origin = quantized_from(tensors, old, int8, steps)
     embedded = {n: tensors[n] for n in EMBEDDED}
     keys = {k: old[k] for k in EMBEDDED_KEYS}
-    recomputed = sha256_fingerprint(
-        embedded, {"fse.kind": "word_vectors", "fse.format_version": "1", **keys}
-    )
-    keys["fse.quantized_from"] = new["fse.quantized_from"] = origin
-    content = {"fse.kind": "word_vectors", "fse.format_version": "2", **keys}
+    content = {"fse.kind": "word_vectors", "fse.format_version": "1", **keys}
+    recomputed = sha256_fingerprint(embedded, content)
+    content["fse.quantized_from"] = new["fse.quantized_from"] = origin
     new["fse.word_vectors"] = renamed(
         old, recomputed, new_fingerprint(embedded, content), "fse.word_vectors"
     )
-    SafetensorsContainer().write(HERE / "encoder2_usif_folded_int8.safetensors", tensors, new)
+    SafetensorsContainer().write(HERE / "encoder_usif_folded_int8.safetensors", tensors, new)
 
 
 def main():

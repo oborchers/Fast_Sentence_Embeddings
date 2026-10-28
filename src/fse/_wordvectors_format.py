@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The format rules of word_vectors 2 (ARCHITECTURE.md, "word_vectors 2").
+"""The format rules of word_vectors 1 (ARCHITECTURE.md, "word_vectors 1").
 
 Its keys and tensors, the checks of structure (on every open) and of values (on verify
 and every write), the vocabulary encoding and the FastText parameters. fse._wordvectors
@@ -35,7 +35,7 @@ from fse._container import (
 from fse._contract import OOV_TOKEN, UnsupportedArtifactError
 
 KIND = "word_vectors"
-FORMAT_VERSION = "2"
+FORMAT_VERSION = "1"
 QUANTIZATION = "quantize_rows@1"
 NGRAM_HASH = "fasttext@1"
 

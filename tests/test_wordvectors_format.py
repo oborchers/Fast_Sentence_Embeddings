@@ -1,4 +1,4 @@
-"""The format rules of word_vectors 2: broken artifacts, values, golden files, UTF-8."""
+"""The format rules of word_vectors 1: broken artifacts, values, golden files, UTF-8."""
 
 import numpy as np
 import pytest
@@ -18,15 +18,9 @@ SCHEMA_ERRORS = {
     ),
     "format version": (
         None,
-        lambda m: m.update({"fse.format_version": "3"}),
+        lambda m: m.update({"fse.format_version": "2"}),
         UnsupportedArtifactError,
-        "format version '3'",
-    ),
-    "format version of the pre-release": (
-        None,
-        lambda m: m.update({"fse.format_version": "1"}),
-        UnsupportedArtifactError,
-        "format version '1'",
+        "format version '2'",
     ),
     "unknown key": (
         None,
@@ -203,8 +197,8 @@ def test_verify_checks_values(tmp_path, case):
 
 
 GOLDEN = {
-    "float32": "xxh3-128:682b9e05c678509b9d85e277292e527f",
-    "int8": "xxh3-128:ef67589649fa706c56522f3ef6e97064",
+    "float32": "xxh3-128:d4c6ae920bbdbf4e0c84dd7ab027c5ef",
+    "int8": "xxh3-128:266a930b0e5d114ecd0cc14fcea3abe4",
 }
 
 
@@ -216,7 +210,7 @@ def test_golden_word_vectors(test_data_dir, dtype, mmap):
 
     # runpy writes no bytecode, so tests/test_data stays untouched.
     a = runpy.run_path(str(test_data_dir / "v2" / "make_golden.py"))["arrays"]()
-    wv = WordVectors.load(test_data_dir / "v2" / f"word_vectors2_{dtype}.safetensors", mmap=mmap)
+    wv = WordVectors.load(test_data_dir / "v2" / f"word_vectors_{dtype}.safetensors", mmap=mmap)
     wv.verify()
     assert wv.fingerprint == GOLDEN[dtype]
     assert [wv.word(i) for i in range(len(wv))] == a["words"]
@@ -243,10 +237,11 @@ def test_golden_word_vectors(test_data_dir, dtype, mmap):
 
 @pytest.mark.parametrize("dtype", sorted(GOLDEN))
 def test_the_pre_release_golden_files_are_rejected(test_data_dir, dtype):
-    """The same vectors in format 1, with sha256 checksums: kept as they were written."""
-    path = test_data_dir / "v2" / f"word_vectors_{dtype}.safetensors"
+    """The same vectors with the sha256 checksums of a pre-release, kept as they were
+    written and rejected by their checksums (their format version is the same)."""
+    path = test_data_dir / "v2" / "sha256" / f"word_vectors_{dtype}.safetensors"
     for mmap in (False, True):
-        with pytest.raises(UnsupportedArtifactError, match="sha256 checksums of a pre-release"):
+        with pytest.raises(UnsupportedArtifactError, match=r"sha256 .* reads xxh3-128"):
             WordVectors.load(path, mmap=mmap)
     with pytest.raises(UnsupportedArtifactError, match="sha256"):
         SafetensorsContainer().verify(path)
@@ -259,7 +254,7 @@ def test_every_container_gives_the_golden_fingerprint(tmp_path, test_data_dir, d
     """
     from fse._container import CONTAINERS
 
-    golden = test_data_dir / "v2" / f"word_vectors2_{dtype}.safetensors"
+    golden = test_data_dir / "v2" / f"word_vectors_{dtype}.safetensors"
     tensors, metadata = SafetensorsContainer().open(golden, mmap=False)
     plain = {
         k: v

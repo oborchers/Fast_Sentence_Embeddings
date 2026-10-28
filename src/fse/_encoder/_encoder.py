@@ -9,7 +9,7 @@
 An Encoder does not change once made (by ``fit`` of a recipe or ``load``). It builds the
 VocabTable of its vocabulary once and one Pipeline per backend, both on first use, and
 several threads may encode with it at once. It is saved as one safetensors file
-(ARCHITECTURE.md, "encoder 2").
+(ARCHITECTURE.md, "encoder 1").
 """
 
 from __future__ import annotations
