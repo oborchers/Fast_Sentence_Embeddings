@@ -321,7 +321,8 @@ ignore_imports = ["fse.gensim -> gensim"]
 paths = ["src/fse", "tools", "tests", "benchmarks"]
 min_confidence = 60
 ignore_names = [
-    "__getattr__",       # the module hook of fse/__init__.py, called by Python
+    "__getattr__",       # the module hooks of fse/__init__.py, called by Python
+    "__dir__",
     "exc",               # the arguments of __exit__
     "pytestmark",        # read by pytest
     "windows_file_maps", # a fixture used through pytest.mark.usefixtures
