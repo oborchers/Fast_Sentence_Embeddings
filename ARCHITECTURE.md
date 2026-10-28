@@ -20,6 +20,18 @@ src/fse/
   _wordvectors.py        # WordVectors
   _wordvectors_format.py # the format rules of word_vectors 1: keys, checks, vocabulary encoding
   _gram.py               # Gram matrix helpers for fit
+  _cpus.py               # usable_cpus: the default number of workers
+  _backends/             # the backends behind one contract:
+    __init__.py          #   BACKEND_NAMES, get_backend,
+    _base.py             #   Capabilities, PoolInput, Prepared, the Backend protocol and checks,
+    _cpu.py              #   the cpu backend on the native kernel,
+    _numpy.py            #   the numpy backend on fse._reference (the oracle)
+  _runtime/              # the runtime of train and infer:
+    _executor.py         #   run: inline or threads, ordered commits, a window, errors in order,
+    _tasks.py            #   the tasks of a source and the inline rule,
+    _sinks.py            #   Sink, ArrayRows, GrowingRows,
+    _spec.py             #   EncodeSpec: what an encoder hands to the runtime,
+    _pipeline.py         #   Pipeline: an encoder on one backend, infer
   _validation.py         # validate_arguments: strict pydantic checks of entry points
   _native.pyx            # the extension: directives, imports and its parts, in order
   _native_hash.pxi       # its parts: FastText ngram hashing and chunk limits,
@@ -39,6 +51,7 @@ src/fse/
   _unicode.py            # generated: the same table for the reference
   _reference_text.py     # the reference of stages 1 and 2: tokenizers and lookup
   _text.py               # text sources (strings, files, token lists) to batches
+  _stream.py             # StreamSource: sentences from an iterator, read once
   gensim.py              # adapter from gensim word vectors (extra fse[gensim])
 ```
 
@@ -58,6 +71,8 @@ src/fse/
 ## Text sources
 
 `fse._text` turns text into batches (stages 1 and 2). A source holds its sentences as one UTF-8 buffer: strings in memory with their offsets, or the memory-mapped lines of a file. `scan` validates the UTF-8 of every sentence in threads without the GIL and cuts the source into chunks of about 64 KiB to 1 MiB (at most `MAX_CHUNK_ROWS` sentences); `encode` turns one chunk into a Batch with a `TextLookup` (the tokenizer, the `VocabTable` built from the vocabulary bytes of the word vectors, and the FastText buckets) and a `Workspace`, the buffers one worker reuses. Every sentence is one row, empty ones included. Tokens are matched to the vocabulary by their exact UTF-8 bytes, so with `fse_words@1` a word with uppercase letters or whitespace (such as `New_York` in GoogleNews) is never matched. `tools/make_unicode_tables.py` generates the lowercase tables from `UnicodeData.txt`; both generated files are checked in and compared with each other in the tests.
+
+`fse._stream.StreamSource` takes sentences from any iterable (a queue consumer, a crawler, log lines) and is read once. The runtime reads it in the calling thread, a collection of at most `chunk_rows` sentences (65,536) or about `chunk_bytes` (8 MiB) at a time, and only when its window of tasks has room, so a slow sink slows the source and memory stays bounded by one collection and the window. A sentence that is no str or has no UTF-8 form, and an error of the iterator, are raised after the rows before them were committed, with the row number counted from the start of the stream. The iterator is never read from another thread. One thread reads a stream, so a stream gives at most what that thread can collect: about 2.8 million sentences per second on a 16-vCPU EPYC (`bench_runtime.py stream`), the same as a StringSource up to about 8 workers and 0.8 to 0.9 of it at 16; a native reader may lift this later.
 
 ## Rules
 
@@ -208,14 +223,27 @@ The rules reproduce the preprocessing of the published 1.x tables on all STS sen
 
 ### Backends
 
-A backend implements four operations behind a device-neutral interface and is chosen by name from a fixed set (`"cpu"`, `"numpy"`, later `"mlx"` and `"cuda"`); there is no plugin registry and no `"auto"`:
+A backend implements one contract (`fse._backends`) and is chosen by name from a fixed set (`"cpu"`, `"numpy"`, later `"mlx"` and `"cuda"`); there is no plugin registry and no `"auto"`:
 
-- `pool(batch, params, out)`: stages 2 to 4 (and 5 if it can quantize) for one batch into the rows of a sink buffer. `params` holds what an encoder needs on that backend (vocabulary table, weights, uploaded rows) and is built once per encoder and backend.
-- `gram_block(rows)`: the float32 product of one block for `fit`; the runtime sums the blocks in float64 in block order.
-- `score(block, weights, bias)`: the scores of stored rows.
-- `capabilities()`: the word dtypes, aggregations, steps and storage dtypes it supports, and whether it supports group mode.
+- `prepare(pool, steps)`: once per encoder and backend, what it needs on that backend (the kernel's parameters, uploaded rows); `pool` holds the word rows, scales, weights and FastText rows, `steps` the postprocessing steps.
+- `rows(batch, prepared, out)`: stages 2 to 4 of one batch into `out`, the aggregation and then the postprocessing steps on the rows of that batch, so every worker applies the steps to the finished rows of its own task. The cpu backend runs them one after the other; a device backend may fuse them. Stage 5 (storage dtype) belongs to the sink (PR 6).
+- `gram_block(rows)`: the float32 product of one block for `fit`; `GramSink` sums the blocks in float64 in block order, as `fse._gram.gram_matrix` does.
+- `score(stored, scales, weights, bias)`: the scores of stored rows.
+- `capabilities()`: the word dtypes, aggregations, steps, FastText, the largest dimension, and whether several threads may call `rows` at once (`concurrent`; otherwise the runtime runs one task at a time while encoding stays parallel).
 
-Before reading any input, the runtime checks that the backend can run the encoder and raises otherwise; it never falls back silently. The first error of any worker stops the others and is raised. A conformance suite runs over every available backend and compares each with the reference bit for bit for every dtype, aggregation and step, including empty, long and unknown-word sentences and subnormal values; a new backend is done when it passes.
+Arguments and outputs are host numpy arrays, checked the same way by every backend (shape, dtype, C order, writability, no overlap with the inputs). The kernels and the cpu backend set the floating-point environment of their thread themselves; the numpy backend is the oracle of the tests, not a production backend, and like `fse._reference` computes in the environment of its thread, as do the Gram block products and their float64 sum, which numpy computes for every backend. Before reading any input, the runtime checks that the backend can run the encoder and raises otherwise, naming the backend and what it cannot run; it never falls back silently. The conformance suites run every backend through its contract and compare it with the reference bit for bit for every dtype, step list, FastText, source and worker count, including empty, long and unknown-word sentences and subnormal values; a new backend is done when it passes. accumulate and dot16 are kernel primitives, not contract operations, and are tested on the kernels directly.
+
+### Runtime
+
+`fse._runtime` runs train and infer on one executor (`run`):
+
+- **Tasks.** A source is scanned into chunks, one task each: about `chunk_bytes` of text (64 KiB to 1 MiB by default, scan ranges never smaller than a chunk) and at most 16 MiB of finished rows (`TASK_ROW_BYTES`; a task has a fixed cost of about 0.2 ms for its checks, so smaller tasks cost throughput). A stream is read in collections of up to 65,536 sentences, each scanned into tasks with rows counted from the start of the stream.
+- **Inline.** A source of at most 64 KiB, and `workers=1`, run in the calling thread without any thread; with the default workers such inputs are within 8 % of `workers=1` (`benchmarks/bench_runtime.py latency`).
+- **Threads.** Otherwise a pool of `workers` threads, created per call, with one workspace per thread; the native routines release the GIL and set the floating-point environment of their thread themselves, so a worker that inherited flush-to-zero gives the same bits. The tasks are taken, and each task's output rows reserved (`Sink.target`), in the calling thread; results are committed in task order in the calling thread, so a sink needs no locks.
+- **Window.** At most `2 * workers` tasks are in flight or waiting to be committed, and their rows take at most 512 MiB (`WINDOW_BYTES`; with many workers a task holds fewer rows; a running task with steps also holds its pooled rows and one copy): a slow sink slows the source, and memory stays bounded by the window and one collection of a stream.
+- **Errors.** For a given sequence of tasks, the error raised is the one of the first failing task in order, after every task before it was committed, as with one worker; tasks after it are skipped where they have not started. Once a task has failed, nothing more is read from the source. Every argument of `infer` is checked before the source is read. A bad sentence or an error of a stream's iterator is raised after the rows before it. An error of the sink (reserving or committing rows) or an interrupt cancels what has not started, waits for running tasks and is raised. No thread outlives a call.
+
+A `Pipeline` holds an encoder on one backend (prepared once, before any input is read) and is immutable, so several threads may call `infer` at once; a server that encodes many small requests in parallel sets `workers=1` per request. PR 5's Encoder builds its `EncodeSpec` and keeps one `Pipeline` per backend; the public entry points come with it.
 
 ### Artifacts
 
@@ -293,17 +321,21 @@ New 2.0 code goes into private modules of `fse`: `_contract` and `_reference` (c
 The modules form layers, and a module imports only from layers below it. The import contracts in `pyproject.toml` (`[tool.importlinter]`, run by `make lint`) enforce this, and every new module must take a layer there:
 
 1. `gensim` (the adapter, the only module that imports gensim)
-2. `_text`
-3. `_wordvectors`
-4. `_wordvectors_format`
-5. `_container`, `_codes`, `_gram`, `_reference`, `_reference_text`, `_validation`, independent of each other: the references never share code with what they check
-6. `_contract`, `_unicode`
+2. `_runtime`
+3. `_backends`, `_stream`, independent of each other
+4. `_text`
+5. `_wordvectors`
+6. `_wordvectors_format`
+7. `_container`, `_codes`, `_gram`, `_reference`, `_reference_text`, `_validation`, independent of each other: the references never share code with what they check
+8. `_contract`, `_cpus`, `_unicode`
 
-The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` imports it and that it imports only `_contract` from fse. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, mlx, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list to the extension. The runtime, backends, encoder, sinks and store of the coming PRs add their layers above `_text`.
+Inside a package, an import contract keeps its parts apart: `_npy` and `_safetensors` share only `_common`, each backend shares only `_base`, and the runtime's pipeline sits on its tasks, sinks, spec and executor.
+
+The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` (stages 1 and 2) and the cpu backend `_backends._cpu` (the kernels) import it and that it imports only `_contract` from fse. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, mlx, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list to the extension. The runtime, backends, encoder, sinks and store of the coming PRs add their layers above `_text`.
 
 ### Defaults
 
-Defaults are part of the API and chosen for speed: `workers` is the number of usable CPUs (small inputs run inline in the calling thread), and new encoders, also the pretrained ones on the hub, end with `normalize`, so the cosine of two rows is their dot product. A server that encodes many small requests in parallel sets `workers=1`.
+Defaults are part of the API and chosen for speed: `workers` is the number of usable CPUs (`fse._cpus.usable_cpus`: an explicit `PYTHON_CPU_COUNT` or `-X cpu_count`, else the CPUs of the process affinity limited by the CPU quota of its Linux cgroup and every visible ancestor, rounded up (the quota is read once per process); `PYTHON_CPU_COUNT` thus also sets the default workers; small inputs run inline in the calling thread), and new encoders, also the pretrained ones on the hub, end with `normalize`, so the cosine of two rows is their dot product. A server that encodes many small requests in parallel sets `workers=1`.
 
 ### Baseline
 

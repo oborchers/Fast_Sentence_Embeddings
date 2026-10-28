@@ -1,0 +1,202 @@
+import numpy as np
+import pytest
+
+from fse._contract import Normalize
+from fse._runtime import EncodeSpec, GrowingRows, Pipeline, _executor
+from fse._stream import StreamSource
+from fse._text import StringSource
+from support.runtime import expected, texts, word_vectors
+
+F32 = np.float32
+SPEC = EncodeSpec(word_vectors(), np.ones(200, F32), (Normalize(),))
+SENTENCES = texts(3000)
+WANT = expected(SPEC, SENTENCES)
+
+
+@pytest.mark.parametrize("workers", [1, 4])
+@pytest.mark.parametrize("chunk_rows", [1, 7, 1000, 65_536])
+def test_a_stream_gives_the_rows_of_a_string_source(workers, chunk_rows):
+    stream = StreamSource(iter(SENTENCES), chunk_rows=chunk_rows)
+    got = Pipeline(SPEC).infer(stream, workers=workers, chunk_bytes=512)
+    assert got.tobytes() == WANT.tobytes()
+    assert got.tobytes() == Pipeline(SPEC).infer(StringSource(SENTENCES), workers=workers).tobytes()
+
+
+def test_errors_name_the_row_of_the_stream():
+    def bad(item):
+        yield from SENTENCES[:2500]
+        yield item
+
+    with pytest.raises(TypeError, match="string 2500 is a int"):
+        Pipeline(SPEC).infer(StreamSource(bad(5), chunk_rows=1000), workers=4)
+    with pytest.raises(UnicodeEncodeError, match="string 2500"):
+        Pipeline(SPEC).infer(StreamSource(bad("a \ud800"), chunk_rows=1000), workers=4)
+
+
+def test_the_rows_before_an_error_are_committed():
+    def broken():
+        yield from SENTENCES[:1234]
+        raise OSError("the queue went away")
+
+    sink = GrowingRows(12)
+    with pytest.raises(OSError, match="the queue went away"):
+        Pipeline(SPEC).infer(StreamSource(broken(), chunk_rows=500), workers=4, sink=sink)
+    assert sink.next_row == 1234
+    assert sink.result().tobytes() == WANT[:1234].tobytes()
+
+
+def test_a_stream_is_read_once():
+    stream = StreamSource(iter(SENTENCES[:10]))
+    Pipeline(SPEC).infer(stream)
+    with pytest.raises(RuntimeError, match="read once"):
+        Pipeline(SPEC).infer(stream)
+
+
+@pytest.mark.parametrize("texts_", ["text", b"text", {"a", "b"}, {"a": 1}, 5])
+def test_inputs_are_checked(texts_):
+    with pytest.raises(TypeError):
+        StreamSource(texts_)
+
+
+@pytest.mark.parametrize("name", ["chunk_rows", "chunk_bytes"])
+@pytest.mark.parametrize("value", [0, True, 1.0, 1 << 41])
+def test_sizes_are_checked(name, value):
+    with pytest.raises(ValueError, match=name):
+        StreamSource([], **{name: value})
+
+
+def test_an_empty_stream_and_lists_and_generators():
+    assert Pipeline(SPEC).infer(StreamSource([])).shape == (0, 12)
+    got = Pipeline(SPEC).infer(StreamSource(s for s in SENTENCES[:20]))
+    assert got.tobytes() == WANT[:20].tobytes()
+
+
+def test_a_small_stream_starts_no_thread(monkeypatch):
+    def no_threads(**_kwargs):
+        raise AssertionError("a thread pool was created")
+
+    monkeypatch.setattr(_executor, "ThreadPoolExecutor", no_threads)
+    got = Pipeline(SPEC).infer(StreamSource(iter(SENTENCES[:30])), workers=8)
+    assert got.tobytes() == WANT[:30].tobytes()
+
+
+def test_a_slow_sink_slows_the_source():
+    """With a sink that keeps nothing, sentences read minus rows committed stays below one
+    collection plus the window of tasks, whatever the length of the stream."""
+    import time
+
+    state = {"read": 0, "most": 0}
+
+    class SlowCount:
+        dim = 12
+
+        def __init__(self):
+            self.next_row = 0
+
+        def target(self, _first_row, n_rows):
+            return np.empty((n_rows, 12), F32)
+
+        def commit(self, first_row, rows):
+            assert first_row == self.next_row
+            state["most"] = max(state["most"], state["read"] - self.next_row)
+            self.next_row += len(rows)
+            time.sleep(0.0005)
+
+    def counted():
+        for i in range(60_000):
+            state["read"] += 1
+            yield SENTENCES[i % len(SENTENCES)]
+
+    sink = SlowCount()
+    pipeline = Pipeline(SPEC)
+    pipeline.infer(StreamSource(counted(), chunk_rows=2000), workers=4, sink=sink, chunk_bytes=4096)
+    assert sink.next_row == 60_000
+    # a task holds at most chunk_rows (2000) rows here; the window is 2 * 4 tasks
+    assert state["most"] <= 2000 + 2 * 4 * 2000
+
+
+def test_str_subclasses_are_sentences_and_report_their_row():
+    class Text(str):
+        pass
+
+    got = Pipeline(SPEC).infer(StreamSource([Text(s) for s in SENTENCES[:50]]))
+    assert got.tobytes() == WANT[:50].tobytes()
+    with pytest.raises(UnicodeEncodeError, match=r"surrogates not allowed in string 3$"):
+        Pipeline(SPEC).infer(StreamSource([*SENTENCES[:3], Text("a \ud800")]))
+
+
+def test_arguments_are_checked_before_the_stream_is_read():
+    reads = []
+
+    def counted():
+        reads.append(1)
+        yield "w1"
+
+    with pytest.raises(ValueError, match="chunk_bytes must be a positive int"):
+        Pipeline(SPEC).infer(StreamSource(counted()), chunk_bytes=0)
+    with pytest.raises(ValueError, match="the sink must take rows of 12 values"):
+        Pipeline(SPEC).infer(StreamSource(counted()), sink=GrowingRows(3))
+    with pytest.raises(ValueError, match="chunk_bytes"):
+        Pipeline(SPEC).infer(StreamSource([]), chunk_bytes=-1)
+    assert reads == []
+
+
+def test_numpy_integers_are_stream_sizes():
+    stream = StreamSource(iter(SENTENCES[:100]), chunk_rows=np.int64(7), chunk_bytes=np.int32(4096))
+    assert stream.chunk_rows == 7
+    assert Pipeline(SPEC).infer(stream).tobytes() == WANT[:100].tobytes()
+
+
+def test_a_sink_without_its_methods_is_refused_before_reading():
+    reads = []
+
+    def counted():
+        reads.append(1)
+        yield "w1"
+
+    class Broken:
+        dim = 12
+
+    with pytest.raises(TypeError, match="target and commit"):
+        Pipeline(SPEC).infer(StreamSource(counted()), sink=Broken())
+    with pytest.raises(TypeError, match="target and commit"):
+        Pipeline(SPEC).infer(StreamSource([]), sink=Broken())
+    assert reads == []
+
+
+def test_a_failed_task_stops_the_stream_between_two_sentences(monkeypatch):
+    """A worker fails while a collection is read: no further sentence is read after it."""
+    import threading
+
+    from fse._runtime import _executor
+    from fse._wordvectors import WordVectors
+
+    failed = threading.Event()
+    rows = np.ones((200, 12), F32)
+    rows[7] = np.finfo(F32).max
+    wv = WordVectors.from_arrays(rows, words=[f"w{i}" for i in range(200)])
+    spec = EncodeSpec(wv, np.full(200, 2, F32))
+    after = []
+
+    def stream():
+        yield from ["w7"] + ["w1 w2"] * 9_999  # the first task fails
+        assert failed.wait(5)
+        for i in range(100_000):
+            after.append(i)
+            if len(after) > 1:
+                raise AssertionError("read after the failure was known")
+            yield "w1"
+
+    real = _executor._Run._work
+
+    def work_and_signal(self, sequence, task):
+        try:
+            return real(self, sequence, task)
+        except BaseException:
+            failed.set()
+            raise
+
+    monkeypatch.setattr(_executor._Run, "_work", work_and_signal)
+    with pytest.raises(ValueError, match="row 0 contains NaN or infinite"):
+        Pipeline(spec).infer(StreamSource(stream(), chunk_rows=20_000), workers=4, chunk_bytes=1024)
+    assert len(after) <= 1

@@ -6,6 +6,7 @@ from fse._contract import Batch
 
 MAX_NGRAMS_LIMIT: int
 MAX_CHUNK_ROWS: int
+MAX_DIM: int
 
 def ft_ngram_hashes(
     word: str, min_n: int, max_n: int, bucket: int, max_ngrams: int
@@ -17,7 +18,12 @@ class VocabTable:
     def get(self, word: str | bytes) -> int | None: ...
 
 def scan_spans(
-    data: ndarray, offsets: ndarray | None, first: int, last: int, chunk_bytes: int
+    data: ndarray,
+    offsets: ndarray | None,
+    first: int,
+    last: int,
+    chunk_bytes: int,
+    chunk_rows: int = ...,
 ) -> tuple[int, int, int, list[tuple[int, int, int]], int, int]: ...
 def available_isas() -> tuple[str, ...]: ...
 def default_isa() -> str: ...

@@ -23,6 +23,7 @@ from support.conformance import (
     F32,
     TINY,
     Case,
+    Contract,
     Native,
     Reference,
     _rng,
@@ -257,11 +258,7 @@ def test_v1_fixture_batches(backend, test_data_dir):
             prefix = f"{name}.{dtype}"
             args = _v1_args(arrays, prefix, kind, dtype)
             want = _reference.pool_weighted_mean(batch, *args)
-            if isinstance(backend, Native):
-                got = _native.pool_weighted_mean(batch, *args, isa=backend.isa)
-            else:
-                got = want
-            assert_bits_equal(got, want, prefix)
+            assert_bits_equal(backend.pool_args(batch, args), want, prefix)
 
 
 def _v1_batch(arrays, kind):
@@ -357,7 +354,13 @@ def test_the_suite_catches_zero_padded_dot16():
 
 # --- The floating-point environment ----------------------------------------------------------
 
-NATIVE = [b for b in BACKENDS if isinstance(b, Native)]
+# The kernels and the cpu backend set the environment themselves; the numpy backend, like
+# the reference, computes in the environment of its thread.
+NATIVE = [
+    b
+    for b in BACKENDS
+    if isinstance(b, Native) or (isinstance(b, Contract) and b.backend.name == "cpu")
+]
 # Flush-to-zero changes subnormal results, rounding up changes inexact ones.
 ENVIRONMENTS = {"flush to zero": {"flush": True}, "round up": {"round_up": True}}
 
@@ -409,22 +412,31 @@ def test_the_environment_changes_numpy(env):
     assert after[0][0] != before[0][0] or after[1][0] != before[1][0]
 
 
-@pytest.mark.parametrize("env", ENVIRONMENTS, ids=list(ENVIRONMENTS))
-@pytest.mark.parametrize("backend", NATIVE, ids=lambda b: b.name)
-def test_native_ignores_and_restores_the_environment(backend, env):
+ENVIRONMENT_CALLS = list(_environment_calls(Reference()))
+
+
+def test_the_environment_cases_depend_on_the_environment():
     want = {name: call() for name, call in _environment_calls(Reference()).items()}
-    for name, call in _environment_calls(backend).items():
-        saved = _native._test_fpenv_set(**ENVIRONMENTS[env])
-        try:
-            changed = _native._test_fpenv_get()
-            got = call()
-            after = _native._test_fpenv_get()
-        finally:
-            _native._test_fpenv_restore(saved)
-        assert after == changed, f"{name} did not restore the floating-point environment"
-        assert_bits_equal(got, want[name], name)
     assert np.any(want["pool subnormal rows"] != 0)
     assert want["score subnormal bias"][0, 0] != 0
+
+
+@pytest.mark.parametrize("name", ENVIRONMENT_CALLS)
+@pytest.mark.parametrize("env", ENVIRONMENTS, ids=list(ENVIRONMENTS))
+@pytest.mark.parametrize("backend", NATIVE, ids=lambda b: b.name)
+def test_native_ignores_and_restores_the_environment(backend, env, name):
+    """One entry point per test, so a backend that skips one still runs the others."""
+    want = _environment_calls(Reference())[name]()
+    call = _environment_calls(backend)[name]
+    saved = _native._test_fpenv_set(**ENVIRONMENTS[env])
+    try:
+        changed = _native._test_fpenv_get()
+        got = call()
+        after = _native._test_fpenv_get()
+    finally:
+        _native._test_fpenv_restore(saved)
+    assert after == changed, f"{name} did not restore the floating-point environment"
+    assert_bits_equal(got, want, name)
 
 
 @pytest.mark.parametrize("backend", NATIVE, ids=lambda b: b.name)

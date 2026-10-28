@@ -245,3 +245,84 @@ def test_make_lookup_validates():
 def test_tokenize():
     assert tokenize("Don't stop") == ["do", "not", "stop"]
     assert tokenize("Don't stop", "external") == ["Don't", "stop"]
+
+
+def test_small_sources_and_one_worker_scan_without_threads(monkeypatch):
+    from fse import _text
+
+    def no_threads(**_kwargs):
+        raise AssertionError("a thread pool was created")
+
+    monkeypatch.setattr(_text, "ThreadPoolExecutor", no_threads)
+    assert StringSource(["a b", "c"] * 10).scan(workers=8).sentences == 20
+    big = StringSource(["word " * 40] * 6000)  # about 1.2 MB
+    assert big.scan(workers=1).sentences == 6000
+
+
+@pytest.mark.parametrize("workers", [2, 4])
+def test_inline_and_threaded_scans_give_the_same_chunks(monkeypatch, tmp_path, workers):
+    from fse import _text
+
+    lines = [f"sentence {i} ".encode() * (i % 7) for i in range(5000)]
+    good = tmp_path / "good.txt"
+    good.write_bytes(b"\n".join(lines) + b"\n")
+    bad = tmp_path / "bad.txt"
+    bad.write_bytes(b"\n".join([*lines[:3333], b"bad \xff text", *lines[3333:]]) + b"\n")
+    runs, errors = {}, {}
+    for name, limit in (("inline", 1 << 40), ("threads", 0)):
+        monkeypatch.setattr(_text, "_SCAN_INLINE_BYTES", limit)
+        with FileSource(good) as source:
+            runs[name] = source.scan(workers=workers, chunk_bytes=4096)
+        with FileSource(bad) as source, pytest.raises(UnicodeDecodeError) as error:
+            source.scan(workers=workers, chunk_bytes=4096)
+        errors[name] = str(error.value)
+    assert runs["inline"] == runs["threads"]
+    assert len(runs["inline"].chunks) > workers
+    assert errors["inline"] == errors["threads"]
+    assert "3333" in errors["inline"]
+
+
+@pytest.mark.parametrize("rows", [1, 3, 100])
+def test_chunk_rows_bound_the_rows_of_a_chunk(rows):
+    texts = [""] * 250 + ["a b"] * 50  # empty sentences take no bytes
+    scan = StringSource(texts).scan(chunk_bytes=1 << 20, chunk_rows=rows)
+    assert scan.sentences == 300
+    assert max(c.n_sentences for c in scan.chunks) <= rows
+    assert sum(c.n_sentences for c in scan.chunks) == 300
+
+
+@pytest.mark.parametrize("rows", [0, -1, _native.MAX_CHUNK_ROWS + 1, True, 2.0])
+def test_chunk_rows_are_checked(rows):
+    with pytest.raises(ValueError, match="chunk_rows"):
+        StringSource(["a"]).scan(chunk_rows=rows)
+
+
+def test_numpy_integers_are_sizes():
+    scan = StringSource(["a b"] * 10).scan(
+        workers=np.int64(2), chunk_bytes=np.int32(4), chunk_rows=np.int64(3)
+    )
+    assert max(c.n_sentences for c in scan.chunks) <= 3
+
+
+def test_scan_ranges_are_not_smaller_than_a_chunk(tmp_path):
+    path = tmp_path / "lines.txt"
+    path.write_bytes(b"a\n" * 65_537)  # just over two chunks of 65,536 bytes
+    with FileSource(path) as source:
+        scan = source.scan(workers=8, chunk_bytes=65_536)
+    assert len(scan.chunks) <= 2
+
+
+def test_one_long_line_with_one_row_per_chunk(tmp_path):
+    path = tmp_path / "long.txt"
+    path.write_bytes(b"word " * (1 << 20) + b"\n")
+    with FileSource(path) as source:
+        scan = source.scan(chunk_bytes=1 << 30, chunk_rows=1)
+    assert [c.n_sentences for c in scan.chunks] == [1]
+
+
+def test_full_chunks_of_neighbour_ranges_stay_apart(tmp_path):
+    path = tmp_path / "lines.txt"
+    path.write_bytes((b"x" * 65_535 + b"\n") * 32)  # 32 lines of exactly one chunk each
+    with FileSource(path) as source:
+        scan = source.scan(workers=8, chunk_bytes=65_536)
+    assert len(scan.chunks) == 32

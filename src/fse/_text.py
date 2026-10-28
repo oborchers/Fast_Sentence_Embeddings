@@ -12,6 +12,7 @@ from __future__ import annotations
 import mmap
 import os
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from itertools import pairwise
 from pathlib import Path
@@ -32,6 +33,9 @@ _CHUNK_MIN_BYTES = 1 << 16
 _CHUNK_MAX_BYTES = 1 << 20
 # About this many bytes per scan task, so a failed scan stops after bounded work.
 _SCAN_RANGE_MAX_BYTES = 1 << 26
+# Sources smaller than this are scanned in the calling thread: starting threads would cost
+# more than the scan (about 16 ms of one core at 64 MB/s).
+_SCAN_INLINE_BYTES = 1 << 20
 _BOM = b"\xef\xbb\xbf"
 
 
@@ -79,14 +83,25 @@ def make_lookup(
         if max_ngrams is not None:
             raise ValueError("max_ngrams applies only to FastText vectors")
         return _native.TextLookup(table, tokenizer)
-    if isinstance(max_ngrams, bool) or not isinstance(max_ngrams, int):
+    count = _integer(max_ngrams)
+    if count is None:
         raise TypeError("FastText vectors need max_ngrams, an int")
+    max_ngrams = count
     if not 1 <= max_ngrams <= _native.MAX_NGRAMS_LIMIT:
         raise ValueError(
             f"max_ngrams must be between 1 and {_native.MAX_NGRAMS_LIMIT}, not {max_ngrams}"
         )
     params = (fasttext.min_n, fasttext.max_n, fasttext.bucket)
     return _native.TextLookup(table, tokenizer, params, max_ngrams)
+
+
+MAX_CHUNK_ROWS = _native.MAX_CHUNK_ROWS
+MAX_NGRAMS_LIMIT = _native.MAX_NGRAMS_LIMIT
+
+
+def new_workspace() -> _native.Workspace:
+    """The buffers one worker thread reuses for every chunk it encodes."""
+    return _native.Workspace()
 
 
 def _decode_error(data: Any, start: int, end: int, sentence: int) -> UnicodeDecodeError:
@@ -104,21 +119,86 @@ def _decode_error(data: Any, start: int, end: int, sentence: int) -> UnicodeDeco
     raise AssertionError(f"no UTF-8 error in sentence {sentence}")  # pragma: no cover
 
 
+def _scan_pool(workers: int, total: int) -> AbstractContextManager[ThreadPoolExecutor | None]:
+    """Threads for a scan, or None to scan in the calling thread: with one worker and for
+    sources under _SCAN_INLINE_BYTES. The chunks are the same either way."""
+    if workers == 1 or total < _SCAN_INLINE_BYTES:
+        return nullcontext(None)
+    return ThreadPoolExecutor(max_workers=workers)
+
+
+def _integer(value: object) -> int | None:
+    """``value`` as an int if it is one (numpy integers too, bool not), else None."""
+    if isinstance(value, bool) or not isinstance(value, int | np.integer):
+        return None
+    return int(value)
+
+
+def check_chunk_bytes(chunk_bytes: object) -> int | None:
+    """None (a default from the source size) or a positive int."""
+    if chunk_bytes is None:
+        return None
+    value = _integer(chunk_bytes)
+    if value is None or value < 1:
+        raise ValueError(f"chunk_bytes must be a positive int, not {chunk_bytes!r}")
+    return value
+
+
+def _chunk_sizes(
+    total: int, workers: object, chunk_bytes: object, chunk_rows: object
+) -> tuple[int, int, int]:
+    """The checked workers, the chunk size in bytes (by default from the source size) and
+    in rows."""
+    count = _integer(workers)
+    if count is None or count < 1:
+        raise ValueError(f"workers must be a positive int, not {workers!r}")
+    size = check_chunk_bytes(chunk_bytes)
+    if size is None:
+        size = max(_CHUNK_MIN_BYTES, min(_CHUNK_MAX_BYTES, total // (8 * count)))
+    rows = _native.MAX_CHUNK_ROWS if chunk_rows is None else _integer(chunk_rows)
+    if rows is None or not 1 <= rows <= _native.MAX_CHUNK_ROWS:
+        raise ValueError(
+            f"chunk_rows must be an int from 1 to {_native.MAX_CHUNK_ROWS}, not {chunk_rows!r}"
+        )
+    return count, size, rows
+
+
+def _append(chunks: list[Chunk], chunk: Chunk, *, merge: bool, remainder: Any, chunk_rows: int):
+    """Append ``chunk``; the first chunk of a scan range takes in the last chunk of the
+    range before if that one is a remainder (it ended at the range boundary below both
+    chunk limits) and their rows fit."""
+    last = chunks[-1] if merge and chunks else None
+    if last is not None and remainder(last) and last.n_sentences + chunk.n_sentences <= chunk_rows:
+        chunks[-1] = Chunk(
+            last.start, chunk.end, last.first_row, last.n_sentences + chunk.n_sentences
+        )
+    else:
+        chunks.append(chunk)
+
+
 class _Buffered:
     """A source whose sentences are one UTF-8 buffer, with offsets for strings."""
 
     _data: Any
     _offsets: ndarray | None
 
+    @property
+    def nbytes(self) -> int:
+        """The bytes of the UTF-8 text of all sentences (with newlines for a file)."""
+        return len(self._data)
+
     def _positions(self) -> int:
         """Bytes in line mode, strings otherwise."""
         return len(self._data) if self._offsets is None else len(self._offsets) - 1
 
-    def _range_bounds(self, workers: int) -> list[int]:
+    def _range_bounds(self, workers: int, chunk_bytes: int) -> list[int]:
         """Scan ranges of similar byte size that start at sentence starts."""
         size = self._positions()
         total = len(self._data)
-        n_ranges = max(1, min(max(4 * workers, -(-total // _SCAN_RANGE_MAX_BYTES)), max(size, 1)))
+        # 4 ranges per worker for balance, but none smaller than a chunk: each range gives
+        # at least one chunk, and every chunk costs its task's fixed checks.
+        wanted = max(4 * workers, -(-total // _SCAN_RANGE_MAX_BYTES))
+        n_ranges = max(1, min(wanted, total // chunk_bytes, max(size, 1)))
         bounds = [0]
         for k in range(1, n_ranges):
             target = total * k // n_ranges
@@ -140,33 +220,44 @@ class _Buffered:
             return len(self._data) if newline < 0 else byte + newline + 1
         return int(np.searchsorted(self._offsets, byte, side="right")) - 1
 
-    def scan(self, *, workers: int = 1, chunk_bytes: int | None = None) -> Scan:
-        """Validate the UTF-8 of every sentence and cut the source into chunks."""
-        if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
-            raise ValueError(f"workers must be a positive int, not {workers!r}")
+    def scan(
+        self, *, workers: int = 1, chunk_bytes: int | None = None, chunk_rows: int | None = None
+    ) -> Scan:
+        """Validate the UTF-8 of every sentence and cut the source into chunks of about
+        ``chunk_bytes`` bytes and at most ``chunk_rows`` sentences (MAX_CHUNK_ROWS)."""
         total = len(self._data)
-        if chunk_bytes is None:
-            chunk_bytes = max(_CHUNK_MIN_BYTES, min(_CHUNK_MAX_BYTES, total // (8 * workers)))
-        if isinstance(chunk_bytes, bool) or not isinstance(chunk_bytes, int) or chunk_bytes < 1:
-            raise ValueError(f"chunk_bytes must be a positive int, not {chunk_bytes!r}")
+        workers, chunk_bytes, chunk_rows = _chunk_sizes(total, workers, chunk_bytes, chunk_rows)
         data = self._array()
         if self._positions() == 0:
             return Scan(0, ())
-        ranges = list(pairwise(self._range_bounds(workers)))
+        ranges = list(pairwise(self._range_bounds(workers, chunk_bytes)))
 
         def scan(span: tuple[int, int]):
-            return _native.scan_spans(data, self._offsets, span[0], span[1], chunk_bytes)
+            return _native.scan_spans(
+                data, self._offsets, span[0], span[1], chunk_bytes, chunk_rows
+            )
+
+        def remainder(c: Chunk) -> bool:
+            size = (
+                c.end - c.start
+                if self._offsets is None
+                else self._offsets[c.end] - self._offsets[c.start]
+            )
+            return size < chunk_bytes and c.n_sentences < chunk_rows
 
         sentences = 0
         chunks: list[Chunk] = []
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            for result in pool.map(scan, ranges):
+        with _scan_pool(workers, total) as pool:
+            for result in (map if pool is None else pool.map)(scan, ranges):
                 count, _, _, range_chunks, error_byte, error_sentence = result
                 if error_byte >= 0:
                     raise self._error(error_byte, sentences + error_sentence)
                 firsts = [row for _, _, row in range_chunks] + [count]
-                for (start, end, row), following in zip(range_chunks, firsts[1:], strict=True):
-                    chunks.append(Chunk(start, end, sentences + row, following - row))
+                for k, ((start, end, row), following) in enumerate(
+                    zip(range_chunks, firsts[1:], strict=True)
+                ):
+                    chunk = Chunk(start, end, sentences + row, following - row)
+                    _append(chunks, chunk, merge=k == 0, remainder=remainder, chunk_rows=chunk_rows)
                 sentences += count
         return Scan(sentences, tuple(chunks))
 
@@ -214,20 +305,26 @@ def _check_container(texts: object, what: str) -> None:
         raise TypeError(f"{what} must be a list, tuple or numpy array, not {type(texts).__name__}")
 
 
-def _encode_strings(texts: Any, what: str) -> tuple[bytes, ndarray]:
-    encoded = []
-    for i, text in enumerate(texts):
-        if not isinstance(text, str):
-            raise TypeError(f"{what} {i} is a {type(text).__name__}, not a str")
-        try:
-            encoded.append(text.encode("utf-8"))
-        except UnicodeEncodeError as err:
-            raise UnicodeEncodeError(
-                err.encoding, err.object, err.start, err.end, f"{err.reason} in {what} {i}"
-            ) from None
+def encode_string(text: object, what: str, row: int) -> bytes:
+    """The UTF-8 bytes of sentence ``row``; a non-str or a lone surrogate raises."""
+    if not isinstance(text, str):
+        raise TypeError(f"{what} {row} is a {type(text).__name__}, not a str")
+    try:
+        return text.encode("utf-8")
+    except UnicodeEncodeError as err:
+        raise UnicodeEncodeError(
+            err.encoding, err.object, err.start, err.end, f"{err.reason} in {what} {row}"
+        ) from None
+
+
+def _join(encoded: list[bytes]) -> tuple[bytes, ndarray]:
     offsets = np.zeros(len(encoded) + 1, dtype=np.int64)
     np.cumsum([len(e) for e in encoded], out=offsets[1:])
     return b"".join(encoded), offsets
+
+
+def _encode_strings(texts: Any, what: str) -> tuple[bytes, ndarray]:
+    return _join([encode_string(text, what, i) for i, text in enumerate(texts)])
 
 
 class StringSource(_Buffered):
@@ -236,6 +333,13 @@ class StringSource(_Buffered):
     def __init__(self, texts: Any):
         _check_container(texts, "texts")
         self._data, self._offsets = _encode_strings(texts, "string")
+
+    @classmethod
+    def encoded(cls, sentences: list[bytes]) -> StringSource:
+        """A source of sentences already encoded (and checked) as UTF-8."""
+        source = cls.__new__(cls)
+        source._data, source._offsets = _join(sentences)
+        return source
 
     def __len__(self) -> int:
         return self._positions()
@@ -340,8 +444,10 @@ class FileSource(_Buffered):
         self._check_unchanged()  # a change while the chunk was encoded
         return batch
 
-    def scan(self, *, workers: int = 1, chunk_bytes: int | None = None) -> Scan:
-        result = super().scan(workers=workers, chunk_bytes=chunk_bytes)
+    def scan(
+        self, *, workers: int = 1, chunk_bytes: int | None = None, chunk_rows: int | None = None
+    ) -> Scan:
+        result = super().scan(workers=workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows)
         self._check_unchanged()  # a change during the scan
         return result
 

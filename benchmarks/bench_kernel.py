@@ -48,6 +48,13 @@ THREAD_VARS = [
 ]
 
 
+def _cpus() -> int:
+    """usable_cpus of fse 2.0, imported here: the children of fse 1.1.0 run this file too."""
+    from fse._cpus import usable_cpus
+
+    return usable_cpus()
+
+
 def build_data(path: Path, cfg: dict) -> None:
     """Write random word vectors and Zipf-distributed sentences of word ids to path."""
     rng = np.random.default_rng(cfg["seed"])
@@ -147,7 +154,7 @@ def run_child(cfg: dict) -> dict:
 
 def spawn(python: str, cfg: dict, env: dict) -> dict:
     """Run one child in a fresh interpreter and return its result."""
-    cpus = os.cpu_count() or 1
+    cpus = _cpus()
     # os.getloadavg is not available on Windows; nan marks the load unknown.
     load = os.getloadavg()[0] if hasattr(os, "getloadavg") else float("nan")
     if load > cpus / 4:

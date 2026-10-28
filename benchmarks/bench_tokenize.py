@@ -51,6 +51,13 @@ import numpy as np
 _NOT_PUNCTUATION = re.compile(".*[A-Za-z0-9].*")
 
 
+def _cpus() -> int:
+    """usable_cpus of fse 2.0, imported here: the children of fse 1.1.0 run this file too."""
+    from fse._cpus import usable_cpus
+
+    return usable_cpus()
+
+
 def preprocess_1x(text: str) -> list[str]:
     """The preprocessing of the published 1.x tables (notebooks/STS-Benchmarks.ipynb)."""
     from nltk import word_tokenize
@@ -189,13 +196,6 @@ def child_hf(cfg: dict) -> float:
 
 
 CHILDREN = {"v2": child_v2, "v1": child_v1, "nltk": child_nltk, "hf": child_hf}
-
-
-def _cpus() -> int:
-    """The CPUs this process may use (a container can see more than it gets)."""
-    if hasattr(os, "sched_getaffinity"):
-        return len(os.sched_getaffinity(0))
-    return os.cpu_count() or 1
 
 
 def spawn(python: str, cfg: dict) -> float:
