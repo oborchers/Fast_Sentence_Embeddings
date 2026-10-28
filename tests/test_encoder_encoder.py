@@ -1,5 +1,8 @@
+import hashlib
 import pickle
+import runpy
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -193,3 +196,37 @@ def test_a_failed_first_use_can_be_retried(monkeypatch):
     with pytest.raises(MemoryError):
         encoder.encode(SENTENCES[:5])
     assert encoder.encode(SENTENCES[:5]).shape == (5, 6)
+
+
+GOLDEN = Path(__file__).parent / "test_data" / "v2"
+
+
+@pytest.mark.parametrize(
+    ("name", "fingerprint", "rows"),
+    [
+        (
+            "encoder_sif_unfolded",
+            "sha256:c5bc6326324bd04c938ee2e73f9c5defbc0790f2a2a03c4710b0486c026febb7",
+            "62b7fcaa61f113edc40f88e3125708faae27c3bf52300f7d6d2530f7f5bee472",
+        ),
+        (
+            "encoder_usif_folded_int8",
+            "sha256:ce1563cdd99c80480b72294c2a759b3a6b026fee74054bb74ce9c3fc655bdc8d",
+            "2a567828aaccdc0494e97c399fe475321695602ab1e6e1eb79f2ca75e73df74a",
+        ),
+    ],
+)
+@pytest.mark.parametrize("mmap", [False, True])
+def test_the_golden_encoders_load_and_give_their_pinned_rows(name, fingerprint, rows, mmap):
+    """encoder 1 is fixed: these files load, keep their fingerprint and give the same bits
+    on every platform (the encoding is contract arithmetic; only fit depends on BLAS)."""
+    corpus = runpy.run_path(str(GOLDEN / "make_encoder_golden.py"))["CORPUS"]
+    path = GOLDEN / f"{name}.safetensors"
+    if "unfolded" in name:
+        wv = WordVectors.load(GOLDEN / "word_vectors_float32.safetensors")
+        encoder = Encoder.load(path, word_vectors=wv, mmap=mmap)
+    else:
+        encoder = Encoder.load(path, mmap=mmap)
+    assert encoder.fingerprint == fingerprint
+    assert hashlib.sha256(encoder.encode(corpus).tobytes()).hexdigest() == rows
+    encoder.verify()
