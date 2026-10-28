@@ -256,6 +256,8 @@ untested-modules = ["src/fse/_version.py"]
 [tool.importlinter]
 root_package = "fse"
 include_external_packages = true
+# Imports for type checkers only (fse/__init__.py names the lazily loaded encoder).
+exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]
 name = "Layers (ARCHITECTURE.md, Layout): a module imports only from layers below it"
