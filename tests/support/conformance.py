@@ -1,8 +1,9 @@
 """Shared parts of the conformance suites: the case record, the backends, the comparison.
 
 ARCHITECTURE.md, "Backends": a backend is done when it passes the conformance suites.
-PR 4 adds the CPU runtime backend, PR 9 the MLX backend, later CUDA, by appending to
-BACKENDS.
+The kernels run directly (Reference, Native) and every backend of fse._backends runs
+through its contract (Contract); PR 9 adds the MLX backend, later CUDA, by appending
+to BACKENDS.
 """
 
 from __future__ import annotations
@@ -10,8 +11,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
+import pytest
 
 from fse import _native, _reference
+from fse._backends import PoolInput, get_backend
 from fse._contract import Batch
 
 F32 = np.float32
@@ -83,7 +86,10 @@ class Reference:
         return _reference.dot16(rows, other)
 
     def pool(self, case):
-        return _reference.pool_weighted_mean(case.batch, *case.args())
+        return self.pool_args(case.batch, case.args())
+
+    def pool_args(self, batch, args):
+        return _reference.pool_weighted_mean(batch, *args)
 
     def accumulate(self, case):
         return _reference.accumulate(case.batch, *case.args())
@@ -95,7 +101,10 @@ class Native:
         self.name = f"native-{isa}"
 
     def pool(self, case):
-        return _native.pool_weighted_mean(case.batch, *case.args(), isa=self.isa)
+        return self.pool_args(case.batch, case.args())
+
+    def pool_args(self, batch, args):
+        return _native.pool_weighted_mean(batch, *args, isa=self.isa)
 
     def accumulate(self, case):
         return _native.accumulate(case.batch, *case.args(), isa=self.isa)
@@ -110,7 +119,50 @@ class Native:
         return _native.dot16(rows, other, isa=self.isa)
 
 
-BACKENDS = [Reference(), *(Native(isa) for isa in _native.available_isas())]
+class Contract:
+    """A backend of fse._backends through its contract: prepare once, then ``rows``.
+
+    The steps run on pooled rows, as in the runtime: ``postprocess`` pools every row by
+    itself with weight 1, which gives the row back bit for bit (fma(1, x, 0) = x and
+    1 * x = x), except that -0.0 would become 0.0, so such input is refused. accumulate
+    and dot16 are no operations of the contract (accumulate is group mode, PR 8); the
+    kernel tests above cover them directly.
+    """
+
+    def __init__(self, name, **options):
+        self.backend = get_backend(name, **options)
+        self.name = "contract-" + "-".join([name, *map(str, options.values())])
+
+    def pool(self, case):
+        return self.pool_args(case.batch, case.args())
+
+    def pool_args(self, batch, args, steps=()):
+        prepared = self.backend.prepare(PoolInput(*args), steps)
+        out = np.empty((batch.n_sentences, prepared.output_dim), dtype=F32)
+        self.backend.rows(batch, prepared, out)
+        return out
+
+    def postprocess(self, rows, steps, first_row=0):
+        assert not (np.signbit(rows) & (rows == 0)).any(), "-0.0 does not pool to itself"
+        n = len(rows)
+        batch = Batch(first_row, np.arange(n + 1, dtype=np.int64), np.arange(n, dtype=np.uint32))
+        return self.pool_args(batch, (np.ascontiguousarray(rows), np.ones(n, F32)), steps)
+
+    def score(self, stored, scales, weights, bias):
+        return self.backend.score(stored, scales, weights, bias)
+
+    def accumulate(self, *_case):
+        pytest.skip(f"{self.name}: accumulate is no contract operation (group mode, PR 8)")
+
+    def dot16(self, *_rows):
+        pytest.skip(f"{self.name}: dot16 is no contract operation")
+
+
+BACKENDS = [
+    Reference(),
+    *(Native(isa) for isa in _native.available_isas()),
+    Contract("numpy"),
+]
 
 
 def assert_bits_equal(got, want, name=""):

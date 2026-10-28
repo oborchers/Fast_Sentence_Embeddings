@@ -21,6 +21,10 @@ src/fse/
   _wordvectors_format.py # the format rules of word_vectors 1: keys, checks, vocabulary encoding
   _gram.py               # Gram matrix helpers for fit
   _cpus.py               # usable_cpus: the default number of workers
+  _backends/             # the backends behind one contract:
+    __init__.py          #   BACKEND_NAMES, get_backend,
+    _base.py             #   Capabilities, PoolInput, Prepared, the Backend protocol and checks,
+    _numpy.py            #   the numpy backend on fse._reference (the oracle)
   _validation.py         # validate_arguments: strict pydantic checks of entry points
   _native.pyx            # the extension: directives, imports and its parts, in order
   _native_hash.pxi       # its parts: FastText ngram hashing and chunk limits,
@@ -294,11 +298,14 @@ New 2.0 code goes into private modules of `fse`: `_contract` and `_reference` (c
 The modules form layers, and a module imports only from layers below it. The import contracts in `pyproject.toml` (`[tool.importlinter]`, run by `make lint`) enforce this, and every new module must take a layer there:
 
 1. `gensim` (the adapter, the only module that imports gensim)
-2. `_text`
-3. `_wordvectors`
-4. `_wordvectors_format`
-5. `_container`, `_codes`, `_gram`, `_reference`, `_reference_text`, `_validation`, independent of each other: the references never share code with what they check
-6. `_contract`, `_cpus`, `_unicode`
+2. `_backends`
+3. `_text`
+4. `_wordvectors`
+5. `_wordvectors_format`
+6. `_container`, `_codes`, `_gram`, `_reference`, `_reference_text`, `_validation`, independent of each other: the references never share code with what they check
+7. `_contract`, `_cpus`, `_unicode`
+
+Inside a package, an import contract keeps its parts apart: `_npy` and `_safetensors` share only `_common`, each backend shares only `_base`.
 
 The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` imports it and that it imports only `_contract` from fse. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, mlx, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list to the extension. The runtime, backends, encoder, sinks and store of the coming PRs add their layers above `_text`.
 

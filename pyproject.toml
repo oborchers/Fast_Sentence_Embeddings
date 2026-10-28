@@ -265,6 +265,7 @@ exhaustive = true
 exhaustive_ignores = ["_version"]
 layers = [
     "gensim",
+    "_backends",
     "_text",
     "_wordvectors",
     "_wordvectors_format",
@@ -279,6 +280,13 @@ type = "layers"
 containers = ["fse._container"]
 exhaustive = true
 layers = ["_npy | _safetensors", "_common"]
+
+[[tool.importlinter.contracts]]
+name = "Backends: each shares only _base with the others"
+type = "layers"
+containers = ["fse._backends"]
+exhaustive = true
+layers = ["_numpy", "_base"]
 
 [[tool.importlinter.contracts]]
 name = "Optional and 1.x packages stay out of fse; gensim only in fse.gensim"

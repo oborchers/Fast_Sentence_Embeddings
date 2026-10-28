@@ -1,0 +1,203 @@
+#!/usr/bin/env python
+
+# Author: Oliver Borchers
+# Copyright (C) Oliver Borchers
+# Licensed under GNU General Public License v3.0
+
+"""The device-neutral contract of a backend (ARCHITECTURE.md, "Backends").
+
+A backend prepares the arrays of an encoder once (``prepare``), then turns one batch
+into finished rows (``rows``: stages 2 to 4, the aggregation and then the postprocessing
+steps on the rows of that batch) and computes Gram blocks and scores. Arguments and
+outputs are host numpy arrays; what ``prepare`` returns holds the backend's own state,
+which may live on a device. Every result has the bits of ``fse._reference``.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Protocol
+
+import numpy as np
+from numpy import ndarray
+
+from fse._contract import Aggregation, Batch, Op, Step, check_steps, output_dim
+
+_DTYPES = {
+    np.dtype(np.float32): "float32",
+    np.dtype(np.float16): "float16",
+    np.dtype(np.int8): "int8",
+}
+
+
+class UnsupportedByBackendError(ValueError):
+    """The backend cannot run what it was asked to; names the backend and the capability."""
+
+
+@dataclass(frozen=True, eq=False)
+class PoolInput:
+    """The arrays of one aggregation over word rows, as an encoder holds them.
+
+    ``vectors`` (and ``ngram_vectors``) are the stored rows as float32, float16 or int8
+    codes with ``scales`` (``ngram_scales``) for int8, ``weights`` one float32 weight per
+    word, ``oov_weight`` the weight of unknown FastText words. ``check_pool_input`` checks
+    them; the backends keep references, so the owner must not change them.
+    """
+
+    vectors: ndarray
+    weights: ndarray
+    scales: ndarray | None = None
+    ngram_vectors: ndarray | None = None
+    ngram_scales: ndarray | None = None
+    oov_weight: float | None = None
+    aggregation: Aggregation = Aggregation.WEIGHTED_MEAN
+
+    @property
+    def dtype(self) -> str:
+        return _DTYPES[self.vectors.dtype]
+
+    @property
+    def fasttext(self) -> bool:
+        return self.ngram_vectors is not None
+
+    @property
+    def dim(self) -> int:
+        return int(self.vectors.shape[1])
+
+
+@dataclass(frozen=True)
+class Capabilities:
+    """What a backend can run. ``concurrent``: several threads may call ``rows`` at once."""
+
+    word_dtypes: frozenset[str]
+    aggregations: frozenset[Aggregation]
+    steps: frozenset[Op]
+    fasttext: bool
+    concurrent: bool
+    max_dim: int
+
+    def check(self, backend: str, pool: PoolInput, steps: Sequence[Step]):
+        """Raise UnsupportedByBackendError for the first thing ``backend`` cannot run."""
+        missing = None
+        if pool.dtype not in self.word_dtypes:
+            missing = f"word vectors of {pool.dtype}"
+        elif pool.aggregation not in self.aggregations:
+            missing = f"the aggregation {pool.aggregation.id}"
+        elif pool.fasttext and not self.fasttext:
+            missing = "FastText ngrams"
+        elif pool.dim > self.max_dim:
+            missing = f"rows of {pool.dim} values (at most {self.max_dim})"
+        else:
+            missing = next((f"the step {s.op.id}" for s in steps if s.op not in self.steps), None)
+        if missing is not None:
+            raise UnsupportedByBackendError(f"the {backend} backend cannot run {missing}")
+
+
+@dataclass(frozen=True, eq=False)
+class Prepared:
+    """What a backend prepared once for one encoder; ``state`` is the backend's own."""
+
+    backend: str
+    pool: PoolInput
+    steps: tuple[Step, ...]
+    pooled_dim: int
+    output_dim: int
+    state: object
+
+
+class Backend(Protocol):
+    name: str
+
+    def capabilities(self) -> Capabilities: ...
+
+    def prepare(self, pool: PoolInput, steps: Sequence[Step]) -> Prepared: ...
+
+    def rows(self, batch: Batch, prepared: Prepared, out: ndarray) -> None:
+        """Stages 2 to 4 of ``batch`` into ``out``, ``(n_sentences, output_dim)`` float32."""
+        ...
+
+    def gram_block(self, rows: ndarray) -> ndarray:
+        """``rows.T @ rows`` of one block of float32 rows, as ``fse._gram`` sums them."""
+        ...
+
+    def score(
+        self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float
+    ) -> ndarray: ...
+
+
+def check_pool_input(pool: PoolInput) -> PoolInput:
+    """Check the arrays of ``pool`` against each other, as the native kernel does."""
+    if not isinstance(pool, PoolInput):
+        raise TypeError(f"pool must be a PoolInput, not {type(pool).__name__}")
+    vectors = _rows(pool.vectors, "vectors")
+    if vectors.shape[1] < 1:
+        raise ValueError("vectors need at least one dimension")
+    int8 = vectors.dtype == np.int8
+    _float32_vector(pool.weights, "weights", len(vectors))
+    if int8 != (pool.scales is not None):
+        raise ValueError("scales are given exactly for int8 vectors")
+    if int8:
+        _float32_vector(pool.scales, "scales", len(vectors))
+    if pool.ngram_vectors is None:
+        if pool.ngram_scales is not None:
+            raise ValueError("ngram_scales without ngram_vectors")
+        return pool
+    ngrams = _rows(pool.ngram_vectors, "ngram_vectors")
+    if ngrams.dtype != vectors.dtype or ngrams.shape[1] != vectors.shape[1]:
+        raise ValueError("ngram_vectors must have the dtype and dimension of vectors")
+    if int8 != (pool.ngram_scales is not None):
+        raise ValueError("ngram_scales are given exactly for int8 ngram vectors")
+    if int8:
+        _float32_vector(pool.ngram_scales, "ngram_scales", len(ngrams))
+    return pool
+
+
+def dims(pool: PoolInput, steps: Sequence[Step]) -> tuple[tuple[Step, ...], int, int]:
+    """The checked steps, the dimension of the aggregated rows and that of the output."""
+    pooled = pool.aggregation.output_dim(pool.dim)
+    checked = check_steps(steps, pooled)
+    return checked, pooled, output_dim(checked, pooled)
+
+
+def check_out(out: object, batch: Batch, prepared: Prepared) -> ndarray:
+    """``out`` must be a writable C-contiguous float32 array of the rows of ``batch`` that
+    shares no memory with the batch or the prepared arrays."""
+    shape = (batch.n_sentences, prepared.output_dim)
+    if (
+        not isinstance(out, ndarray)
+        or out.dtype != np.float32
+        or out.shape != shape
+        or not out.flags.c_contiguous
+        or not out.flags.writeable
+    ):
+        raise ValueError(f"out must be a writable C-contiguous float32 array of shape {shape}")
+    pool = prepared.pool
+    for kept in (pool.vectors, pool.weights, pool.scales, pool.ngram_vectors, pool.ngram_scales):
+        if kept is not None and np.may_share_memory(out, kept):
+            raise ValueError("out must not share memory with the vectors or weights")
+    for kept in (batch.offsets, batch.tokens, batch.ngram_offsets, batch.ngrams):
+        if kept is not None and np.may_share_memory(out, kept):
+            raise ValueError("out must not share memory with the batch")
+    return out
+
+
+def check_prepared(prepared: object, backend: str) -> Prepared:
+    if not isinstance(prepared, Prepared) or prepared.backend != backend:
+        raise TypeError(f"prepared must be prepared by the {backend} backend")
+    return prepared
+
+
+def _rows(value: object, name: str) -> ndarray:
+    if not isinstance(value, ndarray) or value.ndim != 2 or value.dtype not in _DTYPES:
+        raise ValueError(f"{name} must be a matrix of float32, float16 or int8 rows")
+    if not value.flags.c_contiguous:
+        raise ValueError(f"{name} must be C-contiguous")
+    return value
+
+
+def _float32_vector(value: object, name: str, length: int):
+    if not isinstance(value, ndarray) or value.dtype != np.float32 or value.shape != (length,):
+        raise ValueError(f"{name} must be a float32 vector of {length} values")
+    if not value.flags.c_contiguous:
+        raise ValueError(f"{name} must be C-contiguous")
