@@ -1,4 +1,4 @@
-# Included by _native.pyx: token lists joined into one UTF-8 buffer, for TokenListSource.
+# Included by _native.pyx: token lists joined into one UTF-8 buffer, for TokenLists.
 #
 # One pass over exact lists, tuples and str: every token is checked and written at once
 # into a C buffer, in parts of the sentences that native threads run in parallel (reading

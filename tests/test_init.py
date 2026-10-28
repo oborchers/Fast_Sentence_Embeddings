@@ -113,6 +113,7 @@ def test_public_api_is_pinned():
         "SearchResult",
         "ShardSink",
         "Sink",
+        "TokenLists",
         "VectorStore",
         "WordVectors",
     ]

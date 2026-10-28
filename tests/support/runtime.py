@@ -4,7 +4,7 @@ import numpy as np
 
 from fse import _reference, _reference_text
 from fse._stream import StreamSource
-from fse._text import StringSource, TokenListSource
+from fse._text import StringSource, TokenLists
 from fse._text_file import FileSource
 from fse._wordvectors import FastTextParams, WordVectors
 
@@ -67,7 +67,7 @@ def source(kind, sentences, tmp_path):
     if kind == "stream":
         return StreamSource(iter(sentences), chunk_rows=97)
     if kind == "tokens":
-        return TokenListSource([s.split(" ") if s else [] for s in sentences])
+        return TokenLists([s.split(" ") if s else [] for s in sentences])
     path = tmp_path / "sentences.txt"
     path.write_text("".join(s + "\n" for s in sentences), encoding="utf-8")
     return FileSource(path)

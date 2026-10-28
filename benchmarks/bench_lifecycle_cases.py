@@ -148,13 +148,17 @@ def v2_encode(c: dict) -> dict:
     import fse
 
     wv = fse.WordVectors.load(_paths(c)["wv"], mmap=True)
-    texts = Path(c["corpus"]) if c["input"] == "file" else _tokens(c["corpus"])
+    out: dict = {"peak_before": _peak(), "source_s": 0.0}
+    texts = Path(c["corpus"])
+    if c["input"] == "list":  # read once for fit and encode, as 1.1 reads them in train
+        tokens = _tokens(c["corpus"])
+        out["source_s"], texts = _timed(lambda: fse.TokenLists(tokens))
+        del tokens
     if c["model"] == "SIF":
         recipe = fse.SIF(components=COMPONENTS, normalize=False, tokenizer="external")
         corpus, kwargs = texts, {"counts": np.load(_paths(c)["counts"])}
     else:
         recipe, corpus, kwargs = fse.Average(normalize=False, tokenizer="external"), None, {}
-    out: dict = {"peak_before": _peak()}
     out["fit_s"], encoder = _timed(lambda: recipe.fit(wv, corpus, workers=c["workers"], **kwargs))
     with tempfile.TemporaryDirectory(dir=c["tmp"]) as run:
         if c["target"] == "memory":
@@ -165,7 +169,7 @@ def v2_encode(c: dict) -> dict:
             del rows
         else:
             out.update(_v2_store(encoder, texts, c, Path(run)), peak=_peak())
-    out["total_s"] = out["fit_s"] + out["encode_s"] + out["save_s"]
+    out["total_s"] = out["source_s"] + out["fit_s"] + out["encode_s"] + out["save_s"]
     return out
 
 

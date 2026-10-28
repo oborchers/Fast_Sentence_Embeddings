@@ -20,14 +20,14 @@ from typing import Any
 
 from fse._contract import Batch
 from fse._stream import StreamSource
-from fse._text import Chunk, StringSource, TokenListSource, check_chunk_bytes
+from fse._text import Chunk, StringSource, TokenLists, check_chunk_bytes
 from fse._text_file import FileSource
 
 # A source of at most this many bytes runs in the calling thread: threads would cost more
 # than they save (bench_runtime.py latency).
 INLINE_MAX_BYTES = 1 << 16
 
-SOURCES = (StringSource, FileSource, TokenListSource, StreamSource)
+SOURCES = (StringSource, FileSource, TokenLists, StreamSource)
 
 
 @dataclass(frozen=True)
@@ -67,7 +67,7 @@ def plan(
     if not isinstance(source, SOURCES):
         names = ", ".join(cls.__name__ for cls in SOURCES)
         raise TypeError(f"source must be one of {names}, not {type(source).__name__}")
-    if isinstance(source, TokenListSource) and tokenizer != "external":
+    if isinstance(source, TokenLists) and tokenizer != "external":
         raise ValueError("token lists are for the external tokenizer")
     chunk_bytes = check_chunk_bytes(chunk_bytes)  # before a stream is read
     if isinstance(source, StreamSource):
