@@ -64,7 +64,13 @@ class WriterThread:
             while self._pending_bytes and self._pending_bytes + nbytes > MAX_PENDING_BYTES:
                 self._budget.wait()
             self._pending_bytes += nbytes
-        self._queue.put((work, args, nbytes))
+        try:
+            self._queue.put((work, args, nbytes))
+        except BaseException:  # interrupted (Ctrl+C): the piece never waits, nor its bytes
+            with self._budget:
+                self._pending_bytes -= nbytes
+                self._budget.notify_all()
+            raise
 
     def drain(self) -> None:
         """Wait until all work handed over so far is done, then raise its error, if any."""

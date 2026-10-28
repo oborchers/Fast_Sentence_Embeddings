@@ -54,6 +54,13 @@ def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int) -> str:
             f"the sink must take rows of {dim} values, not {getattr(sink, 'dim', None)!r}"
         )
     wants_inverse_norms(sink)
+    for name in ("flush", "publish"):
+        method = getattr(sink, name, None)
+        if method is not None and not callable(method):
+            raise TypeError(f"{name} of the sink must be a method, not {type(method).__name__}")
+    rows = getattr(sink, "durable_rows", None)
+    if rows is not None and (isinstance(rows, bool) or not isinstance(rows, int | np.integer)):
+        raise TypeError(f"durable_rows of the sink must be an int, not {type(rows).__name__}")
     return own
 
 
@@ -63,9 +70,11 @@ def _named(k: int, row: int, n: int) -> Iterator[None]:
     try:
         yield
     except (ValueError, TypeError) as error:
-        if type(error) not in (ValueError, TypeError):
+        where = f"batch {k} (rows {row} to {row + n - 1} of the run)"
+        if type(error) not in (ValueError, TypeError):  # such as UnicodeEncodeError: kept
+            error.add_note(f"in {where}")
             raise
-        raise type(error)(f"batch {k} (rows {row} to {row + n - 1} of the run): {error}") from None
+        raise type(error)(f"{where}: {error}") from None
 
 
 def run_into(pipeline: Pipeline, source: Any, sink: Any, workers: Any, first_row: int) -> None:

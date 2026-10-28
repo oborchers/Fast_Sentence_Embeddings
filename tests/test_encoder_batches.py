@@ -221,3 +221,26 @@ def test_durable_rows_never_shrink():
     sink = Shrinking(ENCODER.output_dim)
     with pytest.raises(ValueError, match="between 1"):
         list(ENCODER.encode_batches([["w1"], ["w2"]], sink=sink))
+
+
+def test_a_unicode_error_keeps_its_type_and_names_its_batch():
+    with pytest.raises(UnicodeEncodeError) as raised:
+        list(ENCODER.encode_batches([["w1"], ["w2", "bad \udcff"]]))
+    assert "in batch 1 (rows 1 to 2 of the run)" in raised.value.__notes__
+
+
+def test_a_sink_is_checked_before_a_batch_is_read():
+    read = []
+
+    def polls():
+        read.append(True)
+        yield ["w1"]
+
+    for attributes, match in [
+        ({"flush": 1}, "flush of the sink must be a method"),
+        ({"publish": "x"}, "publish of the sink must be a method"),
+        ({"durable_rows": "0"}, "durable_rows of the sink must be an int"),
+    ]:
+        with pytest.raises(TypeError, match=match):
+            ENCODER.encode_batches(polls(), sink=_Odd(**attributes))
+    assert not read

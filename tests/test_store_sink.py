@@ -227,15 +227,30 @@ def test_close_raises_a_publish_error_another_thread_met_first(tmp_path, monkeyp
 
 
 @pytest.mark.skipif(not os.path.isdir("/dev/fd"), reason="no /dev/fd to count open files")
-def test_reserving_many_small_shards_opens_no_file(tmp_path):
+def test_writing_many_small_shards_keeps_few_files_open(tmp_path, monkeypatch):
+    from fse._container import _npy, _npy_inplace
+    from fse._store import _shard
+
+    for module in (_shard, _npy_inplace):  # the files matter here, not their syncs
+        monkeypatch.setattr(module, "sync_file", lambda _fd: None)
+    monkeypatch.setattr(_npy_inplace, "_sync_directory", lambda _path: None)
+    monkeypatch.setattr(_npy, "_sync_directory", lambda _path: None)
+    real, most = _shard.create, [0]
+
+    def create(*args):
+        most[0] = max(most[0], len(os.listdir("/dev/fd")))
+        return real(*args)
+
+    monkeypatch.setattr(_shard, "create", create)
     sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=1)
     before = len(os.listdir("/dev/fd"))
-    target = sink.target(0, 1000)  # 1,000 shards ahead of their writes
-    assert len(os.listdir("/dev/fd")) <= before + 2
-    del target
-    sink.close()  # drops the rows never committed
-    assert sink.durable_rows == 0
-    assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]
+    target = sink.target(0, 500)  # one task over 500 shards
+    target[0][...] = 0
+    target[1][...] = 0
+    sink.commit(0, target)
+    assert sink.flush() == 500
+    sink.close()
+    assert most[0] - before < 100  # the publisher's queue bounds the open shards
 
 
 def test_two_writers_meet_at_the_rename_and_one_wins(tmp_path, monkeypatch):
@@ -275,3 +290,42 @@ def test_two_writers_meet_at_the_rename_and_one_wins(tmp_path, monkeypatch):
     assert [(s.first_row, s.rows) for s in found] == [(0, 5), (5, 16)]
     assert any(np.array_equal(codes[5:], _want("float32", texts(16, seed=s))[0]) for s in (7, 8))
     assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]
+
+
+def test_an_interrupt_between_the_hand_overs_does_not_hang_close(tmp_path):
+    import threading
+
+    sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=8)
+    first = sink.target(0, 4)
+    first[0][...] = 0
+    first[1][...] = 0
+    sink.commit(0, first)
+    real = {t: t.submit for t in (sink._hash, sink._io)}
+    calls = []
+
+    def hand_over(thread):
+        def submit(work, *args, **kwargs):
+            calls.append(work)
+            if len(calls) == 2:
+                raise KeyboardInterrupt  # Ctrl+C after the first hand-over of the rows
+            return real[thread](work, *args, **kwargs)
+
+        return submit
+
+    for thread in real:
+        thread.submit = hand_over(thread)
+    second = sink.target(4, 4)
+    second[0][...] = 1
+    second[1][...] = 0
+    with pytest.raises(KeyboardInterrupt):
+        sink.commit(4, second)
+    for thread, submit in real.items():
+        thread.submit = submit
+    closed = threading.Thread(target=sink.close)
+    closed.start()
+    closed.join(10)
+    assert not closed.is_alive()  # close returned
+    assert sink.durable_rows == 4  # the rows committed before the interrupt
+    codes, _, _, found = _store_rows(tmp_path / "s", "float32")
+    assert [(s.first_row, s.rows) for s in found] == [(0, 4)]
+    np.testing.assert_array_equal(codes, np.zeros((4, ENCODER.output_dim), np.float32))

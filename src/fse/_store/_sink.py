@@ -147,11 +147,13 @@ class ShardSink:
                     scales[...] = own[1][offset : offset + n]
                 norms[...] = own[2][offset : offset + n]
                 offset += n
-            writer.queued += len(codes)
-            self._hash.submit(writer.commit, begin, codes, nbytes=codes.nbytes)
+            # The write first: rows counted as committed always have their write queued,
+            # also when an interrupt (Ctrl+C) stops this between the two hand-overs.
             self._io.submit(writer.write, begin, codes, nbytes=codes.nbytes)
+            self._hash.submit(writer.commit, begin, codes, nbytes=codes.nbytes)
+            writer.queued += len(codes)
             self.committed_rows += len(codes)
-        self._publish_ready()
+            self._publish_ready()  # a full shard goes on at once, so few files stay open
 
     # --- durability --------------------------------------------------------------------
 
