@@ -126,6 +126,11 @@ class Backend(Protocol):
         self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float
     ) -> ndarray: ...
 
+    def float32(self, values: object) -> ndarray:
+        """``values`` as a C-contiguous float32 array, rounded to nearest as the contract
+        converts inputs (``fse._reference`` runs in the default environment)."""
+        ...
+
     def inverse_norms(self, stored: ndarray, first_row: int = 0) -> ndarray:
         """The inverse norm of every stored row, as ``fse._reference.inverse_norms``;
         errors name the rows from ``first_row``."""

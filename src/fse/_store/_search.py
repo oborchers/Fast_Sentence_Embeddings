@@ -205,7 +205,7 @@ def score(
     exact: bool,
 ) -> ndarray:
     """The linear score of every stored row with every weight vector, (rows, vectors)."""
-    biases = _biases(bias, len(weights))
+    biases = _biases(backend, bias, len(weights))
     out = np.empty((sum(shard.rows for shard, _ in shards), len(weights)), F32)
 
     def run(task):
@@ -247,12 +247,11 @@ def _run(fn, tasks: list, workers: int, name: str) -> Iterator[Any]:
         yield from pool.map(fn, tasks)
 
 
-def _biases(bias: Any, n: int) -> ndarray:
+def _biases(backend: Any, bias: Any, n: int) -> ndarray:
     array = np.asarray(bias)
     if array.dtype.kind not in "fiu" or array.ndim > 1 or (array.ndim == 1 and array.shape != (n,)):
         raise ValueError(f"bias must be one number or {n} numbers, one per weight vector")
-    with np.errstate(over="ignore"):
-        biases = np.ascontiguousarray(np.broadcast_to(array.astype(F32), (n,)))
+    biases = np.ascontiguousarray(np.broadcast_to(backend.float32(array), (n,)))
     if not np.isfinite(biases).all():
         raise ValueError("bias must be finite in float32")
     return biases

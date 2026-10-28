@@ -197,8 +197,8 @@ class VectorStore:
         if array.dtype.kind not in "fiu":
             raise TypeError(f"{name} must be numbers (float or int), not strings, objects or bools")
         single = array.ndim == 1
-        with np.errstate(over="ignore"):
-            matrix = np.ascontiguousarray(array[None, :] if single else array, dtype=F32)
+        # Converted as the contract does, whatever rounding the calling thread set.
+        matrix = self._backend.float32(array[None, :] if single else array)
         if matrix.ndim != 2 or matrix.shape[1] != self.dim or not len(matrix):
             raise ValueError(
                 f"{name} must be a vector of {self.dim} values or a matrix of them, not shape {array.shape}"

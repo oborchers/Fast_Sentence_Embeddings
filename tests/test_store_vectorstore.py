@@ -1,5 +1,10 @@
 """The VectorStore: search and score of the stored rows, bit for bit as the reference."""
 
+import ctypes
+import ctypes.util
+import platform
+import sys
+
 import numpy as np
 import pytest
 
@@ -171,3 +176,30 @@ def test_verify_catches_a_changed_byte(tmp_path):
     file.write_bytes(bytes(data))
     with fse.VectorStore.open(path) as store, pytest.raises(CorruptArtifactError, match="checksum"):
         store.verify()
+
+
+_UPWARD = {"arm64": 0x00400000, "aarch64": 0x00400000, "x86_64": 0x0800}  # FE_UPWARD
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or platform.machine() not in _UPWARD,
+    reason="no fesetround of the C library, or its constants are not known here",
+)
+def test_inputs_are_converted_as_the_contract_whatever_the_rounding_of_the_thread(tmp_path):
+    upward, nearest = _UPWARD[platform.machine()], 0  # FE_TONEAREST is 0 on all of them
+    libc = ctypes.CDLL(ctypes.util.find_library("c"))
+    path = _store(tmp_path, "float32", texts(50))[0]
+    queries = np.random.default_rng(7).standard_normal((2, ENCODER.output_dim))  # float64
+    bias = 1 + 2**-30  # not a float32: rounds to 1 to nearest, up to the next float32
+    with fse.VectorStore.open(path) as store:
+        want = store.search(queries.astype(F32), k=5, mode="exact")
+        want_score = store.score(queries.astype(F32), np.float32(1.0), mode="exact")
+        assert libc.fesetround(upward) == 0
+        try:
+            got = store.search(queries, k=5, mode="exact")
+            got_score = store.score(queries, bias, mode="exact")
+        finally:
+            libc.fesetround(nearest)
+    np.testing.assert_array_equal(got.ids, want.ids)
+    np.testing.assert_array_equal(bits(got.scores), bits(want.scores))
+    np.testing.assert_array_equal(bits(got_score), bits(want_score))
