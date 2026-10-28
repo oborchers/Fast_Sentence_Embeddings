@@ -28,3 +28,11 @@ def _assemble(path, header, data, pad_to=64, raw_header=None):
     text = raw_header if raw_header is not None else json.dumps(header).encode()
     text += b" " * (-(8 + len(text)) % pad_to)
     path.write_bytes(len(text).to_bytes(8, "little") + text + data)
+
+
+def _small_chunks(monkeypatch, size=8):
+    """Hash and write in blocks of ``size`` bytes in every module of the container package."""
+    from fse._container import _common, _npy, _safetensors
+
+    for module in (_common, _npy, _safetensors):
+        monkeypatch.setattr(module, "_CHUNK", size)

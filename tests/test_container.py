@@ -10,7 +10,7 @@ from fse._container import (
     fingerprint,
     tensor_code,
 )
-from support.container import _METADATA, F32
+from support.container import _METADATA, F32, _small_chunks
 
 
 @pytest.mark.parametrize("name", sorted(CONTAINERS))
@@ -60,15 +60,16 @@ def test_empty_tensors_with_huge_dimensions_round_trip(tmp_path):
 @pytest.mark.parametrize("container_name", ["npy", "safetensors"])
 def test_changing_metadata_and_shapes_while_writing(tmp_path, monkeypatch, container_name):
     """The writer works on snapshots: changes by the caller during the write do not reach it."""
+    import hashlib
     import warnings
 
     import fse._container as container
 
-    monkeypatch.setattr(container, "_CHUNK", 8)
+    _small_chunks(monkeypatch)
     source = np.arange(16, dtype=F32)
     tensors = {"x": source}
     metadata = {"note": ""}
-    real_sha256 = container.hashlib.sha256
+    real_sha256 = hashlib.sha256
 
     class Changing:
         def __init__(self, data=b""):
@@ -86,13 +87,14 @@ def test_changing_metadata_and_shapes_while_writing(tmp_path, monkeypatch, conta
         def hexdigest(self):
             return self.inner.hexdigest()
 
-    monkeypatch.setattr(container.hashlib, "sha256", Changing)
+    monkeypatch.setattr(hashlib, "sha256", Changing)
     writer = container.CONTAINERS[container_name]
     path = tmp_path / f"a{writer.suffix}"
     writer.write(path, tensors, metadata)
-    monkeypatch.setattr(container.hashlib, "sha256", real_sha256)
+    monkeypatch.setattr(hashlib, "sha256", real_sha256)
     writer.verify(path)
     opened, read = writer.open(path, mmap=False)
     assert set(opened) == {"x"}
     assert opened["x"].shape == (16,)
     assert read["note"] == ""
+    assert source.shape == (4, 4)  # the caller's changes did happen during the write

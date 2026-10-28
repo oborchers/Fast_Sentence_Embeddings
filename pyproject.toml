@@ -239,7 +239,6 @@ untested-modules = ["src/fse/_version.py"]
 # growth fails, an improvement must lower its number, an entry within the limit must be
 # removed. Never add an entry or raise a number; split or simplify the code instead.
 [tool.fse.guardrails.ratchet.lines]
-"src/fse/_container.py" = 854
 
 [tool.fse.guardrails.ratchet.functions]
 "benchmarks/baseline/make_v1_fixture.py::main" = { C901 = 11, cognitive = 39 }
@@ -250,12 +249,6 @@ untested-modules = ["src/fse/_version.py"]
 "benchmarks/bench_wordvectors.py::child" = { C901 = 13 }
 "benchmarks/quality/run_mteb.py::summarize" = { cognitive = 39 }
 "src/fse/_codes.py::quantize_into" = { cognitive = 24 }
-"src/fse/_container.py::SafetensorsContainer.open" = { cognitive = 22 }
-"src/fse/_container.py::SafetensorsContainer.write" = { C901 = 13, PLR0915 = 54, cognitive = 24 }
-"src/fse/_container.py::_check_for_writing" = { cognitive = 16 }
-"src/fse/_container.py::_read_header" = { C901 = 11 }
-"src/fse/_container.py::_read_manifest" = { C901 = 15, PLR0912 = 14, cognitive = 26 }
-"src/fse/_container.py::_read_safetensors_header" = { C901 = 20, PLR0912 = 19, PLR0915 = 52, cognitive = 33 }
 "src/fse/_contract.py::check_steps" = { cognitive = 16 }
 "src/fse/_reference.py::accumulate" = { cognitive = 30 }
 "src/fse/_reference_text.py::_token_chars" = { cognitive = 17 }
@@ -290,6 +283,13 @@ layers = [
     "_container | _codes | _gram | _reference | _reference_text | _validation",
     "_contract | _unicode",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Containers: npy and safetensors share only _common"
+type = "layers"
+containers = ["fse._container"]
+exhaustive = true
+layers = ["_npy | _safetensors", "_common"]
 
 [[tool.importlinter.contracts]]
 name = "Optional and 1.x packages stay out of fse; gensim only in fse.gensim"

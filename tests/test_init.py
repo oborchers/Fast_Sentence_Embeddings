@@ -13,7 +13,11 @@ import fse
 SRC = Path(fse.__file__).parent
 # Every module of fse except the gensim adapter: none may import gensim, scipy or
 # smart_open, and none the removed 1.x modules.
-MODULES = sorted(p.stem for p in SRC.glob("*.py") if p.stem not in ("gensim", "_version"))
+MODULES = sorted(
+    p.relative_to(SRC).as_posix()
+    for p in SRC.rglob("*.py")
+    if p.relative_to(SRC).as_posix() not in ("gensim.py", "_version.py")
+)
 FORBIDDEN = ("gensim", "scipy", "smart_open", "psutil", "threadpoolctl", "wordfreq")
 
 
@@ -66,7 +70,7 @@ def test_import_without_optional_packages():
 @pytest.mark.parametrize("module", MODULES)
 def test_modules_import_no_optional_packages(module):
     """A static check of every import statement, also those inside functions."""
-    tree = ast.parse((SRC / f"{module}.py").read_text(encoding="utf-8"))
+    tree = ast.parse((SRC / module).read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         names = []
         if isinstance(node, ast.Import):

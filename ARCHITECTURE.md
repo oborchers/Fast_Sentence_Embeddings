@@ -12,7 +12,11 @@ src/fse/
   _contract.py           # Batch, identifiers, step lists, errors
   _reference.py          # the reference: numpy code that defines every result
   _codes.py              # float16 and int8 storage arithmetic in blocks
-  _container.py          # SafetensorsContainer (models) and NpyContainer (output)
+  _container/            # the containers of artifacts, a package the 1.x export copies:
+    __init__.py          #   their names and CONTAINERS,
+    _common.py           #   dtype codes, limits, integrity keys, fingerprint, strict JSON,
+    _safetensors.py      #   SafetensorsContainer (models),
+    _npy.py              #   NpyContainer (output)
   _wordvectors.py        # WordVectors
   _wordvectors_format.py # the format rules of word_vectors 1: keys, checks, vocabulary encoding
   _gram.py               # Gram matrix helpers for fit
@@ -237,7 +241,7 @@ class TensorContainer(Protocol):
 
 ### safetensors 1
 
-`fse._container.SafetensorsContainer`, in the module of both containers, which imports only the standard library, numpy and `UnsupportedArtifactError`, so the 1.x export can copy it.
+`fse._container.SafetensorsContainer`, in the package of both containers, whose modules import only the standard library, numpy, `UnsupportedArtifactError` and each other (relatively), so the 1.x export can copy it; `_npy` and `_safetensors` share only `_common`.
 
 - The file is safetensors: an 8-byte little-endian header length, a UTF-8 JSON header `{"__metadata__": {...}, name: {"dtype", "shape", "data_offsets"}, ...}`, then the data. The tensors lie by descending item size, then name, without gaps, so each is aligned to its type; the header is padded with spaces so that the data start at a multiple of 64 bytes. The reference implementation reads these files.
 - Reading is strict: a header of at most 16 MiB and within the file, a JSON object padded with spaces only and data starting at a multiple of 8 bytes, no duplicate keys or NaN constants, exactly `dtype`, `shape` and `data_offsets` per tensor, only the dtypes above (others raise `UnsupportedArtifactError`), offsets that fit the shape (computed with Python integers), tensors aligned to their type and covering the data without gaps or overlaps up to the end of the file, and `__metadata__` mapping strings to strings with the checksums and the fingerprint of the content. Files from other writers lack these keys and are rejected.
@@ -253,7 +257,7 @@ class TensorContainer(Protocol):
 - Every `.npy` is version 1.0 or 2.0 with the exact type description of its code (`<f4`, `<f2`, `|i1`, `|u1`, `<u4`, `<i8`), C order, the shape of the manifest, data at a multiple of 64 bytes and nothing after the data; pickled objects are never read.
 - The writer enforces the limits of the reader, and with `expected` checksums it hashes every tensor while writing and commits only if they match. The container writes `fse.checksum.<name>` (the lowercase hex sha256 of the data) for every tensor and `fse.fingerprint`, and rejects them from the caller. A normal open reads every tensor into immutable `bytes` and checks its checksum (hashed in 64 MiB chunks); `open(mmap=True)` checks the manifest, the headers, the sizes and the fingerprint against the recorded checksums, and maps the data read-only; `verify` hashes the data on disk. Tensors with no elements are empty arrays, as nothing can be mapped.
 - Writing creates the target directory exclusively (an existing one raises `FileExistsError`, also when another writer created it first; artifacts are never overwritten, which also avoids replacing mapped files on Windows), writes and syncs every tensor, syncs the directory, and commits by renaming the manifest from a temporary name into place; a directory without a manifest is no artifact. Any failure removes the directory.
-- The fingerprint test vector (`tests/test_container.py`): tensors `vectors` F32 `[[1, -0.0], [0.5, 2]]`, `vocab.bytes` U8 of `"aé"`, `vocab.offsets` I64 `[0, 1, 3]` with metadata `fse.kind=word_vectors`, `fse.format_version=1`, `fse.dim=2`, `fse.dtype=float32` give `sha256:98a86ce422b1d61979da4b088934ebbb5c4f128463ca20123f7508d0f74f32db`.
+- The fingerprint test vector (`tests/test_container_common.py`): tensors `vectors` F32 `[[1, -0.0], [0.5, 2]]`, `vocab.bytes` U8 of `"aé"`, `vocab.offsets` I64 `[0, 1, 3]` with metadata `fse.kind=word_vectors`, `fse.format_version=1`, `fse.dim=2`, `fse.dtype=float32` give `sha256:98a86ce422b1d61979da4b088934ebbb5c4f128463ca20123f7508d0f74f32db`.
 
 ### word_vectors 1
 

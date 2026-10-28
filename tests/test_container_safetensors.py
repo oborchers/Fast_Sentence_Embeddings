@@ -14,7 +14,7 @@ from fse._container import (
     fingerprint,
 )
 from fse._contract import UnsupportedArtifactError
-from support.container import _METADATA, F32, FINGERPRINT, _assemble, _tensors
+from support.container import _METADATA, F32, FINGERPRINT, _assemble, _small_chunks, _tensors
 
 
 def _written(tmp_path):
@@ -119,7 +119,7 @@ def test_expected_checksums_and_failures_leave_nothing(tmp_path):
 
 def test_publish_never_replaces(tmp_path, monkeypatch):
     """A file that appears while writing is not replaced."""
-    import fse._container as container
+    import fse._container._safetensors as container
 
     path = tmp_path / "a.safetensors"
     original = container._publish
@@ -369,7 +369,7 @@ def test_strings_without_utf8_form_are_rejected(tmp_path):
 
 
 def test_a_file_changed_while_read_raises(tmp_path, monkeypatch):
-    import fse._container as container
+    import fse._container._safetensors as container
 
     path = _written(tmp_path)
     calls = []
@@ -390,9 +390,9 @@ def test_a_file_changed_while_read_raises(tmp_path, monkeypatch):
 @pytest.mark.parametrize("with_expected", [False, True])
 def test_written_bytes_are_the_hashed_bytes(tmp_path, monkeypatch, with_expected):
     """A source that changes while it is written never gives a file that breaks its checksums."""
-    import fse._container as container
+    import fse._container._safetensors as container
 
-    monkeypatch.setattr(container, "_CHUNK", 8)
+    _small_chunks(monkeypatch)
     source = np.arange(16, dtype=F32)
     expected = {"x": array_sha256(source)} if with_expected else None
     real_sha256 = container.hashlib.sha256
@@ -438,7 +438,7 @@ def test_only_empty_tensors_and_no_tensors(tmp_path):
 
 @pytest.mark.parametrize("failing", ["write", "fsync", "publish"])
 def test_failed_writes_publish_nothing_and_keep_other_files(tmp_path, monkeypatch, failing):
-    import fse._container as container
+    import fse._container._safetensors as container
 
     foreign = tmp_path / ".a.safetensors.writing-foreign"
     foreign.write_bytes(b"another writer")

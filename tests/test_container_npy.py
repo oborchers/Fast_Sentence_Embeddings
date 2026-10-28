@@ -355,13 +355,13 @@ def test_expected_checksums_guard_the_write(tmp_path):
 
 
 def test_writer_keeps_its_own_limits(tmp_path, monkeypatch):
-    import fse._container as container
+    from fse._container import _common, _npy
 
     # numpy 1.26 has no arrays of more than 32 dimensions; test the rule with a lower limit.
-    monkeypatch.setattr(container, "MAX_RANK", 2)
+    monkeypatch.setattr(_common, "MAX_RANK", 2)
     with pytest.raises(ValueError, match="more than 2 dimensions"):
         NpyContainer().write(tmp_path / "a", {"x": np.zeros((1, 1, 1), F32)}, {})
-    monkeypatch.setattr(container, "MAX_MANIFEST_BYTES", 200)
+    monkeypatch.setattr(_npy, "MAX_MANIFEST_BYTES", 200)
     with pytest.raises(ValueError, match="manifest would exceed 200 bytes"):
         NpyContainer().write(tmp_path / "b", _tensors(), {"note": "x" * 300})
     assert not (tmp_path / "b").exists()
@@ -389,10 +389,10 @@ def test_huge_declared_header_is_rejected_before_reading(tmp_path):
 
 
 def test_oversized_manifest_is_rejected(tmp_path, monkeypatch):
-    import fse._container as container
+    from fse._container import _npy
 
     path = _written(tmp_path)
-    monkeypatch.setattr(container, "MAX_MANIFEST_BYTES", 100)
+    monkeypatch.setattr(_npy, "MAX_MANIFEST_BYTES", 100)
     with pytest.raises(CorruptArtifactError, match="larger than 100 bytes"):
         NpyContainer().open(path, mmap=False)
 
