@@ -269,7 +269,8 @@ containers = ["fse"]
 exhaustive = true
 exhaustive_ignores = ["_version"]
 layers = [
-    "gensim",
+    # The store takes an Encoder; fse.gensim only converts word vectors.
+    "gensim | _store",
     "_encoder",
     "_runtime",
     # Independent: _backends computes on batches, _stream and _text_file read sentences.
@@ -290,6 +291,13 @@ exhaustive = true
 layers = ["_npy_mapped", "_npy | _safetensors", "_common"]
 
 [[tool.importlinter.contracts]]
+name = "Store: the sink and the vector store on shards, the shards on the layout"
+type = "layers"
+containers = ["fse._store"]
+exhaustive = true
+layers = ["_sink", "_shard", "_layout"]
+
+[[tool.importlinter.contracts]]
 name = "Backends: each shares only _base with the others"
 type = "layers"
 containers = ["fse._backends"]
@@ -301,7 +309,7 @@ name = "Encoder: recipes on fit, fit on the encoder, the encoder on its parts"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_recipes", "_fit", "_encoder", "_fold | _format | _sources | _weights"]
+layers = ["_recipes", "_fit", "_encoder", "_batches | _fold | _format | _weights", "_sources"]
 
 [[tool.importlinter.contracts]]
 name = "Runtime: the pipeline on tasks, sinks and the executor"

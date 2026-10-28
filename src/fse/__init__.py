@@ -16,14 +16,22 @@ from typing import Any as _Any
 from fse._wordvectors import WordVectors
 
 if TYPE_CHECKING:
-    from fse._encoder import SIF, USIF, Average, Encoder, QuantizedRows
+    from fse._encoder import SIF, USIF, Average, EncodedBatch, Encoder, QuantizedRows
+    from fse._runtime import MemorySink, Sink
+    from fse._store import ShardSink
 del TYPE_CHECKING  # not a name of fse
 
-# The encoder and the recipes load on first access (PEP 562), not when fse is imported:
-# the modules below them import fse._native, which import-linter cannot see as a module
-# and counts as an import of fse itself, so a static import here would read as a cycle
-# through every layer.
-_ENCODER = ("SIF", "USIF", "Average", "Encoder", "QuantizedRows")
+# The encoder, the recipes and the sinks load on first access (PEP 562), not when fse is
+# imported: the modules below them import fse._native, which import-linter cannot see as
+# a module and counts as an import of fse itself, so a static import here would read as a
+# cycle through every layer.
+_LAZY = {
+    **dict.fromkeys(
+        ("SIF", "USIF", "Average", "Encoder", "EncodedBatch", "QuantizedRows"), "fse._encoder"
+    ),
+    **dict.fromkeys(("MemorySink", "Sink"), "fse._runtime"),
+    "ShardSink": "fse._store",
+}
 
 _REMOVED = {
     "BaseIndexedList",
@@ -44,8 +52,8 @@ _REMOVED = {
 
 
 def __getattr__(name: str) -> _Any:
-    if name in _ENCODER:
-        value = getattr(_importlib.import_module("fse._encoder"), name)
+    if name in _LAZY:
+        value = getattr(_importlib.import_module(_LAZY[name]), name)
         globals()[name] = value
         return value
     if name == "uSIF":
@@ -70,15 +78,19 @@ _logging.getLogger("fse").addHandler(_logging.NullHandler())
 
 
 def __dir__() -> list[str]:
-    return sorted({*globals(), *_ENCODER})
+    return sorted({*globals(), *_LAZY})
 
 
 __all__ = [
     "SIF",
     "USIF",
     "Average",
+    "EncodedBatch",
     "Encoder",
+    "MemorySink",
     "QuantizedRows",
+    "ShardSink",
+    "Sink",
     "WordVectors",
     "__version__",
 ]
