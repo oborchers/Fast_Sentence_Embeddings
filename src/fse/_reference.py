@@ -265,6 +265,50 @@ def cosine(stored: ndarray, inverse: ndarray, query: ndarray) -> ndarray:
     return out
 
 
+def cosines(stored: ndarray, inverse: ndarray, queries: ndarray) -> ndarray:
+    """``cosine`` of every stored row with every query, as a (rows, queries) array: column
+    j is ``cosine(stored, inverse, queries[j])`` bit for bit.
+
+    Every query is checked before any is used, so the first zero query raises; then the
+    first query with a non-finite cosine raises, naming its first such row.
+    """
+    queries = _matrix(queries, "queries")
+    for j, query in enumerate(queries):
+        if not (query != 0).any():
+            raise ValueError(f"query {j} is the zero vector and has no direction")
+    out = np.empty((len(stored), len(queries)), dtype=_F32)
+    for j, query in enumerate(queries):
+        try:
+            out[:, j] = cosine(stored, inverse, query)
+        except ValueError as error:
+            raise ValueError(f"query {j}: {error}") from None
+    return out
+
+
+def scores(stored: ndarray, scales: ndarray | None, weights: ndarray, bias=0.0) -> ndarray:
+    """``score`` of every stored row with every weight vector, as a (rows, vectors) array:
+    column j is ``score(stored, scales, weights[j], bias[j])`` bit for bit, ``bias`` one
+    number for all or one per vector. The first vector with an overflow raises."""
+    weights = _matrix(weights, "weights")
+    biases = np.broadcast_to(np.asarray(bias, dtype=_F32), (len(weights),))
+    out = np.empty((len(stored), len(weights)), dtype=_F32)
+    for j, w in enumerate(weights):
+        try:
+            out[:, j] = score(stored, scales, w, biases[j])
+        except ValueError as error:
+            raise ValueError(f"weights {j}: {error}") from None
+    return out
+
+
+def _matrix(value: ndarray, name: str) -> ndarray:
+    value = np.asarray(value, dtype=_F32)
+    if value.ndim != 2:
+        raise ValueError(
+            f"{name} must be a matrix with one vector per row, not shape {value.shape}"
+        )
+    return value
+
+
 def top_k(scores: ndarray, k: int) -> ndarray:
     """The rows of the k largest scores; equal scores go to the smaller row id."""
     order = np.lexsort((np.arange(len(scores)), -scores.astype(np.float64)))
