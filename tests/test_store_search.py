@@ -157,3 +157,11 @@ def test_a_subnormal_score_beats_zero():
     scores = np.array([[0.0], [tiny]], F32)  # row 1 is better, though only by a subnormal
     ids, _ = _search_blocks(scores, 1, [0], size=2)
     assert ids.tolist() == [[1]]
+
+
+def test_keys_go_back_to_their_floats():
+    values = F32([-np.inf, -1.0, -np.finfo(F32).smallest_subnormal, 0.0, 1e-40, 2.5, np.inf])
+    np.testing.assert_array_equal(
+        _search.from_key(_search.order_key(values)).view(np.uint32), values.view(np.uint32)
+    )
+    assert _search.from_key(_search.order_key(F32([-0.0]))).view(np.uint32)[0] == 0

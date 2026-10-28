@@ -82,8 +82,17 @@ def order_key(values: ndarray) -> ndarray:
     0.0: integer comparisons, whatever flushing or rounding the thread set, keep every
     subnormal score apart from zero."""
     bits = np.ascontiguousarray(values, F32).view(np.int32)
-    bits = np.where(bits == np.int32(-(2**31)), np.int32(0), bits)  # -0.0 is 0.0
-    return bits ^ ((bits >> 31) & np.int32(0x7FFFFFFF))
+    sign = bits >> 31  # -1 for a negative value, else 0
+    key = sign & np.int32(0x7FFFFFFF)
+    key ^= bits  # the magnitude bits of negative values reversed
+    key -= sign  # negative keys up by one, so -0.0 (key -1) meets 0.0
+    return key
+
+
+def from_key(keys: ndarray) -> ndarray:
+    """The float32 values of order keys (0.0 for the key of -0.0)."""
+    sign = keys >> 31
+    return ((keys + sign) ^ (sign & np.int32(0x7FFFFFFF))).view(F32)
 
 
 LOWEST = int(order_key(np.array([-np.inf], F32))[0])
@@ -95,23 +104,33 @@ def best(
     """The candidates of every query column of ``scores`` (rows, queries) for its best
     ``k``, given its ``floor`` (an order_key): at most ``min(k, rows)`` per query, the
     best of the block at or above the floor. Returns their queries (column), scores and
-    store rows, flat."""
+    store rows, flat.
+
+    A float comparison selects a superset: flushing subnormals to zero, if the thread
+    set it, maps values monotonically, so it never drops a row at or above the floor.
+    The order keys of the selected rows then decide exactly."""
     n, q = scores.shape
     kept = min(k, n)
-    keys = order_key(scores)
     floor = floor.copy()
-    mask = keys >= floor
+    mask = scores >= from_key(floor)
     over = np.flatnonzero(np.count_nonzero(mask, axis=0) > kept)
     if len(over):  # the floor keeps too many: rise to the kept-th best of the block
-        sub = keys[:, over]
+        sub = order_key(scores[:, over])
         floor[over] = np.maximum(floor[over], np.partition(sub, n - kept, axis=0)[n - kept])
         mask[:, over] = sub >= floor[over]
     flat = np.flatnonzero(mask)
     order = np.argsort(flat % q, kind="stable")  # by query, then by row
     rows, queries = np.divmod(flat[order], q)
     values = scores.reshape(-1)[flat[order]]
-    # Rows equal to the floor beyond the kept ones: the smaller rows stay.
-    equal = keys.reshape(-1)[flat[order]] == floor[queries]
+    keys = order_key(values)
+    exact = keys >= floor[queries]
+    rows, queries, values, keys = rows[exact], queries[exact], values[exact], keys[exact]
+    return _ties(rows, queries, values, keys, floor, kept, first_row)
+
+
+def _ties(rows, queries, values, keys, floor, kept, first_row):
+    """Keep the rows equal to the floor only up to ``kept`` per query, the smaller rows."""
+    equal = keys == floor[queries]
     above = np.bincount(queries[~equal], minlength=len(floor))
     before = np.cumsum(equal) - equal
     rank = before - before[np.searchsorted(queries, queries)] + 1
