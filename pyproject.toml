@@ -71,8 +71,11 @@ dev = [
     "cibuildwheel>=3.0.0",
     # benchmarks/bench_wordvectors.py finds the hub vectors in the local cache.
     "huggingface-hub>=0.23.0",
-    # Sampling profiler with native frames, for gates that miss (AGENTS.md, Commands).
+    # Profilers for every gate (AGENTS.md, Commands): py-spy samples the CPU with native
+    # frames on Linux; memray traces allocations, native ones too, on macOS and Linux.
+    # samply (CPU on macOS without root) is a system tool: cargo install samply.
     "py-spy>=0.4.0",
+    "memray>=1.17; sys_platform != 'win32'",
 ]
 lint = [
     "ruff>=0.17.2",
