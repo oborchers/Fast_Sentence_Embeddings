@@ -20,6 +20,7 @@ from numpy import ndarray
 
 from fse import _native
 from fse._contract import EXTERNAL_TOKENIZER, Batch, check_tokenizer
+from fse._cpus import usable_cpus
 from fse._wordvectors import WordVectors
 
 # Bytes per chunk: small enough to balance workers, large enough that the per-chunk
@@ -375,6 +376,12 @@ class StringSource(_Buffered):
         return self._positions()
 
 
+# Threads that join token lists: the pass is bound by reading memory, which a few threads
+# saturate (85.7 million WikiText tokens on an M1 Pro, in a fresh process: 2.1 s with one
+# thread, 0.65 s with 8).
+_JOIN_THREADS = 8
+
+
 def _token_lists(sentences: Any) -> tuple[bytes, ndarray]:
     """The joined token lists in Python, for the inputs the native pass does not take and
     for the errors, which it leaves to this path (types first, then tokens, then the UTF-8
@@ -403,7 +410,7 @@ class TokenListSource(_Buffered):
 
     def __init__(self, sentences: Any):
         _check_container(sentences, "sentences")
-        joined = _native.join_token_lists(sentences)
+        joined = _native.join_token_lists(sentences, min(_JOIN_THREADS, usable_cpus()))
         if joined is None:  # types the native pass does not read: subclasses, an array
             joined = _token_lists(sentences)
         elif joined is False:  # an invalid token: the Python path raises its error

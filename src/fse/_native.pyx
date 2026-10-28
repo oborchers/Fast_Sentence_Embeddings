@@ -21,7 +21,7 @@ cimport numpy as np
 from cpython.bytes cimport PyBytes_FromStringAndSize
 from cpython.pyport cimport PY_SSIZE_T_MAX
 from libc.stdint cimport SIZE_MAX
-from libc.stdlib cimport free, malloc, realloc
+from libc.stdlib cimport calloc, free, malloc, realloc
 from libc.string cimport memchr, memcmp, memcpy, memset
 
 np.import_array()

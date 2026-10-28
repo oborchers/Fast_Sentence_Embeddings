@@ -105,3 +105,31 @@ def test_a_str_subclass_is_never_read_natively():
     # The native pass would reject the space; the subclass decides through its own split.
     assert _native.join_token_lists([[Spaced("a b")]]) is None
     assert TokenListSource([[Spaced("a b")]])._data == b"a b"
+
+
+def _many(n):
+    return [[f"w{i}", "\u65e5" * (i % 3 + 1)] if i % 7 else [] for i in range(n)]
+
+
+@pytest.mark.parametrize("threads", [2, 3, 8])
+def test_threads_join_the_same_bytes(threads):
+    sentences = _many(5 * 4096 + 17)  # parts of at least 4,096 sentences, and a rest
+    data, offsets = _native.join_token_lists(sentences, threads)
+    want_data, want_offsets = _python(sentences)
+    assert data == want_data
+    np.testing.assert_array_equal(offsets, want_offsets)
+
+
+@pytest.mark.parametrize(("bad", "verdict"), [("a b", False), (Word("a"), None)])
+def test_any_part_decides_the_verdict(bad, verdict):
+    sentences = _many(4 * 4096)
+    sentences[-3] = ["x", bad]  # in the last part
+    assert _native.join_token_lists(sentences, 4) is verdict
+    sentences[-3] = ["\ud800"]
+    sentences[5] = [Word("a")]  # an unsupported type in one part wins over an invalid token
+    assert _native.join_token_lists(sentences, 4) is None
+
+
+def test_threads_must_be_positive():
+    with pytest.raises(ValueError, match="at least 1"):
+        _native.join_token_lists([["a"]], 0)

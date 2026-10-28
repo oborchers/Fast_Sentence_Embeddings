@@ -106,7 +106,7 @@ def test_token_lists_are_joined_natively(monkeypatch):
 
 
 def test_a_native_verdict_the_python_path_does_not_share_raises(monkeypatch):
-    monkeypatch.setattr(_native, "join_token_lists", lambda _sentences: False)
+    monkeypatch.setattr(_native, "join_token_lists", lambda *_: False)
     with pytest.raises(AssertionError, match="disagrees"):
         TokenListSource([["a"]])
 
