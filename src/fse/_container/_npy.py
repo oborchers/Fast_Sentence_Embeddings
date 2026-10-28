@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""NpyContainer 2: a directory of .npy files with a manifest, for stored sentence vectors."""
+"""NpyContainer 1: a directory of .npy files with a manifest, for stored sentence vectors."""
 
 from __future__ import annotations
 
@@ -220,7 +220,7 @@ class NpyContainer:
     """One ``<name>.npy`` file per tensor and a ``manifest.json``, in a directory."""
 
     name = "npy"
-    version = 2
+    version = 1
     suffix = ""  # a directory
 
     def write(

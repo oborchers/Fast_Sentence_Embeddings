@@ -209,26 +209,26 @@ GOLDEN = Path(__file__).parent / "test_data" / "v2"
     ("name", "fingerprint", "rows"),
     [
         (
-            "encoder2_sif_unfolded",
-            "xxh3-128:a747a8a326d8f04989ca312c887b7ea4",
+            "encoder_sif_unfolded",
+            "xxh3-128:6bc9a70838ace61a0cf6ce2c8989bdfb",
             "62b7fcaa61f113edc40f88e3125708faae27c3bf52300f7d6d2530f7f5bee472",
         ),
         (
-            "encoder2_usif_folded_int8",
-            "xxh3-128:4c09a41aea045b587f21b5d7f0bc61c9",
+            "encoder_usif_folded_int8",
+            "xxh3-128:d70aef5b74497744bf672872a1838600",
             "2a567828aaccdc0494e97c399fe475321695602ab1e6e1eb79f2ca75e73df74a",
         ),
     ],
 )
 @pytest.mark.parametrize("mmap", [False, True])
 def test_the_golden_encoders_load_and_give_their_pinned_rows(name, fingerprint, rows, mmap):
-    """encoder 2 is fixed: these files load, keep their fingerprint and give the same bits
+    """encoder 1 is fixed: these files load, keep their fingerprint and give the same bits
     on every platform (the encoding is contract arithmetic; only fit depends on BLAS). The
-    rows are those of the files of format 1, which were transcoded, never fitted again."""
+    rows are those of the sha256 files they were transcoded from, never fitted again."""
     corpus = runpy.run_path(str(GOLDEN / "make_encoder_golden.py"))["CORPUS"]
     path = GOLDEN / f"{name}.safetensors"
     if "unfolded" in name:
-        wv = WordVectors.load(GOLDEN / "word_vectors2_float32.safetensors")
+        wv = WordVectors.load(GOLDEN / "word_vectors_float32.safetensors")
         encoder = Encoder.load(path, word_vectors=wv, mmap=mmap)
     else:
         encoder = Encoder.load(path, mmap=mmap)
@@ -240,11 +240,12 @@ def test_the_golden_encoders_load_and_give_their_pinned_rows(name, fingerprint, 
 @pytest.mark.parametrize("name", ["encoder_sif_unfolded", "encoder_usif_folded_int8"])
 @pytest.mark.parametrize("mmap", [False, True])
 def test_the_pre_release_golden_encoders_are_rejected(name, mmap):
-    """The same encoders in format 1, with sha256 checksums: kept as they were written."""
-    wv = WordVectors.load(GOLDEN / "word_vectors2_float32.safetensors")
+    """The same encoders with the sha256 checksums of a pre-release, kept as they were
+    written and rejected by their checksums (their format version is the same)."""
+    wv = WordVectors.load(GOLDEN / "word_vectors_float32.safetensors")
     kwargs = {"word_vectors": wv} if "unfolded" in name else {}
-    with pytest.raises(UnsupportedArtifactError, match="sha256 checksums of a pre-release"):
-        Encoder.load(GOLDEN / f"{name}.safetensors", mmap=mmap, **kwargs)
+    with pytest.raises(UnsupportedArtifactError, match=r"sha256 .* reads xxh3-128"):
+        Encoder.load(GOLDEN / "sha256" / f"{name}.safetensors", mmap=mmap, **kwargs)
 
 
 def _damaged(loaded, field, value):

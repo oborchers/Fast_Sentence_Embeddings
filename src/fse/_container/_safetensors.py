@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""safetensors 2: one file of tensors with string metadata, for models."""
+"""safetensors 1: one file of tensors with string metadata, for models."""
 
 from __future__ import annotations
 
@@ -146,7 +146,7 @@ def _check_coverage(file: Path, entries: dict, start: int, size: int):
 class SafetensorsContainer:
     """All tensors in one ``.safetensors`` file: the container of models and of the hub.
 
-    The format of safetensors (ARCHITECTURE.md, "safetensors 2"): an 8-byte little-endian
+    The format of safetensors (ARCHITECTURE.md, "safetensors 1"): an 8-byte little-endian
     header length, a JSON header with every tensor's dtype, shape and data offsets and the
     metadata in ``__metadata__``, then the data. Tensors are laid out by descending item
     size, then name, without gaps, so each is aligned to its type; the header is padded
@@ -154,7 +154,7 @@ class SafetensorsContainer:
     """
 
     name = "safetensors"
-    version = 2
+    version = 1
     suffix = ".safetensors"
 
     def write(

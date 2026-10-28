@@ -122,9 +122,7 @@ def _changed_metadata(key, value):
     ("key", "value", "error", "match"),
     [
         ("fse.kind", "word_vectors", UnsupportedArtifactError, "not 'encoder'"),
-        ("fse.format_version", "3", UnsupportedArtifactError, "format version '3'"),
-        # The pre-release format with sha256 fingerprints.
-        ("fse.format_version", "1", UnsupportedArtifactError, "format version '1'"),
+        ("fse.format_version", "2", UnsupportedArtifactError, "format version '2'"),
         ("fse.color", "blue", UnsupportedArtifactError, "unknown metadata keys"),
         ("fse.transform_version", "1", UnsupportedArtifactError, "transform_version 1"),
         ("fse.tokenizer", "bert@1", UnsupportedArtifactError, "tokenizer"),

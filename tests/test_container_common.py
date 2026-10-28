@@ -22,11 +22,11 @@ def test_fingerprint_test_vector():
     tensors = _tensors()
     entries = {k: (tensor_code(v), v.shape, checksum(v)) for k, v in tensors.items()}
     metadata = {**_METADATA, "fse.created_by": "anything", "fse.checksum.vectors": "ignored"}
-    assert fingerprint(entries, metadata) == "xxh3-128:18063af8c78a3bc9bb2ca036e75551d5"
+    assert fingerprint(entries, metadata) == "xxh3-128:8011e82efda8fabff21969cbaad4fae3"
     # Non-ASCII metadata is hashed unescaped.
     assert (
         fingerprint(entries, {**metadata, "fse.note": "é"})
-        == "xxh3-128:1e8ccfcd098312032ff5bc787870e72c"
+        == "xxh3-128:9e1f9e8737c4b9c190d5600af20953e0"
     )
     assert canonical_json({"b": [1, "é"], "a": 1}) == '{"a":1,"b":[1,"é"]}'
 

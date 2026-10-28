@@ -1,4 +1,4 @@
-"""NpyContainer 2: layout, corrupted artifacts, limits and files on disk."""
+"""NpyContainer 1: layout, corrupted artifacts, limits and files on disk."""
 
 import json
 import os
@@ -143,7 +143,7 @@ CORRUPTIONS = {
         "non-negative ints",
     ),
     "container version": (
-        _edit(lambda m: m.update(container_version=3)),
+        _edit(lambda m: m.update(container_version=2)),
         UnsupportedArtifactError,
         "this fse reads",
     ),
@@ -298,12 +298,16 @@ def test_hashes_of_another_algorithm_are_rejected(tmp_path, case):
         NpyContainer().verify(path)
 
 
-def test_the_pre_release_container_version_is_rejected(tmp_path):
-    """NpyContainer 1 held sha256 checksums; it is rejected before they are read."""
+def test_a_pre_release_artifact_is_rejected_by_its_checksums(tmp_path):
+    """The pre-release of 2.0 wrote the same container version with sha256 checksums; the
+    checksums, not a version, tell it apart."""
+    edit, _, _ = ALGORITHM_CASES["sha256 values"]
     path = _written(tmp_path)
-    _edit(lambda m: m.update(container_version=1))(path)
-    with pytest.raises(UnsupportedArtifactError, match="'npy' version 2"):
-        NpyContainer().open(path, mmap=True)
+    _edit(lambda m: edit(m["metadata"]))(path)
+    assert _manifest(path)["container_version"] == NpyContainer.version == 1
+    for mmap in (False, True):
+        with pytest.raises(UnsupportedArtifactError, match=r"sha256 .* reads xxh3-128"):
+            NpyContainer().open(path, mmap=mmap)
 
 
 def test_flipped_data_byte(tmp_path):
