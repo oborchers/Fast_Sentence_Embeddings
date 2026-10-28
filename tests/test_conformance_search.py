@@ -106,7 +106,7 @@ def _cases_fail(fn, op):
     return False
 
 
-def _decoded(stored, scales=None):
+def _decoded(stored):
     return _reference.dequantize(stored, None).astype(F32)
 
 
@@ -120,7 +120,7 @@ def test_blas_products_are_not_the_contract():
 
 
 def test_a_zero_padded_tail_is_not_the_contract():
-    def padded(stored, scales, weights):
+    def padded(stored, weights):
         x = _decoded(stored)
         pad = (-x.shape[1]) % 16
         x = np.pad(x, ((0, 0), (0, pad)))
@@ -136,7 +136,7 @@ def test_a_zero_padded_tail_is_not_the_contract():
         return lanes[:, :, 0] + F32(-0.0)
 
     stored, weights = _negative_zero_lanes()
-    got = padded(stored, None, weights)
+    got = padded(stored, weights)
     assert not np.array_equal(
         got.view(np.uint32), _reference.scores(stored, None, weights, -0.0).view(np.uint32)
     )
