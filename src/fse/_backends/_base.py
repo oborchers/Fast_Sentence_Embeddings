@@ -126,6 +126,23 @@ class Backend(Protocol):
         self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float
     ) -> ndarray: ...
 
+    def inverse_norms(self, stored: ndarray) -> ndarray:
+        """The inverse norm of every stored row, as ``fse._reference.inverse_norms``."""
+        ...
+
+    def cosines(self, stored: ndarray, inverse: ndarray, queries: ndarray) -> ndarray:
+        """The cosine of every stored row with every query, a (rows, queries) array, as
+        ``fse._reference.cosines``."""
+        ...
+
+    def scores(
+        self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: object
+    ) -> ndarray:
+        """The linear score of every stored row with every weight vector, a (rows,
+        vectors) array, as ``fse._reference.scores``; ``bias`` one number or one per
+        vector."""
+        ...
+
     def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
         """Stage 5 of finished float32 ``rows`` (rows ``first_row`` on) into float16 or
         int8 ``codes``, with one scale per row in ``scales`` for int8 (``quantize_rows@1``)."""
@@ -211,6 +228,46 @@ def check_score_input(stored: object, scales: object, weights: object, bias: obj
     if int8:
         _float32_vector(scales, "scales", len(stored))
     _real(bias, "bias")
+
+
+def check_stored_input(stored: object) -> None:
+    """The argument of ``inverse_norms``: a C-contiguous matrix of stored rows."""
+    _rows(stored, "stored")
+
+
+def check_search_input(stored: object, inverse: object, queries: object) -> None:
+    """The arguments of ``cosines``, checked the same way by every backend: stored rows,
+    one float32 inverse norm per row, a matrix of queries of the stored dimension."""
+    stored = _rows(stored, "stored")
+    _float32_vector(inverse, "inverse", len(stored))
+    _vectors(queries, "queries", stored.shape[1])
+
+
+def check_scores_input(stored: object, scales: object, weights: object, bias: object) -> None:
+    """The arguments of ``scores``: as for ``score``, with a matrix of weight vectors and
+    one bias for all or one per vector."""
+    stored = _rows(stored, "stored")
+    weights = _vectors(weights, "weights", stored.shape[1])
+    int8 = stored.dtype == np.int8
+    if int8 != (scales is not None):
+        raise ValueError("scales are given exactly for int8 rows")
+    if int8:
+        _float32_vector(scales, "scales", len(stored))
+    if np.ndim(bias) == 0:
+        _real(bias, "bias")
+    elif np.asarray(bias).dtype.kind not in "fiu" or np.shape(bias) != (len(weights),):
+        raise ValueError(f"bias must be one number or {len(weights)} numbers, one per vector")
+
+
+def _vectors(value: object, name: str, dim: int) -> ndarray:
+    value = np.asarray(value)
+    if value.dtype.kind not in "fiu":
+        raise TypeError(f"{name} must be numbers (float or int), not strings, objects or bools")
+    if value.ndim != 2 or value.shape[1] != dim:
+        raise ValueError(
+            f"{name} must be a matrix of vectors of {dim} values, not shape {value.shape}"
+        )
+    return value
 
 
 def check_store_input(rows: object, codes: object, scales: object, first_row: object) -> None:

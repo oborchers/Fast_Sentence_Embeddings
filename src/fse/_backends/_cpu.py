@@ -31,7 +31,10 @@ from ._base import (
     check_pool_input,
     check_prepared,
     check_score_input,
+    check_scores_input,
+    check_search_input,
     check_store_input,
+    check_stored_input,
     dims,
 )
 
@@ -100,6 +103,20 @@ class CpuBackend:
     ) -> ndarray:
         check_score_input(stored, scales, weights, bias)
         return _native.score(stored, scales, weights, bias, isa=self.isa)
+
+    def inverse_norms(self, stored: ndarray) -> ndarray:
+        check_stored_input(stored)
+        return _native.inverse_norms(stored)
+
+    def cosines(self, stored: ndarray, inverse: ndarray, queries: ndarray) -> ndarray:
+        check_search_input(stored, inverse, queries)
+        return _native.cosines(stored, inverse, queries, isa=self.isa)
+
+    def scores(
+        self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: object
+    ) -> ndarray:
+        check_scores_input(stored, scales, weights, bias)
+        return _native.scores(stored, scales, weights, bias, isa=self.isa)
 
     def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
         check_store_input(rows, codes, scales, first_row)
