@@ -35,7 +35,7 @@ from fse._container import (
     fingerprint,
     tensor_code,
 )
-from fse._runtime import EncodeSpec, Pipeline
+from fse._runtime import EncodeSpec, Pipeline, check_workers
 from fse._text import Vocabulary, make_vocabulary
 from fse._validation import PathLike, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
@@ -179,6 +179,7 @@ class Encoder:
             dtype = check_sink(sink, dtype, self.fingerprint, self.output_dim)
         else:
             dtype = _codes.check_dtype("float32" if dtype is None else dtype)
+        check_workers(workers)
         pipeline = self._pipeline(backend)
         return _batches.batches(
             pipeline,

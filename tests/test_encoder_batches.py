@@ -72,6 +72,12 @@ def test_arguments_are_checked_before_a_batch_is_read():
         ENCODER.encode_batches(polls(), dtype="float64")
     with pytest.raises(ValueError, match="backend must be one of"):
         ENCODER.encode_batches(polls(), backend="gpu")
+    with pytest.raises(ValueError, match="workers must be a positive int"):
+        ENCODER.encode_batches(polls(), workers=0)
+    sink = fse.MemorySink(ENCODER.output_dim)
+    sink.inverse_norms = "yes"
+    with pytest.raises(TypeError, match="inverse_norms of a sink must be a bool"):
+        ENCODER.encode_batches(polls(), sink=sink)
     assert not read
     with pytest.raises(TypeError, match="batch 1 is a str; every batch is a list"):
         list(ENCODER.encode_batches([["w1"], "w2 w3"]))
@@ -166,3 +172,15 @@ def test_the_memory_sink_is_the_sink_of_encode():
     ENCODER.encode(texts(40), sink=sink)
     np.testing.assert_array_equal(sink.result(), ENCODER.encode(texts(40), dtype="float16"))
     assert _reference.inverse_norms(sink.result()).shape == (40,)
+
+
+def test_errors_name_the_rows_of_the_run():
+    wv = fse.WordVectors.from_arrays(
+        np.array([[1, 0], [1e-30, 0]], np.float32), words=["big", "tiny"]
+    )
+    encoder = fse.Average(tokenizer="external").fit(wv)
+    polls = [["big", "big"], ["big", "tiny"]]  # "tiny" cannot be normalized
+    with pytest.raises(ValueError, match=r"^row 3 cannot be normalized"):
+        list(encoder.encode_batches(polls, workers=1, sink=fse.MemorySink(2)))
+    with pytest.raises(ValueError, match=r"^batch 1 \(rows 2 to 3 of the run\): row 1 cannot"):
+        list(encoder.encode_batches(polls, workers=1))

@@ -19,7 +19,7 @@ from collections.abc import Iterable, Iterator
 from typing import Any, NamedTuple
 
 from fse import _codes
-from fse._runtime import Pipeline
+from fse._runtime import Pipeline, wants_inverse_norms
 
 from ._sources import opened
 
@@ -50,7 +50,16 @@ def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int) -> str:
         raise ValueError(
             f"the sink must take rows of {dim} values, not {getattr(sink, 'dim', None)!r}"
         )
+    wants_inverse_norms(sink)
     return own
+
+
+def _infer(pipeline: Pipeline, source: Any, workers: Any, dtype: str, k: int, row: int, n: int):
+    """The rows of batch ``k``; an error names the batch and its rows of the run."""
+    try:
+        return pipeline.infer(source, workers=workers, dtype=dtype)
+    except ValueError as error:
+        raise ValueError(f"batch {k} (rows {row} to {row + n - 1} of the run): {error}") from None
 
 
 def run_into(pipeline: Pipeline, source: Any, sink: Any, workers: Any, first_row: int) -> None:
@@ -94,7 +103,7 @@ def batches(
             )
         with opened(item, tokenizer) as source:
             if sink is None:
-                rows = wrap(pipeline.infer(source, workers=workers, dtype=dtype))
+                rows = wrap(_infer(pipeline, source, workers, dtype, k, row, len(item)))
                 yield EncodedBatch(row, len(item), rows, None)
             else:
                 run_into(pipeline, source, sink, workers, row)
