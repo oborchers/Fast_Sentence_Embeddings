@@ -176,10 +176,11 @@ def pool_weighted_mean(
     return out
 
 
-def inverse_norms(stored: ndarray) -> ndarray:
+def inverse_norms(stored: ndarray, first_row: int = 0) -> ndarray:
     """``float32(1 / sqrt(s))`` per stored row, s the float64 sum of squares; 0 for zero rows.
 
-    Raises a ValueError if an inverse norm is beyond float32 (a nonzero row too small).
+    Raises a ValueError naming the row (from ``first_row``) if an inverse norm is beyond
+    float32 (a nonzero row too small).
     """
     values = np.asarray(stored, dtype=np.float64)
     squares = np.zeros(len(values))
@@ -192,7 +193,7 @@ def inverse_norms(stored: ndarray) -> ndarray:
         out[nonzero] = inverse.astype(_F32)
     bad = np.flatnonzero(~np.isfinite(out))
     if len(bad):
-        raise ValueError(f"the inverse norm of row {int(bad[0])} is beyond float32")
+        raise ValueError(f"the inverse norm of row {first_row + int(bad[0])} is beyond float32")
     return out
 
 

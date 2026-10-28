@@ -126,8 +126,9 @@ class Backend(Protocol):
         self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float
     ) -> ndarray: ...
 
-    def inverse_norms(self, stored: ndarray) -> ndarray:
-        """The inverse norm of every stored row, as ``fse._reference.inverse_norms``."""
+    def inverse_norms(self, stored: ndarray, first_row: int = 0) -> ndarray:
+        """The inverse norm of every stored row, as ``fse._reference.inverse_norms``;
+        errors name the rows from ``first_row``."""
         ...
 
     def cosines(self, stored: ndarray, inverse: ndarray, queries: ndarray) -> ndarray:
@@ -230,9 +231,12 @@ def check_score_input(stored: object, scales: object, weights: object, bias: obj
     _real(bias, "bias")
 
 
-def check_stored_input(stored: object) -> None:
-    """The argument of ``inverse_norms``: a C-contiguous matrix of stored rows."""
+def check_stored_input(stored: object, first_row: object = 0) -> None:
+    """The arguments of ``inverse_norms``: a C-contiguous matrix of stored rows and the
+    row its first row is."""
     _rows(stored, "stored")
+    if isinstance(first_row, bool) or not isinstance(first_row, int | np.integer) or first_row < 0:
+        raise ValueError(f"first_row must be a non-negative int, not {first_row!r}")
 
 
 def check_search_input(stored: object, inverse: object, queries: object) -> None:

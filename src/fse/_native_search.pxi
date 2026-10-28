@@ -14,7 +14,7 @@ cdef extern from "_native_kernel.h":
                        float *scratch) nogil
 
 
-def inverse_norms(stored):
+def inverse_norms(stored, first_row=0):
     """``fse._reference.inverse_norms`` in the kernel: one float32 per stored row."""
     with _KernelEnv():
         stored = _rows(stored, "stored")
@@ -24,7 +24,7 @@ def inverse_norms(stored):
             return out
         bad = _inverse_norms_into(stored, n, dim, out)
     if bad >= 0:
-        raise ValueError(f"the inverse norm of row {bad} is beyond float32")
+        raise ValueError(f"the inverse norm of row {first_row + bad} is beyond float32")
     return out
 
 

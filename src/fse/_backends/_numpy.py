@@ -78,9 +78,9 @@ class NumpyBackend:
         check_score_input(stored, scales, weights, bias)
         return _reference.score(stored, scales, weights, bias)
 
-    def inverse_norms(self, stored: ndarray) -> ndarray:
-        check_stored_input(stored)
-        return _reference.inverse_norms(stored)
+    def inverse_norms(self, stored: ndarray, first_row: int = 0) -> ndarray:
+        check_stored_input(stored, first_row)
+        return _reference.inverse_norms(stored, int(first_row))
 
     def cosines(self, stored: ndarray, inverse: ndarray, queries: ndarray) -> ndarray:
         check_search_input(stored, inverse, queries)

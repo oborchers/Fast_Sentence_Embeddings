@@ -23,18 +23,31 @@ from numpy import ndarray
 
 from fse import _codes, _gram
 
-# What a target and a commit hold: float32 rows, float16 codes, or int8 codes and scales.
-Stored = ndarray | tuple[ndarray, ndarray]
+# What a target and a commit hold: float32 rows, float16 codes, or int8 codes and scales;
+# for a sink that wants inverse norms, a float32 vector of one per row follows.
+Stored = ndarray | tuple[ndarray, ...]
 
 
 class Sink(Protocol):
-    """``dim`` values per row, stored as ``dtype`` (``float32`` if the sink has none)."""
+    """Where an encoder puts the rows it finishes: ``fse.Sink``.
+
+    ``dim`` values per row, stored as ``dtype`` (``float32`` if the sink has none). The
+    encoder calls both methods in its calling thread: ``target`` reserves the rows of a
+    task before the task runs, ``commit`` hands them back once they are finished, in row
+    order, each row once; a target is valid only until its commit. Optional:
+    ``inverse_norms`` (True: the target ends with a float32 vector the workers fill with
+    the inverse norm of every stored row), ``encoder`` (the fingerprint of the only
+    encoder the sink takes), ``flush()`` (called after the last commit of a successful
+    run) and ``durable_rows`` (the number of leading rows that are durable, for a stream
+    that confirms its input only after that; a sink without it promises nothing).
+    """
 
     dim: int
 
     def target(self, first_row: int, n_rows: int) -> Stored:
         """Writable C-contiguous rows ``(n_rows, dim)`` for one task: float32 rows, float16
-        codes, or for int8 the codes and a float32 vector of one scale per row."""
+        codes, or for int8 the codes and a float32 vector of one scale per row; then the
+        float32 vector of the inverse norms if the sink wants them."""
         ...
 
     def commit(self, first_row: int, rows: Stored) -> None: ...
@@ -43,6 +56,37 @@ class Sink(Protocol):
 def sink_dtype(sink: object) -> str:
     """The storage dtype of ``sink``: its ``dtype``, float32 without one."""
     return _codes.check_dtype(getattr(sink, "dtype", "float32"))
+
+
+def wants_inverse_norms(sink: object) -> bool:
+    """Whether the targets of ``sink`` end with a vector for the inverse norms."""
+    wants = getattr(sink, "inverse_norms", False)
+    if not isinstance(wants, bool):
+        raise TypeError(f"the inverse_norms of a sink must be a bool, not {type(wants).__name__}")
+    return wants
+
+
+def split_target(target: Stored, dtype: str, inverse: bool) -> tuple[ndarray, Any, Any]:
+    """The codes (or float32 rows), the int8 scales (or None) and the inverse norms (or
+    None) of a target of a sink of ``dtype``."""
+    parts = target if isinstance(target, tuple) else (target,)
+    want = 1 + (dtype == "int8") + inverse
+    if len(parts) != want or not all(isinstance(p, ndarray) for p in parts):
+        raise ValueError(f"a target of a {dtype} sink holds {want} arrays, not {len(parts)}")
+    codes = parts[0]
+    scales = parts[1] if dtype == "int8" else None
+    norms = parts[-1] if inverse else None
+    for name, array in (("scales", scales), ("inverse norms", norms)):
+        if array is not None and (
+            array.dtype != np.float32
+            or array.shape != (len(codes),)
+            or not array.flags.writeable
+            or not array.flags.c_contiguous
+        ):
+            raise ValueError(
+                f"the {name} of a target must be a writable float32 vector of {len(codes)} values"
+            )
+    return codes, scales, norms
 
 
 class _Rows:
@@ -153,6 +197,17 @@ class GrowingRows(_Rows):
                 out = np.concatenate(self._parts)
             self._parts = [out]
         return self._parts[0]
+
+
+class MemorySink(GrowingRows):
+    """``fse.MemorySink``: the rows of a run in memory, as ``encode`` returns them without a
+    sink; ``result()`` joins them. It keeps nothing beyond the process, so it has no
+    ``durable_rows``."""
+
+    def __init__(self, dim: int, dtype: str = "float32"):
+        if isinstance(dim, bool) or not isinstance(dim, int) or dim < 1:
+            raise ValueError(f"dim must be a positive int, not {dim!r}")
+        super().__init__(dim, dtype)
 
 
 class GramSink(_Rows):
