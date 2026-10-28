@@ -54,14 +54,9 @@ class ShardWriter:
         self.row_bytes = info.dim * self.dtype.itemsize
         self.tmp = store / f".{shard_name(first_row)}.writing-{secrets.token_hex(4)}"
         self.tmp.mkdir()
-        self.fd = -1
-        try:
-            self.fd, self.offset = create(
-                self.tmp / "vectors.npy", self.dtype, (capacity, info.dim)
-            )
-        except BaseException:
-            shutil.rmtree(self.tmp, ignore_errors=True)
-            raise
+        # vectors.npy is created at the first write, so the shards reserved ahead of their
+        # writes (a task over many small shards) hold no open file.
+        self.fd, self.offset = -1, 0
         self.scales = np.empty(capacity, np.float32) if info.dtype == "int8" else None
         self.norms = np.empty(capacity, np.float32)
         self.reserved = self.committed = self.written = 0
@@ -105,9 +100,17 @@ class ShardWriter:
         del self._open[begin]  # only once the commit is checked
         self.committed += len(codes)
 
+    def _file(self) -> None:
+        """Create vectors.npy with the header of the full shard, once."""
+        if self.fd < 0:
+            self.fd, self.offset = create(
+                self.tmp / "vectors.npy", self.dtype, (self.capacity, self.info.dim)
+            )
+
     def write(self, begin: int, codes: ndarray) -> None:
         """Write the committed rows from ``begin`` (in the shard) into the file; positional,
-        so it may run in another thread than ``commit``."""
+        so it may run in another thread than ``commit`` (only one thread writes)."""
+        self._file()
         write_at(self.fd, memoryview(codes).cast("B"), self.offset + begin * self.row_bytes)
         with self._written_rows:
             self.written += len(codes)
@@ -143,6 +146,7 @@ class ShardWriter:
         if self.committed != self.reserved:
             raise RuntimeError(f"{self.reserved - self.committed} reserved rows were not committed")
         self.wait_written(failed)
+        self._file()
         rows = self.committed
         if rows != self.capacity:
             shrink(self.fd, self.offset, self.dtype, (rows, self.info.dim))

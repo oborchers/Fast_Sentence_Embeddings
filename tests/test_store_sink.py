@@ -1,5 +1,7 @@
 """The ShardSink: the rows of an encoder written straight into the shards of a store."""
 
+import os
+
 import numpy as np
 import pytest
 
@@ -221,3 +223,15 @@ def test_close_raises_a_publish_error_another_thread_met_first(tmp_path, monkeyp
     assert sink._hash.failed
     with pytest.raises(OSError, match="Input/output error"):
         sink.close()
+
+
+@pytest.mark.skipif(not os.path.isdir("/dev/fd"), reason="no /dev/fd to count open files")
+def test_reserving_many_small_shards_opens_no_file(tmp_path):
+    sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=1)
+    before = len(os.listdir("/dev/fd"))
+    target = sink.target(0, 1000)  # 1,000 shards ahead of their writes
+    assert len(os.listdir("/dev/fd")) <= before + 2
+    del target
+    sink.close()  # drops the rows never committed
+    assert sink.durable_rows == 0
+    assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]

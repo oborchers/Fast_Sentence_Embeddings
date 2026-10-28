@@ -34,6 +34,7 @@ def write(self, begin, codes):
         deadline = time.monotonic() + 30
         while not first.exists() and time.monotonic() < deadline:
             time.sleep(0.01)  # the first shard is published by its own thread
+        self._file()
         _shard.write_at(self.fd, memoryview(codes).cast("B")[: codes.nbytes // 2], self.offset)
         os._exit(3)  # halfway through a write of the second shard
     real_write(self, begin, codes)
