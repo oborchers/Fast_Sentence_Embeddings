@@ -18,7 +18,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 
-from fse._text import MAX_CHUNK_ROWS, StringSource, encode_string
+from fse._text import MAX_CHUNK_ROWS, StringSource
 
 
 @dataclass(frozen=True)
@@ -64,18 +64,37 @@ class StreamSource:
                 return
 
     def _collect(self, row: int) -> tuple[list[bytes], Exception | None, bool]:
+        """Up to chunk_rows sentences or about chunk_bytes bytes; a tight loop, as it runs
+        once per sentence in the calling thread while the workers wait for tasks."""
         encoded: list[bytes] = []
-        size = 0
-        while len(encoded) < self.chunk_rows and size < self.chunk_bytes:
-            try:
-                text = next(self._texts)
-                encoded.append(encode_string(text, "string", row + len(encoded)))
-            except StopIteration:
-                return encoded, None, True
-            except Exception as error:  # raised once the sentences before it are done
-                return encoded, error, False
-            size += len(encoded[-1])
-        return encoded, None, False
+        append, rows, limit, size = encoded.append, self.chunk_rows, self.chunk_bytes, 0
+        try:
+            for text in self._texts:
+                data = (
+                    text.encode("utf-8") if type(text) is str else _fail(text, row + len(encoded))
+                )
+                append(data)
+                size += len(data)
+                if len(encoded) >= rows or size >= limit:
+                    return encoded, None, False
+        except UnicodeEncodeError as err:  # a lone surrogate: name the row of the stream
+            return encoded, _with_row(err, row + len(encoded)), False
+        except Exception as error:  # raised once the sentences before it are done
+            return encoded, error, False
+        return encoded, None, True
+
+
+def _fail(text: object, row: int) -> bytes:
+    """A sentence that is no exact str: a str subclass is encoded, anything else raises."""
+    if isinstance(text, str):
+        return str.encode(text, "utf-8")
+    raise TypeError(f"string {row} is a {type(text).__name__}, not a str")
+
+
+def _with_row(err: UnicodeEncodeError, row: int) -> UnicodeEncodeError:
+    return UnicodeEncodeError(
+        err.encoding, err.object, err.start, err.end, f"{err.reason} in string {row}"
+    )
 
 
 def _bounded(value: object, name: str, top: int) -> int:

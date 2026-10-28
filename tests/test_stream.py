@@ -101,3 +101,13 @@ def test_a_slow_sink_slows_the_source():
     assert sink.next_row == 60_000
     task_rows = 4096  # chunk_bytes bounds the rows of a task well below this for these sentences
     assert state["most"] <= 2000 + 2 * 4 * task_rows
+
+
+def test_str_subclasses_are_sentences_and_report_their_row():
+    class Text(str):
+        pass
+
+    got = Pipeline(SPEC).infer(StreamSource([Text(s) for s in SENTENCES[:50]]))
+    assert got.tobytes() == WANT[:50].tobytes()
+    with pytest.raises(UnicodeEncodeError, match=r"surrogates not allowed in string 3$"):
+        Pipeline(SPEC).infer(StreamSource([*SENTENCES[:3], Text("a \ud800")]))
