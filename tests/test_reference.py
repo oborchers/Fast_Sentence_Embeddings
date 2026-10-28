@@ -6,13 +6,11 @@ import pytest
 from fse._codes import quantize_into
 from fse._contract import OOV_TOKEN, Batch, Normalize, Project, RemoveComponents
 from fse._reference import (
-    accumulate,
     cosine,
     dequantize,
     dot16,
     fma32,
     inverse_norms,
-    pool_groups,
     pool_weighted_mean,
     postprocess,
     quantize_rows,
@@ -302,29 +300,6 @@ def test_pool_reports_overflow_with_the_row():
     scales = np.array([2], dtype=F32)
     with pytest.raises(ValueError, match="row 5 contains NaN or infinite"):
         pool_weighted_mean(_batch([[0]], first_row=5), vectors, weights, scales)
-
-
-def test_group_mode():
-    rng = np.random.default_rng(11)
-    vectors = rng.standard_normal((20, 7)).astype(F32)
-    weights = rng.random(20).astype(F32)
-    sentences = [[1, 2], [], [3], [4, 5, 6], [], [], [7]]
-    batch = _batch(sentences)
-    groups = np.array([0, 1, 4, 6, 7], dtype=np.int64)
-    rows = pool_weighted_mean(batch, vectors, weights)
-    got = pool_groups(batch, groups, vectors, weights)
-    # A group of one sentence is that sentence's row, bit for bit.
-    assert bits(got[0]).tolist() == bits(rows[0]).tolist()
-    # Empty sentences before the first tokens contribute nothing.
-    accs = [pool_weighted_mean(_batch([s]), vectors, weights) for s in sentences]
-    acc, _ = accumulate(batch, vectors, weights)
-    expected = F32(F32(1) / F32(1)) * acc[2]
-    expected = fma32(F32(F32(1) / F32(3)), acc[3], expected)
-    np.testing.assert_array_equal(bits(got[1]), bits(expected))
-    # The fma is not the sum of rounded means.
-    assert not np.array_equal(bits(got[1]), bits(accs[2][0] + accs[3][0]))
-    np.testing.assert_array_equal(bits(got[2]), 0)  # only empty sentences
-    assert bits(got[3]).tolist() == bits(rows[6]).tolist()
 
 
 def test_scores_and_cosine():
