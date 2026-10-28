@@ -204,3 +204,31 @@ def test_inputs_are_converted_as_the_contract_whatever_the_rounding_of_the_threa
     np.testing.assert_array_equal(got.ids, want.ids)
     np.testing.assert_array_equal(bits(got.scores), bits(want.scores))
     np.testing.assert_array_equal(bits(got_score), bits(want_score))
+
+
+def test_a_store_cannot_be_closed_while_it_is_searched(tmp_path, monkeypatch):
+    import threading
+
+    path = _store(tmp_path, "float32", texts(50))[0]
+    entered, release = threading.Event(), threading.Event()
+    query = np.ones(ENCODER.output_dim, F32)
+    with fse.VectorStore.open(path) as store:
+        real = store._backend.cosines
+
+        def cosines(*args):
+            entered.set()
+            release.wait(10)  # the search holds the store here
+            return real(*args)
+
+        monkeypatch.setattr(store._backend, "cosines", cosines)
+        found = []
+        search = threading.Thread(target=lambda: found.append(store.search(query, k=3)))
+        search.start()
+        assert entered.wait(10)
+        with pytest.raises(RuntimeError, match="being searched"):
+            store.close()
+        release.set()
+        search.join(10)
+        assert len(found) == 1
+    with pytest.raises(RuntimeError, match="closed"):
+        store.search(query)

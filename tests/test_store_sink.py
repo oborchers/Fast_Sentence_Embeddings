@@ -5,6 +5,7 @@ import os
 import numpy as np
 import pytest
 
+import fse
 from fse import _reference
 from fse._container import NpyContainer
 from fse._store import ShardSink
@@ -234,4 +235,43 @@ def test_reserving_many_small_shards_opens_no_file(tmp_path):
     del target
     sink.close()  # drops the rows never committed
     assert sink.durable_rows == 0
+    assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]
+
+
+def test_two_writers_meet_at_the_rename_and_one_wins(tmp_path, monkeypatch):
+    import threading
+
+    from fse._store import _shard
+
+    with ShardSink(tmp_path / "s", ENCODER) as sink:
+        ENCODER.encode(texts(5), sink=sink)
+    meet, real = threading.Barrier(2, timeout=10), _shard.publish_directory
+    seen = []
+
+    def publish(tmp, path):
+        meet.wait()  # both shards are written and synced; both rename now
+        before = len(fse.VectorStore.open(tmp_path / "s"))
+        real(tmp, path)
+        seen.append((before, len(fse.VectorStore.open(tmp_path / "s"))))
+
+    monkeypatch.setattr(_shard, "publish_directory", publish)
+    errors = []
+
+    def append(seed):
+        try:
+            with ShardSink(tmp_path / "s", ENCODER, shard_rows=16) as sink:
+                ENCODER.encode(texts(16, seed=seed), sink=sink)
+        except FileExistsError as error:
+            errors.append(error)
+
+    threads = [threading.Thread(target=append, args=(s,)) for s in (7, 8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(30)
+    assert len(errors) == 1  # exactly one writer published shard-5
+    assert seen == [(5, 21)]  # a reader sees the shard whole or not at all
+    codes, _, _, found = _store_rows(tmp_path / "s", "float32")
+    assert [(s.first_row, s.rows) for s in found] == [(0, 5), (5, 16)]
+    assert any(np.array_equal(codes[5:], _want("float32", texts(16, seed=s))[0]) for s in (7, 8))
     assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]
