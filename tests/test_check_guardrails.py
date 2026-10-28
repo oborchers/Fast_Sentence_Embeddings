@@ -105,6 +105,8 @@ def _fse_tree(tmp_path, files):
     return {
         "native-imports": ["fse._contract"],
         "native-importers": ["src/fse/_text.py"],
+        "hash-importers": ["src/fse/_container/_hash.py"],
+        "hash-modules": ["hashlib", "xxhash"],
         "untested-modules": [],
         "forbidden": ["gensim", "scipy", "torch"],
     }
@@ -127,6 +129,25 @@ def test_native_import_rules(tool, tmp_path):
     assert any("imports torch" in e for e in errors)
     assert any("_other.py imports fse._native" in e for e in errors)
     assert any("_deep.py imports fse._native" in e for e in errors)
+
+
+def test_only_the_harness_imports_a_hash_library(tool, tmp_path):
+    cfg = _fse_tree(
+        tmp_path,
+        {
+            "src/fse/_container/_hash.py": "import hashlib\nimport xxhash\n",
+            "src/fse/_container/_npy.py": "from . import _hash\n",
+            "src/fse/_wordvectors.py": "import hashlib\n",
+            "src/fse/_sub/_deep.py": "from xxhash import xxh3_128 as h\n",
+            "src/fse/_native_part.pxi": "from hashlib import sha256\n",
+            "src/fse/_note.py": '"""import hashlib"""\nhashlibrary = 1\n',
+        },
+    )
+    errors = tool["hash_import_errors"](tmp_path, cfg)
+    assert len(errors) == 3, errors
+    assert any("_wordvectors.py imports hashlib" in e for e in errors)
+    assert any("_deep.py imports xxhash" in e for e in errors)
+    assert any("_native_part.pxi imports hashlib" in e for e in errors)
 
 
 def test_every_module_needs_a_test_file(tool, tmp_path):
