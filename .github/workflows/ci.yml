@@ -53,6 +53,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
         deps: ["latest"]
+        # A pull request tests macOS on 3.13 only: its wheel jobs test 3.11 and 3.15 on
+        # Apple silicon and Intel, and macOS runners are scarce. master and tags test all.
+        exclude: ${{ github.event_name == 'pull_request' && fromJSON('[{"os":"macos-latest","python-version":"3.11"},{"os":"macos-latest","python-version":"3.12"},{"os":"macos-latest","python-version":"3.14"},{"os":"macos-latest","python-version":"3.15"}]') || fromJSON('[]') }}
         include:
           # Lowest supported versions, matching the bounds in pyproject.toml.
           - os: ubuntu-latest
@@ -183,6 +186,10 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
       - uses: pypa/cibuildwheel@b9e566a2b284570af229f6c2a33673410d0389a3  # v4.3.4
+        env:
+          # A pull request builds every wheel but tests those of the oldest and the newest
+          # Python; the test jobs cover the versions between. master and tags test all.
+          CIBW_TEST_SKIP: ${{ github.event_name == 'pull_request' && 'cp312-* cp313-* cp314-*' || '' }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: dist-wheels-${{ matrix.os }}
