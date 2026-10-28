@@ -158,9 +158,8 @@ def check_queries(backend: Any, queries: ndarray) -> None:
 def _blas_cosines(stored: ndarray, inverse: ndarray, unit: ndarray) -> ndarray:
     with np.errstate(over="ignore", invalid="ignore"):
         scores = (np.asarray(stored, F32) @ unit.T) * inverse[:, None]
-    bad = np.argwhere(~np.isfinite(scores.T))  # (query, row) order, as the kernel names it
-    if len(bad):
-        query, row = bad[0]
+    if not np.isfinite(scores).all():
+        query, row = np.argwhere(~np.isfinite(scores.T))[0]  # (query, row), as the kernel
         raise ValueError(f"query {query}: the cosine of row {row} is not finite")
     return scores
 
