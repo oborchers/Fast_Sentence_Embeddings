@@ -76,19 +76,33 @@ def query_blocks(n_queries: int) -> list[slice]:
     return [slice(b, min(n_queries, b + _QUERY_BLOCK)) for b in range(0, n_queries, _QUERY_BLOCK)]
 
 
+def order_key(values: ndarray) -> ndarray:
+    """int32 keys in the order of the float32 ``values`` (finite or infinite), -0.0 equal to
+    0.0: integer comparisons, whatever flushing or rounding the thread set, keep every
+    subnormal score apart from zero."""
+    bits = np.ascontiguousarray(values, F32).view(np.int32)
+    bits = np.where(bits == np.int32(-(2**31)), np.int32(0), bits)  # -0.0 is 0.0
+    return bits ^ ((bits >> 31) & np.int32(0x7FFFFFFF))
+
+
+LOWEST = int(order_key(np.array([-np.inf], F32))[0])
+
+
 def best(
     scores: ndarray, first_row: int, k: int, floor: ndarray
 ) -> tuple[ndarray, ndarray, ndarray]:
     """The candidates of every query column of ``scores`` (rows, queries) for its best
-    ``k``, given its ``floor``: at most ``min(k, rows)`` per query, the best of the block
-    at or above the floor. Returns their queries (column), scores and store rows, flat."""
+    ``k``, given its ``floor`` (an order_key): at most ``min(k, rows)`` per query, the
+    best of the block at or above the floor. Returns their queries (column), scores and
+    store rows, flat."""
     n, q = scores.shape
     kept = min(k, n)
+    keys = order_key(scores)
     floor = floor.copy()
-    mask = scores >= floor
+    mask = keys >= floor
     over = np.flatnonzero(np.count_nonzero(mask, axis=0) > kept)
     if len(over):  # the floor keeps too many: rise to the kept-th best of the block
-        sub = scores[:, over]
+        sub = keys[:, over]
         floor[over] = np.maximum(floor[over], np.partition(sub, n - kept, axis=0)[n - kept])
         mask[:, over] = sub >= floor[over]
     flat = np.flatnonzero(mask)
@@ -96,7 +110,7 @@ def best(
     rows, queries = np.divmod(flat[order], q)
     values = scores.reshape(-1)[flat[order]]
     # Rows equal to the floor beyond the kept ones: the smaller rows stay.
-    equal = values == floor[queries]
+    equal = keys.reshape(-1)[flat[order]] == floor[queries]
     above = np.bincount(queries[~equal], minlength=len(floor))
     before = np.cumsum(equal) - equal
     rank = before - before[np.searchsorted(queries, queries)] + 1
@@ -106,12 +120,12 @@ def best(
 
 class Candidates:
     """The candidates of every query so far, merged down to its best ``k`` once they
-    outgrow the merged ones; ``floor`` is the k-th best score of every query (-inf before
-    it has ``k``)."""
+    outgrow the merged ones; ``floor`` is the order_key of the k-th best score of every
+    query (of -inf before it has ``k``)."""
 
     def __init__(self, n_queries: int, k: int):
         self.k = k
-        self.floor = np.full(n_queries, -np.inf, F32)
+        self.floor = np.full(n_queries, LOWEST, np.int32)
         self._merged = (np.empty(0, np.int64), np.empty(0, F32), np.empty(0, np.int64))
         self._pending: list[tuple[ndarray, ndarray, ndarray]] = []
         self._size = 0
@@ -127,14 +141,15 @@ class Candidates:
         queries, values, ids = (
             np.concatenate(part) for part in zip(self._merged, *self._pending, strict=True)
         )
-        order = np.lexsort((ids, -values.astype(np.float64), queries))
-        queries, values, ids = queries[order], values[order], ids[order]
+        keys = order_key(values)
+        order = np.lexsort((ids, -keys.astype(np.int64), queries))
+        queries, values, ids, keys = queries[order], values[order], ids[order], keys[order]
         rank = np.arange(len(queries)) - np.searchsorted(queries, queries)
         keep = rank < self.k
         self._merged = queries[keep], values[keep], ids[keep]
         last = rank == self.k - 1
         floor = self.floor.copy()
-        floor[queries[last]] = values[last]
+        floor[queries[last]] = keys[last]
         self.floor = floor  # a new array: tasks that read the old one keep it
         self._pending, self._size = [], 0
 
