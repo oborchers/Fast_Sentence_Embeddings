@@ -6,7 +6,6 @@ import pytest
 from fse._codes import quantize_into
 from fse._contract import OOV_TOKEN, Batch, Normalize, Project, RemoveComponents
 from fse._reference import (
-    accumulate,
     cosine,
     dequantize,
     dot16,
