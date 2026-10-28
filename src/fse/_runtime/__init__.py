@@ -11,7 +11,7 @@ Pipeline; the public entry points come with it.
 """
 
 from ._pipeline import Pipeline
-from ._sinks import ArrayRows, GramSink, GrowingRows, Sink
+from ._sinks import ArrayRows, GramSink, GrowingRows, Sink, Stored
 from ._spec import EncodeSpec
 
-__all__ = ["ArrayRows", "EncodeSpec", "GramSink", "GrowingRows", "Pipeline", "Sink"]
+__all__ = ["ArrayRows", "EncodeSpec", "GramSink", "GrowingRows", "Pipeline", "Sink", "Stored"]
