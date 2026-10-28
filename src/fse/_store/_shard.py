@@ -4,27 +4,31 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""One shard being written: rows reserved and mapped for the workers, committed in order,
-then published whole (ARCHITECTURE.md, "sentence_vectors 1").
+"""One shard being written: rows reserved for the workers, committed in order, then
+published whole (ARCHITECTURE.md, "sentence_vectors 1").
 
 A shard is written in a temporary directory ``.shard-<first row>.writing-<hex>`` of the
-store: ``vectors.npy`` has the header of the full shard and is allocated and mapped range
-by range as rows are reserved; the scales and inverse norms are kept in memory. Every
-commit feeds the sha256 of the vectors (they arrive in row order). Finishing closes the
-mappings (no view of them may be left), shrinks a shard that ends early, syncs the file,
-writes the scales, the inverse norms and the manifest, and renames the directory into
-place without replacing anything. Until then the rows are not durable; ``abort`` removes
-the temporary directory.
+store. The worker of a task writes its rows into a buffer of the task (the window of the
+runtime bounds them); its commit writes them into ``vectors.npy`` at their offset
+(``pwrite``, so a full disk raises an OSError there) and feeds the sha256 of the vectors,
+in row order. The scales and inverse norms are kept in memory. Finishing shrinks a shard
+that ends early, syncs the file, writes the scales, the inverse norms and the manifest,
+and renames the directory into place without replacing anything. Until then the rows are
+not durable; ``abort`` removes the temporary directory.
+
+Writing through a mapping of the file instead (the first design) cost about half the
+throughput: page faults on fresh file pages and a mapping per task (``bench_store.py``,
+M1 Pro, int8 at 10 workers: 1.04 against 1.96 million rows per second).
 """
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import os
 import secrets
 import shutil
-from collections import deque
+import threading
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -34,14 +38,7 @@ from numpy.lib import format as npy_format
 from fse import _codes
 from fse._container import tensor_code
 from fse._container._npy import write_manifest
-from fse._container._npy_mapped import (
-    allocate,
-    create,
-    map_range,
-    publish_directory,
-    shrink,
-    sync_file,
-)
+from fse._container._npy_inplace import create, publish_directory, shrink, sync_file, write_at
 
 from ._layout import StoreInfo, shard_metadata, shard_name
 
@@ -68,11 +65,14 @@ class ShardWriter:
             raise
         self.scales = np.empty(capacity, np.float32) if info.dtype == "int8" else None
         self.norms = np.empty(capacity, np.float32)
-        self.reserved = self.committed = 0
+        self.reserved = self.committed = self.written = 0
+        self._written_rows = threading.Condition()
+        # Rows handed to the writer thread of the sink to commit; kept by the calling thread,
+        # while ``committed`` is kept by the thread that commits.
+        self.queued = 0
         self.end = capacity  # sealed earlier by seal()
         self.digest = hashlib.sha256()
-        self._maps: deque = deque()  # (end row, mapping) of committed ranges, to close
-        self._open: dict[int, tuple] = {}  # first row in the shard -> (mapping, codes)
+        self._open: dict[int, ndarray] = {}  # first row in the shard -> the codes reserved
 
     @property
     def full(self) -> bool:
@@ -83,97 +83,75 @@ class ShardWriter:
         return self.committed == self.end
 
     def reserve(self, n_rows: int) -> tuple[ndarray, ndarray | None, ndarray]:
-        """Codes (mapped), scales and inverse norms of the next ``n_rows`` rows. A full
-        disk raises an OSError before anything is mapped."""
+        """Codes (a buffer of the task), scales and inverse norms of the next ``n_rows``."""
         begin, end = self.reserved, self.reserved + n_rows
         if end > self.end:
             raise ValueError(f"rows {begin} to {end} beyond the {self.end} rows of the shard")
-        allocate(self.fd, self.offset + begin * self.row_bytes, self.offset + end * self.row_bytes)
-        mapping, codes = map_range(
-            self.fd,
-            self.offset,
-            begin * self.row_bytes,
-            end * self.row_bytes,
-            self.dtype,
-            (n_rows, self.info.dim),
-        )
-        self._open[begin] = (mapping, codes)
+        codes = np.empty((n_rows, self.info.dim), self.dtype)
+        self._open[begin] = codes
         self.reserved = end
         scales = None if self.scales is None else self.scales[begin:end]
         return codes, scales, self.norms[begin:end]
 
     def commit(self, begin: int, codes: ndarray) -> None:
         """The rows from ``begin`` (in the shard), which must be the codes reserved there,
-        are finished."""
+        are finished: written into the file and hashed."""
         if begin != self.committed or begin not in self._open:
             raise ValueError(
                 f"rows from {begin} of the shard committed, expected rows from {self.committed}"
             )
-        mapping, reserved = self._open[begin]
-        if codes is not reserved and not (
-            isinstance(codes, ndarray)
-            and codes.shape == reserved.shape
-            and codes.__array_interface__["data"][0] == reserved.__array_interface__["data"][0]
-        ):
+        if codes is not self._open[begin]:
             raise ValueError(f"the rows from {begin} are not the target reserved for them")
+        self.digest.update(memoryview(codes).cast("B"))
         del self._open[begin]  # only once the commit is checked
-        self.digest.update(memoryview(np.ascontiguousarray(codes)).cast("B"))
         self.committed += len(codes)
-        del reserved, codes
-        self._maps.append(mapping)
-        self.release()
 
-    def release(self) -> None:
-        """Close the mappings of committed rows that no view holds any more, so the pages
-        of finished rows leave the process."""
-        while self._maps:
-            try:
-                self._maps[0].close()
-            except BufferError:  # a view is still held (the executor's last item)
-                return
-            self._maps.popleft()
+    def write(self, begin: int, codes: ndarray) -> None:
+        """Write the committed rows from ``begin`` (in the shard) into the file; positional,
+        so it may run in another thread than ``commit``."""
+        write_at(self.fd, memoryview(codes).cast("B"), self.offset + begin * self.row_bytes)
+        with self._written_rows:
+            self.written += len(codes)
+            self._written_rows.notify_all()
 
-    def can_finish(self) -> bool:
-        """Whether every row is committed and no view of the mappings is left."""
-        if not self.done:
-            return False
-        self.release()
-        return not self._maps
+    def wait_written(self, failed: Callable[[], bool]) -> None:
+        """Wait until every committed row is written; raise if the writing thread failed."""
+        with self._written_rows:
+            while self.written < self.committed:
+                if failed():
+                    raise RuntimeError(
+                        "the rows of the shard were not written; it is not published"
+                    )
+                self._written_rows.wait(0.05)
+
+    @property
+    def queued_all(self) -> bool:
+        """Whether every row of the shard was handed over to be committed."""
+        return self.queued == self.end
 
     def drop_uncommitted(self) -> None:
-        """End the shard at its committed rows: the reserved rows after them are dropped
-        (their views must be gone)."""
-        for begin in [b for b in self._open if b >= self.committed]:
-            mapping, _ = self._open.pop(begin)
-            self._maps.append(mapping)
-        self.reserved = self.end = self.committed
+        """End the shard at its committed rows: the reserved rows after them are dropped."""
+        self._open.clear()
+        self.reserved = self.end = self.queued = self.committed
 
     def seal(self) -> None:
         """End the shard at the rows reserved so far."""
         self.end = self.reserved
 
-    def finish(self) -> int:
-        """Publish the committed rows (all reserved rows must be committed); returns them."""
+    def finish(self, failed: Callable[[], bool] = lambda: False) -> int:
+        """Publish the committed rows (all reserved rows must be committed) once they are
+        written (``failed`` says whether the writing stopped); returns them."""
         if self.committed != self.reserved:
             raise RuntimeError(f"{self.reserved - self.committed} reserved rows were not committed")
-        self.release()
-        if self._maps:
-            raise RuntimeError(
-                "a view of the rows of the shard is still in use; it cannot be published"
-            )
+        self.wait_written(failed)
         rows = self.committed
         if rows != self.capacity:
             shrink(self.fd, self.offset, self.dtype, (rows, self.info.dim))
         sync_file(self.fd)
         os.close(self.fd)
         self.fd = -1
-        entries = {
-            "vectors": (
-                tensor_code(np.empty(0, self.dtype)),
-                (rows, self.info.dim),
-                self.digest.hexdigest(),
-            )
-        }
+        code = tensor_code(np.empty(0, self.dtype))
+        entries = {"vectors": (code, (rows, self.info.dim), self.digest.hexdigest())}
         extra = {"inv_norms": self.norms[:rows]}
         if self.scales is not None:
             extra["scales"] = self.scales[:rows]
@@ -184,24 +162,17 @@ class ShardWriter:
                 _write(self.tmp / f"{name}.npy", array),
             )
         metadata = shard_metadata(self.info, self.first_row, rows, self.created_by)
-        write_manifest(
-            self.tmp,
-            entries,
-            metadata,
-            self.tmp / f".manifest.json.writing-{secrets.token_hex(4)}",
-            sync_file,
-        )
+        manifest_tmp = self.tmp / f".manifest.json.writing-{secrets.token_hex(4)}"
+        write_manifest(self.tmp, entries, metadata, manifest_tmp, sync_file)
         publish_directory(self.tmp, self.store / shard_name(self.first_row))
+        # A long stream keeps no arrays of published shards.
+        self.norms = np.empty(0, np.float32)
+        self.scales = None if self.scales is None else np.empty(0, np.float32)
         return rows
 
     def abort(self) -> None:
-        """Drop the shard: its views must be gone; removes the temporary directory."""
+        """Drop the shard: removes the temporary directory."""
         self._open.clear()
-        self.release()
-        for mapping in self._maps:
-            with contextlib.suppress(BufferError):  # a view outlives the run: the OS frees it
-                mapping.close()
-        self._maps.clear()
         if self.fd >= 0:
             os.close(self.fd)
             self.fd = -1

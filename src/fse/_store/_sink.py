@@ -6,21 +6,19 @@
 
 """``fse.ShardSink``: the rows of an encoder written straight into the shards of a store.
 
-The worker of a task writes its rows into a mapped range of the current shard (stage 5
-and the inverse norms in the worker); a task that crosses the end of a shard gets arrays
-of its own, copied into the shards at its commit. A shard whose rows are all committed is
-published at the next call of the sink once no view of its mappings is left (at the
-latest at ``flush``), and only then ``durable_rows`` grows: a stream confirms its input up
-to there. After an error the committed rows are published and the rest is dropped.
+The worker of a task writes its rows into a buffer of the task (stage 5 and the inverse
+norms in the worker); its commit writes them into the current shard at their offset. A
+task that crosses the end of a shard is split over the shards at its commit. A shard
+whose rows are all committed is published at once, and only then ``durable_rows`` grows:
+a stream confirms its input up to there. After an error the committed rows are published
+and the rest is dropped.
 """
 
 from __future__ import annotations
 
-import traceback
 from collections import deque
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from types import TracebackType
 from typing import Any, Literal
 
 import numpy as np
@@ -32,6 +30,7 @@ from fse._validation import PositiveInt, validate_arguments
 
 from ._layout import StoreInfo, create_store, read_store, shards
 from ._shard import ShardWriter
+from ._writer import WriterThread
 
 # Shards hold whole multiples of this many rows by default, and at most this many bytes
 # of vectors or rows.
@@ -89,20 +88,26 @@ class ShardSink:
         self.dim, self.dtype, self.encoder = info.dim, dtype, info.encoder
         self.shard_rows = shard_rows or default_shard_rows(info.dim, dtype)
         self.reserved_rows = self.committed_rows = self.durable_rows = 0
-        self._writers: deque[ShardWriter] = deque()
+        self._writers: deque[ShardWriter] = deque()  # shards still taking rows
+        self._made: set[ShardWriter] = set()  # shards of the run not yet published
         self._targets: dict[int, tuple[list, tuple | None]] = {}  # run row -> parts, own
         self._closed = False
         self._created_by = _created_by()
+        # Hashing (in order), writing and publishing (syncs, a rename) in three threads, so
+        # the flush of one shard does not stop the hashing and writing of the next.
+        self._hash = WriterThread("fse-shard-hash")
+        self._io = WriterThread("fse-shard-write")
+        self._publisher = WriterThread("fse-shard-publish")
 
     # --- the sink protocol, in the calling thread -------------------------------------
 
     def target(self, first_row: int, n_rows: int) -> tuple[ndarray, ...]:
         self._check_open()
+        self._check_threads()  # a failed write first: no row after it is taken
         if first_row != self.reserved_rows:
             raise ValueError(
                 f"rows from {first_row} reserved, expected rows from {self.reserved_rows}"
             )
-        self._publish_ready()
         parts = []
         left = n_rows
         while left:
@@ -120,6 +125,7 @@ class ShardSink:
 
     def commit(self, first_row: int, rows: Any) -> None:
         self._check_open()
+        self._check_threads()
         if first_row != self.committed_rows or first_row not in self._targets:
             raise ValueError(
                 f"rows from {first_row} committed, expected rows from {self.committed_rows}"
@@ -141,16 +147,17 @@ class ShardSink:
                     scales[...] = own[1][offset : offset + n]
                 norms[...] = own[2][offset : offset + n]
                 offset += n
-            writer.commit(begin, codes)
+            writer.queued += len(codes)
+            self._hash.submit(writer.commit, begin, codes, nbytes=codes.nbytes)
+            self._io.submit(writer.write, begin, codes, nbytes=codes.nbytes)
             self.committed_rows += len(codes)
-        del parts, own, given, expected, codes, scales, norms
         self._publish_ready()
 
     # --- durability --------------------------------------------------------------------
 
     def seal(self) -> None:
         """End the current shard at the rows reserved so far; it is published once they
-        are committed and no view of them is left."""
+        are committed."""
         self._check_open()
         if self._writers and not self._writers[-1].full:
             writer = self._writers[-1]
@@ -160,9 +167,11 @@ class ShardSink:
                 writer.seal()
 
     def publish(self) -> int:
-        """Publish every shard whose rows are all committed; returns ``durable_rows``."""
+        """Publish every shard whose rows are all committed and wait for it; returns
+        ``durable_rows``."""
         self._check_open()
         self._publish_ready()
+        self._drain()
         return self.durable_rows
 
     def flush(self) -> int:
@@ -175,10 +184,7 @@ class ShardSink:
             )
         self.seal()
         self._publish_ready()
-        if self._writers:
-            raise RuntimeError(
-                "a view of the rows of a shard is still in use; nothing more was published"
-            )
+        self._drain()
         return self.durable_rows
 
     def close(self) -> None:
@@ -186,23 +192,42 @@ class ShardSink:
         if self._closed:
             return
         try:
-            self._abort_uncommitted()
+            self._settle()  # the rows handed over are written, unless a thread failed
+            if not self._failed():  # else nothing more is published
+                self._abort_uncommitted()
+                self._drain()
         finally:
-            for writer in self._writers:
+            self._hash.stop()  # first: it hands finished shards to the publisher
+            self._io.stop()
+            self._publisher.stop()
+            for writer in list(self._made):  # what was not published
                 writer.abort()
             self._writers.clear()
+            self._made.clear()
             self._closed = True
 
     def __enter__(self) -> ShardSink:
         return self
 
-    def __exit__(self, *exc: object) -> None:
-        tb = exc[2]
-        if isinstance(tb, TracebackType):
-            traceback.clear_frames(tb)  # the frames of the run may hold views of the shards
+    def __exit__(self, *_exc: object) -> None:
         self.close()
 
     # --- internals ---------------------------------------------------------------------
+
+    def _check_threads(self) -> None:
+        for thread in (self._hash, self._io, self._publisher):
+            thread.check()
+
+    def _drain(self) -> None:
+        for thread in (self._hash, self._io, self._publisher):  # hash hands on to publisher
+            thread.drain()
+
+    def _settle(self) -> None:
+        for thread in (self._hash, self._io, self._publisher):
+            thread.settle()
+
+    def _failed(self) -> bool:
+        return any(t.failed for t in (self._hash, self._io, self._publisher))
 
     def _check_open(self):
         if self._closed:
@@ -211,9 +236,9 @@ class ShardSink:
     def _writable(self) -> ShardWriter:
         if not self._writers or self._writers[-1].full:
             store_row = self.first_row + self.reserved_rows
-            self._writers.append(
-                ShardWriter(self.path, self.info, store_row, self.shard_rows, self._created_by)
-            )
+            writer = ShardWriter(self.path, self.info, store_row, self.shard_rows, self._created_by)
+            self._writers.append(writer)
+            self._made.add(writer)
         return self._writers[-1]
 
     def _own(self, n_rows: int) -> tuple:
@@ -222,19 +247,27 @@ class ShardSink:
         return codes, scales, np.empty(n_rows, np.float32)
 
     def _publish_ready(self) -> None:
-        while self._writers and self._writers[0].can_finish():
-            writer = self._writers[0]
-            try:
-                rows = writer.finish()
-            except FileExistsError:
-                self._writers.popleft().abort()
-                raise FileExistsError(
-                    f"another writer appended to {self.path} at row {writer.first_row} first; "
-                    f"this run published its first {self.durable_rows} rows (rows "
-                    f"{self.first_row} to {self.first_row + self.durable_rows - 1} of the store)"
-                ) from None
-            self._writers.popleft()
-            self.durable_rows += rows
+        """Hand every shard whose rows are all handed over to be published, in order."""
+        while self._writers and self._writers[0].queued_all:
+            # After its last hash, in order, the shard goes to the publisher.
+            self._hash.submit(self._publisher.submit, self._finish, self._writers.popleft())
+
+    def _finish(self, writer: ShardWriter) -> None:
+        """Publish ``writer`` (in the writer thread, after its commits)."""
+        try:
+            rows = writer.finish(lambda: self._io.failed)
+        except FileExistsError:
+            writer.abort()
+            raise FileExistsError(
+                f"another writer appended to {self.path} at row {writer.first_row} first; "
+                f"this run published its first {self.durable_rows} rows (rows "
+                f"{self.first_row} to {self.first_row + self.durable_rows - 1} of the store)"
+            ) from None
+        except BaseException:
+            writer.abort()
+            raise
+        self._made.discard(writer)
+        self.durable_rows += rows
 
     def _abort_uncommitted(self) -> None:
         """Publish the committed rows of every shard, end it there, drop the rest."""
@@ -249,11 +282,6 @@ class ShardSink:
         self._writers = kept
         self.reserved_rows = self.committed_rows
         self._publish_ready()
-        if self._writers:
-            raise RuntimeError(
-                "a view of the rows of a shard is still in use; its committed rows were not "
-                f"published (durable_rows {self.durable_rows})"
-            )
 
 
 def _flat(parts: tuple) -> tuple[ndarray, ...]:

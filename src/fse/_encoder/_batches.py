@@ -15,7 +15,6 @@ is read. With a sink, every batch is committed to it, numbered on from the rows 
 
 from __future__ import annotations
 
-import traceback
 from collections.abc import Iterable, Iterator
 from typing import Any, NamedTuple
 
@@ -55,14 +54,8 @@ def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int) -> str:
 
 
 def run_into(pipeline: Pipeline, source: Any, sink: Any, workers: Any, first_row: int) -> None:
-    """Commit the rows of ``source`` to ``sink`` from ``first_row``. After an error the
-    frames of the run are cleared before it propagates, so no view of a target outlives
-    it (a ShardSink then publishes its committed rows)."""
-    try:
-        pipeline.infer(source, workers=workers, sink=sink, first_row=first_row)
-    except BaseException as error:
-        traceback.clear_frames(error.__traceback__)
-        raise
+    """Commit the rows of ``source`` to ``sink`` from ``first_row``."""
+    pipeline.infer(source, workers=workers, sink=sink, first_row=first_row)
 
 
 def flush(sink: Any) -> None:

@@ -4,13 +4,13 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""Writing an NpyContainer artifact in place: a .npy file mapped by the workers that fill
-it, and the exclusive publication of a finished artifact directory.
+"""Writing an NpyContainer artifact in place: a .npy file written at the offsets of its
+rows, and the exclusive publication of a finished artifact directory.
 
 The ShardSink of fse._store writes the rows of a shard straight into its ``vectors.npy``:
-the file is created with the header of its full shape and preallocated range by range,
-so a full disk raises an OSError before a worker writes; a shard that ends early gets
-the header of its rows, padded to the same length, and is truncated. ``write_manifest``
+the file is created with the header of its full shape, the rows are written at their
+offsets as they are committed (a full disk raises an OSError there), and a shard that
+ends early gets the header of its rows, padded to the same length, and is truncated. ``write_manifest``
 of NpyContainer then commits the directory, and ``publish_directory`` renames it into
 place without ever replacing anything. Every step syncs as ``sync_file`` does: on macOS
 with F_FULLFSYNC, since fsync there does not reach the drive.
@@ -22,7 +22,6 @@ import ctypes
 import ctypes.util
 import importlib
 import io
-import mmap
 import os
 import sys
 from pathlib import Path
@@ -35,8 +34,6 @@ from ._common import ALIGNMENT, _sync_directory
 
 # fcntl for F_FULLFSYNC; Windows has none.
 _fcntl: ModuleType | None = None if os.name == "nt" else importlib.import_module("fcntl")
-
-_ZEROS = bytes(1 << 20)
 
 
 def header(dtype: np.dtype, shape: tuple[int, ...], length: int | None = None) -> bytes:
@@ -61,7 +58,8 @@ def header(dtype: np.dtype, shape: tuple[int, ...], length: int | None = None) -
 
 def create(file: Path, dtype: np.dtype, shape: tuple[int, ...]) -> tuple[int, int]:
     """A new file ``file`` (never an existing one) with the header of ``shape`` and the
-    size of all its data, not yet allocated. Returns the descriptor and the data offset."""
+    size of all its data (sparse until written). Returns the descriptor and the offset of
+    the data."""
     head = header(dtype, shape)
     nbytes = int(np.prod(shape, dtype=np.int64)) * np.dtype(dtype).itemsize
     flags = (
@@ -81,49 +79,23 @@ def create(file: Path, dtype: np.dtype, shape: tuple[int, ...]) -> tuple[int, in
     return fd, len(head)
 
 
-def allocate(fd: int, begin: int, end: int) -> None:
-    """Allocate the bytes [begin, end) of the file on disk, so writing them through a
-    mapping cannot fail for lack of space: posix_fallocate where the system has it, else
-    zeros written in place. A full disk raises an OSError here."""
-    if end <= begin:
-        return
-    fallocate = getattr(os, "posix_fallocate", None)
-    if fallocate is not None and sys.platform.startswith("linux"):
-        try:
-            fallocate(fd, begin, end - begin)
-            return
-        except OSError as err:
-            if err.errno not in (95, 22):  # EOPNOTSUPP, EINVAL: the filesystem cannot
-                raise
-    position = begin
-    while position < end:
-        position += _write_at(fd, _ZEROS[: min(len(_ZEROS), end - position)], position)
-
-
-def _write_at(fd: int, data: bytes, position: int) -> int:
-    """os.pwrite, or a seek and a write where it is missing (Windows)."""
-    if hasattr(os, "pwrite"):
-        return os.pwrite(fd, data, position)
-    os.lseek(fd, position, os.SEEK_SET)  # pragma: no cover - Windows only
-    return os.write(fd, data)  # pragma: no cover - Windows only
-
-
-def map_range(fd: int, offset: int, begin: int, end: int, dtype: np.dtype, shape: tuple[int, ...]):
-    """A writable mapping of the data bytes [begin, end) (from the data offset) and the
-    array of ``shape`` over it. Close the mapping only when no view of the array is left."""
-    start = offset + begin
-    aligned = start - start % mmap.ALLOCATIONGRANULARITY
-    mapping = mmap.mmap(fd, offset + end - aligned, offset=aligned, access=mmap.ACCESS_WRITE)
-    array = np.frombuffer(
-        mapping, dtype=dtype, count=int(np.prod(shape, dtype=np.int64)), offset=start - aligned
-    )
-    return mapping, array.reshape(shape)
+def write_at(fd: int, data: memoryview, position: int) -> None:
+    """Write all of ``data`` at ``position``: os.pwrite may write less, so it loops; a seek
+    and a write where pwrite is missing (Windows). A full disk raises an OSError."""
+    view = memoryview(data).cast("B")
+    while len(view):
+        if hasattr(os, "pwrite"):
+            n = os.pwrite(fd, view, position)
+        else:  # pragma: no cover - Windows only
+            os.lseek(fd, position, os.SEEK_SET)
+            n = os.write(fd, view)
+        view, position = view[n:], position + n
 
 
 def shrink(fd: int, offset: int, dtype: np.dtype, shape: tuple[int, ...]) -> None:
     """Give the file the header of its first rows ``shape``, padded to the same data
-    offset, and cut it after their data. No mapping of the file may be open."""
-    _write_at(fd, header(dtype, shape, offset), 0)
+    offset, and cut it after their data."""
+    write_at(fd, memoryview(header(dtype, shape, offset)), 0)
     os.ftruncate(fd, offset + int(np.prod(shape, dtype=np.int64)) * np.dtype(dtype).itemsize)
 
 

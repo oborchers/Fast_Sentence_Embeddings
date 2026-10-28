@@ -29,7 +29,7 @@ from numpy import ndarray
 
 from fse._container import CREATED_BY_KEY, INTEGER, CorruptArtifactError, NpyContainer
 from fse._container._common import _open_regular, _strict_json
-from fse._container._npy_mapped import publish_directory, sync_file
+from fse._container._npy_inplace import publish_directory, sync_file
 from fse._contract import UnsupportedArtifactError
 
 STORE_FILE = "store.json"

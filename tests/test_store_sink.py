@@ -148,3 +148,20 @@ def test_a_wrong_commit_changes_nothing(tmp_path):
         sink.commit(0, target)  # the reservation is still there
         del target
         assert sink.flush() == 5
+
+
+def test_after_a_failed_write_the_sink_takes_no_more_rows(tmp_path, monkeypatch):
+    from fse._store import _shard
+
+    def full(*_args):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(_shard, "write_at", full)
+    sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=64)
+    with pytest.raises(OSError, match="No space left"):
+        ENCODER.encode(texts(300), workers=2, sink=sink)
+    with pytest.raises(RuntimeError, match="failed earlier"):
+        ENCODER.encode(texts(10), sink=sink)
+    sink.close()  # no second error; nothing more is published
+    assert sink.durable_rows == 0
+    assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]
