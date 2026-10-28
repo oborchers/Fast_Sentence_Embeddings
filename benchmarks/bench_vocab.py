@@ -248,21 +248,31 @@ def _threaded(table, path: Path, threads: int, repeats: int) -> dict:
     lookup = _native.TextLookup(table, "fse_words@1")
     parts = [scan.chunks[k::threads] for k in range(threads)]
 
-    def work(chunks):
+    def work(chunks, keep=False):
         ws = _native.Workspace()
-        tokens = 0
+        tokens, batches = 0, []
         for chunk in chunks:
-            source.encode(chunk, lookup, ws)
+            batch = source.encode(chunk, lookup, ws)
             tokens += ws.tokens_seen
-        return tokens
+            if keep:
+                batches.append(batch)
+        return tokens, batches
 
-    times, tokens = [], 0
     with ThreadPoolExecutor(threads) as pool:
-        for _ in range(repeats + 1):
+        # The ids once, outside the timer, in the order of the source.
+        kept = [b for _, part in pool.map(lambda p: work(p, keep=True), parts) for b in part]
+        digest = _ids_digest(sorted(kept, key=lambda b: b.first_row))
+        del kept
+        times, tokens = [], 0
+        for _ in range(repeats):
             start = time.perf_counter()
-            tokens = sum(pool.map(work, parts))
+            tokens = sum(t for t, _ in pool.map(work, parts))
             times.append(time.perf_counter() - start)
-    return {"threads": threads, "ns_per_token": statistics.median(times[1:]) / tokens * 1e9}
+    return {
+        "tokens": tokens,
+        "ns_per_token": statistics.median(times) / tokens * 1e9,
+        "ids": digest,
+    }
 
 
 def child(args) -> None:
@@ -295,15 +305,20 @@ def _child(python: str, args, vocab: str) -> dict:
 
 
 def _summary(rows: list[dict]) -> dict:
-    """The median over the rounds of every number of one interpreter and vocabulary."""
+    """The median over the rounds of every number of one interpreter and vocabulary; the
+    ids of every stream must be the same in every round."""
     first = rows[0]
+    for stream in first["streams"]:
+        digests = {r["streams"][stream]["ids"] for r in rows}
+        if len(digests) != 1:
+            raise SystemExit(f"the ids of {stream} differ between rounds: {sorted(digests)}")
     out = {
         k: statistics.median(r[k] for r in rows) for k in ("build_s", "nbytes", "build_rss_growth")
     }
     out["max_shift"], out["attempt"] = first["max_shift"], first["attempt"]
     out["streams"] = {
         s: {"ns_per_token": statistics.median(r["streams"][s]["ns_per_token"] for r in rows),
-            "ids": first["streams"][s].get("ids")}
+            "ids": first["streams"][s]["ids"]}
         for s in first["streams"]
     }  # fmt: skip
     return out
@@ -322,7 +337,7 @@ def _report(vocab: str, results: dict[str, dict]) -> None:
         for python in pythons:
             s = results[python]["streams"][stream]
             ratio = s["ns_per_token"] / base["streams"][stream]["ns_per_token"]
-            same = s["ids"] == base["streams"][stream]["ids"]
+            same = s["ids"] == base["streams"][stream]["ids"]  # every stream has a digest
             cells.append(
                 f"{s['ns_per_token']:6.2f} ns ({ratio:.3f}){'' if same else ' IDS DIFFER'}"
             )

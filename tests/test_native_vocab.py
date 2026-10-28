@@ -167,3 +167,25 @@ def test_a_text_lookup_is_built_once_and_only_a_built_one_encodes():
         failed.__init__(table, "external", max_ngrams=3)
     with pytest.raises(RuntimeError, match="was not built"):
         failed.encode(data, None, 0, 1, 0, _native.Workspace())
+
+
+def test_a_text_lookup_refuses_a_second_init_while_it_is_built(monkeypatch):
+    # The tokenizer check runs Python code; a second __init__ from there (as another
+    # thread could start one) must not overwrite what the first one sets.
+    from fse import _contract
+
+    table = _table([b"a"])
+    lookup = _native.TextLookup.__new__(_native.TextLookup)
+    real = _contract.check_tokenizer
+    refused = []
+
+    def reentrant(tokenizer):
+        with pytest.raises(RuntimeError, match="built once"):
+            lookup.__init__(table, "fse_words@1")
+        refused.append(True)
+        return real(tokenizer)
+
+    monkeypatch.setattr(_contract, "check_tokenizer", reentrant)
+    lookup.__init__(table, "external")
+    assert refused == [True]
+    assert lookup.tokenizer == _native.TOKENIZER_EXTERNAL

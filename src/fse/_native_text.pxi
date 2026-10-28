@@ -150,10 +150,22 @@ cdef class TextLookup:
     cdef unsigned int min_n, max_n
     cdef uINT_t bucket
     cdef size_t max_ngrams
+    cdef int _state
 
     def __init__(self, VocabTable table not None, tokenizer, fasttext=None, max_ngrams=0):
-        if self.table is not None:
+        # Built once, as a VocabTable: the state is set before any Python code runs, so a
+        # second __init__ (from another thread or from within this one) raises.
+        if self._state != TABLE_NEW:
             raise RuntimeError("a TextLookup is built once; make a new one")
+        self._state = TABLE_BUILDING
+        try:
+            self._build(table, tokenizer, fasttext, max_ngrams)
+        except BaseException:
+            self._state = TABLE_FAILED
+            raise
+        self._state = TABLE_READY
+
+    cdef _build(self, VocabTable table, tokenizer, fasttext, max_ngrams):
         table._check_ready()
         self.tokenizer = _tokenizer_code(tokenizer)
         self.fasttext = fasttext is not None
@@ -173,7 +185,6 @@ cdef class TextLookup:
             self.max_ngrams = max_ngrams
         elif max_ngrams != 0:
             raise ValueError("max_ngrams needs fasttext")
-        # Last, so a TextLookup whose checks failed has no table and is never used.
         self.table = table
 
     def __reduce__(self):
@@ -253,7 +264,7 @@ cdef class TextLookup:
         """
         from fse._contract import Batch
 
-        if self.table is None:
+        if self._state != TABLE_READY:
             raise RuntimeError("this TextLookup was not built; make a new one")
         if offsets is not None:
             # An own copy of the offsets of the range, so the caller cannot change them
