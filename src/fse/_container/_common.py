@@ -207,14 +207,15 @@ def _integrity(
 def _check_algorithm(path: Path, values: list[str]):
     """Every checksum and the fingerprint must be values of this format; an artifact with
     only sha256 values (the pre-release format) or values of another algorithm is not
-    supported, a malformed value or a mix is damage."""
+    supported, a malformed value or a mix (of algorithms too) is damage."""
     kinds = {_hash.classify(value) for value in values}
+    algorithms = {value.split(":", 1)[0] for value in values}
     if kinds == {"legacy"}:
         raise UnsupportedArtifactError(
             f"{path} was written with the sha256 checksums of a pre-release fse 2.0; this fse "
             f"reads {_hash.ALGORITHM} checksums; write the artifact again with this fse"
         )
-    if kinds == {"unknown"}:
+    if kinds == {"unknown"} and len(algorithms) == 1:
         raise UnsupportedArtifactError(
             f"{path} has checksums of an algorithm this fse does not read; it reads "
             f"{_hash.ALGORITHM}"

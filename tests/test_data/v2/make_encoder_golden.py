@@ -15,7 +15,8 @@ but transcoded: every tensor is taken byte for byte from format 1, and each fing
 they name is made anew only after its sha256 value of format 1 was recomputed from the
 same content and matched. ``fse.quantized_from`` of the folded encoder names folded
 float32 rows the file does not hold; they are folded again with the kernel and must give
-the stored rows and the recorded sha256 value, or the key is left out. The new word vectors
+the stored rows and the recorded sha256 value, or nothing is written. Every checksum and
+the fingerprint of a file of format 1 are checked before its tensors are used. The new word vectors
 (make_golden.py) must exist first.
 """
 
@@ -66,7 +67,14 @@ def read_v1(name):
         metadata = f.metadata()
     tensors = load_file(str(HERE / name))
     plain = {k: v for k, v in metadata.items() if k != "fse.fingerprint"}
-    return tensors, {k: v for k, v in plain.items() if not k.startswith("fse.checksum.")}
+    plain = {k: v for k, v in plain.items() if not k.startswith("fse.checksum.")}
+    # Check the file of format 1 before its hashes are dropped.
+    for n, a in tensors.items():
+        if hashlib.sha256(a.tobytes()).hexdigest() != metadata[f"fse.checksum.{n}"]:
+            raise SystemExit(f"{name}: the checksum of {n} does not match")
+    if sha256_fingerprint(tensors, plain) != metadata["fse.fingerprint"]:
+        raise SystemExit(f"{name}: the fingerprint of format 1 does not match")
+    return tensors, plain
 
 
 def renamed(old, recomputed, new, key):
@@ -102,21 +110,19 @@ def folded_rows(int8, steps):
 
 
 def quantized_from(old_tensors, old, int8, steps):
-    """The new ``fse.quantized_from``, or None if folding again does not reproduce the file."""
+    """The new ``fse.quantized_from``; stops if folding again does not reproduce the file."""
     again = fold(int8, steps)
     if any(
         getattr(again, n).tobytes() != old_tensors[n].tobytes() for n in EMBEDDED if n not in VOCAB
     ):
-        print("folding again does not give the stored rows; fse.quantized_from is left out")
-        return None
+        raise SystemExit("folding again does not give the stored rows; nothing is written")
     rows = {**folded_rows(int8, steps), **{n: old_tensors[n] for n in VOCAB}}
     keys = {"fse.kind": "word_vectors", "fse.dim": old["fse.dim"], "fse.dtype": "float32"}
     keys |= {k: old[k] for k in ("fse.fasttext", "fse.ngram_hash")}
     if sha256_fingerprint(rows, {**keys, "fse.format_version": "1"}) != old["fse.quantized_from"]:
-        print(
-            "the folded float32 rows do not match the sha256 value; fse.quantized_from is left out"
+        raise SystemExit(
+            "the folded float32 rows do not match the sha256 value; nothing is written"
         )
-        return None
     new = new_fingerprint(rows, {**keys, "fse.format_version": "2"})
     assert new == again.metadata["fse.quantized_from"], "fold and the transcoder disagree"
     return new
@@ -151,11 +157,7 @@ def transcode_folded():
     recomputed = sha256_fingerprint(
         embedded, {"fse.kind": "word_vectors", "fse.format_version": "1", **keys}
     )
-    keys["fse.quantized_from"] = origin
-    if origin is None:
-        del keys["fse.quantized_from"], new["fse.quantized_from"]
-    else:
-        new["fse.quantized_from"] = origin
+    keys["fse.quantized_from"] = new["fse.quantized_from"] = origin
     content = {"fse.kind": "word_vectors", "fse.format_version": "2", **keys}
     new["fse.word_vectors"] = renamed(
         old, recomputed, new_fingerprint(embedded, content), "fse.word_vectors"

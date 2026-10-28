@@ -44,6 +44,8 @@ def _buffer(data: object) -> bytes | bytearray | memoryview:
     if isinstance(data, memoryview):
         if not data.c_contiguous:
             raise ValueError("only C-contiguous memory can be hashed")
+        if data.nbytes == 0:  # cast refuses a shape with a zero
+            return b""
         return data.cast("B") if data.format != "B" or data.ndim != 1 else data
     if isinstance(data, np.ndarray):
         if not data.flags.c_contiguous:

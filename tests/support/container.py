@@ -61,6 +61,13 @@ ALGORITHM_CASES = {
         "unsupported",
         "does not read",
     ),
+    "two other algorithms": (
+        _replaced_hashes(
+            lambda k: "xxh3-64:" + "a" * 16 if k == "fse.fingerprint" else "blake3:" + "a" * 64
+        ),
+        "corrupt",
+        "malformed",
+    ),
     "sha256 and xxh3-128 mixed": (
         _replaced_hashes(lambda k: LEGACY if k == "fse.fingerprint" else fake_fingerprint("a")),
         "corrupt",

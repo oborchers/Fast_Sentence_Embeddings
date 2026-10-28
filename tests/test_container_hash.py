@@ -151,3 +151,8 @@ def test_a_memoryview_of_another_format_gives_its_bytes():
 )
 def test_classify(value, kind):
     assert _hash.classify(value) == kind
+
+
+def test_empty_memory_of_any_shape_hashes_as_no_bytes():
+    for shape in [(0,), (0, 3), (3, 0, 2)]:
+        assert _hash.checksum(memoryview(np.empty(shape, np.float32))) == _hash.EMPTY
