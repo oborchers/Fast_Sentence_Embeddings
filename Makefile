@@ -22,7 +22,7 @@ init: env install pre-commit ## Full setup: env + install + pre-commit
 sync: ## Sync all dependencies from lockfile
 	$(UV) sync --all-groups
 
-rebuild-ext: ## Rebuild the Cython extension after editing .pyx or .pxd files
+rebuild-ext: ## Rebuild the Cython extension after editing .pyx, .pxi, .pxd or .h files
 	$(UV) sync --all-groups --reinstall-package $(PACKAGE)
 
 ##@ Quality

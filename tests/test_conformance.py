@@ -3,78 +3,33 @@
 ARCHITECTURE.md, "Backends": a backend is done when it passes this suite. Every case runs
 for every backend in BACKENDS; a backend that cannot run a case skips it and names the
 capability. PR 4 adds the CPU runtime backend, PR 9 the MLX backend, later CUDA, by
-appending to BACKENDS. Meta-tests at the end check that the suite catches typical
+appending to BACKENDS in tests/support/conformance.py; dot16, the steps and score are in
+tests/test_conformance_steps.py. Meta-tests at the end check that the suite catches typical
 mistakes (no fma, acc / n, an EPS start), so it cannot pass by accident.
 """
 
 from __future__ import annotations
 
 import functools
-from dataclasses import dataclass, field
 
 import numpy as np
 import pytest
 
 from fse import _native, _reference
 from fse._contract import OOV_TOKEN, Batch, Normalize, Project, RemoveComponents
-
-F32 = np.float32
-TINY = F32(np.finfo(F32).smallest_subnormal)
-BIG = F32(np.finfo(F32).max)
-
+from support.conformance import (
+    BACKENDS,
+    BIG,
+    F32,
+    TINY,
+    Case,
+    Native,
+    Reference,
+    _rng,
+    assert_bits_equal,
+)
 
 # --- Cases --------------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class Case:
-    """Word rows, weights and sentences of one conformance case."""
-
-    name: str
-    dtype: str
-    base: np.ndarray  # float32 rows before storage
-    weights: np.ndarray
-    sentences: tuple  # tuples of token ids; OOV_TOKEN for unknown FastText words
-    ngrams: tuple | None = None  # bucket ids per unknown word, in order
-    ngram_base: np.ndarray | None = None
-    oov_weight: float | None = None
-    first_row: int = 0
-    stored: dict = field(default_factory=dict, compare=False, hash=False)
-
-    @property
-    def arrays(self):
-        if not self.stored:
-            rows, scales = _reference.quantize_rows(self.base, self.dtype)
-            self.stored.update(rows=rows, scales=scales)
-            if self.ngram_base is not None:
-                nrows, nscales = _reference.quantize_rows(self.ngram_base, self.dtype)
-                self.stored.update(ngram_rows=nrows, ngram_scales=nscales)
-        return self.stored
-
-    @property
-    def batch(self) -> Batch:
-        offsets = np.cumsum([0, *map(len, self.sentences)]).astype(np.int64)
-        tokens = np.array([t for s in self.sentences for t in s], dtype=np.uint32)
-        if self.ngrams is None:
-            return Batch(self.first_row, offsets, tokens)
-        ngram_offsets = np.cumsum([0, *map(len, self.ngrams)]).astype(np.int64)
-        flat = np.array([b for n in self.ngrams for b in n], dtype=np.uint32)
-        return Batch(self.first_row, offsets, tokens, ngram_offsets, flat)
-
-    def args(self):
-        a = self.arrays
-        return (
-            a["rows"],
-            self.weights,
-            a["scales"],
-            a.get("ngram_rows"),
-            a.get("ngram_scales"),
-            self.oov_weight,
-        )
-
-
-def _rng(seed):
-    return np.random.default_rng(seed)
 
 
 def _random_case(name, dtype, seed, *, words=40, dim=13, n=25, length=12, empty=0.15, ft=False):
@@ -241,62 +196,6 @@ def expected(index: int, kind: str):
 # --- Backends -------------------------------------------------------------------------------
 
 
-class Reference:
-    name = "reference"
-
-    def postprocess(self, rows, steps, first_row=0):
-        return _reference.postprocess(rows, steps, first_row)
-
-    def score(self, stored, scales, weights, bias):
-        return _reference.score(stored, scales, weights, bias)
-
-    def dot16(self, rows, other):
-        return _reference.dot16(rows, other)
-
-    def pool(self, case):
-        return _reference.pool_weighted_mean(case.batch, *case.args())
-
-    def accumulate(self, case):
-        return _reference.accumulate(case.batch, *case.args())
-
-
-class Native:
-    def __init__(self, isa):
-        self.isa = isa
-        self.name = f"native-{isa}"
-
-    def pool(self, case):
-        return _native.pool_weighted_mean(case.batch, *case.args(), isa=self.isa)
-
-    def accumulate(self, case):
-        return _native.accumulate(case.batch, *case.args(), isa=self.isa)
-
-    def postprocess(self, rows, steps, first_row=0):
-        return _native.postprocess(rows, steps, first_row, isa=self.isa)
-
-    def score(self, stored, scales, weights, bias):
-        return _native.score(stored, scales, weights, bias, isa=self.isa)
-
-    def dot16(self, rows, other):
-        return _native.dot16(rows, other, isa=self.isa)
-
-
-BACKENDS = [Reference(), *(Native(isa) for isa in _native.available_isas())]
-
-
-def assert_bits_equal(got, want, name=""):
-    assert got.shape == want.shape, (name, got.shape, want.shape)
-    assert got.dtype == want.dtype, (name, got.dtype, want.dtype)
-    g = got.view(np.uint32) if got.dtype == F32 else got
-    w = want.view(np.uint32) if want.dtype == F32 else want
-    if not np.array_equal(g, w):
-        row, col = (int(i) for i in np.argwhere(g != w)[0])
-        raise AssertionError(
-            f"{name}: row {row}, column {col}: {got[row, col]!r} ({g[row, col]:#010x}) "
-            f"!= {want[row, col]!r} ({w[row, col]:#010x})"
-        )
-
-
 @pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
 @pytest.mark.parametrize("index", range(len(CASES)), ids=[f"{c.dtype}-{c.name}" for c in CASES])
 def test_pool(backend, index):
@@ -353,27 +252,10 @@ def test_v1_fixture_batches(backend, test_data_dir):
         arrays = dict(data)
     for name in ("Average", "SIF", "uSIF", "AverageFT"):
         kind = "ft" if name == "AverageFT" else "kv"
-        keys = ("offsets", "tokens", "ngram_offsets", "ngrams")
-        batch = Batch(
-            0, **{k: arrays[f"batch.{kind}.{k}"] for k in keys if f"batch.{kind}.{k}" in arrays}
-        )
+        batch = _v1_batch(arrays, kind)
         for dtype in ("float32", "float16", "int8"):
             prefix = f"{name}.{dtype}"
-            if dtype == "float32":
-                rows = arrays["ft.vectors_vocab" if kind == "ft" else "kv.vectors"]
-                ngram_rows = arrays["ft.vectors_ngrams"] if kind == "ft" else None
-            else:
-                rows = arrays[f"{prefix}.rows"]
-                ngram_rows = arrays.get(f"{prefix}.ngram_rows")
-            weights = arrays[f"{prefix}.weights"]
-            args = (
-                rows,
-                weights,
-                arrays.get(f"{prefix}.scales"),
-                ngram_rows,
-                arrays.get(f"{prefix}.ngram_scales"),
-                float(weights.max()) if kind == "ft" else None,
-            )
+            args = _v1_args(arrays, prefix, kind, dtype)
             want = _reference.pool_weighted_mean(batch, *args)
             if isinstance(backend, Native):
                 got = _native.pool_weighted_mean(batch, *args, isa=backend.isa)
@@ -382,85 +264,30 @@ def test_v1_fixture_batches(backend, test_data_dir):
             assert_bits_equal(got, want, prefix)
 
 
-# --- Steps, dot16 and score -------------------------------------------------------------
+def _v1_batch(arrays, kind):
+    keys = ("offsets", "tokens", "ngram_offsets", "ngrams")
+    return Batch(
+        0, **{k: arrays[f"batch.{kind}.{k}"] for k in keys if f"batch.{kind}.{k}" in arrays}
+    )
 
 
-def _basis(dim, k, seed):
-    q = np.linalg.qr(_rng(seed).standard_normal((dim, k)))[0]
-    return np.ascontiguousarray(q.T, dtype=F32)
-
-
-def _step_lists(dim):
-    k = min(3, dim)
-    removal = RemoveComponents(_basis(dim, k, dim), np.array([1, 0.5, 0.25], F32)[:k])
-    plain = RemoveComponents(_basis(dim, 1, dim + 1))
-    project = Project(_basis(dim, max(1, dim // 2), dim + 2))
-    return {
-        "none": [],
-        "normalize": [Normalize()],
-        "remove weighted": [removal],
-        "remove one": [plain],
-        "project": [project],
-        "all three": [removal, project, Normalize()],
-    }
-
-
-STEP_CASES = [
-    (dim, name) for dim in (1, 3, 4, 7, 15, 16, 17, 31, 33, 300) for name in _step_lists(dim)
-]
-
-
-def _step_rows(dim):
-    rows = _rng(dim).standard_normal((12, dim)).astype(F32)
-    rows[3] = 0  # zero rows stay zero through normalize
-    rows[5] *= F32(1e-20)
-    return rows
-
-
-@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
-@pytest.mark.parametrize(("dim", "steps"), STEP_CASES, ids=[f"{d}-{n}" for d, n in STEP_CASES])
-def test_steps(backend, dim, steps):
-    rows = _step_rows(dim)
-    lists = _step_lists(dim)
-    want = _reference.postprocess(rows, lists[steps])
-    assert_bits_equal(backend.postprocess(rows, lists[steps]), want, f"{dim} {steps}")
-
-
-@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
-def test_step_errors_like_the_reference(backend):
-    rows = np.array([[1, 1], [1e-30, 0], [3e38, 3e38]], dtype=F32)
-    with pytest.raises(ValueError, match="row 11 cannot be normalized"):
-        backend.postprocess(rows, [Normalize()], first_row=10)
-    big = np.array([[1, 0], [np.finfo(F32).max, 0]], dtype=F32)
-    step = RemoveComponents(np.array([[1, 0]], dtype=F32), np.array([-2], dtype=F32))
-    with pytest.raises(ValueError, match="row 8 contains NaN or infinite"):
-        backend.postprocess(big, [step], first_row=7)
-    with pytest.raises(ValueError, match="row 4 contains NaN"):
-        backend.postprocess(np.array([[1, 0], [np.inf, 0]], dtype=F32), [], first_row=3)
-
-
-@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
-def test_dot16_keeps_negative_zero_lanes(backend):
-    rows = np.full((1, 17), -(2.0**-149), dtype=F32)
-    vector = np.full(17, 0.5, dtype=F32)
-    assert_bits_equal(backend.dot16(rows, vector)[None, :], _reference.dot16(rows, vector)[None, :])
-
-
-@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
-@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
-@pytest.mark.parametrize("dim", [1, 7, 16, 17, 300])
-def test_score(backend, dtype, dim):
-    rng = _rng(dim)
-    stored, scales = _reference.quantize_rows(rng.standard_normal((20, dim)).astype(F32), dtype)
-    weights = rng.standard_normal(dim).astype(F32)
-    want = _reference.score(stored, scales, weights, 0.25)
-    assert_bits_equal(backend.score(stored, scales, weights, 0.25)[None, :], want[None, :])
-
-
-@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
-def test_score_overflow_raises(backend):
-    with pytest.raises(ValueError, match="score of row 0 overflows"):
-        backend.score(np.array([[BIG, 0]], dtype=F32), None, np.array([2, 0], F32), 0.0)
+def _v1_args(arrays, prefix, kind, dtype):
+    """The arguments of the weighted mean for one model and dtype of the fixture."""
+    if dtype == "float32":
+        rows = arrays["ft.vectors_vocab" if kind == "ft" else "kv.vectors"]
+        ngram_rows = arrays["ft.vectors_ngrams"] if kind == "ft" else None
+    else:
+        rows = arrays[f"{prefix}.rows"]
+        ngram_rows = arrays.get(f"{prefix}.ngram_rows")
+    weights = arrays[f"{prefix}.weights"]
+    return (
+        rows,
+        weights,
+        arrays.get(f"{prefix}.scales"),
+        ngram_rows,
+        arrays.get(f"{prefix}.ngram_scales"),
+        float(weights.max()) if kind == "ft" else None,
+    )
 
 
 # --- Meta-tests: the suite catches typical mistakes ----------------------------------------
@@ -472,18 +299,25 @@ def _numpy_pool(case, *, fused=True, divide=False, start=0.0):
     scales = a["scales"]
     out = np.zeros((len(case.sentences), case.base.shape[1]), dtype=F32)
     for s, sentence in enumerate(case.sentences):
-        acc = np.full(case.base.shape[1], start, dtype=F32)
-        for t in sentence:
-            factor = case.weights[t] if scales is None else F32(case.weights[t] * scales[t])
-            if fused:
-                acc = _reference.fma32(factor, rows[t], acc)
-            else:
-                acc = (factor * rows[t]).astype(F32) + acc
+        acc = _numpy_acc(case, sentence, (rows, scales), fused, start)
         if sentence or start:
             out[s] = (
                 acc / F32(len(sentence) or 1) if divide else F32(1 / F32(len(sentence) or 1)) * acc
             )
     return out
+
+
+def _numpy_acc(case, sentence, table, fused, start):
+    """The sum of one sentence, with a fused or a separate multiply and add."""
+    rows, scales = table
+    acc = np.full(case.base.shape[1], start, dtype=F32)
+    for t in sentence:
+        factor = case.weights[t] if scales is None else F32(case.weights[t] * scales[t])
+        if fused:
+            acc = _reference.fma32(factor, rows[t], acc)
+        else:
+            acc = (factor * rows[t]).astype(F32) + acc
+    return acc
 
 
 @pytest.mark.parametrize(
@@ -604,18 +438,6 @@ def test_native_restores_the_environment_after_an_error(backend):
     finally:
         _native._test_fpenv_restore(saved)
     assert after == changed
-
-
-@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
-def test_a_bias_beyond_float32_raises_the_overflow(backend):
-    with pytest.raises(ValueError, match="score of row 0 overflows"):
-        backend.score(np.zeros((1, 2), F32), None, np.ones(2, F32), 1e100)
-
-
-@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
-def test_score_weights_beyond_float32_raise_the_overflow(backend):
-    with pytest.raises(ValueError, match="score of row 0 overflows"):
-        backend.score(np.ones((1, 2), F32), None, np.array([1e100, 0.0]), 0.0)
 
 
 def _oov_case(oov_weight, unknown):

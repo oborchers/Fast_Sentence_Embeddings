@@ -12,13 +12,28 @@ src/fse/
   _contract.py           # Batch, identifiers, step lists, errors
   _reference.py          # the reference: numpy code that defines every result
   _codes.py              # float16 and int8 storage arithmetic in blocks
-  _container.py          # SafetensorsContainer (models) and NpyContainer (output)
+  _container/            # the containers of artifacts, a package the 1.x export copies:
+    __init__.py          #   their names and CONTAINERS,
+    _common.py           #   dtype codes, limits, integrity keys, fingerprint, strict JSON,
+    _safetensors.py      #   SafetensorsContainer (models),
+    _npy.py              #   NpyContainer (output)
   _wordvectors.py        # WordVectors
+  _wordvectors_format.py # the format rules of word_vectors 1: keys, checks, vocabulary encoding
   _gram.py               # Gram matrix helpers for fit
   _validation.py         # validate_arguments: strict pydantic checks of entry points
-  _native.pyx            # native routines: kernel wrappers, hashing, vocabulary table
+  _native.pyx            # the extension: directives, imports and its parts, in order
+  _native_hash.pxi       # its parts: FastText ngram hashing and chunk limits,
+  _native_buffer.pxi     #   growable buffers,
+  _native_vocab.pxi      #   UTF-8 classes, word hashing and the vocabulary table,
+  _native_scan.pxi       #   the UTF-8 scan of sentence spans,
+  _native_kernel.pxi     #   the kernel wrappers, ISA dispatch and FP environment,
+  _native_steps.pxi      #   dot16, steps and score,
+  _native_text.pxi       #   the tokenizers and the text lookup
   _native.pxd, .pyi      # shared C types of the extension, and its type stubs
-  _native_kernel.h       # the C kernel: weighted mean, dot16, steps, score per ISA
+  _native_kernel.h       # the C kernel: its contract, ISA detection and dispatch, and
+  _native_kernel_base.h  #   build checks, macros and shared types,
+  _native_kernel_mean.h  #   the weighted mean loops per ISA and dtype,
+  _native_kernel_steps.h #   FP environment, dot16, steps and score
   _native_text.h         # the native tokenizers fse_words@1 and external
   _native_unicode.h      # generated: the simple lowercase table for the native code
   _unicode.py            # generated: the same table for the reference
@@ -29,7 +44,7 @@ src/fse/
 
 ## Native kernel
 
-`_native_kernel.h` implements `weighted_mean@1` (pool and accumulate), `dot16`, the steps `remove_components@1`, `project@1` and `normalize@1`, and the linear score of the numerical contract below; group mode, storage quantization, inverse norms and cosine search follow with their PRs. Each is one C loop, instantiated per ISA: portable (`fmaf`), AVX2 with FMA and F16C on x86 (selected at run time by cpuid and xgetbv, so one wheel serves every x86 machine) and NEON on arm64. `_native.pyx` validates all arrays before it releases the GIL, then calls the loop of the chosen ISA (`available_isas`, `default_isa`; `isa=` selects one for tests). The rules that make it bit-identical to `fse._reference`:
+`_native_kernel.h` and the headers it includes implement `weighted_mean@1` (pool and accumulate), `dot16`, the steps `remove_components@1`, `project@1` and `normalize@1`, and the linear score of the numerical contract below; group mode, storage quantization, inverse norms and cosine search follow with their PRs. Each is one C loop, instantiated per ISA: portable (`fmaf`), AVX2 with FMA and F16C on x86 (selected at run time by cpuid and xgetbv, so one wheel serves every x86 machine) and NEON on arm64. `_native.pyx` validates all arrays before it releases the GIL, then calls the loop of the chosen ISA (`available_isas`, `default_isa`; `isa=` selects one for tests). The rules that make it bit-identical to `fse._reference`:
 
 - Every multiply-add is an explicit fused multiply-add in token order; the compiler must not contract or reorder anything else. The extension is built with `-ffp-contract=off -fno-fast-math` (`/fp:precise` on MSVC), see `setup.py`. MinGW is refused, because its runtime computes `fmaf` with two roundings.
 - The floating-point environment is fixed for the duration of every call: round to nearest, no flush-to-zero or denormals-are-zero (MXCSR on x86, FPCR on arm64). The previous state is restored afterwards, also after an error. Each Python entry point sets it for the whole call, so the numpy conversions of its arguments (such as `bias`) run in it too, and each C entry point sets it again and calls its arithmetic only through functions marked never to be inlined, so no compiler can move the arithmetic before it.
@@ -38,7 +53,7 @@ src/fse/
 - Word rows are prefetched 8 tokens ahead, also across sentence boundaries; prefetching changes no result.
 - A row that is not finite raises with its row number, as the reference does.
 
-`tests/test_conformance.py` compares every backend in `BACKENDS` with the reference bit for bit for every dtype, step list, empty, long and unknown-word sentences and subnormal values. Its meta-tests check that the suite fails for a kernel without fma, with `acc / n`, with an EPS start or with zero-padded `dot16`, so a weakened comparison cannot pass unnoticed.
+`tests/test_conformance.py` and `tests/test_conformance_steps.py` compare every backend in `BACKENDS` (`tests/support/conformance.py`) with the reference bit for bit for every dtype, step list, empty, long and unknown-word sentences and subnormal values. Its meta-tests check that the suite fails for a kernel without fma, with `acc / n`, with an EPS start or with zero-padded `dot16`, so a weakened comparison cannot pass unnoticed.
 
 ## Text sources
 
@@ -58,11 +73,12 @@ Word vectors, weights and sentence vectors are computed in float32. Word vectors
 
 ## Build
 
-The extension is compiled from `_native.pyx` and `_native_kernel.h` at build time with Cython 3 against numpy 2 headers; generated C is never committed. Wheels built this way also run with numpy 1.x. `make rebuild-ext` rebuilds it in the development environment after edits to `.pyx`, `.pxd` or `.h` files.
+The extension is compiled from `_native.pyx`, the `.pxi` parts it includes (one translation unit, so `cdef inline` functions inline across parts) and the `_native*.h` headers at build time with Cython 3 against numpy 2 headers; generated C is never committed. Wheels built this way also run with numpy 1.x. `make rebuild-ext` rebuilds it in the development environment after edits to `.pyx`, `.pxi`, `.pxd` or `.h` files.
 
 ## Tests
 
-- Tests mirror `src/`: `tests/test_wordvectors.py` tests `src/fse/_wordvectors.py`.
+- Tests mirror `src/`: `tests/test_wordvectors.py` tests `src/fse/_wordvectors.py`, `tests/test_container_npy.py` tests `src/fse/_container/_npy.py`. A long test module splits by topic into `test_<module>_<topic>.py`, such as `tests/test_conformance_steps.py`.
+- Test modules never import each other. What several share (the conformance backends, word vectors and edits of saved files, container tensors) lives in `tests/support/`, which pytest puts on the path (`pythonpath`).
 - Tests write files only into `tmp_path`; `tests/test_data` is read-only input.
 - Expected values never depend on vocabulary positions, because gensim versions order words with equal counts differently. Derive them from `key_to_index`.
 - Tests that download from the Hugging Face Hub are marked `network`.
@@ -226,7 +242,7 @@ class TensorContainer(Protocol):
 
 ### safetensors 1
 
-`fse._container.SafetensorsContainer`, in the module of both containers, which imports only the standard library, numpy and `UnsupportedArtifactError`, so the 1.x export can copy it.
+`fse._container.SafetensorsContainer`, in the package of both containers, whose modules import only the standard library, numpy, `UnsupportedArtifactError` and each other (relatively), so the 1.x export can copy it; `_npy` and `_safetensors` share only `_common`.
 
 - The file is safetensors: an 8-byte little-endian header length, a UTF-8 JSON header `{"__metadata__": {...}, name: {"dtype", "shape", "data_offsets"}, ...}`, then the data. The tensors lie by descending item size, then name, without gaps, so each is aligned to its type; the header is padded with spaces so that the data start at a multiple of 64 bytes. The reference implementation reads these files.
 - Reading is strict: a header of at most 16 MiB and within the file, a JSON object padded with spaces only and data starting at a multiple of 8 bytes, no duplicate keys or NaN constants, exactly `dtype`, `shape` and `data_offsets` per tensor, only the dtypes above (others raise `UnsupportedArtifactError`), offsets that fit the shape (computed with Python integers), tensors aligned to their type and covering the data without gaps or overlaps up to the end of the file, and `__metadata__` mapping strings to strings with the checksums and the fingerprint of the content. Files from other writers lack these keys and are rejected.
@@ -242,7 +258,7 @@ class TensorContainer(Protocol):
 - Every `.npy` is version 1.0 or 2.0 with the exact type description of its code (`<f4`, `<f2`, `|i1`, `|u1`, `<u4`, `<i8`), C order, the shape of the manifest, data at a multiple of 64 bytes and nothing after the data; pickled objects are never read.
 - The writer enforces the limits of the reader, and with `expected` checksums it hashes every tensor while writing and commits only if they match. The container writes `fse.checksum.<name>` (the lowercase hex sha256 of the data) for every tensor and `fse.fingerprint`, and rejects them from the caller. A normal open reads every tensor into immutable `bytes` and checks its checksum (hashed in 64 MiB chunks); `open(mmap=True)` checks the manifest, the headers, the sizes and the fingerprint against the recorded checksums, and maps the data read-only; `verify` hashes the data on disk. Tensors with no elements are empty arrays, as nothing can be mapped.
 - Writing creates the target directory exclusively (an existing one raises `FileExistsError`, also when another writer created it first; artifacts are never overwritten, which also avoids replacing mapped files on Windows), writes and syncs every tensor, syncs the directory, and commits by renaming the manifest from a temporary name into place; a directory without a manifest is no artifact. Any failure removes the directory.
-- The fingerprint test vector (`tests/test_container.py`): tensors `vectors` F32 `[[1, -0.0], [0.5, 2]]`, `vocab.bytes` U8 of `"aé"`, `vocab.offsets` I64 `[0, 1, 3]` with metadata `fse.kind=word_vectors`, `fse.format_version=1`, `fse.dim=2`, `fse.dtype=float32` give `sha256:98a86ce422b1d61979da4b088934ebbb5c4f128463ca20123f7508d0f74f32db`.
+- The fingerprint test vector (`tests/test_container_common.py`): tensors `vectors` F32 `[[1, -0.0], [0.5, 2]]`, `vocab.bytes` U8 of `"aé"`, `vocab.offsets` I64 `[0, 1, 3]` with metadata `fse.kind=word_vectors`, `fse.format_version=1`, `fse.dim=2`, `fse.dtype=float32` give `sha256:98a86ce422b1d61979da4b088934ebbb5c4f128463ca20123f7508d0f74f32db`.
 
 ### word_vectors 1
 
@@ -272,15 +288,16 @@ Saved 2.0 artifacts contain no Python class paths. Their persistence API is the 
 
 ### Layout
 
-New 2.0 code goes into private modules of `fse`: `_contract` and `_reference` (contracts and reference), `_codes` (storage arithmetic in blocks), `_container` and `_wordvectors`, the gensim adapter `fse.gensim` (extra `fse[gensim]`), then the runtime and backends, the encoder and recipes, sinks and store, and the thin `train`/`infer` facade of the release. gensim is not a dependency of fse: `import fse` and every 2.0 class work without it (tests check it in a subprocess that blocks gensim and scipy).
+New 2.0 code goes into private modules of `fse`: `_contract` and `_reference` (contracts and reference), `_codes` (storage arithmetic in blocks), `_container`, `_wordvectors` and `_wordvectors_format`, the gensim adapter `fse.gensim` (extra `fse[gensim]`), then the runtime and backends, the encoder and recipes, sinks and store, and the thin `train`/`infer` facade of the release. gensim is not a dependency of fse: `import fse` and every 2.0 class work without it (tests check it in a subprocess that blocks gensim and scipy).
 
 The modules form layers, and a module imports only from layers below it. The import contracts in `pyproject.toml` (`[tool.importlinter]`, run by `make lint`) enforce this, and every new module must take a layer there:
 
 1. `gensim` (the adapter, the only module that imports gensim)
 2. `_text`
 3. `_wordvectors`
-4. `_container`, `_codes`, `_gram`, `_reference`, `_reference_text`, `_validation`, independent of each other: the references never share code with what they check
-5. `_contract`, `_unicode`
+4. `_wordvectors_format`
+5. `_container`, `_codes`, `_gram`, `_reference`, `_reference_text`, `_validation`, independent of each other: the references never share code with what they check
+6. `_contract`, `_unicode`
 
 The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` imports it and that it imports only `_contract` from fse. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, mlx, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list to the extension. The runtime, backends, encoder, sinks and store of the coming PRs add their layers above `_text`.
 

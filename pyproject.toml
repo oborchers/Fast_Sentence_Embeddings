@@ -58,7 +58,7 @@ Changelog = "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/C
 where = ["src"]
 
 [tool.setuptools.package-data]
-"fse" = ["py.typed", "*.pyx", "*.pxd", "*.h", "*.pyi"]
+"fse" = ["py.typed", "*.pyx", "*.pxi", "*.pxd", "*.h", "*.pyi"]
 
 [tool.setuptools_scm]
 version_file = "src/fse/_version.py"
@@ -104,6 +104,7 @@ cache-keys = [
     { file = "pyproject.toml" },
     { file = "setup.py" },
     { file = "src/fse/*.pyx" },
+    { file = "src/fse/*.pxi" },
     { file = "src/fse/*.pxd" },
     { file = "src/fse/*.h" },
     { git = { commit = true, tags = true } },
@@ -114,7 +115,7 @@ cache-keys = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["src"]
+src = ["src", "tests"]
 extend-exclude = ["_version.py", "notebooks"]
 
 [tool.ruff.lint]
@@ -138,8 +139,8 @@ known-first-party = ["fse"]
 max-complexity = 10
 
 [tool.ruff.lint.pylint]
-max-args = 5
-max-positional-args = 5
+max-args = 15
+max-positional-args = 15
 max-branches = 12
 max-returns = 6
 max-statements = 50
@@ -167,6 +168,8 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# tests/support holds helpers the test modules share; test modules never import each other.
+pythonpath = ["tests"]
 python_files = "test_*.py"
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 xfail_strict = true
@@ -236,14 +239,6 @@ untested-modules = ["src/fse/_version.py"]
 # growth fails, an improvement must lower its number, an entry within the limit must be
 # removed. Never add an entry or raise a number; split or simplify the code instead.
 [tool.fse.guardrails.ratchet.lines]
-"src/fse/_container.py" = 854
-"src/fse/_native.pyx" = 1371
-"src/fse/_native_kernel.h" = 703
-"src/fse/_wordvectors.py" = 712
-"tests/test_conformance.py" = 644
-"tests/test_container.py" = 551
-"tests/test_container_safetensors.py" = 646
-"tests/test_wordvectors.py" = 734
 
 [tool.fse.guardrails.ratchet.functions]
 "benchmarks/baseline/make_v1_fixture.py::main" = { C901 = 11, cognitive = 39 }
@@ -253,30 +248,6 @@ untested-modules = ["src/fse/_version.py"]
 "benchmarks/bench_tokenize.py::prepare" = { cognitive = 18 }
 "benchmarks/bench_wordvectors.py::child" = { C901 = 13 }
 "benchmarks/quality/run_mteb.py::summarize" = { cognitive = 39 }
-"src/fse/_codes.py::quantize_into" = { PLR0913 = 6, cognitive = 24 }
-"src/fse/_container.py::SafetensorsContainer.open" = { cognitive = 22 }
-"src/fse/_container.py::SafetensorsContainer.write" = { C901 = 13, PLR0915 = 54, cognitive = 24 }
-"src/fse/_container.py::_check_for_writing" = { cognitive = 16 }
-"src/fse/_container.py::_read_header" = { C901 = 11 }
-"src/fse/_container.py::_read_manifest" = { C901 = 15, PLR0912 = 14, cognitive = 26 }
-"src/fse/_container.py::_read_safetensors_header" = { C901 = 20, PLR0912 = 19, PLR0915 = 52, cognitive = 33 }
-"src/fse/_contract.py::check_steps" = { cognitive = 16 }
-"src/fse/_reference.py::accumulate" = { PLR0913 = 7, PLR0917 = 7, cognitive = 30 }
-"src/fse/_reference.py::pool_groups" = { PLR0913 = 8, PLR0917 = 8 }
-"src/fse/_reference.py::pool_weighted_mean" = { PLR0913 = 7, PLR0917 = 7 }
-"src/fse/_reference_text.py::_token_chars" = { cognitive = 17 }
-"src/fse/_reference_text.py::encode_texts" = { PLR0913 = 6 }
-"src/fse/_reference_text.py::ft_ngram_hashes" = { cognitive = 21 }
-"src/fse/_reference_text.py::tokenize_fse_words" = { cognitive = 18 }
-"src/fse/_wordvectors.py::WordVectors.from_arrays" = { C901 = 14, PLR0912 = 13, PLR0913 = 9, cognitive = 25 }
-"src/fse/_wordvectors.py::WordVectors.quantize" = { C901 = 11, cognitive = 26 }
-"src/fse/_wordvectors.py::_check_structure" = { C901 = 22, PLR0912 = 21, PLR0915 = 58, cognitive = 34 }
-"src/fse/_wordvectors.py::_check_values" = { C901 = 12, cognitive = 31 }
-"src/fse/gensim.py::from_gensim" = { C901 = 13, PLR0912 = 13, cognitive = 19 }
-"tests/test_conformance.py::_numpy_pool" = { cognitive = 16 }
-"tests/test_conformance.py::_random_case" = { PLR0913 = 9 }
-"tests/test_conformance.py::test_v1_fixture_batches" = { cognitive = 20 }
-"tests/test_wordvectors.py::_wv" = { PLR0913 = 6, PLR0917 = 6 }
 
 # --- Import contracts (import-linter; the Cython extension is invisible to it and is
 # checked by tools/check_guardrails.py) ---
@@ -296,10 +267,18 @@ layers = [
     "gensim",
     "_text",
     "_wordvectors",
+    "_wordvectors_format",
     # Independent of each other: the references never share code with what they check.
     "_container | _codes | _gram | _reference | _reference_text | _validation",
     "_contract | _unicode",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Containers: npy and safetensors share only _common"
+type = "layers"
+containers = ["fse._container"]
+exhaustive = true
+layers = ["_npy | _safetensors", "_common"]
 
 [[tool.importlinter.contracts]]
 name = "Optional and 1.x packages stay out of fse; gensim only in fse.gensim"

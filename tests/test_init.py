@@ -13,7 +13,11 @@ import fse
 SRC = Path(fse.__file__).parent
 # Every module of fse except the gensim adapter: none may import gensim, scipy or
 # smart_open, and none the removed 1.x modules.
-MODULES = sorted(p.stem for p in SRC.glob("*.py") if p.stem not in ("gensim", "_version"))
+MODULES = sorted(
+    p.relative_to(SRC).as_posix()
+    for p in SRC.rglob("*.py")
+    if p.relative_to(SRC).as_posix() not in ("gensim.py", "_version.py")
+)
 FORBIDDEN = ("gensim", "scipy", "smart_open", "psutil", "threadpoolctl", "wordfreq")
 
 
@@ -66,7 +70,7 @@ def test_import_without_optional_packages():
 @pytest.mark.parametrize("module", MODULES)
 def test_modules_import_no_optional_packages(module):
     """A static check of every import statement, also those inside functions."""
-    tree = ast.parse((SRC / f"{module}.py").read_text(encoding="utf-8"))
+    tree = ast.parse((SRC / module).read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         names = []
         if isinstance(node, ast.Import):
@@ -81,7 +85,10 @@ def test_modules_import_no_optional_packages(module):
 def test_native_imports_no_optional_packages():
     import re
 
-    text = (SRC / "_native.pyx").read_text(encoding="utf-8")
+    # The extension and the .pxi parts it includes.
+    parts = sorted(p for p in SRC.glob("_native*") if p.suffix in (".pyx", ".pxi", ".pxd"))
+    text = "".join(p.read_text(encoding="utf-8") for p in parts)
+    assert "cdef class VocabTable" in text
     for name in FORBIDDEN:
         # Import statements only; comments may name gensim, from which code was adapted.
         assert not re.search(rf"^\s*(c?import|from)\s+{name}\b", text, re.MULTILINE), name
