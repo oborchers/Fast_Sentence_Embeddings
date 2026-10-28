@@ -79,12 +79,14 @@ class Pipeline:
         # least one task of one row, however wide).
         window = max(1, min(2 * workers, WINDOW_BYTES // self._widest))
         task_rows = max(1, min(self.task_rows, WINDOW_BYTES // (window * self._widest)))
+        stop = threading.Event()  # set by the executor once a task failed
         tasks = plan(
             source,
             workers=workers,
             chunk_bytes=check_chunk_bytes(chunk_bytes),
             chunk_rows=task_rows,
             tokenizer=self.spec.tokenizer,
+            stop=stop,
         )
         own: ArrayRows | GrowingRows | None = None
         if sink is None:
@@ -117,6 +119,7 @@ class Pipeline:
             inline=tasks.inline,
             window=window,
             reserve=reserve,
+            stop=stop,
         )
         return None if own is None else own.result()
 

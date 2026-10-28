@@ -46,12 +46,14 @@ def run(
     inline: bool = False,
     window: int | None = None,
     reserve: Callable[[T], Any] | None = None,
+    stop: threading.Event | None = None,
 ) -> None:
     """Run ``work`` on every task and ``commit`` each result in task order.
 
     ``reserve``, if given, turns each task into what ``work`` and ``commit`` receive, in
     the calling thread before the task is submitted (a sink reserving its rows); an error
-    of it stops the run like an error of ``commit``.
+    of it stops the run like an error of ``commit``. ``stop``, if given, is set as soon as
+    a task fails, so a source can stop reading (a stream between two sentences).
     """
     workers = _positive(workers, "workers")
     window = 2 * workers if window is None else _positive(window, "window")
@@ -61,7 +63,7 @@ def run(
             item = reserve(task)
             commit(item, work(item))
         return
-    _Run(iter(tasks), work, commit, window, reserve).threads(workers)
+    _Run(iter(tasks), work, commit, window, reserve, stop).threads(workers)
 
 
 def _same(task: Any) -> Any:
@@ -70,10 +72,16 @@ def _same(task: Any) -> Any:
 
 class _Run:
     def __init__(
-        self, tasks: Iterator[Any], work: Callable, commit: Callable, window: int, reserve: Callable
+        self,
+        tasks: Iterator[Any],
+        work: Callable,
+        commit: Callable,
+        window: int,
+        reserve: Callable,
+        stop: threading.Event | None,
     ):
         self.tasks, self.work, self.commit, self.window = tasks, work, commit, window
-        self.reserve = reserve
+        self.reserve, self.stop = reserve, stop
         self.lock = threading.Lock()
         self.failed_at: float = float("inf")  # sequence of the first failed task so far
         self.pending: deque[tuple[int, Any, Future]] = deque()
@@ -125,6 +133,8 @@ class _Run:
         except BaseException:
             with self.lock:
                 self.failed_at = min(self.failed_at, sequence)
+            if self.stop is not None:
+                self.stop.set()
             raise
 
     def _commit_oldest(self):
@@ -142,6 +152,8 @@ class _Run:
     def _stop(self):
         with self.lock:
             self.failed_at = -1.0
+        if self.stop is not None:
+            self.stop.set()
 
 
 def _positive(value: object, name: str) -> int:

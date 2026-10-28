@@ -135,22 +135,30 @@ def check_pool_input(pool: PoolInput) -> PoolInput:
         raise ValueError("vectors need at least one dimension")
     int8 = vectors.dtype == np.int8
     _float32_vector(pool.weights, "weights", len(vectors))
+    if pool.oov_weight is not None:
+        _real(pool.oov_weight, "oov_weight")
     if int8 != (pool.scales is not None):
         raise ValueError("scales are given exactly for int8 vectors")
     if int8:
         _float32_vector(pool.scales, "scales", len(vectors))
+    _check_ngram_input(pool, vectors)
+    return pool
+
+
+def _check_ngram_input(pool: PoolInput, vectors: ndarray):
+    """The FastText rows of ``pool`` against its word rows."""
     if pool.ngram_vectors is None:
         if pool.ngram_scales is not None:
             raise ValueError("ngram_scales without ngram_vectors")
-        return pool
+        return
     ngrams = _rows(pool.ngram_vectors, "ngram_vectors")
     if ngrams.dtype != vectors.dtype or ngrams.shape[1] != vectors.shape[1]:
         raise ValueError("ngram_vectors must have the dtype and dimension of vectors")
+    int8 = vectors.dtype == np.int8
     if int8 != (pool.ngram_scales is not None):
         raise ValueError("ngram_scales are given exactly for int8 ngram vectors")
     if int8:
         _float32_vector(pool.ngram_scales, "ngram_scales", len(ngrams))
-    return pool
 
 
 def dims(pool: PoolInput, steps: Sequence[Step]) -> tuple[tuple[Step, ...], int, int]:
@@ -187,6 +195,8 @@ def check_score_input(stored: object, scales: object, weights: object, bias: obj
     storage dtype, scales exactly for int8, one weight per dimension (any float dtype;
     each backend converts it to float32 as the reference does)."""
     stored = _rows(stored, "stored")
+    if np.asarray(weights).dtype.kind not in "fiu":
+        raise TypeError("weights must be numbers (float or int), not strings, objects or bools")
     if np.shape(weights) != (stored.shape[1],):
         raise ValueError(f"weights must hold {stored.shape[1]} values")
     int8 = stored.dtype == np.int8
@@ -194,8 +204,7 @@ def check_score_input(stored: object, scales: object, weights: object, bias: obj
         raise ValueError("scales are given exactly for int8 rows")
     if int8:
         _float32_vector(scales, "scales", len(stored))
-    if isinstance(bias, bool) or not isinstance(bias, int | float | np.integer | np.floating):
-        raise TypeError(f"bias must be a real number, not {type(bias).__name__}")
+    _real(bias, "bias")
 
 
 def check_prepared(prepared: object, backend: str) -> Prepared:
@@ -217,3 +226,9 @@ def _float32_vector(value: object, name: str, length: int):
         raise ValueError(f"{name} must be a float32 vector of {length} values")
     if not value.flags.c_contiguous:
         raise ValueError(f"{name} must be C-contiguous")
+
+
+def _real(value: object, name: str):
+    """A real number, Python or numpy; arrays, strings and bools are refused."""
+    if isinstance(value, bool) or not isinstance(value, int | float | np.integer | np.floating):
+        raise TypeError(f"{name} must be a real number, not {type(value).__name__}")

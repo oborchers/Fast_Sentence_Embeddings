@@ -150,3 +150,26 @@ def test_score_of_no_rows(name):
 
     out = get_backend(name).score(np.ones((0, 2), F32), None, np.ones(2, F32), np.float32(0.5))
     assert out.shape == (0,)
+
+
+@pytest.mark.parametrize("name", ["cpu", "numpy"])
+@pytest.mark.parametrize("value", [np.ones(2, F32), "1", True, [1.0]])
+def test_oov_weight_must_be_a_real_number(name, value):
+    from fse._backends import get_backend
+
+    pool = PoolInput(
+        np.ones((3, 2), F32), np.ones(3, F32), ngram_vectors=np.ones((4, 2), F32), oov_weight=value
+    )
+    with pytest.raises(TypeError, match="oov_weight must be a real number"):
+        get_backend(name).prepare(pool, ())
+
+
+@pytest.mark.parametrize("name", ["cpu", "numpy"])
+@pytest.mark.parametrize(
+    "weights", [np.array(["1", "2"]), np.array([True, False]), np.array([None, None])]
+)
+def test_score_weights_must_be_numbers(name, weights):
+    from fse._backends import get_backend
+
+    with pytest.raises(TypeError, match="weights must be numbers"):
+        get_backend(name).score(np.ones((3, 2), F32), None, weights, 0.0)

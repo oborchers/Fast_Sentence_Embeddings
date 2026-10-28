@@ -163,11 +163,12 @@ def _chunk_sizes(
     return count, size, rows
 
 
-def _append(chunks: list[Chunk], chunk: Chunk, *, merge: bool, chunk_rows: int):
+def _append(chunks: list[Chunk], chunk: Chunk, *, merge: bool, remainder: Any, chunk_rows: int):
     """Append ``chunk``; the first chunk of a scan range takes in the last chunk of the
-    range before, a remainder that ended at the range boundary, if their rows fit."""
+    range before if that one is a remainder (it ended at the range boundary below both
+    chunk limits) and their rows fit."""
     last = chunks[-1] if merge and chunks else None
-    if last is not None and last.n_sentences + chunk.n_sentences <= chunk_rows:
+    if last is not None and remainder(last) and last.n_sentences + chunk.n_sentences <= chunk_rows:
         chunks[-1] = Chunk(
             last.start, chunk.end, last.first_row, last.n_sentences + chunk.n_sentences
         )
@@ -236,6 +237,14 @@ class _Buffered:
                 data, self._offsets, span[0], span[1], chunk_bytes, chunk_rows
             )
 
+        def remainder(c: Chunk) -> bool:
+            size = (
+                c.end - c.start
+                if self._offsets is None
+                else self._offsets[c.end] - self._offsets[c.start]
+            )
+            return size < chunk_bytes and c.n_sentences < chunk_rows
+
         sentences = 0
         chunks: list[Chunk] = []
         with _scan_pool(workers, total) as pool:
@@ -248,7 +257,7 @@ class _Buffered:
                     zip(range_chunks, firsts[1:], strict=True)
                 ):
                     chunk = Chunk(start, end, sentences + row, following - row)
-                    _append(chunks, chunk, merge=k == 0, chunk_rows=chunk_rows)
+                    _append(chunks, chunk, merge=k == 0, remainder=remainder, chunk_rows=chunk_rows)
                 sentences += count
         return Scan(sentences, tuple(chunks))
 

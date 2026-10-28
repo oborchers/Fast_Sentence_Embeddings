@@ -14,6 +14,7 @@ own ``batch``.
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
@@ -54,7 +55,13 @@ class Plan:
 
 
 def plan(
-    source: object, *, workers: int, chunk_bytes: int | None, chunk_rows: int, tokenizer: str
+    source: object,
+    *,
+    workers: int,
+    chunk_bytes: int | None,
+    chunk_rows: int,
+    tokenizer: str,
+    stop: threading.Event | None = None,
 ) -> Plan:
     """Scan ``source`` and plan one task per chunk of at most ``chunk_rows`` rows."""
     if not isinstance(source, SOURCES):
@@ -64,7 +71,7 @@ def plan(
         raise ValueError("token lists are for the external tokenizer")
     chunk_bytes = check_chunk_bytes(chunk_bytes)  # before a stream is read
     if isinstance(source, StreamSource):
-        return _stream_plan(source, chunk_bytes, chunk_rows)
+        return _stream_plan(source, chunk_bytes, chunk_rows, stop)
     inline = source.nbytes <= INLINE_MAX_BYTES  # scanned as one range, run in the caller
     scan = source.scan(
         workers=1 if inline else workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows
@@ -72,9 +79,12 @@ def plan(
     return Plan(iter([Task(source, chunk) for chunk in scan.chunks]), scan.sentences, inline)
 
 
-def _stream_plan(source: StreamSource, chunk_bytes: int | None, chunk_rows: int) -> Plan:
-    """The first collection is read now, to decide whether the stream runs inline."""
-    collections = source.collections()
+def _stream_plan(
+    source: StreamSource, chunk_bytes: int | None, chunk_rows: int, stop: threading.Event | None
+) -> Plan:
+    """The first collection is read now, to decide whether the stream runs inline. Once
+    ``stop`` is set (a task failed), the stream is not read any further."""
+    collections = source.collections(stop)
     first = next(collections, None)
     if first is None:
         return Plan(iter(()), None, True)

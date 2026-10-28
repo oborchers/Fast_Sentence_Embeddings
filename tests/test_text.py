@@ -318,3 +318,11 @@ def test_one_long_line_with_one_row_per_chunk(tmp_path):
     with FileSource(path) as source:
         scan = source.scan(chunk_bytes=1 << 30, chunk_rows=1)
     assert [c.n_sentences for c in scan.chunks] == [1]
+
+
+def test_full_chunks_of_neighbour_ranges_stay_apart(tmp_path):
+    path = tmp_path / "lines.txt"
+    path.write_bytes((b"x" * 65_535 + b"\n") * 32)  # 32 lines of exactly one chunk each
+    with FileSource(path) as source:
+        scan = source.scan(workers=8, chunk_bytes=65_536)
+    assert len(scan.chunks) == 32

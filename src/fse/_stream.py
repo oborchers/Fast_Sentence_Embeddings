@@ -15,6 +15,7 @@ tasks taken before. Row numbers count from the first sentence of the stream.
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 
@@ -48,15 +49,16 @@ class StreamSource:
         self.chunk_bytes = _bounded(chunk_bytes, "chunk_bytes", 1 << 40)
         self._read = False
 
-    def collections(self) -> Iterator[Collection]:
+    def collections(self, stop: threading.Event | None = None) -> Iterator[Collection]:
         """The collections of the stream, in order. An error of the iterator or a bad
-        sentence is raised after the collection of the sentences before it."""
+        sentence is raised after the collection of the sentences before it. Once ``stop``
+        is set, no further sentence is read."""
         if self._read:
             raise RuntimeError("a StreamSource is read once")
         self._read = True
         row = 0
-        while True:
-            encoded, error, ended = self._collect(row)
+        while stop is None or not stop.is_set():
+            encoded, error, ended = self._collect(row, stop)
             if encoded:
                 yield Collection(row, StringSource.encoded(encoded), ended or error is not None)
                 row += len(encoded)
@@ -65,7 +67,9 @@ class StreamSource:
             if ended:
                 return
 
-    def _collect(self, row: int) -> tuple[list[bytes], Exception | None, bool]:
+    def _collect(
+        self, row: int, stop: threading.Event | None
+    ) -> tuple[list[bytes], Exception | None, bool]:
         """Up to chunk_rows sentences or about chunk_bytes bytes; a tight loop, as it runs
         once per sentence in the calling thread while the workers wait for tasks."""
         encoded: list[bytes] = []
@@ -79,6 +83,8 @@ class StreamSource:
                 size += len(data)
                 if len(encoded) >= rows or size >= limit:
                     return encoded, None, False
+                if stop is not None and stop.is_set():  # a task failed: read no further
+                    return encoded, None, True
         except UnicodeEncodeError as err:  # a lone surrogate: name the row of the stream
             return encoded, _with_row(err, row + len(encoded)), False
         except Exception as error:  # raised once the sentences before it are done

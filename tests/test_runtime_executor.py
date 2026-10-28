@@ -80,17 +80,27 @@ def test_commits_run_in_the_calling_thread():
     assert threads == {me}
 
 
-def test_the_first_failing_task_in_order_wins():
+def test_the_first_failing_task_in_order_wins(monkeypatch):
     """Task 30 fails first in time, task 10 later: 10's error is raised, 0 to 9 committed."""
-    events = {10: threading.Event()}
+    registered = threading.Event()
+    real = _executor._Run._work
+
+    def work_and_signal(self, sequence, task):
+        try:
+            return real(self, sequence, task)
+        except BaseException:
+            if task == 30:
+                registered.set()  # failed_at holds 30 now
+            raise
+
+    monkeypatch.setattr(_executor._Run, "_work", work_and_signal)
     committed, commit = _record()
 
     def work(i):
         if i == 30:
-            events[10].set()
             raise ValueError("task 30")
         if i == 10:
-            assert events[10].wait(5), "task 30 never failed"
+            assert registered.wait(5), "task 30 never failed"
             raise ValueError("task 10")
         return i
 

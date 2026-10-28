@@ -162,3 +162,41 @@ def test_a_sink_without_its_methods_is_refused_before_reading():
     with pytest.raises(TypeError, match="target and commit"):
         Pipeline(SPEC).infer(StreamSource([]), sink=Broken())
     assert reads == []
+
+
+def test_a_failed_task_stops_the_stream_between_two_sentences(monkeypatch):
+    """A worker fails while a collection is read: no further sentence is read after it."""
+    import threading
+
+    from fse._runtime import _executor
+    from fse._wordvectors import WordVectors
+
+    failed = threading.Event()
+    rows = np.ones((200, 12), F32)
+    rows[7] = np.finfo(F32).max
+    wv = WordVectors.from_arrays(rows, words=[f"w{i}" for i in range(200)])
+    spec = EncodeSpec(wv, np.full(200, 2, F32))
+    after = []
+
+    def stream():
+        yield from ["w7"] + ["w1 w2"] * 9_999  # the first task fails
+        assert failed.wait(5)
+        for i in range(100_000):
+            after.append(i)
+            if len(after) > 1:
+                raise AssertionError("read after the failure was known")
+            yield "w1"
+
+    real = _executor._Run._work
+
+    def work_and_signal(self, sequence, task):
+        try:
+            return real(self, sequence, task)
+        except BaseException:
+            failed.set()
+            raise
+
+    monkeypatch.setattr(_executor._Run, "_work", work_and_signal)
+    with pytest.raises(ValueError, match="row 0 contains NaN or infinite"):
+        Pipeline(spec).infer(StreamSource(stream(), chunk_rows=20_000), workers=4, chunk_bytes=1024)
+    assert len(after) <= 1
