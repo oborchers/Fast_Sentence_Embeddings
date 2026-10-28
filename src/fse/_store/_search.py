@@ -21,9 +21,13 @@ query). A task reads the floors when it starts; an older floor is lower, which c
 but never a row. Selecting per query column instead cost more than the cosines (one
 argpartition per query and block: 3.1 of 3.4 s for 256 queries on 859,346 rows).
 
-``exact=False`` decodes each block to float32 and multiplies with BLAS instead: faster for
-many queries, but the values differ from the contract in the last bits, so ties and the
-order of nearly equal scores are not reproducible.
+Without ``exact`` each block is decoded to float32 (at most _DECODE_BYTES of it per task)
+and multiplied with BLAS instead: faster for many queries, since BLAS uses the matrix
+units of the CPU, but the values differ from the contract in the last bits, so ties and
+the order of nearly equal scores are not reproducible. For a few queries the kernel is as
+fast or faster, since every row is read once and need not be decoded: the mode "auto"
+takes it for at most AUTO_EXACT_MAX queries (859,346 rows, M1 Pro, 10 workers: equal at 8
+to 12 queries; for 1 query 11 against 39 ms on int8 rows).
 """
 
 from __future__ import annotations
@@ -42,13 +46,26 @@ F32 = np.float32
 _TASK_SCORES = 1 << 20  # scores of one task: rows times queries
 _MIN_ROWS, _MAX_ROWS = 4096, 65_536
 _QUERY_BLOCK = 256
+_DECODE_BYTES = 16 << 20  # the float32 rows one BLAS task decodes
+AUTO_EXACT_MAX = 8
+MODES = ("auto", "exact", "blas")
+
+
+def is_exact(mode: str, n_queries: int) -> bool:
+    """Whether ``mode`` computes ``n_queries`` queries (or weight vectors) by the contract."""
+    if mode not in MODES:
+        raise ValueError(f"mode must be one of {', '.join(MODES)}, not {mode!r}")
+    return mode == "exact" or (mode == "auto" and n_queries <= AUTO_EXACT_MAX)
 
 
 def blocks(
-    shards: Sequence[tuple[Any, dict]], n_queries: int
+    shards: Sequence[tuple[Any, dict]], n_queries: int, decode_dim: int = 0
 ) -> Iterator[tuple[int, int, int, int]]:
-    """(shard index, first row in it, end row, first row of the store) of every block."""
+    """(shard index, first row in it, end row, first row of the store) of every block; a
+    block decoded to float32 rows of ``decode_dim`` values holds at most _DECODE_BYTES."""
     rows = max(_MIN_ROWS, min(_MAX_ROWS, _TASK_SCORES // max(1, min(n_queries, _QUERY_BLOCK))))
+    if decode_dim:
+        rows = min(rows, max(1, _DECODE_BYTES // (4 * decode_dim)))
     for index, (shard, _) in enumerate(shards):
         for begin in range(0, shard.rows, rows):
             yield index, begin, min(shard.rows, begin + rows), shard.first_row + begin
@@ -156,7 +173,10 @@ def search(
     check_queries(backend, queries)
     # The tolerance mode normalizes in numpy: its results are not bit-defined anyway.
     normalized = None if exact else _reference.postprocess(queries, [Normalize()])
-    tasks = [(b, qb) for b in blocks(shards, len(queries)) for qb in query_blocks(len(queries))]
+    decode = 0 if exact else queries.shape[1]
+    tasks = [
+        (b, qb) for b in blocks(shards, len(queries), decode) for qb in query_blocks(len(queries))
+    ]
     candidates = Candidates(len(queries), k)
 
     def run(task):
@@ -194,7 +214,10 @@ def score(
         part = _score_block(backend, tensors, begin, end, first_row, weights[qb], biases[qb], exact)
         out[first_row : first_row + end - begin, qb] = part
 
-    tasks = [(b, qb) for b in blocks(shards, len(weights)) for qb in query_blocks(len(weights))]
+    decode = 0 if exact else weights.shape[1]
+    tasks = [
+        (b, qb) for b in blocks(shards, len(weights), decode) for qb in query_blocks(len(weights))
+    ]
     for _ in _run(run, tasks, workers, "fse-score"):
         pass
     return out

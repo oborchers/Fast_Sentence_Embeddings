@@ -8,18 +8,19 @@
 
 The shards published when the store is opened are mapped read-only (a snapshot: later
 appends need a new open), and every search runs on the stored float32, float16 or int8
-rows directly, through their inverse norms, without a normalized float32 copy. By
-default (``exact=False``) each block is decoded to float32 and multiplied with BLAS, whose
-sums differ from the contract in the last bits; ``exact=True`` gives the cosines, scores
-and the order of the results of ``fse._reference``, bit for bit, at a fraction of the
-speed of BLAS for many queries (it is fast for a few).
+rows directly, through their inverse norms, without a normalized float32 copy. ``mode``
+picks the arithmetic: ``"exact"`` gives the cosines, scores and the order of the results
+of ``fse._reference``, bit for bit; ``"blas"`` decodes each block to float32 and
+multiplies with BLAS, whose sums differ from the contract in the last bits; ``"auto"``
+(the default) takes the faster one, the contract for at most 8 queries or weight vectors
+and BLAS above, so its bits depend on how many are asked at once (maintainer decision).
 """
 
 from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 import numpy as np
 from numpy import ndarray
@@ -96,7 +97,7 @@ class VectorStore:
         k: PositiveInt = 10,
         *,
         workers: PositiveInt | None = None,
-        exact: bool = False,
+        mode: Literal["auto", "exact", "blas"] = "auto",
     ) -> SearchResult:
         """The ``k`` rows with the largest cosine to every query (a vector, or a matrix of one
         per row): ids and scores of shape (k,), or (queries, k)."""
@@ -111,7 +112,7 @@ class VectorStore:
                 matrix,
                 k,
                 workers=workers or usable_cpus(),
-                exact=exact,
+                exact=_search.is_exact(mode, len(matrix)),
             )
         return SearchResult(ids[0], scores[0]) if single else SearchResult(ids, scores)
 
@@ -122,7 +123,7 @@ class VectorStore:
         bias: Any = 0.0,
         *,
         workers: PositiveInt | None = None,
-        exact: bool = False,
+        mode: Literal["auto", "exact", "blas"] = "auto",
     ) -> ndarray:
         """The linear score ``dot16(row, w) * scale + bias`` of every row with every weight
         vector (``weights`` a vector or a matrix of one per row; ``bias`` one number or one
@@ -136,7 +137,7 @@ class VectorStore:
                 matrix,
                 bias,
                 workers=workers or usable_cpus(),
-                exact=exact,
+                exact=_search.is_exact(mode, len(matrix)),
             )
         return out[:, 0] if single else out
 

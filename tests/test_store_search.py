@@ -78,3 +78,20 @@ def test_blocks_bound_the_scores_of_a_task():
         assert rows * min(queries, 256) <= max(_search._TASK_SCORES, 4096 * 256)
         assert sum(end - begin for _, begin, end, _ in found) == 100_010
     assert [s.stop - s.start for s in _search.query_blocks(600)] == [256, 256, 88]
+
+
+def test_blocks_decoded_for_blas_hold_at_most_the_decode_budget():
+    shards = [(Shard("a", 0, 100_000), {})]
+    for queries in (1, 9, 256):
+        found = list(_search.blocks(shards, queries, decode_dim=300))
+        assert max(end - begin for _, begin, end, _ in found) * 300 * 4 <= _search._DECODE_BYTES
+        assert sum(end - begin for _, begin, end, _ in found) == 100_000
+
+
+def test_modes():
+    assert _search.is_exact("exact", 10**6)
+    assert not _search.is_exact("blas", 1)
+    assert _search.is_exact("auto", _search.AUTO_EXACT_MAX)
+    assert not _search.is_exact("auto", _search.AUTO_EXACT_MAX + 1)
+    with pytest.raises(ValueError, match="mode must be one of"):
+        _search.is_exact("fast", 1)

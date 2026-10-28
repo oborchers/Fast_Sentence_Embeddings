@@ -13,7 +13,7 @@ flush, and with --python-v1 fse 1.1.0 training into a memory-mapped file
 --sentences and 4 times as many, each in a fresh child process.
 
 search: the first search of a freshly opened store (cold: a new process) and the warm
-p50 of 10 searches, for 1 to 256 queries, exact and with exact=False (BLAS).
+p50 of 10 searches, for 1 to 256 queries, with mode="exact" and mode="blas".
 score: one and 1,000 weight vectors over all rows, exact and with BLAS.
 
     uv run python benchmarks/bench_store.py write --python-v1 PY --dtypes float16 int8
@@ -133,14 +133,14 @@ def child_search(args) -> dict:
     first = time.perf_counter() - start
     out = {"first_s": first, "peak_after_first": _peak()}
     for q in args.queries:
-        for exact in (True, False):
+        for mode in ("exact", "blas"):
             queries = _queries(q)
             times = []
             for _ in range(10):
                 begin = time.perf_counter()
-                store.search(queries, k=10, exact=exact)
+                store.search(queries, k=10, mode=mode)
                 times.append(time.perf_counter() - begin)
-            out[f"q{q}_{'exact' if exact else 'blas'}_p50_ms"] = 1e3 * statistics.median(times)
+            out[f"q{q}_{mode}_p50_ms"] = 1e3 * statistics.median(times)
     return out
 
 
@@ -151,10 +151,10 @@ def child_score(args) -> dict:
     out = {}
     for m in (1, 1000):
         weights = _queries(m)
-        for exact in (True, False):
+        for mode in ("exact", "blas"):
             begin = time.perf_counter()
-            store.score(weights, exact=exact)
-            out[f"m{m}_{'exact' if exact else 'blas'}_s"] = time.perf_counter() - begin
+            store.score(weights, mode=mode)
+            out[f"m{m}_{mode}_s"] = time.perf_counter() - begin
     return out
 
 
