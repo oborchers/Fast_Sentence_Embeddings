@@ -39,3 +39,19 @@ def test_recipes_pickle_and_keep_their_parameters():
     assert copy._spec == recipe._spec
     with pytest.raises(AttributeError, match="does not change"):
         copy._spec = None
+
+
+@pytest.mark.parametrize("alpha", [1e-46, 1e39])
+def test_alpha_must_be_positive_and_finite_in_float32(alpha):
+    with pytest.raises(ValueError, match="positive and finite in float32"):
+        fse.SIF(alpha=alpha)
+
+
+def test_fit_transform_of_a_stream_where_the_fit_reads_nothing():
+    from fse._stream import StreamSource
+    from support.runtime import texts
+
+    wv = word_vectors()
+    sentences = texts(300)
+    encoder, rows = fse.Average().fit_transform(wv, StreamSource(iter(sentences)))
+    assert rows.tobytes() == encoder.encode(sentences).tobytes()

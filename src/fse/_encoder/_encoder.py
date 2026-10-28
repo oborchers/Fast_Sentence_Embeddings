@@ -181,7 +181,18 @@ class Encoder:
             embedded = (words, {k: v for k, v in keys.items() if k in WORD_VECTOR_KEYS})
             expected.update({k: v for k, v in (loaded or {}).items() if k in words})
         tensors, metadata = to_artifact(self._content, embedded)
+        tensors.update(self._used())
         return tensors, metadata, expected or None
+
+    def _used(self) -> dict[str, ndarray]:
+        """The copies the pipelines encode with, as tensors: the weights and oov_weight.
+        Saving and verifying use these, so neither can pass data the encoder does not use."""
+        used = {}
+        if self._content.weights is not None:
+            used["weights"] = self._spec.weights
+        if self._spec.oov_weight is not None:
+            used["oov_weight"] = np.array(self._spec.oov_weight, dtype=np.float32)
+        return used
 
     @classmethod
     @validate_arguments
@@ -221,11 +232,6 @@ class Encoder:
         if self._checksums is not None:
             tensors, _, _ = self._artifact()
             held = {k: v for k, v in tensors.items() if k in self._checksums}
-            # The copies the pipelines use: the weights and the oov_weight as a scalar.
-            if self._content.weights is not None:
-                held["weights"] = self._spec.weights
-            if self._spec.oov_weight is not None:
-                held["oov_weight"] = np.array(self._spec.oov_weight, dtype=np.float32)
             for name, array in held.items():
                 if name not in WORD_VECTOR_TENSORS and array_sha256(array) != self._checksums[name]:
                     raise CorruptArtifactError(

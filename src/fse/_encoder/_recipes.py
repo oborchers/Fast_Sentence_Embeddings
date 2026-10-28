@@ -68,8 +68,9 @@ class _Recipe:
         backend: Backend = "cpu",
     ) -> tuple[Encoder, Any]:
         """The fitted encoder and the vectors of ``texts``, bit for bit those of
-        ``fit(...).encode(texts)``; the corpus is read once more, so it cannot be a
-        stream."""
+        ``fit(...).encode(texts)``. The corpus is read once more after what the fit reads,
+        so a stream (read once) works only where the fit reads nothing, as for Average
+        without ``dim``."""
         spec = self._checked(word_vectors)
         encoder, rows = fit_transform(
             spec, word_vectors, texts, counts=counts, workers=workers, backend=backend, dtype=dtype
@@ -110,6 +111,11 @@ def _fit_spec(name: str, weighting: str, **kwargs: Any) -> FitSpec:
     oov_weight = kwargs["oov_weight"]
     if oov_weight is not None and not np.isfinite(oov_weight):
         raise ValueError("oov_weight must be finite")
+    alpha = kwargs.get("alpha")
+    with np.errstate(over="ignore"):
+        as_float32 = None if alpha is None else np.float32(alpha)
+    if as_float32 is not None and not (np.isfinite(as_float32) and as_float32 > 0):
+        raise ValueError(f"alpha must be positive and finite in float32, not {alpha!r}")
     kwargs["tokenizer"] = check_tokenizer(kwargs["tokenizer"])
     return FitSpec(name=name, weighting=weighting, **kwargs)
 

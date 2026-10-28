@@ -259,6 +259,9 @@ def test_verify_checks_the_data_the_encoder_holds(tmp_path):
     path.write_bytes(original)
     with pytest.raises(ValueError, match=r"weights of .* does not match its checksum"):
         loaded.verify()
+    with pytest.raises(ValueError, match="changed since it was checked; nothing was written"):
+        loaded.save(tmp_path / "copy.safetensors")  # never a file of other weights
+    assert not (tmp_path / "copy.safetensors").exists()
     Encoder.load(path, word_vectors=encoder.word_vectors, mmap=True).verify()
 
 
@@ -284,3 +287,5 @@ def test_verify_checks_the_oov_weight_the_encoder_uses(tmp_path):
     assert loaded.encode(["zzzz qqqq"]).tobytes() != encoder.encode(["zzzz qqqq"]).tobytes()
     with pytest.raises(ValueError, match=r"oov_weight of .* does not match its checksum"):
         loaded.verify()
+    with pytest.raises(ValueError, match="changed since it was checked; nothing was written"):
+        loaded.save(tmp_path / "copy.safetensors")
