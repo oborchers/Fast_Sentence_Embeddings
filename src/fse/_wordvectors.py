@@ -31,25 +31,21 @@ from fse._container import (
     CorruptArtifactError,
     SafetensorsContainer,
     array_sha256,
-    canonical_json,
     fingerprint,
     tensor_code,
 )
 from fse._validation import PathLike, validate_arguments
 from fse._wordvectors_format import (
     _BLOCK_ROWS,
-    _DTYPE_OF,
-    FORMAT_VERSION,
-    KIND,
-    NGRAM_HASH,
     QUANTIZATION,
     FastTextParams,
-    _check_fasttext,
     _check_structure,
     _check_values,
-    _encode_words,
     _lookup,
+    _new_metadata,
+    _new_tensors,
     _parse_fasttext,
+    _vocabulary,
 )
 
 
@@ -125,46 +121,19 @@ class WordVectors:
         copy = _copy  # False only for arrays the caller created and hands over
         if not isinstance(vectors, ndarray):
             raise TypeError(f"vectors must be a numpy array, not {type(vectors).__name__}")
-        if (words is None) == (vocab_bytes is None or vocab_offsets is None) or (
-            words is not None and (vocab_bytes is not None or vocab_offsets is not None)
-        ):
-            raise ValueError("give either words or both vocab_bytes and vocab_offsets")
-        if words is not None:
-            if isinstance(words, str) or not isinstance(words, Sequence):
-                raise TypeError("words must be a sequence of str")
-            vocab_bytes, vocab_offsets = _encode_words(words)
-        tensors = {"vectors": vectors, "vocab.bytes": vocab_bytes, "vocab.offsets": vocab_offsets}
-        for name, value in (
-            ("scales", scales),
-            ("counts", counts),
-            ("ngrams", ngrams),
-            ("ngram_scales", ngram_scales),
-        ):
-            if value is not None:
-                tensors[name] = value
-        for name, value in tensors.items():
-            if not isinstance(value, ndarray):
-                raise TypeError(f"{name} must be a numpy array, not {type(value).__name__}")
-        try:
-            dtype = _DTYPE_OF.get(tensor_code(vectors))
-        except ValueError:
-            dtype = None
-        if dtype is None:
-            raise ValueError(f"vectors must be float32, float16 or int8, not {vectors.dtype}")
-        metadata = {
-            "fse.kind": KIND,
-            "fse.format_version": FORMAT_VERSION,
-            "fse.dim": str(vectors.shape[1]) if vectors.ndim == 2 else "0",
-            "fse.dtype": dtype,
-        }
-        if dtype != "float32":
-            metadata["fse.quantization"] = QUANTIZATION
-        if fasttext is not None:
-            if not isinstance(fasttext, FastTextParams):
-                raise TypeError("fasttext must be FastTextParams")
-            _check_fasttext(fasttext)
-            metadata["fse.fasttext"] = canonical_json(fasttext._asdict())
-            metadata["fse.ngram_hash"] = NGRAM_HASH
+        vocab_bytes, vocab_offsets = _vocabulary(words, vocab_bytes, vocab_offsets)
+        tensors = _new_tensors(
+            {
+                "vectors": vectors,
+                "vocab.bytes": vocab_bytes,
+                "vocab.offsets": vocab_offsets,
+                "scales": scales,
+                "counts": counts,
+                "ngrams": ngrams,
+                "ngram_scales": ngram_scales,
+            }
+        )
+        metadata = _new_metadata(vectors, fasttext)
         return cls._new(
             {k: _frozen(v) if copy else _read_only(v) for k, v in tensors.items()}, metadata
         )
@@ -276,42 +245,53 @@ class WordVectors:
         if not self._verified:
             self._check_contents()
         expected = self._checksums()
-        tensors: dict[str, ndarray] = {}
-        for name, array in self._tensors.items():
-            if name in ("vectors", "ngrams"):
-                continue
-            copy = _frozen(array)
-            if expected is not None and array_sha256(copy) != expected[name]:
-                raise CorruptArtifactError(
-                    f"tensor {name} of {self._path} changed since it was loaded"
-                )
-            tensors[name] = copy
+        tensors = {
+            name: self._checked_copy(name, array, expected)
+            for name, array in self._tensors.items()
+            if name not in ("vectors", "ngrams")
+        }
         for name, scales in (("vectors", "scales"), ("ngrams", "ngram_scales")):
             if name not in self._tensors:
                 continue
-            source = self._tensors[name]
-            codes = np.empty(source.shape, dtype=_codes.STORAGE_TYPES[dtype])
-            codes_scales = np.empty(len(source), dtype=np.float32) if dtype == "int8" else None
-            digest = hashlib.sha256()
-            for begin in range(0, len(source), _BLOCK_ROWS):
-                block = np.array(source[begin : begin + _BLOCK_ROWS], dtype=np.float32, copy=True)
-                digest.update(memoryview(block.reshape(-1).view(np.uint8)))
-                _codes.quantize_into(
-                    block,
-                    codes[begin : begin + len(block)],
-                    None if codes_scales is None else codes_scales[begin : begin + len(block)],
-                    first_row=begin,
-                    kind=f"row of {name}",
-                )
-            if expected is not None and digest.hexdigest() != expected[name]:
-                raise CorruptArtifactError(
-                    f"tensor {name} of {self._path} changed since it was loaded"
-                )
-            codes.setflags(write=False)
+            codes, codes_scales = self._quantized(name, dtype, expected)
             tensors[name] = codes
             if codes_scales is not None:
-                codes_scales.setflags(write=False)
                 tensors[scales] = codes_scales
+        # The copied vocabulary matches the checksums, so the checked lookup still holds.
+        return WordVectors._new(tensors, self._quantized_metadata(dtype), self._index)
+
+    def _checked_copy(self, name: str, array: ndarray, expected) -> ndarray:
+        """A frozen copy of tensor ``name``, which must still match its loaded checksum."""
+        copy = _frozen(array)
+        if expected is not None and array_sha256(copy) != expected[name]:
+            raise CorruptArtifactError(f"tensor {name} of {self._path} changed since it was loaded")
+        return copy
+
+    def _quantized(self, name: str, dtype: str, expected) -> tuple[ndarray, ndarray | None]:
+        """The codes (and int8 scales) of rows ``name``: every block is read once, and the
+        same copy is hashed and quantized."""
+        source = self._tensors[name]
+        codes = np.empty(source.shape, dtype=_codes.STORAGE_TYPES[dtype])
+        codes_scales = np.empty(len(source), dtype=np.float32) if dtype == "int8" else None
+        digest = hashlib.sha256()
+        for begin in range(0, len(source), _BLOCK_ROWS):
+            block = np.array(source[begin : begin + _BLOCK_ROWS], dtype=np.float32, copy=True)
+            digest.update(memoryview(block.reshape(-1).view(np.uint8)))
+            _codes.quantize_into(
+                block,
+                codes[begin : begin + len(block)],
+                None if codes_scales is None else codes_scales[begin : begin + len(block)],
+                first_row=begin,
+                kind=f"row of {name}",
+            )
+        if expected is not None and digest.hexdigest() != expected[name]:
+            raise CorruptArtifactError(f"tensor {name} of {self._path} changed since it was loaded")
+        codes.setflags(write=False)
+        if codes_scales is not None:
+            codes_scales.setflags(write=False)
+        return codes, codes_scales
+
+    def _quantized_metadata(self, dtype: str) -> dict[str, str]:
         metadata = {
             k: v
             for k, v in self._metadata.items()
@@ -320,8 +300,7 @@ class WordVectors:
         metadata["fse.dtype"] = dtype
         metadata["fse.quantization"] = QUANTIZATION
         metadata["fse.quantized_from"] = self.fingerprint
-        # The copied vocabulary matches the checksums, so the checked lookup still holds.
-        return WordVectors._new(tensors, metadata, self._index)
+        return metadata
 
     def __reduce__(self):
         raise TypeError("WordVectors cannot be pickled; use save() and WordVectors.load()")

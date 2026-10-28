@@ -17,7 +17,7 @@ import codecs
 import json
 import re
 from collections.abc import Sequence
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
 from numpy import ndarray
@@ -333,3 +333,50 @@ def _check_scale_values(name: str, scales: str, rows: ndarray, values: ndarray):
             raise ValueError(
                 f"row {begin + int(bad[0])} of {name} overflows float32 with its scale"
             )
+
+
+def _vocabulary(words: Any, vocab_bytes: Any, vocab_offsets: Any) -> tuple[Any, Any]:
+    """The vocabulary bytes and offsets of new word vectors: given, or of ``words``."""
+    if (words is None) == (vocab_bytes is None or vocab_offsets is None) or (
+        words is not None and (vocab_bytes is not None or vocab_offsets is not None)
+    ):
+        raise ValueError("give either words or both vocab_bytes and vocab_offsets")
+    if words is None:
+        return vocab_bytes, vocab_offsets
+    if isinstance(words, str) or not isinstance(words, Sequence):
+        raise TypeError("words must be a sequence of str")
+    return _encode_words(words)
+
+
+def _new_tensors(given: dict[str, Any]) -> dict[str, ndarray]:
+    """The tensors of new word vectors: every given one, each a numpy array."""
+    tensors = {name: value for name, value in given.items() if value is not None}
+    for name, value in tensors.items():
+        if not isinstance(value, ndarray):
+            raise TypeError(f"{name} must be a numpy array, not {type(value).__name__}")
+    return tensors
+
+
+def _new_metadata(vectors: ndarray, fasttext: Any) -> dict[str, str]:
+    """The metadata of new word vectors with these vectors and FastText parameters."""
+    try:
+        dtype = _DTYPE_OF.get(tensor_code(vectors))
+    except ValueError:
+        dtype = None
+    if dtype is None:
+        raise ValueError(f"vectors must be float32, float16 or int8, not {vectors.dtype}")
+    metadata = {
+        "fse.kind": KIND,
+        "fse.format_version": FORMAT_VERSION,
+        "fse.dim": str(vectors.shape[1]) if vectors.ndim == 2 else "0",
+        "fse.dtype": dtype,
+    }
+    if dtype != "float32":
+        metadata["fse.quantization"] = QUANTIZATION
+    if fasttext is not None:
+        if not isinstance(fasttext, FastTextParams):
+            raise TypeError("fasttext must be FastTextParams")
+        _check_fasttext(fasttext)
+        metadata["fse.fasttext"] = canonical_json(fasttext._asdict())
+        metadata["fse.ngram_hash"] = NGRAM_HASH
+    return metadata
