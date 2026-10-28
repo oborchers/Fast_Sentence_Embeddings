@@ -53,30 +53,12 @@ def from_gensim(
             f"model must be gensim KeyedVectors or a model with them in wv, not {type(model).__name__}"
         )
     words = kv.index_to_key
-    if isinstance(kv, fasttext_vectors):
-        if not getattr(kv, "compatible_hash", True):
-            raise ValueError(
-                "FastText vectors with the old, incompatible ngram hash are not supported"
-            )
-        if not kv.bucket:
-            raise ValueError(
-                "FastText vectors without ngram buckets; save them as plain KeyedVectors"
-            )
-        fasttext = FastTextParams(int(kv.min_n), int(kv.max_n), int(kv.bucket))
-        rows, ngram_rows = kv.vectors_vocab, kv.vectors_ngrams
-    else:
-        fasttext, rows, ngram_rows = None, kv.vectors, None
-    if rows.dtype != np.float32:
-        raise TypeError(f"the word vectors must be float32, not {rows.dtype}")
-    if rows.ndim != 2 or rows.shape[0] != len(words):
-        raise ValueError(f"gensim holds {len(words)} words but vectors of shape {rows.shape}")
+    fasttext, rows, ngram_rows = _word_rows(kv, isinstance(kv, fasttext_vectors))
+    _check_rows(rows, words)
     vocab_bytes, vocab_offsets = _encode_words(words)
     kwargs: dict[str, Any] = {}
     if counts and "count" in getattr(kv, "expandos", {}):
-        values = np.asarray(kv.expandos["count"])
-        if values.dtype.kind not in "iu":
-            raise TypeError(f"gensim's counts must be integers, not {values.dtype}")
-        kwargs["counts"] = values.astype(np.int64)
+        kwargs["counts"] = _counts(kv.expandos["count"])
     if fasttext is not None:
         kwargs["fasttext"] = fasttext
     vectors, scales = _stored(rows, dtype, "word vector")
@@ -94,6 +76,32 @@ def from_gensim(
         _copy=dtype == "float32",
         **kwargs,
     )
+
+
+def _word_rows(kv: Any, is_fasttext: bool):
+    """The FastText parameters (None for plain vectors), word rows and ngram rows of ``kv``."""
+    if not is_fasttext:
+        return None, kv.vectors, None
+    if not getattr(kv, "compatible_hash", True):
+        raise ValueError("FastText vectors with the old, incompatible ngram hash are not supported")
+    if not kv.bucket:
+        raise ValueError("FastText vectors without ngram buckets; save them as plain KeyedVectors")
+    fasttext = FastTextParams(int(kv.min_n), int(kv.max_n), int(kv.bucket))
+    return fasttext, kv.vectors_vocab, kv.vectors_ngrams
+
+
+def _check_rows(rows: np.ndarray, words: Any):
+    if rows.dtype != np.float32:
+        raise TypeError(f"the word vectors must be float32, not {rows.dtype}")
+    if rows.ndim != 2 or rows.shape[0] != len(words):
+        raise ValueError(f"gensim holds {len(words)} words but vectors of shape {rows.shape}")
+
+
+def _counts(count: Any) -> np.ndarray:
+    values = np.asarray(count)
+    if values.dtype.kind not in "iu":
+        raise TypeError(f"gensim's counts must be integers, not {values.dtype}")
+    return values.astype(np.int64)
 
 
 def _stored(rows: np.ndarray, dtype: str, kind: str):
