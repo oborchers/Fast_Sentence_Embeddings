@@ -8,7 +8,7 @@ table of ``fse._unicode``. It is slow and meant for tests.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 
 import numpy as np
 
@@ -76,13 +76,16 @@ def _token_chars(s: str) -> list[bool]:
         elif ch in ",:":
             t[i] = after in _DIGITS
         elif ch == "'":
-            doubled = before == "'" or after == "'"
-            # Not a token char after a token char that is no word char, before a word char.
-            opening = (
-                i > 0 and t[i - 1] and not _is_word(before) and after != "" and _is_word(after)
-            )
-            t[i] = not (doubled or opening)
+            t[i] = _quote_is_token_char(i, t, before, after)
     return t
+
+
+def _quote_is_token_char(i: int, t: list[bool], before: str, after: str) -> bool:
+    """Whether the ' at ``i`` is a token char, given the classes ``t`` before it."""
+    doubled = before == "'" or after == "'"
+    # Not a token char after a token char that is no word char, before a word char.
+    opening = i > 0 and t[i - 1] and not _is_word(before) and after != "" and _is_word(after)
+    return not (doubled or opening)
 
 
 def _parts(u: str) -> Sequence[str]:
@@ -109,24 +112,25 @@ def tokenize_fse_words(text: str) -> list[str]:
     """The tokens of one sentence by fse_words@1."""
     _check_text(text)
     s = simple_lower(text)
-    t = _token_chars(s)
     out: list[str] = []
+    for start, end in _runs(_token_chars(s)):
+        for part in _parts(s[start:end].strip(".:")):
+            part = part.strip(".:'")
+            if any(ch in _ALNUM for ch in part):
+                out.extend(piece for piece in part.split("-") if piece)
+    return out
+
+
+def _runs(t: list[bool]) -> Iterator[tuple[int, int]]:
+    """Step 4: the maximal runs of token chars, as (start, end)."""
     start = -1
-    for i in range(len(s) + 1):
-        if i < len(s) and t[i]:
+    for i in range(len(t) + 1):
+        if i < len(t) and t[i]:
             if start < 0:
                 start = i
-            continue
-        if start < 0:
-            continue
-        candidate = s[start:i].strip(".:")
-        start = -1
-        for part in _parts(candidate):
-            part = part.strip(".:'")
-            if not any(ch in _ALNUM for ch in part):
-                continue
-            out.extend(piece for piece in part.split("-") if piece)
-    return out
+        elif start >= 0:
+            yield start, i
+            start = -1
 
 
 def tokenize_external(text: str) -> list[str]:
@@ -183,17 +187,26 @@ def ft_ngram_hashes(token: str, min_n: int, max_n: int, bucket: int, max_ngrams:
     # The start byte of every code point.
     starts = [i for i, byte in enumerate(word) if byte & 0xC0 != 0x80]
     out: list[int] = []
+    for i, j in _ngram_spans(starts, len(word), min_n, max_n):
+        if len(out) == max_ngrams:
+            return out
+        out.append(_hash(word[i:j]) % bucket)
+    return out
+
+
+def _ngram_spans(
+    starts: list[int], length: int, min_n: int, max_n: int
+) -> Iterator[tuple[int, int]]:
+    """The byte spans (i, j) of the ngrams of ``min_n`` to ``max_n`` code points, by start,
+    then length; the single "<" and ">" are no ngrams."""
     for k, i in enumerate(starts):
         for n in range(1, max_n + 1):
             if k + n > len(starts):
                 break
-            j = starts[k + n] if k + n < len(starts) else len(word)
-            if n < min_n or (n == 1 and (i == 0 or j == len(word))):
+            j = starts[k + n] if k + n < len(starts) else length
+            if n < min_n or (n == 1 and (i == 0 or j == length)):
                 continue
-            if len(out) == max_ngrams:
-                return out
-            out.append(_hash(word[i:j]) % bucket)
-    return out
+            yield i, j
 
 
 def encode_texts(

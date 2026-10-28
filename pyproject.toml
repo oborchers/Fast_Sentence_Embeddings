@@ -248,9 +248,6 @@ untested-modules = ["src/fse/_version.py"]
 "benchmarks/bench_tokenize.py::prepare" = { cognitive = 18 }
 "benchmarks/bench_wordvectors.py::child" = { C901 = 13 }
 "benchmarks/quality/run_mteb.py::summarize" = { cognitive = 39 }
-"src/fse/_reference_text.py::_token_chars" = { cognitive = 17 }
-"src/fse/_reference_text.py::ft_ngram_hashes" = { cognitive = 21 }
-"src/fse/_reference_text.py::tokenize_fse_words" = { cognitive = 18 }
 "src/fse/_wordvectors.py::WordVectors.from_arrays" = { C901 = 14, PLR0912 = 13, cognitive = 25 }
 "src/fse/_wordvectors.py::WordVectors.quantize" = { C901 = 11, cognitive = 26 }
 "src/fse/gensim.py::from_gensim" = { C901 = 13, PLR0912 = 13, cognitive = 19 }
