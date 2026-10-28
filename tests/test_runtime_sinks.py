@@ -98,3 +98,55 @@ def test_the_gram_sink_names_the_block_of_a_bad_row(monkeypatch):
     rows[5] = np.nan  # in the second block of the first commit
     with pytest.raises(ValueError, match=r"NaN or infinite values in rows from 4$"):
         sink.commit(0, rows)
+
+
+@pytest.mark.parametrize("dtype", ["float16", "int8"])
+def test_sinks_of_a_storage_dtype(dtype):
+    sink = ArrayRows(5, 2, dtype)
+    first = sink.target(0, 2)
+    codes = first[0] if dtype == "int8" else first
+    assert codes.dtype == dtype
+    assert codes.shape == (2, 2)
+    with pytest.raises(ValueError, match="not the target reserved"):
+        sink.commit(0, np.ones((2, 2), F32))
+    sink.commit(0, first)
+    sink.commit(2, sink.target(2, 3))
+    result = sink.result()
+    assert (result[0] if dtype == "int8" else result).shape == (5, 2)
+    growing = GrowingRows(3, dtype)
+    for first_row, n in ((0, 2), (2, 1)):
+        growing.commit(first_row, growing.target(first_row, n))
+    with pytest.raises(ValueError, match=f"C-contiguous {dtype} rows of 3 values"):
+        growing.commit(3, np.ones((1, 3), F32))
+    joined = growing.result()
+    if dtype == "int8":
+        assert joined[0].shape == (3, 3)
+        assert joined[1].shape == (3,)
+    else:
+        assert joined.shape == (3, 3)
+    empty = GrowingRows(3, dtype).result()
+    assert (empty[0] if dtype == "int8" else empty).shape == (0, 3)
+
+
+def test_an_unknown_dtype_is_refused():
+    with pytest.raises(ValueError, match="dtype must be one of"):
+        ArrayRows(1, 2, "float64")
+    from fse._runtime import EncodeSpec, Pipeline
+    from fse._text import StringSource
+    from support.runtime import word_vectors
+
+    wv = word_vectors()
+    pipeline = Pipeline(EncodeSpec(wv, np.ones(len(wv), F32)))
+    with pytest.raises(ValueError, match="dtype must be one of"):
+        pipeline.infer(StringSource(["w1"]), dtype="bfloat16")
+
+    class Odd:
+        dim = 12
+        dtype = "uint8"
+
+        def target(self, first_row, n_rows): ...
+
+        def commit(self, first_row, rows): ...
+
+    with pytest.raises(ValueError, match="dtype must be one of"):
+        pipeline.infer(StringSource(["w1"]), sink=Odd())

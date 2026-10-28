@@ -11,6 +11,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 - `fse.WordVectors`: word vectors saved as one `.safetensors` file with checksums and a fingerprint, without pickle, memory-mappable, stored as float32, float16 or int8 and read as float32, with FastText ngrams. Loading int8 vectors needs no float32 copy, and other safetensors readers can open the files.
 - `fse.gensim.from_gensim` converts gensim `KeyedVectors`, `Word2Vec` and `FastText` into `WordVectors`.
 - The native tokenizer `fse_words@1`: lowercase, split at whitespace and punctuation, and expand contractions like the preprocessing of the published 1.x tables, specified in ARCHITECTURE.md and fixed for 2.x. It gives the tokens of that preprocessing on every STS Benchmark sentence and on 99.98 % of the WikiText paragraphs, and runs without the GIL from raw text to token ids.
+- The recipes `fse.Average`, `fse.SIF` and `fse.USIF` (the 2.0 name of uSIF) and the frozen `fse.Encoder` they fit. `fit` learns the word weights (SIF and uSIF as in 1.1.0, from the counts of the word vectors or `counts=`), the components to remove and an optional projection to `dim` dimensions (PCA); `fit_transform` also returns the vectors of the corpus, the same as `fit(...).encode(...)`. By default the learned components and the projection are folded into the encoder's own word vectors, so encoding costs what an average costs, and every vector ends normalized. `Encoder.encode` takes lists of sentences, a path of a text file, token lists or any iterable, in parallel, and returns float32 or float16 rows, or `fse.QuantizedRows` (int8 codes with a scale per row) computed in the workers at about the speed of float32. An encoder is saved as one `.safetensors` file; a folded one includes its word vectors.
 - Python 3.14 and 3.15, with pre-built wheels. On 3.14 and newer, `fse.gensim` needs gensim, which does not build there yet; everything else works.
 
 ### Changed
@@ -21,7 +22,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Removed
 
-- The 1.x API: `Average`, `SIF`, `uSIF`, `SentenceVectors`, the input classes, `Vectors` and `FTVectors`, and the modules `fse.models`, `fse.inputs` and `fse.vectors`. Accessing one of these names on `fse` raises an `AttributeError` that points to fse 1.1.0 on PyPI and the branch `1.x`. Models saved with 1.x are converted with `export_v2` of a later 1.x release.
+- The 1.x API: the 1.x models `Average`, `SIF` and `uSIF` (2.0 has recipes of the first two names and `USIF`), `SentenceVectors`, the input classes, `Vectors` and `FTVectors`, and the modules `fse.models`, `fse.inputs` and `fse.vectors`. Accessing one of the removed names on `fse` raises an `AttributeError` that points to fse 1.1.0 on PyPI and the branch `1.x`. Models saved with 1.x are converted with `export_v2` of a later 1.x release.
 
 ## [1.1.0] - 2026-10-27
 

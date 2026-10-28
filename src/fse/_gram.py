@@ -115,10 +115,7 @@ def components_from_gram(
     # scikit-learn's svd_flip does, so v and -v from different LAPACK builds agree.
     largest = np.absolute(basis).argmax(axis=1)
     basis *= np.sign(basis[np.arange(components), largest])[:, None]
-    # A heuristic bound for the rounding of the block products: it grows with the length
-    # of the dot products (the block rows) and with the dimension.
-    block_rows = min(num_vectors, REMOVAL_BLOCK_ROWS)
-    resolution = eigenvalues[0] * np.finfo(block_dtype).eps * max(dim, block_rows**0.5)
+    resolution = _resolution(eigenvalues[0], num_vectors, dim, block_dtype)
     if eigenvalues[-1] <= resolution:
         logger.warning(
             f"{int((eigenvalues <= resolution).sum())} of {components} principal components "
@@ -129,3 +126,62 @@ def components_from_gram(
     singular_values = np.sqrt(np.maximum(eigenvalues, 0.0))
     # C order, so the basis can be a step of an encoder as it is.
     return singular_values.astype(np.float32), np.ascontiguousarray(basis, dtype=np.float32)
+
+
+def _resolution(largest: float, num_vectors: int, dim: int, block_dtype: Any) -> float:
+    """A heuristic bound for the rounding of the block products of a Gram matrix whose
+    largest eigenvalue is ``largest``: it grows with the length of the dot products (the
+    block rows) and with the dimension."""
+    block_rows = min(num_vectors, REMOVAL_BLOCK_ROWS)
+    return float(largest * np.finfo(block_dtype).eps * max(dim, block_rows**0.5))
+
+
+def projection_from_gram(
+    gram: ndarray,
+    num_vectors: int,
+    dim: int,
+    block_dtype: Any,
+    removed: ndarray | None = None,
+    weights: ndarray | None = None,
+) -> ndarray:
+    """The basis of ``project@1`` with ``dim`` axes: the principal axes of the rows after
+    removing the rows of ``removed`` with ``weights`` (1 without), from their Gram matrix.
+
+    With ``M = I - sum_j w_j u_j u_j^T`` the rows after the removal have the Gram matrix
+    ``M^T G M``, in float64. Components removed with weight 1 are gone from every row, so
+    the eigenproblem is solved on their orthogonal complement, and ``dim`` is at most the
+    dimension minus their number. An axis with a variance below the rounding bound of
+    ``gram`` raises instead of picking a direction from noise (ARCHITECTURE.md, project@1).
+    Returns ``dim`` orthonormal float32 rows in C order, the largest entry of each
+    positive.
+    """
+    if not np.isfinite(gram).all():
+        raise ValueError("the Gram matrix of the sentence vectors is not finite")
+    d = gram.shape[0]
+    u = np.zeros((0, d)) if removed is None else np.asarray(removed, dtype=np.float64)
+    w = np.ones(len(u)) if weights is None else np.asarray(weights, dtype=np.float64)
+    m = np.eye(d) - u.T @ (w[:, None] * u)
+    reduced = m.T @ gram @ m
+    gone = u[w == 1.0]
+    free = d - np.linalg.matrix_rank(gone) if len(gone) else d
+    if not 1 <= dim <= free:
+        raise ValueError(
+            f"dim must be between 1 and {free} (the dimension {d} without the components "
+            f"removed with weight 1), not {dim}"
+        )
+    # An orthonormal basis of the complement of the removed directions.
+    q = np.linalg.qr(gone.T, mode="complete")[0][:, d - free :] if len(gone) else np.eye(d)
+    eigenvalues, eigenvectors = np.linalg.eigh(q.T @ reduced @ q)
+    eigenvalues = eigenvalues[::-1][:dim]
+    basis = (q @ eigenvectors[:, ::-1][:, :dim]).T
+    resolution = _resolution(np.linalg.eigvalsh(gram)[-1], num_vectors, d, block_dtype)
+    low = int((eigenvalues <= resolution).sum())
+    if low:
+        raise ValueError(
+            f"{low} of the {dim} axes of the projection have a variance below the rounding "
+            f"of the Gram matrix of {num_vectors} sentence vectors ({resolution:.3g}); fit "
+            "on more sentences or choose a smaller dim"
+        )
+    largest = np.absolute(basis).argmax(axis=1)
+    basis *= np.sign(basis[np.arange(dim), largest])[:, None]
+    return np.ascontiguousarray(basis, dtype=np.float32)

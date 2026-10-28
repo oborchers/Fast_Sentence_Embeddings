@@ -10,7 +10,8 @@ A backend prepares the arrays of an encoder once (``prepare``), then turns one b
 into finished rows (``rows``: stages 2 to 4, the aggregation and then the postprocessing
 steps on the rows of that batch) and computes Gram blocks and scores. Arguments and
 outputs are host numpy arrays; what ``prepare`` returns holds the backend's own state,
-which may live on a device. Every result has the bits of ``fse._reference``.
+which may live on a device. Every result has the bits of ``fse._reference``. ``store``
+runs on the host in PR 5; a device backend may fuse it with ``rows`` later (PR 9).
 """
 
 from __future__ import annotations
@@ -125,6 +126,11 @@ class Backend(Protocol):
         self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float
     ) -> ndarray: ...
 
+    def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
+        """Stage 5 of finished float32 ``rows`` (rows ``first_row`` on) into float16 or
+        int8 ``codes``, with one scale per row in ``scales`` for int8 (``quantize_rows@1``)."""
+        ...
+
 
 def check_pool_input(pool: PoolInput) -> PoolInput:
     """Check the arrays of ``pool`` against each other, as the native kernel does."""
@@ -205,6 +211,42 @@ def check_score_input(stored: object, scales: object, weights: object, bias: obj
     if int8:
         _float32_vector(scales, "scales", len(stored))
     _real(bias, "bias")
+
+
+def check_store_input(rows: object, codes: object, scales: object, first_row: object) -> None:
+    """The arguments of ``store``, checked the same way by every backend: C-contiguous
+    float32 rows, writable C-contiguous float16 or int8 codes of their shape, a writable
+    float32 scale per row exactly for int8, none sharing memory with another."""
+    if not isinstance(rows, ndarray) or rows.dtype != np.float32 or rows.ndim != 2:
+        raise ValueError("rows must be a float32 matrix")
+    if not rows.flags.c_contiguous:
+        raise ValueError("rows must be C-contiguous")
+    if (
+        not isinstance(codes, ndarray)
+        or codes.dtype not in (np.float16, np.int8)
+        or codes.shape != rows.shape
+        or not codes.flags.c_contiguous
+        or not codes.flags.writeable
+    ):
+        raise ValueError(
+            f"codes must be a writable C-contiguous float16 or int8 array of shape {rows.shape}"
+        )
+    _check_store_scales(scales, codes.dtype == np.int8, len(rows))
+    arrays = [a for a in (rows, codes, scales) if a is not None]
+    if any(np.may_share_memory(a, b) for i, a in enumerate(arrays) for b in arrays[i + 1 :]):
+        raise ValueError("rows, codes and scales must not share memory")
+    if isinstance(first_row, bool) or not isinstance(first_row, int | np.integer) or first_row < 0:
+        raise ValueError(f"first_row must be an int of at least 0, not {first_row!r}")
+
+
+def _check_store_scales(scales: object, int8: bool, length: int):
+    if int8 != (scales is not None):
+        raise ValueError("scales are given exactly for int8 codes")
+    if int8:
+        _float32_vector(scales, "scales", length)
+        assert isinstance(scales, ndarray)
+        if not scales.flags.writeable:
+            raise ValueError("scales must be writable")
 
 
 def check_prepared(prepared: object, backend: str) -> Prepared:

@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
+from fse import _gram
 from fse._contract import RemoveComponents
 from fse._gram import compute_principal_components
 from fse._reference import postprocess
@@ -219,3 +220,67 @@ def test_undetermined_components_are_logged(caplog):
     with caplog.at_level("WARNING", logger="fse._gram"):
         compute_principal_components(vectors, components=3)
     assert "2 of 3 principal components have a variance below a heuristic bound" in caplog.text
+
+
+def _rows(n=3000, d=10, seed=0):
+    """Rows with clearly separated variances per axis of a random rotation."""
+    rng = np.random.default_rng(seed)
+    rotation = np.linalg.qr(rng.standard_normal((d, d)))[0]
+    return ((rng.standard_normal((n, d)) * np.linspace(10, 1, d)) @ rotation.T).astype(np.float32)
+
+
+def _projector(basis):
+    b = np.asarray(basis, dtype=np.float64)
+    return b.T @ b
+
+
+@pytest.mark.parametrize("weights", [None, np.array([0.7, 0.2], np.float32)])
+def test_the_projection_is_the_principal_axes_of_the_rows_after_the_removal(weights):
+    rows = _rows()
+    gram = _gram.gram_matrix(rows, np.float32)
+    _, removed = _gram.components_from_gram(gram, len(rows), 2, np.float32)
+    basis = _gram.projection_from_gram(gram, len(rows), 4, np.float32, removed, weights)
+    # The same axes from the rows after the removal, explicitly in float64.
+    w = np.ones(2) if weights is None else weights.astype(np.float64)
+    u = removed.astype(np.float64)
+    after = rows.astype(np.float64) - (rows.astype(np.float64) @ u.T) * w @ u
+    want = np.linalg.eigh(after.T @ after)[1][:, ::-1][:, :4].T
+    np.testing.assert_allclose(_projector(basis), _projector(want), atol=1e-5)
+    assert basis.dtype == np.float32
+    assert basis.flags.c_contiguous
+    np.testing.assert_allclose(basis.astype(np.float64) @ basis.T, np.eye(4), atol=1e-6)
+    assert (np.abs(basis).argmax(axis=1) == np.argmax(basis, axis=1)).all()  # largest > 0
+
+
+def test_without_removal_the_projection_is_the_principal_components():
+    rows = _rows(seed=1)
+    gram = _gram.gram_matrix(rows, np.float32)
+    _, components = _gram.components_from_gram(gram, len(rows), 3, np.float32)
+    basis = _gram.projection_from_gram(gram, len(rows), 3, np.float32)
+    np.testing.assert_allclose(basis, components, atol=1e-6)
+
+
+def test_axes_removed_with_weight_one_bound_the_dimension():
+    rows = _rows()
+    gram = _gram.gram_matrix(rows, np.float32)
+    _, removed = _gram.components_from_gram(gram, len(rows), 3, np.float32)
+    basis = _gram.projection_from_gram(gram, len(rows), 7, np.float32, removed)
+    assert np.abs(basis.astype(np.float64) @ removed.T).max() < 1e-6
+    with pytest.raises(ValueError, match="dim must be between 1 and 7"):
+        _gram.projection_from_gram(gram, len(rows), 8, np.float32, removed)
+    with pytest.raises(ValueError, match="dim must be between 1 and 10"):
+        _gram.projection_from_gram(gram, len(rows), 0, np.float32)
+
+
+def test_an_axis_within_the_rounding_raises():
+    """A dominant removed direction must not hide that what remains is rounding noise."""
+    rng = np.random.default_rng(2)
+    rows = np.zeros((2000, 6), np.float32)
+    rows[:, 0] = rng.standard_normal(2000) * 1e4
+    rows[:, 1] = rng.standard_normal(2000) * 1e-4  # far below the rounding of the products
+    gram = _gram.gram_matrix(rows, np.float32)
+    removed = np.eye(6, dtype=np.float32)[:1]
+    with pytest.raises(ValueError, match="variance below the rounding"):
+        _gram.projection_from_gram(gram, len(rows), 1, np.float32, removed)
+    with pytest.raises(ValueError, match="not finite"):
+        _gram.projection_from_gram(np.full((6, 6), np.nan), 10, 1, np.float32)

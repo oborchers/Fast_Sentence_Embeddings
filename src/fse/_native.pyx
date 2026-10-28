@@ -11,7 +11,7 @@
 # Parts adapted from gensim (LGPL 2.1, used under the GPL 3); see NOTICE.
 
 """Native routines of fse 2.0 without the GIL: ngram hashing, vocabulary table, UTF-8 scan,
-the weighted mean kernel, dot16, steps and score, the tokenizers and the text lookup."""
+the weighted mean kernel, dot16, steps, score and storage, the tokenizers and the text lookup."""
 
 import cython
 import numpy as np
@@ -33,4 +33,5 @@ include "_native_vocab.pxi"
 include "_native_scan.pxi"
 include "_native_kernel.pxi"
 include "_native_steps.pxi"
+include "_native_store.pxi"
 include "_native_text.pxi"

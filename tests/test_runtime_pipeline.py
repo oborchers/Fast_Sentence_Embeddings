@@ -7,7 +7,8 @@ from fse._backends import NumpyBackend, UnsupportedByBackendError
 from fse._backends._base import Capabilities
 from fse._contract import Aggregation, Normalize, Op
 from fse._runtime import ArrayRows, EncodeSpec, GrowingRows, Pipeline, _executor, _pipeline
-from fse._text import FileSource, StringSource, TokenListSource
+from fse._text import StringSource, TokenListSource, make_vocabulary
+from fse._text_file import FileSource
 from fse._wordvectors import WordVectors
 from support.runtime import expected, texts, word_vectors
 
@@ -191,8 +192,28 @@ def test_the_window_stays_within_its_budget(monkeypatch):
 
     monkeypatch.setattr(_pipeline, "run", spy)
     wide = WordVectors.from_arrays(np.ones((3, 4096), F32), words=["w1", "w2", "w3"])
-    pipeline = Pipeline(_spec(wv=wide))
-    for workers in (4, 64):
-        pipeline.infer(StringSource(["w1"] * 20_000), workers=workers)
-        assert seen["window"] == 2 * workers
-        assert seen["window"] * seen["rows"] * 4 * 4096 <= _pipeline.WINDOW_BYTES
+    # Per row: the target, the float32 rows before storage, and the rows of the steps
+    # (pooled rows, their copy, the output).
+    per_row = {
+        ((), "float32"): 4 * 4096,
+        ((Normalize(),), "float32"): 4 * 4096 + 12 * 4096,
+        ((Normalize(),), "float16"): 2 * 4096 + 4 * 4096 + 12 * 4096,
+        ((), "int8"): 4096 + 4 + 4 * 4096,
+    }
+    for (steps, dtype), row_bytes in per_row.items():
+        pipeline = Pipeline(_spec(steps, wv=wide))
+        for workers in (4, 64):
+            pipeline.infer(StringSource(["w1"] * 20_000), workers=workers, dtype=dtype)
+            assert seen["window"] <= 2 * workers
+            assert seen["window"] * seen["rows"] * row_bytes <= _pipeline.WINDOW_BYTES
+
+
+def test_pipelines_share_one_vocabulary():
+    vocabulary = make_vocabulary(SPEC.word_vectors)
+    for backend in ("cpu", "numpy"):
+        pipeline = Pipeline(SPEC, backend, vocabulary=vocabulary)
+        assert pipeline.infer(StringSource(texts(3000)), workers=2).tobytes() == WANT.tobytes()
+    # Other values of the same words share it; fewer words do not.
+    assert Pipeline(_spec(wv=word_vectors(seed=1)), vocabulary=vocabulary).lookup is not None
+    with pytest.raises(ValueError, match="is not the one of the word vectors"):
+        Pipeline(_spec(wv=word_vectors(n=150)), vocabulary=vocabulary)

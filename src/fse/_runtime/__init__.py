@@ -10,8 +10,18 @@ ARCHITECTURE.md, "Runtime". Private: PR 5's Encoder builds an EncodeSpec and cal
 Pipeline; the public entry points come with it.
 """
 
+from ._count import count_tokens
 from ._pipeline import Pipeline
-from ._sinks import ArrayRows, GramSink, GrowingRows, Sink
+from ._sinks import ArrayRows, GramSink, GrowingRows, Sink, Stored
 from ._spec import EncodeSpec
 
-__all__ = ["ArrayRows", "EncodeSpec", "GramSink", "GrowingRows", "Pipeline", "Sink"]
+__all__ = [
+    "ArrayRows",
+    "EncodeSpec",
+    "GramSink",
+    "GrowingRows",
+    "Pipeline",
+    "Sink",
+    "Stored",
+    "count_tokens",
+]

@@ -9,7 +9,9 @@
 The runtime calls both methods in the calling thread: ``target`` reserves the rows of a
 task before the task is submitted, ``commit`` hands them back once they are finished, in
 row order, each row once. A target is written only by the worker of its task and not
-reused before its commit; after an error nothing more is committed.
+reused before its commit; after an error nothing more is committed. A sink with a
+``dtype`` of float16 or int8 takes stored rows: the worker of a task stores its finished
+rows into the target itself (stage 5, ``store`` of the backend).
 """
 
 from __future__ import annotations
@@ -19,88 +21,138 @@ from typing import Any, Protocol
 import numpy as np
 from numpy import ndarray
 
-from fse import _gram
+from fse import _codes, _gram
+
+# What a target and a commit hold: float32 rows, float16 codes, or int8 codes and scales.
+Stored = ndarray | tuple[ndarray, ndarray]
 
 
 class Sink(Protocol):
+    """``dim`` values per row, stored as ``dtype`` (``float32`` if the sink has none)."""
+
     dim: int
 
-    def target(self, first_row: int, n_rows: int) -> ndarray:
-        """Writable C-contiguous float32 rows ``(n_rows, dim)`` for one task."""
+    def target(self, first_row: int, n_rows: int) -> Stored:
+        """Writable C-contiguous rows ``(n_rows, dim)`` for one task: float32 rows, float16
+        codes, or for int8 the codes and a float32 vector of one scale per row."""
         ...
 
-    def commit(self, first_row: int, rows: ndarray) -> None: ...
+    def commit(self, first_row: int, rows: Stored) -> None: ...
+
+
+def sink_dtype(sink: object) -> str:
+    """The storage dtype of ``sink``: its ``dtype``, float32 without one."""
+    return _codes.check_dtype(getattr(sink, "dtype", "float32"))
 
 
 class _Rows:
-    def __init__(self, dim: int, start: int):
+    def __init__(self, dim: int, start: int, dtype: str = "float32"):
         self.dim = dim
+        self.dtype = _codes.check_dtype(dtype)
         self.next_row = start
 
-    def _check_commit(self, first_row: int, rows: ndarray):
+    def _new(self, n_rows: int) -> Stored:
+        codes = np.empty((n_rows, self.dim), dtype=_codes.STORAGE_TYPES[self.dtype])
+        return (codes, np.empty(n_rows, dtype=np.float32)) if self.dtype == "int8" else codes
+
+    def _check_commit(self, first_row: int, rows: Stored) -> int:
+        """The number of rows of a commit, checked: in order, of the dtype and dimension."""
         if first_row != self.next_row:
             raise ValueError(f"rows from {first_row} committed, expected rows from {self.next_row}")
+        codes, scales = rows if isinstance(rows, tuple) else (rows, None)
+        want = _codes.STORAGE_TYPES[self.dtype]
         if (
-            not isinstance(rows, ndarray)
-            or rows.dtype != np.float32
-            or rows.ndim != 2
-            or rows.shape[1] != self.dim
-            or not rows.flags.c_contiguous
+            not isinstance(codes, ndarray)
+            or codes.dtype != want
+            or codes.ndim != 2
+            or codes.shape[1] != self.dim
+            or not codes.flags.c_contiguous
+            or (self.dtype == "int8")
+            != (isinstance(scales, ndarray) and scales.shape == (len(codes),))
         ):
-            raise ValueError(f"C-contiguous float32 rows of {self.dim} values expected")
-        self.next_row += len(rows)
+            raise ValueError(f"C-contiguous {self.dtype} rows of {self.dim} values expected")
+        self.next_row += len(codes)
+        return len(codes)
+
+
+def _first(rows: Stored) -> ndarray:
+    return rows[0] if isinstance(rows, tuple) else rows
 
 
 class ArrayRows(_Rows):
     """A known number of rows in one array; a target is a view of it, so nothing is copied."""
 
-    def __init__(self, rows: int, dim: int):
-        super().__init__(dim, 0)
-        self._out = np.empty((rows, dim), dtype=np.float32)
+    def __init__(self, rows: int, dim: int, dtype: str = "float32"):
+        super().__init__(dim, 0, dtype)
+        self._out = self._new(rows)
 
-    def target(self, first_row: int, n_rows: int) -> ndarray:
-        if not 0 <= first_row <= first_row + n_rows <= len(self._out):
-            raise ValueError(f"rows {first_row} to {first_row + n_rows} beyond {len(self._out)}")
+    def _view(self, first_row: int, n_rows: int) -> Stored:
+        if isinstance(self._out, tuple):
+            codes, scales = self._out
+            return codes[first_row : first_row + n_rows], scales[first_row : first_row + n_rows]
         return self._out[first_row : first_row + n_rows]
 
-    def commit(self, first_row: int, rows: ndarray) -> None:
-        reserved = self._out[first_row : first_row + len(rows)]
-        if not (
-            isinstance(rows, ndarray)
-            and rows.shape == reserved.shape
-            and rows.__array_interface__["data"][0] == reserved.__array_interface__["data"][0]
-        ):
+    def target(self, first_row: int, n_rows: int) -> Stored:
+        total = len(_first(self._out))
+        if not 0 <= first_row <= first_row + n_rows <= total:
+            raise ValueError(f"rows {first_row} to {first_row + n_rows} beyond {total}")
+        return self._view(first_row, n_rows)
+
+    def commit(self, first_row: int, rows: Stored) -> None:
+        n = len(_first(rows)) if isinstance(_first(rows), ndarray) else 0
+        reserved = self._view(first_row, n)
+        if not _same(rows, reserved):
             raise ValueError(f"the rows from {first_row} are not the target reserved for them")
         self._check_commit(first_row, rows)
 
-    def result(self) -> ndarray:
-        if self.next_row != len(self._out):
-            raise RuntimeError(f"{self.next_row} of {len(self._out)} rows were committed")
+    def result(self) -> Stored:
+        total = len(_first(self._out))
+        if self.next_row != total:
+            raise RuntimeError(f"{self.next_row} of {total} rows were committed")
         return self._out
+
+
+def _same(rows: Stored, reserved: Stored) -> bool:
+    """Whether ``rows`` are the very arrays reserved (same shape and memory)."""
+    got = rows if isinstance(rows, tuple) else (rows,)
+    want = reserved if isinstance(reserved, tuple) else (reserved,)
+    return len(got) == len(want) and all(
+        isinstance(g, ndarray)
+        and g.shape == w.shape
+        and g.__array_interface__["data"][0] == w.__array_interface__["data"][0]
+        for g, w in zip(got, want, strict=True)
+    )
 
 
 class GrowingRows(_Rows):
     """Rows of a stream whose length is not known in advance, joined at the end."""
 
-    def __init__(self, dim: int):
-        super().__init__(dim, 0)
-        self._parts: list[ndarray] = []
+    def __init__(self, dim: int, dtype: str = "float32"):
+        super().__init__(dim, 0, dtype)
+        self._parts: list[Stored] = []
 
-    def target(self, first_row: int, n_rows: int) -> ndarray:
+    def target(self, first_row: int, n_rows: int) -> Stored:
         if first_row < self.next_row:
             raise ValueError(f"rows from {first_row} were committed already")
-        return np.empty((n_rows, self.dim), dtype=np.float32)
+        return self._new(n_rows)
 
-    def commit(self, first_row: int, rows: ndarray) -> None:
+    def commit(self, first_row: int, rows: Stored) -> None:
         self._check_commit(first_row, rows)
         self._parts.append(rows)
 
-    def result(self) -> ndarray:
-        if not self._parts:
-            return np.empty((0, self.dim), dtype=np.float32)
-        out = np.concatenate(self._parts) if len(self._parts) > 1 else self._parts[0]
-        self._parts = [out]
-        return out
+    def result(self) -> Stored:
+        """All rows; joining the parts makes one copy of them (the window bounds only the
+        rows in flight, not this result)."""
+        if len(self._parts) != 1:
+            if not self._parts:
+                out = self._new(0)
+            elif self.dtype == "int8":
+                parts = [p for p in self._parts if isinstance(p, tuple)]
+                out = (np.concatenate([p[0] for p in parts]), np.concatenate([p[1] for p in parts]))
+            else:
+                out = np.concatenate(self._parts)
+            self._parts = [out]
+        return self._parts[0]
 
 
 class GramSink(_Rows):
@@ -124,8 +176,9 @@ class GramSink(_Rows):
             raise ValueError(f"rows from {first_row} were committed already")
         return np.empty((n_rows, self.dim), dtype=np.float32)
 
-    def commit(self, first_row: int, rows: ndarray) -> None:
+    def commit(self, first_row: int, rows: Stored) -> None:
         self._check_commit(first_row, rows)
+        assert isinstance(rows, ndarray)
         self._row = first_row  # the row of the stream that rows[0] is
         while len(rows):
             take = min(len(rows), len(self._block) - self._filled)

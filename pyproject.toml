@@ -258,6 +258,8 @@ untested-modules = ["src/fse/_version.py"]
 [tool.importlinter]
 root_package = "fse"
 include_external_packages = true
+# Imports for type checkers only (fse/__init__.py names the lazily loaded encoder).
+exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]
 name = "Layers (ARCHITECTURE.md, Layout): a module imports only from layers below it"
@@ -268,9 +270,10 @@ exhaustive = true
 exhaustive_ignores = ["_version"]
 layers = [
     "gensim",
+    "_encoder",
     "_runtime",
-    # Independent: _backends computes on batches, _stream reads sentences.
-    "_backends | _stream",
+    # Independent: _backends computes on batches, _stream and _text_file read sentences.
+    "_backends | _stream | _text_file",
     "_text",
     "_wordvectors",
     "_wordvectors_format",
@@ -294,11 +297,18 @@ exhaustive = true
 layers = ["_cpu | _numpy", "_base"]
 
 [[tool.importlinter.contracts]]
+name = "Encoder: recipes on fit, fit on the encoder, the encoder on its parts"
+type = "layers"
+containers = ["fse._encoder"]
+exhaustive = true
+layers = ["_recipes", "_fit", "_encoder", "_fold | _format | _sources | _weights"]
+
+[[tool.importlinter.contracts]]
 name = "Runtime: the pipeline on tasks, sinks and the executor"
 type = "layers"
 containers = ["fse._runtime"]
 exhaustive = true
-layers = ["_pipeline", "_tasks | _sinks | _executor | _spec"]
+layers = ["_count", "_pipeline", "_tasks | _sinks | _executor | _spec"]
 
 [[tool.importlinter.contracts]]
 name = "Optional and 1.x packages stay out of fse; gensim only in fse.gensim"
@@ -313,7 +323,8 @@ ignore_imports = ["fse.gensim -> gensim"]
 paths = ["src/fse", "tools", "tests", "benchmarks"]
 min_confidence = 60
 ignore_names = [
-    "__getattr__",       # the module hook of fse/__init__.py, called by Python
+    "__getattr__",       # the module hooks of fse/__init__.py, called by Python
+    "__dir__",
     "exc",               # the arguments of __exit__
     "pytestmark",        # read by pytest
     "windows_file_maps", # a fixture used through pytest.mark.usefixtures

@@ -29,6 +29,7 @@ from ._base import (
     check_pool_input,
     check_prepared,
     check_score_input,
+    check_store_input,
     dims,
 )
 
@@ -73,6 +74,30 @@ class NumpyBackend:
     ) -> ndarray:
         check_score_input(stored, scales, weights, bias)
         return _reference.score(stored, scales, weights, bias)
+
+    def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
+        check_store_input(rows, codes, scales, first_row)
+        _check_storable(rows, codes.dtype, int(first_row))
+        got, got_scales = _reference.quantize_rows(
+            rows, "int8" if scales is not None else "float16"
+        )
+        codes[...] = got
+        if scales is not None:
+            scales[...] = got_scales
+
+
+def _check_storable(rows: ndarray, dtype: np.dtype, first_row: int):
+    """The errors of the cpu backend (``fse._codes``), naming the first bad row."""
+    bad = np.flatnonzero(~np.isfinite(rows).all(axis=1))
+    if len(bad):
+        raise ValueError(f"row {first_row + int(bad[0])} contains NaN or infinite values")
+    if dtype == np.float16:
+        top = float(np.finfo(np.float16).max)
+        large = np.flatnonzero((np.abs(rows) > top).any(axis=1))
+        if len(large):
+            raise ValueError(
+                f"row {first_row + int(large[0])} has values beyond the float16 range of +-{top:g}"
+            )
 
 
 def _float32_rows(rows: object) -> ndarray:

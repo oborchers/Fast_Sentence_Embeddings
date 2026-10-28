@@ -396,3 +396,18 @@ def test_word_vectors_are_never_a_directory(tmp_path):
         ValueError, match=r"is a directory; word vectors are one \.safetensors file"
     ):
         WordVectors.load(tmp_path / "as_npy")
+
+
+def test_the_vocabulary_fingerprint_depends_on_the_words_and_their_order_alone(tmp_path):
+    words = ["a", "b", "c"]
+    wv = WordVectors.from_arrays(np.arange(9, dtype=np.float32).reshape(3, 3), words=words)
+    other = WordVectors.from_arrays(np.ones((3, 3), np.float32), words=words)
+    assert wv.vocabulary_fingerprint == other.vocabulary_fingerprint
+    assert wv.quantize("int8").vocabulary_fingerprint == wv.vocabulary_fingerprint
+    reordered = WordVectors.from_arrays(np.ones((3, 3), np.float32), words=words[::-1])
+    assert reordered.vocabulary_fingerprint != wv.vocabulary_fingerprint
+    assert wv.vocabulary_fingerprint != wv.fingerprint
+    wv.save(tmp_path / "wv.safetensors")
+    for mmap in (False, True):
+        loaded = WordVectors.load(tmp_path / "wv.safetensors", mmap=mmap)
+        assert loaded.vocabulary_fingerprint == wv.vocabulary_fingerprint

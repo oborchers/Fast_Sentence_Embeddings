@@ -71,6 +71,14 @@ def dot16(rows: ndarray, other: ndarray, *, isa: str | None = None) -> ndarray: 
 def postprocess(
     rows: ndarray, steps: object, first_row: int = 0, *, isa: str | None = None
 ) -> ndarray: ...
+def store_rows(
+    rows: ndarray,
+    codes: ndarray,
+    scales: ndarray | None = None,
+    first_row: int = 0,
+    *,
+    isa: str | None = None,
+) -> None: ...
 def score(
     stored: ndarray,
     scales: ndarray | None,
@@ -87,6 +95,7 @@ MAX_SENTENCE_BYTES: int
 def tokenize(text: str | bytes, tokenizer: str = "fse_words@1") -> list[str]: ...
 
 class Workspace:
+    tokens_seen: int
     def __init__(self) -> None: ...
 
 class TextLookup:

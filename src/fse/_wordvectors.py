@@ -82,7 +82,15 @@ class WordVectors:
     be changed afterwards. ``quantize`` gives float16 or int8 copies, ``save`` writes them.
     """
 
-    __slots__ = ("_fingerprint", "_index", "_metadata", "_path", "_tensors", "_verified")
+    __slots__ = (
+        "_fingerprint",
+        "_index",
+        "_metadata",
+        "_path",
+        "_tensors",
+        "_verified",
+        "_vocabulary",
+    )
 
     def __init__(
         self, tensors: dict[str, ndarray], metadata: dict[str, str], path: Path | None = None
@@ -93,6 +101,7 @@ class WordVectors:
         self._path = path
         self._index: dict[bytes, int] | None = None
         self._fingerprint: str | None = metadata.get(FINGERPRINT_KEY)
+        self._vocabulary: str | None = None
         # Whether the values, the words and (if loaded) the data on disk were checked.
         self._verified = False
 
@@ -183,6 +192,14 @@ class WordVectors:
         it was loaded with while it is written, so damaged or changed data never gets new
         checksums.
         """
+        tensors, metadata, expected = self._parts()
+        metadata[CREATED_BY_KEY] = _created_by()
+        SafetensorsContainer().write(Path(path), tensors, metadata, expected=expected)
+
+    def _parts(self) -> tuple[dict[str, ndarray], dict[str, str], dict[str, str] | None]:
+        """For an encoder that holds these vectors: the tensors, the metadata of the
+        content (without the keys a container writes) and the checksums they were loaded
+        with, after the checks ``save`` makes."""
         if not self._verified or self._mapped():
             self._check_contents()
         metadata = {
@@ -190,10 +207,18 @@ class WordVectors:
             for k, v in self._metadata.items()
             if k != FINGERPRINT_KEY and k != CREATED_BY_KEY and not k.startswith(CHECKSUM_PREFIX)
         }
-        metadata[CREATED_BY_KEY] = _created_by()
-        SafetensorsContainer().write(
-            Path(path), self._tensors, metadata, expected=self._checksums()
-        )
+        return dict(self._tensors), metadata, self._checksums()
+
+    def _derived(self, tensors: dict[str, ndarray], metadata: dict[str, str]) -> WordVectors:
+        """New vectors of the same vocabulary as these (such as folded ones), made from
+        arrays the caller owns; the checked lookup of the words is shared."""
+        out = WordVectors(tensors, metadata)
+        _check_values(tensors)
+        # The vocabulary is a checked copy of these vectors' own, whose words were checked
+        # to be unique; a lookup is shared if there is one, never built for this.
+        out._index = self._index
+        out._verified = True
+        return out
 
     def _mapped(self) -> bool:
         return any(isinstance(t, np.memmap) for t in self._tensors.values())
@@ -220,7 +245,10 @@ class WordVectors:
         _check_structure(self._tensors, self._metadata)
         _check_values(self._tensors)
         if self._index is None:
-            self._index = _lookup(self._tensors["vocab.bytes"], self._tensors["vocab.offsets"])
+            # Checks that the words are unique. The lookup this builds (about 400 MB for 3
+            # million words) is dropped again, a transient peak; it is kept only once a
+            # word is looked up. A compact check without it can come with PR 5b.
+            _lookup(self._tensors["vocab.bytes"], self._tensors["vocab.offsets"])
         # Mapped data can change through the file, so its check is never remembered.
         self._verified = not self._mapped()
 
@@ -372,6 +400,39 @@ class WordVectors:
             }
             self._fingerprint = fingerprint(entries, self._metadata)
         return self._fingerprint
+
+    @property
+    def vocabulary_fingerprint(self) -> str:
+        """The fingerprint of the words and their order alone (``vocab.bytes`` and
+        ``vocab.offsets`` with ``fse.kind=vocabulary``): equal for vectors of one vocabulary,
+        whatever their values or dtype."""
+        if self._vocabulary is None:
+            recorded = self._checksums() or {}
+            entries = {}
+            for name in ("vocab.bytes", "vocab.offsets"):
+                array = self._tensors[name]
+                digest = recorded.get(name) or array_sha256(array)
+                entries[name] = (tensor_code(array), array.shape, digest)
+            self._vocabulary = fingerprint(entries, {"fse.kind": "vocabulary"})
+        return self._vocabulary
+
+    def _vocabulary_snapshot(self) -> tuple[ndarray, ndarray, str]:
+        """Copies of ``vocab.bytes`` and ``vocab.offsets``, checked against the checksums
+        they were loaded with, and the vocabulary fingerprint of exactly these copies: what
+        a VocabTable is built from, so the table and its fingerprint describe the same
+        words even if a mapped file changes."""
+        recorded = self._checksums() or {}
+        copies, entries = [], {}
+        for name in ("vocab.bytes", "vocab.offsets"):
+            copy = np.array(self._tensors[name], copy=True)
+            digest = array_sha256(copy)
+            if name in recorded and digest != recorded[name]:
+                raise CorruptArtifactError(
+                    f"tensor {name} of {self._path} does not match its checksum"
+                )
+            copies.append(copy)
+            entries[name] = (tensor_code(copy), copy.shape, digest)
+        return copies[0], copies[1], fingerprint(entries, {"fse.kind": "vocabulary"})
 
     def _words(self) -> dict[bytes, int]:
         if self._index is None:

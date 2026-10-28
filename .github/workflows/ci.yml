@@ -151,12 +151,14 @@ jobs:
           args = (wv.vectors, np.ones(2, np.float32), wv.scales)
           got, want = _native.pool_weighted_mean(batch, *args), _reference.pool_weighted_mean(batch, *args)
           assert got.view(np.uint32).tolist() == want.view(np.uint32).tolist()
+          rows = fse.Average().fit(wv).encode(['a b', 'b'])
+          assert rows.shape == (2, 3), rows.shape
           try:
-              fse.Average
+              fse.uSIF
           except AttributeError as err:
               assert 'fse==1.1.0' in str(err), err
           else:
-              raise AssertionError('Average exists')
+              raise AssertionError('the 1.x uSIF exists')
           print('fse without gensim and scipy works')
           "
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2

@@ -21,7 +21,8 @@ from typing import Any
 
 from fse._contract import Batch
 from fse._stream import StreamSource
-from fse._text import Chunk, FileSource, StringSource, TokenListSource, check_chunk_bytes
+from fse._text import Chunk, StringSource, TokenListSource, check_chunk_bytes
+from fse._text_file import FileSource
 
 # A source of at most this many bytes runs in the calling thread: threads would cost more
 # than they save (bench_runtime.py latency).

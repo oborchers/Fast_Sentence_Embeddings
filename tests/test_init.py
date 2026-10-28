@@ -31,9 +31,15 @@ def test_version():
     assert fse.__version__ != "0+unknown"
 
 
-@pytest.mark.parametrize("name", ["Average", "SIF", "uSIF", "TextList", "Vectors"])
+@pytest.mark.parametrize("name", ["uSIF", "TextList", "Vectors"])
 def test_removed_1x_names_point_to_1_1_0(name):
     with pytest.raises(AttributeError, match=r"fse==1\.1\.0"):
+        getattr(fse, name)
+
+
+def test_the_1x_name_usif_points_to_the_2_0_recipe():
+    name = "uSIF"
+    with pytest.raises(AttributeError, match=r"the 2\.0 recipe is fse\.USIF"):
         getattr(fse, name)
 
 
@@ -96,6 +102,7 @@ def test_native_imports_no_optional_packages():
 
 def test_public_api_is_pinned():
     """A new public name needs a deliberate change of this test."""
-    assert fse.__all__ == ["WordVectors", "__version__"]
+    names = ["SIF", "USIF", "Average", "Encoder", "QuantizedRows", "WordVectors"]
+    assert fse.__all__ == [*names, "__version__"]
     public = {name for name in dir(fse) if not name.startswith("_")}
-    assert public - {"gensim"} == {"WordVectors"}
+    assert public - {"gensim"} == set(names)
