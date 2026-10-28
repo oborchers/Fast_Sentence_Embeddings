@@ -32,6 +32,8 @@ Every PR that touches the hot path (the native kernels, the text sources, the ru
 
 Before planning a hard question or technique (a new data structure, algorithm, numerical method or architecture pattern), research prior art briefly: has it been solved, and which tricks, tips and patterns do others use for exactly this problem. Cite primary sources (papers, official docs, source code), invent no numbers, and give the findings to the plan.
 
+Never wait for pull request checks or CI in the foreground. Start the wait as a background job (a monitor that ends when the checks are done) and keep working; act on its result when it reports.
+
 ## Rules
 
 - Validate strictly and never fail silently: raise a clear exception instead of coercing, ignoring or truncating input. Decorate new public entry points with `fse._validation.validate_arguments` unless they are called per element or receive bulk data; measure the overhead when in doubt. See ARCHITECTURE.md.
