@@ -53,7 +53,7 @@ src/fse/
 - Word rows are prefetched 8 tokens ahead, also across sentence boundaries; prefetching changes no result.
 - A row that is not finite raises with its row number, as the reference does.
 
-`tests/test_conformance.py` compares every backend in `BACKENDS` with the reference bit for bit for every dtype, step list, empty, long and unknown-word sentences and subnormal values. Its meta-tests check that the suite fails for a kernel without fma, with `acc / n`, with an EPS start or with zero-padded `dot16`, so a weakened comparison cannot pass unnoticed.
+`tests/test_conformance.py` and `tests/test_conformance_steps.py` compare every backend in `BACKENDS` (`tests/support/conformance.py`) with the reference bit for bit for every dtype, step list, empty, long and unknown-word sentences and subnormal values. Its meta-tests check that the suite fails for a kernel without fma, with `acc / n`, with an EPS start or with zero-padded `dot16`, so a weakened comparison cannot pass unnoticed.
 
 ## Text sources
 
@@ -77,7 +77,8 @@ The extension is compiled from `_native.pyx`, the `.pxi` parts it includes (one 
 
 ## Tests
 
-- Tests mirror `src/`: `tests/test_wordvectors.py` tests `src/fse/_wordvectors.py`.
+- Tests mirror `src/`: `tests/test_wordvectors.py` tests `src/fse/_wordvectors.py`, `tests/test_container_npy.py` tests `src/fse/_container/_npy.py`. A long test module splits by topic into `test_<module>_<topic>.py`, such as `tests/test_conformance_steps.py`.
+- Test modules never import each other. What several share (the conformance backends, word vectors and edits of saved files, container tensors) lives in `tests/support/`, which pytest puts on the path (`pythonpath`).
 - Tests write files only into `tmp_path`; `tests/test_data` is read-only input.
 - Expected values never depend on vocabulary positions, because gensim versions order words with equal counts differently. Derive them from `key_to_index`.
 - Tests that download from the Hugging Face Hub are marked `network`.
