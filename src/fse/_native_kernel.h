@@ -17,6 +17,7 @@
 #include "_native_kernel_mean.h"
 #include "_native_kernel_steps.h"
 #include "_native_kernel_store.h"
+#include "_native_kernel_search.h"
 
 /* For the tests: set flush-to-zero and denormals-are-zero (FZ on arm64) and rounding
    toward +infinity, each if asked, and return the previous environment. */

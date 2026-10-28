@@ -118,3 +118,16 @@ class TextLookup:
         first_row: int,
         ws: Workspace,
     ) -> Batch: ...
+
+def inverse_norms(stored: ndarray) -> ndarray: ...
+def cosines(
+    stored: ndarray, inverse: ndarray, queries: ndarray, *, isa: str | None = None
+) -> ndarray: ...
+def scores(
+    stored: ndarray,
+    scales: ndarray | None,
+    weights: ndarray,
+    bias: float | ndarray = ...,
+    *,
+    isa: str | None = None,
+) -> ndarray: ...

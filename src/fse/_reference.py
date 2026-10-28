@@ -269,13 +269,19 @@ def cosines(stored: ndarray, inverse: ndarray, queries: ndarray) -> ndarray:
     """``cosine`` of every stored row with every query, as a (rows, queries) array: column
     j is ``cosine(stored, inverse, queries[j])`` bit for bit.
 
-    Every query is checked before any is used, so the first zero query raises; then the
-    first query with a non-finite cosine raises, naming its first such row.
+    Every query is checked before any is used: the first zero query raises, then the
+    first one ``normalize@1`` cannot normalize; then the first query with a non-finite
+    cosine raises, naming its first such row.
     """
     queries = _matrix(queries, "queries")
     for j, query in enumerate(queries):
         if not (query != 0).any():
             raise ValueError(f"query {j} is the zero vector and has no direction")
+    for j, query in enumerate(queries):
+        try:
+            postprocess(query[None, :], [Normalize()])
+        except ValueError as error:
+            raise ValueError(f"query {j}: {error}") from None
     out = np.empty((len(stored), len(queries)), dtype=_F32)
     for j, query in enumerate(queries):
         try:
