@@ -50,7 +50,8 @@ src/fse/
   _native_unicode.h      # generated: the simple lowercase table for the native code
   _unicode.py            # generated: the same table for the reference
   _reference_text.py     # the reference of stages 1 and 2: tokenizers and lookup
-  _text.py               # text sources (strings, files, token lists) to batches
+  _text.py               # text sources (strings, token lists) to batches, the Vocabulary
+  _text_file.py          # FileSource: the lines of a memory-mapped text file
   _stream.py             # StreamSource: sentences from an iterator, read once
   gensim.py              # adapter from gensim word vectors (extra fse[gensim])
 ```
@@ -70,7 +71,7 @@ src/fse/
 
 ## Text sources
 
-`fse._text` turns text into batches (stages 1 and 2). A source holds its sentences as one UTF-8 buffer: strings in memory with their offsets, or the memory-mapped lines of a file. `scan` validates the UTF-8 of every sentence in threads without the GIL and cuts the source into chunks of about 64 KiB to 1 MiB (at most `MAX_CHUNK_ROWS` sentences); `encode` turns one chunk into a Batch with a `TextLookup` (the tokenizer, the `VocabTable` built from the vocabulary bytes of the word vectors, and the FastText buckets) and a `Workspace`, the buffers one worker reuses. Every sentence is one row, empty ones included. Tokens are matched to the vocabulary by their exact UTF-8 bytes, so with `fse_words@1` a word with uppercase letters or whitespace (such as `New_York` in GoogleNews) is never matched. `tools/make_unicode_tables.py` generates the lowercase tables from `UnicodeData.txt`; both generated files are checked in and compared with each other in the tests.
+`fse._text` turns text into batches (stages 1 and 2). A source holds its sentences as one UTF-8 buffer: strings in memory with their offsets, or the memory-mapped lines of a file. `scan` validates the UTF-8 of every sentence in threads without the GIL and cuts the source into chunks of about 64 KiB to 1 MiB (at most `MAX_CHUNK_ROWS` sentences); `encode` turns one chunk into a Batch with a `TextLookup` (the tokenizer, the `VocabTable` built from the vocabulary bytes of the word vectors, and the FastText buckets) and a `Workspace`, the buffers one worker reuses. `make_vocabulary` builds the `VocabTable` of word vectors once as a `Vocabulary`; every lookup of the same words in the same order (checked by `WordVectors.vocabulary_fingerprint`, the fingerprint of `vocab.bytes` and `vocab.offsets` alone) can share it, so an encoder builds it once for all its backends and passes. `fse._text_file.FileSource` reads the lines of a file. Every sentence is one row, empty ones included. Tokens are matched to the vocabulary by their exact UTF-8 bytes, so with `fse_words@1` a word with uppercase letters or whitespace (such as `New_York` in GoogleNews) is never matched. `tools/make_unicode_tables.py` generates the lowercase tables from `UnicodeData.txt`; both generated files are checked in and compared with each other in the tests.
 
 `fse._stream.StreamSource` takes sentences from any iterable (a queue consumer, a crawler, log lines) and is read once. The runtime reads it in the calling thread, a collection of at most `chunk_rows` sentences (65,536) or about `chunk_bytes` (8 MiB) at a time, and only when its window of tasks has room, so a slow sink slows the source and memory stays bounded by one collection and the window. A sentence that is no str or has no UTF-8 form, and an error of the iterator, are raised after the rows before them were committed, with the row number counted from the start of the stream. The iterator is never read from another thread. One thread reads a stream, so a stream gives at most what that thread can collect: about 2.8 million sentences per second on a 16-vCPU EPYC (`bench_runtime.py stream`), the same as a StringSource up to about 8 workers and 0.8 to 0.9 of it at 16; a native reader may lift this later.
 
@@ -322,7 +323,7 @@ The modules form layers, and a module imports only from layers below it. The imp
 
 1. `gensim` (the adapter, the only module that imports gensim)
 2. `_runtime`
-3. `_backends`, `_stream`, independent of each other
+3. `_backends`, `_stream`, `_text_file`, independent of each other
 4. `_text`
 5. `_wordvectors`
 6. `_wordvectors_format`

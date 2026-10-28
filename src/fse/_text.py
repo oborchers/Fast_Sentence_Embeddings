@@ -2,20 +2,17 @@
 
 A source holds its sentences as one UTF-8 buffer: strings in memory with their offsets
 (``StringSource``, ``TokenListSource``), or the lines of a memory-mapped file
-(``FileSource``). ``scan`` validates and counts them in threads without the GIL and cuts
+(``fse._text_file.FileSource``). ``scan`` validates and counts them in threads without the GIL and cuts
 them into chunks; ``encode`` turns one chunk into a Batch with a ``TextLookup`` and a
 per-worker ``Workspace``. Every sentence is one row, empty ones included.
 """
 
 from __future__ import annotations
 
-import mmap
-import os
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from itertools import pairwise
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -25,8 +22,6 @@ from fse import _native
 from fse._contract import EXTERNAL_TOKENIZER, Batch, check_tokenizer
 from fse._wordvectors import WordVectors
 
-# Compressed files hold no text lines; read them decompressed.
-_COMPRESSED_SUFFIXES = {".gz", ".bz2", ".xz", ".lzma", ".zst", ".zstd", ".z", ".zip"}
 # Bytes per chunk: small enough to balance workers, large enough that the per-chunk
 # overhead does not matter.
 _CHUNK_MIN_BYTES = 1 << 16
@@ -36,7 +31,6 @@ _SCAN_RANGE_MAX_BYTES = 1 << 26
 # Sources smaller than this are scanned in the calling thread: starting threads would cost
 # more than the scan (about 16 ms of one core at 64 MB/s).
 _SCAN_INLINE_BYTES = 1 << 20
-_BOM = b"\xef\xbb\xbf"
 
 
 @dataclass(frozen=True)
@@ -66,18 +60,52 @@ def tokenize(text: str, tokenizer: str = "fse_words@1") -> list[str]:
     return _native.tokenize(text, tokenizer)
 
 
+@dataclass(frozen=True, eq=False)
+class Vocabulary:
+    """The VocabTable of one vocabulary, built once and shared by every lookup of it."""
+
+    table: _native.VocabTable
+    fingerprint: str
+
+
+def _check_word_vectors(word_vectors: object) -> WordVectors:
+    if not isinstance(word_vectors, WordVectors):
+        raise TypeError(f"word_vectors must be WordVectors, not {type(word_vectors).__name__}")
+    return word_vectors
+
+
+def make_vocabulary(word_vectors: WordVectors) -> Vocabulary:
+    """The VocabTable of the words of ``word_vectors``, for ``make_lookup``."""
+    wv = _check_word_vectors(word_vectors)
+    table = _native.VocabTable(wv.vocab_bytes, wv.vocab_offsets)
+    return Vocabulary(table, wv.vocabulary_fingerprint)
+
+
 def make_lookup(
-    word_vectors: WordVectors, tokenizer: str, *, max_ngrams: int | None = None
+    word_vectors: WordVectors,
+    tokenizer: str,
+    *,
+    max_ngrams: int | None = None,
+    vocabulary: Vocabulary | None = None,
 ) -> _native.TextLookup:
     """The lookup of stage 2 for word vectors: their vocabulary and FastText buckets.
 
     FastText vectors need ``max_ngrams``, the number of ngrams an unknown word uses at
-    most (1 to ``MAX_NGRAMS_LIMIT``); other vectors take none.
+    most (1 to ``MAX_NGRAMS_LIMIT``); other vectors take none. ``vocabulary`` reuses the
+    table of ``make_vocabulary``; it must be one of the same words in the same order.
     """
-    if not isinstance(word_vectors, WordVectors):
-        raise TypeError(f"word_vectors must be WordVectors, not {type(word_vectors).__name__}")
+    _check_word_vectors(word_vectors)
     tokenizer = check_tokenizer(tokenizer)
-    table = _native.VocabTable(word_vectors.vocab_bytes, word_vectors.vocab_offsets)
+    if vocabulary is None:
+        vocabulary = make_vocabulary(word_vectors)
+    elif not isinstance(vocabulary, Vocabulary):
+        raise TypeError(f"vocabulary must be a Vocabulary, not {type(vocabulary).__name__}")
+    elif vocabulary.fingerprint != word_vectors.vocabulary_fingerprint:
+        raise ValueError(
+            f"the vocabulary {vocabulary.fingerprint} is not the one of the word vectors "
+            f"({word_vectors.vocabulary_fingerprint})"
+        )
+    table = vocabulary.table
     fasttext = word_vectors.fasttext
     if fasttext is None:
         if max_ngrams is not None:
@@ -97,6 +125,8 @@ def make_lookup(
 
 MAX_CHUNK_ROWS = _native.MAX_CHUNK_ROWS
 MAX_NGRAMS_LIMIT = _native.MAX_NGRAMS_LIMIT
+TextLookup = _native.TextLookup
+Workspace = _native.Workspace
 
 
 def new_workspace() -> _native.Workspace:
@@ -377,95 +407,3 @@ class TokenListSource(_Buffered):
         if lookup.tokenizer != _native.TOKENIZER_EXTERNAL:
             raise ValueError(f"token lists are for the {EXTERNAL_TOKENIZER} tokenizer")
         return super().encode(chunk, lookup, workspace)
-
-
-def _fingerprint(stat: os.stat_result) -> tuple[int, int, int, int]:
-    """Identity and version of a file: device, inode, size and modification time."""
-    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
-
-
-class FileSource(_Buffered):
-    """The lines of a local UTF-8 text file, one sentence per line, memory-mapped.
-
-    A line ends at "\\n", which is not part of it; the last line needs none. The file must
-    not change while the source is open: a change of its device, inode, size or
-    modification time raises at the next encode, and truncating a mapped file can end the
-    process with SIGBUS, as for any memory map. Use it as a context manager, or close it.
-    """
-
-    def __init__(self, path: str | os.PathLike):
-        self.path = Path(path)
-        if not self.path.is_file():
-            raise ValueError(f"{self.path} is not a regular file")
-        if self.path.suffix.lower() in _COMPRESSED_SUFFIXES:
-            raise ValueError(f"{self.path} looks compressed; FileSource reads plain UTF-8 text")
-        self._offsets = None
-        self._closed = False
-        self._mapped: mmap.mmap | None = None
-        with open(self.path, "rb") as file:
-            self._stat = _fingerprint(os.fstat(file.fileno()))
-            if self._stat[2]:
-                self._mapped = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
-        self._data = memoryview(self._mapped) if self._mapped is not None else b""
-        if bytes(self._data[:3]) == _BOM:
-            self.close()
-            raise ValueError(f"{self.path} starts with a UTF-8 byte order mark; remove it")
-
-    def _check_open(self) -> None:
-        """Raise if the source is closed, or the file differs from the mapped one."""
-        if self._closed:
-            raise ValueError(f"the FileSource of {self.path} is closed")
-        self._check_unchanged()
-
-    def __len__(self) -> int:
-        data = self._array()
-        if not len(data):
-            return 0
-        count = sum(
-            int(np.count_nonzero(data[i : i + (1 << 26)] == 10))
-            for i in range(0, len(data), 1 << 26)
-        )
-        self._check_unchanged()
-        return count + (0 if data[-1] == 10 else 1)
-
-    def _check_unchanged(self) -> None:
-        try:
-            current = _fingerprint(os.stat(self.path))
-        except OSError:
-            current = None
-        if current != self._stat:
-            raise RuntimeError(f"{self.path} changed while it was read")
-
-    def encode(
-        self, chunk: Chunk, lookup: _native.TextLookup, workspace: _native.Workspace
-    ) -> Batch:
-        self._check_open()
-        batch = super().encode(chunk, lookup, workspace)
-        self._check_unchanged()  # a change while the chunk was encoded
-        return batch
-
-    def scan(
-        self, *, workers: int = 1, chunk_bytes: int | None = None, chunk_rows: int | None = None
-    ) -> Scan:
-        result = super().scan(workers=workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows)
-        self._check_unchanged()  # a change during the scan
-        return result
-
-    def close(self) -> None:
-        """Release the memory map."""
-        self._closed = True
-        if self._mapped is not None:
-            try:
-                if isinstance(self._data, memoryview):
-                    self._data.release()
-                self._mapped.close()
-            except BufferError:
-                pass  # arrays still view the map; it is released with the last of them
-            self._mapped = None
-            self._data = b""
-
-    def __enter__(self) -> FileSource:
-        return self
-
-    def __exit__(self, *exc: object) -> None:
-        self.close()

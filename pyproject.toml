@@ -267,8 +267,8 @@ exhaustive_ignores = ["_version"]
 layers = [
     "gensim",
     "_runtime",
-    # Independent: _backends computes on batches, _stream reads sentences.
-    "_backends | _stream",
+    # Independent: _backends computes on batches, _stream and _text_file read sentences.
+    "_backends | _stream | _text_file",
     "_text",
     "_wordvectors",
     "_wordvectors_format",

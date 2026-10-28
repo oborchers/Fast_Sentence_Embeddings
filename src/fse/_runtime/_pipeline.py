@@ -6,8 +6,8 @@
 
 """The pipeline of an encoder on one backend: sources to finished rows.
 
-Built once per encoder and backend: the backend is prepared and the lookup made before
-any input is read, so an unsupported combination fails at once. ``infer`` then plans the
+Built once per encoder and backend: the backend is prepared and the lookup made (on the
+encoder's one ``Vocabulary``, if given) before any input is read, so an unsupported combination fails at once. ``infer`` then plans the
 tasks of a source and runs them with the executor; every worker thread encodes its task
 (stages 1 and 2) with its own workspace and lets the backend turn the batch into the
 finished rows of its task (stages 2 to 4). A Pipeline does not change, so several
@@ -25,7 +25,13 @@ from numpy import ndarray
 
 from fse._backends import get_backend
 from fse._cpus import usable_cpus
-from fse._text import MAX_CHUNK_ROWS, check_chunk_bytes, make_lookup, new_workspace
+from fse._text import (
+    MAX_CHUNK_ROWS,
+    Vocabulary,
+    check_chunk_bytes,
+    make_lookup,
+    new_workspace,
+)
 
 from ._executor import run
 from ._sinks import ArrayRows, GrowingRows, Sink
@@ -43,13 +49,22 @@ WINDOW_BYTES = 1 << 29
 
 
 class Pipeline:
-    def __init__(self, spec: EncodeSpec, backend: str = "cpu", *, isa: str | None = None):
+    def __init__(
+        self,
+        spec: EncodeSpec,
+        backend: str = "cpu",
+        *,
+        isa: str | None = None,
+        vocabulary: Vocabulary | None = None,
+    ):
         if not isinstance(spec, EncodeSpec):
             raise TypeError(f"spec must be an EncodeSpec, not {type(spec).__name__}")
         self.spec = spec
         self.backend = get_backend(backend, isa=isa)
         self.prepared = self.backend.prepare(spec.pool_input(), spec.steps)
-        self.lookup = make_lookup(spec.word_vectors, spec.tokenizer, max_ngrams=spec.max_ngrams)
+        self.lookup = make_lookup(
+            spec.word_vectors, spec.tokenizer, max_ngrams=spec.max_ngrams, vocabulary=vocabulary
+        )
         self.output_dim = self.prepared.output_dim
         self._widest = 4 * max(self.prepared.pooled_dim, self.output_dim)
         self.task_rows = max(1, min(MAX_CHUNK_ROWS, TASK_ROW_BYTES // self._widest))

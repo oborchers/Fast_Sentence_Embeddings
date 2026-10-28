@@ -7,7 +7,8 @@ from fse._backends import NumpyBackend, UnsupportedByBackendError
 from fse._backends._base import Capabilities
 from fse._contract import Aggregation, Normalize, Op
 from fse._runtime import ArrayRows, EncodeSpec, GrowingRows, Pipeline, _executor, _pipeline
-from fse._text import FileSource, StringSource, TokenListSource
+from fse._text import StringSource, TokenListSource, make_vocabulary
+from fse._text_file import FileSource
 from fse._wordvectors import WordVectors
 from support.runtime import expected, texts, word_vectors
 
@@ -196,3 +197,14 @@ def test_the_window_stays_within_its_budget(monkeypatch):
         pipeline.infer(StringSource(["w1"] * 20_000), workers=workers)
         assert seen["window"] == 2 * workers
         assert seen["window"] * seen["rows"] * 4 * 4096 <= _pipeline.WINDOW_BYTES
+
+
+def test_pipelines_share_one_vocabulary():
+    vocabulary = make_vocabulary(SPEC.word_vectors)
+    for backend in ("cpu", "numpy"):
+        pipeline = Pipeline(SPEC, backend, vocabulary=vocabulary)
+        assert pipeline.infer(StringSource(texts(3000)), workers=2).tobytes() == WANT.tobytes()
+    # Other values of the same words share it; fewer words do not.
+    assert Pipeline(_spec(wv=word_vectors(seed=1)), vocabulary=vocabulary).lookup is not None
+    with pytest.raises(ValueError, match="is not the one of the word vectors"):
+        Pipeline(_spec(wv=word_vectors(n=150)), vocabulary=vocabulary)

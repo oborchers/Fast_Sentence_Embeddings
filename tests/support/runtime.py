@@ -4,7 +4,8 @@ import numpy as np
 
 from fse import _reference, _reference_text
 from fse._stream import StreamSource
-from fse._text import FileSource, StringSource, TokenListSource
+from fse._text import StringSource, TokenListSource
+from fse._text_file import FileSource
 from fse._wordvectors import FastTextParams, WordVectors
 
 F32 = np.float32

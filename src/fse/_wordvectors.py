@@ -82,7 +82,15 @@ class WordVectors:
     be changed afterwards. ``quantize`` gives float16 or int8 copies, ``save`` writes them.
     """
 
-    __slots__ = ("_fingerprint", "_index", "_metadata", "_path", "_tensors", "_verified")
+    __slots__ = (
+        "_fingerprint",
+        "_index",
+        "_metadata",
+        "_path",
+        "_tensors",
+        "_verified",
+        "_vocabulary",
+    )
 
     def __init__(
         self, tensors: dict[str, ndarray], metadata: dict[str, str], path: Path | None = None
@@ -93,6 +101,7 @@ class WordVectors:
         self._path = path
         self._index: dict[bytes, int] | None = None
         self._fingerprint: str | None = metadata.get(FINGERPRINT_KEY)
+        self._vocabulary: str | None = None
         # Whether the values, the words and (if loaded) the data on disk were checked.
         self._verified = False
 
@@ -372,6 +381,21 @@ class WordVectors:
             }
             self._fingerprint = fingerprint(entries, self._metadata)
         return self._fingerprint
+
+    @property
+    def vocabulary_fingerprint(self) -> str:
+        """The fingerprint of the words and their order alone (``vocab.bytes`` and
+        ``vocab.offsets`` with ``fse.kind=vocabulary``): equal for vectors of one vocabulary,
+        whatever their values or dtype."""
+        if self._vocabulary is None:
+            recorded = self._checksums() or {}
+            entries = {}
+            for name in ("vocab.bytes", "vocab.offsets"):
+                array = self._tensors[name]
+                digest = recorded.get(name) or array_sha256(array)
+                entries[name] = (tensor_code(array), array.shape, digest)
+            self._vocabulary = fingerprint(entries, {"fse.kind": "vocabulary"})
+        return self._vocabulary
 
     def _words(self) -> dict[bytes, int]:
         if self._index is None:
