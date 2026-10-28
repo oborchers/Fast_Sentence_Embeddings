@@ -17,15 +17,20 @@ cdef enum:
 
 
 cdef inline np.uint64_t _load_partial(const unsigned char *p, Py_ssize_t k) noexcept nogil:
-    """The k <= 8 bytes at p as a little-endian word, zero above them."""
-    cdef np.uint64_t w = 0
-    cdef Py_ssize_t i
+    """The k <= 8 bytes at p as a little-endian word, zero above them; reads only p[0:k],
+    with overlapping loads that agree on the bytes they share (no loop per byte)."""
+    cdef np.uint64_t w
+    cdef np.uint32_t lo, hi
     if k == 8:
         memcpy(&w, p, 8)
         return w
-    for i in range(k):
-        w |= (<np.uint64_t>p[i]) << (8 * i)
-    return w
+    if k >= 4:
+        memcpy(&lo, p, 4)
+        memcpy(&hi, p + k - 4, 4)
+        return lo | ((<np.uint64_t>hi) << (8 * (k - 4)))
+    if k == 0:
+        return 0
+    return p[0] | ((<np.uint64_t>p[k >> 1]) << (8 * (k >> 1))) | ((<np.uint64_t>p[k - 1]) << (8 * (k - 1)))
 
 
 cdef inline np.uint64_t _mix(np.uint64_t h, np.uint64_t w) noexcept nogil:
@@ -136,6 +141,14 @@ cdef inline np.int64_t _vocab_insert(
     return -1
 
 
+# The states of a VocabTable.
+cdef enum:
+    TABLE_NEW = 0
+    TABLE_BUILDING = 1
+    TABLE_READY = 2
+    TABLE_FAILED = 3
+
+
 cdef class VocabTable:
     """Immutable map from the UTF-8 bytes of a word to its vocabulary index.
 
@@ -151,8 +164,22 @@ cdef class VocabTable:
     cdef object _slots
     cdef Py_ssize_t n_words
     cdef VocabView view
+    cdef int _state
 
     def __init__(self, vocab_bytes, vocab_offsets):
+        # Built once: a second __init__ would free the slots under the threads that read
+        # them. Only a ready table is read.
+        if self._state != TABLE_NEW:
+            raise RuntimeError("a VocabTable is built once; make a new one")
+        self._state = TABLE_BUILDING
+        try:
+            self._build(vocab_bytes, vocab_offsets)
+        except BaseException:
+            self._state = TABLE_FAILED
+            raise
+        self._state = TABLE_READY
+
+    cdef _build(self, vocab_bytes, vocab_offsets):
         if (
             not isinstance(vocab_bytes, np.ndarray) or vocab_bytes.dtype != np.uint8
             or vocab_bytes.ndim != 1 or not vocab_bytes.flags.c_contiguous
@@ -209,14 +236,27 @@ cdef class VocabTable:
         self.view.arena = arena
         self.view.mask = mask
 
+    cdef inline int _check_ready(self) except -1:
+        if self._state != TABLE_READY:
+            raise RuntimeError("this VocabTable was not built; make a new one")
+        return 0
+
+    @property
+    def nbytes(self):
+        """The bytes the table holds: its slots and its own copy of the words."""
+        self._check_ready()
+        return self._slots.nbytes + self._bytes.nbytes
+
     def __reduce__(self):
         raise TypeError("a VocabTable cannot be pickled; build it from the word vectors")
 
     def __len__(self):
+        self._check_ready()
         return self.n_words
 
     def get(self, word):
         """Vocabulary index of word (str or bytes), or None; for tests."""
+        self._check_ready()
         encoded = word if isinstance(word, bytes) else (<str?>word).encode("utf-8")
         cdef uINT_t index = _vocab_lookup(&self.view, encoded, len(encoded))
         return None if index == NOT_FOUND else index

@@ -152,7 +152,9 @@ cdef class TextLookup:
     cdef size_t max_ngrams
 
     def __init__(self, VocabTable table not None, tokenizer, fasttext=None, max_ngrams=0):
-        self.table = table
+        if self.table is not None:
+            raise RuntimeError("a TextLookup is built once; make a new one")
+        table._check_ready()
         self.tokenizer = _tokenizer_code(tokenizer)
         self.fasttext = fasttext is not None
         if isinstance(max_ngrams, bool) or not isinstance(max_ngrams, (int, np.integer)):
@@ -171,6 +173,8 @@ cdef class TextLookup:
             self.max_ngrams = max_ngrams
         elif max_ngrams != 0:
             raise ValueError("max_ngrams needs fasttext")
+        # Last, so a TextLookup whose checks failed has no table and is never used.
+        self.table = table
 
     def __reduce__(self):
         raise TypeError("a TextLookup cannot be pickled; build it from the word vectors")
@@ -249,6 +253,8 @@ cdef class TextLookup:
         """
         from fse._contract import Batch
 
+        if self.table is None:
+            raise RuntimeError("this TextLookup was not built; make a new one")
         if offsets is not None:
             # An own copy of the offsets of the range, so the caller cannot change them
             # between the check and the reads without the GIL.

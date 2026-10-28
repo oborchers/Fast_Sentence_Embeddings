@@ -76,3 +76,94 @@ def test_vocab_table_reads_mapped_vectors(tmp_path):
     wv = WordVectors.load(tmp_path / "wv.safetensors", mmap=True)
     table = _native.VocabTable(wv.vocab_bytes, wv.vocab_offsets)
     assert [table.get(w) for w in words] == [0, 1]
+
+
+def _table(words: list[bytes]):
+    offsets = np.zeros(len(words) + 1, np.int64)
+    np.cumsum([len(w) for w in words], out=offsets[1:])
+    data = np.frombuffer(b"".join(words), np.uint8) if words else np.zeros(0, np.uint8)
+    return _native.VocabTable(data, offsets)
+
+
+def test_vocab_table_is_exact_for_every_length_and_byte():
+    rng = np.random.default_rng(0)
+    words = list(
+        dict.fromkeys(
+            rng.integers(0, 256, n, dtype=np.uint8).tobytes() for n in range(41) for _ in range(30)
+        )
+    )
+    table = _table(words)
+    index = {w: i for i, w in enumerate(words)}
+    for word in words:
+        assert table.get(word) == index[word]
+        for changed in (
+            word + b"\0",
+            word[:-1],
+            word[1:],
+            b"\0" + word,
+            word[:-1] + bytes([(word[-1:] or b"\0")[0] ^ 1]),
+        ):
+            assert table.get(changed) == index.get(changed)
+
+
+def test_the_padded_and_the_unpadded_lookup_agree():
+    # fse_words@1 tokens are read 16 bytes wide from the candidate buffer, external ones
+    # only within the input: both must find the same words at every length.
+    words = ["abcdefghijklmnopqrstuvwxyzabcdefghijklmn"[:n] for n in range(1, 41)]
+    table = _table([w.encode() for w in words])
+    data = np.frombuffer(" ".join(words).encode(), np.uint8)
+    ids = []
+    for tokenizer in ("fse_words@1", "external"):
+        lookup = _native.TextLookup(table, tokenizer)
+        batch = lookup.encode(
+            data, np.array([0, len(data)], np.int64), 0, 1, 0, _native.Workspace()
+        )
+        ids.append(batch.tokens.tolist())
+    assert ids[0] == ids[1] == list(range(len(words)))
+
+
+def test_vocab_table_nbytes():
+    words = [f"w{i}".encode() for i in range(1000)]
+    table = _table(words)
+    assert table.nbytes == 2048 * 32 + sum(map(len, words))
+
+
+def test_vocab_table_is_built_once():
+    table = _table([b"a", b"b"])
+    with pytest.raises(RuntimeError, match="built once"):
+        table.__init__(np.zeros(0, np.uint8), np.zeros(1, np.int64))
+    assert table.get("b") == 1
+
+
+def test_an_unbuilt_or_failed_vocab_table_is_never_read():
+    unbuilt = _native.VocabTable.__new__(_native.VocabTable)
+    failed = _native.VocabTable.__new__(_native.VocabTable)
+    with pytest.raises(ValueError, match="word 1 is also word 0"):
+        failed.__init__(np.frombuffer(b"aa", np.uint8), np.array([0, 1, 2], np.int64))
+    for table in (unbuilt, failed):
+        for use in (lambda t: t.get("a"), len, lambda t: t.nbytes):
+            with pytest.raises(RuntimeError, match="was not built"):
+                use(table)
+        with pytest.raises(RuntimeError, match="was not built"):
+            _native.TextLookup(table, "external")
+    with pytest.raises(RuntimeError, match="built once"):
+        failed.__init__(np.zeros(0, np.uint8), np.zeros(1, np.int64))
+    unbuilt.__init__(np.frombuffer(b"a", np.uint8), np.array([0, 1], np.int64))
+    assert unbuilt.get("a") == 0
+
+
+def test_a_text_lookup_is_built_once_and_only_a_built_one_encodes():
+    table = _table([b"a"])
+    lookup = _native.TextLookup(table, "external")
+    with pytest.raises(RuntimeError, match="built once"):
+        lookup.__init__(table, "fse_words@1")
+    assert lookup.tokenizer == _native.TOKENIZER_EXTERNAL
+    data = np.frombuffer(b"a", np.uint8)
+    unbuilt = _native.TextLookup.__new__(_native.TextLookup)
+    with pytest.raises(RuntimeError, match="was not built"):
+        unbuilt.encode(data, None, 0, 1, 0, _native.Workspace())
+    failed = _native.TextLookup.__new__(_native.TextLookup)
+    with pytest.raises(ValueError, match="max_ngrams needs fasttext"):
+        failed.__init__(table, "external", max_ngrams=3)
+    with pytest.raises(RuntimeError, match="was not built"):
+        failed.encode(data, None, 0, 1, 0, _native.Workspace())
