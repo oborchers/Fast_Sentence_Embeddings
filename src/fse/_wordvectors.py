@@ -35,27 +35,19 @@ from fse._container import (
     fingerprint,
     tensor_code,
 )
-from fse._contract import UnsupportedArtifactError
 from fse._validation import PathLike, validate_arguments
 from fse._wordvectors_format import (
     _BLOCK_ROWS,
     _DTYPE_OF,
-    _FINGERPRINT,
-    _KEYS,
-    _MAX_WORDS,
-    _TENSORS,
     FORMAT_VERSION,
     KIND,
     NGRAM_HASH,
     QUANTIZATION,
     FastTextParams,
     _check_fasttext,
-    _check_scales,
-    _check_utf8,
-    _check_vector,
-    _decreases,
+    _check_structure,
+    _check_values,
     _encode_words,
-    _integer,
     _lookup,
     _parse_fasttext,
 )
@@ -85,131 +77,6 @@ def _read_only(array: ndarray) -> ndarray:
         return _frozen(array)
     array.setflags(write=False)
     return array
-
-
-def _check_structure(tensors: dict[str, ndarray], metadata: dict[str, str]):
-    """Check metadata and tensors of word vectors against each other (every open)."""
-    kind = metadata.get("fse.kind")
-    if kind != KIND:
-        raise UnsupportedArtifactError(f"the artifact is a {kind!r}, not {KIND!r}")
-    if metadata.get("fse.format_version") != FORMAT_VERSION:
-        raise UnsupportedArtifactError(
-            f"word vectors of format version {metadata.get('fse.format_version')!r} are not "
-            f"supported by this fse; supported: {FORMAT_VERSION}"
-        )
-    unknown = {
-        k
-        for k in metadata
-        if k not in _KEYS and k != FINGERPRINT_KEY and not k.startswith(CHECKSUM_PREFIX)
-    }
-    if unknown:
-        raise UnsupportedArtifactError(f"unknown metadata keys of word vectors: {sorted(unknown)}")
-    if set(tensors) - _TENSORS:
-        raise UnsupportedArtifactError(
-            f"unknown tensors of word vectors: {sorted(set(tensors) - _TENSORS)}"
-        )
-    for name in ("vectors", "vocab.bytes", "vocab.offsets"):
-        if name not in tensors:
-            raise ValueError(f"word vectors need the tensor {name}")
-
-    vectors = tensors["vectors"]
-    dtype = metadata.get("fse.dtype")
-    if dtype not in _codes.STORAGE_TYPES:
-        raise UnsupportedArtifactError(
-            f"fse.dtype must be one of {sorted(_codes.STORAGE_TYPES)}, not {dtype!r}"
-        )
-    code = tensor_code(vectors)
-    if _DTYPE_OF.get(code) != dtype or vectors.ndim != 2:
-        raise ValueError(
-            f"vectors must be a matrix of {dtype}, not {code} with {vectors.ndim} dimensions"
-        )
-    n, dim = vectors.shape
-    if _integer(metadata, "fse.dim", ValueError) != dim:
-        raise ValueError(f"fse.dim is {metadata['fse.dim']}, the vectors have {dim} values per row")
-    if dim < 1:
-        raise ValueError("word vectors need at least one dimension")
-    if not 1 <= n < _MAX_WORDS:
-        raise ValueError(f"word vectors need between 1 and {_MAX_WORDS - 1} words, not {n}")
-    quantized = dtype != "float32"
-    if quantized != ("fse.quantization" in metadata):
-        raise ValueError("fse.quantization is given exactly for float16 and int8 vectors")
-    origin = metadata.get("fse.quantized_from")
-    if origin is not None and (not quantized or not _FINGERPRINT.fullmatch(origin)):
-        raise ValueError(
-            f"fse.quantized_from must be the fingerprint of float32 vectors and is given "
-            f"only for float16 and int8, not {origin!r}"
-        )
-    if quantized and metadata["fse.quantization"] != QUANTIZATION:
-        raise UnsupportedArtifactError(
-            f"quantization {metadata['fse.quantization']!r} is not supported; supported: {QUANTIZATION}"
-        )
-    _check_scales(tensors, "scales", n, dtype == "int8")
-    if "counts" in tensors:
-        _check_vector(tensors["counts"], "counts", "I64", n)
-
-    data = tensors["vocab.bytes"]
-    offsets = tensors["vocab.offsets"]
-    _check_vector(data, "vocab.bytes", "U8", len(data))
-    _check_vector(offsets, "vocab.offsets", "I64", n + 1)
-    if offsets[0] != 0 or offsets[-1] != len(data) or _decreases(offsets):
-        raise ValueError(
-            f"vocab.offsets must rise from 0 to {len(data)}, the number of vocabulary bytes"
-        )
-    _check_utf8(data, offsets)
-
-    has_ngrams = "ngrams" in tensors
-    if has_ngrams != ("fse.fasttext" in metadata) or has_ngrams != ("fse.ngram_hash" in metadata):
-        raise ValueError("fse.fasttext, fse.ngram_hash and the ngrams tensor are given together")
-    if has_ngrams:
-        params = _parse_fasttext(metadata["fse.fasttext"])
-        if metadata["fse.ngram_hash"] != NGRAM_HASH:
-            raise UnsupportedArtifactError(
-                f"ngram hash {metadata['fse.ngram_hash']!r} is not supported; supported: {NGRAM_HASH}"
-            )
-        ngrams = tensors["ngrams"]
-        if tensor_code(ngrams) != code or ngrams.shape != (params.bucket, dim):
-            raise ValueError(f"ngrams must be a ({params.bucket}, {dim}) matrix of {dtype}")
-        _check_scales(tensors, "ngram_scales", params.bucket, dtype == "int8")
-    elif "ngram_scales" in tensors:
-        raise ValueError("ngram_scales without ngrams")
-
-
-def _check_values(tensors: dict[str, ndarray]):
-    """Check the values of word vectors in blocks (verify and every writer)."""
-    for name, scales in (("vectors", "scales"), ("ngrams", "ngram_scales")):
-        if name not in tensors:
-            continue
-        rows = tensors[name]
-        for begin in range(0, len(rows), _BLOCK_ROWS):
-            block = np.asarray(rows[begin : begin + _BLOCK_ROWS])
-            if block.dtype == np.int8:
-                bad = np.flatnonzero((block == -128).any(axis=1))
-                problem = "has the code -128 (codes are -127 to 127)"
-            else:
-                bad = np.flatnonzero(~np.isfinite(block).all(axis=1))
-                problem = "contains NaN or infinite values"
-            if len(bad):
-                raise ValueError(f"row {begin + int(bad[0])} of {name} {problem}")
-        if scales in tensors:
-            values = np.asarray(tensors[scales])
-            bad = np.flatnonzero(~np.isfinite(values) | (values < 0))
-            if len(bad):
-                raise ValueError(f"{scales} {int(bad[0])} is negative or not finite")
-            # code * scale must stay finite, or reading the row would give infinity.
-            for begin in range(0, len(rows), _BLOCK_ROWS):
-                block = np.asarray(rows[begin : begin + _BLOCK_ROWS])
-                top = np.abs(block.astype(np.float32)).max(axis=1) if block.shape[1] else 0
-                with np.errstate(over="ignore"):
-                    product = top * values[begin : begin + _BLOCK_ROWS]
-                bad = np.flatnonzero(~np.isfinite(product))
-                if len(bad):
-                    raise ValueError(
-                        f"row {begin + int(bad[0])} of {name} overflows float32 with its scale"
-                    )
-    if "counts" in tensors:
-        bad = np.flatnonzero(np.asarray(tensors["counts"]) < 0)
-        if len(bad):
-            raise ValueError(f"count {int(bad[0])} is negative")
 
 
 class WordVectors:

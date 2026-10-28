@@ -240,7 +240,6 @@ untested-modules = ["src/fse/_version.py"]
 # removed. Never add an entry or raise a number; split or simplify the code instead.
 [tool.fse.guardrails.ratchet.lines]
 "src/fse/_container.py" = 854
-"src/fse/_wordvectors.py" = 585
 
 [tool.fse.guardrails.ratchet.functions]
 "benchmarks/baseline/make_v1_fixture.py::main" = { C901 = 11, cognitive = 39 }
@@ -264,8 +263,6 @@ untested-modules = ["src/fse/_version.py"]
 "src/fse/_reference_text.py::tokenize_fse_words" = { cognitive = 18 }
 "src/fse/_wordvectors.py::WordVectors.from_arrays" = { C901 = 14, PLR0912 = 13, cognitive = 25 }
 "src/fse/_wordvectors.py::WordVectors.quantize" = { C901 = 11, cognitive = 26 }
-"src/fse/_wordvectors.py::_check_structure" = { C901 = 22, PLR0912 = 21, PLR0915 = 58, cognitive = 34 }
-"src/fse/_wordvectors.py::_check_values" = { C901 = 12, cognitive = 31 }
 "src/fse/gensim.py::from_gensim" = { C901 = 13, PLR0912 = 13, cognitive = 19 }
 "tests/test_conformance.py::_numpy_pool" = { cognitive = 16 }
 "tests/test_conformance.py::test_v1_fixture_batches" = { cognitive = 20 }
