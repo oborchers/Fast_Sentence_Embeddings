@@ -106,37 +106,50 @@ def _fold_rows(
     source_scales = (
         None if scales not in tensors else _checked_copy(tensors[scales], scales, expected)
     )
-    n, k = len(source), a.shape[0]
-    stored = np.empty((n, k), dtype=source.dtype)
+    n = len(source)
+    stored = np.empty((n, a.shape[0]), dtype=source.dtype)
     stored_scales = np.empty(n, dtype=np.float32) if source_scales is not None else None
-    store = get_backend("cpu")
     # Hashed only where needed: data loaded with checksums, and the folded float32 rows
     # of vectors stored again (their fingerprint is quantized_from).
-    read = hashlib.sha256() if expected is not None else None
-    folded = hashlib.sha256() if dtype != "float32" else None
+    read = _Digest(expected is not None)
+    folded = _Digest(dtype != "float32")
+    store = get_backend("cpu")
     for begin in range(0, n, BLOCK_ROWS):
         block = np.array(source[begin : begin + BLOCK_ROWS], copy=True)
-        if read is not None:
-            read.update(memoryview(block.reshape(-1).view(np.uint8)))
-        x = block.astype(np.float32)
-        if source_scales is not None:
-            x *= source_scales[begin : begin + len(block), None]  # code * scale, rounded once
-        y = np.ascontiguousarray((x.astype(np.float64) @ a.T).astype(np.float32))
-        if folded is not None:
-            folded.update(memoryview(y.reshape(-1).view(np.uint8)))
+        read.update(block)
+        y = _folded_block(block, source_scales, begin, a)
+        folded.update(y)
         end = begin + len(block)
         if dtype == "float32":
             stored[begin:end] = y
         else:
-            store.store(
-                y,
-                stored[begin:end],
-                None if stored_scales is None else stored_scales[begin:end],
-                begin,
-            )
-    if read is not None and expected is not None and read.hexdigest() != expected[rows]:
+            target = None if stored_scales is None else stored_scales[begin:end]
+            store.store(y, stored[begin:end], target, begin)
+    if expected is not None and read.hexdigest() != expected[rows]:
         raise CorruptArtifactError(f"tensor {rows} changed since it was loaded")
     stored.setflags(write=False)
     if stored_scales is not None:
         stored_scales.setflags(write=False)
-    return stored, stored_scales, None if folded is None else folded.hexdigest()
+    return stored, stored_scales, folded.hexdigest()
+
+
+def _folded_block(block: ndarray, scales: ndarray | None, begin: int, a: ndarray) -> ndarray:
+    """A x of every stored row of ``block``, read as float32 (int8 as code * scale)."""
+    x = block.astype(np.float32)
+    if scales is not None:
+        x *= scales[begin : begin + len(block), None]  # code * scale, rounded once
+    return np.ascontiguousarray((x.astype(np.float64) @ a.T).astype(np.float32))
+
+
+class _Digest:
+    """A sha256 of the bytes of arrays, or nothing if it is not needed."""
+
+    def __init__(self, needed: bool):
+        self._hash = hashlib.sha256() if needed else None
+
+    def update(self, array: ndarray):
+        if self._hash is not None:
+            self._hash.update(memoryview(array.reshape(-1).view(np.uint8)))
+
+    def hexdigest(self) -> str | None:
+        return None if self._hash is None else self._hash.hexdigest()
