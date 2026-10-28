@@ -18,7 +18,12 @@ class VocabTable:
     def get(self, word: str | bytes) -> int | None: ...
 
 def scan_spans(
-    data: ndarray, offsets: ndarray | None, first: int, last: int, chunk_bytes: int
+    data: ndarray,
+    offsets: ndarray | None,
+    first: int,
+    last: int,
+    chunk_bytes: int,
+    chunk_rows: int = ...,
 ) -> tuple[int, int, int, list[tuple[int, int, int]], int, int]: ...
 def available_isas() -> tuple[str, ...]: ...
 def default_isa() -> str: ...

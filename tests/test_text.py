@@ -280,3 +280,18 @@ def test_inline_and_threaded_scans_give_the_same_chunks(monkeypatch, tmp_path, w
     assert len(runs["inline"].chunks) > workers
     assert errors["inline"] == errors["threads"]
     assert "3333" in errors["inline"]
+
+
+@pytest.mark.parametrize("rows", [1, 3, 100])
+def test_chunk_rows_bound_the_rows_of_a_chunk(rows):
+    texts = [""] * 250 + ["a b"] * 50  # empty sentences take no bytes
+    scan = StringSource(texts).scan(chunk_bytes=1 << 20, chunk_rows=rows)
+    assert scan.sentences == 300
+    assert max(c.n_sentences for c in scan.chunks) <= rows
+    assert sum(c.n_sentences for c in scan.chunks) == 300
+
+
+@pytest.mark.parametrize("rows", [0, -1, _native.MAX_CHUNK_ROWS + 1, True, 2.0])
+def test_chunk_rows_are_checked(rows):
+    with pytest.raises(ValueError, match="chunk_rows"):
+        StringSource(["a"]).scan(chunk_rows=rows)

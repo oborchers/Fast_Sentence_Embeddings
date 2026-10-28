@@ -51,7 +51,7 @@ def _check_span(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssi
 
 
 def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssize_t last,
-               Py_ssize_t chunk_bytes):
+               Py_ssize_t chunk_bytes, Py_ssize_t chunk_rows=CHUNK_MAX_ROWS):
     """Validate and count the sentences of one scan range, without the GIL.
 
     Line mode (offsets is None): the range holds the lines that start at byte positions
@@ -80,15 +80,17 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
     cdef Py_ssize_t n_chunks = 0
 
     # Chunk boundaries are collected in C and converted to a list at the end. Every chunk
-    # but the last holds at least chunk_bytes bytes or CHUNK_MAX_ROWS sentences, which
-    # bounds their number. The row limit keeps a chunk of empty lines, which take no
-    # bytes, from holding all rows, so training into windows needs only a few of them.
+    # but the last holds at least chunk_bytes bytes or chunk_rows sentences, which bounds
+    # their number. The row limit keeps a chunk of empty lines, which take no bytes, from
+    # holding all rows, and bounds the rows a worker holds at once.
     if chunk_bytes < 1:
         raise ValueError(f"chunk_bytes must be positive, got {chunk_bytes}")
+    if not 1 <= chunk_rows <= CHUNK_MAX_ROWS:
+        raise ValueError(f"chunk_rows must be between 1 and {CHUNK_MAX_ROWS}, got {chunk_rows}")
     cdef Py_ssize_t span_bytes = (last - first) if lines else (item_ptr[last] - item_ptr[first])
     # A line takes at least its "\n" (the last none), a string at least its entry.
     cdef Py_ssize_t max_rows = (span_bytes + 1) if lines else (last - first)
-    cdef Py_ssize_t max_chunks = span_bytes // chunk_bytes + max_rows // CHUNK_MAX_ROWS + 2
+    cdef Py_ssize_t max_chunks = span_bytes // chunk_bytes + max_rows // chunk_rows + 2
     chunk_arr = np.empty(3 * max_chunks, dtype=np.int64)
     chunk_buffer = chunk_arr
     with nogil:
@@ -111,7 +113,7 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
             if (
                 (lines and pos - chunk_start >= chunk_bytes)
                 or (not lines and (item_ptr[pos] - item_ptr[chunk_start]) >= chunk_bytes)
-                or sentences - chunk_first >= CHUNK_MAX_ROWS
+                or sentences - chunk_first >= chunk_rows
             ) and pos < last and n_chunks + 1 < max_chunks:
                 chunk_buffer[3 * n_chunks] = chunk_start
                 chunk_buffer[3 * n_chunks + 1] = pos

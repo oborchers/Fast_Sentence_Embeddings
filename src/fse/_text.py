@@ -116,6 +116,29 @@ def _scan_pool(workers: int, total: int) -> AbstractContextManager[ThreadPoolExe
     return ThreadPoolExecutor(max_workers=workers)
 
 
+def _chunk_sizes(
+    total: int, workers: object, chunk_bytes: object, chunk_rows: object
+) -> tuple[int, int]:
+    """The checked chunk size in bytes (by default from the source size) and in rows."""
+    if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
+        raise ValueError(f"workers must be a positive int, not {workers!r}")
+    if chunk_bytes is None:
+        chunk_bytes = max(_CHUNK_MIN_BYTES, min(_CHUNK_MAX_BYTES, total // (8 * workers)))
+    if isinstance(chunk_bytes, bool) or not isinstance(chunk_bytes, int) or chunk_bytes < 1:
+        raise ValueError(f"chunk_bytes must be a positive int, not {chunk_bytes!r}")
+    if chunk_rows is None:
+        chunk_rows = _native.MAX_CHUNK_ROWS
+    if (
+        isinstance(chunk_rows, bool)
+        or not isinstance(chunk_rows, int)
+        or not 1 <= chunk_rows <= _native.MAX_CHUNK_ROWS
+    ):
+        raise ValueError(
+            f"chunk_rows must be an int from 1 to {_native.MAX_CHUNK_ROWS}, not {chunk_rows!r}"
+        )
+    return chunk_bytes, chunk_rows
+
+
 class _Buffered:
     """A source whose sentences are one UTF-8 buffer, with offsets for strings."""
 
@@ -152,22 +175,22 @@ class _Buffered:
             return len(self._data) if newline < 0 else byte + newline + 1
         return int(np.searchsorted(self._offsets, byte, side="right")) - 1
 
-    def scan(self, *, workers: int = 1, chunk_bytes: int | None = None) -> Scan:
-        """Validate the UTF-8 of every sentence and cut the source into chunks."""
-        if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
-            raise ValueError(f"workers must be a positive int, not {workers!r}")
+    def scan(
+        self, *, workers: int = 1, chunk_bytes: int | None = None, chunk_rows: int | None = None
+    ) -> Scan:
+        """Validate the UTF-8 of every sentence and cut the source into chunks of about
+        ``chunk_bytes`` bytes and at most ``chunk_rows`` sentences (MAX_CHUNK_ROWS)."""
         total = len(self._data)
-        if chunk_bytes is None:
-            chunk_bytes = max(_CHUNK_MIN_BYTES, min(_CHUNK_MAX_BYTES, total // (8 * workers)))
-        if isinstance(chunk_bytes, bool) or not isinstance(chunk_bytes, int) or chunk_bytes < 1:
-            raise ValueError(f"chunk_bytes must be a positive int, not {chunk_bytes!r}")
+        chunk_bytes, chunk_rows = _chunk_sizes(total, workers, chunk_bytes, chunk_rows)
         data = self._array()
         if self._positions() == 0:
             return Scan(0, ())
         ranges = list(pairwise(self._range_bounds(workers)))
 
         def scan(span: tuple[int, int]):
-            return _native.scan_spans(data, self._offsets, span[0], span[1], chunk_bytes)
+            return _native.scan_spans(
+                data, self._offsets, span[0], span[1], chunk_bytes, chunk_rows
+            )
 
         sentences = 0
         chunks: list[Chunk] = []
@@ -352,8 +375,10 @@ class FileSource(_Buffered):
         self._check_unchanged()  # a change while the chunk was encoded
         return batch
 
-    def scan(self, *, workers: int = 1, chunk_bytes: int | None = None) -> Scan:
-        result = super().scan(workers=workers, chunk_bytes=chunk_bytes)
+    def scan(
+        self, *, workers: int = 1, chunk_bytes: int | None = None, chunk_rows: int | None = None
+    ) -> Scan:
+        result = super().scan(workers=workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows)
         self._check_unchanged()  # a change during the scan
         return result
 
