@@ -8,11 +8,18 @@
 
 A task is one block of rows of one shard against one block of queries; it computes the
 cosines with the backend (``cosines``: the queries normalized by normalize@1, dot16 on the
-stored rows, times their inverse norms) and keeps the best ``min(k, rows)`` of every query
-column. The order is the one of ``fse._reference.top_k``: the larger score first, equal
-scores (-0.0 equals 0.0) by the smaller row; it is total, so merging the candidates of the
-blocks in any order gives the same ids. Blocks and query blocks are sized so a task holds
-at most about 4 MiB of scores, whatever the number of queries.
+stored rows, times their inverse norms) and keeps the candidates of every query: the rows
+that can still be among its best ``k``. The order is the one of ``fse._reference.top_k``:
+the larger score first, equal scores (-0.0 equals 0.0) by the smaller row; it is total, so
+merging the candidates of the blocks in any order gives the same ids. Blocks and query
+blocks are sized so a task holds at most about 4 MiB of scores, whatever the number of
+queries.
+
+Every query has a floor, the k-th best score merged so far: a row below it cannot be
+among the best, so a block passes only the rows at or above it (as FAISS keeps a heap per
+query). A task reads the floors when it starts; an older floor is lower, which costs time
+but never a row. Selecting per query column instead cost more than the cosines (one
+argpartition per query and block: 3.1 of 3.4 s for 256 queries on 859,346 rows).
 
 ``exact=False`` decodes each block to float32 and multiplies with BLAS instead: faster for
 many queries, but the values differ from the contract in the last bits, so ties and the
@@ -51,37 +58,77 @@ def query_blocks(n_queries: int) -> list[slice]:
     return [slice(b, min(n_queries, b + _QUERY_BLOCK)) for b in range(0, n_queries, _QUERY_BLOCK)]
 
 
-def best(scores: ndarray, first_row: int, k: int) -> tuple[ndarray, ndarray]:
-    """The best ``min(k, rows)`` of every column of ``scores`` (rows, queries): their scores
-    and store rows, each (queries, kept), in no particular order."""
+def best(
+    scores: ndarray, first_row: int, k: int, floor: ndarray
+) -> tuple[ndarray, ndarray, ndarray]:
+    """The candidates of every query column of ``scores`` (rows, queries) for its best
+    ``k``, given its ``floor``: at most ``min(k, rows)`` per query, the best of the block
+    at or above the floor. Returns their queries (column), scores and store rows, flat."""
     n, q = scores.shape
     kept = min(k, n)
-    ids = np.empty((q, kept), np.int64)
-    values = np.empty((q, kept), F32)
-    for j in range(q):
-        column = scores[:, j]
-        if kept < n:
-            part = np.argpartition(-column, kept - 1)[:kept]
-            threshold = column[part].min()
-            above = np.flatnonzero(column > threshold)
-            equal = np.flatnonzero(column == threshold)[: kept - len(above)]  # the smaller rows
-            rows = np.concatenate([above, equal])
-        else:
-            rows = np.arange(n)
-        ids[j] = rows + first_row
-        values[j] = column[rows]
-    return values, ids
+    floor = floor.copy()
+    mask = scores >= floor
+    over = np.flatnonzero(np.count_nonzero(mask, axis=0) > kept)
+    if len(over):  # the floor keeps too many: rise to the kept-th best of the block
+        sub = scores[:, over]
+        floor[over] = np.maximum(floor[over], np.partition(sub, n - kept, axis=0)[n - kept])
+        mask[:, over] = sub >= floor[over]
+    flat = np.flatnonzero(mask)
+    order = np.argsort(flat % q, kind="stable")  # by query, then by row
+    rows, queries = np.divmod(flat[order], q)
+    values = scores.reshape(-1)[flat[order]]
+    # Rows equal to the floor beyond the kept ones: the smaller rows stay.
+    equal = values == floor[queries]
+    above = np.bincount(queries[~equal], minlength=len(floor))
+    before = np.cumsum(equal) - equal
+    rank = before - before[np.searchsorted(queries, queries)] + 1
+    keep = ~equal | (rank <= kept - above[queries])
+    return queries[keep], values[keep], rows[keep] + first_row
 
 
-def merge(values: ndarray, ids: ndarray, k: int) -> tuple[ndarray, ndarray]:
-    """The best ``k`` of candidates (queries, n): sorted, the larger score first, equal
-    scores by the smaller row."""
-    out_ids = np.empty((len(values), min(k, values.shape[1])), np.int64)
-    out_values = np.empty(out_ids.shape, F32)
-    for j in range(len(values)):
-        order = np.lexsort((ids[j], -values[j].astype(np.float64)))[: out_ids.shape[1]]
-        out_ids[j], out_values[j] = ids[j][order], values[j][order]
-    return out_values, out_ids
+class Candidates:
+    """The candidates of every query so far, merged down to its best ``k`` once they
+    outgrow the merged ones; ``floor`` is the k-th best score of every query (-inf before
+    it has ``k``)."""
+
+    def __init__(self, n_queries: int, k: int):
+        self.k = k
+        self.floor = np.full(n_queries, -np.inf, F32)
+        self._merged = (np.empty(0, np.int64), np.empty(0, F32), np.empty(0, np.int64))
+        self._pending: list[tuple[ndarray, ndarray, ndarray]] = []
+        self._size = 0
+
+    def add(self, first_query: int, found: tuple[ndarray, ndarray, ndarray]) -> None:
+        queries, values, ids = found
+        self._pending.append((queries + first_query, values, ids))
+        self._size += len(queries)
+        if self._size >= max(1, len(self._merged[0])):
+            self._merge()
+
+    def _merge(self) -> None:
+        queries, values, ids = (
+            np.concatenate(part) for part in zip(self._merged, *self._pending, strict=True)
+        )
+        order = np.lexsort((ids, -values.astype(np.float64), queries))
+        queries, values, ids = queries[order], values[order], ids[order]
+        rank = np.arange(len(queries)) - np.searchsorted(queries, queries)
+        keep = rank < self.k
+        self._merged = queries[keep], values[keep], ids[keep]
+        last = rank == self.k - 1
+        floor = self.floor.copy()
+        floor[queries[last]] = values[last]
+        self.floor = floor  # a new array: tasks that read the old one keep it
+        self._pending, self._size = [], 0
+
+    def result(self, width: int) -> tuple[ndarray, ndarray]:
+        """The ids and scores of every query, (queries, width), the best first; ``width``
+        is ``min(k, rows of the store)``, the candidates every query has."""
+        self._merge()
+        queries, values, ids = self._merged
+        if len(queries) != len(self.floor) * width:
+            raise RuntimeError("a block of the search was lost")
+        shape = (len(self.floor), width)
+        return ids.reshape(shape), values.reshape(shape)
 
 
 def check_queries(backend: Any, queries: ndarray) -> None:
@@ -110,48 +157,22 @@ def search(
     # The tolerance mode normalizes in numpy: its results are not bit-defined anyway.
     normalized = None if exact else _reference.postprocess(queries, [Normalize()])
     tasks = [(b, qb) for b in blocks(shards, len(queries)) for qb in query_blocks(len(queries))]
+    candidates = Candidates(len(queries), k)
 
     def run(task):
         (index, begin, end, first_row), qb = task
+        floor = candidates.floor[qb]
         tensors = shards[index][1]
         stored, inverse = tensors["vectors"][begin:end], tensors["inv_norms"][begin:end]
         if normalized is None:
             scores = backend.cosines(stored, inverse, queries[qb])
         else:
             scores = _blas_cosines(stored, inverse, normalized[qb])
-        return qb, best(scores, first_row, k)
+        return qb.start, best(scores, first_row, k, floor)
 
-    candidates = _Candidates(len(queries), k)
     for result in _run(run, tasks, workers, "fse-search"):
         candidates.add(*result)
-    return candidates.result()
-
-
-class _Candidates:
-    """The candidates of every query so far, merged down to ``k`` once they grow."""
-
-    def __init__(self, n_queries: int, k: int):
-        self.k = k
-        self.values = [np.empty(0, F32) for _ in range(n_queries)]
-        self.ids = [np.empty(0, np.int64) for _ in range(n_queries)]
-
-    def add(self, qb: slice, found: tuple[ndarray, ndarray]) -> None:
-        values, ids = found
-        for j, q in enumerate(range(qb.start, qb.stop)):
-            self.values[q] = np.concatenate([self.values[q], values[j]])
-            self.ids[q] = np.concatenate([self.ids[q], ids[j]])
-            if len(self.values[q]) > 4 * self.k:
-                top_values, top_ids = merge(self.values[q][None, :], self.ids[q][None, :], self.k)
-                self.values[q], self.ids[q] = top_values[0], top_ids[0]
-
-    def result(self) -> tuple[ndarray, ndarray]:
-        top = [
-            merge(v[None, :], i[None, :], self.k)
-            for v, i in zip(self.values, self.ids, strict=True)
-        ]
-        ids = np.stack([t[1][0] for t in top]) if top else np.empty((0, self.k), np.int64)
-        values = np.stack([t[0][0] for t in top]) if top else np.empty((0, self.k), F32)
-        return ids, values
+    return candidates.result(min(k, sum(shard.rows for shard, _ in shards)))
 
 
 def score(

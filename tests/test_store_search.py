@@ -10,16 +10,24 @@ from fse._store._layout import Shard
 F32 = np.float32
 
 
+def _search_blocks(scores, k, order, size=16):
+    """Merge the blocks of ``scores`` (rows, queries) in ``order``, each with the floors of
+    the blocks merged before it."""
+    candidates = _search.Candidates(scores.shape[1], k)
+    for b in order:
+        block = scores[b * size : (b + 1) * size]
+        candidates.add(0, _search.best(block, b * size, k, candidates.floor))
+    return candidates.result(min(k, len(scores)))
+
+
 @pytest.mark.parametrize("k", [1, 3, 10, 64])
-def test_blocks_merged_in_any_order_give_top_k(k):
-    rng = np.random.default_rng(k)
+@pytest.mark.parametrize("seed", range(3))
+def test_blocks_merged_in_any_order_give_top_k(k, seed):
+    rng = np.random.default_rng(seed)
     scores = rng.integers(-3, 4, (64, 5)).astype(F32) / F32(4)  # many ties
     scores[rng.random(scores.shape) < 0.1] = -0.0  # -0.0 equals 0.0
-    found = [_search.best(scores[b : b + 16], b, k) for b in range(0, 64, 16)]
-    rng.shuffle(found)
-    values = np.concatenate([f[0] for f in found], axis=1)
-    ids = np.concatenate([f[1] for f in found], axis=1)
-    top_values, top_ids = _search.merge(values, ids, k)
+    scores[:, 4] = 0.5  # every row ties
+    top_ids, top_values = _search_blocks(scores, k, rng.permutation(4))
     for j in range(5):
         want = _reference.top_k(scores[:, j], k)
         np.testing.assert_array_equal(top_ids[j], want)
@@ -28,10 +36,37 @@ def test_blocks_merged_in_any_order_give_top_k(k):
         )
 
 
+def test_a_block_keeps_at_most_k_per_query_and_nothing_below_the_floor():
+    scores = np.array([[0.1, 0.9], [0.5, 0.9], [0.3, 0.9], [0.5, 0.2]], F32)
+    floor = np.array([0.4, -np.inf], F32)
+    queries, values, ids = _search.best(scores, 100, 2, floor)
+    found = list(zip(queries.tolist(), ids.tolist(), strict=True))
+    assert found == [(0, 101), (0, 103), (1, 100), (1, 101)]  # ties: the smaller rows
+    np.testing.assert_array_equal(values, F32([0.5, 0.5, 0.9, 0.9]))
+    assert len(_search.best(scores, 0, 2, np.array([1.0, 1.0], F32))[0]) == 0
+
+
+def test_floors_are_the_kth_best_merged_so_far():
+    candidates = _search.Candidates(2, 2)
+    scores = np.array([[0.1, 0.9], [0.5, 0.8], [0.3, 0.7]], F32)
+    candidates.add(0, _search.best(scores, 0, 2, candidates.floor))
+    np.testing.assert_array_equal(candidates.floor, F32([0.3, 0.8]))
+    ids, values = candidates.result(2)
+    assert ids.tolist() == [[1, 2], [0, 1]]
+    np.testing.assert_array_equal(values, F32([[0.5, 0.3], [0.9, 0.8]]))
+    with pytest.raises(RuntimeError, match="lost"):
+        candidates.result(3)
+
+
 def test_a_block_with_fewer_rows_than_k_keeps_all_of_them():
-    values, ids = _search.best(np.ones((3, 2), F32), 100, 10)
-    assert ids.tolist() == [[100, 101, 102], [100, 101, 102]]
-    assert values.shape == (2, 3)
+    queries, _, ids = _search.best(np.ones((3, 2), F32), 100, 10, np.full(2, -np.inf, F32))
+    assert queries.tolist() == [0, 0, 0, 1, 1, 1]
+    assert ids.tolist() == [100, 101, 102] * 2
+
+
+def test_no_queries_and_no_rows():
+    assert _search.Candidates(0, 3).result(3)[0].shape == (0, 3)
+    assert _search.Candidates(2, 3).result(0)[1].shape == (2, 0)
 
 
 def test_blocks_bound_the_scores_of_a_task():
