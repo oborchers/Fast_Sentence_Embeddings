@@ -121,9 +121,17 @@ def test_at_most_two_tasks_per_worker_are_in_flight():
         started.append(task)
         return task
 
-    for k, result in enumerate(_search._run(fn, list(range(100)), 3, "t")):
+    made = []
+
+    def tasks():  # made as the search goes, never all at once
+        for task in range(100):
+            made.append(task)
+            yield task
+
+    for k, result in enumerate(_search._run(fn, tasks(), 3, "t")):
         assert result == k  # in task order
         assert len(started) <= k + 1 + 2 * 3
+        assert len(made) <= k + 1 + 2 * 3
     assert len(started) == 100
 
 

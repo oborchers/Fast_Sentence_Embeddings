@@ -32,8 +32,9 @@ to 12 queries; for 1 query 11 against 39 ms on int8 rows).
 
 from __future__ import annotations
 
+import itertools
 from collections import deque
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -210,9 +211,7 @@ def search(
     # The tolerance mode normalizes in numpy: its results are not bit-defined anyway.
     normalized = None if exact else _reference.postprocess(queries, [Normalize()])
     decode = 0 if exact else queries.shape[1]
-    tasks = [
-        (b, qb) for b in blocks(shards, len(queries), decode) for qb in query_blocks(len(queries))
-    ]
+    tasks = _tasks(shards, len(queries), decode)
     candidates = Candidates(len(queries), k)
 
     def run(task):
@@ -246,9 +245,7 @@ def score(
         out[first_row : first_row + end - begin, qb] = part
 
     decode = 0 if exact else weights.shape[1]
-    tasks = [
-        (b, qb) for b in blocks(shards, len(weights), decode) for qb in query_blocks(len(weights))
-    ]
+    tasks = _tasks(shards, len(weights), decode)
     for _ in _run(run, tasks, workers, "fse-score"):
         pass
     return out
@@ -269,16 +266,26 @@ def _score_block(backend, tensors, begin, end, first_row, weights, biases, exact
         raise ValueError(f"rows {first_row} to {first_row + end - begin - 1}: {error}") from None
 
 
-def _run(fn, tasks: list, workers: int, name: str) -> Iterator[Any]:
+def _tasks(shards: Sequence[tuple[Any, dict]], n_queries: int, decode: int) -> Iterator[tuple]:
+    """Every (block of rows, block of queries), made as the search goes."""
+    query_slices = query_blocks(n_queries)
+    for block in blocks(shards, n_queries, decode):
+        for qb in query_slices:
+            yield block, qb
+
+
+def _run(fn, tasks: Iterable[Any], workers: int, name: str) -> Iterator[Any]:
     """The results of ``fn`` on every task, in task order: in this thread, or in a pool
     with at most two tasks per worker in flight, so finished results stay bounded and a
     task starts with the floors merged so far."""
-    if workers == 1 or len(tasks) < 2:
-        yield from map(fn, tasks)
+    tasks = iter(tasks)
+    head = list(itertools.islice(tasks, 2))
+    if workers == 1 or len(head) < 2:
+        yield from map(fn, itertools.chain(head, tasks))
         return
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix=name) as pool:
         pending: deque = deque()
-        for task in tasks:
+        for task in itertools.chain(head, tasks):
             pending.append(pool.submit(fn, task))
             if len(pending) >= 2 * workers:
                 yield pending.popleft().result()
