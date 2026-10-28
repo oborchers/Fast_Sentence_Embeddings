@@ -25,7 +25,39 @@ env:
   UV_SYNC_FLAGS: ${{ github.event_name == 'schedule' && '--upgrade' || '--locked' }}
 
 jobs:
+  # Whether a pull request changes more than documentation: one that touches only docs/
+  # and Markdown files (README.md excepted, it is the package's description) skips the
+  # jobs below; check still runs and passes. Pushes, tags and the monthly run test all.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(git diff --name-only "origin/$BASE...HEAD")
+          echo "$files"
+          other=$(echo "$files" | grep -vE '^docs/|\.md$' || true)  # files beyond the docs
+          if [ -n "$other" ] || echo "$files" | grep -qx 'README.md'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
   lint:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -46,6 +78,8 @@ jobs:
       - run: make typecheck
 
   test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -98,7 +132,8 @@ jobs:
           retention-days: 7
 
   coverage:
-    needs: test
+    needs: [changes, test]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -118,6 +153,8 @@ jobs:
           uv run coverage report
 
   sdist:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -174,6 +211,8 @@ jobs:
 
   wheels:
     name: wheels (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -202,12 +241,14 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, test, coverage, sdist, wheels]
+    needs: [changes, lint, test, coverage, sdist, wheels]
     runs-on: ubuntu-latest
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35  # v1.3.0
         with:
           jobs: ${{ toJSON(needs) }}
+          # A documentation-only pull request skips them on purpose.
+          allowed-skips: ${{ needs.changes.outputs.code == 'false' && 'lint, test, coverage, sdist, wheels' || '' }}
 
   release:
     needs: check
