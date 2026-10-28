@@ -16,6 +16,7 @@ container's view are invisible to it.
 
 from __future__ import annotations
 
+import functools
 import math
 import os
 import sys
@@ -31,8 +32,15 @@ def usable_cpus() -> int:
         return override
     # macOS and Windows have no affinity call.
     cpus = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count() or 1
-    quota = _cgroup_quota(_PROC, Path("/"))
+    quota = _process_quota()
     return max(1, cpus if quota is None else min(cpus, quota))
+
+
+@functools.cache
+def _process_quota() -> int | None:
+    """The cgroup quota of this process, read once: it costs a few microseconds per read,
+    which an inline call for one sentence would pay every time."""
+    return _cgroup_quota(_PROC, Path("/"))
 
 
 def _override() -> int | None:

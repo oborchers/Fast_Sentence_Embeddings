@@ -94,9 +94,9 @@ def test_usable_cpus_takes_the_smaller_of_affinity_and_quota(monkeypatch):
     monkeypatch.delenv("PYTHON_CPU_COUNT", raising=False)
     monkeypatch.setattr(sys, "_xoptions", {})
     monkeypatch.setattr(os, "sched_getaffinity", lambda _pid: set(range(8)), raising=False)
-    monkeypatch.setattr(_cpus, "_cgroup_quota", lambda _proc, _root: 3)
+    monkeypatch.setattr(_cpus, "_process_quota", lambda: 3)
     assert usable_cpus() == 3
-    monkeypatch.setattr(_cpus, "_cgroup_quota", lambda _proc, _root: None)
+    monkeypatch.setattr(_cpus, "_process_quota", lambda: None)
     assert usable_cpus() == 8
 
 
@@ -104,7 +104,7 @@ def test_usable_cpus_takes_the_smaller_of_affinity_and_quota(monkeypatch):
 def test_the_override_wins(monkeypatch, value):
     monkeypatch.setattr(sys, "_xoptions", {})
     monkeypatch.setenv("PYTHON_CPU_COUNT", value)
-    monkeypatch.setattr(_cpus, "_cgroup_quota", lambda _proc, _root: 2)
+    monkeypatch.setattr(_cpus, "_process_quota", lambda: 2)
     assert usable_cpus() == int(value)
 
 

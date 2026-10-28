@@ -22,10 +22,14 @@ def test_small_sources_run_inline(monkeypatch):
         StringSource(["a"] * 10), workers=8, chunk_bytes=None, chunk_rows=100, tokenizer="external"
     )
     assert small.inline
-    many = plan(
-        StringSource(["a"] * 200), workers=8, chunk_bytes=None, chunk_rows=100, tokenizer="external"
+    big = plan(
+        StringSource(["abc"] * 30_000),
+        workers=8,
+        chunk_bytes=None,
+        chunk_rows=100,
+        tokenizer="external",
     )
-    assert not many.inline  # more rows than one task holds
+    assert not big.inline
     monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 5)
     assert not plan(
         StringSource(["abc"] * 2), workers=8, chunk_bytes=None, chunk_rows=100, tokenizer="external"

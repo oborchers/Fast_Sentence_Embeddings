@@ -166,7 +166,10 @@ class _Buffered:
         """Scan ranges of similar byte size that start at sentence starts."""
         size = self._positions()
         total = len(self._data)
-        n_ranges = max(1, min(max(4 * workers, -(-total // _SCAN_RANGE_MAX_BYTES)), max(size, 1)))
+        # 4 ranges per worker for balance, but none smaller than a chunk: each range gives
+        # at least one chunk, and every chunk costs its task's fixed checks.
+        wanted = max(4 * workers, -(-total // _SCAN_RANGE_MAX_BYTES))
+        n_ranges = max(1, min(wanted, -(-total // _CHUNK_MIN_BYTES), max(size, 1)))
         bounds = [0]
         for k in range(1, n_ranges):
             target = total * k // n_ranges

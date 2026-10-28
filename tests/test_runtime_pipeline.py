@@ -138,7 +138,7 @@ def test_a_sink_takes_the_rows():
 
 
 def test_task_rows_follow_the_width():
-    assert Pipeline(_spec()).task_rows == _pipeline.MAX_CHUNK_ROWS  # 4 MiB of 12 floats is more
+    assert Pipeline(_spec()).task_rows == _pipeline.MAX_CHUNK_ROWS  # 16 MiB of 12 floats is more
     wide = WordVectors.from_arrays(np.ones((3, 4096), F32), words=["a", "b", "c"])
     assert Pipeline(_spec(wv=wide)).task_rows == _pipeline.TASK_ROW_BYTES // (4 * 4096)
 
@@ -178,3 +178,21 @@ def test_a_file_changed_during_the_run_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline.backend, "rows", rows)
     with FileSource(path) as source, pytest.raises(RuntimeError, match="changed"):
         pipeline.infer(source, workers=1, chunk_bytes=4096)
+
+
+def test_the_window_stays_within_its_budget(monkeypatch):
+    seen = {}
+    real = _pipeline.run
+
+    def spy(*args, **kwargs):
+        seen.update(kwargs)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(_pipeline, "run", spy)
+    wide = WordVectors.from_arrays(np.ones((3, 4096), F32), words=["w1", "w2", "w3"])
+    pipeline = Pipeline(_spec(wv=wide))
+    pipeline.infer(StringSource(["w1"] * 5000), workers=64)
+    assert seen["window"] * pipeline._task_bytes <= _pipeline.WINDOW_BYTES or seen["window"] == 64
+    assert 64 <= seen["window"] <= 128
+    pipeline.infer(StringSource(["w1"] * 5000), workers=4)
+    assert seen["window"] == 8

@@ -22,8 +22,8 @@ from fse._contract import Batch
 from fse._stream import StreamSource
 from fse._text import Chunk, FileSource, StringSource, TokenListSource
 
-# A source of at most this many bytes and one chunk of rows runs in the calling thread:
-# threads would cost more than they save.
+# A source of at most this many bytes runs in the calling thread: threads would cost more
+# than they save (bench_runtime.py latency).
 INLINE_MAX_BYTES = 1 << 16
 
 SOURCES = (StringSource, FileSource, TokenListSource, StreamSource)
@@ -64,13 +64,11 @@ def plan(
         raise ValueError("token lists are for the external tokenizer")
     if isinstance(source, StreamSource):
         return _stream_plan(source, chunk_bytes, chunk_rows)
-    scan = source.scan(workers=workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows)
-    inline = _small(source, scan.sentences, chunk_rows)
+    inline = source.nbytes <= INLINE_MAX_BYTES  # scanned as one range, run in the caller
+    scan = source.scan(
+        workers=1 if inline else workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows
+    )
     return Plan(iter([Task(source, chunk) for chunk in scan.chunks]), scan.sentences, inline)
-
-
-def _small(source: StringSource | FileSource | TokenListSource, sentences: int, chunk_rows: int):
-    return source.nbytes <= INLINE_MAX_BYTES and sentences <= chunk_rows
 
 
 def _stream_plan(source: StreamSource, chunk_bytes: int | None, chunk_rows: int) -> Plan:
@@ -79,7 +77,7 @@ def _stream_plan(source: StreamSource, chunk_bytes: int | None, chunk_rows: int)
     first = next(collections, None)
     if first is None:
         return Plan(iter(()), None, True)
-    inline = first.last and _small(first.source, len(first.source), chunk_rows)
+    inline = first.last and first.source.nbytes <= INLINE_MAX_BYTES
 
     def tasks() -> Iterator[Task]:
         for collection in _chain(first, collections):
