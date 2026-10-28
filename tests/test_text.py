@@ -245,3 +245,38 @@ def test_make_lookup_validates():
 def test_tokenize():
     assert tokenize("Don't stop") == ["do", "not", "stop"]
     assert tokenize("Don't stop", "external") == ["Don't", "stop"]
+
+
+def test_small_sources_and_one_worker_scan_without_threads(monkeypatch):
+    from fse import _text
+
+    def no_threads(**_kwargs):
+        raise AssertionError("a thread pool was created")
+
+    monkeypatch.setattr(_text, "ThreadPoolExecutor", no_threads)
+    assert StringSource(["a b", "c"] * 10).scan(workers=8).sentences == 20
+    big = StringSource(["word " * 40] * 6000)  # about 1.2 MB
+    assert big.scan(workers=1).sentences == 6000
+
+
+@pytest.mark.parametrize("workers", [2, 4])
+def test_inline_and_threaded_scans_give_the_same_chunks(monkeypatch, tmp_path, workers):
+    from fse import _text
+
+    lines = [f"sentence {i} ".encode() * (i % 7) for i in range(5000)]
+    good = tmp_path / "good.txt"
+    good.write_bytes(b"\n".join(lines) + b"\n")
+    bad = tmp_path / "bad.txt"
+    bad.write_bytes(b"\n".join([*lines[:3333], b"bad \xff text", *lines[3333:]]) + b"\n")
+    runs, errors = {}, {}
+    for name, limit in (("inline", 1 << 40), ("threads", 0)):
+        monkeypatch.setattr(_text, "_SCAN_INLINE_BYTES", limit)
+        with FileSource(good) as source:
+            runs[name] = source.scan(workers=workers, chunk_bytes=4096)
+        with FileSource(bad) as source, pytest.raises(UnicodeDecodeError) as error:
+            source.scan(workers=workers, chunk_bytes=4096)
+        errors[name] = str(error.value)
+    assert runs["inline"] == runs["threads"]
+    assert len(runs["inline"].chunks) > workers
+    assert errors["inline"] == errors["threads"]
+    assert "3333" in errors["inline"]

@@ -12,6 +12,7 @@ from __future__ import annotations
 import mmap
 import os
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from itertools import pairwise
 from pathlib import Path
@@ -32,6 +33,9 @@ _CHUNK_MIN_BYTES = 1 << 16
 _CHUNK_MAX_BYTES = 1 << 20
 # About this many bytes per scan task, so a failed scan stops after bounded work.
 _SCAN_RANGE_MAX_BYTES = 1 << 26
+# Sources smaller than this are scanned in the calling thread: starting threads would cost
+# more than the scan (about 16 ms of one core at 64 MB/s).
+_SCAN_INLINE_BYTES = 1 << 20
 _BOM = b"\xef\xbb\xbf"
 
 
@@ -104,6 +108,14 @@ def _decode_error(data: Any, start: int, end: int, sentence: int) -> UnicodeDeco
     raise AssertionError(f"no UTF-8 error in sentence {sentence}")  # pragma: no cover
 
 
+def _scan_pool(workers: int, total: int) -> AbstractContextManager[ThreadPoolExecutor | None]:
+    """Threads for a scan, or None to scan in the calling thread: with one worker and for
+    sources under _SCAN_INLINE_BYTES. The chunks are the same either way."""
+    if workers == 1 or total < _SCAN_INLINE_BYTES:
+        return nullcontext(None)
+    return ThreadPoolExecutor(max_workers=workers)
+
+
 class _Buffered:
     """A source whose sentences are one UTF-8 buffer, with offsets for strings."""
 
@@ -159,8 +171,8 @@ class _Buffered:
 
         sentences = 0
         chunks: list[Chunk] = []
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            for result in pool.map(scan, ranges):
+        with _scan_pool(workers, total) as pool:
+            for result in (map if pool is None else pool.map)(scan, ranges):
                 count, _, _, range_chunks, error_byte, error_sentence = result
                 if error_byte >= 0:
                     raise self._error(error_byte, sentences + error_sentence)
