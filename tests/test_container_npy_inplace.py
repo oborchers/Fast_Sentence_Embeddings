@@ -8,7 +8,7 @@ import pytest
 
 from fse._container import NpyContainer
 from fse._container import _npy_inplace as inplace
-from fse._container._common import array_sha256, tensor_code
+from fse._container._common import checksum, tensor_code
 from fse._container._npy import write_manifest
 
 
@@ -27,7 +27,7 @@ def _write_in_place(directory, rows, keep=None):
         inplace.sync_file(fd)
     finally:
         os.close(fd)
-    entries = {"vectors": (tensor_code(rows), rows.shape, array_sha256(rows))}
+    entries = {"vectors": (tensor_code(rows), rows.shape, checksum(rows))}
     write_manifest(directory, entries, {"fse.kind": "test"}, directory / ".manifest.writing")
     return rows
 

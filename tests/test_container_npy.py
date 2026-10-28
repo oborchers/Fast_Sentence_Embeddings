@@ -1,4 +1,4 @@
-"""NpyContainer 1: layout, corrupted artifacts, limits and files on disk."""
+"""NpyContainer 2: layout, corrupted artifacts, limits and files on disk."""
 
 import json
 import os
@@ -9,11 +9,18 @@ import pytest
 from fse._container import (
     CorruptArtifactError,
     NpyContainer,
-    array_sha256,
+    checksum,
     fingerprint,
 )
 from fse._contract import UnsupportedArtifactError
-from support.container import _METADATA, F32, _tensors
+from support.container import (
+    _METADATA,
+    ALGORITHM_CASES,
+    F32,
+    FINGERPRINT,
+    _tensors,
+    fake_fingerprint,
+)
 
 
 def test_same_content_same_fingerprint(tmp_path):
@@ -22,7 +29,7 @@ def test_same_content_same_fingerprint(tmp_path):
     c.write(tmp_path / "b", _tensors(), {**_METADATA, "fse.created_by": "two"})
     fa = c.open(tmp_path / "a", mmap=True)[1]["fse.fingerprint"]
     fb = c.open(tmp_path / "b", mmap=False)[1]["fse.fingerprint"]
-    assert fa == fb == "sha256:98a86ce422b1d61979da4b088934ebbb5c4f128463ca20123f7508d0f74f32db"
+    assert fa == fb == FINGERPRINT
 
 
 def test_failed_write_leaves_nothing(tmp_path, monkeypatch):
@@ -121,7 +128,7 @@ CORRUPTIONS = {
         "this fse reads",
     ),
     "container version float": (
-        _edit(lambda m: m.update(container_version=1.0)),
+        _edit(lambda m: m.update(container_version=2.0)),
         UnsupportedArtifactError,
         "this fse reads",
     ),
@@ -136,7 +143,7 @@ CORRUPTIONS = {
         "non-negative ints",
     ),
     "container version": (
-        _edit(lambda m: m.update(container_version=2)),
+        _edit(lambda m: m.update(container_version=3)),
         UnsupportedArtifactError,
         "this fse reads",
     ),
@@ -251,10 +258,10 @@ CORRUPTIONS = {
     "missing fingerprint": (
         _edit(lambda m: m["metadata"].pop("fse.fingerprint")),
         CorruptArtifactError,
-        "missing or malformed",
+        "is missing",
     ),
     "edited fingerprint": (
-        _edit(lambda m: m["metadata"].update({"fse.fingerprint": "sha256:" + "0" * 64})),
+        _edit(lambda m: m["metadata"].update({"fse.fingerprint": fake_fingerprint("0")})),
         CorruptArtifactError,
         "does not match the content",
     ),
@@ -276,6 +283,27 @@ def test_corrupted_artifacts_raise(tmp_path, case):
             NpyContainer().open(path, mmap=mmap)
     with pytest.raises(error, match=match):
         NpyContainer().verify(path)
+
+
+@pytest.mark.parametrize("case", sorted(ALGORITHM_CASES))
+def test_hashes_of_another_algorithm_are_rejected(tmp_path, case):
+    edit, kind, match = ALGORITHM_CASES[case]
+    error = UnsupportedArtifactError if kind == "unsupported" else CorruptArtifactError
+    path = _written(tmp_path)
+    _edit(lambda m: edit(m["metadata"]))(path)
+    for mmap in (False, True):
+        with pytest.raises(error, match=match):
+            NpyContainer().open(path, mmap=mmap)
+    with pytest.raises(error, match=match):
+        NpyContainer().verify(path)
+
+
+def test_the_pre_release_container_version_is_rejected(tmp_path):
+    """NpyContainer 1 held sha256 checksums; it is rejected before they are read."""
+    path = _written(tmp_path)
+    _edit(lambda m: m.update(container_version=1))(path)
+    with pytest.raises(UnsupportedArtifactError, match="'npy' version 2"):
+        NpyContainer().open(path, mmap=True)
 
 
 def test_flipped_data_byte(tmp_path):
@@ -346,7 +374,7 @@ def test_shape_products_do_not_overflow(tmp_path):
 
 def test_expected_checksums_guard_the_write(tmp_path):
     tensors = _tensors()
-    expected = {k: array_sha256(v) for k, v in tensors.items()}
+    expected = {k: checksum(v) for k, v in tensors.items()}
     NpyContainer().write(tmp_path / "a", tensors, _METADATA, expected=expected)
     expected["vectors"] = "0" * 64
     with pytest.raises(CorruptArtifactError, match="changed since it was checked"):
@@ -415,8 +443,8 @@ def test_empty_tensors_are_checked_on_a_normal_open(tmp_path):
     NpyContainer().write(path, {"empty": np.zeros((0, 3), F32)}, {})
     manifest = _manifest(path)
     metadata = manifest["metadata"]
-    metadata["fse.checksum.empty"] = "1" * 64
-    entries = {"empty": ("F32", (0, 3), "1" * 64)}
+    metadata["fse.checksum.empty"] = fake_fingerprint("1")
+    entries = {"empty": ("F32", (0, 3), fake_fingerprint("1"))}
     metadata["fse.fingerprint"] = fingerprint(entries, metadata)
     _save_manifest(path, manifest)
     with pytest.raises(CorruptArtifactError, match="does not match its checksum"):

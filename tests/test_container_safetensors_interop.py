@@ -2,12 +2,13 @@
 
 import numpy as np
 import pytest
+import xxhash
 
 from fse._container import (
     DTYPE_CODES,
     CorruptArtifactError,
     SafetensorsContainer,
-    array_sha256,
+    checksum,
     fingerprint,
     tensor_code,
 )
@@ -28,7 +29,11 @@ def test_the_reference_library_reads_our_files(tmp_path):
     with safetensors.safe_open(str(path), "np") as f:
         metadata = f.metadata()
     assert metadata["note"] == "é"
-    assert metadata["fse.fingerprint"].startswith("sha256:")
+    assert metadata["fse.fingerprint"].startswith("xxh3-128:")
+    # The checksums, computed independently of fse on the bytes the reference library read.
+    for name, array in loaded.items():
+        raw = np.ascontiguousarray(array).tobytes()
+        assert metadata[f"fse.checksum.{name}"] == "xxh3-128:" + xxhash.xxh3_128(raw).hexdigest()
 
 
 def test_files_of_the_reference_library_lack_our_checksums(tmp_path):
@@ -52,7 +57,7 @@ def test_our_reader_takes_files_of_the_reference_library_with_fse_metadata(tmp_p
         "matrix": np.arange(6, dtype=np.int64).reshape(2, 3),
     }
     metadata = {"fse.kind": "test"}
-    entries = {k: (tensor_code(v), v.shape, array_sha256(v)) for k, v in tensors.items()}
+    entries = {k: (tensor_code(v), v.shape, checksum(v)) for k, v in tensors.items()}
     for name, (_, _, digest) in entries.items():
         metadata[f"fse.checksum.{name}"] = digest
     metadata["fse.fingerprint"] = fingerprint(entries, metadata)

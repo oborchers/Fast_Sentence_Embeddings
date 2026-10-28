@@ -5,12 +5,12 @@
 # Licensed under GNU General Public License v3.0
 
 """One shard being written: rows reserved for the workers, committed in order, then
-published whole (ARCHITECTURE.md, "sentence_vectors 1").
+published whole (ARCHITECTURE.md, "sentence_vectors 2").
 
 A shard is written in a temporary directory ``.shard-<first row>.writing-<hex>`` of the
 store. The worker of a task writes its rows into a buffer of the task (the window of the
 runtime bounds them); its commit writes them into ``vectors.npy`` at their offset
-(``pwrite``, so a full disk raises an OSError there) and feeds the sha256 of the vectors,
+(``pwrite``, so a full disk raises an OSError there) and feeds the checksum of the vectors,
 in row order. The scales and inverse norms are kept in memory. Finishing shrinks a shard
 that ends early, syncs the file, writes the scales, the inverse norms and the manifest,
 and renames the directory into place without replacing anything. Until then the rows are
@@ -23,7 +23,6 @@ M1 Pro, int8 at 10 workers: 1.04 against 1.96 million rows per second).
 
 from __future__ import annotations
 
-import hashlib
 import os
 import secrets
 import shutil
@@ -36,7 +35,7 @@ from numpy import ndarray
 from numpy.lib import format as npy_format
 
 from fse import _codes
-from fse._container import tensor_code
+from fse._container import Hasher, checksum, tensor_code
 from fse._container._npy import write_manifest
 from fse._container._npy_inplace import create, publish_directory, shrink, sync_file, write_at
 
@@ -71,7 +70,7 @@ class ShardWriter:
         # while ``committed`` is kept by the thread that commits.
         self.queued = 0
         self.end = capacity  # sealed earlier by seal()
-        self.digest = hashlib.sha256()
+        self.digest = Hasher()
         self._open: dict[int, ndarray] = {}  # first row in the shard -> the codes reserved
 
     @property
@@ -102,7 +101,7 @@ class ShardWriter:
             )
         if codes is not self._open[begin]:
             raise ValueError(f"the rows from {begin} are not the target reserved for them")
-        self.digest.update(memoryview(codes).cast("B"))
+        self.digest.update(codes)
         del self._open[begin]  # only once the commit is checked
         self.committed += len(codes)
 
@@ -151,7 +150,7 @@ class ShardWriter:
         os.close(self.fd)
         self.fd = -1
         code = tensor_code(np.empty(0, self.dtype))
-        entries = {"vectors": (code, (rows, self.info.dim), self.digest.hexdigest())}
+        entries = {"vectors": (code, (rows, self.info.dim), self.digest.checksum())}
         extra = {"inv_norms": self.norms[:rows]}
         if self.scales is not None:
             extra["scales"] = self.scales[:rows]
@@ -180,7 +179,7 @@ class ShardWriter:
 
 
 def _write(file: Path, array: ndarray) -> str:
-    """A small tensor as a synced .npy file; returns the sha256 of its data."""
+    """A small tensor as a synced .npy file; returns the checksum of its data."""
     data = np.ascontiguousarray(array)
     fd = os.open(file, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o644)
     with os.fdopen(fd, "wb") as f:
@@ -188,4 +187,4 @@ def _write(file: Path, array: ndarray) -> str:
         f.write(data.tobytes())
         f.flush()
         sync_file(f.fileno())
-    return hashlib.sha256(data.tobytes()).hexdigest()
+    return checksum(data)

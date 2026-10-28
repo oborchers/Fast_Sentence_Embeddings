@@ -9,9 +9,11 @@ import numpy as np
 import pytest
 
 from fse import _reference, _text
+from fse._contract import UnsupportedArtifactError
 from fse._encoder import Encoder, QuantizedRows
 from fse._runtime import Pipeline
 from fse._wordvectors import WordVectors
+from support.container import fake_fingerprint
 from support.encoder import folded, unfolded
 from support.runtime import expected, texts, word_vectors
 
@@ -103,7 +105,7 @@ def test_a_folded_encoder_checks_the_word_vectors_it_holds(tmp_path):
 
     encoder = folded("int8")
     tensors, metadata, _ = encoder._artifact()
-    metadata["fse.word_vectors"] = "sha256:" + "0" * 64
+    metadata["fse.word_vectors"] = fake_fingerprint("0")
     SafetensorsContainer().write(
         tmp_path / "bad.safetensors", tensors, {**metadata, "fse.created_by": "test"}
     )
@@ -207,31 +209,42 @@ GOLDEN = Path(__file__).parent / "test_data" / "v2"
     ("name", "fingerprint", "rows"),
     [
         (
-            "encoder_sif_unfolded",
-            "sha256:c5bc6326324bd04c938ee2e73f9c5defbc0790f2a2a03c4710b0486c026febb7",
+            "encoder2_sif_unfolded",
+            "xxh3-128:a747a8a326d8f04989ca312c887b7ea4",
             "62b7fcaa61f113edc40f88e3125708faae27c3bf52300f7d6d2530f7f5bee472",
         ),
         (
-            "encoder_usif_folded_int8",
-            "sha256:ce1563cdd99c80480b72294c2a759b3a6b026fee74054bb74ce9c3fc655bdc8d",
+            "encoder2_usif_folded_int8",
+            "xxh3-128:4c09a41aea045b587f21b5d7f0bc61c9",
             "2a567828aaccdc0494e97c399fe475321695602ab1e6e1eb79f2ca75e73df74a",
         ),
     ],
 )
 @pytest.mark.parametrize("mmap", [False, True])
 def test_the_golden_encoders_load_and_give_their_pinned_rows(name, fingerprint, rows, mmap):
-    """encoder 1 is fixed: these files load, keep their fingerprint and give the same bits
-    on every platform (the encoding is contract arithmetic; only fit depends on BLAS)."""
+    """encoder 2 is fixed: these files load, keep their fingerprint and give the same bits
+    on every platform (the encoding is contract arithmetic; only fit depends on BLAS). The
+    rows are those of the files of format 1, which were transcoded, never fitted again."""
     corpus = runpy.run_path(str(GOLDEN / "make_encoder_golden.py"))["CORPUS"]
     path = GOLDEN / f"{name}.safetensors"
     if "unfolded" in name:
-        wv = WordVectors.load(GOLDEN / "word_vectors_float32.safetensors")
+        wv = WordVectors.load(GOLDEN / "word_vectors2_float32.safetensors")
         encoder = Encoder.load(path, word_vectors=wv, mmap=mmap)
     else:
         encoder = Encoder.load(path, mmap=mmap)
     assert encoder.fingerprint == fingerprint
     assert hashlib.sha256(encoder.encode(corpus).tobytes()).hexdigest() == rows
     encoder.verify()
+
+
+@pytest.mark.parametrize("name", ["encoder_sif_unfolded", "encoder_usif_folded_int8"])
+@pytest.mark.parametrize("mmap", [False, True])
+def test_the_pre_release_golden_encoders_are_rejected(name, mmap):
+    """The same encoders in format 1, with sha256 checksums: kept as they were written."""
+    wv = WordVectors.load(GOLDEN / "word_vectors2_float32.safetensors")
+    kwargs = {"word_vectors": wv} if "unfolded" in name else {}
+    with pytest.raises(UnsupportedArtifactError, match="sha256 checksums of a pre-release"):
+        Encoder.load(GOLDEN / f"{name}.safetensors", mmap=mmap, **kwargs)
 
 
 def _damaged(loaded, field, value):

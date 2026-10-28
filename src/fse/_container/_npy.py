@@ -4,11 +4,10 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""NpyContainer 1: a directory of .npy files with a manifest, for stored sentence vectors."""
+"""NpyContainer 2: a directory of .npy files with a manifest, for stored sentence vectors."""
 
 from __future__ import annotations
 
-import hashlib
 import io
 import json
 import math
@@ -25,9 +24,9 @@ from numpy.lib import format as npy_format
 
 from fse._contract import UnsupportedArtifactError
 
+from . import _hash
 from ._common import (
     _CHUNK,
-    _EMPTY_SHA256,
     ALIGNMENT,
     CHECKSUM_PREFIX,
     DTYPE_CODES,
@@ -189,7 +188,7 @@ def write_manifest(
     sync=os.fsync,
 ):
     """Commit the artifact in directory ``path`` whose tensor files are written and
-    synced: ``entries`` holds (dtype code, shape, sha256) per tensor. The manifest (with
+    synced: ``entries`` holds (dtype code, shape, checksum) per tensor. The manifest (with
     the checksums and the fingerprint) is written to ``tmp`` in ``path``, synced by
     ``sync`` and renamed into place last; without it, readers see no artifact."""
     full = dict(metadata)
@@ -221,7 +220,7 @@ class NpyContainer:
     """One ``<name>.npy`` file per tensor and a ``manifest.json``, in a directory."""
 
     name = "npy"
-    version = 1
+    version = 2
     suffix = ""  # a directory
 
     def write(
@@ -266,7 +265,7 @@ class NpyContainer:
 
     @staticmethod
     def _write_tensor(file: Path, array: ndarray) -> str:
-        digest = hashlib.sha256()
+        digest = _hash.Hasher()
         data = array.astype(DTYPE_CODES[tensor_code(array)], copy=False)
         with file.open("wb") as f:
             npy_format.write_array_header_1_0(f, npy_format.header_data_from_array_1_0(data))
@@ -278,7 +277,7 @@ class NpyContainer:
                 f.write(chunk)
             f.flush()
             os.fsync(f.fileno())
-        return digest.hexdigest()
+        return digest.checksum()
 
     def open(self, path, *, mmap: bool) -> tuple[dict[str, ndarray], dict[str, str]]:
         path = Path(path)
@@ -293,7 +292,7 @@ class NpyContainer:
             with _open_regular(file) as handle:
                 offset = _read_header(handle, file, code, shape)
                 if 0 in shape:
-                    if entries[name][2] != _EMPTY_SHA256:
+                    if entries[name][2] != _hash.EMPTY:
                         raise CorruptArtifactError(f"{file} does not match its checksum")
                     array = np.empty(shape, dtype=DTYPE_CODES[code])  # nothing to map
                     array.setflags(write=False)
@@ -316,11 +315,11 @@ class NpyContainer:
         data = handle.read(nbytes)
         if len(data) != nbytes:
             raise CorruptArtifactError(f"{file} ended early")
-        digest = hashlib.sha256()
+        digest = _hash.Hasher()
         view = memoryview(data)
         for begin in range(0, nbytes, _CHUNK):
             digest.update(view[begin : begin + _CHUNK])
-        if digest.hexdigest() != expected:
+        if digest.checksum() != expected:
             raise CorruptArtifactError(f"{file} does not match its checksum")
         return np.frombuffer(data, dtype=DTYPE_CODES[code]).reshape(shape)
 
@@ -338,8 +337,8 @@ class NpyContainer:
             file = path / entry["file"]
             with _open_regular(file) as handle:
                 _read_header(handle, file, entry["dtype"], tuple(entry["shape"]))
-                digest = hashlib.sha256()
+                digest = _hash.Hasher()
                 while chunk := handle.read(_CHUNK):
                     digest.update(chunk)
-            if digest.hexdigest() != entries[name][2]:
+            if digest.checksum() != entries[name][2]:
                 raise CorruptArtifactError(f"{file} does not match its checksum")

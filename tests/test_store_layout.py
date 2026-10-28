@@ -17,8 +17,9 @@ from fse._store._layout import (
     shard_name,
     shards,
 )
+from support.container import LEGACY, fake_fingerprint
 
-INFO = StoreInfo("sha256:" + "ab" * 32, "int8", 3)
+INFO = StoreInfo(fake_fingerprint("a"), "int8", 3)
 
 
 def _shard(store, first_row, rows, info=INFO, **change):
@@ -88,9 +89,19 @@ def test_store_json_is_read_strictly(tmp_path):
         ({"store_version": 2}, UnsupportedArtifactError, "version 2"),
         ({"extra": 1}, CorruptArtifactError, "exactly store, store_version and metadata"),
         (
-            {"metadata": {**store["metadata"], "fse.format_version": "2"}},
+            {"metadata": {**store["metadata"], "fse.format_version": "3"}},
             UnsupportedArtifactError,
-            "format '2'",
+            "format '3'",
+        ),
+        (  # the pre-release format with sha256 fingerprints
+            {"metadata": {**store["metadata"], "fse.format_version": "1"}},
+            UnsupportedArtifactError,
+            "format '1'",
+        ),
+        (
+            {"metadata": {**store["metadata"], "fse.encoder": LEGACY}},
+            CorruptArtifactError,
+            "xxh3-128",
         ),
         (
             {"metadata": {**store["metadata"], "fse.output_dim": "03"}},

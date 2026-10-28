@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The layout of a store of sentence vectors (ARCHITECTURE.md, "sentence_vectors 1").
+"""The layout of a store of sentence vectors (ARCHITECTURE.md, "sentence_vectors 2").
 
 A store is a directory: ``store.json``, written once when the store is created and
 never changed, names the encoder, the storage dtype and the dimension; the rows are
@@ -27,7 +27,14 @@ from typing import Any
 
 from numpy import ndarray
 
-from fse._container import CREATED_BY_KEY, INTEGER, CorruptArtifactError, NpyContainer
+from fse._container import (
+    CREATED_BY_KEY,
+    FINGERPRINT_FORM,
+    INTEGER,
+    CorruptArtifactError,
+    NpyContainer,
+    is_fingerprint,
+)
 from fse._container._common import _open_regular, _strict_json
 from fse._container._npy_inplace import publish_directory, sync_file
 from fse._contract import UnsupportedArtifactError
@@ -35,6 +42,8 @@ from fse._contract import UnsupportedArtifactError
 STORE_FILE = "store.json"
 STORE_NAME = "fse_shards"
 STORE_VERSION = 1
+# The format of the sentence vectors: 2 since every checksum is xxh3-128.
+FORMAT_VERSION = "2"
 SHARD_PREFIX = "shard-"
 DTYPES = ("float32", "float16", "int8")
 # The metadata every shard shares with store.json.
@@ -60,7 +69,7 @@ class StoreInfo:
     def metadata(self) -> dict[str, str]:
         return {
             "fse.kind": "sentence_vectors",
-            "fse.format_version": "1",
+            "fse.format_version": FORMAT_VERSION,
             "fse.transform_version": "2",
             "fse.encoder": self.encoder,
             "fse.dtype": self.dtype,
@@ -163,13 +172,13 @@ def _info(metadata: Any, file: Path) -> StoreInfo:
         raise CorruptArtifactError(f"{file}: the metadata must hold {', '.join(_SHARED)}")
     if (
         metadata["fse.kind"] != "sentence_vectors"
-        or metadata["fse.format_version"] != "1"
+        or metadata["fse.format_version"] != FORMAT_VERSION
         or metadata["fse.transform_version"] != "2"
     ):
         raise UnsupportedArtifactError(
             f"{file} holds {metadata['fse.kind']!r} format {metadata['fse.format_version']!r} "
             f"transform {metadata['fse.transform_version']!r}; this fse reads sentence_vectors "
-            "format 1, transform 2"
+            f"format {FORMAT_VERSION}, transform 2"
         )
     dim = metadata["fse.output_dim"]
     if (
@@ -179,10 +188,10 @@ def _info(metadata: Any, file: Path) -> StoreInfo:
         or dim == "0"
     ):
         raise CorruptArtifactError(f"{file}: fse.dtype or fse.output_dim is not valid")
-    if not isinstance(metadata["fse.encoder"], str) or not metadata["fse.encoder"].startswith(
-        "sha256:"
-    ):
-        raise CorruptArtifactError(f"{file}: fse.encoder must be an encoder fingerprint")
+    if not is_fingerprint(metadata["fse.encoder"]):
+        raise CorruptArtifactError(
+            f"{file}: fse.encoder must be an encoder fingerprint ({FINGERPRINT_FORM})"
+        )
     return StoreInfo(metadata["fse.encoder"], metadata["fse.dtype"], int(dim))
 
 

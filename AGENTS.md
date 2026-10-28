@@ -54,6 +54,7 @@ Never wait for pull request checks or CI in the foreground. Start the wait as a 
 - the ruff complexity limits (C901 10, PLR0911 6, PLR0912 12, PLR0913 and PLR0917 15, PLR0915 50) and a cognitive complexity of at most 15 per Python function (complexipy; Cython and C functions are limited by their file length);
 - the import layers and forbidden packages in `[tool.importlinter]`;
 - that only `fse._text` (stages 1 and 2) and the cpu backend `fse._backends._cpu` (the kernels) import `fse._native`, and the extension imports only `fse._contract` from fse;
+- that only `fse._container._hash` imports a hash library (hashlib, xxhash): every checksum and fingerprint is xxh3-128 through it;
 - a test file for every module of fse (`fse/_a.py` is `tests/test_a.py`, `fse/_b/_c.py` is `tests/test_b_c.py`; only the generated `_version.py` has none, and the `.pxi` parts that `_native.pyx` includes are tested through `tests/test_native.py` and checked for imports like it);
 - no unused code (vulture, with the names Python, pytest or a library use by name in `[tool.vulture]`) and no undeclared or unused dependency (deptry).
 

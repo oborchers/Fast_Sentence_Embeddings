@@ -10,11 +10,20 @@ from fse._container import (
     DTYPE_CODES,
     CorruptArtifactError,
     SafetensorsContainer,
-    array_sha256,
+    checksum,
     fingerprint,
 )
 from fse._contract import UnsupportedArtifactError
-from support.container import _METADATA, F32, FINGERPRINT, _assemble, _small_chunks, _tensors
+from support.container import (
+    _METADATA,
+    ALGORITHM_CASES,
+    F32,
+    FINGERPRINT,
+    _assemble,
+    _small_chunks,
+    _tensors,
+    fake_fingerprint,
+)
 
 
 def _written(tmp_path):
@@ -109,7 +118,7 @@ def test_write_rejects(tmp_path):
 
 def test_expected_checksums_and_failures_leave_nothing(tmp_path):
     tensors = _tensors()
-    expected = {k: array_sha256(v) for k, v in tensors.items()}
+    expected = {k: checksum(v) for k, v in tensors.items()}
     SafetensorsContainer().write(tmp_path / "a.safetensors", tensors, {}, expected=expected)
     expected["vectors"] = "0" * 64
     with pytest.raises(CorruptArtifactError, match="changed since it was checked"):
@@ -268,7 +277,7 @@ CORRUPTIONS = {
         "checksum keys",
     ),
     "edited fingerprint": (
-        _edit(lambda h: h["__metadata__"].update({"fse.fingerprint": "sha256:" + "0" * 64})),
+        _edit(lambda h: h["__metadata__"].update({"fse.fingerprint": fake_fingerprint("0")})),
         CorruptArtifactError,
         "does not match the content",
     ),
@@ -292,6 +301,19 @@ def test_corrupted_files_raise(tmp_path, case):
         SafetensorsContainer().verify(path)
 
 
+@pytest.mark.parametrize("case", sorted(ALGORITHM_CASES))
+def test_hashes_of_another_algorithm_are_rejected(tmp_path, case):
+    edit, kind, match = ALGORITHM_CASES[case]
+    error = UnsupportedArtifactError if kind == "unsupported" else CorruptArtifactError
+    path = _written(tmp_path)
+    _edit(lambda h: edit(h["__metadata__"]))(path)
+    for mmap in (False, True):
+        with pytest.raises(error, match=match):
+            SafetensorsContainer().open(path, mmap=mmap)
+    with pytest.raises(error, match=match):
+        SafetensorsContainer().verify(path)
+
+
 def test_unaligned_data_start(tmp_path):
     path = _written(tmp_path)
     header, data = _parts(path)
@@ -306,7 +328,7 @@ def test_empty_tensors_are_checked(tmp_path):
     path = tmp_path / "a.safetensors"
     SafetensorsContainer().write(path, {"x": np.ones(2, F32), "empty": np.zeros((0, 3), F32)}, {})
     header, data = _parts(path)
-    header["__metadata__"]["fse.checksum.empty"] = "1" * 64
+    header["__metadata__"]["fse.checksum.empty"] = fake_fingerprint("1")
     _refingerprint(header)
     _assemble(path, header, data)
     for mmap in (False, True):
@@ -394,21 +416,21 @@ def test_written_bytes_are_the_hashed_bytes(tmp_path, monkeypatch, with_expected
 
     _small_chunks(monkeypatch)
     source = np.arange(16, dtype=F32)
-    expected = {"x": array_sha256(source)} if with_expected else None
-    real_sha256 = container.hashlib.sha256
+    expected = {"x": checksum(source)} if with_expected else None
+    real_hasher = container._hash.Hasher
 
     class Changing:
-        def __init__(self, data=b""):
-            self.inner = real_sha256(data)
+        def __init__(self):
+            self.inner = real_hasher()
 
         def update(self, data):
             self.inner.update(data)
             source[:] += 1  # the source changes right after every hashed block
 
-        def hexdigest(self):
-            return self.inner.hexdigest()
+        def checksum(self):
+            return self.inner.checksum()
 
-    monkeypatch.setattr(container.hashlib, "sha256", Changing)
+    monkeypatch.setattr(container._hash, "Hasher", Changing)
     path = tmp_path / "a.safetensors"
     if with_expected:
         with pytest.raises(CorruptArtifactError, match="changed since it was checked"):
@@ -416,7 +438,7 @@ def test_written_bytes_are_the_hashed_bytes(tmp_path, monkeypatch, with_expected
         assert not path.exists()
         return
     SafetensorsContainer().write(path, {"x": source}, {})
-    monkeypatch.setattr(container.hashlib, "sha256", real_sha256)
+    monkeypatch.setattr(container._hash, "Hasher", real_hasher)
     SafetensorsContainer().verify(path)  # the file matches its own checksums
     SafetensorsContainer().open(path, mmap=False)
 
@@ -452,19 +474,15 @@ def test_failed_writes_publish_nothing_and_keep_other_files(tmp_path, monkeypatc
             container, "_publish", lambda _tmp, _target: (_ for _ in ()).throw(OSError("publish"))
         )
     else:
-        real_sha256 = container.hashlib.sha256
 
         class Failing:
-            def __init__(self, data=b""):
-                self.inner = real_sha256(data)
-
             def update(self, _data):
                 raise OSError("write")
 
-            def hexdigest(self):  # pragma: no cover - never reached
-                return self.inner.hexdigest()
+            def checksum(self):  # pragma: no cover - never reached
+                return ""
 
-        monkeypatch.setattr(container.hashlib, "sha256", Failing)
+        monkeypatch.setattr(container._hash, "Hasher", Failing)
     with pytest.raises(OSError, match=failing):
         SafetensorsContainer().write(path, _tensors(), {})
     assert sorted(p.name for p in tmp_path.iterdir()) == [foreign.name]

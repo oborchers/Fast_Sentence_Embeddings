@@ -7,7 +7,7 @@
 """The file work of a ShardSink in one thread of its own, in the order it was handed over.
 
 The calling thread of a run reads the source, reserves rows and commits them; writing the
-committed rows into their shard (``pwrite``), hashing them (sha256, which must see the
+committed rows into their shard (``pwrite``), hashing them (the checksum, which must see the
 rows in order) and publishing finished shards (syncs and a rename) would make it the
 bound of the run. A ShardSink therefore hands this work to one writer thread through a
 bounded queue: the order of the work stays the order of the commits, and a full queue

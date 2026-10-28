@@ -10,6 +10,7 @@ import pytest
 from fse._container import SafetensorsContainer
 from fse._reference import dequantize, quantize_rows
 from fse._wordvectors import FastTextParams, WordVectors
+from support.container import fake_fingerprint
 from support.wordvectors import (
     F32,
     WORDS,
@@ -320,7 +321,7 @@ def test_quantized_from_must_be_a_fingerprint(tmp_path):
     with pytest.raises(ValueError, match=r"fse\.quantized_from must be the fingerprint"):
         WordVectors.load(path)
     _wv().save(tmp_path / "f32.safetensors")
-    fake = "sha256:" + "0" * 64
+    fake = fake_fingerprint("0")
     path = _rewrite(
         tmp_path / "f32.safetensors",
         None,
