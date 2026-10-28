@@ -70,18 +70,22 @@ def test_create_never_reuses_a_file(tmp_path):
         inplace.create(tmp_path / "vectors.npy", np.float32, (2, 2))
 
 
-def test_write_at_writes_everything_and_raises_on_a_full_disk(tmp_path, monkeypatch):
+@pytest.mark.parametrize("write", ["native", "seek"])
+def test_write_at_writes_everything_and_raises_on_a_full_disk(tmp_path, monkeypatch, write):
     fd, offset = inplace.create(tmp_path / "vectors.npy", np.uint8, (1, 100))
-    real = os.pwrite
+    real = inplace._write_some if write == "native" else inplace._seek_and_write
     try:
-        monkeypatch.setattr(os, "pwrite", lambda f, data, at: real(f, data[:7], at))  # short writes
+        monkeypatch.setattr(  # short writes
+            inplace, "_write_some", lambda f, data, at: real(f, data[:7], at)
+        )
         inplace.write_at(fd, memoryview(bytes(range(100))), offset)
-        assert os.pread(fd, 100, offset) == bytes(range(100))
+        os.lseek(fd, offset, os.SEEK_SET)
+        assert os.read(fd, 100) == bytes(range(100))
 
         def full(*_args):
             raise OSError(errno.ENOSPC, "No space left on device")
 
-        monkeypatch.setattr(os, "pwrite", full)
+        monkeypatch.setattr(inplace, "_write_some", full)
         with pytest.raises(OSError, match="No space left"):
             inplace.write_at(fd, memoryview(b"x"), offset)
     finally:

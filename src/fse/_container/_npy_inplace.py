@@ -79,16 +79,21 @@ def create(file: Path, dtype: np.dtype, shape: tuple[int, ...]) -> tuple[int, in
     return fd, len(head)
 
 
+def _seek_and_write(fd: int, data: memoryview, position: int) -> int:
+    """os.pwrite where it is missing (Windows); a file is written by one thread at a time."""
+    os.lseek(fd, position, os.SEEK_SET)
+    return os.write(fd, data)
+
+
+_write_some = getattr(os, "pwrite", _seek_and_write)
+
+
 def write_at(fd: int, data: memoryview, position: int) -> None:
-    """Write all of ``data`` at ``position``: os.pwrite may write less, so it loops; a seek
-    and a write where pwrite is missing (Windows). A full disk raises an OSError."""
+    """Write all of ``data`` at ``position``: a write may write less, so it loops. A full
+    disk raises an OSError."""
     view = memoryview(data).cast("B")
     while len(view):
-        if hasattr(os, "pwrite"):
-            n = os.pwrite(fd, view, position)
-        else:  # pragma: no cover - Windows only
-            os.lseek(fd, position, os.SEEK_SET)
-            n = os.write(fd, view)
+        n = _write_some(fd, view, position)
         view, position = view[n:], position + n
 
 
