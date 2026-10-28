@@ -28,6 +28,8 @@ Performance changes report before and after numbers: `uv run python benchmarks/b
 - when code only moves (the same machine code, shown by comparing the disassembly of the native functions of both builds with addresses normalized, or the same preprocessed header), that comparison replaces the timing;
 - longer series only where code that computes or runs hot really changes.
 
+Every PR that touches the hot path (the native kernels, the text sources, the runtime, the backends, the sinks) also measures the end-to-end float32 throughput against its base, `uv run python benchmarks/bench_runtime.py throughput` on both in paired runs, so a slowdown shows even where nobody expects one; the numbers go into the PR description. When a gate misses its target, profile before optimizing: `py-spy record --native --threads -o profile.svg -- python benchmarks/<script> ...` (py-spy is in the dev group; on macOS it needs `sudo`, so on a Mac without it time the stages one by one instead) and on Linux also `perf record -g`; name the functions that take the time in the PR description.
+
 ## Rules
 
 - Validate strictly and never fail silently: raise a clear exception instead of coercing, ignoring or truncating input. Decorate new public entry points with `fse._validation.validate_arguments` unless they are called per element or receive bulk data; measure the overhead when in doubt. See ARCHITECTURE.md.
