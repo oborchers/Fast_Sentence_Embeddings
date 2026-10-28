@@ -77,8 +77,8 @@ def _check_word_vectors(word_vectors: object) -> WordVectors:
 def make_vocabulary(word_vectors: WordVectors) -> Vocabulary:
     """The VocabTable of the words of ``word_vectors``, for ``make_lookup``."""
     wv = _check_word_vectors(word_vectors)
-    table = _native.VocabTable(wv.vocab_bytes, wv.vocab_offsets)
-    return Vocabulary(table, wv.vocabulary_fingerprint)
+    data, offsets, fingerprint = wv._vocabulary_snapshot()
+    return Vocabulary(_native.VocabTable(data, offsets), fingerprint)
 
 
 def make_lookup(

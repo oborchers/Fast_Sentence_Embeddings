@@ -245,8 +245,9 @@ class WordVectors:
         _check_structure(self._tensors, self._metadata)
         _check_values(self._tensors)
         if self._index is None:
-            # Checks that the words are unique; the lookup itself is built only when a
-            # word is looked up (about 400 MB for 3 million words), not kept for a check.
+            # Checks that the words are unique. The lookup this builds (about 400 MB for 3
+            # million words) is dropped again, a transient peak; it is kept only once a
+            # word is looked up. A compact check without it can come with PR 5b.
             _lookup(self._tensors["vocab.bytes"], self._tensors["vocab.offsets"])
         # Mapped data can change through the file, so its check is never remembered.
         self._verified = not self._mapped()
@@ -414,6 +415,24 @@ class WordVectors:
                 entries[name] = (tensor_code(array), array.shape, digest)
             self._vocabulary = fingerprint(entries, {"fse.kind": "vocabulary"})
         return self._vocabulary
+
+    def _vocabulary_snapshot(self) -> tuple[ndarray, ndarray, str]:
+        """Copies of ``vocab.bytes`` and ``vocab.offsets``, checked against the checksums
+        they were loaded with, and the vocabulary fingerprint of exactly these copies: what
+        a VocabTable is built from, so the table and its fingerprint describe the same
+        words even if a mapped file changes."""
+        recorded = self._checksums() or {}
+        copies, entries = [], {}
+        for name in ("vocab.bytes", "vocab.offsets"):
+            copy = np.array(self._tensors[name], copy=True)
+            digest = array_sha256(copy)
+            if name in recorded and digest != recorded[name]:
+                raise CorruptArtifactError(
+                    f"tensor {name} of {self._path} does not match its checksum"
+                )
+            copies.append(copy)
+            entries[name] = (tensor_code(copy), copy.shape, digest)
+        return copies[0], copies[1], fingerprint(entries, {"fse.kind": "vocabulary"})
 
     def _words(self) -> dict[bytes, int]:
         if self._index is None:

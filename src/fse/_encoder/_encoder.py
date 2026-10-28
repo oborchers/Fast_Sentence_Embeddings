@@ -221,8 +221,11 @@ class Encoder:
         if self._checksums is not None:
             tensors, _, _ = self._artifact()
             held = {k: v for k, v in tensors.items() if k in self._checksums}
+            # The copies the pipelines use: the weights and the oov_weight as a scalar.
             if self._content.weights is not None:
-                held["weights"] = self._spec.weights  # the copy the pipelines use
+                held["weights"] = self._spec.weights
+            if self._spec.oov_weight is not None:
+                held["oov_weight"] = np.array(self._spec.oov_weight, dtype=np.float32)
             for name, array in held.items():
                 if name not in WORD_VECTOR_TENSORS and array_sha256(array) != self._checksums[name]:
                     raise CorruptArtifactError(

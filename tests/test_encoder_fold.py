@@ -68,7 +68,9 @@ def test_changed_data_never_become_folded_vectors(tmp_path):
 
 
 @pytest.mark.parametrize("mmap", [False, True])
-def test_folding_loaded_vectors_builds_no_lookup_of_the_words(tmp_path, mmap):
+def test_folding_loaded_vectors_keeps_no_lookup_of_the_words(tmp_path, mmap):
+    """The words are checked to be unique on the way (a lookup is built and dropped, a
+    transient peak); no lookup is kept on the vectors or the folded ones."""
     path = tmp_path / "wv.safetensors"
     word_vectors().save(path)
     loaded = WordVectors.load(path, mmap=mmap)

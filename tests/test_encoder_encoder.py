@@ -268,3 +268,19 @@ def test_the_recipe_is_a_copy_all_the_way_down():
     nested = Encoder._new(content, encoder.word_vectors)
     nested.recipe["nested"]["a"].append(3)
     assert nested.recipe == {"name": "x", "nested": {"a": [1, 2]}}
+
+
+def test_verify_checks_the_oov_weight_the_encoder_uses(tmp_path):
+    path = tmp_path / "ft.safetensors"
+    encoder = unfolded(fasttext=True)
+    encoder.save(path)
+    original = path.read_bytes()
+    begin, _ = _tensor_span(path, "oov_weight")
+    damaged = bytearray(original)
+    damaged[begin] ^= 1  # still a finite float32
+    path.write_bytes(bytes(damaged))
+    loaded = Encoder.load(path, word_vectors=encoder.word_vectors, mmap=True)
+    path.write_bytes(original)
+    assert loaded.encode(["zzzz qqqq"]).tobytes() != encoder.encode(["zzzz qqqq"]).tobytes()
+    with pytest.raises(ValueError, match=r"oov_weight of .* does not match its checksum"):
+        loaded.verify()

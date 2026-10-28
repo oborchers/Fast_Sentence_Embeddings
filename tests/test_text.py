@@ -226,3 +226,19 @@ def test_a_vocabulary_of_other_words_or_order_is_refused():
         make_lookup(wv, "fse_words@1", vocabulary=object())
     with pytest.raises(TypeError, match="word_vectors must be WordVectors"):
         make_vocabulary(object())
+
+
+def test_a_vocabulary_is_built_from_checked_words(tmp_path):
+    """The table and its fingerprint come from one copy of the words, checked against the
+    checksums they were loaded with."""
+    from fse._container import CorruptArtifactError
+
+    path = tmp_path / "wv.safetensors"
+    vectors().save(path)
+    data = bytearray(path.read_bytes())
+    at = data.rindex(b"istanbul")  # in vocab.bytes, the last tensor of the file
+    data[at] = ord("j")
+    path.write_bytes(bytes(data))
+    mapped = WordVectors.load(path, mmap=True)
+    with pytest.raises(CorruptArtifactError, match=r"vocab\.bytes .* does not match its checksum"):
+        make_vocabulary(mapped)
