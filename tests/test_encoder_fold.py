@@ -65,3 +65,16 @@ def test_changed_data_never_become_folded_vectors(tmp_path):
         f.write(bytes([last[0] ^ 1]))
     with pytest.raises((CorruptArtifactError, ValueError)):
         fold(mapped, STEPS)
+
+
+@pytest.mark.parametrize("mmap", [False, True])
+def test_folding_loaded_vectors_builds_no_lookup_of_the_words(tmp_path, mmap):
+    path = tmp_path / "wv.safetensors"
+    word_vectors().save(path)
+    loaded = WordVectors.load(path, mmap=mmap)
+    folded = fold(loaded, STEPS)
+    assert loaded._index is None
+    assert folded._index is None
+    loaded.verify()
+    assert loaded._index is None  # verify checks the words without keeping a lookup
+    assert "w3" in folded  # a lookup is built when a word is looked up

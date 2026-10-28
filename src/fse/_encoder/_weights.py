@@ -29,7 +29,9 @@ def check_counts(counts: object, n_words: int) -> ndarray:
         raise ValueError(f"counts must hold one count per word ({n_words}), not {len(counts)}")
     if not len(counts) or counts.min() < 0:
         raise ValueError("counts must not be negative")
-    if int(counts.max()) > np.iinfo(np.int64).max // len(counts):
+    # max * n is only a bound: past it, sum exactly with Python integers before refusing.
+    top = np.iinfo(np.int64).max
+    if int(counts.max()) > top // len(counts) and sum(int(c) for c in counts) > top:
         raise ValueError("counts are too large: their sum must fit into int64")
     counts = counts.astype(np.int64)
     if not counts.sum():
@@ -63,8 +65,13 @@ def usif_weights(counts: ndarray, length: int) -> ndarray:
 
 def usif_component_weights(singular_values: ndarray) -> ndarray:
     """lambda_j^2 / sum lambda^2 of the removed components, in float32."""
-    squares = singular_values.astype(_F32) * singular_values.astype(_F32)
-    total = squares.sum(dtype=_F32)
+    with np.errstate(over="ignore"):
+        squares = singular_values.astype(_F32) * singular_values.astype(_F32)
+        total = squares.sum(dtype=_F32)
+    if not np.isfinite(total):
+        raise ValueError(
+            "the variance of the sentence vectors exceeds float32; scale the word vectors down"
+        )
     if not total > 0:
         raise ValueError("the sentence vectors have no variance; uSIF removes no component")
     return squares / total

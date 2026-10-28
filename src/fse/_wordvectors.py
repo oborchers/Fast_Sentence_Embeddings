@@ -212,7 +212,13 @@ class WordVectors:
     def _derived(self, tensors: dict[str, ndarray], metadata: dict[str, str]) -> WordVectors:
         """New vectors of the same vocabulary as these (such as folded ones), made from
         arrays the caller owns; the checked lookup of the words is shared."""
-        return WordVectors._new(tensors, metadata, self._index)
+        out = WordVectors(tensors, metadata)
+        _check_values(tensors)
+        # The vocabulary is a checked copy of these vectors' own, whose words were checked
+        # to be unique; a lookup is shared if there is one, never built for this.
+        out._index = self._index
+        out._verified = True
+        return out
 
     def _mapped(self) -> bool:
         return any(isinstance(t, np.memmap) for t in self._tensors.values())
@@ -239,7 +245,9 @@ class WordVectors:
         _check_structure(self._tensors, self._metadata)
         _check_values(self._tensors)
         if self._index is None:
-            self._index = _lookup(self._tensors["vocab.bytes"], self._tensors["vocab.offsets"])
+            # Checks that the words are unique; the lookup itself is built only when a
+            # word is looked up (about 400 MB for 3 million words), not kept for a check.
+            _lookup(self._tensors["vocab.bytes"], self._tensors["vocab.offsets"])
         # Mapped data can change through the file, so its check is never remembered.
         self._verified = not self._mapped()
 

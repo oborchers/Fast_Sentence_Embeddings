@@ -77,12 +77,16 @@ class Pipeline:
         )
 
     def _row_bytes(self, dtype: str) -> int:
-        """The bytes one row of a task takes: its float32 rows while it runs, and for a
-        storage dtype also its stored target until its commit."""
-        if dtype == "float32":
-            return self._widest
-        stored = np.dtype(_codes.STORAGE_TYPES[dtype]).itemsize * self.output_dim
-        return self._widest + stored + (4 if dtype == "int8" else 0)
+        """The bytes one row of a task takes at most: its target until its commit, and
+        while it runs the float32 rows before storage (a float16 or int8 target) and the
+        rows the steps make (the pooled rows, their copy and the output rows)."""
+        out, pooled = self.output_dim, self.prepared.pooled_dim
+        target = np.dtype(_codes.STORAGE_TYPES[dtype]).itemsize * out + (
+            4 if dtype == "int8" else 0
+        )
+        scratch = 0 if dtype == "float32" else 4 * out
+        steps = 8 * pooled + 4 * out if self.prepared.steps else 0
+        return target + scratch + steps
 
     def infer(
         self,

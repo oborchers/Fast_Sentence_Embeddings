@@ -14,6 +14,7 @@ several threads may encode with it at once. It is saved as one safetensors file
 
 from __future__ import annotations
 
+import copy
 import threading
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -38,7 +39,13 @@ from fse._text import Vocabulary, make_vocabulary
 from fse._validation import PathLike, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
 
-from ._format import WORD_VECTOR_KEYS, EncoderContent, from_artifact, to_artifact
+from ._format import (
+    WORD_VECTOR_KEYS,
+    WORD_VECTOR_TENSORS,
+    EncoderContent,
+    from_artifact,
+    to_artifact,
+)
 from ._sources import opened
 
 
@@ -209,8 +216,18 @@ class Encoder:
         )
 
     def verify(self):
-        """Check the data this encoder holds and its file (if loaded) against their
-        checksums, and its word vectors."""
+        """Check the data this encoder holds (as it encodes with them) against the
+        checksums it was loaded with, its file (if loaded), and its word vectors."""
+        if self._checksums is not None:
+            tensors, _, _ = self._artifact()
+            held = {k: v for k, v in tensors.items() if k in self._checksums}
+            if self._content.weights is not None:
+                held["weights"] = self._spec.weights  # the copy the pipelines use
+            for name, array in held.items():
+                if name not in WORD_VECTOR_TENSORS and array_sha256(array) != self._checksums[name]:
+                    raise CorruptArtifactError(
+                        f"tensor {name} of {self._path} does not match its checksum"
+                    )
         if self._path is not None:
             SafetensorsContainer().verify(self._path)
         self._word_vectors.verify()
@@ -260,7 +277,7 @@ class Encoder:
     @property
     def recipe(self) -> dict[str, Any]:
         """The recipe and its parameters, as recorded (provenance only)."""
-        return dict(self._content.recipe)
+        return copy.deepcopy(self._content.recipe)
 
     def __reduce__(self):
         raise TypeError("an Encoder cannot be pickled; use save() and Encoder.load()")

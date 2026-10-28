@@ -190,8 +190,14 @@ def test_edge_cases_raise_clearly():
     counts = np.ones(len(wv), int)
     with pytest.raises(ValueError, match="needs at least as many sentences"):
         fse.SIF(components=3).fit(wv, ["w1 w2", "w3"], counts=counts)
-    with pytest.raises(ValueError, match="corpus, which is empty"):
+    with pytest.raises(ValueError, match="0 sentences and no tokens"):
         fse.USIF(components=0).fit(wv, [], counts=counts)
+    with pytest.raises(ValueError, match="2 sentences and no tokens"):
+        fse.USIF(components=0).fit(wv, ["", "  "], counts=counts)
+    with pytest.raises(ValueError, match="no sentence vector that is not zero"):
+        fse.SIF(components=1).fit(wv, ["", "unknown words only"], counts=counts)
+    with pytest.raises(ValueError, match="no sentence vector that is not zero"):
+        fse.Average(dim=2).fit(wv, ["zz yy"])
     with pytest.raises(ValueError, match="dim must be between 1 and 11"):
         fse.SIF(components=1, dim=12).fit(wv, texts(500), counts=counts)
 
@@ -210,3 +216,42 @@ def test_fit_transform_is_fit_then_encode(dtype, fold):
     assert got == want
     average, rows = fse.Average().fit_transform(wv, sentences)
     assert rows.tobytes() == average.encode(sentences).tobytes()
+
+
+def test_valid_counts_with_a_large_sum_bound_are_accepted():
+    from fse._encoder._weights import check_counts
+
+    assert check_counts(np.array([2**62, 1], np.int64), 2).sum() == 2**62 + 1
+    with pytest.raises(ValueError, match="too large"):
+        check_counts(np.array([2**62, 2**62], np.int64), 2)
+
+
+def test_usif_component_weights_refuse_a_variance_beyond_float32():
+    from fse._encoder._weights import usif_component_weights
+
+    with pytest.raises(ValueError, match="exceeds float32"):
+        usif_component_weights(np.array([1.5e19, 1.5e19], F32))
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+def test_rows_the_removal_nearly_cancels(dtype):
+    """Before normalize the error is small relative to the size of the input row; after
+    it, residues of rounding or quantization decide the direction (ARCHITECTURE.md)."""
+    rng = np.random.default_rng(7)
+    u = rng.standard_normal(12)
+    u /= np.linalg.norm(u)
+    rows = (np.outer(rng.uniform(1, 2, 200), u) + 1e-4 * rng.standard_normal((200, 12))).astype(F32)
+    wv = WordVectors.from_arrays(rows, words=[f"w{i}" for i in range(200)])
+    wv = wv if dtype == "float32" else wv.quantize(dtype)
+    sentences = [f"w{i} w{(i * 7) % 200}" for i in range(400)]
+    counts = np.ones(200, int)
+    kwargs = {"components": 1, "normalize": False}
+    folded = fse.SIF(**kwargs).fit(wv, sentences, counts=counts)
+    unfolded = fse.SIF(fold=False, **kwargs).fit(wv, sentences, counts=counts)
+    a, b = folded.encode(sentences), unfolded.encode(sentences)
+    plain = fse.Average(normalize=False).fit(wv).encode(sentences)
+    size = np.linalg.norm(plain, axis=1)
+    error = np.linalg.norm(a - b, axis=1) / size
+    assert error.max() < {"float32": 1e-6, "float16": 1e-3, "int8": 1e-2}[dtype]
+    # what remains is tiny against the input: normalizing it amplifies the residues
+    assert (np.linalg.norm(b, axis=1) / size).max() < 1e-2

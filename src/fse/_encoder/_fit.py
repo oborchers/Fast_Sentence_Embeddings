@@ -175,8 +175,11 @@ def _oov_weight(spec: FitSpec, weights: ndarray) -> Any:
 def _learned_length(spec, word_vectors, vocabulary, source, workers, backend) -> int:
     pipeline = _pipeline(spec, word_vectors, vocabulary, None, backend)
     sentences, tokens = count_tokens(pipeline, source, workers=workers)
-    if not sentences:
-        raise ValueError("uSIF learns the sentence length from the corpus, which is empty")
+    if not tokens:
+        raise ValueError(
+            f"uSIF learns the sentence length from the corpus, which has {sentences} "
+            "sentences and no tokens"
+        )
     return max(1, tokens // sentences)
 
 
@@ -189,6 +192,11 @@ def _learn(spec, word_vectors, vocabulary, weights, source, workers, backend):
     sink = GramSink(dim, pipeline.backend)
     pipeline.infer(source, workers=workers, sink=sink)
     gram, sentences = sink.result(), sink.next_row
+    if not np.trace(gram) > 0:
+        raise ValueError(
+            f"the corpus of {sentences} sentences gives no sentence vector that is not zero "
+            f"(no known word); {spec.name} learns nothing from it"
+        )
     steps: list[Step] = []
     removed = component_weights = None
     if spec.components:

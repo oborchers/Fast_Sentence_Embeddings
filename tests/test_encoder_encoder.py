@@ -1,7 +1,10 @@
 import hashlib
+import json
 import pickle
 import runpy
+import struct
 import threading
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -230,3 +233,38 @@ def test_the_golden_encoders_load_and_give_their_pinned_rows(name, fingerprint, 
     assert encoder.fingerprint == fingerprint
     assert hashlib.sha256(encoder.encode(corpus).tobytes()).hexdigest() == rows
     encoder.verify()
+
+
+def _tensor_span(path, name):
+    """The bytes of tensor ``name`` in a safetensors file."""
+    data = path.read_bytes()
+    (length,) = struct.unpack("<Q", data[:8])
+    header = json.loads(data[8 : 8 + length])
+    begin, end = header[name]["data_offsets"]
+    return 8 + length + begin, 8 + length + end
+
+
+def test_verify_checks_the_data_the_encoder_holds(tmp_path):
+    """A mapped load copies the weights; if the file was damaged at load and repaired
+    since, the file verifies, but the weights the encoder uses do not."""
+    path = tmp_path / "e.safetensors"
+    encoder = unfolded()
+    encoder.save(path)
+    original = path.read_bytes()
+    begin, _ = _tensor_span(path, "weights")
+    damaged = bytearray(original)
+    damaged[begin] ^= 1
+    path.write_bytes(bytes(damaged))
+    loaded = Encoder.load(path, word_vectors=encoder.word_vectors, mmap=True)
+    path.write_bytes(original)
+    with pytest.raises(ValueError, match=r"weights of .* does not match its checksum"):
+        loaded.verify()
+    Encoder.load(path, word_vectors=encoder.word_vectors, mmap=True).verify()
+
+
+def test_the_recipe_is_a_copy_all_the_way_down():
+    encoder = unfolded()
+    content = replace(encoder._content, recipe={"name": "x", "nested": {"a": [1, 2]}})
+    nested = Encoder._new(content, encoder.word_vectors)
+    nested.recipe["nested"]["a"].append(3)
+    assert nested.recipe == {"name": "x", "nested": {"a": [1, 2]}}
