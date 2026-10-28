@@ -34,6 +34,8 @@ import time
 import tracemalloc
 from pathlib import Path
 
+from fse._cpus import usable_cpus
+
 CASES_20 = ["convert", "load", "load_mmap", "verify", "lookup"]
 CASES_11 = ["pickle", "pickle_mmap", "wv_int8"]
 
@@ -145,7 +147,7 @@ def main() -> None:
         f"{'case':<12} {'vectors':<26} {'dtype':<8} {'seconds':>8} {'peak MiB':>9} {'delta MiB':>10} {'load':>5}"
     )
     results = []
-    cpus = os.cpu_count() or 1
+    cpus = usable_cpus()
     with tempfile.TemporaryDirectory(dir=args.tmp) as tmp:
         runs = [
             (c, v, d, sys.executable) for v in args.vectors for d in args.dtypes for c in CASES_20

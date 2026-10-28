@@ -38,6 +38,8 @@ from pathlib import Path
 
 import numpy as np
 
+from fse._cpus import usable_cpus
+
 DTYPES = ["float32", "float16", "int8"]
 # One thread everywhere: the 1.1.0 kernel finishes rows with BLAS saxpy.
 THREAD_VARS = [
@@ -147,7 +149,7 @@ def run_child(cfg: dict) -> dict:
 
 def spawn(python: str, cfg: dict, env: dict) -> dict:
     """Run one child in a fresh interpreter and return its result."""
-    cpus = os.cpu_count() or 1
+    cpus = usable_cpus()
     # os.getloadavg is not available on Windows; nan marks the load unknown.
     load = os.getloadavg()[0] if hasattr(os, "getloadavg") else float("nan")
     if load > cpus / 4:

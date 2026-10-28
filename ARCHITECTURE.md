@@ -20,6 +20,7 @@ src/fse/
   _wordvectors.py        # WordVectors
   _wordvectors_format.py # the format rules of word_vectors 1: keys, checks, vocabulary encoding
   _gram.py               # Gram matrix helpers for fit
+  _cpus.py               # usable_cpus: the default number of workers
   _validation.py         # validate_arguments: strict pydantic checks of entry points
   _native.pyx            # the extension: directives, imports and its parts, in order
   _native_hash.pxi       # its parts: FastText ngram hashing and chunk limits,
@@ -297,13 +298,13 @@ The modules form layers, and a module imports only from layers below it. The imp
 3. `_wordvectors`
 4. `_wordvectors_format`
 5. `_container`, `_codes`, `_gram`, `_reference`, `_reference_text`, `_validation`, independent of each other: the references never share code with what they check
-6. `_contract`, `_unicode`
+6. `_contract`, `_cpus`, `_unicode`
 
 The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` imports it and that it imports only `_contract` from fse. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, mlx, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list to the extension. The runtime, backends, encoder, sinks and store of the coming PRs add their layers above `_text`.
 
 ### Defaults
 
-Defaults are part of the API and chosen for speed: `workers` is the number of usable CPUs (small inputs run inline in the calling thread), and new encoders, also the pretrained ones on the hub, end with `normalize`, so the cosine of two rows is their dot product. A server that encodes many small requests in parallel sets `workers=1`.
+Defaults are part of the API and chosen for speed: `workers` is the number of usable CPUs (`fse._cpus.usable_cpus`: an explicit `PYTHON_CPU_COUNT` or `-X cpu_count`, else the CPUs of the process affinity limited by the CPU quota of its Linux cgroup and every visible ancestor, rounded up; small inputs run inline in the calling thread), and new encoders, also the pretrained ones on the hub, end with `normalize`, so the cosine of two rows is their dot product. A server that encodes many small requests in parallel sets `workers=1`.
 
 ### Baseline
 

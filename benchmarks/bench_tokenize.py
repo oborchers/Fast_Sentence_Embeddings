@@ -48,6 +48,8 @@ from pathlib import Path
 
 import numpy as np
 
+from fse._cpus import usable_cpus
+
 _NOT_PUNCTUATION = re.compile(".*[A-Za-z0-9].*")
 
 
@@ -191,15 +193,8 @@ def child_hf(cfg: dict) -> float:
 CHILDREN = {"v2": child_v2, "v1": child_v1, "nltk": child_nltk, "hf": child_hf}
 
 
-def _cpus() -> int:
-    """The CPUs this process may use (a container can see more than it gets)."""
-    if hasattr(os, "sched_getaffinity"):
-        return len(os.sched_getaffinity(0))
-    return os.cpu_count() or 1
-
-
 def spawn(python: str, cfg: dict) -> float:
-    cpus = _cpus()
+    cpus = usable_cpus()
     load = os.getloadavg()[0] if hasattr(os, "getloadavg") else float("nan")
     if load > cpus / 4:
         print(f"# warning: load average {load:.1f} on {cpus} CPUs", flush=True)
@@ -345,7 +340,7 @@ def main() -> None:
         for threads in args.threads:
             measure([("v2 workers", v2)], threads=threads)
         measure([("nltk", v1)])
-        hf = [measure([("hf", v1)], threads=t)["hf"] for t in (1, _cpus())]
+        hf = [measure([("hf", v1)], threads=t)["hf"] for t in (1, usable_cpus())]
         ratios = []
         contenders = [
             ("v2 rows", v2),

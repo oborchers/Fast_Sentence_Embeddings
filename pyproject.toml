@@ -270,7 +270,7 @@ layers = [
     "_wordvectors_format",
     # Independent of each other: the references never share code with what they check.
     "_container | _codes | _gram | _reference | _reference_text | _validation",
-    "_contract | _unicode",
+    "_contract | _cpus | _unicode",
 ]
 
 [[tool.importlinter.contracts]]
