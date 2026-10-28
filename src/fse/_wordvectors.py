@@ -209,6 +209,11 @@ class WordVectors:
         }
         return dict(self._tensors), metadata, self._checksums()
 
+    def _derived(self, tensors: dict[str, ndarray], metadata: dict[str, str]) -> WordVectors:
+        """New vectors of the same vocabulary as these (such as folded ones), made from
+        arrays the caller owns; the checked lookup of the words is shared."""
+        return WordVectors._new(tensors, metadata, self._index)
+
     def _mapped(self) -> bool:
         return any(isinstance(t, np.memmap) for t in self._tensors.values())
 
