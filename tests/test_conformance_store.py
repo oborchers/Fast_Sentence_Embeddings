@@ -26,9 +26,7 @@ def _cases():
     return {
         "normal": normal,
         # Every lane and tail of the vector paths; rows from subnormal to 1e4 in size.
-        "wide": (rng.standard_normal((64, 301)) * np.exp(rng.uniform(-40, 8, (64, 1)))).astype(
-            F32
-        ),
+        "wide": (rng.standard_normal((64, 301)) * np.exp(rng.uniform(-40, 8, (64, 1)))).astype(F32),
         "half-ties": (np.arange(-2048, 2048, dtype=F32) + F32(0.5)).reshape(-1, 32) / F32(1 << 14),
         "zeros": np.zeros((3, 4), F32),
         "negative-zeros": np.full((2, 4), -0.0, F32),
