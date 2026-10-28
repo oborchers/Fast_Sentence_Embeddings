@@ -67,3 +67,21 @@ def test_the_gram_sink_reports_rows_that_are_not_finite():
     sink.commit(0, np.array([[1, 2], [np.inf, 0]], F32))
     with pytest.raises(ValueError, match="NaN or infinite values in rows from 0"):
         sink.result()
+
+
+def test_array_rows_take_only_their_reserved_targets():
+    sink = ArrayRows(2, 2)
+    with pytest.raises(ValueError, match="not the target reserved"):
+        sink.commit(0, np.ones((1, 2), F32))
+    with pytest.raises(ValueError, match="not the target reserved"):
+        sink.commit(0, sink.target(0, 2)[:1].copy())
+    sink.commit(0, sink.target(0, 2))
+    assert sink.result().shape == (2, 2)
+
+
+def test_commits_must_be_float32_and_c_contiguous():
+    sink = GrowingRows(2)
+    with pytest.raises(ValueError, match="C-contiguous float32"):
+        sink.commit(0, np.ones((1, 2)))
+    with pytest.raises(ValueError, match="C-contiguous float32"):
+        sink.commit(0, np.ones((1, 4), F32)[:, ::2])

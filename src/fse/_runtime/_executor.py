@@ -39,26 +39,41 @@ _POLL_SECONDS = 0.25
 
 def run(
     tasks: Iterable[T],
-    work: Callable[[T], R],
-    commit: Callable[[T, R], None],
+    work: Callable[[Any], R],
+    commit: Callable[[Any, R], None],
     *,
     workers: int,
     inline: bool = False,
     window: int | None = None,
+    reserve: Callable[[T], Any] | None = None,
 ) -> None:
-    """Run ``work`` on every task and ``commit`` each result in task order."""
+    """Run ``work`` on every task and ``commit`` each result in task order.
+
+    ``reserve``, if given, turns each task into what ``work`` and ``commit`` receive, in
+    the calling thread before the task is submitted (a sink reserving its rows); an error
+    of it stops the run like an error of ``commit``.
+    """
     workers = _positive(workers, "workers")
     window = 2 * workers if window is None else _positive(window, "window")
+    reserve = reserve or _same
     if inline or workers == 1:
         for task in tasks:
-            commit(task, work(task))
+            item = reserve(task)
+            commit(item, work(item))
         return
-    _Run(iter(tasks), work, commit, window).threads(workers)
+    _Run(iter(tasks), work, commit, window, reserve).threads(workers)
+
+
+def _same(task: Any) -> Any:
+    return task
 
 
 class _Run:
-    def __init__(self, tasks: Iterator[Any], work: Callable, commit: Callable, window: int):
+    def __init__(
+        self, tasks: Iterator[Any], work: Callable, commit: Callable, window: int, reserve: Callable
+    ):
         self.tasks, self.work, self.commit, self.window = tasks, work, commit, window
+        self.reserve = reserve
         self.lock = threading.Lock()
         self.failed_at: float = float("inf")  # sequence of the first failed task so far
         self.pending: deque[tuple[int, Any, Future]] = deque()
@@ -78,11 +93,13 @@ class _Run:
     def _loop(self, pool: ThreadPoolExecutor):
         sequence = 0
         while True:
-            while not self.exhausted and len(self.pending) < self.window:
+            # After a worker failed, nothing more is read: only the tasks before it remain.
+            while not self.exhausted and len(self.pending) < self.window and not self._failed():
                 task = self._next()
                 if task is _SKIPPED:
                     break
-                self.pending.append((sequence, task, pool.submit(self._work, sequence, task)))
+                item = self.reserve(task)  # an error stops the run at once
+                self.pending.append((sequence, item, pool.submit(self._work, sequence, item)))
                 sequence += 1
             if not self.pending:
                 if self.source_error is not None:
@@ -117,6 +134,10 @@ class _Run:
         result = future.result()  # raises the error of the first failing task in order
         assert result is not _SKIPPED  # only tasks after a failed one are skipped
         self.commit(task, result)
+
+    def _failed(self) -> bool:
+        with self.lock:
+            return self.failed_at != float("inf")
 
     def _stop(self):
         with self.lock:

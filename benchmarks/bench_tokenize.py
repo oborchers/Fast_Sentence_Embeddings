@@ -48,9 +48,14 @@ from pathlib import Path
 
 import numpy as np
 
-from fse._cpus import usable_cpus
-
 _NOT_PUNCTUATION = re.compile(".*[A-Za-z0-9].*")
+
+
+def _cpus() -> int:
+    """usable_cpus of fse 2.0, imported here: the children of fse 1.1.0 run this file too."""
+    from fse._cpus import usable_cpus
+
+    return usable_cpus()
 
 
 def preprocess_1x(text: str) -> list[str]:
@@ -194,7 +199,7 @@ CHILDREN = {"v2": child_v2, "v1": child_v1, "nltk": child_nltk, "hf": child_hf}
 
 
 def spawn(python: str, cfg: dict) -> float:
-    cpus = usable_cpus()
+    cpus = _cpus()
     load = os.getloadavg()[0] if hasattr(os, "getloadavg") else float("nan")
     if load > cpus / 4:
         print(f"# warning: load average {load:.1f} on {cpus} CPUs", flush=True)
@@ -340,7 +345,7 @@ def main() -> None:
         for threads in args.threads:
             measure([("v2 workers", v2)], threads=threads)
         measure([("nltk", v1)])
-        hf = [measure([("hf", v1)], threads=t)["hf"] for t in (1, usable_cpus())]
+        hf = [measure([("hf", v1)], threads=t)["hf"] for t in (1, _cpus())]
         ratios = []
         contenders = [
             ("v2 rows", v2),

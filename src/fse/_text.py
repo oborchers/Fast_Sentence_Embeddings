@@ -124,27 +124,40 @@ def _scan_pool(workers: int, total: int) -> AbstractContextManager[ThreadPoolExe
     return ThreadPoolExecutor(max_workers=workers)
 
 
+def _integer(value: object) -> int | None:
+    """``value`` as an int if it is one (numpy integers too, bool not), else None."""
+    if isinstance(value, bool) or not isinstance(value, int | np.integer):
+        return None
+    return int(value)
+
+
+def check_chunk_bytes(chunk_bytes: object) -> int | None:
+    """None (a default from the source size) or a positive int."""
+    if chunk_bytes is None:
+        return None
+    value = _integer(chunk_bytes)
+    if value is None or value < 1:
+        raise ValueError(f"chunk_bytes must be a positive int, not {chunk_bytes!r}")
+    return value
+
+
 def _chunk_sizes(
     total: int, workers: object, chunk_bytes: object, chunk_rows: object
-) -> tuple[int, int]:
-    """The checked chunk size in bytes (by default from the source size) and in rows."""
-    if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
+) -> tuple[int, int, int]:
+    """The checked workers, the chunk size in bytes (by default from the source size) and
+    in rows."""
+    count = _integer(workers)
+    if count is None or count < 1:
         raise ValueError(f"workers must be a positive int, not {workers!r}")
-    if chunk_bytes is None:
-        chunk_bytes = max(_CHUNK_MIN_BYTES, min(_CHUNK_MAX_BYTES, total // (8 * workers)))
-    if isinstance(chunk_bytes, bool) or not isinstance(chunk_bytes, int) or chunk_bytes < 1:
-        raise ValueError(f"chunk_bytes must be a positive int, not {chunk_bytes!r}")
-    if chunk_rows is None:
-        chunk_rows = _native.MAX_CHUNK_ROWS
-    if (
-        isinstance(chunk_rows, bool)
-        or not isinstance(chunk_rows, int)
-        or not 1 <= chunk_rows <= _native.MAX_CHUNK_ROWS
-    ):
+    size = check_chunk_bytes(chunk_bytes)
+    if size is None:
+        size = max(_CHUNK_MIN_BYTES, min(_CHUNK_MAX_BYTES, total // (8 * count)))
+    rows = _native.MAX_CHUNK_ROWS if chunk_rows is None else _integer(chunk_rows)
+    if rows is None or not 1 <= rows <= _native.MAX_CHUNK_ROWS:
         raise ValueError(
             f"chunk_rows must be an int from 1 to {_native.MAX_CHUNK_ROWS}, not {chunk_rows!r}"
         )
-    return chunk_bytes, chunk_rows
+    return count, size, rows
 
 
 class _Buffered:
@@ -162,14 +175,14 @@ class _Buffered:
         """Bytes in line mode, strings otherwise."""
         return len(self._data) if self._offsets is None else len(self._offsets) - 1
 
-    def _range_bounds(self, workers: int) -> list[int]:
+    def _range_bounds(self, workers: int, chunk_bytes: int) -> list[int]:
         """Scan ranges of similar byte size that start at sentence starts."""
         size = self._positions()
         total = len(self._data)
         # 4 ranges per worker for balance, but none smaller than a chunk: each range gives
         # at least one chunk, and every chunk costs its task's fixed checks.
         wanted = max(4 * workers, -(-total // _SCAN_RANGE_MAX_BYTES))
-        n_ranges = max(1, min(wanted, -(-total // _CHUNK_MIN_BYTES), max(size, 1)))
+        n_ranges = max(1, min(wanted, -(-total // chunk_bytes), max(size, 1)))
         bounds = [0]
         for k in range(1, n_ranges):
             target = total * k // n_ranges
@@ -197,11 +210,11 @@ class _Buffered:
         """Validate the UTF-8 of every sentence and cut the source into chunks of about
         ``chunk_bytes`` bytes and at most ``chunk_rows`` sentences (MAX_CHUNK_ROWS)."""
         total = len(self._data)
-        chunk_bytes, chunk_rows = _chunk_sizes(total, workers, chunk_bytes, chunk_rows)
+        workers, chunk_bytes, chunk_rows = _chunk_sizes(total, workers, chunk_bytes, chunk_rows)
         data = self._array()
         if self._positions() == 0:
             return Scan(0, ())
-        ranges = list(pairwise(self._range_bounds(workers)))
+        ranges = list(pairwise(self._range_bounds(workers, chunk_bytes)))
 
         def scan(span: tuple[int, int]):
             return _native.scan_spans(

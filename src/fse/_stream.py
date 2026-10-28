@@ -18,6 +18,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 
+import numpy as np
+
 from fse._text import MAX_CHUNK_ROWS, StringSource
 
 
@@ -98,6 +100,6 @@ def _with_row(err: UnicodeEncodeError, row: int) -> UnicodeEncodeError:
 
 
 def _bounded(value: object, name: str, top: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= top:
+    if isinstance(value, bool) or not isinstance(value, int | np.integer) or not 1 <= value <= top:
         raise ValueError(f"{name} must be an int from 1 to {top}, not {value!r}")
-    return value
+    return int(value)

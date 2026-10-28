@@ -25,7 +25,7 @@ from numpy import ndarray
 
 from fse._backends import get_backend
 from fse._cpus import usable_cpus
-from fse._text import MAX_CHUNK_ROWS, make_lookup, new_workspace
+from fse._text import MAX_CHUNK_ROWS, check_chunk_bytes, make_lookup, new_workspace
 
 from ._executor import run
 from ._sinks import ArrayRows, GrowingRows, Sink
@@ -36,8 +36,9 @@ from ._tasks import Task, plan
 # sentences (an empty sentence takes none). Smaller tasks cost throughput: a task has a
 # fixed cost of about 0.2 ms for its checks (4 MiB lost 7 % on an M1 Pro, 16 MiB 1 %).
 TASK_ROW_BYTES = 1 << 24
-# The rows of all tasks in flight or waiting to be committed take at most this many bytes
-# (the window is 2 * workers tasks, at least workers, within this budget).
+# The rows of all tasks in flight or waiting to be committed take at most this many bytes:
+# the window is 2 * workers tasks, so with many workers a task holds fewer rows. A task
+# with steps also holds its pooled rows and one copy while it runs (see the cpu backend).
 WINDOW_BYTES = 1 << 29
 
 
@@ -50,9 +51,8 @@ class Pipeline:
         self.prepared = self.backend.prepare(spec.pool_input(), spec.steps)
         self.lookup = make_lookup(spec.word_vectors, spec.tokenizer, max_ngrams=spec.max_ngrams)
         self.output_dim = self.prepared.output_dim
-        widest = 4 * max(self.prepared.pooled_dim, self.output_dim)
-        self.task_rows = max(1, min(MAX_CHUNK_ROWS, TASK_ROW_BYTES // widest))
-        self._task_bytes = self.task_rows * widest
+        self._widest = 4 * max(self.prepared.pooled_dim, self.output_dim)
+        self.task_rows = max(1, min(MAX_CHUNK_ROWS, TASK_ROW_BYTES // self._widest))
         # One call at a time on a backend that is not concurrent; encoding stays parallel.
         concurrent = self.backend.capabilities().concurrent
         self._serial: AbstractContextManager[Any] = (
@@ -67,13 +67,21 @@ class Pipeline:
         sink: Sink | None = None,
         chunk_bytes: int | None = None,
     ) -> ndarray | None:
-        """The rows of every sentence of ``source``: returned, or committed to ``sink``."""
+        """The rows of every sentence of ``source``: returned, or committed to ``sink``.
+
+        Every argument is checked before the source is read.
+        """
         workers = usable_cpus() if workers is None else _positive(workers, "workers")
+        if sink is not None and getattr(sink, "dim", None) != self.output_dim:
+            raise ValueError(f"the sink must take rows of {self.output_dim} values")
+        # 2 * workers tasks in flight stay within WINDOW_BYTES: many workers get smaller tasks.
+        window = 2 * workers
+        task_rows = max(1, min(self.task_rows, WINDOW_BYTES // (window * self._widest)))
         tasks = plan(
             source,
             workers=workers,
-            chunk_bytes=chunk_bytes,
-            chunk_rows=self.task_rows,
+            chunk_bytes=check_chunk_bytes(chunk_bytes),
+            chunk_rows=task_rows,
             tokenizer=self.spec.tokenizer,
         )
         own: ArrayRows | GrowingRows | None = None
@@ -81,13 +89,10 @@ class Pipeline:
             rows = tasks.rows
             own = GrowingRows(self.output_dim) if rows is None else ArrayRows(rows, self.output_dim)
             sink = own
-        elif getattr(sink, "dim", None) != self.output_dim:
-            raise ValueError(f"the sink must take rows of {self.output_dim} values")
         local = threading.local()
 
-        def reserved():
-            for task in tasks.tasks:  # in the calling thread, in order
-                yield task, sink.target(task.first_row, task.n_rows)
+        def reserve(task: Task) -> tuple[Task, ndarray]:  # in the calling thread, in order
+            return task, sink.target(task.first_row, task.n_rows)
 
         def work(item: tuple[Task, ndarray]) -> ndarray:
             task, target = item
@@ -102,8 +107,15 @@ class Pipeline:
         def commit(item: tuple[Task, ndarray], rows: ndarray):
             sink.commit(item[0].first_row, rows)
 
-        window = max(workers, min(2 * workers, WINDOW_BYTES // self._task_bytes))
-        run(reserved(), work, commit, workers=workers, inline=tasks.inline, window=window)
+        run(
+            tasks.tasks,
+            work,
+            commit,
+            workers=workers,
+            inline=tasks.inline,
+            window=window,
+            reserve=reserve,
+        )
         return None if own is None else own.result()
 
 

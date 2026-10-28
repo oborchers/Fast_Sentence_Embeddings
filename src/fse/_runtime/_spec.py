@@ -12,9 +12,9 @@ a frozen copy of the weights, so changing the caller's array afterwards changes 
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 from numpy import ndarray
@@ -37,7 +37,7 @@ class EncodeSpec:
     weights: ndarray
     steps: Sequence[Step] = ()
     tokenizer: str = "fse_words@1"
-    oov_weight: float | None = None
+    oov_weight: Any = None  # a finite number, kept as given
     max_ngrams: int | None = None
     aggregation: Aggregation = Aggregation.WEIGHTED_MEAN
 
@@ -82,9 +82,11 @@ def _weights(value: object, words: int) -> ndarray:
     return copy
 
 
-def _finite(value: object, name: str) -> float:
+def _finite(value: object, name: str) -> Any:
+    """``value`` itself if it is a finite number. It is not converted: the kernel converts
+    it to float32 in its own floating-point environment, where a subnormal stays one."""
     if isinstance(value, bool) or not isinstance(value, int | float | np.integer | np.floating):
         raise TypeError(f"{name} must be a number, not {type(value).__name__}")
-    if not math.isfinite(float(value)):
+    if not np.isfinite(value):  # flush-to-zero turns no infinity or NaN into a number
         raise ValueError(f"{name} must be finite, not {value}")
-    return float(value)
+    return value

@@ -49,7 +49,7 @@ def _expected(dtype, fasttext, steps, tokenizer, n):
 
 
 @pytest.mark.parametrize("workers", [1, 3])
-@pytest.mark.parametrize("kind", ["strings", "file", "tokens"])
+@pytest.mark.parametrize("kind", ["strings", "file", "tokens", "stream"])
 @pytest.mark.parametrize("fasttext", [False, True], ids=["plain", "fasttext"])
 @pytest.mark.parametrize("steps", list(STEPS))
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
@@ -93,3 +93,21 @@ def test_workers_ignore_their_floating_point_environment(monkeypatch, env):
     assert _native._test_fpenv_get() == before
     assert len(saved) >= 2
     assert got.tobytes() == want.tobytes()
+
+
+def test_a_subnormal_oov_weight_survives_a_foreign_environment():
+    """oov_weight is converted by the kernel in its own environment, not by EncodeSpec."""
+    sentences = texts(300)
+    wv = word_vectors("float32", True)
+    weights = np.ones(len(wv), F32)
+    tiny = np.float32(np.finfo(F32).smallest_subnormal) * np.float32(3)
+    want = expected(EncodeSpec(wv, weights, oov_weight=tiny, max_ngrams=12), sentences)
+    saved = _native._test_fpenv_set(flush=True)
+    try:
+        spec = EncodeSpec(wv, weights, oov_weight=tiny, max_ngrams=12)
+        pipeline = Pipeline(spec, "cpu")
+    finally:
+        _native._test_fpenv_restore(saved)
+    got = pipeline.infer(StringSource(sentences), workers=1)
+    assert got.tobytes() == want.tobytes()
+    assert np.any(want != 0)

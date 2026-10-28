@@ -184,15 +184,15 @@ def test_the_window_stays_within_its_budget(monkeypatch):
     seen = {}
     real = _pipeline.run
 
-    def spy(*args, **kwargs):
-        seen.update(kwargs)
-        return real(*args, **kwargs)
+    def spy(tasks, *args, **kwargs):
+        tasks = list(tasks)
+        seen.update(kwargs, rows=max(t.n_rows for t in tasks))
+        return real(iter(tasks), *args, **kwargs)
 
     monkeypatch.setattr(_pipeline, "run", spy)
     wide = WordVectors.from_arrays(np.ones((3, 4096), F32), words=["w1", "w2", "w3"])
     pipeline = Pipeline(_spec(wv=wide))
-    pipeline.infer(StringSource(["w1"] * 5000), workers=64)
-    assert seen["window"] * pipeline._task_bytes <= _pipeline.WINDOW_BYTES or seen["window"] == 64
-    assert 64 <= seen["window"] <= 128
-    pipeline.infer(StringSource(["w1"] * 5000), workers=4)
-    assert seen["window"] == 8
+    for workers in (4, 64):
+        pipeline.infer(StringSource(["w1"] * 20_000), workers=workers)
+        assert seen["window"] == 2 * workers
+        assert seen["window"] * seen["rows"] * 4 * 4096 <= _pipeline.WINDOW_BYTES

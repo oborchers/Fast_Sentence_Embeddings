@@ -3,6 +3,7 @@
 import numpy as np
 
 from fse import _reference, _reference_text
+from fse._stream import StreamSource
 from fse._text import FileSource, StringSource, TokenListSource
 from fse._wordvectors import FastTextParams, WordVectors
 
@@ -62,6 +63,8 @@ def expected(spec, sentences, first_row=0):
 def source(kind, sentences, tmp_path):
     if kind == "strings":
         return StringSource(sentences)
+    if kind == "stream":
+        return StreamSource(iter(sentences), chunk_rows=97)
     if kind == "tokens":
         return TokenListSource([s.split(" ") if s else [] for s in sentences])
     path = tmp_path / "sentences.txt"

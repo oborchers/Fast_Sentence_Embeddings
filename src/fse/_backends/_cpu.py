@@ -30,6 +30,7 @@ from ._base import (
     check_out,
     check_pool_input,
     check_prepared,
+    check_score_input,
     dims,
 )
 
@@ -64,8 +65,8 @@ class CpuBackend:
 
     def prepare(self, pool: PoolInput, steps: Sequence[Step]) -> Prepared:
         check_pool_input(pool)
-        _CAPABILITIES.check(self.name, pool, steps)
-        checked, pooled, out = dims(pool, steps)
+        checked, pooled, out = dims(pool, steps)  # checks and materializes the steps once
+        _CAPABILITIES.check(self.name, pool, checked)
         kernel = _native.WeightedMean(
             pool.vectors,
             pool.weights,
@@ -96,4 +97,5 @@ class CpuBackend:
     def score(
         self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float
     ) -> ndarray:
+        check_score_input(stored, scales, weights)
         return _native.score(stored, scales, weights, bias, isa=self.isa)

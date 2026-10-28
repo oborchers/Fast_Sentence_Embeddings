@@ -40,8 +40,14 @@ class _Rows:
     def _check_commit(self, first_row: int, rows: ndarray):
         if first_row != self.next_row:
             raise ValueError(f"rows from {first_row} committed, expected rows from {self.next_row}")
-        if rows.ndim != 2 or rows.shape[1] != self.dim:
-            raise ValueError(f"rows of {self.dim} values expected, not shape {rows.shape}")
+        if (
+            not isinstance(rows, ndarray)
+            or rows.dtype != np.float32
+            or rows.ndim != 2
+            or rows.shape[1] != self.dim
+            or not rows.flags.c_contiguous
+        ):
+            raise ValueError(f"C-contiguous float32 rows of {self.dim} values expected")
         self.next_row += len(rows)
 
 
@@ -58,6 +64,13 @@ class ArrayRows(_Rows):
         return self._out[first_row : first_row + n_rows]
 
     def commit(self, first_row: int, rows: ndarray) -> None:
+        reserved = self._out[first_row : first_row + len(rows)]
+        if not (
+            isinstance(rows, ndarray)
+            and rows.shape == reserved.shape
+            and rows.__array_interface__["data"][0] == reserved.__array_interface__["data"][0]
+        ):
+            raise ValueError(f"the rows from {first_row} are not the target reserved for them")
         self._check_commit(first_row, rows)
 
     def result(self) -> ndarray:

@@ -70,12 +70,9 @@ def spec(vocab: int, dim: int, dtype: str, steps: bool) -> EncodeSpec:
     return EncodeSpec(wv, weights, (Normalize(),) if steps else ())
 
 
-def hand_loop(s: EncodeSpec, lookup, sentences: list[str], workers: int):
-    """The work of the runtime written out: static chunks, a workspace per thread."""
-    source = StringSource(sentences)
-    scan = source.scan(workers=workers)
+def kernel_of(s: EncodeSpec) -> _native.WeightedMean:
     pool = s.pool_input()
-    kernel = _native.WeightedMean(
+    return _native.WeightedMean(
         pool.vectors,
         pool.weights,
         pool.scales,
@@ -83,6 +80,13 @@ def hand_loop(s: EncodeSpec, lookup, sentences: list[str], workers: int):
         pool.ngram_scales,
         pool.oov_weight,
     )
+
+
+def hand_loop(s: EncodeSpec, lookup, kernel, sentences: list[str], workers: int):
+    """The work of the runtime written out: static chunks, a workspace per thread; the
+    lookup and kernel are prepared before, as the pipeline holds them."""
+    source = StringSource(sentences)
+    scan = source.scan(workers=workers)
     out = np.empty((scan.sentences, s.word_vectors.dim), F32)
     local = threading.local()
 
@@ -96,6 +100,10 @@ def hand_loop(s: EncodeSpec, lookup, sentences: list[str], workers: int):
         else:
             kernel.pool(batch, target)
 
+    if workers == 1:  # as the runtime: no thread
+        for chunk in scan.chunks:
+            one(chunk)
+        return out
     with ThreadPoolExecutor(workers) as threads:
         list(threads.map(one, scan.chunks))
     return out
@@ -122,12 +130,13 @@ def throughput(args) -> list[dict]:
 
 
 def _compare(pipeline, s, lookup, sentences, workers: int, rounds: int) -> dict:
+    kernel = kernel_of(s)
     a = pipeline.infer(StringSource(sentences), workers=workers)
-    assert a.tobytes() == hand_loop(s, lookup, sentences, workers).tobytes()
+    assert a.tobytes() == hand_loop(s, lookup, kernel, sentences, workers).tobytes()
     runtime, hand = [], []
     for _ in range(rounds):
         runtime.append(_timed(lambda: pipeline.infer(StringSource(sentences), workers=workers)))
-        hand.append(_timed(lambda: hand_loop(s, lookup, sentences, workers)))
+        hand.append(_timed(lambda: hand_loop(s, lookup, kernel, sentences, workers)))
     n = len(sentences)
     return {
         "dtype": s.word_vectors.dtype,

@@ -99,3 +99,37 @@ def test_out_is_checked():
         check_out(frozen, batch, prepared)
     with pytest.raises(ValueError, match="vectors or weights"):
         check_out(pool.vectors[:2], batch, prepared)
+
+
+@pytest.mark.parametrize("name", ["cpu", "numpy"])
+def test_score_input_is_checked_the_same_way(name):
+    from fse._backends import get_backend
+
+    backend = get_backend(name)
+    rows = np.ones((3, 2), F32)
+    with pytest.raises(ValueError, match="scales are given exactly for int8 rows"):
+        backend.score(rows, np.ones(3, F32), np.ones(2, F32), 0.0)
+    with pytest.raises(ValueError, match="scales are given exactly for int8 rows"):
+        backend.score(np.ones((3, 2), np.int8), None, np.ones(2, F32), 0.0)
+    with pytest.raises(ValueError, match="weights must hold 2 values"):
+        backend.score(rows, None, np.ones(3, F32), 0.0)
+    with pytest.raises(ValueError, match="matrix of float32"):
+        backend.score(rows.astype(np.float64), None, np.ones(2, F32), 0.0)
+
+
+@pytest.mark.parametrize("name", ["cpu", "numpy"])
+def test_steps_may_be_any_iterable_and_are_used(name):
+    from fse import _reference
+    from fse._backends import get_backend
+
+    backend = get_backend(name)
+    pool = PoolInput(np.arange(6, dtype=F32).reshape(3, 2) + 1, np.ones(3, F32))
+    prepared = backend.prepare(pool, iter([Normalize()]))
+    assert prepared.steps == (Normalize(),) or [type(s) for s in prepared.steps] == [Normalize]
+    batch = Batch(0, np.array([0, 1, 2, 3], np.int64), np.array([0, 1, 2], np.uint32))
+    out = np.empty((3, 2), F32)
+    backend.rows(batch, prepared, out)
+    want = _reference.postprocess(
+        _reference.pool_weighted_mean(batch, pool.vectors, pool.weights), [Normalize()]
+    )
+    assert out.tobytes() == want.tobytes()

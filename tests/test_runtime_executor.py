@@ -90,7 +90,7 @@ def test_the_first_failing_task_in_order_wins():
             events[10].set()
             raise ValueError("task 30")
         if i == 10:
-            events[10].wait(5)
+            assert events[10].wait(5), "task 30 never failed"
             raise ValueError("task 10")
         return i
 
@@ -187,3 +187,50 @@ def test_numpy_integers_are_accepted():
 
 def test_an_empty_source():
     run([], lambda i: i, lambda *_: None, workers=4)
+
+
+def test_nothing_more_is_read_after_a_known_failure():
+    """A stream whose next item would block: after a failure the executor stops reading."""
+    failed = threading.Event()
+    reads = []
+
+    def tasks():
+        yield 0
+        reads.append(1)
+        assert failed.wait(5)
+        time.sleep(0.05)  # the executor registers the failure
+        yield 1
+        reads.append(2)
+        raise AssertionError("read after the failure was known")
+
+    def work(i):
+        if i == 0:
+            failed.set()
+            raise ValueError("zero")
+        return i
+
+    with pytest.raises(ValueError, match="zero"):
+        run(tasks(), work, lambda *_: None, workers=4, window=8)
+    assert 2 not in reads  # at most the read already under way when task 0 failed
+
+
+def test_an_error_of_reserve_stops_the_run_at_once():
+    """Task 3 is reserved while task 2 still runs; its error wins over task 2's later one."""
+    committed = []
+
+    def reserve(task):
+        if task == 3:
+            raise MemoryError("no room for the rows")
+        return task
+
+    def work(i):
+        if i == 2:
+            time.sleep(0.05)
+            raise ValueError("two")  # would be raised first if reserve were a source error
+        return i
+
+    with pytest.raises(MemoryError, match="no room"):
+        run(range(10), work, lambda t, _r: committed.append(t), workers=4, reserve=reserve)
+    assert 3 not in committed
+    with pytest.raises(ValueError, match="two"):  # inline, task 2 fails before 3 is reserved
+        run(range(10), work, lambda *_: None, workers=1, reserve=reserve)

@@ -34,10 +34,15 @@ import time
 import tracemalloc
 from pathlib import Path
 
-from fse._cpus import usable_cpus
-
 CASES_20 = ["convert", "load", "load_mmap", "verify", "lookup"]
 CASES_11 = ["pickle", "pickle_mmap", "wv_int8"]
+
+
+def _cpus() -> int:
+    """usable_cpus of fse 2.0, imported here: the children of fse 1.1.0 run this file too."""
+    from fse._cpus import usable_cpus
+
+    return usable_cpus()
 
 
 def peak_bytes() -> int:
@@ -147,7 +152,7 @@ def main() -> None:
         f"{'case':<12} {'vectors':<26} {'dtype':<8} {'seconds':>8} {'peak MiB':>9} {'delta MiB':>10} {'load':>5}"
     )
     results = []
-    cpus = usable_cpus()
+    cpus = _cpus()
     with tempfile.TemporaryDirectory(dir=args.tmp) as tmp:
         runs = [
             (c, v, d, sys.executable) for v in args.vectors for d in args.dtypes for c in CASES_20

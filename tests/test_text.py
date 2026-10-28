@@ -295,3 +295,10 @@ def test_chunk_rows_bound_the_rows_of_a_chunk(rows):
 def test_chunk_rows_are_checked(rows):
     with pytest.raises(ValueError, match="chunk_rows"):
         StringSource(["a"]).scan(chunk_rows=rows)
+
+
+def test_numpy_integers_are_sizes():
+    scan = StringSource(["a b"] * 10).scan(
+        workers=np.int64(2), chunk_bytes=np.int32(4), chunk_rows=np.int64(3)
+    )
+    assert max(c.n_sentences for c in scan.chunks) <= 3

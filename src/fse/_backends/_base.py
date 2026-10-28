@@ -182,6 +182,20 @@ def check_out(out: object, batch: Batch, prepared: Prepared) -> ndarray:
     return out
 
 
+def check_score_input(stored: object, scales: object, weights: object) -> None:
+    """The arguments of ``score``, checked the same way by every backend: stored rows of a
+    storage dtype, scales exactly for int8, one weight per dimension (any float dtype;
+    each backend converts it to float32 as the reference does)."""
+    stored = _rows(stored, "stored")
+    if np.shape(weights) != (stored.shape[1],):
+        raise ValueError(f"weights must hold {stored.shape[1]} values")
+    int8 = stored.dtype == np.int8
+    if int8 != (scales is not None):
+        raise ValueError("scales are given exactly for int8 rows")
+    if int8:
+        _float32_vector(scales, "scales", len(stored))
+
+
 def check_prepared(prepared: object, backend: str) -> Prepared:
     if not isinstance(prepared, Prepared) or prepared.backend != backend:
         raise TypeError(f"prepared must be prepared by the {backend} backend")

@@ -81,26 +81,38 @@ def test_a_small_stream_starts_no_thread(monkeypatch):
 
 
 def test_a_slow_sink_slows_the_source():
-    """Sentences read minus rows committed stays below a collection plus the window."""
+    """With a sink that keeps nothing, sentences read minus rows committed stays below one
+    collection plus the window of tasks, whatever the length of the stream."""
+    import time
+
     state = {"read": 0, "most": 0}
 
-    class SlowRows(GrowingRows):
+    class SlowCount:
+        dim = 12
+
+        def __init__(self):
+            self.next_row = 0
+
+        def target(self, _first_row, n_rows):
+            return np.empty((n_rows, 12), F32)
+
         def commit(self, first_row, rows):
+            assert first_row == self.next_row
             state["most"] = max(state["most"], state["read"] - self.next_row)
-            super().commit(first_row, rows)
+            self.next_row += len(rows)
+            time.sleep(0.0005)
 
     def counted():
         for i in range(60_000):
             state["read"] += 1
             yield SENTENCES[i % len(SENTENCES)]
 
-    sink = SlowRows(12)
-    Pipeline(SPEC).infer(
-        StreamSource(counted(), chunk_rows=2000), workers=4, sink=sink, chunk_bytes=4096
-    )
+    sink = SlowCount()
+    pipeline = Pipeline(SPEC)
+    pipeline.infer(StreamSource(counted(), chunk_rows=2000), workers=4, sink=sink, chunk_bytes=4096)
     assert sink.next_row == 60_000
-    task_rows = 4096  # chunk_bytes bounds the rows of a task well below this for these sentences
-    assert state["most"] <= 2000 + 2 * 4 * task_rows
+    # a task holds at most chunk_rows (2000) rows here; the window is 2 * 4 tasks
+    assert state["most"] <= 2000 + 2 * 4 * 2000
 
 
 def test_str_subclasses_are_sentences_and_report_their_row():
@@ -111,3 +123,25 @@ def test_str_subclasses_are_sentences_and_report_their_row():
     assert got.tobytes() == WANT[:50].tobytes()
     with pytest.raises(UnicodeEncodeError, match=r"surrogates not allowed in string 3$"):
         Pipeline(SPEC).infer(StreamSource([*SENTENCES[:3], Text("a \ud800")]))
+
+
+def test_arguments_are_checked_before_the_stream_is_read():
+    reads = []
+
+    def counted():
+        reads.append(1)
+        yield "w1"
+
+    with pytest.raises(ValueError, match="chunk_bytes must be a positive int"):
+        Pipeline(SPEC).infer(StreamSource(counted()), chunk_bytes=0)
+    with pytest.raises(ValueError, match="the sink must take rows of 12 values"):
+        Pipeline(SPEC).infer(StreamSource(counted()), sink=GrowingRows(3))
+    with pytest.raises(ValueError, match="chunk_bytes"):
+        Pipeline(SPEC).infer(StreamSource([]), chunk_bytes=-1)
+    assert reads == []
+
+
+def test_numpy_integers_are_stream_sizes():
+    stream = StreamSource(iter(SENTENCES[:100]), chunk_rows=np.int64(7), chunk_bytes=np.int32(4096))
+    assert stream.chunk_rows == 7
+    assert Pipeline(SPEC).infer(stream).tobytes() == WANT[:100].tobytes()
