@@ -17,6 +17,7 @@ change, so several threads may call ``infer`` at once (a server: ``workers=1`` e
 
 from __future__ import annotations
 
+import dataclasses
 import threading
 from contextlib import AbstractContextManager, nullcontext
 from typing import Any
@@ -115,7 +116,7 @@ class Pipeline:
 
         Every argument is checked before the source is read.
         """
-        workers = usable_cpus() if workers is None else _positive(workers, "workers")
+        workers = check_workers(workers) or usable_cpus()
         base = _non_negative(first_row, "first_row")
         inverse = False
         if sink is not None:
@@ -181,6 +182,8 @@ class Pipeline:
         if workspace is None:
             workspace = local.workspace = new_workspace()
         batch = task.batch(self.lookup, workspace)
+        if base:  # errors name the rows of the run
+            batch = dataclasses.replace(batch, first_row=base + batch.first_row)
         codes, scales, norms = target
         with self._serial:
             if codes.dtype == np.float32:
@@ -199,6 +202,11 @@ def _scratch(local: threading.local, n_rows: int, dim: int) -> ndarray:
     if scratch is None or len(scratch) < n_rows:
         scratch = local.scratch = np.empty((n_rows, dim), dtype=np.float32)
     return scratch[:n_rows]
+
+
+def check_workers(workers: object) -> int | None:
+    """``workers`` of a run: None (the usable CPUs) or a positive int."""
+    return None if workers is None else _positive(workers, "workers")
 
 
 def _non_negative(value: object, name: str) -> int:

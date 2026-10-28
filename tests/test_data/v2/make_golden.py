@@ -2,9 +2,14 @@
 
     uv run python tests/test_data/v2/make_golden.py
 
-They pin the format "word_vectors 1" in "safetensors 1": tests/test_wordvectors.py
+They pin the format "word_vectors 1" in "safetensors 1": tests/test_wordvectors_format.py
 reads them and compares the arrays and the fingerprint, and the export of fse 1.2.0
-writes the same vectors and must give the same fingerprint.
+writes the same vectors and must give the same fingerprint. The writers never overwrite a
+file, so this only writes files that are missing.
+
+sha256/word_vectors_{float32,int8}.safetensors are the same vectors with the sha256
+checksums of a pre-release of 2.0, written by this script at commit ca0d0b0; they are kept
+byte for byte, only as files that must be rejected.
 """
 
 from pathlib import Path

@@ -14,6 +14,14 @@ cdef extern from "_native_kernel.h":
                        float *scratch) nogil
 
 
+def float32(values):
+    """``values`` as a C-contiguous float32 array, converted in the floating-point
+    environment of the kernels (round to nearest), whatever the calling thread set."""
+    with _KernelEnv():
+        with np.errstate(over="ignore", invalid="ignore"):  # as the reference
+            return np.ascontiguousarray(values, dtype=np.float32)
+
+
 def inverse_norms(stored, first_row=0):
     """``fse._reference.inverse_norms`` in the kernel: one float32 per stored row."""
     with _KernelEnv():

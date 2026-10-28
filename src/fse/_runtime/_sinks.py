@@ -76,6 +76,8 @@ def split_target(target: Stored, dtype: str, inverse: bool) -> tuple[ndarray, An
     codes = parts[0]
     scales = parts[1] if dtype == "int8" else None
     norms = parts[-1] if inverse else None
+    _check_rows(codes, dtype)
+    _check_apart(parts)
     for name, array in (("scales", scales), ("inverse norms", norms)):
         if array is not None and (
             array.dtype != np.float32
@@ -197,6 +199,26 @@ class GrowingRows(_Rows):
                 out = np.concatenate(self._parts)
             self._parts = [out]
         return self._parts[0]
+
+
+def _check_rows(codes: ndarray, dtype: str) -> None:
+    want = np.dtype(_codes.STORAGE_TYPES[dtype])
+    if (
+        codes.dtype != want
+        or codes.ndim != 2
+        or not codes.flags.writeable
+        or not codes.flags.c_contiguous
+    ):
+        raise ValueError(
+            f"the rows of a target of a {dtype} sink must be a writable C-contiguous {want} matrix"
+        )
+
+
+def _check_apart(parts: tuple) -> None:
+    """The arrays of a target must not overlap, or one is written over another."""
+    for k, a in enumerate(parts):
+        if any(np.may_share_memory(a, b) for b in parts[k + 1 :]):
+            raise ValueError("the arrays of a target must not overlap")
 
 
 class MemorySink(GrowingRows):

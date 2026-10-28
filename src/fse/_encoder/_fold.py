@@ -17,16 +17,16 @@ arithmetic, deterministic per machine and BLAS, and frozen into the encoder.
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Sequence
 
 import numpy as np
 from numpy import ndarray
 
 from fse._backends import get_backend
-from fse._container import CorruptArtifactError, array_sha256, fingerprint, tensor_code
+from fse._container import CorruptArtifactError, Hasher, checksum, fingerprint, tensor_code
 from fse._contract import Project, RemoveComponents
 from fse._wordvectors import WordVectors
+from fse._wordvectors_format import FORMAT_VERSION
 
 BLOCK_ROWS = 16_384
 # The keys of word vectors that folding keeps; the others are made anew.
@@ -57,8 +57,10 @@ def fold(word_vectors: WordVectors, steps: Sequence[RemoveComponents | Project])
     out: dict[str, ndarray] = {}
     float32: dict[str, tuple[str, tuple[int, ...], str]] = {}
     for name in ("vocab.bytes", "vocab.offsets"):
-        out[name] = _checked_copy(tensors[name], name, expected)
-        float32[name] = (tensor_code(out[name]), out[name].shape, array_sha256(out[name]))
+        # Hashed once: for the check against the loaded checksum and for quantized_from.
+        out[name], digest = _checked_copy(tensors[name], name, expected, dtype != "float32")
+        if digest is not None:
+            float32[name] = (tensor_code(out[name]), out[name].shape, digest)
     for rows, scales in (("vectors", "scales"), ("ngrams", "ngram_scales")):
         if rows not in tensors:
             continue
@@ -70,7 +72,7 @@ def fold(word_vectors: WordVectors, steps: Sequence[RemoveComponents | Project])
             float32[rows] = ("F32", (len(stored), a.shape[0]), digest)
     new = {
         "fse.kind": "word_vectors",
-        "fse.format_version": "1",
+        "fse.format_version": FORMAT_VERSION,
         "fse.dim": str(a.shape[0]),
         "fse.dtype": "float32",
         **{k: metadata[k] for k in _KEPT_KEYS if k in metadata},
@@ -84,12 +86,17 @@ def fold(word_vectors: WordVectors, steps: Sequence[RemoveComponents | Project])
     return word_vectors._derived(out, new)
 
 
-def _checked_copy(array: ndarray, name: str, expected: dict[str, str] | None) -> ndarray:
+def _checked_copy(
+    array: ndarray, name: str, expected: dict[str, str] | None, hashed: bool = False
+) -> tuple[ndarray, str | None]:
+    """A frozen copy of ``array``, which must still match its loaded checksum, and the
+    checksum of the copy if one was computed (for ``expected`` or if ``hashed``)."""
     copy = np.array(array, copy=True)
-    if expected is not None and array_sha256(copy) != expected[name]:
+    digest = checksum(copy) if expected is not None or hashed else None
+    if expected is not None and digest != expected[name]:
         raise CorruptArtifactError(f"tensor {name} changed since it was loaded")
     copy.setflags(write=False)
-    return copy
+    return copy, digest
 
 
 def _fold_rows(
@@ -101,36 +108,42 @@ def _fold_rows(
     expected: dict[str, str] | None,
 ) -> tuple[ndarray, ndarray | None, str | None]:
     """The folded rows of tensor ``rows``, stored as ``dtype``, and for float16 and int8
-    the sha256 of the folded float32 rows."""
+    the checksum of the folded float32 rows."""
     source = tensors[rows]
     source_scales = (
-        None if scales not in tensors else _checked_copy(tensors[scales], scales, expected)
+        None if scales not in tensors else _checked_copy(tensors[scales], scales, expected)[0]
     )
     n = len(source)
     stored = np.empty((n, a.shape[0]), dtype=source.dtype)
     stored_scales = np.empty(n, dtype=np.float32) if source_scales is not None else None
     # Hashed only where needed: data loaded with checksums, and the folded float32 rows
     # of vectors stored again (their fingerprint is quantized_from).
-    read = _Digest(expected is not None)
-    folded = _Digest(dtype != "float32")
+    read = Hasher() if expected is not None else None
+    folded = Hasher() if dtype != "float32" else None
     store = get_backend("cpu")
     for begin in range(0, n, BLOCK_ROWS):
         block = np.array(source[begin : begin + BLOCK_ROWS], copy=True)
-        read.update(block)
+        _update(read, block)
         y = _folded_block(block, source_scales, begin, a)
-        folded.update(y)
+        _update(folded, y)
         end = begin + len(block)
         if dtype == "float32":
             stored[begin:end] = y
         else:
             target = None if stored_scales is None else stored_scales[begin:end]
             store.store(y, stored[begin:end], target, begin)
-    if expected is not None and read.hexdigest() != expected[rows]:
+    if expected is not None and read is not None and read.checksum() != expected[rows]:
         raise CorruptArtifactError(f"tensor {rows} changed since it was loaded")
     stored.setflags(write=False)
     if stored_scales is not None:
         stored_scales.setflags(write=False)
-    return stored, stored_scales, folded.hexdigest()
+    return stored, stored_scales, None if folded is None else folded.checksum()
+
+
+def _update(hasher: Hasher | None, array: ndarray):
+    """Feed ``array`` to ``hasher``, if a checksum is needed."""
+    if hasher is not None:
+        hasher.update(array)
 
 
 def _folded_block(block: ndarray, scales: ndarray | None, begin: int, a: ndarray) -> ndarray:
@@ -139,17 +152,3 @@ def _folded_block(block: ndarray, scales: ndarray | None, begin: int, a: ndarray
     if scales is not None:
         x *= scales[begin : begin + len(block), None]  # code * scale, rounded once
     return np.ascontiguousarray((x.astype(np.float64) @ a.T).astype(np.float32))
-
-
-class _Digest:
-    """A sha256 of the bytes of arrays, or nothing if it is not needed."""
-
-    def __init__(self, needed: bool):
-        self._hash = hashlib.sha256() if needed else None
-
-    def update(self, array: ndarray):
-        if self._hash is not None:
-            self._hash.update(memoryview(array.reshape(-1).view(np.uint8)))
-
-    def hexdigest(self) -> str | None:
-        return None if self._hash is None else self._hash.hexdigest()

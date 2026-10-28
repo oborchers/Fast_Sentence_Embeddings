@@ -10,6 +10,8 @@ The guardrails ([tool.fse.guardrails]; AGENTS.md, Guardrails) keep the code revi
   ``native-importers`` import ``fse._native``, the extension imports only
   ``native-imports`` from fse, and nothing imports the forbidden packages of the
   import-linter contract;
+- that only ``hash-importers`` import a hash library (``hash-modules``), in Python and
+  Cython sources;
 - a test file for every module of fse.
 
 What exceeded a limit when the guardrails came is the ratchet. It only shrinks: a new
@@ -275,6 +277,24 @@ def native_import_errors(root: Path, cfg: dict) -> list[str]:
     return [*_extension_import_errors(root, cfg), *_native_importer_errors(root, cfg)]
 
 
+def hash_import_errors(root: Path, cfg: dict) -> list[str]:
+    """Modules of fse other than ``hash-importers`` that import a hash library."""
+    errors = []
+    for path in sorted((root / "src" / "fse").rglob("*")):
+        rel = path.relative_to(root).as_posix()
+        if path.suffix == ".py":
+            module = ".".join(path.relative_to(root / "src").with_suffix("").parts)
+            names = imported_modules(ast.parse(path.read_text(encoding="utf-8")), module)
+        elif path.suffix in (".pyx", ".pxd", ".pxi"):
+            names = extension_imports(path.read_text(encoding="utf-8"))
+        else:
+            continue
+        hashing = sorted({n.split(".")[0] for n in names} & set(cfg["hash-modules"]))
+        if hashing and rel not in cfg["hash-importers"]:
+            errors.append(f"{rel} imports {', '.join(hashing)}; only {cfg['hash-importers']} may")
+    return errors
+
+
 def test_file_for(path: Path, package: Path) -> str:
     """tests/test_<parts>.py for a module: fse/_a.py is test_a, fse/_b/_c.py is test_b_c,
     fse/_b/__init__.py is test_b, fse/__init__.py is test_init."""
@@ -377,6 +397,7 @@ def check(root: Path, base: str | None = None) -> tuple[list[str], dict, dict]:
         *compare({k: {"lines": v} for k, v in lines.items()}, ratchet.get("lines", {}), "line"),
         *compare(functions, ratchet.get("functions", {}), "complexity"),
         *native_import_errors(root, cfg),
+        *hash_import_errors(root, cfg),
         *untested_modules(root, cfg),
     ]
     old = base_ratchet(root, base) if base else None

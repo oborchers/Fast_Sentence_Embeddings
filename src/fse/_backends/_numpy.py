@@ -78,6 +78,10 @@ class NumpyBackend:
         check_score_input(stored, scales, weights, bias)
         return _reference.score(stored, scales, weights, bias)
 
+    def float32(self, values: object) -> ndarray:
+        with np.errstate(over="ignore", invalid="ignore"):
+            return np.ascontiguousarray(values, dtype=np.float32)
+
     def inverse_norms(self, stored: ndarray, first_row: int = 0) -> ndarray:
         check_stored_input(stored, first_row)
         return _reference.inverse_norms(stored, int(first_row))

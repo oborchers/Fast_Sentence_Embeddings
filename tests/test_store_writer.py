@@ -51,18 +51,24 @@ def test_the_bytes_waiting_are_bounded(monkeypatch):
 
 def test_an_error_is_raised_once_and_then_named():
     writer = WriterThread()
-    done = []
+    done, release = [], threading.Event()
 
     def fail():
+        release.wait()  # fails only after the next piece was handed over
         raise OSError("disk full")
 
-    writer.submit(fail, nbytes=5)
-    writer.submit(done.append, 1, nbytes=5)  # dropped after the error
-    with pytest.raises(OSError, match="disk full"):
-        writer.drain()
-    assert writer.failed
-    with pytest.raises(RuntimeError, match="failed earlier: OSError"):
-        writer.submit(done.append, 2)
-    writer.settle()
-    writer.stop()
+    try:
+        writer.submit(fail, nbytes=5)
+        writer.submit(done.append, 1, nbytes=5)  # dropped after the error
+        release.set()
+        with pytest.raises(OSError, match="disk full"):
+            writer.drain()
+        assert writer.failed
+        assert writer.reported
+        with pytest.raises(RuntimeError, match="failed earlier: OSError"):
+            writer.submit(done.append, 2)
+        writer.settle()
+    finally:
+        release.set()
+        writer.stop()
     assert done == []

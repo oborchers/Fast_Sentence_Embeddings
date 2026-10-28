@@ -53,6 +53,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
         deps: ["latest"]
+        # A pull request tests macOS on 3.13 only: its wheel jobs test 3.11 and 3.15 on
+        # Apple silicon and Intel, and macOS runners are scarce. master and tags test all.
+        exclude: ${{ github.event_name == 'pull_request' && fromJSON('[{"os":"macos-latest","python-version":"3.11"},{"os":"macos-latest","python-version":"3.12"},{"os":"macos-latest","python-version":"3.14"},{"os":"macos-latest","python-version":"3.15"}]') || fromJSON('[]') }}
         include:
           # Lowest supported versions, matching the bounds in pyproject.toml.
           - os: ubuntu-latest
@@ -73,7 +76,7 @@ jobs:
         if: matrix.deps == 'min'
         run: >-
           uv pip install
-          "numpy==1.26.4" "pydantic==2.5.0" "gensim==4.3.3" "safetensors==0.4.0"
+          "numpy==1.26.4" "pydantic==2.5.0" "xxhash==3.2.0" "gensim==4.3.3" "safetensors==0.4.0"
       - name: Run tests with coverage
         if: matrix.deps != 'min'
         run: make test-cov
@@ -139,12 +142,14 @@ jobs:
           import importlib.util, tempfile, pathlib, numpy as np
           for name in ('gensim', 'scipy'):
               assert importlib.util.find_spec(name) is None, name + ' is installed'
+          assert importlib.util.find_spec('xxhash') is not None, 'xxhash is not installed'
           import fse
           from fse import _native, _reference
           from fse._contract import Batch
           wv = fse.WordVectors.from_arrays(np.ones((2, 3), np.float32), words=['a', 'b']).quantize('int8')
           path = pathlib.Path(tempfile.mkdtemp()) / 'wv.safetensors'
           wv.save(path)
+          assert wv.fingerprint.startswith('xxh3-128:'), wv.fingerprint
           for mmap in (False, True):
               assert fse.WordVectors.load(path, mmap=mmap).fingerprint == wv.fingerprint
           batch = Batch(0, np.array([0, 2], np.int64), np.array([0, 1], np.uint32))
@@ -174,6 +179,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel, windows-latest]
+        # A pull request skips the macOS Intel wheels: Linux tests the x86 code, Apple
+        # silicon the macOS code, and the Intel runners are the slowest and scarcest.
+        # master and tags build and test them before every release.
+        exclude: ${{ github.event_name == 'pull_request' && fromJSON('[{"os":"macos-15-intel"}]') || fromJSON('[]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -181,6 +190,10 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
       - uses: pypa/cibuildwheel@b9e566a2b284570af229f6c2a33673410d0389a3  # v4.3.4
+        env:
+          # A pull request builds every wheel but tests those of the oldest and the newest
+          # Python; the test jobs cover the versions between. master and tags test all.
+          CIBW_TEST_SKIP: ${{ github.event_name == 'pull_request' && 'cp312-* cp313-* cp314-*' || '' }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: dist-wheels-${{ matrix.os }}

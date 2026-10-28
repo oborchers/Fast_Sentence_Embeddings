@@ -1,8 +1,11 @@
 """The ShardSink: the rows of an encoder written straight into the shards of a store."""
 
+import os
+
 import numpy as np
 import pytest
 
+import fse
 from fse import _reference
 from fse._container import NpyContainer
 from fse._store import ShardSink
@@ -165,3 +168,164 @@ def test_after_a_failed_write_the_sink_takes_no_more_rows(tmp_path, monkeypatch)
     sink.close()  # no second error; nothing more is published
     assert sink.durable_rows == 0
     assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]
+
+
+def test_close_raises_a_write_error_nothing_raised_before(tmp_path, monkeypatch):
+    from fse._store import _shard
+
+    def full(*_args):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(_shard, "write_at", full)
+    sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=8)
+    target = sink.target(0, 3)
+    target[0][...] = 0
+    target[1][...] = 0
+    sink.commit(0, target)  # handed to the writer threads; their error comes later
+    with pytest.raises(OSError, match="No space left"):
+        sink.close()
+    sink.close()  # closed: no second error
+    assert sink.durable_rows == 0
+    assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]
+
+
+def test_close_raises_a_publish_error_another_thread_met_first(tmp_path, monkeypatch):
+    import threading
+    import time
+
+    from fse._store import _shard
+
+    failed, resume = threading.Event(), threading.Event()
+    real_commit = _shard.ShardWriter.commit
+
+    def publish(*_args):
+        failed.set()
+        raise OSError(5, "Input/output error")
+
+    def commit(self, begin, codes):
+        if self.first_row == 8:
+            resume.wait(10)  # the hash thread hands shard 2 on after the publisher failed
+        real_commit(self, begin, codes)
+
+    monkeypatch.setattr(_shard, "publish_directory", publish)
+    monkeypatch.setattr(_shard.ShardWriter, "commit", commit)
+    sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=8)
+    for first in (0, 8):
+        target = sink.target(first, 8)
+        target[0][...] = 0
+        target[1][...] = 0
+        sink.commit(first, target)
+    assert failed.wait(10)
+    deadline = time.monotonic() + 10
+    while not sink._publisher.failed and time.monotonic() < deadline:
+        time.sleep(0.001)  # the error is kept just after publish raised
+    resume.set()  # now the hash thread meets the publisher's error handing shard 2 on
+    sink._hash.settle()
+    assert sink._hash.failed
+    with pytest.raises(OSError, match="Input/output error"):
+        sink.close()
+
+
+@pytest.mark.skipif(not os.path.isdir("/dev/fd"), reason="no /dev/fd to count open files")
+def test_writing_many_small_shards_keeps_few_files_open(tmp_path, monkeypatch):
+    from fse._container import _npy, _npy_inplace
+    from fse._store import _shard
+
+    for module in (_shard, _npy_inplace):  # the files matter here, not their syncs
+        monkeypatch.setattr(module, "sync_file", lambda _fd: None)
+    monkeypatch.setattr(_npy_inplace, "_sync_directory", lambda _path: None)
+    monkeypatch.setattr(_npy, "_sync_directory", lambda _path: None)
+    real, most = _shard.create, [0]
+
+    def create(*args):
+        most[0] = max(most[0], len(os.listdir("/dev/fd")))
+        return real(*args)
+
+    monkeypatch.setattr(_shard, "create", create)
+    sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=1)
+    before = len(os.listdir("/dev/fd"))
+    target = sink.target(0, 500)  # one task over 500 shards
+    target[0][...] = 0
+    target[1][...] = 0
+    sink.commit(0, target)
+    assert sink.flush() == 500
+    sink.close()
+    assert most[0] - before < 100  # the publisher's queue bounds the open shards
+
+
+def test_two_writers_meet_at_the_rename_and_one_wins(tmp_path, monkeypatch):
+    import threading
+
+    from fse._store import _shard
+
+    with ShardSink(tmp_path / "s", ENCODER) as sink:
+        ENCODER.encode(texts(5), sink=sink)
+    meet, real = threading.Barrier(2, timeout=10), _shard.publish_directory
+    seen = []
+
+    def publish(tmp, path):
+        meet.wait()  # both shards are written and synced; both rename now
+        before = len(fse.VectorStore.open(tmp_path / "s"))
+        real(tmp, path)
+        seen.append((before, len(fse.VectorStore.open(tmp_path / "s"))))
+
+    monkeypatch.setattr(_shard, "publish_directory", publish)
+    errors = []
+
+    def append(seed):
+        try:
+            with ShardSink(tmp_path / "s", ENCODER, shard_rows=16) as sink:
+                ENCODER.encode(texts(16, seed=seed), sink=sink)
+        except FileExistsError as error:
+            errors.append(error)
+
+    threads = [threading.Thread(target=append, args=(s,)) for s in (7, 8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(30)
+    assert len(errors) == 1  # exactly one writer published shard-5
+    assert seen == [(5, 21)]  # a reader sees the shard whole or not at all
+    codes, _, _, found = _store_rows(tmp_path / "s", "float32")
+    assert [(s.first_row, s.rows) for s in found] == [(0, 5), (5, 16)]
+    assert any(np.array_equal(codes[5:], _want("float32", texts(16, seed=s))[0]) for s in (7, 8))
+    assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]
+
+
+def test_an_interrupt_between_the_hand_overs_does_not_hang_close(tmp_path):
+    import threading
+
+    sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=8)
+    first = sink.target(0, 4)
+    first[0][...] = 0
+    first[1][...] = 0
+    sink.commit(0, first)
+    real = {t: t.submit for t in (sink._hash, sink._io)}
+    calls = []
+
+    def hand_over(thread):
+        def submit(work, *args, **kwargs):
+            calls.append(work)
+            if len(calls) == 2:
+                raise KeyboardInterrupt  # Ctrl+C after the first hand-over of the rows
+            return real[thread](work, *args, **kwargs)
+
+        return submit
+
+    for thread in real:
+        thread.submit = hand_over(thread)
+    second = sink.target(4, 4)
+    second[0][...] = 1
+    second[1][...] = 0
+    with pytest.raises(KeyboardInterrupt):
+        sink.commit(4, second)
+    for thread, submit in real.items():
+        thread.submit = submit
+    closed = threading.Thread(target=sink.close)
+    closed.start()
+    closed.join(10)
+    assert not closed.is_alive()  # close returned
+    assert sink.durable_rows == 4  # the rows committed before the interrupt
+    codes, _, _, found = _store_rows(tmp_path / "s", "float32")
+    assert [(s.first_row, s.rows) for s in found] == [(0, 4)]
+    np.testing.assert_array_equal(codes, np.zeros((4, ENCODER.output_dim), np.float32))

@@ -7,7 +7,7 @@
 """The file work of a ShardSink in one thread of its own, in the order it was handed over.
 
 The calling thread of a run reads the source, reserves rows and commits them; writing the
-committed rows into their shard (``pwrite``), hashing them (sha256, which must see the
+committed rows into their shard (``pwrite``), hashing them (the checksum, which must see the
 rows in order) and publishing finished shards (syncs and a rename) would make it the
 bound of the run. A ShardSink therefore hands this work to one writer thread through a
 bounded queue: the order of the work stays the order of the commits, and a full queue
@@ -50,34 +50,50 @@ class WriterThread:
         self._thread = threading.Thread(target=self._run, name=name, daemon=True)
         self._thread.start()
 
-    def submit(self, work: Callable[..., Any], *args: Any, nbytes: int = 0) -> None:
+    def submit(
+        self, work: Callable[..., Any], *args: Any, nbytes: int = 0, report: bool = True
+    ) -> None:
         """Hand ``work(*args)`` to the writer thread, waiting while the work waiting for it
-        holds more than MAX_PENDING_BYTES (``nbytes`` is the size of this piece)."""
-        self.check()
+        holds more than MAX_PENDING_BYTES (``nbytes`` is the size of this piece). Another
+        writer thread that hands work on passes ``report=False``: an error it meets is
+        not reported to the caller yet."""
+        self.check(report)
         if not self._thread.is_alive():
             raise RuntimeError("the writer thread of the sink is stopped")
         with self._budget:
             while self._pending_bytes and self._pending_bytes + nbytes > MAX_PENDING_BYTES:
                 self._budget.wait()
             self._pending_bytes += nbytes
-        self._queue.put((work, args, nbytes))
+        try:
+            self._queue.put((work, args, nbytes))
+        except BaseException:  # interrupted (Ctrl+C): the piece never waits, nor its bytes
+            with self._budget:
+                self._pending_bytes -= nbytes
+                self._budget.notify_all()
+            raise
 
     def drain(self) -> None:
         """Wait until all work handed over so far is done, then raise its error, if any."""
         self._queue.join()
         self.check()
 
-    def check(self) -> None:
-        """Raise the error of the thread: itself the first time, then a RuntimeError that
-        names it, so no work is ever dropped without an error."""
+    def check(self, report: bool = True) -> None:
+        """Raise the error of the thread: itself until it is reported to the caller (a
+        call with ``report``), then a RuntimeError that names it, so no work is ever
+        dropped without an error."""
         if self._error is None:
             return
         if not self._reported:
-            self._reported = True
+            self._reported = report
             raise self._error
         raise RuntimeError(
             f"the writer of the sink failed earlier: {self._error!r}"
         ) from self._error
+
+    @property
+    def reported(self) -> bool:
+        """Whether a call has raised the error of the thread."""
+        return self._reported
 
     def settle(self) -> None:
         """Wait until all work handed over so far is done or dropped, without raising."""

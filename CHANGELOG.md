@@ -19,7 +19,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 - gensim is no longer a dependency: install `fse[gensim]` for `fse.gensim`.
 - Building from source needs MSVC on Windows, or GCC or Clang elsewhere; MinGW is refused, because its `fmaf` rounds twice.
-- The only dependencies are numpy and pydantic. scipy, smart_open, wordfreq, huggingface-hub, psutil and threadpoolctl are no longer needed; the Hugging Face Hub returns with the 2.0 loader.
+- Checksums and fingerprints of every artifact are xxh3-128 (`xxh3-128:` and 32 hex digits) instead of sha256, computed by one harness. Artifacts written by a pre-release of 2.0 with sha256 checksums raise `UnsupportedArtifactError` and must be written again; there is no migration. The values identify content against accidents, not against an attacker (ARCHITECTURE.md, "Identities").
+- The only dependencies are numpy, pydantic and xxhash (`xxhash>=3.2.0`). scipy, smart_open, wordfreq, huggingface-hub, psutil and threadpoolctl are no longer needed; the Hugging Face Hub returns with the 2.0 loader.
 
 ### Removed
 

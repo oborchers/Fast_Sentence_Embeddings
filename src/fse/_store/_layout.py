@@ -25,18 +25,34 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from numpy import ndarray
 
-from fse._container import CREATED_BY_KEY, INTEGER, CorruptArtifactError, NpyContainer
-from fse._container._common import _open_regular, _strict_json
-from fse._container._npy_inplace import publish_directory, sync_file
+from fse import _codes
+from fse._container import (
+    CHECKSUM_PREFIX,
+    CREATED_BY_KEY,
+    FINGERPRINT_FORM,
+    FINGERPRINT_KEY,
+    INTEGER,
+    CorruptArtifactError,
+    NpyContainer,
+    is_fingerprint,
+)
+from fse._container._common import _open_regular, _strict_json, _sync_directory
+from fse._container._npy_inplace import publish_directory, sync_file, write_at
 from fse._contract import UnsupportedArtifactError
 
 STORE_FILE = "store.json"
 STORE_NAME = "fse_shards"
 STORE_VERSION = 1
+# The format of the sentence vectors; it starts with the xxh3-128 checksums (maintainer
+# decision: the store was never released with sha256).
+FORMAT_VERSION = "1"
 SHARD_PREFIX = "shard-"
 DTYPES = ("float32", "float16", "int8")
+QUANTIZATION = "quantize_rows@1"
+_STORE_BYTES = 1 << 16  # store.json is a few hundred bytes
 # The metadata every shard shares with store.json.
 _SHARED = (
     "fse.kind",
@@ -60,7 +76,7 @@ class StoreInfo:
     def metadata(self) -> dict[str, str]:
         return {
             "fse.kind": "sentence_vectors",
-            "fse.format_version": "1",
+            "fse.format_version": FORMAT_VERSION,
             "fse.transform_version": "2",
             "fse.encoder": self.encoder,
             "fse.dtype": self.dtype,
@@ -94,7 +110,7 @@ def shard_metadata(info: StoreInfo, first_row: int, rows: int, created_by: str) 
     metadata = info.metadata()
     metadata[CREATED_BY_KEY] = created_by
     if info.dtype != "float32":
-        metadata["fse.quantization"] = "quantize_rows@1"
+        metadata["fse.quantization"] = QUANTIZATION
     metadata["fse.first_row"] = str(first_row)
     metadata["fse.rows"] = str(rows)
     return metadata
@@ -126,10 +142,11 @@ def create_store(path: Path, info: StoreInfo) -> bool:
             0o644,
         )
         try:
-            os.write(fd, (text + "\n").encode("utf-8"))
+            write_at(fd, memoryview((text + "\n").encode("utf-8")), 0)
             sync_file(fd)
         finally:
             os.close(fd)
+        _sync_directory(tmp)  # the entry of store.json, before the store appears
         try:
             publish_directory(tmp, path)
         except FileExistsError:
@@ -146,30 +163,36 @@ def read_store(path: Path) -> StoreInfo:
         raise CorruptArtifactError(f"{path} is no store of sentence vectors (no directory)")
     file = path / STORE_FILE
     with _open_regular(file) as handle:
-        raw = handle.read(1 << 16)
+        raw = handle.read(_STORE_BYTES + 1)
+    if len(raw) > _STORE_BYTES:
+        raise CorruptArtifactError(f"{file} is larger than {_STORE_BYTES} bytes")
     store = _strict_json(raw, file)
     if not isinstance(store, dict) or set(store) != {"store", "store_version", "metadata"}:
         raise CorruptArtifactError(f"{file} must hold exactly store, store_version and metadata")
-    if store["store"] != STORE_NAME or store["store_version"] != STORE_VERSION:
+    version = store["store_version"]
+    if store["store"] != STORE_NAME or type(version) is not int or version != STORE_VERSION:
         raise UnsupportedArtifactError(
-            f"{path} is a store {store['store']!r} version {store['store_version']!r}; this fse "
+            f"{path} is a store {store['store']!r} version {version!r}; this fse "
             f"reads {STORE_NAME!r} version {STORE_VERSION}"
         )
-    return _info(store["metadata"], file)
+    return _info(store["metadata"], file, ())
 
 
-def _info(metadata: Any, file: Path) -> StoreInfo:
-    if not isinstance(metadata, dict) or not set(_SHARED) <= set(metadata):
-        raise CorruptArtifactError(f"{file}: the metadata must hold {', '.join(_SHARED)}")
+def _info(metadata: Any, file: Path, extra: tuple[str, ...]) -> StoreInfo:
+    """The StoreInfo of ``metadata``, which must hold exactly the shared keys and
+    ``extra``."""
+    keys = (*_SHARED, *extra)
+    if not isinstance(metadata, dict) or set(metadata) != set(keys):
+        raise CorruptArtifactError(f"{file}: the metadata must hold exactly {', '.join(keys)}")
     if (
         metadata["fse.kind"] != "sentence_vectors"
-        or metadata["fse.format_version"] != "1"
+        or metadata["fse.format_version"] != FORMAT_VERSION
         or metadata["fse.transform_version"] != "2"
     ):
         raise UnsupportedArtifactError(
             f"{file} holds {metadata['fse.kind']!r} format {metadata['fse.format_version']!r} "
             f"transform {metadata['fse.transform_version']!r}; this fse reads sentence_vectors "
-            "format 1, transform 2"
+            f"format {FORMAT_VERSION}, transform 2"
         )
     dim = metadata["fse.output_dim"]
     if (
@@ -179,10 +202,10 @@ def _info(metadata: Any, file: Path) -> StoreInfo:
         or dim == "0"
     ):
         raise CorruptArtifactError(f"{file}: fse.dtype or fse.output_dim is not valid")
-    if not isinstance(metadata["fse.encoder"], str) or not metadata["fse.encoder"].startswith(
-        "sha256:"
-    ):
-        raise CorruptArtifactError(f"{file}: fse.encoder must be an encoder fingerprint")
+    if not is_fingerprint(metadata["fse.encoder"]):
+        raise CorruptArtifactError(
+            f"{file}: fse.encoder must be an encoder fingerprint ({FINGERPRINT_FORM})"
+        )
     return StoreInfo(metadata["fse.encoder"], metadata["fse.dtype"], int(dim))
 
 
@@ -192,8 +215,14 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
     name = shard_name(first_row)
     tensors, metadata = NpyContainer().open(path / name, mmap=True)
     file = path / name / "manifest.json"
-    shard_info = _info(metadata, file)
+    content = {  # without the checksums and the fingerprint the container checked
+        k: v
+        for k, v in metadata.items()
+        if k != FINGERPRINT_KEY and not k.startswith(CHECKSUM_PREFIX)
+    }
+    shard_info = _info(content, file, _shard_keys(info))
     info.check(shard_info, path)
+    _check_quantization(metadata, info, file)
     rows = metadata.get("fse.rows", "")
     if (
         metadata.get("fse.first_row") != str(first_row)
@@ -209,7 +238,29 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
         tensors[k].shape != (n,) for k in want - {"vectors"}
     ):
         raise CorruptArtifactError(f"{file}: the tensors do not hold {n} rows of {info.dim} values")
+    if tensors["vectors"].dtype != np.dtype(_codes.STORAGE_TYPES[info.dtype]) or any(
+        tensors[k].dtype != np.float32 for k in want - {"vectors"}
+    ):
+        raise CorruptArtifactError(
+            f"{file}: the vectors must be {info.dtype}, the inverse norms and scales float32"
+        )
     return Shard(name, first_row, n), tensors
+
+
+def _shard_keys(info: StoreInfo) -> tuple[str, ...]:
+    """The keys a shard adds to the shared metadata."""
+    keys = (CREATED_BY_KEY, "fse.first_row", "fse.rows")
+    return keys if info.dtype == "float32" else (*keys, "fse.quantization")
+
+
+def _check_quantization(metadata: dict, info: StoreInfo, file: Path) -> None:
+    """A float16 or int8 shard names the storage rule of its codes: quantize_rows@1."""
+    rule = metadata.get("fse.quantization")
+    if info.dtype == "float32" or rule == QUANTIZATION:
+        return
+    if isinstance(rule, str) and rule.startswith("quantize_rows@"):
+        raise UnsupportedArtifactError(f"{file} is stored by {rule}; this fse reads {QUANTIZATION}")
+    raise CorruptArtifactError(f"{file}: fse.quantization must be {QUANTIZATION}")
 
 
 def shards(path: Path, info: StoreInfo) -> list[tuple[Shard, dict[str, ndarray]]]:

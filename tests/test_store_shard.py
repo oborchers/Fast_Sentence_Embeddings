@@ -5,8 +5,9 @@ import pytest
 
 from fse._store._layout import StoreInfo, create_store, shard_name, shards
 from fse._store._shard import ShardWriter
+from support.container import fake_fingerprint
 
-INFO = StoreInfo("sha256:" + "cd" * 32, "float16", 4)
+INFO = StoreInfo(fake_fingerprint("c"), "float16", 4)
 
 
 @pytest.fixture

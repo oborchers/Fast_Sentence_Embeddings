@@ -10,7 +10,7 @@ published whole (ARCHITECTURE.md, "sentence_vectors 1").
 A shard is written in a temporary directory ``.shard-<first row>.writing-<hex>`` of the
 store. The worker of a task writes its rows into a buffer of the task (the window of the
 runtime bounds them); its commit writes them into ``vectors.npy`` at their offset
-(``pwrite``, so a full disk raises an OSError there) and feeds the sha256 of the vectors,
+(``pwrite``, so a full disk raises an OSError there) and feeds the checksum of the vectors,
 in row order. The scales and inverse norms are kept in memory. Finishing shrinks a shard
 that ends early, syncs the file, writes the scales, the inverse norms and the manifest,
 and renames the directory into place without replacing anything. Until then the rows are
@@ -23,7 +23,6 @@ M1 Pro, int8 at 10 workers: 1.04 against 1.96 million rows per second).
 
 from __future__ import annotations
 
-import hashlib
 import os
 import secrets
 import shutil
@@ -36,7 +35,7 @@ from numpy import ndarray
 from numpy.lib import format as npy_format
 
 from fse import _codes
-from fse._container import tensor_code
+from fse._container import Hasher, checksum, tensor_code
 from fse._container._npy import write_manifest
 from fse._container._npy_inplace import create, publish_directory, shrink, sync_file, write_at
 
@@ -55,14 +54,9 @@ class ShardWriter:
         self.row_bytes = info.dim * self.dtype.itemsize
         self.tmp = store / f".{shard_name(first_row)}.writing-{secrets.token_hex(4)}"
         self.tmp.mkdir()
-        self.fd = -1
-        try:
-            self.fd, self.offset = create(
-                self.tmp / "vectors.npy", self.dtype, (capacity, info.dim)
-            )
-        except BaseException:
-            shutil.rmtree(self.tmp, ignore_errors=True)
-            raise
+        # vectors.npy is created at the first write, so the shards reserved ahead of their
+        # writes (a task over many small shards) hold no open file.
+        self.fd, self.offset = -1, 0
         self.scales = np.empty(capacity, np.float32) if info.dtype == "int8" else None
         self.norms = np.empty(capacity, np.float32)
         self.reserved = self.committed = self.written = 0
@@ -71,7 +65,7 @@ class ShardWriter:
         # while ``committed`` is kept by the thread that commits.
         self.queued = 0
         self.end = capacity  # sealed earlier by seal()
-        self.digest = hashlib.sha256()
+        self.digest = Hasher()
         self._open: dict[int, ndarray] = {}  # first row in the shard -> the codes reserved
 
     @property
@@ -102,13 +96,21 @@ class ShardWriter:
             )
         if codes is not self._open[begin]:
             raise ValueError(f"the rows from {begin} are not the target reserved for them")
-        self.digest.update(memoryview(codes).cast("B"))
+        self.digest.update(codes)
         del self._open[begin]  # only once the commit is checked
         self.committed += len(codes)
 
+    def _file(self) -> None:
+        """Create vectors.npy with the header of the full shard, once."""
+        if self.fd < 0:
+            self.fd, self.offset = create(
+                self.tmp / "vectors.npy", self.dtype, (self.capacity, self.info.dim)
+            )
+
     def write(self, begin: int, codes: ndarray) -> None:
         """Write the committed rows from ``begin`` (in the shard) into the file; positional,
-        so it may run in another thread than ``commit``."""
+        so it may run in another thread than ``commit`` (only one thread writes)."""
+        self._file()
         write_at(self.fd, memoryview(codes).cast("B"), self.offset + begin * self.row_bytes)
         with self._written_rows:
             self.written += len(codes)
@@ -144,6 +146,7 @@ class ShardWriter:
         if self.committed != self.reserved:
             raise RuntimeError(f"{self.reserved - self.committed} reserved rows were not committed")
         self.wait_written(failed)
+        self._file()
         rows = self.committed
         if rows != self.capacity:
             shrink(self.fd, self.offset, self.dtype, (rows, self.info.dim))
@@ -151,7 +154,7 @@ class ShardWriter:
         os.close(self.fd)
         self.fd = -1
         code = tensor_code(np.empty(0, self.dtype))
-        entries = {"vectors": (code, (rows, self.info.dim), self.digest.hexdigest())}
+        entries = {"vectors": (code, (rows, self.info.dim), self.digest.checksum())}
         extra = {"inv_norms": self.norms[:rows]}
         if self.scales is not None:
             extra["scales"] = self.scales[:rows]
@@ -180,7 +183,7 @@ class ShardWriter:
 
 
 def _write(file: Path, array: ndarray) -> str:
-    """A small tensor as a synced .npy file; returns the sha256 of its data."""
+    """A small tensor as a synced .npy file; returns the checksum of its data."""
     data = np.ascontiguousarray(array)
     fd = os.open(file, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o644)
     with os.fdopen(fd, "wb") as f:
@@ -188,4 +191,4 @@ def _write(file: Path, array: ndarray) -> str:
         f.write(data.tobytes())
         f.flush()
         sync_file(f.fileno())
-    return hashlib.sha256(data.tobytes()).hexdigest()
+    return checksum(data)

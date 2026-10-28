@@ -17,7 +17,8 @@ ENCODER = unfolded()
 TESTS = Path(__file__).parent
 
 CHILD = """
-import os, sys
+import os, sys, time
+from pathlib import Path
 sys.path.insert(0, sys.argv[3])
 import fse
 from fse._store import _shard
@@ -25,6 +26,23 @@ from support.encoder import unfolded
 from support.runtime import texts
 
 point, calls, real = sys.argv[2], [0], _shard.publish_directory
+real_write, real_shrink = _shard.ShardWriter.write, _shard.shrink
+
+def write(self, begin, codes):
+    if point == "write" and self.first_row == 64:
+        first = Path(sys.argv[1]) / _shard.shard_name(0)
+        deadline = time.monotonic() + 30
+        while not first.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)  # the first shard is published by its own thread
+        self._file()
+        _shard.write_at(self.fd, memoryview(codes).cast("B")[: codes.nbytes // 2], self.offset)
+        os._exit(3)  # halfway through a write of the second shard
+    real_write(self, begin, codes)
+
+def shrink(*args):
+    if point == "shrink":
+        os._exit(3)  # finishing the last shard, which ends early
+    real_shrink(*args)
 
 def publish(tmp, path):
     calls[0] += 1
@@ -35,6 +53,7 @@ def publish(tmp, path):
         os._exit(3)  # the second shard is published, the sink never learns it
 
 _shard.publish_directory = publish
+_shard.ShardWriter.write, _shard.shrink = write, shrink
 encoder = unfolded()
 with fse.ShardSink(sys.argv[1], encoder, shard_rows=64) as sink:
     encoder.encode(texts(300), sink=sink, workers=2)
@@ -49,7 +68,9 @@ def _rows(path):
     )
 
 
-@pytest.mark.parametrize(("point", "published"), [("before", 64), ("after", 128)])
+@pytest.mark.parametrize(
+    ("point", "published"), [("write", 64), ("before", 64), ("after", 128), ("shrink", 256)]
+)
 def test_a_crash_leaves_a_prefix_that_appends_continue(tmp_path, point, published):
     store = tmp_path / "s"
     done = subprocess.run(

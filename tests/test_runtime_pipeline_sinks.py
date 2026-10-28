@@ -101,6 +101,13 @@ def test_targets_are_checked():
         split_target((rows, np.empty(2, F32)), "float32", True)
     with pytest.raises(ValueError, match="the scales of a target"):
         split_target((rows.astype(np.int8), np.empty(3, np.float64)), "int8", False)
+    with pytest.raises(ValueError, match="must be a writable C-contiguous float32 matrix"):
+        split_target(rows.astype(np.float16), "float32", False)  # not the dtype of the sink
+    with pytest.raises(ValueError, match="C-contiguous int8"):
+        split_target((rows.astype(np.int8).T, np.empty(2, F32)), "int8", False)
+    one = np.empty((3, 1), F32)
+    with pytest.raises(ValueError, match="must not overlap"):
+        split_target((one, one[:, 0]), "float32", True)  # norms written over the rows
 
     class Odd:
         inverse_norms = "yes"

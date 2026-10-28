@@ -8,7 +8,7 @@ import pytest
 
 from fse._container import NpyContainer
 from fse._container import _npy_inplace as inplace
-from fse._container._common import array_sha256, tensor_code
+from fse._container._common import checksum, tensor_code
 from fse._container._npy import write_manifest
 
 
@@ -27,7 +27,7 @@ def _write_in_place(directory, rows, keep=None):
         inplace.sync_file(fd)
     finally:
         os.close(fd)
-    entries = {"vectors": (tensor_code(rows), rows.shape, array_sha256(rows))}
+    entries = {"vectors": (tensor_code(rows), rows.shape, checksum(rows))}
     write_manifest(directory, entries, {"fse.kind": "test"}, directory / ".manifest.writing")
     return rows
 
@@ -90,6 +90,18 @@ def test_write_at_writes_everything_and_raises_on_a_full_disk(tmp_path, monkeypa
             inplace.write_at(fd, memoryview(b"x"), offset)
     finally:
         os.close(fd)
+
+
+def test_headers_survive_short_writes_and_no_progress_raises(tmp_path, monkeypatch):
+    real = inplace._write_some
+    monkeypatch.setattr(inplace, "_write_some", lambda f, data, at: real(f, data[:3], at))
+    fd, offset = inplace.create(tmp_path / "vectors.npy", np.float32, (2, 3))
+    os.close(fd)
+    assert np.load(tmp_path / "vectors.npy").shape == (2, 3)  # the whole header
+    assert offset % 64 == 0
+    monkeypatch.setattr(inplace, "_write_some", lambda *_args: 0)
+    with pytest.raises(OSError, match="made no progress"):
+        inplace.create(tmp_path / "other.npy", np.float32, (2, 3))
 
 
 def test_publishing_never_replaces_a_directory(tmp_path):

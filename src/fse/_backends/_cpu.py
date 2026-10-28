@@ -104,6 +104,9 @@ class CpuBackend:
         check_score_input(stored, scales, weights, bias)
         return _native.score(stored, scales, weights, bias, isa=self.isa)
 
+    def float32(self, values: object) -> ndarray:
+        return _native.float32(values)
+
     def inverse_norms(self, stored: ndarray, first_row: int = 0) -> ndarray:
         check_stored_input(stored, first_row)
         return _native.inverse_norms(stored, int(first_row))

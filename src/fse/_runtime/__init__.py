@@ -11,8 +11,16 @@ Pipeline; the public entry points come with it.
 """
 
 from ._count import count_tokens
-from ._pipeline import Pipeline
-from ._sinks import ArrayRows, GramSink, GrowingRows, MemorySink, Sink, Stored
+from ._pipeline import Pipeline, check_workers
+from ._sinks import (
+    ArrayRows,
+    GramSink,
+    GrowingRows,
+    MemorySink,
+    Sink,
+    Stored,
+    wants_inverse_norms,
+)
 from ._spec import EncodeSpec
 
 __all__ = [
@@ -24,5 +32,7 @@ __all__ = [
     "Pipeline",
     "Sink",
     "Stored",
+    "check_workers",
     "count_tokens",
+    "wants_inverse_norms",
 ]

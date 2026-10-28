@@ -20,20 +20,15 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.util
-import importlib
 import io
 import os
 import sys
 from pathlib import Path
-from types import ModuleType
 
 import numpy as np
 from numpy.lib import format as npy_format
 
-from ._common import ALIGNMENT, _sync_directory
-
-# fcntl for F_FULLFSYNC; Windows has none.
-_fcntl: ModuleType | None = None if os.name == "nt" else importlib.import_module("fcntl")
+from ._common import ALIGNMENT, _fcntl, _sync_directory
 
 
 def header(dtype: np.dtype, shape: tuple[int, ...], length: int | None = None) -> bytes:
@@ -71,7 +66,7 @@ def create(file: Path, dtype: np.dtype, shape: tuple[int, ...]) -> tuple[int, in
     )
     fd = os.open(file, flags, 0o644)
     try:
-        os.write(fd, head)
+        write_at(fd, memoryview(head), 0)
         os.ftruncate(fd, len(head) + nbytes)
     except BaseException:
         os.close(fd)
@@ -94,6 +89,8 @@ def write_at(fd: int, data: memoryview, position: int) -> None:
     view = memoryview(data).cast("B")
     while len(view):
         n = _write_some(fd, view, position)
+        if n <= 0:
+            raise OSError(f"a write at byte {position} made no progress")
         view, position = view[n:], position + n
 
 
@@ -151,7 +148,9 @@ def _move_no_replace(tmp: Path, path: Path) -> None:  # pragma: no cover - Windo
     move = kernel32.MoveFileExW
     move.argtypes = (ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32)
     move.restype = ctypes.c_int
-    if not move(str(tmp), str(path), 0):  # without MOVEFILE_REPLACE_EXISTING
+    # MOVEFILE_WRITE_THROUGH (0x8), without MOVEFILE_REPLACE_EXISTING: returns once the
+    # move is on the disk.
+    if not move(str(tmp), str(path), 0x8):
         error = ctypes.get_last_error()  # type: ignore[attr-defined]
         if error in (80, 183):  # ERROR_FILE_EXISTS, ERROR_ALREADY_EXISTS
             raise FileExistsError(f"{path} exists; a shard is never replaced")

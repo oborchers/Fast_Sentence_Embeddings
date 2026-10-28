@@ -32,7 +32,9 @@ to 12 queries; for 1 query 11 against 39 ms on int8 rows).
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+import itertools
+from collections import deque
+from collections.abc import Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -75,27 +77,60 @@ def query_blocks(n_queries: int) -> list[slice]:
     return [slice(b, min(n_queries, b + _QUERY_BLOCK)) for b in range(0, n_queries, _QUERY_BLOCK)]
 
 
+def order_key(values: ndarray) -> ndarray:
+    """int32 keys in the order of the float32 ``values`` (finite or infinite), -0.0 equal to
+    0.0: integer comparisons, whatever flushing or rounding the thread set, keep every
+    subnormal score apart from zero."""
+    bits = np.ascontiguousarray(values, F32).view(np.int32)
+    sign = bits >> 31  # -1 for a negative value, else 0
+    key = sign & np.int32(0x7FFFFFFF)
+    key ^= bits  # the magnitude bits of negative values reversed
+    key -= sign  # negative keys up by one, so -0.0 (key -1) meets 0.0
+    return key
+
+
+def from_key(keys: ndarray) -> ndarray:
+    """The float32 values of order keys (0.0 for the key of -0.0)."""
+    sign = keys >> 31
+    return ((keys + sign) ^ (sign & np.int32(0x7FFFFFFF))).view(F32)
+
+
+LOWEST = int(order_key(np.array([-np.inf], F32))[0])
+
+
 def best(
     scores: ndarray, first_row: int, k: int, floor: ndarray
 ) -> tuple[ndarray, ndarray, ndarray]:
     """The candidates of every query column of ``scores`` (rows, queries) for its best
-    ``k``, given its ``floor``: at most ``min(k, rows)`` per query, the best of the block
-    at or above the floor. Returns their queries (column), scores and store rows, flat."""
+    ``k``, given its ``floor`` (an order_key): at most ``min(k, rows)`` per query, the
+    best of the block at or above the floor. Returns their queries (column), scores and
+    store rows, flat.
+
+    A float comparison selects a superset: flushing subnormals to zero, if the thread
+    set it, maps values monotonically, so it never drops a row at or above the floor.
+    The order keys of the selected rows then decide exactly."""
     n, q = scores.shape
     kept = min(k, n)
     floor = floor.copy()
-    mask = scores >= floor
+    mask = scores >= from_key(floor)
     over = np.flatnonzero(np.count_nonzero(mask, axis=0) > kept)
     if len(over):  # the floor keeps too many: rise to the kept-th best of the block
-        sub = scores[:, over]
+        sub = order_key(scores[:, over])
         floor[over] = np.maximum(floor[over], np.partition(sub, n - kept, axis=0)[n - kept])
         mask[:, over] = sub >= floor[over]
     flat = np.flatnonzero(mask)
     order = np.argsort(flat % q, kind="stable")  # by query, then by row
     rows, queries = np.divmod(flat[order], q)
     values = scores.reshape(-1)[flat[order]]
-    # Rows equal to the floor beyond the kept ones: the smaller rows stay.
-    equal = values == floor[queries]
+    keys = order_key(values)
+    exact = keys >= floor[queries]
+    rows, queries, values, keys = rows[exact], queries[exact], values[exact], keys[exact]
+    return _ties(rows, queries, values, keys, floor, kept, first_row)
+
+
+def _ties(rows, queries, values, keys, floor, kept, first_row):
+    """Keep the rows equal to the floor only up to ``kept`` per query, the smaller rows."""
+    equal = keys == floor[queries]
     above = np.bincount(queries[~equal], minlength=len(floor))
     before = np.cumsum(equal) - equal
     rank = before - before[np.searchsorted(queries, queries)] + 1
@@ -105,12 +140,12 @@ def best(
 
 class Candidates:
     """The candidates of every query so far, merged down to its best ``k`` once they
-    outgrow the merged ones; ``floor`` is the k-th best score of every query (-inf before
-    it has ``k``)."""
+    outgrow the merged ones; ``floor`` is the order_key of the k-th best score of every
+    query (of -inf before it has ``k``)."""
 
     def __init__(self, n_queries: int, k: int):
         self.k = k
-        self.floor = np.full(n_queries, -np.inf, F32)
+        self.floor = np.full(n_queries, LOWEST, np.int32)
         self._merged = (np.empty(0, np.int64), np.empty(0, F32), np.empty(0, np.int64))
         self._pending: list[tuple[ndarray, ndarray, ndarray]] = []
         self._size = 0
@@ -126,14 +161,15 @@ class Candidates:
         queries, values, ids = (
             np.concatenate(part) for part in zip(self._merged, *self._pending, strict=True)
         )
-        order = np.lexsort((ids, -values.astype(np.float64), queries))
-        queries, values, ids = queries[order], values[order], ids[order]
+        keys = order_key(values)
+        order = np.lexsort((ids, -keys.astype(np.int64), queries))
+        queries, values, ids, keys = queries[order], values[order], ids[order], keys[order]
         rank = np.arange(len(queries)) - np.searchsorted(queries, queries)
         keep = rank < self.k
         self._merged = queries[keep], values[keep], ids[keep]
         last = rank == self.k - 1
         floor = self.floor.copy()
-        floor[queries[last]] = values[last]
+        floor[queries[last]] = keys[last]
         self.floor = floor  # a new array: tasks that read the old one keep it
         self._pending, self._size = [], 0
 
@@ -156,7 +192,27 @@ def check_queries(backend: Any, queries: ndarray) -> None:
 
 def _blas_cosines(stored: ndarray, inverse: ndarray, unit: ndarray) -> ndarray:
     with np.errstate(over="ignore", invalid="ignore"):
-        return (np.asarray(stored, F32) @ unit.T) * inverse[:, None]
+        scores = (np.asarray(stored, F32) @ unit.T) * inverse[:, None]
+    if not np.isfinite(scores).all():
+        query, row = np.argwhere(~np.isfinite(scores.T))[0]  # (query, row), as the kernel
+        raise ValueError(f"query {query}: the cosine of row {row} is not finite")
+    return scores
+
+
+def _block_cosines(backend, tensors, block, queries, normalized) -> ndarray:
+    """The cosines of one block of rows with one block of queries; an error names where
+    they are in the store and among the queries."""
+    (_, begin, end, first_row), qb = block
+    stored, inverse = tensors["vectors"][begin:end], tensors["inv_norms"][begin:end]
+    try:
+        if normalized is None:
+            return backend.cosines(stored, inverse, queries[qb])
+        return _blas_cosines(stored, inverse, normalized[qb])
+    except ValueError as error:
+        raise ValueError(
+            f"rows {first_row} to {first_row + end - begin - 1} of the store, queries "
+            f"{qb.start} to {qb.stop - 1}: {error}"
+        ) from None
 
 
 def search(
@@ -174,20 +230,13 @@ def search(
     # The tolerance mode normalizes in numpy: its results are not bit-defined anyway.
     normalized = None if exact else _reference.postprocess(queries, [Normalize()])
     decode = 0 if exact else queries.shape[1]
-    tasks = [
-        (b, qb) for b in blocks(shards, len(queries), decode) for qb in query_blocks(len(queries))
-    ]
+    tasks = _tasks(shards, len(queries), decode)
     candidates = Candidates(len(queries), k)
 
     def run(task):
-        (index, begin, end, first_row), qb = task
+        (index, _, _, first_row), qb = task
         floor = candidates.floor[qb]
-        tensors = shards[index][1]
-        stored, inverse = tensors["vectors"][begin:end], tensors["inv_norms"][begin:end]
-        if normalized is None:
-            scores = backend.cosines(stored, inverse, queries[qb])
-        else:
-            scores = _blas_cosines(stored, inverse, normalized[qb])
+        scores = _block_cosines(backend, shards[index][1], task, queries, normalized)
         return qb.start, best(scores, first_row, k, floor)
 
     for result in _run(run, tasks, workers, "fse-search"):
@@ -205,7 +254,7 @@ def score(
     exact: bool,
 ) -> ndarray:
     """The linear score of every stored row with every weight vector, (rows, vectors)."""
-    biases = _biases(bias, len(weights))
+    biases = _biases(backend, bias, len(weights))
     out = np.empty((sum(shard.rows for shard, _ in shards), len(weights)), F32)
 
     def run(task):
@@ -215,9 +264,7 @@ def score(
         out[first_row : first_row + end - begin, qb] = part
 
     decode = 0 if exact else weights.shape[1]
-    tasks = [
-        (b, qb) for b in blocks(shards, len(weights), decode) for qb in query_blocks(len(weights))
-    ]
+    tasks = _tasks(shards, len(weights), decode)
     for _ in _run(run, tasks, workers, "fse-score"):
         pass
     return out
@@ -238,21 +285,38 @@ def _score_block(backend, tensors, begin, end, first_row, weights, biases, exact
         raise ValueError(f"rows {first_row} to {first_row + end - begin - 1}: {error}") from None
 
 
-def _run(fn, tasks: list, workers: int, name: str) -> Iterator[Any]:
-    """The results of ``fn`` on every task, in task order: in this thread, or in a pool."""
-    if workers == 1 or len(tasks) < 2:
-        yield from map(fn, tasks)
+def _tasks(shards: Sequence[tuple[Any, dict]], n_queries: int, decode: int) -> Iterator[tuple]:
+    """Every (block of rows, block of queries), made as the search goes."""
+    query_slices = query_blocks(n_queries)
+    for block in blocks(shards, n_queries, decode):
+        for qb in query_slices:
+            yield block, qb
+
+
+def _run(fn, tasks: Iterable[Any], workers: int, name: str) -> Iterator[Any]:
+    """The results of ``fn`` on every task, in task order: in this thread, or in a pool
+    with at most two tasks per worker in flight, so finished results stay bounded and a
+    task starts with the floors merged so far."""
+    tasks = iter(tasks)
+    head = list(itertools.islice(tasks, 2))
+    if workers == 1 or len(head) < 2:
+        yield from map(fn, itertools.chain(head, tasks))
         return
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix=name) as pool:
-        yield from pool.map(fn, tasks)
+        pending: deque = deque()
+        for task in itertools.chain(head, tasks):
+            pending.append(pool.submit(fn, task))
+            if len(pending) >= 2 * workers:
+                yield pending.popleft().result()
+        while pending:
+            yield pending.popleft().result()
 
 
-def _biases(bias: Any, n: int) -> ndarray:
+def _biases(backend: Any, bias: Any, n: int) -> ndarray:
     array = np.asarray(bias)
     if array.dtype.kind not in "fiu" or array.ndim > 1 or (array.ndim == 1 and array.shape != (n,)):
         raise ValueError(f"bias must be one number or {n} numbers, one per weight vector")
-    with np.errstate(over="ignore"):
-        biases = np.ascontiguousarray(np.broadcast_to(array.astype(F32), (n,)))
+    biases = np.ascontiguousarray(np.broadcast_to(backend.float32(array), (n,)))
     if not np.isfinite(biases).all():
         raise ValueError("bias must be finite in float32")
     return biases

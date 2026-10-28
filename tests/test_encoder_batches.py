@@ -72,6 +72,12 @@ def test_arguments_are_checked_before_a_batch_is_read():
         ENCODER.encode_batches(polls(), dtype="float64")
     with pytest.raises(ValueError, match="backend must be one of"):
         ENCODER.encode_batches(polls(), backend="gpu")
+    with pytest.raises(ValueError, match="workers must be a positive int"):
+        ENCODER.encode_batches(polls(), workers=0)
+    sink = fse.MemorySink(ENCODER.output_dim)
+    sink.inverse_norms = "yes"
+    with pytest.raises(TypeError, match="inverse_norms of a sink must be a bool"):
+        ENCODER.encode_batches(polls(), sink=sink)
     assert not read
     with pytest.raises(TypeError, match="batch 1 is a str; every batch is a list"):
         list(ENCODER.encode_batches([["w1"], "w2 w3"]))
@@ -166,3 +172,75 @@ def test_the_memory_sink_is_the_sink_of_encode():
     ENCODER.encode(texts(40), sink=sink)
     np.testing.assert_array_equal(sink.result(), ENCODER.encode(texts(40), dtype="float16"))
     assert _reference.inverse_norms(sink.result()).shape == (40,)
+
+
+def test_errors_name_the_rows_of_the_run():
+    wv = fse.WordVectors.from_arrays(
+        np.array([[1, 0], [1e-30, 0]], np.float32), words=["big", "tiny"]
+    )
+    encoder = fse.Average(tokenizer="external").fit(wv)
+    polls = [["big", "big"], ["big", "tiny"]]  # "tiny" cannot be normalized
+    with pytest.raises(ValueError, match=r"^batch 1 \(rows 2 to 3 of the run\): row 3 cannot"):
+        list(encoder.encode_batches(polls, workers=1, sink=fse.MemorySink(2)))
+    with pytest.raises(TypeError, match=r"^batch 1 \(rows 1 to 2 of the run\): .*str"):
+        list(encoder.encode_batches([["big"], ["big", 123]], workers=1))  # in its source
+    with pytest.raises(ValueError, match=r"^batch 1 \(rows 2 to 3 of the run\): row 1 cannot"):
+        list(encoder.encode_batches(polls, workers=1))
+
+
+class _Odd(fse.MemorySink):
+    def __init__(self, **attributes):
+        super().__init__(ENCODER.output_dim)
+        self.__dict__.update(attributes)
+
+
+@pytest.mark.parametrize(
+    ("attributes", "error", "match"),
+    [
+        ({"publish": 42}, TypeError, "publish of the sink must be a method"),
+        ({"flush": "x"}, TypeError, "flush of the sink must be a method"),
+        ({"durable_rows": "100"}, TypeError, "durable_rows of the sink must be an int"),
+        ({"durable_rows": True}, TypeError, "must be an int, not bool"),
+        ({"durable_rows": 10**6}, ValueError, "must be between 0"),
+        ({"durable_rows": -1}, ValueError, "must be between 0"),
+    ],
+)
+def test_the_optional_parts_of_a_sink_are_checked(attributes, error, match):
+    with pytest.raises(error, match=match):
+        list(ENCODER.encode_batches([["w1 w2"], ["w3"]], sink=_Odd(**attributes)))
+
+
+def test_durable_rows_never_shrink():
+    class Shrinking(fse.MemorySink):
+        calls = 0
+
+        def publish(self):
+            self.calls += 1
+            self.durable_rows = 1 if self.calls == 1 else 0  # 1 after the first, then 0
+
+    sink = Shrinking(ENCODER.output_dim)
+    with pytest.raises(ValueError, match="between 1"):
+        list(ENCODER.encode_batches([["w1"], ["w2"]], sink=sink))
+
+
+def test_a_unicode_error_keeps_its_type_and_names_its_batch():
+    with pytest.raises(UnicodeEncodeError) as raised:
+        list(ENCODER.encode_batches([["w1"], ["w2", "bad \udcff"]]))
+    assert "in batch 1 (rows 1 to 2 of the run)" in raised.value.__notes__
+
+
+def test_a_sink_is_checked_before_a_batch_is_read():
+    read = []
+
+    def polls():
+        read.append(True)
+        yield ["w1"]
+
+    for attributes, match in [
+        ({"flush": 1}, "flush of the sink must be a method"),
+        ({"publish": "x"}, "publish of the sink must be a method"),
+        ({"durable_rows": "0"}, "durable_rows of the sink must be an int"),
+    ]:
+        with pytest.raises(TypeError, match=match):
+            ENCODER.encode_batches(polls(), sink=_Odd(**attributes))
+    assert not read

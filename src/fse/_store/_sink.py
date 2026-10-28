@@ -147,11 +147,13 @@ class ShardSink:
                     scales[...] = own[1][offset : offset + n]
                 norms[...] = own[2][offset : offset + n]
                 offset += n
-            writer.queued += len(codes)
-            self._hash.submit(writer.commit, begin, codes, nbytes=codes.nbytes)
+            # The write first: rows counted as committed always have their write queued,
+            # also when an interrupt (Ctrl+C) stops this between the two hand-overs.
             self._io.submit(writer.write, begin, codes, nbytes=codes.nbytes)
+            self._hash.submit(writer.commit, begin, codes, nbytes=codes.nbytes)
+            writer.queued += len(codes)
             self.committed_rows += len(codes)
-        self._publish_ready()
+            self._publish_ready()  # a full shard goes on at once, so few files stay open
 
     # --- durability --------------------------------------------------------------------
 
@@ -193,7 +195,9 @@ class ShardSink:
             return
         try:
             self._settle()  # the rows handed over are written, unless a thread failed
-            if not self._failed():  # else nothing more is published
+            if self._failed():  # nothing more is published
+                self._raise_unreported()
+            else:
                 self._abort_uncommitted()
                 self._drain()
         finally:
@@ -226,6 +230,15 @@ class ShardSink:
         for thread in (self._hash, self._io, self._publisher):
             thread.settle()
 
+    def _raise_unreported(self) -> None:
+        """Raise the cause of a failure no call has raised yet: the writing thread first,
+        since the others wait for it and fail after it."""
+        threads = (self._io, self._hash, self._publisher)
+        if not any(t.reported for t in threads):
+            for thread in threads:
+                if thread.failed:
+                    thread.check()
+
     def _failed(self) -> bool:
         return any(t.failed for t in (self._hash, self._io, self._publisher))
 
@@ -250,7 +263,12 @@ class ShardSink:
         """Hand every shard whose rows are all handed over to be published, in order."""
         while self._writers and self._writers[0].queued_all:
             # After its last hash, in order, the shard goes to the publisher.
-            self._hash.submit(self._publisher.submit, self._finish, self._writers.popleft())
+            self._hash.submit(self._hand_on, self._writers.popleft())
+
+    def _hand_on(self, writer: ShardWriter) -> None:
+        """Hand ``writer`` to the publisher (in the hash thread): an error of the publisher
+        met here is the publisher's, not yet reported to the caller."""
+        self._publisher.submit(self._finish, writer, report=False)
 
     def _finish(self, writer: ShardWriter) -> None:
         """Publish ``writer`` (in the writer thread, after its commits)."""

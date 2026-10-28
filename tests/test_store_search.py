@@ -38,19 +38,19 @@ def test_blocks_merged_in_any_order_give_top_k(k, seed):
 
 def test_a_block_keeps_at_most_k_per_query_and_nothing_below_the_floor():
     scores = np.array([[0.1, 0.9], [0.5, 0.9], [0.3, 0.9], [0.5, 0.2]], F32)
-    floor = np.array([0.4, -np.inf], F32)
+    floor = _search.order_key(np.array([0.4, -np.inf], F32))
     queries, values, ids = _search.best(scores, 100, 2, floor)
     found = list(zip(queries.tolist(), ids.tolist(), strict=True))
     assert found == [(0, 101), (0, 103), (1, 100), (1, 101)]  # ties: the smaller rows
     np.testing.assert_array_equal(values, F32([0.5, 0.5, 0.9, 0.9]))
-    assert len(_search.best(scores, 0, 2, np.array([1.0, 1.0], F32))[0]) == 0
+    assert len(_search.best(scores, 0, 2, _search.order_key(np.array([1.0, 1.0], F32)))[0]) == 0
 
 
 def test_floors_are_the_kth_best_merged_so_far():
     candidates = _search.Candidates(2, 2)
     scores = np.array([[0.1, 0.9], [0.5, 0.8], [0.3, 0.7]], F32)
     candidates.add(0, _search.best(scores, 0, 2, candidates.floor))
-    np.testing.assert_array_equal(candidates.floor, F32([0.3, 0.8]))
+    np.testing.assert_array_equal(candidates.floor, _search.order_key(F32([0.3, 0.8])))
     ids, values = candidates.result(2)
     assert ids.tolist() == [[1, 2], [0, 1]]
     np.testing.assert_array_equal(values, F32([[0.5, 0.3], [0.9, 0.8]]))
@@ -59,7 +59,9 @@ def test_floors_are_the_kth_best_merged_so_far():
 
 
 def test_a_block_with_fewer_rows_than_k_keeps_all_of_them():
-    queries, _, ids = _search.best(np.ones((3, 2), F32), 100, 10, np.full(2, -np.inf, F32))
+    queries, _, ids = _search.best(
+        np.ones((3, 2), F32), 100, 10, np.full(2, _search.LOWEST, np.int32)
+    )
     assert queries.tolist() == [0, 0, 0, 1, 1, 1]
     assert ids.tolist() == [100, 101, 102] * 2
 
@@ -95,3 +97,71 @@ def test_modes():
     assert not _search.is_exact("auto", _search.AUTO_EXACT_MAX + 1)
     with pytest.raises(ValueError, match="mode must be one of"):
         _search.is_exact("fast", 1)
+
+
+@pytest.mark.parametrize("exact", [True, False])
+def test_a_cosine_beyond_float32_raises_naming_its_rows_and_queries(exact):
+    from fse._backends import get_backend
+
+    vectors = np.full((6, 2), 3e38, F32)  # finite rows whose dot product overflows
+    inverse = _reference.inverse_norms(vectors)
+    shards = [
+        (Shard("a", 0, 2), {"vectors": vectors[:2], "inv_norms": inverse[:2]}),
+        (Shard("b", 2, 4), {"vectors": vectors[2:], "inv_norms": inverse[2:]}),
+    ]
+    queries = np.ones((3, 2), F32)
+    with pytest.raises(ValueError, match=r"rows 0 to 1 of the store, queries 0 to 2: query 0"):
+        _search.search(get_backend("cpu"), shards, queries, 2, workers=1, exact=exact)
+
+
+def test_at_most_two_tasks_per_worker_are_in_flight():
+    started = []
+
+    def fn(task):
+        started.append(task)
+        return task
+
+    made = []
+
+    def tasks():  # made as the search goes, never all at once
+        for task in range(100):
+            made.append(task)
+            yield task
+
+    for k, result in enumerate(_search._run(fn, tasks(), 3, "t")):
+        assert result == k  # in task order
+        assert len(started) <= k + 1 + 2 * 3
+        assert len(made) <= k + 1 + 2 * 3
+    assert len(started) == 100
+
+
+def test_order_keys_follow_the_floats_and_keep_subnormals_apart():
+    tiny = np.finfo(F32).smallest_subnormal
+    values = F32([-np.inf, -3e38, -1.0, -tiny, -0.0, 0.0, tiny, 2 * tiny, 1e-38, 1.0, np.inf])
+    keys = _search.order_key(values)
+    assert keys.dtype == np.int32
+    assert (np.diff(keys.astype(np.int64)) >= 0).all()
+    assert keys[4] == keys[5]  # -0.0 equals 0.0
+    assert len(set(keys.tolist())) == len(values) - 1  # every other pair differs
+    rng = np.random.default_rng(3)
+    with np.errstate(over="ignore", under="ignore"):
+        scale = 10.0 ** rng.integers(-44, 38, 10_000)
+        many = (rng.standard_normal(10_000) * scale).astype(F32)  # subnormals to infinities
+    np.testing.assert_array_equal(
+        np.argsort(_search.order_key(many), kind="stable"), np.argsort(many, kind="stable")
+    )
+
+
+def test_a_subnormal_score_beats_zero():
+    tiny = np.finfo(F32).smallest_subnormal
+    scores = np.array([[0.0], [tiny]], F32)  # row 1 is better, though only by a subnormal
+    ids, _ = _search_blocks(scores, 1, [0], size=2)
+    assert ids.tolist() == [[1]]
+
+
+def test_keys_go_back_to_their_floats():
+    values = F32([-np.inf, -1.0, -np.finfo(F32).smallest_subnormal, 0.0, 1e-40, 2.5, np.inf])
+    np.testing.assert_array_equal(
+        _search.from_key(_search.order_key(values)).view(np.uint32), values.view(np.uint32)
+    )
+    assert _search.from_key(_search.order_key(F32([-0.0]))).view(np.uint32)[0] == 0
