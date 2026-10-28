@@ -262,7 +262,7 @@ def test_every_container_gives_the_golden_fingerprint(tmp_path, test_data_dir, d
 
 @pytest.mark.parametrize("chunk", [1, 2, 7, 64])
 def test_utf8_check_in_chunks(chunk):
-    from fse._wordvectors import _check_utf8, _encode_words
+    from fse._wordvectors_format import _check_utf8, _encode_words
 
     words = ["é" * 5, "", "a", "日本" * 3, "", ""] * 50
     data, offsets = _encode_words(words)

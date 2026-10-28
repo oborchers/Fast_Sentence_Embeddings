@@ -240,7 +240,7 @@ untested-modules = ["src/fse/_version.py"]
 # removed. Never add an entry or raise a number; split or simplify the code instead.
 [tool.fse.guardrails.ratchet.lines]
 "src/fse/_container.py" = 854
-"src/fse/_wordvectors.py" = 712
+"src/fse/_wordvectors.py" = 585
 
 [tool.fse.guardrails.ratchet.functions]
 "benchmarks/baseline/make_v1_fixture.py::main" = { C901 = 11, cognitive = 39 }
@@ -288,6 +288,7 @@ layers = [
     "gensim",
     "_text",
     "_wordvectors",
+    "_wordvectors_format",
     # Independent of each other: the references never share code with what they check.
     "_container | _codes | _gram | _reference | _reference_text | _validation",
     "_contract | _unicode",

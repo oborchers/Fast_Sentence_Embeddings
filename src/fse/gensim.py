@@ -17,7 +17,8 @@ import numpy as np
 
 from fse import _codes
 from fse._validation import validate_arguments
-from fse._wordvectors import FastTextParams, WordVectors, _encode_words
+from fse._wordvectors import FastTextParams, WordVectors
+from fse._wordvectors_format import _encode_words
 
 
 def _gensim():
