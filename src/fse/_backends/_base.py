@@ -231,19 +231,22 @@ def check_store_input(rows: object, codes: object, scales: object, first_row: ob
         raise ValueError(
             f"codes must be a writable C-contiguous float16 or int8 array of shape {rows.shape}"
         )
-    int8 = codes.dtype == np.int8
-    if int8 != (scales is not None):
-        raise ValueError("scales are given exactly for int8 codes")
-    if int8:
-        _float32_vector(scales, "scales", len(rows))
-        assert isinstance(scales, ndarray)
-        if not scales.flags.writeable:
-            raise ValueError("scales must be writable")
+    _check_store_scales(scales, codes.dtype == np.int8, len(rows))
     arrays = [a for a in (rows, codes, scales) if a is not None]
     if any(np.may_share_memory(a, b) for i, a in enumerate(arrays) for b in arrays[i + 1 :]):
         raise ValueError("rows, codes and scales must not share memory")
     if isinstance(first_row, bool) or not isinstance(first_row, int | np.integer) or first_row < 0:
         raise ValueError(f"first_row must be an int of at least 0, not {first_row!r}")
+
+
+def _check_store_scales(scales: object, int8: bool, length: int):
+    if int8 != (scales is not None):
+        raise ValueError("scales are given exactly for int8 codes")
+    if int8:
+        _float32_vector(scales, "scales", length)
+        assert isinstance(scales, ndarray)
+        if not scales.flags.writeable:
+            raise ValueError("scales must be writable")
 
 
 def check_prepared(prepared: object, backend: str) -> Prepared:
