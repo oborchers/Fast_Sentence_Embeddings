@@ -45,7 +45,7 @@ from ._common import (
     tensor_code,
 )
 
-_MANIFEST = "manifest.json"
+MANIFEST = "manifest.json"
 
 
 # Limits that keep a damaged or crafted artifact from making the reader allocate much
@@ -57,7 +57,7 @@ MAX_HEADER_BYTES = 65_536
 
 
 def _read_manifest(path: Path) -> dict[str, Any]:
-    file = path / _MANIFEST
+    file = path / MANIFEST
     raw = _manifest_bytes(path, file)
     manifest = _strict_json(raw, file)
     if not isinstance(manifest, dict) or set(manifest) != {
@@ -85,7 +85,7 @@ def _manifest_bytes(path: Path, file: Path) -> bytes:
     if not path.is_dir():
         raise FileNotFoundError(f"{path} is not a directory with an artifact")
     if not os.path.lexists(file):
-        raise CorruptArtifactError(f"{path} has no {_MANIFEST}")
+        raise CorruptArtifactError(f"{path} has no {MANIFEST}")
     with _open_regular(file) as handle:
         size = os.fstat(handle.fileno()).st_size
         if size > MAX_MANIFEST_BYTES:
@@ -181,6 +181,42 @@ def _read_header(handle, file: Path, code: str, shape: tuple[int, ...]) -> int:
     return offset
 
 
+def write_manifest(
+    path: Path,
+    entries: Mapping[str, tuple[str, tuple[int, ...], str]],
+    metadata: Mapping[str, str],
+    tmp: Path,
+    sync=os.fsync,
+):
+    """Commit the artifact in directory ``path`` whose tensor files are written and
+    synced: ``entries`` holds (dtype code, shape, sha256) per tensor. The manifest (with
+    the checksums and the fingerprint) is written to ``tmp`` in ``path``, synced by
+    ``sync`` and renamed into place last; without it, readers see no artifact."""
+    full = dict(metadata)
+    for name, (_, _, digest) in entries.items():
+        full[CHECKSUM_PREFIX + name] = digest
+    full[FINGERPRINT_KEY] = fingerprint(dict(entries), full)
+    manifest = {
+        "container": NpyContainer.name,
+        "container_version": NpyContainer.version,
+        "tensors": {
+            name: {"file": f"{name}.npy", "dtype": code, "shape": list(shape)}
+            for name, (code, shape, _) in entries.items()
+        },
+        "metadata": full,
+    }
+    text = json.dumps(manifest, sort_keys=True, indent=1, ensure_ascii=False) + "\n"
+    if len(text.encode("utf-8")) > MAX_MANIFEST_BYTES:
+        raise ValueError(f"the manifest would exceed {MAX_MANIFEST_BYTES} bytes")
+    with tmp.open("w", encoding="utf-8") as f:
+        f.write(text)
+        f.flush()
+        sync(f.fileno())
+    _sync_directory(path)
+    os.replace(tmp, path / MANIFEST)
+    _sync_directory(path)
+
+
 class NpyContainer:
     """One ``<name>.npy`` file per tensor and a ``manifest.json``, in a directory."""
 
@@ -212,7 +248,7 @@ class NpyContainer:
         # Creating the directory reserves the path atomically; the manifest, renamed into
         # place last, commits the artifact: without it, readers see no artifact.
         path.mkdir()
-        tmp = path / f".{_MANIFEST}.writing-{secrets.token_hex(4)}"
+        tmp = path / f".{MANIFEST}.writing-{secrets.token_hex(4)}"
         try:
             entries = {}
             for name, array in tensors.items():
@@ -222,29 +258,7 @@ class NpyContainer:
                         f"tensor {name} changed since it was checked; nothing was written"
                     )
                 entries[name] = (codes[name], tuple(int(n) for n in array.shape), digest)
-            full = dict(metadata)
-            for name, (_, _, digest) in entries.items():
-                full[CHECKSUM_PREFIX + name] = digest
-            full[FINGERPRINT_KEY] = fingerprint(entries, full)
-            manifest = {
-                "container": self.name,
-                "container_version": self.version,
-                "tensors": {
-                    name: {"file": f"{name}.npy", "dtype": code, "shape": list(shape)}
-                    for name, (code, shape, _) in entries.items()
-                },
-                "metadata": full,
-            }
-            text = json.dumps(manifest, sort_keys=True, indent=1, ensure_ascii=False) + "\n"
-            if len(text.encode("utf-8")) > MAX_MANIFEST_BYTES:
-                raise ValueError(f"the manifest would exceed {MAX_MANIFEST_BYTES} bytes")
-            with tmp.open("w", encoding="utf-8") as f:
-                f.write(text)
-                f.flush()
-                os.fsync(f.fileno())
-            _sync_directory(path)
-            os.replace(tmp, path / _MANIFEST)
-            _sync_directory(path)
+            write_manifest(path, entries, metadata, tmp)
         except BaseException:
             shutil.rmtree(path, ignore_errors=True)
             raise
