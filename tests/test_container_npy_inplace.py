@@ -92,6 +92,18 @@ def test_write_at_writes_everything_and_raises_on_a_full_disk(tmp_path, monkeypa
         os.close(fd)
 
 
+def test_headers_survive_short_writes_and_no_progress_raises(tmp_path, monkeypatch):
+    real = inplace._write_some
+    monkeypatch.setattr(inplace, "_write_some", lambda f, data, at: real(f, data[:3], at))
+    fd, offset = inplace.create(tmp_path / "vectors.npy", np.float32, (2, 3))
+    os.close(fd)
+    assert np.load(tmp_path / "vectors.npy").shape == (2, 3)  # the whole header
+    assert offset % 64 == 0
+    monkeypatch.setattr(inplace, "_write_some", lambda *_args: 0)
+    with pytest.raises(OSError, match="made no progress"):
+        inplace.create(tmp_path / "other.npy", np.float32, (2, 3))
+
+
 def test_publishing_never_replaces_a_directory(tmp_path):
     for name in ("a", "b", "c"):
         (tmp_path / name).mkdir()

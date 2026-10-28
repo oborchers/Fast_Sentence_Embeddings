@@ -156,3 +156,12 @@ def test_a_store_needs_its_directory(tmp_path):
 def test_the_layout_names_its_constants():
     assert _layout.STORE_FILE == "store.json"
     assert _layout.STORE_NAME == "fse_shards"
+
+
+def test_store_json_survives_short_writes(tmp_path, monkeypatch):
+    from fse._container import _npy_inplace
+
+    real = _npy_inplace._write_some
+    monkeypatch.setattr(_npy_inplace, "_write_some", lambda f, data, at: real(f, data[:5], at))
+    assert create_store(tmp_path / "s", INFO)
+    assert read_store(tmp_path / "s") == INFO

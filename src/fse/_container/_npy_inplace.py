@@ -66,7 +66,7 @@ def create(file: Path, dtype: np.dtype, shape: tuple[int, ...]) -> tuple[int, in
     )
     fd = os.open(file, flags, 0o644)
     try:
-        os.write(fd, head)
+        write_at(fd, memoryview(head), 0)
         os.ftruncate(fd, len(head) + nbytes)
     except BaseException:
         os.close(fd)
@@ -89,6 +89,8 @@ def write_at(fd: int, data: memoryview, position: int) -> None:
     view = memoryview(data).cast("B")
     while len(view):
         n = _write_some(fd, view, position)
+        if n <= 0:
+            raise OSError(f"a write at byte {position} made no progress")
         view, position = view[n:], position + n
 
 

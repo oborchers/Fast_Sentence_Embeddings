@@ -40,7 +40,7 @@ from fse._container import (
     is_fingerprint,
 )
 from fse._container._common import _open_regular, _strict_json, _sync_directory
-from fse._container._npy_inplace import publish_directory, sync_file
+from fse._container._npy_inplace import publish_directory, sync_file, write_at
 from fse._contract import UnsupportedArtifactError
 
 STORE_FILE = "store.json"
@@ -142,7 +142,7 @@ def create_store(path: Path, info: StoreInfo) -> bool:
             0o644,
         )
         try:
-            os.write(fd, (text + "\n").encode("utf-8"))
+            write_at(fd, memoryview((text + "\n").encode("utf-8")), 0)
             sync_file(fd)
         finally:
             os.close(fd)
