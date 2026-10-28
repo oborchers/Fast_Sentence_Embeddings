@@ -223,14 +223,27 @@ The rules reproduce the preprocessing of the published 1.x tables on all STS sen
 
 ### Backends
 
-A backend implements four operations behind a device-neutral interface and is chosen by name from a fixed set (`"cpu"`, `"numpy"`, later `"mlx"` and `"cuda"`); there is no plugin registry and no `"auto"`:
+A backend implements one contract (`fse._backends`) and is chosen by name from a fixed set (`"cpu"`, `"numpy"`, later `"mlx"` and `"cuda"`); there is no plugin registry and no `"auto"`:
 
-- `pool(batch, params, out)`: stages 2 to 4 (and 5 if it can quantize) for one batch into the rows of a sink buffer. `params` holds what an encoder needs on that backend (vocabulary table, weights, uploaded rows) and is built once per encoder and backend.
-- `gram_block(rows)`: the float32 product of one block for `fit`; the runtime sums the blocks in float64 in block order.
-- `score(block, weights, bias)`: the scores of stored rows.
-- `capabilities()`: the word dtypes, aggregations, steps and storage dtypes it supports, and whether it supports group mode.
+- `prepare(pool, steps)`: once per encoder and backend, what it needs on that backend (the kernel's parameters, uploaded rows); `pool` holds the word rows, scales, weights and FastText rows, `steps` the postprocessing steps.
+- `rows(batch, prepared, out)`: stages 2 to 4 of one batch into `out`, the aggregation and then the postprocessing steps on the rows of that batch, so every worker applies the steps to the finished rows of its own task. The cpu backend runs them one after the other; a device backend may fuse them. Stage 5 (storage dtype) belongs to the sink (PR 6).
+- `gram_block(rows)`: the float32 product of one block for `fit`; `GramSink` sums the blocks in float64 in block order, as `fse._gram.gram_matrix` does.
+- `score(stored, scales, weights, bias)`: the scores of stored rows.
+- `capabilities()`: the word dtypes, aggregations, steps, FastText, the largest dimension, and whether several threads may call `rows` at once (`concurrent`; otherwise the runtime runs one task at a time while encoding stays parallel).
 
-Before reading any input, the runtime checks that the backend can run the encoder and raises otherwise; it never falls back silently. The first error of any worker stops the others and is raised. A conformance suite runs over every available backend and compares each with the reference bit for bit for every dtype, aggregation and step, including empty, long and unknown-word sentences and subnormal values; a new backend is done when it passes.
+Arguments and outputs are host numpy arrays, checked the same way by every backend (shape, dtype, C order, writability, no overlap with the inputs). Before reading any input, the runtime checks that the backend can run the encoder and raises otherwise, naming the backend and what it cannot run; it never falls back silently. The conformance suites run every backend through its contract and compare it with the reference bit for bit for every dtype, step list, FastText, source and worker count, including empty, long and unknown-word sentences and subnormal values; a new backend is done when it passes. accumulate and dot16 are kernel primitives, not contract operations, and are tested on the kernels directly.
+
+### Runtime
+
+`fse._runtime` runs train and infer on one executor (`run`):
+
+- **Tasks.** A source is scanned into chunks, one task each: about `chunk_bytes` of text (64 KiB to 1 MiB by default, scan ranges never smaller than a chunk) and at most 16 MiB of finished rows (`TASK_ROW_BYTES`; a task has a fixed cost of about 0.2 ms for its checks, so smaller tasks cost throughput). A stream is read in collections of up to 65,536 sentences, each scanned into tasks with rows counted from the start of the stream.
+- **Inline.** A source of at most 64 KiB, and `workers=1`, run in the calling thread without any thread; with the default workers such inputs are within 8 % of `workers=1` (`benchmarks/bench_runtime.py latency`).
+- **Threads.** Otherwise a pool of `workers` threads, created per call, with one workspace per thread; the native routines release the GIL and set the floating-point environment of their thread themselves, so a worker that inherited flush-to-zero gives the same bits. The tasks are taken, and each task's output rows reserved (`Sink.target`), in the calling thread; results are committed in task order in the calling thread, so a sink needs no locks.
+- **Window.** At most `2 * workers` tasks (at least `workers`, within 512 MiB of rows) are in flight or waiting to be committed: a slow sink slows the source, and memory stays bounded by the window and one collection of a stream.
+- **Errors.** For a given sequence of tasks, the error raised is the one of the first failing task in order, after every task before it was committed, as with one worker; tasks after it are skipped where they have not started. A bad sentence or an error of a stream's iterator is raised after the rows before it. An error of the sink or an interrupt cancels what has not started, waits for running tasks and is raised. No thread outlives a call.
+
+A `Pipeline` holds an encoder on one backend (prepared once, before any input is read) and is immutable, so several threads may call `infer` at once; a server that encodes many small requests in parallel sets `workers=1` per request. PR 5's Encoder builds its `EncodeSpec` and keeps one `Pipeline` per backend; the public entry points come with it.
 
 ### Artifacts
 
@@ -322,7 +335,7 @@ The native extension `_native` is invisible to import-linter. `tools/check_guard
 
 ### Defaults
 
-Defaults are part of the API and chosen for speed: `workers` is the number of usable CPUs (`fse._cpus.usable_cpus`: an explicit `PYTHON_CPU_COUNT` or `-X cpu_count`, else the CPUs of the process affinity limited by the CPU quota of its Linux cgroup and every visible ancestor, rounded up; small inputs run inline in the calling thread), and new encoders, also the pretrained ones on the hub, end with `normalize`, so the cosine of two rows is their dot product. A server that encodes many small requests in parallel sets `workers=1`.
+Defaults are part of the API and chosen for speed: `workers` is the number of usable CPUs (`fse._cpus.usable_cpus`: an explicit `PYTHON_CPU_COUNT` or `-X cpu_count`, else the CPUs of the process affinity limited by the CPU quota of its Linux cgroup and every visible ancestor, rounded up (the quota is read once per process); `PYTHON_CPU_COUNT` thus also sets the default workers; small inputs run inline in the calling thread), and new encoders, also the pretrained ones on the hub, end with `normalize`, so the cosine of two rows is their dot product. A server that encodes many small requests in parallel sets `workers=1`.
 
 ### Baseline
 
