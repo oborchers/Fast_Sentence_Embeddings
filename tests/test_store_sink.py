@@ -184,3 +184,40 @@ def test_close_raises_a_write_error_nothing_raised_before(tmp_path, monkeypatch)
     sink.close()  # closed: no second error
     assert sink.durable_rows == 0
     assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]
+
+
+def test_close_raises_a_publish_error_another_thread_met_first(tmp_path, monkeypatch):
+    import threading
+    import time
+
+    from fse._store import _shard
+
+    failed, resume = threading.Event(), threading.Event()
+    real_commit = _shard.ShardWriter.commit
+
+    def publish(*_args):
+        failed.set()
+        raise OSError(5, "Input/output error")
+
+    def commit(self, begin, codes):
+        if self.first_row == 8:
+            resume.wait(10)  # the hash thread hands shard 2 on after the publisher failed
+        real_commit(self, begin, codes)
+
+    monkeypatch.setattr(_shard, "publish_directory", publish)
+    monkeypatch.setattr(_shard.ShardWriter, "commit", commit)
+    sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=8)
+    for first in (0, 8):
+        target = sink.target(first, 8)
+        target[0][...] = 0
+        target[1][...] = 0
+        sink.commit(first, target)
+    assert failed.wait(10)
+    deadline = time.monotonic() + 10
+    while not sink._publisher.failed and time.monotonic() < deadline:
+        time.sleep(0.001)  # the error is kept just after publish raised
+    resume.set()  # now the hash thread meets the publisher's error handing shard 2 on
+    sink._hash.settle()
+    assert sink._hash.failed
+    with pytest.raises(OSError, match="Input/output error"):
+        sink.close()

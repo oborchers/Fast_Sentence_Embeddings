@@ -50,10 +50,14 @@ class WriterThread:
         self._thread = threading.Thread(target=self._run, name=name, daemon=True)
         self._thread.start()
 
-    def submit(self, work: Callable[..., Any], *args: Any, nbytes: int = 0) -> None:
+    def submit(
+        self, work: Callable[..., Any], *args: Any, nbytes: int = 0, report: bool = True
+    ) -> None:
         """Hand ``work(*args)`` to the writer thread, waiting while the work waiting for it
-        holds more than MAX_PENDING_BYTES (``nbytes`` is the size of this piece)."""
-        self.check()
+        holds more than MAX_PENDING_BYTES (``nbytes`` is the size of this piece). Another
+        writer thread that hands work on passes ``report=False``: an error it meets is
+        not reported to the caller yet."""
+        self.check(report)
         if not self._thread.is_alive():
             raise RuntimeError("the writer thread of the sink is stopped")
         with self._budget:
@@ -67,13 +71,14 @@ class WriterThread:
         self._queue.join()
         self.check()
 
-    def check(self) -> None:
-        """Raise the error of the thread: itself the first time, then a RuntimeError that
-        names it, so no work is ever dropped without an error."""
+    def check(self, report: bool = True) -> None:
+        """Raise the error of the thread: itself until it is reported to the caller (a
+        call with ``report``), then a RuntimeError that names it, so no work is ever
+        dropped without an error."""
         if self._error is None:
             return
         if not self._reported:
-            self._reported = True
+            self._reported = report
             raise self._error
         raise RuntimeError(
             f"the writer of the sink failed earlier: {self._error!r}"
