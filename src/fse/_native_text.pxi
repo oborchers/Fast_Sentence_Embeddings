@@ -118,6 +118,9 @@ cdef class Workspace:
 
     cdef _Buffer cand, starts, ends, word, tokens, offsets, ngram_offsets, ngrams
     cdef bint busy
+    # The tokens the tokenizer gave in the last encode, unknown words included (the
+    # sentence length of uSIF, as 1.x counted it).
+    cdef readonly int64_t tokens_seen
 
     def __dealloc__(self):
         free(self.cand.data)
@@ -199,6 +202,7 @@ cdef class TextLookup:
         if err >= 0:
             bad[0] = err
             return ENCODE_BAD_UTF8
+        ws.tokens_seen += out.n_tokens
         if _ensure(&ws.tokens, out.n_tokens * <Py_ssize_t>sizeof(uINT_t)):
             return ENCODE_NO_MEMORY
         ids = <uINT_t *>(ws.tokens.data + ws.tokens.size)
@@ -271,6 +275,7 @@ cdef class TextLookup:
         cdef int status = ENCODE_OK
         ws.busy = True
         try:
+            ws.tokens_seen = 0
             ws.tokens.size = 0
             ws.offsets.size = 0
             ws.ngram_offsets.size = 0

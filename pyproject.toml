@@ -304,7 +304,7 @@ name = "Runtime: the pipeline on tasks, sinks and the executor"
 type = "layers"
 containers = ["fse._runtime"]
 exhaustive = true
-layers = ["_pipeline", "_tasks | _sinks | _executor | _spec"]
+layers = ["_count", "_pipeline", "_tasks | _sinks | _executor | _spec"]
 
 [[tool.importlinter.contracts]]
 name = "Optional and 1.x packages stay out of fse; gensim only in fse.gensim"

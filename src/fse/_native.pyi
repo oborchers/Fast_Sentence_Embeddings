@@ -95,6 +95,7 @@ MAX_SENTENCE_BYTES: int
 def tokenize(text: str | bytes, tokenizer: str = "fse_words@1") -> list[str]: ...
 
 class Workspace:
+    tokens_seen: int
     def __init__(self) -> None: ...
 
 class TextLookup:

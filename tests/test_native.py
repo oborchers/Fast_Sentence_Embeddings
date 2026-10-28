@@ -365,3 +365,18 @@ def test_store_rows_names_the_first_bad_row_of_the_call():
     rows[4, 1] = 1
     with pytest.raises(ValueError, match=r"^row 11 has values beyond the float16 range"):
         _native.store_rows(rows, np.empty((6, 2), np.float16), None, 10)
+
+
+def test_the_workspace_counts_the_tokens_of_the_last_encode():
+    from fse._text import StringSource, make_lookup
+    from fse._wordvectors import WordVectors
+
+    wv = WordVectors.from_arrays(np.ones((2, 3), np.float32), words=["a", "b"])
+    lookup = make_lookup(wv, "fse_words@1")
+    workspace = _native.Workspace()
+    assert workspace.tokens_seen == 0
+    for sentences, seen in ((["a b zz", "", "q a"], 5), (["a"], 1)):
+        source = StringSource(sentences)
+        batch = source.encode(source.scan().chunks[0], lookup, workspace)
+        assert workspace.tokens_seen == seen  # unknown words included, reset per encode
+        assert len(batch.tokens) <= seen
