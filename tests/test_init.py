@@ -110,8 +110,10 @@ def test_public_api_is_pinned():
         "Encoder",
         "MemorySink",
         "QuantizedRows",
+        "SearchResult",
         "ShardSink",
         "Sink",
+        "VectorStore",
         "WordVectors",
     ]
     assert fse.__all__ == [*names, "__version__"]
