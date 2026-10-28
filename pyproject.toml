@@ -257,8 +257,6 @@ untested-modules = ["src/fse/_version.py"]
 "src/fse/_wordvectors.py::WordVectors.from_arrays" = { C901 = 14, PLR0912 = 13, cognitive = 25 }
 "src/fse/_wordvectors.py::WordVectors.quantize" = { C901 = 11, cognitive = 26 }
 "src/fse/gensim.py::from_gensim" = { C901 = 13, PLR0912 = 13, cognitive = 19 }
-"tests/test_conformance.py::_numpy_pool" = { cognitive = 16 }
-"tests/test_conformance.py::test_v1_fixture_batches" = { cognitive = 20 }
 
 # --- Import contracts (import-linter; the Cython extension is invisible to it and is
 # checked by tools/check_guardrails.py) ---

@@ -252,33 +252,42 @@ def test_v1_fixture_batches(backend, test_data_dir):
         arrays = dict(data)
     for name in ("Average", "SIF", "uSIF", "AverageFT"):
         kind = "ft" if name == "AverageFT" else "kv"
-        keys = ("offsets", "tokens", "ngram_offsets", "ngrams")
-        batch = Batch(
-            0, **{k: arrays[f"batch.{kind}.{k}"] for k in keys if f"batch.{kind}.{k}" in arrays}
-        )
+        batch = _v1_batch(arrays, kind)
         for dtype in ("float32", "float16", "int8"):
             prefix = f"{name}.{dtype}"
-            if dtype == "float32":
-                rows = arrays["ft.vectors_vocab" if kind == "ft" else "kv.vectors"]
-                ngram_rows = arrays["ft.vectors_ngrams"] if kind == "ft" else None
-            else:
-                rows = arrays[f"{prefix}.rows"]
-                ngram_rows = arrays.get(f"{prefix}.ngram_rows")
-            weights = arrays[f"{prefix}.weights"]
-            args = (
-                rows,
-                weights,
-                arrays.get(f"{prefix}.scales"),
-                ngram_rows,
-                arrays.get(f"{prefix}.ngram_scales"),
-                float(weights.max()) if kind == "ft" else None,
-            )
+            args = _v1_args(arrays, prefix, kind, dtype)
             want = _reference.pool_weighted_mean(batch, *args)
             if isinstance(backend, Native):
                 got = _native.pool_weighted_mean(batch, *args, isa=backend.isa)
             else:
                 got = want
             assert_bits_equal(got, want, prefix)
+
+
+def _v1_batch(arrays, kind):
+    keys = ("offsets", "tokens", "ngram_offsets", "ngrams")
+    return Batch(
+        0, **{k: arrays[f"batch.{kind}.{k}"] for k in keys if f"batch.{kind}.{k}" in arrays}
+    )
+
+
+def _v1_args(arrays, prefix, kind, dtype):
+    """The arguments of the weighted mean for one model and dtype of the fixture."""
+    if dtype == "float32":
+        rows = arrays["ft.vectors_vocab" if kind == "ft" else "kv.vectors"]
+        ngram_rows = arrays["ft.vectors_ngrams"] if kind == "ft" else None
+    else:
+        rows = arrays[f"{prefix}.rows"]
+        ngram_rows = arrays.get(f"{prefix}.ngram_rows")
+    weights = arrays[f"{prefix}.weights"]
+    return (
+        rows,
+        weights,
+        arrays.get(f"{prefix}.scales"),
+        ngram_rows,
+        arrays.get(f"{prefix}.ngram_scales"),
+        float(weights.max()) if kind == "ft" else None,
+    )
 
 
 # --- Meta-tests: the suite catches typical mistakes ----------------------------------------
@@ -290,18 +299,25 @@ def _numpy_pool(case, *, fused=True, divide=False, start=0.0):
     scales = a["scales"]
     out = np.zeros((len(case.sentences), case.base.shape[1]), dtype=F32)
     for s, sentence in enumerate(case.sentences):
-        acc = np.full(case.base.shape[1], start, dtype=F32)
-        for t in sentence:
-            factor = case.weights[t] if scales is None else F32(case.weights[t] * scales[t])
-            if fused:
-                acc = _reference.fma32(factor, rows[t], acc)
-            else:
-                acc = (factor * rows[t]).astype(F32) + acc
+        acc = _numpy_acc(case, sentence, (rows, scales), fused, start)
         if sentence or start:
             out[s] = (
                 acc / F32(len(sentence) or 1) if divide else F32(1 / F32(len(sentence) or 1)) * acc
             )
     return out
+
+
+def _numpy_acc(case, sentence, table, fused, start):
+    """The sum of one sentence, with a fused or a separate multiply and add."""
+    rows, scales = table
+    acc = np.full(case.base.shape[1], start, dtype=F32)
+    for t in sentence:
+        factor = case.weights[t] if scales is None else F32(case.weights[t] * scales[t])
+        if fused:
+            acc = _reference.fma32(factor, rows[t], acc)
+        else:
+            acc = (factor * rows[t]).astype(F32) + acc
+    return acc
 
 
 @pytest.mark.parametrize(
