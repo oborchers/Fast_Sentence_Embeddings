@@ -71,38 +71,45 @@ def _timed(fn) -> float:
 def fold(args) -> list[dict]:
     wv = vectors(args.vocab, args.dim, args.dtype)
     sentences = corpus(args.sentences, args.vocab)
-    fit_on = sentences[: min(len(sentences), 50_000)]
-    encoders = {}
-    for name in args.cases:
-        recipe = CASES[name]()
-        encoders[name] = recipe.fit(wv) if name == "average" else recipe.fit(wv, fit_on)
-        encoders[name].encode(sentences[:1000])  # warm: table and pipeline
+    encoders = _encoders(args.cases, wv, sentences[:50_000])
     results = []
     for workers in args.workers:
-        times: dict[str, list[float]] = {name: [] for name in encoders}
-        for _ in range(args.rounds):
-            for name, encoder in encoders.items():
-                times[name].append(
-                    _timed(lambda e=encoder, w=workers: e.encode(sentences, workers=w))
-                )
-        base = statistics.median(times["average"]) if "average" in times else None
-        row = {"workers": workers, "dtype": args.dtype, "load": _load()}
-        for name in encoders:
-            median = statistics.median(times[name])
-            row[f"{name}_per_s"] = len(sentences) / median
-            if base:
-                row[f"{name}_vs_average"] = base / median
+        row = _fold_row(encoders, sentences, workers, args.rounds)
+        row["dtype"] = args.dtype
         results.append(row)
-        print(
-            f"workers={workers:3d} "
-            + "  ".join(
-                f"{n} {row[f'{n}_per_s']:11,.0f}/s"
-                + (f" ({row[f'{n}_vs_average']:.2f})" if base else "")
-                for n in encoders
-            ),
-            flush=True,
-        )
+        print(f"workers={workers:3d} " + _fold_line(row, list(encoders)), flush=True)
     return results
+
+
+def _encoders(cases: list[str], wv: WordVectors, fit_on: list[str]) -> dict:
+    encoders = {}
+    for name in cases:
+        recipe = CASES[name]()
+        encoders[name] = recipe.fit(wv) if name == "average" else recipe.fit(wv, fit_on)
+        encoders[name].encode(fit_on[:1000])  # warm: table and pipeline
+    return encoders
+
+
+def _fold_row(encoders: dict, sentences: list[str], workers: int, rounds: int) -> dict:
+    times: dict[str, list[float]] = {name: [] for name in encoders}
+    for _ in range(rounds):
+        for name, encoder in encoders.items():
+            times[name].append(_timed(lambda e=encoder: e.encode(sentences, workers=workers)))
+    medians = {name: statistics.median(t) for name, t in times.items()}
+    row: dict = {"workers": workers, "load": _load()}
+    for name, median in medians.items():
+        row[f"{name}_per_s"] = len(sentences) / median
+        if "average" in medians:
+            row[f"{name}_vs_average"] = medians["average"] / median
+    return row
+
+
+def _fold_line(row: dict, names: list[str]) -> str:
+    parts = []
+    for n in names:
+        ratio = row.get(f"{n}_vs_average")
+        parts.append(f"{n} {row[f'{n}_per_s']:11,.0f}/s" + (f" ({ratio:.2f})" if ratio else ""))
+    return "  ".join(parts)
 
 
 def fit(args) -> list[dict]:
@@ -110,25 +117,8 @@ def fit(args) -> list[dict]:
     sentences = corpus(args.sentences, args.vocab)
     results = []
     for workers in args.workers:
-        row: dict = {"workers": workers, "dtype": args.dtype, "load": _load()}
-        for fold_ in (True, False):
-            recipe = fse.SIF(components=1, fold=fold_)
-            label = "folded" if fold_ else "unfolded"
-            row[f"fit_{label}_s"] = statistics.median(
-                _timed(lambda r=recipe, w=workers: r.fit(wv, sentences, workers=w))
-                for _ in range(args.rounds)
-            )
-            row[f"fit_transform_{label}_s"] = statistics.median(
-                _timed(lambda r=recipe, w=workers: r.fit_transform(wv, sentences, workers=w))
-                for _ in range(args.rounds)
-            )
-        row["encode_s"] = statistics.median(
-            _timed(lambda w=workers: fse.Average().fit(wv).encode(sentences, workers=w))
-            for _ in range(args.rounds)
-        )
-        row["kept_rows_s"] = statistics.median(
-            _kept_rows(wv, sentences, workers) for _ in range(args.rounds)
-        )
+        row = _fit_row(wv, sentences, workers, args.rounds)
+        row["dtype"] = args.dtype
         results.append(row)
         print(
             f"workers={workers:3d} fit folded {row['fit_folded_s']:.2f}s unfolded "
@@ -138,6 +128,24 @@ def fit(args) -> list[dict]:
             flush=True,
         )
     return results
+
+
+def _fit_row(wv: WordVectors, sentences: list[str], workers: int, rounds: int) -> dict:
+    def median(fn) -> float:
+        return statistics.median(_timed(fn) for _ in range(rounds))
+
+    row: dict = {"workers": workers, "load": _load()}
+    for fold_, label in ((True, "folded"), (False, "unfolded")):
+        recipe = fse.SIF(components=1, fold=fold_)
+        row[f"fit_{label}_s"] = median(lambda r=recipe: r.fit(wv, sentences, workers=workers))
+        row[f"fit_transform_{label}_s"] = median(
+            lambda r=recipe: r.fit_transform(wv, sentences, workers=workers)
+        )
+    row["encode_s"] = median(lambda: fse.Average().fit(wv).encode(sentences, workers=workers))
+    row["kept_rows_s"] = statistics.median(
+        _kept_rows(wv, sentences, workers) for _ in range(rounds)
+    )
+    return row
 
 
 def _kept_rows(wv: WordVectors, sentences: list[str], workers: int) -> float:
