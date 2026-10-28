@@ -53,6 +53,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
         deps: ["latest"]
+        # A pull request tests macOS on 3.13 only: its wheel jobs test 3.11 and 3.15 on
+        # Apple silicon and Intel, and macOS runners are scarce. master and tags test all.
+        exclude: ${{ github.event_name == 'pull_request' && fromJSON('[{"os":"macos-latest","python-version":"3.11"},{"os":"macos-latest","python-version":"3.12"},{"os":"macos-latest","python-version":"3.14"},{"os":"macos-latest","python-version":"3.15"}]') || fromJSON('[]') }}
         include:
           # Lowest supported versions, matching the bounds in pyproject.toml.
           - os: ubuntu-latest
