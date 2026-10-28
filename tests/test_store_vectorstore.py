@@ -187,7 +187,8 @@ _UPWARD = {"arm64": 0x00400000, "aarch64": 0x00400000, "x86_64": 0x0800}  # FE_U
 )
 def test_inputs_are_converted_as_the_contract_whatever_the_rounding_of_the_thread(tmp_path):
     upward, nearest = _UPWARD[platform.machine()], 0  # FE_TONEAREST is 0 on all of them
-    libc = ctypes.CDLL(ctypes.util.find_library("c"))
+    # fesetround is in libc on macOS and in libm with glibc.
+    libc = ctypes.CDLL(ctypes.util.find_library("c" if sys.platform == "darwin" else "m"))
     path = _store(tmp_path, "float32", texts(50))[0]
     queries = np.random.default_rng(7).standard_normal((2, ENCODER.output_dim))  # float64
     bias = 1 + 2**-30  # not a float32: rounds to 1 to nearest, up to the next float32
