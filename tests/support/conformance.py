@@ -161,6 +161,7 @@ class Contract:
 BACKENDS = [
     Reference(),
     *(Native(isa) for isa in _native.available_isas()),
+    *(Contract("cpu", isa=isa) for isa in _native.available_isas()),
     Contract("numpy"),
 ]
 

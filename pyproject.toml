@@ -227,8 +227,9 @@ max-lines = 500
 max-cognitive-complexity = 15
 # Generated; their generator tools/make_unicode_tables.py is the source.
 generated = ["src/fse/_unicode.py", "src/fse/_native_unicode.h"]
-# The only modules that import the extension fse._native (import-linter cannot see it).
-native-importers = ["src/fse/_text.py"]
+# The only modules that import the extension fse._native (import-linter cannot see it):
+# _text for stages 1 and 2, the cpu backend for the kernels of stages 2 to 4.
+native-importers = ["src/fse/_text.py", "src/fse/_backends/_cpu.py"]
 # What the extension may import from fse.
 native-imports = ["fse._contract"]
 # Modules without their own tests/test_<name>.py.
@@ -286,7 +287,7 @@ name = "Backends: each shares only _base with the others"
 type = "layers"
 containers = ["fse._backends"]
 exhaustive = true
-layers = ["_numpy", "_base"]
+layers = ["_cpu | _numpy", "_base"]
 
 [[tool.importlinter.contracts]]
 name = "Optional and 1.x packages stay out of fse; gensim only in fse.gensim"

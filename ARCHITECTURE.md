@@ -24,6 +24,7 @@ src/fse/
   _backends/             # the backends behind one contract:
     __init__.py          #   BACKEND_NAMES, get_backend,
     _base.py             #   Capabilities, PoolInput, Prepared, the Backend protocol and checks,
+    _cpu.py              #   the cpu backend on the native kernel,
     _numpy.py            #   the numpy backend on fse._reference (the oracle)
   _validation.py         # validate_arguments: strict pydantic checks of entry points
   _native.pyx            # the extension: directives, imports and its parts, in order
@@ -307,7 +308,7 @@ The modules form layers, and a module imports only from layers below it. The imp
 
 Inside a package, an import contract keeps its parts apart: `_npy` and `_safetensors` share only `_common`, each backend shares only `_base`.
 
-The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` imports it and that it imports only `_contract` from fse. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, mlx, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list to the extension. The runtime, backends, encoder, sinks and store of the coming PRs add their layers above `_text`.
+The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` (stages 1 and 2) and the cpu backend `_backends._cpu` (the kernels) import it and that it imports only `_contract` from fse. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, mlx, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list to the extension. The runtime, backends, encoder, sinks and store of the coming PRs add their layers above `_text`.
 
 ### Defaults
 

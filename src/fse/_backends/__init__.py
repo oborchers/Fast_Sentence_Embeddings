@@ -6,8 +6,8 @@
 
 """The backends of the runtime behind one contract (ARCHITECTURE.md, "Backends").
 
-A fixed set chosen by name, without a registry: ``numpy`` (the reference) and the
-backends of the coming PRs.
+A fixed set chosen by name, without a registry: ``cpu`` (the native kernel), ``numpy``
+(the reference) and the backends of the coming PRs.
 """
 
 from ._base import (
@@ -17,12 +17,14 @@ from ._base import (
     Prepared,
     UnsupportedByBackendError,
 )
+from ._cpu import CpuBackend
 from ._numpy import NumpyBackend
 
 __all__ = [
     "BACKEND_NAMES",
     "Backend",
     "Capabilities",
+    "CpuBackend",
     "NumpyBackend",
     "PoolInput",
     "Prepared",
@@ -30,11 +32,13 @@ __all__ = [
     "get_backend",
 ]
 
-BACKEND_NAMES = ("numpy",)
+BACKEND_NAMES = ("cpu", "numpy")
 
 
 def get_backend(name: str, *, isa: str | None = None) -> Backend:
     """The backend called ``name``; ``isa`` selects the kernel of the cpu backend."""
+    if name == "cpu":
+        return CpuBackend(isa)
     if name == "numpy":
         if isa is not None:
             raise ValueError("isa is an option of the cpu backend only")

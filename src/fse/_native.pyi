@@ -6,6 +6,7 @@ from fse._contract import Batch
 
 MAX_NGRAMS_LIMIT: int
 MAX_CHUNK_ROWS: int
+MAX_DIM: int
 
 def ft_ngram_hashes(
     word: str, min_n: int, max_n: int, bucket: int, max_ngrams: int

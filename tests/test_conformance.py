@@ -23,6 +23,7 @@ from support.conformance import (
     F32,
     TINY,
     Case,
+    Contract,
     Native,
     Reference,
     _rng,
@@ -353,7 +354,13 @@ def test_the_suite_catches_zero_padded_dot16():
 
 # --- The floating-point environment ----------------------------------------------------------
 
-NATIVE = [b for b in BACKENDS if isinstance(b, Native)]
+# The kernels and the cpu backend set the environment themselves; the numpy backend, like
+# the reference, computes in the environment of its thread.
+NATIVE = [
+    b
+    for b in BACKENDS
+    if isinstance(b, Native) or (isinstance(b, Contract) and b.backend.name == "cpu")
+]
 # Flush-to-zero changes subnormal results, rounding up changes inexact ones.
 ENVIRONMENTS = {"flush to zero": {"flush": True}, "round up": {"round_up": True}}
 

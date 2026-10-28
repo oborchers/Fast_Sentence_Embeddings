@@ -10,7 +10,7 @@ def test_backends_by_name():
 
 @pytest.mark.parametrize("name", ["auto", "mlx", "cuda", "", "NUMPY"])
 def test_unknown_backends_raise_with_the_list(name):
-    with pytest.raises(ValueError, match="backend must be one of numpy"):
+    with pytest.raises(ValueError, match="backend must be one of cpu, numpy"):
         get_backend(name)
 
 
