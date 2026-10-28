@@ -71,6 +71,8 @@ dev = [
     "cibuildwheel>=3.0.0",
     # benchmarks/bench_wordvectors.py finds the hub vectors in the local cache.
     "huggingface-hub>=0.23.0",
+    # Sampling profiler with native frames, for gates that miss (AGENTS.md, Commands).
+    "py-spy>=0.4.0",
 ]
 lint = [
     "ruff>=0.17.2",
