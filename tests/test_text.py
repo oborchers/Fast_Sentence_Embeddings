@@ -95,6 +95,22 @@ def test_token_list_source():
             TokenListSource(bad)
 
 
+def test_token_lists_are_joined_natively(monkeypatch):
+    def python_path(_sentences):
+        raise AssertionError("valid lists of str took the Python path")
+
+    monkeypatch.setattr(_text, "_token_lists", python_path)
+    source = TokenListSource([["a", "b\u00e9"], ("c",)])
+    assert source._data == "a b\u00e9c".encode()
+    np.testing.assert_array_equal(source._offsets, [0, 5, 6])
+
+
+def test_a_native_verdict_the_python_path_does_not_share_raises(monkeypatch):
+    monkeypatch.setattr(_native, "join_token_lists", lambda _sentences: False)
+    with pytest.raises(AssertionError, match="disagrees"):
+        TokenListSource([["a"]])
+
+
 def test_make_lookup_validates():
     with pytest.raises(TypeError, match="WordVectors"):
         make_lookup({"a": 0}, "external")

@@ -375,6 +375,25 @@ class StringSource(_Buffered):
         return self._positions()
 
 
+def _token_lists(sentences: Any) -> tuple[bytes, ndarray]:
+    """The joined token lists in Python, for the inputs the native pass does not take and
+    for the errors, which it leaves to this path (types first, then tokens, then the UTF-8
+    of every sentence)."""
+    joined = []
+    for i, tokens in enumerate(sentences):
+        if not isinstance(tokens, list | tuple):
+            raise TypeError(f"sentence {i} is a {type(tokens).__name__}, not a list of str")
+        for token in tokens:
+            if not isinstance(token, str):
+                raise TypeError(f"sentence {i} holds a {type(token).__name__}, not a str")
+            if not token or token.split() != [token]:
+                raise ValueError(
+                    f"sentence {i} holds the token {token!r}: tokens are non-empty and hold no whitespace"
+                )
+        joined.append(" ".join(tokens))
+    return _encode_strings(joined, "sentence")
+
+
 class TokenListSource(_Buffered):
     """Sentences given as lists of tokens, for the external tokenizer only.
 
@@ -384,19 +403,13 @@ class TokenListSource(_Buffered):
 
     def __init__(self, sentences: Any):
         _check_container(sentences, "sentences")
-        joined = []
-        for i, tokens in enumerate(sentences):
-            if not isinstance(tokens, list | tuple):
-                raise TypeError(f"sentence {i} is a {type(tokens).__name__}, not a list of str")
-            for token in tokens:
-                if not isinstance(token, str):
-                    raise TypeError(f"sentence {i} holds a {type(token).__name__}, not a str")
-                if not token or token.split() != [token]:
-                    raise ValueError(
-                        f"sentence {i} holds the token {token!r}: tokens are non-empty and hold no whitespace"
-                    )
-            joined.append(" ".join(tokens))
-        self._data, self._offsets = _encode_strings(joined, "sentence")
+        joined = _native.join_token_lists(sentences)
+        if joined is None:  # types the native pass does not read: subclasses, an array
+            joined = _token_lists(sentences)
+        elif joined is False:  # an invalid token: the Python path raises its error
+            _token_lists(sentences)
+            raise AssertionError("the native token check disagrees with str.split()")
+        self._data, self._offsets = joined
 
     def __len__(self) -> int:
         return self._positions()
