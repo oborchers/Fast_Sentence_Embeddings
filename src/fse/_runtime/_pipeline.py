@@ -17,6 +17,7 @@ change, so several threads may call ``infer`` at once (a server: ``workers=1`` e
 
 from __future__ import annotations
 
+import dataclasses
 import threading
 from contextlib import AbstractContextManager, nullcontext
 from typing import Any
@@ -36,7 +37,15 @@ from fse._text import (
 )
 
 from ._executor import run
-from ._sinks import ArrayRows, GrowingRows, Sink, Stored, sink_dtype
+from ._sinks import (
+    ArrayRows,
+    GrowingRows,
+    Sink,
+    Stored,
+    sink_dtype,
+    split_target,
+    wants_inverse_norms,
+)
 from ._spec import EncodeSpec
 from ._tasks import Task, plan
 
@@ -76,14 +85,17 @@ class Pipeline:
             nullcontext() if concurrent else threading.Lock()
         )
 
-    def _row_bytes(self, dtype: str) -> int:
-        """The bytes one row of a task takes at most: its target until its commit, and
-        while it runs the float32 rows before storage (a float16 or int8 target) and the
-        rows the steps make (the pooled rows, their copy and the output rows)."""
+    def _row_bytes(self, dtype: str, inverse: bool = False) -> int:
+        """The bytes one row of a task takes at most: its target until its commit (with
+        its inverse norm if the sink wants them), and while it runs the float32 rows before
+        storage (a float16 or int8 target) and the rows the steps make (the pooled rows,
+        their copy and the output rows)."""
         out, pooled = self.output_dim, self.prepared.pooled_dim
-        target = np.dtype(_codes.STORAGE_TYPES[dtype]).itemsize * out + (
-            4 if dtype == "int8" else 0
-        )
+        target = (
+            np.dtype(_codes.STORAGE_TYPES[dtype]).itemsize * out
+            + (4 if dtype == "int8" else 0)
+            + (8 if inverse else 0)
+        )  # the vector in the target and the backend's result
         scratch = 0 if dtype == "float32" else 4 * out
         steps = 8 * pooled + 4 * out if self.prepared.steps else 0
         return target + scratch + steps
@@ -96,22 +108,29 @@ class Pipeline:
         sink: Sink | None = None,
         chunk_bytes: int | None = None,
         dtype: str = "float32",
+        first_row: int = 0,
     ) -> Stored | None:
         """The rows of every sentence of ``source``: returned (as ``dtype``: float32 rows,
-        float16 codes, or int8 codes and scales), or committed to ``sink`` in its dtype.
+        float16 codes, or int8 codes and scales), or committed to ``sink`` in its dtype,
+        numbered from ``first_row`` there (the rows of a run before this source).
 
         Every argument is checked before the source is read.
         """
-        workers = usable_cpus() if workers is None else _positive(workers, "workers")
+        workers = check_workers(workers) or usable_cpus()
+        base = _non_negative(first_row, "first_row")
+        inverse = False
         if sink is not None:
             _check_sink(sink, self.output_dim)
             dtype = sink_dtype(sink)
+            inverse = wants_inverse_norms(sink)
         else:
             dtype = _codes.check_dtype(dtype)
+            if base:
+                raise ValueError("first_row numbers the rows of a sink; without one it is 0")
         # The rows of the window stay within WINDOW_BYTES: with many workers a task holds
         # fewer rows, and with rows wider than the budget allows the window is smaller (at
         # least one task of one row, however wide).
-        row_bytes = self._row_bytes(dtype)
+        row_bytes = self._row_bytes(dtype, inverse)
         window = max(1, min(2 * workers, WINDOW_BYTES // row_bytes))
         task_rows = max(1, min(self.task_rows, WINDOW_BYTES // (window * row_bytes)))
         stop = threading.Event()  # set by the executor once a task failed
@@ -135,14 +154,14 @@ class Pipeline:
         local = threading.local()
 
         def reserve(task: Task) -> tuple[Task, Stored]:  # in the calling thread, in order
-            return task, sink.target(task.first_row, task.n_rows)
+            return task, sink.target(base + task.first_row, task.n_rows)
 
         def work(item: tuple[Task, Stored]) -> Stored:
-            self._work(local, *item)
+            self._work(local, item[0], split_target(item[1], dtype, inverse), base)
             return item[1]
 
         def commit(item: tuple[Task, Stored], rows: Stored):
-            sink.commit(item[0].first_row, rows)
+            sink.commit(base + item[0].first_row, rows)
 
         run(
             tasks.tasks,
@@ -156,21 +175,25 @@ class Pipeline:
         )
         return None if own is None else own.result()
 
-    def _work(self, local: threading.local, task: Task, target: Stored):
-        """Stages 1 to 5 of one task in a worker thread: its rows into ``target``."""
+    def _work(self, local: threading.local, task: Task, target: tuple, base: int):
+        """Stages 1 to 5 of one task in a worker thread: its rows into the codes of
+        ``target`` (codes, scales, inverse norms), numbered from ``base`` in errors."""
         workspace = getattr(local, "workspace", None)
         if workspace is None:
             workspace = local.workspace = new_workspace()
         batch = task.batch(self.lookup, workspace)
-        if isinstance(target, ndarray) and target.dtype == np.float32:
-            with self._serial:
-                self.backend.rows(batch, self.prepared, target)
-            return
-        codes, scales = target if isinstance(target, tuple) else (target, None)
-        rows = _scratch(local, task.n_rows, self.output_dim)
+        if base:  # errors name the rows of the run
+            batch = dataclasses.replace(batch, first_row=base + batch.first_row)
+        codes, scales, norms = target
         with self._serial:
-            self.backend.rows(batch, self.prepared, rows)
-            self.backend.store(rows, codes, scales, task.first_row)
+            if codes.dtype == np.float32:
+                self.backend.rows(batch, self.prepared, codes)
+            else:
+                rows = _scratch(local, task.n_rows, self.output_dim)
+                self.backend.rows(batch, self.prepared, rows)
+                self.backend.store(rows, codes, scales, base + task.first_row)
+            if norms is not None:
+                norms[...] = self.backend.inverse_norms(codes, base + task.first_row)
 
 
 def _scratch(local: threading.local, n_rows: int, dim: int) -> ndarray:
@@ -179,6 +202,17 @@ def _scratch(local: threading.local, n_rows: int, dim: int) -> ndarray:
     if scratch is None or len(scratch) < n_rows:
         scratch = local.scratch = np.empty((n_rows, dim), dtype=np.float32)
     return scratch[:n_rows]
+
+
+def check_workers(workers: object) -> int | None:
+    """``workers`` of a run: None (the usable CPUs) or a positive int."""
+    return None if workers is None else _positive(workers, "workers")
+
+
+def _non_negative(value: object, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int | np.integer) or value < 0:
+        raise ValueError(f"{name} must be a non-negative int, not {value!r}")
+    return int(value)
 
 
 def _positive(value: object, name: str) -> int:
@@ -193,3 +227,4 @@ def _check_sink(sink: object, dim: int):
     if getattr(sink, "dim", None) != dim:
         raise ValueError(f"the sink must take rows of {dim} values")
     sink_dtype(sink)
+    wants_inverse_norms(sink)

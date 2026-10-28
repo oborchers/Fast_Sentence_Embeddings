@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import copy
 import threading
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -34,12 +35,14 @@ from fse._container import (
     fingerprint,
     tensor_code,
 )
-from fse._runtime import EncodeSpec, Pipeline
+from fse._runtime import EncodeSpec, Pipeline, check_workers
 from fse._text import Vocabulary, make_vocabulary
 from fse._validation import PathLike, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
 from fse._wordvectors_format import FORMAT_VERSION as WORD_VECTORS_VERSION
 
+from . import _batches
+from ._batches import EncodedBatch, check_sink, flush, run_into
 from ._format import (
     WORD_VECTOR_KEYS,
     WORD_VECTOR_TENSORS,
@@ -129,20 +132,67 @@ class Encoder:
         self,
         texts: Any,
         *,
-        dtype: str = "float32",
+        dtype: str | None = None,
         workers: int | None = None,
         backend: str = "cpu",
-    ) -> ndarray | QuantizedRows:
-        """The vectors of ``texts``, one row per sentence, as ``dtype``: float32 or
-        float16 rows, or int8 ``QuantizedRows``.
+        sink: Any = None,
+    ) -> ndarray | QuantizedRows | None:
+        """The vectors of ``texts``, one row per sentence, as ``dtype`` (float32 by
+        default): float32 or float16 rows, or int8 ``QuantizedRows``. With a ``sink``
+        (``fse.Sink``, such as ``fse.ShardSink``), the rows go there in its dtype and
+        nothing is returned; its ``flush`` runs after the last row.
 
         ``texts`` is a list of str, a path of a text file (one sentence per line), token
         lists for the external tokenizer, or any iterable of str, read once.
         """
-        dtype = _codes.check_dtype(dtype)
+        if sink is not None:
+            check_sink(sink, dtype, self.fingerprint, self.output_dim)
+            pipeline = self._pipeline(backend)
+            with opened(texts, self._content.tokenizer) as source:
+                run_into(pipeline, source, sink, workers, 0)
+            flush(sink)
+            return None
+        dtype = _codes.check_dtype("float32" if dtype is None else dtype)
         pipeline = self._pipeline(backend)
         with opened(texts, self._content.tokenizer) as source:
-            rows = pipeline.infer(source, workers=workers, dtype=dtype)
+            return self._rows(pipeline.infer(source, workers=workers, dtype=dtype))
+
+    def encode_batches(
+        self,
+        batches: Any,
+        *,
+        dtype: str | None = None,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: Any = None,
+    ) -> Iterator[EncodedBatch]:
+        """Encode a stream batch by batch: ``batches`` yields finite lists of sentences
+        (or token lists), as a queue consumer polls them, and every batch gives one
+        ``EncodedBatch`` once its rows are finished. With a ``sink`` the rows go there,
+        and ``durable_rows`` says how many rows of the run are durable, so a consumer
+        confirms its input only up to there; without one the batch holds its rows.
+
+        The arguments and the encoder are checked when this is called, before any batch
+        is read; closing the iterator early reads no further batch.
+        """
+        if sink is not None:
+            dtype = check_sink(sink, dtype, self.fingerprint, self.output_dim)
+        else:
+            dtype = _codes.check_dtype("float32" if dtype is None else dtype)
+        check_workers(workers)
+        pipeline = self._pipeline(backend)
+        return _batches.batches(
+            pipeline,
+            iter(batches),
+            self._content.tokenizer,
+            dtype=dtype,
+            workers=workers,
+            sink=sink,
+            wrap=self._rows,
+        )
+
+    @staticmethod
+    def _rows(rows: Any) -> ndarray | QuantizedRows:
         if isinstance(rows, tuple):
             return QuantizedRows(*rows)
         assert rows is not None

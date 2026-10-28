@@ -12,6 +12,7 @@ JSON, the checks of a write and the safe opening of regular files.
 
 from __future__ import annotations
 
+import importlib
 import json
 import math
 import os
@@ -19,6 +20,7 @@ import re
 import stat
 from collections.abc import Mapping
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Protocol
 
 import numpy as np
@@ -27,6 +29,9 @@ from numpy import ndarray
 from fse._contract import UnsupportedArtifactError
 
 from . import _hash
+
+# fcntl for F_FULLFSYNC; Windows has none.
+_fcntl: ModuleType | None = None if os.name == "nt" else importlib.import_module("fcntl")
 
 #: The dtype codes of the format and the numpy type descriptions they stand for.
 DTYPE_CODES = {"F32": "<f4", "F16": "<f2", "I8": "|i1", "U8": "|u1", "U32": "<u4", "I64": "<i8"}
@@ -312,11 +317,16 @@ def _open_regular(file: Path):
 
 
 def _sync_directory(path: Path):
-    """Make the entries of a directory durable (POSIX; Windows has no directory fsync)."""
+    """Make the entries of a directory durable: F_FULLFSYNC on macOS, where fsync only
+    reaches the drive's cache, fsync elsewhere on POSIX. Windows has no directory sync;
+    its renames that publish write through (MOVEFILE_WRITE_THROUGH)."""
     if os.name == "nt":
         return
     descriptor = os.open(path, os.O_RDONLY)
     try:
-        os.fsync(descriptor)
+        if _fcntl is not None and hasattr(_fcntl, "F_FULLFSYNC"):
+            _fcntl.fcntl(descriptor, _fcntl.F_FULLFSYNC)
+        else:
+            os.fsync(descriptor)
     finally:
         os.close(descriptor)

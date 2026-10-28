@@ -176,10 +176,11 @@ def pool_weighted_mean(
     return out
 
 
-def inverse_norms(stored: ndarray) -> ndarray:
+def inverse_norms(stored: ndarray, first_row: int = 0) -> ndarray:
     """``float32(1 / sqrt(s))`` per stored row, s the float64 sum of squares; 0 for zero rows.
 
-    Raises a ValueError if an inverse norm is beyond float32 (a nonzero row too small).
+    Raises a ValueError naming the row (from ``first_row``) if an inverse norm is beyond
+    float32 (a nonzero row too small).
     """
     values = np.asarray(stored, dtype=np.float64)
     squares = np.zeros(len(values))
@@ -192,7 +193,7 @@ def inverse_norms(stored: ndarray) -> ndarray:
         out[nonzero] = inverse.astype(_F32)
     bad = np.flatnonzero(~np.isfinite(out))
     if len(bad):
-        raise ValueError(f"the inverse norm of row {int(bad[0])} is beyond float32")
+        raise ValueError(f"the inverse norm of row {first_row + int(bad[0])} is beyond float32")
     return out
 
 
@@ -228,6 +229,56 @@ def cosine(stored: ndarray, inverse: ndarray, query: ndarray) -> ndarray:
     if len(bad):
         raise ValueError(f"the cosine of row {int(bad[0])} is not finite")
     return out
+
+
+def cosines(stored: ndarray, inverse: ndarray, queries: ndarray) -> ndarray:
+    """``cosine`` of every stored row with every query, as a (rows, queries) array: column
+    j is ``cosine(stored, inverse, queries[j])`` bit for bit.
+
+    Every query is checked before any is used: the first zero query raises, then the
+    first one ``normalize@1`` cannot normalize; then the first query with a non-finite
+    cosine raises, naming its first such row.
+    """
+    queries = _matrix(queries, "queries")
+    for j, query in enumerate(queries):
+        if not (query != 0).any():
+            raise ValueError(f"query {j} is the zero vector and has no direction")
+    for j, query in enumerate(queries):
+        try:
+            postprocess(query[None, :], [Normalize()])
+        except ValueError as error:
+            raise ValueError(f"query {j}: {error}") from None
+    out = np.empty((len(stored), len(queries)), dtype=_F32)
+    for j, query in enumerate(queries):
+        try:
+            out[:, j] = cosine(stored, inverse, query)
+        except ValueError as error:
+            raise ValueError(f"query {j}: {error}") from None
+    return out
+
+
+def scores(stored: ndarray, scales: ndarray | None, weights: ndarray, bias=0.0) -> ndarray:
+    """``score`` of every stored row with every weight vector, as a (rows, vectors) array:
+    column j is ``score(stored, scales, weights[j], bias[j])`` bit for bit, ``bias`` one
+    number for all or one per vector. The first vector with an overflow raises."""
+    weights = _matrix(weights, "weights")
+    biases = np.broadcast_to(np.asarray(bias, dtype=_F32), (len(weights),))
+    out = np.empty((len(stored), len(weights)), dtype=_F32)
+    for j, w in enumerate(weights):
+        try:
+            out[:, j] = score(stored, scales, w, biases[j])
+        except ValueError as error:
+            raise ValueError(f"weights {j}: {error}") from None
+    return out
+
+
+def _matrix(value: ndarray, name: str) -> ndarray:
+    value = np.asarray(value, dtype=_F32)
+    if value.ndim != 2:
+        raise ValueError(
+            f"{name} must be a matrix with one vector per row, not shape {value.shape}"
+        )
+    return value
 
 
 def top_k(scores: ndarray, k: int) -> ndarray:

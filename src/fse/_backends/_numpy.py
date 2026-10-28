@@ -29,7 +29,10 @@ from ._base import (
     check_pool_input,
     check_prepared,
     check_score_input,
+    check_scores_input,
+    check_search_input,
     check_store_input,
+    check_stored_input,
     dims,
 )
 
@@ -74,6 +77,24 @@ class NumpyBackend:
     ) -> ndarray:
         check_score_input(stored, scales, weights, bias)
         return _reference.score(stored, scales, weights, bias)
+
+    def float32(self, values: object) -> ndarray:
+        with np.errstate(over="ignore", invalid="ignore"):
+            return np.ascontiguousarray(values, dtype=np.float32)
+
+    def inverse_norms(self, stored: ndarray, first_row: int = 0) -> ndarray:
+        check_stored_input(stored, first_row)
+        return _reference.inverse_norms(stored, int(first_row))
+
+    def cosines(self, stored: ndarray, inverse: ndarray, queries: ndarray) -> ndarray:
+        check_search_input(stored, inverse, queries)
+        return _reference.cosines(stored, inverse, queries)
+
+    def scores(
+        self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float | ndarray
+    ) -> ndarray:
+        check_scores_input(stored, scales, weights, bias)
+        return _reference.scores(stored, scales, weights, bias)
 
     def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
         check_store_input(rows, codes, scales, first_row)

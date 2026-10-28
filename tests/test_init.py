@@ -102,7 +102,20 @@ def test_native_imports_no_optional_packages():
 
 def test_public_api_is_pinned():
     """A new public name needs a deliberate change of this test."""
-    names = ["SIF", "USIF", "Average", "Encoder", "QuantizedRows", "WordVectors"]
+    names = [
+        "SIF",
+        "USIF",
+        "Average",
+        "EncodedBatch",
+        "Encoder",
+        "MemorySink",
+        "QuantizedRows",
+        "SearchResult",
+        "ShardSink",
+        "Sink",
+        "VectorStore",
+        "WordVectors",
+    ]
     assert fse.__all__ == [*names, "__version__"]
     public = {name for name in dir(fse) if not name.startswith("_")}
     assert public - {"gensim"} == set(names)

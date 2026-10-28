@@ -82,6 +82,15 @@ class Reference:
     def score(self, stored, scales, weights, bias):
         return _reference.score(stored, scales, weights, bias)
 
+    def inverse_norms(self, stored):
+        return _reference.inverse_norms(stored)
+
+    def cosines(self, stored, inverse, queries):
+        return _reference.cosines(stored, inverse, queries)
+
+    def scores(self, stored, scales, weights, bias):
+        return _reference.scores(stored, scales, weights, bias)
+
     def dot16(self, rows, other):
         return _reference.dot16(rows, other)
 
@@ -114,6 +123,15 @@ class Native:
 
     def score(self, stored, scales, weights, bias):
         return _native.score(stored, scales, weights, bias, isa=self.isa)
+
+    def inverse_norms(self, stored):
+        return _native.inverse_norms(stored)
+
+    def cosines(self, stored, inverse, queries):
+        return _native.cosines(stored, inverse, queries, isa=self.isa)
+
+    def scores(self, stored, scales, weights, bias):
+        return _native.scores(stored, scales, weights, bias, isa=self.isa)
 
     def dot16(self, rows, other):
         return _native.dot16(rows, other, isa=self.isa)
@@ -150,6 +168,15 @@ class Contract:
 
     def score(self, stored, scales, weights, bias):
         return self.backend.score(stored, scales, weights, bias)
+
+    def inverse_norms(self, stored):
+        return self.backend.inverse_norms(stored)
+
+    def cosines(self, stored, inverse, queries):
+        return self.backend.cosines(stored, inverse, queries)
+
+    def scores(self, stored, scales, weights, bias):
+        return self.backend.scores(stored, scales, weights, bias)
 
     def accumulate(self, *_case):
         pytest.skip(f"{self.name}: accumulate is no contract operation")
