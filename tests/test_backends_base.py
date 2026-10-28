@@ -133,3 +133,20 @@ def test_steps_may_be_any_iterable_and_are_used(name):
         _reference.pool_weighted_mean(batch, pool.vectors, pool.weights), [Normalize()]
     )
     assert out.tobytes() == want.tobytes()
+
+
+@pytest.mark.parametrize("name", ["cpu", "numpy"])
+@pytest.mark.parametrize("bias", [np.ones((3, 1), F32), [0.5], True, "0"])
+def test_score_bias_must_be_a_real_number(name, bias):
+    from fse._backends import get_backend
+
+    with pytest.raises(TypeError, match="bias must be a real number"):
+        get_backend(name).score(np.ones((3, 2), F32), None, np.ones(2, F32), bias)
+
+
+@pytest.mark.parametrize("name", ["cpu", "numpy"])
+def test_score_of_no_rows(name):
+    from fse._backends import get_backend
+
+    out = get_backend(name).score(np.ones((0, 2), F32), None, np.ones(2, F32), np.float32(0.5))
+    assert out.shape == (0,)

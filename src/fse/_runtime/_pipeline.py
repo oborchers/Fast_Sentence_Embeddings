@@ -72,10 +72,12 @@ class Pipeline:
         Every argument is checked before the source is read.
         """
         workers = usable_cpus() if workers is None else _positive(workers, "workers")
-        if sink is not None and getattr(sink, "dim", None) != self.output_dim:
-            raise ValueError(f"the sink must take rows of {self.output_dim} values")
-        # 2 * workers tasks in flight stay within WINDOW_BYTES: many workers get smaller tasks.
-        window = 2 * workers
+        if sink is not None:
+            _check_sink(sink, self.output_dim)
+        # The rows of the window stay within WINDOW_BYTES: with many workers a task holds
+        # fewer rows, and with rows wider than the budget allows the window is smaller (at
+        # least one task of one row, however wide).
+        window = max(1, min(2 * workers, WINDOW_BYTES // self._widest))
         task_rows = max(1, min(self.task_rows, WINDOW_BYTES // (window * self._widest)))
         tasks = plan(
             source,
@@ -123,3 +125,10 @@ def _positive(value: object, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int | np.integer) or value < 1:
         raise ValueError(f"{name} must be a positive int, not {value!r}")
     return int(value)
+
+
+def _check_sink(sink: object, dim: int):
+    if not callable(getattr(sink, "target", None)) or not callable(getattr(sink, "commit", None)):
+        raise TypeError(f"the sink must have target and commit methods, not {type(sink).__name__}")
+    if getattr(sink, "dim", None) != dim:
+        raise ValueError(f"the sink must take rows of {dim} values")

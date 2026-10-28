@@ -12,7 +12,7 @@ import pytest
 
 from fse import _native
 from fse._contract import Normalize, Project, RemoveComponents
-from fse._runtime import EncodeSpec, Pipeline, _pipeline
+from fse._runtime import EncodeSpec, Pipeline, _executor, _pipeline, _tasks
 from fse._text import StringSource
 from support.runtime import expected, source, texts, word_vectors
 
@@ -54,14 +54,24 @@ def _expected(dtype, fasttext, steps, tokenizer, n):
 @pytest.mark.parametrize("steps", list(STEPS))
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("backend", ["cpu", "numpy"])
-def test_runtime_gives_the_reference_bits(tmp_path, backend, dtype, steps, fasttext, kind, workers):
+def test_runtime_gives_the_reference_bits(
+    tmp_path, monkeypatch, backend, dtype, steps, fasttext, kind, workers
+):
     tokenizer = "external" if kind == "tokens" else "fse_words@1"
     n = 500 if backend == "cpu" else 120
     sentences = texts(n)
     spec = _spec(dtype, fasttext, steps, tokenizer)
     want = _expected(dtype, fasttext, steps, tokenizer, n)
     src = source(kind, sentences, tmp_path)
+    pools = []
+    if workers > 1:  # threads, also for inputs small enough to run inline
+        monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
+        real = _executor.ThreadPoolExecutor
+        monkeypatch.setattr(
+            _executor, "ThreadPoolExecutor", lambda **kw: pools.append(1) or real(**kw)
+        )
     got = Pipeline(spec, backend).infer(src, workers=workers, chunk_bytes=2048)
+    assert pools == ([1] if workers > 1 else [])
     assert got.shape == want.shape
     assert got.view(np.uint32).tobytes() == want.view(np.uint32).tobytes()
 

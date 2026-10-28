@@ -83,8 +83,10 @@ def make_lookup(
         if max_ngrams is not None:
             raise ValueError("max_ngrams applies only to FastText vectors")
         return _native.TextLookup(table, tokenizer)
-    if isinstance(max_ngrams, bool) or not isinstance(max_ngrams, int):
+    count = _integer(max_ngrams)
+    if count is None:
         raise TypeError("FastText vectors need max_ngrams, an int")
+    max_ngrams = count
     if not 1 <= max_ngrams <= _native.MAX_NGRAMS_LIMIT:
         raise ValueError(
             f"max_ngrams must be between 1 and {_native.MAX_NGRAMS_LIMIT}, not {max_ngrams}"
@@ -94,6 +96,7 @@ def make_lookup(
 
 
 MAX_CHUNK_ROWS = _native.MAX_CHUNK_ROWS
+MAX_NGRAMS_LIMIT = _native.MAX_NGRAMS_LIMIT
 
 
 def new_workspace() -> _native.Workspace:
@@ -160,6 +163,18 @@ def _chunk_sizes(
     return count, size, rows
 
 
+def _append(chunks: list[Chunk], chunk: Chunk, *, merge: bool, chunk_rows: int):
+    """Append ``chunk``; the first chunk of a scan range takes in the last chunk of the
+    range before, a remainder that ended at the range boundary, if their rows fit."""
+    last = chunks[-1] if merge and chunks else None
+    if last is not None and last.n_sentences + chunk.n_sentences <= chunk_rows:
+        chunks[-1] = Chunk(
+            last.start, chunk.end, last.first_row, last.n_sentences + chunk.n_sentences
+        )
+    else:
+        chunks.append(chunk)
+
+
 class _Buffered:
     """A source whose sentences are one UTF-8 buffer, with offsets for strings."""
 
@@ -182,7 +197,7 @@ class _Buffered:
         # 4 ranges per worker for balance, but none smaller than a chunk: each range gives
         # at least one chunk, and every chunk costs its task's fixed checks.
         wanted = max(4 * workers, -(-total // _SCAN_RANGE_MAX_BYTES))
-        n_ranges = max(1, min(wanted, -(-total // chunk_bytes), max(size, 1)))
+        n_ranges = max(1, min(wanted, total // chunk_bytes, max(size, 1)))
         bounds = [0]
         for k in range(1, n_ranges):
             target = total * k // n_ranges
@@ -229,8 +244,11 @@ class _Buffered:
                 if error_byte >= 0:
                     raise self._error(error_byte, sentences + error_sentence)
                 firsts = [row for _, _, row in range_chunks] + [count]
-                for (start, end, row), following in zip(range_chunks, firsts[1:], strict=True):
-                    chunks.append(Chunk(start, end, sentences + row, following - row))
+                for k, ((start, end, row), following) in enumerate(
+                    zip(range_chunks, firsts[1:], strict=True)
+                ):
+                    chunk = Chunk(start, end, sentences + row, following - row)
+                    _append(chunks, chunk, merge=k == 0, chunk_rows=chunk_rows)
                 sentences += count
         return Scan(sentences, tuple(chunks))
 

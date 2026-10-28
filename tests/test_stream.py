@@ -145,3 +145,20 @@ def test_numpy_integers_are_stream_sizes():
     stream = StreamSource(iter(SENTENCES[:100]), chunk_rows=np.int64(7), chunk_bytes=np.int32(4096))
     assert stream.chunk_rows == 7
     assert Pipeline(SPEC).infer(stream).tobytes() == WANT[:100].tobytes()
+
+
+def test_a_sink_without_its_methods_is_refused_before_reading():
+    reads = []
+
+    def counted():
+        reads.append(1)
+        yield "w1"
+
+    class Broken:
+        dim = 12
+
+    with pytest.raises(TypeError, match="target and commit"):
+        Pipeline(SPEC).infer(StreamSource(counted()), sink=Broken())
+    with pytest.raises(TypeError, match="target and commit"):
+        Pipeline(SPEC).infer(StreamSource([]), sink=Broken())
+    assert reads == []

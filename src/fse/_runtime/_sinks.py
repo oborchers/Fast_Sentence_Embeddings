@@ -117,6 +117,7 @@ class GramSink(_Rows):
         self.gram = np.zeros((dim, dim), dtype=np.float64)
         self._block = np.empty((_gram.REMOVAL_BLOCK_ROWS, dim), dtype=np.float32)
         self._filled = 0
+        self._row = 0
 
     def target(self, first_row: int, n_rows: int) -> ndarray:
         if first_row < self.next_row:
@@ -125,10 +126,12 @@ class GramSink(_Rows):
 
     def commit(self, first_row: int, rows: ndarray) -> None:
         self._check_commit(first_row, rows)
+        self._row = first_row  # the row of the stream that rows[0] is
         while len(rows):
             take = min(len(rows), len(self._block) - self._filled)
             self._block[self._filled : self._filled + take] = rows[:take]
             self._filled += take
+            self._row += take
             rows = rows[take:]
             if self._filled == len(self._block):
                 self._add()
@@ -141,7 +144,7 @@ class GramSink(_Rows):
     def _add(self):
         block = self._block[: self._filled]
         if not np.isfinite(block).all():
-            begin = self.next_row - self._filled
+            begin = self._row - self._filled
             raise ValueError(f"the vectors contain NaN or infinite values in rows from {begin}")
         _gram.add_gram_block(self.gram, self.backend.gram_block(block))
         self._filled = 0

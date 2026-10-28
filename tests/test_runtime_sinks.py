@@ -85,3 +85,16 @@ def test_commits_must_be_float32_and_c_contiguous():
         sink.commit(0, np.ones((1, 2)))
     with pytest.raises(ValueError, match="C-contiguous float32"):
         sink.commit(0, np.ones((1, 4), F32)[:, ::2])
+
+
+def test_the_gram_sink_names_the_block_of_a_bad_row(monkeypatch):
+    from fse import _gram
+    from fse._backends import NumpyBackend
+    from fse._runtime import GramSink
+
+    monkeypatch.setattr(_gram, "REMOVAL_BLOCK_ROWS", 4)
+    sink = GramSink(2, NumpyBackend())
+    rows = np.ones((12, 2), F32)
+    rows[5] = np.nan  # in the second block of the first commit
+    with pytest.raises(ValueError, match=r"NaN or infinite values in rows from 4$"):
+        sink.commit(0, rows)

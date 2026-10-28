@@ -67,3 +67,23 @@ def test_steps_tokenizer_and_word_vectors_are_checked():
         EncodeSpec("glove", ones)
     with pytest.raises(TypeError, match="Aggregation"):
         EncodeSpec(wv, ones, aggregation="weighted_mean@1")
+
+
+@pytest.mark.parametrize(
+    ("value", "error"),
+    [(True, TypeError), (1.5, TypeError), (0, ValueError), (1 << 30, ValueError)],
+)
+def test_max_ngrams_is_checked_in_the_spec(value, error):
+    with pytest.raises(error, match="max_ngrams"):
+        EncodeSpec(word_vectors(fasttext=True), np.ones(200, F32), oov_weight=1.0, max_ngrams=value)
+
+
+def test_max_ngrams_may_be_a_numpy_integer():
+    from fse._runtime import Pipeline
+
+    spec = EncodeSpec(
+        word_vectors(fasttext=True), np.ones(200, F32), oov_weight=1.0, max_ngrams=np.int64(12)
+    )
+    assert spec.max_ngrams == 12
+    assert type(spec.max_ngrams) is int
+    Pipeline(spec)

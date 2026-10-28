@@ -21,6 +21,7 @@ from numpy import ndarray
 
 from fse._backends import PoolInput
 from fse._contract import Aggregation, Step, check_steps, check_tokenizer
+from fse._text import MAX_NGRAMS_LIMIT
 from fse._wordvectors import WordVectors
 
 
@@ -58,6 +59,8 @@ class EncodeSpec:
             object.__setattr__(self, "oov_weight", _finite(self.oov_weight, "oov_weight"))
         if fasttext != (self.max_ngrams is not None):
             raise ValueError("max_ngrams is given exactly for FastText vectors")
+        if fasttext:
+            object.__setattr__(self, "max_ngrams", _max_ngrams(self.max_ngrams))
 
     def pool_input(self) -> PoolInput:
         wv = self.word_vectors
@@ -90,3 +93,11 @@ def _finite(value: object, name: str) -> Any:
     if not np.isfinite(value):  # flush-to-zero turns no infinity or NaN into a number
         raise ValueError(f"{name} must be finite, not {value}")
     return value
+
+
+def _max_ngrams(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int | np.integer):
+        raise TypeError(f"max_ngrams must be an int, not {type(value).__name__}")
+    if not 1 <= value <= MAX_NGRAMS_LIMIT:
+        raise ValueError(f"max_ngrams must be between 1 and {MAX_NGRAMS_LIMIT}, not {value}")
+    return int(value)

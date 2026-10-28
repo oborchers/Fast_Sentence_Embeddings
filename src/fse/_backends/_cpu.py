@@ -97,5 +97,5 @@ class CpuBackend:
     def score(
         self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float
     ) -> ndarray:
-        check_score_input(stored, scales, weights)
+        check_score_input(stored, scales, weights, bias)
         return _native.score(stored, scales, weights, bias, isa=self.isa)

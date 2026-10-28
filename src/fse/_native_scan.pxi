@@ -75,60 +75,64 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
     cdef Py_ssize_t error = -1
     cdef Py_ssize_t pos = first, span_end, next_pos, chunk_start = first, chunk_first = 0
     cdef const unsigned char *newline
-    chunk_list = []
-    cdef np.int64_t[::1] chunk_buffer
-    cdef Py_ssize_t n_chunks = 0
-
-    # Chunk boundaries are collected in C and converted to a list at the end. Every chunk
-    # but the last holds at least chunk_bytes bytes or chunk_rows sentences, which bounds
-    # their number. The row limit keeps a chunk of empty lines, which take no bytes, from
-    # holding all rows, and bounds the rows a worker holds at once.
+    # Chunk boundaries (start, end, first sentence) are collected in a buffer that grows
+    # as needed and converted to a list at the end. Every chunk but the last holds at least
+    # chunk_bytes bytes or chunk_rows sentences. The row limit keeps a chunk of empty
+    # lines, which take no bytes, from holding all rows, and bounds the rows a worker
+    # holds at once.
     if chunk_bytes < 1:
         raise ValueError(f"chunk_bytes must be positive, got {chunk_bytes}")
     if not 1 <= chunk_rows <= CHUNK_MAX_ROWS:
         raise ValueError(f"chunk_rows must be between 1 and {CHUNK_MAX_ROWS}, got {chunk_rows}")
-    cdef Py_ssize_t span_bytes = (last - first) if lines else (item_ptr[last] - item_ptr[first])
-    # A line takes at least its "\n" (the last none), a string at least its entry.
-    cdef Py_ssize_t max_rows = (span_bytes + 1) if lines else (last - first)
-    cdef Py_ssize_t max_chunks = span_bytes // chunk_bytes + max_rows // chunk_rows + 2
-    chunk_arr = np.empty(3 * max_chunks, dtype=np.int64)
-    chunk_buffer = chunk_arr
-    with nogil:
-        while pos < last:
-            if lines:
-                newline = <const unsigned char *>memchr(p + pos, 10, n - pos)
-                span_end = (newline - p) if newline != NULL else n
-                next_pos = span_end + 1 if newline != NULL else n
-            else:
-                span_end = item_ptr[pos + 1]
-                next_pos = pos + 1
-            count = _count_tokens(p, item_ptr[pos] if not lines else pos, span_end, &error)
-            if error >= 0:
-                break
-            tokens += count
-            if count == 0:
-                empty += 1
-            sentences += 1
-            pos = next_pos
-            if (
-                (lines and pos - chunk_start >= chunk_bytes)
-                or (not lines and (item_ptr[pos] - item_ptr[chunk_start]) >= chunk_bytes)
-                or sentences - chunk_first >= chunk_rows
-            ) and pos < last and n_chunks + 1 < max_chunks:
-                chunk_buffer[3 * n_chunks] = chunk_start
-                chunk_buffer[3 * n_chunks + 1] = pos
-                chunk_buffer[3 * n_chunks + 2] = chunk_first
-                n_chunks += 1
-                chunk_start = pos
-                chunk_first = sentences
-    if error >= 0:
-        return sentences, tokens, empty, [], error, sentences
-    if chunk_start < last:
-        chunk_buffer[3 * n_chunks] = chunk_start
-        chunk_buffer[3 * n_chunks + 1] = last
-        chunk_buffer[3 * n_chunks + 2] = chunk_first
-        n_chunks += 1
-    chunk_list = [tuple(chunk_arr[3 * c : 3 * c + 3].tolist()) for c in range(n_chunks)]
+    cdef _Buffer bounds
+    bounds.data = NULL
+    bounds.size = 0
+    bounds.capacity = 0
+    cdef int failed = 0
+    try:
+        with nogil:
+            while pos < last:
+                if lines:
+                    newline = <const unsigned char *>memchr(p + pos, 10, n - pos)
+                    span_end = (newline - p) if newline != NULL else n
+                    next_pos = span_end + 1 if newline != NULL else n
+                else:
+                    span_end = item_ptr[pos + 1]
+                    next_pos = pos + 1
+                count = _count_tokens(p, item_ptr[pos] if not lines else pos, span_end, &error)
+                if error >= 0:
+                    break
+                tokens += count
+                if count == 0:
+                    empty += 1
+                sentences += 1
+                pos = next_pos
+                if (
+                    (lines and pos - chunk_start >= chunk_bytes)
+                    or (not lines and (item_ptr[pos] - item_ptr[chunk_start]) >= chunk_bytes)
+                    or sentences - chunk_first >= chunk_rows
+                ) and pos < last:
+                    if (
+                        _push_i64_nogil(&bounds, chunk_start) != 0
+                        or _push_i64_nogil(&bounds, pos) != 0
+                        or _push_i64_nogil(&bounds, chunk_first) != 0
+                    ):
+                        failed = 1
+                        break
+                    chunk_start = pos
+                    chunk_first = sentences
+        if failed:
+            raise MemoryError("could not grow the list of chunks")
+        if error >= 0:
+            return sentences, tokens, empty, [], error, sentences
+        if chunk_start < last:
+            _push_i64(&bounds, chunk_start)
+            _push_i64(&bounds, last)
+            _push_i64(&bounds, chunk_first)
+        flat = _to_array(&bounds, np.int64).tolist()
+    finally:
+        free(bounds.data)
+    chunk_list = [tuple(flat[c : c + 3]) for c in range(0, len(flat), 3)]
     return sentences, tokens, empty, chunk_list, -1, -1
 
 

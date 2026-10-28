@@ -189,23 +189,31 @@ def test_an_empty_source():
     run([], lambda i: i, lambda *_: None, workers=4)
 
 
-def test_nothing_more_is_read_after_a_known_failure():
+def test_nothing_more_is_read_after_a_known_failure(monkeypatch):
     """A stream whose next item would block: after a failure the executor stops reading."""
-    failed = threading.Event()
+    registered = threading.Event()
+    real = _executor._Run._work
+
+    def work_and_signal(self, sequence, task):
+        try:
+            return real(self, sequence, task)
+        except BaseException:
+            registered.set()  # failed_at is set now
+            raise
+
+    monkeypatch.setattr(_executor._Run, "_work", work_and_signal)
     reads = []
 
     def tasks():
         yield 0
         reads.append(1)
-        assert failed.wait(5)
-        time.sleep(0.05)  # the executor registers the failure
+        assert registered.wait(5)
         yield 1
         reads.append(2)
         raise AssertionError("read after the failure was known")
 
     def work(i):
         if i == 0:
-            failed.set()
             raise ValueError("zero")
         return i
 
@@ -216,21 +224,24 @@ def test_nothing_more_is_read_after_a_known_failure():
 
 def test_an_error_of_reserve_stops_the_run_at_once():
     """Task 3 is reserved while task 2 still runs; its error wins over task 2's later one."""
-    committed = []
+    reserving = threading.Event()
 
     def reserve(task):
         if task == 3:
+            reserving.set()
             raise MemoryError("no room for the rows")
         return task
 
     def work(i):
         if i == 2:
-            time.sleep(0.05)
-            raise ValueError("two")  # would be raised first if reserve were a source error
+            assert reserving.wait(5)
+            raise ValueError("two")
         return i
 
+    committed = []
     with pytest.raises(MemoryError, match="no room"):
         run(range(10), work, lambda t, _r: committed.append(t), workers=4, reserve=reserve)
     assert 3 not in committed
+    reserving.set()
     with pytest.raises(ValueError, match="two"):  # inline, task 2 fails before 3 is reserved
         run(range(10), work, lambda *_: None, workers=1, reserve=reserve)

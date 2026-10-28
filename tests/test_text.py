@@ -302,3 +302,19 @@ def test_numpy_integers_are_sizes():
         workers=np.int64(2), chunk_bytes=np.int32(4), chunk_rows=np.int64(3)
     )
     assert max(c.n_sentences for c in scan.chunks) <= 3
+
+
+def test_scan_ranges_are_not_smaller_than_a_chunk(tmp_path):
+    path = tmp_path / "lines.txt"
+    path.write_bytes(b"a\n" * 65_537)  # just over two chunks of 65,536 bytes
+    with FileSource(path) as source:
+        scan = source.scan(workers=8, chunk_bytes=65_536)
+    assert len(scan.chunks) <= 2
+
+
+def test_one_long_line_with_one_row_per_chunk(tmp_path):
+    path = tmp_path / "long.txt"
+    path.write_bytes(b"word " * (1 << 20) + b"\n")
+    with FileSource(path) as source:
+        scan = source.scan(chunk_bytes=1 << 30, chunk_rows=1)
+    assert [c.n_sentences for c in scan.chunks] == [1]
