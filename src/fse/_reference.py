@@ -116,20 +116,8 @@ def accumulate(
             acc = np.zeros(dim, dtype=_F32)
             for token in batch.tokens[batch.offsets[s] : batch.offsets[s + 1]]:
                 if token == OOV_TOKEN:
-                    if batch.ngrams is None or batch.ngram_offsets is None:
-                        raise ValueError("an unknown FastText word needs ngram buckets")
-                    if ngram_vectors is None:
-                        raise ValueError("an unknown FastText word needs ngram vectors")
-                    if oov_weight is None:
-                        raise ValueError("an unknown FastText word needs oov_weight")
-                    buckets = batch.ngrams[batch.ngram_offsets[k] : batch.ngram_offsets[k + 1]]
+                    acc = _add_unknown(acc, batch, k, ngram_vectors, ngram_scales, oov_weight)
                     k += 1
-                    if len(buckets) == 0:
-                        continue  # counts for the length, adds nothing
-                    shared = _F32(_F32(_F32(1) / _F32(len(buckets))) * _F32(oov_weight))
-                    for bucket in buckets:
-                        factor = _factor(shared, ngram_scales, int(bucket))
-                        acc = fma32(factor, _stored(ngram_vectors, int(bucket)), acc)
                 else:
                     factor = _factor(weights[token], scales, int(token))
                     acc = fma32(factor, _stored(vectors, int(token)), acc)
@@ -137,6 +125,32 @@ def accumulate(
                 raise ValueError(f"row {batch.first_row + s} contains NaN or infinite values")
             accs[s] = acc
     return accs, counts
+
+
+def _add_unknown(
+    acc: ndarray,
+    batch: Batch,
+    k: int,
+    ngram_vectors: ndarray | None,
+    ngram_scales: ndarray | None,
+    oov_weight: float | None,
+) -> ndarray:
+    """``acc`` plus the ngram rows of unknown word ``k`` of the batch, each with weight
+    oov_weight / (its number of buckets)."""
+    if batch.ngrams is None or batch.ngram_offsets is None:
+        raise ValueError("an unknown FastText word needs ngram buckets")
+    if ngram_vectors is None:
+        raise ValueError("an unknown FastText word needs ngram vectors")
+    if oov_weight is None:
+        raise ValueError("an unknown FastText word needs oov_weight")
+    buckets = batch.ngrams[batch.ngram_offsets[k] : batch.ngram_offsets[k + 1]]
+    if len(buckets) == 0:
+        return acc  # counts for the length, adds nothing
+    shared = _F32(_F32(_F32(1) / _F32(len(buckets))) * _F32(oov_weight))
+    for bucket in buckets:
+        factor = _factor(shared, ngram_scales, int(bucket))
+        acc = fma32(factor, _stored(ngram_vectors, int(bucket)), acc)
+    return acc
 
 
 def pool_weighted_mean(
