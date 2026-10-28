@@ -44,6 +44,7 @@ import numpy as np
 COMPONENTS = 10  # SIF-10, as the 1.1 baseline
 INFER_SIZES = (1, 1_000, 100_000)
 SEARCHES, BATCH = 20, 64
+K = 10  # neighbours of every search on both sides
 DOMAIN = 2**31 - 1  # the cumulative count 1.1's lang_freq scales frequencies to
 
 
@@ -122,10 +123,10 @@ def v2_load(c: dict) -> dict:
 
 def _v2_store(encoder, texts, c: dict, run: Path) -> dict:
     """Into a ShardSink up to its last flush (in encode), then the encoder saved."""
-    import fse
+    from fse import ShardSink  # imported outside the timer
 
     def write():
-        with fse.ShardSink(run / "store", encoder, dtype=c["dtype"]) as sink:
+        with ShardSink(run / "store", encoder, dtype=c["dtype"]) as sink:
             encoder.encode(texts, workers=c["workers"], sink=sink)
 
     encode_s, _ = _timed(write)
@@ -179,17 +180,19 @@ def v2_queries(c: dict) -> dict:
 
 
 def v2_query(c: dict) -> dict:
-    import fse
+    from fse import VectorStore  # imported outside the timer
 
     queries = np.load(_paths(c)["queries"])
     out: dict = {}
-    out["open_s"], store = _timed(lambda: fse.VectorStore.open(_paths(c)["store"]))
-    out["first_search_s"], _ = _timed(lambda: store.search(queries[0], k=10))
+    out["open_s"], store = _timed(lambda: VectorStore.open(_paths(c)["store"]))
+    out["first_search_s"], _ = _timed(lambda: store.search(queries[0], k=K))
     single = iter(queries[1 : 1 + SEARCHES])
-    out["search_1_ms"] = _p50_ms(lambda: store.search(next(single), k=10), SEARCHES)
+    out["search_1_ms"] = _p50_ms(lambda: store.search(next(single), k=K), SEARCHES)
     batch = queries[1 + SEARCHES :]
     for mode in ("auto", "exact", "blas"):
-        out[f"search_{BATCH}_{mode}_ms"] = _p50_ms(lambda m=mode: store.search(batch, mode=m), 3)
+        out[f"search_{BATCH}_{mode}_ms"] = _p50_ms(
+            lambda m=mode: store.search(batch, k=K, mode=m), 3
+        )
     out[f"search_{BATCH}_ms"] = out[f"search_{BATCH}_auto_ms"]
     rng = np.random.default_rng(1)
     for m in (1, 1000):
@@ -289,12 +292,12 @@ def v1_query(c: dict) -> dict:
     out["open_s"], model = _timed(lambda: getattr(fse, c["model"]).load(path))
     sv = model.sv
     # A vector as query: 1.1 excludes no row, as 2.0 (an id would exclude itself).
-    out["first_search_s"], _ = _timed(lambda: sv.most_similar(queries[0], topn=10))
+    out["first_search_s"], _ = _timed(lambda: sv.most_similar(queries[0], topn=K))
     single = iter(queries[1 : 1 + SEARCHES])
-    out["search_1_ms"] = _p50_ms(lambda: sv.most_similar(next(single), topn=10), SEARCHES)
+    out["search_1_ms"] = _p50_ms(lambda: sv.most_similar(next(single), topn=K), SEARCHES)
     # No batch search in 1.1: the 64 queries one after the other.
     batch = queries[1 + SEARCHES :]
-    out[f"search_{BATCH}_ms"] = _p50_ms(lambda: [sv.most_similar(q, topn=10) for q in batch], 3)
+    out[f"search_{BATCH}_ms"] = _p50_ms(lambda: [sv.most_similar(q, topn=K) for q in batch], 3)
     rng = np.random.default_rng(1)
     for m in (1, 1000):
         weights = rng.standard_normal((m, sv.vector_size)).astype(np.float32).T

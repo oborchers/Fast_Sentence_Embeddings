@@ -12,7 +12,9 @@ from the local Hugging Face cache and the tokenized WikiText paragraphs (one per
 Both sides do the same work in the same timers (bench_lifecycle_cases.py says how).
 Every case runs in a fresh child process, so the peak RSS (``ru_maxrss``) belongs to it,
 as --pairs alternating pairs (2.0 then 1.1, then 1.1 then 2.0); the raw values, their
-median and the load average before every run are kept. Cases:
+median and the load average before every run are kept. Before every run its inputs
+(word vectors, gensim model, corpus, and the stores and models of earlier cases) are read
+once, so every number is one with a warm page cache. Cases:
 
 - ``load``, ``load_mmap``: the word vectors; 2.0 reads its safetensors file, converted
   once from the gensim model (untimed), 1.1 ``Vectors.from_pretrained``;
@@ -55,7 +57,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from bench_lifecycle_cases import BATCH, INFER_SIZES
+from bench_lifecycle_cases import BATCH, INFER_SIZES, K
 
 MODELS = ("SIF", "Average")
 DTYPES = ("float32", "float16", "int8")
@@ -137,11 +139,13 @@ def _median(runs: list[dict]) -> dict:
     }
 
 
-def _pairs(config: dict, pythons: dict[str, str], pairs: int) -> dict:
-    """``pairs`` runs of every side, alternating which goes first."""
+def _pairs(config: dict, pythons: dict[str, str], pairs: int, warm: list[Path]) -> dict:
+    """``pairs`` runs of every side, alternating which goes first, each with its inputs in
+    the page cache."""
     runs: dict[str, list[dict]] = {side: [] for side in pythons}
     for pair in range(pairs):
         for side in sorted(pythons, reverse=pair % 2 == 0):  # v2 first, then v1 first
+            _warm([*warm, *_written(Path(config["tmp"]))])
             load = os.getloadavg()[0]  # before the run
             runs[side].append(
                 {**_run(pythons[side], {**config, "side": side}), "load_average": load}
@@ -161,11 +165,16 @@ def _prepare(args, base: dict) -> None:
 
 
 def _warm(paths: list[Path]) -> None:
-    """Read the files once, so every case starts with them in the page cache."""
+    """Read the files once, so the next case starts with them in the page cache."""
     for path in paths:
         with path.open("rb") as f:
             while f.read(1 << 24):
                 pass
+
+
+def _written(tmp: Path) -> list[Path]:
+    """The kept stores, models and query vectors of earlier cases, which later cases read."""
+    return sorted(p for p in tmp.rglob("*") if p.is_file() and p.name != "corpus.txt")
 
 
 def _hub_files(vectors: str) -> list[Path]:
@@ -250,7 +259,7 @@ def _print_row(row: dict, cpus: int) -> None:
         print(f"  {label:<20}{_cell(a)}{_cell(b)}{ratio}", flush=True)
 
 
-def run(args, base: dict) -> list[dict]:
+def run(args, base: dict, warm: list[Path]) -> list[dict]:
     from fse._cpus import usable_cpus
 
     cpus = usable_cpus()
@@ -261,7 +270,7 @@ def run(args, base: dict) -> list[dict]:
         config = {**base, **case}
         if case["kind"] == "query":  # the query vectors, in a process of their own
             _run(sys.executable, {**config, "side": "v2", "kind": "queries"})
-        rows.append({"case": case, **_pairs(config, pythons, args.pairs)})
+        rows.append({"case": case, **_pairs(config, pythons, args.pairs, warm)})
         _print_row(rows[-1], cpus)
     return rows
 
@@ -276,6 +285,13 @@ def _corpus(args, tmp: Path) -> Path:
     return out
 
 
+def _positive(text: str) -> int:
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"must be a positive integer, not {value}")
+    return value
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--vectors", default="glove-wiki-gigaword-300")
@@ -285,14 +301,14 @@ def _parser() -> argparse.ArgumentParser:
         default=Path("~/.cache/fse-quality/wikitext-103-b08601e0.txt"),
         help="one tokenized paragraph per line",
     )
-    parser.add_argument("--sentences", type=int, help="only the first lines of the corpus")
+    parser.add_argument("--sentences", type=_positive, help="only the first lines of the corpus")
     parser.add_argument("--python-v1", help="a Python with fse 1.1.0 and wordfreq")
     parser.add_argument("--models", nargs="+", choices=MODELS, default=list(MODELS))
     parser.add_argument("--dtypes", nargs="+", choices=DTYPES, default=list(DTYPES))
-    parser.add_argument("--workers", type=int, nargs="+", default=[1, 4, 10])
+    parser.add_argument("--workers", type=_positive, nargs="+", default=[1, 4, 10])
     parser.add_argument("--inputs", nargs="+", choices=INPUTS, default=list(INPUTS))
     parser.add_argument("--targets", nargs="+", choices=TARGETS, default=list(TARGETS))
-    parser.add_argument("--pairs", type=int, default=2, help="alternating runs of each side")
+    parser.add_argument("--pairs", type=_positive, default=2, help="alternating runs of each side")
     grid_size = parser.add_mutually_exclusive_group()
     grid_size.add_argument("--quick", action="store_true", help="the prioritized subset (default)")
     grid_size.add_argument("--full", action="store_true", help="every combination")
@@ -315,11 +331,12 @@ def main() -> None:
         tmp = Path(tmp_name)
         used = _corpus(args, tmp)
         base = {"vectors": args.vectors, "tmp": str(tmp), "corpus": str(used)}
-        _prepare(args, base)
         corpus = {"source": _identity(args.corpus), "read": _identity(used)}
         print(f"# corpus {args.corpus}: {corpus['read']['lines']:,} lines read", flush=True)
-        _warm([tmp / f"{args.vectors}.safetensors", *_hub_files(args.vectors), used])
-        rows = run(args, base)
+        if corpus["read"]["lines"] < K and any(c["kind"] == "query" for c in grid(args)):
+            raise SystemExit(f"the query cases search for {K} rows: read at least {K} lines")
+        _prepare(args, base)
+        rows = run(args, base, [*_hub_files(args.vectors), used])
     if args.json:
         result = {"config": {k: str(v) for k, v in vars(args).items()}, "corpus": corpus}
         result.update(machine=platform.platform(), python=platform.python_version(), rows=rows)
