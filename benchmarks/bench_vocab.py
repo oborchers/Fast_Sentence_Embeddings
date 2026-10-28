@@ -37,7 +37,6 @@ Keep a run to a few minutes; the script warns about a high load average.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import resource
@@ -207,11 +206,14 @@ def _encode_all(source, scan, lookup, ws) -> tuple[int, list]:
 
 
 def _ids_digest(batches: list) -> str:
-    h = hashlib.sha256()
+    # The hash of fse (from fse 2.0 with xxh3-128; older bases cannot run the child).
+    from fse._container import Hasher
+
+    h = Hasher()
     for batch in batches:
-        h.update(np.ascontiguousarray(batch.tokens).tobytes())
-        h.update(np.ascontiguousarray(batch.offsets).tobytes())
-    return h.hexdigest()[:16]
+        h.update(np.ascontiguousarray(batch.tokens))
+        h.update(np.ascontiguousarray(batch.offsets))
+    return h.checksum()[-16:]
 
 
 def _timed_stream(table, path: Path, tokenizer: str, repeats: int) -> dict:

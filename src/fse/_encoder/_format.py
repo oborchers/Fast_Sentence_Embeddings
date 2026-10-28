@@ -16,14 +16,21 @@ vectors are built by the caller from what ``from_artifact`` returns.
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
 from numpy import ndarray
 
-from fse._container import CHECKSUM_PREFIX, CREATED_BY_KEY, FINGERPRINT_KEY, INTEGER, canonical_json
+from fse._container import (
+    CHECKSUM_PREFIX,
+    CREATED_BY_KEY,
+    FINGERPRINT_FORM,
+    FINGERPRINT_KEY,
+    INTEGER,
+    canonical_json,
+    is_fingerprint,
+)
 from fse._contract import (
     TRANSFORM_VERSION,
     Aggregation,
@@ -78,7 +85,6 @@ _KEYS = frozenset(
 )
 # The tensors of each step, by the name of their field; weights are optional.
 _STEP_FIELDS = {Op.REMOVE_COMPONENTS: ("components", "weights"), Op.PROJECT: ("basis",)}
-_FINGERPRINT = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 @dataclass(frozen=True, eq=False)
@@ -244,8 +250,8 @@ def _integer(metadata: dict[str, str], key: str) -> int:
 
 def _fingerprint(metadata: dict[str, str], key: str) -> str:
     value = metadata[key]
-    if not _FINGERPRINT.fullmatch(value):
-        raise ValueError(f"{key} must be a fingerprint (sha256: and 64 hex digits), not {value!r}")
+    if not is_fingerprint(value):
+        raise ValueError(f"{key} must be a fingerprint ({FINGERPRINT_FORM}), not {value!r}")
     return value
 
 

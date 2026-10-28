@@ -20,7 +20,7 @@ SCHEMA_ERRORS = {
         None,
         lambda m: m.update({"fse.format_version": "2"}),
         UnsupportedArtifactError,
-        "format version",
+        "format version '2'",
     ),
     "unknown key": (
         None,
@@ -197,8 +197,8 @@ def test_verify_checks_values(tmp_path, case):
 
 
 GOLDEN = {
-    "float32": "sha256:2700466c5f0e3b1c47624e9e52a4b5064e911e7fc1827e48070345d90cab89f1",
-    "int8": "sha256:efce97495ce0ec596486aa46091b4afa5f27dc0ec2aa039da48dcd6616b68f37",
+    "float32": "xxh3-128:d4c6ae920bbdbf4e0c84dd7ab027c5ef",
+    "int8": "xxh3-128:266a930b0e5d114ecd0cc14fcea3abe4",
 }
 
 
@@ -233,6 +233,18 @@ def test_golden_word_vectors(test_data_dir, dtype, mmap):
     )
     rebuilt = rebuilt if dtype == "float32" else rebuilt.quantize(dtype)
     assert rebuilt.fingerprint == GOLDEN[dtype]
+
+
+@pytest.mark.parametrize("dtype", sorted(GOLDEN))
+def test_the_pre_release_golden_files_are_rejected(test_data_dir, dtype):
+    """The same vectors with the sha256 checksums of a pre-release, kept as they were
+    written and rejected by their checksums (their format version is the same)."""
+    path = test_data_dir / "v2" / "sha256" / f"word_vectors_{dtype}.safetensors"
+    for mmap in (False, True):
+        with pytest.raises(UnsupportedArtifactError, match=r"sha256 .* reads xxh3-128"):
+            WordVectors.load(path, mmap=mmap)
+    with pytest.raises(UnsupportedArtifactError, match="sha256"):
+        SafetensorsContainer().verify(path)
 
 
 @pytest.mark.parametrize("dtype", sorted(GOLDEN))

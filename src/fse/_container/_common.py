@@ -12,7 +12,6 @@ JSON, the checks of a write and the safe opening of regular files.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import os
@@ -24,6 +23,10 @@ from typing import Any, Protocol
 
 import numpy as np
 from numpy import ndarray
+
+from fse._contract import UnsupportedArtifactError
+
+from . import _hash
 
 #: The dtype codes of the format and the numpy type descriptions they stand for.
 DTYPE_CODES = {"F32": "<f4", "F16": "<f2", "I8": "|i1", "U8": "|u1", "U32": "<u4", "I64": "<i8"}
@@ -41,15 +44,14 @@ MAX_INT64 = 2**63 - 1
 
 
 INTEGER = re.compile(r"0|[1-9][0-9]*")
-_SHA256 = re.compile(r"[0-9a-f]{64}")
-_FINGERPRINT = re.compile(r"sha256:[0-9a-f]{64}")
 CHECKSUM_PREFIX = "fse.checksum."
 FINGERPRINT_KEY = "fse.fingerprint"
 CREATED_BY_KEY = "fse.created_by"
 ALIGNMENT = 64
 _CHUNK = 64 * 2**20
 MAX_RANK = 32
-_EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
+#: What a fingerprint looks like, for the messages of the formats that name one.
+FINGERPRINT_FORM = f"{_hash.PREFIX} and 32 lowercase hex digits"
 
 
 class CorruptArtifactError(ValueError):
@@ -97,7 +99,7 @@ def tensor_code(array: ndarray) -> str:
 def fingerprint(
     entries: Mapping[str, tuple[str, tuple[int, ...], str]], metadata: Mapping[str, str]
 ) -> str:
-    """The fingerprint of tensors given as ``name -> (code, shape, sha256)`` and metadata.
+    """The fingerprint of tensors given as ``name -> (code, shape, checksum)`` and metadata.
 
     The metadata without ``fse.created_by``, ``fse.fingerprint`` and the checksum keys;
     the tensors sorted by name (ARCHITECTURE.md, "Identities").
@@ -111,23 +113,40 @@ def fingerprint(
         [name, code, list(shape), digest] for name, (code, shape, digest) in sorted(entries.items())
     ]
     document = {"fingerprint": 1, "metadata": content, "tensors": tensors}
-    return "sha256:" + hashlib.sha256(canonical_json(document).encode("utf-8")).hexdigest()
+    return _hash.checksum(canonical_json(document).encode("utf-8"))
 
 
-def array_sha256(array: ndarray) -> str:
-    """The sha256 of the little-endian C-order bytes of ``array``, in chunks."""
-    digest = hashlib.sha256()
+def is_fingerprint(value: object) -> bool:
+    """Whether ``value`` is a fingerprint (or checksum) of this format."""
+    return _hash.classify(value) == "ok"
+
+
+def checksum(array: ndarray) -> str:
+    """The checksum of the little-endian C-order bytes of ``array``, in chunks."""
+    hasher = _hash.Hasher()
+    _feed(hasher, array)
+    return hasher.checksum()
+
+
+def _feed(hasher: _hash.Hasher, array: ndarray):
+    """Feed the C-order bytes of ``array`` to ``hasher`` in chunks of about ``_CHUNK``."""
     if array.flags.c_contiguous:
-        # Hash the memory itself, without a copy of the data.
-        view = memoryview(array.reshape(-1).view(np.uint8))
-        for begin in range(0, len(view), _CHUNK):
-            digest.update(view[begin : begin + _CHUNK])
-        return digest.hexdigest()
-    flat = array.reshape(-1)
-    step = max(1, _CHUNK // max(1, array.itemsize))
-    for begin in range(0, len(flat), step):
-        digest.update(flat[begin : begin + step].tobytes())
-    return digest.hexdigest()
+        # The memory itself, without a copy; one (maybe empty) update checks the type.
+        flat = array.reshape(-1)
+        step = max(1, _CHUNK // max(1, array.itemsize))
+        for begin in range(0, max(1, len(flat)), step):
+            hasher.update(flat[begin : begin + step])
+        return
+    # A strided array (such as a transposed one) is copied in blocks along its first
+    # axis, never as a whole; a row larger than a chunk is fed by its own rows.
+    row = array[0].nbytes if len(array) else 0
+    if row > _CHUNK:
+        for item in array:
+            _feed(hasher, item)
+        return
+    step = max(1, _CHUNK // max(1, row))
+    for begin in range(0, len(array), step):
+        hasher.update(np.ascontiguousarray(array[begin : begin + step]))
 
 
 def _check_metadata(metadata: Mapping[str, str]):
@@ -175,16 +194,34 @@ def _integrity(
     }
     if set(checksums) != set(specs):
         raise CorruptArtifactError(f"{path}: the checksum keys do not match the tensors")
-    for name, digest in checksums.items():
-        if not _SHA256.fullmatch(digest):
-            raise CorruptArtifactError(f"{path}: the checksum of {name} is malformed")
     recorded = metadata.get(FINGERPRINT_KEY)
-    if recorded is None or not _FINGERPRINT.fullmatch(recorded):
-        raise CorruptArtifactError(f"{path}: {FINGERPRINT_KEY} is missing or malformed")
+    if recorded is None:
+        raise CorruptArtifactError(f"{path}: {FINGERPRINT_KEY} is missing")
+    _check_algorithm(path, [*checksums.values(), recorded])
     entries = {name: (code, shape, checksums[name]) for name, (code, shape) in specs.items()}
     if fingerprint(entries, metadata) != recorded:
         raise CorruptArtifactError(f"{path}: {FINGERPRINT_KEY} does not match the content")
     return entries
+
+
+def _check_algorithm(path: Path, values: list[str]):
+    """Every checksum and the fingerprint must be values of this format; an artifact with
+    only sha256 values (the pre-release format) or values of another algorithm is not
+    supported, a malformed value or a mix (of algorithms too) is damage."""
+    kinds = {_hash.classify(value) for value in values}
+    algorithms = {value.split(":", 1)[0] for value in values}
+    if kinds == {"legacy"}:
+        raise UnsupportedArtifactError(
+            f"{path} was written with the sha256 checksums of a pre-release fse 2.0; this fse "
+            f"reads {_hash.ALGORITHM} checksums; write the artifact again with this fse"
+        )
+    if kinds == {"unknown"} and len(algorithms) == 1:
+        raise UnsupportedArtifactError(
+            f"{path} has checksums of an algorithm this fse does not read; it reads "
+            f"{_hash.ALGORITHM}"
+        )
+    if kinds != {"ok"}:
+        raise CorruptArtifactError(f"{path}: a checksum or {FINGERPRINT_KEY} is malformed")
 
 
 def _strict_json(raw: bytes, file: Path) -> Any:

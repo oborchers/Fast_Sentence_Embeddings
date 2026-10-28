@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import codecs
 import json
-import re
 from collections.abc import Sequence
 from typing import Any, NamedTuple
 
@@ -26,9 +25,11 @@ from fse import _codes
 from fse._container import (
     CHECKSUM_PREFIX,
     CREATED_BY_KEY,
+    FINGERPRINT_FORM,
     FINGERPRINT_KEY,
     INTEGER,
     canonical_json,
+    is_fingerprint,
     tensor_code,
 )
 from fse._contract import OOV_TOKEN, UnsupportedArtifactError
@@ -52,7 +53,6 @@ _KEYS = {
 _TENSORS = {"vectors", "scales", "counts", "vocab.bytes", "vocab.offsets", "ngrams", "ngram_scales"}
 _DTYPE_OF = {"F32": "float32", "F16": "float16", "I8": "int8"}
 _BLOCK_ROWS = 16_384
-_FINGERPRINT = re.compile(r"sha256:[0-9a-f]{64}")
 _MAX_WORDS = OOV_TOKEN  # word ids must stay below the reserved token ids
 
 
@@ -242,10 +242,10 @@ def _check_quantization(tensors: dict[str, ndarray], metadata: dict[str, str], n
     if quantized != ("fse.quantization" in metadata):
         raise ValueError("fse.quantization is given exactly for float16 and int8 vectors")
     origin = metadata.get("fse.quantized_from")
-    if origin is not None and (not quantized or not _FINGERPRINT.fullmatch(origin)):
+    if origin is not None and (not quantized or not is_fingerprint(origin)):
         raise ValueError(
-            f"fse.quantized_from must be the fingerprint of float32 vectors and is given "
-            f"only for float16 and int8, not {origin!r}"
+            f"fse.quantized_from must be the fingerprint ({FINGERPRINT_FORM}) of float32 "
+            f"vectors and is given only for float16 and int8, not {origin!r}"
         )
     if quantized and metadata["fse.quantization"] != QUANTIZATION:
         raise UnsupportedArtifactError(
