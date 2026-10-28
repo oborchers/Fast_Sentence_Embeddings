@@ -193,7 +193,9 @@ class ShardSink:
             return
         try:
             self._settle()  # the rows handed over are written, unless a thread failed
-            if not self._failed():  # else nothing more is published
+            if self._failed():  # nothing more is published
+                self._raise_unreported()
+            else:
                 self._abort_uncommitted()
                 self._drain()
         finally:
@@ -225,6 +227,15 @@ class ShardSink:
     def _settle(self) -> None:
         for thread in (self._hash, self._io, self._publisher):
             thread.settle()
+
+    def _raise_unreported(self) -> None:
+        """Raise the cause of a failure no call has raised yet: the writing thread first,
+        since the others wait for it and fail after it."""
+        threads = (self._io, self._hash, self._publisher)
+        if not any(t.reported for t in threads):
+            for thread in threads:
+                if thread.failed:
+                    thread.check()
 
     def _failed(self) -> bool:
         return any(t.failed for t in (self._hash, self._io, self._publisher))

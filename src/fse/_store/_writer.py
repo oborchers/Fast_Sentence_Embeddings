@@ -79,6 +79,11 @@ class WriterThread:
             f"the writer of the sink failed earlier: {self._error!r}"
         ) from self._error
 
+    @property
+    def reported(self) -> bool:
+        """Whether a call has raised the error of the thread."""
+        return self._reported
+
     def settle(self) -> None:
         """Wait until all work handed over so far is done or dropped, without raising."""
         self._queue.join()

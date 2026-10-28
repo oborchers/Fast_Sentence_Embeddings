@@ -165,3 +165,22 @@ def test_after_a_failed_write_the_sink_takes_no_more_rows(tmp_path, monkeypatch)
     sink.close()  # no second error; nothing more is published
     assert sink.durable_rows == 0
     assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]
+
+
+def test_close_raises_a_write_error_nothing_raised_before(tmp_path, monkeypatch):
+    from fse._store import _shard
+
+    def full(*_args):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(_shard, "write_at", full)
+    sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=8)
+    target = sink.target(0, 3)
+    target[0][...] = 0
+    target[1][...] = 0
+    sink.commit(0, target)  # handed to the writer threads; their error comes later
+    with pytest.raises(OSError, match="No space left"):
+        sink.close()
+    sink.close()  # closed: no second error
+    assert sink.durable_rows == 0
+    assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]

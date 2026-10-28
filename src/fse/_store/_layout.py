@@ -35,7 +35,7 @@ from fse._container import (
     NpyContainer,
     is_fingerprint,
 )
-from fse._container._common import _open_regular, _strict_json
+from fse._container._common import _open_regular, _strict_json, _sync_directory
 from fse._container._npy_inplace import publish_directory, sync_file
 from fse._contract import UnsupportedArtifactError
 
@@ -140,6 +140,7 @@ def create_store(path: Path, info: StoreInfo) -> bool:
             sync_file(fd)
         finally:
             os.close(fd)
+        _sync_directory(tmp)  # the entry of store.json, before the store appears
         try:
             publish_directory(tmp, path)
         except FileExistsError:
