@@ -20,21 +20,21 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.util
+import importlib
 import io
 import mmap
 import os
 import sys
 from pathlib import Path
+from types import ModuleType
 
 import numpy as np
 from numpy.lib import format as npy_format
 
 from ._common import ALIGNMENT, _sync_directory
 
-try:
-    import fcntl as _fcntl
-except ImportError:  # pragma: no cover - Windows
-    _fcntl = None
+# fcntl for F_FULLFSYNC; Windows has none.
+_fcntl: ModuleType | None = None if os.name == "nt" else importlib.import_module("fcntl")
 
 _ZEROS = bytes(1 << 20)
 
