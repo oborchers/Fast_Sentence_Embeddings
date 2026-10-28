@@ -72,6 +72,7 @@ _logging.getLogger("fse").addHandler(_logging.NullHandler())
 def __dir__() -> list[str]:
     return sorted({*globals(), *_ENCODER})
 
+
 __all__ = [
     "SIF",
     "USIF",
