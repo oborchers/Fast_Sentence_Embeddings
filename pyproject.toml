@@ -266,6 +266,7 @@ exhaustive = true
 exhaustive_ignores = ["_version"]
 layers = [
     "gensim",
+    "_runtime",
     "_backends",
     "_text",
     "_wordvectors",
