@@ -70,7 +70,8 @@ def test_a_shard_that_ends_early_keeps_its_data_offset(tmp_path):
 
 def test_headers_are_padded_to_the_alignment():
     head = mapped.header(np.float16, (1_000_000, 300))
-    assert len(head) % 64 == 0 and head.endswith(b"\n")
+    assert len(head) % 64 == 0
+    assert head.endswith(b"\n")
     assert len(mapped.header(np.float16, (0, 300), len(head))) == len(head)
     with pytest.raises(ValueError, match="does not fit in 64 bytes"):
         mapped.header(np.float16, (10**60, 10**60), 64)
@@ -106,6 +107,8 @@ def test_publishing_never_replaces_a_directory(tmp_path):
         mapped.publish_directory(tmp_path / "a", tmp_path / "b")  # not empty
     with pytest.raises(FileExistsError):
         mapped.publish_directory(tmp_path / "a", tmp_path / "c")  # empty
-    assert (tmp_path / "a" / "x").exists() and (tmp_path / "b" / "y").exists()
+    assert (tmp_path / "a" / "x").exists()
+    assert (tmp_path / "b" / "y").exists()
     mapped.publish_directory(tmp_path / "a", tmp_path / "d")
-    assert (tmp_path / "d" / "x").read_bytes() == b"1" and not (tmp_path / "a").exists()
+    assert (tmp_path / "d" / "x").read_bytes() == b"1"
+    assert not (tmp_path / "a").exists()
