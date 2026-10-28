@@ -259,15 +259,19 @@ def check_steps(steps: Sequence[object], dim: int) -> tuple[Step, ...]:
             "postprocessing steps must be a subset of remove_components, project and "
             f"normalize in this order, each at most once, not {[op.id for op in ops]}"
         )
-    for step in checked:
-        if isinstance(step, RemoveComponents | Project):
-            if step.dim != dim:
-                raise ValueError(
-                    f"the {step.op.id} step takes rows of {step.dim} values, not {dim}"
-                )
-            if isinstance(step, Project):
-                dim = step.output_dim
+    _check_dims(checked, dim)
     return tuple(checked)
+
+
+def _check_dims(steps: list[Step], dim: int):
+    """Every step with a basis takes the rows the steps before it give."""
+    for step in steps:
+        if not isinstance(step, RemoveComponents | Project):
+            continue
+        if step.dim != dim:
+            raise ValueError(f"the {step.op.id} step takes rows of {step.dim} values, not {dim}")
+        if isinstance(step, Project):
+            dim = step.output_dim
 
 
 def output_dim(steps: Sequence[Step], dim: int) -> int:
