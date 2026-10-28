@@ -64,28 +64,37 @@ def quantize_into(
             )
         if int8:
             assert scales is not None
-            if block.shape[1]:
-                absmax = np.abs(block).max(axis=1)
-            else:
-                absmax = np.zeros(len(block), dtype=_F32)
-            scale = (absmax / _INT8_TOP).astype(_F32)
-            # Rounding can lift 127 * scale past the float32 maximum; step the scale down.
-            with np.errstate(over="ignore"):
-                beyond = ~np.isfinite(scale * _INT8_TOP)
-            scale[beyond] = np.nextafter(scale[beyond], _F32(0))
-            # A scale of 0 (a zero row, or one whose absmax / 127 underflows) gives codes 0.
-            divisor = np.where(scale > 0, scale, _F32(1))[:, None]
+            scale, divisor = _int8_scales(block)
             codes[begin:end] = np.clip(np.rint(block / divisor), -127, 127)
             scales[begin:end] = scale
         else:
-            if codes.dtype == np.float16 and block.size:
-                large = np.flatnonzero((np.abs(block) > _FLOAT16_MAX).any(axis=1))
-                if len(large):
-                    raise ValueError(
-                        f"{kind} {first_row + begin + int(large[0])} has values beyond the "
-                        f"float16 range of +-{_FLOAT16_MAX:g}"
-                    )
+            if codes.dtype == np.float16:
+                _check_float16(block, kind, first_row + begin)
             codes[begin:end] = block
+
+
+def _int8_scales(block: ndarray) -> tuple[ndarray, ndarray]:
+    """The scale of every row of ``block`` and the column of divisors its codes take."""
+    absmax = np.abs(block).max(axis=1) if block.shape[1] else np.zeros(len(block), dtype=_F32)
+    scale = (absmax / _INT8_TOP).astype(_F32)
+    # Rounding can lift 127 * scale past the float32 maximum; step the scale down.
+    with np.errstate(over="ignore"):
+        beyond = ~np.isfinite(scale * _INT8_TOP)
+    scale[beyond] = np.nextafter(scale[beyond], _F32(0))
+    # A scale of 0 (a zero row, or one whose absmax / 127 underflows) gives codes 0.
+    return scale, np.where(scale > 0, scale, _F32(1))[:, None]
+
+
+def _check_float16(block: ndarray, kind: str, first: int):
+    """Raise for the first row of ``block`` (row ``first`` + i) beyond the float16 range."""
+    if not block.size:
+        return
+    large = np.flatnonzero((np.abs(block) > _FLOAT16_MAX).any(axis=1))
+    if len(large):
+        raise ValueError(
+            f"{kind} {first + int(large[0])} has values beyond the "
+            f"float16 range of +-{_FLOAT16_MAX:g}"
+        )
 
 
 def quantize(rows: ndarray, dtype: str, *, kind: str = "row") -> tuple[ndarray, ndarray | None]:
