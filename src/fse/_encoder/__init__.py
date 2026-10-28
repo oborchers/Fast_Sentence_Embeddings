@@ -7,5 +7,6 @@
 """The encoder of fse 2.0 and its recipes (ARCHITECTURE.md, "2.0 design")."""
 
 from ._encoder import Encoder, QuantizedRows
+from ._recipes import SIF, USIF, Average
 
-__all__ = ["Encoder", "QuantizedRows"]
+__all__ = ["SIF", "USIF", "Average", "Encoder", "QuantizedRows"]

@@ -293,11 +293,11 @@ exhaustive = true
 layers = ["_cpu | _numpy", "_base"]
 
 [[tool.importlinter.contracts]]
-name = "Encoder: the encoder on its format, inputs and weights"
+name = "Encoder: recipes on fit, fit on the encoder, the encoder on its parts"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_encoder", "_fold | _format | _sources | _weights"]
+layers = ["_recipes", "_fit", "_encoder", "_fold | _format | _sources | _weights"]
 
 [[tool.importlinter.contracts]]
 name = "Runtime: the pipeline on tasks, sinks and the executor"
