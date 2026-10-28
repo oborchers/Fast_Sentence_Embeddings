@@ -180,7 +180,44 @@ def test_errors_name_the_rows_of_the_run():
     )
     encoder = fse.Average(tokenizer="external").fit(wv)
     polls = [["big", "big"], ["big", "tiny"]]  # "tiny" cannot be normalized
-    with pytest.raises(ValueError, match=r"^row 3 cannot be normalized"):
+    with pytest.raises(ValueError, match=r"^batch 1 \(rows 2 to 3 of the run\): row 3 cannot"):
         list(encoder.encode_batches(polls, workers=1, sink=fse.MemorySink(2)))
+    with pytest.raises(TypeError, match=r"^batch 1 \(rows 1 to 2 of the run\): .*str"):
+        list(encoder.encode_batches([["big"], ["big", 123]], workers=1))  # in its source
     with pytest.raises(ValueError, match=r"^batch 1 \(rows 2 to 3 of the run\): row 1 cannot"):
         list(encoder.encode_batches(polls, workers=1))
+
+
+class _Odd(fse.MemorySink):
+    def __init__(self, **attributes):
+        super().__init__(ENCODER.output_dim)
+        self.__dict__.update(attributes)
+
+
+@pytest.mark.parametrize(
+    ("attributes", "error", "match"),
+    [
+        ({"publish": 42}, TypeError, "publish of the sink must be a method"),
+        ({"flush": "x"}, TypeError, "flush of the sink must be a method"),
+        ({"durable_rows": "100"}, TypeError, "durable_rows of the sink must be an int"),
+        ({"durable_rows": True}, TypeError, "must be an int, not bool"),
+        ({"durable_rows": 10**6}, ValueError, "must be between 0"),
+        ({"durable_rows": -1}, ValueError, "must be between 0"),
+    ],
+)
+def test_the_optional_parts_of_a_sink_are_checked(attributes, error, match):
+    with pytest.raises(error, match=match):
+        list(ENCODER.encode_batches([["w1 w2"], ["w3"]], sink=_Odd(**attributes)))
+
+
+def test_durable_rows_never_shrink():
+    class Shrinking(fse.MemorySink):
+        calls = 0
+
+        def publish(self):
+            self.calls += 1
+            self.durable_rows = 1 if self.calls == 1 else 0  # 1 after the first, then 0
+
+    sink = Shrinking(ENCODER.output_dim)
+    with pytest.raises(ValueError, match="between 1"):
+        list(ENCODER.encode_batches([["w1"], ["w2"]], sink=sink))

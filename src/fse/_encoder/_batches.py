@@ -16,7 +16,10 @@ is read. With a sink, every batch is committed to it, numbered on from the rows 
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from typing import Any, NamedTuple
+
+import numpy as np
 
 from fse import _codes
 from fse._runtime import Pipeline, wants_inverse_norms
@@ -54,12 +57,15 @@ def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int) -> str:
     return own
 
 
-def _infer(pipeline: Pipeline, source: Any, workers: Any, dtype: str, k: int, row: int, n: int):
-    """The rows of batch ``k``; an error names the batch and its rows of the run."""
+@contextmanager
+def _named(k: int, row: int, n: int) -> Iterator[None]:
+    """A ValueError or TypeError of batch ``k`` names the batch and its rows of the run."""
     try:
-        return pipeline.infer(source, workers=workers, dtype=dtype)
-    except ValueError as error:
-        raise ValueError(f"batch {k} (rows {row} to {row + n - 1} of the run): {error}") from None
+        yield
+    except (ValueError, TypeError) as error:
+        if type(error) not in (ValueError, TypeError):
+            raise
+        raise type(error)(f"batch {k} (rows {row} to {row + n - 1} of the run): {error}") from None
 
 
 def run_into(pipeline: Pipeline, source: Any, sink: Any, workers: Any, first_row: int) -> None:
@@ -69,18 +75,34 @@ def run_into(pipeline: Pipeline, source: Any, sink: Any, workers: Any, first_row
 
 def flush(sink: Any) -> None:
     """The sink's ``flush`` after the last commit of a successful run, if it has one."""
-    method = getattr(sink, "flush", None)
-    if callable(method):
-        method()
+    _call(sink, "flush")
 
 
-def durable(sink: Any) -> int | None:
-    """The sink's durable rows after a batch: published by ``publish`` if it has one."""
-    publish = getattr(sink, "publish", None)
-    if callable(publish):
-        publish()
+def durable(sink: Any, done: int, last: int | None) -> int | None:
+    """The sink's durable rows after a batch, once ``publish`` (if it has one) ran: an int
+    from ``last`` (the rows durable before) to ``done`` (the rows finished), or None for
+    a sink that promises nothing."""
+    _call(sink, "publish")
     rows = getattr(sink, "durable_rows", None)
-    return rows if isinstance(rows, int) else None
+    if rows is None:
+        return None
+    if isinstance(rows, bool) or not isinstance(rows, int | np.integer):
+        raise TypeError(f"durable_rows of the sink must be an int, not {type(rows).__name__}")
+    if not (last or 0) <= rows <= done:
+        raise ValueError(
+            f"durable_rows of the sink is {rows}; after {done} rows it must be between "
+            f"{last or 0} (durable before) and {done}"
+        )
+    return int(rows)
+
+
+def _call(sink: Any, name: str) -> None:
+    method = getattr(sink, name, None)
+    if method is None:
+        return
+    if not callable(method):
+        raise TypeError(f"{name} of the sink must be a method, not {type(method).__name__}")
+    method()
 
 
 def batches(
@@ -95,19 +117,23 @@ def batches(
 ) -> Iterator[EncodedBatch]:
     """The EncodedBatch of every item of ``items``, a finite list of sentences (or token
     lists) each; ``wrap`` turns int8 rows into QuantizedRows."""
-    row = 0
+    row, last = 0, None
     for k, item in enumerate(items):
         if not isinstance(item, list | tuple):
             raise TypeError(
                 f"batch {k} is a {type(item).__name__}; every batch is a list (or tuple) of sentences"
             )
-        with opened(item, tokenizer) as source:
+        n = len(item)
+        with _named(k, row, n), opened(item, tokenizer) as source:
             if sink is None:
-                rows = wrap(_infer(pipeline, source, workers, dtype, k, row, len(item)))
-                yield EncodedBatch(row, len(item), rows, None)
+                found = EncodedBatch(
+                    row, n, wrap(pipeline.infer(source, workers=workers, dtype=dtype)), None
+                )
             else:
                 run_into(pipeline, source, sink, workers, row)
-                yield EncodedBatch(row, len(item), None, durable(sink))
-        row += len(item)
+                last = durable(sink, row + n, last)
+                found = EncodedBatch(row, n, None, last)
+        yield found
+        row += n
     if sink is not None:
         flush(sink)
