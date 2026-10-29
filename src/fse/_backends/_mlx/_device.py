@@ -145,22 +145,24 @@ class Device:
             raise known
 
     def _enqueue(self, job: Job) -> None:
-        """Queue ``job`` and start the device thread if none runs (after the one before
-        has ended); a thread that does not start takes the job out again."""
+        """Queue ``job`` and start the device thread if none runs; the new thread joins the
+        one before before any MLX work (outside the lock, which a caller returning a lease
+        to the thread before may need), so device threads never overlap. A thread that
+        does not start takes the job out again."""
         with self._lock:
             self._queue.append(job)
             if self._thread is not None:
                 return
-            if self._previous is not None:
-                self._previous.join()
-                self._previous = None
-            thread = threading.Thread(target=self._serve, name="fse-mlx", daemon=True)
+            previous, self._previous = self._previous, None
+            thread = threading.Thread(
+                target=self._serve, args=(previous,), name="fse-mlx", daemon=True
+            )
             self._thread = thread
             try:
                 thread.start()
             except BaseException:
                 if thread.ident is None:  # it never ran: as before the call
-                    self._thread = None
+                    self._thread, self._previous = None, previous
                     self._queue.remove(job)
                     job.state = "cancelled"
                 raise
@@ -179,10 +181,10 @@ class Device:
     def _settle_aborted(self, job: Job) -> None:
         """One attempt of ``_abort``; every part may run again after an interrupt."""
         with self._lock:
-            if job.state == "queued" and job in self._queue:
-                self._queue.remove(job)
+            if job.state != "running":  # not taken by the device thread, queued or not
+                if job in self._queue:
+                    self._queue.remove(job)
                 job.state = "cancelled"
-            if job.state == "cancelled":
                 return
         job.done.wait()
         job.result = None
@@ -205,14 +207,17 @@ class Device:
                 self._previous, self._thread = self._thread, None
             return group
 
-    def _serve(self) -> None:
+    def _serve(self, previous: threading.Thread | None = None) -> None:
         """Launch a group while the one before computes on the GPU, then complete that one:
         at most two groups in flight, so the finish and the copies of one overlap the
-        kernels of the next. With nothing queued, the group in flight completes at once."""
+        kernels of the next. With nothing queued, the group in flight completes at once.
+        First the thread before ends (its last leases come back)."""
         group: list[Job] = []
         flight: list[tuple[Job, tuple]] = []
         lent: list[Job] = []
         try:
+            if previous is not None:
+                previous.join()
             mx = self.core()
             if self._stream is None:
                 self._stream = mx.new_thread_unsafe_stream(mx.gpu)

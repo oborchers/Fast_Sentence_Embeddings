@@ -4,6 +4,7 @@ the caller returned them, also when the caller fails or is interrupted, and with
 waiting for a slow caller before a group already queued. A fake MLX stands in for the GPU."""
 
 import threading
+import time
 
 import numpy as np
 import pytest
@@ -246,5 +247,97 @@ def test_an_abort_interrupted_again_still_settles_the_job(device, monkeypatch, t
     with pytest.raises(KeyboardInterrupt):
         device.run(launch, lambda arrays: View(arrays[0]), 0, lambda v: v)
     assert lock.times == 0
+    assert freed == ["fse-mlx"]
+    assert _threads() == []
+
+
+def _in_thread(function, timeout=10):
+    """``function()`` in a thread; its result or error, and whether it ended in time."""
+    out = {}
+
+    def call():
+        try:
+            out["result"] = function()
+        except BaseException as err:  # an interrupt raised in this thread
+            out["error"] = err
+
+    thread = threading.Thread(target=call)
+    thread.start()
+    thread.join(timeout)
+    return out, not thread.is_alive()
+
+
+def test_an_interrupt_before_the_first_enqueue_cancels_the_job(device, monkeypatch):
+    """F3 of review 4: the job was never queued; the abort must not wait for it."""
+    jobs = []
+
+    def interrupted(job):
+        jobs.append(job)
+        raise KeyboardInterrupt  # as if taking the lock in _enqueue were interrupted
+
+    monkeypatch.setattr(device, "_enqueue", interrupted)
+    out, ended = _in_thread(lambda: device.run(lambda _m, _s: (), lambda _a: 1))
+    assert ended, "the abort waited for a job that was never queued"
+    assert isinstance(out["error"], KeyboardInterrupt)
+    assert jobs[0].state == "cancelled"
+    monkeypatch.undo()
+    assert device.run(lambda _m, _s: (), lambda _a: 2) == 2  # the device goes on
+
+
+def test_a_new_call_does_not_wait_under_the_lock_for_the_thread_before(device, monkeypatch):
+    """F4 of review 4: caller A's job is done, and the device thread waits for A's lease;
+    A is interrupted after its wait and must take the lock to settle, while caller B
+    queues a job and starts a new thread. B must not hold the lock while it joins the
+    thread before (which waits for A): both calls end."""
+    b_queued = threading.Event()
+    real_wait = threading.Event.wait
+
+    class Done(threading.Event):
+        interrupts = 1
+
+        def wait(self, timeout=None):
+            real_wait(self, timeout)
+            if self.interrupts:  # once, after the job is done
+                self.interrupts -= 1
+                b_queued.wait(10)
+                time.sleep(0.2)  # B is in its enqueue now
+                raise KeyboardInterrupt
+            return True
+
+    class Interrupted(_device.Job):
+        def __init__(self, *args):
+            super().__init__(*args)
+            self.done = Done()
+
+    freed, results, plain = [], {}, _device.Job
+    monkeypatch.setattr(_device, "Job", Interrupted)
+
+    def call_a():
+        try:
+            device.run(
+                lambda _m, _s: (Tracked(freed),), lambda arrays: View(arrays[0]), 0, lambda v: v
+            )
+        except KeyboardInterrupt:
+            results["a"] = "interrupted"
+
+    thread_a = threading.Thread(target=call_a)
+    thread_a.start()
+    while not _threads():
+        pass
+    while device._thread is not None:  # the thread found no more jobs: it waits for A
+        pass
+    monkeypatch.setattr(_device, "Job", plain)
+
+    def call_b():
+        b_queued.set()
+        results["b"] = device.run(lambda _m, _s: (), lambda _a: "b")
+
+    thread_b = threading.Thread(target=call_b)
+    thread_b.start()
+    thread_a.join(10)
+    thread_b.join(10)
+    assert not thread_a.is_alive(), "the calls wait for each other"
+    assert not thread_b.is_alive()
+    assert results == {"a": "interrupted", "b": "b"}
     assert freed == ["fse-mlx"]
     assert _threads() == []
