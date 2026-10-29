@@ -3,9 +3,11 @@
 that the mistaken kernel computes on the GPU (a launch, no host fallback).
 
 The mistakes are variants of the real kernel's source (built apart from it), a backend
-that does not refuse subnormal inputs at prepare, a read that swaps rows, and rows moved
-by 10 times the bound; and the flushed cases need the absolute term of the bound. Two more show that the bit comparison
-of tests/test_conformance.py catches what the bound allows (no fma, acc / n).
+that does not refuse subnormal inputs at prepare, one without the check before
+normalize, a read that swaps rows, and rows moved by 10 times the bound; the flushed
+cases need the absolute term and the rounding term of the bound. Two more show that the
+bit comparison of tests/test_conformance.py catches what the bound allows (no fma,
+acc / n). tests/test_conformance_device_limits.py has the witnesses of the limits.
 """
 
 import numpy as np
@@ -13,7 +15,7 @@ import pytest
 
 from fse import _reference
 from fse._backends._mlx import _bounds, _kernels, _sources
-from fse._contract import Normalize, Project
+from fse._contract import Normalize
 from support import bound
 from support.bound import assert_within_bound, bounds
 from support.cases import CASES, random_case
@@ -49,7 +51,7 @@ def _variant(monkeypatch, *replacements):
 # Witnesses: distinct tokens of random words, no empty sentence, both kernel widths.
 WITNESSES = [random_case(f"witness {dim}", "float32", 70 + dim, dim=dim, empty=0) for dim in (8, 9)]
 # The fma of a known word (the ngram one is indented further), and its replacements.
-KNOWN_FMA = "acc = metal::fma(acc_t(f), x, acc);\n            if (BOUND) {\n                magnitude = metal::fma(metal::fabs(f), norms[w]"
+KNOWN_FMA = "acc = metal::fma(acc_t(f), x, acc);\n            if (f != 0.0f) {"
 MISTAKES = {
     "drops a token": [
         ("for (uint t = begin; t < end; ++t)", "for (uint t = begin + 1u; t < end; ++t)")
@@ -166,18 +168,12 @@ def test_the_bits_catch_what_the_bound_allows(mlx, monkeypatch, old, new, name):
         assert_bits_equal(out, _reference.pool_weighted_mean(case.batch, *case.args()), name)
 
 
-@pytest.mark.parametrize("steps", ["normalize", "project normalize"])
-def test_the_suite_catches_a_backend_without_the_check_before_normalize(mlx, monkeypatch, steps):
-    """Without it, the device row of "zero after a flush" is normalized to about -1
-    where the cpu row stays zero (or, after an identity projection, is normalized on the
-    host from the device row)."""
+def test_the_suite_catches_a_backend_without_the_check_before_normalize(mlx, monkeypatch):
+    """Without it, the device row of "zero after a flush" is normalized to about -1 where
+    the cpu row stays zero."""
     monkeypatch.setattr(_bounds, "unnormalizable", lambda low, *_: np.zeros(len(low), bool))
     (case,) = [c for c in CASES if c.name == "zero after a flush"]
-    chosen = (
-        (Normalize(),)
-        if steps == "normalize"
-        else (Project(np.eye(1, dtype=np.float32)), Normalize())
-    )
-    out, _, _ = pool_on_device(mlx, case, chosen)
+    device = pool_on_device(mlx, case)[0]
+    out, _, _ = pool_on_device(mlx, case, (Normalize(),))
     with pytest.raises(AssertionError, match="must be the cpu's"):
-        assert_within_bound(out, case, chosen, case.name)
+        assert_within_bound(out, case, (Normalize(),), case.name, device=device)

@@ -73,7 +73,7 @@ def canary(mx: ModuleType, stream: Any) -> None:
         if tuple((flags & _kernels.ALWAYS).tolist()) != FLAGS:
             raise _fail(f"its flags differ ({flags.tolist()})")
     rows = np.ascontiguousarray(np.repeat(ROWS[:, None], 4, axis=1))
-    got, _, bounds = _rows(mx, stream, rows, WEIGHTS, batch, bound=True, normalize=True)
+    got, _, bounds = _rows(mx, stream, rows, WEIGHTS, batch, normalize=True)
     squares = bounds[:, 1].view(np.uint32)
     if (got[0].view(np.uint32) != NORMALIZED[0]).any() or squares[0] != NORMALIZED[1]:
         raise _fail("it does not normalize as the cpu backend")

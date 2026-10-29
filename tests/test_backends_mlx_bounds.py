@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 
 from fse._backends._mlx import _bounds
-from fse._contract import Normalize, Project, RemoveComponents
 from support import bound
 from support.cases import random_case
 
@@ -46,10 +45,32 @@ def test_the_pooling_bound_covers_the_contract_s(dtype):
     assert (got[n == 0] == 0).all()
 
 
-def test_no_pooling_bound_for_a_quarter_of_2_24_contributions():
-    got = _bounds.pooling(np.ones(2, F32), np.array([1, 1 << 22]), np.array([1, 1 << 22]), 4)
-    assert np.isfinite(got[0])
-    assert got[1] == np.inf
+def test_the_pooling_bound_is_finite_below_2_24_contributions():
+    k = np.array([1, (1 << 24) - 1])
+    got = _bounds.pooling(np.ones(2, F32), k, k, 4)
+    assert np.isfinite(got).all()
+    assert got[1] > 1  # gamma_K about 2**24: no useful bound, before normalize the host
+
+
+def test_rows_whose_sums_could_overflow_on_the_cpu():
+    """R4 of review 3: M bounds every partial sum; from 2**127 (or not finite) the host."""
+    sums = np.array([1.0, 2.0**126, 2.0**127, np.inf, np.nan], F32)
+    got = _bounds.overflows(sums, np.full(5, 4))
+    assert got.tolist() == [False, False, True, True, True]
+
+
+def test_a_nonfinite_bound_sends_the_row_to_the_host():
+    """R1 of review 3: a NaN bound made every comparison false."""
+    g = np.array([1.0, 1.0])
+    assert _bounds.unnormalizable(g, g, np.array([np.nan, np.inf])).tolist() == [True, True]
+    rows = np.ones((2, 3), F32)
+    assert _bounds.beyond_float16(rows, np.array([np.nan, 0.0])).tolist() == [True, False]
+
+
+def test_rows_near_the_float16_range():
+    rows = np.array([[65504.0, 0], [-65000.0, 1], [65000.0, 0]], F32)
+    got = _bounds.beyond_float16(rows, np.array([0.0, 600.0, 1.0]))
+    assert got.tolist() == [True, True, False]
 
 
 @pytest.mark.parametrize("dim", [1, 16, 300])
@@ -70,33 +91,6 @@ def test_the_rows_normalize_must_not_take_from_the_device():
     g = np.array([1.0, 1e-6, 2.0**-51, 1.0, 2.0**61, 0.0])
     e = np.array([1e-5, 1e-6, 1e-30, 0.4, 1.0, 0.0])
     assert _bounds.unnormalizable(g, g, e).tolist() == [False, True, True, False, True, True]
-
-
-@pytest.mark.parametrize(
-    "step",
-    [
-        RemoveComponents(_basis(12, 2, 1), np.array([1.0, 0.5], F32)),
-        RemoveComponents(_basis(12, 3, 2)),
-        Project(_basis(12, 5, 3)),
-    ],
-    ids=["remove weighted", "remove", "project"],
-)
-def test_a_linear_bound_covers_the_contract_s(step):
-    """After pooling then the step: at least the helper's E for the same rows."""
-    case = random_case("l", "float32", 5, dim=12, n=30, empty=0)
-    rows, pool, _ = bound.bounds(case)
-    _, want, _ = bound.bounds(case, (step,))
-    got = _bounds.linear(step, 12).propagate(pool, _bounds.norms(rows))
-    assert (got >= want).all()
-
-
-def test_the_linear_bound_of_a_projection_and_its_overflow():
-    linear = _bounds.linear(Project(np.array([[0.0, 1.0]], F32)), 2)
-    assert linear.norm == pytest.approx(1)
-    assert linear.dim == 1
-    over = linear.overflows(np.array([0.0, 0.0]), np.array([1.0, 2.0**100]))
-    assert over.tolist() == [False, True]
-    assert _bounds.linear(Normalize(), 2) is None
 
 
 def test_after_normalize():

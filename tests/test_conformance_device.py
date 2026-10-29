@@ -52,8 +52,8 @@ SUBNORMAL_INPUT = {
     ("int8", "subnormal int8 factor"),
     ("float32", "subnormal ngram factor"),
 }
-# The cases whose products or partial sums the GPU flushes: within the absolute term of
-# the bound, not the cpu's bits.
+# The cases whose products or partial sums the GPU flushes: within the bound (its absolute
+# term, and 2 gamma_K for the roundings a flush turns), not the cpu's bits.
 FLUSHED = {
     ("float32", "subnormal products"),
     ("float32", "cancels to subnormal"),
@@ -108,11 +108,14 @@ STEPS = {
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("fasttext", [False, True], ids=["plain", "fasttext"])
 def test_steps_are_within_the_bound(mlx, steps, dtype, fasttext):
+    """normalize alone on the device; with linear steps (which fse 2.0 folds into the
+    word vectors) the encoder runs on the host, with the cpu's bits."""
     case = random_case("steps", dtype, 40, dim=12, n=30, ft=fasttext)
     out, fell_back, launched = pool_on_device(mlx, case, STEPS[steps])
-    assert launched
-    assert not fell_back
-    assert_within_bound(out, case, STEPS[steps], "steps")
+    device = pool_on_device(mlx, case)[0]
+    assert bool(launched) == (steps == "normalize")
+    assert bool(fell_back) == (steps != "normalize")
+    assert_within_bound(out, case, STEPS[steps], "steps", device=device)
 
 
 def _check_fallbacks(backend):
@@ -181,7 +184,7 @@ def test_a_flagged_row_changes_no_other_row(mlx, cuts):
     parts = [pool_on_device(mlx, part, NORMALIZE)[0] for part in _parts(MIXED, cuts)]
     assert_bits_equal(np.concatenate(parts), whole, f"cuts {cuts}")
     assert_bits_equal(whole[FLAGGED], _want(MIXED)[FLAGGED], "flagged")
-    assert_within_bound(whole, MIXED, NORMALIZE, "mixed")
+    assert_within_bound(whole, MIXED, NORMALIZE, "mixed", device=pool_on_device(mlx, MIXED)[0])
 
 
 @pytest.mark.parametrize("group_tasks", [1, 2, 8])
@@ -297,7 +300,7 @@ def test_a_row_the_cpu_cancels_to_zero_comes_from_the_host_before_normalize(mlx)
     out, fell_back, _ = pool_on_device(mlx, case, NORMALIZE)
     assert fell_back
     assert_bits_equal(out, _want(case), case.name)
-    assert_within_bound(out, case, NORMALIZE, case.name)
+    assert_within_bound(out, case, NORMALIZE, case.name, device=raw)
 
 
 @pytest.mark.parametrize(
@@ -305,25 +308,29 @@ def test_a_row_the_cpu_cancels_to_zero_comes_from_the_host_before_normalize(mlx)
     [
         ((Project(np.array([[0.0, 1.0]], F32)), Normalize()), "row 0 cannot be normalized"),
         ((Project(np.array([[0.0, 1.0]], F32)),), None),
+        ((Project(np.eye(1, 2, dtype=F32)), Normalize()), None),
     ],
-    ids=["project normalize", "project"],
+    ids=["project normalize", "project", "identity part"],
 )
 def test_an_underflow_a_projection_exposes(mlx, steps, error):
-    """F2: the cpu row [1, 2**-127], the device's [1, 0]; projected onto the second value,
-    normalize fails on the cpu, so on the device too; without it, within the bound."""
+    """F2 of review 2: the cpu row [1, 2**-127], the device's [1, 0]; projected onto the
+    second value, normalize fails on the cpu. An encoder with linear steps runs on the
+    host, so its errors and rows are the cpu's."""
     case = _case("exposed underflow")
     if error is not None:
         with pytest.raises(ValueError, match=error):
             pool_on_device(mlx, case, steps)
         return
-    out, _, launched = pool_on_device(mlx, case, steps)
-    assert launched
+    out, fell_back, launched = pool_on_device(mlx, case, steps)
+    assert fell_back
+    assert not launched
     assert_within_bound(out, case, steps, case.name)
 
 
 def test_a_flush_that_turns_a_rounding_through_an_identity_projection(mlx):
+    """On the host: an identity projection is a linear step."""
     case = _case("a flush turns a rounding")
     steps = (Project(np.eye(1, dtype=F32)),)
     out, fell_back, _ = pool_on_device(mlx, case, steps)
-    assert not fell_back
-    assert_within_bound(out, case, steps, case.name)
+    assert fell_back
+    assert_bits_equal(out, _reference.pool_weighted_mean(case.batch, *case.args()), case.name)

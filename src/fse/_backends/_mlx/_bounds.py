@@ -4,34 +4,33 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""Conservative per-row error bounds of the mlx backend and the checks before normalize
+"""Conservative per-row error bounds of the mlx backend and the checks they drive
 (ARCHITECTURE.md, "Tolerance contract of device backends" and "MLX").
 
-After pooling a row's distance to the cpu row is at most ``E = (tau + 2 gamma_K) m + delta``;
-the kernel gives an upper bound of m, ``(1/n) sum |f| ||x||`` (the triangle inequality),
-from the norms of the stored rows. A linear step with matrix A, run on the host on both
-sides, makes it ``||A|| E + R_cpu + R_device``, R from the rounding of its products and
-sums. Before ``normalize`` a row goes to the host when it could be zero or tiny on the
-cpu (``||g|| <= 2 E``, or ``||g|| - E`` below 2**-50, where a sum of squares may be
-subnormal on either side) or its squares could overflow. All in float64, rounded towards
-the safe side; no floating-point environment of the worker changes float64 values this
-far from its subnormal range.
+The kernel gives per row ``M = sum |f| ||x||`` over its nonzero factors, an upper bound
+of every partial sum of every value (``|x_i| <= ||x||``) and, divided by n, of m (the
+triangle inequality). From it: E, the bound of the row's distance to the cpu row, ``(tau
++ 2 gamma_K) m + delta``; the rows whose sums could overflow on the cpu although the
+device's did not; before ``normalize`` the rows that could be zero or tiny on either side
+(``||g|| <= 2 E``, or ``||g|| - E`` below 2**-50, where a sum of squares may be
+subnormal on the cpu or below 2**-100 on the device) or whose squares could overflow;
+and before float16 storage the rows whose values could reach its range on the cpu. All in
+float64, rounded towards the safe side; a bound that is not finite sends its row to the
+host.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import numpy as np
 from numpy import ndarray
-
-from fse._contract import Normalize, Project, RemoveComponents, Step
 
 TAU = 1e-5
 U = 2.0**-24
 DELTA = 2.0**-125  # per contribution and value
 LOW = 2.0**-50  # a row norm from which no sum of squares is near the subnormal range
 HIGH = 2.0**60  # a row norm below which no square or sum of squares overflows
+OVERFLOW = 2.0**127  # partial sums below it cannot round to infinity on the cpu
+FLOAT16_MAX = 65504.0
 SAFE = 1 + 2.0**-40  # a margin for the float64 arithmetic of these bounds
 F64 = np.float64
 
@@ -41,18 +40,29 @@ def gamma(k: ndarray | float) -> ndarray | float:
     return k * U / (1 - k * U)
 
 
-def pooling(magnitude: ndarray, n: ndarray, k: ndarray, dim: int) -> ndarray:
-    """E of every row: ``magnitude`` is the kernel's float32 sum of ``|f| ||x||`` (each
-    norm rounded up), ``n`` its tokens and ``k`` its contributions. The float32 sum of K
-    nonnegative terms is at least ``(1 - gamma_K)`` times the exact one, less 2**-126 per
-    flushed term; from K u = 1/4 on no useful bound follows (infinite: the host)."""
+def magnitude(sums: ndarray, k: ndarray) -> ndarray:
+    """An upper bound of the exact ``sum |f| ||x||`` from the kernel's float32 sum of K
+    nonnegative terms, which is at least ``(1 - K u)`` times the exact one (one rounding
+    per term) less 2**-126 per term it flushes."""
     k = k.astype(F64)
-    usable = (n > 0) & (k * U < 0.25)
-    shrink = np.where(usable, 1 - gamma(np.minimum(k, 2.0**22)), 1.0)
-    exact = (magnitude.astype(F64) + k * 2.0**-126) / shrink
-    m = np.divide(exact, n, out=np.zeros_like(exact), where=n > 0) * SAFE
-    error = ((TAU + 2 * gamma(np.minimum(k, 2.0**22))) * m + DELTA * k * np.sqrt(dim)) * SAFE
-    return np.where(n > 0, np.where(usable, error, np.inf), 0.0)
+    with np.errstate(invalid="ignore", over="ignore"):
+        return (sums.astype(F64) + k * 2.0**-126) / (1 - k * U) * SAFE
+
+
+def pooling(sums: ndarray, n: ndarray, k: ndarray, dim: int) -> ndarray:
+    """E of every row (0 for an empty one), ``n`` its tokens, ``k`` its contributions."""
+    k = k.astype(F64)
+    m = np.divide(magnitude(sums, k), n, out=np.zeros(len(k)), where=n > 0)
+    with np.errstate(invalid="ignore", over="ignore"):
+        error = ((TAU + 2 * gamma(k)) * m + DELTA * k * np.sqrt(dim)) * SAFE
+    return np.where(n > 0, error, 0.0)
+
+
+def overflows(sums: ndarray, k: ndarray) -> ndarray:
+    """Rows whose partial sums could reach the float32 overflow on the cpu (or whose bound
+    is not finite): the device's finite accumulator does not exclude a cpu overflow."""
+    bound = magnitude(sums, k)
+    return ~np.isfinite(bound) | (bound >= OVERFLOW)
 
 
 def norms(rows: ndarray) -> ndarray:
@@ -74,59 +84,24 @@ def device_norms(squares: ndarray, dim: int) -> tuple[ndarray, ndarray]:
 
 
 def unnormalizable(low: ndarray, high: ndarray, error: ndarray) -> ndarray:
-    """Rows normalize must not take from the device: zero or tiny on either side, or
-    with squares that may overflow, given the bounds of the device row's norm."""
-    return (low <= 2 * error) | (low - error < LOW) | (high + error >= HIGH)
+    """Rows normalize must not take from the device: zero or tiny on either side, with
+    squares that may overflow, or without a finite bound."""
+    with np.errstate(invalid="ignore"):
+        near = (low <= 2 * error) | (low - error < LOW) | (high + error >= HIGH)
+    return near | ~np.isfinite(error)
 
 
-@dataclass(frozen=True)
-class Linear:
-    """The bound of a linear step: ``||A||``, the norm of the matrix of absolute values
-    that bounds its rounding, the length of its reductions and its output dimension."""
-
-    norm: float
-    absolute: float
-    length: int
-    dim: int
-
-    def propagate(self, error: ndarray, g: ndarray) -> ndarray:
-        """E after the step, ``g`` the norms of the device rows before it (the cpu rows'
-        are at most ``g + E``); with the absolute errors of underflow in its operations."""
-        rounding = gamma(self.length) * self.absolute * (2 * g + error)
-        underflow = 2 * (self.length + 1) * 2.0**-149 * np.sqrt(self.dim)
-        return (self.norm * error + rounding + underflow) * SAFE
-
-    def overflows(self, error: ndarray, g: ndarray) -> ndarray:
-        """Rows whose values could overflow in the step on either side."""
-        return (g + error) * max(self.norm, self.absolute) * SAFE >= 2.0**100
-
-
-def linear(step: Step, dim: int) -> Linear | None:
-    """The bound of ``step`` on rows of ``dim`` values (None for normalize). For
-    remove_components the cpu computes ``x - sum_j (dot16(x, u_j) w_j) u_j``, for
-    project ``dot16(x, b_j)``: the rounding of every output value is at most
-    ``gamma_L`` times that of ``(I + |U|^T |W| |U|) |x|`` or ``|B| |x|``."""
-    if isinstance(step, Normalize):
-        return None
-    if isinstance(step, RemoveComponents):
-        u = np.asarray(step.components, F64)
-        w = np.ones(len(u)) if step.weights is None else np.asarray(step.weights, F64)
-        matrix = np.eye(dim) - u.T @ np.diag(w) @ u
-        absolute = np.eye(dim) + np.abs(u).T @ np.diag(np.abs(w)) @ np.abs(u)
-        return Linear(_norm(matrix), _norm(absolute), dim + len(u) + 2, dim)
-    assert isinstance(step, Project)
-    basis = np.asarray(step.basis, F64)
-    return Linear(_norm(basis), _norm(np.abs(basis)), dim, len(basis))
-
-
-def _norm(matrix: ndarray) -> float:
-    """The spectral norm, with a margin for the error of its computation."""
-    return float(np.linalg.norm(matrix, 2)) * (1 + 2.0**-30)
-
-
-def after_normalize(error: ndarray, g: ndarray, dim: int) -> ndarray:
+def after_normalize(error: ndarray, low: ndarray, dim: int) -> ndarray:
     """E after normalize for rows it takes from the device: ``2 E / r`` (r at least
-    ``g - E``) plus the rounding of both normalizations (the dot product, the square
+    ``low - E``) plus the rounding of both normalizations (the dot product, the square
     root, the reciprocal and one product per value)."""
-    r = np.maximum(g - error, LOW)
+    r = np.maximum(low - error, LOW)
     return (2 * error / r + 2 * gamma(dim + 4)) * SAFE
+
+
+def beyond_float16(rows: ndarray, error: ndarray) -> ndarray:
+    """Rows whose values could reach the float16 range on the cpu (within E of the
+    device's), or without a finite bound: storing them, the cpu may raise."""
+    with np.errstate(invalid="ignore"):
+        near = np.abs(rows).max(axis=1, initial=0).astype(F64) + error >= FLOAT16_MAX
+    return near | ~np.isfinite(error)

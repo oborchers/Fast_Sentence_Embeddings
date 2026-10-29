@@ -140,7 +140,7 @@ def test_the_kernel_bounds_the_magnitudes_and_gives_the_squares(dim):
     out = np.empty((3, dim), F32)
 
     def launch(mx, s):
-        return _kernels.launch(mx, s, table, task, bound=True, normalize=True)
+        return _kernels.launch(mx, s, table, task, normalize=True)
 
     flags, bounds = _device().run(
         launch, _kernels.view, 0, lambda v: (np.copyto(out, v[0]), v[1], v[2])[1:]

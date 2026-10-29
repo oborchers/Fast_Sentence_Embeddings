@@ -303,17 +303,10 @@ def normalizes(table: Table) -> bool:
     return -(-(table.dim // table.vec) // SIMD) * SIMD <= THREADGROUP
 
 
-def launch(
-    mx: ModuleType,
-    stream: Any,
-    table: Table,
-    task: Task,
-    bound: bool = False,
-    normalize: bool = False,
-) -> tuple:
+def launch(mx: ModuleType, stream: Any, table: Table, task: Task, normalize: bool = False):
     """The pooling kernel of ``task``, queued on ``stream``: its rows (normalized with
-    ``normalize``, which needs ``normalizes(table)``), flags and, with ``bound`` or
-    ``normalize``, the sums of ``|f| ||x||`` and of squares per row (not evaluated)."""
+    ``normalize``, which needs ``normalizes(table)``), flags, and per row the sums of
+    ``|f| ||x||`` and (with ``normalize``) of squares (not evaluated)."""
     assert not normalize or normalizes(table)
     grid, group, words = shape(table.dim, table.vec, task.n_sentences)
     inputs = [*table.arrays, *(mx.array(a) for a in task.arrays), *table.norms]
@@ -327,7 +320,6 @@ def launch(
                 ("FLAG_WORDS", words),
                 ("INT8", table.int8),
                 ("FASTTEXT", table.fasttext and task.unknown),
-                ("BOUND", bound),
                 ("NORMALIZE", normalize),
             ],
             grid=grid,
@@ -344,7 +336,8 @@ def view(launched: tuple) -> tuple[ndarray, ndarray, ndarray]:
     the device thread lends it until the caller has copied it), the flags of every
     sentence (the OR of its words' flags) and a copy of its bounds."""
     rows, flags, bounds = launched
-    combined = functools.reduce(np.bitwise_or, np.asarray(flags).T)
+    # A copy: with one flag word, reduce would give a view of the MLX array back.
+    combined = np.array(functools.reduce(np.bitwise_or, np.asarray(flags).T), copy=True)
     return np.asarray(rows), combined, np.array(bounds)
 
 

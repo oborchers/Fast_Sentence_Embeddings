@@ -17,10 +17,11 @@ factors or row values are or may be subnormal (``_kernels.subnormal_input``), so
 can only meet a product or a partial sum below 2**-126, which the tolerance contract's
 bound covers. The kernel flags per sentence an accumulator that is not finite (the cpu's
 error) and a count of 2**24 or more that would round as a float; each SIMD group of 32
-threads lies inside one sentence and writes the OR of its flags. With ``BOUND`` it also
-gives per sentence ``sum |f| ||x||`` (``norms``: the norms of the stored rows, rounded
-up), from which the host bounds the row's error (``_bounds``), and with ``NORMALIZE`` the
-sum of squares of the row before it normalizes.
+threads lies inside one sentence and writes the OR of its flags. It also gives per
+sentence ``sum |f| ||x||`` over its nonzero factors (``norms``: the norms of the stored
+rows, rounded up), from which the host bounds the row's error and finds the rows whose
+sums may overflow on the cpu (``_bounds``), and with ``NORMALIZE`` the sum of squares of
+the row before it normalizes.
 """
 
 from __future__ import annotations
@@ -73,7 +74,7 @@ _POOL = (
     constexpr uint ROW = DIM / VEC;
     uint flag = 0u;
     acc_t row = acc_t(0.0f);
-    float magnitude = 0.0f;  // with BOUND: sum |f| ||x||, the same in every thread of a row
+    float magnitude = 0.0f;  // sum |f| ||x||, the same in every thread of a row
     if (q < ROW) {
         acc_t acc = 0.0f;
         uint k = FASTTEXT ? unknown[s] : 0u;
@@ -99,7 +100,7 @@ _POOL = (
                     const float f = INT8 ? shared * ngram_scales[g] : shared;
                     const acc_t x = acc_t(fse_load<VEC>(ngram_vectors, (ulong)g * ROW + q));
                     acc = metal::fma(acc_t(f), x, acc);
-                    if (BOUND) {
+                    if (f != 0.0f) {  // a zero factor adds nothing, also with an infinite norm
                         magnitude = metal::fma(metal::fabs(f), ngram_norms[g], magnitude);
                     }
                 }
@@ -108,7 +109,7 @@ _POOL = (
             const float f = INT8 ? weights[w] * scales[w] : weights[w];
             const acc_t x = acc_t(fse_load<VEC>(vectors, (ulong)w * ROW + q));
             acc = metal::fma(acc_t(f), x, acc);
-            if (BOUND) {
+            if (f != 0.0f) {  // a zero factor adds nothing, also with an infinite norm
                 magnitude = metal::fma(metal::fabs(f), norms[w], magnitude);
             }
         }
@@ -124,7 +125,7 @@ _POOL = (
         if (!NORMALIZE) {
             ((device acc_t *)out)[(ulong)s * ROW + q] = row;
         }
-        if (BOUND && q == 0u) {
+        if (q == 0u) {
             bounds[(ulong)s * 2u] = magnitude;
         }
     }
