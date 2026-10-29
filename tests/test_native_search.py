@@ -112,3 +112,24 @@ def test_empty_inputs():
     assert _native.inverse_norms(stored).shape == (0,)
     assert _native.cosines(stored, np.zeros(0, F32), np.ones((2, 4), F32)).shape == (0, 2)
     assert _native.scores(stored, None, np.ones((3, 4), F32)).shape == (0, 3)
+
+
+@pytest.mark.parametrize("dtype", DTYPES)
+@pytest.mark.parametrize("n", [1, 7, 8, 9, 16, 17, 31])
+def test_inverse_norms_of_interleaved_rows_give_the_reference_bits(dtype, n):
+    # The kernel sums 8 rows at a time; every group size and a rest give the same bits.
+    stored = _stored(dtype, n, 300, seed=n)
+    codes = stored[0] if isinstance(stored, tuple) else stored
+    got = _native.inverse_norms(codes, 5)
+    np.testing.assert_array_equal(bits(got), bits(_reference.inverse_norms(codes, 5)))
+
+
+def test_an_inverse_norm_beyond_float32_in_a_later_group_names_its_row():
+    rows = np.ones((20, 4), dtype=F32)
+    rows[11] = F32(1e-40)  # subnormal: its inverse norm overflows float32
+    rows[13] = F32(1e-40)
+    for first_row in (0, 100):
+        with pytest.raises(ValueError, match=f"row {first_row + 11} is beyond float32"):
+            _native.inverse_norms(rows, first_row)
+        with pytest.raises(ValueError, match=f"row {first_row + 11} is beyond float32"):
+            _reference.inverse_norms(rows, first_row)

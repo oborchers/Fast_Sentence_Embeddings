@@ -5,6 +5,7 @@
 # ---------------------------------------------------------------------------------------
 
 cdef extern from "_native_kernel.h":
+    int FSE_NORM_ROWS
     int64_t fse_inverse_norms(int dtype, const void *stored, int64_t n, int dim, float *out,
                               float *scratch) nogil
     int64_t fse_cosines(int isa, int dtype, const void *stored, const float *inverse, int64_t n,
@@ -38,7 +39,7 @@ def inverse_norms(stored, first_row=0):
 
 cdef int64_t _inverse_norms_into(stored, int64_t n, int dim, out):
     cdef float[::1] o = out
-    cdef float[::1] scratch = np.empty(max(dim, 1), dtype=np.float32)
+    cdef float[::1] scratch = np.empty(max(dim, 1) * FSE_NORM_ROWS, dtype=np.float32)
     cdef const void *data = np.PyArray_DATA(stored)
     cdef int dtype = _DTYPES[stored.dtype]
     cdef int64_t bad
