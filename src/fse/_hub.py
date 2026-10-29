@@ -142,6 +142,12 @@ def resolve_link(path: Path, repo: Path) -> tuple[Path, str]:
     is followed too. Links are compared as written, never resolved, and no directory from
     the repository down to a blob may be a link, so nothing leads out of the cache (the
     cache folder itself may be one); anything else raises."""
+    # The folders are checked here and the blob is opened later by its path, so a folder
+    # swapped in between could lead elsewhere. That is no gap of integrity, and no
+    # descriptor-based walk is needed: the Hub reads the bytes once and compares their
+    # hash with the commit (or, with local_files_only, with the etag resolved here), so
+    # whatever a swap leads to gives the pinned bytes or a refusal. Local folders carry
+    # no such claim; their files are the caller's.
     repo = Path(os.path.normpath(repo))
     _plain_dirs(repo, repo / "snapshots", path.parent, repo / "blobs")
     blob = _step(path)
