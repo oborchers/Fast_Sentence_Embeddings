@@ -400,10 +400,11 @@ def _int64_vector(value: object, name: str, length: int):
 
 
 def _check_link(link: object, k: int):
-    """``link`` must be a Link that takes k logits: sigmoid one, softmax and ovr two or more."""
+    """``link`` must be a Link that takes k logits: sigmoid one, ovr two or more, softmax
+    any (of one logit z, softmax of [-z, z])."""
     if not isinstance(link, Link):
         raise ValueError(f"link must be one of {[str(member) for member in Link]}")
-    if (link is Link.SIGMOID) != (k == 1):
+    if (link is Link.SIGMOID and k != 1) or (link is Link.OVR and k == 1):
         want = "one logit" if link is Link.SIGMOID else "at least two logits"
         raise ValueError(f"{link} takes {want} per row")
 

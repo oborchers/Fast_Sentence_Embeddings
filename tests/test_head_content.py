@@ -96,8 +96,9 @@ def test_links():
     assert link("none", 1) is None
     with pytest.raises(ValueError, match="sigmoid takes one output, not 2"):
         link("sigmoid", 2)
-    with pytest.raises(ValueError, match="softmax takes at least two outputs"):
-        link("softmax", 1)
+    assert link("softmax", 1) is Link.SOFTMAX  # softmax of [-z, z]
+    with pytest.raises(ValueError, match="ovr takes at least two outputs"):
+        link("ovr", 1)
     with pytest.raises(ValueError, match="link must be one of"):
         link("tanh", 2)
 

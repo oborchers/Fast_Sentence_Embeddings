@@ -118,13 +118,16 @@ def ovr(z) -> ndarray:
 
 def proba(logits, link: Link) -> ndarray:
     """The probabilities of finished logits (n, k): (n, 2) ``[1 - p, p]`` of ``sigmoid@1``
-    for k = 1, else (n, k) of ``softmax@1`` or ``ovr@1``."""
+    for k = 1, (n, 2) ``softmax@1`` of ``[-z, z]`` for one logit with softmax (scikit-learn's
+    binary multinomial model), else (n, k) of ``softmax@1`` or ``ovr@1``."""
     z = np.asarray(logits, dtype=_F32)
     if link is Link.SIGMOID:
         if z.shape[1] != 1:
             raise ValueError("sigmoid@1 takes one logit per row")
         p = sigmoid(z[:, 0])
         return np.stack([(_F32(1) - p).astype(_F32), p], axis=1)
+    if link is Link.SOFTMAX and z.shape[1] == 1:
+        return softmax(np.concatenate([-z, z], axis=1))
     if z.shape[1] < 2:
         raise ValueError(f"{link.id} takes at least two logits per row")
     return softmax(z) if link is Link.SOFTMAX else ovr(z)

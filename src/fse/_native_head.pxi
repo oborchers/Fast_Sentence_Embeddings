@@ -118,7 +118,7 @@ def _head_outputs(logits, kind, link, out, first_row, int isa):
         codes = {Link.SIGMOID: 0, Link.SOFTMAX: 1, Link.OVR: 2}
         if link not in codes:
             raise ValueError(f"link must be one of {[str(member) for member in Link]}")
-        if (link is Link.SIGMOID) != (k == 1):
+        if (link is Link.SIGMOID and k != 1) or (link is Link.OVR and k == 1):
             want = "one logit" if link is Link.SIGMOID else "at least two logits"
             raise ValueError(f"{link} takes {want} per row")
         code = codes[link]

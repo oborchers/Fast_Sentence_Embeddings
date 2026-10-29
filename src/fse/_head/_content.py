@@ -134,8 +134,9 @@ def _label(value: Any) -> int | str:
 
 def link(name: Any, k: int) -> Link | None:
     """The link a classifier of k outputs takes: ``"auto"`` is sigmoid for k = 1 and
-    softmax else; ``"sigmoid"`` needs k = 1, ``"softmax"`` and ``"ovr"`` k >= 2; ``"none"``
-    gives no probabilities."""
+    softmax else; ``"sigmoid"`` needs k = 1, ``"ovr"`` k >= 2, ``"softmax"`` of one output z
+    is softmax of [-z, z] (a binary multinomial model of scikit-learn); ``"none"`` gives
+    no probabilities."""
     if name == "auto":
         return Link.SIGMOID if k == 1 else Link.SOFTMAX
     if not isinstance(name, str) or name not in LINK_NAMES:
@@ -143,8 +144,8 @@ def link(name: Any, k: int) -> Link | None:
     chosen = LINK_NAMES[name]
     if chosen is Link.SIGMOID and k != 1:
         raise ValueError(f"the link sigmoid takes one output, not {k}; use softmax or ovr")
-    if chosen in (Link.SOFTMAX, Link.OVR) and k == 1:
-        raise ValueError(f"the link {name} takes at least two outputs; use sigmoid for one")
+    if chosen is Link.OVR and k == 1:
+        raise ValueError("the link ovr takes at least two outputs; use sigmoid for one")
     return chosen
 
 

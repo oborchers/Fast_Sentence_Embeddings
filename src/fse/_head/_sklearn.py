@@ -172,12 +172,8 @@ def _estimator(model: Any, task: str) -> Found:
         return Found(weight, bias, "none", None, False, name)
     labels = _classes(model, len(weight))
     link = _CLASSIFIERS[name](model, len(weight))
-    if link == "softmax2":  # a binary multinomial model: softmax of [-z, z]
-        weight, bias, link = (
-            np.concatenate([-weight, weight]),
-            np.concatenate([-bias, bias]),
-            "softmax",
-        )
+    if link == "softmax2":  # a binary multinomial model: one logit z, softmax of [-z, z]
+        link = "softmax"
     return Found(weight, bias, link, labels, False, name)
 
 

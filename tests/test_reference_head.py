@@ -140,7 +140,9 @@ def test_proba_by_link():
     with pytest.raises(ValueError, match="one logit"):
         ref.proba(z3, Link.SIGMOID)
     with pytest.raises(ValueError, match="at least two"):
-        ref.proba(z1, Link.SOFTMAX)
+        ref.proba(z1, Link.OVR)
+    pair = np.concatenate([-z1, z1], axis=1)  # one logit with softmax: softmax of [-z, z]
+    np.testing.assert_array_equal(bits(ref.proba(z1, Link.SOFTMAX)), bits(ref.softmax(pair)))
 
 
 def test_labels():

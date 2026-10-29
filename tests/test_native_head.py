@@ -114,9 +114,10 @@ def _proba_cases():
 @pytest.mark.parametrize("isa", ISAS)
 def test_head_outputs_match_the_reference(isa):
     one, many = _proba_cases()
-    out = np.empty((len(one), 2), F32)
-    _native.head_outputs(one, "proba", Link.SIGMOID, out, isa=isa)
-    np.testing.assert_array_equal(bits(out), bits(ref.proba(one, Link.SIGMOID)))
+    for link in (Link.SIGMOID, Link.SOFTMAX):  # one logit: sigmoid, or softmax of [-z, z]
+        out = np.empty((len(one), 2), F32)
+        _native.head_outputs(one, "proba", link, out, isa=isa)
+        np.testing.assert_array_equal(bits(out), bits(ref.proba(one, link)), err_msg=str(link))
     for link in (Link.SOFTMAX, Link.OVR):
         for k in (2, 3, 4, 5, 8, 9, 16, 17):  # every tail of the lanes
             z = np.ascontiguousarray(many[:, :k])

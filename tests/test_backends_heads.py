@@ -57,10 +57,11 @@ def test_logits_name_the_row_that_is_not_finite(backend):
         backend.logits(rows, None, np.array([3e38], F32), np.empty((2, 1), F32), 40)
 
 
-@pytest.mark.parametrize("link", list(Link))
-def test_outputs_are_the_reference(backend, link):
+@pytest.mark.parametrize(
+    ("link", "k"), [(Link.SIGMOID, 1), (Link.SOFTMAX, 1), (Link.SOFTMAX, 5), (Link.OVR, 5)]
+)
+def test_outputs_are_the_reference(backend, link, k):
     rng = np.random.default_rng(1)
-    k = 1 if link is Link.SIGMOID else 5
     z = (rng.standard_normal((40, k)) * 20).astype(F32)
     out = np.empty((40, 2 if k == 1 else k), F32)
     backend.outputs(z, "proba", link, out)

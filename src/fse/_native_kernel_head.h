@@ -269,12 +269,13 @@ static void fse_ovr_row(int isa, const float *z, int k, float *o) {
 }
 
 /* The probabilities of n rows of k finished logits: [1 - p, p] (2 values) for sigmoid
-   (k = 1), else k values of softmax or ovr. Returns the first row whose logits are not
+   (k = 1), softmax of [-z, z] for softmax with one logit (scikit-learn's binary
+   multinomial model), else k values of softmax or ovr. Returns the first row whose logits are not
    finite (its outputs are undefined), or -1. */
 FSE_NOINLINE static int64_t fse_head_proba_body(int isa, int link, const float *logits, int64_t n,
                                                 int k, float *out) {
     int64_t bad = -1;
-    const int width = link == FSE_LINK_SIGMOID ? 2 : k;
+    const int width = k == 1 ? 2 : k;
     for (int64_t r = 0; r < n; r++) {
         const float *z = logits + (size_t)r * (size_t)k;
         float *o = out + (size_t)r * (size_t)width;
@@ -286,6 +287,9 @@ FSE_NOINLINE static int64_t fse_head_proba_body(int isa, int link, const float *
             const float p = fse_sigmoid1(z[0]);
             o[0] = 1.0f - p;
             o[1] = p;
+        } else if (link == FSE_LINK_SOFTMAX && k == 1) {
+            const float pair[2] = {-z[0], z[0]};
+            fse_softmax_row(isa, pair, 2, o);
         } else if (link == FSE_LINK_SOFTMAX) {
             fse_softmax_row(isa, z, k, o);
         } else {

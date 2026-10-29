@@ -162,13 +162,13 @@ def test_multiclass_classifiers(sk, link):
 
 
 def test_the_rule_of_older_versions_with_multi_class():
-    """scikit-learn 1.5 to 1.7 kept multi_class: a binary multinomial model is softmax of
-    [-z, z], i.e. two outputs; ovr gives sigmoid, or ovr for more classes."""
+    """scikit-learn 1.5 to 1.7 kept multi_class: a binary multinomial model has one logit
+    z and the probabilities softmax of [-z, z]; ovr gives sigmoid, or ovr for more classes."""
     encoder = finished(normalize=False)
     x, y = _data(encoder)
     sk = _fit(linear_model.LogisticRegression(), x, y)
     for multi_class, want in [
-        ("multinomial", ("softmax@1", 2)),
+        ("multinomial", ("softmax@1", 1)),
         ("ovr", ("sigmoid@1", 1)),
         ("auto", ("sigmoid@1", 1)),
     ]:
@@ -177,8 +177,10 @@ def test_the_rule_of_older_versions_with_multi_class():
         assert (model.link, model.n_outputs) == want
     sk.multi_class = "multinomial"
     model = fse.Classifier.from_sklearn(encoder, sk)
-    np.testing.assert_array_equal(model.coef_[0], -model.coef_[1])
     z = sk.decision_function(x)
+    decision = model.decision_function(SENTENCES)
+    assert decision.shape == z.shape == (len(SENTENCES),)  # as scikit-learn gives it
+    np.testing.assert_allclose(decision, z, rtol=1e-4, atol=1e-5)
     exact = 1 / (1 + np.exp(-2 * z))  # softmax of [-z, z]
     assert np.abs(model.predict_proba(SENTENCES)[:, 1] - exact).max() < 1e-5
     changed = model.predict(SENTENCES) != sk.classes_[(z > 0).astype(int)]
@@ -361,3 +363,18 @@ def test_newton_cholesky_with_many_classes_has_the_link_of_its_version():
         "ovr@1" if getattr(sk, "multi_class", None) in ("auto", "deprecated") else "softmax@1"
     )
     np.testing.assert_allclose(clf.predict_proba(SENTENCES), sk.predict_proba(x), atol=1e-5)
+
+
+def test_a_fitted_binary_multinomial_model_where_the_version_has_one():
+    encoder = finished(normalize=False)
+    x, y = _data(encoder)
+    try:
+        sk = _fit(linear_model.LogisticRegression(multi_class="multinomial"), x, y)
+    except TypeError as error:  # multi_class was removed in 1.8
+        pytest.skip(str(error))
+    clf = fse.Classifier.from_sklearn(encoder, sk)
+    assert (clf.link, clf.n_outputs) == ("softmax@1", 1)
+    np.testing.assert_allclose(clf.predict_proba(SENTENCES), sk.predict_proba(x), atol=1e-5)
+    got = clf.decision_function(SENTENCES)
+    assert got.shape == sk.decision_function(x).shape
+    np.testing.assert_allclose(got, sk.decision_function(x), rtol=1e-4, atol=1e-5)
