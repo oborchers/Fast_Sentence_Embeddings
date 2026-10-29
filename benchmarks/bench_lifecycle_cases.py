@@ -21,10 +21,10 @@ the same timers:
   splits at whitespace like 1.1; list inputs are the same token lists on both sides,
   made before the timer;
 - the same output: 2.0 with ``normalize=False``, and infer to float32 as 1.1 does;
-- the same model: 2.0 trains nothing, so its SIF is a finished table: the rows with the
-  SIF weights of the same counts folded in (``v2_finished``, untimed, as the offline
-  recipe makes it); the components 1.1 removes are a linear map, which a finished table
-  holds in its rows at no cost when encoding, and are left out;
+- the same model: Average on both sides. 2.0 trains nothing, and its ``SIFWeights`` (the
+  SIF word weights of the same counts folded into the table, ``v2_finished``, untimed)
+  removes no components, so it is no SIF: it runs on 2.0 alone and is never compared
+  with 1.1's SIF;
 - the same queries: vectors of stored rows, read before (``v2_queries``) by a process
   of their own, searched with their own row among the hits on both sides.
 
@@ -121,12 +121,12 @@ def v2_prepare(c: dict) -> dict:
 
 def v2_finished(wv, model: str, counts_path, *, tokenizer: str, normalize: bool = False):
     """The finished encoder of ``model`` on the word vectors ``wv``: Average the table as it
-    is, SIF the table with the weights alpha / (alpha + p(w)) of the counts folded into
-    its rows (float32, then quantized to the dtype of ``wv``), as an offline recipe
-    writes it. Untimed: 2.0 encodes finished models and fits none."""
+    is, SIFWeights the table with the SIF weights alpha / (alpha + p(w)) of the counts
+    folded into its rows (float32, then quantized to the dtype of ``wv``), without the
+    removal of components, so it is no SIF. Untimed: 2.0 encodes finished models."""
     import fse
 
-    if model == "SIF":
+    if model == "SIFWeights":
         counts = np.load(counts_path).astype(np.float64)
         weights = SIF_ALPHA / (SIF_ALPHA + counts / counts.sum())
         rows = wv.get_vectors(np.arange(len(wv))) * weights.astype(np.float32)[:, None]
@@ -360,8 +360,8 @@ def _v2_hub_into(encoder, texts, c: dict) -> float:
 
 
 def v2_hub(c: dict) -> dict:
-    """A saved SIF encoder (a finished table, as on the hub) loaded and encoding the
-    corpus, into memory or into a store."""
+    """A saved encoder (a finished table, as on the hub) loaded and encoding the corpus,
+    into memory or into a store."""
     import fse
 
     out: dict = {"peak_before": _peak()}

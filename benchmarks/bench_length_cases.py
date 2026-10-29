@@ -14,10 +14,10 @@ standard library, numpy and bench_lifecycle_cases (the same) at the top. Every p
 from the parent in the config. The cases:
 
 - ``model``: untimed, the frozen model every length is encoded with: 2.0 builds the
-  finished encoder (SIF: the table with the SIF weights of the wordfreq counts folded in,
-  ``bench_lifecycle_cases.v2_finished``; Average with or without normalize) and saves it;
-  1.1 trains its model (SIF-10) on ``paragraphs`` and saves it without sentence vectors,
-  as a model from the hub comes (its weights and components);
+  finished encoder (SIFWeights: the table with the SIF weights of the wordfreq counts
+  folded in and no components removed, ``bench_lifecycle_cases.v2_finished``; Average
+  with or without normalize) and saves it; 1.1 trains its model on ``paragraphs`` and
+  saves it without sentence vectors, as a model from the hub comes;
 - ``encode``: one warm-up and ``repeats`` timed encodes of the corpus file, the median,
   minimum and maximum: 2.0 ``Encoder.encode(path)`` into memory or into a ``ShardSink``
   up to its last flush; 1.1 ``train(update=True)`` on a ``CorpusFile`` (its bulk path)
