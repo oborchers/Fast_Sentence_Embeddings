@@ -90,9 +90,10 @@ cdef class WordPieceState:
         if n != len(table):
             raise ValueError(f"the table holds {len(table)} tokens, the vocabulary {n}")
         _check_ids(table, data, offsets)
-        self.unk_id = <uint32_t>_wp_int(unk_id, "unk_id", 0)
-        if self.unk_id >= n:
+        # Checked as the full int, then stored: a cast first would wrap 2**32 + 1 to 1.
+        if _wp_int(unk_id, "unk_id", 0) >= n:
             raise ValueError(f"unk_id is {unk_id}, but the vocabulary holds {n} tokens")
+        self.unk_id = <uint32_t>unk_id
         if not isinstance(prefix, str) or not prefix:
             raise ValueError(f"the prefix must be a non-empty str, not {prefix!r}")
         self.max_input_chars = _wp_int(max_input_chars_per_word, "max_input_chars_per_word", 1)

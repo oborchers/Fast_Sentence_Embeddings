@@ -173,3 +173,10 @@ def test_the_cuts_end_a_sentence_early():
     lookup = _native.TextLookup(tokens_only.table, "wordpiece@1", wordpiece=tokens_only)
     with pytest.raises(UnicodeDecodeError):
         lookup.encode(data, None, 0, len(data), 0, _native.Workspace())
+
+
+def test_an_unknown_id_beyond_uint32_is_refused_whole():
+    """2**32 + 1 is checked as given, not as the 1 it would wrap to in uint32."""
+    with pytest.raises(ValueError, match="unk_id is 4294967297, but the vocabulary holds 10"):
+        _state(unk_id=2**32 + 1)
+
