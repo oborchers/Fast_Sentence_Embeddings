@@ -175,13 +175,12 @@ def _first_lines(data: Path, rows: int, out: Path) -> None:
                     written += 1
 
 
-def _child(contender, vectors, model, texts, store, workers) -> dict:
+def _child(contender, model, texts, store, workers) -> dict:
     command = [
         sys.executable,
         __file__,
         "_child",
         contender,
-        vectors,
         str(model),
         str(texts),
         str(store),
