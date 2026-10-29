@@ -378,3 +378,19 @@ def test_a_fitted_binary_multinomial_model_where_the_version_has_one():
     got = clf.decision_function(SENTENCES)
     assert got.shape == sk.decision_function(x).shape
     np.testing.assert_allclose(got, sk.decision_function(x), rtol=1e-4, atol=1e-5)
+
+
+def test_one_target_of_two_dimensions_keeps_its_shape(tmp_path):
+    encoder = finished(normalize=False)
+    x, _ = _data(encoder)
+    y = (x.astype(np.float64) @ np.arange(1, 7))[:, None]
+    for target, shape in ((y, (len(x), 1)), (y[:, 0], (len(x),))):
+        sk = linear_model.LinearRegression().fit(x, target)
+        model = fse.Regressor.from_sklearn(encoder, sk)
+        assert sk.predict(x).shape == shape
+        assert model.predict(SENTENCES).shape == shape
+        model.save(tmp_path / f"{len(shape)}.safetensors")
+        assert (
+            fse.Regressor.load(tmp_path / f"{len(shape)}.safetensors").predict(SENTENCES).shape
+            == shape
+        )

@@ -43,6 +43,7 @@ class Regressor(LinearModel):
             found.bias,
             normalized=_sklearn.flag(found, normalized),
             source=found.source,
+            flat=found.flat,
         )
 
     @classmethod

@@ -116,6 +116,7 @@ def _set(key, value):
         (_set("fse.encoder_fingerprint", "x"), ValueError, "must be a fingerprint"),
         (_set("fse.tokenizer", "external"), CorruptArtifactError, "encoder part of the head"),
         (_set("fse.head.standalone", "true"), ValueError, "holds no head.weight"),
+        (_set("fse.head.flat", "true"), ValueError, "exactly for regression heads of one"),
     ],
 )
 def test_refusals(edit, error, match):
@@ -248,3 +249,16 @@ def test_the_golden_classifier_reads_the_golden_encoder():
     assert model.encoder.fingerprint == encoder.fingerprint
     assert model.classes_.tolist() == ["a", "b", "c"]
     assert (model.normalized, model.link) == (True, "softmax@1")
+
+
+def test_a_regression_head_of_one_output_records_its_shape():
+    for flat in (True, False):
+        content = HeadContent(
+            "regression", np.ones((1, 6), F32), np.zeros(1, F32), False, None, None, flat=flat
+        )
+        tensors, metadata = _artifact(content)
+        assert metadata["fse.head.flat"] == str(flat).lower()
+        assert from_artifact(tensors, metadata)[0].flat is flat
+        del metadata["fse.head.flat"]
+        with pytest.raises(ValueError, match="exactly for regression heads of one output"):
+            from_artifact(tensors, metadata)

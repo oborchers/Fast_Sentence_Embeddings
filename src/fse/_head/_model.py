@@ -22,6 +22,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from numpy import ndarray
 
 from fse._backends import get_backend
@@ -115,6 +116,7 @@ class LinearModel:
         link: Any = None,
         labels: Any = None,
         source: str | None = None,
+        flat: bool | None = None,
     ):
         """A model of ``encoder`` and the head of ``weight`` and ``bias``, checked."""
         if not isinstance(encoder, Encoder):
@@ -127,7 +129,9 @@ class LinearModel:
             raise TypeError("a classifier needs labels, one per output (two for one output)")
         chosen = None if cls.TASK == "regression" else _content.link(link, k)
         names = None if cls.TASK == "regression" else _content.labels(labels, k)
-        content = HeadContent(cls.TASK, w, b, normalized, chosen, names)
+        if flat is None:
+            flat = cls.TASK == "classification" or np.ndim(weight) == 1
+        content = HeadContent(cls.TASK, w, b, normalized, chosen, names, flat=flat)
         return cls._new(encoder, content, source=source)
 
     # --- the head on a backend --------------------------------------------------------
@@ -201,15 +205,7 @@ class LinearModel:
         tensors, metadata = encoder_artifact(folded, table, keys)
         sums = {k: checksum(v) for k, v in tensors.items()}
         of_encoder = _format.encoder_fingerprint(tensors, metadata, sums)
-        head = HeadContent(
-            self._content.task,
-            None,
-            self._content.bias,
-            False,
-            self._content.link,
-            self._content.labels,
-            True,
-        )
+        head = dataclasses.replace(self._content, weight=None, normalized=False, standalone=True)
         out, keys = _format.to_artifact(head, tensors, metadata, of_encoder)
         return out, keys, None
 

@@ -59,10 +59,11 @@ def check_output_sink(model: Any, sink: Any, output: str) -> None:
 
 
 def finish(model: Any, rows: ndarray, output: str) -> ndarray:
-    """The outputs as a caller gets them: labels from their indices, one column flattened."""
+    """The outputs as a caller gets them: labels from their indices, one column flattened
+    where the head gives (n,)."""
     if output == "labels":
         return model.classes_[rows]
-    if output != "proba" and rows.shape[1] == 1:
+    if output != "proba" and rows.shape[1] == 1 and model._content.flat:
         return rows[:, 0].copy()
     return rows
 

@@ -51,9 +51,12 @@ _KEYS = frozenset(
         "fse.head.link",
         "fse.head.labels",
         "fse.head.standalone",
+        "fse.head.flat",
         "fse.encoder_fingerprint",
     }
 )
+# Keys given only for some heads: the labels of a classifier, the shape of one target.
+_OPTIONAL = frozenset({"fse.head.labels", "fse.head.flat"})
 TENSORS = ("head.weight", "head.bias")
 _BOOLS = {"true": True, "false": False}
 
@@ -92,6 +95,8 @@ def to_artifact(
     )
     if content.labels is not None:
         keys["fse.head.labels"] = canonical_json(list(content.labels))
+    if content.task == "regression" and content.k == 1:
+        keys["fse.head.flat"] = str(content.flat).lower()
     return out, keys
 
 
@@ -116,6 +121,7 @@ def from_artifact(
         _link(metadata, task, len(bias)),
         _labels(metadata, task, len(bias)),
         standalone,
+        _flat(metadata, task, len(bias)),
     )
     return (content, *_encoder_part(tensors, metadata, content))
 
@@ -172,7 +178,7 @@ def _check_kind(metadata: dict[str, str]) -> None:
     unknown = sorted(k for k in metadata if k.startswith(_HEAD + ".") and k not in _KEYS)
     if unknown:
         raise UnsupportedArtifactError(f"unknown metadata keys of a linear head: {unknown}")
-    for key in sorted(_KEYS - {"fse.head.labels"}):
+    for key in sorted(_KEYS - _OPTIONAL):
         if key not in metadata:
             raise ValueError(f"a linear head needs the metadata key {key}")
     Head.parse(metadata[_HEAD])  # an unknown head rule raises
@@ -200,6 +206,14 @@ def _tensor(tensors: dict[str, ndarray], name: str, ndim: int) -> ndarray:
     if not np.isfinite(value).all():
         raise ValueError(f"{name} holds values that are not finite")
     return value
+
+
+def _flat(metadata: dict[str, str], task: str, k: int) -> bool:
+    """Whether one output gives (n,): ``fse.head.flat``, exactly for a regression head of
+    one output (a classifier's decisions of one output are always (n,))."""
+    if ("fse.head.flat" in metadata) != (task == "regression" and k == 1):
+        raise ValueError("fse.head.flat is given exactly for regression heads of one output")
+    return _bool(metadata, "fse.head.flat") if "fse.head.flat" in metadata else True
 
 
 def _link(metadata: dict[str, str], task: str, k: int) -> Link | None:

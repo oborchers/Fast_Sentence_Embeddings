@@ -17,7 +17,7 @@ into A and b in float64 before the head is rounded once to float32. Anything els
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -36,6 +36,7 @@ class Found:
     labels: list | None
     normalizer: bool
     source: str
+    flat: bool = True  # coef_ of one dimension: predict gives (n,), not (n, 1)
 
 
 def flag(found: Found, normalized: bool | None) -> bool | None:
@@ -169,7 +170,8 @@ def _estimator(model: Any, task: str) -> Found:
         )
     weight, bias = _linear(model)
     if task == "regression":
-        return Found(weight, bias, "none", None, False, name)
+        flat = np.ndim(getattr(model, "coef_", None)) == 1
+        return Found(weight, bias, "none", None, False, name, flat)
     labels = _classes(model, len(weight))
     link = _CLASSIFIERS[name](model, len(weight))
     if link == "softmax2":  # a binary multinomial model: one logit z, softmax of [-z, z]
@@ -198,7 +200,7 @@ def _scaled(found: Found, scaler: Any) -> Found:
                 f"the StandardScaler has {mean.size} features, the head {weight.shape[1]}"
             )
         bias = bias - weight @ mean
-    return Found(weight, bias, found.link, found.labels, found.normalizer, found.source)
+    return replace(found, weight=weight, bias=bias)
 
 
 def _pipeline_steps(model: Any) -> list:
@@ -235,4 +237,4 @@ def read(model: Any, task: str) -> Found:
             f"the Pipeline holds {names}; only an optional Normalizer(norm='l2') and an "
             "optional StandardScaler may come before the head, in this order"
         )
-    return Found(found.weight, found.bias, found.link, found.labels, normalizer, found.source)
+    return replace(found, normalizer=normalizer)

@@ -44,6 +44,9 @@ class HeadContent:
     link: Link | None
     labels: tuple | None
     standalone: bool = False
+    # One output gives (n,) rather than (n, 1): always for classification (as scikit-learn's
+    # decision_function), for regression when the head was one vector (coef_ of shape (d,)).
+    flat: bool = True
 
     @property
     def k(self) -> int:

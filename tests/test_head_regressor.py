@@ -26,8 +26,8 @@ def test_values_are_the_reference(targets, dtype):
     sentences = texts(500)
     z = support.logits(encoder._spec, model.coef_, model.intercept_, sentences)
     got = model.predict(sentences)
-    np.testing.assert_array_equal(bits(got), bits(z[:, 0] if targets == 1 else z))
-    assert got.shape == ((500,) if targets == 1 else (500, 2))
+    np.testing.assert_array_equal(bits(got), bits(z))  # a matrix of weights: (n, targets)
+    assert got.shape == (500, targets)
 
 
 def test_a_vector_of_weights_is_one_target():
@@ -61,3 +61,26 @@ def test_save_and_load(tmp_path):
     for name in ("r", "s"):
         loaded = fse.Regressor.load(tmp_path / f"{name}.safetensors")
         assert bits(loaded.predict(sentences)).tolist() == bits(model.predict(sentences)).tolist()
+
+
+def test_the_shape_of_one_target_follows_the_weights(tmp_path):
+    """As in scikit-learn: coef_ of shape (d,) predicts (n,), (1, d) predicts (n, 1), also
+    after save and load, in batches and in store mode."""
+    encoder = finished(normalize=False)
+    sentences = texts(50)
+    vector = fse.Regressor.from_arrays(encoder, np.ones(6), 1.0)
+    matrix = fse.Regressor.from_arrays(encoder, np.ones((1, 6)), [1.0])
+    assert vector.predict(sentences).shape == (50,)
+    assert matrix.predict(sentences).shape == (50, 1)
+    for model, shape in ((vector, (50,)), (matrix, (50, 1))):
+        for standalone in (False, True):
+            path = tmp_path / f"{len(shape)}-{standalone}.safetensors"
+            model.save(path, standalone=standalone)
+            assert fse.Regressor.load(path).predict(sentences).shape == shape
+        (batch,) = model.predict_batches([sentences])
+        assert batch.outputs.shape == shape
+    with fse.ShardSink(tmp_path / "store", encoder) as sink:
+        encoder.encode(sentences, sink=sink)
+    with fse.VectorStore.open(tmp_path / "store", encoder=encoder) as store:
+        assert matrix.predict(store).shape == (50, 1)
+        assert vector.predict(store).shape == (50,)
