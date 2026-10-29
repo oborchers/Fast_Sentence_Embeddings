@@ -173,7 +173,7 @@ def test_template_processing_without_special_tokens(tmp_path, single, accepted):
     same = wp.hf_ids(templated, texts, None) == wp.hf_ids(plain, texts, None)
     assert same == accepted
     path = tmp_path / "tokenizer.json"
-    path.write_text(templated.to_str())
+    path.write_text(templated.to_str(), encoding="utf-8")
     if accepted:
         assert tj.read_tokenizer_json(path)[0] == TOKENS
     else:
