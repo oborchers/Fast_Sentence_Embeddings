@@ -32,6 +32,7 @@ from ._common import (
     is_fingerprint,
     tensor_code,
 )
+from ._foreign import read_foreign
 from ._hash import Hasher
 from ._npy import NpyContainer
 from ._safetensors import SafetensorsContainer
@@ -53,6 +54,7 @@ __all__ = [
     "checksum",
     "fingerprint",
     "is_fingerprint",
+    "read_foreign",
     "tensor_code",
 ]
 

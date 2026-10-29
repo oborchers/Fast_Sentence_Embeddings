@@ -312,11 +312,11 @@ layers = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "Containers: npy and safetensors share only _common, all of them hash with _hash"
+name = "Containers: npy and safetensors share only _common, all of them hash with _hash; the foreign reader sits on safetensors"
 type = "layers"
 containers = ["fse._container"]
 exhaustive = true
-layers = ["_npy_inplace", "_npy | _safetensors", "_common", "_hash"]
+layers = ["_npy_inplace | _foreign", "_npy | _safetensors", "_common", "_hash"]
 
 [[tool.importlinter.contracts]]
 name = "Store: the sink and the vector store on shards, the shards on the layout"
