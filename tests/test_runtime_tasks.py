@@ -2,7 +2,7 @@ import pytest
 
 from fse._runtime import _tasks
 from fse._runtime._tasks import plan
-from fse._text import StringSource, TokenLists
+from fse._text import StringSource, TokenListSource
 
 
 def test_one_task_per_chunk_in_order():
@@ -41,7 +41,7 @@ def test_sources_are_checked():
         plan(["a"], workers=1, chunk_bytes=None, chunk_rows=10, tokenizer="external")
     with pytest.raises(ValueError, match="external tokenizer"):
         plan(
-            TokenLists([["a"]]),
+            TokenListSource([["a"]]),
             workers=1,
             chunk_bytes=None,
             chunk_rows=10,

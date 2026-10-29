@@ -7,7 +7,8 @@
 """The encoder of fse 2.0 and its recipes (ARCHITECTURE.md, "2.0 design")."""
 
 from ._batches import EncodedBatch
+from ._corpus import Corpus
 from ._encoder import Encoder, QuantizedRows
 from ._recipes import SIF, USIF, Average
 
-__all__ = ["SIF", "USIF", "Average", "EncodedBatch", "Encoder", "QuantizedRows"]
+__all__ = ["SIF", "USIF", "Average", "Corpus", "EncodedBatch", "Encoder", "QuantizedRows"]

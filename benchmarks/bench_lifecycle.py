@@ -20,7 +20,7 @@ once, so every number is one with a warm page cache. Cases:
   once from the gensim model (untimed), 1.1 ``Vectors.from_pretrained``;
 - ``encode``: the whole corpus, from the file (2.0 its native file source, 1.1
   ``CorpusFile``) or from token lists in memory, into a store or into memory. 2.0 times
-  reading the token lists once (``fse.TokenLists``, which fit and encode share),
+  reading the token lists once (``fse.Corpus``, which fit and encode share),
   ``fit`` (SIF: the components of the corpus), ``encode`` (a store: the ``ShardSink``
   from its creation to its last flush) and saving the encoder; 1.1 the constructor,
   ``train`` (its scan and components) and ``save``. Only the totals compare the same

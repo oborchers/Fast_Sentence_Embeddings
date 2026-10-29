@@ -1,7 +1,7 @@
 """Text sources: sentences of text to batches, stages 1 and 2 (ARCHITECTURE.md, "Tokenizers").
 
 A source holds its sentences as one UTF-8 buffer: strings in memory with their offsets
-(``StringSource``, ``TokenLists``), or the lines of a memory-mapped file
+(``StringSource``, ``TokenListSource``), or the lines of a memory-mapped file
 (``fse._text_file.FileSource``). ``scan`` validates and counts them in threads without the GIL and cuts
 them into chunks; ``encode`` turns one chunk into a Batch with a ``TextLookup`` and a
 per-worker ``Workspace``. Every sentence is one row, empty ones included.
@@ -401,22 +401,10 @@ def _token_lists(sentences: Any) -> tuple[bytes, ndarray]:
     return _encode_strings(joined, "sentence")
 
 
-class TokenLists(_Buffered):
-    """Sentences given as lists of tokens, read once, for encoders with the external
-    tokenizer.
-
-    ``fit`` and ``encode`` take lists of token lists as they are, but
-    each call reads them again. ``TokenLists(sentences)`` reads them once, so one object
-    can be fitted on and encoded any number of times::
-
-        texts = fse.TokenLists(sentences)
-        encoder = fse.SIF(tokenizer="external").fit(wv, texts)
-        rows = encoder.encode(texts)
-
-    ``sentences`` is a list, tuple or numpy array of lists or tuples of str. Tokens must
-    be non-empty and hold no whitespace (``str.isspace``), so splitting the joined
-    sentence at whitespace gives them back exactly. Later changes to ``sentences`` do
-    not change the object.
+class TokenListSource(_Buffered):
+    """Sentences given as lists of tokens, for the external tokenizer only (fse.Corpus
+    holds one). Tokens must be non-empty and hold no whitespace, so splitting the joined
+    sentence at whitespace gives them back exactly.
     """
 
     def __init__(self, sentences: Any):

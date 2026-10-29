@@ -24,6 +24,7 @@ import numpy as np
 from fse import _codes
 from fse._runtime import Pipeline, wants_inverse_norms
 
+from ._corpus import Corpus
 from ._sources import opened
 
 
@@ -128,9 +129,10 @@ def batches(
     lists) each; ``wrap`` turns int8 rows into QuantizedRows."""
     row, last = 0, None
     for k, item in enumerate(items):
-        if not isinstance(item, list | tuple):
+        if not isinstance(item, list | tuple | Corpus):
             raise TypeError(
-                f"batch {k} is a {type(item).__name__}; every batch is a list (or tuple) of sentences"
+                f"batch {k} is a {type(item).__name__}; every batch is a list (or tuple) of "
+                "sentences or a fse.Corpus"
             )
         n = len(item)
         with _named(k, row, n), opened(item, tokenizer) as source:

@@ -244,3 +244,15 @@ def test_a_sink_is_checked_before_a_batch_is_read():
         with pytest.raises(TypeError, match=match):
             ENCODER.encode_batches(polls(), sink=_Odd(**attributes))
     assert not read
+
+
+def test_a_corpus_is_one_batch():
+    polls, sentences = _polls([5, 0, 40])
+    got = list(ENCODER.encode_batches([fse.Corpus(p) for p in polls], workers=2))
+    want = list(ENCODER.encode_batches(polls, workers=2))
+    assert [b.n_rows for b in got] == [5, 0, 40]
+    for a, b in zip(got, want, strict=True):
+        assert a.first_row == b.first_row
+        assert a.rows.tobytes() == b.rows.tobytes()
+    with pytest.raises(TypeError, match=r"or a fse\.Corpus"):
+        list(ENCODER.encode_batches([iter(sentences)]))

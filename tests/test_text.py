@@ -6,7 +6,7 @@ from fse import _reference_text as ref
 from fse._text import (
     Chunk,
     StringSource,
-    TokenLists,
+    TokenListSource,
     make_lookup,
     make_vocabulary,
     tokenize,
@@ -66,7 +66,7 @@ def test_a_stale_chunk_raises():
 
 
 def test_empty_sources():
-    for source in (StringSource([]), TokenLists([])):
+    for source in (StringSource([]), TokenListSource([])):
         assert len(source) == 0
         assert source.scan().sentences == 0
         assert source.scan().chunks == ()
@@ -74,7 +74,7 @@ def test_empty_sources():
 
 def test_token_list_source():
     sentences = [["I", "don't"], [], ["caf\u00e9", "x"]]
-    source = TokenLists(sentences)
+    source = TokenListSource(sentences)
     lookup = make_lookup(vectors(), "external")
     _, batches = encode_all(source, lookup)
     want = ref.encode_texts([" ".join(s) for s in sentences], ids(), tokenizer="external")
@@ -92,7 +92,7 @@ def test_token_list_source():
         (["ab"], TypeError),
     ]:
         with pytest.raises(error):
-            TokenLists(bad)
+            TokenListSource(bad)
 
 
 def test_token_lists_are_joined_natively(monkeypatch):
@@ -100,7 +100,7 @@ def test_token_lists_are_joined_natively(monkeypatch):
         raise AssertionError("valid lists of str took the Python path")
 
     monkeypatch.setattr(_text, "_token_lists", python_path)
-    source = TokenLists([["a", "b\u00e9"], ("c",)])
+    source = TokenListSource([["a", "b\u00e9"], ("c",)])
     assert source._data == "a b\u00e9c".encode()
     np.testing.assert_array_equal(source._offsets, [0, 5, 6])
 
@@ -115,7 +115,7 @@ def test_the_python_path_decides_an_invalid_verdict():
 
     sentence[:] = ["\ud800", Repair("ok")]
     assert _native.join_token_lists([sentence]) is False
-    source = TokenLists([sentence])  # the Python path reads the repaired sentence
+    source = TokenListSource([sentence])  # the Python path reads the repaired sentence
     assert source._data == b"ok"
     np.testing.assert_array_equal(source._offsets, [0, 2])
 
