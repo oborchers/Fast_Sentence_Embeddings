@@ -92,6 +92,7 @@ class ShardSink:
         self._made: set[ShardWriter] = set()  # shards of the run not yet published
         self._targets: dict[int, tuple[list, tuple | None]] = {}  # run row -> parts, own
         self._closed = self._interrupted = False
+        self._interrupts: list = []  # those noted while it closes
         self._created_by = _created_by()
         # Hashing (in order), writing and publishing (syncs, a rename) in three threads, so
         # the flush of one shard does not stop the hashing and writing of the next. One
@@ -191,15 +192,16 @@ class ShardSink:
     def close(self) -> None:
         """Publish the committed rows and drop the rest; the sink takes no more rows.
 
-        An interrupt (Ctrl+C) in the main thread while it closes abandons the work of
-        every thread at once: the piece each one runs is finished, which has no time
-        bound while a piece blocks, and nothing after it. Further interrupts are only
-        noted; once every thread has ended and the temporary directories of the shards
-        not published are removed, one KeyboardInterrupt is raised.
+        Called in the main thread while SIGINT has Python's default handler, an
+        interrupt (Ctrl+C) abandons the work of every thread at once: the piece each one
+        runs is finished, which has no time bound while a piece blocks, and nothing after
+        it. Further interrupts are only noted; once every thread has ended and the
+        temporary directories of the shards not published are removed, one
+        KeyboardInterrupt is raised. Otherwise no interrupt is deferred.
         """
         if self._closed:
             return
-        with deferred_interrupts(self._abandon_all):
+        with deferred_interrupts(self._abandon_all) as self._interrupts:
             try:
                 self._settle()  # the rows handed over are written, unless a thread failed
                 if self._failed():  # nothing more is published

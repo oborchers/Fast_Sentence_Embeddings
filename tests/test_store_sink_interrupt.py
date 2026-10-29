@@ -11,6 +11,7 @@ from fse._store._layout import StoreInfo, shard_name, shards
 from support.encoder import unfolded
 
 ENCODER = unfolded()
+TIMEOUT = 10  # seconds; every wait fails the test when it runs out
 
 
 def _commit(sink, first, n, value=0.0):
@@ -20,12 +21,9 @@ def _commit(sink, first, n, value=0.0):
     sink.commit(first, target)
 
 
-@pytest.mark.usefixtures("python_sigint")
-@pytest.mark.parametrize("at", ["hash", "io", "publisher"])
-def test_an_interrupt_at_each_stop_of_close_finishes_the_running_work_only(
-    tmp_path, monkeypatch, at
-):
-    import signal
+def _publishing(tmp_path, monkeypatch):
+    """A sink with shard 1 published, the publication of shard 2 running until every
+    thread is abandoned, and shard 3 written but not full; close goes on at once."""
     import threading
 
     from fse._store import _shard
@@ -34,17 +32,20 @@ def test_an_interrupt_at_each_stop_of_close_finishes_the_running_work_only(
     _commit(sink, 0, 4)
     assert sink.publish() == 4  # a published shard
     entered, release, real_publish = threading.Event(), threading.Event(), _shard.publish_directory
+    held = []  # checked after close: an assert inside it would be masked
 
     def publish(tmp, path):
         if path.name == shard_name(4):
             entered.set()
-            release.wait(10)  # the publisher runs this piece while close stops
+            held.append(release.wait(TIMEOUT))  # the publisher runs this while close stops
         real_publish(tmp, path)
 
     monkeypatch.setattr(_shard, "publish_directory", publish)
     _commit(sink, 4, 4, 1.0)  # shard 2, full: handed to the publisher
-    assert entered.wait(10)
+    assert entered.wait(TIMEOUT)
     _commit(sink, 8, 2, 2.0)  # shard 3, not full: still a temporary directory
+    sink._hash.settle()  # its rows are committed and written; only the publisher runs
+    sink._io.settle()
     real_abandon = sink._publisher.abandon
 
     def abandon():
@@ -53,17 +54,33 @@ def test_an_interrupt_at_each_stop_of_close_finishes_the_running_work_only(
 
     sink._publisher.abandon = abandon
     sink._settle = sink._drain = lambda: None  # close goes on while the publisher runs
-    thread = {"hash": sink._hash, "io": sink._io, "publisher": sink._publisher}[at]
+    return sink, release, held
+
+
+@pytest.mark.usefixtures("python_sigint")
+@pytest.mark.parametrize("at", ["hash", "io", "publisher"])
+def test_an_interrupt_at_each_stop_of_close_finishes_the_running_work_only(
+    tmp_path, monkeypatch, at
+):
+    import signal
+
+    from fse._store import _shard
+
+    sink, release, held = _publishing(tmp_path, monkeypatch)
+    seen = []  # checked after close: an assert inside it would be masked
+    threads = (sink._hash, sink._io, sink._publisher)
+    thread = dict(zip(("hash", "io", "publisher"), threads, strict=True))[at]
     real_stop, real_abort, aborted = thread.stop, _shard.ShardWriter.abort, []
 
     def stop():
         signal.raise_signal(signal.SIGINT)  # Ctrl+C as close stops this thread
-        assert all(t.failed for t in (sink._hash, sink._io, sink._publisher))  # at once
+        seen.append(("stop", len(sink._interrupts), [t.failed for t in threads]))
         real_stop()
 
     def abort(self):
         aborted.append(self.first_row)
         signal.raise_signal(signal.SIGINT)  # and again during the clean-up
+        seen.append(("abort", len(sink._interrupts)))
         real_abort(self)
 
     thread.stop = stop
@@ -73,9 +90,13 @@ def test_an_interrupt_at_each_stop_of_close_finishes_the_running_work_only(
             sink.close()
     finally:
         release.set()
+    # Both interrupts were handled at once and only noted; the first abandoned all three
+    # threads together, and the publish that ran went on only after that.
+    assert seen == [("stop", 1, [True, True, True]), ("abort", 2)]
+    assert held == [True]
     assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
-    assert all(t._ended.is_set() for t in (sink._hash, sink._io, sink._publisher))
-    assert 8 in aborted  # shard 3 was dropped, its directory removed
+    assert all(t._ended.is_set() for t in threads)
+    assert aborted == [8]  # shard 3 was dropped, its directory removed
     assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]
     assert sink.durable_rows == 8  # the running publish of shard 2 was finished
     found = shards(tmp_path / "s", StoreInfo(ENCODER.fingerprint, "float32", ENCODER.output_dim))
@@ -86,7 +107,7 @@ def test_an_interrupt_at_each_stop_of_close_finishes_the_running_work_only(
 
 
 _CHILD = """
-import json, signal, sys, time
+import json, os, signal, sys, time
 from pathlib import Path
 from fse._store import ShardSink, _shard
 from fse._store._layout import shard_name
@@ -99,21 +120,24 @@ sink = ShardSink(store, encoder, shard_rows=4)
 real = _shard.publish_directory
 
 
-def wait_for(done):
+def wait_for(done, what):
     deadline = time.monotonic() + 30
-    while not done() and time.monotonic() < deadline:
+    while not done():
+        if time.monotonic() > deadline:
+            print(json.dumps({"timeout": what}), flush=True)
+            os._exit(3)  # from the publisher thread: end the child at once
         time.sleep(0.01)
 
 
 def publish(tmp, path):
     if path.name == shard_name(4):
         # Close has deferred SIGINT; the parent sends it now, then once more.
-        wait_for(lambda: signal.getsignal(signal.SIGINT) is not signal.default_int_handler)
+        installed = lambda: signal.getsignal(signal.SIGINT) is not signal.default_int_handler
+        wait_for(installed, "the deferral")
         (events / "first").touch()
-        wait_for(lambda: sink._publisher.failed)  # abandoned by the first
+        wait_for(lambda: sink._publisher.failed, "the first SIGINT")  # it abandoned all
         (events / "second").touch()
-        wait_for(lambda: (events / "sent").exists())
-        time.sleep(0.2)  # the handler of the main thread notes it meanwhile
+        wait_for(lambda: len(sink._interrupts) == 2, "the second SIGINT")  # only noted
     real(tmp, path)
 
 
@@ -133,6 +157,7 @@ except KeyboardInterrupt:
 threads = (sink._hash, sink._io, sink._publisher)
 print(json.dumps({
     "raised": raised,
+    "interrupts": len(sink._interrupts),
     "durable": sink.durable_rows,
     "ended": all(t._ended.is_set() for t in threads),
     "hidden": sorted(p.name for p in store.iterdir() if p.name.startswith(".")),
@@ -163,11 +188,11 @@ def test_a_real_sigint_during_close_is_deferred_until_the_clean_up_is_done(tmp_p
     try:
         for name in ("first", "second"):
             deadline = time.monotonic() + 30
-            while not (events / name).exists() and child.poll() is None:
-                assert time.monotonic() < deadline, f"no {name} event"
+            while not (events / name).exists():
+                assert child.poll() is None, "the child ended early"
+                assert time.monotonic() < deadline, f"no {name} event within 30 s"
                 time.sleep(0.01)
-            child.send_signal(signal.SIGINT)
-        (events / "sent").touch()
+            child.send_signal(signal.SIGINT)  # only once the child waits for it
         out, err = child.communicate(timeout=60)
     finally:
         if child.poll() is None:
@@ -175,4 +200,4 @@ def test_a_real_sigint_during_close_is_deferred_until_the_clean_up_is_done(tmp_p
             child.communicate()
     assert child.returncode == 0, err
     result = json.loads(out.strip().splitlines()[-1])
-    assert result == {"raised": 1, "durable": 8, "ended": True, "hidden": []}
+    assert result == {"raised": 1, "interrupts": 2, "durable": 8, "ended": True, "hidden": []}
