@@ -1,6 +1,7 @@
-# Included by _native.pyx: token lists joined into one UTF-8 buffer, for TokenListSource.
+# Included by _native.pyx: str sentences (StringSource) and token lists (TokenListSource,
+# the tokens of a sentence joined by one space) joined into one UTF-8 buffer.
 #
-# One pass over exact lists, tuples and str: every token is checked and written at once
+# One pass over exact lists, tuples and str: every str is checked and written at once
 # into a C buffer, in parts of the sentences that native threads run in parallel (reading
 # each of millions of scattered str objects once is what the time goes to). The calling
 # thread holds the GIL all along, also while it waits for the threads, so no Python code
@@ -53,7 +54,7 @@ cdef bint _test_failed_growth = False  # for the tests: every buffer growth fail
 
 # What the appends give besides 0; the worst status of any part decides.
 cdef enum:
-    _INVALID = -1  # an empty token, whitespace or a lone surrogate: the Python path raises
+    _INVALID = -1  # a lone surrogate, an empty token or a space in one: the Python path raises
     _UNSUPPORTED = -2  # an object of another type: the Python path decides
     _NO_MEMORY = -3
     _PART_SENTENCES = 4096  # sentences a thread gets at least
@@ -61,6 +62,7 @@ cdef enum:
 
 cdef struct _Part:
     PyObject *outer
+    bint strings  # its sentences are str, not token lists
     Py_ssize_t first, last  # its sentences
     _Buffer text
     _Buffer ends  # int64 ends of its sentences in its text
@@ -134,23 +136,25 @@ cdef inline char *_put(char *out, uint32_t c) noexcept nogil:
     return out + 4
 
 
-cdef int _append_token(_Buffer *b, PyObject *token) noexcept nogil:
-    """Append the UTF-8 of a token to b: 0 or a status."""
+cdef int _append_str(_Buffer *b, PyObject *text, bint token) noexcept nogil:
+    """Append the UTF-8 of a str to b: 0 or a status. A token must be non-empty and hold
+    no whitespace; a sentence may be empty and hold anything but a lone surrogate."""
     cdef Py_ssize_t i, n
     cdef int kind
     cdef const void *data
     cdef char *out
     cdef uint32_t c
-    if not PyUnicode_CheckExact(token) or not FSE_UNICODE_IS_READY(token):
+    if not PyUnicode_CheckExact(text) or not FSE_UNICODE_IS_READY(text):
         return _UNSUPPORTED
-    n = PyUnicode_GET_LENGTH(token)
+    n = PyUnicode_GET_LENGTH(text)
     if n == 0:
-        return _INVALID
-    data = PyUnicode_DATA(token)
-    if PyUnicode_IS_ASCII(token):
-        for i in range(n):
-            if _is_space_code((<const Py_UCS1 *>data)[i]):
-                return _INVALID
+        return _INVALID if token else 0
+    data = PyUnicode_DATA(text)
+    if PyUnicode_IS_ASCII(text):
+        if token:
+            for i in range(n):
+                if _is_space_code((<const Py_UCS1 *>data)[i]):
+                    return _INVALID
         if _grow(b, n) < 0:
             return _NO_MEMORY
         memcpy(b.data + b.size, data, n)
@@ -158,11 +162,11 @@ cdef int _append_token(_Buffer *b, PyObject *token) noexcept nogil:
         return 0
     if n > PY_SSIZE_T_MAX // 4 or _grow(b, 4 * n) < 0:  # at most 4 bytes per code point
         return _NO_MEMORY
-    kind = PyUnicode_KIND(token)
+    kind = PyUnicode_KIND(text)
     out = b.data + b.size
     for i in range(n):
         c = _code_at(kind, data, i)
-        if _is_space_code(c) or 0xD800 <= c <= 0xDFFF:
+        if 0xD800 <= c <= 0xDFFF or (token and _is_space_code(c)):
             return _INVALID
         out = _put(out, c)
     b.size = out - b.data
@@ -181,7 +185,7 @@ cdef int _append_sentence(_Buffer *b, PyObject *sentence) noexcept nogil:
                 return _NO_MEMORY
             b.data[b.size] = 32
             b.size += 1
-        status = _append_token(b, _item(sentence, t))
+        status = _append_str(b, _item(sentence, t), True)
         if status < 0:
             return status
     return 0
@@ -191,7 +195,10 @@ cdef void _run_part(void *arg, int index) noexcept nogil:
     cdef _Part *part = (<_Part *>arg) + index
     cdef Py_ssize_t i
     for i in range(part.first, part.last):
-        part.status = _append_sentence(&part.text, _item(part.outer, i))
+        if part.strings:
+            part.status = _append_str(&part.text, _item(part.outer, i), False)
+        else:
+            part.status = _append_sentence(&part.text, _item(part.outer, i))
         if part.status == 0 and _grow(&part.ends, sizeof(np.int64_t)) < 0:
             part.status = _NO_MEMORY
         if part.status < 0:
@@ -208,7 +215,7 @@ cdef object _joined(_Part *parts, int n_parts, Py_ssize_t n):
     cdef char *out
     for p in range(n_parts):
         if parts[p].text.size > PY_SSIZE_T_MAX - total:
-            raise MemoryError("the joined token lists would exceed the address space")
+            raise MemoryError("the joined sentences would exceed the address space")
         total += parts[p].text.size
     data = PyBytes_FromStringAndSize(NULL, total)
     starts = np.empty(n + 1, dtype=np.int64)
@@ -225,6 +232,18 @@ cdef object _joined(_Part *parts, int n_parts, Py_ssize_t n):
     return data, starts
 
 
+def join_strings(texts, int threads=1):
+    """The texts, a list or tuple of str, as their UTF-8 bytes one after the other and the
+    int64 offsets of the texts in them, read by up to ``threads`` native threads.
+
+    Returns None if an object is not of these exact types (subclasses, which may override
+    encode, a numpy array, a legacy string of 3.11) or a text holds a lone surrogate; the
+    caller then takes the Python path, which decides and raises its errors in their order.
+    """
+    joined = _join_parts(texts, threads, True)
+    return None if joined is False else joined
+
+
 def join_token_lists(sentences, int threads=1):
     """The sentences, each a list or tuple of str tokens, as the UTF-8 bytes of the tokens
     joined by one space per sentence, and the int64 offsets of the sentences in them,
@@ -237,6 +256,11 @@ def join_token_lists(sentences, int threads=1):
     input the verdict depends on how it was split. The Python path decides in both cases:
     a subclass in the input may change the lists while it runs.
     """
+    return _join_parts(sentences, threads, False)
+
+
+cdef object _join_parts(sentences, int threads, bint strings):
+    """The joined sentences (str if ``strings``, else token lists), None or False."""
     cdef PyObject *outer = <PyObject *>sentences
     cdef Py_ssize_t n, size
     cdef int p, n_parts, status = 0
@@ -249,19 +273,20 @@ def join_token_lists(sentences, int threads=1):
     n_parts = <int>max(1, min(threads, n // _PART_SENTENCES))
     parts = <_Part *>calloc(n_parts, sizeof(_Part))
     if parts == NULL:
-        raise MemoryError("could not allocate the parts of the token lists")
+        raise MemoryError("could not allocate the parts of the sentences")
     try:
         size = n // n_parts
         for p in range(n_parts):
             parts[p].outer = outer
+            parts[p].strings = strings
             parts[p].first = p * size
             parts[p].last = n if p == n_parts - 1 else (p + 1) * size
         if fse_parallel(n_parts, _run_part, parts) < 0:
-            raise MemoryError("could not start the threads for the token lists")
+            raise MemoryError("could not start the threads for the sentences")
         for p in range(n_parts):
             status = min(status, parts[p].status)
         if status == _NO_MEMORY:
-            raise MemoryError("could not grow the buffer of the token lists")
+            raise MemoryError("could not grow the buffer of the sentences")
         if status < 0:
             return False if status == _INVALID else None
         # The items are not read any more, so Python code may run from here.
