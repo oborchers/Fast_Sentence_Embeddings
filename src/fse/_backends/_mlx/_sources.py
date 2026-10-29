@@ -45,6 +45,13 @@ constant constexpr uint FSE_EXACT_COUNTS = 16777216u;
 
 inline uint fse_magnitude(float x) { return as_type<uint>(x) & 0x7fffffffu; }
 inline uint4 fse_magnitude(float4 x) { return as_type<uint4>(x) & 0x7fffffffu; }
+inline void fse_put(threadgroup float *p, uint i, float x) { p[i] = x; }
+inline void fse_put(threadgroup float *p, uint i, float4 x) {
+    p[i] = x.x;
+    p[i + 1] = x.y;
+    p[i + 2] = x.z;
+    p[i + 3] = x.w;
+}
 inline bool fse_nonfinite(float x) { return fse_magnitude(x) >= 0x7f800000u; }
 inline bool fse_nonfinite(float4 x) { return any(fse_magnitude(x) >= 0x7f800000u); }
 // Whether a value is 2**60 or more, and whether all are below 2**-50 (on the bits).
@@ -75,6 +82,7 @@ _POOL = (
     constexpr uint ROW = DIM / VEC;
     uint flag = 0u;
     bool tiny = true;
+    acc_t row = acc_t(0.0f);
     if (q < ROW) {
         acc_t acc = 0.0f;
         uint k = FASTTEXT ? unknown[s] : 0u;
@@ -115,10 +123,52 @@ _POOL = (
             flag |= FSE_LONG;
         }
         const float inverse = metal::precise::divide(1.0f, float(n));
-        const acc_t row = n ? acc_t(inverse) * acc : acc_t(0.0f);
-        ((device acc_t *)out)[(ulong)s * ROW + q] = row;
+        row = n ? acc_t(inverse) * acc : acc_t(0.0f);
+        if (!NORMALIZE) {
+            ((device acc_t *)out)[(ulong)s * ROW + q] = row;
+        }
         flag |= fse_huge(row) ? FSE_HUGE : 0u;
         tiny = fse_tiny(row);
+    }
+    if (NORMALIZE) {
+        // normalize@1 as the cpu computes it (the rows of a threadgroup are whole here):
+        // dot16 of the row with itself (16 lanes by fma in index order, then added 8, 4, 2
+        // and 1 lanes apart), 1 / sqrt correctly rounded, one product per value. A row
+        // whose sum of squares is zero or not finite is flagged (TINY, HUGE) and comes
+        // from the host; it is written unchanged.
+        threadgroup float values[1024];
+        threadgroup float lanes[16 * 8];
+        threadgroup float inverses[8];
+        const uint ly = thread_position_in_threadgroup.y;
+        if (q < ROW) {
+            fse_put(values, ly * DIM + q * VEC, row);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        if (q < 16u) {
+            float lane = 0.0f;
+            for (uint i = q; i < DIM; i += 16u) {
+                lane = metal::fma(values[ly * DIM + i], values[ly * DIM + i], lane);
+            }
+            lanes[ly * 16u + q] = lane;
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        if (q == 0u) {
+            float l[16];
+            for (uint j = 0u; j < 16u; ++j) {
+                l[j] = lanes[ly * 16u + j];
+            }
+            for (uint width = 8u; width > 0u; width >>= 1u) {
+                for (uint j = 0u; j < width; ++j) {
+                    l[j] = l[j] + l[j + width];
+                }
+            }
+            const bool usable = fse_magnitude(l[0]) != 0u && !fse_nonfinite(l[0]);
+            inverses[ly] = usable ? metal::precise::divide(1.0f, metal::precise::sqrt(l[0])) : 1.0f;
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        if (q < ROW) {
+            ((device acc_t *)out)[(ulong)s * ROW + q] = row * acc_t(inverses[ly]);
+        }
     }
     const uint any_flag = simd_or(flag) | (simd_all(tiny) ? FSE_TINY : 0u);
     if (thread_index_in_simdgroup == 0u) {

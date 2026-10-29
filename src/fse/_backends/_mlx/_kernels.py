@@ -71,6 +71,9 @@ def _subnormal(values: Any) -> bool:
 
 SMALLEST_NORMAL = 2.0**-126
 MAX_BUCKETS = 1 << 24  # more buckets of one unknown word go to the host (LONG)
+# K, the tokens and buckets of a sentence on the device, is below 2**24: the term
+# gamma_K of the bound is undefined from there (the host computes such a sentence).
+MAX_CONTRIBUTIONS = (1 << 24) - 1
 
 
 def _small_products(a: ndarray, b: ndarray) -> bool:
@@ -268,9 +271,16 @@ def shape(dim: int, vec: int, rows: int) -> tuple[tuple, tuple, int]:
     return (width, rows, 1), (x, y, 1), width // SIMD
 
 
-def launch(mx: ModuleType, stream: Any, table: Table, task: Task) -> tuple:
-    """The pooling kernel of ``task``, queued on ``stream``: its rows and flags (not
-    evaluated)."""
+def normalizes(table: Table) -> bool:
+    """Whether the kernel can normalize the rows of ``table``: a row within one
+    threadgroup."""
+    return -(-(table.dim // table.vec) // SIMD) * SIMD <= THREADGROUP
+
+
+def launch(mx: ModuleType, stream: Any, table: Table, task: Task, normalize: bool = False):
+    """The pooling kernel of ``task``, queued on ``stream``: its rows (normalized with
+    ``normalize``, which needs ``normalizes(table)``) and flags (not evaluated)."""
+    assert not normalize or normalizes(table)
     grid, group, words = shape(table.dim, table.vec, task.n_sentences)
     inputs = [*table.arrays, *(mx.array(a) for a in task.arrays)]
     return tuple(
@@ -282,6 +292,7 @@ def launch(mx: ModuleType, stream: Any, table: Table, task: Task) -> tuple:
                 ("FLAG_WORDS", words),
                 ("INT8", table.int8),
                 ("FASTTEXT", table.fasttext and task.unknown),
+                ("NORMALIZE", normalize),
             ],
             grid=grid,
             threadgroup=group,

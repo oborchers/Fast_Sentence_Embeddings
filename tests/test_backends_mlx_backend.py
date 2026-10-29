@@ -255,3 +255,34 @@ def test_the_window_counts_the_rows_on_the_device(mlx):
     on_mlx, on_cpu = Pipeline(spec, "mlx"), Pipeline(spec, "cpu")
     assert mlx.capabilities().device_rows
     assert on_mlx._row_bytes("float32") == on_cpu._row_bytes("float32") + 4 * 40 + 4 * 2
+
+
+@pytest.mark.parametrize(("dim", "device"), [(7, True), (1024, True), (1028, False)])
+def test_normalize_alone_runs_in_the_kernel_with_the_cpu_bits(mlx, monkeypatch, dim, device):
+    """Where a row fits one threadgroup (1,024 values at four per thread); the host's
+    steps run only for wider rows."""
+    calls = []
+    real = mlx.host.steps
+    monkeypatch.setattr(mlx.host, "steps", lambda *a: calls.append(1) or real(*a))
+    got, prepared = _rows(mlx, _pool(dim), (Normalize(),), _batch(3))
+    want, _ = _rows(CpuBackend(), _pool(dim), (Normalize(),), _batch(3))
+    assert got.tobytes() == want.tobytes()
+    assert calls == ([] if device else [1])
+    assert sum(fallbacks(prepared).values()) == 0
+
+
+@pytest.mark.parametrize(("k", "host"), [((1 << 24) - 1, False), (1 << 24, True)])
+def test_a_sentence_of_2_24_contributions_runs_on_the_host(mlx, k, host):
+    """K < 2**24 on the device (gamma_K of the bound is undefined from 2**24), alone and
+    next to a short sentence, whose row stays the device's."""
+    pool = PoolInput(np.array([[1.0, 2.0, 3.0, 0.5], [0.25, 1, 1, 1]], F32), np.ones(2, F32))
+    tokens = np.zeros(1 + k, np.uint32)
+    tokens[0] = 1
+    batch = Batch(0, np.array([0, 1, 1 + k], np.int64), tokens)
+    device = mlx.device
+    before = device.launches
+    got, prepared = _rows(mlx, pool, batch=batch)
+    want, _ = _rows(CpuBackend(), pool, batch=batch)
+    assert got.tobytes() == want.tobytes()
+    assert fallbacks(prepared)["large"] == int(host)
+    assert device.launches > before  # the short sentence on the device either way

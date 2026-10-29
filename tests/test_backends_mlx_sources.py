@@ -21,11 +21,14 @@ def test_contraction_is_off_and_fast_math_refused():
 
 
 def test_only_correctly_rounded_operations():
-    """Explicit fma, precise divide; no division operator, sqrt, rsqrt or SIMD sums."""
+    """Explicit fma, precise divide and sqrt; no division operator, other sqrt, rsqrt or
+    SIMD sums."""
     assert "metal::fma(" in CODE
     assert "metal::precise::divide(1.0f, float(n))" in CODE
     body = re.sub(r"//[^\n]*", "", CODE)
     assert not re.search(r"[^/]/[^/*]", body.replace("q / 32u", "").replace("DIM / VEC", ""))
+    assert "metal::precise::sqrt(l[0])" in body
+    body = body.replace("metal::precise::sqrt(", "")
     for banned in ("rsqrt", "sqrt(", "simd_sum", "simdgroup_matrix", "fast::"):
         assert banned not in body, banned
 
@@ -66,3 +69,13 @@ def test_the_unknown_token_is_the_contract_s():
 def test_the_inputs_are_those_the_source_reads():
     for name in (*_sources.POOL_INPUTS, *_sources.POOL_OUTPUTS):
         assert re.search(rf"\b{name}\b", POOLS[1]), name
+
+
+def test_normalize_follows_dot16():
+    """16 lanes by fma in index order, added 8, 4, 2 and 1 lanes apart, 1 / sqrt."""
+    pool = POOLS[4]
+    assert "for (uint i = q; i < DIM; i += 16u)" in pool
+    assert "lane = metal::fma(values[ly * DIM + i], values[ly * DIM + i], lane);" in pool
+    assert "for (uint width = 8u; width > 0u; width >>= 1u)" in pool
+    assert "l[j] = l[j] + l[j + width];" in pool
+    assert "metal::precise::divide(1.0f, metal::precise::sqrt(l[0]))" in pool

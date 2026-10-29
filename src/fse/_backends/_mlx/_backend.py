@@ -139,6 +139,12 @@ class MlxBackend:
         self.host = host
         self.device = device
 
+    @property
+    def _limit(self) -> int:
+        """The most tokens and buckets of a task on the device: a group's, and below the
+        K of 2**24 from which the bound of a sentence is undefined."""
+        return min(self.device.group_tokens, _kernels.MAX_CONTRIBUTIONS)
+
     def capabilities(self) -> Capabilities:
         return _CAPABILITIES
 
@@ -166,7 +172,7 @@ class MlxBackend:
             state.fallbacks.count("subnormal_input")
             self.host.rows(batch, state.host, out)
             return
-        if _kernels.size(batch) > self.device.group_tokens:  # one upload and kernel too large
+        if _kernels.size(batch) > self._limit:  # one upload and kernel too large
             self._large(batch, prepared, out)
             return
         task = _kernels.task(batch, table)
@@ -175,21 +181,30 @@ class MlxBackend:
             return
         project = any(isinstance(step, Project) for step in prepared.steps)
         pooled = np.empty((task.n_sentences, prepared.pooled_dim), np.float32) if project else out
-        flags = self.device.run(
-            lambda mx, stream: _kernels.launch(mx, stream, table, task),
+        steps = state.host.steps
+        normalize = any(isinstance(step, Normalize) for step in steps)
+        # normalize alone runs in the kernel, with the cpu's bits where nothing flushes
+        on_device = normalize and len(steps) == 1 and _kernels.normalizes(table)
+        flags, bad = self.device.run(
+            lambda mx, stream: _kernels.launch(mx, stream, table, task, on_device),
             _kernels.view,
             task.tokens,
-            lambda viewed: _copy(viewed, pooled),  # in this worker, from the lent rows
+            lambda viewed: self._use(viewed, task, pooled, normalize),  # from the lent rows
         )
-        normalize = any(isinstance(step, Normalize) for step in prepared.steps)
-        bad = _kernels.flagged(flags, task, normalize)
         if not bad.any():
-            if prepared.steps:
+            if steps and not on_device:
                 self.host.steps(pooled, state.host, batch.first_row, out)
             return
         why = _kernels.reason(functools.reduce(operator.or_, flags[bad].tolist()))
         state.fallbacks.count(why)
-        self._replace(batch, state, pooled, out, bad)
+        self._replace(batch, state, pooled if not on_device else None, out, bad)
+
+    @staticmethod
+    def _use(viewed: tuple, task: _kernels.Task, pooled: ndarray, normalize: bool):
+        """Copy the device's rows into ``pooled``: the flags and the flagged rows."""
+        rows, flags = viewed
+        np.copyto(pooled, rows)
+        return flags, _kernels.flagged(flags, task, normalize)
 
     def _large(self, batch: Batch, prepared: Prepared, out: ndarray) -> None:
         """A batch beyond one device group in runs of sentences that fit, after the host
@@ -198,18 +213,21 @@ class MlxBackend:
         state = prepared.state
         assert isinstance(state, _State)
         self.host.rows(batch, state.host, out)
-        for begin, end, part in _kernels.split(batch, self.device.group_tokens):
+        for begin, end, part in _kernels.split(batch, self._limit):
             if part is None:
                 state.fallbacks.count("large")
             else:
                 self.rows(part, prepared, out[begin:end])
 
-    def _replace(self, batch: Batch, state: _State, pooled: ndarray, out: ndarray, bad: ndarray):
-        """The rows ``bad`` from the host, the others from the device. The host computes
-        the whole task first, so that its error, if any, is the cpu's for the task."""
+    def _replace(
+        self, batch: Batch, state: _State, pooled: ndarray | None, out: ndarray, bad: ndarray
+    ):
+        """The rows ``bad`` from the host, the others from the device (after the steps on
+        ``pooled``, or already stepped without). The host computes the whole task first,
+        so that its error, if any, is the cpu's for the task."""
         host = np.empty_like(out)
         self.host.rows(batch, state.host, host)
-        if state.host.steps:
+        if state.host.steps and pooled is not None:
             pooled[bad] = 0  # the steps keep a zero row and raise for none
             self.host.steps(pooled, state.host, batch.first_row, out)
         out[bad] = host[bad]
@@ -238,12 +256,6 @@ class MlxBackend:
 
     def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
         self.host.store(rows, codes, scales, first_row)
-
-
-def _copy(viewed: tuple[ndarray, ndarray], pooled: ndarray) -> ndarray:
-    """Copy the device's rows into ``pooled``; their flags."""
-    np.copyto(pooled, viewed[0])
-    return viewed[1]
 
 
 def fallbacks(prepared: Prepared) -> dict[str, int]:
