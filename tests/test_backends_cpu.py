@@ -3,7 +3,7 @@ import pytest
 
 from fse import _native, _reference
 from fse._backends import CpuBackend, PoolInput, Prepared, get_backend
-from fse._contract import Batch, Normalize, Project
+from fse._contract import OOV_TOKEN, Batch, Normalize, Project
 
 F32 = np.float32
 
@@ -81,3 +81,93 @@ def test_gram_block_and_score():
         backend.score(rows, None, weights, 0.5).tobytes()
         == _reference.score(rows, None, weights, 0.5).tobytes()
     )
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+def test_a_square_project_is_applied(dtype):
+    # A project of as many dimensions as it reads keeps the dimension, and still makes a
+    # new array: it must reach out (a permutation shows whether it did).
+    pool = _pool(dtype)
+    backend = get_backend("cpu")
+    basis = np.ascontiguousarray(np.eye(4, dtype=F32)[[2, 0, 3, 1]])
+    for steps in ((Project(basis),), (Project(basis), Normalize())):
+        prepared = backend.prepare(pool, steps)
+        out = np.empty((3, 4), F32)
+        backend.rows(_batch(), prepared, out)
+        rows = _reference.pool_weighted_mean(_batch(), pool.vectors, pool.weights, pool.scales)
+        want = _reference.postprocess(rows, steps, 5)
+        assert out.view(np.uint32).tolist() == want.view(np.uint32).tolist()
+
+
+def test_pooled_rows_must_not_overlap_a_step():
+    from fse._contract import RemoveComponents
+
+    components = np.zeros((1, 4), F32)
+    components[0, 0] = 1
+    step = RemoveComponents(components)
+    held = step.components  # the step's own frozen copy, made writable by a caller
+    held.setflags(write=True)
+    with pytest.raises(ValueError, match="overlap the components of a step"):
+        _native.postprocess_pooled(held, (step,))
+
+
+@pytest.mark.parametrize("name", ["components", "basis"])
+def test_out_overlapping_a_step_is_refused_before_anything_is_written(name):
+    from fse._contract import RemoveComponents
+
+    unit = np.ascontiguousarray(np.eye(4, dtype=F32)[[2, 0, 3, 1]])
+    step = RemoveComponents(unit[:3]) if name == "components" else Project(unit)
+    held = getattr(step, name)  # the step's own frozen copy, made writable by a caller
+    held.setflags(write=True)
+    before = held.tobytes()
+    backend = get_backend("cpu")
+    prepared = backend.prepare(_pool(), (step, Normalize()))
+    with pytest.raises(ValueError, match=f"share memory with the {name} of a step"):
+        backend.rows(_batch(), prepared, held[:3])
+    assert held.tobytes() == before
+
+
+def _subsets():
+    """Every allowed combination of the steps, in their order."""
+    from fse._contract import RemoveComponents
+
+    rng = np.random.default_rng(1)
+    q, _ = np.linalg.qr(rng.standard_normal((4, 4)))
+    remove = RemoveComponents(np.ascontiguousarray(q[:2].astype(F32)), np.array([0.5, 1], F32))
+    project = Project(np.ascontiguousarray(np.eye(4, dtype=F32)[[2, 0, 3, 1]]))
+    for mask in range(8):
+        picked = (remove, project, Normalize())
+        yield tuple(step for bit, step in enumerate(picked) if mask >> bit & 1)
+
+
+@pytest.mark.parametrize("fasttext", [False, True], ids=["words", "fasttext"])
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+def test_every_combination_of_steps_is_the_reference(dtype, fasttext):
+    pool, batch = _pool(dtype), _batch()
+    if fasttext:  # an unknown word in the last sentence, with two ngram buckets
+        rng = np.random.default_rng(2)
+        codes, scales = _reference.quantize_rows(rng.standard_normal((2, 4)).astype(F32), dtype)
+        pool = PoolInput(pool.vectors, pool.weights, pool.scales, codes, scales, 0.75)
+        batch = Batch(
+            5,
+            np.array([0, 2, 2, 4], np.int64),
+            np.array([0, 1, 2, OOV_TOKEN], np.uint32),
+            np.array([0, 2], np.int64),
+            np.array([0, 1], np.uint32),
+        )
+    backend = get_backend("cpu")
+    rows = _reference.pool_weighted_mean(
+        batch,
+        pool.vectors,
+        pool.weights,
+        pool.scales,
+        pool.ngram_vectors,
+        pool.ngram_scales,
+        pool.oov_weight,
+    )
+    for steps in _subsets():
+        prepared = backend.prepare(pool, steps)
+        out = np.empty((3, prepared.output_dim), F32)
+        backend.rows(batch, prepared, out)
+        want = _reference.postprocess(rows, steps, 5) if steps else rows
+        assert out.view(np.uint32).tolist() == want.view(np.uint32).tolist(), steps

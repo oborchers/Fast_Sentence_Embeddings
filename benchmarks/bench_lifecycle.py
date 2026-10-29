@@ -32,7 +32,13 @@ once, so every number is one with a warm page cache. Cases:
   ``"blas"``; 1.1 has no batch and answers the 64 one by one), ``score`` of 1 and 1,000
   weight vectors;
 - ``infer``: 1, 1,000 and 100,000 paragraphs as token lists to float32, p50 of five calls
-  (1.1 ``infer`` runs in one thread whatever its workers).
+  (1.1 ``infer`` runs in one thread whatever its workers);
+- ``hub``: a SIF model as it comes from the hub, fitted and saved before (untimed): 2.0
+  loads the folded encoder and encodes the whole corpus (from the file, or token lists
+  read once into a ``fse.Corpus``, timed apart) into memory or into a store up to its
+  last flush; 1.1 loads its trained model saved without sentence vectors (its weights
+  and components kept) and adds the corpus with ``train(update=True)``, its bulk path,
+  which keeps the components and runs with its workers, then for a store saves it.
 
 --quick (the default) runs the prioritized subset of ``_quick`` in about ten minutes,
 --full every combination of --models, --dtypes, --workers, --inputs and --targets; query
@@ -87,6 +93,19 @@ def _wanted(case: tuple, args) -> bool:
     return all(value in among for value, among in zip(case, allowed, strict=True))
 
 
+def _hubs(encodes: list[dict], stores: list[dict]) -> dict:
+    """The (dtype, workers) of the hub cases: those of the SIF encodes, whose saved models
+    (from a SIF encode into a store of the dtype) the hub cases load."""
+    hubs = {(e["dtype"], e["workers"]): None for e in encodes if e["model"] == "SIF"}
+    saved = {e["dtype"] for e in stores if e["model"] == "SIF"}
+    if missing := sorted({d for d, _ in hubs} - saved):
+        raise SystemExit(
+            f"the hub cases of {', '.join(missing)} load the models a SIF encode into a "
+            "store saves; add --targets store"
+        )
+    return hubs
+
+
 def grid(args) -> list[dict]:
     """Every case in order: loads, encodes, then queries and inference of the stores."""
     if args.full:
@@ -104,12 +123,19 @@ def grid(args) -> list[dict]:
     stores = [e for e in encodes if e["target"] == "store"]
     queries = {(e["model"], e["dtype"]): None for e in stores}
     infers = {(e["model"], e["workers"]): None for e in stores if e["dtype"] == "float32"}
+    hubs = _hubs(encodes, stores)
     return [
         {"kind": "load"},
         {"kind": "load_mmap"},
         *encodes,
         *({"kind": "query", "model": m, "dtype": d} for m, d in queries),
         *({"kind": "infer", "model": m, "dtype": "float32", "workers": w} for m, w in infers),
+        *(
+            {"kind": "hub", "model": "SIF", "dtype": d, "workers": w, "input": i, "target": t}
+            for (d, w) in hubs
+            for i in args.inputs
+            for t in args.targets
+        ),
     ]
 
 
@@ -232,6 +258,14 @@ METRICS = {
     ],
     "infer": [(f"infer {n} p50 ms", f"infer_{n}_ms", f"infer_{n}_ms", True) for n in INFER_SIZES]
     + [_PEAK],
+    "hub": [
+        ("load s", "load_s", "load_s", True),
+        ("corpus s", "prepare_s", None, False),
+        ("encode / train s", "encode_s", "encode_s", True),
+        ("  of it save s", None, "save_s", False),
+        ("total s", "total_s", "total_s", True),
+        _PEAK,
+    ],
 }
 METRICS["load_mmap"] = METRICS["load"]
 
@@ -272,6 +306,8 @@ def run(args, base: dict, warm: list[Path]) -> list[dict]:
         config = {**base, **case}
         if case["kind"] == "query":  # the query vectors, in a process of their own
             _run(sys.executable, {**config, "side": "v2", "kind": "queries"})
+        if case["kind"] == "hub" and "v1" in pythons:  # the 1.1 model as from the hub, once
+            _run(pythons["v1"], {**config, "side": "v1", "kind": "hub_model"})
         rows.append({"case": case, **_pairs(config, pythons, args.pairs, warm)})
         _print_row(rows[-1], cpus)
     return rows

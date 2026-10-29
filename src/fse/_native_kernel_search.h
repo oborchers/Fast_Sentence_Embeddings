@@ -23,17 +23,35 @@ static inline const float *fse_stored_row(int dtype, const void *stored, int64_t
     return scratch;
 }
 
+/* Rows whose sums of squares run interleaved: each keeps its own sum in index order, so
+   the bits are those of one row at a time, but the chains of dependent float64 additions
+   overlap instead of waiting on each other (the scratch holds this many decoded rows). */
+#define FSE_NORM_ROWS 8
+
 /* float32(1 / sqrt(s)) per row, s the float64 sum of squares in index order; 0 for a zero
    row. Returns the first row whose inverse norm is beyond float32, or -1. */
 FSE_NOINLINE static int64_t fse_inverse_norms_body(int dtype, const void *stored, int64_t n,
                                                    int dim, float *out, float *scratch) {
     int64_t bad = -1;
-    for (int64_t r = 0; r < n; r++) {
-        const float *x = fse_stored_row(dtype, stored, r, dim, scratch);
-        double s = 0.0;
-        for (int i = 0; i < dim; i++) s += (double)x[i] * (double)x[i];
-        out[r] = s > 0.0 ? (float)(1.0 / sqrt(s)) : 0.0f;
-        if (bad < 0 && !isfinite(out[r])) bad = r;
+    for (int64_t r0 = 0; r0 < n; r0 += FSE_NORM_ROWS) {
+        const int g = n - r0 < FSE_NORM_ROWS ? (int)(n - r0) : FSE_NORM_ROWS;
+        const float *x[FSE_NORM_ROWS];
+        double s[FSE_NORM_ROWS];
+        for (int k = 0; k < g; k++) {
+            x[k] = fse_stored_row(dtype, stored, r0 + k, dim, scratch + (size_t)k * (size_t)dim);
+            s[k] = 0.0;
+        }
+        if (g == FSE_NORM_ROWS) {
+            for (int i = 0; i < dim; i++)
+                for (int k = 0; k < FSE_NORM_ROWS; k++) s[k] += (double)x[k][i] * (double)x[k][i];
+        } else {
+            for (int k = 0; k < g; k++)
+                for (int i = 0; i < dim; i++) s[k] += (double)x[k][i] * (double)x[k][i];
+        }
+        for (int k = 0; k < g; k++) {
+            out[r0 + k] = s[k] > 0.0 ? (float)(1.0 / sqrt(s[k])) : 0.0f;
+            if (bad < 0 && !isfinite(out[r0 + k])) bad = r0 + k;
+        }
     }
     return bad;
 }
