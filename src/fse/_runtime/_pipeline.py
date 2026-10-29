@@ -82,6 +82,7 @@ class Pipeline:
         self.task_rows = max(1, min(MAX_CHUNK_ROWS, TASK_ROW_BYTES // self._widest))
         # One call at a time on a backend that is not concurrent; encoding stays parallel.
         concurrent = self.backend.capabilities().concurrent
+        self._device_rows = self.backend.capabilities().device_rows
         self._serial: AbstractContextManager[Any] = (
             nullcontext() if concurrent else threading.Lock()
         )
@@ -99,7 +100,9 @@ class Pipeline:
         )  # the vector in the target and the backend's result
         scratch = 0 if dtype == "float32" else 4 * out
         steps = 8 * pooled + 4 * out if self.prepared.steps else 0
-        return target + scratch + steps
+        # A device backend's pooled rows, flags (one word per 32 values) and two bounds.
+        device = 4 * pooled + 4 * -(-pooled // 32) + 8 if self._device_rows else 0
+        return target + scratch + steps + device
 
     def infer(
         self,

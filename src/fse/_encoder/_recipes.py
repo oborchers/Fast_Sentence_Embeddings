@@ -25,7 +25,7 @@ from fse._wordvectors import WordVectors
 from ._encoder import Encoder
 from ._fit import FitSpec, fit
 
-Backend = Literal["cpu", "numpy"]
+Backend = Literal["cpu", "numpy", "mlx"]
 
 
 class _Recipe:

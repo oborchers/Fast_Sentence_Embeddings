@@ -97,6 +97,39 @@ class CpuBackend:
         rows = state.kernel.pool(batch)  # a new array, finite as pooled
         out[...] = _native.postprocess_pooled(rows, prepared.steps, batch.first_row, isa=state.isa)
 
+    def steps(self, pooled: ndarray, prepared: Prepared, first_row: int, out: ndarray) -> None:
+        """Stage 4 alone: the steps of ``prepared`` on rows a device has pooled (finite,
+        as pooling gives them; rows ``first_row`` on) into ``out``, in place when
+        ``pooled`` is ``out`` (allowed without a ``project``). The device backends run
+        their steps on the host with it; the bits are those of ``rows``."""
+        check_prepared(prepared, self.name)
+        state = prepared.state
+        assert isinstance(state, _State)
+        isa = state.isa
+        n = len(out) if isinstance(out, ndarray) else -1
+        for name, array, dim in (
+            ("pooled", pooled, prepared.pooled_dim),
+            ("out", out, prepared.output_dim),
+        ):
+            if (
+                not isinstance(array, ndarray)
+                or array.dtype != np.float32
+                or array.shape != (n, dim)
+                or not array.flags.c_contiguous
+                or not array.flags.writeable
+            ):
+                raise ValueError(
+                    f"{name} must be a writable C-contiguous float32 array of shape {(n, dim)}"
+                )
+        if pooled is out:
+            if any(isinstance(step, Project) for step in prepared.steps):
+                raise ValueError("a project cannot run in place; give out apart from pooled")
+            _native.postprocess_pooled(out, prepared.steps, first_row, isa=isa)
+            return
+        if np.may_share_memory(pooled, out):
+            raise ValueError("pooled and out must be the same array or not overlap")
+        out[...] = _native.postprocess_pooled(pooled, prepared.steps, first_row, isa=isa)
+
     def gram_block(self, rows: ndarray) -> ndarray:
         if not isinstance(rows, ndarray) or rows.dtype != np.float32 or rows.ndim != 2:
             raise ValueError("rows must be a float32 matrix")

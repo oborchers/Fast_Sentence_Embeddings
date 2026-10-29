@@ -13,7 +13,7 @@ from fse._runtime import EncodeSpec, GrowingRows, Pipeline, _executor, _pipeline
 from fse._stream import StreamSource
 from fse._text import StringSource
 from fse._wordvectors import WordVectors
-from support.conformance import assert_bits_equal
+from support.conformance import assert_bits_equal, require_mlx
 from support.runtime import expected, source, texts, word_vectors
 
 F32 = np.float32
@@ -57,12 +57,14 @@ def _check(got, want_rows, store):
 @pytest.mark.parametrize("fasttext", [False, True], ids=["plain", "fasttext"])
 @pytest.mark.parametrize("steps", list(STEPS))
 @pytest.mark.parametrize("store", ["float16", "int8"])
-@pytest.mark.parametrize("backend", ["cpu", "numpy"])
+@pytest.mark.parametrize("backend", ["cpu", "numpy", "mlx"])
 def test_stored_rows_are_the_reference_bits(
     tmp_path, monkeypatch, backend, store, steps, fasttext, kind, workers
 ):
+    if backend == "mlx":
+        require_mlx()
     tokenizer = "external" if kind == "tokens" else "fse_words@1"
-    sentences = texts(400 if backend == "cpu" else 120)
+    sentences = texts(120 if backend == "numpy" else 400)
     spec = _spec(fasttext, steps, tokenizer)
     if workers > 1:  # threads, also for inputs small enough to run inline
         monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
@@ -72,9 +74,12 @@ def test_stored_rows_are_the_reference_bits(
     _check(got, expected(spec, sentences), store)
 
 
+@pytest.mark.parametrize("backend", ["cpu", "mlx"])
 @pytest.mark.parametrize("store", ["float16", "int8"])
 @pytest.mark.parametrize("env", [{"flush": True}, {"round_up": True}])
-def test_workers_store_in_the_kernel_environment(monkeypatch, env, store):
+def test_workers_store_in_the_kernel_environment(monkeypatch, env, store, backend):
+    if backend == "mlx":
+        require_mlx()
     spec = _spec(False, "all", "fse_words@1")
     sentences = texts(2000)
     made = _pipeline.new_workspace
@@ -85,7 +90,7 @@ def test_workers_store_in_the_kernel_environment(monkeypatch, env, store):
         return made()
 
     monkeypatch.setattr(_pipeline, "new_workspace", hooked)
-    got = Pipeline(spec, "cpu").infer(
+    got = Pipeline(spec, backend).infer(
         StringSource(sentences), workers=3, chunk_bytes=1024, dtype=store
     )
     assert len(saved) >= 2

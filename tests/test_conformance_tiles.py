@@ -28,7 +28,7 @@ IDS = [f"{c.dtype}-{c.name}" for c in CASES]
 CPU = [
     b
     for b in BACKENDS
-    if isinstance(b, Native) or (isinstance(b, Contract) and b.backend.name == "cpu")
+    if isinstance(b, Native) or (isinstance(b, Contract) and b.backend_name == "cpu")
 ]
 ISAS = _native.available_isas()
 
