@@ -422,3 +422,16 @@ def test_the_installed_version_is_read_without_importing_scikit_learn():
     from fse._head._sklearn import installed_version
 
     assert installed_version() == tuple(int(p) for p in version("scikit-learn").split(".")[:2])
+
+
+@pytest.mark.parametrize("make", [linear_model.RidgeClassifier, linear_model.RidgeClassifierCV])
+def test_multi_label_ridge_classifiers_are_refused(make):
+    encoder = finished(normalize=False)
+    x, _ = _data(encoder)
+    indicator = (x[:, :3] > 0).astype(int)
+    sk = _fit(make(), x, indicator)
+    assert sk.classes_.ndim == 1  # looks like three classes, predicts three decisions
+    with pytest.raises(ValueError, match="multi-label targets"):
+        fse.Classifier.from_sklearn(encoder, sk)
+    single = _fit(make(), x, indicator[:, 0])
+    assert fse.Classifier.from_sklearn(encoder, single).n_outputs == 1

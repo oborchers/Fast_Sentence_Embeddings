@@ -87,6 +87,14 @@ def _linear(model: Any) -> tuple[ndarray, ndarray]:
 
 
 def _classes(model: Any, k: int) -> list:
+    # RidgeClassifier(CV) fitted on an indicator matrix keeps one-dimensional classes_ and
+    # predicts one binary decision per column, which a head of one label per row is not.
+    kind = getattr(getattr(model, "_label_binarizer", None), "y_type_", None)
+    if kind == "multilabel-indicator":
+        raise ValueError(
+            f"{type(model).__name__} was fitted on multi-label targets (one decision per "
+            "label); multi-label classifiers are not supported"
+        )
     classes = getattr(model, "classes_", None)
     if not isinstance(classes, ndarray) or classes.ndim != 1:
         raise ValueError(
