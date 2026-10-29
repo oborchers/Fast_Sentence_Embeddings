@@ -173,9 +173,14 @@ class LinearModel:
     def _artifact(self) -> tuple[dict[str, ndarray], dict[str, str], dict[str, str] | None]:
         tensors, metadata, expected = self._encoder._artifact()
         out, keys = _format.to_artifact(self._content, tensors, metadata, self._encoder.fingerprint)
-        known = dict(expected or {})
+        if expected is None and self._checksums is None:
+            return out, keys, None  # made in memory: nothing to compare with
+        # The writer compares every tensor once checksums are given: those the encoder
+        # or the file recorded, and the head's own (copies the model owns) otherwise.
+        known = {name: checksum(array) for name, array in out.items() if name in _format.TENSORS}
+        known.update(expected or {})
         known.update(self._checksums or {})
-        return out, keys, known or None
+        return out, keys, known
 
     def _standalone_artifact(self) -> tuple[dict[str, ndarray], dict[str, str], None]:
         """The folded encoder part (the table times A, float32, no steps) and the head

@@ -169,3 +169,13 @@ def test_the_fingerprint_is_the_same_in_memory_and_after_load(tmp_path):
 def test_save_refuses_a_bad_flag(tmp_path):
     with pytest.raises(Exception, match="standalone"):
         _classifier().save(tmp_path / "x.safetensors", standalone=1)
+
+
+def test_a_model_on_a_loaded_encoder_saves(tmp_path):
+    finished("int8", fasttext=True, normalize=False).save(tmp_path / "e.safetensors")
+    encoder = fse.Encoder.load(tmp_path / "e.safetensors")
+    model = _classifier(encoder, k=2)
+    model.save(tmp_path / "m.safetensors")
+    loaded = fse.Classifier.load(tmp_path / "m.safetensors")
+    assert loaded.fingerprint == model.fingerprint
+    assert loaded.encoder_fingerprint == encoder.fingerprint
