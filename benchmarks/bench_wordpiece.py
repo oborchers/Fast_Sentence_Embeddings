@@ -15,8 +15,9 @@ Contenders, the ids of every text without special tokens and without a cut:
   into one flat uint32 array and int64 offsets (what a Batch holds), with
   TOKENIZERS_PARALLELISM off (1 thread) and on (its Rayon threads).
 
-Every round runs each contender in a fresh process, in alternating order, and reports the
-median of the rounds. The texts are the non-empty lines of WikiText-103 validation and the
+Every round runs each contender in a fresh process, in alternating order, for five passes
+of which the fastest counts, and reports the median of the rounds. The texts are the
+non-empty lines of WikiText-103 validation and test and the
 MASSIVE intent test set (51 languages), and the tokenizer is the one of
 minishlab/potion-base-8M, all from the local Hugging Face cache; nothing is downloaded.
 
@@ -47,6 +48,8 @@ import numpy as np
 HUB = Path(os.environ.get("HF_HUB_CACHE", Path.home() / ".cache" / "huggingface" / "hub"))
 MODEL = "models--minishlab--potion-base-8M"
 CORPORA = ("wikitext", "massive")
+# Passes per process; the fastest counts (the first warms the caches).
+PASSES = 5
 
 
 def _one(pattern: str) -> list[Path]:
@@ -61,10 +64,11 @@ def texts(corpus: str) -> list[str]:
     if corpus == "wikitext":
         import pyarrow.parquet as pq  # only here (uv run --with pyarrow)
 
-        path = _one(
-            "datasets--Salesforce--wikitext/snapshots/*/wikitext-103-raw-v1/validation-*.parquet"
-        )[0]
-        return [s for s in pq.read_table(path).column("text").to_pylist() if s.strip()]
+        lines = []
+        for split in ("validation", "test"):
+            path = _one(f"datasets--Salesforce--wikitext/snapshots/*/wikitext-103-raw-v1/{split}-*")
+            lines += pq.read_table(path[0]).column("text").to_pylist()
+        return [s for s in lines if s.strip()]
     out = []
     for path in _one("datasets--mteb--amazon_massive_intent/snapshots/*/test/*.json.gz"):
         with gzip.open(path, "rt", encoding="utf-8") as f:
@@ -115,7 +119,10 @@ def run_fse(lookup, sentences: list[str], threads: int) -> tuple[np.ndarray, np.
 
         with ThreadPoolExecutor(threads) as pool:
             batches = list(pool.map(one, scan.chunks))
-    return np.concatenate([b.tokens for b in batches]), batches[-1].offsets
+    offsets = [np.zeros(1, np.int64)]
+    for b in batches:
+        offsets.append(b.offsets[1:] + offsets[-1][-1])
+    return np.concatenate([b.tokens for b in batches]), np.concatenate(offsets)
 
 
 def run_hf(tokenizer, sentences: list[str]) -> tuple[np.ndarray, np.ndarray]:
@@ -154,7 +161,7 @@ def check(corpus: str) -> int:
     sentences = texts(corpus)
     ids, offsets = run_fse(fse_lookup(tokenizer_json()), sentences, 1)
     want, want_offsets = run_hf(Tokenizer.from_file(str(tokenizer_json())), sentences)
-    if not (np.array_equal(ids, want) and np.array_equal(offsets[-1:], want_offsets[-1:])):
+    if not (np.array_equal(ids, want) and np.array_equal(offsets, want_offsets)):
         raise SystemExit(f"fse and tokenizers give other ids on {corpus}")
     return len(ids)
 
@@ -164,7 +171,7 @@ def _round(contenders, corpus: str, k: int) -> dict:
     out = {}
     for kind, threads in order:
         result = subprocess.run(
-            [sys.executable, __file__, "_child", kind, str(threads), corpus, "1"],
+            [sys.executable, __file__, "_child", kind, str(threads), corpus, str(PASSES)],
             check=True,
             capture_output=True,
             text=True,
@@ -194,9 +201,9 @@ def main(argv=None) -> None:
         rounds = [_round(contenders, corpus, k) for k in range(args.rounds)]
         n = rounds[0][contenders[0]]["texts"]
         print(f"## {corpus}: {n:,} texts, {ids:,} ids (fse equals tokenizers)")
-        hf1 = statistics.median(r[("hf", 1)]["seconds"][0] for r in rounds)
+        hf1 = statistics.median(min(r[("hf", 1)]["seconds"]) for r in rounds)
         for kind, threads in contenders:
-            median = statistics.median(r[(kind, threads)]["seconds"][0] for r in rounds)
+            median = statistics.median(min(r[(kind, threads)]["seconds"]) for r in rounds)
             print(
                 f"{kind:3s} {threads:2d} threads  {n / median:12,.0f} texts/s  "
                 f"{ids / median:14,.0f} ids/s  {hf1 / median:6.2f} x hf 1 thread"
