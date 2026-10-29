@@ -72,17 +72,19 @@ def bound_ratio(got: np.ndarray, cpu: np.ndarray, bound: np.ndarray) -> float:
 
 
 def bounds(ids: np.ndarray, wv: fse.WordVectors, raw: np.ndarray, normalize: bool) -> np.ndarray:
-    """The bound of every row: ``(TAU + 2 gamma_K) m + DELTA K sqrt(d)`` (K its tokens,
-    ``gamma_K = K u / (1 - K u)``, u = 2**-24), after normalize
-    ``2 E / r`` (r the norm of the cpu row before it) plus 4 ulp of the row's largest
-    value."""
+    """The bound of every row as tests/support/bound.py computes it: ``(TAU + 2 gamma_K)
+    m + DELTA K sqrt(d)`` (K its tokens), after normalize ``2 E / r`` (r the norm of the
+    cpu row before it) plus the rounding of both normalizations."""
     k = ids.shape[1]
-    gamma = k * 2.0**-24 / (1 - k * 2.0**-24)
-    error = (TAU + 2 * gamma) * magnitudes(ids, wv.stored_vectors) + DELTA * k * np.sqrt(DIM)
+    error = (TAU + 2 * gamma(k)) * magnitudes(ids, wv.stored_vectors) + DELTA * k * np.sqrt(DIM)
     if not normalize:
         return error
     r = np.linalg.norm(raw.astype(np.float64), axis=1)
-    return 2 * error / r + 4 * np.spacing(np.abs(raw / r[:, None]).max(axis=1).astype(F32))
+    return 2 * error / r + 2 * (gamma(DIM) / 2 + 4 * 2.0**-24)
+
+
+def gamma(k: int) -> float:
+    return k * 2.0**-24 / (1 - k * 2.0**-24)
 
 
 def fallbacks(encoder: fse.Average) -> dict:
@@ -111,7 +113,8 @@ def compare(first: dict, ids: np.ndarray, texts: list, wv: fse.WordVectors, args
     cpu, mlx = first["cpu"], first["mlx"]
     raw = cpu
     if args.mode == "norm":
-        raw = fse.Average(tokenizer="external").fit(wv).encode(texts, workers=args.workers)
+        unit = fse.Average(normalize=False, tokenizer="external").fit(wv)
+        raw = unit.encode(texts, workers=args.workers)  # the radius before normalize
     return {
         "bitequal": bool(np.array_equal(cpu.view(np.uint32), mlx.view(np.uint32))),
         "bound_ratio": bound_ratio(mlx, cpu, bounds(ids, wv, raw, args.mode == "norm")),
