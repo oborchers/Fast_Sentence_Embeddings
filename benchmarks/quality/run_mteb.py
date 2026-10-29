@@ -102,8 +102,15 @@ def tokenize(text: str) -> list[str]:
 
 
 def fse_models(folder: Path) -> list[str]:
-    """The names of the finished fse models in ``folder``."""
-    return [f"fse/{p.stem}" for p in sorted(folder.glob("*.safetensors"))]
+    """The names of the finished fse models in ``folder``; raises if there are none, so a
+    run of the fse group never ends without measuring anything."""
+    names = [f"fse/{p.stem}" for p in sorted(folder.glob("*.safetensors"))]
+    if not names:
+        raise SystemExit(
+            f"no fse models (*.safetensors) in {folder}: put finished models there or pass "
+            "--fse-models"
+        )
+    return names
 
 
 class FseEncoder(AbsEncoder):
@@ -292,7 +299,7 @@ def main() -> None:
         summarize(args.results)
         return
     FseEncoder.folder = args.fse_models
-    ours = fse_models(args.fse_models)
+    ours = fse_models(args.fse_models) if {"fse", "all"} & set(args.models) else []
     groups = {"fse": ours, "others": OTHER_MODELS, "all": ours + OTHER_MODELS}
     models = [m for name in args.models for m in groups.get(name, [name])]
     tasks = BASELINE_TASKS if args.tasks == ["baseline"] else args.tasks
