@@ -182,3 +182,16 @@ def test_errors_of_a_batch_name_the_batch():
     model = fse.Classifier.from_arrays(encoder, np.full((2, 6), 3e38, F32), labels=[0, 1])
     with pytest.raises(ValueError, match=r"batch 1 \(rows 1 to 1 of the run\)"):
         list(model.predict_batches([[""], ["w1 w2"]], output="decision"))
+
+
+def test_the_mlx_backend_says_it_runs_no_heads_yet():
+    from fse._backends import UnsupportedByBackendError
+    from support.conformance import mlx_skip_reason
+
+    reason = mlx_skip_reason()
+    if reason:
+        pytest.skip(reason)
+    for normalize in (False, True):
+        model = _model(2, normalize=normalize)
+        with pytest.raises(UnsupportedByBackendError, match="mlx backend cannot run linear heads"):
+            model.predict(["w1"], backend="mlx")

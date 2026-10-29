@@ -254,7 +254,9 @@ def memory(args) -> list[dict]:
                 found = json.loads(done.stdout)
                 results.append(found)
                 print(
-                    f"{kind:6s} {n:>10,} rows: peak RSS {found['peak_mib']:8.1f} MiB, before {found['before_mib']:8.1f} MiB ({found['seconds']:.1f} s)",
+                    f"{kind:6s} {n:>10,} rows: peak RSS {found['peak_mib']:8.1f} MiB (before "
+                    f"{found['before_mib']:.1f}; a store's mapped pages count), peak of the "
+                    f"traced allocations {found['traced_mib']:6.1f} MiB ({found['seconds']:.1f} s)",
                     flush=True,
                 )
     return results

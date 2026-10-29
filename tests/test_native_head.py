@@ -29,9 +29,12 @@ def _exp_inputs():
     ).astype(F32)
 
 
-def test_exp1_matches_the_reference():
+@pytest.mark.parametrize("isa", ISAS)
+def test_exp1_matches_the_reference(isa):
     x = _exp_inputs()
-    np.testing.assert_array_equal(bits(_native.exp1(x)), bits(ref.exp(x)))
+    np.testing.assert_array_equal(bits(_native.exp1(x, isa=isa)), bits(ref.exp(x)))
+    for n in range(1, 20):  # every tail of the 4 and 8 lanes
+        np.testing.assert_array_equal(bits(_native.exp1(x[:n], isa=isa)), bits(ref.exp(x[:n])))
     grid = x[:600].reshape(20, 30)
     assert _native.exp1(grid).shape == (20, 30)
     assert _native.exp1(np.zeros(0, F32)).shape == (0,)
@@ -108,15 +111,20 @@ def _proba_cases():
     return one, many
 
 
-def test_head_outputs_match_the_reference():
+@pytest.mark.parametrize("isa", ISAS)
+def test_head_outputs_match_the_reference(isa):
     one, many = _proba_cases()
     out = np.empty((len(one), 2), F32)
-    _native.head_outputs(one, "proba", Link.SIGMOID, out)
+    _native.head_outputs(one, "proba", Link.SIGMOID, out, isa=isa)
     np.testing.assert_array_equal(bits(out), bits(ref.proba(one, Link.SIGMOID)))
     for link in (Link.SOFTMAX, Link.OVR):
-        out = np.empty_like(many)
-        _native.head_outputs(many, "proba", link, out)
-        np.testing.assert_array_equal(bits(out), bits(ref.proba(many, link)), err_msg=str(link))
+        for k in (2, 3, 4, 5, 8, 9, 16, 17):  # every tail of the lanes
+            z = np.ascontiguousarray(many[:, :k])
+            out = np.empty_like(z)
+            _native.head_outputs(z, "proba", link, out, isa=isa)
+            np.testing.assert_array_equal(
+                bits(out), bits(ref.proba(z, link)), err_msg=f"{link} {k}"
+            )
     for z in (one, many, many[:, :2]):
         labels = np.empty(len(z), np.int64)
         _native.head_outputs(np.ascontiguousarray(z), "labels", None, labels)
@@ -149,27 +157,33 @@ def test_head_outputs_check_their_arguments(kind, link, logits, out, match):
         _native.head_outputs(logits, kind, link, out)
 
 
-def _environment_calls():
+def _environment_calls(isa=None):
     """Every head entry point on inputs whose results depend on the environment."""
-    x = np.array([-100.0, -103.5, -88.0, -0.3, -1e-30], F32)
+    x = np.array([-100.0, -103.5, -88.0, -0.3, -1e-30, -95.0, -101.0, -0.7, -60.0], F32)
     rows = np.array([[TINY * 8, 1.0, 1.0], [TINY * 4, 1.0, -1.0]], F32)
     bias = np.array([TINY * 3, 2.0**-30, -(2.0**-30)], F32)
     weights = np.full((3, 3), F32(0.5), F32)
-    soft = np.array([[0.0, -95.0, -100.0], [1.0, 1.0 + 2**-20, -0.1]], F32)
+    soft = np.array(
+        [
+            [0.0, -95.0, -100.0, -102.0, 0.5, -99.0, -98.0, -97.0, -1.0],
+            [1.0, 1.0 + 2**-20, -0.1] * 3,
+        ],
+        F32,
+    )
     one = np.array([[-90.0], [0.1], [95.0]], F32)
 
     def logits(w, r):
         out = np.empty((2, 3), F32)
-        _native.head_logits(r, w, bias, out)
+        _native.head_logits(r, w, bias, out, isa=isa)
         return out
 
     def outputs(z, link):
         out = np.empty((len(z), 2 if link is Link.SIGMOID else z.shape[1]), F32)
-        _native.head_outputs(z, "proba", link, out)
+        _native.head_outputs(z, "proba", link, out, isa=isa)
         return out
 
     return {
-        "exp1": (lambda: _native.exp1(x), lambda: ref.exp(x)),
+        "exp1": (lambda: _native.exp1(x, isa=isa), lambda: ref.exp(x)),
         "bias": (lambda: logits(None, rows), lambda: ref.logits(rows, None, bias)),
         "scores": (lambda: logits(weights, rows), lambda: ref.logits(rows, weights, bias)),
         "softmax": (lambda: outputs(soft, Link.SOFTMAX), lambda: ref.proba(soft, Link.SOFTMAX)),
@@ -194,10 +208,11 @@ def test_the_environment_cases_depend_on_the_environment():
     assert changed == set(calls)
 
 
+@pytest.mark.parametrize("isa", ISAS)
 @pytest.mark.parametrize("name", list(_environment_calls()))
 @pytest.mark.parametrize("env", ENVIRONMENTS, ids=list(ENVIRONMENTS))
-def test_head_routines_ignore_and_restore_the_environment(env, name):
-    call, reference = _environment_calls()[name]
+def test_head_routines_ignore_and_restore_the_environment(env, name, isa):
+    call, reference = _environment_calls(isa)[name]
     want = reference()
     saved = _native._test_fpenv_set(**ENVIRONMENTS[env])
     try:

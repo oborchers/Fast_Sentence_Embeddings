@@ -5,14 +5,16 @@
 # ---------------------------------------------------------------------------------------
 
 cdef extern from "_native_kernel.h":
-    int64_t fse_head_bias(const float *rows, int64_t n, int k, const float *bias, float *out) nogil
-    int64_t fse_head_proba(int link, const float *logits, int64_t n, int k, float *out) nogil
+    int64_t fse_head_bias(int isa, const float *rows, int64_t n, int k, const float *bias,
+                          float *out) nogil
+    int64_t fse_head_proba(int isa, int link, const float *logits, int64_t n, int k, float *out) nogil
     int64_t fse_head_labels(const float *logits, int64_t n, int k, int64_t *out) nogil
-    void fse_exp1_rows(const float *x, int64_t n, float *out) nogil
+    void fse_exp1_rows(int isa, const float *x, int64_t n, float *out) nogil
 
 
-def exp1(x):
+def exp1(x, *, isa=None):
     """``fse._reference_head.exp`` in the kernel: exp@1 of every value of a float32 array."""
+    cdef int code = _check_isa(isa)
     if not isinstance(x, np.ndarray) or x.dtype != np.float32:
         raise ValueError("x must be a float32 array")
     flat = np.ascontiguousarray(x).reshape(-1)
@@ -22,7 +24,7 @@ def exp1(x):
     cdef int64_t n = flat.shape[0]
     if n:
         with nogil:
-            fse_exp1_rows(&a[0], n, &o[0])
+            fse_exp1_rows(code, &a[0], n, &o[0])
     return out.reshape(x.shape)
 
 
@@ -69,7 +71,7 @@ def _head_logits(rows, weights, bias, out, first_row, isa):
     cdef float[:, ::1] o = out
     if weights is None:
         with nogil:
-            bad = fse_head_bias(&r[0, 0], n, k, &b[0], &o[0, 0])
+            bad = fse_head_bias(code, &r[0, 0], n, k, &b[0], &o[0, 0])
     else:
         bad = _scores_into(code, rows, None, weights, bias, out)
         if bad >= 0:
@@ -78,15 +80,15 @@ def _head_logits(rows, weights, bias, out, first_row, isa):
         raise ValueError(f"the logits of row {first_row + bad} are not finite")
 
 
-def head_outputs(logits, kind, link, out, first_row=0):
+def head_outputs(logits, kind, link, out, first_row=0, *, isa=None):
     """``fse._reference_head.proba`` (``kind`` "proba", with a link) or ``labels`` ("labels")
     of finished ``logits`` (n, k) into ``out``: float32 (n, 2) for sigmoid, (n, k) for the
     other links, int64 (n,) for labels. Logits that are not finite raise, naming the row."""
     with _KernelEnv():
-        _head_outputs(logits, kind, link, out, first_row)
+        _head_outputs(logits, kind, link, out, first_row, _check_isa(isa))
 
 
-def _head_outputs(logits, kind, link, out, first_row):
+def _head_outputs(logits, kind, link, out, first_row, int isa):
     from fse._contract import Link
 
     if not isinstance(logits, np.ndarray) or logits.ndim != 2 or logits.shape[1] < 1:
@@ -124,7 +126,7 @@ def _head_outputs(logits, kind, link, out, first_row):
         if n:
             o = out
             with nogil:
-                bad = fse_head_proba(code, &z[0, 0], n, k, &o[0, 0])
+                bad = fse_head_proba(isa, code, &z[0, 0], n, k, &o[0, 0])
     else:
         raise ValueError(f"kind must be 'proba' or 'labels', not {kind!r}")
     if bad >= 0:
