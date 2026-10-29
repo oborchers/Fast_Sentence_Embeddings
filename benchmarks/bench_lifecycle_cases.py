@@ -152,7 +152,7 @@ def v2_encode(c: dict) -> dict:
     texts = Path(c["corpus"])
     if c["input"] == "list":  # read once for fit and encode, as 1.1 reads them in train
         tokens = _tokens(c["corpus"])
-        out["source_s"], texts = _timed(lambda: fse.TokenLists(tokens))
+        out["source_s"], texts = _timed(lambda: fse.Corpus(tokens))
         del tokens
     if c["model"] == "SIF":
         recipe = fse.SIF(components=COMPONENTS, normalize=False, tokenizer="external")

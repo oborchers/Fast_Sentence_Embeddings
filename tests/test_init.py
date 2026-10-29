@@ -2,6 +2,7 @@
 
 import ast
 import importlib
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -106,6 +107,7 @@ def test_public_api_is_pinned():
         "SIF",
         "USIF",
         "Average",
+        "Corpus",
         "EncodedBatch",
         "Encoder",
         "MemorySink",
@@ -113,10 +115,22 @@ def test_public_api_is_pinned():
         "SearchResult",
         "ShardSink",
         "Sink",
-        "TokenLists",
         "VectorStore",
         "WordVectors",
     ]
     assert fse.__all__ == [*names, "__version__"]
     public = {name for name in dir(fse) if not name.startswith("_")}
     assert public - {"gensim"} == set(names)
+
+
+def test_the_readme_shows_only_names_fse_has():
+    readme = (Path(__file__).parents[1] / "README.md").read_text(encoding="utf-8")
+    code = "\n".join(re.findall(r"```python\n(.*?)```", readme, re.DOTALL))
+    used = set(re.findall(r"\bfse\.([A-Za-z_]\w*)", code)) - {"gensim"}
+    used |= set(re.findall(r"`fse\.([A-Za-z_]\w*)", readme)) - {"gensim"}  # inline code
+    assert used, "the README shows no fse names"
+    assert used <= set(fse.__all__), sorted(used - set(fse.__all__))
+    # The removed 1.x names only as code (uSIF stays the name of the method in the text).
+    imported = re.findall(r"^from fse import (.+)$", readme, re.MULTILINE)
+    names = {n.strip() for line in imported for n in line.split(",")}
+    assert not (used | names) & fse._REMOVED, sorted((used | names) & fse._REMOVED)

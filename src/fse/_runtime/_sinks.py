@@ -16,7 +16,7 @@ rows into the target itself (stage 5, ``store`` of the backend).
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any, NamedTuple, Protocol, cast
 
 import numpy as np
 from numpy import ndarray
@@ -26,6 +26,17 @@ from fse import _codes, _gram
 # What a target and a commit hold: float32 rows, float16 codes, or int8 codes and scales;
 # for a sink that wants inverse norms, a float32 vector of one per row follows.
 Stored = ndarray | tuple[ndarray, ...]
+
+
+class QuantizedRows(NamedTuple):
+    """int8 sentence vectors: the codes and one float32 scale per row (row = codes * scale)."""
+
+    codes: ndarray
+    scales: ndarray
+
+
+# The rows of a run as encode returns them: float32 rows, float16 codes or QuantizedRows.
+Rows = ndarray | QuantizedRows
 
 
 class Sink(Protocol):
@@ -38,8 +49,12 @@ class Sink(Protocol):
     ``inverse_norms`` (True: the target ends with a float32 vector the workers fill with
     the inverse norm of every stored row), ``encoder`` (the fingerprint of the only
     encoder the sink takes), ``flush()`` (called after the last commit of a successful
-    run) and ``durable_rows`` (the number of leading rows that are durable, for a stream
-    that confirms its input only after that; a sink without it promises nothing).
+    run), ``publish()`` (called by ``encode_batches`` after the rows of every batch are
+    committed, before ``durable_rows`` is read: make durable what is finished, without
+    waiting for the end) and ``durable_rows`` (the number of leading rows of the run that
+    are durable, for a stream that confirms its input only up to there; a sink without
+    it promises nothing). A sink takes one run: the rows of a second run into it would
+    start again at row 0, which it refuses.
     """
 
     dim: int
@@ -99,7 +114,9 @@ class _Rows:
 
     def _new(self, n_rows: int) -> Stored:
         codes = np.empty((n_rows, self.dim), dtype=_codes.STORAGE_TYPES[self.dtype])
-        return (codes, np.empty(n_rows, dtype=np.float32)) if self.dtype == "int8" else codes
+        if self.dtype == "int8":
+            return QuantizedRows(codes, np.empty(n_rows, dtype=np.float32))
+        return codes
 
     def _check_commit(self, first_row: int, rows: Stored) -> int:
         """The number of rows of a commit, checked: in order, of the dtype and dimension."""
@@ -151,11 +168,11 @@ class ArrayRows(_Rows):
             raise ValueError(f"the rows from {first_row} are not the target reserved for them")
         self._check_commit(first_row, rows)
 
-    def result(self) -> Stored:
+    def result(self) -> Rows:
         total = len(_first(self._out))
         if self.next_row != total:
             raise RuntimeError(f"{self.next_row} of {total} rows were committed")
-        return self._out
+        return cast(Rows, self._out)  # made by _new, without inverse norms
 
 
 def _same(rows: Stored, reserved: Stored) -> bool:
@@ -184,9 +201,11 @@ class GrowingRows(_Rows):
 
     def commit(self, first_row: int, rows: Stored) -> None:
         self._check_commit(first_row, rows)
+        if self.dtype == "int8" and isinstance(rows, tuple):  # a plain (codes, scales)
+            rows = QuantizedRows(*rows)
         self._parts.append(rows)
 
-    def result(self) -> Stored:
+    def result(self) -> Rows:
         """All rows; joining the parts makes one copy of them (the window bounds only the
         rows in flight, not this result)."""
         if len(self._parts) != 1:
@@ -194,11 +213,12 @@ class GrowingRows(_Rows):
                 out = self._new(0)
             elif self.dtype == "int8":
                 parts = [p for p in self._parts if isinstance(p, tuple)]
-                out = (np.concatenate([p[0] for p in parts]), np.concatenate([p[1] for p in parts]))
+                codes = np.concatenate([p[0] for p in parts])
+                out = QuantizedRows(codes, np.concatenate([p[1] for p in parts]))
             else:
                 out = np.concatenate(self._parts)
             self._parts = [out]
-        return self._parts[0]
+        return cast(Rows, self._parts[0])  # made by _new, without inverse norms
 
 
 def _check_rows(codes: ndarray, dtype: str) -> None:

@@ -18,7 +18,7 @@ import copy
 import threading
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any
 
 import numpy as np
 from numpy import ndarray
@@ -35,7 +35,7 @@ from fse._container import (
     fingerprint,
     tensor_code,
 )
-from fse._runtime import EncodeSpec, Pipeline, check_workers
+from fse._runtime import EncodeSpec, Pipeline, QuantizedRows, check_workers
 from fse._text import Vocabulary, make_vocabulary
 from fse._validation import PathLike, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
@@ -51,13 +51,6 @@ from ._format import (
     to_artifact,
 )
 from ._sources import opened
-
-
-class QuantizedRows(NamedTuple):
-    """int8 sentence vectors: the codes and one float32 scale per row (row = codes * scale)."""
-
-    codes: ndarray
-    scales: ndarray
 
 
 class Encoder:
@@ -138,12 +131,16 @@ class Encoder:
         sink: Any = None,
     ) -> ndarray | QuantizedRows | None:
         """The vectors of ``texts``, one row per sentence, as ``dtype`` (float32 by
-        default): float32 or float16 rows, or int8 ``QuantizedRows``. With a ``sink``
-        (``fse.Sink``, such as ``fse.ShardSink``), the rows go there in its dtype and
-        nothing is returned; its ``flush`` runs after the last row.
+        default): float32 or float16 rows, or int8 ``QuantizedRows``. Without a sink the
+        whole result is held in memory. With a ``sink`` (``fse.Sink``, such as
+        ``fse.ShardSink``), the rows go there and nothing is returned; ``dtype`` is then
+        the sink's (another one raises) and its ``flush`` runs after the last row.
 
-        ``texts`` is a list of str, a path of a text file (one sentence per line), token
-        lists for the external tokenizer, or any iterable of str, read once.
+        ``texts`` is a list, tuple or numpy array of str, or of token lists for the
+        external tokenizer; a ``fse.Corpus``; a ``pathlib.Path`` (or other
+        ``os.PathLike``) of a text file, one sentence per line (a str is one sentence,
+        never a path: pass ``[text]`` for one sentence); or any other iterable of str, a
+        stream read once.
         """
         if sink is not None:
             check_sink(sink, dtype, self.fingerprint, self.output_dim)
@@ -155,7 +152,7 @@ class Encoder:
         dtype = _codes.check_dtype("float32" if dtype is None else dtype)
         pipeline = self._pipeline(backend)
         with opened(texts, self._content.tokenizer) as source:
-            return self._rows(pipeline.infer(source, workers=workers, dtype=dtype))
+            return pipeline.infer(source, workers=workers, dtype=dtype)
 
     def encode_batches(
         self,
@@ -173,7 +170,13 @@ class Encoder:
         confirms its input only up to there; without one the batch holds its rows.
 
         The arguments and the encoder are checked when this is called, before any batch
-        is read; closing the iterator early reads no further batch.
+        is read; closing the iterator early reads no further batch. After a successful
+        full iteration the sink's ``flush`` (where it has one) has run, and its own
+        ``durable_rows`` then says what is durable; for a ``fse.ShardSink`` that is every
+        row of the run, while the last batch may report fewer. Stopping
+        early (``break``, ``close()``) does not flush: the owner of the sink closes it
+        (``ShardSink.close`` publishes the rows committed so far). Without a sink every
+        batch holds its rows in memory.
         """
         if sink is not None:
             dtype = check_sink(sink, dtype, self.fingerprint, self.output_dim)
@@ -188,15 +191,7 @@ class Encoder:
             dtype=dtype,
             workers=workers,
             sink=sink,
-            wrap=self._rows,
         )
-
-    @staticmethod
-    def _rows(rows: Any) -> ndarray | QuantizedRows:
-        if isinstance(rows, tuple):
-            return QuantizedRows(*rows)
-        assert rows is not None
-        return rows
 
     def _pipeline(self, backend: str) -> Pipeline:
         if not isinstance(backend, str) or backend not in BACKEND_NAMES:
@@ -216,8 +211,10 @@ class Encoder:
 
     @validate_arguments
     def save(self, path: PathLike):
-        """Write the encoder into the new ``.safetensors`` file ``path``; a folded encoder
-        includes its word vectors. Data loaded from a file are compared with the checksums
+        """Write the encoder into the new ``.safetensors`` file ``path``. A folded encoder
+        (``folded``: a recipe folded learned components or a projection) includes its word
+        vectors; an unfolded one, such as ``Average()`` without ``dim``, does not, and
+        ``load`` then needs them. Data loaded from a file are compared with the checksums
         they were loaded with while they are written."""
         tensors, metadata, expected = self._artifact()
         metadata[CREATED_BY_KEY] = _created_by()
@@ -249,8 +246,9 @@ class Encoder:
     @validate_arguments
     def load(cls, path: PathLike, word_vectors: Any = None, mmap: bool = False):  # -> Encoder
         """Open an encoder saved with ``save``. An unfolded encoder needs the
-        ``word_vectors`` it was fitted on (checked by fingerprint); a folded one holds
-        them. With ``mmap`` the arrays are mapped read-only (see ``verify``)."""
+        ``word_vectors`` it was fitted on (checked by fingerprint), ``load(path, wv)``; a
+        folded one holds them and takes none, ``load(path)``. With ``mmap`` the arrays are
+        mapped read-only (see ``verify``)."""
         path = Path(path)
         tensors, metadata = SafetensorsContainer().open(path, mmap=mmap)
         content, embedded = from_artifact(tensors, metadata)

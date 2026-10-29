@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from fse import _native, _text
-from fse._text import TokenLists
+from fse._text import TokenListSource
 
 # Code points of every UTF-8 length and string kind: ASCII, Latin-1, BMP, astral.
 ALPHABET = ["a", "Z", "0", "_", "\x00", "\xe9", "\xff", "Ā", "日", "￿", "\U0001d11e"]
@@ -75,7 +75,7 @@ def test_errors_are_those_of_the_python_path(bad):
     with pytest.raises((TypeError, ValueError)) as want:  # UnicodeEncodeError is a ValueError
         _python(bad)
     with pytest.raises(want.type) as got:
-        TokenLists(bad)
+        TokenListSource(bad)
     assert str(got.value) == str(want.value)
 
 
@@ -91,7 +91,7 @@ def test_other_types_take_the_python_path():
     sentences = [["a", Word("b")], Sentence(["c"]), ("d",)]
     assert _native.join_token_lists(sentences) is None
     assert _native.join_token_lists(np.array([["a"], ["b", "c"]], dtype=object)) is None
-    source = TokenLists(sentences)
+    source = TokenListSource(sentences)
     data, offsets = _python([["a", "b"], ["c"], ["d"]])
     assert source._data == data
     np.testing.assert_array_equal(source._offsets, offsets)
@@ -104,7 +104,7 @@ def test_a_str_subclass_is_never_read_natively():
 
     # The native pass would reject the space; the subclass decides through its own split.
     assert _native.join_token_lists([[Spaced("a b")]]) is None
-    assert TokenLists([[Spaced("a b")]])._data == b"a b"
+    assert TokenListSource([[Spaced("a b")]])._data == b"a b"
 
 
 def _many(n):
@@ -138,7 +138,7 @@ def test_the_verdict_of_mixed_problems_depends_on_the_split():
     assert _native.join_token_lists(sentences, 2) is None
     # Either way the Python path raises the error of sentence 0.
     with pytest.raises(ValueError, match="sentence 0 holds the token ''"):
-        TokenLists(sentences)
+        TokenListSource(sentences)
 
 
 def test_threads_must_be_positive():

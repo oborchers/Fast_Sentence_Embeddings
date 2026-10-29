@@ -24,14 +24,17 @@ import numpy as np
 from fse import _codes
 from fse._runtime import Pipeline, wants_inverse_norms
 
+from ._corpus import Corpus
 from ._sources import opened
 
 
 class EncodedBatch(NamedTuple):
     """One batch of ``encode_batches``: its rows ``first_row`` to ``first_row + n_rows -
     1`` of the run, as an array or ``QuantizedRows`` (None when a sink took them), and the
-    rows of the run that are durable (the sink's ``durable_rows``; None without a sink or
-    for a sink that promises nothing)."""
+    rows of the run that were durable when the batch was given (the sink's
+    ``durable_rows`` after its ``publish``; None without a sink or for a sink that
+    promises nothing). It is a snapshot: the last batch can report fewer rows than the
+    run has, as the sink's ``flush`` runs after it."""
 
     first_row: int
     n_rows: int
@@ -122,21 +125,21 @@ def batches(
     dtype: str,
     workers: Any,
     sink: Any,
-    wrap: Any,
 ) -> Iterator[EncodedBatch]:
     """The EncodedBatch of every item of ``items``, a finite list of sentences (or token
-    lists) each; ``wrap`` turns int8 rows into QuantizedRows."""
+    lists) each."""
     row, last = 0, None
     for k, item in enumerate(items):
-        if not isinstance(item, list | tuple):
+        if not isinstance(item, list | tuple | Corpus):
             raise TypeError(
-                f"batch {k} is a {type(item).__name__}; every batch is a list (or tuple) of sentences"
+                f"batch {k} is a {type(item).__name__}; every batch is a list (or tuple) of "
+                "sentences or a fse.Corpus"
             )
         n = len(item)
         with _named(k, row, n), opened(item, tokenizer) as source:
             if sink is None:
                 found = EncodedBatch(
-                    row, n, wrap(pipeline.infer(source, workers=workers, dtype=dtype)), None
+                    row, n, pipeline.infer(source, workers=workers, dtype=dtype), None
                 )
             else:
                 run_into(pipeline, source, sink, workers, row)

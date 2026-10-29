@@ -178,8 +178,6 @@ def test_streams_are_fitted_when_one_pass_suffices():
 
     with pytest.raises(ValueError, match="reads the corpus 2 times"):
         fse.USIF(components=1).fit(wv, counted(), counts=counts)
-    with pytest.raises(ValueError, match="reads the corpus 2 times"):
-        fse.SIF(components=1).fit_transform(wv, counted(), counts=counts)
     assert reads == []
     # A stream that only gives the length: one pass.
     assert fse.USIF(components=0).fit(wv, StreamSource(iter(sentences)), counts=counts)
@@ -202,20 +200,10 @@ def test_edge_cases_raise_clearly():
         fse.SIF(components=1, dim=12).fit(wv, texts(500), counts=counts)
 
 
-@pytest.mark.parametrize("dtype", ["float32", "int8"])
-@pytest.mark.parametrize("fold", [True, False])
-def test_fit_transform_is_fit_then_encode(dtype, fold):
-    wv = word_vectors()
-    counts = np.arange(1, len(wv) + 1)
-    sentences = texts(1500)
-    recipe = fse.SIF(components=1, fold=fold)
-    _, rows = recipe.fit_transform(wv, sentences, counts=counts, dtype=dtype)
-    again = recipe.fit(wv, sentences, counts=counts).encode(sentences, dtype=dtype)
-    got = b"".join(a.tobytes() for a in rows) if dtype == "int8" else rows.tobytes()
-    want = b"".join(a.tobytes() for a in again) if dtype == "int8" else again.tobytes()
-    assert got == want
-    average, rows = fse.Average().fit_transform(wv, sentences)
-    assert rows.tobytes() == average.encode(sentences).tobytes()
+def test_recipes_have_no_fit_transform():
+    # fit, then encode: the one path (the combined call was removed before 2.0).
+    for recipe in (fse.Average(), fse.SIF(), fse.USIF()):
+        assert not hasattr(recipe, "fit_transform")
 
 
 def test_valid_counts_with_a_large_sum_bound_are_accepted():

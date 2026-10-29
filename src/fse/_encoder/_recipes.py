@@ -7,8 +7,7 @@
 """The recipes of fse 2.0: Average, SIF and USIF (ARCHITECTURE.md, "2.0 design").
 
 A recipe holds parameters only; ``fit`` learns what it needs from word vectors and a
-corpus and returns a frozen ``Encoder``, ``fit_transform`` also the vectors of the
-corpus. By default the learned linear steps are folded into the encoder's word vectors
+corpus and returns a frozen ``Encoder``, whose ``encode`` gives the vectors. By default the learned linear steps are folded into the encoder's word vectors
 and every row ends normalized.
 """
 
@@ -24,10 +23,9 @@ from fse._validation import NonNegativeInt, PositiveFloat, PositiveInt, validate
 from fse._wordvectors import WordVectors
 
 from ._encoder import Encoder
-from ._fit import FitSpec, fit, fit_transform
+from ._fit import FitSpec, fit
 
 Backend = Literal["cpu", "numpy"]
-Dtype = Literal["float32", "float16", "int8"]
 
 
 class _Recipe:
@@ -49,33 +47,20 @@ class _Recipe:
         workers: PositiveInt | None = None,
         backend: Backend = "cpu",
     ) -> Encoder:
-        """The encoder learned from ``word_vectors`` and the corpus ``texts`` (a list of
-        str, a path, token lists for the external tokenizer, or an iterable of str), which
-        is needed exactly when something is learned from it: components, ``dim`` or the
-        uSIF length. ``counts`` (one per word) replace the counts of the word vectors."""
+        """The encoder learned from ``word_vectors`` and the corpus ``texts`` (what
+        ``Encoder.encode`` takes), which is needed exactly when something is learned from
+        it and refused otherwise: SIF and uSIF with ``components`` or ``dim``, uSIF
+        without ``length`` and Average with ``dim`` need it; Average without ``dim``, and
+        SIF without components and ``dim``, take none. ``counts`` (one per word) replace
+        the counts of the word vectors.
+
+        Fit reads the corpus once for each of: counting the sentence length (uSIF without
+        ``length``), and the Gram matrix (``components`` or ``dim``); a stream is read
+        once, so it works only where that is one read. Encoding afterwards reads the texts
+        again: pass a ``fse.Corpus`` or a path to both, or a fresh iterator to each.
+        """
         spec = self._checked(word_vectors)
         return fit(spec, word_vectors, texts, counts=counts, workers=workers, backend=backend)
-
-    @validate_arguments
-    def fit_transform(
-        self,
-        word_vectors: Any,
-        texts: Any,
-        *,
-        counts: Any = None,
-        dtype: Dtype = "float32",
-        workers: PositiveInt | None = None,
-        backend: Backend = "cpu",
-    ) -> tuple[Encoder, Any]:
-        """The fitted encoder and the vectors of ``texts``, bit for bit those of
-        ``fit(...).encode(texts)``. The corpus is read once more after what the fit reads,
-        so a stream (read once) works only where the fit reads nothing, as for Average
-        without ``dim``."""
-        spec = self._checked(word_vectors)
-        encoder, rows = fit_transform(
-            spec, word_vectors, texts, counts=counts, workers=workers, backend=backend, dtype=dtype
-        )
-        return encoder, rows
 
     def _checked(self, word_vectors: Any) -> FitSpec:
         if not isinstance(word_vectors, WordVectors):

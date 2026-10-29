@@ -40,6 +40,7 @@ from ._executor import run
 from ._sinks import (
     ArrayRows,
     GrowingRows,
+    Rows,
     Sink,
     Stored,
     sink_dtype,
@@ -109,7 +110,7 @@ class Pipeline:
         chunk_bytes: int | None = None,
         dtype: str = "float32",
         first_row: int = 0,
-    ) -> Stored | None:
+    ) -> Rows | None:
         """The rows of every sentence of ``source``: returned (as ``dtype``: float32 rows,
         float16 codes, or int8 codes and scales), or committed to ``sink`` in its dtype,
         numbered from ``first_row`` there (the rows of a run before this source).

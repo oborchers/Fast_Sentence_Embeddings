@@ -317,7 +317,14 @@ name = "Encoder: recipes on fit, fit on the encoder, the encoder on its parts"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_recipes", "_fit", "_encoder", "_batches | _fold | _format | _weights", "_sources"]
+layers = [
+    "_recipes",
+    "_fit",
+    "_encoder",
+    "_batches | _fold | _format | _weights",
+    "_sources",
+    "_corpus",
+]
 
 [[tool.importlinter.contracts]]
 name = "Runtime: the pipeline on tasks, sinks and the executor"

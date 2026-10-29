@@ -7,7 +7,7 @@ from fse._backends import NumpyBackend, UnsupportedByBackendError
 from fse._backends._base import Capabilities
 from fse._contract import Aggregation, Normalize, Op
 from fse._runtime import ArrayRows, EncodeSpec, GrowingRows, Pipeline, _executor, _pipeline
-from fse._text import StringSource, TokenLists, make_vocabulary
+from fse._text import StringSource, TokenListSource, make_vocabulary
 from fse._text_file import FileSource
 from fse._wordvectors import WordVectors
 from support.runtime import expected, texts, word_vectors
@@ -149,7 +149,7 @@ def test_sources_and_arguments_are_checked(tmp_path):
     with pytest.raises(TypeError, match="source must be one of StringSource"):
         pipeline.infer(["w1"])
     with pytest.raises(ValueError, match="token lists are for the external tokenizer"):
-        pipeline.infer(TokenLists([["w1"]]))
+        pipeline.infer(TokenListSource([["w1"]]))
     for workers in (0, -1, True, 1.5):
         with pytest.raises(ValueError, match="workers must be a positive int"):
             pipeline.infer(StringSource(["w1"]), workers=workers)

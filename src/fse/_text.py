@@ -1,7 +1,7 @@
 """Text sources: sentences of text to batches, stages 1 and 2 (ARCHITECTURE.md, "Tokenizers").
 
 A source holds its sentences as one UTF-8 buffer: strings in memory with their offsets
-(``StringSource``, ``TokenLists``), or the lines of a memory-mapped file
+(``StringSource``, ``TokenListSource``), or the lines of a memory-mapped file
 (``fse._text_file.FileSource``). ``scan`` validates and counts them in threads without the GIL and cuts
 them into chunks; ``encode`` turns one chunk into a Batch with a ``TextLookup`` and a
 per-worker ``Workspace``. Every sentence is one row, empty ones included.
@@ -336,10 +336,20 @@ def _check_container(texts: object, what: str) -> None:
         raise TypeError(f"{what} must be a list, tuple or numpy array, not {type(texts).__name__}")
 
 
+class RowTypeError(TypeError):
+    """A row of a collection is not of the type its kind needs (fse.Corpus names both
+    rows when it is of the other kind): ``row`` is its index, ``found`` its type."""
+
+    def __init__(self, message: str, row: int, found: type):
+        super().__init__(message)
+        self.row = row
+        self.found = found
+
+
 def encode_string(text: object, what: str, row: int) -> bytes:
     """The UTF-8 bytes of sentence ``row``; a non-str or a lone surrogate raises."""
     if not isinstance(text, str):
-        raise TypeError(f"{what} {row} is a {type(text).__name__}, not a str")
+        raise RowTypeError(f"{what} {row} is a {type(text).__name__}, not a str", row, type(text))
     try:
         return text.encode("utf-8")
     except UnicodeEncodeError as err:
@@ -389,7 +399,8 @@ def _token_lists(sentences: Any) -> tuple[bytes, ndarray]:
     joined = []
     for i, tokens in enumerate(sentences):
         if not isinstance(tokens, list | tuple):
-            raise TypeError(f"sentence {i} is a {type(tokens).__name__}, not a list of str")
+            message = f"sentence {i} is a {type(tokens).__name__}, not a list of str"
+            raise RowTypeError(message, i, type(tokens))
         for token in tokens:
             if not isinstance(token, str):
                 raise TypeError(f"sentence {i} holds a {type(token).__name__}, not a str")
@@ -401,22 +412,10 @@ def _token_lists(sentences: Any) -> tuple[bytes, ndarray]:
     return _encode_strings(joined, "sentence")
 
 
-class TokenLists(_Buffered):
-    """Sentences given as lists of tokens, read once, for encoders with the external
-    tokenizer.
-
-    ``fit``, ``fit_transform`` and ``encode`` take lists of token lists as they are, but
-    each call reads them again. ``TokenLists(sentences)`` reads them once, so one object
-    can be fitted on and encoded any number of times::
-
-        texts = fse.TokenLists(sentences)
-        encoder = fse.SIF(tokenizer="external").fit(wv, texts)
-        rows = encoder.encode(texts)
-
-    ``sentences`` is a list, tuple or numpy array of lists or tuples of str. Tokens must
-    be non-empty and hold no whitespace (``str.isspace``), so splitting the joined
-    sentence at whitespace gives them back exactly. Later changes to ``sentences`` do
-    not change the object.
+class TokenListSource(_Buffered):
+    """Sentences given as lists of tokens, for the external tokenizer only (fse.Corpus
+    holds one). Tokens must be non-empty and hold no whitespace, so splitting the joined
+    sentence at whitespace gives them back exactly.
     """
 
     def __init__(self, sentences: Any):

@@ -73,28 +73,9 @@ def fit(
     spec: FitSpec, word_vectors: WordVectors, texts: Any, *, counts: Any, workers: Any, backend: str
 ) -> Encoder:
     """The encoder of ``spec`` fitted on ``texts`` (None when it learns nothing from them)."""
-    return _fit(spec, word_vectors, texts, counts, workers, backend, None)[0]
-
-
-def fit_transform(
-    spec: FitSpec,
-    word_vectors: WordVectors,
-    texts: Any,
-    *,
-    counts: Any,
-    workers: Any,
-    backend: str,
-    dtype: str,
-) -> tuple[Encoder, Any]:
-    """The fitted encoder and the rows of ``texts`` it gives, as ``encode`` gives them:
-    the source is read once more after the fit (ARCHITECTURE.md, "2.0 design")."""
-    return _fit(spec, word_vectors, texts, counts, workers, backend, dtype)
-
-
-def _fit(spec, word_vectors, texts, counts, workers, backend, dtype) -> tuple[Encoder, Any]:
     if not isinstance(word_vectors, WordVectors):
         raise TypeError(f"word_vectors must be WordVectors, not {type(word_vectors).__name__}")
-    passes = spec.passes() + (dtype is not None)
+    passes = spec.passes()
     if passes == 0 and texts is not None:
         raise ValueError(f"{spec.name} learns nothing from texts with these parameters; pass none")
     if passes and texts is None:
@@ -104,7 +85,7 @@ def _fit(spec, word_vectors, texts, counts, workers, backend, dtype) -> tuple[En
     if texts is None:
         weights = _weights(spec, counts, spec.length)
         steps = _normalize(spec)
-        return _encoder(spec, word_vectors, vocabulary, weights, steps, 0, spec.length), None
+        return _encoder(spec, word_vectors, vocabulary, weights, steps, 0, spec.length)
     with opened(texts, spec.tokenizer) as source:
         if passes > 1 and is_stream(source):
             raise ValueError(
@@ -116,10 +97,7 @@ def _fit(spec, word_vectors, texts, counts, workers, backend, dtype) -> tuple[En
             length = _learned_length(spec, word_vectors, vocabulary, source, workers, backend)
         weights = _weights(spec, counts, length)
         steps, sentences = _learn(spec, word_vectors, vocabulary, weights, source, workers, backend)
-        encoder = _encoder(spec, word_vectors, vocabulary, weights, steps, sentences, length)
-        if dtype is None:
-            return encoder, None
-        return encoder, encoder.encode(source, dtype=dtype, workers=workers, backend=backend)
+        return _encoder(spec, word_vectors, vocabulary, weights, steps, sentences, length)
 
 
 def _counts(spec: FitSpec, word_vectors: WordVectors, counts: Any) -> ndarray | None:

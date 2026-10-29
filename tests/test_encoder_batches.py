@@ -49,6 +49,7 @@ def test_batches_into_a_shard_sink(tmp_path):
     polls, sentences = _polls([60, 70, 80])
     with fse.ShardSink(tmp_path / "s", ENCODER, dtype="float16", shard_rows=64) as sink:
         got = list(ENCODER.encode_batches(polls, sink=sink))
+        assert sink.durable_rows == 210  # flushed by the full iteration, before close
     assert [(b.first_row, b.n_rows, b.rows) for b in got] == [
         (0, 60, None),
         (60, 70, None),
@@ -244,3 +245,38 @@ def test_a_sink_is_checked_before_a_batch_is_read():
         with pytest.raises(TypeError, match=match):
             ENCODER.encode_batches(polls(), sink=_Odd(**attributes))
     assert not read
+
+
+def test_a_corpus_is_one_batch():
+    polls, sentences = _polls([5, 0, 40])
+    got = list(ENCODER.encode_batches([fse.Corpus(p) for p in polls], workers=2))
+    want = list(ENCODER.encode_batches(polls, workers=2))
+    assert [b.n_rows for b in got] == [5, 0, 40]
+    for a, b in zip(got, want, strict=True):
+        assert a.first_row == b.first_row
+        assert a.rows.tobytes() == b.rows.tobytes()
+    with pytest.raises(TypeError, match=r"or a fse\.Corpus"):
+        list(ENCODER.encode_batches([iter(sentences)]))
+
+
+def test_stopping_early_flushes_nothing_until_the_sink_is_closed(tmp_path):
+    polls, _ = _polls([30, 30, 30])
+    sink = fse.ShardSink(tmp_path / "s", ENCODER, shard_rows=64)
+    batches = ENCODER.encode_batches(polls, sink=sink)
+    assert next(batches).durable_rows == 0
+    batches.close()  # the next batches are never read
+    assert sink.durable_rows == 0
+    sink.close()  # publishes the rows committed so far
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        assert len(store) == 30
+
+
+def test_a_sink_takes_one_run(tmp_path):
+    with fse.ShardSink(tmp_path / "s", ENCODER, shard_rows=64) as sink:
+        ENCODER.encode(texts(100), sink=sink)
+        with pytest.raises(ValueError, match="expected rows from 100"):
+            ENCODER.encode(texts(50), sink=sink)
+    memory = fse.MemorySink(ENCODER.output_dim)
+    ENCODER.encode(texts(10), sink=memory)
+    with pytest.raises(ValueError, match="committed already"):
+        ENCODER.encode(texts(5), sink=memory)
