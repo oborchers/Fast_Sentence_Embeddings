@@ -144,3 +144,29 @@ def test_the_verdict_of_mixed_problems_depends_on_the_split():
 def test_threads_must_be_positive():
     with pytest.raises(ValueError, match="at least 1"):
         _native.join_token_lists([["a"]], 0)
+
+
+@pytest.fixture
+def faults():
+    yield _native._test_join_faults
+    _native._test_join_faults()
+
+
+def test_parts_whose_threads_do_not_start_run_in_the_caller(faults):
+    sentences = _many(8 * 4096)
+    want = _native.join_token_lists(sentences, 8)
+    for mask in (0b10, 0b11111110, 0b1010_1010):
+        faults(failed_starts=mask)
+        data, offsets = _native.join_token_lists(sentences, 8)
+        assert data == want[0]
+        np.testing.assert_array_equal(offsets, want[1])
+
+
+@pytest.mark.parametrize("threads", [1, 4])
+def test_a_failed_growth_raises_and_frees(faults, threads):
+    sentences = _many(4 * 4096)
+    faults(failed_growth=True)
+    with pytest.raises(MemoryError, match="could not grow"):
+        _native.join_token_lists(sentences, threads)
+    faults()
+    _same(sentences)  # the next call works

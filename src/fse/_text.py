@@ -422,11 +422,11 @@ class TokenLists(_Buffered):
     def __init__(self, sentences: Any):
         _check_container(sentences, "sentences")
         joined = _native.join_token_lists(sentences, min(_JOIN_THREADS, usable_cpus()))
-        if joined is None:  # types the native pass does not read: subclasses, an array
+        # None: types the native pass does not read (subclasses, an array); False: an
+        # invalid token. The Python path decides both: it raises the error, or succeeds
+        # where a subclass changed the lists while they were read.
+        if joined is None or joined is False:
             joined = _token_lists(sentences)
-        elif joined is False:  # an invalid token: the Python path raises its error
-            _token_lists(sentences)
-            raise AssertionError("the native token check disagrees with str.split()")
         self._data, self._offsets = joined
 
     def __len__(self) -> int:

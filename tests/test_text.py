@@ -105,10 +105,19 @@ def test_token_lists_are_joined_natively(monkeypatch):
     np.testing.assert_array_equal(source._offsets, [0, 5, 6])
 
 
-def test_a_native_verdict_the_python_path_does_not_share_raises(monkeypatch):
-    monkeypatch.setattr(_native, "join_token_lists", lambda *_: False)
-    with pytest.raises(AssertionError, match="disagrees"):
-        TokenLists([["a"]])
+def test_the_python_path_decides_an_invalid_verdict():
+    sentence = []
+
+    class Repair(str):
+        def split(self):  # called by the Python path, after the native one stopped
+            sentence[:] = ["ok"]
+            return ["ok"]
+
+    sentence[:] = ["\ud800", Repair("ok")]
+    assert _native.join_token_lists([sentence]) is False
+    source = TokenLists([sentence])  # the Python path reads the repaired sentence
+    assert source._data == b"ok"
+    np.testing.assert_array_equal(source._offsets, [0, 2])
 
 
 def test_make_lookup_validates():

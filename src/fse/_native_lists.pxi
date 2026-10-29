@@ -45,6 +45,10 @@ cdef extern from "Python.h":
 cdef extern from "_native_threads.h":
     ctypedef void (*fse_part)(void *arg, int part) noexcept nogil
     int fse_parallel(int n, fse_part fn, void *arg) nogil
+    unsigned fse_test_failed_starts
+
+
+cdef bint _test_failed_growth = False  # for the tests: every buffer growth fails
 
 
 # What the appends give besides 0; the worst status of any part decides.
@@ -95,7 +99,7 @@ cdef int _grow(_Buffer *b, Py_ssize_t extra) noexcept nogil:
     """_reserve without the GIL: 0, or _NO_MEMORY."""
     cdef Py_ssize_t capacity
     cdef char *data
-    if extra > PY_SSIZE_T_MAX - b.size:
+    if extra > PY_SSIZE_T_MAX - b.size or _test_failed_growth:
         return _NO_MEMORY
     if b.size + extra <= b.capacity:
         return 0
@@ -230,8 +234,8 @@ def join_token_lists(sentences, int threads=1):
     sentences, a legacy string of 3.11), and False if a token is empty, holds whitespace
     (str.isspace) or a lone surrogate; the caller then takes the Python path, which decides
     and raises its errors. Each part stops at its first problem, so with both kinds in the
-    input the verdict depends on how it was split; False still always means an invalid
-    token of an exact str, on which the Python path raises.
+    input the verdict depends on how it was split. The Python path decides in both cases:
+    a subclass in the input may change the lists while it runs.
     """
     cdef PyObject *outer = <PyObject *>sentences
     cdef Py_ssize_t n, size
@@ -267,3 +271,13 @@ def join_token_lists(sentences, int threads=1):
             free(parts[p].text.data)
             free(parts[p].ends.data)
         free(parts)
+
+
+def _test_join_faults(unsigned failed_starts=0, bint failed_growth=False):
+    """For the tests: make the thread starts of the parts in the bit mask fail, or every
+    buffer growth; returns the previous (failed_starts, failed_growth)."""
+    global fse_test_failed_starts, _test_failed_growth
+    previous = (fse_test_failed_starts, _test_failed_growth)
+    fse_test_failed_starts = failed_starts
+    _test_failed_growth = failed_growth
+    return previous
