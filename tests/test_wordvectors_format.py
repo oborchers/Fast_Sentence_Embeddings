@@ -243,6 +243,18 @@ def test_word_vectors_of_a_pre_release_with_counts_are_rejected(test_data_dir, d
             WordVectors.load(path, mmap=mmap)
 
 
+def test_a_pre_release_file_without_counts_is_todays_artifact(tmp_path, test_data_dir):
+    """Without its counts, the golden of a pre-release has the fingerprint of today's
+    golden of the same vectors: same tensors, keys, checksums and fingerprint rules, so
+    such a file needs no marker and is read as it is."""
+    old = tmp_path / "old.safetensors"
+    old.write_bytes((test_data_dir / "v2" / "word_vectors_float32.safetensors").read_bytes())
+    path = _rewrite(old, lambda t: t.pop("counts"))
+    wv = WordVectors.load(path)
+    wv.verify()
+    assert wv.fingerprint == GOLDEN["float32"]
+
+
 def test_counts_are_refused_however_they_are_written(tmp_path):
     _wv().save(tmp_path / "wv.safetensors")
     path = _rewrite(
