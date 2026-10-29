@@ -152,4 +152,18 @@ def corpus(tokens: list[str], count: int = 6000, seed: int = 0) -> list[str]:
         texts.append("ab" * (n // 2) + " " + "\U0001f600" * n)
     texts += SENTENCES.read_text(encoding="utf-8").splitlines()
     texts += ["", " ", "\x00", "[MASK]", "x[MASK]y", "[MASK]]]", "<<<<", "\u00fc\u00fc", "ab"]
+    # Marks of classes 230 and 7 with and without a removed mark of class 0 between them.
+    texts += ["a\U0001e949\u034f\U00011446", "a\U0001e949\U00011446", "e\u0301\u0327x"]
+    # Words of 51 to 100 code points but more than 100 bytes, which the vocabulary splits.
+    texts += ["\u03c3" * 70, "\U0001f600" * 60]
+    return texts
+
+
+def all_unicode(count: int = 4000, seed: int = 1) -> list[str]:
+    """Random texts over every code point but the surrogates."""
+    rng = random.Random(seed)
+    texts = []
+    for _ in range(count):
+        cps = [rng.randint(0, 0x10FFFF) for _ in range(rng.randint(0, 30))]
+        texts.append("".join(chr(c) for c in cps if not 0xD800 <= c <= 0xDFFF))
     return texts
