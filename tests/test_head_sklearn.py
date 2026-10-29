@@ -359,9 +359,13 @@ def test_newton_cholesky_with_many_classes_has_the_link_of_its_version():
     except ValueError as error:  # versions without it for several classes
         pytest.skip(str(error))
     clf = fse.Classifier.from_sklearn(encoder, sk)
-    assert clf.link == (
-        "ovr@1" if getattr(sk, "multi_class", None) in ("auto", "deprecated") else "softmax@1"
+    from fse._head._sklearn import installed_version
+
+    ovr = getattr(sk, "multi_class", None) in ("auto", "deprecated") and installed_version() < (
+        1,
+        6,
     )
+    assert clf.link == ("ovr@1" if ovr else "softmax@1")
     np.testing.assert_allclose(clf.predict_proba(SENTENCES), sk.predict_proba(x), atol=1e-5)
 
 
@@ -394,3 +398,27 @@ def test_one_target_of_two_dimensions_keeps_its_shape(tmp_path):
             fse.Regressor.load(tmp_path / f"{len(shape)}.safetensors").predict(SENTENCES).shape
             == shape
         )
+
+
+@pytest.mark.parametrize(
+    ("version", "link"), [((1, 5), "ovr@1"), ((1, 6), "softmax@1"), ((1, 7), "softmax@1")]
+)
+def test_newton_cholesky_follows_the_rule_of_each_version(monkeypatch, version, link):
+    """Before 1.6 predict_proba took one-vs-rest for newton-cholesky under multi_class auto,
+    from 1.6 (multinomial loss, scikit-learn PR 28840) softmax; 1.8 removed multi_class."""
+    from fse._head import _sklearn as module
+
+    encoder = finished(normalize=False)
+    x, y = _data(encoder, classes=3)
+    sk = _fit(linear_model.LogisticRegression(), x, y)
+    sk.solver, sk.multi_class = "newton-cholesky", "auto"
+    monkeypatch.setattr(module, "installed_version", lambda: version)
+    assert fse.Classifier.from_sklearn(encoder, sk).link == link
+
+
+def test_the_installed_version_is_read_without_importing_scikit_learn():
+    from importlib.metadata import version
+
+    from fse._head._sklearn import installed_version
+
+    assert installed_version() == tuple(int(p) for p in version("scikit-learn").split(".")[:2])

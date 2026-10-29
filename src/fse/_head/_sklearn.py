@@ -98,18 +98,30 @@ def _classes(model: Any, k: int) -> list:
     return classes.tolist()
 
 
+def installed_version() -> tuple[int, int]:
+    """(major, minor) of the installed scikit-learn, from its distribution's metadata
+    (nothing of scikit-learn is imported)."""
+    from importlib.metadata import version
+
+    major, minor = version("scikit-learn").split(".")[:2]
+    return int(major), int("".join(ch for ch in minor if ch.isdigit()) or 0)
+
+
 def _logistic_link(model: Any, k: int) -> str:
     """The rule of the installed version: from 1.8 sigmoid for two classes and softmax
-    else; before, ovr where ``multi_class`` says so (or auto with two classes or the
-    solver liblinear or newton-cholesky, which fit one-vs-rest), else softmax, which for
-    two classes is softmax of [-z, z]."""
+    else; before, ovr where ``multi_class`` says so, or under auto for two classes, for the
+    solver liblinear, and before 1.6 for newton-cholesky (1.6 gave it the multinomial loss,
+    scikit-learn PR 28840, and predict_proba softmax), else softmax, which for two classes
+    is softmax of [-z, z]."""
     multi_class = getattr(model, "multi_class", None)
     if multi_class is None:  # scikit-learn 1.8 and newer
         return "sigmoid" if k == 1 else "softmax"
     binary = k == 1
+    ovr_solvers = (
+        ("liblinear", "newton-cholesky") if installed_version() < (1, 6) else ("liblinear",)
+    )
     ovr = multi_class in ("ovr", "warn") or (
-        multi_class in ("auto", "deprecated")
-        and (binary or model.solver in ("liblinear", "newton-cholesky"))
+        multi_class in ("auto", "deprecated") and (binary or model.solver in ovr_solvers)
     )
     if ovr:
         return "sigmoid" if binary else "ovr"
