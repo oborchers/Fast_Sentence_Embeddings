@@ -296,6 +296,8 @@ layers = [
     "_text",
     "_wordvectors",
     "_wordvectors_format",
+    # The reference of linear heads builds on the reference of the encoder (fma32, dot16).
+    "_reference_head",
     # Independent of each other: the references never share code with what they check.
     "_container | _codes | _reference | _reference_text | _validation",
     "_contract | _cpus | _unicode",
