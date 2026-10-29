@@ -381,6 +381,7 @@ ignore_names = [
     "python_sigint",     # a fixture used through pytest.mark.usefixtures
     "normalizer",        # attributes of a Hugging Face tokenizer, read by tokenizers
     "pre_tokenizer",
+    "post_processor",
     "hf_split",          # arguments of the MTEB encoder interface
     "hf_subset",
     "prompt_type",
