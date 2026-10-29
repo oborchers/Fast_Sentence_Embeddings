@@ -20,13 +20,13 @@ from __future__ import annotations
 
 import os
 import re
-import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 from fse._container import CorruptArtifactError, strict_json
 from fse._contract import UnsupportedArtifactError
+from fse._hub import REPO_ID, HubFiles, resolve_link
 
 from ._format import Source
 from ._model2vec import FILES, MODEL_RULE, Model2Vec, read_model2vec
@@ -60,19 +60,6 @@ class Found:
     model2vec: Model2Vec | None = None
     source: Source | None = None
     license: str | None = None
-
-
-def resolve_link(path: Path, blobs: Path) -> Path:
-    """The file a snapshot link of a Hugging Face cache points to: a regular file in
-    ``blobs`` (the blobs folder of the same cached repository), never anything else."""
-    target = Path(os.path.realpath(path))
-    if target.parent != Path(os.path.realpath(blobs)):
-        raise CorruptArtifactError(
-            f"{path} is a link to {target}, outside the blobs of its Hugging Face cache"
-        )
-    if not stat.S_ISREG(os.lstat(target).st_mode):
-        raise CorruptArtifactError(f"{path} points to {target}, which is no regular file")
-    return target
 
 
 class LocalFiles:
@@ -113,7 +100,17 @@ def files(
         if path.suffix != ".safetensors":
             raise ValueError(f"{path} is no .safetensors file of an fse encoder, nor a folder")
         return path
-    raise FileNotFoundError(f"{repo_or_path} is no local file or folder")
+    if isinstance(repo_or_path, str) and REPO_ID.fullmatch(repo_or_path):
+        return HubFiles(
+            repo_or_path,
+            revision=revision,
+            token=token,
+            cache_dir=cache_dir,
+            local_files_only=local_files_only,
+        )
+    raise FileNotFoundError(
+        f"{repo_or_path} is no local file or folder, nor a Hub repository id (namespace/name)"
+    )
 
 
 def find(

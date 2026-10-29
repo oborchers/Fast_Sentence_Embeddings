@@ -34,7 +34,7 @@ from ._common import (
     tensor_code,
 )
 from ._foreign import read_foreign
-from ._hash import Hasher
+from ._hash import Hasher, file_digests
 from ._npy import NpyContainer
 from ._safetensors import SafetensorsContainer
 
@@ -53,6 +53,7 @@ __all__ = [
     "TensorContainer",
     "canonical_json",
     "checksum",
+    "file_digests",
     "fingerprint",
     "is_fingerprint",
     "read_foreign",

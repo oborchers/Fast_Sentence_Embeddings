@@ -50,6 +50,8 @@ gensim = ["gensim>=4.3.3"]
 # the version its kernels were verified on (compile options since 0.32.0, zero-copy input
 # since 0.32.1, thread safety since 0.31.2).
 mlx = ["mlx>=0.32.4; sys_platform == 'darwin' and platform_machine == 'arm64'"]
+# Encoder.from_pretrained of Hub repositories (fse._hub imports it on first use).
+hub = ["huggingface-hub>=1.0"]
 
 [project.urls]
 Homepage = "https://www.drborchers.com"
@@ -305,7 +307,7 @@ layers = [
     "_encoder",
     "_runtime",
     # Independent: _backends computes on batches, _stream and _text_file read sentences.
-    "_backends | _stream | _text_file",
+    "_backends | _stream | _text_file | _hub",
     "_text",
     "_wordvectors",
     "_wordvectors_format | _tokenizer_json",

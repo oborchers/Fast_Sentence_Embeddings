@@ -156,3 +156,17 @@ def test_classify(value, kind):
 def test_empty_memory_of_any_shape_hashes_as_no_bytes():
     for shape in [(0,), (0, 3), (3, 0, 2)]:
         assert _hash.checksum(memoryview(np.empty(shape, np.float32))) == _hash.EMPTY
+
+
+def test_the_digests_of_the_hub_are_sha256_and_the_git_blob_id():
+    """The ids a Hub commit pins a file with: ``git hash-object`` of b"hello" is
+    b6fc4c620b67d95f953a5c1c1230aaab5db5a1b0."""
+    import io
+
+    from fse._container import file_digests
+
+    sha256, sha1 = file_digests(io.BytesIO(b"hello"), 5, chunk=2)
+    assert sha256 == "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    assert sha1 == "b6fc4c620b67d95f953a5c1c1230aaab5db5a1b0"
+    with pytest.raises(ValueError, match="ended 1 bytes early"):
+        file_digests(io.BytesIO(b"hell"), 5)

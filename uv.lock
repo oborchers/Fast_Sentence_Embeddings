@@ -476,6 +476,9 @@ dependencies = [
 gensim = [
     { name = "gensim" },
 ]
+hub = [
+    { name = "huggingface-hub" },
+]
 mlx = [
     { name = "mlx", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
 ]
@@ -532,12 +535,13 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "gensim", marker = "extra == 'gensim'", specifier = ">=4.3.3" },
+    { name = "huggingface-hub", marker = "extra == 'hub'", specifier = ">=1.0" },
     { name = "mlx", marker = "platform_machine == 'arm64' and sys_platform == 'darwin' and extra == 'mlx'", specifier = ">=0.32.4" },
     { name = "numpy", specifier = ">=1.26.4" },
     { name = "pydantic", specifier = ">=2.5.0" },
     { name = "xxhash", specifier = ">=3.2.0" },
 ]
-provides-extras = ["gensim", "mlx"]
+provides-extras = ["gensim", "mlx", "hub"]
 
 [package.metadata.requires-dev]
 all = [
