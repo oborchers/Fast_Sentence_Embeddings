@@ -46,6 +46,10 @@ dependencies = [
 [project.optional-dependencies]
 # The gensim adapter fse.gensim.
 gensim = ["gensim>=4.3.3"]
+# The MLX backend (backend="mlx"): Metal on Apple silicon, macOS 14 and newer. 0.32.4 is
+# the version its kernels were verified on (compile options since 0.32.0, zero-copy input
+# since 0.32.1, thread safety since 0.31.2).
+mlx = ["mlx>=0.32.4; sys_platform == 'darwin' and platform_machine == 'arm64'"]
 
 [project.urls]
 Homepage = "https://www.drborchers.com"
@@ -99,6 +103,8 @@ test = [
     "pytest-cov>=5.0.0",
     "coverage[toml]>=7.0.0",
 ]
+# The MLX backend for its tests (make test-mlx); only on Apple silicon.
+mlx = ["mlx>=0.32.4; sys_platform == 'darwin' and platform_machine == 'arm64'"]
 all = [
     { include-group = "dev" },
     { include-group = "lint" },
@@ -170,7 +176,7 @@ check_untyped_defs = true
 
 # These dependencies ship no type information.
 [[tool.mypy.overrides]]
-module = ["gensim.*", "safetensors.*", "huggingface_hub.*"]
+module = ["gensim.*", "safetensors.*", "huggingface_hub.*", "mlx.*"]
 ignore_missing_imports = true
 
 # --- pytest ---
@@ -316,7 +322,14 @@ name = "Backends: each shares only _base with the others"
 type = "layers"
 containers = ["fse._backends"]
 exhaustive = true
-layers = ["_cpu | _numpy", "_base"]
+layers = ["_cpu | _numpy | _mlx", "_base"]
+
+[[tool.importlinter.contracts]]
+name = "MLX: the loader"
+type = "layers"
+containers = ["fse._backends._mlx"]
+exhaustive = true
+layers = ["_load"]
 
 [[tool.importlinter.contracts]]
 name = "Encoder: recipes on fit, fit on the encoder, the encoder on its parts"
