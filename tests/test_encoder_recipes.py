@@ -26,7 +26,7 @@ def test_recipes_are_validated_and_frozen():
         recipe._spec = None
     with pytest.raises(TypeError, match="WordVectors"):
         recipe.fit(np.ones((3, 3)), ["a"])
-    with pytest.raises(ValueError, match="'cpu' or 'numpy'"):
+    with pytest.raises(ValueError, match="'cpu', 'numpy' or 'mlx'"):
         recipe.fit(word_vectors(), ["a"], backend="gpu")
     assert repr(recipe) == "SIF(components=1, dim=None, normalize=True, fold=True)"
     assert isinstance(recipe._spec, FitSpec)

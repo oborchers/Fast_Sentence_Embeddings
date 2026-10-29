@@ -1,16 +1,23 @@
 """fse._backends._mlx._device: the device thread groups waiting calls, keeps errors to
 their jobs and leaves no thread behind.
 
-A fake MLX stands in for the GPU, so these run on every machine.
+A fake MLX stands in for the GPU, so these run on every machine; the last tests drive the
+real backend from many threads where it can run.
 """
 
 import threading
 import time
 
+import numpy as np
 import pytest
 
-from fse._backends._mlx import _device
+from fse._backends import CpuBackend, MlxBackend, PoolInput
+from fse._backends._mlx import _device, _kernels
 from fse._backends._mlx._device import Device, Job
+from fse._contract import Batch
+from support.conformance import require_mlx
+
+F32 = np.float32
 
 
 class FakeMx:
@@ -200,3 +207,57 @@ def test_the_canary_runs_once_and_its_error_stays(monkeypatch):
     for _ in range(2):
         with pytest.raises(ValueError, match="the canary failed"):
             other.ready()
+
+
+# --- The real backend from many threads -------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def backend():
+    require_mlx()
+    return MlxBackend(CpuBackend())
+
+
+def test_many_threads_get_their_own_rows(backend):
+    rng = np.random.default_rng(0)
+    pool = PoolInput(rng.standard_normal((50, 33)).astype(F32), rng.random(50).astype(F32))
+    prepared, host = backend.prepare(pool, ()), CpuBackend()
+    host_prepared = host.prepare(pool, ())
+    batches = []
+    for k in range(64):
+        lengths = rng.integers(0, 9, int(rng.integers(1, 20)))
+        offsets = np.concatenate([[0], np.cumsum(lengths)]).astype(np.int64)
+        batches.append(Batch(k * 100, offsets, rng.integers(0, 50, offsets[-1]).astype(np.uint32)))
+    got = [np.empty((b.n_sentences, 33), F32) for b in batches]
+    before = _device.DEVICE.evaluations
+    threads = [
+        threading.Thread(
+            target=lambda i=i: [
+                backend.rows(batches[j], prepared, got[j]) for j in range(i, 64, 16)
+            ]
+        )
+        for i in range(16)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    for b, rows in zip(batches, got, strict=True):
+        want = np.empty_like(rows)
+        host.rows(b, host_prepared, want)
+        assert rows.tobytes() == want.tobytes()
+    assert _device.DEVICE.evaluations - before <= 64
+    assert _threads() == []
+
+
+def test_rows_of_one_task_launch_one_kernel(backend):
+    pool = PoolInput(np.ones((3, 4), F32), np.ones(3, F32))
+    prepared = backend.prepare(pool, ())
+    before = (_device.DEVICE.evaluations, _device.DEVICE.launches)
+    backend.rows(
+        Batch(0, np.array([0, 2], np.int64), np.array([0, 1], np.uint32)),
+        prepared,
+        np.empty((1, 4), F32),
+    )
+    assert (_device.DEVICE.evaluations, _device.DEVICE.launches) == (before[0] + 1, before[1] + 1)
+    assert isinstance(prepared.state.table, _kernels.Table)
