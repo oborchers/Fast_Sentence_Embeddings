@@ -150,6 +150,27 @@ def test_only_the_harness_imports_a_hash_library(tool, tmp_path):
     assert any("_native_part.pxi imports hashlib" in e for e in errors)
 
 
+def test_only_the_loader_of_a_device_backend_imports_its_library(tool, tmp_path):
+    files = {
+        "src/fse/_backends/_mlx/_load.py": 'import importlib\nmx = importlib.import_module("mlx.core")\n',
+        "src/fse/_backends/_mlx/_kernels.py": "import mlx.core as mx\n",
+        "src/fse/_backends/_mlx/_device.py": 'mx = __import__("mlx")\n',
+        "src/fse/_backends/_cuda/_load.py": "from mlx import core\n",
+        "src/fse/_backends/_cuda/_other.py": "import cupy\n",
+        "src/fse/_text.py": '"""import mlx"""\nmlxish = importlib.import_module(name)\n',
+    }
+    cfg = _fse_tree(tmp_path, files)
+    cfg["device-libraries"] = {"mlx": ["mlx"], "cuda": ["cupy"]}
+    errors = tool["device_import_errors"](tmp_path, cfg)
+    assert len(errors) == 4, errors
+    for name in ("_mlx/_kernels.py imports mlx", "_mlx/_device.py imports mlx"):
+        assert any(name in e and "_mlx/_load.py may" in e for e in errors), errors
+    assert any("_cuda/_load.py imports mlx" in e for e in errors)
+    assert any(
+        "_cuda/_other.py imports cupy; only src/fse/_backends/_cuda/_load.py" in e for e in errors
+    )
+
+
 def test_every_module_needs_a_test_file(tool, tmp_path):
     cfg = _fse_tree(
         tmp_path,
@@ -175,6 +196,8 @@ def test_the_repository_config_parses(tool):
     assert cfg["max-lines"] == 500
     assert set(cfg["ratchet"]) == {"lines", "functions"}
     assert {"gensim", "scipy", "torch"} <= set(cfg["forbidden"])
+    assert cfg["device-libraries"] == {"mlx": ["mlx"]}
+    assert "mlx" in cfg["forbidden"]  # for the extension
 
 
 @needs_lint_tools
