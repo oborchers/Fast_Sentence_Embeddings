@@ -205,15 +205,7 @@ class LinearModel:
         weight = self._verified("head.weight", self._content.weight)
         recorded = self._encoder._checksums
         pool = fold(get_backend("cpu"), self._verified_pool(recorded), weight, usable_cpus())
-        table, keys, _ = self._encoder.word_vectors._parts()
-        table = {k: v for k, v in table.items() if k in ("vocab.bytes", "vocab.offsets")}
-        table["vectors"] = pool.vectors
-        if pool.ngram_vectors is not None:
-            table["ngrams"] = pool.ngram_vectors
-        keys = {k: v for k, v in keys.items() if k in ("fse.fasttext", "fse.ngram_hash")}
-        keys.update({"fse.dim": str(self._content.k), "fse.dtype": "float32"})
-        folded = dataclasses.replace(self._encoder._content, steps=())  # tokenizer kept
-        tensors, metadata = encoder_artifact(folded, table, keys)
+        tensors, metadata = self._folded_encoder(pool)
         sums = {k: checksum(v) for k, v in tensors.items() if k in _FOLDED or recorded is None}
         sums.update({k: recorded[k] for k in tensors if recorded is not None and k not in _FOLDED})
         of_encoder = _format.encoder_fingerprint(tensors, metadata, sums)
@@ -224,6 +216,19 @@ class LinearModel:
         own = self._checksums or {}  # a loaded model: the head's checksums from its file
         heads = {n: own.get(n) or checksum(a) for n, a in out.items() if n in _format.TENSORS}
         return out, keys, {**sums, **heads}
+
+    def _folded_encoder(self, pool: PoolInput) -> tuple[dict[str, ndarray], dict[str, str]]:
+        """The encoder artifact of the folded table: its rows and the encoder's vocabulary,
+        tokenizer and FastText keys, k float32 values per row, no steps."""
+        table, keys, _ = self._encoder.word_vectors._parts()
+        table = {k: v for k, v in table.items() if k in ("vocab.bytes", "vocab.offsets")}
+        table["vectors"] = pool.vectors
+        if pool.ngram_vectors is not None:
+            table["ngrams"] = pool.ngram_vectors
+        keys = {k: v for k, v in keys.items() if k in ("fse.fasttext", "fse.ngram_hash")}
+        keys.update({"fse.dim": str(self._content.k), "fse.dtype": "float32"})
+        folded = dataclasses.replace(self._encoder._content, steps=())  # tokenizer kept
+        return encoder_artifact(folded, table, keys)
 
     def _verified(self, name: str, array: ndarray | None) -> ndarray:
         """A copy of the head tensor ``name`` that matches the checksum of the file the
