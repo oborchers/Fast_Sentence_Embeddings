@@ -15,10 +15,14 @@ flush, and with --python-v1 fse 1.1.0 training into a memory-mapped file
 search: the first search of a freshly opened store (cold: a new process) and the warm
 p50 of 10 searches, for 1 to 256 queries, with mode="exact" and mode="blas".
 score: one and 1,000 weight vectors over all rows, exact and with BLAS.
+sync: the latency of fsync and F_FULLFSYNC (macOS) on a file and a directory, median and
+p90 of 50, and the time per shard of a ShardSink run in small shards (--shard-rows,
+1,024 by default), whose publication those syncs dominate.
 
     uv run python benchmarks/bench_store.py write --python-v1 PY --dtypes float16 int8
     uv run python benchmarks/bench_store.py search --tmp DIR
     uv run python benchmarks/bench_store.py score --tmp DIR
+    uv run python benchmarks/bench_store.py sync --tmp DIR --sentences 50000 --workers 4
 
 Synthetic data from bench_runtime.py; a run takes a few minutes.
 """
@@ -80,10 +84,56 @@ def child_v2_write(args) -> dict:
         if args.kind == "memory":
             encoder.encode(sentences, dtype=args.dtype, workers=args.workers)
         else:
-            with fse.ShardSink(Path(tmp) / "store", encoder, dtype=args.dtype) as sink:
+            with fse.ShardSink(
+                Path(tmp) / "store", encoder, dtype=args.dtype, shard_rows=args.shard_rows
+            ) as sink:
                 encoder.encode(sentences, workers=args.workers, sink=sink)
         seconds = time.perf_counter() - start
     return {"per_s": args.sentences / seconds, "peak": _peak()}
+
+
+def _latency(sync, fd: int, touch) -> tuple[float, float]:
+    """Median and p90 in ms of 50 calls of ``sync(fd)``, each after ``touch()`` dirtied it."""
+    times = []
+    for _ in range(50):
+        touch()
+        start = time.perf_counter()
+        sync(fd)
+        times.append(1e3 * (time.perf_counter() - start))
+    return statistics.median(times), statistics.quantiles(times, n=10)[-1]
+
+
+def child_sync(args) -> dict:
+    import fcntl
+
+    import fse
+
+    out: dict = {}
+    syncs = {"fsync": os.fsync}
+    if hasattr(fcntl, "F_FULLFSYNC"):
+        syncs["full"] = lambda fd: fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
+    with tempfile.TemporaryDirectory(dir=args.tmp) as tmp:
+        file_fd = os.open(Path(tmp) / "f", os.O_RDWR | os.O_CREAT)
+        dir_fd, made = os.open(tmp, os.O_RDONLY), iter(range(10**6))
+        page = os.urandom(65536)
+        for name, sync in syncs.items():  # the same state before each: 64 KiB, one entry
+            file_ms = _latency(sync, file_fd, lambda: os.pwrite(file_fd, page, 0))
+            dir_ms = _latency(sync, dir_fd, lambda: (Path(tmp) / f"e{next(made)}").touch())
+            out |= {f"{name}_file_p50_ms": file_ms[0], f"{name}_file_p90_ms": file_ms[1]}
+            out |= {f"{name}_dir_p50_ms": dir_ms[0], f"{name}_dir_p90_ms": dir_ms[1]}
+        os.close(file_fd)
+        os.close(dir_fd)
+    sentences = [" ".join(tokens) for tokens in _corpus(args.sentences)]
+    wv = fse.WordVectors.from_arrays(_rows(), words=[f"w{i}" for i in range(VOCAB)])
+    encoder = fse.Average(normalize=False, tokenizer="external").fit(wv)
+    rows = args.shard_rows or 1024
+    with tempfile.TemporaryDirectory(dir=args.tmp) as tmp:
+        start = time.perf_counter()
+        with fse.ShardSink(Path(tmp) / "s", encoder, dtype=args.dtype, shard_rows=rows) as sink:
+            encoder.encode(sentences, workers=args.workers, sink=sink)
+        seconds = time.perf_counter() - start
+    shards = -(-args.sentences // rows)
+    return out | {"shards": shards, "run_s": seconds, "per_shard_ms": 1e3 * seconds / shards}
 
 
 def child_v1_write(args) -> dict:
@@ -164,6 +214,7 @@ CHILDREN = {
     "prepare": child_prepare,
     "search": child_search,
     "score": child_score,
+    "sync": child_sync,
 }
 
 
@@ -194,6 +245,8 @@ def _write_row(args, dtype: str, workers: int, n: int) -> dict:
     """The median of the rounds of every contender for one dtype, worker count and size."""
     row: dict = {"dtype": dtype, "workers": workers, "sentences": n, "load": os.getloadavg()[0]}
     common = {"tmp": args.tmp, "dtype": dtype, "workers": workers, "sentences": n}
+    if args.shard_rows:
+        common["shard_rows"] = args.shard_rows
     runs: dict[str, list[dict]] = {}
     for _ in range(args.rounds):
         for name, child, kind in _CONTENDERS:
@@ -232,9 +285,22 @@ def search_or_score(args) -> list[dict]:
     return rows
 
 
+def sync(args) -> list[dict]:
+    rows = []
+    for dtype in args.dtypes:
+        common = {"tmp": args.tmp, "dtype": dtype, "sentences": args.sentences}
+        if args.shard_rows:
+            common["shard_rows"] = args.shard_rows
+        for _ in range(args.rounds):
+            result = _run(sys.executable, "sync", workers=args.workers[0], **common)
+            print(dtype, json.dumps({k: round(v, 3) for k, v in result.items()}), flush=True)
+            rows.append({"dtype": dtype, "load": os.getloadavg()[0], **result})
+    return rows
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("mode", choices=["write", "search", "score", "child"])
+    parser.add_argument("mode", choices=["write", "search", "score", "sync", "child"])
     parser.add_argument("--child", choices=list(CHILDREN))
     parser.add_argument("--kind", default="memory")
     parser.add_argument("--tmp", default=tempfile.gettempdir())
@@ -245,6 +311,7 @@ def main(argv=None):
     parser.add_argument("--sentences", type=int, default=250_000)
     parser.add_argument("--queries", type=int, nargs="+", default=[1, 4, 16, 64, 256])
     parser.add_argument("--rounds", type=int, default=1)
+    parser.add_argument("--shard-rows", type=int)
     parser.add_argument("--json")
     args = parser.parse_args(argv)
     if args.mode == "child":
@@ -253,7 +320,8 @@ def main(argv=None):
         print(json.dumps(CHILDREN[args.child](args)))
         return
     print(f"# load {os.getloadavg()[0]:.1f}")
-    results = write(args) if args.mode == "write" else search_or_score(args)
+    modes = {"write": write, "sync": sync}
+    results = modes.get(args.mode, search_or_score)(args)
     if args.json:
         Path(args.json).write_text(json.dumps(results, indent=1), encoding="utf-8")
 
