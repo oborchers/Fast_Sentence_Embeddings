@@ -1,4 +1,4 @@
-/* The floating-point environment, dot16, the postprocessing steps and score.
+/* The floating-point environment, dot16, normalize@1 and score.
    Included by _native_kernel.h. */
 
 #ifndef FSE_NATIVE_KERNEL_STEPS_H
@@ -42,7 +42,7 @@ static inline void fse_fpenv_leave(fse_fpenv env) {
 #endif
 }
 
-/* --- dot16, postprocessing steps and score ---------------------------------------- */
+/* --- dot16, normalize@1 and score ------------------------------------------------ */
 
 /* dot16: 16 partial sums, index i into lane i % 16 by fma in index order, then the lanes
    added 8, 4, 2 and 1 apart. Tails update only their own lanes: lanes can hold -0.0, so
@@ -95,17 +95,6 @@ static float fse_dot16_neon(const float *a, const float *b, int n) {
 }
 #endif
 
-/* acc[i] = fma(c, u[i], acc[i]) for float32 rows, by instruction set. */
-static void fse_axpy(int isa, float *acc, const float *u, float c, int n) {
-#if defined(FSE_X86)
-    if (isa == FSE_ISA_AVX2) { fse_fma_f32_avx2(acc, u, c, n); return; }
-#endif
-#if defined(FSE_NEON)
-    if (isa == FSE_ISA_NEON) { fse_fma_f32_neon(acc, u, c, n); return; }
-#endif
-    fse_fma_f32_portable(acc, u, c, n);
-}
-
 static float fse_dot16(int isa, const float *a, const float *b, int n) {
 #if defined(FSE_X86)
     if (isa == FSE_ISA_AVX2) return fse_dot16_avx2(a, b, n);
@@ -120,40 +109,6 @@ static int fse_finite_row(const float *row, int n) {
     for (int i = 0; i < n; i++)
         if (!isfinite(row[i])) return 0;
     return 1;
-}
-
-/* remove_components@1 on every row, in place; scratch holds dim floats. Returns the first
-   row that is not finite afterwards, or -1. */
-FSE_NOINLINE static int64_t fse_remove_components_body(int isa, float *rows, int64_t n, int dim,
-                                     const float *components, int k, const float *weights,
-                                     float *scratch) {
-    int64_t bad = -1;
-    for (int64_t r = 0; r < n; r++) {
-        float *row = rows + (size_t)r * (size_t)dim;
-        memset(scratch, 0, (size_t)dim * sizeof(float));
-        for (int j = 0; j < k; j++) {
-            const float *u = components + (size_t)j * (size_t)dim;
-            float c = fse_dot16(isa, row, u, dim);  /* the coefficients use the unmodified row */
-            if (weights) c = c * weights[j];
-            fse_axpy(isa, scratch, u, c, dim);
-        }
-        for (int i = 0; i < dim; i++) row[i] = row[i] - scratch[i];
-        if (bad < 0 && !fse_finite_row(row, dim)) bad = r;
-    }
-    return bad;
-}
-
-/* project@1: out row r holds the k values dot16(row, basis_j). */
-FSE_NOINLINE static int64_t fse_project_body(int isa, const float *rows, int64_t n, int dim, const float *basis,
-                           int k, float *out) {
-    int64_t bad = -1;
-    for (int64_t r = 0; r < n; r++) {
-        const float *row = rows + (size_t)r * (size_t)dim;
-        float *o = out + (size_t)r * (size_t)k;
-        for (int j = 0; j < k; j++) o[j] = fse_dot16(isa, row, basis + (size_t)j * (size_t)dim, dim);
-        if (bad < 0 && !fse_finite_row(o, k)) bad = r;
-    }
-    return bad;
 }
 
 /* normalize@1 in place. Returns the first nonzero row whose sum of squares underflows to
@@ -218,21 +173,6 @@ static void fse_dot16_rows(int isa, const float *a, const float *b, int64_t n, i
     fse_fpenv env = fse_fpenv_enter();
     fse_dot16_rows_body(isa, a, b, n, dim, out);
     fse_fpenv_leave(env);
-}
-static int64_t fse_remove_components(int isa, float *rows, int64_t n, int dim,
-                                     const float *components, int k, const float *weights,
-                                     float *scratch) {
-    fse_fpenv env = fse_fpenv_enter();
-    int64_t bad = fse_remove_components_body(isa, rows, n, dim, components, k, weights, scratch);
-    fse_fpenv_leave(env);
-    return bad;
-}
-static int64_t fse_project(int isa, const float *rows, int64_t n, int dim, const float *basis,
-                           int k, float *out) {
-    fse_fpenv env = fse_fpenv_enter();
-    int64_t bad = fse_project_body(isa, rows, n, dim, basis, k, out);
-    fse_fpenv_leave(env);
-    return bad;
 }
 static int64_t fse_normalize(int isa, float *rows, int64_t n, int dim, int64_t *unnormalizable) {
     fse_fpenv env = fse_fpenv_enter();

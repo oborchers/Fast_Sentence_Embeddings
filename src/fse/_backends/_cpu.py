@@ -17,11 +17,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-import numpy as np
 from numpy import ndarray
 
-from fse import _gram, _native
-from fse._contract import Aggregation, Batch, Op, Project, Step
+from fse import _native
+from fse._contract import Aggregation, Batch, Op, Step
 
 from ._base import (
     Capabilities,
@@ -69,7 +68,7 @@ class CpuBackend:
 
     def prepare(self, pool: PoolInput, steps: Sequence[Step]) -> Prepared:
         check_pool_input(pool)
-        checked, pooled, out = dims(pool, steps)  # checks and materializes the steps once
+        checked, out = dims(pool, steps)  # checks and materializes the steps once
         _CAPABILITIES.check(self.name, pool, checked)
         kernel = _native.WeightedMean(
             pool.vectors,
@@ -80,27 +79,16 @@ class CpuBackend:
             pool.oov_weight,
             isa=self.isa,
         )
-        return Prepared(self.name, pool, checked, pooled, out, _State(kernel, self.isa))
+        return Prepared(self.name, pool, checked, out, _State(kernel, self.isa))
 
     def rows(self, batch: Batch, prepared: Prepared, out: ndarray) -> None:
         check_prepared(prepared, self.name)
         check_out(out, batch, prepared)
         state = prepared.state
         assert isinstance(state, _State)
-        if not prepared.steps:
-            state.kernel.pool(batch, out)
-            return
-        if not any(isinstance(step, Project) for step in prepared.steps):  # the steps in place
-            state.kernel.pool(batch, out)
+        state.kernel.pool(batch, out)
+        if prepared.steps:  # normalize@1, in place
             _native.postprocess_pooled(out, prepared.steps, batch.first_row, isa=state.isa)
-            return
-        rows = state.kernel.pool(batch)  # a new array, finite as pooled
-        out[...] = _native.postprocess_pooled(rows, prepared.steps, batch.first_row, isa=state.isa)
-
-    def gram_block(self, rows: ndarray) -> ndarray:
-        if not isinstance(rows, ndarray) or rows.dtype != np.float32 or rows.ndim != 2:
-            raise ValueError("rows must be a float32 matrix")
-        return _gram.gram_block_product(rows)
 
     def score(
         self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float

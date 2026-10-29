@@ -1,7 +1,7 @@
-# Included by _native.pyx: dot16, the postprocessing steps and score.
+# Included by _native.pyx: dot16, normalize@1 and score.
 
 # ---------------------------------------------------------------------------------------
-# dot16, the postprocessing steps and score, as in fse._reference.
+# dot16, normalize@1 (the only postprocessing step) and score, as in fse._reference.
 # ---------------------------------------------------------------------------------------
 
 
@@ -43,7 +43,7 @@ def postprocess(rows, steps, first_row=0, *, isa=None):
 def postprocess_pooled(rows, steps, first_row=0, *, isa=None):
     """``postprocess`` of rows the kernel has just pooled, in place: ``rows`` (writable
     C-contiguous float32, finite as pooling leaves them) are neither copied nor checked
-    again. The result is ``rows`` itself, or a new array after a ``project``."""
+    again, and are the result."""
     if not (
         isinstance(rows, np.ndarray)
         and rows.dtype == np.float32
@@ -52,12 +52,6 @@ def postprocess_pooled(rows, steps, first_row=0, *, isa=None):
         and rows.flags.writeable
     ):
         raise ValueError("pooled rows must be a writable C-contiguous float32 matrix")
-    steps = tuple(steps)  # iterated twice: the checks and the steps
-    for step in steps:  # written in place, the rows must not share memory with a step
-        for name in ("components", "weights", "basis"):
-            array = getattr(step, name, None)
-            if array is not None and np.may_share_memory(rows, array):
-                raise ValueError(f"the pooled rows overlap the {name} of a step")
     with _KernelEnv():
         _check_dim(rows.shape[1])
         return _apply_steps(rows, steps, first_row, _check_isa(isa))
@@ -74,59 +68,25 @@ def _postprocess(rows, steps, first_row, isa):
 
 
 def _apply_steps(out, steps, first_row, int code):
-    """The steps on ``out`` in place (a project gives a new array): the rows of each."""
-    from fse._contract import Normalize, Project, RemoveComponents, check_steps
+    """The steps on ``out`` in place: normalize@1, the only one."""
+    from fse._contract import check_steps
 
     cdef float[:, ::1] view
-    cdef const float[:, ::1] params
-    cdef const float[::1] weights
-    cdef float[::1] scratch
-    cdef float[:, ::1] projected
     cdef int64_t bad, unnormalizable
     cdef int64_t n
-    cdef int dim, k
-    for step in check_steps(steps, out.shape[1]):
+    cdef int dim
+    for _ in check_steps(steps, out.shape[1]):
         n, dim = out.shape[0], out.shape[1]
         if n == 0:
-            if isinstance(step, Project):
-                out = np.empty((0, step.output_dim), dtype=np.float32)
             continue
         view = out
-        if isinstance(step, RemoveComponents):
-            params = step.components
-            k = params.shape[0]
-            # The kernel reads through raw pointers: check the shapes again, as numpy lets
-            # a caller reshape the arrays of a checked step.
-            if not 1 <= k <= dim or params.shape[1] != dim:
-                raise ValueError(f"components must have shape (k, {dim}) with 1 <= k <= {dim}")
-            if step.weights is not None and step.weights.shape != (k,):
-                raise ValueError(f"weights must have shape ({k},)")
-            scratch = np.empty(dim, dtype=np.float32)
-            if step.weights is not None:
-                weights = step.weights
-                with nogil:
-                    bad = fse_remove_components(code, &view[0, 0], n, dim, &params[0, 0], k, &weights[0], &scratch[0])
-            else:
-                with nogil:
-                    bad = fse_remove_components(code, &view[0, 0], n, dim, &params[0, 0], k, NULL, &scratch[0])
-        elif isinstance(step, Project):
-            params = step.basis
-            k = params.shape[0]
-            if not 1 <= k <= dim or params.shape[1] != dim:
-                raise ValueError(f"basis must have shape (k, {dim}) with 1 <= k <= {dim}")
-            result = np.empty((n, k), dtype=np.float32)
-            projected = result
-            with nogil:
-                bad = fse_project(code, &view[0, 0], n, dim, &params[0, 0], k, &projected[0, 0])
-            out = result
-        else:
-            with nogil:
-                bad = fse_normalize(code, &view[0, 0], n, dim, &unnormalizable)
-            if unnormalizable >= 0:
-                raise ValueError(
-                    f"row {first_row + unnormalizable} cannot be normalized: the sum of its "
-                    "squares underflows or overflows float32"
-                )
+        with nogil:
+            bad = fse_normalize(code, &view[0, 0], n, dim, &unnormalizable)
+        if unnormalizable >= 0:
+            raise ValueError(
+                f"row {first_row + unnormalizable} cannot be normalized: the sum of its "
+                "squares underflows or overflows float32"
+            )
         if bad >= 0:
             raise ValueError(f"row {first_row + bad} contains NaN or infinite values")
     return out

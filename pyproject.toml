@@ -287,7 +287,7 @@ layers = [
     "_wordvectors",
     "_wordvectors_format",
     # Independent of each other: the references never share code with what they check.
-    "_container | _codes | _gram | _reference | _reference_text | _validation",
+    "_container | _codes | _reference | _reference_text | _validation",
     "_contract | _cpus | _unicode",
 ]
 
@@ -313,25 +313,18 @@ exhaustive = true
 layers = ["_cpu | _numpy", "_base"]
 
 [[tool.importlinter.contracts]]
-name = "Encoder: recipes on fit, fit on the encoder, the encoder on its parts"
+name = "Encoder: the encoder on its batches and format, those on its inputs"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = [
-    "_recipes",
-    "_fit",
-    "_encoder",
-    "_batches | _fold | _format | _weights",
-    "_sources",
-    "_corpus",
-]
+layers = ["_encoder", "_batches | _format", "_sources", "_corpus"]
 
 [[tool.importlinter.contracts]]
 name = "Runtime: the pipeline on tasks, sinks and the executor"
 type = "layers"
 containers = ["fse._runtime"]
 exhaustive = true
-layers = ["_count", "_pipeline", "_tasks | _sinks | _executor | _spec"]
+layers = ["_pipeline", "_tasks | _sinks | _executor | _spec"]
 
 [[tool.importlinter.contracts]]
 name = "Optional and 1.x packages stay out of fse; gensim only in fse.gensim"

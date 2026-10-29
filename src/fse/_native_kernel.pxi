@@ -33,11 +33,6 @@ cdef extern from "_native_kernel.h":
     void fse_fpenv_pop(uint64_t saved)
     void fse_test_fpenv_restore(uint64_t saved)
     uint64_t fse_test_fpenv_get()
-    int64_t fse_remove_components(int isa, float *rows, int64_t n, int dim,
-                                  const float *components, int k, const float *weights,
-                                  float *scratch) nogil
-    int64_t fse_project(int isa, const float *rows, int64_t n, int dim, const float *basis,
-                        int k, float *out) nogil
     int64_t fse_normalize(int isa, float *rows, int64_t n, int dim, int64_t *unnormalizable) nogil
     int64_t fse_score(int isa, int dtype, const void *stored, const float *scales, int64_t n,
                       int dim, const float *w, float bias, float *out, float *scratch) nogil

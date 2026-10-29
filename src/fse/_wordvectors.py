@@ -105,7 +105,6 @@ class WordVectors:
         vocab_bytes: Any = None,
         vocab_offsets: Any = None,
         scales: Any = None,
-        counts: Any = None,
         fasttext: FastTextParams | None = None,
         ngrams: Any = None,
         ngram_scales: Any = None,
@@ -126,7 +125,6 @@ class WordVectors:
         """
         arrays = {
             "scales": scales,
-            "counts": counts,
             "ngrams": ngrams,
             "ngram_scales": ngram_scales,
         }
@@ -215,17 +213,6 @@ class WordVectors:
             if k != FINGERPRINT_KEY and k != CREATED_BY_KEY and not k.startswith(CHECKSUM_PREFIX)
         }
         return dict(self._tensors), metadata, self._checksums()
-
-    def _derived(self, tensors: dict[str, ndarray], metadata: dict[str, str]) -> WordVectors:
-        """New vectors of the same vocabulary as these (such as folded ones), made from
-        arrays the caller owns; the checked lookup of the words is shared."""
-        out = WordVectors._open(tensors, metadata)
-        _check_values(tensors)
-        # The vocabulary is a checked copy of these vectors' own, whose words were checked
-        # to be unique; a lookup is shared if there is one, never built for this.
-        out._index = self._index
-        out._verified = True
-        return out
 
     def _mapped(self) -> bool:
         return any(isinstance(t, np.memmap) for t in self._tensors.values())
@@ -364,10 +351,6 @@ class WordVectors:
     @property
     def scales(self) -> ndarray | None:
         return _view(self._tensors.get("scales"))
-
-    @property
-    def counts(self) -> ndarray | None:
-        return _view(self._tensors.get("counts"))
 
     @property
     def vocab_bytes(self) -> ndarray:

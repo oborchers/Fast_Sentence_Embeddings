@@ -55,8 +55,8 @@ from ._tasks import Task, plan
 # fixed cost of about 0.2 ms for its checks (4 MiB lost 7 % on an M1 Pro, 16 MiB 1 %).
 TASK_ROW_BYTES = 1 << 24
 # The rows of all tasks in flight or waiting to be committed take at most this many bytes:
-# the window is 2 * workers tasks, so with many workers a task holds fewer rows. A task
-# with steps also holds its pooled rows and one copy while it runs (see the cpu backend).
+# the window is 2 * workers tasks, so with many workers a task holds fewer rows. normalize
+# runs in place on the rows of a task and needs no memory of its own.
 WINDOW_BYTES = 1 << 29
 
 
@@ -78,8 +78,7 @@ class Pipeline:
             spec.word_vectors, spec.tokenizer, max_ngrams=spec.max_ngrams, vocabulary=vocabulary
         )
         self.output_dim = self.prepared.output_dim
-        self._widest = 4 * max(self.prepared.pooled_dim, self.output_dim)
-        self.task_rows = max(1, min(MAX_CHUNK_ROWS, TASK_ROW_BYTES // self._widest))
+        self.task_rows = max(1, min(MAX_CHUNK_ROWS, TASK_ROW_BYTES // (4 * self.output_dim)))
         # One call at a time on a backend that is not concurrent; encoding stays parallel.
         concurrent = self.backend.capabilities().concurrent
         self._serial: AbstractContextManager[Any] = (
@@ -89,17 +88,15 @@ class Pipeline:
     def _row_bytes(self, dtype: str, inverse: bool = False) -> int:
         """The bytes one row of a task takes at most: its target until its commit (with
         its inverse norm if the sink wants them), and while it runs the float32 rows before
-        storage (a float16 or int8 target) and the rows the steps make (the pooled rows,
-        their copy and the output rows)."""
-        out, pooled = self.output_dim, self.prepared.pooled_dim
+        storage (a float16 or int8 target); normalize runs in place on the float32 rows."""
+        out = self.output_dim
         target = (
             np.dtype(_codes.STORAGE_TYPES[dtype]).itemsize * out
             + (4 if dtype == "int8" else 0)
             + (8 if inverse else 0)
         )  # the vector in the target and the backend's result
         scratch = 0 if dtype == "float32" else 4 * out
-        steps = 8 * pooled + 4 * out if self.prepared.steps else 0
-        return target + scratch + steps
+        return target + scratch
 
     def infer(
         self,

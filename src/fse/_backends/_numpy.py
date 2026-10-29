@@ -18,7 +18,7 @@ from collections.abc import Sequence
 import numpy as np
 from numpy import ndarray
 
-from fse import _gram, _reference
+from fse import _reference
 from fse._contract import Aggregation, Batch, Op, Step
 
 from ._base import (
@@ -54,9 +54,9 @@ class NumpyBackend:
 
     def prepare(self, pool: PoolInput, steps: Sequence[Step]) -> Prepared:
         check_pool_input(pool)
-        checked, pooled, out = dims(pool, steps)  # checks and materializes the steps once
+        checked, out = dims(pool, steps)  # checks and materializes the steps once
         _CAPABILITIES.check(self.name, pool, checked)
-        return Prepared(self.name, pool, checked, pooled, out, None)
+        return Prepared(self.name, pool, checked, out, None)
 
     def rows(self, batch: Batch, prepared: Prepared, out: ndarray) -> None:
         check_prepared(prepared, self.name)
@@ -68,9 +68,6 @@ class NumpyBackend:
         if prepared.steps:
             rows = _reference.postprocess(rows, prepared.steps, batch.first_row)
         out[...] = rows
-
-    def gram_block(self, rows: ndarray) -> ndarray:
-        return _gram.gram_block_product(_float32_rows(rows))
 
     def score(
         self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float
@@ -119,9 +116,3 @@ def _check_storable(rows: ndarray, dtype: np.dtype, first_row: int):
             raise ValueError(
                 f"row {first_row + int(large[0])} has values beyond the float16 range of +-{top:g}"
             )
-
-
-def _float32_rows(rows: object) -> ndarray:
-    if not isinstance(rows, ndarray) or rows.dtype != np.float32 or rows.ndim != 2:
-        raise ValueError("rows must be a float32 matrix")
-    return rows

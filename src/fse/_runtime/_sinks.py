@@ -21,7 +21,7 @@ from typing import Any, NamedTuple, Protocol, cast
 import numpy as np
 from numpy import ndarray
 
-from fse import _codes, _gram
+from fse import _codes
 
 # What a target and a commit hold: float32 rows, float16 codes, or int8 codes and scales;
 # for a sink that wants inverse norms, a float32 vector of one per row follows.
@@ -250,51 +250,3 @@ class MemorySink(GrowingRows):
         if isinstance(dim, bool) or not isinstance(dim, int) or dim < 1:
             raise ValueError(f"dim must be a positive int, not {dim!r}")
         super().__init__(dim, dtype)
-
-
-class GramSink(_Rows):
-    """The Gram matrix of the rows instead of the rows: what fit needs (PR 5).
-
-    Rows are gathered into blocks of REMOVAL_BLOCK_ROWS counted from row 0, each block
-    product comes from the backend, and the float64 sum runs in block order, as
-    fse._gram.gram_matrix does on all rows at once, so the result is the same.
-    """
-
-    def __init__(self, dim: int, backend: Any):
-        super().__init__(dim, 0)
-        self.backend = backend
-        self.gram = np.zeros((dim, dim), dtype=np.float64)
-        self._block = np.empty((_gram.REMOVAL_BLOCK_ROWS, dim), dtype=np.float32)
-        self._filled = 0
-        self._row = 0
-
-    def target(self, first_row: int, n_rows: int) -> ndarray:
-        if first_row < self.next_row:
-            raise ValueError(f"rows from {first_row} were committed already")
-        return np.empty((n_rows, self.dim), dtype=np.float32)
-
-    def commit(self, first_row: int, rows: Stored) -> None:
-        self._check_commit(first_row, rows)
-        assert isinstance(rows, ndarray)
-        self._row = first_row  # the row of the stream that rows[0] is
-        while len(rows):
-            take = min(len(rows), len(self._block) - self._filled)
-            self._block[self._filled : self._filled + take] = rows[:take]
-            self._filled += take
-            self._row += take
-            rows = rows[take:]
-            if self._filled == len(self._block):
-                self._add()
-
-    def result(self) -> ndarray:
-        if self._filled:
-            self._add()
-        return self.gram
-
-    def _add(self):
-        block = self._block[: self._filled]
-        if not np.isfinite(block).all():
-            begin = self._row - self._filled
-            raise ValueError(f"the vectors contain NaN or infinite values in rows from {begin}")
-        _gram.add_gram_block(self.gram, self.backend.gram_block(block))
-        self._filled = 0

@@ -8,7 +8,7 @@
 
 A backend prepares the arrays of an encoder once (``prepare``), then turns one batch
 into finished rows (``rows``: stages 2 to 4, the aggregation and then the postprocessing
-steps on the rows of that batch) and computes Gram blocks and scores. Arguments and
+step on the rows of that batch) and computes scores. Arguments and
 outputs are host numpy arrays; what ``prepare`` returns holds the backend's own state,
 which may live on a device. Every result has the bits of ``fse._reference``. ``store``
 runs on the host in PR 5; a device backend may fuse it with ``rows`` later (PR 9).
@@ -23,7 +23,7 @@ from typing import Protocol
 import numpy as np
 from numpy import ndarray
 
-from fse._contract import Aggregation, Batch, Op, Step, check_steps, output_dim
+from fse._contract import Aggregation, Batch, Op, Step, check_steps
 
 _DTYPES = {
     np.dtype(np.float32): "float32",
@@ -102,7 +102,6 @@ class Prepared:
     backend: str
     pool: PoolInput
     steps: tuple[Step, ...]
-    pooled_dim: int
     output_dim: int
     state: object
 
@@ -116,10 +115,6 @@ class Backend(Protocol):
 
     def rows(self, batch: Batch, prepared: Prepared, out: ndarray) -> None:
         """Stages 2 to 4 of ``batch`` into ``out``, ``(n_sentences, output_dim)`` float32."""
-        ...
-
-    def gram_block(self, rows: ndarray) -> ndarray:
-        """``rows.T @ rows`` of one block of float32 rows, as ``fse._gram`` sums them."""
         ...
 
     def score(
@@ -190,17 +185,17 @@ def _check_ngram_input(pool: PoolInput, vectors: ndarray):
         _float32_vector(pool.ngram_scales, "ngram_scales", len(ngrams))
 
 
-def dims(pool: PoolInput, steps: Sequence[Step]) -> tuple[tuple[Step, ...], int, int]:
-    """The checked steps, the dimension of the aggregated rows and that of the output."""
-    pooled = pool.aggregation.output_dim(pool.dim)
-    checked = check_steps(steps, pooled)
-    return checked, pooled, output_dim(checked, pooled)
+def dims(pool: PoolInput, steps: Sequence[Step]) -> tuple[tuple[Step, ...], int]:
+    """The checked steps and the dimension of the output, that of the aggregated rows (the
+    only step, normalize, keeps it)."""
+    out = pool.aggregation.output_dim(pool.dim)
+    return check_steps(steps, out), out
 
 
 def check_out(out: object, batch: Batch, prepared: Prepared) -> ndarray:
     """``out`` must be a writable C-contiguous float32 array of the rows of ``batch`` that
-    shares no memory with the batch or the prepared arrays, the steps' among them (checked
-    before anything is written: a backend may pool into ``out`` and run the steps there)."""
+    shares no memory with the batch or the prepared arrays (checked before anything is
+    written: a backend may pool into ``out`` and normalize there)."""
     shape = (batch.n_sentences, prepared.output_dim)
     if (
         not isinstance(out, ndarray)
@@ -214,19 +209,10 @@ def check_out(out: object, batch: Batch, prepared: Prepared) -> ndarray:
     for kept in (pool.vectors, pool.weights, pool.scales, pool.ngram_vectors, pool.ngram_scales):
         if kept is not None and np.may_share_memory(out, kept):
             raise ValueError("out must not share memory with the vectors or weights")
-    _check_apart_from_steps(out, prepared.steps)
     for kept in (batch.offsets, batch.tokens, batch.ngram_offsets, batch.ngrams):
         if kept is not None and np.may_share_memory(out, kept):
             raise ValueError("out must not share memory with the batch")
     return out
-
-
-def _check_apart_from_steps(out: ndarray, steps: Sequence[Step]) -> None:
-    for step in steps:
-        for name in ("components", "weights", "basis"):
-            kept = getattr(step, name, None)
-            if kept is not None and np.may_share_memory(out, kept):
-                raise ValueError(f"out must not share memory with the {name} of a step")
 
 
 def check_score_input(stored: object, scales: object, weights: object, bias: object) -> None:
