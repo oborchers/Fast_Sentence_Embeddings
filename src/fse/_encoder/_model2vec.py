@@ -89,7 +89,9 @@ def read_model2vec(
         files.read("tokenizer.json", limit=MAX_TOKENIZER_BYTES), where
     )
     table = _table(files, config, len(tokens))
-    words = WordVectors.from_arrays(table, words=tokens)
+    # The table is a read-only view of the bytes that were read once and checked, which
+    # nothing else holds: handed over without a copy, with every check of from_arrays.
+    words = WordVectors._from_arrays(table, tokens, None, None, None, {}, copy=False)
     length = _length(config, truncate, max_length)
     max_chars = None if length is None else length * median_length(tokens)
     spec = TokenizerSpec("wordpiece@1", parameters, "drop", length, max_chars)

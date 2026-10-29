@@ -227,3 +227,19 @@ def test_a_huge_file_is_refused_by_its_header(tmp_path):
     finally:
         tracemalloc.stop()
     assert peak < 64 * 2**20, peak
+
+
+def test_the_table_is_the_checked_buffer_with_every_check(tmp_path):
+    """The table is handed over without a copy: a read-only view of the bytes that were
+    read and checked, which cannot be made writable; the checks of from_arrays still run."""
+    encoder = Encoder.from_pretrained(mv.save_model(tmp_path / "m"))
+    table = encoder.word_vectors.stored_vectors
+    assert not table.flags.writeable
+    with pytest.raises(ValueError, match="read-only"):
+        table[0, 0] = 1
+    with pytest.raises(ValueError, match="cannot set WRITEABLE"):
+        table.base.setflags(write=True)
+    broken = mv.rows(len(TOKENS))
+    broken[3, 1] = np.nan
+    with pytest.raises(ValueError, match="row 3 of vectors contains NaN"):
+        Encoder.from_pretrained(mv.save_model(tmp_path / "nan", broken))
