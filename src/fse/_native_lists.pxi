@@ -98,7 +98,10 @@ cdef inline PyObject *_item(PyObject *o, Py_ssize_t i) noexcept nogil:
 
 
 cdef int _grow(_Buffer *b, Py_ssize_t extra) noexcept nogil:
-    """_reserve without the GIL: 0, or _NO_MEMORY."""
+    """_reserve without the GIL: 0, or _NO_MEMORY. A new block and a copy, not realloc: on
+    macOS the freed blocks of a chain of large reallocs stayed resident, so the RSS grew by
+    about the joined bytes on every join (to 2.8 GB after 80 joins of 36 MB in one thread).
+    With a copy it stays flat, and that join took 6.6 ms instead of 17 on an M1 Pro."""
     cdef Py_ssize_t capacity
     cdef char *data
     if extra > PY_SSIZE_T_MAX - b.size or _test_failed_growth:
@@ -107,9 +110,12 @@ cdef int _grow(_Buffer *b, Py_ssize_t extra) noexcept nogil:
         return 0
     capacity = b.capacity * 2 if b.capacity <= PY_SSIZE_T_MAX // 2 else PY_SSIZE_T_MAX
     capacity = max(b.size + extra, capacity, 4096)
-    data = <char *>realloc(b.data, capacity)
+    data = <char *>malloc(capacity)
     if data == NULL:
         return _NO_MEMORY
+    if b.size:
+        memcpy(data, b.data, b.size)
+    free(b.data)
     b.data = data
     b.capacity = capacity
     return 0
