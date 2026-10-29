@@ -94,7 +94,8 @@ class ShardSink:
         self._closed = False
         self._created_by = _created_by()
         # Hashing (in order), writing and publishing (syncs, a rename) in three threads, so
-        # the flush of one shard does not stop the hashing and writing of the next.
+        # the flush of one shard does not stop the hashing and writing of the next. One
+        # thread writes: more gained nothing measurable (ARCHITECTURE.md, "Writing").
         self._hash = WriterThread("fse-shard-hash")
         self._io = WriterThread("fse-shard-write")
         self._publisher = WriterThread("fse-shard-publish")
@@ -199,14 +200,14 @@ class ShardSink:
                 self._abort_uncommitted()
                 self._drain()
         finally:
-            self._hash.stop()  # first: it hands finished shards to the publisher
-            self._io.stop()
-            self._publisher.stop()
+            interrupt = self._stop_threads()
             for writer in list(self._made):  # what was not published
                 writer.abort()
             self._writers.clear()
             self._made.clear()
             self._closed = True
+            if interrupt is not None:
+                raise interrupt
 
     def __enter__(self) -> ShardSink:
         return self
@@ -215,6 +216,24 @@ class ShardSink:
         self.close()
 
     # --- internals ---------------------------------------------------------------------
+
+    def _stop_threads(self) -> BaseException | None:
+        """End every thread, the hash thread first (it hands finished shards to the
+        publisher). An interrupt (Ctrl+C) while one is stopped abandons the work of all of
+        them; every thread still ends, and the interrupt is returned to be raised after
+        the clean-up."""
+        threads = (self._hash, self._io, self._publisher)
+        interrupt: BaseException | None = None
+        for thread in threads:
+            while True:
+                try:
+                    thread.stop()
+                    break
+                except BaseException as error:  # stopping again is quick: nothing waits
+                    interrupt = interrupt or error
+                    for each in threads:
+                        each.abandon(error)
+        return interrupt
 
     def _check_threads(self) -> None:
         for thread in (self._hash, self._io, self._publisher):

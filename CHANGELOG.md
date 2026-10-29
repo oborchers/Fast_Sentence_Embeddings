@@ -32,6 +32,10 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 - The 1.x API: the 1.x models `Average`, `SIF` and `uSIF` (2.0 has recipes of the first two names and `USIF`), `SentenceVectors`, the input classes, `Vectors` and `FTVectors`, and the modules `fse.models`, `fse.inputs` and `fse.vectors`. Accessing one of the removed names on `fse` raises an `AttributeError` that points to fse 1.1.0 on PyPI and the branch `1.x`. Models saved with 1.x are converted with `export_v2` of a later 1.x release.
 
+### Fixed
+
+- An interrupt (Ctrl+C) while a closing `ShardSink` stops its threads no longer leaves its threads running and its temporary shard directories behind: the work still waiting is dropped, every thread ends and the temporary directories are removed, then the interrupt is raised.
+
 ## [1.1.0] - 2026-10-27
 
 1.1.0 is the last feature release of the 1.x line; 1.x receives bug and compatibility fixes from here on, while fse 2.0 is developed as a rewrite.

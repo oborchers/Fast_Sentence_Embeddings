@@ -47,6 +47,7 @@ class WriterThread:
         self._reported = False
         self._budget = threading.Condition()
         self._pending_bytes = 0
+        self._stopping = False
         self._thread = threading.Thread(target=self._run, name=name, daemon=True)
         self._thread.start()
 
@@ -103,11 +104,27 @@ class WriterThread:
     def failed(self) -> bool:
         return self._error is not None
 
+    def abandon(self, error: BaseException) -> None:
+        """Drop the work still waiting, as after an error of the thread (``error``, kept
+        unless the thread failed first): the piece running finishes, nothing after it."""
+        self._error = self._error or error
+
     def stop(self) -> None:
-        """Finish the work handed over (unless an error stopped it) and end the thread."""
-        if self._thread.is_alive():
-            self._queue.put(None)
-            self._thread.join()
+        """Finish the work handed over (unless an error stopped it) and end the thread.
+        An interrupt (Ctrl+C) while it waits abandons the work still waiting, still waits
+        for the thread to end, and is raised then."""
+        interrupt: BaseException | None = None
+        while self._thread.is_alive():
+            try:
+                if not self._stopping:
+                    self._queue.put(None)
+                    self._stopping = True
+                self._thread.join()
+            except BaseException as error:  # the thread ends after its piece running
+                interrupt = interrupt or error
+                self.abandon(error)
+        if interrupt is not None:
+            raise interrupt
 
     def _run(self) -> None:
         while True:
