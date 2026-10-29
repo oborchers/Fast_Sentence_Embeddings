@@ -8,6 +8,11 @@ to BACKENDS.
 
 from __future__ import annotations
 
+import importlib
+import importlib.util
+import os
+import platform
+import sys
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -191,6 +196,27 @@ BACKENDS = [
     *(Contract("cpu", isa=isa) for isa in _native.available_isas()),
     Contract("numpy"),
 ]
+
+
+def mlx_skip_reason() -> str | None:
+    """Why the mlx backend cannot run on this machine, or None; always None with
+    FSE_REQUIRE_MLX set (CI on Apple silicon), so its tests fail instead of skipping."""
+    if os.environ.get("FSE_REQUIRE_MLX"):
+        return None
+    if sys.platform != "darwin" or platform.machine() != "arm64":
+        return f"the mlx backend needs Apple silicon, not {sys.platform} on {platform.machine()}"
+    if importlib.util.find_spec("mlx") is None:
+        return "mlx is not installed (uv sync --group mlx)"
+    if not importlib.import_module("mlx.core").metal.is_available():
+        return "Metal is not available"
+    return None
+
+
+def require_mlx() -> None:
+    """Skip the test unless the mlx backend can run here (``mlx_skip_reason``)."""
+    reason = mlx_skip_reason()
+    if reason is not None:
+        pytest.skip(reason)
 
 
 _UINT = {1: np.uint8, 2: np.uint16, 4: np.uint32, 8: np.uint64}

@@ -325,11 +325,11 @@ exhaustive = true
 layers = ["_cpu | _numpy | _mlx", "_base"]
 
 [[tool.importlinter.contracts]]
-name = "MLX: the loader"
+name = "MLX: the device thread on the kernels, those on the sources"
 type = "layers"
 containers = ["fse._backends._mlx"]
 exhaustive = true
-layers = ["_load"]
+layers = ["_device", "_kernels", "_sources | _load"]
 
 [[tool.importlinter.contracts]]
 name = "Encoder: recipes on fit, fit on the encoder, the encoder on its parts"
