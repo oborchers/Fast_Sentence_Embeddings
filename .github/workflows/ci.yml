@@ -190,7 +190,7 @@ jobs:
           for mmap in (False, True):
               assert fse.WordVectors.load(path, mmap=mmap).fingerprint == wv.fingerprint
           batch = Batch(0, np.array([0, 2], np.int64), np.array([0, 1], np.uint32))
-          args = (wv.vectors, np.ones(2, np.float32), wv.scales)
+          args = (wv.stored_vectors, np.ones(2, np.float32), wv.scales)
           got, want = _native.pool_weighted_mean(batch, *args), _reference.pool_weighted_mean(batch, *args)
           assert got.view(np.uint32).tolist() == want.view(np.uint32).tolist()
           rows = fse.Average().fit(wv).encode(['a b', 'b'])
