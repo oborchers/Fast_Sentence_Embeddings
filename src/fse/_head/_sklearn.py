@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from importlib.metadata import version
 from typing import Any
 
 import numpy as np
@@ -101,8 +102,6 @@ def _classes(model: Any, k: int) -> list:
 def installed_version() -> tuple[int, int]:
     """(major, minor) of the installed scikit-learn, from its distribution's metadata
     (nothing of scikit-learn is imported)."""
-    from importlib.metadata import version
-
     major, minor = version("scikit-learn").split(".")[:2]
     return int(major), int("".join(ch for ch in minor if ch.isdigit()) or 0)
 
