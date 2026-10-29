@@ -211,3 +211,18 @@ def test_score_blocks_name_the_rows_of_an_overflow():
     shards = [(Shard("a", 0, 6), {"vectors": vectors})]
     with pytest.raises(ValueError, match="rows 0 to 5: weights 0: the score of row 0 overflows"):
         list(_search.score_blocks(get_backend("cpu"), shards, np.ones((1, 2), F32), 0.0, workers=1))
+
+
+@pytest.mark.parametrize("k", [1, 8, 300, 5000])
+def test_score_blocks_of_wide_heads_hold_at_most_the_task_budget(k):
+    from fse._backends import get_backend
+
+    rows = np.zeros((70_000, 2), F32)
+    shards = [(Shard("a", 0, len(rows)), {"vectors": rows})]
+    weights = np.ones((k, 2), F32)
+    sizes = [
+        len(b) for _, b in _search.score_blocks(get_backend("cpu"), shards, weights, 0.0, workers=1)
+    ]
+    assert sum(sizes) == len(rows)
+    assert max(sizes) * k <= _search._TASK_SCORES
+    assert max(sizes) == min(_search._MAX_ROWS, _search._TASK_SCORES // k, len(rows))
