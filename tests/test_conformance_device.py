@@ -54,7 +54,11 @@ SUBNORMAL_INPUT = {
 }
 # The cases whose products or partial sums the GPU flushes: within the absolute term of
 # the bound, not the cpu's bits.
-FLUSHED = {("float32", "subnormal products"), ("float32", "cancels to subnormal")}
+FLUSHED = {
+    ("float32", "subnormal products"),
+    ("float32", "cancels to subnormal"),
+    ("float32", "a flush turns a rounding"),
+}
 
 
 @pytest.fixture

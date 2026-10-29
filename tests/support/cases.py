@@ -202,6 +202,18 @@ def _cases():
             2.0**-126,
         )
     )
+    # A flush that turns a later rounding (review of PR #121): 2**-63 * 2**-64 flushed,
+    # then f * f with f = 1 + 2**-12, -2**-11 and 1,021 times -3 * 2**-26.
+    turn = np.array([[2.0**-64], [1 + 2.0**-12], [-(2.0**-11)], [-3 * 2.0**-26]], F32)
+    out.append(
+        Case(
+            "a flush turns a rounding",
+            "float32",
+            turn,
+            np.array([2.0**-63, 1 + 2.0**-12, 1, 1], F32),
+            ((0, 1, 2, *(3,) * 1021),),
+        )
+    )
     cancel = np.array([[1.25 * 2.0**-126], [-(2.0**-126)]], F32)
     out.append(Case("cancels to subnormal", "float32", cancel, np.ones(2, F32), ((0, 1),)))
     return out

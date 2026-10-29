@@ -1,7 +1,9 @@
 """The bound of the tolerance contract of device backends (ARCHITECTURE.md, "Tolerance
 contract of device backends"), computed from a conformance case.
 
-Per row ``||g - c|| <= TAU m + DELTA K sqrt(d)``: g the device's row, c the cpu row (the
+Per row ``||g - c|| <= (TAU + 2 gamma_K) m + DELTA K sqrt(d)`` with
+``gamma_K = K u / (1 - K u)``, ``u = 2**-24`` (the classical bound of a float32 sum in any
+order, so it also covers a flush that turns a later rounding): g the device's row, c the cpu row (the
 reference's bits), m the norm of ``(1/n) sum |f| |x|`` over the stored inputs in float64
 (the int8 scale in the factor, every ngram bucket a contribution with its factor
 ``(1/m) oov_weight`` times its scale, n the tokens, an unknown word without buckets
@@ -22,6 +24,7 @@ from fse._contract import OOV_TOKEN, Normalize, Project, RemoveComponents
 
 TAU = 1e-5
 DELTA = 2.0**-125
+U = 2.0**-24
 F64 = np.float64
 
 
@@ -75,10 +78,14 @@ def _ulps(rows: np.ndarray) -> np.ndarray:
     return 4 * np.spacing(np.abs(rows).max(axis=1, initial=0)).astype(F64)
 
 
-def bounds(case, steps=()) -> tuple[np.ndarray, np.ndarray]:
-    """The cpu rows of ``case`` after ``steps`` and the bound of every row."""
+def bounds(case, steps=(), rounding=True) -> tuple[np.ndarray, np.ndarray]:
+    """The cpu rows of ``case`` after ``steps`` and the bound of every row; without
+    ``rounding``, that of the first contract, without the term ``2 gamma_K`` (for the
+    witness that needs it)."""
     rows = _reference.pool_weighted_mean(case.batch, *case.args())
-    error = TAU * magnitudes(case) + DELTA * contributions(case) * np.sqrt(rows.shape[1])
+    k = contributions(case)
+    gamma = k * U / (1 - k * U) if rounding else 0
+    error = (TAU + 2 * gamma) * magnitudes(case) + DELTA * k * np.sqrt(rows.shape[1])
     for step in steps:
         after = _reference.postprocess(rows, (step,), case.first_row)
         if isinstance(step, Normalize):
@@ -91,11 +98,11 @@ def bounds(case, steps=()) -> tuple[np.ndarray, np.ndarray]:
     return rows, error
 
 
-def assert_within_bound(got: np.ndarray, case, steps=(), name: str = "") -> float:
+def assert_within_bound(got: np.ndarray, case, steps=(), name: str = "", rounding=True) -> float:
     """``got`` (a device's rows of ``case`` after ``steps``) keeps the contract: the shape
     and dtype of the cpu rows, their bits for empty sentences and every row within its
     bound. Gives the largest ratio of error to bound (0 where both are zero)."""
-    want, bound = bounds(case, steps)
+    want, bound = bounds(case, steps, rounding)
     assert got.shape == want.shape, (name, got.shape)
     assert got.dtype == want.dtype, (name, got.dtype)
     assert np.isfinite(got).all(), f"{name}: nonfinite rows"

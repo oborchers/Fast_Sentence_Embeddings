@@ -72,10 +72,13 @@ def bound_ratio(got: np.ndarray, cpu: np.ndarray, bound: np.ndarray) -> float:
 
 
 def bounds(ids: np.ndarray, wv: fse.WordVectors, raw: np.ndarray, normalize: bool) -> np.ndarray:
-    """The bound of every row: ``TAU m + DELTA K sqrt(d)`` (K its tokens), after normalize
+    """The bound of every row: ``(TAU + 2 gamma_K) m + DELTA K sqrt(d)`` (K its tokens,
+    ``gamma_K = K u / (1 - K u)``, u = 2**-24), after normalize
     ``2 E / r`` (r the norm of the cpu row before it) plus 4 ulp of the row's largest
     value."""
-    error = TAU * magnitudes(ids, wv.stored_vectors) + DELTA * ids.shape[1] * np.sqrt(DIM)
+    k = ids.shape[1]
+    gamma = k * 2.0**-24 / (1 - k * 2.0**-24)
+    error = (TAU + 2 * gamma) * magnitudes(ids, wv.stored_vectors) + DELTA * k * np.sqrt(DIM)
     if not normalize:
         return error
     r = np.linalg.norm(raw.astype(np.float64), axis=1)

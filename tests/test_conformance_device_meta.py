@@ -105,6 +105,16 @@ def test_the_flushed_cases_need_the_absolute_term(mlx, monkeypatch):
         assert_within_bound(out, case, name=case.name)
 
 
+def test_a_flush_that_turns_a_rounding_needs_the_rounding_term(mlx):
+    """The witness of the review of PR #121: on the GPU within the bound, beyond the
+    bound without ``2 gamma_K``."""
+    (case,) = [c for c in CASES if c.name == "a flush turns a rounding"]
+    out = _pool(mlx, case)
+    assert_within_bound(out, case, name=case.name)
+    with pytest.raises(AssertionError, match="misses the bound"):
+        assert_within_bound(out, case, name=case.name, rounding=False)
+
+
 def test_the_bound_catches_a_device_that_swaps_rows(mlx, monkeypatch):
     def swapped(launched):
         rows, flags = real(launched)
