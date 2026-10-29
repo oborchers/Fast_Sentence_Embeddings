@@ -1,4 +1,4 @@
-"""Token lists joined natively (_native_lists.pxi) against the Python path of fse._text."""
+"""Strings and token lists joined natively (_native_lists.pxi) against the Python path."""
 
 import sys
 
@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from fse import _native, _text
-from fse._text import TokenListSource
+from fse._text import StringSource, TokenListSource
 
 # Code points of every UTF-8 length and string kind: ASCII, Latin-1, BMP, astral.
 ALPHABET = ["a", "Z", "0", "_", "\x00", "\xe9", "\xff", "Ā", "日", "￿", "\U0001d11e"]
@@ -170,3 +170,144 @@ def test_a_failed_growth_raises_and_frees(faults, threads):
         _native.join_token_lists(sentences, threads)
     faults()
     _same(sentences)  # the next call works
+
+
+# Strings, one sentence each (join_strings), against encode_string of the Python path.
+
+TEXT_ALPHABET = [*ALPHABET, " ", "\t", "\n", "\x85", "\xa0", "　", " "]
+
+
+def _same_strings(texts, threads=1):
+    data, offsets = _native.join_strings(texts, threads)
+    want_data, want_offsets = _text._encode_strings(texts, "string")
+    assert data == want_data
+    np.testing.assert_array_equal(offsets, want_offsets)
+    assert offsets.dtype == np.int64
+
+
+def _random_texts(rng, n):
+    # By index: numpy strings would drop a trailing NUL. A fifth of them are empty.
+    return [
+        "".join(TEXT_ALPHABET[i] for i in rng.integers(0, len(TEXT_ALPHABET), rng.integers(0, 12)))
+        for _ in range(n)
+    ]
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_random_strings_equal_the_python_path(seed):
+    texts = _random_texts(np.random.default_rng(seed), 300)
+    _same_strings(texts)
+    _same_strings(tuple(texts))
+
+
+def test_every_code_point_is_written_as_its_utf8():
+    texts = [chr(c) for c in range(sys.maxunicode + 1) if not 0xD800 <= c <= 0xDFFF]
+    _same_strings(texts, 8)
+    _same_strings(["".join(texts)])
+
+
+def test_empty_strings():
+    _same_strings([])
+    _same_strings([""])
+    _same_strings(["", "a", "", " ", ""])
+
+
+@pytest.mark.parametrize("n", [4095, 4096, 4097, 2 * 4096 - 1, 2 * 4096, 3 * 4096 + 5])
+@pytest.mark.parametrize("threads", [1, 2, 3, 8])
+def test_threads_join_the_same_strings(n, threads):
+    _same_strings(_random_texts(np.random.default_rng(n), n), threads)
+
+
+@pytest.mark.parametrize("at", [0, 1, 4095, 4096, 3 * 4096 - 1, 4 * 4096 - 1])
+@pytest.mark.parametrize("surrogate", ["\ud800", "a\udfffb", "\U0001d11e\udbff"])
+def test_a_lone_surrogate_in_any_part_leaves_the_strings_to_python(at, surrogate):
+    texts = [f"t{i} 日" for i in range(4 * 4096)]
+    texts[at] = surrogate
+    for threads in (1, 4):
+        assert _native.join_strings(texts, threads) is None
+
+
+class Text(str):
+    pass
+
+
+@pytest.mark.parametrize(
+    "texts",
+    [
+        ["a", Text("b")],  # a subclass, which may override encode
+        ["a", 1],
+        ["a", b"b"],
+        ["a", None],
+        np.array(["a", "b"]),
+        np.array(["a", "b"], dtype=object),
+        iter(["a"]),
+        {"a": 1},
+        "ab",
+    ],
+)
+def test_other_types_leave_the_strings_to_python(texts):
+    assert _native.join_strings(texts) is None
+
+
+@pytest.mark.parametrize("threads", [1, 4])
+def test_a_wrong_type_in_any_part_leaves_the_strings_to_python(threads):
+    texts = [f"t{i}" for i in range(4 * 4096)]
+    texts[-1] = Text("x")
+    assert _native.join_strings(texts, threads) is None
+
+
+def test_a_str_subclass_is_encoded_by_its_own_encode():
+    class Upper(str):
+        def encode(self, *args):  # what the Python path calls
+            return str.encode(self.upper(), *args)
+
+    assert StringSource(["a", Upper("b")])._data == b"aB"
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        ["a", "b\ud800"],
+        ["\udfff", 1],  # the surrogate of row 0 wins over the type of row 1
+        ["a", 1, "\ud800"],
+        ["a", b"b"],
+        ["a", Text("\ud800")],
+        np.array(["a", 1], dtype=object),
+    ],
+)
+def test_string_errors_are_those_of_the_python_path(bad):
+    with pytest.raises((TypeError, ValueError)) as want:  # UnicodeEncodeError is a ValueError
+        _text._encode_strings(bad, "string")
+    with pytest.raises(want.type) as got:
+        StringSource(bad)
+    assert str(got.value) == str(want.value)
+    assert got.value.args == want.value.args
+
+
+def test_threads_must_be_positive_for_strings():
+    with pytest.raises(ValueError, match="at least 1"):
+        _native.join_strings(["a"], 0)
+
+
+def _many_texts(n):
+    return [f"w{i} " + "日" * (i % 3) if i % 7 else "" for i in range(n)]
+
+
+def test_string_parts_whose_threads_do_not_start_run_in_the_caller(faults):
+    texts = _many_texts(8 * 4096)
+    want = _native.join_strings(texts, 8)
+    for mask in (0b10, 0b11111110, 0b1010_1010):
+        faults(failed_starts=mask)
+        data, offsets = _native.join_strings(texts, 8)
+        assert data == want[0]
+        np.testing.assert_array_equal(offsets, want[1])
+
+
+@pytest.mark.parametrize("threads", [1, 4])
+def test_a_failed_growth_of_strings_raises_and_frees(faults, threads):
+    texts = _many_texts(4 * 4096)
+    faults(failed_growth=True)
+    with pytest.raises(MemoryError, match="could not grow"):
+        _native.join_strings(texts, threads)
+    faults()
+    _same_strings(texts, threads)  # the next call works

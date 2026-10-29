@@ -105,6 +105,25 @@ def test_token_lists_are_joined_natively(monkeypatch):
     np.testing.assert_array_equal(source._offsets, [0, 5, 6])
 
 
+def test_strings_are_joined_natively(monkeypatch):
+    def python_path(_texts, _what):
+        raise AssertionError("valid lists of str took the Python path")
+
+    monkeypatch.setattr(_text, "_encode_strings", python_path)
+    for texts in (["a b", "", "caf\u00e9"], ("a b", "", "caf\u00e9")):
+        source = StringSource(texts)
+        assert source._data == "a bcaf\u00e9".encode()
+        np.testing.assert_array_equal(source._offsets, [0, 3, 3, 8])
+
+
+def test_strings_the_native_pass_leaves_take_the_python_path():
+    for texts in (np.array(["a b", "c"]), ["a b", type("Text", (str,), {})("c")]):
+        assert _native.join_strings(texts) is None
+        source = StringSource(texts)
+        assert source._data == b"a bc"
+        np.testing.assert_array_equal(source._offsets, [0, 3, 4])
+
+
 def test_the_python_path_decides_an_invalid_verdict():
     sentence = []
 
