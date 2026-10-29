@@ -16,12 +16,18 @@ cdef extern from "_native_text.h":
                          fse_tokens *out) nogil
     int FSE_TOKENIZER_EXTERNAL
     int FSE_TOKENIZER_FSE_WORDS
+    int FSE_TOKENIZER_WORDPIECE
 
 fse_text_init()
 
 TOKENIZER_EXTERNAL = FSE_TOKENIZER_EXTERNAL
 TOKENIZER_FSE_WORDS = FSE_TOKENIZER_FSE_WORDS
-_TOKENIZERS = {"external": FSE_TOKENIZER_EXTERNAL, "fse_words@1": FSE_TOKENIZER_FSE_WORDS}
+TOKENIZER_WORDPIECE = FSE_TOKENIZER_WORDPIECE
+_TOKENIZERS = {
+    "external": FSE_TOKENIZER_EXTERNAL,
+    "fse_words@1": FSE_TOKENIZER_FSE_WORDS,
+    "wordpiece@1": FSE_TOKENIZER_WORDPIECE,
+}
 
 
 def _tokenizer_code(tokenizer):
@@ -59,6 +65,8 @@ def _raise_decode_error(data, position, where):
 def tokenize(text, tokenizer="fse_words@1"):
     """The tokens of one sentence (str, or UTF-8 bytes) by the native tokenizer."""
     cdef int code = _tokenizer_code(tokenizer)
+    if code == FSE_TOKENIZER_WORDPIECE:
+        raise ValueError("wordpiece@1 gives ids of its vocabulary: encode with a TextLookup")
     if isinstance(text, str):
         data = (<str>text).encode("utf-8")
     elif isinstance(text, bytes):
@@ -116,7 +124,7 @@ cdef class Workspace:
     A Workspace is used by one thread at a time; give every worker its own.
     """
 
-    cdef _Buffer cand, starts, ends, word, tokens, offsets, ngram_offsets, ngrams
+    cdef _Buffer cand, starts, ends, word, tokens, offsets, ngram_offsets, ngrams, norm, run
     cdef bint busy
     # The tokens the tokenizer gave in the last encode, unknown words included
     # (benchmarks/bench_vocab.py measures per token with it).
@@ -131,6 +139,8 @@ cdef class Workspace:
         free(self.offsets.data)
         free(self.ngram_offsets.data)
         free(self.ngrams.data)
+        free(self.norm.data)
+        free(self.run.data)
 
     def __reduce__(self):
         raise TypeError("a Workspace belongs to one worker and cannot be pickled")
@@ -141,10 +151,12 @@ cdef class TextLookup:
 
     Immutable and shared by all workers; ``encode`` turns a range of sentences into a
     Batch. Without ``fasttext`` (min_n, max_n, bucket), a token that is no word is dropped;
-    with it, it becomes OOV_TOKEN with its first ``max_ngrams`` ngram buckets.
+    with it, it becomes OOV_TOKEN with its first ``max_ngrams`` ngram buckets. wordpiece@1
+    takes its ``wordpiece`` state (built on the same table) and no FastText.
     """
 
     cdef VocabTable table
+    cdef WordPieceState wordpiece
     cdef readonly int tokenizer
     cdef bint fasttext
     cdef unsigned int min_n, max_n
@@ -152,7 +164,8 @@ cdef class TextLookup:
     cdef size_t max_ngrams
     cdef int _state
 
-    def __init__(self, VocabTable table not None, tokenizer, fasttext=None, max_ngrams=0):
+    def __init__(self, VocabTable table not None, tokenizer, fasttext=None, max_ngrams=0,
+                 wordpiece=None):
         # Built once, as a VocabTable: the state is set before any Python code runs, so a
         # second __init__ (from another thread or from within this one) raises.
         if self._state != TABLE_NEW:
@@ -160,6 +173,7 @@ cdef class TextLookup:
         self._state = TABLE_BUILDING
         try:
             self._build(table, tokenizer, fasttext, max_ngrams)
+            self._build_wordpiece(table, wordpiece, fasttext)
         except BaseException:
             self._state = TABLE_FAILED
             raise
@@ -187,6 +201,20 @@ cdef class TextLookup:
             raise ValueError("max_ngrams needs fasttext")
         self.table = table
 
+    cdef _build_wordpiece(self, VocabTable table, wordpiece, fasttext):
+        if self.tokenizer != FSE_TOKENIZER_WORDPIECE:
+            if wordpiece is not None:
+                raise ValueError("a WordPieceState is for the tokenizer wordpiece@1")
+            return
+        if not isinstance(wordpiece, WordPieceState):
+            raise TypeError(f"wordpiece@1 needs a WordPieceState, not {type(wordpiece).__name__}")
+        (<WordPieceState>wordpiece)._check_ready()
+        if (<WordPieceState>wordpiece).table is not table:
+            raise ValueError("the WordPieceState is built on another VocabTable")
+        if fasttext is not None:
+            raise ValueError("wordpiece@1 takes no FastText")
+        self.wordpiece = wordpiece
+
     def __reduce__(self):
         raise TypeError("a TextLookup cannot be pickled; build it from the word vectors")
 
@@ -202,6 +230,8 @@ cdef class TextLookup:
         cdef size_t written
         if n > _MAX_SENTENCE_BYTES:
             return ENCODE_TOO_LONG
+        if self.tokenizer == FSE_TOKENIZER_WORDPIECE:
+            return _wordpiece_sentence(self.wordpiece, p, n, ws, bad)
         ws.cand.size = 0
         ws.starts.size = 0
         ws.ends.size = 0

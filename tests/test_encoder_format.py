@@ -53,7 +53,7 @@ def test_an_encoder_round_trips_with_its_table():
     }
     content, table, keys = from_artifact(tensors, metadata)
     assert content.steps == (Normalize(),)
-    assert (content.tokenizer, content.oov_weight, content.max_ngrams) == (
+    assert (content.tokenizer.name, content.oov_weight, content.max_ngrams) == (
         "fse_words@1",
         None,
         None,

@@ -20,9 +20,12 @@ import numpy as np
 from numpy import ndarray
 
 from fse._backends import PoolInput
-from fse._contract import Aggregation, Step, check_steps, check_tokenizer
+from fse._contract import Aggregation, Step, check_steps
 from fse._text import MAX_NGRAMS_LIMIT
+from fse._tokenizer_spec import TokenizerSpec
 from fse._wordvectors import WordVectors
+
+_FSE_WORDS = TokenizerSpec("fse_words@1")
 
 
 @dataclass(frozen=True, eq=False)
@@ -31,13 +34,14 @@ class EncodeSpec:
 
     ``weights`` holds one finite float32 weight per word; FastText vectors also need
     ``oov_weight``, the weight of an unknown word, and ``max_ngrams``, the ngrams it uses
-    at most. ``steps`` apply to the aggregated rows.
+    at most. ``steps`` apply to the aggregated rows. ``tokenizer`` is a TokenizerSpec (a
+    name stands for one without parameters); its ids must be tokens of the vocabulary.
     """
 
     word_vectors: WordVectors
     weights: ndarray
     steps: Sequence[Step] = ()
-    tokenizer: str = "fse_words@1"
+    tokenizer: TokenizerSpec = _FSE_WORDS
     oov_weight: Any = None  # a finite number, kept as given
     max_ngrams: int | None = None
     aggregation: Aggregation = Aggregation.WEIGHTED_MEAN
@@ -47,7 +51,12 @@ class EncodeSpec:
         if not isinstance(wv, WordVectors):
             raise TypeError(f"word_vectors must be WordVectors, not {type(wv).__name__}")
         object.__setattr__(self, "weights", _weights(self.weights, len(wv)))
-        object.__setattr__(self, "tokenizer", check_tokenizer(self.tokenizer))
+        tokenizer = TokenizerSpec.of(self.tokenizer)
+        object.__setattr__(self, "tokenizer", tokenizer)
+        if tokenizer.config is not None:
+            if wv.fasttext is not None:
+                raise ValueError(f"{tokenizer.name} takes no FastText vectors")
+            tokenizer.check_vocabulary(wv.vocab_bytes, wv.vocab_offsets)
         if not isinstance(self.aggregation, Aggregation):
             raise TypeError("aggregation must be an Aggregation")
         dim = self.aggregation.output_dim(wv.dim)

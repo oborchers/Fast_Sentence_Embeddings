@@ -152,12 +152,25 @@ def test_tokenizer_identifiers():
     assert Tokenizer.FSE_WORDS.id == "fse_words@1"
     assert check_tokenizer("fse_words@1") == "fse_words@1"
     assert check_tokenizer("external") == EXTERNAL_TOKENIZER == "external"
+    assert Tokenizer.WORDPIECE.id == check_tokenizer("wordpiece@1") == "wordpiece@1"
 
 
 @pytest.mark.parametrize(
     "text",
-    ["fse_words@2", "nltk@1", "External", "external@1", "", 1, None, np.array(["external", "x"])],
+    [
+        "fse_words@2",
+        "wordpiece@2",
+        "nltk@1",
+        "External",
+        "external@1",
+        "",
+        1,
+        None,
+        np.array(["external", "x"]),
+    ],
 )
 def test_unknown_tokenizer_is_rejected(text):
-    with pytest.raises(UnsupportedArtifactError, match="supported: external, fse_words@1"):
+    with pytest.raises(
+        UnsupportedArtifactError, match="supported: external, fse_words@1, wordpiece@1"
+    ):
         check_tokenizer(text)

@@ -146,7 +146,7 @@ class Pipeline:
             workers=workers,
             chunk_bytes=check_chunk_bytes(chunk_bytes),
             chunk_rows=task_rows,
-            tokenizer=self.spec.tokenizer,
+            tokenizer=self.spec.tokenizer.name,
             stop=stop,
         )
         own: ArrayRows | GrowingRows | None = None

@@ -157,7 +157,7 @@ def tokenize(text: str, tokenizer: str) -> list[str]:
         return tokenize_external(text)
     if tokenizer == Tokenizer.FSE_WORDS.id:
         return tokenize_fse_words(text)
-    raise AssertionError(tokenizer)  # pragma: no cover
+    raise ValueError(f"{tokenizer} gives ids of its vocabulary; see fse._reference_wordpiece")
 
 
 def split_lines(data: bytes) -> list[str]:

@@ -36,16 +36,25 @@ from fse._container import (
     fingerprint,
     tensor_code,
 )
-from fse._contract import Normalize, check_tokenizer
+from fse._contract import Normalize
 from fse._runtime import EncodeSpec, Pipeline, QuantizedRows, check_workers
 from fse._text import MAX_NGRAMS_LIMIT, Vocabulary, make_vocabulary
+from fse._tokenizer_spec import TokenizerSpec
 from fse._validation import PathLike, PositiveInt, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
 from fse._wordvectors_format import FORMAT_VERSION as WORD_VECTORS_VERSION
 
 from . import _batches
 from ._batches import EncodedBatch, check_sink, flush, run_into
-from ._format import TABLE_KEYS, TABLE_TENSORS, EncoderContent, from_artifact, to_artifact
+from ._format import (
+    TABLE_KEYS,
+    TABLE_TENSORS,
+    EncoderContent,
+    Source,
+    check_tokenizer_table,
+    from_artifact,
+    to_artifact,
+)
 from ._sources import opened
 
 # The ngrams an unknown FastText word uses at most, unless an encoder is given another.
@@ -139,7 +148,7 @@ class Encoder:
         if not isinstance(word_vectors, WordVectors):
             raise TypeError(f"word_vectors must be WordVectors, not {type(word_vectors).__name__}")
         content = EncoderContent(
-            tokenizer=check_tokenizer(tokenizer),
+            tokenizer=TokenizerSpec.of(tokenizer),
             steps=(Normalize(),) if normalize else (),
             **_fasttext(word_vectors, max_ngrams, oov_weight),
         )
@@ -185,6 +194,41 @@ class Encoder:
             oov_weight=oov_weight,
         )
 
+    @classmethod
+    def _converted(
+        cls,
+        word_vectors: WordVectors,
+        tokenizer: TokenizerSpec,
+        *,
+        normalize: bool,
+        source: Source | None = None,
+        license: str | None = None,
+    ) -> Encoder:
+        """The encoder of a model converted from another library (the readers of PR 12a2):
+        its table, its tokenizer with parameters, whether it normalizes, its provenance."""
+        if not isinstance(word_vectors, WordVectors):
+            raise TypeError(f"word_vectors must be WordVectors, not {type(word_vectors).__name__}")
+        if not isinstance(tokenizer, TokenizerSpec):
+            raise TypeError(f"tokenizer must be a TokenizerSpec, not {type(tokenizer).__name__}")
+        if not isinstance(normalize, bool):
+            raise TypeError(f"normalize must be a bool, not {type(normalize).__name__}")
+        check_tokenizer_table(
+            tokenizer,
+            word_vectors.dtype,
+            word_vectors.fasttext is not None,
+            word_vectors.vocab_bytes,
+            word_vectors.vocab_offsets,
+        )
+        content = EncoderContent(
+            tokenizer=tokenizer,
+            steps=(Normalize(),) if normalize else (),
+            oov_weight=None,
+            max_ngrams=None,
+            source=source,
+            license=license,
+        )
+        return cls._new(content, word_vectors)
+
     # --- encoding ---------------------------------------------------------------------
 
     def encode(
@@ -211,13 +255,13 @@ class Encoder:
         if sink is not None:
             check_sink(sink, dtype, self.fingerprint, self.output_dim)
             pipeline = self._pipeline(backend)
-            with opened(texts, self._content.tokenizer) as source:
+            with opened(texts, self.tokenizer) as source:
                 run_into(pipeline, source, sink, workers, 0)
             flush(sink)
             return None
         dtype = _codes.check_dtype("float32" if dtype is None else dtype)
         pipeline = self._pipeline(backend)
-        with opened(texts, self._content.tokenizer) as source:
+        with opened(texts, self.tokenizer) as source:
             return pipeline.infer(source, workers=workers, dtype=dtype)
 
     def encode_batches(
@@ -253,7 +297,7 @@ class Encoder:
         return _batches.batches(
             pipeline,
             iter(batches),
-            self._content.tokenizer,
+            self.tokenizer,
             dtype=dtype,
             workers=workers,
             sink=sink,
@@ -356,7 +400,8 @@ class Encoder:
 
     @property
     def tokenizer(self) -> str:
-        return self._content.tokenizer
+        """The identifier of the tokenizer (or ``external``)."""
+        return self._content.tokenizer.name
 
     @property
     def steps(self) -> tuple[str, ...]:
@@ -377,7 +422,7 @@ class Encoder:
         steps = "".join(f", {step}" for step in self.steps)
         return (
             f"Encoder({len(wv)} words, {self.output_dim} dimensions, {wv.dtype}{kind}, "
-            f"{self.tokenizer}{steps})"
+            f"{self._content.tokenizer.describe()}{steps})"
         )
 
 
