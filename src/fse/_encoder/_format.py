@@ -19,11 +19,20 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from numpy import ndarray
 
-from fse._container import CHECKSUM_PREFIX, CREATED_BY_KEY, FINGERPRINT_KEY, INTEGER, canonical_json
+from fse._container import (
+    CHECKSUM_PREFIX,
+    CREATED_BY_KEY,
+    FINGERPRINT_KEY,
+    INTEGER,
+    canonical_json,
+    fingerprint,
+    tensor_code,
+)
 from fse._contract import (
     TRANSFORM_VERSION,
     Aggregation,
@@ -37,6 +46,8 @@ from fse._contract import (
     prerelease_error,
 )
 from fse._tokenizer_spec import WORDPIECE, TokenizerSpec, WordPieceConfig
+from fse._wordvectors import WordVectors
+from fse._wordvectors_format import FORMAT_VERSION as WORD_VECTORS_VERSION
 
 KIND = "encoder"
 FORMAT_VERSION = "1"
@@ -344,3 +355,23 @@ def _source(metadata: dict[str, str]) -> Source | None:
     if set(value) != {"format", "repo", "revision"}:
         raise ValueError("fse.source holds exactly format, repo and revision")
     return Source(value["format"], value["repo"], value["revision"])
+
+
+def loaded_table(
+    tensors: dict[str, ndarray],
+    keys: dict[str, str],
+    metadata: dict[str, str],
+    checksums: dict[str, str],
+    path: Path,
+) -> WordVectors:
+    """The table an encoder holds, as word vectors loaded from its file, with the
+    fingerprint of their recorded checksums."""
+    content = {"fse.kind": "word_vectors", "fse.format_version": WORD_VECTORS_VERSION, **keys}
+    entries = {k: (tensor_code(v), v.shape, checksums[k]) for k, v in tensors.items()}
+    loaded = {
+        **content,
+        CREATED_BY_KEY: metadata.get(CREATED_BY_KEY, "fse"),
+        FINGERPRINT_KEY: fingerprint(entries, content),
+        **{CHECKSUM_PREFIX + k: checksums[k] for k in tensors},
+    }
+    return WordVectors._open(tensors, loaded, path)

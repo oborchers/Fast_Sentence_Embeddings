@@ -19,7 +19,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from numpy import ndarray
@@ -42,9 +42,8 @@ from fse._text import MAX_NGRAMS_LIMIT, Vocabulary, make_vocabulary
 from fse._tokenizer_spec import TokenizerSpec
 from fse._validation import PathLike, PositiveInt, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
-from fse._wordvectors_format import FORMAT_VERSION as WORD_VECTORS_VERSION
 
-from . import _batches
+from . import _batches, _pretrained
 from ._batches import EncodedBatch, check_sink, flush, run_into
 from ._format import (
     TABLE_KEYS,
@@ -53,6 +52,7 @@ from ._format import (
     Source,
     check_tokenizer_table,
     from_artifact,
+    loaded_table,
     to_artifact,
 )
 from ._sources import opened
@@ -192,6 +192,46 @@ class Encoder:
             normalize=normalize,
             max_ngrams=max_ngrams,
             oov_weight=oov_weight,
+        )
+
+    @classmethod
+    @validate_arguments
+    def from_pretrained(
+        cls,
+        repo_or_path: PathLike,
+        *,
+        revision: str | None = None,
+        token: str | bool | None = None,
+        cache_dir: PathLike | None = None,
+        local_files_only: bool = False,
+        truncate: bool = True,
+        max_length: PositiveInt | Literal["model"] | None = "model",
+        mmap: bool = False,
+    ):  # -> Encoder
+        """The encoder of a pretrained model: a local ``.safetensors`` file or folder, or
+        a Hugging Face Hub repository (``namespace/name``, extra ``fse[hub]``) at
+        ``revision`` (default branch if None), checked against its commit. An fse encoder
+        is loaded (``mmap`` as for ``load``); a Model2Vec model is converted, with its
+        length rule unless ``truncate=False`` (``max_length`` sets another token limit,
+        None none, as in model2vec). ARCHITECTURE.md, "from_pretrained"."""
+        files = _pretrained.files(
+            repo_or_path,
+            revision=revision,
+            token=token,
+            cache_dir=cache_dir,
+            local_files_only=local_files_only,
+        )
+        found = _pretrained.find(files, truncate=truncate, max_length=max_length, mmap=mmap)
+        if found.model2vec is None:
+            assert found.path is not None
+            return cls.load(found.path, mmap=mmap)
+        model = found.model2vec
+        return cls._converted(
+            model.word_vectors,
+            model.tokenizer,
+            normalize=model.normalize,
+            source=found.source,
+            license=found.license,
         )
 
     @classmethod
@@ -357,7 +397,7 @@ class Encoder:
         }
         return cls._new(
             content,
-            _table(table, keys, metadata, checksums, path),
+            loaded_table(table, keys, metadata, checksums, path),
             path=path,
             checksums=checksums,
             fingerprint_=metadata.get(FINGERPRINT_KEY),
@@ -442,23 +482,3 @@ def _fasttext(word_vectors: WordVectors, max_ngrams: int | None, oov_weight: flo
     if not np.isfinite(weight):
         raise ValueError(f"oov_weight must be finite in float32, not {oov_weight!r}")
     return {"max_ngrams": max_ngrams or DEFAULT_MAX_NGRAMS, "oov_weight": weight}
-
-
-def _table(
-    tensors: dict[str, ndarray],
-    keys: dict[str, str],
-    metadata: dict[str, str],
-    checksums: dict[str, str],
-    path: Path,
-) -> WordVectors:
-    """The table an encoder holds, as word vectors loaded from its file, with the
-    fingerprint of their recorded checksums."""
-    content = {"fse.kind": "word_vectors", "fse.format_version": WORD_VECTORS_VERSION, **keys}
-    entries = {k: (tensor_code(v), v.shape, checksums[k]) for k, v in tensors.items()}
-    loaded = {
-        **content,
-        CREATED_BY_KEY: metadata.get(CREATED_BY_KEY, "fse"),
-        FINGERPRINT_KEY: fingerprint(entries, content),
-        **{CHECKSUM_PREFIX + k: checksums[k] for k in tensors},
-    }
-    return WordVectors._open(tensors, loaded, path)

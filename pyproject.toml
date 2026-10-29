@@ -103,6 +103,9 @@ test = [
     # lowercase is the Unicode of the Rust that built the wheel (17.0.0 for 0.23.3), so a
     # newer wheel can change ids, and the exhaustive tests then name the code points.
     "tokenizers==0.23.3",
+    # The vectors of Model2Vec models against model2vec's own encode. Pinned exactly: the
+    # rules the reader reproduces (cuts, unknown ids, normalize) are those of 0.10.0.
+    "model2vec==0.10.0",
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
     "coverage[toml]>=7.0.0",
@@ -344,7 +347,7 @@ name = "Encoder: the encoder on its batches and format, those on its inputs"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_encoder", "_batches | _format", "_sources", "_inputs"]
+layers = ["_encoder", "_pretrained", "_model2vec", "_batches | _format", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
 name = "Runtime: the pipeline on tasks, sinks and the executor"
