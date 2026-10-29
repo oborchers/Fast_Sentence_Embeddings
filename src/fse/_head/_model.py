@@ -231,7 +231,7 @@ class LinearModel:
         pool = self._encoder._spec.pool_input()
         if recorded is None:
             return pool
-        copies = {}
+        copies: dict[str, Any] = {}
         for field, name in _POOL_TENSORS.items():
             array = getattr(pool, field)
             if array is not None:
