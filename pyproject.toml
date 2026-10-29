@@ -307,7 +307,7 @@ layers = [
     "_wordvectors",
     "_wordvectors_format",
     # Independent of each other: the references never share code with what they check.
-    "_container | _codes | _reference | _reference_text | _reference_wordpiece | _validation",
+    "_container | _codes | _reference | _reference_text | _reference_wordpiece | _tokenizer_spec | _validation",
     "_contract | _cpus | _unicode | _unicode_bert",
 ]
 
