@@ -1,13 +1,14 @@
-# Included by _native.pyx: token lists joined into one UTF-8 buffer, for TokenListSource.
+# Included by _native.pyx: str sentences (StringSource) and token lists (TokenListSource,
+# the tokens of a sentence joined by one space) joined into one UTF-8 buffer.
 #
-# One pass over exact lists, tuples and str: every token is checked and written at once
+# One pass over exact lists, tuples and str: every str is checked and written at once
 # into a C buffer, in parts of the sentences that native threads run in parallel (reading
 # each of millions of scattered str objects once is what the time goes to). The calling
 # thread holds the GIL all along, also while it waits for the threads, so no Python code
 # runs: items are read as borrowed pointers, nothing calls Python, drops a reference or
 # allocates a Python object, and the threads only read memory. The bytes object is made
 # from the buffers after the pass. (Free-threaded builds, where the GIL does not keep
-# other threads out, would need the input locked; fse does not build them.)
+# other threads out, would need the input locked; fse refuses to build for them.)
 
 from cpython.object cimport PyObject
 from libc.stdint cimport uint32_t
@@ -15,6 +16,9 @@ from libc.stdint cimport uint32_t
 
 cdef extern from *:
     """
+    #ifdef Py_GIL_DISABLED
+    #error "fse does not support free-threaded Python: the join of strings and token lists reads str objects from native threads and needs the GIL to keep other threads from changing them"
+    #endif
     #if PY_VERSION_HEX < 0x030C0000
     #define FSE_UNICODE_IS_READY(o) PyUnicode_IS_READY(o)
     #else
@@ -48,12 +52,15 @@ cdef extern from "_native_threads.h":
     unsigned fse_test_failed_starts
 
 
-cdef bint _test_failed_growth = False  # for the tests: every buffer growth fails
+# For the tests: a buffer growth beyond this many bytes fails, and the part buffers the
+# last join freed.
+cdef Py_ssize_t _test_growth_limit = PY_SSIZE_T_MAX
+cdef Py_ssize_t _test_freed_buffers = 0
 
 
 # What the appends give besides 0; the worst status of any part decides.
 cdef enum:
-    _INVALID = -1  # an empty token, whitespace or a lone surrogate: the Python path raises
+    _INVALID = -1  # a lone surrogate, an empty token or a space in one: the Python path raises
     _UNSUPPORTED = -2  # an object of another type: the Python path decides
     _NO_MEMORY = -3
     _PART_SENTENCES = 4096  # sentences a thread gets at least
@@ -61,6 +68,7 @@ cdef enum:
 
 cdef struct _Part:
     PyObject *outer
+    bint strings  # its sentences are str, not token lists
     Py_ssize_t first, last  # its sentences
     _Buffer text
     _Buffer ends  # int64 ends of its sentences in its text
@@ -96,18 +104,26 @@ cdef inline PyObject *_item(PyObject *o, Py_ssize_t i) noexcept nogil:
 
 
 cdef int _grow(_Buffer *b, Py_ssize_t extra) noexcept nogil:
-    """_reserve without the GIL: 0, or _NO_MEMORY."""
+    """_reserve without the GIL: 0, or _NO_MEMORY. A new block and a copy, not realloc: on
+    macOS the freed blocks of a chain of large reallocs stayed resident, so the RSS grew by
+    about the joined bytes on every join (to 2.8 GB after 80 joins of 36 MB in one thread).
+    With a copy it stays flat, and that join took 6.6 ms instead of 17 on an M1 Pro."""
     cdef Py_ssize_t capacity
     cdef char *data
-    if extra > PY_SSIZE_T_MAX - b.size or _test_failed_growth:
+    if extra > PY_SSIZE_T_MAX - b.size:
         return _NO_MEMORY
     if b.size + extra <= b.capacity:
         return 0
     capacity = b.capacity * 2 if b.capacity <= PY_SSIZE_T_MAX // 2 else PY_SSIZE_T_MAX
     capacity = max(b.size + extra, capacity, 4096)
-    data = <char *>realloc(b.data, capacity)
+    if capacity > _test_growth_limit:
+        return _NO_MEMORY
+    data = <char *>malloc(capacity)
     if data == NULL:
         return _NO_MEMORY
+    if b.size:
+        memcpy(data, b.data, b.size)
+    free(b.data)
     b.data = data
     b.capacity = capacity
     return 0
@@ -134,23 +150,25 @@ cdef inline char *_put(char *out, uint32_t c) noexcept nogil:
     return out + 4
 
 
-cdef int _append_token(_Buffer *b, PyObject *token) noexcept nogil:
-    """Append the UTF-8 of a token to b: 0 or a status."""
+cdef int _append_str(_Buffer *b, PyObject *text, bint token) noexcept nogil:
+    """Append the UTF-8 of a str to b: 0 or a status. A token must be non-empty and hold
+    no whitespace; a sentence may be empty and hold anything but a lone surrogate."""
     cdef Py_ssize_t i, n
     cdef int kind
     cdef const void *data
     cdef char *out
     cdef uint32_t c
-    if not PyUnicode_CheckExact(token) or not FSE_UNICODE_IS_READY(token):
+    if not PyUnicode_CheckExact(text) or not FSE_UNICODE_IS_READY(text):
         return _UNSUPPORTED
-    n = PyUnicode_GET_LENGTH(token)
+    n = PyUnicode_GET_LENGTH(text)
     if n == 0:
-        return _INVALID
-    data = PyUnicode_DATA(token)
-    if PyUnicode_IS_ASCII(token):
-        for i in range(n):
-            if _is_space_code((<const Py_UCS1 *>data)[i]):
-                return _INVALID
+        return _INVALID if token else 0
+    data = PyUnicode_DATA(text)
+    if PyUnicode_IS_ASCII(text):
+        if token:
+            for i in range(n):
+                if _is_space_code((<const Py_UCS1 *>data)[i]):
+                    return _INVALID
         if _grow(b, n) < 0:
             return _NO_MEMORY
         memcpy(b.data + b.size, data, n)
@@ -158,11 +176,11 @@ cdef int _append_token(_Buffer *b, PyObject *token) noexcept nogil:
         return 0
     if n > PY_SSIZE_T_MAX // 4 or _grow(b, 4 * n) < 0:  # at most 4 bytes per code point
         return _NO_MEMORY
-    kind = PyUnicode_KIND(token)
+    kind = PyUnicode_KIND(text)
     out = b.data + b.size
     for i in range(n):
         c = _code_at(kind, data, i)
-        if _is_space_code(c) or 0xD800 <= c <= 0xDFFF:
+        if 0xD800 <= c <= 0xDFFF or (token and _is_space_code(c)):
             return _INVALID
         out = _put(out, c)
     b.size = out - b.data
@@ -181,7 +199,7 @@ cdef int _append_sentence(_Buffer *b, PyObject *sentence) noexcept nogil:
                 return _NO_MEMORY
             b.data[b.size] = 32
             b.size += 1
-        status = _append_token(b, _item(sentence, t))
+        status = _append_str(b, _item(sentence, t), True)
         if status < 0:
             return status
     return 0
@@ -191,7 +209,10 @@ cdef void _run_part(void *arg, int index) noexcept nogil:
     cdef _Part *part = (<_Part *>arg) + index
     cdef Py_ssize_t i
     for i in range(part.first, part.last):
-        part.status = _append_sentence(&part.text, _item(part.outer, i))
+        if part.strings:
+            part.status = _append_str(&part.text, _item(part.outer, i), False)
+        else:
+            part.status = _append_sentence(&part.text, _item(part.outer, i))
         if part.status == 0 and _grow(&part.ends, sizeof(np.int64_t)) < 0:
             part.status = _NO_MEMORY
         if part.status < 0:
@@ -200,7 +221,7 @@ cdef void _run_part(void *arg, int index) noexcept nogil:
         part.ends.size += sizeof(np.int64_t)
 
 
-cdef object _joined(_Part *parts, int n_parts, Py_ssize_t n):
+cdef object _joined(_Part *parts, int n_parts, Py_ssize_t n, str what):
     """The bytes and the offsets of the finished parts."""
     cdef Py_ssize_t total = 0, at = 0, k = 1, j
     cdef int p
@@ -208,7 +229,7 @@ cdef object _joined(_Part *parts, int n_parts, Py_ssize_t n):
     cdef char *out
     for p in range(n_parts):
         if parts[p].text.size > PY_SSIZE_T_MAX - total:
-            raise MemoryError("the joined token lists would exceed the address space")
+            raise MemoryError(f"the joined {what} would exceed the address space")
         total += parts[p].text.size
     data = PyBytes_FromStringAndSize(NULL, total)
     starts = np.empty(n + 1, dtype=np.int64)
@@ -225,6 +246,18 @@ cdef object _joined(_Part *parts, int n_parts, Py_ssize_t n):
     return data, starts
 
 
+def join_strings(texts, int threads=1):
+    """The texts, a list or tuple of str, as their UTF-8 bytes one after the other and the
+    int64 offsets of the texts in them, read by up to ``threads`` native threads.
+
+    Returns None if an object is not of these exact types (subclasses, which may override
+    encode, a numpy array, a legacy string of 3.11) or a text holds a lone surrogate; the
+    caller then takes the Python path, which decides and raises its errors in their order.
+    """
+    joined = _join_parts(texts, threads, True)
+    return None if joined is False else joined
+
+
 def join_token_lists(sentences, int threads=1):
     """The sentences, each a list or tuple of str tokens, as the UTF-8 bytes of the tokens
     joined by one space per sentence, and the int64 offsets of the sentences in them,
@@ -237,10 +270,17 @@ def join_token_lists(sentences, int threads=1):
     input the verdict depends on how it was split. The Python path decides in both cases:
     a subclass in the input may change the lists while it runs.
     """
+    return _join_parts(sentences, threads, False)
+
+
+cdef object _join_parts(sentences, int threads, bint strings):
+    """The joined sentences (str if ``strings``, else token lists), None or False."""
+    global _test_freed_buffers
     cdef PyObject *outer = <PyObject *>sentences
     cdef Py_ssize_t n, size
     cdef int p, n_parts, status = 0
     cdef _Part *parts
+    what = "strings" if strings else "token lists"  # in the errors
     if threads < 1:
         raise ValueError(f"threads must be at least 1, not {threads}")
     if not (PyList_CheckExact(outer) or PyTuple_CheckExact(outer)):
@@ -249,35 +289,45 @@ def join_token_lists(sentences, int threads=1):
     n_parts = <int>max(1, min(threads, n // _PART_SENTENCES))
     parts = <_Part *>calloc(n_parts, sizeof(_Part))
     if parts == NULL:
-        raise MemoryError("could not allocate the parts of the token lists")
+        raise MemoryError(f"could not allocate the parts of the {what}")
     try:
         size = n // n_parts
         for p in range(n_parts):
             parts[p].outer = outer
+            parts[p].strings = strings
             parts[p].first = p * size
             parts[p].last = n if p == n_parts - 1 else (p + 1) * size
         if fse_parallel(n_parts, _run_part, parts) < 0:
-            raise MemoryError("could not start the threads for the token lists")
+            raise MemoryError(f"could not start the threads for the {what}")
         for p in range(n_parts):
             status = min(status, parts[p].status)
         if status == _NO_MEMORY:
-            raise MemoryError("could not grow the buffer of the token lists")
+            raise MemoryError(f"could not grow the buffer of the {what}")
         if status < 0:
             return False if status == _INVALID else None
         # The items are not read any more, so Python code may run from here.
-        return _joined(parts, n_parts, n)
+        return _joined(parts, n_parts, n, what)
     finally:
+        _test_freed_buffers = 0
         for p in range(n_parts):
+            _test_freed_buffers += (parts[p].text.data != NULL) + (parts[p].ends.data != NULL)
             free(parts[p].text.data)
             free(parts[p].ends.data)
         free(parts)
 
 
-def _test_join_faults(unsigned failed_starts=0, bint failed_growth=False):
-    """For the tests: make the thread starts of the parts in the bit mask fail, or every
-    buffer growth; returns the previous (failed_starts, failed_growth)."""
-    global fse_test_failed_starts, _test_failed_growth
-    previous = (fse_test_failed_starts, _test_failed_growth)
+def _test_join_faults(unsigned failed_starts=0, Py_ssize_t growth_limit=PY_SSIZE_T_MAX):
+    """For the tests: make the thread starts of the parts in the bit mask fail, and every
+    growth of a buffer to more than ``growth_limit`` bytes (0: every growth; a buffer starts
+    at 4,096 bytes and doubles, so 2**k * 4096 lets it grow k + 1 times); returns the
+    previous (failed_starts, growth_limit)."""
+    global fse_test_failed_starts, _test_growth_limit
+    previous = (fse_test_failed_starts, _test_growth_limit)
     fse_test_failed_starts = failed_starts
-    _test_failed_growth = failed_growth
+    _test_growth_limit = growth_limit
     return previous
+
+
+def _test_join_freed():
+    """For the tests: the part buffers (text and ends) the last join freed."""
+    return _test_freed_buffers

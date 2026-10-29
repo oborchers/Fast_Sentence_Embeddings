@@ -368,12 +368,23 @@ def _encode_strings(texts: Any, what: str) -> tuple[bytes, ndarray]:
     return _join([encode_string(text, what, i) for i, text in enumerate(texts)])
 
 
+# Threads that join strings or token lists: the pass is bound by reading memory, which a
+# few threads saturate (85.7 million WikiText tokens on an M1 Pro, in a fresh process:
+# 2.1 s with one thread, 0.65 s with 8).
+_JOIN_THREADS = 8
+
+
 class StringSource(_Buffered):
     """Sentences as strings in memory, one row each."""
 
     def __init__(self, texts: Any):
         _check_container(texts, "texts")
-        self._data, self._offsets = _encode_strings(texts, "string")
+        joined = _native.join_strings(texts, min(_JOIN_THREADS, usable_cpus()))
+        # None: types the native pass does not read (a str subclass may override encode,
+        # an array) or a lone surrogate; the Python path decides and raises the error.
+        if joined is None:
+            joined = _encode_strings(texts, "string")
+        self._data, self._offsets = joined
 
     @classmethod
     def encoded(cls, sentences: list[bytes]) -> StringSource:
@@ -384,12 +395,6 @@ class StringSource(_Buffered):
 
     def __len__(self) -> int:
         return self._positions()
-
-
-# Threads that join token lists: the pass is bound by reading memory, which a few threads
-# saturate (85.7 million WikiText tokens on an M1 Pro, in a fresh process: 2.1 s with one
-# thread, 0.65 s with 8).
-_JOIN_THREADS = 8
 
 
 def _token_lists(sentences: Any) -> tuple[bytes, ndarray]:
