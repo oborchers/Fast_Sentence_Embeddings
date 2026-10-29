@@ -16,7 +16,7 @@ from numpy import ndarray
 
 from fse._validation import PathLike, PositiveInt, validate_arguments
 
-from . import _run
+from . import _run, _sklearn
 from ._content import classes
 from ._model import LinearModel
 from ._outputs import PredictedBatch
@@ -33,6 +33,26 @@ class Classifier(LinearModel):
 
     __slots__ = ()
     TASK = "classification"
+
+    @classmethod
+    @validate_arguments
+    def from_sklearn(cls, encoder: Any, model: Any, *, normalized: bool | None = None):
+        """The head of a fitted scikit-learn classifier (or a Pipeline of an optional
+        ``Normalizer``, an optional ``StandardScaler`` and the classifier) on the rows of
+        ``encoder``, with the probabilities of the installed version's rule. Reads its
+        attributes and imports nothing of scikit-learn. ``normalized``: whether it was
+        trained on normalized vectors; by default the encoder's setting (a ``Normalizer``
+        implies True)."""
+        found = _sklearn.read(model, "classification")
+        return cls._build(
+            encoder,
+            found.weight,
+            found.bias,
+            normalized=_sklearn.flag(found, normalized),
+            link=found.link,
+            labels=found.labels,
+            source=found.source,
+        )
 
     @classmethod
     @validate_arguments

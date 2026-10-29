@@ -111,6 +111,7 @@ jobs:
         run: >-
           uv pip install
           "numpy==1.26.4" "pydantic==2.5.0" "xxhash==3.2.0" "gensim==4.3.3" "safetensors==0.4.0"
+          "scikit-learn==1.5.0"
       - name: Run tests with coverage
         if: matrix.deps != 'min'
         run: make test-cov

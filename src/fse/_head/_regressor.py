@@ -15,7 +15,7 @@ from numpy import ndarray
 
 from fse._validation import PathLike, PositiveInt, validate_arguments
 
-from . import _run
+from . import _run, _sklearn
 from ._model import LinearModel
 from ._outputs import PredictedBatch
 
@@ -29,6 +29,21 @@ class Regressor(LinearModel):
 
     __slots__ = ()
     TASK = "regression"
+
+    @classmethod
+    @validate_arguments
+    def from_sklearn(cls, encoder: Any, model: Any, *, normalized: bool | None = None):
+        """The head of a fitted scikit-learn linear regressor (or a Pipeline of an optional
+        ``Normalizer``, an optional ``StandardScaler`` and the regressor) on the rows of
+        ``encoder``; reads its attributes and imports nothing of scikit-learn."""
+        found = _sklearn.read(model, "regression")
+        return cls._build(
+            encoder,
+            found.weight,
+            found.bias,
+            normalized=_sklearn.flag(found, normalized),
+            source=found.source,
+        )
 
     @classmethod
     @validate_arguments
