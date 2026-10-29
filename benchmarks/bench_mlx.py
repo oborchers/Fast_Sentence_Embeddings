@@ -86,6 +86,33 @@ def fallbacks(encoder: fse.Average) -> dict:
     return counts(encoder._pipelines["mlx"].prepared)
 
 
+def rounds(run: dict, first: dict, count: int) -> tuple[dict, bool]:
+    """The times of ``count`` rounds alternating the order of the backends, and whether
+    every run of a backend gave the bits of its first."""
+    backends = tuple(run)
+    times: dict[str, list[float]] = {b: [] for b in backends}
+    same = True
+    for r in range(count):
+        for b in backends if r % 2 == 0 else backends[::-1]:
+            start = time.perf_counter()
+            rows = run[b]()
+            times[b].append(time.perf_counter() - start)
+            same = same and rows.tobytes() == first[b].tobytes()
+    return {f"{b}_s": round(statistics.median(times[b]), 4) for b in backends}, same
+
+
+def compare(first: dict, ids: np.ndarray, texts: list, wv: fse.WordVectors, args) -> dict:
+    """The first rows of mlx against those of cpu: bit equality and the bound."""
+    cpu, mlx = first["cpu"], first["mlx"]
+    raw = cpu
+    if args.mode == "norm":
+        raw = fse.Average(tokenizer="external").fit(wv).encode(texts, workers=args.workers)
+    return {
+        "bitequal": bool(np.array_equal(cpu.view(np.uint32), mlx.view(np.uint32))),
+        "bound_ratio": bound_ratio(mlx, cpu, bounds(ids, wv, raw, args.mode == "norm")),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("length", type=int)
@@ -95,33 +122,18 @@ def main() -> None:
     parser.add_argument("--rounds", type=int, default=5)
     args = parser.parse_args()
     ids, texts, wv = corpus(args.length)
-    normalize = args.mode == "norm"
-    encoder = fse.Average(normalize=normalize, tokenizer="external").fit(wv)
+    encoder = fse.Average(normalize=args.mode == "norm", tokenizer="external").fit(wv)
     backends = (args.only,) if args.only else ("cpu", "mlx")
     run = {
         b: (lambda b=b: encoder.encode(texts, workers=args.workers, backend=b)) for b in backends
     }
     first = {b: run[b]() for b in backends}
-    times: dict[str, list[float]] = {b: [] for b in backends}
-    same = True  # every run of a backend gives the bits of its first
-    for r in range(args.rounds):
-        for b in backends if r % 2 == 0 else backends[::-1]:
-            start = time.perf_counter()
-            rows = run[b]()
-            times[b].append(time.perf_counter() - start)
-            same = same and rows.tobytes() == first[b].tobytes()
+    times, same = rounds(run, first, args.rounds)
     result: dict = {"length": args.length, "workers": args.workers, "mode": args.mode}
-    result["texts"] = len(texts)
-    result |= {f"{b}_s": round(statistics.median(times[b]), 4) for b in backends}
-    result["deterministic"] = same
+    result |= {"texts": len(texts), **times, "deterministic": same}
     if not args.only:
         result["ratio"] = round(result["mlx_s"] / result["cpu_s"], 3)
-        cpu, mlx = first["cpu"], first["mlx"]
-        result["bitequal"] = bool(np.array_equal(cpu.view(np.uint32), mlx.view(np.uint32)))
-        raw = cpu
-        if normalize:
-            raw = fse.Average(tokenizer="external").fit(wv).encode(texts, workers=args.workers)
-        result["bound_ratio"] = bound_ratio(mlx, cpu, bounds(ids, wv, raw, normalize))
+        result |= compare(first, ids, texts, wv, args)
     if "mlx" in backends:
         result["fallbacks"] = {k: v for k, v in fallbacks(encoder).items() if v}
     result["load"] = round(os.getloadavg()[0], 1)
