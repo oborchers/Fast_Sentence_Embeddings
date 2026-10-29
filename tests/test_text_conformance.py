@@ -60,6 +60,16 @@ def _corpus() -> list[str]:
     texts += [
         " ".join(rng.choice([*words, "x", "a-b", "..."]) for _ in range(6)) for _ in range(500)
     ]
+    # Plain words (a-z and 0-9 only) skip most of step 5 natively: the contractions
+    # without an apostrophe, words of their length and first letter, and plain words
+    # next to the characters that make a candidate not plain.
+    plain = ["gimme", "GOTTA", "Lemme", "wanna", "CANNOT", "cannon", "gonne", "wannabe",
+             "lemmer", "gottas", "g0nna", "cards", "golfs", "mores", "dyes", "tiss", "x9"]
+    marks = ["", "", "", "_", "-", "'", ".", ":", "\u00e9", "\u212a", "\u0130", "/"]
+    texts += [
+        " ".join(rng.choice(marks) + rng.choice(plain) + rng.choice(marks) for _ in range(5))
+        for _ in range(2000)
+    ]
     return texts
 
 
@@ -150,6 +160,11 @@ def test_tokenize_validates_its_arguments():
             frozenset(ch for ch in map(chr, range(0x10000)) if ch.isdigit()),
         ),
         ("no contraction table", "CONTRACTIONS", {}),
+        (
+            "no contractions without an apostrophe",
+            "CONTRACTIONS",
+            {word: parts for word, parts in ref.CONTRACTIONS.items() if "'" in word},
+        ),
         ("no clitics", "CLITICS", ()),
         ("every character a word character", "_is_word", lambda _ch: True),
         ("the separators of the 1.x regex only", "SEPARATORS", frozenset('!"#$%&()*;<>?@[]`{}')),
