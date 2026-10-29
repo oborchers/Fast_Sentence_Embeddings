@@ -255,9 +255,12 @@ FSE_DEFINE_LOOP(fse_loop_f16_avx2, FSE_AVX2_TARGET, fse_fma_f16_avx2, 0)
 FSE_DEFINE_LOOP(fse_loop_i8_avx2, FSE_AVX2_TARGET, fse_fma_i8_avx2, 1)
 #endif
 #if defined(FSE_NEON)
-FSE_DEFINE_LOOP(fse_loop_f32_neon, FSE_NO_TARGET, fse_fma_f32_neon, 0)
+/* The row loop for rows too large for a tile; fse_loop_f32_neon is in _native_kernel_tiles.h. */
+FSE_DEFINE_LOOP(fse_loop_f32_neon_rows, FSE_NO_TARGET, fse_fma_f32_neon, 0)
 FSE_DEFINE_LOOP(fse_loop_f16_neon, FSE_NO_TARGET, fse_fma_f16_neon, 0)
 FSE_DEFINE_LOOP(fse_loop_i8_neon, FSE_NO_TARGET, fse_fma_i8_neon, 1)
 #endif
+
+#include "_native_kernel_tiles.h"
 
 #endif /* FSE_NATIVE_KERNEL_MEAN_H */
