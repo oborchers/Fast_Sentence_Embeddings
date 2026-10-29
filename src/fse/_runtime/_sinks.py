@@ -16,7 +16,7 @@ rows into the target itself (stage 5, ``store`` of the backend).
 
 from __future__ import annotations
 
-from typing import Any, NamedTuple, Protocol
+from typing import Any, NamedTuple, Protocol, cast
 
 import numpy as np
 from numpy import ndarray
@@ -33,6 +33,10 @@ class QuantizedRows(NamedTuple):
 
     codes: ndarray
     scales: ndarray
+
+
+# The rows of a run as encode returns them: float32 rows, float16 codes or QuantizedRows.
+Rows = ndarray | QuantizedRows
 
 
 class Sink(Protocol):
@@ -164,11 +168,11 @@ class ArrayRows(_Rows):
             raise ValueError(f"the rows from {first_row} are not the target reserved for them")
         self._check_commit(first_row, rows)
 
-    def result(self) -> Stored:
+    def result(self) -> Rows:
         total = len(_first(self._out))
         if self.next_row != total:
             raise RuntimeError(f"{self.next_row} of {total} rows were committed")
-        return self._out
+        return cast(Rows, self._out)  # made by _new, without inverse norms
 
 
 def _same(rows: Stored, reserved: Stored) -> bool:
@@ -199,7 +203,7 @@ class GrowingRows(_Rows):
         self._check_commit(first_row, rows)
         self._parts.append(rows)
 
-    def result(self) -> Stored:
+    def result(self) -> Rows:
         """All rows; joining the parts makes one copy of them (the window bounds only the
         rows in flight, not this result)."""
         if len(self._parts) != 1:
@@ -212,7 +216,7 @@ class GrowingRows(_Rows):
             else:
                 out = np.concatenate(self._parts)
             self._parts = [out]
-        return self._parts[0]
+        return cast(Rows, self._parts[0])  # made by _new, without inverse norms
 
 
 def _check_rows(codes: ndarray, dtype: str) -> None:
