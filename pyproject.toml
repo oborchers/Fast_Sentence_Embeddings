@@ -338,7 +338,7 @@ name = "Heads: the classes on the model, that on its runs, the readers and forma
 type = "layers"
 containers = ["fse._head"]
 exhaustive = true
-layers = ["_format", "_content"]
+layers = ["_classifier | _regressor", "_model", "_run", "_format | _outputs", "_content"]
 
 [[tool.importlinter.contracts]]
 name = "Encoder: the encoder on its batches and format, those on its inputs"

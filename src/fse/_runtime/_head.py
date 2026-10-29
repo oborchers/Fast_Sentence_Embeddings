@@ -149,11 +149,13 @@ def make_head(
     own: Pipeline,
     with_vectors: bool = False,
     workers: int | None = None,
+    isa: str | None = None,
 ) -> HeadPipeline:
     """The head on ``backend`` for the encoder of ``spec``, whose own pipeline there is
     ``own`` (its rows are the vectors): folded where that is legal and no vectors are
     wanted, else on the full mean, sharing ``own`` where the head reads the encoder's rows.
-    The fold runs now, over ``workers`` threads (the usable CPUs by default)."""
+    The fold runs now, over ``workers`` threads (the usable CPUs by default); ``isa``
+    selects the kernel of the cpu backend for the pipelines it makes."""
     if own.spec is not spec:
         raise ValueError("own must be the pipeline of spec")
     vocabulary = own.vocabulary
@@ -164,11 +166,13 @@ def make_head(
     if with_vectors or head.normalized:
         if tuple(spec.steps) == head.steps:
             return HeadPipeline(own, head, folded=False, with_vectors=with_vectors)
-        reader = Pipeline(spec, backend, vocabulary=vocabulary, steps=head.steps)
+        reader = Pipeline(spec, backend, isa=isa, vocabulary=vocabulary, steps=head.steps)
         return HeadPipeline(reader, head, folded=False, vectors=own, with_vectors=with_vectors)
     own.backend.capabilities().check_heads(own.backend.name)  # before the fold
-    pool = fold(get_backend(backend), spec.pool_input(), head.weight, workers or usable_cpus())
-    reader = Pipeline(spec, backend, vocabulary=vocabulary, pool=pool, steps=())
+    pool = fold(
+        get_backend(backend, isa=isa), spec.pool_input(), head.weight, workers or usable_cpus()
+    )
+    reader = Pipeline(spec, backend, isa=isa, vocabulary=vocabulary, pool=pool, steps=())
     return HeadPipeline(reader, head, folded=True)
 
 

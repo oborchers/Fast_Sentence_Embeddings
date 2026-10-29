@@ -1,14 +1,18 @@
 """The format rules of linear_head 1: the keys and tensors of a head, and the adapter that
 hands the encoder part to the encoder's own parser."""
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
+from fse import _reference_head as ref
 from fse._container import CHECKSUM_PREFIX, CorruptArtifactError, checksum
 from fse._contract import Link, UnsupportedArtifactError
 from fse._encoder._format import from_artifact as encoder_from_artifact
 from fse._head._content import HeadContent
 from fse._head._format import encoder_fingerprint, from_artifact, to_artifact
+from support import head as support
 from support.encoder import finished
 
 F32 = np.float32
@@ -175,3 +179,72 @@ def test_encoder_fingerprint_is_the_encoders():
     tensors, metadata, _ = encoder._artifact()
     sums = {k: checksum(v) for k, v in tensors.items()}
     assert encoder_fingerprint(tensors, metadata, sums) == encoder.fingerprint
+
+
+GOLDEN = Path(__file__).parent / "test_data" / "v2" / "finished"
+SENTENCES = ["the é", "日本 thé zz", "", "THE"]
+PINNED = {
+    "classifier_float32": (
+        "xxh3-128:093709742bf5fefb96e336658e9ec3bc",
+        "xxh3-128:363c1e166b680245adb9fbb9df929d96",  # encoder_float32.safetensors
+        [
+            [1057591021, 1040328411, 1051446967],
+            [1015122304, 1039477409, 1063079520],
+            [1050920551, 1049899156, 1053296902],
+            [1057591021, 1040328411, 1051446967],
+        ],
+    ),
+    "regressor_int8": (
+        "xxh3-128:beddac876d0c5250988361e64596501e",
+        "xxh3-128:900de12daf5acd9cd72ee4368740e1c4",
+        [
+            [1085684857, 3212886403],
+            [3232074522, 3210018643],
+            [1065353216, 3212836864],
+            [3210084698, 3215638571],
+        ],
+    ),
+    "classifier_standalone": (
+        "xxh3-128:117ae14aed7a477e442f16b5527e512f",
+        "xxh3-128:6e7b98ccbcf439933966aba688535d62",  # the folded table
+        [
+            [1044041156, 1062292623],
+            [1065209310, 1007454356],
+            [1054878310, 1058007757],
+            [1044041156, 1062292623],
+        ],
+    ),
+}
+
+
+@pytest.mark.parametrize("name", PINNED)
+def test_golden_heads(name):
+    import fse
+
+    fingerprint, encoder, outputs = PINNED[name]
+    cls = fse.Regressor if name.startswith("regressor") else fse.Classifier
+    model = cls.load(GOLDEN / f"{name}.safetensors")
+    assert model.fingerprint == fingerprint
+    assert model.encoder_fingerprint == encoder
+    got = model.predict(SENTENCES) if cls is fse.Regressor else model.predict_proba(SENTENCES)
+    assert got.view(np.uint32).tolist() == outputs
+    if not model.standalone:  # the pinned bits are the reference's
+        want = support.logits(
+            model.encoder._spec,
+            model.coef_,
+            model.intercept_,
+            SENTENCES,
+            normalized=model.normalized,
+        )
+        want = want if cls is fse.Regressor else ref.proba(want, model._content.link)
+        assert want.view(np.uint32).tolist() == outputs
+
+
+def test_the_golden_classifier_reads_the_golden_encoder():
+    import fse
+
+    model = fse.Classifier.load(GOLDEN / "classifier_float32.safetensors")
+    encoder = fse.Encoder.load(GOLDEN / "encoder_float32.safetensors")
+    assert model.encoder.fingerprint == encoder.fingerprint
+    assert model.classes_.tolist() == ["a", "b", "c"]
+    assert (model.normalized, model.link) == (True, "softmax@1")
