@@ -167,21 +167,26 @@ class Device:
 
     def _abort(self, job: Job) -> None:
         """After an interrupt or error of the caller: take ``job`` out of the queue, or
-        wait until the device thread has settled it, through further interrupts."""
+        wait until the device thread has settled it and give its lease back, the whole
+        sequence through further interrupts; the caller raises the first one again."""
+        while True:
+            try:
+                self._settle_aborted(job)
+                return
+            except BaseException:  # the device thread may still write into its arrays
+                continue
+
+    def _settle_aborted(self, job: Job) -> None:
+        """One attempt of ``_abort``; every part may run again after an interrupt."""
         with self._lock:
             if job.state == "queued" and job in self._queue:
                 self._queue.remove(job)
                 job.state = "cancelled"
             if job.state == "cancelled":
                 return
-        while True:
-            try:
-                job.done.wait()
-            except BaseException:  # the device thread may still write into its arrays
-                continue
-            job.result = None
-            _give_back(job)
-            return
+        job.done.wait()
+        job.result = None
+        _give_back(job)
 
     def _take(self, end: bool = True) -> list[Job]:
         """The next group, in queue order (with the lock held); with ``end``, an empty

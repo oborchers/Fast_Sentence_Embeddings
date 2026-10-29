@@ -5,9 +5,10 @@ waiting for a slow caller before a group already queued. A fake MLX stands in fo
 
 import threading
 
+import numpy as np
 import pytest
 
-from fse._backends._mlx import _device
+from fse._backends._mlx import _device, _kernels
 from fse._backends._mlx._device import Device
 from support.fake_mlx import FakeMx
 
@@ -163,3 +164,87 @@ def test_the_lease_comes_back_and_the_thread_is_joined_through_interrupts(times)
         _device._give_back(job)
     assert job.returned.is_set()
     assert job.ended.joined == 1
+
+
+class Owned(bytearray):
+    """A buffer that records the thread that frees it, as an MLX array owns its data."""
+
+    def __init__(self, size, freed):
+        super().__init__(size)
+        self.freed = freed
+
+    def __del__(self):
+        self.freed.append(threading.current_thread().name)
+
+
+@pytest.mark.parametrize("words", [1, 3])
+def test_the_flags_of_a_view_keep_no_array_alive(device, words):
+    """R5 of review 3: with one flag word per sentence the combined flags were a view of
+    the lent flags; they are a copy, so the device thread frees the buffer."""
+    freed = []
+
+    def launch(_mx, _s):
+        rows = np.frombuffer(Owned(4 * 2, freed), np.float32).reshape(2, 1)
+        flags = np.frombuffer(Owned(4 * 2 * words, freed), np.uint32).reshape(2, words)
+        bounds = np.frombuffer(Owned(4 * 4, freed), np.float32).reshape(2, 2)
+        return rows, flags, bounds
+
+    def use(viewed):
+        _, flags, bounds = viewed
+        return flags, bounds  # what the backend keeps after the lease
+
+    flags, bounds = device.run(launch, _kernels.view, 0, use)
+    assert freed == ["fse-mlx"] * 3
+    assert flags.tolist() == [0, 0]
+    assert bounds.shape == (2, 2)
+
+
+class InterruptingLock:
+    """The device's lock, interrupted ``times`` times when the abort takes it."""
+
+    def __init__(self, lock, times):
+        self.lock, self.times = lock, times
+        self.armed = False
+
+    def __enter__(self):
+        if self.armed and self.times:
+            self.times -= 1
+            raise KeyboardInterrupt
+        return self.lock.__enter__()
+
+    def __exit__(self, *exc):
+        return self.lock.__exit__(*exc)
+
+
+@pytest.mark.parametrize("times", [1, 3])
+def test_an_abort_interrupted_again_still_settles_the_job(device, monkeypatch, times):
+    """R6 of review 3: through run(): the wait for the job is interrupted, then the abort
+    is interrupted taking the lock; it still settles the job and returns its lease."""
+    freed, started = [], threading.Event()
+    lock = InterruptingLock(device._lock, times)
+    monkeypatch.setattr(device, "_lock", lock)
+    real_wait = threading.Event.wait
+
+    class Interrupted(_device.Job):
+        def __init__(self, *args):
+            super().__init__(*args)
+            self.done = Done()
+
+    class Done(threading.Event):
+        def wait(self, timeout=None):
+            if not lock.armed:
+                started.wait(10)
+                lock.armed = True
+                raise KeyboardInterrupt
+            return real_wait(self, timeout)
+
+    def launch(_mx, _s):
+        started.set()
+        return (Tracked(freed),)
+
+    monkeypatch.setattr(_device, "Job", Interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        device.run(launch, lambda arrays: View(arrays[0]), 0, lambda v: v)
+    assert lock.times == 0
+    assert freed == ["fse-mlx"]
+    assert _threads() == []
