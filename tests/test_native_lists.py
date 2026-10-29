@@ -1,5 +1,6 @@
 """Strings and token lists joined natively (_native_lists.pxi) against the Python path."""
 
+import ctypes
 import sys
 
 import numpy as np
@@ -281,6 +282,59 @@ def test_a_str_subclass_is_encoded_by_its_own_encode():
             return str.encode(self.upper(), *args)
 
     assert StringSource(["a", Upper("b")])._data == b"aB"
+
+
+def _changing_texts():
+    texts = [f"t{i} \u65e5" for i in range(4 * 4096)]
+
+    class Change(str):
+        def encode(self, *args):  # what the Python path calls, in the second part
+            texts[5001] = "changed"  # a later row
+            del texts[-100:]  # the end
+            texts[0] = "too late"  # a row already read
+            return str.encode(self, *args)
+
+    texts[5000] = Change("x")
+    return texts
+
+
+def test_a_str_subclass_that_changes_the_list_is_read_like_python():
+    texts = _changing_texts()
+    source = StringSource(texts)  # the native pass reads every part, then leaves it
+    assert len(texts) == 4 * 4096 - 100
+    want_data, want_offsets = _text._encode_strings(_changing_texts(), "string")
+    assert source._data == want_data
+    np.testing.assert_array_equal(source._offsets, want_offsets)
+    assert len(source) == 4 * 4096 - 100
+    assert source._data.startswith(b"t0 ")  # read before the change
+    assert b"changed" in source._data
+
+
+def _legacy(text):
+    """A legacy (not ready) str of Python 3.11, made through its deprecated C API."""
+    api = ctypes.pythonapi
+    api.PyUnicode_FromUnicode.restype = ctypes.py_object
+    api.PyUnicode_FromUnicode.argtypes = [ctypes.c_void_p, ctypes.c_ssize_t]
+    api.PyUnicode_AsUnicode.restype = ctypes.c_void_p
+    api.PyUnicode_AsUnicode.argtypes = [ctypes.py_object]
+    with pytest.warns(DeprecationWarning):
+        legacy = api.PyUnicode_FromUnicode(None, len(text))
+    wide = ctypes.create_unicode_buffer(text, len(text) + 1)
+    ctypes.memmove(api.PyUnicode_AsUnicode(legacy), wide, len(text) * ctypes.sizeof(ctypes.c_wchar))
+    return legacy
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 12), reason="legacy strings end with 3.11")
+def test_a_legacy_string_takes_the_python_path():
+    for join in (
+        lambda s: _native.join_strings(["a", s]),
+        lambda s: _native.join_token_lists([["a"], [s]]),
+    ):
+        legacy = _legacy("b\u00e9")
+        assert type(legacy) is str
+        assert join(legacy) is None  # its data is not read before it is ready
+        assert StringSource(["a", legacy])._data == "ab\u00e9".encode()  # readies it
+        assert join(legacy) is not None
 
 
 @pytest.mark.parametrize(
