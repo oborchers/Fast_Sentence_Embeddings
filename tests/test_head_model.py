@@ -78,6 +78,8 @@ def test_the_constructors_check_their_arguments():
         fse.Classifier.from_arrays("enc", np.ones(6), labels=[0, 1])
     with pytest.raises(ValueError, match=r"shape \(k, 6\)"):
         fse.Classifier.from_arrays(encoder, np.ones(5), labels=[0, 1])
+    with pytest.raises(TypeError, match="a classifier needs labels"):
+        fse.Classifier.from_arrays(encoder, np.ones(6))
     with pytest.raises(ValueError, match="needs 2 labels"):
         fse.Classifier.from_arrays(encoder, np.ones(6), labels=[0, 1, 2])
     with pytest.raises(Exception, match="link"):

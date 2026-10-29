@@ -26,7 +26,8 @@ class Classifier(LinearModel):
     """Predicts labels of texts with an encoder and a linear head ``z = A x + b`` on its
     rows: ``labels[1]`` if ``z > 0`` for one output, else the label of the largest logit.
 
-    Make one with ``Classifier.from_arrays`` or ``Classifier.load``; fse trains nothing. A head trained
+    Make one with ``Classifier.from_sklearn`` (a fitted scikit-learn classifier),
+    ``Classifier.from_arrays`` or ``Classifier.load``; fse trains nothing. A head trained
     on raw means (an encoder with ``normalize=False``) folds into the table and predicts
     faster than ``encode``; one trained on normalized vectors runs on the full mean.
     """
@@ -62,7 +63,7 @@ class Classifier(LinearModel):
         weight: Any,
         bias: Any = None,
         *,
-        labels: Any,
+        labels: Any = None,  # required; a default keeps pydantic 2.5 from refusing the order
         link: Literal["auto", "sigmoid", "softmax", "ovr", "none"] = "auto",
         normalized: bool | None = None,
     ):

@@ -22,8 +22,8 @@ from ._outputs import PredictedBatch
 
 class Regressor(LinearModel):
     """Predicts values of texts with an encoder and a linear head ``z = A x + b`` on its
-    rows, one value per target. Make one with ``Regressor.from_arrays`` or
-    ``Regressor.load``; fse trains nothing. A head trained on
+    rows, one value per target. Make one with ``Regressor.from_sklearn``,
+    ``Regressor.from_arrays`` or ``Regressor.load``; fse trains nothing. A head trained on
     raw means folds into the table.
     """
 

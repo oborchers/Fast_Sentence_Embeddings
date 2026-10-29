@@ -123,6 +123,8 @@ class LinearModel:
         if normalized is None:
             normalized = "normalize@1" in encoder.steps
         k = len(b)
+        if cls.TASK == "classification" and labels is None:
+            raise TypeError("a classifier needs labels, one per output (two for one output)")
         chosen = None if cls.TASK == "regression" else _content.link(link, k)
         names = None if cls.TASK == "regression" else _content.labels(labels, k)
         content = HeadContent(cls.TASK, w, b, normalized, chosen, names)
