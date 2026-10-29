@@ -63,8 +63,8 @@ def _corpus() -> list[str]:
     # Plain words (a-z and 0-9 only) skip most of step 5 natively: the contractions
     # without an apostrophe, words of their length and first letter, and plain words
     # next to the characters that make a candidate not plain.
-    plain = ["gimme", "GOTTA", "Lemme", "wanna", "CANNOT", "cannon", "gonne", "wannabe",
-             "lemmer", "gottas", "g0nna", "cards", "golfs", "mores", "dyes", "tiss", "x9"]
+    plain = "gimme GOTTA Lemme wanna CANNOT cannon gonne wannabe lemmer gottas g0nna".split()
+    plain += "cards golfs mores dyes tiss x9".split()
     marks = ["", "", "", "_", "-", "'", ".", ":", "\u00e9", "\u212a", "\u0130", "/"]
     texts += [
         " ".join(rng.choice(marks) + rng.choice(plain) + rng.choice(marks) for _ in range(5))
