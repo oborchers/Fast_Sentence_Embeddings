@@ -233,12 +233,27 @@ static void fse_emit_candidate(fse_tokens *out, uint8_t *c, int64_t s, int64_t e
     fse_emit_part(out, c, s, e);
 }
 
+/* Step 5 for a candidate of a-z and 0-9 only: nothing to strip, cut or rewrite unless it
+   is one of the contractions without an apostrophe (5 or 6 bytes from c, g, l or w).
+   The tokenizer knows a candidate is plain from its bytes, so no rule of step 5 can
+   apply: no . : ' - to strip or cut at, an a-z or 0-9 byte, no clitic or n't. */
+static inline void fse_emit_plain(fse_tokens *out, uint8_t *c, int64_t s, int64_t e) {
+    int64_t n = e - s;
+    uint8_t f = c[s];
+    if ((n == 5 || n == 6) && (f == 'c' || f == 'g' || f == 'l' || f == 'w')) {
+        fse_emit_candidate(out, c, s, e);
+        return;
+    }
+    fse_emit(out, s, e);
+}
+
 /* Kinds of ASCII bytes: an ordinary token character, whitespace or a separator, or one
    of the characters whose rule looks at their neighbors. */
 #define FSE_KIND_TOKEN 0
 #define FSE_KIND_BREAK 1
 #define FSE_KIND_CONTEXT 2
 static uint8_t fse_ascii_kind[128];
+static uint8_t fse_ascii_not_alnum[128];  /* 1 unless the lowercased byte is a-z or 0-9 */
 
 static void fse_text_init_kinds(void) {
     for (unsigned b = 0; b < 128; b++) {
@@ -246,6 +261,7 @@ static void fse_text_init_kinds(void) {
         fse_ascii_kind[b] = c == FSE_CLASS_SPACE || c == FSE_CLASS_SEPARATOR ? FSE_KIND_BREAK
                           : (c == '.' || c == '-' || c == ',' || c == ':' || c == '\'') ? FSE_KIND_CONTEXT
                           : FSE_KIND_TOKEN;
+        fse_ascii_not_alnum[b] = !fse_is_alnum_byte((uint8_t)(c < 0x80 ? c : 0));
     }
 }
 
@@ -268,6 +284,7 @@ static int64_t fse_tokenize_fse_words(const uint8_t *p, int64_t n, uint8_t *cand
     int64_t m = 0, cs = 0;  /* the end of the candidates, the start of the current one */
     unsigned prev_cls = FSE_CLASS_END;
     int prev_t = 0;
+    uint8_t odd = 0;  /* the current candidate has a byte other than a-z and 0-9 */
     int64_t i = 0;
     while (i < n) {
         uint8_t b = p[i];
@@ -277,6 +294,7 @@ static int64_t fse_tokenize_fse_words(const uint8_t *p, int64_t n, uint8_t *cand
             c = fse_ascii_class[b];
             uint8_t kind = fse_ascii_kind[b];
             if (kind == FSE_KIND_TOKEN) {
+                odd |= fse_ascii_not_alnum[b];
                 cand[m++] = (uint8_t)c;
                 prev_cls = c;
                 prev_t = 1;
@@ -299,7 +317,7 @@ static int64_t fse_tokenize_fse_words(const uint8_t *p, int64_t n, uint8_t *cand
                                   next != FSE_CLASS_END && fse_is_word_class(next);
                     t = !(doubled || opening);
                 }
-                if (t) cand[m++] = (uint8_t)c;
+                if (t) { cand[m++] = (uint8_t)c; odd = 1; }
             }
             i++;
         } else {
@@ -313,17 +331,21 @@ static int64_t fse_tokenize_fse_words(const uint8_t *p, int64_t n, uint8_t *cand
             if (t) {
                 memcpy(cand + m, cp.bytes, 4);  /* cand has 8 bytes of slack */
                 m += cp.len;
+                odd = 1;
             }
             i += len;
         }
         if (!t && m > cs) {
-            fse_emit_candidate(out, cand, cs, m);
+            if (odd) fse_emit_candidate(out, cand, cs, m); else fse_emit_plain(out, cand, cs, m);
             cs = m;
+            odd = 0;
         }
         prev_cls = c;
         prev_t = t;
     }
-    if (m > cs) fse_emit_candidate(out, cand, cs, m);
+    if (m > cs) {
+        if (odd) fse_emit_candidate(out, cand, cs, m); else fse_emit_plain(out, cand, cs, m);
+    }
     return -1;
 }
 

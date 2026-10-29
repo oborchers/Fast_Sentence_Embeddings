@@ -60,6 +60,16 @@ def _corpus() -> list[str]:
     texts += [
         " ".join(rng.choice([*words, "x", "a-b", "..."]) for _ in range(6)) for _ in range(500)
     ]
+    # Plain words (a-z and 0-9 only) skip most of step 5 natively: the contractions
+    # without an apostrophe, words of their length and first letter, and plain words
+    # next to the characters that make a candidate not plain.
+    plain = ["gimme", "GOTTA", "Lemme", "wanna", "CANNOT", "cannon", "gonne", "wannabe"]
+    plain += ["lemmer", "gottas", "g0nna", "cards", "golfs", "mores", "dyes", "tiss", "x9"]
+    marks = ["", "", "", "_", "-", "'", ".", ":", "\u00e9", "\u212a", "\u0130", "/"]
+    texts += [
+        " ".join(rng.choice(marks) + rng.choice(plain) + rng.choice(marks) for _ in range(5))
+        for _ in range(2000)
+    ]
     return texts
 
 
@@ -89,6 +99,14 @@ def test_native_matches_the_reference_on_random_unicode(tokenizer):
     want = REFERENCE[tokenizer]
     for text in CORPUS:
         assert_tokens_equal(_native.tokenize(text, tokenizer), want(text), text)
+
+
+def test_every_ascii_character_next_to_plain_words_matches_the_reference():
+    # Alone, before a break, inside and next to plain words: a character that the native
+    # tokenizer wrongly took for a-z or 0-9 would make a candidate take the fast path.
+    for ch in map(chr, range(128)):
+        for text in (ch, ch + " x", "ab" + ch + "cd", ch + "ab", "ab" + ch, "gonn" + ch):
+            assert_tokens_equal(_native.tokenize(text), ref.tokenize_fse_words(text), text)
 
 
 @pytest.mark.parametrize("tokenizer", TOKENIZERS)
@@ -150,6 +168,11 @@ def test_tokenize_validates_its_arguments():
             frozenset(ch for ch in map(chr, range(0x10000)) if ch.isdigit()),
         ),
         ("no contraction table", "CONTRACTIONS", {}),
+        (
+            "no contractions without an apostrophe",
+            "CONTRACTIONS",
+            {word: parts for word, parts in ref.CONTRACTIONS.items() if "'" in word},
+        ),
         ("no clitics", "CLITICS", ()),
         ("every character a word character", "_is_word", lambda _ch: True),
         ("the separators of the 1.x regex only", "SEPARATORS", frozenset('!"#$%&()*;<>?@[]`{}')),
