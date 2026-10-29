@@ -339,11 +339,11 @@ exhaustive = true
 layers = ["_encoder", "_batches | _format", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
-name = "Runtime: the pipeline on tasks, sinks and the executor"
+name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the executor"
 type = "layers"
 containers = ["fse._runtime"]
 exhaustive = true
-layers = ["_pipeline", "_tasks | _sinks | _executor | _spec"]
+layers = ["_head", "_pipeline", "_tasks | _sinks | _executor | _spec"]
 
 [[tool.importlinter.contracts]]
 # The device libraries (mlx) are checked by tools/check_guardrails.py instead: only the
