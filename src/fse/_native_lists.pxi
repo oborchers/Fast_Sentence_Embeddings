@@ -8,7 +8,7 @@
 # runs: items are read as borrowed pointers, nothing calls Python, drops a reference or
 # allocates a Python object, and the threads only read memory. The bytes object is made
 # from the buffers after the pass. (Free-threaded builds, where the GIL does not keep
-# other threads out, would need the input locked; fse does not build them.)
+# other threads out, would need the input locked; fse refuses to build for them.)
 
 from cpython.object cimport PyObject
 from libc.stdint cimport uint32_t
@@ -16,6 +16,9 @@ from libc.stdint cimport uint32_t
 
 cdef extern from *:
     """
+    #ifdef Py_GIL_DISABLED
+    #error "fse does not support free-threaded Python: the join of strings and token lists reads str objects from native threads and needs the GIL to keep other threads from changing them"
+    #endif
     #if PY_VERSION_HEX < 0x030C0000
     #define FSE_UNICODE_IS_READY(o) PyUnicode_IS_READY(o)
     #else
