@@ -95,14 +95,13 @@ def test_an_empty_batch_writes_nothing(mlx):
 
 def _nudged(monkeypatch):
     """A device whose rows are one ulp above the real ones (still within the bound)."""
-    real = _kernels.read
+    real = _kernels.view
 
-    def read(launched, target):
-        flags = real(launched, target)
-        target[...] = np.where(target != 0, np.nextafter(target, F32(np.inf)), target)
-        return flags
+    def view(launched):
+        rows, flags = real(launched)
+        return np.where(rows != 0, np.nextafter(rows, F32(np.inf)), rows), flags
 
-    monkeypatch.setattr(_kernels, "read", read)
+    monkeypatch.setattr(_kernels, "view", view)
 
 
 def _limit_pool():

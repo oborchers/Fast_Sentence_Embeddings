@@ -15,8 +15,13 @@ thread outlives the calls that use it; a new thread first joins the one before, 
 MLX work never overlaps. All threads use one stream made for this hand-over
 (``mx.new_thread_unsafe_stream``): a thread's default stream costs about 1 ms to make.
 
-A job's ``launch`` (queue the kernel) and ``finish`` (read the results into host arrays)
-run in the device thread. An error in one job's launch or finish fails that job only;
+A job's ``launch`` (queue the kernel) and ``finish`` (its results as host arrays, such as
+a view of an MLX array) run in the device thread; its ``use`` (copy the view into the
+caller's arrays) runs in the caller after the job is done. The device thread lends the
+launched MLX arrays until the caller returns the lease, after ``use`` or its error or
+interrupt, and drops them itself (their last reference) afterwards, before it ends; it
+runs the groups already queued meanwhile. A ``use`` must not wait for another call: the
+callers of the last group wait until every lease is back. An error in one job's launch or finish fails that job only;
 an error of the evaluation fails every job of the group. A caller that is interrupted
 (KeyboardInterrupt in the calling thread) anywhere from queueing to waiting takes its job
 out of the queue, or waits until the device thread is done with it (further interrupts
@@ -30,6 +35,7 @@ The device thread gets MLX from ``core`` (``_load.core`` for the process's ``DEV
 from __future__ import annotations
 
 import threading
+import traceback
 from collections import deque
 from collections.abc import Callable
 from types import ModuleType
@@ -42,15 +48,30 @@ GROUP_TOKENS = 1 << 24
 
 Launch = Callable[[Any, Any], tuple]
 Finish = Callable[[tuple], Any]
+Use = Callable[[Any], Any]
 
 
 class Job:
     """One call: its launch and finish, its token count, and its outcome."""
 
-    __slots__ = ("done", "ended", "error", "finish", "launch", "result", "state", "tokens")
+    __slots__ = (
+        "arrays",
+        "done",
+        "ended",
+        "error",
+        "finish",
+        "launch",
+        "lease",
+        "result",
+        "returned",
+        "state",
+        "tokens",
+    )
 
-    def __init__(self, launch: Launch, finish: Finish, tokens: int):
-        self.launch, self.finish, self.tokens = launch, finish, tokens
+    def __init__(self, launch: Launch, finish: Finish, tokens: int, lease: bool = False):
+        self.launch, self.finish, self.tokens, self.lease = launch, finish, tokens, lease
+        self.arrays: tuple | None = None  # the launched arrays, while lent to the caller
+        self.returned = threading.Event()  # the caller is done with the lent arrays
         self.state = "queued"  # then "running"; a cancelled job leaves the queue
         self.done = threading.Event()
         self.ended: threading.Thread | None = None  # the device thread, if it ends after it
@@ -79,20 +100,28 @@ class Device:
         self.evaluations = 0  # groups evaluated, and jobs launched (for the tests)
         self.launches = 0
 
-    def run(self, launch: Launch, finish: Finish, tokens: int = 0) -> Any:
-        """Run one job in the device thread and give its result, or raise its error."""
-        job = Job(launch, finish, tokens)
+    def run(self, launch: Launch, finish: Finish, tokens: int = 0, use: Use | None = None) -> Any:
+        """Run one job in the device thread and give its result, or ``use(result)`` in
+        the caller while the device thread lends the job's arrays, or raise its error."""
+        job = Job(launch, finish, tokens, use is not None)
         try:
             self._enqueue(job)
             job.done.wait()
         except BaseException:
             self._abort(job)
             raise
-        if job.ended is not None:
-            job.ended.join()  # the thread ends right after it settled its last group
+        try:
+            result = job.result
+            job.result = None
+            if job.error is None and use is not None:
+                result = use(result)
+        finally:
+            job.returned.set()
+            if job.ended is not None:
+                job.ended.join()  # the thread ends right after its last group and lease
         if job.error is not None:
             raise job.error
-        return job.result
+        return result
 
     def call(self, function: Callable[[Any, Any], Any]) -> Any:
         """``function(mx, stream)`` in the device thread, which evaluates what it needs."""
@@ -155,6 +184,8 @@ class Device:
                 job.done.wait()
             except BaseException:  # the device thread may still write into its arrays
                 continue
+            job.result = None
+            job.returned.set()
             if job.ended is not None:
                 job.ended.join()
             return
@@ -177,6 +208,7 @@ class Device:
 
     def _serve(self) -> None:
         group: list[Job] = []
+        lent: list[Job] = []
         try:
             mx = self.core()
             if self._stream is None:
@@ -184,13 +216,20 @@ class Device:
             group = self._take()
             while group:
                 self._run(mx, group)
+                for job in group:  # the frames of an error would keep the arrays alive
+                    if job.error is not None:
+                        traceback.clear_frames(job.error.__traceback__)
                 following = self._take()
                 for job in group:
                     job.ended = None if following else threading.current_thread()
+                    if job.arrays is not None:
+                        lent.append(job)
                     job.done.set()
+                lent = _collect(lent, wait=not following)
                 group = following
         except BaseException as err:  # a failure here must not leave a waiter hanging
             self._abandon(group, err)
+            _collect(lent, wait=True)
 
     def _abandon(self, group: list[Job], err: BaseException) -> None:
         with self._lock:
@@ -222,3 +261,19 @@ class Device:
                 job.result = job.finish(arrays)
             except Exception as err:
                 job.error = err
+            else:
+                job.arrays = arrays if job.lease else None
+
+
+def _collect(lent: list[Job], wait: bool) -> list[Job]:
+    """Drop the arrays of the jobs whose callers returned their lease (in the device
+    thread, so MLX frees them here); with ``wait``, of all of them. The others remain."""
+    remaining = []
+    for job in lent:
+        if wait:
+            job.returned.wait()
+        if job.returned.is_set():
+            job.arrays = None
+        else:
+            remaining.append(job)
+    return remaining

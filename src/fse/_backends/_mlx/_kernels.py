@@ -283,16 +283,24 @@ def launch(mx: ModuleType, stream: Any, table: Table, task: Task) -> tuple:
     )
 
 
-def read(launched: tuple, target: ndarray) -> ndarray:
-    """Copy the evaluated rows of a launch into ``target``; the flags of every sentence:
-    the OR of its words' flags, with TINY only if every word has it."""
+def view(launched: tuple) -> tuple[ndarray, ndarray]:
+    """A view of the evaluated rows of a launch (no copy: it keeps the MLX array alive, so
+    the device thread lends it until the caller has copied it), and the flags of every
+    sentence: the OR of its words' flags, with TINY only if every word has it."""
     rows, flags = launched
-    np.copyto(target, np.asarray(rows))
     words = np.asarray(flags).T
     tiny = np.uint32(_sources.TINY)
-    return functools.reduce(np.bitwise_or, words & ~tiny) | functools.reduce(
+    combined = functools.reduce(np.bitwise_or, words & ~tiny) | functools.reduce(
         np.bitwise_and, words & tiny
     )
+    return np.asarray(rows), combined
+
+
+def read(launched: tuple, target: ndarray) -> ndarray:
+    """Copy the evaluated rows of a launch into ``target``; the flags of its sentences."""
+    rows, flags = view(launched)
+    np.copyto(target, rows)
+    return flags
 
 
 ALWAYS = _sources.NONFINITE | _sources.LONG

@@ -101,13 +101,12 @@ def test_the_flushed_cases_need_the_absolute_term(mlx, monkeypatch):
 
 
 def test_the_bound_catches_a_device_that_swaps_rows(mlx, monkeypatch):
-    def swapped(launched, target):
-        flags = real(launched, target)
-        target[[0, 1]] = target[[1, 0]]
-        return flags
+    def swapped(launched):
+        rows, flags = real(launched)
+        return rows[[1, 0, *range(2, len(rows))]], flags
 
-    real = _kernels.read
-    monkeypatch.setattr(_kernels, "read", swapped)
+    real = _kernels.view
+    monkeypatch.setattr(_kernels, "view", swapped)
     witness = WITNESSES[0]
     with pytest.raises(AssertionError, match="row 0 misses the bound"):
         assert_within_bound(_pool(mlx, witness), witness, name=witness.name)

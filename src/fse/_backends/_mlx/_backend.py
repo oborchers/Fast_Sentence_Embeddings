@@ -177,8 +177,9 @@ class MlxBackend:
         pooled = np.empty((task.n_sentences, prepared.pooled_dim), np.float32) if project else out
         flags = self.device.run(
             lambda mx, stream: _kernels.launch(mx, stream, table, task),
-            lambda launched: _kernels.read(launched, pooled),
+            _kernels.view,
             task.tokens,
+            lambda viewed: _copy(viewed, pooled),  # in this worker, from the lent rows
         )
         normalize = any(isinstance(step, Normalize) for step in prepared.steps)
         bad = _kernels.flagged(flags, task, normalize)
@@ -237,6 +238,12 @@ class MlxBackend:
 
     def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
         self.host.store(rows, codes, scales, first_row)
+
+
+def _copy(viewed: tuple[ndarray, ndarray], pooled: ndarray) -> ndarray:
+    """Copy the device's rows into ``pooled``; their flags."""
+    np.copyto(pooled, viewed[0])
+    return viewed[1]
 
 
 def fallbacks(prepared: Prepared) -> dict[str, int]:

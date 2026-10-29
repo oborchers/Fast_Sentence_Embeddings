@@ -123,8 +123,13 @@ def test_only_the_encoders_with_subnormal_inputs_fall_back(mlx):
 
 def test_a_backend_that_always_falls_back_is_caught(mlx, monkeypatch):
     """Its rows are right (the host computes them), so only the count catches it."""
-    real = _kernels.read
-    monkeypatch.setattr(_kernels, "read", lambda *a: real(*a) | _sources.NONFINITE)
+    real = _kernels.view
+
+    def view(launched):
+        rows, flags = real(launched)
+        return rows, flags | _sources.NONFINITE
+
+    monkeypatch.setattr(_kernels, "view", view)
     with pytest.raises(AssertionError):
         _check_fallbacks(mlx)
 

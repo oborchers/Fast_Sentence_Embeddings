@@ -18,25 +18,10 @@ from fse._contract import Batch
 from fse._runtime import EncodeSpec, MemorySink, Pipeline, _tasks
 from fse._text import StringSource
 from support.conformance import mlx_module, require_mlx
+from support.fake_mlx import FakeMx
 from support.runtime import expected, texts, word_vectors
 
 F32 = np.float32
-
-
-class FakeMx:
-    gpu = "gpu"
-
-    def __init__(self):
-        self.evaluated = []
-        self.fail = None
-
-    def new_thread_unsafe_stream(self, device):
-        return f"stream on {device}"
-
-    def eval(self, *arrays):
-        if self.fail is not None:
-            raise self.fail
-        self.evaluated.append(arrays)
 
 
 @pytest.fixture
