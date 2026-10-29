@@ -75,14 +75,16 @@ COLUMNS = [
     ("chunks", 8, _v2("chunks")),
     ("rows/ch", 9, _v2("chunk_rows_p50")),
     ("MiB/ch", 8, _v2("chunk_bytes_max", 2**20)),
-    ("ws MiB", 8, _v2("workspace_bytes", 2**20)),
+    ("ws est MiB", 11, _v2("workspace_estimate_bytes", 2**20)),
 ]
 _NAME = 44
 _COUNTS = ("chunks", "rows/ch")
 
 
 def print_header(pairs: int, repeats: int) -> None:
-    print(f"# medians of {pairs} runs per side of {repeats} timed encodes each; ws: an estimate")
+    print(f"# medians of {pairs} runs per side of {repeats} timed encodes each")
+    print("# ws est: an estimate (not measured) of the Workspace of the one worker that")
+    print("# encodes the longest text")
     print(f"{'case':<{_NAME}}" + "".join(f"{label:>{width}}" for label, width, _ in COLUMNS))
 
 
@@ -105,11 +107,11 @@ def print_row(row: dict, cpus: int) -> None:
     case = row["case"]
     name = " ".join(str(case[k]) for k in _FIELDS)
     if case["kind"] == "strings":
-        median = row["v2"]["median"]
-        timings = ", ".join(f"{k[:-3]} {v:.2f} ms" for k, v in median.items() if k.endswith("_ms"))
+        m = row["v2"]["median"]
         print(
-            f"{'strings ' + name:<{_NAME}}{timings}, longest {median['long_tokens']:,.0f} "
-            f"tokens, peak {median['peak'] / 2**20:,.0f} MiB{_load(row, cpus)}",
+            f"{'strings ' + case['batch'] + ' ' + name:<{_NAME}} p50 {m['p50_ms']:.2f} ms, "
+            f"{m['texts']:,.0f} texts of {m['tokens']:,.0f} tokens, peak "
+            f"{m['peak'] / 2**20:,.0f} MiB{_load(row, cpus)}",
             flush=True,
         )
         return
