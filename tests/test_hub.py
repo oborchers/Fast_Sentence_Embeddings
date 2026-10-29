@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -166,12 +167,12 @@ def test_the_name_of_a_cached_blob_is_checked(tmp_path):
     blob = tmp_path / "blob"
     blob.write_bytes(b"x")
     sha256, sha1 = hashlib.sha256(b"x").hexdigest(), _sha1(b"x")
-    hub._check_name("f", tmp_path / sha256, sha256, sha1, True)
-    hub._check_name("f", tmp_path / sha1, sha256, sha1, False)
+    hub._check_name("f", sha256, sha256, sha1, True)
+    hub._check_name("f", sha1, sha256, sha1, False)
     with pytest.raises(CorruptArtifactError, match="no LFS file of the cache"):
-        hub._check_name("f", tmp_path / sha1, sha256, sha1, True)
+        hub._check_name("f", sha1, sha256, sha1, True)
     with pytest.raises(CorruptArtifactError, match="has the git blob id"):
-        hub._check_name("f", tmp_path / ("1" * 40), sha256, sha1, False)
+        hub._check_name("f", "1" * 40, sha256, sha1, False)
 
 
 def test_an_fse_encoder_on_the_hub_is_an_lfs_file(fake, tmp_path):
@@ -204,3 +205,39 @@ def test_repository_ids_and_the_extra(monkeypatch):
     monkeypatch.setitem(sys.modules, "huggingface_hub", None)
     with pytest.raises(ImportError, match=r'pip install "fse\[hub\]"'):
         Encoder.from_pretrained("acme/tiny")
+
+
+def _share(fake, name, store_name=None):
+    """Move a blob into the cache-wide store of huggingface-hub 2 and link it, as the
+    Xet files of that version are kept."""
+    snapshot = fake.folder() / "snapshots" / COMMIT
+    blob = Path(os.path.normpath(snapshot / os.readlink(snapshot / name)))
+    store_name = store_name or hashlib.sha256(b"xet" + blob.name.encode()).hexdigest()
+    shared = fake.cache / "blobs" / store_name[:2] / store_name
+    shared.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(blob, shared)
+    blob.symlink_to(os.path.relpath(shared, blob.parent))
+    return shared
+
+
+def test_the_shared_blobs_of_huggingface_hub_2_are_followed(fake):
+    online = _load(fake)
+    _share(fake, "model.safetensors")
+    assert _load(fake).fingerprint == online.fingerprint
+    assert _load(fake, local_files_only=True).fingerprint == online.fingerprint
+
+
+def test_a_shared_blob_outside_the_store_is_refused(fake, tmp_path):
+    _load(fake)
+    snapshot = fake.folder() / "snapshots" / COMMIT
+    blob = Path(os.path.normpath(snapshot / os.readlink(snapshot / "model.safetensors")))
+    elsewhere = tmp_path / "elsewhere"
+    shutil.move(blob, elsewhere)
+    blob.symlink_to(elsewhere)
+    with pytest.raises(CorruptArtifactError, match="outside the shared blobs"):
+        _load(fake)
+    blob.unlink()
+    shutil.move(elsewhere, blob)
+    _share(fake, "model.safetensors", store_name="x" * 64)
+    with pytest.raises(CorruptArtifactError, match="outside the shared blobs"):
+        _load(fake)

@@ -78,7 +78,7 @@ class LocalFiles:
         if not os.path.lexists(path):
             return None
         if path.is_symlink():
-            return resolve_link(path, self.folder.parent.parent / "blobs")
+            return resolve_link(path, self.folder.parent.parent)[0]
         return path
 
 

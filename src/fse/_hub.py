@@ -89,32 +89,53 @@ class HubFiles:
             return None
         path = self._download(name, self.revision)
         if path.is_symlink():
-            blob = resolve_link(path, path.parent.parent.parent / "blobs")
+            blob, etag = resolve_link(path, path.parent.parent.parent)
         elif self._offline:
             raise CorruptArtifactError(
                 f"{path} is a copy without its blob name, which local_files_only cannot check"
             )
         else:
-            blob = path
+            blob, etag = path, ""
         sha256, sha1 = _digests(blob)
         if self._pins is None:
-            _check_name(name, blob, sha256, sha1, lfs)
+            _check_name(name, etag, sha256, sha1, lfs)
         else:
             _check_pin(name, self._pins[name], sha256, sha1, lfs, self.revision)
         return blob
 
 
-def resolve_link(path: Path, blobs: Path) -> Path:
-    """The file a snapshot link of a Hugging Face cache points to: a regular file in
-    ``blobs``, the blobs of the same cached repository, never anything else."""
-    target = Path(os.path.realpath(path))
-    if target.parent != Path(os.path.realpath(blobs)):
+def resolve_link(path: Path, repo: Path) -> tuple[Path, str]:
+    """The regular file a snapshot link of a Hugging Face cache points to, and its blob
+    name (the etag: sha256 of an LFS file, else the git blob sha1). The link must point to
+    ``<repo>/blobs/<etag>``, the blobs of the same cached repository; huggingface-hub 2
+    makes that entry a link into the cache-wide store of Xet files,
+    ``<cache>/blobs/<2 hex digits>/<64 hex digits>``, which is followed too. Anything else
+    raises."""
+    blob = _step(path)
+    if not _same(blob.parent, repo / "blobs"):
         raise CorruptArtifactError(
-            f"{path} is a link to {target}, outside the blobs of its Hugging Face cache"
+            f"{path} is a link to {blob}, outside the blobs of its Hugging Face cache"
         )
+    target = blob
+    if blob.is_symlink():
+        target = _step(blob)
+        store = repo.parent / "blobs" / target.name[:2]
+        if not (_SHA256.fullmatch(target.name) and _same(target.parent, store)):
+            raise CorruptArtifactError(
+                f"{blob} is a link to {target}, outside the shared blobs of its cache"
+            )
     if not stat.S_ISREG(os.lstat(target).st_mode):
         raise CorruptArtifactError(f"{path} points to {target}, which is no regular file")
-    return target
+    return target, blob.name
+
+
+def _step(link: Path) -> Path:
+    """Where one link points, as a path (not followed further)."""
+    return Path(os.path.normpath(link.parent / os.readlink(link)))
+
+
+def _same(a: Path, b: Path) -> bool:
+    return os.path.realpath(a) == os.path.realpath(b)
 
 
 def _digests(path: Path) -> tuple[str, str]:
@@ -137,16 +158,16 @@ def _check_pin(name: str, pin: Any, sha256: str, sha1: str, lfs: bool, commit: s
         raise CorruptArtifactError(f"{name} has the git blob id {sha1}, the commit pins {blob_id}")
 
 
-def _check_name(name: str, blob: Path, sha256: str, sha1: str, lfs: bool) -> None:
-    """A cached blob against its name: its sha256 (LFS) or git blob sha1."""
-    if _SHA256.fullmatch(blob.name):
-        if sha256 != blob.name:
-            raise CorruptArtifactError(f"{name}: the blob {blob.name} has sha256 {sha256}")
+def _check_name(name: str, etag: str, sha256: str, sha1: str, lfs: bool) -> None:
+    """A cached blob against its name in the repository: sha256 (LFS) or git blob sha1."""
+    if _SHA256.fullmatch(etag):
+        if sha256 != etag:
+            raise CorruptArtifactError(f"{name}: the blob {etag} has sha256 {sha256}")
         return
-    if lfs or not _SHA1.fullmatch(blob.name):
+    if lfs or not _SHA1.fullmatch(etag):
         raise CorruptArtifactError(
-            f"{name}: the blob {blob.name} is no {'LFS ' if lfs else ''}file of the cache "
+            f"{name}: the blob {etag} is no {'LFS ' if lfs else ''}file of the cache "
             "named by its hash"
         )
-    if sha1 != blob.name:
-        raise CorruptArtifactError(f"{name}: the blob {blob.name} has the git blob id {sha1}")
+    if sha1 != etag:
+        raise CorruptArtifactError(f"{name}: the blob {etag} has the git blob id {sha1}")
