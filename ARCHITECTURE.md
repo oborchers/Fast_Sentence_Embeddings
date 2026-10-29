@@ -19,9 +19,11 @@ src/fse/
     _hash.py             #   the one hash of the artifacts (xxh3-128), its values and classes,
     _safetensors.py      #   SafetensorsContainer (models),
     _npy.py              #   NpyContainer (output),
-    _npy_inplace.py      #   NpyContainer artifacts written in place: rows at their offsets, exclusive publish
+    _npy_inplace.py      #   NpyContainer artifacts written in place: rows at their offsets, exclusive publish,
+    _foreign.py          #   safetensors files of other writers (Model2Vec), read strictly
   _wordvectors.py        # WordVectors
   _wordvectors_format.py # the format rules of word_vectors 1: keys, checks, vocabulary encoding
+  _tokenizer_json.py     # a BERT tokenizer.json of Hugging Face as the parameters of wordpiece@1
   _cpus.py               # usable_cpus: the default number of workers
   _backends/             # the backends behind one contract:
     __init__.py          #   BACKEND_NAMES, get_backend,
@@ -41,7 +43,9 @@ src/fse/
     _spec.py             #   EncodeSpec: what an encoder hands to the runtime,
     _pipeline.py         #   Pipeline: an encoder on one backend, infer
   _encoder/              # the encoder:
-    _encoder.py          #   Encoder: construction, encode, save and load,
+    _encoder.py          #   Encoder: construction, encode, save and load, from_pretrained,
+    _pretrained.py       #   what a local path or Hub repository holds,
+    _model2vec.py        #   Model2Vec models as the parts of an encoder,
     _batches.py          #   encode_batches and encoding into a sink,
     _format.py           #   the format rules of encoder 1,
     _sources.py          #   what encode takes as texts, and its source,
@@ -83,6 +87,7 @@ src/fse/
   _reference_wordpiece.py # the reference of wordpiece@1
   _text.py               # text sources (strings, token lists) to batches, the Vocabulary
   _text_file.py          # FileSource: the lines of a memory-mapped text file
+  _hub.py                # a Hub repository at one commit, its files checked (extra fse[hub])
   _stream.py             # StreamSource: sentences from an iterator, read once
   gensim.py              # adapter from gensim word vectors (extra fse[gensim])
 ```
@@ -435,13 +440,34 @@ An encoder (`fse._encoder`) is a finished model in one self-contained `.safetens
 
 The converted models of PR 12 must state where they differ from their source: per the source code reviewed for this plan, Model2Vec drops unknown token ids, applies length rules and adds a small value to the norm, while StaticEmbedding pools every id its tokenizer gives, and both disable the special tokens of their tokenizers ([Model2Vec](https://github.com/MinishLab/model2vec/blob/main/model2vec/model.py), [StaticEmbedding](https://github.com/huggingface/sentence-transformers/blob/main/sentence_transformers/sentence_transformer/modules/static_embedding.py)). The keys above say all of it for `wordpiece@1` models (`fse.unknown`, the length rule; the epsilon of Model2Vec is not reproduced, so a row whose sum of squares underflows or overflows raises in `normalize@1`, where Model2Vec gives a row that is not of unit length).
 
+### Model2Vec models and from_pretrained
+
+`Encoder.from_pretrained(repo_or_path, *, revision=None, token=None, cache_dir=None, local_files_only=False, truncate=True, max_length="model", mmap=False)` gives the encoder of a pretrained model. It converts a model of another library on every call, in memory (nothing is hosted, the license of the model applies unchanged), or loads an fse encoder.
+
+- **Where.** An existing local path is a `.safetensors` file (an fse encoder, `Encoder.load`) or a folder. Anything else must be a Hub id `namespace/name`, read by `fse._hub` with the extra `fse[hub]` (huggingface-hub 1.0 or newer, imported only there); without it, an ImportError names the extra. `revision`, `token`, `cache_dir` and `local_files_only` are for the Hub and raise with a local path.
+- **What** (`fse._encoder._pretrained`), from `config.json`:
+  - `"model_type": "fse"`: an fse encoder; the config holds exactly `model_type`, `fse_kind` (`encoder`), `fse_format_version` (1) and `encoder`, the name of its `.safetensors` file. `mmap` maps it.
+  - a Model2Vec model, as model2vec 0.10.0 finds one: `config.json`, `model.safetensors` and `tokenizer.json`, with model_type `model2vec` or none;
+  - `config_sentence_transformers.json`: a sentence-transformers model, refused as not supported yet;
+  - anything else, or a `modules.json` with modules other than StaticEmbedding and Normalize: "no static embedding model", naming the model_type, files and modules.
+
+  `truncate` and `max_length` are for converted models, `mmap` for fse encoders; the other combinations raise.
+- **The Hub at one commit.** `revision` (None: the default branch) is resolved to its commit by `model_info` once, and every file comes from that commit (`hf_hub_download(revision=<commit>)`). The commit pins every file, and each is checked after the download: an LFS file by its `lfs.sha256`, any other by its git blob sha1, both computed in `fse._container._hash`. Every `.safetensors` file (the table of a Model2Vec model, an fse encoder) must be an LFS file; one without `lfs.sha256` raises. With `local_files_only` nothing is asked of the Hub: the commit comes from the cache, and every blob is checked against its name, which is its sha256 or git sha1 (this detects damage, not forgery); a snapshot that holds a copy instead of a link raises then.
+- **Cache links.** A snapshot file of the Hugging Face cache is a link to `<repo>/blobs/<etag>`, the blobs of the same cached repository; with huggingface-hub 2 that entry is itself a link into the cache-wide store of Xet files, `<cache>/blobs/<2 hex digits>/<64 hex digits>`. Exactly these two steps are followed, the per-repository etag is the name that is checked, and the regular file at the end is read; any other link raises. A local folder that is a snapshot of the cache is read the same way.
+- **The Model2Vec reader** (`fse._encoder._model2vec`, the rules of model2vec 0.10.0, `model.py` and `persistence/`):
+  - `config.json`: strict JSON. `normalize` (default false) sets the step `normalize@1`; `max_length` (an int of at least 1, or null for none; default 512) the length rule; `hidden_dim` and `embedding_dtype` must match the table. `model_type`, `architectures`, `tokenizer_name`, `apply_pca`, `apply_zipf`, `sif_coefficient`, `seq_length` and `pooling` are provenance and ignored (`seq_length` is no length rule). `vocabulary_quantization` and `head_config` raise, and so does any other key, so a new key that changes encoding cannot be ignored silently.
+  - `model.safetensors` (`fse._container._foreign`: the structural checks of safetensors 1 without fse's integrity keys; `__metadata__` may be absent and is ignored) holds exactly the tensor `embeddings`, a float32 matrix with one row per token. `weights` and `mapping` (vocabulary quantization) raise. float16 and int8 tables raise: model2vec computes their mean in their own dtype, so the bound of a comparison would not hold.
+  - `tokenizer.json` (`fse._tokenizer_json`, strict JSON of at most 64 MiB with exactly its keys): a WordPiece model with dense ids and its unknown token in the vocabulary, a BertNormalizer (`strip_accents` null follows `lowercase`), a BertPreTokenizer, added tokens with `normalized`, `lstrip`, `rstrip` and `single_word` false that are vocabulary tokens with the same id, and a post-processor that is null or a TemplateProcessing whose template of a single text holds the sequence `$A` once. tokenizers 0.23.3 runs the post-processor also without special tokens: it then drops the special tokens but keeps every sequence, so `[CLS] $A [SEP]` leaves the ids unchanged while `$A $A` doubles them (tested); other templates and post-processors raise until their path is checked. `truncation` and `padding` are ignored, as model2vec overrides both, and `decoder`, as nothing decodes.
+  - The encoder: `wordpiece@1` with `fse.unknown=drop` (model2vec removes every unknown id after the cut). With `truncate`, `fse.max_tokens` is `max_length` (the model's, or the argument; None: none) and `fse.max_chars` is `max_length` times the median length of the tokens in code points, as model2vec computes it (`int(np.median(...))` over every token in id order, in integers). `truncate=False` reads texts whole. `fse.source` records the format, repo and commit, and `fse.license` the `license` of the YAML front matter of `README.md` when it states one as a plain value (a license of another form raises; none stays absent).
+- **Equality with model2vec.** The ids are those of the model's tokenizer (wordpiece@1). The rows are model2vec's within the tolerance bound (`tests/support/model2vec.py`: `(τ + 2 γ_K) m + δ K sqrt(d)` before normalize and `2 E / r` plus the rounding of both normalizations after it), because both are float32 sums of the same K rows in another order: model2vec takes numpy's mean and divides by `norm + 1e-32`. Not reproduced: a nonzero row whose sum of squares underflows or overflows float32 raises in `normalize@1` (the step is unchanged), where model2vec gives `[1e-30, 0]` as `[100, 0]` and a huge row as no unit row. Rows that tiny or that large do not occur with the POTION tables.
+
 ### Identities
 
 - A **row id** is the int64 position of a sentence in its source, from 0.
 - A **shard** is a contiguous range of rows; 2.1 splits sources with `shard=(i, n)` at multiples of 16,384 rows.
 - A **checksum** is `xxh3-128:` and the 32 lowercase hex digits of XXH3-128 with seed 0 (in the canonical big-endian form, as `xxhash.xxh3_128().hexdigest()` gives it) of bytes fed in order; a tensor's checksum is that of its little-endian C-order bytes, and a tensor without elements has the checksum of no bytes, `xxh3-128:99aa06d3014798d86001c324468d497f`. `fse._container._hash` is the only module that computes one and the only one that imports a hash library (`hash-importers` of the guardrails); it streams (`update` releases the GIL for large inputs), takes bytes, C-contiguous memory and C-contiguous little-endian arrays only, and the containers feed it in chunks. Values are compared as whole strings, the algorithm included.
 - A **fingerprint** is the checksum of the UTF-8 bytes of the canonical JSON (keys sorted, separators `,` and `:`, no whitespace, non-ASCII characters unescaped) of `{"fingerprint": 1, "metadata": {...}, "tensors": [[name, dtype, shape, checksum], ...]}`: the metadata without `fse.created_by`, `fse.fingerprint` and the `fse.checksum.` keys; the tensors sorted by name, with the dtype code (such as `"F32"`), the shape as a list of integers and the checksum of the tensor. It describes the content, not the container, so every container gives the same fingerprint. A pre-release of 2.0 hashed the same document with sha256; its values are not read. The test vector (`tests/test_container_common.py`): tensors `vectors` F32 `[[1, -0.0], [0.5, 2]]`, `vocab.bytes` U8 of `"aé"`, `vocab.offsets` I64 `[0, 1, 3]` with metadata `fse.kind=word_vectors`, `fse.format_version=1`, `fse.dim=2`, `fse.dtype=float32` give `xxh3-128:8011e82efda8fabff21969cbaad4fae3`, and with `fse.note=é` added `xxh3-128:9e1f9e8737c4b9c190d5600af20953e0`.
-- **What the hashes guarantee.** Checksums and fingerprints identify content against accidents: damaged, truncated or changed files and data that changed since they were checked (with 128 bits, a chance collision needs about 2**64 artifacts). They are no authentication: xxh3 promises neither collision resistance nor second-preimage resistance, so someone who can write a file can make different content with the same checksums and fingerprint, and no security-relevant binding may rest on them, such as a store's `fse.encoder`, a Vocabulary's fingerprint or the `expected` checksums of `save` and `quantize`. Anyone who can write a file could always recompute its values anyway, as no key is involved; the files are free of pickle and read strictly, so a forged file gives wrong data, not code execution. Authenticity needs a trusted reference: a cryptographic hash of the whole file from a trusted source, or a pinned revision; a hash computed from the file itself authenticates nothing. The Hub loader (a later PR) takes this from the Hub: registry artifacts must be LFS files, whose sha256 (`lfs.sha256`) a commit pins; a missing `lfs.sha256` is rejected, and a cached file is checked against it at its first trusted use.
+- **What the hashes guarantee.** Checksums and fingerprints identify content against accidents: damaged, truncated or changed files and data that changed since they were checked (with 128 bits, a chance collision needs about 2**64 artifacts). They are no authentication: xxh3 promises neither collision resistance nor second-preimage resistance, so someone who can write a file can make different content with the same checksums and fingerprint, and no security-relevant binding may rest on them, such as a store's `fse.encoder`, a Vocabulary's fingerprint or the `expected` checksums of `save` and `quantize`. Anyone who can write a file could always recompute its values anyway, as no key is involved; the files are free of pickle and read strictly, so a forged file gives wrong data, not code execution. Authenticity needs a trusted reference: a cryptographic hash of the whole file from a trusted source, or a pinned revision; a hash computed from the file itself authenticates nothing. The Hub loader (`fse._hub`, *Model2Vec models and from_pretrained*) takes this from the Hub: registry artifacts must be LFS files, whose sha256 (`lfs.sha256`) a commit pins; a missing `lfs.sha256` is rejected, and a cached file is checked against it at its first trusted use.
 - An encoder holds its table; stored vectors reference their encoder by fingerprint; opening them with a mismatch raises. 2.1 adds the fingerprint of the source for resuming.
 
 ### Persistence names replace class paths
@@ -472,14 +498,14 @@ The modules form layers, and a module imports only from layers below it. The imp
 1. `gensim` (the adapter, the only module that imports gensim) and `_store` (the shard sink and the vector store, which take an encoder), independent of each other
 2. `_encoder` (the encoder; `fse` loads its names on first access, because import-linter counts every import of the native extension as an import of `fse` itself, so a static import in `fse/__init__.py` would read as a cycle through every layer)
 3. `_runtime`
-4. `_backends`, `_stream`, `_text_file`, independent of each other
+4. `_backends`, `_stream`, `_text_file`, `_hub`, independent of each other
 5. `_text`
 6. `_wordvectors`
-7. `_wordvectors_format`
+7. `_wordvectors_format`, `_tokenizer_json`
 8. `_container`, `_codes`, `_reference`, `_reference_text`, `_reference_wordpiece`, `_tokenizer_spec`, `_validation`, independent of each other: the references never share code with what they check
 9. `_contract`, `_cpus`, `_unicode`, `_unicode_bert`
 
-Inside a package, an import contract keeps its parts apart: `_npy` and `_safetensors` share only `_common`, which sits on `_hash`, each backend shares only `_base`, the runtime's pipeline sits on its tasks, sinks, spec and executor, in the encoder the encoder sits on its batches and format and those on its inputs, in the containers the in-place writer `_npy_inplace` sits on `_npy`, and in the store the sink and the vector store sit on the shard writer and the search, those on the layout.
+Inside a package, an import contract keeps its parts apart: `_npy` and `_safetensors` share only `_common`, which sits on `_hash`, each backend shares only `_base`, the runtime's pipeline sits on its tasks, sinks, spec and executor, in the encoder the encoder sits on `_pretrained`, that on `_model2vec`, that on its batches and format and those on its inputs, in the containers the in-place writer `_npy_inplace` sits on `_npy` and the reader of foreign files `_foreign` on `_safetensors`, and in the store the sink and the vector store sit on the shard writer and the search, those on the layout.
 
 The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` (stages 1 and 2) and the cpu backend `_backends._cpu` (the kernels) import it and that it imports only `_contract` from fse. It also checks that only `_container._hash` imports a hash library (hashlib or xxhash), and that the library of each device backend (`device-libraries` in `[tool.fse.guardrails]`: mlx, later CUDA's) is imported, by an import statement or `importlib`, only by that backend's `_backends._<name>._load`; `get_backend` imports that backend's package only when it makes the backend, so that `import fse` and the other backends never load it. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list, with the device libraries, to the extension. Inside the mlx backend the backend sits on the device thread, that on the kernels, those on the Metal source and the loader.
 
