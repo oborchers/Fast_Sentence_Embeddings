@@ -27,7 +27,7 @@ from typing import Any, Protocol
 
 from numpy import ndarray
 
-from fse._container import CorruptArtifactError, foreign_tensors, strict_json
+from fse._container import CorruptArtifactError, foreign_header, foreign_tensors, strict_json
 from fse._contract import UnsupportedArtifactError
 from fse._tokenizer_json import MAX_BYTES as MAX_TOKENIZER_BYTES
 from fse._tokenizer_json import tokenizer_of
@@ -132,43 +132,53 @@ def _config(config: Any, path: Path) -> dict[str, Any]:
 
 
 def _table(files: Files, config: dict[str, Any], n_tokens: int) -> ndarray:
-    """The tensor embeddings: float32 rows, one per token."""
+    """The tensor embeddings: float32 rows, one per token. Its header is checked before
+    the data are read, so a file that holds other tensors costs no memory."""
     path = files.where("model.safetensors")
-    tensors = foreign_tensors(files.read("model.safetensors", lfs=True), path)
-    quantized = sorted({"weights", "mapping"} & set(tensors))
+
+    def inspect(handle, size: int) -> None:
+        _check_tensors(path, foreign_header(handle, path, size)[1], config, n_tokens)
+
+    data = files.read("model.safetensors", lfs=True, inspect=inspect)
+    return foreign_tensors(data, path)["embeddings"]
+
+
+_DTYPE_OF_CODE = {"F32": "float32", "F16": "float16", "I8": "int8", "U8": "uint8"}
+_DTYPE_OF_CODE |= {"U32": "uint32", "I64": "int64"}
+
+
+def _check_tensors(path: Path, entries: dict, config: dict[str, Any], n_tokens: int) -> None:
+    """The tensors of the header: exactly a float32 matrix embeddings, one row per token."""
+    quantized = sorted({"weights", "mapping"} & set(entries))
     if quantized:
         raise UnsupportedArtifactError(
             f"{path} holds {quantized}, the tensors of vocabulary quantization, which this "
             "fse does not read"
         )
-    if set(tensors) != {"embeddings"}:
+    if set(entries) != {"embeddings"}:
         raise CorruptArtifactError(
-            f"{path} must hold exactly the tensor embeddings, not {sorted(tensors)}"
+            f"{path} must hold exactly the tensor embeddings, not {sorted(entries)}"
         )
-    table = tensors["embeddings"]
-    if table.ndim != 2:
-        raise CorruptArtifactError(
-            f"{path}: embeddings must be a matrix, not of shape {table.shape}"
-        )
+    code, shape, _, _ = entries["embeddings"]
+    if len(shape) != 2:
+        raise CorruptArtifactError(f"{path}: embeddings must be a matrix, not of shape {shape}")
+    dtype = _DTYPE_OF_CODE[code]
     declared = config.get("embedding_dtype")
-    if declared is not None and _DTYPES.get(declared) != table.dtype.name:
-        raise CorruptArtifactError(
-            f"{path}: embedding_dtype is {declared!r}, the table {table.dtype}"
-        )
-    if table.dtype.name != "float32":
+    if declared is not None and _DTYPES.get(declared) != dtype:
+        raise CorruptArtifactError(f"{path}: embedding_dtype is {declared!r}, the table {dtype}")
+    if dtype != "float32":
         raise UnsupportedArtifactError(
-            f"{path} has a {table.dtype} table; this fse reads float32 Model2Vec models "
+            f"{path} has a {dtype} table; this fse reads float32 Model2Vec models "
             "(model2vec computes others in their own dtype, so their vectors would differ)"
         )
-    if config.get("hidden_dim", table.shape[1]) != table.shape[1]:
+    if config.get("hidden_dim", shape[1]) != shape[1]:
         raise CorruptArtifactError(
-            f"{path}: hidden_dim is {config['hidden_dim']!r}, the table has {table.shape[1]} columns"
+            f"{path}: hidden_dim is {config['hidden_dim']!r}, the table has {shape[1]} columns"
         )
-    if table.shape[0] != n_tokens:
+    if shape[0] != n_tokens:
         raise CorruptArtifactError(
-            f"{path} has {table.shape[0]} rows, but the tokenizer has {n_tokens} tokens"
+            f"{path} has {shape[0]} rows, but the tokenizer has {n_tokens} tokens"
         )
-    return table
 
 
 def _length(config: dict[str, Any], truncate: bool, max_length: Any) -> int | None:

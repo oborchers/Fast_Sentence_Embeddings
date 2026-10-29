@@ -196,3 +196,34 @@ def test_the_table_is_checked(tmp_path):
         save_file(tensors, files["model.safetensors"])
         with pytest.raises(error, match=match):
             Encoder.from_pretrained(folder)
+
+
+def test_a_huge_file_is_refused_by_its_header(tmp_path):
+    """A structurally valid model.safetensors of 1 GiB (sparse) with a tensor besides
+    embeddings is refused from its header, before its data are read."""
+    import struct
+    import tracemalloc
+
+    folder = mv.save_model(tmp_path / "huge")
+    rows = len(TOKENS) * mv.DIM * 4
+    extra = 2**30
+    header = {
+        "embeddings": {"dtype": "F32", "shape": [len(TOKENS), mv.DIM], "data_offsets": [0, rows]},
+        "extra": {"dtype": "U8", "shape": [extra], "data_offsets": [rows, rows + extra]},
+    }
+    text = json.dumps(header).encode()
+    text += b" " * (-len(text) % 8)
+    with open(folder / "model.safetensors", "wb") as f:
+        f.write(struct.pack("<Q", len(text)) + text)
+        f.truncate(8 + len(text) + rows + extra)
+    tracemalloc.start()
+    try:
+        with pytest.raises(
+            CorruptArtifactError,
+            match=r"exactly the tensor embeddings, not \['embeddings', 'extra'\]",
+        ):
+            Encoder.from_pretrained(folder)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    assert peak < 64 * 2**20, peak
