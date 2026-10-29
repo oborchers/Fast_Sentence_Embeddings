@@ -317,7 +317,7 @@ def _legacy(text):
     api.PyUnicode_FromUnicode.argtypes = [ctypes.c_void_p, ctypes.c_ssize_t]
     api.PyUnicode_AsUnicode.restype = ctypes.c_void_p
     api.PyUnicode_AsUnicode.argtypes = [ctypes.py_object]
-    with pytest.warns(DeprecationWarning):
+    with pytest.warns(DeprecationWarning, match=r"PyUnicode_FromUnicode\(NULL, size\)"):
         legacy = api.PyUnicode_FromUnicode(None, len(text))
     wide = ctypes.create_unicode_buffer(text, len(text) + 1)
     ctypes.memmove(api.PyUnicode_AsUnicode(legacy), wide, len(text) * ctypes.sizeof(ctypes.c_wchar))
