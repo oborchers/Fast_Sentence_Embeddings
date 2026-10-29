@@ -96,7 +96,7 @@ def child_v2(cfg: dict, data: dict) -> float:
     wv = fse.WordVectors.from_arrays(data["vectors"], words=[f"w{i}" for i in range(cfg["vocab"])])
     if cfg["dtype"] != "float32":
         wv = wv.quantize(cfg["dtype"])
-    kernel = WeightedMean(wv.vectors, np.ones(cfg["vocab"], np.float32), wv.scales)
+    kernel = WeightedMean(wv.stored_vectors, np.ones(cfg["vocab"], np.float32), wv.scales)
     offsets, ids = data["offsets"], data["ids"]
     batches = []
     for first, last in _jobs(offsets, cfg["batch"]):

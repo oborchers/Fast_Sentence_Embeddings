@@ -349,8 +349,9 @@ class WordVectors:
         return self._metadata["fse.dtype"]
 
     @property
-    def vectors(self) -> ndarray:
-        """The stored rows: float32 values, or float16 or int8 codes."""
+    def stored_vectors(self) -> ndarray:
+        """The stored rows: float32 values, or float16 or int8 codes (with ``scales``);
+        ``get_vectors`` gives them decoded as float32."""
         return self._tensors["vectors"].view()
 
     @property
@@ -375,7 +376,8 @@ class WordVectors:
         return None if text is None else _parse_fasttext(text)
 
     @property
-    def ngrams(self) -> ndarray | None:
+    def stored_ngrams(self) -> ndarray | None:
+        """The stored FastText ngram rows, as ``stored_vectors`` (with ``ngram_scales``)."""
         return _view(self._tensors.get("ngrams"))
 
     @property
@@ -487,4 +489,4 @@ class WordVectors:
         if ids.size and (ids.min() < 0 or ids.max() >= len(self)):
             raise IndexError(f"indices must be between 0 and {len(self) - 1}")
         scales = self.scales
-        return _codes.dequantize(self.vectors[ids], None if scales is None else scales[ids])
+        return _codes.dequantize(self.stored_vectors[ids], None if scales is None else scales[ids])

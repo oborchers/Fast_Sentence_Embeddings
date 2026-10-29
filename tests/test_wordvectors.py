@@ -33,7 +33,7 @@ def test_round_trip(tmp_path, dtype, fasttext, mmap):
     _same(wv, loaded)
     assert loaded.path == tmp_path / "wv.safetensors"
     assert loaded.dtype == dtype
-    assert isinstance(loaded.vectors, np.memmap) == mmap
+    assert isinstance(loaded.stored_vectors, np.memmap) == mmap
     loaded.verify()
     assert loaded.metadata["fse.created_by"].startswith("fse")
     # Saving again gives the same content and fingerprint.
@@ -67,7 +67,7 @@ def test_lookup_is_byte_exact():
 def test_get_vector_is_float32_and_new(dtype):
     source = _wv()
     wv = source.quantize(dtype) if dtype != "float32" else source
-    expected = dequantize(wv.vectors, wv.scales)
+    expected = dequantize(wv.stored_vectors, wv.scales)
     for i, word in enumerate(WORDS):
         got = wv.get_vector(word)
         assert got.dtype == F32
@@ -89,10 +89,10 @@ def test_get_vector_is_float32_and_new(dtype):
 def test_quantize(dtype):
     wv = _wv(fasttext=True)
     q = wv.quantize(dtype)
-    codes, scales = quantize_rows(np.asarray(wv.vectors), dtype)
-    assert q.vectors.tobytes() == codes.tobytes()
-    ngram_codes, ngram_scales = quantize_rows(np.asarray(wv.ngrams), dtype)
-    assert q.ngrams.tobytes() == ngram_codes.tobytes()
+    codes, scales = quantize_rows(np.asarray(wv.stored_vectors), dtype)
+    assert q.stored_vectors.tobytes() == codes.tobytes()
+    ngram_codes, ngram_scales = quantize_rows(np.asarray(wv.stored_ngrams), dtype)
+    assert q.stored_ngrams.tobytes() == ngram_codes.tobytes()
     if dtype == "int8":
         assert q.scales.tobytes() == scales.tobytes()
         assert q.ngram_scales.tobytes() == ngram_scales.tobytes()
@@ -107,7 +107,7 @@ def test_quantize(dtype):
 
 def test_immutable_and_not_picklable():
     wv = _wv()
-    for array in (wv.vectors, wv.vocab_bytes, wv.vocab_offsets, wv.counts):
+    for array in (wv.stored_vectors, wv.vocab_bytes, wv.vocab_offsets, wv.counts):
         with pytest.raises(ValueError, match="read-only"):
             array[0] = 1
     with pytest.raises(AttributeError):
@@ -122,7 +122,7 @@ def test_from_arrays_copies():
     rows = np.ones((2, 3), dtype=F32)
     wv = WordVectors.from_arrays(rows, words=["a", "b"])
     rows[0, 0] = 5
-    assert wv.vectors[0, 0] == 1
+    assert wv.stored_vectors[0, 0] == 1
     assert wv.counts is None
     assert wv.fasttext is None
     assert wv.scales is None
@@ -244,7 +244,7 @@ def test_loading_int8_makes_no_float32_copy(tmp_path):
     wv.save(tmp_path / "wv.safetensors")
     codes = 20_000 * 300
     loaded, peak = _peak(lambda: WordVectors.load(tmp_path / "wv.safetensors"))
-    assert loaded.vectors.dtype == np.int8
+    assert loaded.stored_vectors.dtype == np.int8
     float32_copy = 4 * codes
     assert peak < codes + 2 * 2**20, peak  # codes, scales and vocabulary, far below float32
     assert peak < float32_copy / 3
@@ -281,23 +281,31 @@ def test_fingerprint_of_unsaved_vectors_equals_the_saved_one(tmp_path):
     assert metadata["fse.fasttext"] == '{"bucket":7,"max_n":5,"min_n":3}'
 
 
+def test_stored_rows_are_named_stored():
+    wv = _wv("int8", fasttext=True)
+    assert wv.stored_vectors.dtype == np.int8  # codes; get_vectors decodes them
+    assert wv.stored_ngrams.dtype == np.int8
+    assert not hasattr(wv, "vectors")
+    assert not hasattr(wv, "ngrams")
+
+
 def test_returned_arrays_cannot_change_the_vectors():
     wv = _wv("int8", fasttext=True)
     fingerprint = wv.fingerprint
     for name in (
-        "vectors",
+        "stored_vectors",
         "scales",
         "counts",
         "vocab_bytes",
         "vocab_offsets",
-        "ngrams",
+        "stored_ngrams",
         "ngram_scales",
     ):
         array = getattr(wv, name)
         with pytest.raises(ValueError, match=r"WRITEABLE|read-only"):
             array.setflags(write=True)
         assert array is not getattr(wv, name)  # a new header each time
-    assert wv.vectors.shape == (len(WORDS), 5)
+    assert wv.stored_vectors.shape == (len(WORDS), 5)
     assert wv.fingerprint == fingerprint
     assert wv.index("é") == 1
 
@@ -359,7 +367,7 @@ def test_quantized_vectors_own_their_arrays(tmp_path):
     _wv().save(tmp_path / "wv.safetensors")
     wv = WordVectors.load(tmp_path / "wv.safetensors", mmap=True)
     q = wv.quantize("int8")
-    for name in ("vectors", "scales", "counts", "vocab_bytes", "vocab_offsets"):
+    for name in ("stored_vectors", "scales", "counts", "vocab_bytes", "vocab_offsets"):
         assert not isinstance(getattr(q, name), np.memmap), name
     # Changing the source file afterwards changes nothing in the quantized vectors.
     _overwrite(tmp_path / "wv.safetensors", "vocab.bytes", b"x")
