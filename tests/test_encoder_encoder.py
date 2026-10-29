@@ -139,6 +139,28 @@ def test_from_word_vectors_checks_the_fasttext_arguments(kwargs, match):
         Encoder.from_word_vectors(word_vectors(fasttext=True), **kwargs)
 
 
+@pytest.mark.parametrize("env", [{"flush": True}, {"round_up": True}], ids=["flush", "round up"])
+def test_oov_weight_is_converted_in_the_kernel_environment(env):
+    """A thread that flushes subnormals or rounds up gives the oov_weight of one that does
+    not: 1e-40 stays subnormal, 0.1 rounds to nearest."""
+    from fse import _native
+
+    wv = word_vectors(fasttext=True)
+    want = {
+        w: Encoder.from_word_vectors(wv, oov_weight=w)._content.oov_weight for w in (1e-40, 0.1)
+    }
+    assert want[1e-40].view(np.uint32) != 0
+    saved = _native._test_fpenv_set(**env)
+    try:
+        got = {w: Encoder.from_word_vectors(wv, oov_weight=w)._content.oov_weight for w in want}
+    finally:
+        _native._test_fpenv_restore(saved)
+    for w in want:
+        assert got[w].tobytes() == want[w].tobytes(), w
+        assert got[w].shape == ()
+        assert got[w].dtype == F32
+
+
 def test_from_word_vectors_takes_word_vectors():
     with pytest.raises(TypeError, match="must be WordVectors, not ndarray"):
         Encoder.from_word_vectors(np.ones((2, 3), F32))

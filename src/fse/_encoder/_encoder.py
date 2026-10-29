@@ -25,7 +25,7 @@ import numpy as np
 from numpy import ndarray
 
 from fse import _codes
-from fse._backends import BACKEND_NAMES
+from fse._backends import BACKEND_NAMES, get_backend
 from fse._container import (
     CHECKSUM_PREFIX,
     CREATED_BY_KEY,
@@ -390,8 +390,10 @@ def _fasttext(word_vectors: WordVectors, max_ngrams: int | None, oov_weight: flo
         return {"max_ngrams": None, "oov_weight": None}
     if max_ngrams is not None and max_ngrams > MAX_NGRAMS_LIMIT:
         raise ValueError(f"max_ngrams must be at most {MAX_NGRAMS_LIMIT}, not {max_ngrams}")
-    with np.errstate(over="ignore"):
-        weight = np.array(1.0 if oov_weight is None else oov_weight, dtype=np.float32)
+    # Converted in the floating-point environment of the kernels (round to nearest, no
+    # flush to zero), whatever the calling thread set, as the kernel converts it.
+    given = 1.0 if oov_weight is None else oov_weight
+    weight = get_backend("cpu").float32([given]).reshape(())
     if not np.isfinite(weight):
         raise ValueError(f"oov_weight must be finite in float32, not {oov_weight!r}")
     return {"max_ngrams": max_ngrams or DEFAULT_MAX_NGRAMS, "oov_weight": weight}
