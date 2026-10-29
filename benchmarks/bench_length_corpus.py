@@ -33,6 +33,7 @@ fingerprint, statistics, and the size and xxh3 of the file, checked before every
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections import Counter
 from collections.abc import Iterable, Iterator
@@ -40,7 +41,9 @@ from pathlib import Path
 
 import numpy as np
 
-VERSION = 1  # of the generator; bump it whenever a corpus would come out differently
+VERSION = (
+    2  # of the generator and the manifest; bump it whenever a corpus would come out differently
+)
 CACHE = Path("~/.cache/fse-quality").expanduser()
 CACHED = CACHE / "wikitext-103-b08601e0.txt"
 CACHED_LINES = 859_346
@@ -295,7 +298,11 @@ def write(path: Path, texts: list) -> None:
 
 
 def save_manifest(path: Path, manifest: dict) -> None:
-    path.with_suffix(".json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")
+    """Write the manifest of the corpus ``path`` atomically."""
+    meta = path.with_suffix(".json")
+    tmp = meta.with_name(f".{meta.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(manifest, indent=1), encoding="utf-8")
+    os.replace(tmp, meta)
 
 
 def load_manifest(path: Path, expected: dict, matches) -> dict:
@@ -304,7 +311,10 @@ def load_manifest(path: Path, expected: dict, matches) -> dict:
     meta = path.with_suffix(".json")
     if not meta.exists() or not path.exists():
         raise SystemExit(f"{path} is not prepared: run bench_length.py prepare")
-    manifest = json.loads(meta.read_text(encoding="utf-8"))
+    try:
+        manifest = json.loads(meta.read_text(encoding="utf-8"))
+    except ValueError:
+        raise SystemExit(f"{meta} cannot be read: prepare again") from None
     wanted = {"version": VERSION, **expected}
     if diff := sorted(k for k, v in wanted.items() if manifest.get(k) != v):
         raise SystemExit(f"{path} was prepared with other {', '.join(diff)}: prepare again")
@@ -346,76 +356,9 @@ def prepare(out: Path, chosen: list[list[tuple[str, str]]], context: dict, ident
             "tokenizer": tokenizer,
             "vocabulary": context["vocabulary_fingerprint"],
             "sources": context["sources"],
-            "stats": stats(texts, tokenizer, context["vocabulary"]),
+            "articles": len(chosen),
+            "stats": {tokenizer: stats(texts, tokenizer, context["vocabulary"])},
             "artifact": identity(path),
         }
         save_manifest(path, manifest)
-        print(f"# {name}: {json.dumps(manifest['stats'])}", flush=True)
-
-
-class Prepared:
-    """The prepared files of one --tokens and --seed: corpora, manifests and models."""
-
-    def __init__(self, args, identity, source_xxh3: str, verify: bool = True):
-        self.args = args
-        self.identity = identity
-        self.verify = verify
-        self.cache = args.cache
-        self.wv_float32 = self.cache / f"{args.vectors}.safetensors"
-        self.counts = self.cache / "counts-en.npy"
-        self.folder = folder(self.cache, source_xxh3, args.tokens, args.seed)
-        self.models = self.folder / "models"
-        self.generator = {
-            "tokens": args.tokens,
-            "seed": args.seed,
-            "sentence_mean": SENTENCE_MEAN,
-            "synthetic": list(SYNTHETIC),
-            "parts": list(PARTS),
-            "skew_share": SKEW_SHARE,
-        }
-        self.manifests: dict[str, dict] = {}
-        self._vocabulary: str | None = None
-
-    def vocabulary(self) -> str:
-        """The vocabulary fingerprint of the word vectors (equal for every dtype)."""
-        if self._vocabulary is None:
-            import fse
-
-            self._vocabulary = fse.WordVectors.load(
-                self.wv_float32, mmap=True
-            ).vocabulary_fingerprint
-        return self._vocabulary
-
-    def matches(self, path: Path, recorded: dict) -> bool:
-        """Whether ``path`` is the file ``recorded``: its xxh3, or without ``verify`` (in
-        the profiled process, which would profile the hashing) only its size."""
-        if self.verify:
-            return self.identity(path) == recorded
-        return path.exists() and path.stat().st_size == recorded["bytes"]
-
-    def corpus(self, name: str) -> Path:
-        return self.folder / f"{name}.txt"
-
-    def wv(self, dtype: str) -> Path:
-        if dtype == "float32":
-            return self.wv_float32
-        return self.cache / f"{self.args.vectors}-{dtype}.safetensors"
-
-    def manifest(self, name: str) -> dict:
-        if name not in self.manifests:
-            expected = {
-                "kind": name,
-                "generator": self.generator,
-                "tokenizer": tokenizer_of(name),
-                "vocabulary": self.vocabulary(),
-            }
-            path = self.corpus(name)
-            self.manifests[name] = load_manifest(path, expected, self.matches)
-        return self.manifests[name]
-
-    def v2_model(self, key: tuple[str, str, str]) -> Path:
-        model, tokenizer, wv_dtype = key
-        return self.models / f"v2-{model}-{tokenizer.replace('@', '')}-{wv_dtype}.safetensors"
-
-    def v1_model(self, key: tuple[str, str]) -> Path:
-        return self.models / f"v1-{key[0]}-{key[1]}"
+        print(f"# {name}: {json.dumps(manifest['stats'][tokenizer])}", flush=True)

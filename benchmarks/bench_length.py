@@ -27,9 +27,17 @@ Modes:
   documents and synthetic 20, 500 and 10,000 with SIF float32 into memory at 1 and 10
   workers and SIF int8 into a store at 10 (--workers and --models change it);
 - ``matrix``: 2.0 only, the quick grid (see ``matrix_cases``) or with --full every
-  combination; --wv-dtype, --chunk-bytes and --tokenizer are the ablations;
+  combination; --wv-dtype, --chunk-bytes and --tokenizer are the ablations (the baseline
+  of --chunk-bytes is ``--chunk-bytes auto``, through the same entry of the pipeline);
+- ``verify``: the full check (xxh3) of what one profile case reads, and its model made if
+  missing, before the profiled process starts;
 - ``profile``: one 2.0 case in this process, encoding in a loop for --seconds, for
-  ``make profile-cpu``, ``profile-mem`` and ``profile-rss``.
+  ``make profile-cpu``, ``profile-mem`` and ``profile-rss``; it checks its files only
+  against the stamps of ``verify`` (their size and time), so no hashing is profiled.
+
+Throughputs count the tokens of the tokenizer that ran (--tokenizer, ``fse_words@1`` for
+the raw corpora), from the manifest; compare refuses the raw corpora, which 1.1 would
+split at whitespace.
 
     uv run --with pyarrow python benchmarks/bench_length.py prepare \\
         --python-v1 .venv-baseline/bin/python --tokens 20000000
@@ -39,13 +47,15 @@ Modes:
         --json length-matrix.json
     uv run python benchmarks/bench_length.py matrix --wv-dtype int8 \\
         --lengths sentences documents
+    uv run python benchmarks/bench_length.py verify --length documents --model SIF \\
+        --dtype int8 --target store
     make profile-cpu PROFILE_DIR=profiles/documents-int8 RUN="benchmarks/bench_length.py \\
         profile --length documents --model SIF --dtype int8 --target store --seconds 20"
 
 ``make profile-mem`` and ``profile-rss`` take the same RUN, with one PROFILE_DIR per
-configuration and length. --tokens and --seed select the prepared corpora (the default
-20,000,000 tokens of the first articles; ``all`` for every article). Results are only
-comparable on an idle machine.
+configuration and length; ``verify`` takes the same flags as ``profile``. --tokens and
+--seed select the prepared corpora (the default 20,000,000 tokens of the first articles;
+``all`` for every article). Results are only comparable on an idle machine.
 """
 
 from __future__ import annotations
@@ -55,18 +65,25 @@ import itertools
 import json
 import os
 import platform
-import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
 
 import bench_length_corpus as corpora
+from bench_length_cases import BATCH_DOCUMENTS
+from bench_length_files import (
+    Prepared,
+    ensure_model,
+    ensure_vectors,
+    model_files,
+    run_child,
+    vocabulary_words,
+)
 from bench_length_report import print_analysis, print_header, print_row
 from bench_lifecycle import _hub_files, _identity, _median, _warm
 
-CASES = Path(__file__).with_name("bench_length_cases.py")
-MODES = ("prepare", "compare", "matrix", "profile")
+MODES = ("prepare", "compare", "matrix", "verify", "profile")
 MODELS = ("SIF", "Average", "AverageNorm")
 V1_MODELS = ("SIF", "Average")
 DTYPES = ("float32", "float16", "int8")
@@ -79,7 +96,6 @@ COMPARE = (
 )
 CORE = (*corpora.REAL, *(corpora.synthetic(n) for n in corpora.SYNTHETIC), *corpora.SKEW)
 FIT_CONFIG = ("SIF", "float32", "store", 1)
-MODEL_VERSION = 1  # of the model preparation; bump it to fit every model again
 
 
 # --- the grids ------------------------------------------------------------------------
@@ -123,7 +139,8 @@ def _extra(top: int) -> list[dict]:
     cases += [_case(c, "AverageNorm", "float32", "memory", top) for c in corpora.REAL]
     cases += [_case(c, *FIT_CONFIG) for c in corpora.FIT if c not in CORE]
     cases += [_case(c, "SIF", "float32", "memory", top) for c in corpora.RAW]
-    return [*cases, {**_case("documents", "SIF", "float32", "memory", top), "kind": "strings"}]
+    strings = _case("documents", "SIF", "float32", "memory", top)
+    return [*cases, *({**strings, "kind": "strings", "batch": b} for b in ("long", "batch32"))]
 
 
 def matrix_cases(args) -> list[dict]:
@@ -153,99 +170,21 @@ def _v1_key(case: dict) -> tuple[str, str]:
     return case["model"], case["dtype"]
 
 
-def _model_files(path: Path) -> list[Path]:
-    return sorted(p for p in path.rglob("*") if p.is_file()) if path.is_dir() else [path]
-
-
-def _model_meta(ctx: corpora.Prepared, side: str, key: tuple) -> dict:
-    """What a model is made of: its key, the paragraphs it was fitted on, the vectors."""
-    return {
-        "version": MODEL_VERSION,
-        "side": side,
-        "key": list(key),
-        "paragraphs": ctx.manifest("paragraphs")["artifact"]["xxh3"],
-        "vectors": ctx.args.vectors,
-        "counts": _identity(ctx.counts)["xxh3"] if ctx.counts.exists() else None,
-    }
-
-
-def _model_ok(ctx: corpora.Prepared, path: Path, meta: dict) -> bool:
-    """Whether the model at ``path`` was made of ``meta`` and is unchanged since."""
-    saved = path.with_name(path.name + ".json")
-    if not saved.exists() or not path.exists():
-        return False
-    recorded = json.loads(saved.read_text(encoding="utf-8"))
-    files = _model_files(path)
-    if recorded.get("meta") != meta or len(files) != len(recorded.get("files", [])):
-        return False
-    return all(ctx.matches(p, r) for p, r in zip(files, recorded["files"], strict=True))
-
-
-def ensure_model(ctx: corpora.Prepared, side: str, key: tuple, python: str) -> Path:
-    """The model of ``key``, fitted (untimed) if missing or made of something else."""
-    path = ctx.v2_model(key) if side == "v2" else ctx.v1_model(key)
-    meta = _model_meta(ctx, side, key)
-    if _model_ok(ctx, path, meta):
-        return path
-    ctx.models.mkdir(parents=True, exist_ok=True)
-    config = {
-        "side": side,
-        "kind": "model",
-        "model": key[0],
-        "vectors": ctx.args.vectors,
-        "counts": str(ctx.counts),
-        "paragraphs": str(ctx.corpus("paragraphs")),
-        "workers": os.cpu_count(),
-    }
-    if side == "v2":
-        wv = ctx.wv(key[2])
-        config.update(tokenizer=key[1], wv_dtype=key[2], wv=str(wv), encoder=str(path))
-        config["wv_float32"] = str(ctx.wv_float32)
-    else:
-        config.update(dtype=key[1], v1_model=str(path))
-    print(f"# fitting the {side} model {'-'.join(key)}", flush=True)
-    run_child(python, config)
-    files = [_identity(p) for p in _model_files(path)]
-    record = json.dumps({"meta": meta, "files": files}, indent=1)
-    path.with_name(path.name + ".json").write_text(record, encoding="utf-8")
-    return path
-
-
-def _source_xxh3(cache: Path) -> str:
-    """The xxh3 of the cached corpus, hashed again only when its size or time changed."""
-    stat = corpora.CACHED.stat()
-    known = cache / "source.json"
-    key = {"path": str(corpora.CACHED), "bytes": stat.st_size, "mtime_ns": stat.st_mtime_ns}
-    if known.exists() and (found := json.loads(known.read_text(encoding="utf-8")))["key"] == key:
-        return found["xxh3"]
-    xxh3 = _identity(corpora.CACHED)["xxh3"]
-    cache.mkdir(parents=True, exist_ok=True)
-    known.write_text(json.dumps({"key": key, "xxh3": xxh3}), encoding="utf-8")
-    return xxh3
-
-
-def _prepared_files(args, verify: bool = True) -> corpora.Prepared:
-    return corpora.Prepared(args, _identity, _source_xxh3(args.cache), verify)
-
-
 # --- running --------------------------------------------------------------------------
 
 
-def run_child(python: str, config: dict) -> dict:
-    # Offline: 1.1 resolves the hub cache through snapshot_download.
-    done = subprocess.run(
-        [python, str(CASES), json.dumps(config)],
-        env={**os.environ, "HF_HUB_OFFLINE": "1"},
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if done.returncode:
-        raise SystemExit(f"{config} failed:\n{done.stderr[-3000:]}")
-    return json.loads(done.stdout.strip().splitlines()[-1])
+def _strings_input(ctx: Prepared, case: dict, tmp: Path) -> Path:
+    """The texts of a strings case, selected in this process: the longest document or the
+    first BATCH_DOCUMENTS documents, one per line."""
+    path = tmp / f"strings-{case['batch']}.txt"
+    if not path.exists():
+        lines = ctx.corpus("documents").read_text(encoding="utf-8").splitlines()
+        texts = [max(lines, key=len)] if case["batch"] == "long" else lines[:BATCH_DOCUMENTS]
+        path.write_text("\n".join(texts) + "\n", encoding="utf-8")
+    return path
 
 
-def side_config(ctx: corpora.Prepared, case: dict, side: str, tmp: Path) -> dict:
+def side_config(ctx: Prepared, case: dict, side: str, tmp: Path) -> dict:
     args = ctx.args
     config = {
         **case,
@@ -256,27 +195,37 @@ def side_config(ctx: corpora.Prepared, case: dict, side: str, tmp: Path) -> dict
         "repeats": args.repeats,
         "tmp": str(tmp),
     }
+    if case["kind"] == "strings":
+        config["texts"] = str(_strings_input(ctx, case, tmp))
     if side == "v1":
         return {**config, "v1_model": str(ctx.v1_model(_v1_key(case)))}
     key = _v2_key(args, case)
-    config.update(tokenizer=key[1], wv_dtype=key[2], chunk_bytes=args.chunk_bytes)
+    config.update(tokenizer=key[1], wv_dtype=key[2])
+    # --chunk-bytes: the pipeline entry, with "auto" its default chunks (the baseline of
+    # the ablation through the same entry).
+    chunk = args.chunk_bytes
+    config.update(entry="encode" if chunk is None else "pipeline")
+    config["chunk_bytes"] = None if chunk in (None, "auto") else chunk
     return {**config, "encoder": str(ctx.v2_model(key)), "wv": str(ctx.wv(key[2]))}
 
 
 def _inputs(config: dict) -> list[Path]:
-    """The files a case reads: the corpus, the model and the word vectors it needs."""
-    paths = [Path(config["corpus"])]
+    """The files a case reads: its texts, the model and the word vectors it needs."""
+    paths = [Path(config.get("texts", config["corpus"]))]
     if config["side"] == "v1":
-        return paths + _model_files(Path(config["v1_model"])) + _hub_files(config["vectors"])
+        return paths + model_files(Path(config["v1_model"])) + _hub_files(config["vectors"])
     paths.append(Path(config["encoder"]))
     return paths if config["model"] == "SIF" else [*paths, Path(config["wv"])]
 
 
-def run_pairs(ctx: corpora.Prepared, case: dict, pythons: dict[str, str], tmp: Path) -> dict:
+def _sides(case: dict, pythons: dict[str, str]) -> list[str]:
+    compared = case["kind"] == "encode" and case["model"] in V1_MODELS
+    return [s for s in pythons if s == "v2" or compared]
+
+
+def run_pairs(ctx: Prepared, case: dict, pythons: dict[str, str], tmp: Path) -> dict:
     """--pairs runs of every side, alternating which goes first, each warm."""
-    sides = [
-        s for s in pythons if s == "v2" or (case["kind"] == "encode" and case["model"] in V1_MODELS)
-    ]
+    sides = _sides(case, pythons)
     runs: dict[str, list[dict]] = {side: [] for side in sides}
     for pair in range(ctx.args.pairs):
         for side in sorted(sides, reverse=pair % 2 == 0):  # v2 first, then v1 first
@@ -287,24 +236,30 @@ def run_pairs(ctx: corpora.Prepared, case: dict, pythons: dict[str, str], tmp: P
     return {side: {"median": _median(r), "runs": r} for side, r in runs.items()}
 
 
-def _models_of(ctx: corpora.Prepared, cases: list[dict], pythons: dict[str, str]) -> None:
+def _models_of(ctx: Prepared, cases: list[dict], pythons: dict[str, str]) -> None:
+    """Check every corpus and model (fitting the missing ones) before anything runs."""
     for case in cases:
-        ctx.manifest(case["corpus"])  # checked before anything runs
+        ctx.stats(case["corpus"], _tokenizer(ctx.args, case["corpus"]))
         ensure_model(ctx, "v2", _v2_key(ctx.args, case), pythons["v2"])
-        if "v1" in pythons and case["kind"] == "encode" and case["model"] in V1_MODELS:
+        if "v1" in _sides(case, pythons):
             ensure_model(ctx, "v1", _v1_key(case), pythons["v1"])
 
 
-def run_grid(ctx: corpora.Prepared, cases: list[dict], pythons: dict[str, str]) -> list[dict]:
+def run_grid(ctx: Prepared, cases: list[dict], pythons: dict[str, str]) -> list[dict]:
     from fse._cpus import usable_cpus
 
     _models_of(ctx, cases, pythons)
-    print_header(ctx.args.pairs, ctx.args.repeats)
+    args = ctx.args
+    print(f"# word vectors {args.wv_dtype}, tokenizer {args.tokenizer} (raw: fse_words@1)")
+    print(
+        f"# chunk bytes {args.chunk_bytes or 'auto'} ({'pipeline' if args.chunk_bytes else 'encode'})"
+    )
+    print_header(args.pairs, args.repeats)
     rows = []
     with tempfile.TemporaryDirectory(dir=ctx.args.tmp) as tmp:
         for case in cases:
             row = {"case": case, **run_pairs(ctx, case, pythons, Path(tmp))}
-            row["manifest"] = ctx.manifest(case["corpus"])["stats"]
+            row["manifest"] = ctx.stats(case["corpus"], _tokenizer(ctx.args, case["corpus"]))
             rows.append(row)
             print_row(row, usable_cpus())
     print_analysis(rows, max(ctx.args.workers))
@@ -314,16 +269,7 @@ def run_grid(ctx: corpora.Prepared, cases: list[dict], pythons: dict[str, str]) 
 # --- the modes ------------------------------------------------------------------------
 
 
-def _vocabulary(path: Path) -> tuple[set[str], str]:
-    import fse
-
-    wv = fse.WordVectors.load(path, mmap=True)
-    data, offsets = wv.vocab_bytes.tobytes(), wv.vocab_offsets.tolist()
-    words = {data[a:b].decode("utf-8") for a, b in itertools.pairwise(offsets)}
-    return words, wv.vocabulary_fingerprint
-
-
-def _prepared(ctx: corpora.Prepared) -> bool:
+def _prepared(ctx: Prepared) -> bool:
     try:
         for name in corpora.CORPORA:
             ctx.manifest(name)
@@ -333,13 +279,22 @@ def _prepared(ctx: corpora.Prepared) -> bool:
     return True
 
 
+def _corpora(ctx: Prepared) -> None:
+    chosen = corpora.first(corpora.articles(), ctx.args.tokens)
+    context = {"generator": ctx.generator, "sources": ctx.sources()}
+    context.update(vocabulary=vocabulary_words(ctx.wv_float32))
+    context["vocabulary_fingerprint"] = ctx.vocabulary()
+    corpora.prepare(ctx.folder, chosen, context, ctx.artifact)
+
+
 def prepare(args) -> None:
-    ctx = _prepared_files(args)
+    ctx = Prepared(args, _identity)
+    ensure_vectors(ctx, "float32")
     base = {"vectors": args.vectors, "tmp": str(args.cache)}
-    args.cache.mkdir(parents=True, exist_ok=True)
     words = run_child(sys.executable, {**base, "side": "v2", "kind": "prepare"})["words"]
     if args.python_v1:
         v1 = run_child(args.python_v1, {**base, "side": "v1", "kind": "counts"})["words"]
+        ctx.forget(ctx.counts)
         if v1 != words:
             raise SystemExit("the vocabularies of 2.0 and 1.1 are not in the same order")
     elif not ctx.counts.exists():
@@ -347,18 +302,7 @@ def prepare(args) -> None:
     if _prepared(ctx):
         print(f"# the corpora in {ctx.folder} are prepared", flush=True)
     else:
-        chosen = corpora.first(corpora.articles(), args.tokens)
-        vocabulary, fingerprint = _vocabulary(ctx.wv_float32)
-        parquet = sorted(corpora.PARQUET.glob("train-*.parquet"))
-        sources = {
-            "cached": _identity(corpora.CACHED),
-            "parquet": [{"name": p.name, "bytes": p.stat().st_size} for p in parquet],
-            "articles": len(chosen),
-        }
-        context = {"generator": ctx.generator, "sources": sources, "vocabulary": vocabulary}
-        corpora.prepare(
-            ctx.folder, chosen, {**context, "vocabulary_fingerprint": fingerprint}, _identity
-        )
+        _corpora(ctx)
     for model in MODELS:
         ensure_model(ctx, "v2", (model, "external", "float32"), sys.executable)
     ensure_model(ctx, "v2", ("SIF", "fse_words@1", "float32"), sys.executable)
@@ -378,28 +322,46 @@ def compare(args) -> None:
         raise SystemExit("compare needs --python-v1, a Python with fse 1.1.0")
     if (args.wv_dtype, args.chunk_bytes, args.tokenizer) != ("float32", None, "external"):
         raise SystemExit("--wv-dtype, --chunk-bytes and --tokenizer are ablations of matrix")
+    if raw := sorted(set(args.lengths) & set(corpora.RAW)):
+        # 1.1 splits at whitespace, 2.0 tokenizes them with fse_words@1.
+        raise SystemExit(f"{', '.join(raw)}: the raw corpora are not tokenized alike in 1.1")
     pythons = {"v2": sys.executable, "v1": args.python_v1}
-    _write_json(args, run_grid(_prepared_files(args), compare_cases(args), pythons))
+    _write_json(args, run_grid(Prepared(args, _identity), compare_cases(args), pythons))
 
 
 def matrix(args) -> None:
     cases = matrix_cases(args)
     if not cases:
         raise SystemExit("no case of the grid matches --lengths")
-    _write_json(args, run_grid(_prepared_files(args), cases, {"v2": sys.executable}))
+    _write_json(args, run_grid(Prepared(args, _identity), cases, {"v2": sys.executable}))
+
+
+def _profiled(args) -> dict:
+    return _case(args.length, args.model, args.dtype, args.target, max(args.workers))
+
+
+def verify(args) -> None:
+    """The full check of everything the profile case reads (hashed and stamped), its
+    statistics and model made if missing, before the profiled process starts."""
+    ctx = Prepared(args, _identity)
+    case = _profiled(args)
+    ctx.stats(args.length, _tokenizer(args, args.length))
+    path = ensure_model(ctx, "v2", _v2_key(args, case), sys.executable)
+    print(f"# verified {ctx.corpus(args.length)} and {path}", flush=True)
 
 
 def profile(args) -> None:
-    """One 2.0 case in this process, its encode in a loop for --seconds."""
+    """One 2.0 case in this process, its encode in a loop for --seconds; its files are
+    checked against the stamps of ``verify`` (size and time), not hashed again."""
     from bench_length_cases import v2_encoder, v2_run
 
-    ctx = _prepared_files(args, verify=False)
-    case = _case(args.length, args.model, args.dtype, args.target, max(args.workers))
-    stats = ctx.manifest(args.length)["stats"]
+    ctx = Prepared(args, _identity, verify=False)
+    case = _profiled(args)
+    stats = ctx.stats(args.length, _tokenizer(args, args.length))
     key = _v2_key(args, case)
-    meta = _model_meta(ctx, "v2", key)
-    if not _model_ok(ctx, ctx.v2_model(key), meta):
-        raise SystemExit(f"the model {'-'.join(key)} is missing: run matrix with these flags")
+    wv, model = ctx.wv(key[2]), ctx.v2_model(key)
+    if not (ctx.made_of(wv, ctx.wv_meta(key[2])) and ctx.made_of(model, ctx.model_meta("v2", key))):
+        raise SystemExit(f"the model {'-'.join(key)} is stale or missing: run verify first")
     with tempfile.TemporaryDirectory(dir=args.tmp) as tmp:
         config = side_config(ctx, case, "v2", Path(tmp))
         encoder = v2_encoder(config)
@@ -428,6 +390,10 @@ def _tokens(text: str) -> int | None:
     return None if text == "all" else _positive(text)
 
 
+def _chunk_bytes(text: str) -> int | str:
+    return text if text == "auto" else _positive(text)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("mode", choices=MODES)
@@ -445,7 +411,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--repeats", type=_positive, default=3, help="timed encodes per child")
     parser.add_argument("--full", action="store_true", help="matrix: every combination")
     parser.add_argument("--wv-dtype", choices=DTYPES, default="float32")
-    parser.add_argument("--chunk-bytes", type=_positive)
+    parser.add_argument(
+        "--chunk-bytes", type=_chunk_bytes, help="auto (the default size) or bytes per chunk"
+    )
     parser.add_argument("--tokenizer", default="external", choices=("external", "fse_words@1"))
     profiled = parser.add_argument_group("profile")
     profiled.add_argument("--length", choices=corpora.CORPORA, default="documents")
@@ -463,7 +431,7 @@ def _defaults(args) -> None:
     args.cache = args.cache.expanduser()
     args.lengths = args.lengths or list(COMPARE if compared else corpora.CORPORA)
     args.models = args.models or (["SIF"] if compared else list(MODELS))
-    workers = {"compare": [1, 10], "profile": [10]}.get(args.mode, [1, 4, 10])
+    workers = {"compare": [1, 10], "profile": [10], "verify": [10]}.get(args.mode, [1, 4, 10])
     args.workers = args.workers or workers
     args.pairs = args.pairs or (2 if compared else 1)
 
@@ -478,7 +446,8 @@ def main() -> None:
         f"{platform.python_version()} | fse {fse.__version__} | load {os.getloadavg()[0]:.1f}",
         flush=True,
     )
-    {"prepare": prepare, "compare": compare, "matrix": matrix, "profile": profile}[args.mode](args)
+    modes = {"prepare": prepare, "compare": compare, "matrix": matrix, "verify": verify}
+    {**modes, "profile": profile}[args.mode](args)
 
 
 if __name__ == "__main__":
