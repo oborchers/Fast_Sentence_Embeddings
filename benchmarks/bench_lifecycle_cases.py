@@ -378,7 +378,6 @@ def v1_hub_model(c: dict) -> dict:
     sv.vectors = np.zeros((0, sv.vector_size), sv.vectors.dtype)
     if sv.scales is not None:
         sv.scales = np.zeros(0, sv.scales.dtype)
-    sv.vectors_norm = None
     folder = _paths(c)["hub_model"]
     folder.mkdir(exist_ok=True)
     model.save(str(folder / "model"))
