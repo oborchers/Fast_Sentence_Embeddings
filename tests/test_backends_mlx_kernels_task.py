@@ -192,6 +192,38 @@ def _pool(**changes):
         (_pool(ngram_vectors=np.ones((4, 3), F32)), np.array([2.0**-103], F32), True),
         (_pool(ngram_vectors=np.ones((4, 3), F32)), np.array([TINY], F32), True),
         (_pool(ngram_vectors=np.array([[TINY, 0, 0]] * 4, F32)), np.ones(1, F32), True),
+        # normal inputs with subnormal factors: 2**-63 * 2**-64, and (1 / 2) * 2**-126
+        (
+            _pool(
+                vectors=np.ones((2, 3), np.int8),
+                weights=np.array([2.0**-63, 1], F32),
+                scales=np.array([2.0**-64, 1], F32),
+            ),
+            None,
+            True,
+        ),
+        (_pool(ngram_vectors=np.full((4, 3), 2.0**126, F32)), np.array([2.0**-126], F32), True),
+        # int8 ngrams: 2**-24 (the smallest 1 / m) times 2**-103 is subnormal, 2**-102 not
+        (
+            _pool(
+                vectors=np.ones((2, 3), np.int8),
+                scales=np.ones(2, F32),
+                ngram_vectors=np.ones((4, 3), np.int8),
+                ngram_scales=np.array([1, 1, 1, 2.0**-103], F32),
+            ),
+            np.ones(1, F32),
+            True,
+        ),
+        (
+            _pool(
+                vectors=np.ones((2, 3), np.int8),
+                scales=np.ones(2, F32),
+                ngram_vectors=np.ones((4, 3), np.int8),
+                ngram_scales=np.array([1, 1, 1, 2.0**-102], F32),
+            ),
+            np.ones(1, F32),
+            False,
+        ),
     ],
     ids=[
         "normal",
@@ -206,6 +238,10 @@ def _pool(**changes):
         "oov below",
         "oov subnormal",
         "ngram row",
+        "int8 factor of normal inputs",
+        "ngram factor of normal inputs",
+        "int8 ngram factor",
+        "int8 ngram factor at 2**-126",
     ],
 )
 def test_subnormal_inputs_are_refused_at_prepare(pool, oov, refused):

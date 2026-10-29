@@ -66,36 +66,42 @@ def _subnormal(values: Any) -> bool:
     return bool(((bits != 0) & (bits < 0x00800000)).any())
 
 
-def _exponents(values: Any) -> ndarray:
-    """The exponent fields of float32 values, 1000 for zeros (no product to underflow)."""
-    bits = _fields(values)
-    return np.where(bits == 0, 1000, (bits >> 23).astype(np.int64))
+SMALLEST_NORMAL = 2.0**-126
+MAX_BUCKETS = 1 << 24  # more buckets of one unknown word go to the host (LONG)
+
+
+def _small_products(a: ndarray, b: ndarray) -> bool:
+    """Whether a nonzero float32 product ``a * b`` (elementwise) may be subnormal: its
+    exact value, in float64 (where it cannot be subnormal, so no floating-point
+    environment changes it), is below 2**-126."""
+    products = np.abs(np.asarray(a, np.float64) * np.asarray(b, np.float64))
+    return bool(((products != 0) & (products < SMALLEST_NORMAL)).any())
 
 
 def subnormal_input(pool: PoolInput, oov_weight: ndarray | None) -> bool:
-    """Whether a factor or row value of ``pool`` is or may be subnormal: a subnormal weight,
-    scale, oov weight or float32 row value, an int8 factor ``weight * scale`` that may
-    underflow (biased exponents summing to less than 128), or an ngram factor
-    ``(1 / m) * oov_weight`` (times the ngram scale) that may for any m below 2**24.
-    float16 values widen to normal float32 values."""
+    """Whether a stage-2 factor or row value of ``pool`` is or may be subnormal, as the cpu
+    backend computes it: a subnormal weight, scale, oov weight or float32 row value; an
+    int8 factor ``weight * scale``; or an ngram factor ``(1 / m) * oov_weight`` (times
+    each ngram scale for int8) for any m up to 2**24: ``1 / m`` rounds to at least 2**-24
+    and rounding is monotonic, so no factor is smaller than the exact products with
+    2**-24. float16 values widen to normal float32 values."""
     values = [pool.weights, *(a for a in (pool.scales, pool.ngram_scales) if a is not None)]
-    values += [
-        a for a in (pool.vectors, pool.ngram_vectors) if a is not None and a.dtype == np.float32
-    ]
+    rows = (pool.vectors, pool.ngram_vectors)
+    values += [a for a in rows if a is not None and a.dtype == np.float32]
     if oov_weight is not None:
         values.append(oov_weight)
     if any(_subnormal(a) for a in values):
         return True
-    if pool.scales is not None and (_exponents(pool.weights) + _exponents(pool.scales) < 128).any():
+    if pool.scales is not None and _small_products(pool.weights, pool.scales):
         return True
     if oov_weight is None or pool.ngram_vectors is None:
         return False
-    oov = int(_exponents(oov_weight).min())
-    if oov < 1000 and oov - 24 < 1:  # (1 / m) * oov_weight below 2**-126
+    shared = abs(float(oov_weight[0])) / MAX_BUCKETS  # the smallest (1 / m) * oov_weight
+    if shared != 0 and shared < SMALLEST_NORMAL:
         return True
-    if pool.ngram_scales is None:
-        return False
-    return bool((oov + _exponents(pool.ngram_scales) - 24 < 128).any())
+    return pool.ngram_scales is not None and _small_products(
+        np.full(len(pool.ngram_scales), shared), pool.ngram_scales
+    )
 
 
 @dataclass(frozen=True, eq=False)

@@ -49,6 +49,8 @@ SUBNORMAL_INPUT = {
     ("float32", "tiny oov weight"),
     ("float32", "subnormal weight, large row"),
     ("int8", "subnormal scale, large weight"),
+    ("int8", "subnormal int8 factor"),
+    ("float32", "subnormal ngram factor"),
 }
 # The cases whose products or partial sums the GPU flushes: within the absolute term of
 # the bound, not the cpu's bits.

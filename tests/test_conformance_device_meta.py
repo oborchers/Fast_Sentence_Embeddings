@@ -80,7 +80,12 @@ def test_the_bound_catches_a_kernel_that(mlx, monkeypatch, mistake, witness):
 
 @pytest.mark.parametrize(
     ("dtype", "name"),
-    [("float32", "subnormal weight, large row"), ("int8", "subnormal scale, large weight")],
+    [
+        ("float32", "subnormal weight, large row"),
+        ("int8", "subnormal scale, large weight"),
+        ("int8", "subnormal int8 factor"),
+        ("float32", "subnormal ngram factor"),
+    ],
 )
 def test_the_bound_catches_a_backend_that_takes_subnormal_inputs(mlx, monkeypatch, dtype, name):
     """Without the check at prepare, the GPU flushes a subnormal factor of normal products."""

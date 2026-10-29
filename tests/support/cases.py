@@ -185,6 +185,23 @@ def _cases():
     out.append(
         Case("subnormal scale, large weight", "int8", small, np.full(1, 2.0**100, F32), ((0,),))
     )
+    # Normal inputs whose factors are subnormal: an int8 weight 2**-63 times the scale
+    # 2**-64, and an oov weight 2**-126 halved over two buckets of rows 2**126.
+    codes = np.array([[127 * 2.0**-64, -(2.0**-64)]], F32)
+    out.append(Case("subnormal int8 factor", "int8", codes, np.full(1, 2.0**-63, F32), ((0,),)))
+    huge = np.full((2, 2), 2.0**126, F32)
+    out.append(
+        Case(
+            "subnormal ngram factor",
+            "float32",
+            np.ones((1, 2), F32),
+            np.ones(1, F32),
+            ((OOV_TOKEN,), (0, OOV_TOKEN)),
+            ((0, 1), (1,)),
+            huge,
+            2.0**-126,
+        )
+    )
     cancel = np.array([[1.25 * 2.0**-126], [-(2.0**-126)]], F32)
     out.append(Case("cancels to subnormal", "float32", cancel, np.ones(2, F32), ((0, 1),)))
     return out

@@ -190,8 +190,9 @@ class Device:
                 job.ended.join()
             return
 
-    def _take(self) -> list[Job]:
-        """The next group, in queue order; none ends the thread (with the lock held)."""
+    def _take(self, end: bool = True) -> list[Job]:
+        """The next group, in queue order (with the lock held); with ``end``, an empty
+        queue ends the thread."""
         with self._lock:
             group: list[Job] = []
             tokens = 0
@@ -202,33 +203,30 @@ class Device:
                 job.state = "running"
                 tokens += job.tokens
                 group.append(job)
-            if not group:
+            if not group and end:
                 self._previous, self._thread = self._thread, None
             return group
 
     def _serve(self) -> None:
+        """Launch a group while the one before computes on the GPU, then complete that one:
+        at most two groups in flight, so the finish and the copies of one overlap the
+        kernels of the next. With nothing queued, the group in flight completes at once."""
         group: list[Job] = []
+        flight: list[tuple[Job, tuple]] = []
         lent: list[Job] = []
         try:
             mx = self.core()
             if self._stream is None:
                 self._stream = mx.new_thread_unsafe_stream(mx.gpu)
             group = self._take()
-            while group:
-                self._run(mx, group)
-                for job in group:  # the frames of an error would keep the arrays alive
-                    if job.error is not None:
-                        traceback.clear_frames(job.error.__traceback__)
-                following = self._take()
-                for job in group:
-                    job.ended = None if following else threading.current_thread()
-                    if job.arrays is not None:
-                        lent.append(job)
-                    job.done.set()
-                lent = _collect(lent, wait=not following)
-                group = following
+            while group or flight:
+                launched, failed = self._launch(mx, group)
+                done = [*failed, *self._complete(mx, flight)]
+                flight, group = launched, []
+                group = self._take(end=not launched)
+                lent = self._settle(done, lent, last=not group and not launched)
         except BaseException as err:  # a failure here must not leave a waiter hanging
-            self._abandon(group, err)
+            self._abandon([*group, *(job for job, _ in flight)], err)
             _collect(lent, wait=True)
 
     def _abandon(self, group: list[Job], err: BaseException) -> None:
@@ -240,22 +238,39 @@ class Device:
             job.error = job.error or err
             job.done.set()
 
-    def _run(self, mx: Any, group: list[Job]) -> None:
-        """Launch every job of ``group``, evaluate them together, then finish each."""
-        launched = []
+    def _launch(self, mx: Any, group: list[Job]) -> tuple[list[tuple[Job, tuple]], list[Job]]:
+        """Queue the kernel of every job of ``group`` and start their evaluation: the
+        launched jobs with their arrays, and the jobs that failed (with their error)."""
+        launched, failed = [], []
         for job in group:
             try:
                 launched.append((job, job.launch(mx, self._stream)))
             except Exception as err:
                 job.error = err
+                failed.append(job)
+        if not launched:
+            return [], failed
         self.evaluations += 1
         self.launches += len(launched)
+        try:
+            mx.async_eval(*[array for _, arrays in launched for array in arrays])
+        except Exception as err:
+            for job, _ in launched:
+                job.error = err
+            return [], [*failed, *(job for job, _ in launched)]
+        return launched, failed
+
+    @staticmethod
+    def _complete(mx: Any, launched: list[tuple[Job, tuple]]) -> list[Job]:
+        """Wait for the evaluation of ``launched`` and finish each job (not yet done)."""
+        if not launched:
+            return []
         try:
             mx.eval(*[array for _, arrays in launched for array in arrays])
         except Exception as err:
             for job, _ in launched:
                 job.error = err
-            return
+            return [job for job, _ in launched]
         for job, arrays in launched:
             try:
                 job.result = job.finish(arrays)
@@ -263,6 +278,20 @@ class Device:
                 job.error = err
             else:
                 job.arrays = arrays if job.lease else None
+        return [job for job, _ in launched]
+
+    @staticmethod
+    def _settle(done: list[Job], lent: list[Job], last: bool) -> list[Job]:
+        """Set ``done`` (the thread ends after them if ``last``) and take back the leases
+        returned so far, all of them if ``last``; the leases still out."""
+        for job in done:
+            if job.error is not None:  # its frames would keep the arrays alive
+                traceback.clear_frames(job.error.__traceback__)
+            job.ended = threading.current_thread() if last else None
+            if job.arrays is not None:
+                lent.append(job)
+            job.done.set()
+        return _collect(lent, wait=last)
 
 
 def _collect(lent: list[Job], wait: bool) -> list[Job]:
