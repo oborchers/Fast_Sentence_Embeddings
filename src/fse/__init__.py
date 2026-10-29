@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from fse._encoder import SIF, USIF, Average, EncodedBatch, Encoder, QuantizedRows
     from fse._runtime import MemorySink, Sink
     from fse._store import SearchResult, ShardSink, VectorStore
+    from fse._text import TokenLists
 del TYPE_CHECKING  # not a name of fse
 
 # The encoder, the recipes and the sinks load on first access (PEP 562), not when fse is
@@ -31,6 +32,7 @@ _LAZY = {
     ),
     **dict.fromkeys(("MemorySink", "Sink"), "fse._runtime"),
     **dict.fromkeys(("SearchResult", "ShardSink", "VectorStore"), "fse._store"),
+    "TokenLists": "fse._text",
 }
 
 _REMOVED = {
@@ -92,6 +94,7 @@ __all__ = [
     "SearchResult",
     "ShardSink",
     "Sink",
+    "TokenLists",
     "VectorStore",
     "WordVectors",
     "__version__",

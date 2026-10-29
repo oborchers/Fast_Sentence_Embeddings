@@ -1,7 +1,7 @@
 """Text sources: sentences of text to batches, stages 1 and 2 (ARCHITECTURE.md, "Tokenizers").
 
 A source holds its sentences as one UTF-8 buffer: strings in memory with their offsets
-(``StringSource``, ``TokenListSource``), or the lines of a memory-mapped file
+(``StringSource``, ``TokenLists``), or the lines of a memory-mapped file
 (``fse._text_file.FileSource``). ``scan`` validates and counts them in threads without the GIL and cuts
 them into chunks; ``encode`` turns one chunk into a Batch with a ``TextLookup`` and a
 per-worker ``Workspace``. Every sentence is one row, empty ones included.
@@ -20,6 +20,7 @@ from numpy import ndarray
 
 from fse import _native
 from fse._contract import EXTERNAL_TOKENIZER, Batch, check_tokenizer
+from fse._cpus import usable_cpus
 from fse._wordvectors import WordVectors
 
 # Bytes per chunk: small enough to balance workers, large enough that the per-chunk
@@ -375,28 +376,58 @@ class StringSource(_Buffered):
         return self._positions()
 
 
-class TokenListSource(_Buffered):
-    """Sentences given as lists of tokens, for the external tokenizer only.
+# Threads that join token lists: the pass is bound by reading memory, which a few threads
+# saturate (85.7 million WikiText tokens on an M1 Pro, in a fresh process: 2.1 s with one
+# thread, 0.65 s with 8).
+_JOIN_THREADS = 8
 
-    Tokens must be non-empty and hold no whitespace, so splitting the joined sentence
-    at whitespace gives them back exactly.
+
+def _token_lists(sentences: Any) -> tuple[bytes, ndarray]:
+    """The joined token lists in Python, for the inputs the native pass does not take and
+    for the errors, which it leaves to this path (types first, then tokens, then the UTF-8
+    of every sentence)."""
+    joined = []
+    for i, tokens in enumerate(sentences):
+        if not isinstance(tokens, list | tuple):
+            raise TypeError(f"sentence {i} is a {type(tokens).__name__}, not a list of str")
+        for token in tokens:
+            if not isinstance(token, str):
+                raise TypeError(f"sentence {i} holds a {type(token).__name__}, not a str")
+            if not token or token.split() != [token]:
+                raise ValueError(
+                    f"sentence {i} holds the token {token!r}: tokens are non-empty and hold no whitespace"
+                )
+        joined.append(" ".join(tokens))
+    return _encode_strings(joined, "sentence")
+
+
+class TokenLists(_Buffered):
+    """Sentences given as lists of tokens, read once, for encoders with the external
+    tokenizer.
+
+    ``fit``, ``fit_transform`` and ``encode`` take lists of token lists as they are, but
+    each call reads them again. ``TokenLists(sentences)`` reads them once, so one object
+    can be fitted on and encoded any number of times::
+
+        texts = fse.TokenLists(sentences)
+        encoder = fse.SIF(tokenizer="external").fit(wv, texts)
+        rows = encoder.encode(texts)
+
+    ``sentences`` is a list, tuple or numpy array of lists or tuples of str. Tokens must
+    be non-empty and hold no whitespace (``str.isspace``), so splitting the joined
+    sentence at whitespace gives them back exactly. Later changes to ``sentences`` do
+    not change the object.
     """
 
     def __init__(self, sentences: Any):
         _check_container(sentences, "sentences")
-        joined = []
-        for i, tokens in enumerate(sentences):
-            if not isinstance(tokens, list | tuple):
-                raise TypeError(f"sentence {i} is a {type(tokens).__name__}, not a list of str")
-            for token in tokens:
-                if not isinstance(token, str):
-                    raise TypeError(f"sentence {i} holds a {type(token).__name__}, not a str")
-                if not token or token.split() != [token]:
-                    raise ValueError(
-                        f"sentence {i} holds the token {token!r}: tokens are non-empty and hold no whitespace"
-                    )
-            joined.append(" ".join(tokens))
-        self._data, self._offsets = _encode_strings(joined, "sentence")
+        joined = _native.join_token_lists(sentences, min(_JOIN_THREADS, usable_cpus()))
+        # None: types the native pass does not read (subclasses, an array); False: an
+        # invalid token. The Python path decides both: it raises the error, or succeeds
+        # where a subclass changed the lists while they were read.
+        if joined is None or joined is False:
+            joined = _token_lists(sentences)
+        self._data, self._offsets = joined
 
     def __len__(self) -> int:
         return self._positions()
