@@ -7,7 +7,8 @@
 """Throughput and latency of the 2.0 runtime (Pipeline.infer).
 
 throughput: the runtime against a hand loop that does the same work on the same
-prepared inputs (scan, per-thread workspace, encode, kernel, steps, one result array),
+prepared inputs (scan, per-thread workspace, encode, kernel, normalize in place, one result
+array),
 for 1 to N workers; alternating, the median of each contender per configuration.
 latency: p50 and p99 of small inputs with workers=1 and the default workers.
 stream: a StreamSource of an iterator against a StringSource of the same list (its
@@ -63,13 +64,13 @@ def corpus(n: int, vocab: int, seed: int = 0) -> list[str]:
     return out
 
 
-def spec(vocab: int, dim: int, dtype: str, steps: bool) -> EncodeSpec:
+def spec(vocab: int, dim: int, dtype: str, normalize: bool) -> EncodeSpec:
     rng = np.random.default_rng(1)
     rows = rng.standard_normal((vocab, dim)).astype(F32)
     wv = WordVectors.from_arrays(rows, words=[f"w{i}" for i in range(vocab)])
     wv = wv if dtype == "float32" else wv.quantize(dtype)
     weights = rng.random(vocab).astype(F32)
-    return EncodeSpec(wv, weights, (Normalize(),) if steps else ())
+    return EncodeSpec(wv, weights, (Normalize(),) if normalize else ())
 
 
 def kernel_of(s: EncodeSpec) -> _native.WeightedMean:
@@ -97,10 +98,9 @@ def hand_loop(s: EncodeSpec, lookup, kernel, sentences: list[str], workers: int)
             local.ws = new_workspace()
         batch = source.encode(chunk, lookup, local.ws)
         target = out[chunk.first_row : chunk.first_row + chunk.n_sentences]
-        if s.steps:
-            target[...] = _native.postprocess(kernel.pool(batch), s.steps, chunk.first_row)
-        else:
-            kernel.pool(batch, target)
+        kernel.pool(batch, target)
+        if s.steps:  # normalize, in place
+            _native.postprocess_pooled(target, s.steps, chunk.first_row)
 
     if workers == 1:  # as the runtime: no thread
         for chunk in scan.chunks:
@@ -121,8 +121,8 @@ def throughput(args) -> list[dict]:
     sentences = corpus(args.sentences, args.vocab)
     results = []
     for dtype in args.dtypes:
-        for steps in (False, True):
-            s = spec(args.vocab, args.dim, dtype, steps)
+        for normalize in (False, True):
+            s = spec(args.vocab, args.dim, dtype, normalize)
             pipeline = Pipeline(s)
             lookup = make_lookup(s.word_vectors, s.tokenizer)
             for workers in args.workers:

@@ -7,8 +7,9 @@
 """Encoding throughput of fse 2.0 by text length: sentences, paragraphs, documents.
 
 The same WikiText tokens cut into texts of different lengths (bench_length_corpus.py),
-encoded with one frozen model per configuration (SIF-10 fitted once on ``paragraphs``,
-folded; Average as is; Average with normalize as the unfolded control with a step), on
+encoded with one frozen model per configuration (2.0: finished tables, SIF with the SIF
+weights of the wordfreq counts folded in, Average as is, Average with normalize as the
+control with a step; 1.1: SIF-10 trained once on ``paragraphs``, and Average), on
 glove-wiki-gigaword-300. Every case runs in a fresh child (bench_length_cases.py), so its
 peak RSS belongs to it; a child does one warm-up and --repeats timed encodes and reports
 their median, minimum and maximum. Before every run its inputs are read once (a warm page
@@ -210,12 +211,11 @@ def side_config(ctx: Prepared, case: dict, side: str, tmp: Path) -> dict:
 
 
 def _inputs(config: dict) -> list[Path]:
-    """The files a case reads: its texts, the model and the word vectors it needs."""
+    """The files a case reads: its texts and the model (2.0: the encoder holds its table)."""
     paths = [Path(config.get("texts", config["corpus"]))]
     if config["side"] == "v1":
         return paths + model_files(Path(config["v1_model"])) + _hub_files(config["vectors"])
-    paths.append(Path(config["encoder"]))
-    return paths if config["model"] == "SIF" else [*paths, Path(config["wv"])]
+    return [*paths, Path(config["encoder"])]
 
 
 def _sides(case: dict, pythons: dict[str, str]) -> list[str]:
@@ -237,7 +237,7 @@ def run_pairs(ctx: Prepared, case: dict, pythons: dict[str, str], tmp: Path) -> 
 
 
 def _models_of(ctx: Prepared, cases: list[dict], pythons: dict[str, str]) -> None:
-    """Check every corpus and model (fitting the missing ones) before anything runs."""
+    """Check every corpus and model (making the missing ones) before anything runs."""
     for case in cases:
         ctx.stats(case["corpus"], _tokenizer(ctx.args, case["corpus"]))
         ensure_model(ctx, "v2", _v2_key(ctx.args, case), pythons["v2"])

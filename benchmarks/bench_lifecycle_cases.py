@@ -21,6 +21,10 @@ the same timers:
   splits at whitespace like 1.1; list inputs are the same token lists on both sides,
   made before the timer;
 - the same output: 2.0 with ``normalize=False``, and infer to float32 as 1.1 does;
+- the same model: 2.0 trains nothing, so its SIF is a finished table: the rows with the
+  SIF weights of the same counts folded in (``v2_finished``, untimed, as the offline
+  recipe makes it); the components 1.1 removes are a linear map, which a finished table
+  holds in its rows at no cost when encoding, and are left out;
 - the same queries: vectors of stored rows, read before (``v2_queries``) by a process
   of their own, searched with their own row among the hits on both sides.
 
@@ -42,6 +46,7 @@ from pathlib import Path
 import numpy as np
 
 COMPONENTS = 10  # SIF-10, as the 1.1 baseline
+SIF_ALPHA = 1e-3  # the alpha of SIF in 1.1
 INFER_SIZES = (1, 1_000, 100_000)
 SEARCHES, BATCH = 20, 64
 K = 10  # neighbours of every search on both sides
@@ -114,6 +119,24 @@ def v2_prepare(c: dict) -> dict:
     return {"words": kv.index_to_key[:: len(kv) // 7]}
 
 
+def v2_finished(wv, model: str, counts_path, *, tokenizer: str, normalize: bool = False):
+    """The finished encoder of ``model`` on the word vectors ``wv``: Average the table as it
+    is, SIF the table with the weights alpha / (alpha + p(w)) of the counts folded into
+    its rows (float32, then quantized to the dtype of ``wv``), as an offline recipe
+    writes it. Untimed: 2.0 encodes finished models and fits none."""
+    import fse
+
+    if model == "SIF":
+        counts = np.load(counts_path).astype(np.float64)
+        weights = SIF_ALPHA / (SIF_ALPHA + counts / counts.sum())
+        rows = wv.get_vectors(np.arange(len(wv))) * weights.astype(np.float32)[:, None]
+        table = fse.WordVectors.from_arrays(
+            rows, vocab_bytes=np.asarray(wv.vocab_bytes), vocab_offsets=np.asarray(wv.vocab_offsets)
+        )
+        wv = table if wv.dtype == "float32" else table.quantize(wv.dtype)
+    return fse.Encoder.from_word_vectors(wv, tokenizer=tokenizer, normalize=normalize)
+
+
 def v2_load(c: dict) -> dict:
     import fse
 
@@ -132,12 +155,11 @@ def _v2_store(encoder, texts, c: dict, run: Path) -> dict:
 
     encode_s, _ = _timed(write)
     save_s, _ = _timed(lambda: encoder.save(run / "encoder.safetensors"))
-    # What reopening needs: the store, the encoder and, if not folded, its word vectors.
-    vectors = 0 if encoder.folded else _paths(c)["wv"].stat().st_size
+    # What reopening needs: the store and the encoder, which holds its table.
     out = {
         "encode_s": encode_s,
         "save_s": save_s,
-        "bytes_on_disk": _bytes(run) + vectors,
+        "bytes_on_disk": _bytes(run),
         "vector_bytes": _bytes(run / "store"),
     }
     _keep(run / "store", _paths(c)["store"])
@@ -149,18 +171,15 @@ def v2_encode(c: dict) -> dict:
     import fse
 
     wv = fse.WordVectors.load(_paths(c)["wv"], mmap=True)
-    out: dict = {"peak_before": _peak(), "source_s": 0.0}
-    texts = Path(c["corpus"])
-    if c["input"] == "list":  # read once for fit and encode, as 1.1 reads them in train
-        tokens = _tokens(c["corpus"])
-        out["source_s"], texts = _timed(lambda: fse.Corpus(tokens))
-        del tokens
-    if c["model"] == "SIF":
-        recipe = fse.SIF(components=COMPONENTS, normalize=False, tokenizer="external")
-        corpus, kwargs = texts, {"counts": np.load(_paths(c)["counts"])}
-    else:
-        recipe, corpus, kwargs = fse.Average(normalize=False, tokenizer="external"), None, {}
-    out["fit_s"], encoder = _timed(lambda: recipe.fit(wv, corpus, workers=c["workers"], **kwargs))
+    finished = v2_finished(wv, c["model"], _paths(c)["counts"], tokenizer="external")
+    out: dict = {"peak_before": _peak()}
+    # The token lists, made before the timer, as 1.1 gets them; encode reads them.
+    texts = _tokens(c["corpus"]) if c["input"] == "list" else Path(c["corpus"])
+    out["build_s"], encoder = _timed(
+        lambda: fse.Encoder.from_word_vectors(
+            finished.word_vectors, tokenizer="external", normalize=False
+        )
+    )
     with tempfile.TemporaryDirectory(dir=c["tmp"]) as run:
         if c["target"] == "memory":
             rows_s, rows = _timed(
@@ -170,7 +189,7 @@ def v2_encode(c: dict) -> dict:
             del rows
         else:
             out.update(_v2_store(encoder, texts, c, Path(run)), peak=_peak())
-    out["total_s"] = out["source_s"] + out["fit_s"] + out["encode_s"] + out["save_s"]
+    out["total_s"] = out["build_s"] + out["encode_s"] + out["save_s"]
     return out
 
 
@@ -213,10 +232,7 @@ def v2_query(c: dict) -> dict:
 def v2_infer(c: dict) -> dict:
     import fse
 
-    # SIF folds its weights and components into the encoder's word vectors; Average does
-    # not change them, so its encoder needs them.
-    wv = None if c["model"] == "SIF" else fse.WordVectors.load(_paths(c)["wv"], mmap=True)
-    encoder = fse.Encoder.load(_paths(c)["encoder"], wv)
+    encoder = fse.Encoder.load(_paths(c)["encoder"])  # it holds its table
     tokens = _tokens(c["corpus"], max(INFER_SIZES))
     out: dict = {}
     for n in (n for n in INFER_SIZES if n <= len(tokens)):  # all but in a short corpus
@@ -344,17 +360,13 @@ def _v2_hub_into(encoder, texts, c: dict) -> float:
 
 
 def v2_hub(c: dict) -> dict:
-    """A fitted, saved SIF encoder (folded, as on the hub) loaded and encoding the corpus,
-    into memory or into a store."""
+    """A saved SIF encoder (a finished table, as on the hub) loaded and encoding the
+    corpus, into memory or into a store."""
     import fse
 
-    out: dict = {"peak_before": _peak(), "prepare_s": 0.0}
+    out: dict = {"peak_before": _peak()}
+    texts = _tokens(c["corpus"]) if c["input"] == "list" else Path(c["corpus"])
     out["load_s"], encoder = _timed(lambda: fse.Encoder.load(_paths(c)["encoder"]))
-    texts = Path(c["corpus"])
-    if c["input"] == "list":
-        tokens = _tokens(c["corpus"])
-        out["prepare_s"], texts = _timed(lambda: fse.Corpus(tokens))
-        del tokens
     if c["target"] == "store":
         out["encode_s"] = _v2_hub_into(encoder, texts, c)
     else:
@@ -364,7 +376,7 @@ def v2_hub(c: dict) -> dict:
         out["peak"] = _peak()  # with the rows held, as 1.1 holds them in its model
         del rows
     out.setdefault("peak", _peak())
-    out["total_s"] = out["load_s"] + out["prepare_s"] + out["encode_s"]
+    out["total_s"] = out["load_s"] + out["encode_s"]
     return out
 
 

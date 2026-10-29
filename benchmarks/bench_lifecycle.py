@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The lifecycle of fse 2.0 against fse 1.1.0 on real data: load, fit, encode, search, infer.
+"""The lifecycle of fse 2.0 against fse 1.1.0 on real data: load, encode, search, infer.
 
 The 2.0 counterpart of the 1.1 lifecycle benchmark (``bench_lifecycle.py`` at 4931f5e,
 its numbers in benchmarks/baseline/README.md, "Lifecycle"), on glove-wiki-gigaword-300
@@ -20,12 +20,12 @@ once, so every number is one with a warm page cache. Cases:
   once from the gensim model (untimed), 1.1 ``Vectors.from_pretrained``;
 - ``encode``: the whole corpus, from the file (2.0 its native file source, 1.1
   ``CorpusFile``) or from token lists in memory, into a store or into memory. 2.0 times
-  reading the token lists once (``fse.Corpus``, which fit and encode share),
-  ``fit`` (SIF: the components of the corpus), ``encode`` (a store: the ``ShardSink``
-  from its creation to its last flush) and saving the encoder; 1.1 the constructor,
-  ``train`` (its scan and components) and ``save``. Only the totals compare the same
-  work, so only they get a ratio; the bytes count what reopening needs (2.0: the store,
-  the encoder and the word vectors an unfolded encoder needs), "vectors MB" only the
+  building the encoder of its finished table (``Encoder.from_word_vectors``; SIF's table
+  is made before, untimed, as 2.0 trains nothing), ``encode`` (of the token lists or the
+  file; a store: the ``ShardSink`` from its creation to its last flush) and saving the
+  encoder; 1.1 the constructor, ``train`` (its scan and components) and ``save``. Only
+  the totals compare the same work, so only they get a ratio; the bytes count what
+  reopening needs (2.0: the store and the encoder, which holds its table), "vectors MB" only the
   sentence vectors (2.0 the store, 1.1 their arrays, which it pickles into its model);
 - ``query``: open the store (1.1 ``load`` of the saved model), the first search, the warm
   search p50 of 1 query and of a batch of 64 (2.0 ``mode="auto"``, also ``"exact"`` and
@@ -33,9 +33,9 @@ once, so every number is one with a warm page cache. Cases:
   weight vectors;
 - ``infer``: 1, 1,000 and 100,000 paragraphs as token lists to float32, p50 of five calls
   (1.1 ``infer`` runs in one thread whatever its workers);
-- ``hub``: a SIF model as it comes from the hub, fitted and saved before (untimed): 2.0
-  loads the folded encoder and encodes the whole corpus (from the file, or token lists
-  read once into a ``fse.Corpus``, timed apart) into memory or into a store up to its
+- ``hub``: a SIF model as it comes from the hub, saved before (untimed): 2.0 loads the
+  encoder of its finished table and encodes the whole corpus (from the file, or token
+  lists made before the timer) into memory or into a store up to its
   last flush; 1.1 loads its trained model saved without sentence vectors (its weights
   and components kept) and adds the corpus with ``train(update=True)``, its bulk path,
   which keeps the components and runs with its workers, then for a store saves it.
@@ -236,8 +236,7 @@ _PEAK = ("peak MiB", "peak", "peak", True)
 METRICS = {
     "load": [("seconds", "seconds", "seconds", True), _PEAK],
     "encode": [
-        ("token lists s", "source_s", None, False),
-        ("fit / construct s", "fit_s", "construct_s", False),
+        ("build / construct s", "build_s", "construct_s", False),
         ("encode / train s", "encode_s", "train_s", False),
         ("save s", "save_s", "save_s", False),
         ("total s", "total_s", "total_s", True),
@@ -260,7 +259,6 @@ METRICS = {
     + [_PEAK],
     "hub": [
         ("load s", "load_s", "load_s", True),
-        ("corpus s", "prepare_s", None, False),
         ("encode / train s", "encode_s", "encode_s", True),
         ("  of it save s", None, "save_s", False),
         ("total s", "total_s", "total_s", True),
