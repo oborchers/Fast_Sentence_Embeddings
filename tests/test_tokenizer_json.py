@@ -45,7 +45,8 @@ def test_the_ids_are_those_of_tokenizers(tmp_path):
     """The parameters read from the file give the ids tokenizers gives for it."""
     document = _document()
     document["post_processor"] = json.loads(
-        '{"type": "TemplateProcessing", "single": [], "pair": [], "special_tokens": {}}'
+        '{"type": "TemplateProcessing", "single": [{"Sequence": {"id": "A", "type_id": 0}}], '
+        '"pair": [], "special_tokens": {}}'
     )
     tokens, config = tj.read_tokenizer_json(_write(tmp_path, document))
     wv = WordVectors.from_arrays(np.zeros((len(tokens), 1), np.float32), words=tokens)
@@ -150,3 +151,31 @@ def test_strip_accents_null_follows_lowercase(tmp_path):
     document["normalizer"]["lowercase"] = False
     with pytest.raises(UnsupportedArtifactError, match="strip_accents=false"):
         tj.read_tokenizer_json(_write(tmp_path, document))
+
+
+@pytest.mark.parametrize(
+    ("single", "accepted"),
+    [("[CLS] $A [SEP]", True), ("$A", True), ("$A $A", False)],
+)
+def test_template_processing_without_special_tokens(tmp_path, single, accepted):
+    """tokenizers 0.23.3 runs a TemplateProcessing also with add_special_tokens=False: it
+    drops the special tokens but keeps every sequence, so $A $A doubles the ids. Only a
+    template with the sequence A once leaves them unchanged and is accepted."""
+    from tokenizers.processors import TemplateProcessing
+
+    plain = wp.hf_tokenizer(TOKENS, ADDED)
+    templated = wp.hf_tokenizer(TOKENS, ADDED)
+    special = [("[CLS]", ADDED["[CLS]"]), ("[SEP]", ADDED["[SEP]"])]
+    templated.post_processor = TemplateProcessing(
+        single=single, pair="$A $B", special_tokens=special
+    )
+    texts = wp.corpus(TOKENS, count=300)[:-20]
+    same = wp.hf_ids(templated, texts, None) == wp.hf_ids(plain, texts, None)
+    assert same == accepted
+    path = tmp_path / "tokenizer.json"
+    path.write_text(templated.to_str())
+    if accepted:
+        assert tj.read_tokenizer_json(path)[0] == TOKENS
+    else:
+        with pytest.raises(UnsupportedArtifactError, match="the sequence A once"):
+            tj.read_tokenizer_json(path)

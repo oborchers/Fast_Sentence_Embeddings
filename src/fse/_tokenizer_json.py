@@ -10,8 +10,9 @@ ARCHITECTURE.md, "Model2Vec models". Only what wordpiece@1 reproduces is accepte
 everything else is refused by name: a WordPiece model with a vocabulary of dense ids, a
 BertNormalizer, a BertPreTokenizer, added tokens matched on the raw text (``normalized``,
 ``lstrip``, ``rstrip`` and ``single_word`` false) that are tokens of the vocabulary with
-the same id, and a post-processor that is null or TemplateProcessing (tokenizers 0.23.3
-runs it also without special tokens, and TemplateProcessing then passes the ids through).
+the same id, and a post-processor that is null or a TemplateProcessing whose single template holds
+the sequence A once (tokenizers 0.23.3 runs it also without special tokens; it then drops
+the special tokens but repeats the sequences, so only such a template changes no id).
 ``truncation`` and ``padding`` are ignored, as model2vec overrides both, and ``decoder``,
 as nothing decodes. The file is strict JSON of at most 64 MiB.
 """
@@ -132,6 +133,9 @@ def _pre_tokenizer(value: Any, path: Path) -> None:
 
 
 def _post_processor(value: Any, path: Path) -> None:
+    """Null, or a TemplateProcessing whose template of a single text holds the sequence A
+    once: tokenizers 0.23.3 runs it also without special tokens, drops the special tokens
+    then and keeps the sequences, so only then are the ids unchanged ($A $A doubles them)."""
     if value is None:
         return
     if not isinstance(value, dict) or value.get("type") != "TemplateProcessing":
@@ -139,6 +143,24 @@ def _post_processor(value: Any, path: Path) -> None:
         raise UnsupportedArtifactError(
             f"{path} has the post-processor {kind!r}; this fse reads null or "
             "TemplateProcessing, which tokenizers runs without special tokens as no change"
+        )
+    single = value.get("single")
+    pieces = single if isinstance(single, list) else []
+    sequences = [p.get("Sequence") for p in pieces if isinstance(p, dict) and "Sequence" in p]
+    others = [
+        p
+        for p in pieces
+        if not (isinstance(p, dict) and set(p) <= {"Sequence", "SpecialToken"} and len(p) == 1)
+    ]
+    if (
+        others
+        or len(sequences) != 1
+        or not isinstance(sequences[0], dict)
+        or sequences[0].get("id") != "A"
+    ):
+        raise UnsupportedArtifactError(
+            f"{path} has a TemplateProcessing whose single template is {single!r}; without "
+            "special tokens only a template with the sequence A once leaves the ids unchanged"
         )
 
 
