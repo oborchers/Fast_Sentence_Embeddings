@@ -292,6 +292,20 @@ Input as for `fse_words@1`. Per sentence:
 5. **WordPiece** per word. A word of more than `max_input_chars_per_word` code points is `unk_id`. Otherwise the word is split from the left: the longest prefix of the rest that is a token (a piece after the first with `continuing_subword_prefix` in front), shortened one code point at a time, is the next id; if no prefix is a token at some point, the whole word is one `unk_id`.
 6. **Token cut and unknown tokens.** With `fse.max_tokens`, keep the first `max_tokens` ids of the whole sequence of steps 2 to 5 (added tokens and `unk_id` count). Every word is split whole before the cut, so a word whose split fails after the cut is one `unk_id` (vocabulary `[UNK]`, `a`, text `ab`, one token: `[UNK]`, not `a`). Then `fse.unknown=drop` removes every `unk_id`.
 
+Golden ids (`tests/test_data/v2/wordpiece.json`, written by tokenizers 0.23.3 with a small vocabulary that holds the letters, digits and their continuation pieces; shown as tokens):
+
+| Input | `wordpiece@1` |
+|---|---|
+| `un[MASK]able x[MASK]y [cls]` | un, [MASK], able, x, [MASK], y, [UNK], c, ##l, ##s, [UNK] |
+| `İstanbul ISTANBUL` | istanbul, istanbul (İ decomposes to I and U+0307 before lowercasing) |
+| `ǰ` (U+01F0) | j (decomposed, the mark removed) |
+| 101 times `a` / 100 times `a` | [UNK] / a, ##a, ... |
+| `한` (U+D55C) | ᄒ, ##ᅡ, ##ᆫ (Hangul as conjoining jamo) |
+| `豈中国` (U+F900 first) | 豈 (U+8C48), 中, 国 |
+| `aẔ9͏ᅄ6` | a, ##z, ##9, ##ᅄ, ##6 (U+0331 and U+034F removed) |
+| `a` U+1E949 U+11446 / `a` U+1E949 U+034F U+11446 | a, ##U+11446, ##U+1E949 / a, ##U+1E949, ##U+11446 (classes 7 and 230 reordered, not across U+034F) |
+| `ΣΟΦΟΣ σοφος` | σ, ##ο, ##φ, ##ο, ##σ, σ, ##ο, ##φ, ##ο, ##ς (no final sigma by context) |
+
 **Stage 2** of `wordpiece@1`: token id i is row i. The vocabulary of the table (`vocab.bytes`, `vocab.offsets`) holds the token strings in id order, continuation pieces with their prefix, so every id from 0 to n - 1 exists and the checks of word_vectors 1 cover the tokens.
 
 The rules mix three Unicode versions, those of the libraries tokenizers 0.23.3 is built with:

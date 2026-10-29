@@ -99,6 +99,10 @@ test = [
     "gensim>=4.3.3; python_version < '3.14'",
     # Checks that the reference implementation reads fse's safetensors files.
     "safetensors>=0.4.0",
+    # The reference of wordpiece@1 against Hugging Face tokenizers. Pinned exactly: its
+    # lowercase is the Unicode of the Rust that built the wheel (17.0.0 for 0.23.3), so a
+    # newer wheel can change ids, and the exhaustive tests then name the code points.
+    "tokenizers==0.23.3",
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
     "coverage[toml]>=7.0.0",
@@ -303,7 +307,7 @@ layers = [
     "_wordvectors",
     "_wordvectors_format",
     # Independent of each other: the references never share code with what they check.
-    "_container | _codes | _reference | _reference_text | _validation",
+    "_container | _codes | _reference | _reference_text | _reference_wordpiece | _validation",
     "_contract | _cpus | _unicode | _unicode_bert",
 ]
 
