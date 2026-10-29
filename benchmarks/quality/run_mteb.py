@@ -91,7 +91,7 @@ def _prep_token(token: str) -> list[str]:
 
 
 def tokenize(text: str) -> list[str]:
-    """Tokenize like notebooks/STS-Benchmarks.ipynb."""
+    """Tokenize like notebooks/STS-Benchmarks.ipynb on the branch 1.x."""
     from nltk import word_tokenize
 
     tokens: list[str] = []

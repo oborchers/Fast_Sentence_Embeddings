@@ -10,7 +10,7 @@ Every checksum and fingerprint is ``xxh3-128:`` and the 32 lowercase hex digits 
 128 with seed 0, in the canonical big-endian form, of bytes fed in order. This module only
 streams and formats; reading arrays in bounded chunks belongs to the containers. It is the
 only module of fse that imports a hash library (``hash-importers`` of the guardrails) and
-imports nothing from fse, so the 1.x export can copy it with the containers.
+imports nothing from fse, so it can be copied with the containers.
 
 The data always go through the streaming object: python-xxhash releases the GIL in
 ``update`` (for inputs over 64 KiB from 4.0 on), never in its one-shot functions before 4.0.

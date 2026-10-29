@@ -27,7 +27,7 @@ The MTEB and numerics scripts use the WikiText-103 fit corpus of `benchmarks/qua
 
 ## STS
 
-The procedure of `notebooks/STS-Benchmarks.ipynb` (Pearson × 100 on the 1,379 test pairs) for the 15 hub vector sets with CBOW, SIF-10 and uSIF. The float32 values reproduce the README table. Differences to float32 over all 45 combinations:
+The procedure of `notebooks/STS-Benchmarks.ipynb` on the branch `1.x` (Pearson × 100 on the 1,379 test pairs) for the 15 hub vector sets with CBOW, SIF-10 and uSIF. The float32 values reproduce the README table. Differences to float32 over all 45 combinations:
 
 | wv_dtype | sv_dtype | largest gain | largest loss | mean |
 |---|---|---|---|---|

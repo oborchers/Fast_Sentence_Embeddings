@@ -145,7 +145,9 @@ def test_the_tensors_of_a_pre_release_are_refused_by_name(name):
 
 def test_an_encoder_without_its_table_is_a_pre_release():
     tensors, metadata = _artifact()
-    with pytest.raises(UnsupportedArtifactError, match=r"pre-release of 2\.0 .*no table of its own"):
+    with pytest.raises(
+        UnsupportedArtifactError, match=r"pre-release of 2\.0 .*no table of its own"
+    ):
         from_artifact({}, metadata)
     with pytest.raises(ValueError, match="does not use"):
         from_artifact({**tensors, "row_ids": np.ones(3, np.int64)}, metadata)
