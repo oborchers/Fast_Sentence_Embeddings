@@ -252,12 +252,17 @@ _CONTENDERS = (
 )
 
 
+def _options(args, **options) -> dict:
+    """The options of a child: ``tmp``, ``options`` and ``--shard-rows`` if given."""
+    if args.shard_rows:
+        options["shard_rows"] = args.shard_rows
+    return {"tmp": args.tmp, **options}
+
+
 def _write_row(args, dtype: str, workers: int, n: int) -> dict:
     """The median of the rounds of every contender for one dtype, worker count and size."""
     row: dict = {"dtype": dtype, "workers": workers, "sentences": n, "load": os.getloadavg()[0]}
-    common = {"tmp": args.tmp, "dtype": dtype, "workers": workers, "sentences": n}
-    if args.shard_rows:
-        common["shard_rows"] = args.shard_rows
+    common = _options(args, dtype=dtype, workers=workers, sentences=n)
     runs: dict[str, list[dict]] = {}
     for _ in range(args.rounds):
         for name, child, kind in _CONTENDERS:
@@ -299,9 +304,7 @@ def search_or_score(args) -> list[dict]:
 def sync(args) -> list[dict]:
     rows = []
     for dtype in args.dtypes:
-        common = {"tmp": args.tmp, "dtype": dtype, "sentences": args.sentences}
-        if args.shard_rows:
-            common["shard_rows"] = args.shard_rows
+        common = _options(args, dtype=dtype, sentences=args.sentences)
         for _ in range(args.rounds):
             result = _run(sys.executable, "sync", workers=args.workers[0], **common)
             print(dtype, json.dumps({k: round(v, 3) for k, v in result.items()}), flush=True)
