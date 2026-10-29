@@ -159,10 +159,15 @@ def test_only_the_loader_of_a_device_backend_imports_its_library(tool, tmp_path)
         "src/fse/_backends/_cuda/_other.py": "import cupy\n",
         "src/fse/_text.py": '"""import mlx"""\nmlxish = importlib.import_module(name)\n',
     }
+    files["src/fse/_alias.py"] = 'import importlib as il\nil.import_module("mlx.core")\n'
+    files["src/fse/_renamed.py"] = 'from importlib import import_module as load\nload("mlx.core")\n'
+    files["src/fse/_keyword.py"] = 'import importlib\nimportlib.import_module(name="mlx.core")\n'
     cfg = _fse_tree(tmp_path, files)
     cfg["device-libraries"] = {"mlx": ["mlx"], "cuda": ["cupy"]}
     errors = tool["device_import_errors"](tmp_path, cfg)
-    assert len(errors) == 4, errors
+    assert len(errors) == 7, errors
+    for name in ("_alias.py", "_renamed.py", "_keyword.py"):
+        assert any(f"src/fse/{name} imports mlx" in e for e in errors), (name, errors)
     for name in ("_mlx/_kernels.py imports mlx", "_mlx/_device.py imports mlx"):
         assert any(name in e and "_mlx/_load.py may" in e for e in errors), errors
     assert any("_cuda/_load.py imports mlx" in e for e in errors)

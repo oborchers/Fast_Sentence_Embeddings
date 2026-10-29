@@ -300,17 +300,35 @@ def hash_import_errors(root: Path, cfg: dict) -> list[str]:
     return errors
 
 
-def dynamic_imports(tree: ast.AST) -> list[str]:
-    """The modules a Python module imports by ``importlib.import_module("name")`` or
-    ``__import__("name")`` with a literal name."""
-    names = []
+def _module_argument(node: ast.Call) -> str | None:
+    """The literal module name of an import call, positional or ``name=``."""
+    values = [*node.args[:1], *(k.value for k in node.keywords if k.arg == "name")]
+    literal = [v.value for v in values if isinstance(v, ast.Constant)]
+    return literal[0] if literal and isinstance(literal[0], str) else None
+
+
+def _import_functions(tree: ast.AST) -> set[str]:
+    """``__import__``, ``import_module`` and the names it is imported under."""
+    names = {"__import__", "import_module"}
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant):
-            func = node.func
-            called = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
-            if called in ("import_module", "__import__") and isinstance(node.args[0].value, str):
-                names.append(node.args[0].value)
+        if isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            names |= {a.asname or a.name for a in node.names if a.name == "import_module"}
     return names
+
+
+def dynamic_imports(tree: ast.AST) -> list[str]:
+    """The modules imported by a call with a literal name (positional or ``name=``):
+    ``x.import_module`` (importlib under any alias), ``import_module`` imported under any
+    name, and ``__import__``."""
+    functions = _import_functions(tree)
+    calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
+    names = [
+        _module_argument(c)
+        for c in calls
+        if getattr(c.func, "attr", None) == "import_module"
+        or getattr(c.func, "id", None) in functions
+    ]
+    return [name for name in names if name is not None]
 
 
 def device_import_errors(root: Path, cfg: dict) -> list[str]:
