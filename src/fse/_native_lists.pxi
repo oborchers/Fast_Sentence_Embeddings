@@ -52,7 +52,10 @@ cdef extern from "_native_threads.h":
     unsigned fse_test_failed_starts
 
 
-cdef bint _test_failed_growth = False  # for the tests: every buffer growth fails
+# For the tests: a buffer growth beyond this many bytes fails, and the part buffers the
+# last join freed.
+cdef Py_ssize_t _test_growth_limit = PY_SSIZE_T_MAX
+cdef Py_ssize_t _test_freed_buffers = 0
 
 
 # What the appends give besides 0; the worst status of any part decides.
@@ -107,12 +110,14 @@ cdef int _grow(_Buffer *b, Py_ssize_t extra) noexcept nogil:
     With a copy it stays flat, and that join took 6.6 ms instead of 17 on an M1 Pro."""
     cdef Py_ssize_t capacity
     cdef char *data
-    if extra > PY_SSIZE_T_MAX - b.size or _test_failed_growth:
+    if extra > PY_SSIZE_T_MAX - b.size:
         return _NO_MEMORY
     if b.size + extra <= b.capacity:
         return 0
     capacity = b.capacity * 2 if b.capacity <= PY_SSIZE_T_MAX // 2 else PY_SSIZE_T_MAX
     capacity = max(b.size + extra, capacity, 4096)
+    if capacity > _test_growth_limit:
+        return _NO_MEMORY
     data = <char *>malloc(capacity)
     if data == NULL:
         return _NO_MEMORY
@@ -216,7 +221,7 @@ cdef void _run_part(void *arg, int index) noexcept nogil:
         part.ends.size += sizeof(np.int64_t)
 
 
-cdef object _joined(_Part *parts, int n_parts, Py_ssize_t n):
+cdef object _joined(_Part *parts, int n_parts, Py_ssize_t n, str what):
     """The bytes and the offsets of the finished parts."""
     cdef Py_ssize_t total = 0, at = 0, k = 1, j
     cdef int p
@@ -224,7 +229,7 @@ cdef object _joined(_Part *parts, int n_parts, Py_ssize_t n):
     cdef char *out
     for p in range(n_parts):
         if parts[p].text.size > PY_SSIZE_T_MAX - total:
-            raise MemoryError("the joined sentences would exceed the address space")
+            raise MemoryError(f"the joined {what} would exceed the address space")
         total += parts[p].text.size
     data = PyBytes_FromStringAndSize(NULL, total)
     starts = np.empty(n + 1, dtype=np.int64)
@@ -270,10 +275,12 @@ def join_token_lists(sentences, int threads=1):
 
 cdef object _join_parts(sentences, int threads, bint strings):
     """The joined sentences (str if ``strings``, else token lists), None or False."""
+    global _test_freed_buffers
     cdef PyObject *outer = <PyObject *>sentences
     cdef Py_ssize_t n, size
     cdef int p, n_parts, status = 0
     cdef _Part *parts
+    what = "strings" if strings else "token lists"  # in the errors
     if threads < 1:
         raise ValueError(f"threads must be at least 1, not {threads}")
     if not (PyList_CheckExact(outer) or PyTuple_CheckExact(outer)):
@@ -282,7 +289,7 @@ cdef object _join_parts(sentences, int threads, bint strings):
     n_parts = <int>max(1, min(threads, n // _PART_SENTENCES))
     parts = <_Part *>calloc(n_parts, sizeof(_Part))
     if parts == NULL:
-        raise MemoryError("could not allocate the parts of the sentences")
+        raise MemoryError(f"could not allocate the parts of the {what}")
     try:
         size = n // n_parts
         for p in range(n_parts):
@@ -291,27 +298,36 @@ cdef object _join_parts(sentences, int threads, bint strings):
             parts[p].first = p * size
             parts[p].last = n if p == n_parts - 1 else (p + 1) * size
         if fse_parallel(n_parts, _run_part, parts) < 0:
-            raise MemoryError("could not start the threads for the sentences")
+            raise MemoryError(f"could not start the threads for the {what}")
         for p in range(n_parts):
             status = min(status, parts[p].status)
         if status == _NO_MEMORY:
-            raise MemoryError("could not grow the buffer of the sentences")
+            raise MemoryError(f"could not grow the buffer of the {what}")
         if status < 0:
             return False if status == _INVALID else None
         # The items are not read any more, so Python code may run from here.
-        return _joined(parts, n_parts, n)
+        return _joined(parts, n_parts, n, what)
     finally:
+        _test_freed_buffers = 0
         for p in range(n_parts):
+            _test_freed_buffers += (parts[p].text.data != NULL) + (parts[p].ends.data != NULL)
             free(parts[p].text.data)
             free(parts[p].ends.data)
         free(parts)
 
 
-def _test_join_faults(unsigned failed_starts=0, bint failed_growth=False):
-    """For the tests: make the thread starts of the parts in the bit mask fail, or every
-    buffer growth; returns the previous (failed_starts, failed_growth)."""
-    global fse_test_failed_starts, _test_failed_growth
-    previous = (fse_test_failed_starts, _test_failed_growth)
+def _test_join_faults(unsigned failed_starts=0, Py_ssize_t growth_limit=PY_SSIZE_T_MAX):
+    """For the tests: make the thread starts of the parts in the bit mask fail, and every
+    growth of a buffer to more than ``growth_limit`` bytes (0: every growth; a buffer starts
+    at 4,096 bytes and doubles, so 2**k * 4096 lets it grow k + 1 times); returns the
+    previous (failed_starts, growth_limit)."""
+    global fse_test_failed_starts, _test_growth_limit
+    previous = (fse_test_failed_starts, _test_growth_limit)
     fse_test_failed_starts = failed_starts
-    _test_failed_growth = failed_growth
+    _test_growth_limit = growth_limit
     return previous
+
+
+def _test_join_freed():
+    """For the tests: the part buffers (text and ends) the last join freed."""
+    return _test_freed_buffers

@@ -162,14 +162,33 @@ def test_parts_whose_threads_do_not_start_run_in_the_caller(faults):
         np.testing.assert_array_equal(offsets, want[1])
 
 
+GROW_TOKEN_LISTS = "^could not grow the buffer of the token lists$"
+
+
 @pytest.mark.parametrize("threads", [1, 4])
 def test_a_failed_growth_raises_and_frees(faults, threads):
     sentences = _many(4 * 4096)
-    faults(failed_growth=True)
-    with pytest.raises(MemoryError, match="could not grow"):
+    faults(growth_limit=0)
+    with pytest.raises(MemoryError, match=GROW_TOKEN_LISTS):
         _native.join_token_lists(sentences, threads)
+    assert _native._test_join_freed() == 0  # nothing was allocated
     faults()
     _same(sentences)  # the next call works
+
+
+# With a limit of 16 KiB a buffer grows to 4, 8 and 16 KiB, then fails: the text of a part
+# of long sentences first, the ends (8 bytes per sentence) of short ones after 2,048.
+@pytest.mark.parametrize("threads", [1, 4])
+@pytest.mark.parametrize("buffer", ["text", "ends"])
+def test_a_growth_that_fails_midway_raises_and_frees_every_buffer(faults, threads, buffer):
+    sentence = ["w" * 60, "\u65e5" * 40] if buffer == "text" else ["a"]  # 181 or 1 bytes
+    sentences = [sentence] * 4096 * threads  # one part per thread
+    faults(growth_limit=16384)
+    with pytest.raises(MemoryError, match=GROW_TOKEN_LISTS):
+        _native.join_token_lists(sentences, threads)
+    assert _native._test_join_freed() == 2 * threads  # text and ends of every part
+    faults()
+    _same(sentences)
 
 
 # Strings, one sentence each (join_strings), against encode_string of the Python path.
@@ -303,11 +322,29 @@ def test_string_parts_whose_threads_do_not_start_run_in_the_caller(faults):
         np.testing.assert_array_equal(offsets, want[1])
 
 
+GROW_STRINGS = "^could not grow the buffer of the strings$"
+
+
 @pytest.mark.parametrize("threads", [1, 4])
 def test_a_failed_growth_of_strings_raises_and_frees(faults, threads):
     texts = _many_texts(4 * 4096)
-    faults(failed_growth=True)
-    with pytest.raises(MemoryError, match="could not grow"):
+    faults(growth_limit=0)
+    with pytest.raises(MemoryError, match=GROW_STRINGS):
         _native.join_strings(texts, threads)
+    assert _native._test_join_freed() == 0
     faults()
     _same_strings(texts, threads)  # the next call works
+
+
+@pytest.mark.parametrize("threads", [1, 4])
+@pytest.mark.parametrize("buffer", ["text", "ends"])
+def test_a_growth_of_strings_that_fails_midway_raises_and_frees(faults, threads, buffer):
+    # Empty strings grow only the ends; long ones outgrow the text first.
+    text = "w" * 60 + "\u65e5" * 40 if buffer == "text" else ""
+    texts = [text] * 4096 * threads  # one part per thread
+    faults(growth_limit=16384)
+    with pytest.raises(MemoryError, match=GROW_STRINGS):
+        _native.join_strings(texts, threads)
+    assert _native._test_join_freed() == (2 if buffer == "text" else 1) * threads
+    faults()
+    _same_strings(texts, threads)
