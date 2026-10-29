@@ -44,7 +44,6 @@ from pathlib import Path
 
 import numpy as np
 from bench_lifecycle_cases import (
-    COMPONENTS,
     _p50_ms,
     _peak,
     _timed,
@@ -268,15 +267,11 @@ def v2_strings(c: dict) -> dict:
 
 def v1_model(c: dict) -> dict:
     """Train the 1.1 model on the paragraphs and save it without its sentence vectors
-    (untimed), as bench_lifecycle_cases.v1_hub_model does for SIF."""
+    (untimed), as a model from the hub comes."""
     import fse
 
     vectors = fse.Vectors.from_pretrained(c["vectors"], mmap="r")
-    kwargs = {}
-    if c["model"] == "SIF":
-        vectors.expandos["count"] = np.load(c["counts"])  # instead of lang_freq
-        kwargs["components"] = COMPONENTS
-    model = getattr(fse, c["model"])(vectors, workers=c["workers"], sv_dtype=c["dtype"], **kwargs)
+    model = getattr(fse, c["model"])(vectors, workers=c["workers"], sv_dtype=c["dtype"])
     model.train(fse.CorpusFile(c["paragraphs"]))
     sv = model.sv
     sv.vectors = np.zeros((0, sv.vector_size), sv.vectors.dtype)

@@ -33,12 +33,10 @@ once, so every number is one with a warm page cache. Cases:
   weight vectors;
 - ``infer``: 1, 1,000 and 100,000 paragraphs as token lists to float32, p50 of five calls
   (1.1 ``infer`` runs in one thread whatever its workers);
-- ``hub``: a model as it comes from the hub, saved before (untimed): 2.0 loads the
-  encoder of its finished table and encodes the whole corpus (from the file, or token
-  lists made before the timer) into memory or into a store up to its
-  last flush; 1.1 loads its trained model saved without sentence vectors (its weights
-  and components kept) and adds the corpus with ``train(update=True)``, its bulk path,
-  which keeps the components and runs with its workers, then for a store saves it.
+- ``hub``: 2.0 only, the SIFWeights model as it comes from the hub, saved before
+  (untimed): 2.0 loads the encoder of its finished table and encodes the whole corpus
+  (from the file, or token lists made before the timer) into memory or into a store up
+  to its last flush.
 
 --quick (the default) runs the prioritized subset of ``_quick`` in about ten minutes,
 --full every combination of --models, --dtypes, --workers, --inputs and --targets; query
@@ -269,11 +267,10 @@ METRICS = {
     ],
     "infer": [(f"infer {n} p50 ms", f"infer_{n}_ms", f"infer_{n}_ms", True) for n in INFER_SIZES]
     + [_PEAK],
-    "hub": [
-        ("load s", "load_s", "load_s", True),
-        ("encode / train s", "encode_s", "encode_s", True),
-        ("  of it save s", None, "save_s", False),
-        ("total s", "total_s", "total_s", True),
+    "hub": [  # 2.0 only
+        ("load s", "load_s", None, False),
+        ("encode s", "encode_s", None, False),
+        ("total s", "total_s", None, False),
         _PEAK,
     ],
 }
@@ -318,8 +315,6 @@ def run(args, base: dict, warm: list[Path]) -> list[dict]:
         sides = pythons if shared else {"v2": pythons["v2"]}
         if case["kind"] == "query":  # the query vectors, in a process of their own
             _run(sys.executable, {**config, "side": "v2", "kind": "queries"})
-        if case["kind"] == "hub" and "v1" in sides:  # the 1.1 model as from the hub, once
-            _run(sides["v1"], {**config, "side": "v1", "kind": "hub_model"})
         rows.append({"case": case, **_pairs(config, sides, args.pairs, warm)})
         _print_row(rows[-1], cpus)
     return rows
