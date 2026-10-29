@@ -6,6 +6,7 @@ import platform
 import sys
 
 import numpy as np
+import pydantic
 import pytest
 
 import fse
@@ -128,7 +129,7 @@ def test_vectors_decode_the_rows(tmp_path):
             store.get_vectors(start=10, stop=151)
         assert store.get_vectors().shape == (150, ENCODER.output_dim)
         assert not hasattr(store, "vectors")  # decoded rows are get_vectors everywhere
-        with pytest.raises(TypeError):
+        with pytest.raises(pydantic.ValidationError, match="Unexpected positional argument"):
             store.get_vectors(60, 130)  # start and stop are keywords
 
 
