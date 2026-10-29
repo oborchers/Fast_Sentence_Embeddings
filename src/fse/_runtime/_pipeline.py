@@ -55,9 +55,13 @@ from ._tasks import Task, plan
 # fixed cost of about 0.2 ms for its checks (4 MiB lost 7 % on an M1 Pro, 16 MiB 1 %).
 TASK_ROW_BYTES = 1 << 24
 # The rows of all tasks in flight or waiting to be committed take at most this many bytes:
-# the window is 2 * workers tasks, so with many workers a task holds fewer rows. normalize
-# runs in place on the rows of a task and needs no memory of its own.
+# the window is 2 * workers tasks, so with many workers a task holds fewer rows. A task
+# that normalizes counts 12 more bytes per value (STEP_ROW_BYTES), although normalize runs
+# in place: without them its tasks were up to twice as large and the peak RSS of a stream
+# at 10 workers grew by 65 to 140 MiB for at most 10 % throughput (M1 Pro, PR 123), as the
+# rest of a task (its batch, tokens and buffers) grows with its rows too.
 WINDOW_BYTES = 1 << 29
+STEP_ROW_BYTES = 12
 
 
 class Pipeline:
@@ -87,8 +91,8 @@ class Pipeline:
 
     def _row_bytes(self, dtype: str, inverse: bool = False) -> int:
         """The bytes one row of a task takes at most: its target until its commit (with
-        its inverse norm if the sink wants them), and while it runs the float32 rows before
-        storage (a float16 or int8 target); normalize runs in place on the float32 rows."""
+        its inverse norm if the sink wants them), while it runs the float32 rows before
+        storage (a float16 or int8 target), and STEP_ROW_BYTES per value with normalize."""
         out = self.output_dim
         target = (
             np.dtype(_codes.STORAGE_TYPES[dtype]).itemsize * out
@@ -96,7 +100,8 @@ class Pipeline:
             + (8 if inverse else 0)
         )  # the vector in the target and the backend's result
         scratch = 0 if dtype == "float32" else 4 * out
-        return target + scratch
+        steps = STEP_ROW_BYTES * out if self.prepared.steps else 0
+        return target + scratch + steps
 
     def infer(
         self,
