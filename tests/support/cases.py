@@ -178,7 +178,13 @@ def _cases():
     # A subnormal weight of a large value: a normal product the GPU would flush away.
     large = np.array([[2.0**100, -1.0]], F32)
     out.append(
-        Case("subnormal weight, large row", "float32", large, np.full(1, TINY * 8), ((0,), (0, 0)))
+        Case(
+            "subnormal weight, large row",
+            "float32",
+            large,
+            np.full(1, TINY * 8, F32),
+            ((0,), (0, 0)),
+        )
     )
     # A subnormal int8 scale with a large weight: normal factors from a subnormal scale.
     small = np.array([[TINY * 1016, -TINY * 508]], F32)

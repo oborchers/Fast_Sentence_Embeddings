@@ -162,9 +162,8 @@ jobs:
           if metal:
               print(mx.device_info())
               from fse._backends import get_backend
-              from fse._backends._mlx._device import DEVICE
-              get_backend("mlx")
-              DEVICE.ready()  # the canary, which every prepare runs once per process
+              backend = get_backend("mlx")
+              backend.device.ready()  # the canary, which every prepare runs once per process
               print("canary: passed")
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
               out.write(f"metal={'true' if metal else 'false'}\n")
