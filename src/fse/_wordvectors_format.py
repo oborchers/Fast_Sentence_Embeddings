@@ -57,7 +57,9 @@ _MAX_WORDS = OOV_TOKEN  # word ids must stay below the reserved token ids
 
 
 class FastTextParams(NamedTuple):
-    """How unknown words are hashed into ngram buckets (the FastText scheme)."""
+    """``fse.FastTextParams``: how unknown words are hashed into ngram buckets (the
+    FastText scheme): character ngrams of ``min_n`` to ``max_n`` characters, hashed into
+    ``bucket`` rows of ``ngrams``."""
 
     min_n: int
     max_n: int

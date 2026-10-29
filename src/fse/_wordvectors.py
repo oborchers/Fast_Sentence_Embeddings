@@ -125,7 +125,12 @@ class WordVectors:
         ``vectors`` holds one row per word as float32, float16 or int8 codes (with
         ``scales``). The vocabulary is either ``words`` or its UTF-8 ``vocab_bytes`` and
         int64 ``vocab_offsets``. FastText vectors also take ``fasttext`` and the ``ngrams``
-        rows (with ``ngram_scales`` for int8).
+        rows (with ``ngram_scales`` for int8), one per bucket::
+
+            fse.WordVectors.from_arrays(
+                vectors, words=words, ngrams=ngrams,
+                fasttext=fse.FastTextParams(min_n=3, max_n=6, bucket=len(ngrams)),
+            )
         """
         copy = _copy  # False only for arrays the caller created and hands over
         if not isinstance(vectors, ndarray):
