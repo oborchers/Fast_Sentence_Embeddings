@@ -155,8 +155,8 @@ def test_oov_weight_is_converted_in_the_kernel_environment(env):
         got = {w: Encoder.from_word_vectors(wv, oov_weight=w)._content.oov_weight for w in want}
     finally:
         _native._test_fpenv_restore(saved)
-    for w in want:
-        assert got[w].tobytes() == want[w].tobytes(), w
+    for w, expected in want.items():
+        assert got[w].tobytes() == expected.tobytes(), w
         assert got[w].shape == ()
         assert got[w].dtype == F32
 
