@@ -31,10 +31,13 @@ def random_case(name, dtype, seed, *, words=40, dim=13, n=25, length=12, empty=0
     return Case(name, dtype, base, weights, tuple(sentences), tuple(ngrams), ngram_base, 0.75)
 
 
+SEEDS = {"float32": 32, "float16": 16, "int8": 8}
+
+
 def _cases():
     out = []
     for dtype in ("float32", "float16", "int8"):
-        rng = _rng(hash(dtype) % 2**32)
+        rng = _rng(SEEDS[dtype])  # fixed: hash() of a str changes with PYTHONHASHSEED
         base = rng.standard_normal((30, 9)).astype(F32)
         w = rng.random(30).astype(F32)
         out += [
