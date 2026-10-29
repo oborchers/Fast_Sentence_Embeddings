@@ -202,8 +202,7 @@ class LinearModel:
         without its weight. The table is folded from a copy checked against the checksums
         it was loaded with, and every tensor kept as it is is compared while it is written,
         so data that changed since the load (a mapped file) never get new checksums."""
-        weight = self._content.weight
-        assert weight is not None
+        weight = self._verified("head.weight", self._content.weight)
         recorded = self._encoder._checksums
         pool = fold(get_backend("cpu"), self._verified_pool(recorded), weight, usable_cpus())
         table, keys, _ = self._encoder.word_vectors._parts()
@@ -222,8 +221,22 @@ class LinearModel:
         out, keys = _format.to_artifact(head, tensors, metadata, of_encoder)
         if recorded is None:
             return out, keys, None  # made in memory: the arrays are the encoder's own
-        expected = {**sums, **{n: checksum(a) for n, a in out.items() if n in _format.TENSORS}}
-        return out, keys, expected
+        own = self._checksums or {}  # a loaded model: the head's checksums from its file
+        heads = {n: own.get(n) or checksum(a) for n, a in out.items() if n in _format.TENSORS}
+        return out, keys, {**sums, **heads}
+
+    def _verified(self, name: str, array: ndarray | None) -> ndarray:
+        """A copy of the head tensor ``name`` that matches the checksum of the file the
+        model was loaded from (the array itself for a model made in memory)."""
+        assert array is not None
+        if not self._checksums or name not in self._checksums:
+            return array
+        copy = np.array(array, copy=True)
+        if checksum(copy) != self._checksums[name]:
+            raise CorruptArtifactError(
+                f"tensor {name} of {self._path} changed since it was loaded; nothing was written"
+            )
+        return copy
 
     def _verified_pool(self, recorded: dict[str, str] | None) -> PoolInput:
         """The pool of the encoder; for a loaded one, copies of its rows and scales that

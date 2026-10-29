@@ -215,3 +215,22 @@ def test_a_standalone_export_of_a_loaded_model_keeps_its_checksums(tmp_path):
         fse.Classifier.load(tmp_path / "s.safetensors").fingerprint
         == fse.Classifier.load(tmp_path / "s0.safetensors").fingerprint
     )
+
+
+@pytest.mark.parametrize("tensor", ["head.weight", "head.bias"])
+def test_a_standalone_export_refuses_a_head_that_changed_since_the_load(tmp_path, tensor):
+    from fse import CorruptArtifactError
+
+    model = _classifier(finished(normalize=False), k=2)
+    path = tmp_path / "m.safetensors"
+    model.save(path)
+    values = (model.coef_ if tensor == "head.weight" else model.intercept_).tobytes()
+    data = bytearray(path.read_bytes())
+    at = data.find(values)
+    assert at > 0
+    data[at : at + 4] = bytes(b ^ 0x01 for b in values[:4])
+    path.write_bytes(bytes(data))
+    loaded = fse.Classifier.load(path, mmap=True)
+    with pytest.raises(CorruptArtifactError, match="changed since it was"):
+        loaded.save(tmp_path / "s.safetensors", standalone=True)
+    assert not (tmp_path / "s.safetensors").exists()
