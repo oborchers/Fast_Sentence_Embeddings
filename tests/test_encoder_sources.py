@@ -96,8 +96,5 @@ def test_token_lists_are_read_once_for_fit_and_encode(monkeypatch):
     assert len(joins) == 1
     assert encoder.fingerprint == want_encoder.fingerprint
     np.testing.assert_array_equal(rows.view(np.uint32), want.view(np.uint32))
-    _, fitted = recipe.fit_transform(wv, given, counts=counts)
-    assert len(joins) == 1  # fit_transform reads the given lists again too
-    np.testing.assert_array_equal(fitted.view(np.uint32), want.view(np.uint32))
     with pytest.raises(TypeError, match="for the external tokenizer"):
         fse.SIF().fit(wv, given, counts=counts)

@@ -7,8 +7,7 @@
 """The recipes of fse 2.0: Average, SIF and USIF (ARCHITECTURE.md, "2.0 design").
 
 A recipe holds parameters only; ``fit`` learns what it needs from word vectors and a
-corpus and returns a frozen ``Encoder``, ``fit_transform`` also the vectors of the
-corpus. By default the learned linear steps are folded into the encoder's word vectors
+corpus and returns a frozen ``Encoder``, whose ``encode`` gives the vectors. By default the learned linear steps are folded into the encoder's word vectors
 and every row ends normalized.
 """
 
@@ -24,10 +23,9 @@ from fse._validation import NonNegativeInt, PositiveFloat, PositiveInt, validate
 from fse._wordvectors import WordVectors
 
 from ._encoder import Encoder
-from ._fit import FitSpec, fit, fit_transform
+from ._fit import FitSpec, fit
 
 Backend = Literal["cpu", "numpy"]
-Dtype = Literal["float32", "float16", "int8"]
 
 
 class _Recipe:
@@ -55,27 +53,6 @@ class _Recipe:
         uSIF length. ``counts`` (one per word) replace the counts of the word vectors."""
         spec = self._checked(word_vectors)
         return fit(spec, word_vectors, texts, counts=counts, workers=workers, backend=backend)
-
-    @validate_arguments
-    def fit_transform(
-        self,
-        word_vectors: Any,
-        texts: Any,
-        *,
-        counts: Any = None,
-        dtype: Dtype = "float32",
-        workers: PositiveInt | None = None,
-        backend: Backend = "cpu",
-    ) -> tuple[Encoder, Any]:
-        """The fitted encoder and the vectors of ``texts``, bit for bit those of
-        ``fit(...).encode(texts)``. The corpus is read once more after what the fit reads,
-        so a stream (read once) works only where the fit reads nothing, as for Average
-        without ``dim``."""
-        spec = self._checked(word_vectors)
-        encoder, rows = fit_transform(
-            spec, word_vectors, texts, counts=counts, workers=workers, backend=backend, dtype=dtype
-        )
-        return encoder, rows
 
     def _checked(self, word_vectors: Any) -> FitSpec:
         if not isinstance(word_vectors, WordVectors):

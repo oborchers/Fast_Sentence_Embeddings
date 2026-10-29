@@ -405,7 +405,7 @@ class TokenLists(_Buffered):
     """Sentences given as lists of tokens, read once, for encoders with the external
     tokenizer.
 
-    ``fit``, ``fit_transform`` and ``encode`` take lists of token lists as they are, but
+    ``fit`` and ``encode`` take lists of token lists as they are, but
     each call reads them again. ``TokenLists(sentences)`` reads them once, so one object
     can be fitted on and encoded any number of times::
 

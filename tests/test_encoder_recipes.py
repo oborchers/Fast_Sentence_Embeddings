@@ -47,11 +47,12 @@ def test_alpha_must_be_positive_and_finite_in_float32(alpha):
         fse.SIF(alpha=alpha)
 
 
-def test_fit_transform_of_a_stream_where_the_fit_reads_nothing():
+def test_average_fits_without_texts_and_encodes_a_stream_once():
     from fse._stream import StreamSource
     from support.runtime import texts
 
     wv = word_vectors()
     sentences = texts(300)
-    encoder, rows = fse.Average().fit_transform(wv, StreamSource(iter(sentences)))
+    encoder = fse.Average().fit(wv)
+    rows = encoder.encode(StreamSource(iter(sentences)))
     assert rows.tobytes() == encoder.encode(sentences).tobytes()

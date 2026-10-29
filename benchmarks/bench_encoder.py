@@ -4,11 +4,11 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""Encoders of fse 2.0: folding, fit and fit_transform.
+"""Encoders of fse 2.0: folding, fit, and fit then encode.
 
 fold: encode with folded and unfolded SIF and uSIF encoders and with Average, all
 normalized; a folded encoder only averages, so it should run as fast as Average.
-fit: the time of each pass of fit (count, Gram, components, fold) and of fit_transform,
+fit: the time of each pass of fit (count, Gram, components, fold) and of fit then encode,
 which reads the corpus once more, against fit plus keeping the float32 rows of the Gram
 pass (np.memmap) and stepping them per row afterwards.
 
@@ -122,8 +122,8 @@ def fit(args) -> list[dict]:
         results.append(row)
         print(
             f"workers={workers:3d} fit folded {row['fit_folded_s']:.2f}s unfolded "
-            f"{row['fit_unfolded_s']:.2f}s | fit_transform folded "
-            f"{row['fit_transform_folded_s']:.2f}s unfolded {row['fit_transform_unfolded_s']:.2f}s "
+            f"{row['fit_unfolded_s']:.2f}s | fit then encode folded "
+            f"{row['fit_encode_folded_s']:.2f}s unfolded {row['fit_encode_unfolded_s']:.2f}s "
             f"| kept float32 rows (unfolded) {row['kept_rows_s']:.2f}s | encode {row['encode_s']:.2f}s",
             flush=True,
         )
@@ -138,8 +138,10 @@ def _fit_row(wv: WordVectors, sentences: list[str], workers: int, rounds: int) -
     for fold_, label in ((True, "folded"), (False, "unfolded")):
         recipe = fse.SIF(components=1, fold=fold_)
         row[f"fit_{label}_s"] = median(lambda r=recipe: r.fit(wv, sentences, workers=workers))
-        row[f"fit_transform_{label}_s"] = median(
-            lambda r=recipe: r.fit_transform(wv, sentences, workers=workers)
+        row[f"fit_encode_{label}_s"] = median(
+            lambda r=recipe: r.fit(wv, sentences, workers=workers).encode(
+                sentences, workers=workers
+            )
         )
     row["encode_s"] = median(lambda: fse.Average().fit(wv).encode(sentences, workers=workers))
     row["kept_rows_s"] = statistics.median(
@@ -149,8 +151,9 @@ def _fit_row(wv: WordVectors, sentences: list[str], workers: int, rounds: int) -
 
 
 def _kept_rows(wv: WordVectors, sentences: list[str], workers: int) -> float:
-    """fit_transform of unfolded SIF that keeps the float32 rows of the Gram pass in a
-    memmap and applies the steps per row afterwards: the alternative to reading again."""
+    """An experimental alternative to fit then encode of unfolded SIF: keep the float32
+    rows of the Gram pass in a memmap and apply the steps per row afterwards, instead of
+    reading the corpus again."""
     start = time.perf_counter()
     encoder = fse.SIF(components=0, normalize=False).fit(wv)  # the weights of SIF
     spec = encoder._spec
