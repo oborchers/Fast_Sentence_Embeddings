@@ -36,7 +36,7 @@ from fse._container import (
     fingerprint,
     tensor_code,
 )
-from fse._contract import Normalize, check_tokenizer
+from fse._contract import Normalize, UnsupportedArtifactError, check_tokenizer
 from fse._runtime import EncodeSpec, Pipeline, QuantizedRows, check_workers
 from fse._text import MAX_NGRAMS_LIMIT, Vocabulary, make_vocabulary
 from fse._validation import PathLike, PositiveInt, validate_arguments
@@ -305,18 +305,35 @@ class Encoder:
         of 2.0 raises ``fse.UnsupportedArtifactError``: rebuild it."""
         path = Path(path)
         tensors, metadata = SafetensorsContainer().open(path, mmap=mmap)
+        if metadata.get("fse.kind") == "linear_head":
+            raise UnsupportedArtifactError(
+                f"{path} is a linear head (fse.kind linear_head), not an encoder; open it with "
+                "fse.Classifier.load or fse.Regressor.load"
+            )
+        return cls._from_artifact(tensors, metadata, path, metadata.get(FINGERPRINT_KEY))
+
+    @classmethod
+    def _from_artifact(
+        cls,
+        tensors: dict[str, ndarray],
+        metadata: dict[str, str],
+        path: Path | None,
+        fingerprint_: str | None,
+    ) -> Encoder:
+        """The encoder of an encoder artifact opened from ``path`` (also the encoder part of
+        a head file), with its recorded checksums and ``fingerprint_``."""
         content, table, keys = from_artifact(tensors, metadata)
         checksums = {
             k[len(CHECKSUM_PREFIX) :]: v
             for k, v in metadata.items()
-            if k.startswith(CHECKSUM_PREFIX)
+            if k.startswith(CHECKSUM_PREFIX) and k[len(CHECKSUM_PREFIX) :] in tensors
         }
         return cls._new(
             content,
             _table(table, keys, metadata, checksums, path),
             path=path,
             checksums=checksums,
-            fingerprint_=metadata.get(FINGERPRINT_KEY),
+            fingerprint_=fingerprint_,
         )
 
     def verify(self):
@@ -404,7 +421,7 @@ def _table(
     keys: dict[str, str],
     metadata: dict[str, str],
     checksums: dict[str, str],
-    path: Path,
+    path: Path | None,
 ) -> WordVectors:
     """The table an encoder holds, as word vectors loaded from its file, with the
     fingerprint of their recorded checksums."""

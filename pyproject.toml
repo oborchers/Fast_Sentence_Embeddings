@@ -287,6 +287,8 @@ containers = ["fse"]
 exhaustive = true
 exhaustive_ignores = ["_version"]
 layers = [
+    # Linear heads on an encoder; they read stores in store mode.
+    "_head",
     # The store takes an Encoder; fse.gensim only converts word vectors.
     "gensim | _store",
     "_encoder",
@@ -330,6 +332,13 @@ type = "layers"
 containers = ["fse._backends._mlx"]
 exhaustive = true
 layers = ["_backend", "_device", "_canary", "_kernels", "_sources | _load | _bounds"]
+
+[[tool.importlinter.contracts]]
+name = "Heads: the classes on the model, that on its runs, the readers and formats on the content"
+type = "layers"
+containers = ["fse._head"]
+exhaustive = true
+layers = ["_format", "_content"]
 
 [[tool.importlinter.contracts]]
 name = "Encoder: the encoder on its batches and format, those on its inputs"
