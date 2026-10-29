@@ -310,3 +310,39 @@ def test_the_workspace_counts_the_tokens_of_the_last_encode():
         batch = source.encode(source.scan().chunks[0], lookup, workspace)
         assert workspace.tokens_seen == seen  # unknown words included, reset per encode
         assert len(batch.tokens) <= seen
+
+
+@pytest.mark.parametrize("project", [False, True])
+def test_postprocess_pooled_gives_the_bits_of_postprocess_in_place(project):
+    from fse._contract import Normalize, Project, RemoveComponents
+
+    rng = np.random.default_rng(7)
+    rows = rng.standard_normal((37, 12)).astype(np.float32)
+    rows[3] = 0  # a zero row stays zero
+    basis = np.linalg.qr(rng.standard_normal((12, 4)))[0].T.astype(np.float32)
+    components = np.ascontiguousarray(basis[:1])
+    steps = (
+        RemoveComponents(components),
+        *((Project(np.ascontiguousarray(basis[1:])),) if project else ()),
+        Normalize(),
+    )
+    want = _native.postprocess(rows, steps, 5)
+    pooled = rows.copy()
+    got = _native.postprocess_pooled(pooled, steps, 5)
+    assert got.tobytes() == want.tobytes()
+    assert (got is pooled) != project  # in place unless a project makes a new array
+
+
+def test_postprocess_pooled_takes_only_writable_float32_matrices():
+    from fse._contract import Normalize
+
+    frozen = np.ones((2, 3), np.float32)
+    frozen.setflags(write=False)
+    for bad in (
+        np.ones((2, 3), np.float64),
+        np.ones(3, np.float32),
+        frozen,
+        np.ones((3, 2), np.float32).T,
+    ):
+        with pytest.raises(ValueError, match="writable C-contiguous float32 matrix"):
+            _native.postprocess_pooled(bad, (Normalize(),))

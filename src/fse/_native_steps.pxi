@@ -40,15 +40,37 @@ def postprocess(rows, steps, first_row=0, *, isa=None):
         return _postprocess(rows, steps, first_row, isa)
 
 
-def _postprocess(rows, steps, first_row, isa):
-    from fse._contract import Normalize, Project, RemoveComponents, check_steps
+def postprocess_pooled(rows, steps, first_row=0, *, isa=None):
+    """``postprocess`` of rows the kernel has just pooled, in place: ``rows`` (writable
+    C-contiguous float32, finite as pooling leaves them) are neither copied nor checked
+    again. The result is ``rows`` itself, or a new array after a ``project``."""
+    if not (
+        isinstance(rows, np.ndarray)
+        and rows.dtype == np.float32
+        and rows.ndim == 2
+        and rows.flags.c_contiguous
+        and rows.flags.writeable
+    ):
+        raise ValueError("pooled rows must be a writable C-contiguous float32 matrix")
+    with _KernelEnv():
+        _check_dim(rows.shape[1])
+        return _apply_steps(rows, steps, first_row, _check_isa(isa))
 
+
+def _postprocess(rows, steps, first_row, isa):
     cdef int code = _check_isa(isa)
     out = np.array(rows, dtype=np.float32, copy=True, order="C")
     if out.ndim != 2:
         raise ValueError("rows must be a matrix")
     _check_dim(out.shape[1])
     _check_finite_rows(out, first_row)
+    return _apply_steps(out, steps, first_row, code)
+
+
+def _apply_steps(out, steps, first_row, int code):
+    """The steps on ``out`` in place (a project gives a new array): the rows of each."""
+    from fse._contract import Normalize, Project, RemoveComponents, check_steps
+
     cdef float[:, ::1] view
     cdef const float[:, ::1] params
     cdef const float[::1] weights

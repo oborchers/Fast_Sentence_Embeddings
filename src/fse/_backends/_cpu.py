@@ -90,8 +90,12 @@ class CpuBackend:
         if not prepared.steps:
             state.kernel.pool(batch, out)
             return
-        rows = state.kernel.pool(batch)
-        out[...] = _native.postprocess(rows, prepared.steps, batch.first_row, isa=state.isa)
+        if prepared.pooled_dim == prepared.output_dim:  # no project: the steps in place
+            state.kernel.pool(batch, out)
+            _native.postprocess_pooled(out, prepared.steps, batch.first_row, isa=state.isa)
+            return
+        rows = state.kernel.pool(batch)  # a new array, finite as pooled
+        out[...] = _native.postprocess_pooled(rows, prepared.steps, batch.first_row, isa=state.isa)
 
     def gram_block(self, rows: ndarray) -> ndarray:
         if not isinstance(rows, ndarray) or rows.dtype != np.float32 or rows.ndim != 2:
