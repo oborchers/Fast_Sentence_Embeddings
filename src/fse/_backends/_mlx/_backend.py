@@ -25,6 +25,7 @@ fallback of an encoder logs a warning, and the backend counts them by reason.
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import logging
 import operator
@@ -54,17 +55,18 @@ logger = logging.getLogger(__name__)
 
 DEVICE = Device(_load.core)  # the one device thread of the process, for every encoder
 
-MAX_DIM = 1 << 16
+DEVICE_DIM = 1 << 16  # wider rows run on the host (the contract's d <= 65,536)
 _CAPABILITIES = Capabilities(
     word_dtypes=frozenset({"float32", "float16", "int8"}),
     aggregations=frozenset({Aggregation.WEIGHTED_MEAN}),
     steps=frozenset(Op),
     fasttext=True,
     concurrent=True,
-    max_dim=MAX_DIM,
+    max_dim=DEVICE_DIM,  # the host's limit in capabilities()
     device_rows=True,
 )
 _WHY = {
+    "dim": f"rows of more than {DEVICE_DIM} values",
     "subnormal_input": "a factor or row value of the encoder that is or may be subnormal, "
     "which the GPU would flush to zero",
     "long": "a sentence or unknown word of 2**24 tokens or more",
@@ -78,6 +80,8 @@ class Host(Protocol):
     """What the mlx backend needs of its host backend (the cpu backend)."""
 
     name: str
+
+    def capabilities(self) -> Capabilities: ...
 
     def prepare(self, pool: PoolInput, steps: Sequence[Step]) -> Prepared: ...
 
@@ -125,8 +129,9 @@ class Fallbacks:
 @dataclass(frozen=True, eq=False)
 class _State:
     host: Prepared
-    table: _kernels.Table | None  # None: the encoder runs on the host (subnormal input)
+    table: _kernels.Table | None  # None: the encoder runs on the host, for ``reason``
     fallbacks: Fallbacks
+    reason: str = ""
 
 
 class MlxBackend:
@@ -139,26 +144,26 @@ class MlxBackend:
         self.host = host
         self.device = device
 
-    @property
-    def _limit(self) -> int:
-        """The most tokens and buckets of a task on the device: a group's, and below the
-        K of 2**24 from which the bound of a sentence is undefined."""
-        return min(self.device.group_tokens, _kernels.MAX_CONTRIBUTIONS)
-
     def capabilities(self) -> Capabilities:
-        return _CAPABILITIES
+        """The cpu host's dimensions: wider rows than the device takes run on the host."""
+        return dataclasses.replace(_CAPABILITIES, max_dim=self.host.capabilities().max_dim)
 
     def prepare(self, pool: PoolInput, steps: Sequence[Step]) -> Prepared:
         check_pool_input(pool)
         checked, pooled, out = dims(pool, steps)  # checks and materializes the steps once
-        _CAPABILITIES.check(self.name, pool, checked)
+        self.capabilities().check(self.name, pool, checked)
         host = self.host.prepare(pool, checked)
         self.device.ready()  # the canary, once per process
         oov = None if pool.oov_weight is None else self.host.float32([pool.oov_weight])
-        table = None
-        if not _kernels.subnormal_input(pool, oov):
+        table, reason = None, ""
+        if pool.dim > DEVICE_DIM:
+            reason = "dim"
+        elif _kernels.subnormal_input(pool, oov):
+            reason = "subnormal_input"
+        else:
             table = self.device.call(lambda mx, _stream: _kernels.table(mx, pool, oov))
-        return Prepared(self.name, pool, checked, pooled, out, _State(host, table, Fallbacks()))
+        state = _State(host, table, Fallbacks(), reason)
+        return Prepared(self.name, pool, checked, pooled, out, state)
 
     def rows(self, batch: Batch, prepared: Prepared, out: ndarray) -> None:
         check_prepared(prepared, self.name)
@@ -169,10 +174,13 @@ class MlxBackend:
             return
         table = state.table
         if table is None:
-            state.fallbacks.count("subnormal_input")
+            state.fallbacks.count(state.reason)
             self.host.rows(batch, state.host, out)
             return
-        if _kernels.size(batch) > self._limit:  # one upload and kernel too large
+        size = _kernels.size(batch)
+        if size > _kernels.MAX_CONTRIBUTIONS or (
+            size > self.device.group_tokens and batch.n_sentences > 1
+        ):  # more than one group, or perhaps a sentence the device must not take
             self._large(batch, prepared, out)
             return
         task = _kernels.task(batch, table)
@@ -207,13 +215,17 @@ class MlxBackend:
         return flags, _kernels.flagged(flags, task, normalize)
 
     def _large(self, batch: Batch, prepared: Prepared, out: ndarray) -> None:
-        """A batch beyond one device group in runs of sentences that fit, after the host
-        has computed it whole (which raises the cpu's error, if any); a sentence beyond
-        a group alone keeps the host's row (``large``)."""
+        """A batch beyond one device group (or that may hold a sentence of K >= 2**24) in
+        runs of sentences of at most a group, after the host has computed it whole (which
+        raises the cpu's error, if any): a sentence of more than a group runs alone, one of
+        K >= 2**24 keeps the host's row (``large``); a sentence's path depends on its own
+        K only, never on the group."""
         state = prepared.state
         assert isinstance(state, _State)
         self.host.rows(batch, state.host, out)
-        for begin, end, part in _kernels.split(batch, self._limit):
+        limit = _kernels.MAX_CONTRIBUTIONS
+        parts = _kernels.split(batch, min(self.device.group_tokens, limit), limit)
+        for begin, end, part in parts:
             if part is None:
                 state.fallbacks.count("large")
             else:

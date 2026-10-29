@@ -70,9 +70,9 @@ def test_the_sizes_count_the_buckets_of_each_sentence():
     assert _kernels.sizes(_batch(((1, 2), ()))).tolist() == [2, 0]
 
 
-def _parts(batch, limit):
+def _parts(batch, budget, limit=100):
     out = []
-    for begin, end, part in _kernels.split(batch, limit):
+    for begin, end, part in _kernels.split(batch, budget, limit):
         if part is None:
             out.append((begin, end, None))
             continue
@@ -88,9 +88,16 @@ def test_a_batch_splits_into_runs_that_fit_and_long_sentences_alone():
         (1, 4, 4, [2, 3, 4, U], []),
         (4, 5, 7, [U, 1, 2], [4]),
     ]
-    assert _parts(batch, 4) == [
-        (0, 1, None),
+    assert _parts(batch, 4, 4) == [
+        (0, 1, None),  # 5 contributions, beyond the limit: the host's
         (1, 4, 4, [2, 3, 4, U], []),
+        (4, 5, 7, [U, 1, 2], [4]),
+    ]
+    # beyond the budget but within the limit: alone, on the device
+    assert _parts(batch, 2, 100) == [
+        (0, 1, 3, [1, U], [1, 2, 3]),
+        (1, 2, 4, [2, 3, 4], []),
+        (2, 4, 5, [U], []),
         (4, 5, 7, [U, 1, 2], [4]),
     ]
     assert _parts(batch, 100) == [(0, 5, 3, [1, U, 2, 3, 4, U, U, 1, 2], [1, 2, 3, 4])]
@@ -98,7 +105,7 @@ def test_a_batch_splits_into_runs_that_fit_and_long_sentences_alone():
 
 def test_the_parts_of_a_split_are_batches_of_their_own():
     batch = _batch(((1, U), (2, 3, 4), (), (U,), (U, 1, 2)), ((1, 2, 3), (), (4,)))
-    for begin, end, part in _kernels.split(batch, 4):
+    for begin, end, part in _kernels.split(batch, 4, 4):
         if part is not None:
             assert part.n_sentences == end - begin
             assert part.ngram_offsets[0] == 0

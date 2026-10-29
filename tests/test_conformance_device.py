@@ -267,3 +267,16 @@ def test_stage_5_quantizes_the_device_rows_exactly(monkeypatch, store):
     else:
         assert_bits_equal(got, codes, "codes")
     assert_bits_equal(rows, expected(spec, sentences), "rows")
+
+
+@pytest.mark.parametrize("name", sorted(name for _, name in FLUSHED))
+@pytest.mark.parametrize("group_tokens", [1, 2, 1 << 24])
+def test_the_device_group_budget_changes_no_bits(mlx, monkeypatch, name, group_tokens):
+    """On cases whose device rows differ from the cpu's: the group budget splits tasks
+    between sentences, never sends a permitted sentence to the host."""
+    (case,) = [c for c in CASES if c.name == name and c.dtype == "float32"]
+    want, _, _ = pool_on_device(mlx, case)
+    monkeypatch.setattr(mlx.device, "group_tokens", group_tokens)
+    got, fell_back, _ = pool_on_device(mlx, case)
+    assert_bits_equal(got, want, f"group of {group_tokens}")
+    assert not fell_back

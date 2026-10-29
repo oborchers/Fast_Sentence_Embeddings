@@ -188,23 +188,24 @@ def sizes(batch: Batch) -> ndarray:
     return counts + np.diff(np.asarray(batch.ngram_offsets)[first])
 
 
-def split(batch: Batch, limit: int) -> list[tuple[int, int, Batch | None]]:
-    """``batch`` in runs of whole sentences of at most ``limit`` tokens and buckets, as
-    ``(begin, end, sub-batch)``; a sentence beyond ``limit`` alone, with None."""
+def split(batch: Batch, budget: int, limit: int) -> list[tuple[int, int, Batch | None]]:
+    """``batch`` in runs of whole sentences of at most ``budget`` tokens and buckets, as
+    ``(begin, end, sub-batch)``: a sentence of more than ``budget`` alone, and one of more
+    than ``limit`` alone with None (the host's)."""
     each = sizes(batch)
     parts, begin, total = [], 0, 0
     for s, n in enumerate(each.tolist()):
-        if n > limit:
+        if n > budget:
             parts += [(begin, s), (s, s + 1)] if s > begin else [(s, s + 1)]
             begin, total = s + 1, 0
             continue
-        if total + n > limit:
+        if total + n > budget:
             parts.append((begin, s))
             begin, total = s, 0
         total += n
     if begin < len(each):
         parts.append((begin, len(each)))
-    return [(b, e, None if each[b:e].sum() > limit else _slice(batch, b, e)) for b, e in parts]
+    return [(b, e, None if each[b:e].max() > limit else _slice(batch, b, e)) for b, e in parts]
 
 
 def _slice(batch: Batch, begin: int, end: int) -> Batch:

@@ -12,7 +12,7 @@ import pytest
 
 import fse
 from fse import _reference
-from fse._backends import CpuBackend, PoolInput, Prepared, UnsupportedByBackendError
+from fse._backends import CpuBackend, PoolInput, Prepared
 from fse._contract import Batch, Normalize, Project, RemoveComponents
 from support.conformance import TINY, mlx_module, require_mlx
 from support.runtime import texts, word_vectors
@@ -52,13 +52,21 @@ def test_capabilities(mlx):
     assert caps.word_dtypes == {"float32", "float16", "int8"}
     assert caps.fasttext
     assert caps.concurrent
-    assert caps.max_dim == _backend.MAX_DIM == 1 << 16
+    assert caps.max_dim == CpuBackend().capabilities().max_dim  # wider: the host's
+    assert _backend.DEVICE_DIM == 1 << 16
 
 
-def test_rows_wider_than_its_limit_are_refused(mlx):
-    pool = PoolInput(np.zeros((1, _backend.MAX_DIM + 1), F32), np.ones(1, F32))
-    with pytest.raises(UnsupportedByBackendError, match="rows of 65537 values"):
-        mlx.prepare(pool, ())
+@pytest.mark.parametrize(("dim", "host"), [(1 << 16, False), ((1 << 16) + 1, True)])
+def test_rows_wider_than_the_device_takes_run_on_the_host(mlx, caplog, dim, host):
+    rng = np.random.default_rng(4)
+    pool = PoolInput(rng.standard_normal((3, dim)).astype(F32), np.ones(3, F32))
+    batch = Batch(0, np.array([0, 2, 3], np.int64), np.array([0, 1, 2], np.uint32))
+    caplog.set_level(logging.WARNING, logger="fse")
+    got, prepared = _rows(mlx, pool, batch=batch)
+    want, _ = _rows(CpuBackend(), pool, batch=batch)
+    assert got.tobytes() == want.tobytes()
+    assert fallbacks(prepared)["dim"] == int(host)
+    assert any("65536 values" in r.message for r in caplog.records) == host
 
 
 @pytest.mark.parametrize(
@@ -138,7 +146,7 @@ def test_only_the_flagged_rows_come_from_the_host(mlx, caplog, monkeypatch, step
     assert got[3].tobytes() != want[3].tobytes()
     assert not got[1].any()  # the empty sentence
     mlx.rows(_limit_batch(7), prepared, np.empty_like(got))
-    counts = {"subnormal_input": 0, "long": 0, "nonfinite": 0, "large": 0, "limit": 2}
+    counts = {"dim": 0, "subnormal_input": 0, "long": 0, "nonfinite": 0, "large": 0, "limit": 2}
     assert fallbacks(prepared) == counts
     warnings = [r for r in caplog.records if "computes a task on the CPU" in r.message]
     assert len(warnings) == 1
@@ -237,15 +245,17 @@ def test_encoders_on_mlx_give_the_cpu_bits(recipe):
     assert got.tobytes() == cpu.encode(sentences, backend="cpu", workers=3).tobytes()
 
 
-def test_a_batch_larger_than_a_device_group_runs_in_parts(mlx, monkeypatch):
-    """Runs of sentences that fit a group on the device, a longer sentence on the host."""
-    monkeypatch.setattr(mlx.device, "group_tokens", 3)
+@pytest.mark.parametrize("group_tokens", [1, 3, 8])
+def test_a_batch_larger_than_a_device_group_runs_in_parts(mlx, monkeypatch, group_tokens):
+    """Runs of sentences of at most a group on the device; a longer sentence runs alone
+    on the device too (the group decides no row's path), and nothing falls back."""
+    monkeypatch.setattr(mlx.device, "group_tokens", group_tokens)
     _nudged(monkeypatch)
     got, prepared = _rows(mlx, _pool())  # sentences of 3, 0, 2 and 4 tokens
     want, _ = _rows(CpuBackend(), _pool())
-    assert got[3].tobytes() == want[3].tobytes()
-    assert got[[0, 2]].tobytes() == np.nextafter(want[[0, 2]], F32(np.inf)).tobytes()
-    assert fallbacks(prepared)["large"] == 1
+    nudged = np.where(want != 0, np.nextafter(want, F32(np.inf)), want)
+    assert got.tobytes() == nudged.tobytes()
+    assert sum(fallbacks(prepared).values()) == 0
 
 
 def test_the_window_counts_the_rows_on_the_device(mlx):
