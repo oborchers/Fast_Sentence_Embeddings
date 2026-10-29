@@ -121,17 +121,16 @@ def check_tokenizer(tokens: bool, tokenizer: str):
 
 def build(texts: Any, tokens: bool) -> StringSource | TokenListSource:
     """The source of a collection; a row of the other kind than row 0 raises naming both."""
+    first = type(texts[0]).__name__ if len(texts) else None  # read before the rows
     try:
         return TokenListSource(texts) if tokens else StringSource(texts)
     except RowTypeError as error:
-        # Only the row the builder named is read again, by index: no other row and no
-        # method of a row runs, so no error of user code can take its place.
-        row = texts[error.row]
-        other = isinstance(row, str) if tokens else isinstance(row, list | tuple)
+        # The error carries what it found, so nothing of the input is read again and no
+        # error of user code can take its place.
+        other = issubclass(error.found, str) if tokens else issubclass(error.found, list | tuple)
         if not other:
-            raise
+            raise TypeError(str(error)) from None
         raise TypeError(
-            f"row {error.row} is a {type(row).__name__}, but row 0 is a "
-            f"{type(texts[0]).__name__}: texts are either str or token lists (lists or tuples "
-            "of str), not both"
+            f"row {error.row} is a {error.found.__name__}, but row 0 is a {first}: texts "
+            "are either str or token lists (lists or tuples of str), not both"
         ) from None

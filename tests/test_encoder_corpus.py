@@ -132,3 +132,23 @@ def test_no_later_row_is_read_after_a_type_error():
     for make in (fse.Corpus, lambda t: opened(t, "external").__enter__()):
         with pytest.raises(TypeError, match="broken split"):
             make(texts)
+
+
+class GuardedRows(list):
+    def __getitem__(self, i):
+        if i == 1:
+            raise RuntimeError("row 1 was read by index")
+        return super().__getitem__(i)
+
+
+def test_the_mixed_rows_error_reads_nothing_again():
+    for make in (fse.Corpus, lambda t: opened(t, "external").__enter__()):
+        with pytest.raises(TypeError, match="row 1 is a list, but row 0 is a str"):
+            make(GuardedRows(["a", ["b"]]))
+
+
+def test_other_row_type_errors_stay_plain_type_errors():
+    with pytest.raises(TypeError) as raised:
+        fse.Corpus(["a", 1])
+    assert type(raised.value) is TypeError
+    assert str(raised.value) == "string 1 is a int, not a str"

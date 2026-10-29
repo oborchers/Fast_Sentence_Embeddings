@@ -125,7 +125,9 @@ def test_public_api_is_pinned():
 
 def test_the_readme_shows_only_names_fse_has():
     readme = (Path(__file__).parents[1] / "README.md").read_text(encoding="utf-8")
-    used = set(re.findall(r"\bfse\.([A-Z]\w*)", readme))  # the public classes
+    code = "\n".join(re.findall(r"```python\n(.*?)```", readme, re.DOTALL))
+    used = set(re.findall(r"\bfse\.([A-Za-z_]\w*)", code)) - {"gensim"}
+    used |= set(re.findall(r"`fse\.([A-Za-z_]\w*)", readme)) - {"gensim"}  # inline code
     assert used, "the README shows no fse names"
     assert used <= set(fse.__all__), sorted(used - set(fse.__all__))
     # The removed 1.x names only as code (uSIF stays the name of the method in the text).
