@@ -123,10 +123,9 @@ def batches(
     dtype: str,
     workers: Any,
     sink: Any,
-    wrap: Any,
 ) -> Iterator[EncodedBatch]:
     """The EncodedBatch of every item of ``items``, a finite list of sentences (or token
-    lists) each; ``wrap`` turns int8 rows into QuantizedRows."""
+    lists) each."""
     row, last = 0, None
     for k, item in enumerate(items):
         if not isinstance(item, list | tuple | Corpus):
@@ -138,7 +137,7 @@ def batches(
         with _named(k, row, n), opened(item, tokenizer) as source:
             if sink is None:
                 found = EncodedBatch(
-                    row, n, wrap(pipeline.infer(source, workers=workers, dtype=dtype)), None
+                    row, n, pipeline.infer(source, workers=workers, dtype=dtype), None
                 )
             else:
                 run_into(pipeline, source, sink, workers, row)

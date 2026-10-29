@@ -18,7 +18,7 @@ import copy
 import threading
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any
 
 import numpy as np
 from numpy import ndarray
@@ -35,7 +35,7 @@ from fse._container import (
     fingerprint,
     tensor_code,
 )
-from fse._runtime import EncodeSpec, Pipeline, check_workers
+from fse._runtime import EncodeSpec, Pipeline, QuantizedRows, check_workers
 from fse._text import Vocabulary, make_vocabulary
 from fse._validation import PathLike, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
@@ -51,13 +51,6 @@ from ._format import (
     to_artifact,
 )
 from ._sources import opened
-
-
-class QuantizedRows(NamedTuple):
-    """int8 sentence vectors: the codes and one float32 scale per row (row = codes * scale)."""
-
-    codes: ndarray
-    scales: ndarray
 
 
 class Encoder:
@@ -155,7 +148,7 @@ class Encoder:
         dtype = _codes.check_dtype("float32" if dtype is None else dtype)
         pipeline = self._pipeline(backend)
         with opened(texts, self._content.tokenizer) as source:
-            return self._rows(pipeline.infer(source, workers=workers, dtype=dtype))
+            return pipeline.infer(source, workers=workers, dtype=dtype)
 
     def encode_batches(
         self,
@@ -188,15 +181,7 @@ class Encoder:
             dtype=dtype,
             workers=workers,
             sink=sink,
-            wrap=self._rows,
         )
-
-    @staticmethod
-    def _rows(rows: Any) -> ndarray | QuantizedRows:
-        if isinstance(rows, tuple):
-            return QuantizedRows(*rows)
-        assert rows is not None
-        return rows
 
     def _pipeline(self, backend: str) -> Pipeline:
         if not isinstance(backend, str) or backend not in BACKEND_NAMES:

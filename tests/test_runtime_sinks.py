@@ -150,3 +150,17 @@ def test_an_unknown_dtype_is_refused():
 
     with pytest.raises(ValueError, match="dtype must be one of"):
         pipeline.infer(StringSource(["w1"]), sink=Odd())
+
+
+def test_a_memory_sink_gives_int8_rows_as_encode_does():
+    import fse
+    from support.encoder import unfolded
+    from support.runtime import texts
+
+    encoder = unfolded()
+    sink = fse.MemorySink(encoder.output_dim, "int8")
+    encoder.encode(texts(300), sink=sink, workers=2)
+    got, want = sink.result(), encoder.encode(texts(300), dtype="int8", workers=2)
+    assert isinstance(got, fse.QuantizedRows)
+    assert got.codes.tobytes() == want.codes.tobytes()
+    assert got.scales.tobytes() == want.scales.tobytes()
