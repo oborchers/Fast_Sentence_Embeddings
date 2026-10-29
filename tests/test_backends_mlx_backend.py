@@ -12,12 +12,13 @@ import pytest
 
 import fse
 from fse import _reference
-from fse._backends import CpuBackend, MlxBackend, PoolInput, Prepared, UnsupportedByBackendError
-from fse._backends._mlx import _backend, fallbacks
+from fse._backends import CpuBackend, PoolInput, Prepared, UnsupportedByBackendError
 from fse._contract import Batch, Normalize, Project, RemoveComponents
-from support.conformance import TINY, require_mlx
+from support.conformance import TINY, mlx_module, require_mlx
 from support.runtime import texts, word_vectors
 
+_backend = mlx_module("fse._backends._mlx._backend")
+MlxBackend, fallbacks = _backend.MlxBackend, _backend.fallbacks
 F32 = np.float32
 
 

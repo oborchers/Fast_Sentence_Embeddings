@@ -224,6 +224,15 @@ def mlx_skip_reason() -> str | None:
     return None
 
 
+def mlx_module(name: str):
+    """The module ``name`` of the mlx backend, which imports MLX at its top; skips the
+    test module where mlx is not installed (unless FSE_REQUIRE_MLX is set, where an import
+    error fails). Called at module level, after the imports."""
+    if not os.environ.get("FSE_REQUIRE_MLX") and importlib.util.find_spec("mlx") is None:
+        pytest.skip("mlx is not installed (uv sync --group mlx)", allow_module_level=True)
+    return importlib.import_module(name)
+
+
 def require_mlx() -> None:
     """Skip the test unless the mlx backend can run here (``mlx_skip_reason``)."""
     reason = mlx_skip_reason()

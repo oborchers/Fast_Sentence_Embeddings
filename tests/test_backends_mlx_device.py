@@ -11,12 +11,14 @@ import time
 import numpy as np
 import pytest
 
-from fse._backends import CpuBackend, MlxBackend, PoolInput
-from fse._backends._mlx import _device, _kernels
-from fse._backends._mlx._device import Device, Job
+from fse._backends import CpuBackend, PoolInput
+from fse._backends._mlx import _kernels
 from fse._contract import Batch
-from support.conformance import require_mlx
+from support.conformance import mlx_module, require_mlx
 
+_device = mlx_module("fse._backends._mlx._device")
+MlxBackend = mlx_module("fse._backends._mlx._backend").MlxBackend
+Device, Job = _device.Device, _device.Job
 F32 = np.float32
 
 

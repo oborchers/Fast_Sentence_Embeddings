@@ -1,15 +1,17 @@
-"""fse._backends._mlx._load: MLX is imported on first use and refused with the reason.
+"""fse._backends._mlx._load: the backend is refused with the reason it cannot run.
 
-These tests replace the platform and MLX with fakes, so they run on every machine.
+These tests replace the platform and MLX with fakes; they need mlx installed only
+because the loader imports it (tests/test_backends_mlx.py runs without it).
 """
 
-import sys
 import types
 
 import pytest
 
 from fse._backends import UnsupportedByBackendError
-from fse._backends._mlx import _load
+from support.conformance import mlx_module
+
+_load = mlx_module("fse._backends._mlx._load")
 
 
 @pytest.fixture
@@ -20,8 +22,7 @@ def probe(monkeypatch):
     monkeypatch.setattr(_load.sys, "platform", "darwin")
     monkeypatch.setattr(_load.platform, "machine", lambda: "arm64")
     monkeypatch.setattr(_load.platform, "mac_ver", lambda: ("15.1", ("", "", ""), "arm64"))
-    monkeypatch.setitem(sys.modules, "mlx", types.SimpleNamespace(core=fake))
-    monkeypatch.setitem(sys.modules, "mlx.core", fake)
+    monkeypatch.setattr(_load, "mx", fake)
     _load._probe.cache_clear()
     yield fake
     _load._probe.cache_clear()
@@ -50,13 +51,6 @@ def test_core_names_what_is_missing(probe, monkeypatch, change, reason):
     with pytest.raises(UnsupportedByBackendError, match=r'pip install "fse\[mlx\]"') as err:
         _load.core()
     assert reason in str(err.value)
-
-
-@pytest.mark.usefixtures("probe")
-def test_a_missing_mlx_is_named(monkeypatch):
-    monkeypatch.setitem(sys.modules, "mlx", None)  # as if it were not installed
-    with pytest.raises(UnsupportedByBackendError, match="mlx cannot be imported"):
-        _load.core()
 
 
 def test_the_probe_runs_once(probe, monkeypatch):

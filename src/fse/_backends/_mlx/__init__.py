@@ -6,9 +6,6 @@
 
 """The mlx backend (``backend="mlx"``, ``pip install "fse[mlx]"``): the weighted mean in
 a Metal kernel on Apple silicon, bit-identical to the cpu backend (ARCHITECTURE.md,
-"MLX"). Importing it does not import MLX; making a backend does.
+"MLX"). ``_load`` imports MLX at its top, and the device thread and the backend import
+``_load``; only ``get_backend("mlx")`` imports the backend, so nothing else loads MLX.
 """
-
-from ._backend import MlxBackend, fallbacks
-
-__all__ = ["MlxBackend", "fallbacks"]

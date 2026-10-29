@@ -13,10 +13,10 @@ import pytest
 from fse import _reference
 from fse._backends import PoolInput, UnsupportedByBackendError
 from fse._backends._mlx import _kernels, _sources
-from fse._backends._mlx._device import DEVICE
 from fse._contract import OOV_TOKEN, Batch
-from support.conformance import require_mlx
+from support.conformance import mlx_module, require_mlx
 
+DEVICE = mlx_module("fse._backends._mlx._device").DEVICE
 F32 = np.float32
 
 

@@ -12,9 +12,11 @@ import pytest
 
 from fse import _reference
 from fse._backends import PoolInput
-from fse._backends._mlx import _kernels, _sources, fallbacks
+from fse._backends._mlx import _kernels, _sources
 from support.cases import CASES
-from support.conformance import Contract
+from support.conformance import Contract, mlx_module
+
+fallbacks = mlx_module("fse._backends._mlx._backend").fallbacks
 
 # The cases the GPU cannot compute because a value of the arithmetic is subnormal.
 SUBNORMAL = {
