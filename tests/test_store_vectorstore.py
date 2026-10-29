@@ -121,11 +121,15 @@ def test_vectors_decode_the_rows(tmp_path):
         assert not hasattr(store, "encoder")
         assert [s.rows for s in store.shards] == [64, 64, 22]
         np.testing.assert_array_equal(
-            store.vectors(60, 130), _reference.dequantize(codes, scales)[60:130]
+            store.get_vectors(start=60, stop=130), _reference.dequantize(codes, scales)[60:130]
         )
-        assert store.vectors(5, 5).shape == (0, ENCODER.output_dim)
+        assert store.get_vectors(start=5, stop=5).shape == (0, ENCODER.output_dim)
         with pytest.raises(ValueError, match="not within the 150 rows"):
-            store.vectors(10, 151)
+            store.get_vectors(start=10, stop=151)
+        assert store.get_vectors().shape == (150, ENCODER.output_dim)
+        assert not hasattr(store, "vectors")  # decoded rows are get_vectors everywhere
+        with pytest.raises(TypeError):
+            store.get_vectors(60, 130)  # start and stop are keywords
 
 
 def test_a_store_is_a_snapshot(tmp_path):

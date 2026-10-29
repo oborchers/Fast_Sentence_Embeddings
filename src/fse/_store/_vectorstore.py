@@ -152,8 +152,11 @@ class VectorStore:
         return out[:, 0] if single else out
 
     @validate_arguments
-    def vectors(self, start: NonNegativeInt = 0, stop: NonNegativeInt | None = None) -> ndarray:
-        """A float32 copy of the rows ``start`` to ``stop - 1``, decoded as stored."""
+    def get_vectors(
+        self, *, start: NonNegativeInt = 0, stop: NonNegativeInt | None = None
+    ) -> ndarray:
+        """A float32 copy of the rows ``start`` to ``stop - 1`` (all by default), decoded
+        from the stored float16 or int8 values."""
         self._check_open()
         stop = len(self) if stop is None else stop
         if not start <= stop <= len(self):
