@@ -9,9 +9,11 @@
 The same sentences as token lists (``TokenListSource``, the external tokenizer) and as
 strings (``StringSource``): the lines of a tokenized corpus, split at whitespace for the
 token lists. Every case runs in a fresh child process, so its peak RSS is its own; the
-inputs are prepared before the timer and their memory is subtracted from the peak.
+inputs are prepared before the timer, and the growth of the peak RSS during the build is
+reported (a high-water mark, so a build below the peak of preparing the input shows 0).
 
-- ``build``: the source alone, from the prepared lists or strings;
+- ``build``: the source alone (``fse.TokenLists``, ``TokenListSource`` on a base before
+  it, or ``StringSource``), from the prepared lists or strings;
 - ``encode``: an Average encoder (external tokenizer, word vectors random in the
   vocabulary of the corpus) encodes the token lists and the strings to float32, at every
   --workers; the source is built inside the timer, as a call of ``encode`` does.
@@ -59,15 +61,20 @@ def _timed(fn) -> tuple[float, object]:
 
 
 def child_build(c: dict) -> dict:
-    from fse._text import StringSource, TokenListSource
+    from fse import _text
+
+    # fse.TokenLists since #110, TokenListSource before it (the base of a comparison).
+    token_lists = getattr(_text, "TokenLists", None) or _text.TokenListSource
 
     lines = _lines(c["corpus"], c["sentences"])
     data = [line.split() for line in lines] if c["input"] == "tokens" else lines
     del lines
     before = _rss()
-    make = TokenListSource if c["input"] == "tokens" else StringSource
+    make = token_lists if c["input"] == "tokens" else _text.StringSource
     seconds, source = _timed(lambda: make(data))
-    return {"seconds": seconds, "peak_over_input": _rss() - before, "nbytes": source.nbytes}
+    # ru_maxrss is a high-water mark: this is how far the build raised it above the
+    # peak of preparing the input, not all the memory the build used.
+    return {"seconds": seconds, "peak_growth": _rss() - before, "nbytes": source.nbytes}
 
 
 def child_encode(c: dict) -> dict:
@@ -133,8 +140,8 @@ def _print(case: dict, result: dict) -> None:
     ratio = ""
     if len(sides) == 2:
         ratio = f"{result['branch']['median_s'] / result['base']['median_s']:>9.2f}"
-    peak = result["branch"]["runs"][0].get("peak_over_input")
-    extra = f"   peak over input {peak / 2**20:,.0f} MiB" if peak is not None else ""
+    peak = result["branch"]["runs"][0].get("peak_growth")
+    extra = f"   peak RSS growth {peak / 2**20:,.0f} MiB" if peak is not None else ""
     print(f"  {_label(case):<26}{cells}{ratio}{extra}", flush=True)
 
 

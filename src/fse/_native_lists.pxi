@@ -229,7 +229,9 @@ def join_token_lists(sentences, int threads=1):
     Returns None if an object is not of these exact types (subclasses, a numpy array of
     sentences, a legacy string of 3.11), and False if a token is empty, holds whitespace
     (str.isspace) or a lone surrogate; the caller then takes the Python path, which decides
-    and raises its errors.
+    and raises its errors. Each part stops at its first problem, so with both kinds in the
+    input the verdict depends on how it was split; False still always means an invalid
+    token of an exact str, on which the Python path raises.
     """
     cdef PyObject *outer = <PyObject *>sentences
     cdef Py_ssize_t n, size

@@ -113,7 +113,7 @@ def _many(n):
 
 @pytest.mark.parametrize("threads", [2, 3, 8])
 def test_threads_join_the_same_bytes(threads):
-    sentences = _many(5 * 4096 + 17)  # parts of at least 4,096 sentences, and a rest
+    sentences = _many(8 * 4096 + 17)  # 8 parts of at least 4,096 sentences, and a rest
     data, offsets = _native.join_token_lists(sentences, threads)
     want_data, want_offsets = _python(sentences)
     assert data == want_data
@@ -128,6 +128,17 @@ def test_any_part_decides_the_verdict(bad, verdict):
     sentences[-3] = ["\ud800"]
     sentences[5] = [Word("a")]  # an unsupported type in one part wins over an invalid token
     assert _native.join_token_lists(sentences, 4) is None
+
+
+def test_the_verdict_of_mixed_problems_depends_on_the_split():
+    sentences = _many(2 * 4096)
+    sentences[0] = [""]  # invalid in the first part
+    sentences[4096] = [Word("a")]  # unsupported in the second
+    assert _native.join_token_lists(sentences, 1) is False
+    assert _native.join_token_lists(sentences, 2) is None
+    # Either way the Python path raises the error of sentence 0.
+    with pytest.raises(ValueError, match="sentence 0 holds the token ''"):
+        TokenLists(sentences)
 
 
 def test_threads_must_be_positive():
