@@ -14,6 +14,7 @@ from fse import _native
 from fse._contract import Normalize, Project, RemoveComponents
 from fse._runtime import EncodeSpec, Pipeline, _executor, _pipeline, _tasks
 from fse._text import StringSource
+from support.conformance import require_mlx
 from support.runtime import expected, source, texts, word_vectors
 
 F32 = np.float32
@@ -53,12 +54,14 @@ def _expected(dtype, fasttext, steps, tokenizer, n):
 @pytest.mark.parametrize("fasttext", [False, True], ids=["plain", "fasttext"])
 @pytest.mark.parametrize("steps", list(STEPS))
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
-@pytest.mark.parametrize("backend", ["cpu", "numpy"])
+@pytest.mark.parametrize("backend", ["cpu", "numpy", "mlx"])
 def test_runtime_gives_the_reference_bits(
     tmp_path, monkeypatch, backend, dtype, steps, fasttext, kind, workers
 ):
+    if backend == "mlx":
+        require_mlx()
     tokenizer = "external" if kind == "tokens" else "fse_words@1"
-    n = 500 if backend == "cpu" else 120
+    n = 120 if backend == "numpy" else 500
     sentences = texts(n)
     spec = _spec(dtype, fasttext, steps, tokenizer)
     want = _expected(dtype, fasttext, steps, tokenizer, n)
@@ -84,9 +87,12 @@ def test_every_isa(isa):
     assert got.tobytes() == expected(spec, sentences).tobytes()
 
 
+@pytest.mark.parametrize("backend", ["cpu", "mlx"])
 @pytest.mark.parametrize("env", [{"flush": True}, {"round_up": True}])
-def test_workers_ignore_their_floating_point_environment(monkeypatch, env):
+def test_workers_ignore_their_floating_point_environment(monkeypatch, env, backend):
     """Worker threads that start with flush-to-zero or rounding up give the same bits."""
+    if backend == "mlx":
+        require_mlx()
     spec = _spec("float32", False, "all", "fse_words@1")
     sentences = texts(2000)
     want = expected(spec, sentences)
@@ -99,14 +105,17 @@ def test_workers_ignore_their_floating_point_environment(monkeypatch, env):
 
     monkeypatch.setattr(_pipeline, "new_workspace", hooked)
     before = _native._test_fpenv_get()
-    got = Pipeline(spec, "cpu").infer(StringSource(sentences), workers=3, chunk_bytes=1024)
+    got = Pipeline(spec, backend).infer(StringSource(sentences), workers=3, chunk_bytes=1024)
     assert _native._test_fpenv_get() == before
     assert len(saved) >= 2
     assert got.tobytes() == want.tobytes()
 
 
-def test_a_subnormal_oov_weight_survives_a_foreign_environment():
+@pytest.mark.parametrize("backend", ["cpu", "mlx"])
+def test_a_subnormal_oov_weight_survives_a_foreign_environment(backend):
     """oov_weight is converted by the kernel in its own environment, not by EncodeSpec."""
+    if backend == "mlx":
+        require_mlx()
     sentences = texts(300)
     wv = word_vectors("float32", True)
     weights = np.ones(len(wv), F32)
@@ -115,7 +124,7 @@ def test_a_subnormal_oov_weight_survives_a_foreign_environment():
     saved = _native._test_fpenv_set(flush=True)
     try:
         spec = EncodeSpec(wv, weights, oov_weight=tiny, max_ngrams=12)
-        pipeline = Pipeline(spec, "cpu")
+        pipeline = Pipeline(spec, backend)
     finally:
         _native._test_fpenv_restore(saved)
     got = pipeline.infer(StringSource(sentences), workers=1)

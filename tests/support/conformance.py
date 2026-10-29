@@ -2,8 +2,10 @@
 
 ARCHITECTURE.md, "Backends": a backend is done when it passes the conformance suites.
 The kernels run directly (Reference, Native) and every backend of fse._backends runs
-through its contract (Contract); PR 9 adds the MLX backend, later CUDA, by appending
-to BACKENDS.
+through its contract (Contract): cpu, numpy and mlx, later CUDA, by appending to BACKENDS.
+The mlx backend is made on first use; its cases skip where it cannot run (not Apple
+silicon, mlx not installed, no Metal) unless FSE_REQUIRE_MLX is set, and an error of its
+import or canary fails them.
 """
 
 from __future__ import annotations
@@ -153,8 +155,17 @@ class Contract:
     """
 
     def __init__(self, name, **options):
-        self.backend = get_backend(name, **options)
+        self.backend_name, self.options = name, options
+        self._backend = None
         self.name = "contract-" + "-".join([name, *map(str, options.values())])
+
+    @property
+    def backend(self):
+        if self._backend is None:
+            if self.backend_name == "mlx":
+                require_mlx()
+            self._backend = get_backend(self.backend_name, **self.options)
+        return self._backend
 
     def pool(self, case):
         return self.pool_args(case.batch, case.args())
@@ -195,6 +206,7 @@ BACKENDS = [
     *(Native(isa) for isa in _native.available_isas()),
     *(Contract("cpu", isa=isa) for isa in _native.available_isas()),
     Contract("numpy"),
+    Contract("mlx"),
 ]
 
 
