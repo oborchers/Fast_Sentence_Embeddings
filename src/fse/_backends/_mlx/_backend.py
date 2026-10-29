@@ -13,14 +13,14 @@ construction: the steps on the pooled rows (``host.steps``), stage 5, the invers
 the scores and the Gram blocks. The host is injected (``get_backend``) so that this
 package imports neither the cpu backend nor ``fse._native``.
 
-The GPU flushes subnormal values to zero. The rows the kernel flags (a value that is or may
-be subnormal, a sentence of 2**24 tokens, a value that is not finite, and before normalize
-a row near a limit of its sum of squares) come from the host, which computes their task
-again and so raises the cpu backend's error, if any; every other row keeps the device's
-result. The first such task of an encoder logs a warning, and the backend counts them by
-reason. The kernel keeps the cpu's order and fma, so the rows it does not flag have the
-cpu's bits too; the contract of a device backend asks only for the bound of
-ARCHITECTURE.md, "Tolerance contract of device backends".
+The rows keep the tolerance contract of device backends (ARCHITECTURE.md, "MLX"). The GPU
+flushes subnormal values to zero: an encoder whose factors or row values are or may be
+subnormal runs on the host (``subnormal_input``), and the flushes of smaller products and
+partial sums are within the contract's absolute term. The rows the kernel flags (a value
+that is not finite, a sentence of 2**24 tokens, and before normalize a row near a limit
+of its sum of squares) come from the host, which computes their task again and so raises
+the cpu backend's error, if any; every other row keeps the device's result. The first
+fallback of an encoder logs a warning, and the backend counts them by reason.
 """
 
 from __future__ import annotations
@@ -65,8 +65,8 @@ _CAPABILITIES = Capabilities(
     device_rows=True,
 )
 _WHY = {
-    "underflow": "a possible underflow: a subnormal value, or a product or sum that may be "
-    "one, which the GPU would flush to zero",
+    "subnormal_input": "a factor or row value of the encoder that is or may be subnormal, "
+    "which the GPU would flush to zero",
     "long": "a sentence or unknown word of 2**24 tokens or more",
     "nonfinite": "a value that is not finite",
     "large": "a sentence of more tokens and ngram buckets than one device group takes",
@@ -125,7 +125,7 @@ class Fallbacks:
 @dataclass(frozen=True, eq=False)
 class _State:
     host: Prepared
-    table: _kernels.Table
+    table: _kernels.Table | None  # None: the encoder runs on the host (subnormal input)
     fallbacks: Fallbacks
 
 
@@ -149,7 +149,9 @@ class MlxBackend:
         host = self.host.prepare(pool, checked)
         self.device.ready()  # the canary, once per process
         oov = None if pool.oov_weight is None else self.host.float32([pool.oov_weight])
-        table = self.device.call(lambda mx, stream: _kernels.table(mx, stream, pool, oov))
+        table = None
+        if not _kernels.subnormal_input(pool, oov):
+            table = self.device.call(lambda mx, _stream: _kernels.table(mx, pool, oov))
         return Prepared(self.name, pool, checked, pooled, out, _State(host, table, Fallbacks()))
 
     def rows(self, batch: Batch, prepared: Prepared, out: ndarray) -> None:
@@ -159,17 +161,22 @@ class MlxBackend:
         assert isinstance(state, _State)
         if batch.n_sentences == 0:
             return
+        table = state.table
+        if table is None:
+            state.fallbacks.count("subnormal_input")
+            self.host.rows(batch, state.host, out)
+            return
         if _kernels.size(batch) > self.device.group_tokens:  # one upload and kernel too large
             self._large(batch, prepared, out)
             return
-        task = _kernels.task(batch, state.table)
+        task = _kernels.task(batch, table)
         if task is None:  # an error the cpu backend reports, in its words
             self.host.rows(batch, state.host, out)
             return
         project = any(isinstance(step, Project) for step in prepared.steps)
         pooled = np.empty((task.n_sentences, prepared.pooled_dim), np.float32) if project else out
         flags = self.device.run(
-            lambda mx, stream: _kernels.launch(mx, stream, state.table, task),
+            lambda mx, stream: _kernels.launch(mx, stream, table, task),
             lambda launched: _kernels.read(launched, pooled),
             task.tokens,
         )
@@ -179,9 +186,7 @@ class MlxBackend:
             if prepared.steps:
                 self.host.steps(pooled, state.host, batch.first_row, out)
             return
-        why = _kernels.reason(
-            functools.reduce(operator.or_, flags[bad].tolist()), task, state.table
-        )
+        why = _kernels.reason(functools.reduce(operator.or_, flags[bad].tolist()))
         state.fallbacks.count(why)
         self._replace(batch, state, pooled, out, bad)
 

@@ -105,35 +105,59 @@ def _nudged(monkeypatch):
     monkeypatch.setattr(_kernels, "read", read)
 
 
-def test_only_the_flagged_rows_come_from_the_host(mlx, caplog, monkeypatch):
-    """Word 3 has a subnormal value: sentence 2 comes from the host, the others keep the
-    device's rows; the task counts once per call, the warning once per encoder."""
+def _limit_pool():
+    """Word 3 with values of 2**-62: alone (sentence 2 of ``_limit_batch``) it is a row
+    whose sum of squares may be tiny, flagged before normalize."""
     pool = _pool()
-    pool.vectors[3, 2] = TINY * 5
+    pool.vectors[3] = 2.0**-62
+    return pool
+
+
+def _limit_batch(first_row=0):
+    offsets = np.array([0, 3, 3, 4, 8], np.int64)
+    return Batch(first_row, offsets, np.array([0, 1, 2, 3, 4, 0, 1, 4], np.uint32))
+
+
+@pytest.mark.parametrize(
+    "steps",
+    [
+        (Normalize(),),
+        (RemoveComponents(np.eye(1, 7, dtype=F32)), Project(np.eye(3, 7, dtype=F32)), Normalize()),
+    ],
+    ids=["normalize", "all"],
+)
+def test_only_the_flagged_rows_come_from_the_host(mlx, caplog, monkeypatch, steps):
+    """Sentence 2 comes from the host, the others keep the device's rows (one ulp above
+    the cpu's here) through the steps; a task counts once per call, the warning once per
+    encoder."""
     caplog.set_level(logging.WARNING, logger="fse")
     _nudged(monkeypatch)
-    got, prepared = _rows(mlx, pool)
-    want, _ = _rows(CpuBackend(), pool)
+    got, prepared = _rows(mlx, _limit_pool(), steps, _limit_batch())
+    want, _ = _rows(CpuBackend(), _limit_pool(), steps, _limit_batch())
     assert got[2].tobytes() == want[2].tobytes()
-    assert got[[0, 3]].tobytes() == np.nextafter(want[[0, 3]], F32(np.inf)).tobytes()
+    assert got[0].tobytes() != want[0].tobytes()
+    assert got[3].tobytes() != want[3].tobytes()
     assert not got[1].any()  # the empty sentence
-    mlx.rows(_batch(7), prepared, np.empty_like(got))
-    counts = {"underflow": 2, "long": 0, "nonfinite": 0, "large": 0, "limit": 0}
+    mlx.rows(_limit_batch(7), prepared, np.empty_like(got))
+    counts = {"subnormal_input": 0, "long": 0, "nonfinite": 0, "large": 0, "limit": 2}
     assert fallbacks(prepared) == counts
     warnings = [r for r in caplog.records if "computes a task on the CPU" in r.message]
     assert len(warnings) == 1
-    assert "a possible underflow" in warnings[0].message
+    assert "sum of squares" in warnings[0].message
 
 
-def test_the_steps_of_the_other_rows_run_on_the_device_rows(mlx, monkeypatch):
+def test_an_encoder_with_subnormal_inputs_runs_on_the_host(mlx, caplog):
     pool = _pool()
     pool.vectors[3, 2] = TINY * 5
-    steps = (RemoveComponents(np.eye(1, 7, dtype=F32)), Project(np.eye(3, 7, dtype=F32)))
-    _nudged(monkeypatch)
-    got, _ = _rows(mlx, pool, steps)
-    want, _ = _rows(CpuBackend(), pool, steps)
-    assert got[2].tobytes() == want[2].tobytes()
-    assert got[0].tobytes() != want[0].tobytes()  # the device's row, through the steps
+    caplog.set_level(logging.WARNING, logger="fse")
+    device = mlx.device
+    before = device.launches
+    got, prepared = _rows(mlx, pool)
+    want, _ = _rows(CpuBackend(), pool)
+    assert got.tobytes() == want.tobytes()
+    assert device.launches == before
+    assert fallbacks(prepared)["subnormal_input"] == 1
+    assert any("subnormal" in r.message for r in caplog.records)
 
 
 @pytest.mark.parametrize(

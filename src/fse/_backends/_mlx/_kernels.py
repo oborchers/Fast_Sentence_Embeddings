@@ -4,14 +4,15 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The kernels of the mlx backend: their arrays and their launch.
+"""The pooling kernel of the mlx backend: its arrays, its launch and its canary.
 
-``table`` uploads the word rows of an encoder once and makes their factors and checks on
-the GPU (``_sources.PREPARE``), ``task`` turns a batch into the host arrays of one launch
-(or None when the CPU must report the batch's error), ``launch`` queues the pooling
-kernel of one task and ``read`` copies its rows out and gives the OR of its flags. Every
-function that calls MLX runs in the device thread (``_device``); ``task`` and ``reason``
-are plain numpy and run in the worker. The canary is in ``_canary``.
+``subnormal_input`` tells whether an encoder's inputs are or may give subnormal factors
+or row values (then the host runs it), ``table`` uploads the word rows of an encoder
+once, ``task`` turns a batch into the host arrays of one launch (or None when the CPU
+must report the batch's error), ``launch`` queues the kernel of one task and ``read``
+copies its rows out and gives the flags of its sentences. Every function that calls MLX
+runs in the device thread (``_device``); the others are plain numpy and run in the
+worker.
 """
 
 from __future__ import annotations
@@ -33,49 +34,81 @@ from . import _sources
 # Up to 256 threads (8 SIMD groups) of a threadgroup along a row, the rest in sentences.
 THREADGROUP = 256
 SIMD = 32
-PREPARE_ROWS = 8  # rows of a threadgroup of the prepare kernel, one SIMD group each
 _LOCK = threading.Lock()
 _KERNELS: dict[str, Any] = {}
 
 
-def kernel(mx: ModuleType, name: str) -> Any:
-    """The kernel ``name`` (``prepare``, ``pool4`` or ``pool1``), built once per process
+def kernel(mx: ModuleType, vec: int) -> Any:
+    """The pooling kernel with ``vec`` values per thread (4 or 1), built once per process
     (MLX compiles each instance of its templates once)."""
     with _LOCK:
-        built = _KERNELS.get(name)
+        built = _KERNELS.get(f"pool{vec}")
         if built is None:
-            inputs: tuple[str, ...]
-            outputs: tuple[str, ...]
-            if name == "prepare":
-                source = _sources.PREPARE
-                inputs, outputs = _sources.PREPARE_INPUTS, _sources.PREPARE_OUTPUTS
-            else:
-                source = _sources.pool(int(name[-1]))
-                inputs, outputs = _sources.POOL_INPUTS, _sources.POOL_OUTPUTS
-            built = _KERNELS[name] = mx.fast.metal_kernel(
-                name=f"fse_{name}",
-                input_names=list(inputs),
-                output_names=list(outputs),
-                source=source,
+            built = _KERNELS[f"pool{vec}"] = mx.fast.metal_kernel(
+                name=f"fse_pool{vec}",
+                input_names=list(_sources.POOL_INPUTS),
+                output_names=list(_sources.POOL_OUTPUTS),
+                source=_sources.pool(vec),
                 header=_sources.HEADER,
                 compile_options={"math_mode": "safe"},
             )
         return built
 
 
+def _fields(values: Any) -> ndarray:
+    """The magnitude bits of float32 values (bit patterns: no comparison of floats,
+    which a thread that treats subnormal values as zero would get wrong)."""
+    return np.ascontiguousarray(values, np.float32).view(np.uint32) & np.uint32(0x7FFFFFFF)
+
+
+def _subnormal(values: Any) -> bool:
+    bits = _fields(values)
+    return bool(((bits != 0) & (bits < 0x00800000)).any())
+
+
+def _exponents(values: Any) -> ndarray:
+    """The exponent fields of float32 values, 1000 for zeros (no product to underflow)."""
+    bits = _fields(values)
+    return np.where(bits == 0, 1000, (bits >> 23).astype(np.int64))
+
+
+def subnormal_input(pool: PoolInput, oov_weight: ndarray | None) -> bool:
+    """Whether a factor or row value of ``pool`` is or may be subnormal: a subnormal weight,
+    scale, oov weight or float32 row value, an int8 factor ``weight * scale`` that may
+    underflow (biased exponents summing to less than 128), or an ngram factor
+    ``(1 / m) * oov_weight`` (times the ngram scale) that may for any m below 2**24.
+    float16 values widen to normal float32 values."""
+    values = [pool.weights, *(a for a in (pool.scales, pool.ngram_scales) if a is not None)]
+    values += [
+        a for a in (pool.vectors, pool.ngram_vectors) if a is not None and a.dtype == np.float32
+    ]
+    if oov_weight is not None:
+        values.append(oov_weight)
+    if any(_subnormal(a) for a in values):
+        return True
+    if pool.scales is not None and (_exponents(pool.weights) + _exponents(pool.scales) < 128).any():
+        return True
+    if oov_weight is None or pool.ngram_vectors is None:
+        return False
+    oov = int(_exponents(oov_weight).min())
+    if oov < 1000 and oov - 24 < 1:  # (1 / m) * oov_weight below 2**-126
+        return True
+    if pool.ngram_scales is None:
+        return False
+    return bool((oov + _exponents(pool.ngram_scales) - 24 < 128).any())
+
+
 @dataclass(frozen=True, eq=False)
 class Table:
-    """The arrays of one PoolInput on the device, evaluated before they are shared, and
-    the words whose factor the prepare kernel flagged (for the reason of a fallback)."""
+    """The arrays of one PoolInput on the device, evaluated before they are shared."""
 
-    arrays: tuple  # vectors, factors, ngram_vectors, ngram_scales, ngram_low, oov_weight
+    arrays: tuple  # vectors, weights, scales, ngram_vectors, ngram_scales, oov_weight
     dim: int
     n_words: int
     n_buckets: int
     int8: bool
     fasttext: bool
     oov_weight: bool  # whether the encoder has one
-    flagged: ndarray | None = None  # bool per word
 
     @property
     def vec(self) -> int:
@@ -83,59 +116,26 @@ class Table:
         return 4 if self.dim % 4 == 0 else 1
 
 
-def _prepare(mx: ModuleType, stream: Any, rows: Any, factors: tuple | None) -> Any:
-    """With ``factors`` (the weights and the int8 scales or None), the factor bits of
-    every word; without, the smallest exponent field of every ngram row. Made on the GPU,
-    not evaluated."""
-    n, dim = rows.shape
-    dummy = mx.array(np.zeros(1, np.float32))
-    weights, scales = factors or (dummy, None)
-    words, int8 = factors is not None, scales is not None
-    (out,) = kernel(mx, "prepare")(
-        inputs=[rows, weights, dummy if scales is None else scales],
-        template=[("DIM", dim), ("WORDS", words), ("INT8", int8)],
-        grid=(SIMD, n, 1),
-        threadgroup=(SIMD, PREPARE_ROWS, 1),
-        output_shapes=[(n,)],
-        output_dtypes=[mx.uint32],
-        stream=stream,
-    )
-    return out
-
-
-def table(mx: ModuleType, stream: Any, pool: PoolInput, oov_weight: ndarray | None) -> Table:
-    """Upload the rows of ``pool`` and make its factors and ngram checks on the GPU;
-    ``oov_weight`` is its float32 value (as the CPU converts it) or None. Arrays the
-    kernel does not read are one value each."""
+def table(mx: ModuleType, pool: PoolInput, oov_weight: ndarray | None) -> Table:
+    """Upload the rows of ``pool``; ``oov_weight`` is its float32 value (as the CPU
+    converts it) or None. Arrays the kernel does not read are one value each."""
     int8, fasttext = pool.scales is not None, pool.ngram_vectors is not None
-    dummy = mx.array(np.zeros(1, np.float32))
-    vectors = mx.array(pool.vectors)
-    scales = mx.array(pool.scales) if int8 else None
-    factors = _prepare(mx, stream, vectors, (mx.array(pool.weights), scales))
-    if fasttext:
-        ngram_vectors = mx.array(pool.ngram_vectors)
-        ngram_scales = mx.array(pool.ngram_scales) if int8 else dummy
-        ngram_low = _prepare(mx, stream, ngram_vectors, None)
-    else:
-        ngram_vectors = mx.array(np.zeros((1, 4), pool.vectors.dtype))
-        ngram_scales, ngram_low = dummy, mx.array(np.zeros(1, np.uint32))
-    oov = dummy if oov_weight is None else mx.array(oov_weight.reshape(1))
-    arrays = (vectors, factors, ngram_vectors, ngram_scales, ngram_low, oov)
+    dummy = np.zeros(1, np.float32)
+    arrays = tuple(
+        mx.array(a)
+        for a in (
+            pool.vectors,
+            pool.weights,
+            pool.scales if int8 else dummy,
+            pool.ngram_vectors if fasttext else np.zeros((1, 4), pool.vectors.dtype),
+            pool.ngram_scales if fasttext and int8 else dummy,
+            dummy if oov_weight is None else oov_weight.reshape(1),
+        )
+    )
     mx.eval(*arrays)
-    # A NaN factor of a finite weight (and scale) is one the prepare kernel flagged.
-    flagged = np.isnan(np.asarray(factors).view(np.float32)) & np.isfinite(pool.weights)
-    if int8:
-        flagged &= np.isfinite(pool.scales)
     buckets = len(pool.ngram_vectors) if pool.ngram_vectors is not None else 0
     return Table(
-        arrays,
-        pool.dim,
-        len(pool.vectors),
-        buckets,
-        int8,
-        fasttext,
-        oov_weight is not None,
-        flagged,
+        arrays, pool.dim, len(pool.vectors), buckets, int8, fasttext, oov_weight is not None
     )
 
 
@@ -265,7 +265,7 @@ def launch(mx: ModuleType, stream: Any, table: Table, task: Task) -> tuple:
     grid, group, words = shape(table.dim, table.vec, task.n_sentences)
     inputs = [*table.arrays, *(mx.array(a) for a in task.arrays)]
     return tuple(
-        kernel(mx, f"pool{table.vec}")(
+        kernel(mx, table.vec)(
             inputs=inputs,
             template=[
                 ("T", table.arrays[0].dtype),
@@ -295,13 +295,13 @@ def read(launched: tuple, target: ndarray) -> ndarray:
     )
 
 
-ALWAYS = _sources.SUBNORMAL | _sources.NONFINITE | _sources.LONG
+ALWAYS = _sources.NONFINITE | _sources.LONG
 
 
 def flagged(flags: ndarray, task: Task, normalize: bool) -> ndarray:
-    """The sentences of ``task`` the host computes: a flag of the kernel, and before
-    ``normalize`` a value that may overflow its squares or a row of contributions whose
-    squares may be subnormal (or that is zero)."""
+    """The sentences of ``task`` the host computes: a value that is not finite, a count
+    that would round, and before ``normalize`` a value that may overflow its squares or a
+    row of contributions whose sum of squares may be below 2**-100 (or that is zero)."""
     bad = (flags & ALWAYS) != 0
     if normalize:
         nonempty = np.diff(task.arrays[1]) > 0
@@ -309,16 +309,9 @@ def flagged(flags: ndarray, task: Task, normalize: bool) -> ndarray:
     return bad
 
 
-def reason(flags: int, task: Task, table: Table) -> str:
-    """Why rows of a task go to the host (``flags``, the OR of theirs): ``underflow`` (a
-    value that is or may be subnormal, also a word the prepare kernel flagged), ``long``,
-    ``nonfinite`` or ``limit`` (a value near a limit of ``normalize``)."""
-    if flags & _sources.SUBNORMAL:
-        return "underflow"
-    tokens = task.arrays[0]
-    known = tokens[tokens != OOV_TOKEN]
-    if flags & _sources.NONFINITE and table.flagged is not None and table.flagged[known].any():
-        return "underflow"
+def reason(flags: int) -> str:
+    """Why rows go to the host (``flags``, the OR of theirs): ``long``, ``nonfinite`` or
+    ``limit`` (a value near a limit of ``normalize``)."""
     if flags & _sources.LONG:
         return "long"
     return "nonfinite" if flags & _sources.NONFINITE else "limit"
@@ -327,60 +320,51 @@ def reason(flags: int, task: Task, table: Table) -> str:
 # The canary: cases whose bits and flags the GPU must give, checked against fixed patterns
 # (not against a reference computed in the floating-point environment of the caller).
 # Bit patterns, not arithmetic: numpy would compute them in the floating-point environment
-# of the importing thread (rounding up, or flushing 2**-149 to zero). Word 0 is
-# f = 1 + 2**-12, word 1 the rounded -(f * f), word 2 is 1 + 2**-23, word 3 the smallest
-# subnormal, words 4 and 5 are 1.25 * 2**-126 and -2**-126, word 6 the largest float32,
-# word 7 is -(1 + 2**-23).
+# of the importing thread. Word 0 is f = 1 + 2**-12, word 1 the rounded -(f * f), word 2
+# is 1 + 2**-23, word 3 the largest float32, word 4 is -(1 + 2**-23).
 CANARY_ROWS = np.array(
-    [0x3F800800, 0xBF801000, 0x3F800001, 0x1, 0x00A00000, 0x80800000, 0x7F7FFFFF, 0xBF800001],
-    np.uint32,
+    [0x3F800800, 0xBF801000, 0x3F800001, 0x7F7FFFFF, 0xBF800001], np.uint32
 ).view(np.float32)
-CANARY_WEIGHTS = np.array([0x3F800800, *[0x3F800000] * 7], np.uint32).view(np.float32)
+CANARY_WEIGHTS = np.array([0x3F800800, *[0x3F800000] * 4], np.uint32).view(np.float32)
 # Sentence 0 keeps the rounding error of f * f only if the fma is fused; sentence 1 is
-# (1 / 3) * acc, not acc / 3 (0x3F800001); sentence 2 has a subnormal value, sentence 3
-# cancels to a subnormal sum, sentence 4 overflows (all flagged); sentence 5 cancels
-# exactly to +0.0 (not flagged, but tiny for normalize).
-CANARY_OFFSETS = np.array([0, 2, 5, 6, 8, 10, 12], np.int64)
-CANARY_TOKENS = np.array([1, 0, 2, 2, 2, 3, 4, 5, 6, 6, 2, 7], np.uint32)
+# (1 / 3) * acc, not acc / 3 (0x3F800001); sentence 2 overflows (flagged); sentence 3
+# cancels exactly to +0.0 (not flagged, but tiny for normalize).
+CANARY_OFFSETS = np.array([0, 2, 5, 7, 9], np.int64)
+CANARY_TOKENS = np.array([1, 0, 2, 2, 2, 3, 3, 2, 4], np.uint32)
 CANARY_BITS = (0x33000000, 0x3F800002, 0x00000000)
-CANARY_FLAGGED = (False, False, True, True, True, False)
+CANARY_FLAGS = (0, 0, _sources.NONFINITE, _sources.TINY)
 # The smallest subnormal float16, 2**-24, which must widen to the float32 2**-24 exactly.
 CANARY_HALF = (0x0001, 0x33800000)
 
 
 def _canary_rows(mx: ModuleType, stream: Any, rows: ndarray, weights: ndarray, batch: Batch):
-    """The rows and the flag of every sentence of ``batch`` from the kernel."""
-    t = table(mx, stream, PoolInput(rows, weights), None)
+    """The rows and the flags of every sentence of ``batch`` from the kernel."""
+    t = table(mx, PoolInput(rows, weights), None)
     probe = task(batch, t)
     assert probe is not None
     launched = launch(mx, stream, t, probe)
     mx.eval(*launched)
-    rows = np.empty((probe.n_sentences, t.dim), np.float32)
-    flags = read(launched, rows)
-    return rows, flags
+    out = np.empty((probe.n_sentences, t.dim), np.float32)
+    return out, read(launched, out)
 
 
 def canary(mx: ModuleType, stream: Any) -> None:
     """Raise UnsupportedByBackendError unless this GPU fuses, rounds 1 / n first, widens
-    float16 exactly and flags the cases the kernel must flag, for one and for four values
+    float16 exactly and gives the flags the kernel must give, for one and for four values
     per thread; once per process (``_device``)."""
     batch = Batch(0, CANARY_OFFSETS, CANARY_TOKENS)
     for dim in (1, 4):
         rows = np.ascontiguousarray(np.repeat(CANARY_ROWS[:, None], dim, axis=1))
         got, flags = _canary_rows(mx, stream, rows, CANARY_WEIGHTS, batch)
-        flagged = (flags & ALWAYS) != 0
-        bits = got.view(np.uint32)
-        exact = bits[[0, 1, 5]]
+        exact = got.view(np.uint32)[[0, 1, 3]]
         if not (exact == np.array(CANARY_BITS, np.uint32)[:, None]).all():
             raise UnsupportedByBackendError(
                 "the mlx backend cannot run on this GPU: its fma or the rounding of 1 / n "
                 f"differs from the numerical contract (bits {[hex(b) for b in exact[:, 0]]})"
             )
-        tiny = (flags & _sources.TINY) != 0
-        if tuple(flagged.tolist()) != CANARY_FLAGGED or not tiny[5] or tiny[:2].any():
+        if tuple((flags & (ALWAYS | _sources.TINY)).tolist()) != CANARY_FLAGS:
             raise UnsupportedByBackendError(
-                "the mlx backend cannot run on this GPU: its subnormal check does not work "
-                f"(flags {flagged.tolist()})"
+                f"the mlx backend cannot run on this GPU: its flags differ ({flags.tolist()})"
             )
     half = np.full((1, 4), CANARY_HALF[0], np.uint16).view(np.float16)
     one = Batch(0, np.array([0, 1], np.int64), np.zeros(1, np.uint32))

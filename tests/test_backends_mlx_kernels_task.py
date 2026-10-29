@@ -4,6 +4,7 @@ beyond a device group, the launch shape, the flags of the rows and the canary's 
 import numpy as np
 import pytest
 
+from fse._backends import PoolInput
 from fse._backends._mlx import _kernels, _sources
 from fse._contract import OOV_TOKEN, Batch
 
@@ -125,24 +126,18 @@ def test_a_table_takes_four_values_per_thread_for_aligned_rows():
 
 def test_the_flags_of_a_sentence_combine_its_words():
     """OR over the words, TINY only where every word has it."""
-    tiny, sub = _sources.TINY, _sources.SUBNORMAL
-    words = np.array([[tiny, tiny], [tiny, 0], [sub, tiny], [0, 0]], np.uint32)
+    tiny, nonfinite = _sources.TINY, _sources.NONFINITE
+    words = np.array([[tiny, tiny], [tiny, 0], [nonfinite, tiny], [0, 0]], np.uint32)
     launched = (np.zeros((4, 1), F32), words)
     flags = _kernels.read(launched, np.empty((4, 1), F32))
-    assert flags.tolist() == [tiny, 0, sub, 0]
+    assert flags.tolist() == [tiny, 0, nonfinite, 0]
 
 
 def test_the_flagged_rows():
     """Before normalize also rows near its limits, but not an empty row (exact zero)."""
     task = _kernels.task(_batch(((1,), (), (2,), (3,), (4,))), TABLE)
-    s, t, h, n, long = (
-        _sources.SUBNORMAL,
-        _sources.TINY,
-        _sources.HUGE,
-        _sources.NONFINITE,
-        _sources.LONG,
-    )
-    flags = np.array([s | t, t, h, n | long, 0], np.uint32)
+    n, t, h, long = _sources.NONFINITE, _sources.TINY, _sources.HUGE, _sources.LONG
+    flags = np.array([n | t, t, h, long, 0], np.uint32)
     assert _kernels.flagged(flags, task, False).tolist() == [True, False, False, True, False]
     assert _kernels.flagged(flags, task, True).tolist() == [True, False, True, True, False]
     flags[4] = t
@@ -150,24 +145,77 @@ def test_the_flagged_rows():
 
 
 def test_the_reason_of_a_fallback():
-    table = _kernels.Table((), 3, 5, 0, False, False, False, np.array([0, 0, 1, 0, 0], bool))
-    plain = _kernels.task(_batch(((0, 1),)), table)
-    flagged_word = _kernels.task(_batch(((2, 1),)), table)
-    assert _kernels.reason(_sources.SUBNORMAL, plain, table) == "underflow"
-    assert _kernels.reason(_sources.NONFINITE, flagged_word, table) == "underflow"
-    assert _kernels.reason(_sources.NONFINITE, plain, table) == "nonfinite"
-    assert _kernels.reason(_sources.LONG | _sources.NONFINITE, plain, table) == "long"
-    assert _kernels.reason(_sources.HUGE, plain, table) == "limit"
+    assert _kernels.reason(_sources.NONFINITE) == "nonfinite"
+    assert _kernels.reason(_sources.LONG | _sources.NONFINITE) == "long"
+    assert _kernels.reason(_sources.HUGE | _sources.TINY) == "limit"
+
+
+TINY = F32(np.finfo(F32).smallest_subnormal)
+
+
+def _pool(**changes):
+    arrays = {"vectors": np.ones((2, 3), F32), "weights": np.ones(2, F32)}
+    arrays.update(changes)
+    return PoolInput(**arrays)
+
+
+@pytest.mark.parametrize(
+    ("pool", "oov", "refused"),
+    [
+        (_pool(), None, False),
+        (_pool(weights=np.array([1.0, TINY], F32)), None, True),
+        (_pool(vectors=np.array([[1.0, TINY, 0.0], [1, 1, 1]], F32)), None, True),
+        (_pool(vectors=np.full((2, 3), 2.0**-24, np.float16)), None, False),  # widens normal
+        (_pool(weights=np.array([0.0, 1.0], F32)), None, False),
+        # int8: a subnormal scale, and weight * scale whose exponent fields sum to 127
+        (_pool(vectors=np.ones((2, 3), np.int8), scales=np.array([1, TINY], F32)), None, True),
+        (
+            _pool(
+                vectors=np.ones((2, 3), np.int8),
+                weights=np.array([2.0**-61, 1], F32),
+                scales=np.array([2.0**-66, 1], F32),
+            ),
+            None,
+            True,
+        ),
+        (
+            _pool(
+                vectors=np.ones((2, 3), np.int8),
+                weights=np.array([2.0**-60, 1], F32),
+                scales=np.array([2.0**-66, 1], F32),
+            ),
+            None,
+            False,
+        ),
+        # FastText: (1 / m) * oov_weight for m below 2**24, times the ngram scale
+        (_pool(ngram_vectors=np.ones((4, 3), F32)), np.array([2.0**-102], F32), False),
+        (_pool(ngram_vectors=np.ones((4, 3), F32)), np.array([2.0**-103], F32), True),
+        (_pool(ngram_vectors=np.ones((4, 3), F32)), np.array([TINY], F32), True),
+        (_pool(ngram_vectors=np.array([[TINY, 0, 0]] * 4, F32)), np.ones(1, F32), True),
+    ],
+    ids=[
+        "normal",
+        "weight",
+        "row value",
+        "float16",
+        "zero weight",
+        "int8 scale",
+        "int8 factor",
+        "int8 factor at 2**-126",
+        "oov at the limit",
+        "oov below",
+        "oov subnormal",
+        "ngram row",
+    ],
+)
+def test_subnormal_inputs_are_refused_at_prepare(pool, oov, refused):
+    assert _kernels.subnormal_input(pool, oov) is refused
 
 
 def test_the_canary_inputs_are_the_values_it_names():
     f = F32(1 + 2**-12)
-    rows = np.array(
-        [f, -(f * f), 1 + 2**-23, 2.0**-149, 1.25 * 2.0**-126, -(2.0**-126), 3.4028235e38],
-        F32,
-    )
-    rows = np.append(rows, -rows[2])
+    rows = np.array([f, -(f * f), 1 + 2**-23, 3.4028235e38, -(1 + 2**-23)], F32)
     assert _kernels.CANARY_ROWS.tobytes() == rows.tobytes()
-    assert _kernels.CANARY_WEIGHTS.tobytes() == np.array([f, *[1] * 7], F32).tobytes()
+    assert _kernels.CANARY_WEIGHTS.tobytes() == np.array([f, 1, 1, 1, 1], F32).tobytes()
     assert np.array([2.0**-24], np.float16).view(np.uint16)[0] == _kernels.CANARY_HALF[0]
     assert np.array([2.0**-24], F32).view(np.uint32)[0] == _kernels.CANARY_HALF[1]

@@ -1,10 +1,12 @@
 """The bound of the tolerance contract of device backends (ARCHITECTURE.md, "Tolerance
 contract of device backends"), computed from a conformance case.
 
-Per row ``||g - c|| <= TAU m``: g the device's row, c the cpu row (the reference's bits),
-m the norm of ``(1/n) sum |f| |x|`` over the stored inputs in float64 (the int8 scale in
-the factor, every ngram bucket a contribution with its factor ``(1/m) oov_weight`` times
-its scale, n the tokens, an unknown word without buckets counting for n only). A linear
+Per row ``||g - c|| <= TAU m + DELTA K sqrt(d)``: g the device's row, c the cpu row (the
+reference's bits), m the norm of ``(1/n) sum |f| |x|`` over the stored inputs in float64
+(the int8 scale in the factor, every ngram bucket a contribution with its factor
+``(1/m) oov_weight`` times its scale, n the tokens, an unknown word without buckets
+counting for n only), K the tokens plus the ngram buckets of the row and d its dimension
+(the absolute term covers the flushes of subnormal products and partial sums). A linear
 step with matrix A multiplies the bound by the spectral norm of A and adds 4 ulp of the
 largest value of the cpu row after it; ``normalize`` makes it ``2 E / r`` plus 4 ulp, r the
 norm of the cpu row before it. The rows of empty sentences must be the cpu's bits, and
@@ -19,6 +21,7 @@ from fse import _reference
 from fse._contract import OOV_TOKEN, Normalize, Project, RemoveComponents
 
 TAU = 1e-5
+DELTA = 2.0**-125
 F64 = np.float64
 
 
@@ -44,6 +47,15 @@ def magnitudes(case) -> np.ndarray:
     return np.linalg.norm(sums, axis=1)
 
 
+def contributions(case) -> np.ndarray:
+    """K of every sentence: its tokens plus the ngram buckets of its unknown words."""
+    unknown = iter(case.ngrams or ())
+    return np.array(
+        [len(s) + sum(len(next(unknown)) for t in s if t == OOV_TOKEN) for s in case.sentences],
+        F64,
+    )
+
+
 def _ngram_factor(case, bucket: int, count: int) -> float:
     g = abs(float(np.float32(case.oov_weight))) / count
     scales = case.arrays.get("ngram_scales")
@@ -66,7 +78,7 @@ def _ulps(rows: np.ndarray) -> np.ndarray:
 def bounds(case, steps=()) -> tuple[np.ndarray, np.ndarray]:
     """The cpu rows of ``case`` after ``steps`` and the bound of every row."""
     rows = _reference.pool_weighted_mean(case.batch, *case.args())
-    error = TAU * magnitudes(case)
+    error = TAU * magnitudes(case) + DELTA * contributions(case) * np.sqrt(rows.shape[1])
     for step in steps:
         after = _reference.postprocess(rows, (step,), case.first_row)
         if isinstance(step, Normalize):

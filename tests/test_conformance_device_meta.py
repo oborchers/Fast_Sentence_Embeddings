@@ -2,8 +2,9 @@
 (support.bound) fails for each mistake the tolerance contract names, on a witness case
 that the mistaken kernel computes on the GPU (a launch, no host fallback).
 
-The mistakes are variants of the real kernel's source (built apart from it), a read that
-swaps rows, and rows moved by 10 times the bound. Two more show that the bit comparison
+The mistakes are variants of the real kernel's source (built apart from it), a backend
+that does not refuse subnormal inputs at prepare, a read that swaps rows, and rows moved
+by 10 times the bound; and the flushed cases need the absolute term of the bound. Two more show that the bit comparison
 of tests/test_conformance.py catches what the bound allows (no fma, acc / n).
 """
 
@@ -12,6 +13,7 @@ import pytest
 
 from fse import _reference
 from fse._backends._mlx import _kernels, _sources
+from support import bound
 from support.bound import assert_within_bound, bounds
 from support.cases import CASES, random_case
 from support.conformance import Contract, assert_bits_equal, pool_on_device
@@ -33,7 +35,7 @@ def _pool(backend, case):
 def _variant(monkeypatch, *replacements):
     """A kernel with each ``old`` of its sources replaced by ``new``, built apart."""
     for old, new in replacements:
-        for name in ("HEADER", "_POOL", "PREPARE"):
+        for name in ("HEADER", "_POOL"):
             text = getattr(_sources, name)
             if old in text:
                 monkeypatch.setattr(_sources, name, text.replace(old, new))
@@ -45,29 +47,24 @@ def _variant(monkeypatch, *replacements):
 
 # Witnesses: distinct tokens of random words, no empty sentence, both kernel widths.
 WITNESSES = [random_case(f"witness {dim}", "float32", 70 + dim, dim=dim, empty=0) for dim in (8, 9)]
-KNOWN_FMA = "            acc = metal::fma(acc_t(f), x, acc);\n            flag |="
+# The fma of a known word (the ngram one is indented further), and its replacements.
+KNOWN_FMA = "acc = metal::fma(acc_t(f), x, acc);\n        }"
 MISTAKES = {
     "drops a token": [
         ("for (uint t = begin; t < end; ++t)", "for (uint t = begin + 1u; t < end; ++t)")
     ],
     "repeats every token": [
-        (
-            KNOWN_FMA,
-            "            acc = metal::fma(acc_t(f), x, metal::fma(acc_t(f), x, acc));\n            flag |=",
-        )
+        (KNOWN_FMA, "acc = metal::fma(acc_t(f), x, metal::fma(acc_t(f), x, acc));\n        }")
     ],
     "divides by the wrong count": [("divide(1.0f, float(n))", "divide(1.0f, float(n + 1u))")],
-    "skips 1 / n": [("fse_mul(inverse, acc, flag)", "acc")],
+    "skips 1 / n": [("acc_t(inverse) * acc", "acc")],
     "accumulates in float16": [
+        (KNOWN_FMA, "acc = fse_half(metal::fma(acc_t(f), x, acc));\n        }"),
         (
-            KNOWN_FMA,
-            "            acc = fse_half(metal::fma(acc_t(f), x, acc));\n            flag |=",
-        ),
-        (
-            "inline bool fse_nonfinite(uint bits)",
+            "inline bool fse_nonfinite(float x)",
             "inline float fse_half(float x) { return float(half(x)); }\n"
             "inline float4 fse_half(float4 x) { return float4(half4(x)); }\n"
-            "inline bool fse_nonfinite(uint bits)",
+            "inline bool fse_nonfinite(float x)",
         ),
     ],
 }
@@ -81,16 +78,26 @@ def test_the_bound_catches_a_kernel_that(mlx, monkeypatch, mistake, witness):
         assert_within_bound(_pool(mlx, witness), witness, name=witness.name)
 
 
-@pytest.mark.parametrize("name", ["cancels to subnormal", "subnormal rows"])
-def test_the_bound_catches_a_kernel_that_flushes_without_detecting(mlx, monkeypatch, name):
-    _variant(
-        monkeypatch,
-        ("flag |= fse_step(f, x, before, acc);", ""),
-        ("as_type<uint>(flagged ? NAN : f)", "as_type<uint>(f)"),
-    )
-    (case,) = [c for c in CASES if c.name == name and c.dtype == "float32"]
+@pytest.mark.parametrize(
+    ("dtype", "name"),
+    [("float32", "subnormal weight, large row"), ("int8", "subnormal scale, large weight")],
+)
+def test_the_bound_catches_a_backend_that_takes_subnormal_inputs(mlx, monkeypatch, dtype, name):
+    """Without the check at prepare, the GPU flushes a subnormal factor of normal products."""
+    monkeypatch.setattr(_kernels, "subnormal_input", lambda *_: False)
+    (case,) = [c for c in CASES if c.name == name and c.dtype == dtype]
     with pytest.raises(AssertionError, match="misses the bound"):
         assert_within_bound(_pool(mlx, case), case, name=name)
+
+
+def test_the_flushed_cases_need_the_absolute_term(mlx, monkeypatch):
+    """The flush of a sum that cancels into the subnormal range is beyond TAU m alone."""
+    (case,) = [c for c in CASES if c.name == "cancels to subnormal"]
+    out = _pool(mlx, case)
+    assert_within_bound(out, case, name=case.name)
+    monkeypatch.setattr(bound, "DELTA", 0.0)
+    with pytest.raises(AssertionError, match="misses the bound"):
+        assert_within_bound(out, case, name=case.name)
 
 
 def test_the_bound_catches_a_device_that_swaps_rows(mlx, monkeypatch):
@@ -124,16 +131,14 @@ def test_the_bound_catches_rows_10_times_beyond_it(mlx, factor, fails):
 @pytest.mark.parametrize(
     ("old", "new", "name"),
     [
-        ("fse_mul(inverse, acc, flag)", "acc / float(n)", "inverse length, not division"),
-        # Not the case "fused, not rounded products": unfused, it cancels to 0.0 from a
-        # rounded product, which the kernel flags.
-        ("metal::fma(acc_t(f), x, acc)", "acc_t(f) * x + acc", "witness 8"),
+        ("acc_t(inverse) * acc", "acc / float(n)", "inverse length, not division"),
+        ("metal::fma(acc_t(f), x, acc)", "acc_t(f) * x + acc", "fused, not rounded products"),
     ],
     ids=["acc / n", "no fma"],
 )
 def test_the_bits_catch_what_the_bound_allows(mlx, monkeypatch, old, new, name):
     _variant(monkeypatch, (old, new))
-    (case,) = [c for c in [*CASES, *WITNESSES] if c.name == name]
+    (case,) = [c for c in CASES if c.name == name]
     out = _pool(mlx, case)
     assert_within_bound(out, case, name=name)
     with pytest.raises(AssertionError):

@@ -156,6 +156,9 @@ class Contract:
 
     def __init__(self, name, **options):
         self.backend_name, self.options = name, options
+        # A device backend keeps the tolerance contract: its pooled rows are compared under
+        # the bound (tests/test_conformance_device.py), its host operations bit for bit.
+        self.device = name == "mlx"
         self._backend = None
         self.name = "contract-" + "-".join([name, *map(str, options.values())])
 
@@ -210,6 +213,7 @@ BACKENDS = [
     Contract("numpy"),
     Contract("mlx"),
 ]
+EXACT = [b for b in BACKENDS if not getattr(b, "device", False)]  # pooled rows bit for bit
 
 
 def mlx_skip_reason() -> str | None:

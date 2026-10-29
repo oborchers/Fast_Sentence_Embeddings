@@ -1,9 +1,11 @@
 """The conformance suite: every backend gives the bits of fse._reference.
 
 ARCHITECTURE.md, "Backends": a backend is done when it passes this suite. Every case runs
-for every backend in BACKENDS; a backend that cannot run a case skips it and names the
-capability. PR 4 adds the CPU runtime backend, PR 9 the MLX backend, later CUDA, by
-appending to BACKENDS in tests/support/conformance.py; dot16, the steps and score are in
+for every backend in BACKENDS (the pooled rows of a device backend, mlx, are compared
+under the bound of its tolerance contract in tests/test_conformance_device.py instead);
+a backend that cannot run a case skips it and names the capability. PR 4 adds the CPU
+runtime backend, PR 9 the MLX backend, later CUDA, by appending to BACKENDS in
+tests/support/conformance.py; dot16, the steps and score are in
 tests/test_conformance_steps.py. Meta-tests at the end check that the suite catches typical
 mistakes (no fma, acc / n, an EPS start), so it cannot pass by accident.
 """
@@ -21,6 +23,7 @@ from support.cases import CASES, OVERFLOW, random_case
 from support.conformance import (
     BACKENDS,
     BIG,
+    EXACT,
     F32,
     TINY,
     Case,
@@ -43,7 +46,7 @@ def expected(index: int, kind: str):
 # --- Backends -------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
+@pytest.mark.parametrize("backend", EXACT, ids=lambda b: b.name)
 @pytest.mark.parametrize("index", range(len(CASES)), ids=[f"{c.dtype}-{c.name}" for c in CASES])
 def test_pool(backend, index):
     assert_bits_equal(backend.pool(CASES[index]), expected(index, "pool"), CASES[index].name)

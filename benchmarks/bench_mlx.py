@@ -36,6 +36,7 @@ TOKENS = 8_000_000
 VOCAB = 400_000
 DIM = 300
 TAU = 1e-5
+DELTA = 2.0**-125
 F32 = np.float32
 
 
@@ -71,9 +72,10 @@ def bound_ratio(got: np.ndarray, cpu: np.ndarray, bound: np.ndarray) -> float:
 
 
 def bounds(ids: np.ndarray, wv: fse.WordVectors, raw: np.ndarray, normalize: bool) -> np.ndarray:
-    """The bound of every row: ``TAU m``, after normalize ``2 TAU m / r`` (r the norm of the
-    cpu row before it) plus 4 ulp of the row's largest value."""
-    error = TAU * magnitudes(ids, wv.stored_vectors)
+    """The bound of every row: ``TAU m + DELTA K sqrt(d)`` (K its tokens), after normalize
+    ``2 E / r`` (r the norm of the cpu row before it) plus 4 ulp of the row's largest
+    value."""
+    error = TAU * magnitudes(ids, wv.stored_vectors) + DELTA * ids.shape[1] * np.sqrt(DIM)
     if not normalize:
         return error
     r = np.linalg.norm(raw.astype(np.float64), axis=1)
