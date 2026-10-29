@@ -84,10 +84,10 @@ class ShardSink:
             create_store(self.path, info)
         read_store(self.path).check(info, self.path)
         self.first_row = sum(shard.rows for shard, _ in shards(self.path, info))
-        self.info = info
-        self.dim, self.dtype, self.encoder = info.dim, dtype, info.encoder
+        self._info = info
+        self.dim, self.dtype, self.encoder_fingerprint = info.dim, dtype, info.encoder
         self.shard_rows = shard_rows or default_shard_rows(info.dim, dtype)
-        self.reserved_rows = self.committed_rows = self.durable_rows = 0
+        self._reserved = self._committed = self.durable_rows = 0
         self._writers: deque[ShardWriter] = deque()  # shards still taking rows
         self._made: set[ShardWriter] = set()  # shards of the run not yet published
         self._targets: dict[int, tuple[list, tuple | None]] = {}  # run row -> parts, own
@@ -104,17 +104,15 @@ class ShardSink:
     def target(self, first_row: int, n_rows: int) -> tuple[ndarray, ...]:
         self._check_open()
         self._check_threads()  # a failed write first: no row after it is taken
-        if first_row != self.reserved_rows:
-            raise ValueError(
-                f"rows from {first_row} reserved, expected rows from {self.reserved_rows}"
-            )
+        if first_row != self._reserved:
+            raise ValueError(f"rows from {first_row} reserved, expected rows from {self._reserved}")
         parts = []
         left = n_rows
         while left:
             writer = self._writable()
             take = min(left, writer.end - writer.reserved)
             parts.append((writer, writer.reserved, writer.reserve(take)))
-            self.reserved_rows += take
+            self._reserved += take
             left -= take
         if len(parts) == 1:
             self._targets[first_row] = (parts, None)
@@ -126,9 +124,9 @@ class ShardSink:
     def commit(self, first_row: int, rows: Any) -> None:
         self._check_open()
         self._check_threads()
-        if first_row != self.committed_rows or first_row not in self._targets:
+        if first_row != self._committed or first_row not in self._targets:
             raise ValueError(
-                f"rows from {first_row} committed, expected rows from {self.committed_rows}"
+                f"rows from {first_row} committed, expected rows from {self._committed}"
             )
         parts, own = self._targets[first_row]
         given = rows if isinstance(rows, tuple) else (rows,)
@@ -152,7 +150,7 @@ class ShardSink:
             self._io.submit(writer.write, begin, codes, nbytes=codes.nbytes)
             self._hash.submit(writer.commit, begin, codes, nbytes=codes.nbytes)
             writer.queued += len(codes)
-            self.committed_rows += len(codes)
+            self._committed += len(codes)
             self._publish_ready()  # a full shard goes on at once, so few files stay open
 
     # --- durability --------------------------------------------------------------------
@@ -180,9 +178,9 @@ class ShardSink:
         """Seal and publish everything committed; every reserved row must be committed.
         Returns ``durable_rows``."""
         self._check_open()
-        if self.reserved_rows != self.committed_rows:
+        if self._reserved != self._committed:
             raise RuntimeError(
-                f"{self.reserved_rows - self.committed_rows} reserved rows were not committed"
+                f"{self._reserved - self._committed} reserved rows were not committed"
             )
         self.seal()
         self._publish_ready()
@@ -248,8 +246,10 @@ class ShardSink:
 
     def _writable(self) -> ShardWriter:
         if not self._writers or self._writers[-1].full:
-            store_row = self.first_row + self.reserved_rows
-            writer = ShardWriter(self.path, self.info, store_row, self.shard_rows, self._created_by)
+            store_row = self.first_row + self._reserved
+            writer = ShardWriter(
+                self.path, self._info, store_row, self.shard_rows, self._created_by
+            )
             self._writers.append(writer)
             self._made.add(writer)
         return self._writers[-1]
@@ -298,7 +298,7 @@ class ShardSink:
             else:
                 writer.abort()
         self._writers = kept
-        self.reserved_rows = self.committed_rows
+        self._reserved = self._committed
         self._publish_ready()
 
 

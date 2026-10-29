@@ -51,7 +51,7 @@ class VectorStore:
     release the mappings; a closed store raises."""
 
     path: Path
-    info: StoreInfo
+    _info: StoreInfo
     _shards: list[tuple[Shard, dict[str, ndarray]]]
     _backend: Any
     _lock: threading.Lock
@@ -73,20 +73,16 @@ class VectorStore:
 
     @property
     def dim(self) -> int:
-        return self.info.dim
+        return self._info.dim
 
     @property
     def dtype(self) -> str:
-        return self.info.dtype
+        return self._info.dtype
 
     @property
-    def encoder(self) -> str:
-        """The fingerprint of the encoder of the rows."""
-        return self.info.encoder
-
-    @property
-    def shards(self) -> tuple[Shard, ...]:
-        return tuple(shard for shard, _ in self._shards)
+    def encoder_fingerprint(self) -> str:
+        """The fingerprint of the encoder of the rows (``open(encoder=)`` takes the encoder)."""
+        return self._info.encoder
 
     # --- search and score -----------------------------------------------------------
 
@@ -152,8 +148,11 @@ class VectorStore:
         return out[:, 0] if single else out
 
     @validate_arguments
-    def vectors(self, start: NonNegativeInt = 0, stop: NonNegativeInt | None = None) -> ndarray:
-        """A float32 copy of the rows ``start`` to ``stop - 1``, decoded as stored."""
+    def get_vectors(
+        self, *, start: NonNegativeInt = 0, stop: NonNegativeInt | None = None
+    ) -> ndarray:
+        """A float32 copy of the rows ``start`` to ``stop - 1`` (all by default), decoded
+        from the stored float16 or int8 values."""
         self._check_open()
         stop = len(self) if stop is None else stop
         if not start <= stop <= len(self):
@@ -264,7 +263,7 @@ def _open(cls: Any, path: Any, *, encoder: Any = None, backend: str = "cpu") -> 
                 f"the store {path} holds the rows of encoder {info.encoder}, not of {encoder.fingerprint}"
             )
     out = cls.__new__(cls)
-    out.path, out.info = path, info
+    out.path, out._info = path, info
     out._shards = shards(path, info)
     out._backend = get_backend(backend)
     out._lock = threading.Lock()

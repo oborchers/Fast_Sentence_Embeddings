@@ -38,6 +38,8 @@ VOCAB = ("vocab.bytes", "vocab.offsets")
 EMBEDDED = ("vectors", "scales", "vocab.bytes", "vocab.offsets", "ngrams", "ngram_scales")
 EMBEDDED_KEYS = ("fse.dim", "fse.dtype", "fse.quantization", "fse.quantized_from")
 EMBEDDED_KEYS += ("fse.fasttext", "fse.ngram_hash")
+# The WordVectors attribute of a tensor name, where they differ (tensor names stay).
+ATTRIBUTES = {"vectors": "stored_vectors", "ngrams": "stored_ngrams"}
 
 
 def sha256_fingerprint(tensors, metadata):
@@ -139,7 +141,7 @@ def folded_rows(int8, steps):
     a = linear_map(steps, int8.dim)
     out = {}
     for rows, scales in (("vectors", "scales"), ("ngrams", "ngram_scales")):
-        source, source_scales = getattr(int8, rows), getattr(int8, scales)
+        source, source_scales = getattr(int8, ATTRIBUTES[rows]), getattr(int8, scales)
         blocks = [
             _folded_block(np.array(source[b : b + BLOCK_ROWS]), source_scales, b, a)
             for b in range(0, len(source), BLOCK_ROWS)
@@ -152,7 +154,9 @@ def quantized_from(old_tensors, old, int8, steps):
     """The new ``fse.quantized_from``; stops if folding again does not reproduce the file."""
     again = fold(int8, steps)
     if any(
-        getattr(again, n).tobytes() != old_tensors[n].tobytes() for n in EMBEDDED if n not in VOCAB
+        getattr(again, ATTRIBUTES.get(n, n)).tobytes() != old_tensors[n].tobytes()
+        for n in EMBEDDED
+        if n not in VOCAB
     ):
         raise SystemExit("folding again does not give the stored rows; nothing is written")
     rows = {**folded_rows(int8, steps), **{n: old_tensors[n] for n in VOCAB}}

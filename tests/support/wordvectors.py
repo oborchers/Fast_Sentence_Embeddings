@@ -25,12 +25,12 @@ def _wv(dtype="float32", fasttext=False, counts=True, n=None, dim=5, seed=0):
 
 def _same(a: WordVectors, b: WordVectors):
     for name in (
-        "vectors",
+        "stored_vectors",
         "scales",
         "counts",
         "vocab_bytes",
         "vocab_offsets",
-        "ngrams",
+        "stored_ngrams",
         "ngram_scales",
     ):
         x, y = getattr(a, name), getattr(b, name)

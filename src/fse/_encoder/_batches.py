@@ -49,9 +49,9 @@ def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int) -> str:
     own = _codes.check_dtype(getattr(sink, "dtype", "float32"))
     if dtype is not None and _codes.check_dtype(dtype) != own:
         raise ValueError(f"dtype {dtype!r} differs from the dtype {own!r} of the sink; pass none")
-    encoder = getattr(sink, "encoder", None)
-    if encoder is not None and encoder != fingerprint:
-        raise ValueError(f"the sink takes the rows of encoder {encoder}, not of {fingerprint}")
+    takes = getattr(sink, "encoder_fingerprint", None)
+    if takes is not None and takes != fingerprint:
+        raise ValueError(f"the sink takes the rows of encoder {takes}, not of {fingerprint}")
     if getattr(sink, "dim", None) != dim:
         raise ValueError(
             f"the sink must take rows of {dim} values, not {getattr(sink, 'dim', None)!r}"

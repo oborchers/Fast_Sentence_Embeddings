@@ -57,7 +57,7 @@ def test_keyed_vectors(dtype):
         assert wv.index(word) == i
         assert wv.word(i) == word
     codes, scales = quantize_rows(kv.vectors, dtype)
-    assert wv.vectors.tobytes() == codes.tobytes()
+    assert wv.stored_vectors.tobytes() == codes.tobytes()
     if dtype == "int8":
         assert wv.scales.tobytes() == scales.tobytes()
     np.testing.assert_array_equal(wv.counts, [kv.get_vecattr(w, "count") for w in kv.index_to_key])
@@ -85,9 +85,9 @@ def test_fasttext(make_ft, dtype):
     params = wv.fasttext
     assert (params.min_n, params.max_n, params.bucket) == (2, 4, 100)
     codes, _ = quantize_rows(ft.wv.vectors_vocab, dtype)
-    assert wv.vectors.tobytes() == codes.tobytes()
+    assert wv.stored_vectors.tobytes() == codes.tobytes()
     ngram_codes, ngram_scales = quantize_rows(ft.wv.vectors_ngrams, dtype)
-    assert wv.ngrams.tobytes() == ngram_codes.tobytes()
+    assert wv.stored_ngrams.tobytes() == ngram_codes.tobytes()
     if dtype == "int8":
         assert wv.ngram_scales.tobytes() == ngram_scales.tobytes()
     assert from_gensim(ft.wv).fingerprint == from_gensim(ft).fingerprint

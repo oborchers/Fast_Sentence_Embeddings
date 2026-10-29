@@ -15,7 +15,6 @@ read as float32. FastText vectors also hold their ngram rows and hashing paramet
 from __future__ import annotations
 
 from collections.abc import Sequence
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Literal
 
@@ -41,38 +40,16 @@ from fse._wordvectors_format import (
     FastTextParams,
     _check_structure,
     _check_values,
+    _created_by,
+    _frozen,
     _lookup,
     _new_metadata,
     _new_tensors,
     _parse_fasttext,
+    _read_only,
+    _view,
     _vocabulary,
 )
-
-
-def _created_by() -> str:
-    try:
-        return f"fse {version('fse')}"
-    except PackageNotFoundError:  # pragma: no cover
-        return "fse"
-
-
-def _view(array: ndarray | None) -> ndarray | None:
-    """A new read-only header on internal data: neither writable nor reshaping the data."""
-    return None if array is None else array.view()
-
-
-def _frozen(array: ndarray) -> ndarray:
-    copy = np.array(array, copy=True, order="C")
-    copy.setflags(write=False)
-    return copy
-
-
-def _read_only(array: ndarray) -> ndarray:
-    """``array`` itself, made read-only, if it is C-contiguous; otherwise a copy."""
-    if not array.flags.c_contiguous:
-        return _frozen(array)
-    array.setflags(write=False)
-    return array
 
 
 class WordVectors:
@@ -91,19 +68,33 @@ class WordVectors:
         "_verified",
         "_vocabulary",
     )
+    _tensors: dict[str, ndarray]
+    _metadata: dict[str, str]
+    _path: Path | None
+    _index: dict[bytes, int] | None
+    _fingerprint: str | None
+    _vocabulary: str | None
+    _verified: bool
 
-    def __init__(
-        self, tensors: dict[str, ndarray], metadata: dict[str, str], path: Path | None = None
-    ):
+    def __init__(self, *_args: Any, **_kwargs: Any):
+        raise TypeError("make WordVectors with WordVectors.from_arrays or WordVectors.load")
+
+    @classmethod
+    def _open(
+        cls, tensors: dict[str, ndarray], metadata: dict[str, str], path: Path | None = None
+    ) -> WordVectors:
+        """Word vectors of tensors whose structure is checked here, their values not."""
         _check_structure(tensors, metadata)
-        self._tensors = tensors
-        self._metadata = metadata
-        self._path = path
-        self._index: dict[bytes, int] | None = None
-        self._fingerprint: str | None = metadata.get(FINGERPRINT_KEY)
-        self._vocabulary: str | None = None
+        out = object.__new__(cls)
+        out._tensors = tensors
+        out._metadata = metadata
+        out._path = path
+        out._index = None
+        out._fingerprint = metadata.get(FINGERPRINT_KEY)
+        out._vocabulary = None
         # Whether the values, the words and (if loaded) the data on disk were checked.
-        self._verified = False
+        out._verified = False
+        return out
 
     @classmethod
     def from_arrays(
@@ -118,16 +109,35 @@ class WordVectors:
         fasttext: FastTextParams | None = None,
         ngrams: Any = None,
         ngram_scales: Any = None,
-        _copy: bool = True,
     ) -> WordVectors:
         """Word vectors from arrays, copied and checked.
 
         ``vectors`` holds one row per word as float32, float16 or int8 codes (with
         ``scales``). The vocabulary is either ``words`` or its UTF-8 ``vocab_bytes`` and
         int64 ``vocab_offsets``. FastText vectors also take ``fasttext`` and the ``ngrams``
-        rows (with ``ngram_scales`` for int8).
+        rows (with ``ngram_scales`` for int8), one per bucket::
+
+            fse.WordVectors.from_arrays(
+                vectors,
+                words=words,
+                ngrams=ngrams,
+                fasttext=fse.FastTextParams(min_n=3, max_n=6, bucket=len(ngrams)),
+            )
         """
-        copy = _copy  # False only for arrays the caller created and hands over
+        arrays = {
+            "scales": scales,
+            "counts": counts,
+            "ngrams": ngrams,
+            "ngram_scales": ngram_scales,
+        }
+        return cls._from_arrays(vectors, words, vocab_bytes, vocab_offsets, fasttext, arrays)
+
+    @classmethod
+    def _from_arrays(
+        cls, vectors, words, vocab_bytes, vocab_offsets, fasttext, arrays, *, copy: bool = True
+    ) -> WordVectors:
+        """from_arrays; ``copy`` is False only for arrays the caller created and hands over
+        (fse.gensim), which become read-only instead of being copied."""
         if not isinstance(vectors, ndarray):
             raise TypeError(f"vectors must be a numpy array, not {type(vectors).__name__}")
         vocab_bytes, vocab_offsets = _vocabulary(words, vocab_bytes, vocab_offsets)
@@ -136,10 +146,7 @@ class WordVectors:
                 "vectors": vectors,
                 "vocab.bytes": vocab_bytes,
                 "vocab.offsets": vocab_offsets,
-                "scales": scales,
-                "counts": counts,
-                "ngrams": ngrams,
-                "ngram_scales": ngram_scales,
+                **arrays,
             }
         )
         metadata = _new_metadata(vectors, fasttext)
@@ -158,7 +165,7 @@ class WordVectors:
 
         ``index`` is the checked lookup of the same vocabulary, if there is one.
         """
-        out = cls(tensors, metadata)
+        out = cls._open(tensors, metadata)
         _check_values(tensors)
         out._index = index or _lookup(tensors["vocab.bytes"], tensors["vocab.offsets"])
         out._verified = True
@@ -182,7 +189,7 @@ class WordVectors:
                 "file (directories of .npy files hold stored sentence vectors)"
             )
         tensors, metadata = SafetensorsContainer().open(path, mmap=mmap)
-        return cls(tensors, metadata, path)
+        return cls._open(tensors, metadata, path)
 
     @validate_arguments
     def save(self, path: PathLike):
@@ -212,7 +219,7 @@ class WordVectors:
     def _derived(self, tensors: dict[str, ndarray], metadata: dict[str, str]) -> WordVectors:
         """New vectors of the same vocabulary as these (such as folded ones), made from
         arrays the caller owns; the checked lookup of the words is shared."""
-        out = WordVectors(tensors, metadata)
+        out = WordVectors._open(tensors, metadata)
         _check_values(tensors)
         # The vocabulary is a checked copy of these vectors' own, whose words were checked
         # to be unique; a lookup is shared if there is one, never built for this.
@@ -349,8 +356,9 @@ class WordVectors:
         return self._metadata["fse.dtype"]
 
     @property
-    def vectors(self) -> ndarray:
-        """The stored rows: float32 values, or float16 or int8 codes."""
+    def stored_vectors(self) -> ndarray:
+        """The stored rows: float32 values, or float16 or int8 codes (with ``scales``);
+        ``get_vectors`` gives them decoded as float32."""
         return self._tensors["vectors"].view()
 
     @property
@@ -375,7 +383,8 @@ class WordVectors:
         return None if text is None else _parse_fasttext(text)
 
     @property
-    def ngrams(self) -> ndarray | None:
+    def stored_ngrams(self) -> ndarray | None:
+        """The stored FastText ngram rows, as ``stored_vectors`` (with ``ngram_scales``)."""
         return _view(self._tensors.get("ngrams"))
 
     @property
@@ -487,4 +496,4 @@ class WordVectors:
         if ids.size and (ids.min() < 0 or ids.max() >= len(self)):
             raise IndexError(f"indices must be between 0 and {len(self) - 1}")
         scales = self.scales
-        return _codes.dequantize(self.vectors[ids], None if scales is None else scales[ids])
+        return _codes.dequantize(self.stored_vectors[ids], None if scales is None else scales[ids])

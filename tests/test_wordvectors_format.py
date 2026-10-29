@@ -217,11 +217,11 @@ def test_golden_word_vectors(test_data_dir, dtype, mmap):
     np.testing.assert_array_equal(wv.counts, a["counts"])
     assert wv.fasttext == a["fasttext"]
     if dtype == "float32":
-        assert wv.vectors.tobytes() == a["vectors"].tobytes()
-        assert wv.ngrams.tobytes() == a["ngrams"].tobytes()
+        assert wv.stored_vectors.tobytes() == a["vectors"].tobytes()
+        assert wv.stored_ngrams.tobytes() == a["ngrams"].tobytes()
     else:
         codes, scales = quantize_rows(a["vectors"], dtype)
-        assert wv.vectors.tobytes() == codes.tobytes()
+        assert wv.stored_vectors.tobytes() == codes.tobytes()
         assert wv.scales.tobytes() == scales.tobytes()
         assert wv.metadata["fse.quantized_from"] == GOLDEN["float32"]
     rebuilt = WordVectors.from_arrays(

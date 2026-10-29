@@ -37,7 +37,7 @@ def test_a_run_into_shards_gives_the_rows_of_encode(tmp_path, dtype, workers):
     sentences = texts(1000)
     with ShardSink(tmp_path / "store", ENCODER, dtype=dtype, shard_rows=128) as sink:
         ENCODER.encode(sentences, workers=workers, sink=sink)
-        assert sink.durable_rows == sink.committed_rows == 1000
+        assert sink.durable_rows == sink._committed == 1000
     codes, scales, norms, found = _store_rows(tmp_path / "store", dtype)
     want_codes, want_scales = _want(dtype, sentences)
     np.testing.assert_array_equal(codes.view(np.uint8), want_codes.view(np.uint8))

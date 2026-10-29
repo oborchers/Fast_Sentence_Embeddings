@@ -6,6 +6,7 @@ import platform
 import sys
 
 import numpy as np
+import pydantic
 import pytest
 
 import fse
@@ -117,14 +118,19 @@ def test_vectors_decode_the_rows(tmp_path):
     path, codes, scales = _store(tmp_path, "int8", texts(150))
     with fse.VectorStore.open(path) as store:
         assert (len(store), store.dim, store.dtype) == (150, ENCODER.output_dim, "int8")
-        assert store.encoder == ENCODER.fingerprint
-        assert [s.rows for s in store.shards] == [64, 64, 22]
+        assert store.encoder_fingerprint == ENCODER.fingerprint
+        assert not hasattr(store, "encoder")
+        assert [s.rows for s, _ in store._shards] == [64, 64, 22]
         np.testing.assert_array_equal(
-            store.vectors(60, 130), _reference.dequantize(codes, scales)[60:130]
+            store.get_vectors(start=60, stop=130), _reference.dequantize(codes, scales)[60:130]
         )
-        assert store.vectors(5, 5).shape == (0, ENCODER.output_dim)
+        assert store.get_vectors(start=5, stop=5).shape == (0, ENCODER.output_dim)
         with pytest.raises(ValueError, match="not within the 150 rows"):
-            store.vectors(10, 151)
+            store.get_vectors(start=10, stop=151)
+        assert store.get_vectors().shape == (150, ENCODER.output_dim)
+        assert not hasattr(store, "vectors")  # decoded rows are get_vectors everywhere
+        with pytest.raises(pydantic.ValidationError, match="Unexpected positional argument"):
+            store.get_vectors(60, 130)  # start and stop are keywords
 
 
 def test_a_store_is_a_snapshot(tmp_path):
@@ -168,7 +174,7 @@ def test_verify_catches_a_changed_byte(tmp_path):
     path, _, _ = _store(tmp_path, "int8", texts(100))
     with fse.VectorStore.open(path) as store:
         store.verify()
-        name = store.shards[1].name
+        name = store._shards[1][0].name
     file = path / name / "vectors.npy"
     data = bytearray(file.read_bytes())
     data[-1] ^= 1
@@ -232,3 +238,19 @@ def test_a_store_cannot_be_closed_while_it_is_searched(tmp_path, monkeypatch):
         assert len(found) == 1
     with pytest.raises(RuntimeError, match="closed"):
         store.search(query)
+
+
+def test_a_store_shows_no_internals(tmp_path):
+    path, _, _ = _store(tmp_path, "float32", texts(20))
+    with fse.VectorStore.open(path) as store:
+        for name in ("info", "shards"):
+            assert not hasattr(store, name), name
+    with fse.ShardSink(tmp_path / "t", ENCODER) as sink:
+        for name in ("info", "reserved_rows", "committed_rows"):
+            assert not hasattr(sink, name), name
+        assert (sink.dim, sink.dtype, sink.first_row, sink.durable_rows) == (
+            ENCODER.output_dim,
+            "float32",
+            0,
+            0,
+        )

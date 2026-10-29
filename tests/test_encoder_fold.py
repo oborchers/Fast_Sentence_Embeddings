@@ -14,7 +14,7 @@ STEPS = (RemoveComponents(basis(2, 12, 1), np.array([1.0, 0.5], F32)), Project(b
 
 
 def _dequantized(wv):
-    rows = wv.vectors.astype(F32)
+    rows = wv.stored_vectors.astype(F32)
     if wv.scales is not None:
         rows *= wv.scales[:, None]
     return rows
@@ -36,7 +36,7 @@ def test_folded_rows_are_the_map_of_the_stored_rows(dtype):
     assert folded.vocabulary_fingerprint == wv.vocabulary_fingerprint
     want32 = (_dequantized(wv).astype(np.float64) @ linear_map(STEPS, 12).T).astype(F32)
     codes, scales = _reference.quantize_rows(want32, dtype)
-    assert folded.vectors.tobytes() == codes.tobytes()
+    assert folded.stored_vectors.tobytes() == codes.tobytes()
     if dtype == "int8":
         assert folded.scales.tobytes() == scales.tobytes()
     if dtype != "float32":
@@ -49,9 +49,9 @@ def test_ngrams_are_folded_and_fasttext_kept():
     wv = word_vectors("int8", fasttext=True)
     folded = fold(wv, STEPS)
     assert folded.fasttext == FastTextParams(3, 5, 97)
-    rows = wv.ngrams.astype(F32) * wv.ngram_scales[:, None]
+    rows = wv.stored_ngrams.astype(F32) * wv.ngram_scales[:, None]
     want = (rows.astype(np.float64) @ linear_map(STEPS, 12).T).astype(F32)
-    assert folded.ngrams.tobytes() == _reference.quantize_rows(want, "int8")[0].tobytes()
+    assert folded.stored_ngrams.tobytes() == _reference.quantize_rows(want, "int8")[0].tobytes()
 
 
 def test_changed_data_never_become_folded_vectors(tmp_path):

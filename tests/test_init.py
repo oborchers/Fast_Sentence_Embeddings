@@ -108,13 +108,16 @@ def test_public_api_is_pinned():
         "USIF",
         "Average",
         "Corpus",
+        "CorruptArtifactError",
         "EncodedBatch",
         "Encoder",
+        "FastTextParams",
         "MemorySink",
         "QuantizedRows",
         "SearchResult",
         "ShardSink",
         "Sink",
+        "UnsupportedArtifactError",
         "VectorStore",
         "WordVectors",
     ]
@@ -134,3 +137,14 @@ def test_the_readme_shows_only_names_fse_has():
     imported = re.findall(r"^from fse import (.+)$", readme, re.MULTILINE)
     names = {n.strip() for line in imported for n in line.split(",")}
     assert not (used | names) & fse._REMOVED, sorted((used | names) & fse._REMOVED)
+
+
+def test_the_public_errors_and_fasttext_params_are_the_ones_fse_raises_and_takes():
+    from fse._container import CorruptArtifactError
+    from fse._contract import UnsupportedArtifactError
+    from fse._wordvectors_format import FastTextParams
+
+    assert fse.CorruptArtifactError is CorruptArtifactError
+    assert fse.UnsupportedArtifactError is UnsupportedArtifactError
+    assert fse.FastTextParams is FastTextParams
+    assert issubclass(fse.CorruptArtifactError, ValueError)

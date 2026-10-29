@@ -88,7 +88,7 @@ def test_an_unfolded_encoder_loads_only_with_its_word_vectors(tmp_path):
     with pytest.raises(ValueError, match="fitted on the word vectors"):
         Encoder.load(path, word_vectors=word_vectors(seed=1))
     reordered = WordVectors.from_arrays(
-        encoder.word_vectors.vectors, words=[f"w{i}" for i in reversed(range(200))]
+        encoder.word_vectors.stored_vectors, words=[f"w{i}" for i in reversed(range(200))]
     )
     with pytest.raises(ValueError, match="fitted on the vocabulary"):
         Encoder.load(path, word_vectors=reordered)

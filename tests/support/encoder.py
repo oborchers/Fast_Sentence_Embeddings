@@ -49,7 +49,7 @@ def folded(dtype="float32"):
 
     original = word_vectors("float32")
     steps = (RemoveComponents(basis(1, 12, 4)), Project(basis(6, 12, 5)))
-    rows = original.vectors.astype(np.float64)
+    rows = original.stored_vectors.astype(np.float64)
     u = steps[0].components.astype(np.float64)
     rows = (rows - (rows @ u.T) @ u) @ steps[1].basis.astype(np.float64).T
     words = [

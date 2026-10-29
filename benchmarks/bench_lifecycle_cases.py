@@ -179,7 +179,10 @@ def v2_queries(c: dict) -> dict:
 
     with fse.VectorStore.open(_paths(c)["store"]) as store:
         ids = np.random.default_rng(0).integers(0, len(store), 1 + SEARCHES + BATCH)
-        np.save(_paths(c)["queries"], np.stack([store.vectors(int(i), int(i) + 1)[0] for i in ids]))
+        np.save(
+            _paths(c)["queries"],
+            np.stack([store.get_vectors(start=int(i), stop=int(i) + 1)[0] for i in ids]),
+        )
     return {"queries": len(ids)}
 
 

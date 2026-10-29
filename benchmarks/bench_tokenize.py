@@ -103,7 +103,7 @@ def child_v2(cfg: dict) -> float:
     pool_rows = cfg["kind"] != "v2 batch"
     once = cfg["kind"] == "v2 workers"
     built = (make_lookup(wv, tokenizer), StringSource(texts)) if once else None
-    kernel = _native.WeightedMean(wv.vectors, np.ones(len(vocab), np.float32), wv.scales)
+    kernel = _native.WeightedMean(wv.stored_vectors, np.ones(len(vocab), np.float32), wv.scales)
     threads = cfg["threads"]
 
     def run():

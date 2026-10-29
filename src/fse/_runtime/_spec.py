@@ -65,10 +65,10 @@ class EncodeSpec:
     def pool_input(self) -> PoolInput:
         wv = self.word_vectors
         return PoolInput(
-            wv.vectors,
+            wv.stored_vectors,
             self.weights,
             wv.scales,
-            wv.ngrams,
+            wv.stored_ngrams,
             wv.ngram_scales,
             self.oov_weight,
             self.aggregation,
