@@ -280,3 +280,19 @@ def test_a_sink_takes_one_run(tmp_path):
     ENCODER.encode(texts(10), sink=memory)
     with pytest.raises(ValueError, match="committed already"):
         ENCODER.encode(texts(5), sink=memory)
+
+
+def test_a_sink_names_the_encoder_it_takes_by_encoder_fingerprint(tmp_path):
+    other = unfolded(steps="normalize")
+    with fse.ShardSink(tmp_path / "s", ENCODER, shard_rows=64) as sink:
+        assert sink.encoder_fingerprint == ENCODER.fingerprint
+        assert not hasattr(sink, "encoder")
+        with pytest.raises(ValueError, match="takes the rows of encoder"):
+            other.encode(texts(10), sink=sink)
+
+    class Custom(fse.MemorySink):
+        encoder_fingerprint = ENCODER.fingerprint
+
+    with pytest.raises(ValueError, match="takes the rows of encoder"):
+        other.encode(texts(10), sink=Custom(other.output_dim))
+    ENCODER.encode(texts(10), sink=Custom(ENCODER.output_dim))

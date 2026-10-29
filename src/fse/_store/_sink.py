@@ -85,7 +85,7 @@ class ShardSink:
         read_store(self.path).check(info, self.path)
         self.first_row = sum(shard.rows for shard, _ in shards(self.path, info))
         self.info = info
-        self.dim, self.dtype, self.encoder = info.dim, dtype, info.encoder
+        self.dim, self.dtype, self.encoder_fingerprint = info.dim, dtype, info.encoder
         self.shard_rows = shard_rows or default_shard_rows(info.dim, dtype)
         self.reserved_rows = self.committed_rows = self.durable_rows = 0
         self._writers: deque[ShardWriter] = deque()  # shards still taking rows

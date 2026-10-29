@@ -47,7 +47,7 @@ class Sink(Protocol):
     task before the task runs, ``commit`` hands them back once they are finished, in row
     order, each row once; a target is valid only until its commit. Optional:
     ``inverse_norms`` (True: the target ends with a float32 vector the workers fill with
-    the inverse norm of every stored row), ``encoder`` (the fingerprint of the only
+    the inverse norm of every stored row), ``encoder_fingerprint`` (the fingerprint of the only
     encoder the sink takes), ``flush()`` (called after the last commit of a successful
     run), ``publish()`` (called by ``encode_batches`` after the rows of every batch are
     committed, before ``durable_rows`` is read: make durable what is finished, without

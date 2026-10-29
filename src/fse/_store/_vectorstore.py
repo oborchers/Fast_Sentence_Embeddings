@@ -80,8 +80,8 @@ class VectorStore:
         return self.info.dtype
 
     @property
-    def encoder(self) -> str:
-        """The fingerprint of the encoder of the rows."""
+    def encoder_fingerprint(self) -> str:
+        """The fingerprint of the encoder of the rows (``open(encoder=)`` takes the encoder)."""
         return self.info.encoder
 
     @property

@@ -117,7 +117,8 @@ def test_vectors_decode_the_rows(tmp_path):
     path, codes, scales = _store(tmp_path, "int8", texts(150))
     with fse.VectorStore.open(path) as store:
         assert (len(store), store.dim, store.dtype) == (150, ENCODER.output_dim, "int8")
-        assert store.encoder == ENCODER.fingerprint
+        assert store.encoder_fingerprint == ENCODER.fingerprint
+        assert not hasattr(store, "encoder")
         assert [s.rows for s in store.shards] == [64, 64, 22]
         np.testing.assert_array_equal(
             store.vectors(60, 130), _reference.dequantize(codes, scales)[60:130]
