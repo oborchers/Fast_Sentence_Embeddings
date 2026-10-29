@@ -34,7 +34,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Fixed
 
-- An interrupt (Ctrl+C) while a closing `ShardSink` stops its threads no longer leaves its threads running and its temporary shard directories behind: the work still waiting is dropped, every thread ends and the temporary directories are removed, then the interrupt is raised.
+- An interrupt (Ctrl+C) while a `ShardSink` closes no longer leaves threads running and temporary shard directories behind: the work still waiting is dropped, the piece each thread runs is finished (a shard being published is published if all its rows were written), further interrupts are deferred, and one KeyboardInterrupt is raised once every thread has ended and the temporary directories are removed. A piece that blocks, such as a write to a drive that hangs, still keeps `close` waiting.
 
 ## [1.1.0] - 2026-10-27
 
