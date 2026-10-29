@@ -117,36 +117,51 @@ class HubFiles:
 
 def resolve_link(path: Path, repo: Path) -> tuple[Path, str]:
     """The regular file a snapshot link of a Hugging Face cache points to, and its blob
-    name (the etag: sha256 of an LFS file, else the git blob sha1). The link must point to
-    ``<repo>/blobs/<etag>``, the blobs of the same cached repository; huggingface-hub 2
-    makes that entry a link into the cache-wide store of Xet files,
-    ``<cache>/blobs/<2 hex digits>/<64 hex digits>``, which is followed too. Anything else
-    raises."""
+    name (the etag: sha256 of an LFS file, else the git blob sha1). ``path`` lies in
+    ``<repo>/snapshots/<commit>/`` and must link to ``<repo>/blobs/<etag>``, the blobs of
+    the same cached repository; huggingface-hub 2 makes that entry a link into the
+    cache-wide store of Xet files, ``<cache>/blobs/<2 hex digits>/<64 hex digits>``, which
+    is followed too. Links are compared as written, never resolved, and no directory from
+    the repository down to a blob may be a link, so nothing leads out of the cache (the
+    cache folder itself may be one); anything else raises."""
+    repo = Path(os.path.normpath(repo))
+    _plain_dirs(repo, repo / "snapshots", path.parent, repo / "blobs")
     blob = _step(path)
-    if not _same(blob.parent, repo / "blobs"):
+    if blob.parent != repo / "blobs":
         raise CorruptArtifactError(
             f"{path} is a link to {blob}, outside the blobs of its Hugging Face cache"
         )
     target = blob
     if blob.is_symlink():
         target = _step(blob)
-        store = repo.parent / "blobs" / target.name[:2]
-        if not (_SHA256.fullmatch(target.name) and _same(target.parent, store)):
+        store = repo.parent / "blobs"
+        if not (_SHA256.fullmatch(target.name) and target.parent == store / target.name[:2]):
             raise CorruptArtifactError(
                 f"{blob} is a link to {target}, outside the shared blobs of its cache"
             )
+        _plain_dirs(store, target.parent)
     if not stat.S_ISREG(os.lstat(target).st_mode):
         raise CorruptArtifactError(f"{path} points to {target}, which is no regular file")
     return target, blob.name
 
 
 def _step(link: Path) -> Path:
-    """Where one link points, as a path (not followed further)."""
+    """Where one link points, as a path, compared as written (not followed further)."""
     return Path(os.path.normpath(link.parent / os.readlink(link)))
 
 
-def _same(a: Path, b: Path) -> bool:
-    return os.path.realpath(a) == os.path.realpath(b)
+def _plain_dirs(*folders: Path) -> None:
+    """Every folder is a directory of its own, no link to one elsewhere."""
+    for folder in folders:
+        try:
+            mode = os.lstat(folder).st_mode
+        except FileNotFoundError:
+            raise CorruptArtifactError(f"{folder} of the Hugging Face cache is missing") from None
+        if not stat.S_ISDIR(mode):
+            raise CorruptArtifactError(
+                f"{folder} of the Hugging Face cache is a link or no directory; fse follows "
+                "no link out of the cache"
+            )
 
 
 def _check_pin(name: str, pin: Any, sha256: str, sha1: str, lfs: bool, commit: str | None) -> None:

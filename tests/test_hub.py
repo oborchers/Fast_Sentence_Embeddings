@@ -267,3 +267,25 @@ def test_a_blob_replaced_after_its_check_changes_nothing(fake, monkeypatch):
     monkeypatch.setattr(hub, "_check_pin", original)
     with pytest.raises(CorruptArtifactError, match="the commit pins"):
         _load(fake)
+
+
+def _relink_dir(folder, elsewhere):
+    """Move ``folder`` to ``elsewhere`` and leave a link to it in its place."""
+    shutil.move(folder, elsewhere)
+    folder.symlink_to(elsewhere, target_is_directory=True)
+
+
+@pytest.mark.parametrize("which", ["repo blobs", "snapshot", "store prefix"])
+def test_no_folder_of_the_cache_may_be_a_link(fake, tmp_path, which):
+    """Links are compared as written, so a linked folder could lead out of the cache;
+    every folder from the repository down to a blob must be a directory of its own."""
+    _load(fake)
+    shared = _share(fake, "model.safetensors")
+    folder = {
+        "repo blobs": fake.folder() / "blobs",
+        "snapshot": fake.folder() / "snapshots" / COMMIT,
+        "store prefix": shared.parent,
+    }[which]
+    _relink_dir(folder, tmp_path / "elsewhere")
+    with pytest.raises(CorruptArtifactError, match="is a link or no directory"):
+        _load(fake, local_files_only=True)
