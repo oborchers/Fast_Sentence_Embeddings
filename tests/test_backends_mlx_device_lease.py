@@ -7,6 +7,7 @@ import threading
 
 import pytest
 
+from fse._backends._mlx import _device
 from fse._backends._mlx._device import Device
 from support.fake_mlx import FakeMx
 
@@ -115,3 +116,50 @@ def test_a_failed_finish_lends_nothing(device):
     with pytest.raises(RuntimeError, match="read"):
         device.run(lambda _mx, _s: (Tracked(freed),), finish, 0, lambda r: r)
     assert freed == ["fse-mlx"]
+
+
+class View:
+    """What a finish gives: an object that keeps a launched array alive (as a numpy view
+    keeps its MLX array)."""
+
+    def __init__(self, array):
+        self.array = array
+
+
+@pytest.mark.parametrize("error", [ValueError("copy"), KeyboardInterrupt()])
+def test_a_failing_use_drops_its_views_before_the_lease(device, error):
+    """The traceback of the error keeps no view: the device thread frees the array."""
+    freed = []
+
+    def use(view):
+        assert isinstance(view, View)  # a frame of use holding the view
+        raise error
+
+    with pytest.raises(type(error)) as caught:
+        device.run(lambda _mx, _s: (Tracked(freed),), lambda arrays: View(arrays[0]), 0, use)
+    assert freed == ["fse-mlx"]
+    assert caught.value is error  # the error itself is kept
+    assert _threads() == []
+
+
+class Ended:
+    """A device thread whose join is interrupted ``times`` times."""
+
+    def __init__(self, times):
+        self.times, self.joined = times, 0
+
+    def join(self):
+        if self.times:
+            self.times -= 1
+            raise KeyboardInterrupt
+        self.joined += 1
+
+
+@pytest.mark.parametrize("times", [1, 3])
+def test_the_lease_comes_back_and_the_thread_is_joined_through_interrupts(times):
+    job = _device.Job(lambda *_: (), lambda _: None, 0, True)
+    job.ended = Ended(times)
+    with pytest.raises(KeyboardInterrupt):
+        _device._give_back(job)
+    assert job.returned.is_set()
+    assert job.ended.joined == 1

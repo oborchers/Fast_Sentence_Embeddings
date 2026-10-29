@@ -111,14 +111,9 @@ class Device:
             self._abort(job)
             raise
         try:
-            result = job.result
-            job.result = None
-            if job.error is None and use is not None:
-                result = use(result)
+            result = _used(job, use)
         finally:
-            job.returned.set()
-            if job.ended is not None:
-                job.ended.join()  # the thread ends right after its last group and lease
+            _give_back(job)
         if job.error is not None:
             raise job.error
         return result
@@ -185,9 +180,7 @@ class Device:
             except BaseException:  # the device thread may still write into its arrays
                 continue
             job.result = None
-            job.returned.set()
-            if job.ended is not None:
-                job.ended.join()
+            _give_back(job)
             return
 
     def _take(self, end: bool = True) -> list[Job]:
@@ -292,6 +285,37 @@ class Device:
                 lent.append(job)
             job.done.set()
         return _collect(lent, wait=last)
+
+
+def _used(job: Job, use: Use | None) -> Any:
+    """``use`` of the job's result in the caller. If it fails, its frames are cleared
+    first, so that no view of a lent array outlives the lease in a traceback."""
+    result, job.result = job.result, None
+    if job.error is not None or use is None:
+        return result
+    try:
+        return use(result)
+    except BaseException as err:
+        del result
+        traceback.clear_frames(err.__traceback__)
+        raise
+
+
+def _give_back(job: Job) -> None:
+    """Return the lease and join a device thread that ends after the job, through any
+    interrupt (the first one is raised again afterwards), so that no thread outlives
+    the call."""
+    interrupted: BaseException | None = None
+    while True:
+        try:
+            job.returned.set()
+            if job.ended is not None:
+                job.ended.join()  # the thread ends right after its last group and lease
+            break
+        except BaseException as err:
+            interrupted = interrupted or err
+    if interrupted is not None:
+        raise interrupted
 
 
 def _collect(lent: list[Job], wait: bool) -> list[Job]:
