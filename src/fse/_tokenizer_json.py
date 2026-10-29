@@ -22,7 +22,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fse._container import CorruptArtifactError, strict_json
+from fse._container import CorruptArtifactError, read_regular, strict_json
 from fse._contract import UnsupportedArtifactError
 from fse._tokenizer_spec import WordPieceConfig
 
@@ -37,10 +37,14 @@ _ADDED_KEYS = {"id", "content", "single_word", "lstrip", "rstrip", "normalized",
 
 def read_tokenizer_json(path: Path) -> tuple[list[str], WordPieceConfig]:
     """The tokens in id order and the parameters of wordpiece@1 of a tokenizer.json."""
-    path = Path(path)
-    if path.stat().st_size > MAX_BYTES:
+    return tokenizer_of(read_regular(Path(path), limit=MAX_BYTES), Path(path))
+
+
+def tokenizer_of(data: bytes, path: Path) -> tuple[list[str], WordPieceConfig]:
+    """The same of the bytes of a tokenizer.json (``path`` names it in errors)."""
+    if len(data) > MAX_BYTES:
         raise CorruptArtifactError(f"{path} has more than {MAX_BYTES} bytes")
-    return parse_tokenizer(strict_json(path.read_bytes(), path), path)
+    return parse_tokenizer(strict_json(data, path), path)
 
 
 def parse_tokenizer(value: Any, path: Path) -> tuple[list[str], WordPieceConfig]:

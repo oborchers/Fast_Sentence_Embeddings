@@ -23,13 +23,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from numpy import ndarray
 
-from fse._container import CorruptArtifactError, read_foreign, strict_json
+from fse._container import CorruptArtifactError, foreign_tensors, strict_json
 from fse._contract import UnsupportedArtifactError
-from fse._tokenizer_json import read_tokenizer_json
+from fse._tokenizer_json import MAX_BYTES as MAX_TOKENIZER_BYTES
+from fse._tokenizer_json import tokenizer_of
 from fse._tokenizer_spec import TokenizerSpec
 from fse._wordvectors import WordVectors
 
@@ -48,6 +49,25 @@ _REFUSED = {
 _DTYPES = {"float32": "float32", "float16": "float16", "int8": "int8", "float64": "float64"}
 
 
+class Files(Protocol):
+    """The files of a model, each read once into bytes: ``read`` checks them (a regular
+    file within ``limit`` bytes; on the Hub against its commit, ``lfs`` for files that
+    must be LFS files there; ``inspect(handle, size)`` may check a prefix before the rest
+    is read), ``has`` says whether the model has a file, ``where`` names it in errors, and
+    ``source`` and ``revision`` say where the model came from."""
+
+    source: str | None
+    revision: str | None
+
+    def has(self, name: str) -> bool: ...
+
+    def where(self, name: str) -> Path: ...
+
+    def read(
+        self, name: str, *, lfs: bool = False, limit: int | None = None, inspect: Any = None
+    ) -> bytes: ...
+
+
 @dataclass(frozen=True, eq=False)
 class Model2Vec:
     """The parts of the encoder of a Model2Vec model."""
@@ -58,14 +78,17 @@ class Model2Vec:
 
 
 def read_model2vec(
-    files: dict[str, Path], *, truncate: bool = True, max_length: Any = MODEL_RULE
+    files: Files, config: Any, *, truncate: bool = True, max_length: Any = MODEL_RULE
 ) -> Model2Vec:
-    """The encoder parts of the files of a Model2Vec model (``FILES``, each a regular
-    file). With ``truncate`` the length rule is the model's, or ``max_length`` tokens
+    """The encoder parts of the files of a Model2Vec model (``FILES``) with its parsed
+    ``config``. With ``truncate`` the length rule is the model's, or ``max_length`` tokens
     (None: no cut); without, texts are read whole."""
-    config = _config(files["config.json"])
-    tokens, parameters = read_tokenizer_json(files["tokenizer.json"])
-    table = _table(files["model.safetensors"], config, len(tokens))
+    config = _config(config, files.where("config.json"))
+    where = files.where("tokenizer.json")
+    tokens, parameters = tokenizer_of(
+        files.read("tokenizer.json", limit=MAX_TOKENIZER_BYTES), where
+    )
+    table = _table(files, config, len(tokens))
     words = WordVectors.from_arrays(table, words=tokens)
     length = _length(config, truncate, max_length)
     max_chars = None if length is None else length * median_length(tokens)
@@ -73,10 +96,14 @@ def read_model2vec(
     return Model2Vec(words, spec, config.get("normalize", False))
 
 
-def _config(path: Path) -> dict[str, Any]:
-    if path.stat().st_size > MAX_CONFIG_BYTES:
+def parse_config(data: bytes, path: Path) -> Any:
+    """The parsed config.json (strict JSON of at most MAX_CONFIG_BYTES)."""
+    if len(data) > MAX_CONFIG_BYTES:
         raise CorruptArtifactError(f"{path} has more than {MAX_CONFIG_BYTES} bytes")
-    config = strict_json(path.read_bytes(), path)
+    return strict_json(data, path)
+
+
+def _config(config: Any, path: Path) -> dict[str, Any]:
     if not isinstance(config, dict):
         raise CorruptArtifactError(f"{path} must be a JSON object")
     for key, what in _REFUSED.items():
@@ -104,9 +131,10 @@ def _config(path: Path) -> dict[str, Any]:
     return config
 
 
-def _table(path: Path, config: dict[str, Any], n_tokens: int) -> ndarray:
+def _table(files: Files, config: dict[str, Any], n_tokens: int) -> ndarray:
     """The tensor embeddings: float32 rows, one per token."""
-    tensors = read_foreign(path)
+    path = files.where("model.safetensors")
+    tensors = foreign_tensors(files.read("model.safetensors", lfs=True), path)
     quantized = sorted({"weights", "mapping"} & set(tensors))
     if quantized:
         raise UnsupportedArtifactError(

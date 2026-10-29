@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import io
 import math
 import os
 import tempfile
@@ -43,12 +44,15 @@ MAX_SAFETENSORS_HEADER_BYTES = 16 * 2**20
 _SAFETENSORS_LENGTH = 8  # bytes of the little-endian header length
 
 
-def _read_safetensors_header(handle, file: Path) -> tuple[int, dict, dict[str, str]]:
-    """Parse and check the header of a safetensors file.
+def _read_safetensors_header(
+    handle, file: Path, size: int | None = None
+) -> tuple[int, dict, dict[str, str]]:
+    """Parse and check the header of a safetensors file (of ``size`` bytes, by default
+    that of the open file).
 
     Returns the offset of the data, ``name -> (code, shape, begin, end)`` and the metadata.
     """
-    size = os.fstat(handle.fileno()).st_size
+    size = os.fstat(handle.fileno()).st_size if size is None else size
     length, header = _header_json(handle, file, size)
     metadata = _header_metadata(file, header)
     start = _SAFETENSORS_LENGTH + length
@@ -243,6 +247,20 @@ class SafetensorsContainer:
             data = _read_data(handle, path, (start, size), mmap, before)
         tensors = {
             name: _open_tensor(path, name, spec, data, entries[name][2])
+            for name, spec in layout.items()
+        }
+        return tensors, dict(metadata)
+
+    def open_bytes(self, data: bytes, path) -> tuple[dict[str, ndarray], dict[str, str]]:
+        """``open`` of a file given as its bytes (read once and checked by the caller,
+        such as a file of the Hub); ``path`` names it in errors. Every checksum is
+        checked."""
+        path = Path(path)
+        start, layout, metadata = _read_safetensors_header(io.BytesIO(data), path, len(data))
+        entries = _integrity(path, {n: (c, s) for n, (c, s, _, _) in layout.items()}, metadata)
+        view = memoryview(data)[start:]
+        tensors = {
+            name: _open_tensor(path, name, spec, view, entries[name][2])
             for name, spec in layout.items()
         }
         return tensors, dict(metadata)

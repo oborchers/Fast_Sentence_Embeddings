@@ -188,7 +188,9 @@ def test_an_fse_encoder_on_the_hub_is_an_lfs_file(fake, tmp_path):
         "config.json": json.dumps(config).encode(),
         "encoder.safetensors": (tmp_path / "encoder.safetensors").read_bytes(),
     }
-    assert _load(fake, mmap=True).fingerprint == encoder.fingerprint
+    assert _load(fake).fingerprint == encoder.fingerprint
+    with pytest.raises(ValueError, match="mmap is for local fse encoders"):
+        _load(fake, mmap=True)
     fake.cache = tmp_path / "other-cache"
     fake.lfs = set()
     with pytest.raises(
@@ -240,4 +242,28 @@ def test_a_shared_blob_outside_the_store_is_refused(fake, tmp_path):
     shutil.move(elsewhere, blob)
     _share(fake, "model.safetensors", store_name="x" * 64)
     with pytest.raises(CorruptArtifactError, match="outside the shared blobs"):
+        _load(fake)
+
+
+def test_a_blob_replaced_after_its_check_changes_nothing(fake, monkeypatch):
+    """The bytes that are checked are the bytes that are parsed: a blob replaced right
+    after its check (between check and load, if they read the file twice) is not read."""
+    online = _load(fake)
+    blob = os.path.realpath(fake.folder() / "snapshots" / COMMIT / "model.safetensors")
+    original, swapped = hub._check_pin, []
+
+    def check_then_swap(name, *args):
+        original(name, *args)
+        if name == "model.safetensors":
+            data = bytearray(Path(blob).read_bytes())
+            data[-4:] = b"\1\2\3\4"
+            Path(blob).write_bytes(bytes(data))
+            swapped.append(name)
+
+    monkeypatch.setattr(hub, "_check_pin", check_then_swap)
+    again = _load(fake)
+    assert swapped == ["model.safetensors"]
+    assert again.encode(["hello world"]).tobytes() == online.encode(["hello world"]).tobytes()
+    monkeypatch.setattr(hub, "_check_pin", original)
+    with pytest.raises(CorruptArtifactError, match="the commit pins"):
         _load(fake)

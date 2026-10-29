@@ -12,7 +12,7 @@ import pytest
 from fse._container import CorruptArtifactError
 from fse._contract import UnsupportedArtifactError
 from fse._encoder import Encoder
-from fse._encoder._model2vec import median_length, read_model2vec
+from fse._encoder._model2vec import median_length
 from support import model2vec as mv
 from support import wordpiece as wp
 
@@ -195,4 +195,4 @@ def test_the_table_is_checked(tmp_path):
     for tensors, error, match in cases:
         save_file(tensors, files["model.safetensors"])
         with pytest.raises(error, match=match):
-            read_model2vec(files)
+            Encoder.from_pretrained(folder)

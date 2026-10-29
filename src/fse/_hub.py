@@ -20,13 +20,14 @@ sha1 (this detects damage, not forgery).
 
 from __future__ import annotations
 
+import io
 import os
 import re
 import stat
 from pathlib import Path
 from typing import Any
 
-from fse._container import CorruptArtifactError, file_digests
+from fse._container import CorruptArtifactError, file_digests, read_regular
 
 REPO_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -83,10 +84,19 @@ class HubFiles:
         )
         return Path(path)
 
-    def get(self, name: str, *, lfs: bool = False) -> Path | None:
-        """The checked blob of file ``name`` of the commit, or None if it has none."""
+    def has(self, name: str) -> bool:
+        return name in self._names
+
+    def where(self, name: str) -> Path:
+        return Path(f"{self.source}@{self.revision}") / name
+
+    def read(
+        self, name: str, *, lfs: bool = False, limit: int | None = None, inspect: Any = None
+    ) -> bytes:
+        """The bytes of file ``name`` of the commit, read once and checked: the bytes that
+        are checked are those returned, so a blob changed afterwards changes nothing."""
         if name not in self._names:
-            return None
+            raise CorruptArtifactError(f"{self.where(name)} is not a file of the commit")
         path = self._download(name, self.revision)
         if path.is_symlink():
             blob, etag = resolve_link(path, path.parent.parent.parent)
@@ -96,12 +106,13 @@ class HubFiles:
             )
         else:
             blob, etag = path, ""
-        sha256, sha1 = _digests(blob)
+        data = read_regular(blob, limit=limit, inspect=inspect)
+        sha256, sha1 = file_digests(io.BytesIO(data), len(data))
         if self._pins is None:
             _check_name(name, etag, sha256, sha1, lfs)
         else:
             _check_pin(name, self._pins[name], sha256, sha1, lfs, self.revision)
-        return blob
+        return data
 
 
 def resolve_link(path: Path, repo: Path) -> tuple[Path, str]:
@@ -136,11 +147,6 @@ def _step(link: Path) -> Path:
 
 def _same(a: Path, b: Path) -> bool:
     return os.path.realpath(a) == os.path.realpath(b)
-
-
-def _digests(path: Path) -> tuple[str, str]:
-    with open(path, "rb") as handle:
-        return file_digests(handle, os.fstat(handle.fileno()).st_size)
 
 
 def _check_pin(name: str, pin: Any, sha256: str, sha1: str, lfs: bool, commit: str | None) -> None:

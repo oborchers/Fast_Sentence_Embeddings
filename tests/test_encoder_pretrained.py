@@ -177,20 +177,41 @@ def test_a_cache_snapshot_follows_its_links_into_the_blobs(model, tmp_path):
     ],
 )
 def test_the_license_of_a_model_card(tmp_path, card, want):
-    path = tmp_path / "README.md"
-    path.write_text(card, encoding="utf-8")
-    assert card_license(path) == want
-    assert card_license(None) is None
+    assert card_license(card.encode(), tmp_path / "README.md") == want
+    assert card_license(None, tmp_path / "README.md") is None
 
 
 def test_a_license_of_another_form_raises(tmp_path):
-    path = tmp_path / "README.md"
-    path.write_text("---\nlicense:\n- mit\n- other\n---\n")
     with pytest.raises(CorruptArtifactError, match="states a license fse cannot read"):
-        card_license(path)
+        card_license(b"---\nlicense: {a: b}\n---\n", tmp_path / "README.md")
 
 
 def test_the_rows_are_finite_numbers(model):
     rows = Encoder.from_pretrained(model).encode(["hello", ""])
     assert np.isfinite(rows).all()
     assert not rows[1].any()
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs FIFOs")
+def test_a_fifo_is_no_file_of_a_model(model, tmp_path):
+    """A FIFO in place of a file raises at once instead of blocking a read."""
+    folder = _copy(model, tmp_path, "fifo")
+    for name in ("config.json", "tokenizer.json", "README.md"):
+        original = folder / name
+        saved = original.read_bytes()
+        original.unlink()
+        os.mkfifo(original)
+        with pytest.raises(CorruptArtifactError, match="not a regular file"):
+            Encoder.from_pretrained(folder)
+        original.unlink()
+        original.write_bytes(saved)
+
+
+def test_the_size_limits_hold(model, tmp_path):
+    import fse._encoder._pretrained as pretrained
+
+    folder = _copy(model, tmp_path, "big")
+    with open(folder / "README.md", "ab") as f:
+        f.truncate(pretrained.MAX_CARD_BYTES + 1)
+    with pytest.raises(CorruptArtifactError, match="more than the 16777216 it may have"):
+        Encoder.from_pretrained(folder)

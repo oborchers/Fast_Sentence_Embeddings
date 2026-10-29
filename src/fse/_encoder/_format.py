@@ -362,7 +362,7 @@ def loaded_table(
     keys: dict[str, str],
     metadata: dict[str, str],
     checksums: dict[str, str],
-    path: Path,
+    path: Path | None,
 ) -> WordVectors:
     """The table an encoder holds, as word vectors loaded from its file, with the
     fingerprint of their recorded checksums."""

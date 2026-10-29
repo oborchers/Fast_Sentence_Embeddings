@@ -127,3 +127,36 @@ def test_a_link_is_refused(tmp_path):
         read_foreign(tmp_path / "link.safetensors")
     with pytest.raises(CorruptArtifactError, match="missing"):
         read_foreign(tmp_path / "none.safetensors")
+
+
+def test_a_file_is_read_once_within_its_limit(tmp_path):
+    from fse._container import read_regular
+
+    path = tmp_path / "f.bin"
+    path.write_bytes(b"0123456789")
+    assert read_regular(path) == b"0123456789"
+    assert read_regular(path, limit=10) == b"0123456789"
+    with pytest.raises(CorruptArtifactError, match="more than the 9 it may have"):
+        read_regular(path, limit=9)
+    seen = []
+    assert (
+        read_regular(path, inspect=lambda handle, size: seen.append((handle.read(3), size)))
+        == b"0123456789"
+    )
+    assert seen == [(b"012", 10)]
+
+    def grow(*_):
+        with open(path, "ab") as f:
+            f.write(b"more")
+
+    with pytest.raises(CorruptArtifactError, match="changed while it was read"):
+        read_regular(path, inspect=grow)
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs FIFOs")
+def test_a_fifo_is_refused(tmp_path):
+    from fse._container import read_regular
+
+    os.mkfifo(tmp_path / "fifo")
+    with pytest.raises(CorruptArtifactError, match="not a regular file"):
+        read_regular(tmp_path / "fifo")

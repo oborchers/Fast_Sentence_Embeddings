@@ -222,6 +222,8 @@ class Encoder:
             local_files_only=local_files_only,
         )
         found = _pretrained.find(files, truncate=truncate, max_length=max_length, mmap=mmap)
+        if found.data is not None:  # an fse encoder of the Hub, checked as these bytes
+            return cls._artifact_of(*SafetensorsContainer().open_bytes(*found.data), None)
         if found.model2vec is None:
             assert found.path is not None
             return cls.load(found.path, mmap=mmap)
@@ -388,7 +390,12 @@ class Encoder:
         arrays are mapped read-only (see ``verify``). An encoder written by a pre-release
         of 2.0 raises ``fse.UnsupportedArtifactError``: rebuild it."""
         path = Path(path)
-        tensors, metadata = SafetensorsContainer().open(path, mmap=mmap)
+        return cls._artifact_of(*SafetensorsContainer().open(path, mmap=mmap), path)
+
+    @classmethod
+    def _artifact_of(cls, tensors: dict, metadata: dict, path: Path | None) -> Encoder:
+        """The encoder of opened tensors and metadata: of the file ``path``, or of bytes
+        read and checked by the caller (None, like an encoder made in memory)."""
         content, table, keys = from_artifact(tensors, metadata)
         checksums = {
             k[len(CHECKSUM_PREFIX) :]: v
@@ -399,7 +406,7 @@ class Encoder:
             content,
             loaded_table(table, keys, metadata, checksums, path),
             path=path,
-            checksums=checksums,
+            checksums=checksums if path is not None else None,
             fingerprint_=metadata.get(FINGERPRINT_KEY),
         )
 

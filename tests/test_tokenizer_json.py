@@ -142,7 +142,7 @@ def test_the_file_is_strict_and_bounded(tmp_path, monkeypatch):
     with pytest.raises(CorruptArtifactError, match="the file must be a JSON object"):
         tj.read_tokenizer_json(path)
     monkeypatch.setattr(tj, "MAX_BYTES", 1)
-    with pytest.raises(CorruptArtifactError, match="more than 1 bytes"):
+    with pytest.raises(CorruptArtifactError, match="more than the 1 it may have"):
         tj.read_tokenizer_json(path)
 
 
