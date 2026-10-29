@@ -329,6 +329,43 @@ def v1_infer(c: dict) -> dict:
     return out
 
 
+def v2_hub(c: dict) -> dict:
+    """A fitted, saved SIF encoder (folded, as on the hub) loaded and encoding the corpus."""
+    import fse
+
+    out: dict = {"peak_before": _peak(), "prepare_s": 0.0}
+    out["load_s"], encoder = _timed(lambda: fse.Encoder.load(_paths(c)["encoder"]))
+    texts = Path(c["corpus"])
+    if c["input"] == "list":
+        tokens = _tokens(c["corpus"])
+        out["prepare_s"], texts = _timed(lambda: fse.Corpus(tokens))
+        del tokens
+    out["encode_s"], rows = _timed(
+        lambda: encoder.encode(texts, dtype=c["dtype"], workers=c["workers"])
+    )
+    out["peak"] = _peak()  # with the rows held, as 1.1 holds them in its model
+    del rows
+    out["total_s"] = out["load_s"] + out["prepare_s"] + out["encode_s"]
+    return out
+
+
+def v1_hub(c: dict) -> dict:
+    """The trained, saved SIF model of 1.1 loaded and adding the vectors of the corpus with
+    train(update=True), which keeps its components (its bulk path; infer is serial)."""
+    import fse
+
+    out: dict = {"peak_before": _peak()}
+    out["load_s"], model = _timed(lambda: fse.SIF.load(str(_paths(c)["model"] / "model")))
+    model.workers = c["workers"]
+    sentences = fse.CorpusFile(c["corpus"])
+    if c["input"] == "list":
+        sentences = fse.IndexedList(_tokens(c["corpus"]))
+    out["encode_s"], _ = _timed(lambda: model.train(sentences, update=True))
+    out["peak"] = _peak()
+    out["total_s"] = out["load_s"] + out["encode_s"]
+    return out
+
+
 CHILDREN = {
     ("v2", "prepare"): v2_prepare,
     ("v2", "load"): v2_load,
@@ -337,12 +374,14 @@ CHILDREN = {
     ("v2", "queries"): v2_queries,
     ("v2", "query"): v2_query,
     ("v2", "infer"): v2_infer,
+    ("v2", "hub"): v2_hub,
     ("v1", "counts"): v1_counts,
     ("v1", "load"): v1_load,
     ("v1", "load_mmap"): v1_load,
     ("v1", "encode"): v1_encode,
     ("v1", "query"): v1_query,
     ("v1", "infer"): v1_infer,
+    ("v1", "hub"): v1_hub,
 }
 
 

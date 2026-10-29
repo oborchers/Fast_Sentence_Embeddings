@@ -32,7 +32,12 @@ once, so every number is one with a warm page cache. Cases:
   ``"blas"``; 1.1 has no batch and answers the 64 one by one), ``score`` of 1 and 1,000
   weight vectors;
 - ``infer``: 1, 1,000 and 100,000 paragraphs as token lists to float32, p50 of five calls
-  (1.1 ``infer`` runs in one thread whatever its workers).
+  (1.1 ``infer`` runs in one thread whatever its workers);
+- ``hub``: a SIF model as it comes from the hub, fitted and saved before (untimed): 2.0
+  loads the folded encoder and encodes the whole corpus (from the file, or token lists
+  read once into a ``fse.Corpus``, timed apart) into memory; 1.1 loads its trained model
+  and adds the corpus with ``train(update=True)``, its bulk path, which keeps the
+  components and runs with its workers.
 
 --quick (the default) runs the prioritized subset of ``_quick`` in about ten minutes,
 --full every combination of --models, --dtypes, --workers, --inputs and --targets; query
@@ -104,12 +109,18 @@ def grid(args) -> list[dict]:
     stores = [e for e in encodes if e["target"] == "store"]
     queries = {(e["model"], e["dtype"]): None for e in stores}
     infers = {(e["model"], e["workers"]): None for e in stores if e["dtype"] == "float32"}
+    hubs = {(e["dtype"], e["workers"]): None for e in stores if e["model"] == "SIF"}
     return [
         {"kind": "load"},
         {"kind": "load_mmap"},
         *encodes,
         *({"kind": "query", "model": m, "dtype": d} for m, d in queries),
         *({"kind": "infer", "model": m, "dtype": "float32", "workers": w} for m, w in infers),
+        *(
+            {"kind": "hub", "model": "SIF", "dtype": d, "workers": w, "input": i}
+            for (d, w) in hubs
+            for i in args.inputs
+        ),
     ]
 
 
@@ -232,6 +243,13 @@ METRICS = {
     ],
     "infer": [(f"infer {n} p50 ms", f"infer_{n}_ms", f"infer_{n}_ms", True) for n in INFER_SIZES]
     + [_PEAK],
+    "hub": [
+        ("load s", "load_s", "load_s", True),
+        ("corpus s", "prepare_s", None, False),
+        ("encode / train s", "encode_s", "encode_s", True),
+        ("total s", "total_s", "total_s", True),
+        _PEAK,
+    ],
 }
 METRICS["load_mmap"] = METRICS["load"]
 
