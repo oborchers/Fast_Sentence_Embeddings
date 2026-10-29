@@ -167,19 +167,20 @@ def test_an_encoder_with_subnormal_inputs_runs_on_the_host(mlx, caplog):
 
 
 @pytest.mark.parametrize(
-    ("vectors", "reason"),
-    [([[2.0**-62, 0.0], [1.0, 1.0]], "limit"), ([[2.0**61, 1.0], [1.0, 1.0]], "limit")],
+    ("vectors", "raw"),
+    [([[2.0**-62, 0.0], [1.0, 1.0]], 0), ([[2.0**61, 1.0], [1.0, 1.0]], 1)],
     ids=["tiny", "huge"],
 )
-def test_rows_near_a_limit_of_normalize_come_from_the_host(mlx, vectors, reason):
-    """Its sum of squares may be subnormal (or overflow): flagged only before normalize."""
+def test_rows_near_a_limit_of_normalize_come_from_the_host(mlx, vectors, raw):
+    """Its sum of squares may be subnormal (or overflow): flagged before normalize; the
+    huge row also without, as it is beyond the float16 range."""
     pool = PoolInput(np.array(vectors, F32), np.ones(2, F32))
     batch = Batch(0, np.array([0, 1, 2], np.int64), np.array([0, 1], np.uint32))
-    for steps, counted in (((), 0), ((Normalize(),), 1)):
+    for steps, counted in (((), raw), ((Normalize(),), 1)):
         prepared = mlx.prepare(pool, steps)
         out = np.empty((2, 2), F32)
         mlx.rows(batch, prepared, out)
-        assert fallbacks(prepared)[reason] == counted
+        assert fallbacks(prepared)["limit"] == counted
         want, _ = _rows(CpuBackend(), pool, steps, batch)
         assert out.tobytes() == want.tobytes()
 
@@ -295,3 +296,17 @@ def test_a_sentence_of_2_24_contributions_runs_on_the_host(mlx, k, host):
     assert got.tobytes() == want.tobytes()
     assert fallbacks(prepared)["large"] == int(host)
     assert device.launches > before  # the short sentence on the device either way
+
+
+def test_the_backend_keeps_no_rows_after_a_call(mlx):
+    """F5 of review 4: no cache of the last rows keeps an output array alive."""
+    import gc
+    import weakref
+
+    prepared = mlx.prepare(_pool(), (Normalize(),))
+    out = np.empty((4, 7), F32)
+    mlx.rows(_batch(), prepared, out)
+    ref = weakref.ref(out)
+    del out
+    gc.collect()
+    assert ref() is None

@@ -59,17 +59,58 @@ R2 = ([2.0**-63, F, 1, 4097, 1, 1], [2.0**-64, F, -(1 + 2.0**-11), 4097, -167854
 
 
 def test_a_row_the_cpu_rounds_beyond_float16_raises_in_the_store(mlx):
+    """R2 of review 3: rows decides, whatever the target, and gives the cpu's row (65504
+    on the device); a float16 store of it raises the cpu's error."""
     pool, batch = _one_sentence(*R2)
     cpu, _ = _run(CpuBackend(), pool, batch)
     out, prepared = _run(mlx, pool, batch)
-    assert cpu[0, 0] > 65504 >= out[0, 0]  # the witness: the cpu's row is beyond the range
+    assert cpu[0, 0] > 65504  # the witness: the cpu's row is beyond the range
+    assert out.tobytes() == cpu.tobytes()
+    assert mlx_module("fse._backends._mlx._backend").fallbacks(prepared)["limit"] == 1
     codes = np.empty(out.shape, np.float16)
     with pytest.raises(ValueError, match="float16") as on_cpu:
         CpuBackend().store(cpu, codes, None, 0)
     with pytest.raises(ValueError, match="float16") as on_mlx:
         mlx.store(out, codes, None, 0)
     assert str(on_mlx.value) == str(on_cpu.value)
-    assert mlx_module("fse._backends._mlx._backend").fallbacks(prepared)["limit"] == 1
+
+
+# F1 of review 4: the cpu's row 65488.3359375, the device's 65488, both in range; the
+# bound reaches the limit, so rows gives the cpu's row.
+EDGE = (R2[0], [*R2[1][:-1], 392928])
+
+
+@pytest.mark.parametrize("dtype", [np.float16, np.int8])
+def test_store_quantizes_exactly_the_rows_it_is_given(mlx, dtype):
+    """The original rows, a copy and a read-only view give the codes of the cpu's store of
+    the same rows (no state, no change of the input)."""
+    pool, batch = _one_sentence(*EDGE)
+    cpu, _ = _run(CpuBackend(), pool, batch)
+    out, _ = _run(mlx, pool, batch)
+    assert cpu[0, 0] == 65488.3359375
+    assert out.tobytes() == cpu.tobytes()
+    readonly = out.copy()
+    readonly.flags.writeable = False
+    scales = np.empty(1, F32) if dtype == np.int8 else None
+    want = np.empty(out.shape, dtype)
+    CpuBackend().store(cpu.copy(), want, scales, 0)
+    for rows in (out, out.copy(), readonly):
+        before = rows.tobytes()
+        codes = np.empty(out.shape, dtype)
+        mlx.store(rows, codes, scales, 0)
+        assert codes.tobytes() == want.tobytes()
+        assert rows.tobytes() == before
+
+
+def test_store_checks_its_input_like_the_cpu(mlx):
+    """F2 of review 4: the errors of check_store_input, not an AttributeError."""
+    rows = np.ones((1, 2), F32)
+    for codes in (None, [0, 0]):
+        with pytest.raises(ValueError, match="codes") as on_cpu:
+            CpuBackend().store(rows, codes, None, 0)
+        with pytest.raises(ValueError, match="codes") as on_mlx:
+            mlx.store(rows, codes, None, 0)
+        assert str(on_mlx.value) == str(on_cpu.value)
 
 
 R4 = ([2.0**-63, F, 1, 31], [2.0**-64, F, -(1 + 2.0**-11 + 2.0**-23), 1082401 * 2.0**103])

@@ -25,7 +25,8 @@ also the roundings a flush turns. From the kernel's ``sum |f| ||x||`` the backen
 every row (``_bounds``) and takes from the host the rows that could give another result
 or error than the cpu's: a value that is not finite, a sentence of 2**24 tokens, sums
 that could overflow on the cpu, before normalize a row that could be zero, tiny or huge,
-and before float16 storage a row that could reach its range. The host computes their task
+and a row that could reach the float16 range (for every target, as ``rows`` does not
+know the sink's dtype; a float16 store then raises the cpu's error). The host computes their task
 again and so raises the cpu backend's error, if any; every other row keeps the device's
 result. The first fallback of an encoder logs a warning, and the backend counts them by
 reason.
@@ -142,17 +143,6 @@ class _State:
     reason: str = ""
 
 
-@dataclass(frozen=True, eq=False)
-class _Pooled:
-    """The rows of the last ``rows`` call of a worker, for its ``store``: the bound of
-    every row (0 for the host's)."""
-
-    rows: ndarray
-    batch: Batch
-    state: _State
-    error: ndarray
-
-
 def _host_reason(pool: PoolInput, steps: Sequence[Step], oov: ndarray | None) -> str:
     """Why an encoder runs on the host for this backend, or ""."""
     if any(not isinstance(step, Normalize) for step in steps):
@@ -171,7 +161,6 @@ class MlxBackend:
         _load.core()  # raises if this machine cannot run it
         self.host = host
         self.device = device
-        self._last = threading.local()  # the _Pooled of each worker's last rows
 
     def capabilities(self) -> Capabilities:
         """The cpu host's dimensions: wider rows than the device takes run on the host."""
@@ -195,32 +184,32 @@ class MlxBackend:
         check_out(out, batch, prepared)
         state = prepared.state
         assert isinstance(state, _State)
-        error = self._rows(batch, state, out)
-        self._last.pooled = _Pooled(out, batch, state, error)
+        self._rows(batch, state, out)
 
-    def _rows(self, batch: Batch, state: _State, out: ndarray) -> ndarray:
-        """The rows of ``batch`` into ``out``; the bound of every row."""
+    def _rows(self, batch: Batch, state: _State, out: ndarray) -> None:
+        """The rows of ``batch`` into ``out``."""
         if batch.n_sentences == 0:
-            return np.zeros(0)
+            return
         table = state.table
         if table is None:
             state.fallbacks.count(state.reason)
             self.host.rows(batch, state.host, out)
-            return np.zeros(batch.n_sentences)
+            return
         size = _kernels.size(batch)
         if size > _kernels.MAX_CONTRIBUTIONS or (
             size > self.device.group_tokens and batch.n_sentences > 1
         ):  # more than one group, or perhaps a sentence the device must not take
-            return self._large(batch, state, out)
+            self._large(batch, state, out)
+            return
         task = _kernels.task(batch, table)
         if task is None:  # an error the cpu backend reports, in its words
             self.host.rows(batch, state.host, out)
-            return np.zeros(batch.n_sentences)
-        return self._device_rows(batch, state, table, task, out)
+            return
+        self._device_rows(batch, state, table, task, out)
 
     def _device_rows(
         self, batch: Batch, state: _State, table: _kernels.Table, task: _kernels.Task, out
-    ) -> ndarray:
+    ) -> None:
         """The rows of ``task`` on the device, the flagged ones from the host."""
         normalize = bool(state.host.steps)  # normalize alone: the others run on the host
         in_kernel = normalize and _kernels.normalizes(table)
@@ -243,13 +232,16 @@ class MlxBackend:
                 out[bad] = 0  # normalize keeps a zero row and raises for none
                 self.host.steps(out, state.host, batch.first_row, out)
             error = np.where(n > 0, _bounds.after_normalize(error, low, table.dim), 0.0)
+        else:
+            # The sink's dtype is unknown here: a row that could reach the float16 range on
+            # the cpu takes the cpu's row for every target, and a float16 store raises its
+            # error (a normalized row is within 1 on both sides).
+            bad |= _bounds.beyond_float16(out, error) & (n > 0)
         if bad.any():  # the kernel's flags, or "limit" for the bounds alone
             state.fallbacks.count(
                 _kernels.reason(functools.reduce(operator.or_, flags[bad].tolist()))
             )
             self._replace(batch, state, out, bad)
-            error[bad] = 0
-        return error
 
     def _replace(self, batch: Batch, state: _State, out: ndarray, bad: ndarray) -> None:
         """The rows ``bad`` from the host, which computes the whole batch first, so that
@@ -258,21 +250,19 @@ class MlxBackend:
         self.host.rows(batch, state.host, host)
         out[bad] = host[bad]
 
-    def _large(self, batch: Batch, state: _State, out: ndarray) -> ndarray:
+    def _large(self, batch: Batch, state: _State, out: ndarray) -> None:
         """A batch beyond one device group (or that may hold a sentence of K >= 2**24) in
         runs of sentences of at most a group, after the host has computed it whole (which
         raises the cpu's error, if any): a sentence of more than a group runs alone, one of
         K >= 2**24 keeps the host's row (``large``); a sentence's path depends on its own
         K only, never on the group."""
         self.host.rows(batch, state.host, out)
-        error = np.zeros(batch.n_sentences)
         limit = _kernels.MAX_CONTRIBUTIONS
         for begin, end, part in _kernels.split(batch, min(self.device.group_tokens, limit), limit):
             if part is None:
                 state.fallbacks.count("large")
             else:
-                error[begin:end] = self._rows(part, state, out[begin:end])
-        return error
+                self._rows(part, state, out[begin:end])
 
     def gram_block(self, rows: ndarray) -> ndarray:
         return self.host.gram_block(rows)
@@ -297,15 +287,7 @@ class MlxBackend:
         return self.host.scores(stored, scales, weights, bias)
 
     def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
-        """Stage 5 on the host. Before float16 storage of the rows this worker's last
-        ``rows`` gave, a row that could reach the float16 range on the cpu takes the
-        host's row, so that the store raises the cpu's error if there is one."""
-        pooled = getattr(self._last, "pooled", None)
-        if codes.dtype == np.float16 and pooled is not None and pooled.rows is rows:
-            near = _bounds.beyond_float16(rows, pooled.error)
-            if near.any():
-                pooled.state.fallbacks.count("limit")
-                self._replace(pooled.batch, pooled.state, rows, near)
+        """Stage 5 on the host: the exact quantization of ``rows`` (checked there)."""
         self.host.store(rows, codes, scales, first_row)
 
 
