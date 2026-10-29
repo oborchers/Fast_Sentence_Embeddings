@@ -171,3 +171,39 @@ def test_every_combination_of_steps_is_the_reference(dtype, fasttext):
         backend.rows(batch, prepared, out)
         want = _reference.postprocess(rows, steps, 5) if steps else rows
         assert out.view(np.uint32).tolist() == want.view(np.uint32).tolist(), steps
+
+
+@pytest.mark.parametrize(
+    "steps", [(), (Normalize(),), (Project(np.ascontiguousarray(np.eye(2, 4, dtype=F32))),)]
+)
+def test_steps_alone_give_the_bits_of_rows(steps):
+    """What a device backend runs on the host after it pooled: the bits of rows."""
+    backend, pool = CpuBackend(), _pool()
+    prepared = backend.prepare(pool, steps)
+    want = np.empty((3, prepared.output_dim), F32)
+    backend.rows(_batch(), prepared, want)
+    pooled = _reference.pool_weighted_mean(_batch(), pool.vectors, pool.weights)
+    out = np.empty_like(want)
+    backend.steps(pooled.copy(), prepared, 5, out)
+    assert out.tobytes() == want.tobytes()
+    if not any(isinstance(s, Project) for s in steps):
+        backend.steps(pooled, prepared, 5, pooled)  # in place
+        assert pooled.tobytes() == want.tobytes()
+
+
+def test_steps_check_their_arrays():
+    backend = CpuBackend()
+    basis = np.ascontiguousarray(np.eye(2, 4, dtype=F32))
+    prepared = backend.prepare(_pool(), (Project(basis),))
+    pooled = np.ones((3, 4), F32)
+    with pytest.raises(ValueError, match=r"out must be .* of shape \(3, 2\)"):
+        backend.steps(pooled, prepared, 0, np.empty((3, 4), F32))
+    with pytest.raises(ValueError, match=r"pooled must be .* of shape \(3, 4\)"):
+        backend.steps(pooled[:2], prepared, 0, np.empty((3, 2), F32))
+    square = backend.prepare(_pool(), (Project(np.eye(4, dtype=F32)),))
+    with pytest.raises(ValueError, match="a project cannot run in place"):
+        backend.steps(pooled, square, 0, pooled)
+    with pytest.raises(ValueError, match="the same array or not overlap"):
+        backend.steps(pooled, square, 0, pooled.view())
+    with pytest.raises(TypeError, match="prepared by the cpu backend"):
+        backend.steps(pooled, Prepared("numpy", _pool(), (), 4, 4, None), 0, pooled)
