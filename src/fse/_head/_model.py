@@ -25,11 +25,12 @@ from typing import Any
 import numpy as np
 from numpy import ndarray
 
-from fse._backends import get_backend
+from fse._backends import PoolInput, get_backend
 from fse._container import (
     CHECKSUM_PREFIX,
     CREATED_BY_KEY,
     FINGERPRINT_KEY,
+    CorruptArtifactError,
     SafetensorsContainer,
     checksum,
     fingerprint,
@@ -47,6 +48,16 @@ from fse._wordvectors import _created_by
 from . import _content, _format
 from ._content import HeadContent
 from ._outputs import output_identity
+
+# The tensors of a standalone file made new by the fold, and the tensors of the encoder
+# that the fold reads, by their fields in a PoolInput.
+_FOLDED = frozenset({"vectors", "ngrams"})
+_POOL_TENSORS = {
+    "vectors": "vectors",
+    "scales": "scales",
+    "ngram_vectors": "ngrams",
+    "ngram_scales": "ngram_scales",
+}
 
 
 class LinearModel:
@@ -186,15 +197,16 @@ class LinearModel:
         known.update(self._checksums or {})
         return out, keys, known
 
-    def _standalone_artifact(self) -> tuple[dict[str, ndarray], dict[str, str], None]:
+    def _standalone_artifact(self) -> tuple[dict[str, ndarray], dict[str, str], dict | None]:
         """The folded encoder part (the table times A, float32, no steps) and the head
-        without its weight."""
-        spec = self._encoder._spec
+        without its weight. The table is folded from a copy checked against the checksums
+        it was loaded with, and every tensor kept as it is is compared while it is written,
+        so data that changed since the load (a mapped file) never get new checksums."""
         weight = self._content.weight
         assert weight is not None
-        pool = fold(get_backend("cpu"), spec.pool_input(), weight, usable_cpus())
-        wv = self._encoder.word_vectors
-        table, keys, _ = wv._parts()
+        recorded = self._encoder._checksums
+        pool = fold(get_backend("cpu"), self._verified_pool(recorded), weight, usable_cpus())
+        table, keys, _ = self._encoder.word_vectors._parts()
         table = {k: v for k, v in table.items() if k in ("vocab.bytes", "vocab.offsets")}
         table["vectors"] = pool.vectors
         if pool.ngram_vectors is not None:
@@ -203,11 +215,34 @@ class LinearModel:
         keys.update({"fse.dim": str(self._content.k), "fse.dtype": "float32"})
         folded = dataclasses.replace(self._encoder._content, steps=())  # tokenizer kept
         tensors, metadata = encoder_artifact(folded, table, keys)
-        sums = {k: checksum(v) for k, v in tensors.items()}
+        sums = {k: checksum(v) for k, v in tensors.items() if k in _FOLDED or recorded is None}
+        sums.update({k: recorded[k] for k in tensors if recorded is not None and k not in _FOLDED})
         of_encoder = _format.encoder_fingerprint(tensors, metadata, sums)
         head = dataclasses.replace(self._content, weight=None, normalized=False, standalone=True)
         out, keys = _format.to_artifact(head, tensors, metadata, of_encoder)
-        return out, keys, None
+        if recorded is None:
+            return out, keys, None  # made in memory: the arrays are the encoder's own
+        expected = {**sums, **{n: checksum(a) for n, a in out.items() if n in _format.TENSORS}}
+        return out, keys, expected
+
+    def _verified_pool(self, recorded: dict[str, str] | None) -> PoolInput:
+        """The pool of the encoder; for a loaded one, copies of its rows and scales that
+        match the checksums they were loaded with."""
+        pool = self._encoder._spec.pool_input()
+        if recorded is None:
+            return pool
+        copies = {}
+        for field, name in _POOL_TENSORS.items():
+            array = getattr(pool, field)
+            if array is not None:
+                copy = np.array(array, copy=True)
+                if checksum(copy) != recorded.get(name):
+                    raise CorruptArtifactError(
+                        f"tensor {name} of {self._encoder._path} changed since it was loaded; "
+                        "nothing was written"
+                    )
+                copies[field] = copy
+        return dataclasses.replace(pool, **copies)
 
     @classmethod
     def _load(cls, path: Any, mmap: bool = False):

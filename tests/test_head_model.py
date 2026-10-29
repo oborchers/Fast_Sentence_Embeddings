@@ -179,3 +179,39 @@ def test_a_model_on_a_loaded_encoder_saves(tmp_path):
     loaded = fse.Classifier.load(tmp_path / "m.safetensors")
     assert loaded.fingerprint == model.fingerprint
     assert loaded.encoder_fingerprint == encoder.fingerprint
+
+
+@pytest.mark.parametrize("source", ["encoder", "model"])
+def test_a_standalone_export_refuses_data_that_changed_since_the_load(tmp_path, source):
+    """A mapped file is read without hashing; when its rows differ from their checksums the
+    export, which folds a checked copy, raises instead of writing them with new ones."""
+    from fse import CorruptArtifactError
+
+    encoder = finished(fasttext=True, normalize=False)
+    path = tmp_path / "file.safetensors"
+    (encoder if source == "encoder" else _classifier(encoder, k=2)).save(path)
+    rows = encoder.word_vectors.stored_vectors.tobytes()
+    data = bytearray(path.read_bytes())
+    at = data.find(rows[:64])
+    assert at > 0
+    data[at : at + 8] = bytes(b ^ 0xFF for b in rows[:8])
+    path.write_bytes(bytes(data))
+    if source == "encoder":
+        model = _classifier(fse.Encoder.load(path, mmap=True), k=2)
+    else:
+        model = fse.Classifier.load(path, mmap=True)
+    with pytest.raises(CorruptArtifactError, match="changed since it was loaded"):
+        model.save(tmp_path / "after.safetensors", standalone=True)
+    assert not (tmp_path / "after.safetensors").exists()
+
+
+def test_a_standalone_export_of_a_loaded_model_keeps_its_checksums(tmp_path):
+    model = _classifier(finished("int8", fasttext=True, normalize=False), k=2)
+    model.save(tmp_path / "m.safetensors")
+    loaded = fse.Classifier.load(tmp_path / "m.safetensors", mmap=True)
+    loaded.save(tmp_path / "s.safetensors", standalone=True)
+    model.save(tmp_path / "s0.safetensors", standalone=True)
+    assert (
+        fse.Classifier.load(tmp_path / "s.safetensors").fingerprint
+        == fse.Classifier.load(tmp_path / "s0.safetensors").fingerprint
+    )
