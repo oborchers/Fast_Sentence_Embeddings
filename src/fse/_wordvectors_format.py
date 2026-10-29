@@ -16,6 +16,7 @@ from __future__ import annotations
 import codecs
 import json
 from collections.abc import Sequence
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -382,3 +383,29 @@ def _new_metadata(vectors: ndarray, fasttext: Any) -> dict[str, str]:
         metadata["fse.fasttext"] = canonical_json(fasttext._asdict())
         metadata["fse.ngram_hash"] = NGRAM_HASH
     return metadata
+
+
+def _view(array: ndarray | None) -> ndarray | None:
+    """A new read-only header on internal data: neither writable nor reshaping the data."""
+    return None if array is None else array.view()
+
+
+def _frozen(array: ndarray) -> ndarray:
+    copy = np.array(array, copy=True, order="C")
+    copy.setflags(write=False)
+    return copy
+
+
+def _read_only(array: ndarray) -> ndarray:
+    """``array`` itself, made read-only, if it is C-contiguous; otherwise a copy."""
+    if not array.flags.c_contiguous:
+        return _frozen(array)
+    array.setflags(write=False)
+    return array
+
+
+def _created_by() -> str:
+    try:
+        return f"fse {version('fse')}"
+    except PackageNotFoundError:  # pragma: no cover
+        return "fse"

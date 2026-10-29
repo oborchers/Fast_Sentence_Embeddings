@@ -386,4 +386,4 @@ def _embedded(
         FINGERPRINT_KEY: recorded,
         **{CHECKSUM_PREFIX + k: checksums[k] for k in tensors},
     }
-    return WordVectors(tensors, loaded, path)
+    return WordVectors._open(tensors, loaded, path)

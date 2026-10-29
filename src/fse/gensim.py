@@ -69,12 +69,9 @@ def from_gensim(
     if scales is not None:
         kwargs["scales"] = scales
     # Codes and vocabulary are new arrays of this call; gensim's float32 rows are copied.
-    return WordVectors.from_arrays(
-        vectors,
-        vocab_bytes=vocab_bytes,
-        vocab_offsets=vocab_offsets,
-        _copy=dtype == "float32",
-        **kwargs,
+    fasttext_params = kwargs.pop("fasttext", None)
+    return WordVectors._from_arrays(
+        vectors, None, vocab_bytes, vocab_offsets, fasttext_params, kwargs, copy=dtype == "float32"
     )
 
 

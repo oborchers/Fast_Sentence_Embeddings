@@ -420,3 +420,11 @@ def test_the_vocabulary_fingerprint_depends_on_the_words_and_their_order_alone(t
     for mmap in (False, True):
         loaded = WordVectors.load(tmp_path / "wv.safetensors", mmap=mmap)
         assert loaded.vocabulary_fingerprint == wv.vocabulary_fingerprint
+
+
+def test_word_vectors_are_made_with_from_arrays_or_load():
+    import inspect
+
+    with pytest.raises(TypeError, match=r"from_arrays or WordVectors\.load"):
+        WordVectors({}, {})
+    assert "_copy" not in inspect.signature(WordVectors.from_arrays).parameters
