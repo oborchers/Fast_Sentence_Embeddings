@@ -110,13 +110,18 @@ def test_a_corpus_is_read_once_for_fit_and_encode(monkeypatch, dtype, fold, kind
     recipe = fse.SIF(tokenizer="external", components=2, fold=fold)
     want_encoder = recipe.fit(wv, sentences, counts=counts)
     want = want_encoder.encode(sentences, dtype=dtype, workers=2)
-    builds = []
+    from fse import _native
+
+    builds, joins = [], []
     source = _text.TokenListSource if kind == "tokens" else _text.StringSource
     real = source.__init__
     monkeypatch.setattr(source, "__init__", lambda self, *a: builds.append(1) or real(self, *a))
+    join = _native.join_token_lists
+    monkeypatch.setattr(_native, "join_token_lists", lambda *a: joins.append(1) or join(*a))
     corpus = fse.Corpus(sentences)
     encoder = recipe.fit(wv, corpus, counts=counts, workers=2)
     rows = encoder.encode(corpus, dtype=dtype, workers=2)
     assert len(builds) == 1
+    assert len(joins) == (1 if kind == "tokens" else 0)  # one native join of the lists
     assert encoder.fingerprint == want_encoder.fingerprint
     assert _bits(rows) == _bits(want)

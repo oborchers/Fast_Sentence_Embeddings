@@ -115,3 +115,20 @@ def test_a_corpus_does_not_change():
     assert len(corpus) == 2
     again = fse.Corpus(corpus)
     assert again._source is corpus._source  # shares the built source
+
+
+class BrokenSplit(str):
+    def split(self):  # what the Python path of token lists calls
+        raise TypeError("broken split")
+
+
+class ExplodingList(list):
+    def __iter__(self):
+        raise RuntimeError("a later row was read")
+
+
+def test_no_later_row_is_read_after_a_type_error():
+    texts = [[BrokenSplit("a")], ExplodingList(["b"])]
+    for make in (fse.Corpus, lambda t: opened(t, "external").__enter__()):
+        with pytest.raises(TypeError, match="broken split"):
+            make(texts)

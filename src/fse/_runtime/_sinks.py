@@ -201,6 +201,8 @@ class GrowingRows(_Rows):
 
     def commit(self, first_row: int, rows: Stored) -> None:
         self._check_commit(first_row, rows)
+        if self.dtype == "int8" and isinstance(rows, tuple):  # a plain (codes, scales)
+            rows = QuantizedRows(*rows)
         self._parts.append(rows)
 
     def result(self) -> Rows:

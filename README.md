@@ -71,7 +71,7 @@ Which call to use when:
 | save and load an encoder | `encoder.save("encoder.safetensors")`, `fse.Encoder.load("encoder.safetensors")` |
 
 - `encode` returns float32 rows by default; `dtype="float16"` gives float16 rows and `dtype="int8"` a `fse.QuantizedRows` (int8 codes and one scale per row).
-- A folded encoder (`encoder.folded`, the default when something was learned) holds its own word vectors. An unfolded one, such as `fse.Average()` without `dim`, needs the word vectors it was fitted on: `fse.Encoder.load(path, wv)`.
+- A folded encoder (`encoder.folded`: by default when the recipe learned components or a projection) holds its own word vectors and loads with `fse.Encoder.load(path)`. An unfolded one, such as `fse.Average()` without `dim` or `fse.USIF(components=0)`, needs the word vectors it was fitted on: `fse.Encoder.load(path, wv)`.
 - `store.search` returns a `fse.SearchResult` with the `ids` (positions in the store) and the cosine `scores`, best first. Its default `mode="auto"` takes the exact arithmetic of fse for up to 8 queries at once and BLAS above, whose bits depend on how many queries are asked together; `mode="exact"` gives the same results for every batch.
 - Texts are tokenized by `fse_words@1` by default: lowercase, split at whitespace and punctuation, contractions expanded (ARCHITECTURE.md, "Tokenizers").
 

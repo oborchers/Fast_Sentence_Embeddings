@@ -21,7 +21,7 @@ from typing import Any
 from numpy import ndarray
 
 from fse._contract import EXTERNAL_TOKENIZER
-from fse._text import StringSource, TokenListSource
+from fse._text import RowTypeError, StringSource, TokenListSource
 
 COLLECTIONS = (list, tuple, ndarray)
 
@@ -123,34 +123,15 @@ def build(texts: Any, tokens: bool) -> StringSource | TokenListSource:
     """The source of a collection; a row of the other kind than row 0 raises naming both."""
     try:
         return TokenListSource(texts) if tokens else StringSource(texts)
-    except TypeError as error:
-        _raise_if_mixed(texts, tokens, str(error))
-        raise
-
-
-def _raise_if_mixed(texts: Any, tokens: bool, raised: str):
-    """Raise naming both rows if the type error the builder raised is the one of the
-    first row of the wrong type, and that row is of the other kind; any other type
-    error (such as one a str subclass raises) stands."""
-    for i, row in enumerate(texts):
-        if not _wrong_type(row, tokens):
-            continue
-        kind = type(row).__name__
-        said = (
-            f"sentence {i} is a {kind}, not a list of str"
-            if tokens
-            else f"string {i} is a {kind}, not a str"
-        )
+    except RowTypeError as error:
+        # Only the row the builder named is read again, by index: no other row and no
+        # method of a row runs, so no error of user code can take its place.
+        row = texts[error.row]
         other = isinstance(row, str) if tokens else isinstance(row, list | tuple)
-        if other and raised == said:
-            raise TypeError(
-                f"row {i} is a {type(row).__name__}, but row 0 is a {type(texts[0]).__name__}: "
-                "texts are either str or token lists (lists or tuples of str), not both"
-            ) from None
-        return
-
-
-def _wrong_type(row: Any, tokens: bool) -> bool:
-    if not tokens:
-        return not isinstance(row, str)
-    return not isinstance(row, list | tuple) or not all(isinstance(t, str) for t in row)
+        if not other:
+            raise
+        raise TypeError(
+            f"row {error.row} is a {type(row).__name__}, but row 0 is a "
+            f"{type(texts[0]).__name__}: texts are either str or token lists (lists or tuples "
+            "of str), not both"
+        ) from None

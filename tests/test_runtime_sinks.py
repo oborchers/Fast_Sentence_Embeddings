@@ -164,3 +164,13 @@ def test_a_memory_sink_gives_int8_rows_as_encode_does():
     assert isinstance(got, fse.QuantizedRows)
     assert got.codes.tobytes() == want.codes.tobytes()
     assert got.scales.tobytes() == want.scales.tobytes()
+
+
+def test_a_memory_sink_wraps_one_plain_commit_of_int8_rows():
+    import fse
+
+    sink = fse.MemorySink(3, "int8")
+    codes, scales = sink.target(0, 2)
+    sink.commit(0, (codes, scales))  # a plain tuple, the only commit
+    assert isinstance(sink.result(), fse.QuantizedRows)
+    assert sink.result().codes is codes

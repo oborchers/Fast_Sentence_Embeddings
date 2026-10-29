@@ -336,10 +336,19 @@ def _check_container(texts: object, what: str) -> None:
         raise TypeError(f"{what} must be a list, tuple or numpy array, not {type(texts).__name__}")
 
 
+class RowTypeError(TypeError):
+    """A row of a collection is not of the type its kind needs (fse.Corpus names both
+    rows when it is of the other kind); ``row`` is its index."""
+
+    def __init__(self, message: str, row: int):
+        super().__init__(message)
+        self.row = row
+
+
 def encode_string(text: object, what: str, row: int) -> bytes:
     """The UTF-8 bytes of sentence ``row``; a non-str or a lone surrogate raises."""
     if not isinstance(text, str):
-        raise TypeError(f"{what} {row} is a {type(text).__name__}, not a str")
+        raise RowTypeError(f"{what} {row} is a {type(text).__name__}, not a str", row)
     try:
         return text.encode("utf-8")
     except UnicodeEncodeError as err:
@@ -389,7 +398,7 @@ def _token_lists(sentences: Any) -> tuple[bytes, ndarray]:
     joined = []
     for i, tokens in enumerate(sentences):
         if not isinstance(tokens, list | tuple):
-            raise TypeError(f"sentence {i} is a {type(tokens).__name__}, not a list of str")
+            raise RowTypeError(f"sentence {i} is a {type(tokens).__name__}, not a list of str", i)
         for token in tokens:
             if not isinstance(token, str):
                 raise TypeError(f"sentence {i} holds a {type(token).__name__}, not a str")
