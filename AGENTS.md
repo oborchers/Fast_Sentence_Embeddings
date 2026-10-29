@@ -38,8 +38,9 @@ Never wait for pull request checks or CI in the foreground. Start the wait as a 
 
 - Validate strictly and never fail silently: raise a clear exception instead of coercing, ignoring or truncating input. Decorate new public entry points with `fse._validation.validate_arguments` unless they are called per element or receive bulk data; measure the overhead when in doubt. See ARCHITECTURE.md.
 - 2.0 artifacts store no class paths; never rename or reuse their persistence names (identifiers such as `weighted_mean@1`, `fse.` metadata keys, tensor names). See ARCHITECTURE.md, section 2.0 design.
-- New 2.0 code follows the numerical contract in ARCHITECTURE.md and matches the numpy reference in `fse._reference` bit for bit; compare bit patterns, not values. Any change of arithmetic bumps the version of the aggregation or step it changes.
-- Every backend passes `tests/test_conformance.py`; never weaken its comparison or its meta-tests.
+- New 2.0 code on the CPU follows the numerical contract in ARCHITECTURE.md and matches the numpy reference in `fse._reference` bit for bit; compare bit patterns, not values. Any change of arithmetic bumps the version of the aggregation or step it changes.
+- Device backends (MLX, later CUDA) follow the tolerance contract in ARCHITECTURE.md instead (maintainer's decision of 29.10.2026): every row within its bound of the cpu backend (an acceptance bound the conformance suites check; rows where it could fail are detected and computed by the host), deterministic per device, and the errors of the cpu backend. An operation they leave to their host is bit-identical to the cpu operation on the same inputs.
+- Every backend passes the conformance suite (`tests/test_conformance.py` and its siblings): CPU backends bit for bit, device backends under the tolerance contract. Never weaken a comparison, the bound or the meta-tests; only the maintainer changes the bound.
 - Do not hard-code vocabulary positions in tests. gensim versions order words with equal counts differently; derive expectations from `key_to_index`.
 - The dependency lower bounds in pyproject.toml must match the pins of the minimum job in `.github/workflows/ci.yml`.
 - pytest treats warnings as errors. Add a narrow, commented `filterwarnings` ignore only for warnings from third-party code.
