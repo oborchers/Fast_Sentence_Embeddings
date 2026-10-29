@@ -39,17 +39,17 @@ class Classifier(LinearModel):
     @validate_arguments
     def from_sklearn(cls, encoder: Any, model: Any, *, normalized: bool | None = None):
         """The head of a fitted scikit-learn classifier (or a Pipeline of an optional
-        ``Normalizer``, an optional ``StandardScaler`` and the classifier) on the rows of
+        ``StandardScaler`` and the classifier) on the rows of
         ``encoder``, with the probabilities of the installed version's rule. Reads its
         attributes and imports nothing of scikit-learn. ``normalized``: whether it was
-        trained on normalized vectors; by default the encoder's setting (a ``Normalizer``
-        implies True)."""
+        trained on normalized vectors; by default the encoder's setting. A Pipeline with a
+        ``Normalizer`` raises: train on a normalizing encoder's vectors instead."""
         found = _sklearn.read(model, "classification")
         return cls._build(
             encoder,
             found.weight,
             found.bias,
-            normalized=_sklearn.flag(found, normalized),
+            normalized=normalized,
             link=found.link,
             labels=found.labels,
             source=found.source,

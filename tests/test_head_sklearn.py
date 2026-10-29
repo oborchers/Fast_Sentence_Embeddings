@@ -236,7 +236,7 @@ def test_two_targets():
     np.testing.assert_allclose(model.predict(SENTENCES), sk.predict(x), atol=1e-5)
 
 
-def test_pipelines_with_a_normalizer_and_a_scaler():
+def test_pipelines_with_a_scaler():
     encoder = finished(normalize=False)
     x, y = _data(encoder)
     scaled = _fit(
@@ -249,19 +249,6 @@ def test_pipelines_with_a_normalizer_and_a_scaler():
     np.testing.assert_allclose(
         model.decision_function(SENTENCES), scaled.decision_function(x), atol=1e-4
     )
-    both = pipeline.make_pipeline(
-        preprocessing.Normalizer(),
-        preprocessing.StandardScaler(),
-        linear_model.LogisticRegression(),
-    )
-    both = _fit(both, x, y)
-    model = fse.Classifier.from_sklearn(encoder, both)
-    assert model.normalized  # a Normalizer first: the head reads normalized vectors
-    np.testing.assert_allclose(
-        model.decision_function(SENTENCES), both.decision_function(x), atol=1e-4
-    )
-    with pytest.raises(ValueError, match="normalized=False contradicts it"):
-        fse.Classifier.from_sklearn(encoder, both, normalized=False)
     passthrough = _fit(
         pipeline.Pipeline([("skip", "passthrough"), ("lr", linear_model.LogisticRegression())]),
         x,
@@ -279,7 +266,7 @@ def test_pipelines_with_a_normalizer_and_a_scaler():
                 preprocessing.Normalizer(),
                 linear_model.LogisticRegression(),
             ),
-            "only an optional Normalizer",
+            "Pipeline with a Normalizer is not imported",
         ),
         (
             lambda: pipeline.make_pipeline(
@@ -291,7 +278,7 @@ def test_pipelines_with_a_normalizer_and_a_scaler():
             lambda: pipeline.make_pipeline(
                 preprocessing.Normalizer(norm="l1"), linear_model.LogisticRegression()
             ),
-            "norm='l2'",
+            "Pipeline with a Normalizer is not imported",
         ),
         (
             lambda: OneVsRestClassifier(linear_model.LogisticRegression()),
@@ -435,3 +422,29 @@ def test_multi_label_ridge_classifiers_are_refused(make):
         fse.Classifier.from_sklearn(encoder, sk)
     single = _fit(make(), x, indicator[:, 0])
     assert fse.Classifier.from_sklearn(encoder, single).n_outputs == 1
+
+
+def test_a_pipeline_with_a_normalizer_is_refused_with_the_way_out():
+    """scikit-learn leaves rows of a norm below 10 * eps as they are; normalize@1 does not."""
+    tiny = np.array([[1e-8, 0.0]], dtype=np.float32)
+    assert preprocessing.Normalizer().fit_transform(tiny).tolist() == tiny.tolist()
+    encoder = finished(normalize=False)
+    x, y = _data(encoder)
+    for steps in (
+        [preprocessing.Normalizer(), linear_model.LogisticRegression()],
+        [
+            preprocessing.Normalizer(),
+            preprocessing.StandardScaler(),
+            linear_model.LogisticRegression(),
+        ],
+    ):
+        sk = _fit(pipeline.make_pipeline(*steps), x, y)
+        with pytest.raises(
+            ValueError, match=r"normalize=True.*from_arrays\(\.\.\., normalized=True\)"
+        ):
+            fse.Classifier.from_sklearn(encoder, sk)
+    regression = _fit(
+        pipeline.make_pipeline(preprocessing.Normalizer(), linear_model.Ridge()), x, y.astype(float)
+    )
+    with pytest.raises(ValueError, match="Normalizer is not imported"):
+        fse.Regressor.from_sklearn(encoder, regression)

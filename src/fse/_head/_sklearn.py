@@ -9,9 +9,11 @@
 Nothing of scikit-learn is imported: an estimator is known by the name of its class in a
 module of ``sklearn``, and its head by ``coef_``, ``intercept_``, ``classes_`` and the
 attributes that decide its probabilities (``multi_class``, ``solver``, ``loss``), as the
-installed version applies them. A ``Pipeline`` may hold an optional ``Normalizer(norm="l2")``
-(the head was trained on normalized vectors) and an optional ``StandardScaler``, which folds
-into A and b in float64 before the head is rounded once to float32. Anything else raises.
+installed version applies them. A ``Pipeline`` may hold an optional ``StandardScaler``
+before the estimator, which folds into A and b in float64 before the head is rounded once
+to float32. A ``Normalizer`` is refused: it leaves rows of a norm below 10 * eps as they
+are, where ``normalize@1`` scales every nonzero row, so a head behind it would read other
+rows. Anything else raises too.
 """
 
 from __future__ import annotations
@@ -28,29 +30,15 @@ from numpy import ndarray
 @dataclass(frozen=True)
 class Found:
     """A head read from scikit-learn: A (k, d) and b (k,) in float64, the link name
-    (``sigmoid``, ``softmax``, ``ovr`` or ``none``), the labels of a classifier, whether
-    a ``Normalizer`` came first, and the estimator it came from."""
+    (``sigmoid``, ``softmax``, ``ovr`` or ``none``), the labels of a classifier and the
+    estimator it came from."""
 
     weight: ndarray
     bias: ndarray
     link: str
     labels: list | None
-    normalizer: bool
     source: str
     flat: bool = True  # coef_ of one dimension: predict gives (n,), not (n, 1)
-
-
-def flag(found: Found, normalized: bool | None) -> bool | None:
-    """The flag of the head: True after a ``Normalizer`` (False then raises), else as given
-    (None: the encoder's setting)."""
-    if found.normalizer:
-        if normalized is False:
-            raise ValueError(
-                "the pipeline normalizes its input (Normalizer), so its head reads normalized "
-                "vectors; normalized=False contradicts it"
-            )
-        return True
-    return normalized
 
 
 def _name(model: Any) -> str:
@@ -190,12 +178,12 @@ def _estimator(model: Any, task: str) -> Found:
     weight, bias = _linear(model)
     if task == "regression":
         flat = np.ndim(getattr(model, "coef_", None)) == 1
-        return Found(weight, bias, "none", None, False, name, flat)
+        return Found(weight, bias, "none", None, name, flat)
     labels = _classes(model, len(weight))
     link = _CLASSIFIERS[name](model, len(weight))
     if link == "softmax2":  # a binary multinomial model: one logit z, softmax of [-z, z]
         link = "softmax"
-    return Found(weight, bias, link, labels, False, name)
+    return Found(weight, bias, link, labels, name)
 
 
 def _scaled(found: Found, scaler: Any) -> Found:
@@ -234,26 +222,25 @@ def _pipeline_steps(model: Any) -> list:
 
 
 def read(model: Any, task: str) -> Found:
-    """The head of a fitted estimator, or of a Pipeline of an optional ``Normalizer``, an
-    optional ``StandardScaler`` and the estimator."""
+    """The head of a fitted estimator, or of a Pipeline of an optional ``StandardScaler``
+    and the estimator."""
     if _name(model) != "Pipeline":
         return _estimator(model, task)
     *before, last = _pipeline_steps(model)
+    if any(_name(step) == "Normalizer" for step in before):
+        raise ValueError(
+            "a Pipeline with a Normalizer is not imported: scikit-learn leaves rows whose norm "
+            "is below 10 * eps unchanged, where fse's normalize@1 scales every nonzero row. "
+            "Train the head on the vectors of an encoder that normalizes (normalize=True) and "
+            "import the estimator alone, or use from_arrays(..., normalized=True)"
+        )
     found = _estimator(last, task)
-    normalizer = bool(before) and _name(before[0]) == "Normalizer"
-    if normalizer:
-        if getattr(before[0], "norm", None) != "l2":
-            raise ValueError(
-                f"a Normalizer before the head must use norm='l2', not {before[0].norm!r}"
-            )
-        before = before[1:]
     if before and _name(before[0]) == "StandardScaler":
         found = _scaled(found, before[0])
         before = before[1:]
     if before:
         names = ", ".join(type(step).__name__ for step in before)
         raise ValueError(
-            f"the Pipeline holds {names}; only an optional Normalizer(norm='l2') and an "
-            "optional StandardScaler may come before the head, in this order"
+            f"the Pipeline holds {names}; only an optional StandardScaler may come before the head"
         )
-    return replace(found, normalizer=normalizer)
+    return found
