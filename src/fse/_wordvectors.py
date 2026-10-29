@@ -384,7 +384,7 @@ class WordVectors:
 
     @property
     def path(self) -> Path | None:
-        """The directory the vectors were loaded from, if any."""
+        """The file the vectors were loaded from, if any."""
         return self._path
 
     @property

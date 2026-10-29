@@ -100,7 +100,15 @@ class VectorStore:
         mode: Literal["auto", "exact", "blas"] = "auto",
     ) -> SearchResult:
         """The ``k`` rows with the largest cosine to every query (a vector, or a matrix of one
-        per row): ids and scores of shape (k,), or (queries, k)."""
+        per row): ids (positions in the store) and scores of shape (k,), or (queries, k),
+        best first, ties to the smaller id.
+
+        ``mode="exact"`` computes every cosine by the numerical contract of fse, so every
+        query gives the same bits however many are asked at once; ``"blas"`` decodes
+        blocks to float32 and uses BLAS, faster for many queries, its bits depending on the
+        batch; ``"auto"`` (the default) takes exact for up to 8 queries and BLAS above.
+        Use ``"exact"`` for results that must be reproducible.
+        """
         self._check_open()
         matrix, single = self._queries(queries, "queries")
         if k > len(self):
@@ -127,7 +135,9 @@ class VectorStore:
     ) -> ndarray:
         """The linear score ``dot16(row, w) * scale + bias`` of every row with every weight
         vector (``weights`` a vector or a matrix of one per row; ``bias`` one number or one
-        per vector): shape (rows,) or (rows, vectors)."""
+        per vector): shape (rows,) or (rows, vectors). ``mode`` as for ``search``: exact
+        for up to 8 weight vectors by default, BLAS above.
+        """
         self._check_open()
         matrix, single = self._queries(weights, "weights")
         with self._using():

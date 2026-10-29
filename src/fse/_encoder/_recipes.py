@@ -47,10 +47,18 @@ class _Recipe:
         workers: PositiveInt | None = None,
         backend: Backend = "cpu",
     ) -> Encoder:
-        """The encoder learned from ``word_vectors`` and the corpus ``texts`` (a list of
-        str, a path, token lists for the external tokenizer, or an iterable of str), which
-        is needed exactly when something is learned from it: components, ``dim`` or the
-        uSIF length. ``counts`` (one per word) replace the counts of the word vectors."""
+        """The encoder learned from ``word_vectors`` and the corpus ``texts`` (what
+        ``Encoder.encode`` takes), which is needed exactly when something is learned from
+        it and refused otherwise: SIF and uSIF with ``components`` or ``dim``, uSIF
+        without ``length`` and Average with ``dim`` need it; Average without ``dim``, and
+        SIF without components and ``dim``, take none. ``counts`` (one per word) replace
+        the counts of the word vectors.
+
+        The corpus is read once (SIF, Average with ``dim``, uSIF with ``length``) or twice
+        (uSIF without ``length``: the sentence length first), and encoding it afterwards
+        reads it again: a stream, read once, works only for one read, so pass a
+        ``fse.Corpus``, a path, or fresh iterators.
+        """
         spec = self._checked(word_vectors)
         return fit(spec, word_vectors, texts, counts=counts, workers=workers, backend=backend)
 

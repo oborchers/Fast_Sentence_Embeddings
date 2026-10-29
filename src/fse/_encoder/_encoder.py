@@ -131,12 +131,16 @@ class Encoder:
         sink: Any = None,
     ) -> ndarray | QuantizedRows | None:
         """The vectors of ``texts``, one row per sentence, as ``dtype`` (float32 by
-        default): float32 or float16 rows, or int8 ``QuantizedRows``. With a ``sink``
-        (``fse.Sink``, such as ``fse.ShardSink``), the rows go there in its dtype and
-        nothing is returned; its ``flush`` runs after the last row.
+        default): float32 or float16 rows, or int8 ``QuantizedRows``. Without a sink the
+        whole result is held in memory. With a ``sink`` (``fse.Sink``, such as
+        ``fse.ShardSink``), the rows go there and nothing is returned; ``dtype`` is then
+        the sink's (another one raises) and its ``flush`` runs after the last row.
 
-        ``texts`` is a list of str, a path of a text file (one sentence per line), token
-        lists for the external tokenizer, or any iterable of str, read once.
+        ``texts`` is a list, tuple or numpy array of str, or of token lists for the
+        external tokenizer; a ``fse.Corpus``; a ``pathlib.Path`` (or other
+        ``os.PathLike``) of a text file, one sentence per line (a str is one sentence,
+        never a path: pass ``[text]`` for one sentence); or any other iterable of str, a
+        stream read once.
         """
         if sink is not None:
             check_sink(sink, dtype, self.fingerprint, self.output_dim)
@@ -206,8 +210,10 @@ class Encoder:
 
     @validate_arguments
     def save(self, path: PathLike):
-        """Write the encoder into the new ``.safetensors`` file ``path``; a folded encoder
-        includes its word vectors. Data loaded from a file are compared with the checksums
+        """Write the encoder into the new ``.safetensors`` file ``path``. A folded encoder
+        (``folded``: a recipe folded learned components or a projection) includes its word
+        vectors; an unfolded one, such as ``Average()`` without ``dim``, does not, and
+        ``load`` then needs them. Data loaded from a file are compared with the checksums
         they were loaded with while they are written."""
         tensors, metadata, expected = self._artifact()
         metadata[CREATED_BY_KEY] = _created_by()
@@ -239,8 +245,9 @@ class Encoder:
     @validate_arguments
     def load(cls, path: PathLike, word_vectors: Any = None, mmap: bool = False):  # -> Encoder
         """Open an encoder saved with ``save``. An unfolded encoder needs the
-        ``word_vectors`` it was fitted on (checked by fingerprint); a folded one holds
-        them. With ``mmap`` the arrays are mapped read-only (see ``verify``)."""
+        ``word_vectors`` it was fitted on (checked by fingerprint), ``load(path, wv)``; a
+        folded one holds them and takes none, ``load(path)``. With ``mmap`` the arrays are
+        mapped read-only (see ``verify``)."""
         path = Path(path)
         tensors, metadata = SafetensorsContainer().open(path, mmap=mmap)
         content, embedded = from_artifact(tensors, metadata)
