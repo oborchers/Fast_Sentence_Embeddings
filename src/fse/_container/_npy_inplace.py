@@ -12,8 +12,14 @@ the file is created with the header of its full shape, the rows are written at t
 offsets as they are committed (a full disk raises an OSError there), and a shard that
 ends early gets the header of its rows, padded to the same length, and is truncated. ``write_manifest``
 of NpyContainer then commits the directory, and ``publish_directory`` renames it into
-place without ever replacing anything. Every step syncs as ``sync_file`` does: on macOS
-with F_FULLFSYNC, since fsync there does not reach the drive.
+place without ever replacing anything.
+
+Durability on macOS, where fsync only reaches the drive's cache, needs F_FULLFSYNC, which
+flushes that whole cache and costs milliseconds. A shard therefore sends its files and
+its manifest to the drive with plain fsyncs (``sync_data``), makes all of them durable
+with one full sync of its directory before the rename, and makes the rename durable with
+a second one of the store (``publish_directory``). Elsewhere every step is an fsync.
+``sync_file`` makes a single file durable on its own.
 """
 
 from __future__ import annotations
@@ -28,7 +34,8 @@ from pathlib import Path
 import numpy as np
 from numpy.lib import format as npy_format
 
-from ._common import ALIGNMENT, _fcntl, _sync_directory
+from . import _common
+from ._common import ALIGNMENT, _sync_directory
 
 
 def header(dtype: np.dtype, shape: tuple[int, ...], length: int | None = None) -> bytes:
@@ -104,9 +111,16 @@ def shrink(fd: int, offset: int, dtype: np.dtype, shape: tuple[int, ...]) -> Non
 def sync_file(fd: int) -> None:
     """Make the file's data durable: F_FULLFSYNC on macOS, where fsync only reaches the
     drive's cache; fsync elsewhere (FlushFileBuffers on Windows)."""
-    if _fcntl is not None and hasattr(_fcntl, "F_FULLFSYNC"):
-        _fcntl.fcntl(fd, _fcntl.F_FULLFSYNC)
+    fcntl = _common._fcntl
+    if fcntl is not None and hasattr(fcntl, "F_FULLFSYNC"):
+        fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
         return
+    os.fsync(fd)
+
+
+def sync_data(fd: int) -> None:
+    """Send the file's data to the drive (fsync): durable elsewhere, and on macOS once a
+    full sync follows, as ``publish_directory`` and the barrier before it do."""
     os.fsync(fd)
 
 

@@ -20,6 +20,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- On macOS a `ShardSink` publishes a shard with two full syncs (`F_FULLFSYNC`, which flushes the drive cache) instead of six or seven, with the same durability: the files and the manifest are sent to the drive with `fsync`, one full sync of the shard's directory makes them durable before its rename, and one of the store the rename. Linux and Windows sync as before.
 - Encoding with postprocessing steps (such as the normalization of every encoder by default) is about 10 % faster: the steps run in place on the pooled rows, without two copies. The inverse norms a store keeps of every row are 2.4 (float32) to 3.2 times (int8) as fast to compute. Every vector is unchanged bit for bit.
 - gensim is no longer a dependency: install `fse[gensim]` for `fse.gensim`.
 - Building from source needs MSVC on Windows, or GCC or Clang elsewhere; MinGW is refused, because its `fmaf` rounds twice.

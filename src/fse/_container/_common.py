@@ -316,15 +316,17 @@ def _open_regular(file: Path):
     return handle
 
 
-def _sync_directory(path: Path):
+def _sync_directory(path: Path, *, full: bool = True):
     """Make the entries of a directory durable: F_FULLFSYNC on macOS, where fsync only
     reaches the drive's cache, fsync elsewhere on POSIX. Windows has no directory sync;
-    its renames that publish write through (MOVEFILE_WRITE_THROUGH)."""
+    its renames that publish write through (MOVEFILE_WRITE_THROUGH). With ``full=False``
+    it is a plain fsync on macOS too: the entries reach the drive, and a later full sync
+    makes them durable together with everything written before it."""
     if os.name == "nt":
         return
     descriptor = os.open(path, os.O_RDONLY)
     try:
-        if _fcntl is not None and hasattr(_fcntl, "F_FULLFSYNC"):
+        if full and _fcntl is not None and hasattr(_fcntl, "F_FULLFSYNC"):
             _fcntl.fcntl(descriptor, _fcntl.F_FULLFSYNC)
         else:
             os.fsync(descriptor)

@@ -15,10 +15,14 @@ flush, and with --python-v1 fse 1.1.0 training into a memory-mapped file
 search: the first search of a freshly opened store (cold: a new process) and the warm
 p50 of 10 searches, for 1 to 256 queries, with mode="exact" and mode="blas".
 score: one and 1,000 weight vectors over all rows, exact and with BLAS.
+sync: the latency of fsync and F_FULLFSYNC (macOS) on a file and a directory, median and
+p90 of 50, and the time per shard of a ShardSink run in small shards (--shard-rows,
+1,024 by default), whose publication those syncs dominate.
 
     uv run python benchmarks/bench_store.py write --python-v1 PY --dtypes float16 int8
     uv run python benchmarks/bench_store.py search --tmp DIR
     uv run python benchmarks/bench_store.py score --tmp DIR
+    uv run python benchmarks/bench_store.py sync --tmp DIR --sentences 50000 --workers 4
 
 Synthetic data from bench_runtime.py; a run takes a few minutes.
 """
@@ -80,10 +84,67 @@ def child_v2_write(args) -> dict:
         if args.kind == "memory":
             encoder.encode(sentences, dtype=args.dtype, workers=args.workers)
         else:
-            with fse.ShardSink(Path(tmp) / "store", encoder, dtype=args.dtype) as sink:
+            with fse.ShardSink(
+                Path(tmp) / "store", encoder, dtype=args.dtype, shard_rows=args.shard_rows
+            ) as sink:
                 encoder.encode(sentences, workers=args.workers, sink=sink)
         seconds = time.perf_counter() - start
     return {"per_s": args.sentences / seconds, "peak": _peak()}
+
+
+def _quantiles(times: list[float]) -> tuple[float, float]:
+    return statistics.median(times), statistics.quantiles(times, n=10)[-1]
+
+
+def _sync_latencies(args) -> dict:
+    """Median and p90 in ms of 50 fsyncs (and F_FULLFSYNCs) of a file and a directory."""
+    import fcntl
+
+    syncs = {"fsync": os.fsync}
+    if hasattr(fcntl, "F_FULLFSYNC"):
+        syncs["full"] = lambda fd: fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
+    durable = syncs.get("full", os.fsync)
+    times: dict[str, list[float]] = {}
+    with tempfile.TemporaryDirectory(dir=args.tmp) as tmp:
+        page, entry = os.urandom(65536), Path(tmp) / "entry"
+        file_fd = os.open(Path(tmp) / "f", os.O_RDWR | os.O_CREAT)
+        os.pwrite(file_fd, page, 0)  # its full size before the first probe
+        dir_fd = os.open(tmp, os.O_RDONLY)
+        dirty = {"file": (file_fd, lambda: os.pwrite(file_fd, page, 0))}
+        dirty["dir"] = (dir_fd, lambda: entry.unlink() if entry.exists() else entry.touch())
+        for _ in range(50):  # alternating, each from a durable state: 64 KiB, one entry
+            for name, sync in syncs.items():
+                for target, (fd, touch) in dirty.items():
+                    durable(fd)
+                    touch()
+                    begin = time.perf_counter()
+                    sync(fd)
+                    times.setdefault(f"{name}_{target}", []).append(
+                        1e3 * (time.perf_counter() - begin)
+                    )
+        os.close(file_fd)
+        os.close(dir_fd)
+    out: dict = {}
+    for key, values in times.items():
+        out[f"{key}_p50_ms"], out[f"{key}_p90_ms"] = _quantiles(values)
+    return out
+
+
+def child_sync(args) -> dict:
+    import fse
+
+    out = _sync_latencies(args)
+    sentences = [" ".join(tokens) for tokens in _corpus(args.sentences)]
+    wv = fse.WordVectors.from_arrays(_rows(), words=[f"w{i}" for i in range(VOCAB)])
+    encoder = fse.Average(normalize=False, tokenizer="external").fit(wv)
+    rows = args.shard_rows or 1024
+    with tempfile.TemporaryDirectory(dir=args.tmp) as tmp:
+        start = time.perf_counter()
+        with fse.ShardSink(Path(tmp) / "s", encoder, dtype=args.dtype, shard_rows=rows) as sink:
+            encoder.encode(sentences, workers=args.workers, sink=sink)
+        seconds = time.perf_counter() - start
+    shards = -(-args.sentences // rows)  # run_s includes encoding: compare paired runs
+    return out | {"shards": shards, "run_s": seconds, "per_shard_ms": 1e3 * seconds / shards}
 
 
 def child_v1_write(args) -> dict:
@@ -164,6 +225,7 @@ CHILDREN = {
     "prepare": child_prepare,
     "search": child_search,
     "score": child_score,
+    "sync": child_sync,
 }
 
 
@@ -190,10 +252,17 @@ _CONTENDERS = (
 )
 
 
+def _options(args, **options) -> dict:
+    """The options of a child: ``tmp``, ``options`` and ``--shard-rows`` if given."""
+    if args.shard_rows:
+        options["shard_rows"] = args.shard_rows
+    return {"tmp": args.tmp, **options}
+
+
 def _write_row(args, dtype: str, workers: int, n: int) -> dict:
     """The median of the rounds of every contender for one dtype, worker count and size."""
     row: dict = {"dtype": dtype, "workers": workers, "sentences": n, "load": os.getloadavg()[0]}
-    common = {"tmp": args.tmp, "dtype": dtype, "workers": workers, "sentences": n}
+    common = _options(args, dtype=dtype, workers=workers, sentences=n)
     runs: dict[str, list[dict]] = {}
     for _ in range(args.rounds):
         for name, child, kind in _CONTENDERS:
@@ -232,9 +301,20 @@ def search_or_score(args) -> list[dict]:
     return rows
 
 
+def sync(args) -> list[dict]:
+    rows = []
+    for dtype in args.dtypes:
+        common = _options(args, dtype=dtype, sentences=args.sentences)
+        for _ in range(args.rounds):
+            result = _run(sys.executable, "sync", workers=args.workers[0], **common)
+            print(dtype, json.dumps({k: round(v, 3) for k, v in result.items()}), flush=True)
+            rows.append({"dtype": dtype, "load": os.getloadavg()[0], **result})
+    return rows
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("mode", choices=["write", "search", "score", "child"])
+    parser.add_argument("mode", choices=["write", "search", "score", "sync", "child"])
     parser.add_argument("--child", choices=list(CHILDREN))
     parser.add_argument("--kind", default="memory")
     parser.add_argument("--tmp", default=tempfile.gettempdir())
@@ -245,6 +325,7 @@ def main(argv=None):
     parser.add_argument("--sentences", type=int, default=250_000)
     parser.add_argument("--queries", type=int, nargs="+", default=[1, 4, 16, 64, 256])
     parser.add_argument("--rounds", type=int, default=1)
+    parser.add_argument("--shard-rows", type=int)
     parser.add_argument("--json")
     args = parser.parse_args(argv)
     if args.mode == "child":
@@ -253,7 +334,8 @@ def main(argv=None):
         print(json.dumps(CHILDREN[args.child](args)))
         return
     print(f"# load {os.getloadavg()[0]:.1f}")
-    results = write(args) if args.mode == "write" else search_or_score(args)
+    modes = {"write": write, "sync": sync}
+    results = modes.get(args.mode, search_or_score)(args)
     if args.json:
         Path(args.json).write_text(json.dumps(results, indent=1), encoding="utf-8")
 

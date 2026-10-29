@@ -37,7 +37,7 @@ from numpy.lib import format as npy_format
 from fse import _codes
 from fse._container import Hasher, checksum, tensor_code
 from fse._container._npy import write_manifest
-from fse._container._npy_inplace import create, publish_directory, shrink, sync_file, write_at
+from fse._container._npy_inplace import create, publish_directory, shrink, sync_data, write_at
 
 from ._layout import StoreInfo, shard_metadata, shard_name
 
@@ -150,7 +150,7 @@ class ShardWriter:
         rows = self.committed
         if rows != self.capacity:
             shrink(self.fd, self.offset, self.dtype, (rows, self.info.dim))
-        sync_file(self.fd)
+        sync_data(self.fd)
         os.close(self.fd)
         self.fd = -1
         code = tensor_code(np.empty(0, self.dtype))
@@ -166,7 +166,9 @@ class ShardWriter:
             )
         metadata = shard_metadata(self.info, self.first_row, rows, self.created_by)
         manifest_tmp = self.tmp / f".manifest.json.writing-{secrets.token_hex(4)}"
-        write_manifest(self.tmp, entries, metadata, manifest_tmp, sync_file)
+        # Two full syncs on macOS: the directory before the rename makes the files and
+        # the manifest durable, the store after it the rename (ARCHITECTURE.md, "Writing").
+        write_manifest(self.tmp, entries, metadata, manifest_tmp, sync_data, staged=True)
         publish_directory(self.tmp, self.store / shard_name(self.first_row))
         # A long stream keeps no arrays of published shards.
         self.norms = np.empty(0, np.float32)
@@ -183,12 +185,12 @@ class ShardWriter:
 
 
 def _write(file: Path, array: ndarray) -> str:
-    """A small tensor as a synced .npy file; returns the checksum of its data."""
+    """A small tensor as a .npy file sent to the drive; returns the checksum of its data."""
     data = np.ascontiguousarray(array)
     fd = os.open(file, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o644)
     with os.fdopen(fd, "wb") as f:
         npy_format.write_array_header_1_0(f, npy_format.header_data_from_array_1_0(data))
         f.write(data.tobytes())
         f.flush()
-        sync_file(f.fileno())
+        sync_data(f.fileno())
     return checksum(data)
