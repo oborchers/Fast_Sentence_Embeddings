@@ -101,6 +101,14 @@ def test_native_matches_the_reference_on_random_unicode(tokenizer):
         assert_tokens_equal(_native.tokenize(text, tokenizer), want(text), text)
 
 
+def test_every_ascii_character_next_to_plain_words_matches_the_reference():
+    # Alone, before a break, inside and next to plain words: a character that the native
+    # tokenizer wrongly took for a-z or 0-9 would make a candidate take the fast path.
+    for ch in map(chr, range(128)):
+        for text in (ch, ch + " x", "ab" + ch + "cd", ch + "ab", "ab" + ch, "gonn" + ch):
+            assert_tokens_equal(_native.tokenize(text), ref.tokenize_fse_words(text), text)
+
+
 @pytest.mark.parametrize("tokenizer", TOKENIZERS)
 def test_bytes_and_str_give_the_same_tokens(tokenizer):
     for text in CORPUS[:2000]:
