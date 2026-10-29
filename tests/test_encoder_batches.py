@@ -49,6 +49,7 @@ def test_batches_into_a_shard_sink(tmp_path):
     polls, sentences = _polls([60, 70, 80])
     with fse.ShardSink(tmp_path / "s", ENCODER, dtype="float16", shard_rows=64) as sink:
         got = list(ENCODER.encode_batches(polls, sink=sink))
+        assert sink.durable_rows == 210  # flushed by the full iteration, before close
     assert [(b.first_row, b.n_rows, b.rows) for b in got] == [
         (0, 60, None),
         (60, 70, None),

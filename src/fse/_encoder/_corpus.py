@@ -50,6 +50,8 @@ class Corpus:
     _tokens: bool
 
     def __init__(self, texts: Any):
+        if hasattr(self, "_source"):  # __init__ called again on a made corpus
+            raise AttributeError("a Corpus does not change; make a new one")
         if isinstance(texts, Corpus):  # shares the immutable source
             source, tokens = texts._source, texts._tokens
         else:
@@ -60,6 +62,9 @@ class Corpus:
         object.__setattr__(self, "_tokens", tokens)
 
     def __setattr__(self, name: str, value: Any):
+        raise AttributeError("a Corpus does not change; make a new one")
+
+    def __delattr__(self, name: str):
         raise AttributeError("a Corpus does not change; make a new one")
 
     def __len__(self) -> int:
@@ -118,18 +123,26 @@ def build(texts: Any, tokens: bool) -> StringSource | TokenListSource:
     """The source of a collection; a row of the other kind than row 0 raises naming both."""
     try:
         return TokenListSource(texts) if tokens else StringSource(texts)
-    except TypeError:
-        _raise_if_mixed(texts, tokens)
+    except TypeError as error:
+        _raise_if_mixed(texts, tokens, str(error))
         raise
 
 
-def _raise_if_mixed(texts: Any, tokens: bool):
-    """Raise for the first row of the wrong type if it is of the other kind; the type
-    error the builder raised came from that row, as earlier rows passed its checks."""
+def _raise_if_mixed(texts: Any, tokens: bool, raised: str):
+    """Raise naming both rows if the type error the builder raised is the one of the
+    first row of the wrong type, and that row is of the other kind; any other type
+    error (such as one a str subclass raises) stands."""
     for i, row in enumerate(texts):
         if not _wrong_type(row, tokens):
             continue
-        if isinstance(row, str) if tokens else isinstance(row, list | tuple):
+        kind = type(row).__name__
+        said = (
+            f"sentence {i} is a {kind}, not a list of str"
+            if tokens
+            else f"string {i} is a {kind}, not a str"
+        )
+        other = isinstance(row, str) if tokens else isinstance(row, list | tuple)
+        if other and raised == said:
             raise TypeError(
                 f"row {i} is a {type(row).__name__}, but row 0 is a {type(texts[0]).__name__}: "
                 "texts are either str or token lists (lists or tuples of str), not both"

@@ -139,15 +139,19 @@ def _fit_row(wv: WordVectors, sentences: list[str], workers: int, rounds: int) -
         recipe = fse.SIF(components=1, fold=fold_)
         row[f"fit_{label}_s"] = median(lambda r=recipe: r.fit(wv, sentences, workers=workers))
         row[f"fit_encode_{label}_s"] = median(
-            lambda r=recipe: r.fit(wv, sentences, workers=workers).encode(
-                sentences, workers=workers
-            )
+            lambda r=recipe: _fit_then_encode(r, wv, sentences, workers)
         )
     row["encode_s"] = median(lambda: fse.Average().fit(wv).encode(sentences, workers=workers))
     row["kept_rows_s"] = statistics.median(
         _kept_rows(wv, sentences, workers) for _ in range(rounds)
     )
     return row
+
+
+def _fit_then_encode(recipe, wv: WordVectors, sentences: list[str], workers: int):
+    """fit, then encode of one Corpus, built inside the timer as a caller builds it."""
+    corpus = fse.Corpus(sentences)
+    return recipe.fit(wv, corpus, workers=workers).encode(corpus, workers=workers)
 
 
 def _kept_rows(wv: WordVectors, sentences: list[str], workers: int) -> float:

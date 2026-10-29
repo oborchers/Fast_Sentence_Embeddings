@@ -90,6 +90,17 @@ def test_paths_and_streams_still_go_to_fit_and_encode(tmp_path):
         pass
 
 
+class BrokenStr(str):
+    def encode(self, encoding="utf-8", errors="strict"):
+        raise TypeError(f"broken encode ({encoding}, {errors})")
+
+
+def test_a_type_error_of_a_str_subclass_is_not_a_mixed_row():
+    for make in (fse.Corpus, lambda t: opened(t, "external").__enter__()):
+        with pytest.raises(TypeError, match="broken encode"):
+            make([BrokenStr("a"), ["b"]])
+
+
 def test_a_corpus_does_not_change():
     texts = ["a", "b"]
     corpus = fse.Corpus(texts)
@@ -97,5 +108,10 @@ def test_a_corpus_does_not_change():
     assert len(corpus) == 2
     with pytest.raises(AttributeError, match="does not change"):
         corpus._source = None
+    with pytest.raises(AttributeError, match="does not change"):
+        del corpus._source
+    with pytest.raises(AttributeError, match="does not change"):
+        corpus.__init__(["other"])
+    assert len(corpus) == 2
     again = fse.Corpus(corpus)
     assert again._source is corpus._source  # shares the built source

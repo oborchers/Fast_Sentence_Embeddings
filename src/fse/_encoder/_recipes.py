@@ -54,10 +54,10 @@ class _Recipe:
         SIF without components and ``dim``, take none. ``counts`` (one per word) replace
         the counts of the word vectors.
 
-        The corpus is read once (SIF, Average with ``dim``, uSIF with ``length``) or twice
-        (uSIF without ``length``: the sentence length first), and encoding it afterwards
-        reads it again: a stream, read once, works only for one read, so pass a
-        ``fse.Corpus``, a path, or fresh iterators.
+        Fit reads the corpus once for each of: counting the sentence length (uSIF without
+        ``length``), and the Gram matrix (``components`` or ``dim``); a stream is read
+        once, so it works only where that is one read. Encoding afterwards reads the texts
+        again: pass a ``fse.Corpus`` or a path to both, or a fresh iterator to each.
         """
         spec = self._checked(word_vectors)
         return fit(spec, word_vectors, texts, counts=counts, workers=workers, backend=backend)

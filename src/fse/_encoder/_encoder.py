@@ -171,8 +171,9 @@ class Encoder:
 
         The arguments and the encoder are checked when this is called, before any batch
         is read; closing the iterator early reads no further batch. After a successful
-        full iteration the sink's ``flush`` has run, so its ``durable_rows`` (where it has
-        them) counts every row of the run; the last batch may report fewer. Stopping
+        full iteration the sink's ``flush`` (where it has one) has run, and its own
+        ``durable_rows`` then says what is durable; for a ``fse.ShardSink`` that is every
+        row of the run, while the last batch may report fewer. Stopping
         early (``break``, ``close()``) does not flush: the owner of the sink closes it
         (``ShardSink.close`` publishes the rows committed so far). Without a sink every
         batch holds its rows in memory.
