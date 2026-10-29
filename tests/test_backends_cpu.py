@@ -81,3 +81,31 @@ def test_gram_block_and_score():
         backend.score(rows, None, weights, 0.5).tobytes()
         == _reference.score(rows, None, weights, 0.5).tobytes()
     )
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+def test_a_square_project_is_applied(dtype):
+    # A project of as many dimensions as it reads keeps the dimension, and still makes a
+    # new array: it must reach out (a permutation shows whether it did).
+    pool = _pool(dtype)
+    backend = get_backend("cpu")
+    basis = np.ascontiguousarray(np.eye(4, dtype=F32)[[2, 0, 3, 1]])
+    for steps in ((Project(basis),), (Project(basis), Normalize())):
+        prepared = backend.prepare(pool, steps)
+        out = np.empty((3, 4), F32)
+        backend.rows(_batch(), prepared, out)
+        rows = _reference.pool_weighted_mean(_batch(), pool.vectors, pool.weights, pool.scales)
+        want = _reference.postprocess(rows, steps, 5)
+        assert out.view(np.uint32).tolist() == want.view(np.uint32).tolist()
+
+
+def test_pooled_rows_must_not_overlap_a_step():
+    from fse._contract import RemoveComponents
+
+    components = np.zeros((1, 4), F32)
+    components[0, 0] = 1
+    step = RemoveComponents(components)
+    held = step.components  # the step's own frozen copy, made writable by a caller
+    held.setflags(write=True)
+    with pytest.raises(ValueError, match="overlap the components of a step"):
+        _native.postprocess_pooled(held, (step,))

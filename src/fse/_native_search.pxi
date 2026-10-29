@@ -39,7 +39,8 @@ def inverse_norms(stored, first_row=0):
 
 cdef int64_t _inverse_norms_into(stored, int64_t n, int dim, out):
     cdef float[::1] o = out
-    cdef float[::1] scratch = np.empty(max(dim, 1) * FSE_NORM_ROWS, dtype=np.float32)
+    # Python ints: dim * FSE_NORM_ROWS in a C long overflows on Windows (32 bits).
+    cdef float[::1] scratch = np.empty(int(max(dim, 1)) * int(FSE_NORM_ROWS), dtype=np.float32)
     cdef const void *data = np.PyArray_DATA(stored)
     cdef int dtype = _DTYPES[stored.dtype]
     cdef int64_t bad

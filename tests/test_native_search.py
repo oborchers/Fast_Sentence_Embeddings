@@ -115,21 +115,23 @@ def test_empty_inputs():
 
 
 @pytest.mark.parametrize("dtype", DTYPES)
-@pytest.mark.parametrize("n", [1, 7, 8, 9, 16, 17, 31])
-def test_inverse_norms_of_interleaved_rows_give_the_reference_bits(dtype, n):
-    # The kernel sums 8 rows at a time; every group size and a rest give the same bits.
-    stored = _stored(dtype, n, 300, seed=n)
+@pytest.mark.parametrize("dim", [1, 3, 300])
+@pytest.mark.parametrize("n", [*range(1, 9), *range(16, 25)])
+def test_inverse_norms_of_interleaved_rows_give_the_reference_bits(dtype, dim, n):
+    # The kernel sums 8 rows at a time: every rest of 0 to 7 rows, alone and after full
+    # groups, gives the bits of one row at a time.
+    stored = _stored(dtype, n, dim, seed=n)
     codes = stored[0] if isinstance(stored, tuple) else stored
     got = _native.inverse_norms(codes, 5)
     np.testing.assert_array_equal(bits(got), bits(_reference.inverse_norms(codes, 5)))
 
 
-def test_an_inverse_norm_beyond_float32_in_a_later_group_names_its_row():
-    rows = np.ones((20, 4), dtype=F32)
-    rows[11] = F32(1e-40)  # subnormal: its inverse norm overflows float32
-    rows[13] = F32(1e-40)
+@pytest.mark.parametrize("bad", [0, 7, 8, 11, 16, 18])
+def test_an_inverse_norm_beyond_float32_names_its_row_at_every_group_position(bad):
+    rows = np.ones((19, 4), dtype=F32)  # two full groups and a rest of 3
+    rows[bad] = F32(1e-40)  # subnormal: its inverse norm overflows float32
+    rows[bad + 1 :][:1] = F32(1e-40)  # a later bad row loses
     for first_row in (0, 100):
-        with pytest.raises(ValueError, match=f"row {first_row + 11} is beyond float32"):
-            _native.inverse_norms(rows, first_row)
-        with pytest.raises(ValueError, match=f"row {first_row + 11} is beyond float32"):
-            _reference.inverse_norms(rows, first_row)
+        for fn in (_native.inverse_norms, _reference.inverse_norms):
+            with pytest.raises(ValueError, match=f"row {first_row + bad} is beyond float32"):
+                fn(rows, first_row)

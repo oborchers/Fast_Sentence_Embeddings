@@ -52,6 +52,11 @@ def postprocess_pooled(rows, steps, first_row=0, *, isa=None):
         and rows.flags.writeable
     ):
         raise ValueError("pooled rows must be a writable C-contiguous float32 matrix")
+    for step in steps:  # written in place, the rows must not share memory with a step
+        for name in ("components", "weights", "basis"):
+            array = getattr(step, name, None)
+            if array is not None and np.may_share_memory(rows, array):
+                raise ValueError(f"the pooled rows overlap the {name} of a step")
     with _KernelEnv():
         _check_dim(rows.shape[1])
         return _apply_steps(rows, steps, first_row, _check_isa(isa))

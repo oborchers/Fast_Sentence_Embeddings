@@ -21,7 +21,7 @@ import numpy as np
 from numpy import ndarray
 
 from fse import _gram, _native
-from fse._contract import Aggregation, Batch, Op, Step
+from fse._contract import Aggregation, Batch, Op, Project, Step
 
 from ._base import (
     Capabilities,
@@ -90,7 +90,7 @@ class CpuBackend:
         if not prepared.steps:
             state.kernel.pool(batch, out)
             return
-        if prepared.pooled_dim == prepared.output_dim:  # no project: the steps in place
+        if not any(isinstance(step, Project) for step in prepared.steps):  # the steps in place
             state.kernel.pool(batch, out)
             _native.postprocess_pooled(out, prepared.steps, batch.first_row, isa=state.isa)
             return
