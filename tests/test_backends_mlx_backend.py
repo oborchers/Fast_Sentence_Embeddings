@@ -106,8 +106,8 @@ def _nudged(monkeypatch):
     real = _kernels.view
 
     def view(launched):
-        rows, flags = real(launched)
-        return np.where(rows != 0, np.nextafter(rows, F32(np.inf)), rows), flags
+        rows, flags, bounds = real(launched)
+        return np.where(rows != 0, np.nextafter(rows, F32(np.inf)), rows), flags, bounds
 
     monkeypatch.setattr(_kernels, "view", view)
 
@@ -150,7 +150,7 @@ def test_only_the_flagged_rows_come_from_the_host(mlx, caplog, monkeypatch, step
     assert fallbacks(prepared) == counts
     warnings = [r for r in caplog.records if "computes a task on the CPU" in r.message]
     assert len(warnings) == 1
-    assert "sum of squares" in warnings[0].message
+    assert "near a limit of a step" in warnings[0].message
 
 
 def test_an_encoder_with_subnormal_inputs_runs_on_the_host(mlx, caplog):
@@ -264,7 +264,7 @@ def test_the_window_counts_the_rows_on_the_device(mlx):
     spec = EncodeSpec(word_vectors(dim=40), np.ones(200, F32))
     on_mlx, on_cpu = Pipeline(spec, "mlx"), Pipeline(spec, "cpu")
     assert mlx.capabilities().device_rows
-    assert on_mlx._row_bytes("float32") == on_cpu._row_bytes("float32") + 4 * 40 + 4 * 2
+    assert on_mlx._row_bytes("float32") == on_cpu._row_bytes("float32") + 4 * 40 + 4 * 2 + 8
 
 
 @pytest.mark.parametrize(("dim", "device"), [(7, True), (1024, True), (1028, False)])

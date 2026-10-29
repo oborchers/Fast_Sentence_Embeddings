@@ -248,7 +248,7 @@ def test_a_device_thread_that_does_not_start_leaves_the_state_as_before(make, mo
 
 def test_the_canary_runs_once_and_its_error_stays(make, monkeypatch):
     calls = []
-    monkeypatch.setattr(_device._kernels, "canary", lambda _m, _s: calls.append(1))
+    monkeypatch.setattr(_device._canary, "canary", lambda _m, _s: calls.append(1))
     device = make()
     device.ready()
     device.ready()
@@ -257,7 +257,7 @@ def test_the_canary_runs_once_and_its_error_stays(make, monkeypatch):
     def broken(_m, _s):
         raise ValueError("the canary failed")
 
-    monkeypatch.setattr(_device._kernels, "canary", broken)
+    monkeypatch.setattr(_device._canary, "canary", broken)
     other = make()
     for _ in range(2):
         with pytest.raises(ValueError, match="the canary failed"):

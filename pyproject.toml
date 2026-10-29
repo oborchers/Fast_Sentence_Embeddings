@@ -327,7 +327,7 @@ name = "MLX: the backend on the device thread, that on the kernels, those on the
 type = "layers"
 containers = ["fse._backends._mlx"]
 exhaustive = true
-layers = ["_backend", "_device", "_kernels", "_sources | _load"]
+layers = ["_backend", "_device | _stages", "_canary", "_kernels", "_sources | _load | _bounds"]
 
 [[tool.importlinter.contracts]]
 name = "Encoder: recipes on fit, fit on the encoder, the encoder on its parts"

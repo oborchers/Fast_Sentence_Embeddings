@@ -157,6 +157,13 @@ def _cases():
     out.append(Case("int8 zero rows", "int8", zero_row, np.ones(2, F32), ((0, 1),)))
     half = np.array([[65504.0, -65504.0, 6e-8, 1.0]], dtype=F32)
     out.append(Case("float16 extremes", "float16", half, np.ones(1, F32) * F32(0.25), ((0, 0),)))
+    out += _flush_cases(rng)
+    return out
+
+
+def _flush_cases(rng):
+    """The cases of values a GPU flushes, or of inputs a device must refuse."""
+    out = []
     # Subnormal values only in the middle of the arithmetic, which a GPU that flushes them
     # gets wrong: a tiny oov_weight / m, a product in the subnormal range whose sum is
     # normal, and normal rows whose sum cancels to a subnormal value.
@@ -220,6 +227,17 @@ def _cases():
             ((0, 1, 2, *(3,) * 1021),),
         )
     )
+    # A flushed first product turns the next rounding, and the third token then cancels
+    # exactly on the cpu but not on the GPU (review 2 of PR #118): before normalize the
+    # device row is not zero while the cpu row is.
+    f = F32(1 + 2**-12)
+    zero = np.array([[2.0**-64], [f], [-(1 + 2.0**-11 + 2.0**-23)]], F32)
+    out.append(
+        Case("zero after a flush", "float32", zero, np.array([2.0**-63, f, 1], F32), ((0, 1, 2),))
+    )
+    # A product of 2**-127 next to 1: an underflow that a projection onto it exposes.
+    exposed = np.array([[2.0**63, 2.0**-64]], F32)
+    out.append(Case("exposed underflow", "float32", exposed, np.full(1, 2.0**-63, F32), ((0,),)))
     cancel = np.array([[1.25 * 2.0**-126], [-(2.0**-126)]], F32)
     out.append(Case("cancels to subnormal", "float32", cancel, np.ones(2, F32), ((0, 1),)))
     return out

@@ -28,7 +28,7 @@ from numpy import ndarray
 
 from fse._contract import OOV_TOKEN, Batch
 
-from .._base import PoolInput, UnsupportedByBackendError
+from .._base import PoolInput
 from . import _sources
 
 # Up to 256 threads (8 SIMD groups) of a threadgroup along a row, the rest in sentences.
@@ -121,6 +121,7 @@ class Table:
     int8: bool
     fasttext: bool
     oov_weight: bool  # whether the encoder has one
+    norms: tuple = ()  # the norms of the word and of the ngram rows, rounded up
 
     @property
     def vec(self) -> int:
@@ -144,11 +145,35 @@ def table(mx: ModuleType, pool: PoolInput, oov_weight: ndarray | None) -> Table:
             dummy if oov_weight is None else oov_weight.reshape(1),
         )
     )
-    mx.eval(*arrays)
+    ngram_norms = dummy if pool.ngram_vectors is None else _row_norms(pool.ngram_vectors)
+    norms = (mx.array(_row_norms(pool.vectors)), mx.array(ngram_norms))
+    mx.eval(*arrays, *norms)
     buckets = len(pool.ngram_vectors) if pool.ngram_vectors is not None else 0
     return Table(
-        arrays, pool.dim, len(pool.vectors), buckets, int8, fasttext, oov_weight is not None
+        arrays,
+        pool.dim,
+        len(pool.vectors),
+        buckets,
+        int8,
+        fasttext,
+        oov_weight is not None,
+        norms,
     )
+
+
+def _row_norms(rows: ndarray) -> ndarray:
+    """The Euclidean norm of every stored row (int8 codes as they are, their scale is in
+    the factor), in float64 from the exactly widened values, rounded up to float32."""
+    out = np.empty(len(rows), np.float64)
+    step = max(1, CHECK_VALUES // max(rows.shape[1], 1))
+    for begin in range(0, len(rows), step):
+        part = rows[begin : begin + step].astype(np.float64)
+        out[begin : begin + step] = np.sqrt(np.einsum("ij,ij->i", part, part)) * (1 + 2.0**-50)
+    with np.errstate(over="ignore"):  # a norm beyond float32: infinite, a row to the host
+        norms = out.astype(np.float32)
+        low = np.isfinite(norms) & (norms.astype(np.float64) < out)
+        norms[low] = np.nextafter(norms[low], np.float32(np.inf))
+    return norms
 
 
 @dataclass(frozen=True, eq=False)
@@ -278,12 +303,21 @@ def normalizes(table: Table) -> bool:
     return -(-(table.dim // table.vec) // SIMD) * SIMD <= THREADGROUP
 
 
-def launch(mx: ModuleType, stream: Any, table: Table, task: Task, normalize: bool = False):
+def launch(
+    mx: ModuleType,
+    stream: Any,
+    table: Table,
+    task: Task,
+    bound: bool = False,
+    normalize: bool = False,
+) -> tuple:
     """The pooling kernel of ``task``, queued on ``stream``: its rows (normalized with
-    ``normalize``, which needs ``normalizes(table)``) and flags (not evaluated)."""
+    ``normalize``, which needs ``normalizes(table)``), flags and, with ``bound`` or
+    ``normalize``, the sums of ``|f| ||x||`` and of squares per row (not evaluated)."""
     assert not normalize or normalizes(table)
     grid, group, words = shape(table.dim, table.vec, task.n_sentences)
-    inputs = [*table.arrays, *(mx.array(a) for a in task.arrays)]
+    inputs = [*table.arrays, *(mx.array(a) for a in task.arrays), *table.norms]
+    n = task.n_sentences
     return tuple(
         kernel(mx, table.vec)(
             inputs=inputs,
@@ -293,33 +327,30 @@ def launch(mx: ModuleType, stream: Any, table: Table, task: Task, normalize: boo
                 ("FLAG_WORDS", words),
                 ("INT8", table.int8),
                 ("FASTTEXT", table.fasttext and task.unknown),
+                ("BOUND", bound),
                 ("NORMALIZE", normalize),
             ],
             grid=grid,
             threadgroup=group,
-            output_shapes=[(task.n_sentences, table.dim), (task.n_sentences, words)],
-            output_dtypes=[mx.float32, mx.uint32],
+            output_shapes=[(n, table.dim), (n, words), (n, 2)],
+            output_dtypes=[mx.float32, mx.uint32, mx.float32],
             stream=stream,
         )
     )
 
 
-def view(launched: tuple) -> tuple[ndarray, ndarray]:
+def view(launched: tuple) -> tuple[ndarray, ndarray, ndarray]:
     """A view of the evaluated rows of a launch (no copy: it keeps the MLX array alive, so
-    the device thread lends it until the caller has copied it), and the flags of every
-    sentence: the OR of its words' flags, with TINY only if every word has it."""
-    rows, flags = launched
-    words = np.asarray(flags).T
-    tiny = np.uint32(_sources.TINY)
-    combined = functools.reduce(np.bitwise_or, words & ~tiny) | functools.reduce(
-        np.bitwise_and, words & tiny
-    )
-    return np.asarray(rows), combined
+    the device thread lends it until the caller has copied it), the flags of every
+    sentence (the OR of its words' flags) and a copy of its bounds."""
+    rows, flags, bounds = launched
+    combined = functools.reduce(np.bitwise_or, np.asarray(flags).T)
+    return np.asarray(rows), combined, np.array(bounds)
 
 
 def read(launched: tuple, target: ndarray) -> ndarray:
     """Copy the evaluated rows of a launch into ``target``; the flags of its sentences."""
-    rows, flags = view(launched)
+    rows, flags, _ = view(launched)
     np.copyto(target, rows)
     return flags
 
@@ -327,78 +358,15 @@ def read(launched: tuple, target: ndarray) -> ndarray:
 ALWAYS = _sources.NONFINITE | _sources.LONG
 
 
-def flagged(flags: ndarray, task: Task, normalize: bool) -> ndarray:
-    """The sentences of ``task`` the host computes: a value that is not finite, a count
-    that would round, and before ``normalize`` a value that may overflow its squares or a
-    row of contributions whose sum of squares may be below 2**-100 (or that is zero)."""
-    bad = (flags & ALWAYS) != 0
-    if normalize:
-        nonempty = np.diff(task.arrays[1]) > 0
-        bad |= ((flags & _sources.HUGE) != 0) | (((flags & _sources.TINY) != 0) & nonempty)
-    return bad
+def flagged(flags: ndarray) -> ndarray:
+    """The sentences the host computes: a value that is not finite, a count that would
+    round."""
+    return (flags & ALWAYS) != 0
 
 
 def reason(flags: int) -> str:
     """Why rows go to the host (``flags``, the OR of theirs): ``long``, ``nonfinite`` or
-    ``limit`` (a value near a limit of ``normalize``)."""
+    ``limit`` (no flag: a row near a limit of a step, found by ``_bounds``)."""
     if flags & _sources.LONG:
         return "long"
     return "nonfinite" if flags & _sources.NONFINITE else "limit"
-
-
-# The canary: cases whose bits and flags the GPU must give, checked against fixed patterns
-# (not against a reference computed in the floating-point environment of the caller).
-# Bit patterns, not arithmetic: numpy would compute them in the floating-point environment
-# of the importing thread. Word 0 is f = 1 + 2**-12, word 1 the rounded -(f * f), word 2
-# is 1 + 2**-23, word 3 the largest float32, word 4 is -(1 + 2**-23).
-CANARY_ROWS = np.array(
-    [0x3F800800, 0xBF801000, 0x3F800001, 0x7F7FFFFF, 0xBF800001], np.uint32
-).view(np.float32)
-CANARY_WEIGHTS = np.array([0x3F800800, *[0x3F800000] * 4], np.uint32).view(np.float32)
-# Sentence 0 keeps the rounding error of f * f only if the fma is fused; sentence 1 is
-# (1 / 3) * acc, not acc / 3 (0x3F800001); sentence 2 overflows (flagged); sentence 3
-# cancels exactly to +0.0 (not flagged, but tiny for normalize).
-CANARY_OFFSETS = np.array([0, 2, 5, 7, 9], np.int64)
-CANARY_TOKENS = np.array([1, 0, 2, 2, 2, 3, 3, 2, 4], np.uint32)
-CANARY_BITS = (0x33000000, 0x3F800002, 0x00000000)
-CANARY_FLAGS = (0, 0, _sources.NONFINITE, _sources.TINY)
-# The smallest subnormal float16, 2**-24, which must widen to the float32 2**-24 exactly.
-CANARY_HALF = (0x0001, 0x33800000)
-
-
-def _canary_rows(mx: ModuleType, stream: Any, rows: ndarray, weights: ndarray, batch: Batch):
-    """The rows and the flags of every sentence of ``batch`` from the kernel."""
-    t = table(mx, PoolInput(rows, weights), None)
-    probe = task(batch, t)
-    assert probe is not None
-    launched = launch(mx, stream, t, probe)
-    mx.eval(*launched)
-    out = np.empty((probe.n_sentences, t.dim), np.float32)
-    return out, read(launched, out)
-
-
-def canary(mx: ModuleType, stream: Any) -> None:
-    """Raise UnsupportedByBackendError unless this GPU fuses, rounds 1 / n first, widens
-    float16 exactly and gives the flags the kernel must give, for one and for four values
-    per thread; once per process (``_device``)."""
-    batch = Batch(0, CANARY_OFFSETS, CANARY_TOKENS)
-    for dim in (1, 4):
-        rows = np.ascontiguousarray(np.repeat(CANARY_ROWS[:, None], dim, axis=1))
-        got, flags = _canary_rows(mx, stream, rows, CANARY_WEIGHTS, batch)
-        exact = got.view(np.uint32)[[0, 1, 3]]
-        if not (exact == np.array(CANARY_BITS, np.uint32)[:, None]).all():
-            raise UnsupportedByBackendError(
-                "the mlx backend cannot run on this GPU: its fma or the rounding of 1 / n "
-                f"differs from the numerical contract (bits {[hex(b) for b in exact[:, 0]]})"
-            )
-        if tuple((flags & (ALWAYS | _sources.TINY)).tolist()) != CANARY_FLAGS:
-            raise UnsupportedByBackendError(
-                f"the mlx backend cannot run on this GPU: its flags differ ({flags.tolist()})"
-            )
-    half = np.full((1, 4), CANARY_HALF[0], np.uint16).view(np.float16)
-    one = Batch(0, np.array([0, 1], np.int64), np.zeros(1, np.uint32))
-    got, flags = _canary_rows(mx, stream, half, np.ones(1, np.float32), one)
-    if flags.any() or (got.view(np.uint32) != CANARY_HALF[1]).any():
-        raise UnsupportedByBackendError(
-            "the mlx backend cannot run on this GPU: it does not widen float16 exactly"
-        )

@@ -48,7 +48,7 @@ from .._base import (
     check_prepared,
     dims,
 )
-from . import _kernels, _load
+from . import _bounds, _kernels, _load, _stages
 from ._device import Device
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,8 @@ _WHY = {
     "long": "a sentence or unknown word of 2**24 tokens or more",
     "nonfinite": "a value that is not finite",
     "large": "a sentence of more tokens and ngram buckets than one device group takes",
-    "limit": "a row before normalize whose sum of squares may overflow or be subnormal",
+    "limit": "a row near a limit of a step (zero or tiny before normalize, or values that "
+    "may overflow), whose bound cannot exclude another result",
 }
 
 
@@ -132,6 +133,7 @@ class _State:
     table: _kernels.Table | None  # None: the encoder runs on the host, for ``reason``
     fallbacks: Fallbacks
     reason: str = ""
+    stages: tuple = ()  # the steps one by one on the host (``_stages``)
 
 
 class MlxBackend:
@@ -162,7 +164,7 @@ class MlxBackend:
             reason = "subnormal_input"
         else:
             table = self.device.call(lambda mx, _stream: _kernels.table(mx, pool, oov))
-        state = _State(host, table, Fallbacks(), reason)
+        state = _State(host, table, Fallbacks(), reason, _stages.stages(self.host, checked, pooled))
         return Prepared(self.name, pool, checked, pooled, out, state)
 
     def rows(self, batch: Batch, prepared: Prepared, out: ndarray) -> None:
@@ -190,29 +192,44 @@ class MlxBackend:
         project = any(isinstance(step, Project) for step in prepared.steps)
         pooled = np.empty((task.n_sentences, prepared.pooled_dim), np.float32) if project else out
         steps = state.host.steps
-        normalize = any(isinstance(step, Normalize) for step in steps)
         # normalize alone runs in the kernel, with the cpu's bits where nothing flushes
-        on_device = normalize and len(steps) == 1 and _kernels.normalizes(table)
-        flags, bad = self.device.run(
-            lambda mx, stream: _kernels.launch(mx, stream, table, task, on_device),
+        on_device = len(steps) == 1 and isinstance(steps[0], Normalize)
+        on_device = on_device and _kernels.normalizes(table)
+        flags, bounds = self.device.run(
+            lambda mx, stream: _kernels.launch(mx, stream, table, task, bool(steps), on_device),
             _kernels.view,
             task.tokens,
-            lambda viewed: self._use(viewed, task, pooled, normalize),  # from the lent rows
+            lambda viewed: _use(viewed, pooled),  # in this worker, from the lent rows
         )
-        if not bad.any():
-            if steps and not on_device:
-                self.host.steps(pooled, state.host, batch.first_row, out)
-            return
-        why = _kernels.reason(functools.reduce(operator.or_, flags[bad].tolist()))
-        state.fallbacks.count(why)
-        self._replace(batch, state, pooled if not on_device else None, out, bad)
+        bad = _kernels.flagged(flags)
+        if steps:
+            bad = self._steps(batch, state, task, (pooled, out), bounds, bad, on_device)
+        if bad.any():
+            why = _kernels.reason(functools.reduce(operator.or_, flags[bad].tolist()))
+            state.fallbacks.count(why)
+            host = np.empty_like(out)  # the whole task, for the cpu's error if there is one
+            self.host.rows(batch, state.host, host)
+            out[bad] = host[bad]
 
-    @staticmethod
-    def _use(viewed: tuple, task: _kernels.Task, pooled: ndarray, normalize: bool):
-        """Copy the device's rows into ``pooled``: the flags and the flagged rows."""
-        rows, flags = viewed
-        np.copyto(pooled, rows)
-        return flags, _kernels.flagged(flags, task, normalize)
+    def _steps(
+        self,
+        batch: Batch,
+        state: _State,
+        task: _kernels.Task,
+        rows: tuple[ndarray, ndarray],
+        bounds: ndarray,
+        bad: ndarray,
+        on_device: bool,
+    ) -> ndarray:
+        """The steps on the device's rows (``pooled``, ``out``), already run with
+        ``on_device``: the rows the host must give, also those near a limit of a step."""
+        n = np.diff(task.arrays[1])
+        error = _bounds.pooling(bounds[:, 0], n, _kernels.sizes(batch), state.host.pooled_dim)
+        if on_device:
+            low, high = _bounds.device_norms(bounds[:, 1], state.host.pooled_dim)
+            return bad | (_bounds.unnormalizable(low, high, error) & (n > 0))
+        pooled, out = rows
+        return _stages.run(self.host, state.stages, pooled, out, batch.first_row, error, n > 0, bad)
 
     def _large(self, batch: Batch, prepared: Prepared, out: ndarray) -> None:
         """A batch beyond one device group (or that may hold a sentence of K >= 2**24) in
@@ -230,19 +247,6 @@ class MlxBackend:
                 state.fallbacks.count("large")
             else:
                 self.rows(part, prepared, out[begin:end])
-
-    def _replace(
-        self, batch: Batch, state: _State, pooled: ndarray | None, out: ndarray, bad: ndarray
-    ):
-        """The rows ``bad`` from the host, the others from the device (after the steps on
-        ``pooled``, or already stepped without). The host computes the whole task first,
-        so that its error, if any, is the cpu's for the task."""
-        host = np.empty_like(out)
-        self.host.rows(batch, state.host, host)
-        if state.host.steps and pooled is not None:
-            pooled[bad] = 0  # the steps keep a zero row and raise for none
-            self.host.steps(pooled, state.host, batch.first_row, out)
-        out[bad] = host[bad]
 
     def gram_block(self, rows: ndarray) -> ndarray:
         return self.host.gram_block(rows)
@@ -268,6 +272,13 @@ class MlxBackend:
 
     def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
         self.host.store(rows, codes, scales, first_row)
+
+
+def _use(viewed: tuple, pooled: ndarray) -> tuple[ndarray, ndarray]:
+    """Copy the device's rows into ``pooled``: their flags and bounds."""
+    rows, flags, bounds = viewed
+    np.copyto(pooled, rows)
+    return flags, bounds
 
 
 def fallbacks(prepared: Prepared) -> dict[str, int]:

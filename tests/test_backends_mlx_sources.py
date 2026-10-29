@@ -5,7 +5,6 @@ Read as text, so it runs on every machine; the kernel tests run them on the GPU.
 
 import re
 
-import numpy as np
 import pytest
 
 from fse._backends._mlx import _sources
@@ -48,18 +47,18 @@ def test_the_order_and_the_factors_of_the_cpu(vec):
 
 
 def test_the_flag_bits_match_the_header():
-    names = ("NONFINITE", "LONG", "HUGE", "TINY")
-    for name in names:
+    for name in ("NONFINITE", "LONG"):
         assert f"FSE_{name} = {getattr(_sources, name)}u;" in _sources.HEADER
-    assert sorted(getattr(_sources, name) for name in names) == [2, 4, 8, 16]
+    assert (_sources.NONFINITE, _sources.LONG) == (2, 4)
 
 
-def test_the_limits_of_normalize_are_the_documented_ones():
-    """2**60 and 2**-50 as float32 bits."""
-
-    huge, tiny = np.array([2.0**60, 2.0**-50], np.float32).view(np.uint32)
-    assert f"0x{int(huge):08X}u" in _sources.HEADER
-    assert f"0x{int(tiny):08X}u" in _sources.HEADER
+def test_the_bound_sums_every_contribution():
+    """With BOUND, one fma of |f| and the row's norm per token and per bucket."""
+    pool = POOLS[4]
+    assert "magnitude = metal::fma(metal::fabs(f), norms[w], magnitude);" in pool
+    assert "magnitude = metal::fma(metal::fabs(f), ngram_norms[g], magnitude);" in pool
+    assert "bounds[(ulong)s * 2u] = magnitude;" in pool
+    assert "bounds[(ulong)s * 2u + 1u] = l[0];" in pool
 
 
 def test_the_unknown_token_is_the_contract_s():

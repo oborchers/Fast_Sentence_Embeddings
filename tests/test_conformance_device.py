@@ -58,6 +58,8 @@ FLUSHED = {
     ("float32", "subnormal products"),
     ("float32", "cancels to subnormal"),
     ("float32", "a flush turns a rounding"),
+    ("float32", "zero after a flush"),
+    ("float32", "exposed underflow"),
 }
 
 
@@ -132,8 +134,8 @@ def test_a_backend_that_always_falls_back_is_caught(mlx, monkeypatch):
     real = _kernels.view
 
     def view(launched):
-        rows, flags = real(launched)
-        return rows, flags | _sources.NONFINITE
+        rows, flags, bounds = real(launched)
+        return rows, flags | _sources.NONFINITE, bounds
 
     monkeypatch.setattr(_kernels, "view", view)
     with pytest.raises(AssertionError):
@@ -280,3 +282,48 @@ def test_the_device_group_budget_changes_no_bits(mlx, monkeypatch, name, group_t
     got, fell_back, _ = pool_on_device(mlx, case)
     assert_bits_equal(got, want, f"group of {group_tokens}")
     assert not fell_back
+
+
+def _case(name):
+    (case,) = [c for c in CASES if c.name == name and c.dtype == "float32"]
+    return case
+
+
+def test_a_row_the_cpu_cancels_to_zero_comes_from_the_host_before_normalize(mlx):
+    """Review 2 of PR #118, F1: the device row is about -2**-25, the cpu row zero."""
+    case = _case("zero after a flush")
+    raw, _, _ = pool_on_device(mlx, case)
+    assert raw.any()
+    out, fell_back, _ = pool_on_device(mlx, case, NORMALIZE)
+    assert fell_back
+    assert_bits_equal(out, _want(case), case.name)
+    assert_within_bound(out, case, NORMALIZE, case.name)
+
+
+@pytest.mark.parametrize(
+    ("steps", "error"),
+    [
+        ((Project(np.array([[0.0, 1.0]], F32)), Normalize()), "row 0 cannot be normalized"),
+        ((Project(np.array([[0.0, 1.0]], F32)),), None),
+    ],
+    ids=["project normalize", "project"],
+)
+def test_an_underflow_a_projection_exposes(mlx, steps, error):
+    """F2: the cpu row [1, 2**-127], the device's [1, 0]; projected onto the second value,
+    normalize fails on the cpu, so on the device too; without it, within the bound."""
+    case = _case("exposed underflow")
+    if error is not None:
+        with pytest.raises(ValueError, match=error):
+            pool_on_device(mlx, case, steps)
+        return
+    out, _, launched = pool_on_device(mlx, case, steps)
+    assert launched
+    assert_within_bound(out, case, steps, case.name)
+
+
+def test_a_flush_that_turns_a_rounding_through_an_identity_projection(mlx):
+    case = _case("a flush turns a rounding")
+    steps = (Project(np.eye(1, dtype=F32)),)
+    out, fell_back, _ = pool_on_device(mlx, case, steps)
+    assert not fell_back
+    assert_within_bound(out, case, steps, case.name)

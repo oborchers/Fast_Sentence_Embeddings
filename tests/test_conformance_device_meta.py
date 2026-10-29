@@ -12,7 +12,8 @@ import numpy as np
 import pytest
 
 from fse import _reference
-from fse._backends._mlx import _kernels, _sources
+from fse._backends._mlx import _bounds, _kernels, _sources
+from fse._contract import Normalize, Project
 from support import bound
 from support.bound import assert_within_bound, bounds
 from support.cases import CASES, random_case
@@ -48,18 +49,24 @@ def _variant(monkeypatch, *replacements):
 # Witnesses: distinct tokens of random words, no empty sentence, both kernel widths.
 WITNESSES = [random_case(f"witness {dim}", "float32", 70 + dim, dim=dim, empty=0) for dim in (8, 9)]
 # The fma of a known word (the ngram one is indented further), and its replacements.
-KNOWN_FMA = "acc = metal::fma(acc_t(f), x, acc);\n        }"
+KNOWN_FMA = "acc = metal::fma(acc_t(f), x, acc);\n            if (BOUND) {\n                magnitude = metal::fma(metal::fabs(f), norms[w]"
 MISTAKES = {
     "drops a token": [
         ("for (uint t = begin; t < end; ++t)", "for (uint t = begin + 1u; t < end; ++t)")
     ],
     "repeats every token": [
-        (KNOWN_FMA, "acc = metal::fma(acc_t(f), x, metal::fma(acc_t(f), x, acc));\n        }")
+        (KNOWN_FMA, KNOWN_FMA.replace("acc);", "metal::fma(acc_t(f), x, acc));", 1))
     ],
     "divides by the wrong count": [("divide(1.0f, float(n))", "divide(1.0f, float(n + 1u))")],
     "skips 1 / n": [("acc_t(inverse) * acc", "acc")],
     "accumulates in float16": [
-        (KNOWN_FMA, "acc = fse_half(metal::fma(acc_t(f), x, acc));\n        }"),
+        (
+            KNOWN_FMA,
+            KNOWN_FMA.replace(
+                "acc = metal::fma(acc_t(f), x, acc);",
+                "acc = fse_half(metal::fma(acc_t(f), x, acc));",
+            ),
+        ),
         (
             "inline bool fse_nonfinite(float x)",
             "inline float fse_half(float x) { return float(half(x)); }\n"
@@ -117,8 +124,8 @@ def test_a_flush_that_turns_a_rounding_needs_the_rounding_term(mlx):
 
 def test_the_bound_catches_a_device_that_swaps_rows(mlx, monkeypatch):
     def swapped(launched):
-        rows, flags = real(launched)
-        return rows[[1, 0, *range(2, len(rows))]], flags
+        rows, flags, bounds = real(launched)
+        return rows[[1, 0, *range(2, len(rows))]], flags, bounds
 
     real = _kernels.view
     monkeypatch.setattr(_kernels, "view", swapped)
@@ -131,7 +138,7 @@ def test_the_bound_catches_a_device_that_swaps_rows(mlx, monkeypatch):
 def test_the_bound_catches_rows_10_times_beyond_it(mlx, factor, fails):
     witness = WITNESSES[1]
     out = _pool(mlx, witness)
-    _, bound = bounds(witness)
+    _, bound, _ = bounds(witness)
     moved = (out.astype(np.float64) + factor * bound[:, None] / np.sqrt(out.shape[1])).astype(
         out.dtype
     )
@@ -157,3 +164,20 @@ def test_the_bits_catch_what_the_bound_allows(mlx, monkeypatch, old, new, name):
     assert_within_bound(out, case, name=name)
     with pytest.raises(AssertionError):
         assert_bits_equal(out, _reference.pool_weighted_mean(case.batch, *case.args()), name)
+
+
+@pytest.mark.parametrize("steps", ["normalize", "project normalize"])
+def test_the_suite_catches_a_backend_without_the_check_before_normalize(mlx, monkeypatch, steps):
+    """Without it, the device row of "zero after a flush" is normalized to about -1
+    where the cpu row stays zero (or, after an identity projection, is normalized on the
+    host from the device row)."""
+    monkeypatch.setattr(_bounds, "unnormalizable", lambda low, *_: np.zeros(len(low), bool))
+    (case,) = [c for c in CASES if c.name == "zero after a flush"]
+    chosen = (
+        (Normalize(),)
+        if steps == "normalize"
+        else (Project(np.eye(1, dtype=np.float32)), Normalize())
+    )
+    out, _, _ = pool_on_device(mlx, case, chosen)
+    with pytest.raises(AssertionError, match="must be the cpu's"):
+        assert_within_bound(out, case, chosen, case.name)

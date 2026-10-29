@@ -1,5 +1,5 @@
 """fse._backends._mlx._kernels without a GPU: the arrays of a task, the split of a batch
-beyond a device group, the launch shape, the flags of the rows and the canary's inputs."""
+beyond a device group, the launch shape, the flags of the rows."""
 
 import numpy as np
 import pytest
@@ -132,29 +132,20 @@ def test_a_table_takes_four_values_per_thread_for_aligned_rows():
 
 
 def test_the_flags_of_a_sentence_combine_its_words():
-    """OR over the words, TINY only where every word has it."""
-    tiny, nonfinite = _sources.TINY, _sources.NONFINITE
-    words = np.array([[tiny, tiny], [tiny, 0], [nonfinite, tiny], [0, 0]], np.uint32)
-    launched = (np.zeros((4, 1), F32), words)
-    flags = _kernels.read(launched, np.empty((4, 1), F32))
-    assert flags.tolist() == [tiny, 0, nonfinite, 0]
-
-
-def test_the_flagged_rows():
-    """Before normalize also rows near its limits, but not an empty row (exact zero)."""
-    task = _kernels.task(_batch(((1,), (), (2,), (3,), (4,))), TABLE)
-    n, t, h, long = _sources.NONFINITE, _sources.TINY, _sources.HUGE, _sources.LONG
-    flags = np.array([n | t, t, h, long, 0], np.uint32)
-    assert _kernels.flagged(flags, task, False).tolist() == [True, False, False, True, False]
-    assert _kernels.flagged(flags, task, True).tolist() == [True, False, True, True, False]
-    flags[4] = t
-    assert _kernels.flagged(flags, task, True)[4]
+    """OR over the words of a sentence; the bounds copied."""
+    long, nonfinite = _sources.LONG, _sources.NONFINITE
+    words = np.array([[long, 0], [0, 0], [nonfinite, long]], np.uint32)
+    launched = (np.zeros((3, 1), F32), words, np.ones((3, 2), F32))
+    _, flags, bounds = _kernels.view(launched)
+    assert flags.tolist() == [long, 0, nonfinite | long]
+    assert bounds.tolist() == [[1, 1]] * 3
+    assert _kernels.flagged(flags).tolist() == [True, False, True]
 
 
 def test_the_reason_of_a_fallback():
     assert _kernels.reason(_sources.NONFINITE) == "nonfinite"
     assert _kernels.reason(_sources.LONG | _sources.NONFINITE) == "long"
-    assert _kernels.reason(_sources.HUGE | _sources.TINY) == "limit"
+    assert _kernels.reason(0) == "limit"
 
 
 TINY = F32(np.finfo(F32).smallest_subnormal)
@@ -253,15 +244,6 @@ def _pool(**changes):
 )
 def test_subnormal_inputs_are_refused_at_prepare(pool, oov, refused):
     assert _kernels.subnormal_input(pool, oov) is refused
-
-
-def test_the_canary_inputs_are_the_values_it_names():
-    f = F32(1 + 2**-12)
-    rows = np.array([f, -(f * f), 1 + 2**-23, 3.4028235e38, -(1 + 2**-23)], F32)
-    assert _kernels.CANARY_ROWS.tobytes() == rows.tobytes()
-    assert _kernels.CANARY_WEIGHTS.tobytes() == np.array([f, 1, 1, 1, 1], F32).tobytes()
-    assert np.array([2.0**-24], np.float16).view(np.uint16)[0] == _kernels.CANARY_HALF[0]
-    assert np.array([2.0**-24], F32).view(np.uint32)[0] == _kernels.CANARY_HALF[1]
 
 
 def test_the_check_reads_the_rows_in_parts(monkeypatch):

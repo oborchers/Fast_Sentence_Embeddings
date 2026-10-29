@@ -41,7 +41,7 @@ from collections.abc import Callable
 from types import ModuleType
 from typing import Any
 
-from . import _kernels
+from . import _canary, _kernels
 
 GROUP_TASKS = 8
 GROUP_TOKENS = 1 << 24
@@ -134,7 +134,7 @@ class Device:
             known = self._canary
         if known is False:
             try:
-                self.call(_kernels.canary)
+                self.call(_canary.canary)
             except Exception as err:
                 known = err
             else:

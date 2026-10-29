@@ -14,13 +14,13 @@ in token order with the ngram rows of an unknown FastText word in bucket order, 
 
 The GPU flushes subnormal values to zero. The backend refuses, at prepare, inputs whose
 factors or row values are or may be subnormal (``_kernels.subnormal_input``), so a flush
-can only meet a product or a partial sum below 2**-126, which the absolute term of the
-tolerance contract covers. The kernel flags per sentence what the host must compute: an
-accumulator that is not finite (the cpu's error), a count of 2**24 or more that would
-round as a float, and for ``normalize`` a value of 2**60 or more (its squares may
-overflow) and all values below 2**-50 (its sum of squares may be below 2**-100, or the
-row is zero), which is ANDed over the row. Each SIMD group of 32 threads lies inside one
-sentence and writes its flags.
+can only meet a product or a partial sum below 2**-126, which the tolerance contract's
+bound covers. The kernel flags per sentence an accumulator that is not finite (the cpu's
+error) and a count of 2**24 or more that would round as a float; each SIMD group of 32
+threads lies inside one sentence and writes the OR of its flags. With ``BOUND`` it also
+gives per sentence ``sum |f| ||x||`` (``norms``: the norms of the stored rows, rounded
+up), from which the host bounds the row's error (``_bounds``), and with ``NORMALIZE`` the
+sum of squares of the row before it normalizes.
 """
 
 from __future__ import annotations
@@ -29,8 +29,6 @@ OOV_TOKEN_HEX = "0xFFFFFFFEu"
 
 NONFINITE = 2
 LONG = 4
-HUGE = 8
-TINY = 16
 
 HEADER = """
 #pragma METAL fp contract(off)
@@ -39,8 +37,6 @@ HEADER = """
 #endif
 constant constexpr uint FSE_NONFINITE = 2u;
 constant constexpr uint FSE_LONG = 4u;
-constant constexpr uint FSE_HUGE = 8u;
-constant constexpr uint FSE_TINY = 16u;
 constant constexpr uint FSE_EXACT_COUNTS = 16777216u;
 
 inline uint fse_magnitude(float x) { return as_type<uint>(x) & 0x7fffffffu; }
@@ -54,11 +50,6 @@ inline void fse_put(threadgroup float *p, uint i, float4 x) {
 }
 inline bool fse_nonfinite(float x) { return fse_magnitude(x) >= 0x7f800000u; }
 inline bool fse_nonfinite(float4 x) { return any(fse_magnitude(x) >= 0x7f800000u); }
-// Whether a value is 2**60 or more, and whether all are below 2**-50 (on the bits).
-inline bool fse_huge(float x) { return fse_magnitude(x) >= 0x5D800000u; }
-inline bool fse_huge(float4 x) { return any(fse_magnitude(x) >= 0x5D800000u); }
-inline bool fse_tiny(float x) { return fse_magnitude(x) < 0x26800000u; }
-inline bool fse_tiny(float4 x) { return all(fse_magnitude(x) < 0x26800000u); }
 // Row ``i`` of VEC values of a table in either address space (MLX passes small arrays as
 // constant): rows start at multiples of VEC values, so the vector loads are aligned.
 template <uint V, typename T> struct fse_vec { typedef vec<T, V> type; };
@@ -81,8 +72,8 @@ _POOL = (
     const uint s = thread_position_in_grid.y;
     constexpr uint ROW = DIM / VEC;
     uint flag = 0u;
-    bool tiny = true;
     acc_t row = acc_t(0.0f);
+    float magnitude = 0.0f;  // with BOUND: sum |f| ||x||, the same in every thread of a row
     if (q < ROW) {
         acc_t acc = 0.0f;
         uint k = FASTTEXT ? unknown[s] : 0u;
@@ -108,12 +99,18 @@ _POOL = (
                     const float f = INT8 ? shared * ngram_scales[g] : shared;
                     const acc_t x = acc_t(fse_load<VEC>(ngram_vectors, (ulong)g * ROW + q));
                     acc = metal::fma(acc_t(f), x, acc);
+                    if (BOUND) {
+                        magnitude = metal::fma(metal::fabs(f), ngram_norms[g], magnitude);
+                    }
                 }
                 continue;
             }
             const float f = INT8 ? weights[w] * scales[w] : weights[w];
             const acc_t x = acc_t(fse_load<VEC>(vectors, (ulong)w * ROW + q));
             acc = metal::fma(acc_t(f), x, acc);
+            if (BOUND) {
+                magnitude = metal::fma(metal::fabs(f), norms[w], magnitude);
+            }
         }
         if (fse_nonfinite(acc)) {
             flag |= FSE_NONFINITE;
@@ -127,15 +124,16 @@ _POOL = (
         if (!NORMALIZE) {
             ((device acc_t *)out)[(ulong)s * ROW + q] = row;
         }
-        flag |= fse_huge(row) ? FSE_HUGE : 0u;
-        tiny = fse_tiny(row);
+        if (BOUND && q == 0u) {
+            bounds[(ulong)s * 2u] = magnitude;
+        }
     }
     if (NORMALIZE) {
         // normalize@1 as the cpu computes it (the rows of a threadgroup are whole here):
         // dot16 of the row with itself (16 lanes by fma in index order, then added 8, 4, 2
-        // and 1 lanes apart), 1 / sqrt correctly rounded, one product per value. A row
-        // whose sum of squares is zero or not finite is flagged (TINY, HUGE) and comes
-        // from the host; it is written unchanged.
+        // and 1 lanes apart), 1 / sqrt correctly rounded, one product per value. The sum
+        // of squares goes to ``bounds`` for the host's check (a row near a limit of
+        // normalize comes from the host); a zero or nonfinite one leaves the row as is.
         threadgroup float values[1024];
         threadgroup float lanes[16 * 8];
         threadgroup float inverses[8];
@@ -162,6 +160,7 @@ _POOL = (
                     l[j] = l[j] + l[j + width];
                 }
             }
+            bounds[(ulong)s * 2u + 1u] = l[0];
             const bool usable = fse_magnitude(l[0]) != 0u && !fse_nonfinite(l[0]);
             inverses[ly] = usable ? metal::precise::divide(1.0f, metal::precise::sqrt(l[0])) : 1.0f;
         }
@@ -170,7 +169,7 @@ _POOL = (
             ((device acc_t *)out)[(ulong)s * ROW + q] = row * acc_t(inverses[ly]);
         }
     }
-    const uint any_flag = simd_or(flag) | (simd_all(tiny) ? FSE_TINY : 0u);
+    const uint any_flag = simd_or(flag);
     if (thread_index_in_simdgroup == 0u) {
         flags[(ulong)s * FLAG_WORDS + q / 32u] = any_flag;
     }
@@ -195,5 +194,7 @@ POOL_INPUTS = (
     "unknown",
     "ngram_offsets",
     "ngrams",
+    "norms",
+    "ngram_norms",
 )
-POOL_OUTPUTS = ("out", "flags")
+POOL_OUTPUTS = ("out", "flags", "bounds")
