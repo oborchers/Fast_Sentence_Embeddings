@@ -174,7 +174,7 @@ def test_a_failed_growth_raises_and_frees(faults, threads):
 
 # Strings, one sentence each (join_strings), against encode_string of the Python path.
 
-TEXT_ALPHABET = [*ALPHABET, " ", "\t", "\n", "\x85", "\xa0", "　", " "]
+TEXT_ALPHABET = [*ALPHABET, " ", "\t", "\n", "\x85", "\xa0", "\u3000", "\u2028"]
 
 
 def _same_strings(texts, threads=1):

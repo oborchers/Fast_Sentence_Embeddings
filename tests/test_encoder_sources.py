@@ -135,7 +135,7 @@ def test_the_native_join_encodes_like_the_python_path(monkeypatch, dtype, kind):
     from fse import _native
     from support.runtime import texts, word_vectors
 
-    sentences = texts(3 * 4096) + ["", " ", "caf\u00e9 \U0001d11e\x00"]
+    sentences = [*texts(3 * 4096), "", " ", "caf\u00e9 \U0001d11e\x00"]
     if kind == "tokens":
         sentences = [s.split() for s in sentences]
     wv = word_vectors()
@@ -143,5 +143,5 @@ def test_the_native_join_encodes_like_the_python_path(monkeypatch, dtype, kind):
     encoder = recipe.fit(wv, sentences, counts=np.arange(1, len(wv) + 1), workers=2)
     native = encoder.encode(sentences, dtype=dtype, workers=4)
     name = "join_token_lists" if kind == "tokens" else "join_strings"
-    monkeypatch.setattr(_native, name, lambda *a: None)  # every list to the Python path
+    monkeypatch.setattr(_native, name, lambda *_: None)  # every list to the Python path
     assert _bits(native) == _bits(encoder.encode(sentences, dtype=dtype, workers=4))
