@@ -116,12 +116,32 @@ def test_a_corpus_is_read_once_for_fit_and_encode(monkeypatch, dtype, fold, kind
     source = _text.TokenListSource if kind == "tokens" else _text.StringSource
     real = source.__init__
     monkeypatch.setattr(source, "__init__", lambda self, *a: builds.append(1) or real(self, *a))
-    join = _native.join_token_lists
-    monkeypatch.setattr(_native, "join_token_lists", lambda *a: joins.append(1) or join(*a))
+    name = "join_token_lists" if kind == "tokens" else "join_strings"
+    join = getattr(_native, name)
+    monkeypatch.setattr(_native, name, lambda *a: joins.append(1) or join(*a))
     corpus = fse.Corpus(sentences)
     encoder = recipe.fit(wv, corpus, counts=counts, workers=2)
     rows = encoder.encode(corpus, dtype=dtype, workers=2)
     assert len(builds) == 1
-    assert len(joins) == (1 if kind == "tokens" else 0)  # one native join of the lists
+    assert len(joins) == 1  # one native join of the lists
     assert encoder.fingerprint == want_encoder.fingerprint
     assert _bits(rows) == _bits(want)
+
+
+@pytest.mark.parametrize("dtype", ["float32", "int8"])
+@pytest.mark.parametrize("kind", ["tokens", "texts"])
+def test_the_native_join_encodes_like_the_python_path(monkeypatch, dtype, kind):
+    import fse
+    from fse import _native
+    from support.runtime import texts, word_vectors
+
+    sentences = [*texts(3 * 4096), "", " ", "caf\u00e9 \U0001d11e\x00"]
+    if kind == "tokens":
+        sentences = [s.split() for s in sentences]
+    wv = word_vectors()
+    recipe = fse.SIF(tokenizer="external", components=2)
+    encoder = recipe.fit(wv, sentences, counts=np.arange(1, len(wv) + 1), workers=2)
+    native = encoder.encode(sentences, dtype=dtype, workers=4)
+    name = "join_token_lists" if kind == "tokens" else "join_strings"
+    monkeypatch.setattr(_native, name, lambda *_: None)  # every list to the Python path
+    assert _bits(native) == _bits(encoder.encode(sentences, dtype=dtype, workers=4))

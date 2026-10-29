@@ -24,6 +24,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 - `fse_words@1` tokenizes plain words (only a-z and 0-9) without the rules of step 5, unless their length and first letter could make them one of the contractions without an apostrophe (`cannot`, `gimme`, `gonna`, `gotta`, `lemme`, `wanna`): text to batches is about 20 % faster on one thread (WikiText-103 paragraphs 182 to 145 ms, STS Benchmark sentences 106 to 86 ms on an M1 Pro); the tokens are unchanged.
 - On macOS a `ShardSink` publishes a shard with two full syncs (`F_FULLFSYNC`, which flushes the drive cache) instead of six or seven, with the same durability: the files and the manifest are sent to the drive with `fsync`, one full sync of the shard's directory makes them durable before its rename, and one of the store the rename. Linux and Windows sync as before.
 - Encoding with postprocessing steps (such as the normalization of every encoder by default) is about 10 % faster: the steps run in place on the pooled rows, without two copies. The inverse norms a store keeps of every row are 2.4 (float32) to 3.2 times (int8) as fast to compute. Every vector is unchanged bit for bit.
+- A list or tuple of str (passed to `fit`, `encode` or `fse.Corpus`) is converted to UTF-8 in parallel native threads instead of one `str.encode` per sentence: 400,000 sentences of 20 tokens take 3 ms instead of 70 ms, and `Encoder.encode` of them on the cpu takes 0.64 of its time at 8 workers and 0.95 at 1, of sentences of 100 tokens 0.83 at 8 workers (M1 Pro). Subclasses of str, numpy arrays and invalid input (a row that is no str, a lone surrogate) take the former path, so the errors of invalid input are raised as before; every vector is unchanged. On macOS the join of token lists no longer keeps about the size of the joined text resident after every call.
 - gensim is no longer a dependency: install `fse[gensim]` for `fse.gensim`.
 - Building from source needs MSVC on Windows, or GCC or Clang elsewhere; MinGW is refused, because its `fmaf` rounds twice.
 - Checksums and fingerprints of every artifact are xxh3-128 (`xxh3-128:` and 32 hex digits) instead of sha256, computed by one harness. Artifacts written by a pre-release of 2.0 with sha256 checksums raise `UnsupportedArtifactError` and must be written again; there is no migration. The values identify content against accidents, not against an attacker (ARCHITECTURE.md, "Identities").
@@ -32,6 +33,10 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 ### Removed
 
 - The 1.x API: the 1.x models `Average`, `SIF` and `uSIF` (2.0 has recipes of the first two names and `USIF`), `SentenceVectors`, the input classes, `Vectors` and `FTVectors`, and the modules `fse.models`, `fse.inputs` and `fse.vectors`. Accessing one of the removed names on `fse` raises an `AttributeError` that points to fse 1.1.0 on PyPI and the branch `1.x`. Models saved with 1.x are converted with `export_v2` of a later 1.x release.
+
+### Fixed
+
+- An interrupt (Ctrl+C) while a `ShardSink` closes no longer leaves threads running and temporary shard directories behind. When `close` runs in the main thread with Python's default SIGINT handler, the work still waiting is dropped, the piece each thread runs is finished (a shard being published is published if all its rows were written), further interrupts are deferred, and one KeyboardInterrupt is raised once every thread has ended and the temporary directories are removed; a piece that blocks, such as a write to a drive that hangs, still keeps `close` waiting. With another handler, or from another thread, nothing is deferred.
 
 ## [1.1.0] - 2026-10-27
 
