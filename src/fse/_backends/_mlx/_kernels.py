@@ -55,15 +55,18 @@ def kernel(mx: ModuleType, vec: int) -> Any:
         return built
 
 
-def _fields(values: Any) -> ndarray:
-    """The magnitude bits of float32 values (bit patterns: no comparison of floats,
-    which a thread that treats subnormal values as zero would get wrong)."""
-    return np.ascontiguousarray(values, np.float32).view(np.uint32) & np.uint32(0x7FFFFFFF)
+CHECK_VALUES = 1 << 20  # values a check looks at at once, to bound its temporary memory
 
 
 def _subnormal(values: Any) -> bool:
-    bits = _fields(values)
-    return bool(((bits != 0) & (bits < 0x00800000)).any())
+    """Whether a float32 value is subnormal, on its bit patterns (no comparison of
+    floats, which a thread that treats subnormal values as zero would get wrong)."""
+    bits = np.ascontiguousarray(values, np.float32).reshape(-1).view(np.uint32)
+    for begin in range(0, len(bits), CHECK_VALUES):
+        part = bits[begin : begin + CHECK_VALUES] & np.uint32(0x7FFFFFFF)
+        if ((part != 0) & (part < 0x00800000)).any():
+            return True
+    return False
 
 
 SMALLEST_NORMAL = 2.0**-126

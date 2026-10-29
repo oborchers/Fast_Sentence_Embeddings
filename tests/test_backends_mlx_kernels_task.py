@@ -255,3 +255,11 @@ def test_the_canary_inputs_are_the_values_it_names():
     assert _kernels.CANARY_WEIGHTS.tobytes() == np.array([f, 1, 1, 1, 1], F32).tobytes()
     assert np.array([2.0**-24], np.float16).view(np.uint16)[0] == _kernels.CANARY_HALF[0]
     assert np.array([2.0**-24], F32).view(np.uint32)[0] == _kernels.CANARY_HALF[1]
+
+
+def test_the_check_reads_the_rows_in_parts(monkeypatch):
+    monkeypatch.setattr(_kernels, "CHECK_VALUES", 4)
+    rows = np.ones((3, 3), F32)
+    assert not _kernels.subnormal_input(_pool(vectors=rows), None)
+    rows[2, 2] = TINY
+    assert _kernels.subnormal_input(_pool(vectors=rows), None)
