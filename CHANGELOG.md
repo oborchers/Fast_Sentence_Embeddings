@@ -20,6 +20,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- Encoding with postprocessing steps (such as the normalization of every encoder by default) is about 10 % faster: the steps run in place on the pooled rows, without two copies. The inverse norms a store keeps of every row are 2.4 (float32) to 3.2 times (int8) as fast to compute. Every vector is unchanged bit for bit.
 - gensim is no longer a dependency: install `fse[gensim]` for `fse.gensim`.
 - Building from source needs MSVC on Windows, or GCC or Clang elsewhere; MinGW is refused, because its `fmaf` rounds twice.
 - Checksums and fingerprints of every artifact are xxh3-128 (`xxh3-128:` and 32 hex digits) instead of sha256, computed by one harness. Artifacts written by a pre-release of 2.0 with sha256 checksums raise `UnsupportedArtifactError` and must be written again; there is no migration. The values identify content against accidents, not against an attacker (ARCHITECTURE.md, "Identities").

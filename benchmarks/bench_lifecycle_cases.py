@@ -92,6 +92,7 @@ def _paths(c: dict) -> dict[str, Path]:
         "store": tmp / f"v2-{name}.store",
         "encoder": tmp / f"v2-{c.get('model')}.encoder.safetensors",
         "model": tmp / f"v1-{name}",
+        "hub_model": tmp / f"v1-hub-{name}",
         "queries": tmp / f"queries-{name}.npy",
     }
 
@@ -329,6 +330,84 @@ def v1_infer(c: dict) -> dict:
     return out
 
 
+def _v2_hub_into(encoder, texts, c: dict) -> float:
+    """Encode into a new store up to its last flush; the seconds."""
+    from fse import ShardSink  # imported outside the timer
+
+    with tempfile.TemporaryDirectory(dir=c["tmp"]) as run:
+
+        def write():
+            with ShardSink(Path(run) / "store", encoder, dtype=c["dtype"]) as sink:
+                encoder.encode(texts, workers=c["workers"], sink=sink)
+
+        return _timed(write)[0]
+
+
+def v2_hub(c: dict) -> dict:
+    """A fitted, saved SIF encoder (folded, as on the hub) loaded and encoding the corpus,
+    into memory or into a store."""
+    import fse
+
+    out: dict = {"peak_before": _peak(), "prepare_s": 0.0}
+    out["load_s"], encoder = _timed(lambda: fse.Encoder.load(_paths(c)["encoder"]))
+    texts = Path(c["corpus"])
+    if c["input"] == "list":
+        tokens = _tokens(c["corpus"])
+        out["prepare_s"], texts = _timed(lambda: fse.Corpus(tokens))
+        del tokens
+    if c["target"] == "store":
+        out["encode_s"] = _v2_hub_into(encoder, texts, c)
+    else:
+        out["encode_s"], rows = _timed(
+            lambda: encoder.encode(texts, dtype=c["dtype"], workers=c["workers"])
+        )
+        out["peak"] = _peak()  # with the rows held, as 1.1 holds them in its model
+        del rows
+    out.setdefault("peak", _peak())
+    out["total_s"] = out["load_s"] + out["prepare_s"] + out["encode_s"]
+    return out
+
+
+def v1_hub_model(c: dict) -> dict:
+    """Untimed: the trained SIF model of the encode cases without its sentence vectors, as
+    a model from the hub would come (its weights and components kept)."""
+    import fse
+
+    model = fse.SIF.load(str(_paths(c)["model"] / "model"))
+    sv = model.sv
+    sv.vectors = np.zeros((0, sv.vector_size), sv.vectors.dtype)
+    if sv.scales is not None:
+        sv.scales = np.zeros(0, sv.scales.dtype)
+    folder = _paths(c)["hub_model"]
+    folder.mkdir(exist_ok=True)
+    model.save(str(folder / "model"))
+    return {"rows": len(sv.vectors)}
+
+
+def v1_hub(c: dict) -> dict:
+    """The SIF model of 1.1 as from the hub (trained, without sentence vectors) loaded and
+    adding the vectors of the corpus with train(update=True): its bulk path, which keeps
+    the components and runs with its workers (infer is serial); into memory, or then its
+    sentence vectors saved on their own (the model it loaded is unchanged, as 2.0 keeps
+    its encoder)."""
+    import fse
+
+    out: dict = {"peak_before": _peak(), "save_s": 0.0}
+    out["load_s"], model = _timed(lambda: fse.SIF.load(str(_paths(c)["hub_model"] / "model")))
+    model.workers = c["workers"]
+    sentences = fse.CorpusFile(c["corpus"])
+    if c["input"] == "list":
+        sentences = fse.IndexedList(_tokens(c["corpus"]))
+    out["encode_s"], _ = _timed(lambda: model.train(sentences, update=True))
+    if c["target"] == "store":
+        with tempfile.TemporaryDirectory(dir=c["tmp"]) as run:
+            out["save_s"], _ = _timed(lambda: model.sv.save(str(Path(run) / "sv")))
+        out["encode_s"] += out["save_s"]
+    out["peak"] = _peak()
+    out["total_s"] = out["load_s"] + out["encode_s"]
+    return out
+
+
 CHILDREN = {
     ("v2", "prepare"): v2_prepare,
     ("v2", "load"): v2_load,
@@ -337,12 +416,15 @@ CHILDREN = {
     ("v2", "queries"): v2_queries,
     ("v2", "query"): v2_query,
     ("v2", "infer"): v2_infer,
+    ("v2", "hub"): v2_hub,
     ("v1", "counts"): v1_counts,
     ("v1", "load"): v1_load,
     ("v1", "load_mmap"): v1_load,
     ("v1", "encode"): v1_encode,
     ("v1", "query"): v1_query,
     ("v1", "infer"): v1_infer,
+    ("v1", "hub"): v1_hub,
+    ("v1", "hub_model"): v1_hub_model,
 }
 
 

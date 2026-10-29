@@ -79,6 +79,9 @@ def dot16(rows: ndarray, other: ndarray, *, isa: str | None = None) -> ndarray: 
 def postprocess(
     rows: ndarray, steps: object, first_row: int = 0, *, isa: str | None = None
 ) -> ndarray: ...
+def postprocess_pooled(
+    rows: ndarray, steps: object, first_row: int = 0, *, isa: str | None = None
+) -> ndarray: ...
 def store_rows(
     rows: ndarray,
     codes: ndarray,
