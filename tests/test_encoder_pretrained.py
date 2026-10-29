@@ -233,6 +233,9 @@ def _card(front):
         ("license:\n- mit\n- apache-2.0", ("mit", "apache-2.0")),
         ("license:\n  - 'cc-by-4.0'", ("cc-by-4.0",)),
         ("license: [mit, 'apache-2.0']", ("mit", "apache-2.0")),
+        ("license:\n- mit\n# Kommentar\n- apache-2.0", ("mit", "apache-2.0")),
+        ("license:\n\n  # the licenses\n  - mit\n\n  - other\n", ("mit", "other")),
+        ("license:\n# none\n", None),
     ],
 )
 def test_the_yaml_rules_of_a_license(tmp_path, front, want):

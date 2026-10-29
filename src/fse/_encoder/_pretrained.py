@@ -296,9 +296,12 @@ def _without_comment(text: str) -> str:
 
 
 def _block_items(lines: list[str]) -> list[str]:
-    """The items of a block list (``- id`` lines, indented or not) that follows a key."""
+    """The items of a block list (``- id`` lines, indented or not) that follows a key;
+    blank lines and comments between them belong to the list, as in YAML."""
     items = []
     for line in lines:
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
         match = re.match(r"\s*- (.*)$", line)
         if match is None:
             break
