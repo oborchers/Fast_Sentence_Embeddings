@@ -43,7 +43,7 @@ def _artifact(content, encoder=None):
         _content(),
         _content(k=1),
         _content("regression", k=2, normalized=True),
-        _content(standalone=True),
+        _content(k=6, standalone=True),
     ],
     ids=["classifier", "binary", "regressor", "standalone"],
 )
@@ -154,12 +154,12 @@ def test_tensor_refusals(edit, match):
 
 
 def test_a_standalone_head_reads_raw_means_without_steps():
-    tensors, metadata = _artifact(_content(standalone=True))
+    tensors, metadata = _artifact(_content(k=6, standalone=True))
     metadata["fse.head.normalized"] = "true"
     with pytest.raises(ValueError, match="standalone head reads raw means"):
         from_artifact(tensors, metadata)
     normalizing = finished(normalize=True)
-    tensors, metadata = _artifact(_content(standalone=True), normalizing)
+    tensors, metadata = _artifact(_content(k=6, standalone=True), normalizing)
     with pytest.raises(ValueError, match="folded table of a standalone head has no steps"):
         from_artifact(tensors, metadata)
 
@@ -262,3 +262,26 @@ def test_a_regression_head_of_one_output_records_its_shape():
         del metadata["fse.head.flat"]
         with pytest.raises(ValueError, match="exactly for regression heads of one output"):
             from_artifact(tensors, metadata)
+
+
+@pytest.mark.parametrize(
+    ("encoder", "k", "match"),
+    [
+        (lambda: finished(normalize=False), 3, "3 outputs has 3 values per row, not '6'"),
+        (lambda: finished("int8", normalize=False, dim=3), 3, "is float32"),
+        (lambda: finished("float16", normalize=False, dim=2), 2, "is float32"),
+    ],
+)
+def test_a_standalone_file_must_hold_a_folded_table(encoder, k, match):
+    """Files with valid checksums whose encoder part is no folded table of the head."""
+    tensors, metadata = _artifact(_content(k=k, standalone=True), encoder())
+    with pytest.raises(ValueError, match=match):
+        from_artifact(tensors, metadata)
+
+
+def test_a_folded_table_has_no_scales():
+    from fse._head._format import _check_folded
+
+    metadata = {"fse.steps": "[]", "fse.output_dim": "2", "fse.dim": "2", "fse.dtype": "float32"}
+    with pytest.raises(ValueError, match="has no scales"):
+        _check_folded({"scales": np.ones(3, F32)}, metadata, 2)

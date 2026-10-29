@@ -148,8 +148,8 @@ def _encoder_part(
             f"head.weight takes rows of {weight.shape[1]} values, but the encoder gives "
             f"{metadata.get('fse.output_dim')!r}"
         )
-    if content.standalone and metadata.get("fse.steps") != "[]":
-        raise ValueError("the folded table of a standalone head has no steps")
+    if content.standalone:
+        _check_folded(tensors, metadata, content.k)
     encoder_tensors = {k: v for k, v in tensors.items() if k not in TENSORS}
     dropped = {*_KEYS, FINGERPRINT_KEY, *(CHECKSUM_PREFIX + t for t in TENSORS)}
     encoder_metadata = {k: v for k, v in metadata.items() if k not in dropped}
@@ -164,6 +164,23 @@ def _encoder_part(
             f"{metadata['fse.encoder_fingerprint']} it records"
         )
     return encoder_tensors, encoder_metadata, found
+
+
+def _check_folded(tensors: dict[str, ndarray], metadata: dict[str, str], k: int) -> None:
+    """The encoder part of a standalone head is its folded table: k float32 values per
+    word and ngram, no scales, no steps."""
+    if metadata.get("fse.steps") != "[]":
+        raise ValueError("the folded table of a standalone head has no steps")
+    if metadata.get("fse.output_dim") != str(k) or metadata.get("fse.dim") != str(k):
+        raise ValueError(
+            f"the folded table of a standalone head of {k} outputs has {k} values per row, not "
+            f"{metadata.get('fse.output_dim')!r}"
+        )
+    if metadata.get("fse.dtype") != "float32" or "fse.quantization" in metadata:
+        raise ValueError("the folded table of a standalone head is float32")
+    extra = sorted({"scales", "ngram_scales"} & set(tensors))
+    if extra:
+        raise ValueError(f"the folded table of a standalone head has no scales, not {extra}")
 
 
 def _check_kind(metadata: dict[str, str]) -> None:
