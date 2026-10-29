@@ -17,9 +17,14 @@ MLX work never overlaps. All threads use one stream made for this hand-over
 
 A job's ``launch`` (queue the kernel) and ``finish`` (read the results into host arrays)
 run in the device thread. An error in one job's launch or finish fails that job only;
-an error of the evaluation fails every job of the group. A waiter that is interrupted
-(KeyboardInterrupt in the calling thread) takes its job out of the queue, or waits until
-the device thread is done with it, so nothing writes into its arrays after the call.
+an error of the evaluation fails every job of the group. A caller that is interrupted
+(KeyboardInterrupt in the calling thread) anywhere from queueing to waiting takes its job
+out of the queue, or waits until the device thread is done with it (further interrupts
+wait too), so nothing writes into its arrays after the call. A device thread that
+cannot start leaves the queue and the state as they were before the call.
+
+The device thread gets MLX from ``core`` (``_load.core`` for the process's ``DEVICE`` in
+``_backend``), so this module and its tests need no MLX.
 """
 
 from __future__ import annotations
@@ -27,9 +32,10 @@ from __future__ import annotations
 import threading
 from collections import deque
 from collections.abc import Callable
+from types import ModuleType
 from typing import Any
 
-from . import _kernels, _load
+from . import _kernels
 
 GROUP_TASKS = 8
 GROUP_TOKENS = 1 << 24
@@ -55,8 +61,13 @@ class Job:
 class Device:
     """The queue and the device thread; one per process (``DEVICE``), for every encoder."""
 
-    def __init__(self, group_tasks: int = GROUP_TASKS, group_tokens: int = GROUP_TOKENS):
-        self.group_tasks, self.group_tokens = group_tasks, group_tokens
+    def __init__(
+        self,
+        core: Callable[[], ModuleType],
+        group_tasks: int = GROUP_TASKS,
+        group_tokens: int = GROUP_TOKENS,
+    ):
+        self.core, self.group_tasks, self.group_tokens = core, group_tasks, group_tokens
         self._lock = threading.Lock()
         self._queue: deque[Job] = deque()
         self._thread: threading.Thread | None = None
@@ -69,11 +80,12 @@ class Device:
     def run(self, launch: Launch, finish: Finish, tokens: int = 0) -> Any:
         """Run one job in the device thread and give its result, or raise its error."""
         job = Job(launch, finish, tokens)
-        with self._lock:
-            self._queue.append(job)
-            if self._thread is None:
-                self._start()
-        self._wait(job)
+        try:
+            self._enqueue(job)
+            job.done.wait()
+        except BaseException:
+            self._abort(job)
+            raise
         if job.ended is not None:
             job.ended.join()  # the thread ends right after it settled its last group
         if job.error is not None:
@@ -106,24 +118,44 @@ class Device:
         if isinstance(known, BaseException):
             raise known
 
-    def _start(self) -> None:
-        """Start the device thread (with the lock held), after the one before has ended."""
-        if self._previous is not None:
-            self._previous.join()
-        self._thread = threading.Thread(target=self._serve, name="fse-mlx", daemon=True)
-        self._thread.start()
-
-    def _wait(self, job: Job) -> None:
-        try:
-            job.done.wait()
-        except BaseException:
-            with self._lock:
-                queued = job.state == "queued"
-                if queued:
+    def _enqueue(self, job: Job) -> None:
+        """Queue ``job`` and start the device thread if none runs (after the one before
+        has ended); a thread that does not start takes the job out again."""
+        with self._lock:
+            self._queue.append(job)
+            if self._thread is not None:
+                return
+            if self._previous is not None:
+                self._previous.join()
+                self._previous = None
+            thread = threading.Thread(target=self._serve, name="fse-mlx", daemon=True)
+            self._thread = thread
+            try:
+                thread.start()
+            except BaseException:
+                if thread.ident is None:  # it never ran: as before the call
+                    self._thread = None
                     self._queue.remove(job)
-            if not queued:
+                    job.state = "cancelled"
+                raise
+
+    def _abort(self, job: Job) -> None:
+        """After an interrupt or error of the caller: take ``job`` out of the queue, or
+        wait until the device thread has settled it, through further interrupts."""
+        with self._lock:
+            if job.state == "queued" and job in self._queue:
+                self._queue.remove(job)
+                job.state = "cancelled"
+            if job.state == "cancelled":
+                return
+        while True:
+            try:
                 job.done.wait()
-            raise
+            except BaseException:  # the device thread may still write into its arrays
+                continue
+            if job.ended is not None:
+                job.ended.join()
+            return
 
     def _take(self) -> list[Job]:
         """The next group, in queue order; none ends the thread (with the lock held)."""
@@ -144,7 +176,7 @@ class Device:
     def _serve(self) -> None:
         group: list[Job] = []
         try:
-            mx = _load.core()
+            mx = self.core()
             if self._stream is None:
                 self._stream = mx.new_thread_unsafe_stream(mx.gpu)
             group = self._take()
@@ -188,6 +220,3 @@ class Device:
                 job.result = job.finish(arrays)
             except Exception as err:
                 job.error = err
-
-
-DEVICE = Device()

@@ -102,10 +102,10 @@ def test_a_flagged_task_is_computed_on_the_host_and_counted_once(mlx, caplog):
     assert got.tobytes() == want.tobytes()
     out = np.empty_like(got)
     mlx.rows(_batch(7), prepared, out)
-    assert fallbacks(prepared) == {"subnormal": 2, "long": 0, "nonfinite": 0}
-    warnings = [r for r in caplog.records if "computes a task again on the CPU" in r.message]
+    assert fallbacks(prepared) == {"underflow": 2, "long": 0, "nonfinite": 0, "large": 0}
+    warnings = [r for r in caplog.records if "computes a task on the CPU" in r.message]
     assert len(warnings) == 1
-    assert "subnormal values" in warnings[0].message
+    assert "a possible underflow" in warnings[0].message
 
 
 def test_a_row_that_is_not_finite_raises_the_cpu_error_through_the_host(mlx):
@@ -157,3 +157,20 @@ def test_encoders_on_mlx_give_the_cpu_bits(recipe):
     assert on_mlx.fingerprint == cpu.fingerprint
     got = on_mlx.encode(sentences, backend="mlx", workers=3)
     assert got.tobytes() == cpu.encode(sentences, backend="cpu", workers=3).tobytes()
+
+
+def test_a_task_larger_than_a_device_group_runs_on_the_host(mlx, monkeypatch):
+    monkeypatch.setattr(mlx.device, "group_tokens", 8)
+    got, prepared = _rows(mlx, _pool())  # 9 tokens
+    want, _ = _rows(CpuBackend(), _pool())
+    assert got.tobytes() == want.tobytes()
+    assert fallbacks(prepared)["large"] == 1
+
+
+def test_the_window_counts_the_rows_on_the_device(mlx):
+    from fse._runtime import EncodeSpec, Pipeline
+
+    spec = EncodeSpec(word_vectors(dim=40), np.ones(200, F32))
+    on_mlx, on_cpu = Pipeline(spec, "mlx"), Pipeline(spec, "cpu")
+    assert mlx.capabilities().device_rows
+    assert on_mlx._row_bytes("float32") == on_cpu._row_bytes("float32") + 4 * 40 + 4 * 2

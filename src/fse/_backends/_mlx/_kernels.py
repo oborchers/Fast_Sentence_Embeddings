@@ -101,7 +101,8 @@ class Task:
 
     @property
     def tokens(self) -> int:
-        return len(self.arrays[0])
+        """The tokens and ngram buckets the kernel reads, the size of its work."""
+        return len(self.arrays[0]) + (len(self.arrays[4]) if self.unknown else 0)
 
 
 _NO_OFFSETS = np.zeros(1, np.int64)
@@ -166,10 +167,16 @@ def read(launched: tuple, target: ndarray) -> int:
 
 # The canary: cases whose bits the GPU must give, checked against fixed patterns (not
 # against a reference computed in the floating-point environment of the caller). Word 0 is
-# f, word 1 the rounded -(f * f), word 2 is 1 + 2**-23, word 3 the smallest subnormal.
-_F = np.float32(1 + 2**-12)
-CANARY_ROWS = np.array([[_F], [-(_F * _F)], [1 + 2**-23], [2.0**-149]], np.float32)
-CANARY_WEIGHTS = np.array([_F, 1, 1, 1], np.float32)
+# f = 1 + 2**-12, word 1 the rounded -(f * f), word 2 is 1 + 2**-23, word 3 the smallest
+# subnormal.
+# Bit patterns, not arithmetic: numpy would compute them in the floating-point environment
+# of the importing thread (rounding up, or flushing 2**-149 to zero).
+CANARY_ROWS = np.array([[0x3F800800], [0xBF801000], [0x3F800001], [0x00000001]], np.uint32).view(
+    np.float32
+)
+CANARY_WEIGHTS = np.array([0x3F800800, 0x3F800000, 0x3F800000, 0x3F800000], np.uint32).view(
+    np.float32
+)
 # Sentence 0 keeps the rounding error of f * f only if the fma is fused; sentence 1 is
 # (1 / 3) * acc, not acc / 3 (0x3F800001); sentence 2 must set the subnormal flag.
 CANARY_OFFSETS = np.array([0, 2, 5, 6], np.int64)

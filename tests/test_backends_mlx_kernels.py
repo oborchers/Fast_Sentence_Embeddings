@@ -2,10 +2,12 @@
 arrays of a task, the kernel cache and the canary.
 
 The GPU tests skip where the mlx backend cannot run (support.conformance.require_mlx);
-the tests of ``task`` are plain numpy and run everywhere.
+the tests of ``task`` and of the canary's inputs are plain numpy and run everywhere.
 """
 
 import functools
+import subprocess
+import sys
 
 import numpy as np
 import pytest
@@ -16,15 +18,19 @@ from fse._backends._mlx import _kernels, _sources
 from fse._contract import OOV_TOKEN, Batch
 from support.conformance import mlx_module, require_mlx
 
-DEVICE = mlx_module("fse._backends._mlx._device").DEVICE
 F32 = np.float32
+
+
+def _device():
+    """The device thread of the process (the backend imports MLX)."""
+    return mlx_module("fse._backends._mlx._backend").DEVICE
 
 
 @pytest.fixture(scope="module")
 def gpu():
     """Run ``function(mx, stream)`` in the device thread."""
     require_mlx()
-    return DEVICE.call
+    return _device().call
 
 
 _PRIMITIVES = """
@@ -67,7 +73,7 @@ def _primitive(mode, a, b=None, c=None):
         mx.eval(out, flags)
         return np.array(out), np.array(flags)
 
-    return DEVICE.call(run)
+    return _device().call(run)
 
 
 def _floats(rng, n, low, high):
@@ -150,10 +156,10 @@ def _widen(rows):
     batch = Batch(0, np.arange(n + 1, dtype=np.int64), np.arange(n, dtype=np.uint32))
     scales = np.ones(n, F32) if rows.dtype == np.int8 else None
     pool = PoolInput(rows.reshape(n, 1), np.ones(n, F32), scales)
-    table = DEVICE.call(lambda mx, _s: _kernels.table(mx, pool, None))
+    table = _device().call(lambda mx, _s: _kernels.table(mx, pool, None))
     task = _kernels.task(batch, table)
     out = np.empty((n, 1), F32)
-    flags = DEVICE.run(
+    flags = _device().run(
         lambda mx, s: _kernels.launch(mx, s, table, task),
         lambda launched: _kernels.read(launched, out),
     )
@@ -227,7 +233,7 @@ def test_a_task_numbers_the_first_unknown_word_of_every_sentence():
     task = _kernels.task(batch, TABLE)
     assert task is not None
     assert task.unknown
-    assert (task.tokens, task.n_sentences, task.first_row) == (7, 5, 3)
+    assert (task.tokens, task.n_sentences, task.first_row) == (7 + 5, 5, 3)  # with buckets
     assert task.arrays[2].tolist() == [0, 1, 1, 1, 3]
     assert task.arrays[2].dtype == np.int64
 
@@ -251,3 +257,24 @@ def test_a_task_without_unknown_words_reads_no_ngrams():
 )
 def test_a_batch_the_cpu_refuses_is_no_task(batch, table):
     assert _kernels.task(batch, table) is None
+
+
+def test_the_canary_inputs_are_the_values_it_names():
+    f = F32(1 + 2**-12)
+    rows = np.array([[f], [-(f * f)], [1 + 2**-23], [2.0**-149]], F32)
+    assert _kernels.CANARY_ROWS.tobytes() == rows.tobytes()
+    assert _kernels.CANARY_WEIGHTS.tobytes() == np.array([f, 1, 1, 1], F32).tobytes()
+
+
+@pytest.mark.parametrize("env", ["flush=True", "round_up=True"])
+def test_the_canary_passes_when_fse_is_imported_in_another_environment(env):
+    """In a fresh process whose main thread flushes or rounds up before fse loads."""
+    require_mlx()
+    code = (
+        "from fse import _native\n"
+        f"_native._test_fpenv_set({env})\n"
+        "import numpy as np\n"
+        "from fse._backends import PoolInput, get_backend\n"
+        "get_backend('mlx').prepare(PoolInput(np.ones((1, 2), np.float32), np.ones(1, np.float32)), ())\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)

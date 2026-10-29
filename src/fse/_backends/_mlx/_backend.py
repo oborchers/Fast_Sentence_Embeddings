@@ -42,9 +42,11 @@ from .._base import (
     dims,
 )
 from . import _kernels, _load, _sources
-from ._device import DEVICE, Device
+from ._device import Device
 
 logger = logging.getLogger(__name__)
+
+DEVICE = Device(_load.core)  # the one device thread of the process, for every encoder
 
 MAX_DIM = 1 << 16
 _CAPABILITIES = Capabilities(
@@ -54,12 +56,20 @@ _CAPABILITIES = Capabilities(
     fasttext=True,
     concurrent=True,
     max_dim=MAX_DIM,
+    device_rows=True,
 )
 _REASONS = (
-    (_sources.SUBNORMAL, "subnormal"),
+    (_sources.SUBNORMAL, "underflow"),
     (_sources.LONG, "long"),
     (_sources.NONFINITE, "nonfinite"),
 )
+_WHY = {
+    "underflow": "a possible underflow: a subnormal value, or a product or sum that may be "
+    "one, which the GPU would flush to zero",
+    "long": "a sentence or unknown word of 2**24 tokens or more",
+    "nonfinite": "a value that is not finite",
+    "large": "more tokens and ngram buckets than one device group takes",
+}
 
 
 class Host(Protocol):
@@ -90,24 +100,23 @@ class Host(Protocol):
 
 @dataclass(eq=False)
 class Fallbacks:
-    """The tasks of one encoder computed again on the host, by the first reason flagged
-    (``subnormal``, ``long``, ``nonfinite``)."""
+    """The tasks of one encoder computed on the host, by reason: the first flag of the
+    kernel (``underflow``, a value that is or may be subnormal; ``long``; ``nonfinite``),
+    or ``large``, a task the device does not take."""
 
-    counts: dict[str, int] = field(
-        default_factory=lambda: dict.fromkeys(dict(_REASONS).values(), 0)
-    )
+    counts: dict[str, int] = field(default_factory=lambda: dict.fromkeys(_WHY, 0))
     lock: threading.Lock = field(default_factory=threading.Lock)
 
-    def count(self, flags: int) -> str:
-        reason = next(name for bit, name in _REASONS if flags & bit)
+    def count(self, flags: int, reason: str | None = None) -> str:
+        reason = reason or next(name for bit, name in _REASONS if flags & bit)
         with self.lock:
             first = not any(self.counts.values())
             self.counts[reason] += 1
         if first:
             logger.warning(
-                "the mlx backend computes a task again on the CPU (%s values); it does so for "
-                "every such task of this encoder, which is slower but gives the same bits",
-                reason,
+                "the mlx backend computes a task on the CPU (%s); it does so for every such "
+                "task of this encoder, which is slower but gives the same bits",
+                _WHY[reason],
             )
         return reason
 
@@ -152,6 +161,10 @@ class MlxBackend:
             return
         task = _kernels.task(batch, state.table)
         if task is None:  # an error the cpu backend reports, in its words
+            self.host.rows(batch, state.host, out)
+            return
+        if task.tokens > self.device.group_tokens:  # a single upload and kernel too large
+            state.fallbacks.count(0, "large")
             self.host.rows(batch, state.host, out)
             return
         project = any(isinstance(step, Project) for step in prepared.steps)

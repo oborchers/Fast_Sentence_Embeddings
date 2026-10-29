@@ -69,7 +69,9 @@ class PoolInput:
 
 @dataclass(frozen=True)
 class Capabilities:
-    """What a backend can run. ``concurrent``: several threads may call ``rows`` at once."""
+    """What a backend can run. ``concurrent``: several threads may call ``rows`` at once.
+    ``device_rows``: a task's rows also take device memory while it runs (the pooled rows
+    and flags of a device backend), which the runtime's window counts."""
 
     word_dtypes: frozenset[str]
     aggregations: frozenset[Aggregation]
@@ -77,6 +79,7 @@ class Capabilities:
     fasttext: bool
     concurrent: bool
     max_dim: int
+    device_rows: bool = False
 
     def check(self, backend: str, pool: PoolInput, steps: Sequence[Step]):
         """Raise UnsupportedByBackendError for the first thing ``backend`` cannot run."""

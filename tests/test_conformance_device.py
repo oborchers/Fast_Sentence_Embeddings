@@ -16,8 +16,6 @@ from fse._backends._mlx import _kernels, _sources
 from support.cases import CASES
 from support.conformance import Contract, mlx_module
 
-fallbacks = mlx_module("fse._backends._mlx._backend").fallbacks
-
 # The cases the GPU cannot compute because a value of the arithmetic is subnormal.
 SUBNORMAL = {
     ("float32", "subnormal rows"),
@@ -43,6 +41,7 @@ def _pool(backend, case):
     prepared = backend.prepare(PoolInput(*case.args()), ())
     out = np.empty((case.batch.n_sentences, prepared.output_dim), np.float32)
     backend.rows(case.batch, prepared, out)
+    fallbacks = mlx_module("fse._backends._mlx._backend").fallbacks
     return out, sum(fallbacks(prepared).values())
 
 
