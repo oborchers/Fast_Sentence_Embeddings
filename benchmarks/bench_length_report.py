@@ -139,16 +139,19 @@ def scaling(rows: list[dict], top: int) -> dict[tuple, float]:
 
 def fit(points: list[tuple[float, float, float]], intercept: bool) -> dict | None:
     """Least squares of t = (c +) a * texts + b * tokens over (texts, tokens, t); a and b
-    in microseconds per text and nanoseconds per token, the largest residual in percent."""
-    if len(points) < 3 + intercept:
-        return None
+    in microseconds per text and nanoseconds per token, the largest residual in percent,
+    and the distinct token budgets. None unless the columns have full rank and there are
+    more points than columns (with an intercept, at least two budgets)."""
     texts, tokens, t = (np.array(v, dtype=np.float64) for v in zip(*points, strict=True))
     columns = [texts, tokens] if not intercept else [np.ones_like(t), texts, tokens]
     x = np.stack(columns, axis=1)
+    if len(t) <= len(columns) or np.linalg.matrix_rank(x) < len(columns):
+        return None
     coef, *_ = np.linalg.lstsq(x, t, rcond=None)
     residual = np.max(np.abs(t - x @ coef) / t) * 100
     named = dict(zip(["c", "a", "b"][1 - intercept :], coef.tolist(), strict=True))
     out = {"a_us": named["a"] * 1e6, "b_ns": named["b"] * 1e9, "residual_pct": residual}
+    out["budgets"] = len(set(tokens.tolist()))
     if intercept:
         out["c_ms"] = named["c"] * 1e3
     return out
@@ -168,11 +171,10 @@ def _points(rows: list[dict], corpora: set[str], side: str) -> dict[tuple, list]
     return out
 
 
-def _fits(rows: list[dict], side: str, corpora: set[str], intercept: bool, least: int):
+def _fits(rows: list[dict], side: str, corpora: set[str], intercept: bool):
     for config, points in _points(rows, corpora, side).items():
-        found = fit(points, intercept) if len(points) >= least else None
-        if found:
-            yield {"side": side, "config": config, "budgets": 3 if intercept else 1, **found}
+        if found := fit(points, intercept):
+            yield {"side": side, "config": config, **found}
 
 
 def fits(rows: list[dict]) -> list[dict]:
@@ -182,8 +184,8 @@ def fits(rows: list[dict]) -> list[dict]:
     one = {synthetic(n) for n in SYNTHETIC}
     out = []
     for side in ("v2", "v1"):
-        out += _fits(rows, side, one, intercept=False, least=3)
-        out += _fits(rows, side, set(FIT), intercept=True, least=len(one) + 1)
+        out += _fits(rows, side, one, intercept=False)
+        out += _fits(rows, side, set(FIT), intercept=True)
     return out
 
 
