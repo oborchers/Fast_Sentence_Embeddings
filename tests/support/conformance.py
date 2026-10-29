@@ -2,12 +2,19 @@
 
 ARCHITECTURE.md, "Backends": a backend is done when it passes the conformance suites.
 The kernels run directly (Reference, Native) and every backend of fse._backends runs
-through its contract (Contract); PR 9 adds the MLX backend, later CUDA, by appending
-to BACKENDS.
+through its contract (Contract): cpu, numpy and mlx, later CUDA, by appending to BACKENDS.
+The mlx backend is made on first use; its cases skip where it cannot run (not Apple
+silicon, mlx not installed, no Metal) unless FSE_REQUIRE_MLX is set, and an error of its
+import or canary fails them.
 """
 
 from __future__ import annotations
 
+import importlib
+import importlib.util
+import os
+import platform
+import sys
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -148,8 +155,22 @@ class Contract:
     """
 
     def __init__(self, name, **options):
-        self.backend = get_backend(name, **options)
+        self.backend_name, self.options = name, options
+        # A device backend keeps the tolerance contract: its pooled rows are compared under
+        # the bound (tests/test_conformance_device.py), its host operations bit for bit.
+        self.device = name == "mlx"
+        self._backend = None
         self.name = "contract-" + "-".join([name, *map(str, options.values())])
+
+    @property
+    def backend(self):
+        if self._backend is None:
+            if self.backend_name == "mlx":
+                require_mlx()
+            self._backend = get_backend(self.backend_name, **self.options)
+            if self.backend_name == "mlx":
+                self._backend.device.ready()  # the canary, before a test varies the kernel
+        return self._backend
 
     def pool(self, case):
         return self.pool_args(case.batch, case.args())
@@ -190,7 +211,39 @@ BACKENDS = [
     *(Native(isa) for isa in _native.available_isas()),
     *(Contract("cpu", isa=isa) for isa in _native.available_isas()),
     Contract("numpy"),
+    Contract("mlx"),
 ]
+EXACT = [b for b in BACKENDS if not getattr(b, "device", False)]  # pooled rows bit for bit
+
+
+def mlx_skip_reason() -> str | None:
+    """Why the mlx backend cannot run on this machine, or None; always None with
+    FSE_REQUIRE_MLX set (CI on Apple silicon), so its tests fail instead of skipping."""
+    if os.environ.get("FSE_REQUIRE_MLX"):
+        return None
+    if sys.platform != "darwin" or platform.machine() != "arm64":
+        return f"the mlx backend needs Apple silicon, not {sys.platform} on {platform.machine()}"
+    if importlib.util.find_spec("mlx") is None:
+        return "mlx is not installed (uv sync --group mlx)"
+    if not importlib.import_module("mlx.core").metal.is_available():
+        return "Metal is not available"
+    return None
+
+
+def mlx_module(name: str):
+    """The module ``name`` of the mlx backend, which imports MLX at its top; skips the
+    test module where mlx is not installed (unless FSE_REQUIRE_MLX is set, where an import
+    error fails). Called at module level, after the imports."""
+    if not os.environ.get("FSE_REQUIRE_MLX") and importlib.util.find_spec("mlx") is None:
+        pytest.skip("mlx is not installed (uv sync --group mlx)", allow_module_level=True)
+    return importlib.import_module(name)
+
+
+def require_mlx() -> None:
+    """Skip the test unless the mlx backend can run here (``mlx_skip_reason``)."""
+    reason = mlx_skip_reason()
+    if reason is not None:
+        pytest.skip(reason)
 
 
 _UINT = {1: np.uint8, 2: np.uint16, 4: np.uint32, 8: np.uint64}
@@ -210,3 +263,14 @@ def assert_bits_equal(got, want, name=""):
             f"{name}: at {where}: {got[where]!r} ({int(g[where]):#0{digits + 2}x}) "
             f"!= {want[where]!r} ({int(w[where]):#0{digits + 2}x})"
         )
+
+
+def pool_on_device(backend, case, steps=()):
+    """The rows of ``case`` from the mlx backend ``backend``, the tasks it computed on the
+    host and the kernels it launched."""
+    prepared = backend.prepare(PoolInput(*case.args()), steps)
+    out = np.empty((case.batch.n_sentences, prepared.output_dim), F32)
+    module = mlx_module("fse._backends._mlx._backend")
+    before = module.DEVICE.launches
+    backend.rows(case.batch, prepared, out)
+    return out, sum(module.fallbacks(prepared).values()), module.DEVICE.launches - before

@@ -8,9 +8,9 @@ def test_backends_by_name():
     assert isinstance(get_backend("numpy"), NumpyBackend)
 
 
-@pytest.mark.parametrize("name", ["auto", "mlx", "cuda", "", "NUMPY"])
+@pytest.mark.parametrize("name", ["auto", "cuda", "", "NUMPY", "MLX"])
 def test_unknown_backends_raise_with_the_list(name):
-    with pytest.raises(ValueError, match="backend must be one of cpu, numpy"):
+    with pytest.raises(ValueError, match="backend must be one of cpu, numpy, mlx"):
         get_backend(name)
 
 

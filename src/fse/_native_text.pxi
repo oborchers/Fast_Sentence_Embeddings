@@ -118,8 +118,8 @@ cdef class Workspace:
 
     cdef _Buffer cand, starts, ends, word, tokens, offsets, ngram_offsets, ngrams
     cdef bint busy
-    # The tokens the tokenizer gave in the last encode, unknown words included (the
-    # sentence length of uSIF, as 1.x counted it).
+    # The tokens the tokenizer gave in the last encode, unknown words included
+    # (benchmarks/bench_vocab.py measures per token with it).
     cdef readonly int64_t tokens_seen
 
     def __dealloc__(self):

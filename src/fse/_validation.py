@@ -51,7 +51,7 @@ def _numpy_integer_to_int(value: object) -> object:
 # bool stays an error: np.bool_ is no np.integer, and strict mode rejects a Python bool.
 PositiveInt = Annotated[int, BeforeValidator(_numpy_integer_to_int), Field(gt=0)]
 NonNegativeInt = Annotated[int, BeforeValidator(_numpy_integer_to_int), Field(ge=0)]
-# Infinity would pass gt=0 and fail only later, for example as alpha in the SIF weights.
+# Infinity would pass gt=0 and fail only later, in the arithmetic it is given to.
 PositiveFloat = Annotated[float, Field(gt=0, allow_inf_nan=False)]
 
 

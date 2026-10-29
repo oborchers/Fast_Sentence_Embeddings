@@ -7,7 +7,7 @@ import pytest
 from fse import _codes, _native, _reference
 from fse._backends import get_backend
 from fse._backends._base import check_store_input
-from support.conformance import BIG, TINY, assert_bits_equal
+from support.conformance import BIG, TINY, assert_bits_equal, mlx_skip_reason, require_mlx
 
 F32 = np.float32
 F16_MAX = F32(np.finfo(np.float16).max)
@@ -15,6 +15,7 @@ F16_MAX = F32(np.finfo(np.float16).max)
 BACKENDS = [
     *(("cpu", {"isa": isa}) for isa in _native.available_isas()),
     ("numpy", {}),
+    ("mlx", {}),
 ]
 IDS = [f"{name}-{'-'.join(options.values())}".rstrip("-") for name, options in BACKENDS]
 
@@ -44,6 +45,12 @@ def _cases():
 CASES = _cases()
 
 
+def _backend(name, options):
+    if name == "mlx":
+        require_mlx()
+    return get_backend(name, **options)
+
+
 def _store(backend, rows, dtype, first_row=0):
     codes = np.empty(rows.shape, dtype=np.int8 if dtype == "int8" else np.float16)
     scales = np.empty(len(rows), F32) if dtype == "int8" else None
@@ -59,7 +66,7 @@ def test_store_gives_the_reference_bits(name, options, case, dtype):
     if dtype == "float16" and case == "huge":
         pytest.skip("beyond the float16 range; see test_errors_name_the_row")
     want_codes, want_scales = _reference.quantize_rows(rows, dtype)
-    codes, scales = _store(get_backend(name, **options), rows, dtype)
+    codes, scales = _store(_backend(name, options), rows, dtype)
     assert_bits_equal(codes, want_codes, f"{case} codes")
     if dtype == "int8":
         assert_bits_equal(scales, want_scales, f"{case} scales")
@@ -92,7 +99,7 @@ def test_the_cpu_backend_stores_in_its_own_environment(isa, dtype, env):
 
 @pytest.mark.parametrize(("name", "options"), BACKENDS, ids=IDS)
 def test_errors_name_the_row(name, options):
-    backend = get_backend(name, **options)
+    backend = _backend(name, options)
     rows = np.ones((5, 3), F32)
     rows[3, 1] = np.nan
     with pytest.raises(ValueError, match=r"^row 13 contains NaN or infinite values$"):
@@ -139,8 +146,10 @@ def test_arguments_are_checked(rows, codes, scales, first_row, match):
     with pytest.raises(ValueError, match=match):
         check_store_input(rows, codes, scales, first_row)
     for name, options in BACKENDS:
+        if name == "mlx" and mlx_skip_reason() is not None:
+            continue  # the other backends still check
         with pytest.raises(ValueError, match=match):
-            get_backend(name, **options).store(rows, codes, scales, first_row)
+            _backend(name, options).store(rows, codes, scales, first_row)
 
 
 def test_read_only_and_overlapping_targets_are_refused():
@@ -185,4 +194,4 @@ def test_a_row_that_is_not_finite_comes_before_a_row_beyond_float16(name, option
     rows[1, 0] = 70_000
     rows[4, 1] = np.nan
     with pytest.raises(ValueError, match=r"^row 4 contains NaN"):
-        _store(get_backend(name, **options), rows, "float16")
+        _store(_backend(name, options), rows, "float16")

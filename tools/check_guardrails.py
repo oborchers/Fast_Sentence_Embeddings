@@ -12,6 +12,9 @@ The guardrails ([tool.fse.guardrails]; AGENTS.md, Guardrails) keep the code revi
   import-linter contract;
 - that only ``hash-importers`` import a hash library (``hash-modules``), in Python and
   Cython sources;
+- that the device library of every device backend (``device-libraries``: backend name to
+  its top-level modules) is imported, by an import statement or ``importlib``, only by
+  that backend's ``src/fse/_backends/_<name>/_load.py``;
 - a test file for every module of fse.
 
 What exceeded a limit when the guardrails came is the ratchet. It only shrinks: a new
@@ -59,11 +62,13 @@ def load_pyproject(root: Path) -> dict:
 
 
 def load_config(root: Path) -> dict:
-    """The [tool.fse.guardrails] table, with the forbidden packages of import-linter."""
+    """The [tool.fse.guardrails] table, with the forbidden packages of import-linter and
+    the device libraries, which the extension must not import either."""
     tool = load_pyproject(root)["tool"]
     cfg = dict(tool["fse"]["guardrails"])
     forbidden = [c for c in tool["importlinter"]["contracts"] if c["type"] == "forbidden"]
-    cfg["forbidden"] = sorted({m for c in forbidden for m in c["forbidden_modules"]})
+    devices = [m for modules in cfg.get("device-libraries", {}).values() for m in modules]
+    cfg["forbidden"] = sorted({m for c in forbidden for m in c["forbidden_modules"]} | set(devices))
     return cfg
 
 
@@ -295,6 +300,57 @@ def hash_import_errors(root: Path, cfg: dict) -> list[str]:
     return errors
 
 
+def _module_argument(node: ast.Call) -> str | None:
+    """The literal module name of an import call, positional or ``name=``."""
+    values = [*node.args[:1], *(k.value for k in node.keywords if k.arg == "name")]
+    literal = [v.value for v in values if isinstance(v, ast.Constant)]
+    return literal[0] if literal and isinstance(literal[0], str) else None
+
+
+def _import_functions(tree: ast.AST) -> set[str]:
+    """``__import__``, ``import_module`` and the names it is imported under."""
+    names = {"__import__", "import_module"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            names |= {a.asname or a.name for a in node.names if a.name == "import_module"}
+    return names
+
+
+def dynamic_imports(tree: ast.AST) -> list[str]:
+    """The modules imported by a call with a literal name (positional or ``name=``):
+    ``x.import_module`` (importlib under any alias), ``import_module`` imported under any
+    name, and ``__import__``."""
+    functions = _import_functions(tree)
+    calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
+    names = [
+        _module_argument(c)
+        for c in calls
+        if getattr(c.func, "attr", None) == "import_module"
+        or getattr(c.func, "id", None) in functions
+    ]
+    return [name for name in names if name is not None]
+
+
+def device_import_errors(root: Path, cfg: dict) -> list[str]:
+    """Modules of fse other than a device backend's ``_load`` that import its library."""
+    libraries = {
+        module: (backend, f"src/fse/_backends/_{backend}/_load.py")
+        for backend, modules in cfg.get("device-libraries", {}).items()
+        for module in modules
+    }
+    errors = []
+    for path in sorted((root / "src" / "fse").rglob("*.py")):
+        rel = path.relative_to(root).as_posix()
+        module = ".".join(path.relative_to(root / "src").with_suffix("").parts)
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        names = [*imported_modules(tree, module), *dynamic_imports(tree)]
+        for top in sorted({n.split(".")[0] for n in names} & set(libraries)):
+            backend, loader = libraries[top]
+            if rel != loader:
+                errors.append(f"{rel} imports {top}; only {loader} may (the {backend} backend)")
+    return errors
+
+
 def test_file_for(path: Path, package: Path) -> str:
     """tests/test_<parts>.py for a module: fse/_a.py is test_a, fse/_b/_c.py is test_b_c,
     fse/_b/__init__.py is test_b, fse/__init__.py is test_init."""
@@ -398,6 +454,7 @@ def check(root: Path, base: str | None = None) -> tuple[list[str], dict, dict]:
         *compare(functions, ratchet.get("functions", {}), "complexity"),
         *native_import_errors(root, cfg),
         *hash_import_errors(root, cfg),
+        *device_import_errors(root, cfg),
         *untested_modules(root, cfg),
     ]
     old = base_ratchet(root, base) if base else None

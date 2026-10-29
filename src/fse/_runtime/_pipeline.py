@@ -85,6 +85,7 @@ class Pipeline:
         self.task_rows = max(1, min(MAX_CHUNK_ROWS, TASK_ROW_BYTES // (4 * self.output_dim)))
         # One call at a time on a backend that is not concurrent; encoding stays parallel.
         concurrent = self.backend.capabilities().concurrent
+        self._device_rows = self.backend.capabilities().device_rows
         self._serial: AbstractContextManager[Any] = (
             nullcontext() if concurrent else threading.Lock()
         )
@@ -92,7 +93,8 @@ class Pipeline:
     def _row_bytes(self, dtype: str, inverse: bool = False) -> int:
         """The bytes one row of a task takes at most: its target until its commit (with
         its inverse norm if the sink wants them), while it runs the float32 rows before
-        storage (a float16 or int8 target), and STEP_ROW_BYTES per value with normalize."""
+        storage (a float16 or int8 target), STEP_ROW_BYTES per value with normalize, and on
+        a device backend its pooled rows, flags and bounds."""
         out = self.output_dim
         target = (
             np.dtype(_codes.STORAGE_TYPES[dtype]).itemsize * out
@@ -101,7 +103,9 @@ class Pipeline:
         )  # the vector in the target and the backend's result
         scratch = 0 if dtype == "float32" else 4 * out
         steps = STEP_ROW_BYTES * out if self.prepared.steps else 0
-        return target + scratch + steps
+        # A device backend's pooled rows, flags (one word per 32 values) and two bounds.
+        device = 4 * out + 4 * -(-out // 32) + 8 if self._device_rows else 0
+        return target + scratch + steps + device
 
     def infer(
         self,
