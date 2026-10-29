@@ -6,10 +6,10 @@ import pytest
 import fse
 from fse import _reference
 from fse._store._layout import StoreInfo, shards
-from support.encoder import unfolded
+from support.encoder import finished
 from support.runtime import texts
 
-ENCODER = unfolded()
+ENCODER = finished()
 F32 = np.float32
 
 
@@ -179,7 +179,7 @@ def test_errors_name_the_rows_of_the_run():
     wv = fse.WordVectors.from_arrays(
         np.array([[1, 0], [1e-30, 0]], np.float32), words=["big", "tiny"]
     )
-    encoder = fse.Average(tokenizer="external").fit(wv)
+    encoder = fse.Encoder.from_word_vectors(wv, tokenizer="external")
     polls = [["big", "big"], ["big", "tiny"]]  # "tiny" cannot be normalized
     with pytest.raises(ValueError, match=r"^batch 1 \(rows 2 to 3 of the run\): row 3 cannot"):
         list(encoder.encode_batches(polls, workers=1, sink=fse.MemorySink(2)))
@@ -247,15 +247,15 @@ def test_a_sink_is_checked_before_a_batch_is_read():
     assert not read
 
 
-def test_a_corpus_is_one_batch():
+def test_a_batch_is_a_list_or_tuple():
     polls, sentences = _polls([5, 0, 40])
-    got = list(ENCODER.encode_batches([fse.Corpus(p) for p in polls], workers=2))
+    got = list(ENCODER.encode_batches([tuple(p) for p in polls], workers=2))
     want = list(ENCODER.encode_batches(polls, workers=2))
     assert [b.n_rows for b in got] == [5, 0, 40]
     for a, b in zip(got, want, strict=True):
         assert a.first_row == b.first_row
         assert a.rows.tobytes() == b.rows.tobytes()
-    with pytest.raises(TypeError, match=r"or a fse\.Corpus"):
+    with pytest.raises(TypeError, match=r"batch 0 is a list_iterator; every batch is a list"):
         list(ENCODER.encode_batches([iter(sentences)]))
 
 
@@ -283,7 +283,7 @@ def test_a_sink_takes_one_run(tmp_path):
 
 
 def test_a_sink_names_the_encoder_it_takes_by_encoder_fingerprint(tmp_path):
-    other = unfolded(steps="normalize")
+    other = finished(dim=12)
     with fse.ShardSink(tmp_path / "s", ENCODER, shard_rows=64) as sink:
         assert sink.encoder_fingerprint == ENCODER.fingerprint
         assert not hasattr(sink, "encoder")

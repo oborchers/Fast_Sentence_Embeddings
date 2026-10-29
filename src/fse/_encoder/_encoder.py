@@ -203,7 +203,7 @@ class Encoder:
         the sink's (another one raises) and its ``flush`` runs after the last row.
 
         ``texts`` is a list, tuple or numpy array of str, or of token lists for the
-        external tokenizer; a ``fse.Corpus``; a ``pathlib.Path`` (or other
+        external tokenizer; a ``pathlib.Path`` (or other
         ``os.PathLike``) of a text file, one sentence per line (a str is one sentence,
         never a path: pass ``[text]`` for one sentence); or any other iterable of str, a
         stream read once.

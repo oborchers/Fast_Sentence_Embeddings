@@ -60,7 +60,7 @@ def test_keyed_vectors(dtype):
     assert wv.stored_vectors.tobytes() == codes.tobytes()
     if dtype == "int8":
         assert wv.scales.tobytes() == scales.tobytes()
-    np.testing.assert_array_equal(wv.counts, [kv.get_vecattr(w, "count") for w in kv.index_to_key])
+    assert not hasattr(wv, "counts")  # counts are not taken
     assert wv.fasttext is None
     # The words' rows are copied: changing gensim's vectors afterwards changes nothing.
     before = wv.get_vector(0).copy()
@@ -68,14 +68,14 @@ def test_keyed_vectors(dtype):
     np.testing.assert_array_equal(wv.get_vector(0), before)
 
 
-def test_word2vec_and_counts(make_w2v):
+def test_word2vec(make_w2v):
     w2v = make_w2v(vector_size=6)
     wv = from_gensim(w2v)
     assert len(wv) == len(w2v.wv)
     for word, i in w2v.wv.key_to_index.items():
         np.testing.assert_array_equal(wv.get_vector(word), w2v.wv.vectors[i])
-        assert wv.counts[i] == w2v.wv.get_vecattr(word, "count")
-    assert from_gensim(w2v, counts=False).counts is None
+    with pytest.raises(Exception, match="counts"):
+        from_gensim(w2v, counts=False)  # fse 2.0 takes no word counts
 
 
 @pytest.mark.parametrize("dtype", ["float32", "int8"])

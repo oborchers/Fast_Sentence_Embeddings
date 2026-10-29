@@ -10,10 +10,10 @@ from fse import _reference
 from fse._container import NpyContainer
 from fse._store import ShardSink
 from fse._store._layout import StoreInfo, read_store, shard_name, shards
-from support.encoder import unfolded
+from support.encoder import finished
 from support.runtime import texts
 
-ENCODER = unfolded()  # remove components, project to 6, normalize
+ENCODER = finished()  # 6 dimensions, normalized
 
 
 def _store_rows(path, dtype):
@@ -83,7 +83,7 @@ def test_the_store_must_match_the_encoder(tmp_path):
         ENCODER.encode(texts(10), sink=sink)
     with pytest.raises(ValueError, match="holds rows of dtype 'int8', not 'float16'"):
         ShardSink(tmp_path / "s", ENCODER, dtype="float16")
-    other = unfolded(steps="normalize")
+    other = finished(dim=12)
     with pytest.raises(ValueError, match="holds rows of encoder"):
         ShardSink(tmp_path / "s", other, dtype="int8")
     with pytest.raises(TypeError, match="encoder must be an Encoder"):
@@ -96,7 +96,7 @@ def test_encode_checks_the_sink(tmp_path):
         with pytest.raises(ValueError, match="dtype 'int8' differs from the dtype 'float16'"):
             ENCODER.encode(["w1"], dtype="int8", sink=sink)
         with pytest.raises(ValueError, match="takes the rows of encoder"):
-            unfolded(steps="none").encode(["w1"], sink=sink)
+            finished(dim=12, normalize=False).encode(["w1"], sink=sink)
         assert ENCODER.encode(["w1 w2"], dtype="float16", sink=sink) is None
 
 

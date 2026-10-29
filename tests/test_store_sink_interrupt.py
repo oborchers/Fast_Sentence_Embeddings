@@ -8,9 +8,9 @@ import pytest
 
 from fse._store import ShardSink
 from fse._store._layout import StoreInfo, shard_name, shards
-from support.encoder import unfolded
+from support.encoder import finished
 
-ENCODER = unfolded()
+ENCODER = finished()
 TIMEOUT = 10  # seconds; every wait fails the test when it runs out
 
 
@@ -111,11 +111,11 @@ import json, os, signal, sys, time
 from pathlib import Path
 from fse._store import ShardSink, _shard
 from fse._store._layout import shard_name
-from support.encoder import unfolded
+from support.encoder import finished
 
 signal.signal(signal.SIGINT, signal.default_int_handler)  # also when started ignoring it
 store, events = Path(sys.argv[1]), Path(sys.argv[2])
-encoder = unfolded()
+encoder = finished()
 sink = ShardSink(store, encoder, shard_rows=4)
 real = _shard.publish_directory
 

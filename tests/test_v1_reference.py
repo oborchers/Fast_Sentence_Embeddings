@@ -1,7 +1,9 @@
 """The 1.1.0 reference fixture: the 2.0 reference stays close to what 1.1.0 computed.
 
 The fixture in tests/test_data/v1_reference was written by fse 1.1.0 from PyPI with
-benchmarks/baseline/make_v1_fixture.py.
+benchmarks/baseline/make_v1_fixture.py. 2.0 pools only, so the pooling configurations
+(Average, of plain and FastText vectors) are compared; the SIF and uSIF rows of the
+fixture also removed components, which fse 2.0 no longer does at encode time.
 """
 
 import hashlib
@@ -11,11 +13,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from fse._contract import Batch, RemoveComponents
-from fse._reference import pool_weighted_mean, postprocess
+from fse._contract import Batch
+from fse._reference import pool_weighted_mean
 
 FIXTURE = Path(__file__).parent / "test_data" / "v1_reference"
-CONFIGS = ["Average", "SIF", "uSIF", "AverageFT"]
+CONFIGS = ["Average", "AverageFT"]
 DTYPES = ["float32", "float16", "int8"]
 
 
@@ -64,7 +66,7 @@ def _batch(arrays, kind):
 
 
 def v2_rows(arrays, name, dtype):
-    """The 2.0 reference applied to what 1.1.0 learned for this configuration."""
+    """The 2.0 reference pooling of the rows and weights of this configuration."""
     prefix = f"{name}.{dtype}"
     fasttext = name == "AverageFT"
     if dtype == "float32":
@@ -74,7 +76,7 @@ def v2_rows(arrays, name, dtype):
         rows = arrays[f"{prefix}.rows"]
         ngram_rows = arrays.get(f"{prefix}.ngram_rows")
     weights = arrays[f"{prefix}.weights"]
-    out = pool_weighted_mean(
+    return pool_weighted_mean(
         _batch(arrays, "ft" if fasttext else "kv"),
         rows,
         weights,
@@ -83,13 +85,6 @@ def v2_rows(arrays, name, dtype):
         arrays.get(f"{prefix}.ngram_scales"),
         oov_weight=float(weights.max()) if fasttext else None,
     )
-    if f"{prefix}.components" in arrays:
-        step = RemoveComponents(
-            np.ascontiguousarray(arrays[f"{prefix}.components"]),
-            arrays.get(f"{prefix}.component_weights"),
-        )
-        out = postprocess(out, [step])
-    return out
 
 
 @pytest.mark.parametrize("dtype", DTYPES)
@@ -98,9 +93,8 @@ def test_v2_reference_is_close_to_1_1_0_infer(ref, name, dtype):
     arrays, _, _ = ref
     expected = arrays[f"{name}.{dtype}.infer"]
     got = v2_rows(arrays, name, dtype)
-    # Measured on Apple M1 (Accelerate): averaging is bit-identical, the removal of
-    # components (BLAS in 1.x, dot16 in 2.0) differs by at most 3e-7 of the largest value
-    # of a row. Other BLAS libraries may not fuse saxpy, which adds a rounding per token.
+    # Measured on Apple M1 (Accelerate): averaging is bit-identical. Other BLAS libraries
+    # may not fuse saxpy, which adds a rounding per token.
     assert_rows_close(got, expected)
     # Empty sentences are zero rows in both; train in 1.x fills them with EPS instead.
     empty = np.flatnonzero(

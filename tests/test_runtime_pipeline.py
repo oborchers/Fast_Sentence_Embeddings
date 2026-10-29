@@ -192,20 +192,24 @@ def test_the_window_stays_within_its_budget(monkeypatch):
 
     monkeypatch.setattr(_pipeline, "run", spy)
     wide = WordVectors.from_arrays(np.ones((3, 4096), F32), words=["w1", "w2", "w3"])
-    # Per row: the target, the float32 rows before storage, and the rows of the steps
-    # (pooled rows, their copy, the output).
+    # Per row: the target and the float32 rows before storage; normalize runs in place on
+    # the float32 rows and takes nothing more.
     per_row = {
         ((), "float32"): 4 * 4096,
-        ((Normalize(),), "float32"): 4 * 4096 + 12 * 4096,
-        ((Normalize(),), "float16"): 2 * 4096 + 4 * 4096 + 12 * 4096,
+        ((Normalize(),), "float32"): 4 * 4096,
+        ((Normalize(),), "float16"): 2 * 4096 + 4 * 4096,
         ((), "int8"): 4096 + 4 + 4 * 4096,
     }
+    planned = {}
     for (steps, dtype), row_bytes in per_row.items():
         pipeline = Pipeline(_spec(steps, wv=wide))
         for workers in (4, 64):
             pipeline.infer(StringSource(["w1"] * 20_000), workers=workers, dtype=dtype)
             assert seen["window"] <= 2 * workers
             assert seen["window"] * seen["rows"] * row_bytes <= _pipeline.WINDOW_BYTES
+            planned[steps, dtype, workers] = (seen["window"], seen["rows"])
+    for workers in (4, 64):  # normalize plans the tasks of no step
+        assert planned[(Normalize(),), "float32", workers] == planned[(), "float32", workers]
 
 
 def test_pipelines_share_one_vocabulary():

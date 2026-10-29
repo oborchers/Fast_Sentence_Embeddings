@@ -317,7 +317,7 @@ name = "Encoder: the encoder on its batches and format, those on its inputs"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_encoder", "_batches | _format", "_sources", "_corpus"]
+layers = ["_encoder", "_batches | _format", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
 name = "Runtime: the pipeline on tasks, sinks and the executor"

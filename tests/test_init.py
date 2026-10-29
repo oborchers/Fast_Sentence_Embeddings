@@ -32,15 +32,15 @@ def test_version():
     assert fse.__version__ != "0+unknown"
 
 
-@pytest.mark.parametrize("name", ["uSIF", "TextList", "Vectors"])
+@pytest.mark.parametrize("name", ["Average", "SIF", "uSIF", "TextList", "Vectors"])
 def test_removed_1x_names_point_to_1_1_0(name):
-    with pytest.raises(AttributeError, match=r"fse==1\.1\.0"):
+    with pytest.raises(AttributeError, match=r"part of the 1\.x API.*fse==1\.1\.0"):
         getattr(fse, name)
 
 
-def test_the_1x_name_usif_points_to_the_2_0_recipe():
-    name = "uSIF"
-    with pytest.raises(AttributeError, match=r"the 2\.0 recipe is fse\.USIF"):
+@pytest.mark.parametrize("name", ["USIF", "Corpus"])
+def test_names_of_pre_releases_of_2_0_are_gone(name):
+    with pytest.raises(AttributeError, match=f"^module 'fse' has no attribute '{name}'$"):
         getattr(fse, name)
 
 
@@ -67,9 +67,10 @@ def test_import_without_optional_packages():
         "    return real(name, *args, **kwargs)\n"
         "builtins.__import__ = guard\n"
         "import numpy as np\n"
-        "import fse, fse._native, fse._reference, fse._gram\n"
+        "import fse, fse._native, fse._reference\n"
         "wv = fse.WordVectors.from_arrays(np.ones((1, 2), np.float32), words=['a'])\n"
         "assert wv.index('a') == 0\n"
+        "assert fse.Encoder.from_word_vectors(wv).encode(['a'], workers=1).shape == (1, 2)\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
 
@@ -104,10 +105,6 @@ def test_native_imports_no_optional_packages():
 def test_public_api_is_pinned():
     """A new public name needs a deliberate change of this test."""
     names = [
-        "SIF",
-        "USIF",
-        "Average",
-        "Corpus",
         "CorruptArtifactError",
         "EncodedBatch",
         "Encoder",

@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from fse import _native
-from fse._contract import Normalize, Project, RemoveComponents
+from fse._contract import Normalize
 from fse._runtime import EncodeSpec, Pipeline, _executor, _pipeline, _tasks
 from fse._text import StringSource
 from support.runtime import expected, source, texts, word_vectors
@@ -19,20 +19,7 @@ from support.runtime import expected, source, texts, word_vectors
 F32 = np.float32
 
 
-def _basis(dim, k, seed):
-    q = np.linalg.qr(np.random.default_rng(seed).standard_normal((dim, k)))[0]
-    return np.ascontiguousarray(q.T, dtype=F32)
-
-
-STEPS = {
-    "none": (),
-    "normalize": (Normalize(),),
-    "all": (
-        RemoveComponents(_basis(12, 2, 1), np.array([1.0, 0.5], F32)),
-        Project(_basis(12, 6, 2)),
-        Normalize(),
-    ),
-}
+STEPS = {"none": (), "normalize": (Normalize(),)}
 
 
 @functools.cache
@@ -78,7 +65,7 @@ def test_runtime_gives_the_reference_bits(
 
 @pytest.mark.parametrize("isa", _native.available_isas())
 def test_every_isa(isa):
-    spec = _spec("int8", True, "all", "fse_words@1")
+    spec = _spec("int8", True, "normalize", "fse_words@1")
     sentences = texts(800)
     got = Pipeline(spec, "cpu", isa=isa).infer(StringSource(sentences), workers=4, chunk_bytes=1024)
     assert got.tobytes() == expected(spec, sentences).tobytes()
@@ -87,7 +74,7 @@ def test_every_isa(isa):
 @pytest.mark.parametrize("env", [{"flush": True}, {"round_up": True}])
 def test_workers_ignore_their_floating_point_environment(monkeypatch, env):
     """Worker threads that start with flush-to-zero or rounding up give the same bits."""
-    spec = _spec("float32", False, "all", "fse_words@1")
+    spec = _spec("float32", False, "normalize", "fse_words@1")
     sentences = texts(2000)
     want = expected(spec, sentences)
     made = _pipeline.new_workspace

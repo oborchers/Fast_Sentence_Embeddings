@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from fse._codes import quantize_into
-from fse._contract import OOV_TOKEN, Batch, Normalize, Project, RemoveComponents
+from fse._contract import OOV_TOKEN, Batch, Normalize
 from fse._reference import (
     cosine,
     dequantize,
@@ -218,82 +218,6 @@ def test_pool_fasttext_words():
         pool_weighted_mean(batch, vectors, weights, None, ngram_vectors)
 
 
-def test_remove_components_matches_a_loop():
-    rng = np.random.default_rng(5)
-    rows = rng.standard_normal((6, 20)).astype(F32)
-    q, _ = np.linalg.qr(rng.standard_normal((20, 3)))
-    components = np.ascontiguousarray(q.T, dtype=F32)
-    weights = np.array([1, 0.5, 0.25], dtype=F32)
-    for w in (None, weights):
-        got = postprocess(rows, [RemoveComponents(components, w)])
-        for row, out in zip(rows, got, strict=True):
-            projection = np.zeros(20, dtype=F32)
-            for j, u in enumerate(components):
-                c = dot16_loop(row, u)
-                c = c if w is None else F32(c * w[j])
-                projection = fma32(c, u, projection)
-            np.testing.assert_array_equal(bits(out), bits(row - projection))
-    removed = postprocess(rows, [RemoveComponents(components)])
-    np.testing.assert_allclose(removed @ components.T, 0, atol=1e-5)
-
-
-def test_project():
-    rng = np.random.default_rng(9)
-    rows = rng.standard_normal((5, 20)).astype(F32)
-    q, _ = np.linalg.qr(rng.standard_normal((20, 4)))
-    basis = np.ascontiguousarray(q.T, dtype=F32)
-    out = postprocess(rows, [Project(basis), Normalize()])
-    assert out.shape == (5, 4)
-    projected = postprocess(rows, [Project(basis)])
-    for row, got in zip(rows, projected, strict=True):
-        np.testing.assert_array_equal(bits(got), bits([dot16_loop(row, axis) for axis in basis]))
-    np.testing.assert_allclose(projected, rows @ basis.T, rtol=1e-5, atol=1e-6)
-    assert postprocess(np.zeros((0, 20), dtype=F32), [Project(basis)]).shape == (0, 4)
-
-
-@pytest.mark.parametrize("which", ["remove", "project", "both"])
-def test_folding_linear_steps_matches_within_rounding(which):
-    """Removing components and projecting commute with the weighted mean.
-
-    An encoder may therefore fold both steps into its word and ngram vectors; the rows
-    then agree with the unfolded steps within float32 rounding, not bit for bit. The
-    projection basis is independent of the components, so both steps show in the result.
-    """
-    rng = np.random.default_rng(10)
-    vectors = rng.standard_normal((30, 16)).astype(F32)
-    ngram_vectors = rng.standard_normal((50, 16)).astype(F32)
-    weights = rng.random(30).astype(F32)
-    removal = RemoveComponents(
-        np.ascontiguousarray(np.linalg.qr(rng.standard_normal((16, 2)))[0].T, dtype=F32),
-        np.array([1, 0.5], F32),
-    )
-    projection = Project(
-        np.ascontiguousarray(np.linalg.qr(rng.standard_normal((16, 6)))[0].T, dtype=F32)
-    )
-    steps = {"remove": [removal], "project": [projection], "both": [removal, projection]}[which]
-    sentences = [list(rng.integers(0, 30, rng.integers(1, 10))) for _ in range(20)]
-    sentences[3].append(OOV_TOKEN)
-    ngrams = [list(rng.integers(0, 50, 4))]
-    batch = _batch(sentences, ngrams=ngrams)
-    kwargs = {"oov_weight": 0.7}
-    unfolded = postprocess(
-        pool_weighted_mean(batch, vectors, weights, None, ngram_vectors, **kwargs), steps
-    )
-    folded = pool_weighted_mean(
-        batch,
-        postprocess(vectors, steps),
-        weights,
-        None,
-        postprocess(ngram_vectors, steps),
-        **kwargs,
-    )
-    np.testing.assert_allclose(folded, unfolded, rtol=1e-5, atol=1e-5)
-    # Each step changes the rows, so a fold that skipped one would fail.
-    plain = pool_weighted_mean(batch, vectors, weights, None, ngram_vectors, **kwargs)
-    for step in steps:
-        assert not np.allclose(postprocess(plain, [step])[:, :6], plain[:, :6], atol=1e-3)
-
-
 def test_pool_reports_overflow_with_the_row():
     vectors = np.array([[127, 1]], dtype=np.int8)
     weights = np.array([np.finfo(F32).max], dtype=F32)
@@ -358,13 +282,6 @@ def test_normalize():
         postprocess(np.array([[1, 1], [1e-30, 0]], dtype=F32), [Normalize()], first_row=10)
     with pytest.raises(ValueError, match="row 0 cannot be normalized"):
         postprocess(np.array([[3e38, 3e38]], dtype=F32), [Normalize()])
-
-
-def test_postprocess_reports_overflow_with_the_row():
-    rows = np.array([[1, 0], [np.finfo(F32).max, 0]], dtype=F32)
-    step = RemoveComponents(np.array([[1, 0]], dtype=F32), np.array([-2], dtype=F32))
-    with pytest.raises(ValueError, match="row 8 contains NaN or infinite"):
-        postprocess(rows, [step], first_row=7)
 
 
 def test_postprocess_rejects_non_finite_rows():

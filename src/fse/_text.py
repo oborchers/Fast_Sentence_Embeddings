@@ -337,8 +337,8 @@ def _check_container(texts: object, what: str) -> None:
 
 
 class RowTypeError(TypeError):
-    """A row of a collection is not of the type its kind needs (fse.Corpus names both
-    rows when it is of the other kind): ``row`` is its index, ``found`` its type."""
+    """A row of a collection is not of the type its kind needs (encode names both rows
+    when it is of the other kind): ``row`` is its index, ``found`` its type."""
 
     def __init__(self, message: str, row: int, found: type):
         super().__init__(message)
@@ -418,8 +418,7 @@ def _token_lists(sentences: Any) -> tuple[bytes, ndarray]:
 
 
 class TokenListSource(_Buffered):
-    """Sentences given as lists of tokens, for the external tokenizer only (fse.Corpus
-    holds one). Tokens must be non-empty and hold no whitespace, so splitting the joined
+    """Sentences given as lists of tokens, for the external tokenizer only. Tokens must be non-empty and hold no whitespace, so splitting the joined
     sentence at whitespace gives them back exactly.
     """
 

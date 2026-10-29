@@ -10,10 +10,10 @@ from fse._store import ShardSink
 from fse._store._layout import StoreInfo, create_store, shard_name, shards
 from fse._store._shard import ShardWriter
 from support.container import fake_fingerprint
-from support.encoder import unfolded
+from support.encoder import finished
 from support.runtime import texts
 
-ENCODER = unfolded()
+ENCODER = finished()
 INFO = StoreInfo(fake_fingerprint("c"), "int8", 4)  # int8: vectors, scales and inv_norms
 POSIX = pytest.mark.skipif(os.name == "nt", reason="Windows syncs no directory")
 

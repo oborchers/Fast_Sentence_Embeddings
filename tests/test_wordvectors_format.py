@@ -172,7 +172,6 @@ VALUE_ERRORS = {
         lambda t: t["scales"].__setitem__(1, np.nan),
         "scales 1 is negative or not finite",
     ),
-    "negative count": (lambda t: t["counts"].__setitem__(2, -1), "count 2 is negative"),
     "duplicate word": (
         lambda t: t["vocab.bytes"].__setitem__(slice(0, 3), np.frombuffer(b"tea", np.uint8)),
         None,
@@ -187,7 +186,6 @@ def test_verify_checks_values(tmp_path, case):
         np.ones((3, 2), np.int8),
         words=["the", "tea", "x"],
         scales=np.ones(3, F32),
-        counts=np.ones(3, np.int64),
     )
     wv.save(tmp_path / "wv.safetensors")
     path = _rewrite(tmp_path / "wv.safetensors", edit)
@@ -197,24 +195,25 @@ def test_verify_checks_values(tmp_path, case):
 
 
 GOLDEN = {
-    "float32": "xxh3-128:d4c6ae920bbdbf4e0c84dd7ab027c5ef",
-    "int8": "xxh3-128:266a930b0e5d114ecd0cc14fcea3abe4",
+    "float32": "xxh3-128:d81ae59f883002535663db41dcda55b9",
+    "int8": "xxh3-128:06e099a703a0f878651e6e52b0837041",
 }
 
 
 @pytest.mark.parametrize("dtype", sorted(GOLDEN))
 @pytest.mark.parametrize("mmap", [False, True])
 def test_golden_word_vectors(test_data_dir, dtype, mmap):
-    """The committed artifacts of tests/test_data/v2: the format must keep reading them."""
+    """The committed artifacts of tests/test_data/v2/finished: the format must keep
+    reading them."""
     import runpy
 
     # runpy writes no bytecode, so tests/test_data stays untouched.
     a = runpy.run_path(str(test_data_dir / "v2" / "make_golden.py"))["arrays"]()
-    wv = WordVectors.load(test_data_dir / "v2" / f"word_vectors_{dtype}.safetensors", mmap=mmap)
+    path = test_data_dir / "v2" / "finished" / f"word_vectors_{dtype}.safetensors"
+    wv = WordVectors.load(path, mmap=mmap)
     wv.verify()
     assert wv.fingerprint == GOLDEN[dtype]
     assert [wv.word(i) for i in range(len(wv))] == a["words"]
-    np.testing.assert_array_equal(wv.counts, a["counts"])
     assert wv.fasttext == a["fasttext"]
     if dtype == "float32":
         assert wv.stored_vectors.tobytes() == a["vectors"].tobytes()
@@ -227,12 +226,30 @@ def test_golden_word_vectors(test_data_dir, dtype, mmap):
     rebuilt = WordVectors.from_arrays(
         a["vectors"],
         words=a["words"],
-        counts=a["counts"],
         fasttext=a["fasttext"],
         ngrams=a["ngrams"],
     )
     rebuilt = rebuilt if dtype == "float32" else rebuilt.quantize(dtype)
     assert rebuilt.fingerprint == GOLDEN[dtype]
+
+
+@pytest.mark.parametrize("dtype", sorted(GOLDEN))
+def test_word_vectors_of_a_pre_release_with_counts_are_rejected(test_data_dir, dtype):
+    """The golden files of a pre-release held word counts, which 2.0 removed: they are
+    kept as they were written and refused by name."""
+    path = test_data_dir / "v2" / f"word_vectors_{dtype}.safetensors"
+    for mmap in (False, True):
+        with pytest.raises(UnsupportedArtifactError, match=r"pre-release of 2.0 .*counts.*rebuild"):
+            WordVectors.load(path, mmap=mmap)
+
+
+def test_counts_are_refused_however_they_are_written(tmp_path):
+    _wv().save(tmp_path / "wv.safetensors")
+    path = _rewrite(
+        tmp_path / "wv.safetensors", lambda t: t.__setitem__("counts", np.ones(6, np.int64))
+    )
+    with pytest.raises(UnsupportedArtifactError, match=r"pre-release of 2\.0"):
+        WordVectors.load(path)
 
 
 @pytest.mark.parametrize("dtype", sorted(GOLDEN))
@@ -254,7 +271,7 @@ def test_every_container_gives_the_golden_fingerprint(tmp_path, test_data_dir, d
     """
     from fse._container import CONTAINERS
 
-    golden = test_data_dir / "v2" / f"word_vectors_{dtype}.safetensors"
+    golden = test_data_dir / "v2" / "finished" / f"word_vectors_{dtype}.safetensors"
     tensors, metadata = SafetensorsContainer().open(golden, mmap=False)
     plain = {
         k: v

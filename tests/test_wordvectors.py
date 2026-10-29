@@ -98,7 +98,6 @@ def test_quantize(dtype):
         assert q.ngram_scales.tobytes() == ngram_scales.tobytes()
     assert q.metadata["fse.quantized_from"] == wv.fingerprint
     assert q.metadata["fse.quantization"] == "quantize_rows@1"
-    np.testing.assert_array_equal(q.counts, wv.counts)
     with pytest.raises(ValueError, match="only float32"):
         q.quantize("int8")
     with pytest.raises(Exception, match="float16"):
@@ -107,7 +106,7 @@ def test_quantize(dtype):
 
 def test_immutable_and_not_picklable():
     wv = _wv()
-    for array in (wv.stored_vectors, wv.vocab_bytes, wv.vocab_offsets, wv.counts):
+    for array in (wv.stored_vectors, wv.vocab_bytes, wv.vocab_offsets):
         with pytest.raises(ValueError, match="read-only"):
             array[0] = 1
     with pytest.raises(AttributeError):
@@ -123,7 +122,6 @@ def test_from_arrays_copies():
     wv = WordVectors.from_arrays(rows, words=["a", "b"])
     rows[0, 0] = 5
     assert wv.stored_vectors[0, 0] == 1
-    assert wv.counts is None
     assert wv.fasttext is None
     assert wv.scales is None
 
@@ -151,8 +149,6 @@ def test_from_arrays_with_vocabulary_bytes():
         ({"words": ["a", "\ud800"]}, ValueError, "word 1 .* has no UTF-8 form"),
         ({"words": ["a", "a"]}, ValueError, "word 1 .*'a'.* is also word 0"),
         ({"words": ["a"]}, ValueError, "vocab.offsets must be a vector of 3"),
-        ({"counts": np.array([1, -1])}, ValueError, "count 1 is negative"),
-        ({"counts": np.array([1, 1], np.int32)}, ValueError, "not one of the format"),
         ({"scales": np.ones(2, F32)}, ValueError, "scales are given exactly for int8"),
         (
             {"vectors": np.array([[1, -128], [0, 0]], np.int8), "scales": np.ones(2, F32)},
@@ -187,10 +183,11 @@ def test_from_arrays_with_vocabulary_bytes():
             r"\(4, 2\) matrix",
         ),
         (
-            {"vectors": np.ones((2, 2), F32), "counts": [1, 2]},
+            {"vectors": np.ones((2, 2), F32), "scales": [1, 2]},
             TypeError,
-            "counts must be a numpy array",
+            "scales must be a numpy array",
         ),
+        ({"counts": np.array([1, 2])}, TypeError, "unexpected keyword argument 'counts'"),
     ],
 )
 def test_from_arrays_rejects(kwargs, error, match):
@@ -240,7 +237,7 @@ def _peak(fn):
 
 def test_loading_int8_makes_no_float32_copy(tmp_path):
     """The gate of the board entry: loading codes needs about their bytes, not float32."""
-    wv = _wv("int8", n=20_000, dim=300, counts=False)
+    wv = _wv("int8", n=20_000, dim=300)
     wv.save(tmp_path / "wv.safetensors")
     codes = 20_000 * 300
     loaded, peak = _peak(lambda: WordVectors.load(tmp_path / "wv.safetensors"))
@@ -295,7 +292,6 @@ def test_returned_arrays_cannot_change_the_vectors():
     for name in (
         "stored_vectors",
         "scales",
-        "counts",
         "vocab_bytes",
         "vocab_offsets",
         "stored_ngrams",
@@ -367,7 +363,7 @@ def test_quantized_vectors_own_their_arrays(tmp_path):
     _wv().save(tmp_path / "wv.safetensors")
     wv = WordVectors.load(tmp_path / "wv.safetensors", mmap=True)
     q = wv.quantize("int8")
-    for name in ("stored_vectors", "scales", "counts", "vocab_bytes", "vocab_offsets"):
+    for name in ("stored_vectors", "scales", "vocab_bytes", "vocab_offsets"):
         assert not isinstance(getattr(q, name), np.memmap), name
     # Changing the source file afterwards changes nothing in the quantized vectors.
     _overwrite(tmp_path / "wv.safetensors", "vocab.bytes", b"x")

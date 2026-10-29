@@ -1,41 +1,20 @@
+import runpy
+from pathlib import Path
+
 import numpy as np
 import pytest
 
-from fse._contract import Normalize, Project, RemoveComponents, UnsupportedArtifactError
+from fse._contract import Normalize, UnsupportedArtifactError
+from fse._encoder import Encoder
 from fse._encoder._format import EncoderContent, from_artifact, to_artifact
-from support.container import LEGACY, fake_fingerprint
+from fse._wordvectors import WordVectors
+from support.wordvectors import _rewrite
 
 F32 = np.float32
-FP_A = fake_fingerprint("a")
-FP_B = fake_fingerprint("b")
-FP_C = fake_fingerprint("c")
+GOLDEN = Path(__file__).parent / "test_data" / "v2"
 
 
-def _basis(k, d, seed=0):
-    q = np.linalg.qr(np.random.default_rng(seed).standard_normal((d, k)))[0]
-    return np.ascontiguousarray(q.T, dtype=F32)
-
-
-def _content(**changes):
-    base = {
-        "tokenizer": "fse_words@1",
-        "steps": (
-            RemoveComponents(_basis(2, 6), np.array([1.0, 0.5], F32)),
-            Project(_basis(3, 6, 1)),
-            Normalize(),
-        ),
-        "input_dim": 6,
-        "weights": np.linspace(0.1, 1, 10).astype(F32),
-        "oov_weight": None,
-        "max_ngrams": None,
-        "word_vectors": FP_A,
-        "vocabulary": FP_B,
-        "recipe": {"name": "sif", "version": 1, "alpha": 0.001},
-    }
-    return EncoderContent(**{**base, **changes})
-
-
-def _embedded(dim=3):
+def _table(dim=3):
     tensors = {
         "vectors": np.ones((10, dim), F32),
         "vocab.bytes": np.frombuffer(b"abcdefghij", np.uint8),
@@ -44,69 +23,60 @@ def _embedded(dim=3):
     return tensors, {"fse.dim": str(dim), "fse.dtype": "float32"}
 
 
-def _folded():
-    return _content(
-        steps=(Normalize(),),
-        input_dim=3,
-        folded=(RemoveComponents(_basis(1, 6)), Project(_basis(3, 6, 2))),
-        folded_from=FP_C,
+def _content(**changes):
+    base = {
+        "tokenizer": "fse_words@1",
+        "steps": (Normalize(),),
+        "oov_weight": None,
+        "max_ngrams": None,
+    }
+    return EncoderContent(**{**base, **changes})
+
+
+def _artifact(**changes):
+    return to_artifact(_content(**changes), *_table())
+
+
+def test_an_encoder_round_trips_with_its_table():
+    tensors, metadata = _artifact()
+    assert sorted(tensors) == ["vectors", "vocab.bytes", "vocab.offsets"]
+    assert metadata == {
+        "fse.kind": "encoder",
+        "fse.format_version": "1",
+        "fse.transform_version": "2",
+        "fse.tokenizer": "fse_words@1",
+        "fse.aggregation": "weighted_mean@1",
+        "fse.steps": '["normalize@1"]',
+        "fse.output_dim": "3",
+        "fse.dim": "3",
+        "fse.dtype": "float32",
+    }
+    content, table, keys = from_artifact(tensors, metadata)
+    assert content.steps == (Normalize(),)
+    assert (content.tokenizer, content.oov_weight, content.max_ngrams) == (
+        "fse_words@1",
+        None,
+        None,
     )
-
-
-def _same_steps(got, want):
-    assert [s.op for s in got] == [s.op for s in want]
-    for a, b in zip(got, want, strict=True):
-        for field in ("components", "weights", "basis"):
-            x, y = getattr(a, field, None), getattr(b, field, None)
-            assert (x is None) == (y is None)
-            if x is not None:
-                assert x.tobytes() == y.tobytes()
-
-
-def test_an_unfolded_encoder_round_trips():
-    content = _content()
-    tensors, metadata = to_artifact(content, None)
-    assert sorted(tensors) == ["step.0.components", "step.0.weights", "step.1.basis", "weights"]
-    assert metadata["fse.steps"] == '["remove_components@1","project@1","normalize@1"]'
-    assert metadata["fse.output_dim"] == "3"
-    got, embedded = from_artifact(tensors, metadata)
-    assert embedded is None
-    _same_steps(got.steps, content.steps)
-    assert got.weights.tobytes() == content.weights.tobytes()
-    assert (got.input_dim, got.output_dim, got.recipe) == (6, 3, content.recipe)
-    assert (got.word_vectors, got.vocabulary, got.folded, got.folded_from) == (FP_A, FP_B, (), None)
-
-
-def test_a_folded_encoder_round_trips_with_its_word_vectors():
-    content = _folded()
-    tensors, metadata = to_artifact(content, _embedded())
-    assert metadata["fse.folded"] == '["remove_components@1","project@1"]'
-    got, (words, keys) = from_artifact(tensors, metadata)
-    _same_steps(got.folded, content.folded)
-    assert got.folded_from == FP_C
-    assert sorted(words) == ["vectors", "vocab.bytes", "vocab.offsets"]
+    assert sorted(table) == sorted(tensors)
     assert keys == {"fse.dim": "3", "fse.dtype": "float32"}
+    tensors, metadata = _artifact(steps=())
+    assert metadata["fse.steps"] == "[]"
+    assert from_artifact(tensors, metadata)[0].steps == ()
 
 
 def test_fasttext_needs_oov_weight_and_max_ngrams():
-    content = _content(oov_weight=np.array(0.25, F32), max_ngrams=40)
-    tensors, metadata = to_artifact(content, None)
-    got, _ = from_artifact(tensors, metadata)
-    assert got.oov_weight.tobytes() == np.array(0.25, F32).tobytes()
-    assert got.max_ngrams == 40
+    tensors, metadata = _artifact(oov_weight=np.array(0.25, F32), max_ngrams=40)
+    content, _, _ = from_artifact(tensors, metadata)
+    assert content.oov_weight.tobytes() == np.array(0.25, F32).tobytes()
+    assert content.max_ngrams == 40
     del metadata["fse.max_ngrams"]
     with pytest.raises(ValueError, match="exactly for FastText"):
         from_artifact(tensors, metadata)
-
-
-def test_average_has_no_weights():
-    tensors, metadata = to_artifact(_content(weights=None, steps=(Normalize(),)), None)
-    assert tensors == {}
-    assert from_artifact(tensors, metadata)[0].weights is None
-
-
-def _artifact():
-    return to_artifact(_content(), None)
+    with pytest.raises(ValueError, match="one finite float32 value"):
+        from_artifact(
+            {**tensors, "oov_weight": np.array(0.25)}, {**metadata, "fse.max_ngrams": "4"}
+        )
 
 
 def _changed_metadata(key, value):
@@ -128,16 +98,14 @@ def _changed_metadata(key, value):
         ("fse.tokenizer", "bert@1", UnsupportedArtifactError, "tokenizer"),
         ("fse.aggregation", "max@1", UnsupportedArtifactError, "max"),
         ("fse.steps", '["normalize@2"]', UnsupportedArtifactError, "normalize"),
+        ("fse.steps", '["project@1"]', UnsupportedArtifactError, "project@1 is not supported"),
+        ("fse.steps", '["normalize@1","normalize@1"]', ValueError, "none or normalize once"),
         ("fse.steps", '[ "normalize@1"]', ValueError, "canonical"),
         ("fse.steps", "normalize@1", ValueError, "JSON list"),
-        ("fse.output_dim", "6", ValueError, "the steps give 3"),
-        ("fse.input_dim", "06", ValueError, "decimal integer"),
-        ("fse.word_vectors", "sha256:x", ValueError, "fingerprint"),
-        ("fse.word_vectors", LEGACY, ValueError, r"fingerprint \(xxh3-128: and 32"),
-        ("fse.recipe", "[]", ValueError, "JSON object"),
-        ("fse.vocabulary", None, ValueError, "needs the metadata key fse.vocabulary"),
-        ("fse.folded_from", FP_C, ValueError, "only a folded encoder"),
-        ("fse.dim", "3", ValueError, "only a folded encoder"),
+        ("fse.output_dim", "6", ValueError, "aggregate to 3"),
+        ("fse.dim", "03", ValueError, "decimal integer"),
+        ("fse.dim", "0", ValueError, "at least 1"),
+        ("fse.output_dim", None, ValueError, "needs the metadata key fse.output_dim"),
         ("fse.max_ngrams", "4", ValueError, "exactly for FastText"),
     ],
 )
@@ -147,33 +115,103 @@ def test_metadata_is_checked(key, value, error, match):
         from_artifact(tensors, metadata)
 
 
-def test_tensors_are_derived_from_the_content():
+@pytest.mark.parametrize(
+    "key",
+    [
+        "fse.recipe",
+        "fse.folded",
+        "fse.folded_from",
+        "fse.input_dim",
+        "fse.word_vectors",
+        "fse.vocabulary",
+    ],
+)
+def test_the_keys_of_a_pre_release_are_refused_by_name(key):
+    tensors, metadata = _changed_metadata(key, "x")
+    with pytest.raises(
+        UnsupportedArtifactError, match=rf"pre-release of 2.0 \(it holds {key}, .*rebuild"
+    ):
+        from_artifact(tensors, metadata)
+
+
+@pytest.mark.parametrize(
+    "name", ["weights", "step.0.components", "step.1.basis", "folded.0.weights"]
+)
+def test_the_tensors_of_a_pre_release_are_refused_by_name(name):
     tensors, metadata = _artifact()
+    with pytest.raises(UnsupportedArtifactError, match=rf"pre-release of 2.0 \(it holds {name}, "):
+        from_artifact({**tensors, name: np.ones(3, F32)}, metadata)
+
+
+def test_an_encoder_without_its_table_is_a_pre_release():
+    tensors, metadata = _artifact()
+    with pytest.raises(UnsupportedArtifactError, match=r"pre-release of 2\.0 .*no table of its own"):
+        from_artifact({}, metadata)
     with pytest.raises(ValueError, match="does not use"):
-        from_artifact({**tensors, "step.2.basis": _basis(3, 3)}, metadata)
-    with pytest.raises(ValueError, match=r"needs the tensor step\.1\.basis"):
-        from_artifact({k: v for k, v in tensors.items() if k != "step.1.basis"}, metadata)
-    with pytest.raises(ValueError, match="only a folded encoder"):
-        from_artifact({**tensors, "vectors": np.ones((10, 6), F32)}, metadata)
-    with pytest.raises(ValueError, match="weights must be a float32 vector"):
-        from_artifact({**tensors, "weights": np.ones(10)}, metadata)
-    with pytest.raises(ValueError, match="orthonormal"):
-        from_artifact({**tensors, "step.1.basis": np.ones((3, 6), F32)}, metadata)
+        from_artifact({**tensors, "row_ids": np.ones(3, np.int64)}, metadata)
 
 
-def test_folded_encoders_are_checked():
-    tensors, metadata = to_artifact(_folded(), _embedded())
-    with pytest.raises(ValueError, match="keeps only normalize"):
-        from_artifact(
-            {**tensors, "step.0.components": _basis(1, 3)},
-            {**metadata, "fse.steps": '["remove_components@1"]'},
-        )
-    with pytest.raises(ValueError, match="linear steps"):
-        from_artifact(tensors, {**metadata, "fse.folded": '["normalize@1"]'})
-    with pytest.raises(ValueError, match="names its original word vectors"):
-        from_artifact(tensors, {k: v for k, v in metadata.items() if k != "fse.folded_from"})
-    with pytest.raises(ValueError, match="holds its word vectors"):
-        from_artifact({k: v for k, v in tensors.items() if k != "vectors"}, metadata)
-    bad = {**tensors, "folded.1.basis": _basis(2, 6, 3)}
-    with pytest.raises(ValueError, match="give rows of 2 values"):
-        from_artifact(bad, metadata)
+def test_the_table_is_checked_as_word_vectors(tmp_path):
+    Encoder.from_arrays(np.ones((2, 3), F32), words=["a", "b"]).save(tmp_path / "e.safetensors")
+    path = _rewrite(
+        tmp_path / "e.safetensors", edit_metadata=lambda m: m.update({"fse.dtype": "int8"})
+    )
+    with pytest.raises(ValueError, match="vectors must be a matrix of int8"):
+        Encoder.load(path)
+
+
+GOLDEN_ENCODERS = {
+    "encoder_float32": (
+        "xxh3-128:363c1e166b680245adb9fbb9df929d96",
+        [
+            "2ef9643f000000002ef9e43e",
+            "2ef9e4be2ef9643f00000000",
+            "0" * 24,
+            "2ef9643f000000002ef9e43e",
+        ],
+    ),
+    "encoder_int8": (
+        "xxh3-128:900de12daf5acd9cd72ee4368740e1c4",
+        [
+            "0281c03f0000c0bf0e87c33e",
+            "b0022cbfaeaa2a40b002acbe",
+            "0" * 24,
+            "bd022cbb0100803fabaaaa3e",
+        ],
+    ),
+}
+
+
+@pytest.mark.parametrize("name", sorted(GOLDEN_ENCODERS))
+@pytest.mark.parametrize("mmap", [False, True])
+def test_the_golden_encoders_load_and_give_their_pinned_rows(name, mmap):
+    """encoder 1 is fixed: these files load, keep their fingerprint and give the same bits
+    on every platform (the encoding is contract arithmetic)."""
+    golden = runpy.run_path(str(GOLDEN / "make_golden.py"))
+    fingerprint, rows = GOLDEN_ENCODERS[name]
+    encoder = Encoder.load(GOLDEN / "finished" / f"{name}.safetensors", mmap=mmap)
+    assert encoder.fingerprint == fingerprint
+    got = encoder.encode(golden["SENTENCES"], workers=1)
+    assert [row.tobytes().hex() for row in got] == rows
+    encoder.verify()
+    wv = golden["word_vectors"]()
+    made = golden["encoders"](wv, wv.quantize("int8"))[name]
+    assert made.fingerprint == fingerprint  # the writer still gives the same file
+
+
+@pytest.mark.parametrize("name", ["encoder_sif_unfolded", "encoder_usif_folded_int8"])
+@pytest.mark.parametrize("mmap", [False, True])
+def test_the_golden_encoders_of_a_pre_release_are_rejected(name, mmap):
+    """The encoders of a pre-release (one referencing its word vectors, one folded), kept
+    as they were written: refused by what they hold, or by their sha256 checksums."""
+    with pytest.raises(UnsupportedArtifactError, match=r"pre-release of 2.0 .*fse.recipe.*rebuild"):
+        Encoder.load(GOLDEN / f"{name}.safetensors", mmap=mmap)
+    with pytest.raises(UnsupportedArtifactError, match=r"sha256 .* reads xxh3-128"):
+        Encoder.load(GOLDEN / "sha256" / f"{name}.safetensors", mmap=mmap)
+
+
+def test_word_vectors_are_no_encoder():
+    with pytest.raises(UnsupportedArtifactError, match="is a 'word_vectors', not 'encoder'"):
+        Encoder.load(GOLDEN / "finished" / "word_vectors_float32.safetensors")
+    with pytest.raises(UnsupportedArtifactError, match="is a 'encoder', not 'word_vectors'"):
+        WordVectors.load(GOLDEN / "finished" / "encoder_float32.safetensors")

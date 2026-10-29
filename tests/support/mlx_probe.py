@@ -54,9 +54,9 @@ class MlxProbe:
     def prepare(self, pool: PoolInput, steps) -> Prepared:
         check_pool_input(pool)
         self.capabilities().check(self.name, pool, steps)
-        checked, pooled, out = dims(pool, steps)
+        checked, out = dims(pool, steps)
         state = (self.mx.array(pool.vectors), self.mx.array(pool.weights))  # uploaded once
-        return Prepared(self.name, pool, checked, pooled, out, state)
+        return Prepared(self.name, pool, checked, out, state)
 
     def rows(self, batch: Batch, prepared: Prepared, out: np.ndarray) -> None:
         check_prepared(prepared, self.name)
@@ -82,9 +82,6 @@ class MlxProbe:
         bad = np.flatnonzero(~np.isfinite(out).all(axis=1))
         if len(bad):
             raise ValueError(f"row {batch.first_row + int(bad[0])} contains NaN or infinite values")
-
-    def gram_block(self, *_rows):
-        raise UnsupportedByBackendError("the mlx-probe backend cannot run gram_block (PR 10)")
 
     def score(self, *_args):
         raise UnsupportedByBackendError("the mlx-probe backend cannot run score (PR 9)")

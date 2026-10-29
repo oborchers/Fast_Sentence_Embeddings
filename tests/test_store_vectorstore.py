@@ -13,10 +13,10 @@ import fse
 from fse import _reference
 from fse._container import CorruptArtifactError
 from fse._store import _search
-from support.encoder import unfolded
+from support.encoder import finished
 from support.runtime import texts
 
-ENCODER = unfolded()
+ENCODER = finished()
 F32 = np.float32
 
 
@@ -163,7 +163,7 @@ def test_arguments_are_checked(tmp_path):
         with pytest.raises(ValueError, match="bias must be one number or 2 numbers"):
             store.score(np.ones((2, dim), F32), np.ones(3))
     with pytest.raises(ValueError, match="holds the rows of encoder"):
-        fse.VectorStore.open(path, encoder=unfolded(steps="normalize"))
+        fse.VectorStore.open(path, encoder=finished(dim=12))
     with pytest.raises(TypeError, match=r"VectorStore.open\(path\)"):
         fse.VectorStore(path)
     with pytest.raises(ValueError, match="backend must be one of"):

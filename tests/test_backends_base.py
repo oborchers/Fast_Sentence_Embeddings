@@ -3,7 +3,7 @@ import pytest
 
 from fse._backends import Capabilities, PoolInput, UnsupportedByBackendError
 from fse._backends._base import check_out, check_pool_input, dims
-from fse._contract import Aggregation, Batch, Normalize, Op, Project
+from fse._contract import Aggregation, Batch, Normalize, Op
 
 F32 = np.float32
 
@@ -31,7 +31,7 @@ ALL = Capabilities(
         ({"aggregations": frozenset()}, _pool(), (), "the aggregation weighted_mean@1"),
         ({"fasttext": False}, _pool(ngram_vectors=np.ones((2, 3), F32)), (), "FastText"),
         ({"max_dim": 2}, _pool(), (), "rows of 3 values"),
-        ({"steps": frozenset({Op.PROJECT})}, _pool(), (Normalize(),), "the step normalize@1"),
+        ({"steps": frozenset()}, _pool(), (Normalize(),), "the step normalize@1"),
     ],
 )
 def test_capabilities_name_what_is_missing(change, pool, steps, match):
@@ -71,18 +71,18 @@ def test_pool_input_must_be_a_pool_input():
         check_pool_input((np.ones((2, 3), F32), np.ones(2, F32)))
 
 
-def test_dims_follow_the_aggregation_and_the_steps():
-    basis = np.ascontiguousarray(np.eye(2, 3, dtype=F32))
-    steps, pooled, out = dims(_pool(), [Project(basis), Normalize()])
-    assert (pooled, out) == (3, 2)
-    assert isinstance(steps, tuple)
+def test_dims_follow_the_aggregation():
+    steps, out = dims(_pool(), [Normalize()])
+    assert (steps, out) == ((Normalize(),), 3)
+    with pytest.raises(ValueError, match="none or normalize once"):
+        dims(_pool(), [Normalize(), Normalize()])
 
 
 def test_out_is_checked():
     from fse._backends import Prepared
 
     pool = _pool()
-    prepared = Prepared("numpy", pool, (), 3, 3, None)
+    prepared = Prepared("numpy", pool, (), 3, None)
     batch = Batch(0, np.array([0, 1, 2], np.int64), np.array([0, 1], np.uint32))
     check_out(np.empty((2, 3), F32), batch, prepared)
     for bad in (

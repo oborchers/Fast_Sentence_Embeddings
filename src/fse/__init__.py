@@ -20,7 +20,7 @@ from fse._wordvectors import WordVectors
 from fse._wordvectors_format import FastTextParams
 
 if TYPE_CHECKING:
-    from fse._encoder import Corpus, EncodedBatch, Encoder, QuantizedRows
+    from fse._encoder import EncodedBatch, Encoder, QuantizedRows
     from fse._runtime import MemorySink, Sink
     from fse._store import SearchResult, ShardSink, VectorStore
 del TYPE_CHECKING  # not a name of fse
@@ -31,7 +31,7 @@ del TYPE_CHECKING  # not a name of fse
 # cycle through every layer.
 _LAZY = {
     **dict.fromkeys(
-        ("Corpus", "Encoder", "EncodedBatch", "QuantizedRows"),
+        ("Encoder", "EncodedBatch", "QuantizedRows"),
         "fse._encoder",
     ),
     **dict.fromkeys(("MemorySink", "Sink"), "fse._runtime"),
@@ -84,7 +84,6 @@ def __dir__() -> list[str]:
 
 
 __all__ = [
-    "Corpus",
     "CorruptArtifactError",
     "EncodedBatch",
     "Encoder",

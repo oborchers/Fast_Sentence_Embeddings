@@ -24,7 +24,6 @@ import numpy as np
 from fse import _codes
 from fse._runtime import Pipeline, wants_inverse_norms
 
-from ._corpus import Corpus
 from ._sources import opened
 
 
@@ -130,10 +129,10 @@ def batches(
     lists) each."""
     row, last = 0, None
     for k, item in enumerate(items):
-        if not isinstance(item, list | tuple | Corpus):
+        if not isinstance(item, list | tuple):
             raise TypeError(
                 f"batch {k} is a {type(item).__name__}; every batch is a list (or tuple) of "
-                "sentences or a fse.Corpus"
+                "sentences"
             )
         n = len(item)
         with _named(k, row, n), opened(item, tokenizer) as source:

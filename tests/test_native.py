@@ -244,21 +244,6 @@ def test_ci_runs_the_vector_kernel():
     assert want in _native.available_isas()
 
 
-def test_reshaped_step_arrays_are_rejected_at_the_kernel():
-    from fse._contract import Project, RemoveComponents
-
-    step = RemoveComponents(np.array([[1, 0]], F32), np.array([1], F32))
-    # A caller can still change the arrays of a checked step (numpy below 2.5 even lets
-    # it reshape a read-only array in place); the kernel must not trust them.
-    object.__setattr__(step, "components", step.components.reshape(2, 1))
-    with pytest.raises(ValueError, match="components must have shape"):
-        _native.postprocess(np.ones((1, 1), F32), [step])
-    project = Project(np.array([[1, 0]], F32))
-    object.__setattr__(project, "basis", project.basis.reshape(2, 1))
-    with pytest.raises(ValueError, match="basis must have shape"):
-        _native.postprocess(np.ones((1, 1), F32), [project])
-
-
 def test_store_rows_checks_its_arguments_and_edges():
     rows = np.ones((3, 2), np.float32)
     with pytest.raises(ValueError, match="float32 matrix"):
@@ -312,25 +297,18 @@ def test_the_workspace_counts_the_tokens_of_the_last_encode():
         assert len(batch.tokens) <= seen
 
 
-@pytest.mark.parametrize("project", [False, True])
-def test_postprocess_pooled_gives_the_bits_of_postprocess_in_place(project):
-    from fse._contract import Normalize, Project, RemoveComponents
+def test_postprocess_pooled_gives_the_bits_of_postprocess_in_place():
+    from fse._contract import Normalize
 
     rng = np.random.default_rng(7)
     rows = rng.standard_normal((37, 12)).astype(np.float32)
     rows[3] = 0  # a zero row stays zero
-    basis = np.linalg.qr(rng.standard_normal((12, 4)))[0].T.astype(np.float32)
-    components = np.ascontiguousarray(basis[:1])
-    steps = (
-        RemoveComponents(components),
-        *((Project(np.ascontiguousarray(basis[1:])),) if project else ()),
-        Normalize(),
-    )
-    want = _native.postprocess(rows, steps, 5)
+    want = _native.postprocess(rows, (Normalize(),), 5)
     pooled = rows.copy()
-    got = _native.postprocess_pooled(pooled, steps, 5)
+    got = _native.postprocess_pooled(pooled, (Normalize(),), 5)
     assert got.tobytes() == want.tobytes()
-    assert (got is pooled) != project  # in place unless a project makes a new array
+    assert got is pooled
+    assert _native.postprocess_pooled(rows, (), 5) is rows  # no step changes nothing
 
 
 def test_postprocess_pooled_takes_only_writable_float32_matrices():

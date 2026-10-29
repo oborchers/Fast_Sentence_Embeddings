@@ -9,15 +9,13 @@ from fse._contract import (
     Batch,
     Normalize,
     Op,
-    Project,
-    RemoveComponents,
     Tokenizer,
     UnsupportedArtifactError,
     check_steps,
     check_tokenizer,
     check_transform_version,
-    output_dim,
     parse_id,
+    prerelease_error,
 )
 
 
@@ -25,7 +23,6 @@ def test_identifiers_round_trip():
     for member in [*Aggregation, *Op]:
         assert type(member).parse(str(member)) is member
     assert str(Aggregation.WEIGHTED_MEAN) == "weighted_mean@1"
-    assert Op.REMOVE_COMPONENTS.id == "remove_components@1"
     assert Op.NORMALIZE.id == "normalize@1"
     assert parse_id("max@12") == ("max", 12)
 
@@ -67,90 +64,29 @@ def test_output_dim():
     for value in (True, 1.5, float("nan"), "3"):
         with pytest.raises(TypeError, match="must be an int"):
             Aggregation.WEIGHTED_MEAN.output_dim(value)
-    with pytest.raises(ValueError, match="at least 1"):
-        output_dim([], -2)
-
-
-def _components(k=2, d=4):
-    return np.eye(k, d, dtype=np.float32)
 
 
 def test_step_lists():
-    rc, p, n = RemoveComponents(_components()), Project(_components(3, 4)), Normalize()
-    for steps in ([], [rc], [p], [n], [rc, p], [rc, n], [p, n], [rc, p, n]):
+    n = Normalize()
+    for steps in ([], [n], (n,)):
         assert check_steps(steps, 4) == tuple(steps)
-    for steps in ([n, rc], [p, rc], [n, p], [rc, rc], [n, n], [rc, n, n]):
-        with pytest.raises(ValueError, match="each at most once"):
-            check_steps(steps, 4)
+    with pytest.raises(ValueError, match="none or normalize once"):
+        check_steps([n, n], 4)
     with pytest.raises(TypeError, match="not a postprocessing step"):
         check_steps(["normalize"], 4)
-    with pytest.raises(ValueError, match="remove_components@1 step takes rows of 4 values, not 5"):
-        check_steps([rc], 5)
-    with pytest.raises(ValueError, match="project@1 step takes rows of 4 values, not 5"):
-        check_steps([p], 5)
-    # A projection changes the dimension that later steps see.
-    assert output_dim([rc, p, n], 4) == 3
-    assert output_dim([rc, n], 4) == 4
-    assert rc.op is Op.REMOVE_COMPONENTS
-    assert p.op is Op.PROJECT
+    with pytest.raises(ValueError, match="at least 1"):
+        check_steps([], 0)
     assert n.op is Op.NORMALIZE
+    assert list(Op) == [Op.NORMALIZE]
 
 
-def test_components_and_bases_must_be_orthonormal():
-    for rows in ([[2, 0]], [[0, 0]], [[1, 0], [1, 0]], [[1, 0], [0.7071, 0.7071]]):
-        with pytest.raises(ValueError, match="must be orthonormal"):
-            RemoveComponents(np.array(rows, dtype=np.float32))
-        with pytest.raises(ValueError, match="must be orthonormal"):
-            Project(np.array(rows, dtype=np.float32))
-    # Within float32 rounding is fine.
-    Project(np.array([[1 + 1e-6, 0], [0, 1]], dtype=np.float32))
-
-
-def test_steps_keep_their_own_read_only_arrays():
-    components = _components()
-    weights = np.ones(2, dtype=np.float32)
-    step = RemoveComponents(components, weights)
-    components *= 2
-    weights *= 3
-    np.testing.assert_array_equal(step.components, _components())
-    np.testing.assert_array_equal(step.weights, 1)
-    basis = _components(3, 4)
-    project = Project(basis)
-    basis[:] = 0
-    np.testing.assert_array_equal(project.basis, _components(3, 4))
-    for array in (step.components, step.weights, project.basis):
-        with pytest.raises(ValueError, match="read-only"):
-            array[0] = 5
-
-
-def test_project_validates():
-    assert Project(_components(2, 5)).output_dim == 2
-    with pytest.raises(ValueError, match="between 1 and 2 rows, not 3"):
-        Project(np.ones((3, 2), dtype=np.float32))
-    with pytest.raises(TypeError, match="float32"):
-        Project(np.eye(2))
-
-
-def test_remove_components_validates():
-    RemoveComponents(_components(), np.ones(2, dtype=np.float32))
-    with pytest.raises(TypeError, match="numpy array"):
-        RemoveComponents([[1.0, 0.0]])
-    with pytest.raises(TypeError, match="float32"):
-        RemoveComponents(np.eye(2))
-    with pytest.raises(ValueError, match="2 dimensions"):
-        RemoveComponents(np.ones(3, dtype=np.float32))
-    with pytest.raises(ValueError, match="C-contiguous"):
-        RemoveComponents(np.asfortranarray(np.ones((2, 3), dtype=np.float32)))
-    with pytest.raises(ValueError, match="NaN"):
-        RemoveComponents(np.full((1, 2), np.nan, dtype=np.float32))
-    with pytest.raises(ValueError, match="between 1 and 2 rows, not 3"):
-        RemoveComponents(np.ones((3, 2), dtype=np.float32))
-    with pytest.raises(ValueError, match="between 1 and 2 rows, not 0"):
-        RemoveComponents(np.ones((0, 2), dtype=np.float32))
-    with pytest.raises(ValueError, match=r"shape \(2,\)"):
-        RemoveComponents(_components(), np.ones(3, dtype=np.float32))
-    with pytest.raises(ValueError, match="NaN"):
-        RemoveComponents(_components(), np.array([1, np.inf], dtype=np.float32))
+def test_the_error_of_a_pre_release():
+    error = prerelease_error("encoder", ["weights", "fse.recipe"])
+    assert isinstance(error, UnsupportedArtifactError)
+    assert str(error) == (
+        "this encoder was written by a pre-release of 2.0 (it holds fse.recipe, weights, "
+        "which 2.0 no longer has); rebuild the model with this fse"
+    )
 
 
 def _u32(*values):
