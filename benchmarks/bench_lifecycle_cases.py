@@ -387,8 +387,9 @@ def v1_hub_model(c: dict) -> dict:
 def v1_hub(c: dict) -> dict:
     """The SIF model of 1.1 as from the hub (trained, without sentence vectors) loaded and
     adding the vectors of the corpus with train(update=True): its bulk path, which keeps
-    the components and runs with its workers (infer is serial); into memory, or then
-    saved as 1.1 stores its vectors."""
+    the components and runs with its workers (infer is serial); into memory, or then its
+    sentence vectors saved on their own (the model it loaded is unchanged, as 2.0 keeps
+    its encoder)."""
     import fse
 
     out: dict = {"peak_before": _peak(), "save_s": 0.0}
@@ -400,8 +401,7 @@ def v1_hub(c: dict) -> dict:
     out["encode_s"], _ = _timed(lambda: model.train(sentences, update=True))
     if c["target"] == "store":
         with tempfile.TemporaryDirectory(dir=c["tmp"]) as run:
-            (Path(run) / "model").mkdir()
-            out["save_s"], _ = _timed(lambda: model.save(str(Path(run) / "model" / "model")))
+            out["save_s"], _ = _timed(lambda: model.sv.save(str(Path(run) / "sv")))
         out["encode_s"] += out["save_s"]
     out["peak"] = _peak()
     out["total_s"] = out["load_s"] + out["encode_s"]

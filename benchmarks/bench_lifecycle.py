@@ -93,6 +93,19 @@ def _wanted(case: tuple, args) -> bool:
     return all(value in among for value, among in zip(case, allowed, strict=True))
 
 
+def _hubs(encodes: list[dict], stores: list[dict]) -> dict:
+    """The (dtype, workers) of the hub cases: those of the SIF encodes, whose saved models
+    (from a SIF encode into a store of the dtype) the hub cases load."""
+    hubs = {(e["dtype"], e["workers"]): None for e in encodes if e["model"] == "SIF"}
+    saved = {e["dtype"] for e in stores if e["model"] == "SIF"}
+    if missing := sorted({d for d, _ in hubs} - saved):
+        raise SystemExit(
+            f"the hub cases of {', '.join(missing)} load the models a SIF encode into a "
+            "store saves; add --targets store"
+        )
+    return hubs
+
+
 def grid(args) -> list[dict]:
     """Every case in order: loads, encodes, then queries and inference of the stores."""
     if args.full:
@@ -110,7 +123,7 @@ def grid(args) -> list[dict]:
     stores = [e for e in encodes if e["target"] == "store"]
     queries = {(e["model"], e["dtype"]): None for e in stores}
     infers = {(e["model"], e["workers"]): None for e in stores if e["dtype"] == "float32"}
-    hubs = {(e["dtype"], e["workers"]): None for e in stores if e["model"] == "SIF"}
+    hubs = _hubs(encodes, stores)
     return [
         {"kind": "load"},
         {"kind": "load_mmap"},

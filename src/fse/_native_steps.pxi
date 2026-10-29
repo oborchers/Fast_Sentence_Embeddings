@@ -52,6 +52,7 @@ def postprocess_pooled(rows, steps, first_row=0, *, isa=None):
         and rows.flags.writeable
     ):
         raise ValueError("pooled rows must be a writable C-contiguous float32 matrix")
+    steps = tuple(steps)  # iterated twice: the checks and the steps
     for step in steps:  # written in place, the rows must not share memory with a step
         for name in ("components", "weights", "basis"):
             array = getattr(step, name, None)
