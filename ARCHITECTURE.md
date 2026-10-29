@@ -66,6 +66,7 @@ src/fse/
   _native_kernel.h       # the C kernel: its contract, ISA detection and dispatch, and
   _native_kernel_base.h  #   build checks, macros and shared types,
   _native_kernel_mean.h  #   the weighted mean loops per ISA and dtype,
+  _native_kernel_tiles.h #   the register-blocked weighted mean loop (NEON float32),
   _native_kernel_steps.h #   FP environment, dot16, steps and score,
   _native_kernel_store.h #   the storage of rows per ISA,
   _native_kernel_search.h #  inverse norms, cosines and scores
