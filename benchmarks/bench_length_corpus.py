@@ -59,7 +59,10 @@ RAW = ("raw-paragraphs", "raw-documents")
 LONG = 10_000  # texts longer than this many tokens are counted in the manifest
 
 _ALNUM = re.compile("[A-Za-z0-9]")
-_TITLE = re.compile(r"^ = [^=].*[^=] = $")
+_TITLE = re.compile(r"^ = ([^=]|[^=].*[^=]) = $")
+# The articles of the training split of the pinned revision by the rule of ``_is_title``
+# (the parquet files of b08601e0; checked in ``articles``).
+ARTICLES = 28_472
 
 
 def synthetic(length: int, part: int = 1) -> str:
@@ -92,10 +95,10 @@ def _raw_rows() -> list[str]:
 
 
 def _is_title(rows: list[str], i: int) -> bool:
-    """An article title ``= Title =`` between two empty rows (a table row such as
+    """An article title ``= Title =`` between two blank rows (a table row such as
     ``= Goals ; A =`` is none)."""
-    before = i == 0 or rows[i - 1] == ""
-    after = i + 1 == len(rows) or rows[i + 1] == ""
+    before = i == 0 or not rows[i - 1].strip()
+    after = i + 1 == len(rows) or not rows[i + 1].strip()
     return before and after and bool(_TITLE.match(rows[i].rstrip("\n")))
 
 
@@ -123,7 +126,19 @@ def articles() -> list[list[tuple[str, str]]]:
             raise SystemExit(f"{CACHED} has more lines than the raw paragraphs")
     if (found := sum(len(a) for a in out)) != CACHED_LINES:
         raise SystemExit(f"{found:,} raw paragraphs, not the {CACHED_LINES:,} cached lines")
-    return [a for a in out if a]
+    _check_articles(out)
+    return out[1:]
+
+
+def _check_articles(found: list[list]) -> None:
+    """The article boundaries on their own: no paragraph before the first title, the
+    known number of articles, none without a paragraph."""
+    if found[0]:
+        raise SystemExit(f"{len(found[0])} paragraphs come before the first article title")
+    if len(found) - 1 != ARTICLES:
+        raise SystemExit(f"{len(found) - 1:,} article titles, not the {ARTICLES:,} expected")
+    if empty := sum(1 for article in found[1:] if not article):
+        raise SystemExit(f"{empty} article titles have no paragraph")
 
 
 def first(found: list[list[tuple[str, str]]], tokens: int | None) -> list[list[tuple[str, str]]]:
