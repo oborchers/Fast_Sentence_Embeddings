@@ -17,7 +17,7 @@ def test_rows_are_the_reference_pool_and_steps():
     pool = PoolInput(rng.standard_normal((3, 4)).astype(F32), rng.random(3).astype(F32))
     backend = NumpyBackend()
     prepared = backend.prepare(pool, [Normalize()])
-    assert (prepared.pooled_dim, prepared.output_dim, prepared.steps) == (4, 4, (Normalize(),))
+    assert (prepared.output_dim, prepared.steps) == (4, (Normalize(),))
     out = np.empty((3, 4), F32)
     backend.rows(_batch(), prepared, out)
     want = _reference.postprocess(
@@ -39,7 +39,7 @@ def test_errors_name_the_rows_of_the_batch():
 
 def test_prepared_of_another_backend_is_refused():
     pool = PoolInput(np.ones((3, 2), F32), np.ones(3, F32))
-    other = Prepared("cpu", pool, (), 2, 2, None)
+    other = Prepared("cpu", pool, (), 2, None)
     with pytest.raises(TypeError, match="prepared by the numpy backend"):
         NumpyBackend().rows(_batch(), other, np.empty((3, 2), F32))
 
@@ -54,12 +54,9 @@ def test_prepare_checks_input_and_capabilities():
     assert issubclass(UnsupportedByBackendError, ValueError)
 
 
-def test_gram_block_and_score():
+def test_score():
     rows = np.arange(12, dtype=F32).reshape(4, 3)
     backend = NumpyBackend()
-    assert backend.gram_block(rows).tobytes() == (rows.T @ rows).tobytes()
-    with pytest.raises(ValueError, match="float32 matrix"):
-        backend.gram_block(rows.astype(np.float64))
     weights = np.ones(3, F32)
     assert (
         backend.score(rows, None, weights, 0.5).tobytes()

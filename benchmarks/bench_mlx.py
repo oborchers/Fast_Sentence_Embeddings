@@ -87,7 +87,7 @@ def gamma(k: int) -> float:
     return k * 2.0**-24 / (1 - k * 2.0**-24)
 
 
-def fallbacks(encoder: fse.Average) -> dict:
+def fallbacks(encoder: fse.Encoder) -> dict:
     from fse._backends._mlx._backend import fallbacks as counts
 
     return counts(encoder._pipelines["mlx"].prepared)
@@ -113,7 +113,7 @@ def compare(first: dict, ids: np.ndarray, texts: list, wv: fse.WordVectors, args
     cpu, mlx = first["cpu"], first["mlx"]
     raw = cpu
     if args.mode == "norm":
-        unit = fse.Average(normalize=False, tokenizer="external").fit(wv)
+        unit = fse.Encoder.from_word_vectors(wv, normalize=False, tokenizer="external")
         raw = unit.encode(texts, workers=args.workers)  # the radius before normalize
     return {
         "bitequal": bool(np.array_equal(cpu.view(np.uint32), mlx.view(np.uint32))),
@@ -130,7 +130,7 @@ def main() -> None:
     parser.add_argument("--rounds", type=int, default=5)
     args = parser.parse_args()
     ids, texts, wv = corpus(args.length)
-    encoder = fse.Average(normalize=args.mode == "norm", tokenizer="external").fit(wv)
+    encoder = fse.Encoder.from_word_vectors(wv, normalize=args.mode == "norm", tokenizer="external")
     backends = (args.only,) if args.only else ("cpu", "mlx")
     run = {
         b: (lambda b=b: encoder.encode(texts, workers=args.workers, backend=b)) for b in backends

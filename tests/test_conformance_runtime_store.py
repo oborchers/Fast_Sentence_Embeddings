@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from fse import _native, _reference
-from fse._contract import Normalize, Project, RemoveComponents
+from fse._contract import Normalize
 from fse._runtime import EncodeSpec, GrowingRows, Pipeline, _executor, _pipeline, _tasks
 from fse._stream import StreamSource
 from fse._text import StringSource
@@ -19,19 +19,7 @@ from support.runtime import expected, source, texts, word_vectors
 F32 = np.float32
 
 
-def _basis(dim, k, seed):
-    q = np.linalg.qr(np.random.default_rng(seed).standard_normal((dim, k)))[0]
-    return np.ascontiguousarray(q.T, dtype=F32)
-
-
-STEPS = {
-    "none": (),
-    "all": (
-        RemoveComponents(_basis(12, 2, 1), np.array([1.0, 0.5], F32)),
-        Project(_basis(12, 6, 2)),
-        Normalize(),
-    ),
-}
+STEPS = {"none": (), "normalize": (Normalize(),)}
 
 
 @functools.cache
@@ -80,7 +68,7 @@ def test_stored_rows_are_the_reference_bits(
 def test_workers_store_in_the_kernel_environment(monkeypatch, env, store, backend):
     if backend == "mlx":
         require_mlx()
-    spec = _spec(False, "all", "fse_words@1")
+    spec = _spec(False, "normalize", "fse_words@1")
     sentences = texts(2000)
     made = _pipeline.new_workspace
     saved = []
@@ -98,12 +86,12 @@ def test_workers_store_in_the_kernel_environment(monkeypatch, env, store, backen
 
 
 def test_a_stream_into_a_growing_int8_sink():
-    spec = _spec(True, "all", "fse_words@1")
+    spec = _spec(True, "normalize", "fse_words@1")
     sentences = texts(3000)
-    sink = GrowingRows(6, "int8")
+    sink = GrowingRows(12, "int8")
     Pipeline(spec).infer(StreamSource(iter(sentences), chunk_rows=700), workers=4, sink=sink)
     _check(sink.result(), expected(spec, sentences), "int8")
-    assert sink.result()[0].shape == (3000, 6)
+    assert sink.result()[0].shape == (3000, 12)
 
 
 def test_a_row_that_cannot_be_stored_is_raised_after_the_rows_before_it(monkeypatch):

@@ -4,7 +4,6 @@ graft tests
 # The generators and checkers the tests use.
 graft tools
 prune evaluation
-prune notebooks
 prune media
 prune .github
 global-exclude *.so *.pyc __pycache__ *.c

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from fse._contract import Normalize, Project
+from fse._contract import Normalize
 from fse._runtime import EncodeSpec
 from support.runtime import word_vectors
 
@@ -53,14 +53,13 @@ def test_fasttext_needs_oov_weight_and_max_ngrams():
 def test_steps_tokenizer_and_word_vectors_are_checked():
     wv = word_vectors()
     ones = np.ones(200, F32)
-    basis = np.ascontiguousarray(np.eye(4, 12, dtype=F32))
-    spec = EncodeSpec(wv, ones, [Project(basis), Normalize()], "external")
-    assert isinstance(spec.steps, tuple)
-    assert [type(s) for s in spec.steps] == [Project, Normalize]
-    with pytest.raises(ValueError, match="postprocessing steps must be"):
-        EncodeSpec(wv, ones, [Normalize(), Project(basis)])
-    with pytest.raises(ValueError, match="rows of 4 values, not 12"):
-        EncodeSpec(wv, ones, [Project(np.ascontiguousarray(np.eye(2, 4, dtype=F32)))])
+    spec = EncodeSpec(wv, ones, [Normalize()], "external")
+    assert spec.steps == (Normalize(),)
+    assert spec.output_dim == wv.dim == 12
+    with pytest.raises(ValueError, match="none or normalize once"):
+        EncodeSpec(wv, ones, [Normalize(), Normalize()])
+    with pytest.raises(TypeError, match="not a postprocessing step"):
+        EncodeSpec(wv, ones, ["normalize@1"])
     with pytest.raises(ValueError, match="tokenizer"):
         EncodeSpec(wv, ones, (), "bert")
     with pytest.raises(TypeError, match="WordVectors"):

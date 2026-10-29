@@ -243,8 +243,12 @@ jobs:
           args = (wv.stored_vectors, np.ones(2, np.float32), wv.scales)
           got, want = _native.pool_weighted_mean(batch, *args), _reference.pool_weighted_mean(batch, *args)
           assert got.view(np.uint32).tolist() == want.view(np.uint32).tolist()
-          rows = fse.Average().fit(wv).encode(['a b', 'b'])
+          encoder = fse.Encoder.from_word_vectors(wv)
+          rows = encoder.encode(['a b', 'b'])
           assert rows.shape == (2, 3), rows.shape
+          encoder.save(path.with_name('encoder.safetensors'))
+          loaded = fse.Encoder.load(path.with_name('encoder.safetensors'), mmap=True)
+          assert loaded.encode(['a b', 'b']).tobytes() == rows.tobytes()
           try:
               fse.uSIF
           except AttributeError as err:

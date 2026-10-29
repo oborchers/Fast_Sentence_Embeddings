@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The lifecycle of fse 2.0 against fse 1.1.0 on real data: load, fit, encode, search, infer.
+"""The lifecycle of fse 2.0 against fse 1.1.0 on real data: load, encode, search, infer.
 
 The 2.0 counterpart of the 1.1 lifecycle benchmark (``bench_lifecycle.py`` at 4931f5e,
 its numbers in benchmarks/baseline/README.md, "Lifecycle"), on glove-wiki-gigaword-300
@@ -20,12 +20,12 @@ once, so every number is one with a warm page cache. Cases:
   once from the gensim model (untimed), 1.1 ``Vectors.from_pretrained``;
 - ``encode``: the whole corpus, from the file (2.0 its native file source, 1.1
   ``CorpusFile``) or from token lists in memory, into a store or into memory. 2.0 times
-  reading the token lists once (``fse.Corpus``, which fit and encode share),
-  ``fit`` (SIF: the components of the corpus), ``encode`` (a store: the ``ShardSink``
-  from its creation to its last flush) and saving the encoder; 1.1 the constructor,
-  ``train`` (its scan and components) and ``save``. Only the totals compare the same
-  work, so only they get a ratio; the bytes count what reopening needs (2.0: the store,
-  the encoder and the word vectors an unfolded encoder needs), "vectors MB" only the
+  building the encoder of its finished table (``Encoder.from_word_vectors``; the table of
+  ``SIFWeights`` is made before, untimed, as 2.0 trains nothing), ``encode`` (of the token lists or the
+  file; a store: the ``ShardSink`` from its creation to its last flush) and saving the
+  encoder; 1.1 the constructor, ``train`` (its scan and components) and ``save``. Only
+  the totals compare the same work, so only they get a ratio; the bytes count what
+  reopening needs (2.0: the store and the encoder, which holds its table), "vectors MB" only the
   sentence vectors (2.0 the store, 1.1 their arrays, which it pickles into its model);
 - ``query``: open the store (1.1 ``load`` of the saved model), the first search, the warm
   search p50 of 1 query and of a batch of 64 (2.0 ``mode="auto"``, also ``"exact"`` and
@@ -33,12 +33,10 @@ once, so every number is one with a warm page cache. Cases:
   weight vectors;
 - ``infer``: 1, 1,000 and 100,000 paragraphs as token lists to float32, p50 of five calls
   (1.1 ``infer`` runs in one thread whatever its workers);
-- ``hub``: a SIF model as it comes from the hub, fitted and saved before (untimed): 2.0
-  loads the folded encoder and encodes the whole corpus (from the file, or token lists
-  read once into a ``fse.Corpus``, timed apart) into memory or into a store up to its
-  last flush; 1.1 loads its trained model saved without sentence vectors (its weights
-  and components kept) and adds the corpus with ``train(update=True)``, its bulk path,
-  which keeps the components and runs with its workers, then for a store saves it.
+- ``hub``: 2.0 only, the SIFWeights model as it comes from the hub, saved before
+  (untimed): 2.0 loads the encoder of its finished table and encodes the whole corpus
+  (from the file, or token lists made before the timer) into memory or into a store up
+  to its last flush.
 
 --quick (the default) runs the prioritized subset of ``_quick`` in about ten minutes,
 --full every combination of --models, --dtypes, --workers, --inputs and --targets; query
@@ -66,7 +64,10 @@ from pathlib import Path
 
 from bench_lifecycle_cases import BATCH, INFER_SIZES, K
 
-MODELS = ("SIF", "Average")
+MODELS = ("SIFWeights", "Average")
+# The models both sides run. SIFWeights (the SIF word weights folded into the table, no
+# components removed) is no SIF, so it runs on 2.0 alone and is never compared with 1.1.
+V1_MODELS = ("Average",)
 DTYPES = ("float32", "float16", "int8")
 INPUTS = ("file", "list")
 TARGETS = ("store", "memory")
@@ -79,12 +80,12 @@ CASES = Path(__file__).with_name("bench_lifecycle_cases.py")
 
 def _quick(args) -> list[tuple]:
     """The prioritized subset: both models at the most workers for float32 and int8 into a
-    store, SIF float32 also into memory, at the other worker counts and from a list."""
+    store, SIFWeights float32 also into memory, at the other worker counts and from a list."""
     top = max(args.workers)
     cases = [(m, d, top, "file", "store") for m in MODELS for d in ("float32", "int8")]
-    cases.append(("SIF", "float32", top, "file", "memory"))
-    cases += [("SIF", "float32", w, "file", "store") for w in args.workers]
-    cases.append(("SIF", "float32", top, "list", "store"))
+    cases.append(("SIFWeights", "float32", top, "file", "memory"))
+    cases += [("SIFWeights", "float32", w, "file", "store") for w in args.workers]
+    cases.append(("SIFWeights", "float32", top, "list", "store"))
     return list(dict.fromkeys(cases))
 
 
@@ -94,13 +95,13 @@ def _wanted(case: tuple, args) -> bool:
 
 
 def _hubs(encodes: list[dict], stores: list[dict]) -> dict:
-    """The (dtype, workers) of the hub cases: those of the SIF encodes, whose saved models
-    (from a SIF encode into a store of the dtype) the hub cases load."""
-    hubs = {(e["dtype"], e["workers"]): None for e in encodes if e["model"] == "SIF"}
-    saved = {e["dtype"] for e in stores if e["model"] == "SIF"}
+    """The (dtype, workers) of the hub cases: those of the SIFWeights encodes, whose saved
+    models (from such an encode into a store of the dtype) the hub cases load."""
+    hubs = {(e["dtype"], e["workers"]): None for e in encodes if e["model"] == "SIFWeights"}
+    saved = {e["dtype"] for e in stores if e["model"] == "SIFWeights"}
     if missing := sorted({d for d, _ in hubs} - saved):
         raise SystemExit(
-            f"the hub cases of {', '.join(missing)} load the models a SIF encode into a "
+            f"the hub cases of {', '.join(missing)} load the models a SIFWeights encode into a "
             "store saves; add --targets store"
         )
     return hubs
@@ -131,7 +132,14 @@ def grid(args) -> list[dict]:
         *({"kind": "query", "model": m, "dtype": d} for m, d in queries),
         *({"kind": "infer", "model": m, "dtype": "float32", "workers": w} for m, w in infers),
         *(
-            {"kind": "hub", "model": "SIF", "dtype": d, "workers": w, "input": i, "target": t}
+            {
+                "kind": "hub",
+                "model": "SIFWeights",
+                "dtype": d,
+                "workers": w,
+                "input": i,
+                "target": t,
+            }
             for (d, w) in hubs
             for i in args.inputs
             for t in args.targets
@@ -187,8 +195,10 @@ def _prepare(args, base: dict) -> None:
         v1_words = _run(args.python_v1, {**base, "side": "v1", "kind": "counts"})["words"]
         if v1_words != words:
             raise SystemExit("the vocabularies of 2.0 and 1.1 are not in the same order")
-    elif "SIF" in args.models:
-        raise SystemExit("SIF needs the wordfreq counts of --python-v1 (fse 1.1.0, wordfreq)")
+    elif "SIFWeights" in args.models:
+        raise SystemExit(
+            "SIFWeights needs the wordfreq counts of --python-v1 (fse 1.1.0, wordfreq)"
+        )
 
 
 def _warm(paths: list[Path]) -> None:
@@ -236,8 +246,7 @@ _PEAK = ("peak MiB", "peak", "peak", True)
 METRICS = {
     "load": [("seconds", "seconds", "seconds", True), _PEAK],
     "encode": [
-        ("token lists s", "source_s", None, False),
-        ("fit / construct s", "fit_s", "construct_s", False),
+        ("build / construct s", "build_s", "construct_s", False),
         ("encode / train s", "encode_s", "train_s", False),
         ("save s", "save_s", "save_s", False),
         ("total s", "total_s", "total_s", True),
@@ -258,12 +267,10 @@ METRICS = {
     ],
     "infer": [(f"infer {n} p50 ms", f"infer_{n}_ms", f"infer_{n}_ms", True) for n in INFER_SIZES]
     + [_PEAK],
-    "hub": [
-        ("load s", "load_s", "load_s", True),
-        ("corpus s", "prepare_s", None, False),
-        ("encode / train s", "encode_s", "encode_s", True),
-        ("  of it save s", None, "save_s", False),
-        ("total s", "total_s", "total_s", True),
+    "hub": [  # 2.0 only
+        ("load s", "load_s", None, False),
+        ("encode s", "encode_s", None, False),
+        ("total s", "total_s", None, False),
         _PEAK,
     ],
 }
@@ -304,11 +311,11 @@ def run(args, base: dict, warm: list[Path]) -> list[dict]:
     rows = []
     for case in grid(args):
         config = {**base, **case}
+        shared = case["kind"].startswith("load") or case.get("model") in V1_MODELS
+        sides = pythons if shared else {"v2": pythons["v2"]}
         if case["kind"] == "query":  # the query vectors, in a process of their own
             _run(sys.executable, {**config, "side": "v2", "kind": "queries"})
-        if case["kind"] == "hub" and "v1" in pythons:  # the 1.1 model as from the hub, once
-            _run(pythons["v1"], {**config, "side": "v1", "kind": "hub_model"})
-        rows.append({"case": case, **_pairs(config, pythons, args.pairs, warm)})
+        rows.append({"case": case, **_pairs(config, sides, args.pairs, warm)})
         _print_row(rows[-1], cpus)
     return rows
 

@@ -1,4 +1,4 @@
-"""The conformance suite for dot16, the postprocessing steps and score.
+"""The conformance suite for dot16, normalize (the only postprocessing step) and score.
 
 Every case runs for every backend in BACKENDS and must give the bits of fse._reference;
 tests/test_conformance.py holds the weighted mean cases and the meta-tests.
@@ -10,33 +10,13 @@ import numpy as np
 import pytest
 
 from fse import _reference
-from fse._contract import Normalize, Project, RemoveComponents
+from fse._contract import Normalize
 from support.conformance import BACKENDS, BIG, F32, _rng, assert_bits_equal
 
-
-def _basis(dim, k, seed):
-    q = np.linalg.qr(_rng(seed).standard_normal((dim, k)))[0]
-    return np.ascontiguousarray(q.T, dtype=F32)
+STEP_LISTS = {"none": [], "normalize": [Normalize()]}
 
 
-def _step_lists(dim):
-    k = min(3, dim)
-    removal = RemoveComponents(_basis(dim, k, dim), np.array([1, 0.5, 0.25], F32)[:k])
-    plain = RemoveComponents(_basis(dim, 1, dim + 1))
-    project = Project(_basis(dim, max(1, dim // 2), dim + 2))
-    return {
-        "none": [],
-        "normalize": [Normalize()],
-        "remove weighted": [removal],
-        "remove one": [plain],
-        "project": [project],
-        "all three": [removal, project, Normalize()],
-    }
-
-
-STEP_CASES = [
-    (dim, name) for dim in (1, 3, 4, 7, 15, 16, 17, 31, 33, 300) for name in _step_lists(dim)
-]
+STEP_CASES = [(dim, name) for dim in (1, 3, 4, 7, 15, 16, 17, 31, 33, 300) for name in STEP_LISTS]
 
 
 def _step_rows(dim):
@@ -50,9 +30,8 @@ def _step_rows(dim):
 @pytest.mark.parametrize(("dim", "steps"), STEP_CASES, ids=[f"{d}-{n}" for d, n in STEP_CASES])
 def test_steps(backend, dim, steps):
     rows = _step_rows(dim)
-    lists = _step_lists(dim)
-    want = _reference.postprocess(rows, lists[steps])
-    assert_bits_equal(backend.postprocess(rows, lists[steps]), want, f"{dim} {steps}")
+    want = _reference.postprocess(rows, STEP_LISTS[steps])
+    assert_bits_equal(backend.postprocess(rows, STEP_LISTS[steps]), want, f"{dim} {steps}")
 
 
 @pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
@@ -60,10 +39,6 @@ def test_step_errors_like_the_reference(backend):
     rows = np.array([[1, 1], [1e-30, 0], [3e38, 3e38]], dtype=F32)
     with pytest.raises(ValueError, match="row 11 cannot be normalized"):
         backend.postprocess(rows, [Normalize()], first_row=10)
-    big = np.array([[1, 0], [np.finfo(F32).max, 0]], dtype=F32)
-    step = RemoveComponents(np.array([[1, 0]], dtype=F32), np.array([-2], dtype=F32))
-    with pytest.raises(ValueError, match="row 8 contains NaN or infinite"):
-        backend.postprocess(big, [step], first_row=7)
     with pytest.raises(ValueError, match="row 4 contains NaN"):
         backend.postprocess(np.array([[1, 0], [np.inf, 0]], dtype=F32), [], first_row=3)
 

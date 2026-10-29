@@ -10,10 +10,10 @@ import pytest
 
 import fse
 from fse._store._layout import StoreInfo, shards
-from support.encoder import unfolded
+from support.encoder import finished
 from support.runtime import texts
 
-ENCODER = unfolded()
+ENCODER = finished()
 TESTS = Path(__file__).parent
 
 CHILD = """
@@ -22,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, sys.argv[3])
 import fse
 from fse._store import _shard
-from support.encoder import unfolded
+from support.encoder import finished
 from support.runtime import texts
 
 point, calls, real = sys.argv[2], [0], _shard.publish_directory
@@ -54,7 +54,7 @@ def publish(tmp, path):
 
 _shard.publish_directory = publish
 _shard.ShardWriter.write, _shard.shrink = write, shrink
-encoder = unfolded()
+encoder = finished()
 with fse.ShardSink(sys.argv[1], encoder, shard_rows=64) as sink:
     encoder.encode(texts(300), sink=sink, workers=2)
 """

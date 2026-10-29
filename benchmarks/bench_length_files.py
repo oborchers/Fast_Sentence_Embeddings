@@ -12,8 +12,8 @@ uses and records a stamp (size, modification time, xxh3) in ``<cache>/verified.j
 without ``verify`` (the profiled process, which would otherwise profile the hashing) a
 file must have a stamp of the same size and time, which ``bench_length.py verify`` (or
 any prepare, compare or matrix) wrote. A model is reused only if it was made of the same
-inputs (``model_meta``): the corpus it was fitted on, the counts, the hub revision of the
-vectors and the xxh3 of the word vectors it holds or reads, a quantized copy bound to its
+inputs (``model_meta``): the corpus 1.1 trains on, the counts, the hub revision of the
+vectors and the xxh3 of the word vectors 2.0 builds its table of, a quantized copy bound to its
 float32 origin. Every JSON file is written atomically; one that cannot be read counts as
 missing, so its artifact is made again.
 """
@@ -31,7 +31,7 @@ from pathlib import Path
 import bench_length_corpus as corpora
 
 CASES = Path(__file__).with_name("bench_length_cases.py")
-MODEL_VERSION = 2  # of the model preparation; bump it to fit every model again
+MODEL_VERSION = 3  # of the model preparation; bump it to make every model again
 
 
 def write_json(path: Path, value: object) -> None:
@@ -205,8 +205,8 @@ class Prepared:
         return self.models / f"v1-{key[0]}-{key[1]}"
 
     def model_meta(self, side: str, key: tuple) -> dict:
-        """What a model is made of: its key, the paragraphs it was fitted on, the counts,
-        the hub revision of the vectors and, for 2.0, the word vectors it was fitted on."""
+        """What a model is made of: its key, the paragraphs (1.1 trains on them), the
+        counts, the hub revision of the vectors and, for 2.0, the word vectors of its table."""
         meta = {
             "version": MODEL_VERSION,
             "side": side,
@@ -281,7 +281,7 @@ def ensure_vectors(ctx: Prepared, dtype: str) -> Path:
 
 
 def ensure_model(ctx: Prepared, side: str, key: tuple, python: str) -> Path:
-    """The model of ``key``, fitted (untimed) if missing or made of something else."""
+    """The model of ``key``, made (untimed) if missing or made of something else."""
     if side == "v2":
         ensure_vectors(ctx, key[2])
     path = ctx.v2_model(key) if side == "v2" else ctx.v1_model(key)
@@ -305,7 +305,7 @@ def ensure_model(ctx: Prepared, side: str, key: tuple, python: str) -> Path:
         config["encoder"] = str(path)
     else:
         config.update(dtype=key[1], v1_model=str(path))
-    print(f"# fitting the {side} model {'-'.join(key)}", flush=True)
+    print(f"# making the {side} model {'-'.join(key)}", flush=True)
     run_child(python, config)
     ctx.record(path, meta)
     return path

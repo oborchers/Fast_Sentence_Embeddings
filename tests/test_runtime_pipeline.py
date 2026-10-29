@@ -192,8 +192,8 @@ def test_the_window_stays_within_its_budget(monkeypatch):
 
     monkeypatch.setattr(_pipeline, "run", spy)
     wide = WordVectors.from_arrays(np.ones((3, 4096), F32), words=["w1", "w2", "w3"])
-    # Per row: the target, the float32 rows before storage, and the rows of the steps
-    # (pooled rows, their copy, the output).
+    # Per row: the target, the float32 rows before storage, and 12 bytes per value with
+    # normalize (STEP_ROW_BYTES: the safer accounting the measurements of PR 123 kept).
     per_row = {
         ((), "float32"): 4 * 4096,
         ((Normalize(),), "float32"): 4 * 4096 + 12 * 4096,

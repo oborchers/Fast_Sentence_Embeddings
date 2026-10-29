@@ -4,7 +4,7 @@ Guidance for coding agents working in this repository.
 
 ## Project
 
-fse (Fast Sentence Embeddings) computes sentence vectors from word vectors, with a native kernel in `src/fse/_native_kernel.h` and `src/fse/_native.pyx`. master is the development branch of fse 2.0, a rewrite planned by the maintainer (ARCHITECTURE.md, section 2.0 design); the 1.x API was removed from master and is in maintenance mode on the branch `1.x`. No feature work on request.
+fse (Fast Sentence Embeddings) computes sentence vectors from word vectors, with a native kernel in `src/fse/_native_kernel.h` and `src/fse/_native.pyx`. master is the development branch of fse 2.0, a rewrite planned by the maintainer (ARCHITECTURE.md, section 2.0 design): an inference engine for finished static embeddings, which trains nothing; the 1.x API was removed from master and is in maintenance mode on the branch `1.x`. No feature work on request.
 
 - Python 3.11 to 3.15. gensim is optional (extra `fse[gensim]`) and does not build on 3.14 and newer yet (piskvorky/gensim#3640); there the tests of `fse.gensim` are skipped.
 - Build backend is setuptools (pyproject.toml for metadata, setup.py only for the extension). Version comes from git tags (`v1.2.3`) via setuptools-scm.
@@ -37,7 +37,7 @@ Never wait for pull request checks or CI in the foreground. Start the wait as a 
 ## Rules
 
 - Validate strictly and never fail silently: raise a clear exception instead of coercing, ignoring or truncating input. Decorate new public entry points with `fse._validation.validate_arguments` unless they are called per element or receive bulk data; measure the overhead when in doubt. See ARCHITECTURE.md.
-- 2.0 artifacts store no class paths; never rename or reuse their persistence names (identifiers such as `weighted_mean@1`, `fse.` metadata keys, tensor names). See ARCHITECTURE.md, section 2.0 design.
+- 2.0 artifacts store no class paths. From the first release of 2.0 on, never rename or reuse their persistence names (identifiers such as `weighted_mean@1`, `fse.` metadata keys, tensor names, artifact kinds and format versions). Before that release, the maintainer may remove names that are no longer needed (not reserve them); artifacts of a pre-release that hold them are refused with `UnsupportedArtifactError`. See ARCHITECTURE.md, section 2.0 design.
 - New 2.0 code on the CPU follows the numerical contract in ARCHITECTURE.md and matches the numpy reference in `fse._reference` bit for bit; compare bit patterns, not values. Any change of arithmetic bumps the version of the aggregation or step it changes.
 - Device backends (MLX, later CUDA) follow the tolerance contract in ARCHITECTURE.md instead (maintainer's decision of 29.10.2026): every row within its bound of the cpu backend (an acceptance bound the conformance suites check; rows where it could fail are detected and computed by the host), deterministic per device, and the errors of the cpu backend. An operation they leave to their host is bit-identical to the cpu operation on the same inputs.
 - Every backend passes the conformance suite (`tests/test_conformance.py` and its siblings): CPU backends bit for bit, device backends under the tolerance contract. Never weaken a comparison, the bound or the meta-tests; only the maintainer changes the bound.
@@ -59,7 +59,7 @@ Never wait for pull request checks or CI in the foreground. Start the wait as a 
 - a test file for every module of fse (`fse/_a.py` is `tests/test_a.py`, `fse/_b/_c.py` is `tests/test_b_c.py`; only the generated `_version.py` has none, and the `.pxi` parts that `_native.pyx` includes are tested through `tests/test_native.py` and checked for imports like it);
 - no unused code (vulture, with the names Python, pytest or a library use by name in `[tool.vulture]`) and no undeclared or unused dependency (deptry).
 
-What exceeded a limit when the guardrails came is the ratchet in `[tool.fse.guardrails.ratchet]`, which only shrinks; CI also checks it against the base branch. Never add an entry, raise a number, add an inline suppression (`# noqa: C901`, `# complexipy: ignore`) or an `ignore_imports`. When code does not fit, split it: private modules may be split and renamed freely, persistence names never. When you improve an entry, lower or remove it (`tools/check_guardrails.py` says which). Place every new module in a layer of the import contract.
+What exceeded a limit when the guardrails came is the ratchet in `[tool.fse.guardrails.ratchet]`, which only shrinks; CI also checks it against the base branch. Never add an entry, raise a number, add an inline suppression (`# noqa: C901`, `# complexipy: ignore`) or an `ignore_imports`. When code does not fit, split it: private modules may be split and renamed freely, persistence names never (from the first release on). When you improve an entry, lower or remove it (`tools/check_guardrails.py` says which). Place every new module in a layer of the import contract.
 
 ## Releases
 

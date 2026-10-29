@@ -19,14 +19,14 @@ Fast Sentence Embeddings
 Status
 ------------
 
-**fse 2.0 is in development on master** and not released yet; this README describes it, and its API may still change before 2.0.0. The current release is [fse 1.1.0 on PyPI](https://pypi.org/project/fse/), in maintenance mode on the branch `1.x` (bug and compatibility fixes only), with its own [README](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/1.x/README.md). 2.0 changes the API and the file format of saved models; a way to export 1.x models comes with a later 1.x release. Feature requests are closed until then; bug reports are welcome.
+**fse 2.0 is in development on master** and not released yet; this README describes it, and its API may still change before 2.0.0. The current release is [fse 1.1.0 on PyPI](https://pypi.org/project/fse/), in maintenance mode on the branch `1.x` (bug and compatibility fixes only), with its own [README](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/1.x/README.md) and notebooks. 2.0 changes the API and the file format of saved models. Feature requests are closed until then; bug reports are welcome.
 
 If you start a new project, also look at actively maintained libraries such as [sentence-transformers](https://github.com/huggingface/sentence-transformers) or [model2vec](https://github.com/MinishLab/model2vec).
 
 About
 ------------
 
-fse computes sentence vectors from word vectors: the average of a sentence's word vectors (`fse.Average`), smooth inverse frequency (`fse.SIF`) and its unsupervised variant (`fse.USIF`). In 2.0, a recipe is fitted once into a frozen `fse.Encoder`, saved as one `.safetensors` file, and the encoder turns sentences into vectors in parallel with a native kernel. The learned steps of SIF and uSIF are folded into the encoder's word vectors by default, so a fitted SIF encoder encodes at the cost of an average. Vectors go into memory, or into a store on disk that `fse.VectorStore` searches.
+fse 2.0 encodes text with finished static embedding models: a model (`fse.Encoder`) is one `.safetensors` file that holds a table of word rows, its tokenizer and whether every row is normalized. A sentence becomes the mean of the rows of its words, computed in parallel by a native kernel, bit for bit the same on every CPU. fse 2.0 trains nothing: weights, removed components or projections of a model (such as SIF or uSIF) are folded into its rows before it is saved. Vectors go into memory, or into a store on disk that `fse.VectorStore` searches.
 
 Installation
 ------------
@@ -42,47 +42,62 @@ On Apple silicon with macOS 14 or newer, the extra `fse[mlx]` adds the backend `
 Usage
 ------------
 
-```python
-from pathlib import Path
+Load a finished model and encode:
 
+```python
+import fse
+
+encoder = fse.Encoder.load("model.safetensors")
+rows = encoder.encode(["the cat sleeps", "a dog runs"])  # one float32 row per text
+```
+
+Make a model from word vectors (every word weighs 1) and save it:
+
+```python
 import fse
 from fse.gensim import from_gensim
 from gensim.models import KeyedVectors
 
-wv = from_gensim(KeyedVectors.load("glove-wiki-gigaword-300.model"))  # with its word counts
-wv.save("glove.safetensors")  # later: fse.WordVectors.load("glove.safetensors")
-
-encoder = fse.SIF().fit(wv, Path("corpus.txt"))  # learns from a corpus, once
-rows = encoder.encode(["the cat sleeps", "a dog runs"])  # one float32 row per text
+wv = from_gensim(KeyedVectors.load("glove-wiki-gigaword-300.model"))
+encoder = fse.Encoder.from_word_vectors(wv)  # tokenizer fse_words@1, rows normalized
+encoder.save("glove.safetensors")  # one file with the table
 ```
 
 Which call to use when:
 
 | You want to | Call |
 |---|---|
-| fit an encoder that learns nothing from a corpus (Average without `dim`) | `encoder = fse.Average().fit(wv)` |
-| fit SIF or uSIF on a corpus | `encoder = fse.SIF().fit(wv, texts)`; `counts=` gives word counts the vectors lack |
+| load a model | `encoder = fse.Encoder.load("model.safetensors")` (`mmap=True` maps it read-only) |
+| make a model of word vectors | `fse.Encoder.from_word_vectors(wv)`, or `fse.Encoder.from_arrays(vectors, words=words)` |
+| keep the mean as it is | `normalize=False` |
 | encode texts in a list | `rows = encoder.encode(texts)` |
-| use the same texts more than once (fit, then encode) | `corpus = fse.Corpus(texts)`, then `fit(wv, corpus)` and `encode(corpus)` |
-| encode token lists you made yourself | a recipe with `tokenizer="external"` and lists of lists of str (or a `Corpus` of them) |
+| encode token lists you made yourself | a model with `tokenizer="external"` and lists of lists of str |
 | encode a text file, one text per line | `encoder.encode(Path("texts.txt"))` |
-| encode a stream (a generator, a queue) | `encoder.encode(iterator)`: it is read once, so fit and encode need a `Corpus`, a path or two fresh iterators |
+| encode a stream (a generator, a queue) | `encoder.encode(iterator)`: it is read once |
 | encode a stream batch by batch and confirm what is safe | `for batch in encoder.encode_batches(polls, sink=sink)`, confirming up to `batch.durable_rows` |
 | write the vectors to disk | `with fse.ShardSink("store", encoder, dtype="int8") as sink: encoder.encode(texts, sink=sink)` |
 | search them | `with fse.VectorStore.open("store") as store: result = store.search(encoder.encode(["query"]), k=10)` |
-| save and load an encoder | `encoder.save("encoder.safetensors")`, `fse.Encoder.load("encoder.safetensors")` |
 
 - `encode` returns float32 rows by default; `dtype="float16"` gives float16 rows and `dtype="int8"` a `fse.QuantizedRows` (int8 codes and one scale per row).
-- A folded encoder (`encoder.folded`: by default when the recipe learned components or a projection) holds its own word vectors and loads with `fse.Encoder.load(path)`. An unfolded one, such as `fse.Average()` without `dim` or `fse.USIF(components=0)`, needs the word vectors it was fitted on: `fse.Encoder.load(path, wv)`.
 - `store.search` returns a `fse.SearchResult` with the `ids` (positions in the store) and the cosine `scores`, best first. Its default `mode="auto"` takes the exact arithmetic of fse for up to 8 queries at once and BLAS above, whose bits depend on how many queries are asked together; `mode="exact"` gives the same results for every batch.
-- Texts are tokenized by `fse_words@1` by default: lowercase, split at whitespace and punctuation, contractions expanded (ARCHITECTURE.md, "Tokenizers").
+- Texts are tokenized by `fse_words@1` by default: lowercase, split at whitespace and punctuation, contractions expanded (ARCHITECTURE.md, "Tokenizers"). Subword tokenizers (WordPiece, Unigram), which models such as POTION use, follow in a later PR; until then such models run with `tokenizer="external"` and tokens you make.
+- FastText word vectors keep their ngram rows: an unknown word adds the rows of its first `max_ngrams` ngrams (default 40) with the weight `oov_weight` (default 1).
+
+What 2.0 no longer has, against fse 1.1.0 and the earlier development versions of 2.0:
+
+- **training**: `Average`, `SIF` and `uSIF` with `train` or `fit`, and any learning from a corpus. SIF and uSIF tables are made offline; a notebook with the 1.1.0 recipe (word weights and the removal of principal components, folded into the table) follows before the release.
+- **stored recipes and learned components**: a model holds its finished table, not the recipe, the weights or the components it was made with.
+- **word frequencies**: word vectors hold no counts, and `from_gensim` takes none.
+- **shared external tables**: every model holds its own table, so two models of the same word vectors hold two copies.
+- **`Corpus`**: encode takes lists, paths and streams directly.
+- Files written by a development version of 2.0 before this change are refused (`fse.UnsupportedArtifactError`); rebuild them.
 
 ARCHITECTURE.md describes the design and the numerical contract, CHANGELOG.md every change against 1.1.0.
 
 Results
 ------------
 
-Pearson correlation (x100) on the test set of the STS Benchmark, computed with the procedure of `notebooks/STS-Benchmarks.ipynb` (`lang_freq="en"`) with fse 1.1.0 on Python 3.13, numpy 2.5, scipy 1.18, gensim 4.4, wordfreq 3.1 and nltk 3.10. SIF and uSIF compute their principal components exactly since 1.1.0; against the randomized SVD of scikit-learn 1.9 used before, in the same environment, SIF-10 scores move by at most 0.04 points and uSIF scores not at all. Compared with the table published for fse 1.0, uSIF scores rise by 0.2 to 1.4 points. Most of that comes from a fix in 1.1.0 to how uSIF weights the removed principal components, worth 0.2 to 1.3 points when both formulas run in this environment (see [CHANGELOG.md](CHANGELOG.md)). Newer dependency versions shift SIF scores by up to 0.3 points and CBOW scores by up to 0.04 points.
+These are results of fse 1.1.0, not of 2.0 models; the offline SIF and uSIF recipe will be checked against them. Pearson correlation (x100) on the test set of the STS Benchmark, computed with the procedure of [`notebooks/STS-Benchmarks.ipynb` on the branch 1.x](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/1.x/notebooks/STS-Benchmarks.ipynb) (`lang_freq="en"`) with fse 1.1.0 on Python 3.13, numpy 2.5, scipy 1.18, gensim 4.4, wordfreq 3.1 and nltk 3.10. SIF and uSIF compute their principal components exactly since 1.1.0; against the randomized SVD of scikit-learn 1.9 used before, in the same environment, SIF-10 scores move by at most 0.04 points and uSIF scores not at all. Compared with the table published for fse 1.0, uSIF scores rise by 0.2 to 1.4 points. Most of that comes from a fix in 1.1.0 to how uSIF weights the removed principal components, worth 0.2 to 1.3 points when both formulas run in this environment (see [CHANGELOG.md](CHANGELOG.md)). Newer dependency versions shift SIF scores by up to 0.3 points and CBOW scores by up to 0.04 points.
 
 Model | Vectors | params | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Results)
 :---: | :---: | :---: | :---:

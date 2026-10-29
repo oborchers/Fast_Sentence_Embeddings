@@ -12,11 +12,6 @@ from support.cases import random_case
 F32 = np.float32
 
 
-def _basis(dim, k, seed):
-    q = np.linalg.qr(np.random.default_rng(seed).standard_normal((dim, k)))[0]
-    return np.ascontiguousarray(q.T, dtype=F32)
-
-
 def _magnitude(case):
     """What the kernel sums per sentence: |f| times the row's norm rounded up, float32."""
     rows = case.arrays["rows"].astype(np.float64)

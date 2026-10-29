@@ -56,8 +56,12 @@ from ._tasks import Task, plan
 TASK_ROW_BYTES = 1 << 24
 # The rows of all tasks in flight or waiting to be committed take at most this many bytes:
 # the window is 2 * workers tasks, so with many workers a task holds fewer rows. A task
-# with steps also holds its pooled rows and one copy while it runs (see the cpu backend).
+# that normalizes counts 12 more bytes per value (STEP_ROW_BYTES), although normalize runs
+# in place: without them its tasks were up to twice as large and the peak RSS of a stream
+# at 10 workers grew by 65 to 140 MiB for at most 10 % throughput (M1 Pro, PR 123), as the
+# rest of a task (its batch, tokens and buffers) grows with its rows too.
 WINDOW_BYTES = 1 << 29
+STEP_ROW_BYTES = 12
 
 
 class Pipeline:
@@ -78,8 +82,7 @@ class Pipeline:
             spec.word_vectors, spec.tokenizer, max_ngrams=spec.max_ngrams, vocabulary=vocabulary
         )
         self.output_dim = self.prepared.output_dim
-        self._widest = 4 * max(self.prepared.pooled_dim, self.output_dim)
-        self.task_rows = max(1, min(MAX_CHUNK_ROWS, TASK_ROW_BYTES // self._widest))
+        self.task_rows = max(1, min(MAX_CHUNK_ROWS, TASK_ROW_BYTES // (4 * self.output_dim)))
         # One call at a time on a backend that is not concurrent; encoding stays parallel.
         concurrent = self.backend.capabilities().concurrent
         self._device_rows = self.backend.capabilities().device_rows
@@ -89,19 +92,19 @@ class Pipeline:
 
     def _row_bytes(self, dtype: str, inverse: bool = False) -> int:
         """The bytes one row of a task takes at most: its target until its commit (with
-        its inverse norm if the sink wants them), and while it runs the float32 rows before
-        storage (a float16 or int8 target) and the rows the steps make (the pooled rows,
-        their copy and the output rows)."""
-        out, pooled = self.output_dim, self.prepared.pooled_dim
+        its inverse norm if the sink wants them), while it runs the float32 rows before
+        storage (a float16 or int8 target), STEP_ROW_BYTES per value with normalize, and on
+        a device backend its pooled rows, flags and bounds."""
+        out = self.output_dim
         target = (
             np.dtype(_codes.STORAGE_TYPES[dtype]).itemsize * out
             + (4 if dtype == "int8" else 0)
             + (8 if inverse else 0)
         )  # the vector in the target and the backend's result
         scratch = 0 if dtype == "float32" else 4 * out
-        steps = 8 * pooled + 4 * out if self.prepared.steps else 0
+        steps = STEP_ROW_BYTES * out if self.prepared.steps else 0
         # A device backend's pooled rows, flags (one word per 32 values) and two bounds.
-        device = 4 * pooled + 4 * -(-pooled // 32) + 8 if self._device_rows else 0
+        device = 4 * out + 4 * -(-out // 32) + 8 if self._device_rows else 0
         return target + scratch + steps + device
 
     def infer(

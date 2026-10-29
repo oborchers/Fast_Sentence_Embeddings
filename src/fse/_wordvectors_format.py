@@ -33,7 +33,7 @@ from fse._container import (
     is_fingerprint,
     tensor_code,
 )
-from fse._contract import OOV_TOKEN, UnsupportedArtifactError
+from fse._contract import OOV_TOKEN, UnsupportedArtifactError, prerelease_error
 
 KIND = "word_vectors"
 FORMAT_VERSION = "1"
@@ -51,7 +51,9 @@ _KEYS = {
     "fse.fasttext",
     "fse.ngram_hash",
 }
-_TENSORS = {"vectors", "scales", "counts", "vocab.bytes", "vocab.offsets", "ngrams", "ngram_scales"}
+_TENSORS = {"vectors", "scales", "vocab.bytes", "vocab.offsets", "ngrams", "ngram_scales"}
+# What word vectors of a pre-release of 2.0 could hold and 2.0 removed: word counts.
+_REMOVED_TENSORS = {"counts"}
 _DTYPE_OF = {"F32": "float32", "F16": "float16", "I8": "int8"}
 _BLOCK_ROWS = 16_384
 _MAX_WORDS = OOV_TOKEN  # word ids must stay below the reserved token ids
@@ -208,6 +210,8 @@ def _check_header(tensors: dict[str, ndarray], metadata: dict[str, str]):
     }
     if unknown:
         raise UnsupportedArtifactError(f"unknown metadata keys of word vectors: {sorted(unknown)}")
+    if set(tensors) & _REMOVED_TENSORS:
+        raise prerelease_error("word vectors file", sorted(set(tensors) & _REMOVED_TENSORS))
     if set(tensors) - _TENSORS:
         raise UnsupportedArtifactError(
             f"unknown tensors of word vectors: {sorted(set(tensors) - _TENSORS)}"
@@ -240,7 +244,7 @@ def _check_vectors(vectors: ndarray, metadata: dict[str, str]) -> tuple[int, int
 
 
 def _check_quantization(tensors: dict[str, ndarray], metadata: dict[str, str], n: int, dtype: str):
-    """The quantization keys, the scales and the counts."""
+    """The quantization keys and the scales."""
     quantized = dtype != "float32"
     if quantized != ("fse.quantization" in metadata):
         raise ValueError("fse.quantization is given exactly for float16 and int8 vectors")
@@ -255,8 +259,6 @@ def _check_quantization(tensors: dict[str, ndarray], metadata: dict[str, str], n
             f"quantization {metadata['fse.quantization']!r} is not supported; supported: {QUANTIZATION}"
         )
     _check_scales(tensors, "scales", n, dtype == "int8")
-    if "counts" in tensors:
-        _check_vector(tensors["counts"], "counts", "I64", n)
 
 
 def _check_vocab(data: ndarray, offsets: ndarray, n: int):
@@ -300,10 +302,6 @@ def _check_values(tensors: dict[str, ndarray]):
         _check_rows(name, rows)
         if scales in tensors:
             _check_scale_values(name, scales, rows, np.asarray(tensors[scales]))
-    if "counts" in tensors:
-        bad = np.flatnonzero(np.asarray(tensors["counts"]) < 0)
-        if len(bad):
-            raise ValueError(f"count {int(bad[0])} is negative")
 
 
 def _check_rows(name: str, rows: ndarray):

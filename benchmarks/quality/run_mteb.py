@@ -6,14 +6,14 @@ The task selection follows what the compared libraries report themselves:
   sentence-transformers documentation uses for its MTEB examples;
 - ``NanoBEIR``, the 13 small BEIR retrieval tasks of the sentence-transformers static models.
 
-SIF and uSIF learn their principal components once from a fixed corpus that is unrelated to
-every task (the training split of WikiText-103) and are frozen afterwards: every task only calls
-``infer``, like the compared models, which are frozen too. Average is trained on the same corpus,
-which has no effect on its vectors.
-
-All fse models tokenize as ``notebooks/STS-Benchmarks.ipynb`` does: NLTK ``word_tokenize``,
-lowercased, punctuation dropped, hyphenated words split. The compared models use their own
-tokenizers.
+The fse models are finished models (``fse.Encoder`` files, one ``.safetensors`` each) in
+--fse-models (default ``$FSE_QUALITY_CACHE/models``), named ``fse/<file name without
+.safetensors>``; fse 2.0 trains nothing, so SIF and uSIF tables come from the offline recipe.
+Every task only encodes, like the compared models, which are frozen too. A model with the
+``external`` tokenizer gets its texts tokenized as the 1.1.0 tables were (NLTK
+``word_tokenize``, lowercased, punctuation dropped, hyphenated words split); any other model
+tokenizes the raw text itself. The compared models use their own tokenizers. The results of
+fse 1.1.0 in results.jsonl were measured by this script before 2.0 and stay as they were.
 
 For every task the script records the main score, the wall time of the ``encode`` calls (for fse
 including tokenization), the number of encoded texts and the load average before the task.
@@ -26,7 +26,7 @@ Setup, from the repository root (the benchmark dependencies stay out of the proj
 
 Examples::
 
-    .venv-quality/bin/python benchmarks/quality/run_mteb.py run --models fse/uSIF-paranmt-300-float32 --tasks STSBenchmark
+    .venv-quality/bin/python benchmarks/quality/run_mteb.py run --models fse/uSIF-paranmt-300 --tasks STSBenchmark
     .venv-quality/bin/python benchmarks/quality/run_mteb.py run --models all
     .venv-quality/bin/python benchmarks/quality/run_mteb.py summarize
 """
@@ -71,26 +71,6 @@ BASELINE_TASKS = [
     "NanoNQRetrieval", "NanoQuoraRetrieval", "NanoSCIDOCSRetrieval", "NanoSciFactRetrieval",
     "NanoTouche2020Retrieval",
 ]  # fmt: skip
-WIKITEXT = (
-    "Salesforce/wikitext",
-    "wikitext-103-raw-v1",
-    "b08601e04326c79dfdd32d625aee71d232d685c3",
-)
-
-FSE_VECTORS = [
-    "glove-wiki-gigaword-300",
-    "word2vec-google-news-300",
-    "fasttext-wiki-news-subwords-300",
-    "paranmt-300",
-]
-# The parameters of the STS table in the README.
-FSE_ALGOS = {
-    "Average": {},
-    "SIF": {"components": 10, "lang_freq": "en"},
-    "uSIF": {"length": 11, "lang_freq": "en"},
-}
-FSE_DTYPES = ["float32", "int8"]
-FSE_MODELS = [f"fse/{a}-{v}-{d}" for a in FSE_ALGOS for v in FSE_VECTORS for d in FSE_DTYPES]
 # Registered in mteb with pinned revisions.
 OTHER_MODELS = [
     "minishlab/potion-base-8M",
@@ -111,7 +91,7 @@ def _prep_token(token: str) -> list[str]:
 
 
 def tokenize(text: str) -> list[str]:
-    """Tokenize like notebooks/STS-Benchmarks.ipynb."""
+    """Tokenize like notebooks/STS-Benchmarks.ipynb on the branch 1.x."""
     from nltk import word_tokenize
 
     tokens: list[str] = []
@@ -121,45 +101,29 @@ def tokenize(text: str) -> list[str]:
     return tokens
 
 
-def fit_corpus() -> Path:
-    """Write the tokenized WikiText-103 training paragraphs once, one per line."""
-    path = CACHE / f"wikitext-103-{WIKITEXT[2][:8]}.txt"
-    if path.exists():
-        return path
-    from datasets import load_dataset
-
-    CACHE.mkdir(parents=True, exist_ok=True)
-    data = load_dataset(WIKITEXT[0], WIKITEXT[1], split="train", revision=WIKITEXT[2])
-    tmp = path.with_suffix(".tmp")
-    with tmp.open("w", encoding="utf-8") as f:
-        for line in data["text"]:
-            line = line.strip()
-            if not line or line.startswith("="):  # empty lines and section headings
-                continue
-            tokens = tokenize(line)
-            if tokens:
-                f.write(" ".join(tokens) + "\n")
-    tmp.rename(path)
-    return path
+def fse_models(folder: Path) -> list[str]:
+    """The names of the finished fse models in ``folder``; raises if there are none, so a
+    run of the fse group never ends without measuring anything."""
+    names = [f"fse/{p.stem}" for p in sorted(folder.glob("*.safetensors"))]
+    if not names:
+        raise SystemExit(
+            f"no fse models (*.safetensors) in {folder}: put finished models there or pass "
+            "--fse-models"
+        )
+    return names
 
 
 class FseEncoder(AbsEncoder):
-    """Encode with a frozen fse model: trained once on the fit corpus, then only ``infer``."""
+    """Encode with a finished fse model (``fse.Encoder.load``)."""
+
+    folder = CACHE / "models"  # set by --fse-models
 
     def __init__(self, model_name: str, revision: str | None = None, **kwargs: Any) -> None:
-        from fse import SIF, Average, CorpusFile, FTVectors, Vectors, uSIF
+        import fse
 
-        algo, rest = model_name.removeprefix("fse/").split("-", 1)
-        vectors_name, dtype = rest.rsplit("-", 1)
-        cls = {"Average": Average, "SIF": SIF, "uSIF": uSIF}[algo]
-        # The dtype names the format of the word vectors (wv_dtype); the README loads the
-        # crawl FastText vectors with their ngrams.
-        loader = FTVectors if vectors_name == "fasttext-crawl-subwords-300" else Vectors
-        vectors = loader.from_pretrained(vectors_name, mmap="r")
-        self.model = cls(vectors, wv_dtype=dtype, workers=os.cpu_count(), **FSE_ALGOS[algo])
-        start = time.perf_counter()
-        self.model.train(CorpusFile(str(fit_corpus())))
-        logger.info("fitted %s in %.1f s", model_name, time.perf_counter() - start)
+        path = self.folder / f"{model_name.removeprefix('fse/')}.safetensors"
+        self.model = fse.Encoder.load(path)
+        logger.info("loaded %s from %s", self.model, path)
 
     def encode(
         self,
@@ -171,10 +135,10 @@ class FseEncoder(AbsEncoder):
         prompt_type: Any = None,
         **kwargs: Any,
     ) -> np.ndarray:
-        from fse import IndexedList
-
-        sentences = [tokenize(text) for batch in inputs for text in batch["text"]]
-        return self.model.infer(IndexedList(sentences))
+        texts = [text for batch in inputs for text in batch["text"]]
+        if self.model.tokenizer == "external":
+            texts = [tokenize(text) for text in texts]
+        return self.model.encode(texts, workers=os.cpu_count())
 
 
 def fse_meta(name: str) -> ModelMeta:
@@ -187,11 +151,11 @@ def fse_meta(name: str) -> ModelMeta:
         n_parameters=None,
         memory_usage_mb=None,
         max_tokens=np.inf,
-        embed_dim=300,
+        embed_dim=FseEncoder(name).model.output_dim,
         license="gpl-3.0",
         open_weights=True,
         public_training_code="https://github.com/oborchers/Fast_Sentence_Embeddings",
-        public_training_data="https://huggingface.co/datasets/Salesforce/wikitext",
+        public_training_data=None,
         framework=["NumPy"],
         reference="https://huggingface.co/fse",
         similarity_fn_name=ScoringFunction.COSINE,
@@ -324,6 +288,9 @@ def main() -> None:
         "--tasks", nargs="+", help="restrict to these task names, or 'baseline'"
     )
     run_parser.add_argument("--results", type=Path, default=RESULTS)
+    run_parser.add_argument(
+        "--fse-models", type=Path, default=FseEncoder.folder, help="the finished fse models"
+    )
     summary = sub.add_parser("summarize")
     summary.add_argument("--results", type=Path, default=RESULTS)
     args = parser.parse_args()
@@ -331,7 +298,9 @@ def main() -> None:
     if args.command == "summarize":
         summarize(args.results)
         return
-    groups = {"fse": FSE_MODELS, "others": OTHER_MODELS, "all": FSE_MODELS + OTHER_MODELS}
+    FseEncoder.folder = args.fse_models
+    ours = fse_models(args.fse_models) if {"fse", "all"} & set(args.models) else []
+    groups = {"fse": ours, "others": OTHER_MODELS, "all": ours + OTHER_MODELS}
     models = [m for name in args.models for m in groups.get(name, [name])]
     tasks = BASELINE_TASKS if args.tasks == ["baseline"] else args.tasks
     run(models, tasks, args.results)

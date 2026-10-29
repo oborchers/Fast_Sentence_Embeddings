@@ -7,8 +7,10 @@
 """Encoding throughput of fse 2.0 by text length: sentences, paragraphs, documents.
 
 The same WikiText tokens cut into texts of different lengths (bench_length_corpus.py),
-encoded with one frozen model per configuration (SIF-10 fitted once on ``paragraphs``,
-folded; Average as is; Average with normalize as the unfolded control with a step), on
+encoded with one frozen model per configuration (2.0: finished tables, ``SIFWeights``
+with the SIF word weights of the wordfreq counts folded in but no components removed, so
+it is no SIF and is never compared with 1.1, Average as is, and Average with normalize as
+the control with a step; 1.1: Average, the only model both sides share), on
 glove-wiki-gigaword-300. Every case runs in a fresh child (bench_length_cases.py), so its
 peak RSS belongs to it; a child does one warm-up and --repeats timed encodes and reports
 their median, minimum and maximum. Before every run its inputs are read once (a warm page
@@ -24,8 +26,8 @@ Modes:
 - ``prepare``: the word vectors, the wordfreq counts (of --python-v1, fse 1.1.0 and
   wordfreq), the corpora with their manifests and the default models, once and untimed;
 - ``compare``: 2.0 against 1.1, alternating --pairs, on sentences, paragraphs,
-  documents and synthetic 20, 500 and 10,000 with SIF float32 into memory at 1 and 10
-  workers and SIF int8 into a store at 10 (--workers and --models change it);
+  documents and synthetic 20, 500 and 10,000 with Average float32 into memory at 1 and
+  10 workers and int8 into a store at 10 (--workers and --models change it);
 - ``matrix``: 2.0 only, the quick grid (see ``matrix_cases``) or with --full every
   combination; --wv-dtype, --chunk-bytes and --tokenizer are the ablations (the baseline
   of --chunk-bytes is ``--chunk-bytes auto``, through the same entry of the pipeline);
@@ -47,10 +49,10 @@ split at whitespace.
         --json length-matrix.json
     uv run python benchmarks/bench_length.py matrix --wv-dtype int8 \\
         --lengths sentences documents
-    uv run python benchmarks/bench_length.py verify --length documents --model SIF \\
+    uv run python benchmarks/bench_length.py verify --length documents --model SIFWeights \\
         --dtype int8 --target store
     make profile-cpu PROFILE_DIR=profiles/documents-int8 RUN="benchmarks/bench_length.py \\
-        profile --length documents --model SIF --dtype int8 --target store --seconds 20"
+        profile --length documents --model SIFWeights --dtype int8 --target store --seconds 20"
 
 ``make profile-mem`` and ``profile-rss`` take the same RUN, with one PROFILE_DIR per
 configuration and length; ``verify`` takes the same flags as ``profile``. --tokens and
@@ -84,8 +86,8 @@ from bench_length_report import print_analysis, print_header, print_row
 from bench_lifecycle import _hub_files, _identity, _median, _warm
 
 MODES = ("prepare", "compare", "matrix", "verify", "profile")
-MODELS = ("SIF", "Average", "AverageNorm")
-V1_MODELS = ("SIF", "Average")
+MODELS = ("SIFWeights", "Average", "AverageNorm")
+V1_MODELS = ("Average",)  # SIFWeights is no SIF: it removes no components
 DTYPES = ("float32", "float16", "int8")
 TARGETS = ("memory", "store")
 COMPARE = (
@@ -95,7 +97,7 @@ COMPARE = (
     *(corpora.synthetic(n) for n in (20, 500, 10_000)),
 )
 CORE = (*corpora.REAL, *(corpora.synthetic(n) for n in corpora.SYNTHETIC), *corpora.SKEW)
-FIT_CONFIG = ("SIF", "float32", "store", 1)
+FIT_CONFIG = ("SIFWeights", "float32", "store", 1)
 
 
 # --- the grids ------------------------------------------------------------------------
@@ -120,9 +122,9 @@ def compare_cases(args) -> list[dict]:
 
 
 def _quick(top: int, workers: list[int]) -> list[tuple]:
-    configs = [("Average", "float32", "memory", top), ("SIF", "float32", "memory", top)]
-    configs += [("SIF", "float32", "store", top), ("SIF", "int8", "store", top)]
-    return configs + [("SIF", "float32", "store", w) for w in workers if w != top]
+    configs = [("Average", "float32", "memory", top), ("SIFWeights", "float32", "memory", top)]
+    configs += [("SIFWeights", "float32", "store", top), ("SIFWeights", "int8", "store", top)]
+    return configs + [("SIFWeights", "float32", "store", w) for w in workers if w != top]
 
 
 def _full(args) -> list[dict]:
@@ -135,11 +137,11 @@ def _extra(top: int) -> list[dict]:
     """The permuted real corpora (locality), Average with normalize on the real ones (the
     cost of a step), the smaller synthetic budgets at 1 worker (the fit), the raw text
     with fse_words@1 and the strings case."""
-    cases = [_case(c, "SIF", "float32", "memory", top) for c in corpora.PERMUTED]
+    cases = [_case(c, "SIFWeights", "float32", "memory", top) for c in corpora.PERMUTED]
     cases += [_case(c, "AverageNorm", "float32", "memory", top) for c in corpora.REAL]
     cases += [_case(c, *FIT_CONFIG) for c in corpora.FIT if c not in CORE]
-    cases += [_case(c, "SIF", "float32", "memory", top) for c in corpora.RAW]
-    strings = _case("documents", "SIF", "float32", "memory", top)
+    cases += [_case(c, "SIFWeights", "float32", "memory", top) for c in corpora.RAW]
+    strings = _case("documents", "SIFWeights", "float32", "memory", top)
     return [*cases, *({**strings, "kind": "strings", "batch": b} for b in ("long", "batch32"))]
 
 
@@ -210,12 +212,11 @@ def side_config(ctx: Prepared, case: dict, side: str, tmp: Path) -> dict:
 
 
 def _inputs(config: dict) -> list[Path]:
-    """The files a case reads: its texts, the model and the word vectors it needs."""
+    """The files a case reads: its texts and the model (2.0: the encoder holds its table)."""
     paths = [Path(config.get("texts", config["corpus"]))]
     if config["side"] == "v1":
         return paths + model_files(Path(config["v1_model"])) + _hub_files(config["vectors"])
-    paths.append(Path(config["encoder"]))
-    return paths if config["model"] == "SIF" else [*paths, Path(config["wv"])]
+    return [*paths, Path(config["encoder"])]
 
 
 def _sides(case: dict, pythons: dict[str, str]) -> list[str]:
@@ -237,7 +238,7 @@ def run_pairs(ctx: Prepared, case: dict, pythons: dict[str, str], tmp: Path) -> 
 
 
 def _models_of(ctx: Prepared, cases: list[dict], pythons: dict[str, str]) -> None:
-    """Check every corpus and model (fitting the missing ones) before anything runs."""
+    """Check every corpus and model (making the missing ones) before anything runs."""
     for case in cases:
         ctx.stats(case["corpus"], _tokenizer(ctx.args, case["corpus"]))
         ensure_model(ctx, "v2", _v2_key(ctx.args, case), pythons["v2"])
@@ -298,16 +299,18 @@ def prepare(args) -> None:
         if v1 != words:
             raise SystemExit("the vocabularies of 2.0 and 1.1 are not in the same order")
     elif not ctx.counts.exists():
-        raise SystemExit("SIF needs the wordfreq counts of --python-v1 (fse 1.1.0, wordfreq)")
+        raise SystemExit(
+            "SIFWeights needs the wordfreq counts of --python-v1 (fse 1.1.0, wordfreq)"
+        )
     if _prepared(ctx):
         print(f"# the corpora in {ctx.folder} are prepared", flush=True)
     else:
         _corpora(ctx)
     for model in MODELS:
         ensure_model(ctx, "v2", (model, "external", "float32"), sys.executable)
-    ensure_model(ctx, "v2", ("SIF", "fse_words@1", "float32"), sys.executable)
+    ensure_model(ctx, "v2", ("SIFWeights", "fse_words@1", "float32"), sys.executable)
     for dtype in ("float32", "int8") if args.python_v1 else ():
-        ensure_model(ctx, "v1", ("SIF", dtype), args.python_v1)
+        ensure_model(ctx, "v1", ("Average", dtype), args.python_v1)
 
 
 def _write_json(args, rows: list[dict]) -> None:
@@ -417,7 +420,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--tokenizer", default="external", choices=("external", "fse_words@1"))
     profiled = parser.add_argument_group("profile")
     profiled.add_argument("--length", choices=corpora.CORPORA, default="documents")
-    profiled.add_argument("--model", choices=MODELS, default="SIF")
+    profiled.add_argument("--model", choices=MODELS, default="SIFWeights")
     profiled.add_argument("--dtype", choices=DTYPES, default="int8")
     profiled.add_argument("--target", choices=TARGETS, default="store")
     profiled.add_argument("--seconds", type=float, default=20.0)
@@ -430,7 +433,7 @@ def _defaults(args) -> None:
     compared = args.mode == "compare"
     args.cache = args.cache.expanduser()
     args.lengths = args.lengths or list(COMPARE if compared else corpora.CORPORA)
-    args.models = args.models or (["SIF"] if compared else list(MODELS))
+    args.models = args.models or (["Average"] if compared else list(MODELS))
     workers = {"compare": [1, 10], "profile": [10], "verify": [10]}.get(args.mode, [1, 4, 10])
     args.workers = args.workers or workers
     args.pairs = args.pairs or (2 if compared else 1)

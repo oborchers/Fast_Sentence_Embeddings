@@ -4,10 +4,10 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""What ``encode`` and ``fit`` take as texts, and the source each becomes.
+"""What ``encode`` takes as texts, and the source each becomes.
 
-- a ``fse.Corpus``, or a source of fse (StringSource, TokenListSource, FileSource,
-  StreamSource): as it is, token lists only for the external tokenizer;
+- a source of fse (StringSource, TokenListSource, FileSource, StreamSource): as it is,
+  token lists only for the external tokenizer;
 - a path (``os.PathLike``): the lines of the file, opened and closed by the call;
 - a list, tuple or numpy array of str: one sentence each; of lists of str: token lists,
   for the external tokenizer;
@@ -28,7 +28,7 @@ from fse._stream import StreamSource
 from fse._text import StringSource, TokenListSource
 from fse._text_file import FileSource
 
-from ._corpus import COLLECTIONS, Corpus, build, check_tokenizer, is_token_lists, refuse
+from ._inputs import COLLECTIONS, build, check_tokenizer, is_token_lists, refuse
 
 SOURCES = (StringSource, TokenListSource, FileSource, StreamSource)
 
@@ -36,10 +36,6 @@ SOURCES = (StringSource, TokenListSource, FileSource, StreamSource)
 @contextmanager
 def opened(texts: Any, tokenizer: str) -> Iterator[Any]:
     """The source of ``texts`` for one call; a file the call opened is closed after it."""
-    if isinstance(texts, Corpus):
-        check_tokenizer(texts._tokens, tokenizer)
-        yield texts._source
-        return
     if isinstance(texts, SOURCES):
         if isinstance(texts, TokenListSource):
             check_tokenizer(True, tokenizer)
@@ -56,8 +52,3 @@ def opened(texts: Any, tokenizer: str) -> Iterator[Any]:
         yield build(texts, tokens)
         return
     yield StreamSource(texts)
-
-
-def is_stream(source: Any) -> bool:
-    """Whether ``source`` can be read only once."""
-    return isinstance(source, StreamSource)

@@ -22,7 +22,7 @@ import pytest
 
 from fse import _reference
 from fse._backends._mlx import _kernels, _sources
-from fse._contract import Normalize, Project, RemoveComponents
+from fse._contract import Normalize
 from fse._runtime import EncodeSpec, Pipeline
 from fse._text import StringSource
 from fse._wordvectors import WordVectors
@@ -88,33 +88,19 @@ def test_every_case_is_within_the_bound(mlx, index):
         assert_bits_equal(out, want, case.name)
 
 
-def _basis(dim, k, seed):
-    q = np.linalg.qr(np.random.default_rng(seed).standard_normal((dim, k)))[0]
-    return np.ascontiguousarray(q.T, dtype=F32)
-
-
-STEPS = {
-    "normalize": (Normalize(),),
-    "remove": (RemoveComponents(_basis(12, 2, 1), np.array([1.0, 0.5], F32)),),
-    "all": (
-        RemoveComponents(_basis(12, 2, 1), np.array([1.0, 0.5], F32)),
-        Project(_basis(12, 5, 2)),
-        Normalize(),
-    ),
-}
+STEPS = {"none": (), "normalize": (Normalize(),)}
 
 
 @pytest.mark.parametrize("steps", list(STEPS))
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("fasttext", [False, True], ids=["plain", "fasttext"])
 def test_steps_are_within_the_bound(mlx, steps, dtype, fasttext):
-    """normalize alone on the device; with linear steps (which fse 2.0 folds into the
-    word vectors) the encoder runs on the host, with the cpu's bits."""
+    """No step or normalize, the only one: both on the device."""
     case = random_case("steps", dtype, 40, dim=12, n=30, ft=fasttext)
     out, fell_back, launched = pool_on_device(mlx, case, STEPS[steps])
     device = pool_on_device(mlx, case)[0]
-    assert bool(launched) == (steps == "normalize")
-    assert bool(fell_back) == (steps != "normalize")
+    assert launched
+    assert not fell_back
     assert_within_bound(out, case, STEPS[steps], "steps", device=device)
 
 
@@ -301,36 +287,3 @@ def test_a_row_the_cpu_cancels_to_zero_comes_from_the_host_before_normalize(mlx)
     assert fell_back
     assert_bits_equal(out, _want(case), case.name)
     assert_within_bound(out, case, NORMALIZE, case.name, device=raw)
-
-
-@pytest.mark.parametrize(
-    ("steps", "error"),
-    [
-        ((Project(np.array([[0.0, 1.0]], F32)), Normalize()), "row 0 cannot be normalized"),
-        ((Project(np.array([[0.0, 1.0]], F32)),), None),
-        ((Project(np.eye(1, 2, dtype=F32)), Normalize()), None),
-    ],
-    ids=["project normalize", "project", "identity part"],
-)
-def test_an_underflow_a_projection_exposes(mlx, steps, error):
-    """F2 of review 2: the cpu row [1, 2**-127], the device's [1, 0]; projected onto the
-    second value, normalize fails on the cpu. An encoder with linear steps runs on the
-    host, so its errors and rows are the cpu's."""
-    case = _case("exposed underflow")
-    if error is not None:
-        with pytest.raises(ValueError, match=error):
-            pool_on_device(mlx, case, steps)
-        return
-    out, fell_back, launched = pool_on_device(mlx, case, steps)
-    assert fell_back
-    assert not launched
-    assert_within_bound(out, case, steps, case.name)
-
-
-def test_a_flush_that_turns_a_rounding_through_an_identity_projection(mlx):
-    """On the host: an identity projection is a linear step."""
-    case = _case("a flush turns a rounding")
-    steps = (Project(np.eye(1, dtype=F32)),)
-    out, fell_back, _ = pool_on_device(mlx, case, steps)
-    assert fell_back
-    assert_bits_equal(out, _reference.pool_weighted_mean(case.batch, *case.args()), case.name)

@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""Contracts of fse 2.0: versions, aggregations, postprocessing steps and batches.
+"""Contracts of fse 2.0: versions, aggregations, the normalize step and batches.
 
 ARCHITECTURE.md, section "2.0", states the rules these types encode. Aggregations and
 postprocessing steps are identified as ``"<name>@<version>"``; saved artifacts carry
@@ -33,9 +33,6 @@ OOV_TOKEN = 0xFFFFFFFE
 
 _ID = re.compile(r"([a-z][a-z0-9_]*)@([1-9][0-9]*)")
 _INT64_MAX = 2**63 - 1
-# How far the rows of components and bases may be from orthonormal: float32 eigenvectors
-# of a 300 x 300 Gram matrix are orthonormal to about 1e-6.
-ORTHONORMAL_TOLERANCE = 1e-4
 
 
 class UnsupportedArtifactError(ValueError):
@@ -91,8 +88,6 @@ class Aggregation(_Versioned):
 class Op(_Versioned):
     """A postprocessing step applied to every aggregated row (stage 4)."""
 
-    REMOVE_COMPONENTS = ("remove_components", 1)
-    PROJECT = ("project", 1)
     NORMALIZE = ("normalize", 1)
 
 
@@ -131,23 +126,6 @@ def check_dim(dim: object, name: str = "dim") -> int:
     return int(dim)
 
 
-def _frozen(array: ndarray) -> ndarray:
-    """A read-only copy, so a validated step cannot change through the caller's array."""
-    copy = array.copy()
-    copy.setflags(write=False)
-    return copy
-
-
-def _check_orthonormal(rows: ndarray, name: str):
-    gram = rows.astype(np.float64) @ rows.astype(np.float64).T
-    error = float(np.abs(gram - np.eye(len(rows))).max())
-    if error > ORTHONORMAL_TOLERANCE:
-        raise ValueError(
-            f"the rows of {name} must be orthonormal; their Gram matrix differs from the "
-            f"identity by {error:.3g}, more than {ORTHONORMAL_TOLERANCE}"
-        )
-
-
 def check_transform_version(version: object) -> int:
     """Return ``version`` if this fse can apply it, or raise UnsupportedArtifactError."""
     if isinstance(version, bool) or not isinstance(version, int):
@@ -160,78 +138,6 @@ def check_transform_version(version: object) -> int:
     return version
 
 
-def _float32_matrix(value: object, name: str, ndim: int) -> ndarray:
-    if not isinstance(value, ndarray):
-        raise TypeError(f"{name} must be a numpy array, not {type(value).__name__}")
-    if value.dtype != np.float32:
-        raise TypeError(f"{name} must have dtype float32, not {value.dtype}")
-    if value.ndim != ndim:
-        raise ValueError(f"{name} must have {ndim} dimensions, not {value.ndim}")
-    if not value.flags.c_contiguous:
-        raise ValueError(f"{name} must be C-contiguous")
-    if not np.isfinite(value).all():
-        raise ValueError(f"{name} contains NaN or infinite values")
-    return value
-
-
-@dataclass(frozen=True, eq=False)
-class RemoveComponents:
-    """Subtract the projection of a row onto ``components``, optionally weighted.
-
-    ``components`` holds k unit rows of the row dimension d (1 <= k <= d); ``weights``,
-    if given, scales the coefficient of each component (uSIF).
-    """
-
-    components: ndarray
-    weights: ndarray | None = None
-    op = Op.REMOVE_COMPONENTS
-
-    def __post_init__(self):
-        components = _frozen(_float32_matrix(self.components, "components", 2))
-        object.__setattr__(self, "components", components)
-        k, d = components.shape
-        if not 1 <= k <= d:
-            raise ValueError(f"components must hold between 1 and {d} rows, not {k}")
-        _check_orthonormal(components, "components")
-        if self.weights is not None:
-            weights = _frozen(_float32_matrix(self.weights, "weights", 1))
-            object.__setattr__(self, "weights", weights)
-            if weights.shape != (k,):
-                raise ValueError(f"weights must have shape ({k},), not {weights.shape}")
-
-    @property
-    def dim(self) -> int:
-        return int(self.components.shape[1])
-
-
-@dataclass(frozen=True, eq=False)
-class Project:
-    """Replace a row of d values by its k coordinates along the rows of ``basis`` (k <= d).
-
-    The basis holds k orthonormal rows, such as the leading principal axes from ``fit``;
-    the step reduces the dimension of every row from d to k.
-    """
-
-    basis: ndarray
-    op = Op.PROJECT
-
-    def __post_init__(self):
-        basis = _frozen(_float32_matrix(self.basis, "basis", 2))
-        object.__setattr__(self, "basis", basis)
-        k, d = basis.shape
-        if not 1 <= k <= d:
-            raise ValueError(f"basis must hold between 1 and {d} rows, not {k}")
-        _check_orthonormal(basis, "basis")
-
-    @property
-    def dim(self) -> int:
-        return int(self.basis.shape[1])
-
-    @property
-    def output_dim(self) -> int:
-        return int(self.basis.shape[0])
-
-
 @dataclass(frozen=True)
 class Normalize:
     """Scale a row to unit length; an all-zero row stays zero."""
@@ -239,47 +145,32 @@ class Normalize:
     op = Op.NORMALIZE
 
 
-Step = RemoveComponents | Project | Normalize
-
-# The order of steps: each at most once, removal before projection before normalization.
-_STEP_ORDER = (Op.REMOVE_COMPONENTS, Op.PROJECT, Op.NORMALIZE)
+Step = Normalize
 
 
 def check_steps(steps: Sequence[object], dim: int) -> tuple[Step, ...]:
-    """Return ``steps`` as a tuple if they form an allowed list for rows of ``dim`` values."""
-    dim = check_dim(dim)
+    """Return ``steps`` as a tuple if they form an allowed list for rows of ``dim`` values:
+    none, or ``normalize`` once. Linear maps belong in the rows of a finished table."""
+    check_dim(dim)
     checked: list[Step] = []
     for step in steps:
-        if not isinstance(step, RemoveComponents | Project | Normalize):
+        if not isinstance(step, Normalize):
             raise TypeError(f"{step!r} is not a postprocessing step")
         checked.append(step)
-    ops = [step.op for step in checked]
-    if ops != [op for op in _STEP_ORDER if op in ops]:
+    if len(checked) > 1:
         raise ValueError(
-            "postprocessing steps must be a subset of remove_components, project and "
-            f"normalize in this order, each at most once, not {[op.id for op in ops]}"
+            f"the postprocessing steps are none or normalize once, not {[s.op.id for s in checked]}"
         )
-    _check_dims(checked, dim)
     return tuple(checked)
 
 
-def _check_dims(steps: list[Step], dim: int):
-    """Every step with a basis takes the rows the steps before it give."""
-    for step in steps:
-        if not isinstance(step, RemoveComponents | Project):
-            continue
-        if step.dim != dim:
-            raise ValueError(f"the {step.op.id} step takes rows of {step.dim} values, not {dim}")
-        if isinstance(step, Project):
-            dim = step.output_dim
-
-
-def output_dim(steps: Sequence[Step], dim: int) -> int:
-    """The dimension of rows of ``dim`` values after ``steps``."""
-    for step in check_steps(steps, dim):
-        if isinstance(step, Project):
-            dim = step.output_dim
-    return dim
+def prerelease_error(kind: str, found: Sequence[str]) -> UnsupportedArtifactError:
+    """The error for an artifact of a pre-release of 2.0, which held ``found`` (keys or
+    tensors this fse removed, such as counts, recipes or learned steps)."""
+    return UnsupportedArtifactError(
+        f"this {kind} was written by a pre-release of 2.0 (it holds {', '.join(sorted(found))}, "
+        "which 2.0 no longer has); rebuild the model with this fse"
+    )
 
 
 def _int_array(value: object, name: str, dtype: type) -> ndarray:

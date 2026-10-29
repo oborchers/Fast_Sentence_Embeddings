@@ -13,7 +13,7 @@ xxh3-128 checksum of every tensor (``fse.checksum.<name>``) and the fingerprint 
 content (``fse.fingerprint``), which does not depend on the container.
 
 Only the standard library, numpy and (in ``_hash``) xxhash are used, and the modules
-import each other relatively, so the 1.x export can copy this package; from fse they
+import each other relatively, so another project can copy this package; from fse they
 import only ``UnsupportedArtifactError`` of ``fse._contract``.
 """
 

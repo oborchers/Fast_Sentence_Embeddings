@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""What an encoder hands to the runtime: word vectors, weights, steps and tokenizer.
+"""What an encoder hands to the runtime: its table, weights, steps and tokenizer.
 
 PR 5's Encoder builds one; the runtime prepares a backend from it once. EncodeSpec owns
 a frozen copy of the weights, so changing the caller's array afterwards changes nothing.
@@ -61,6 +61,12 @@ class EncodeSpec:
             raise ValueError("max_ngrams is given exactly for FastText vectors")
         if fasttext:
             object.__setattr__(self, "max_ngrams", _max_ngrams(self.max_ngrams))
+
+    @property
+    def output_dim(self) -> int:
+        """The dimension of the finished rows: that of the aggregated rows, as normalize
+        keeps it."""
+        return self.aggregation.output_dim(self.word_vectors.dim)
 
     def pool_input(self) -> PoolInput:
         wv = self.word_vectors

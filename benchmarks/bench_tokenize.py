@@ -59,7 +59,7 @@ def _cpus() -> int:
 
 
 def preprocess_1x(text: str) -> list[str]:
-    """The preprocessing of the published 1.x tables (notebooks/STS-Benchmarks.ipynb)."""
+    """The preprocessing of the published 1.x tables (notebooks/STS-Benchmarks.ipynb, 1.x)."""
     from nltk import word_tokenize
 
     tokens = []

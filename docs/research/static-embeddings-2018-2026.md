@@ -1,6 +1,6 @@
 # Static and linear sentence embeddings after SIF, uSIF and SWEM (2018 to 2026)
 
-Research report for fse 2.x. Date of research: 2026-10-27. Scope: non-transformer sentence encoders whose inference is a lookup of per-token vectors plus a cheap pooling, and post-processing of such vectors.
+Research report for fse 2.x. Date of research: 2026-10-27. Superseded in part on 2026-10-29: training left fse (no `fit`, no `counts`, no `remove_components@1` or `project@1`); fse 2.0 encodes finished tables with `weighted_mean@1` and an optional `normalize@1`. Recommendations below that build on `fit`, `counts` or those steps (items 3 to 5 of section 6) now mean offline recipes that write finished tables. Scope: non-transformer sentence encoders whose inference is a lookup of per-token vectors plus a cheap pooling, and post-processing of such vectors.
 
 Conventions:
 

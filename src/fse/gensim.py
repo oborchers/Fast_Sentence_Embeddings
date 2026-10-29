@@ -35,14 +35,15 @@ def _gensim():
 
 @validate_arguments
 def from_gensim(
-    model: Any, dtype: Literal["float32", "float16", "int8"] = "float32", counts: bool = True
+    model: Any, dtype: Literal["float32", "float16", "int8"] = "float32"
 ) -> WordVectors:
     """The word vectors of a gensim model as fse ``WordVectors``.
 
     ``model`` is a ``KeyedVectors`` or ``FastTextKeyedVectors``, or a ``Word2Vec`` or
     ``FastText`` model whose ``wv`` holds them. The vectors are stored as ``dtype``; float16
     and int8 codes are quantized directly from gensim's rows, in blocks, without a float32
-    copy. ``counts`` copies gensim's word counts if it has them. For FastText, the rows
+    copy. Word counts are not taken (fse 2.0 encodes with finished tables and learns no
+    weights). For FastText, the rows
     of the words themselves (``vectors_vocab``) and the ngram rows are stored, not
     gensim's combined ``vectors``.
     """
@@ -57,8 +58,6 @@ def from_gensim(
     _check_rows(rows, words)
     vocab_bytes, vocab_offsets = _encode_words(words)
     kwargs: dict[str, Any] = {}
-    if counts and "count" in getattr(kv, "expandos", {}):
-        kwargs["counts"] = _counts(kv.expandos["count"])
     if fasttext is not None:
         kwargs["fasttext"] = fasttext
     vectors, scales = _stored(rows, dtype, "word vector")
@@ -92,13 +91,6 @@ def _check_rows(rows: np.ndarray, words: Any):
         raise TypeError(f"the word vectors must be float32, not {rows.dtype}")
     if rows.ndim != 2 or rows.shape[0] != len(words):
         raise ValueError(f"gensim holds {len(words)} words but vectors of shape {rows.shape}")
-
-
-def _counts(count: Any) -> np.ndarray:
-    values = np.asarray(count)
-    if values.dtype.kind not in "iu":
-        raise TypeError(f"gensim's counts must be integers, not {values.dtype}")
-    return values.astype(np.int64)
 
 
 def _stored(rows: np.ndarray, dtype: str, kind: str):

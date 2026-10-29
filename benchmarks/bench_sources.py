@@ -12,9 +12,10 @@ token lists. Every case runs in a fresh child process, so its peak RSS is its ow
 inputs are prepared before the timer, and the growth of the peak RSS during the build is
 reported (a high-water mark, so a build below the peak of preparing the input shows 0).
 
-- ``build``: the public class alone (``fse.Corpus``; on an older base ``fse.TokenLists``
-  or the sources), from the prepared lists or strings;
-- ``encode``: an Average encoder (external tokenizer, word vectors random in the
+- ``build``: the source alone (``fse._text.StringSource`` and ``TokenListSource``, which
+  ``encode`` builds; on an older base the public class it had, ``fse.Corpus`` or
+  ``fse.TokenLists``), from the prepared lists or strings;
+- ``encode``: an encoder of a finished table (external tokenizer, word vectors random in the
   vocabulary of the corpus) encodes the token lists and the strings to float32, at every
   --workers; the source is built inside the timer, as a call of ``encode`` does.
 
@@ -64,7 +65,7 @@ def child_build(c: dict) -> dict:
     import fse
     from fse import _text
 
-    # The public class of each side: fse.Corpus, fse.TokenLists (#110), else the sources.
+    # The sources, or on an older base its public class: fse.Corpus, fse.TokenLists (#110).
     corpus = getattr(fse, "Corpus", None)
     token_lists = corpus or getattr(fse, "TokenLists", None) or _text.TokenListSource
     strings = corpus or _text.StringSource
@@ -89,9 +90,11 @@ def child_encode(c: dict) -> dict:
     lines = _lines(c["corpus"], c["sentences"])
     words = sorted({w for line in lines for w in line.split()})
     vectors = np.random.default_rng(0).standard_normal((len(words), DIM), dtype=np.float32)
-    encoder = fse.Average(tokenizer="external").fit(
-        fse.WordVectors.from_arrays(vectors, words=words)
-    )
+    wv = fse.WordVectors.from_arrays(vectors, words=words)
+    if hasattr(fse.Encoder, "from_word_vectors"):
+        encoder = fse.Encoder.from_word_vectors(wv, tokenizer="external")
+    else:  # an older base, which made encoders with fit
+        encoder = fse.Average(tokenizer="external").fit(wv)
     data = [line.split() for line in lines] if c["input"] == "tokens" else lines
     del lines
     seconds, rows = _timed(lambda: encoder.encode(data, workers=c["workers"]))

@@ -13,14 +13,17 @@ with the Python of fse 2.0 (``side`` v2) or of fse 1.1.0 (v1), so this file impo
 only the standard library and numpy at the top. Both sides do the same work inside
 the same timers:
 
-- the same word frequencies for SIF: the wordfreq "en" counts that 1.1's
-  ``lang_freq="en"`` induces, computed once by ``v1_counts`` (untimed) and given to
-  both, so neither side pays for them (or for the copy of the word vectors
-  ``lang_freq`` makes) inside a timer;
+- the word frequencies of ``SIFWeights``: the wordfreq "en" counts that 1.1's
+  ``lang_freq="en"`` induces, computed once by ``v1_counts`` (untimed), so 2.0 pays for
+  them (or for the copy of the word vectors ``lang_freq`` makes) in no timer;
 - the same tokens: the corpus is tokenized, so 2.0 uses the external tokenizer, which
   splits at whitespace like 1.1; list inputs are the same token lists on both sides,
   made before the timer;
 - the same output: 2.0 with ``normalize=False``, and infer to float32 as 1.1 does;
+- the same model: Average on both sides. 2.0 trains nothing, and its ``SIFWeights`` (the
+  SIF word weights of the same counts folded into the table, ``v2_finished``, untimed)
+  removes no components, so it is no SIF: it runs on 2.0 alone and is never compared
+  with 1.1's SIF;
 - the same queries: vectors of stored rows, read before (``v2_queries``) by a process
   of their own, searched with their own row among the hits on both sides.
 
@@ -41,7 +44,7 @@ from pathlib import Path
 
 import numpy as np
 
-COMPONENTS = 10  # SIF-10, as the 1.1 baseline
+SIF_ALPHA = 1e-3  # the alpha of SIF in 1.1
 INFER_SIZES = (1, 1_000, 100_000)
 SEARCHES, BATCH = 20, 64
 K = 10  # neighbours of every search on both sides
@@ -92,7 +95,6 @@ def _paths(c: dict) -> dict[str, Path]:
         "store": tmp / f"v2-{name}.store",
         "encoder": tmp / f"v2-{c.get('model')}.encoder.safetensors",
         "model": tmp / f"v1-{name}",
-        "hub_model": tmp / f"v1-hub-{name}",
         "queries": tmp / f"queries-{name}.npy",
     }
 
@@ -114,6 +116,24 @@ def v2_prepare(c: dict) -> dict:
     return {"words": kv.index_to_key[:: len(kv) // 7]}
 
 
+def v2_finished(wv, model: str, counts_path, *, tokenizer: str, normalize: bool = False):
+    """The finished encoder of ``model`` on the word vectors ``wv``: Average the table as it
+    is, SIFWeights the table with the SIF weights alpha / (alpha + p(w)) of the counts
+    folded into its rows (float32, then quantized to the dtype of ``wv``), without the
+    removal of components, so it is no SIF. Untimed: 2.0 encodes finished models."""
+    import fse
+
+    if model == "SIFWeights":
+        counts = np.load(counts_path).astype(np.float64)
+        weights = SIF_ALPHA / (SIF_ALPHA + counts / counts.sum())
+        rows = wv.get_vectors(np.arange(len(wv))) * weights.astype(np.float32)[:, None]
+        table = fse.WordVectors.from_arrays(
+            rows, vocab_bytes=np.asarray(wv.vocab_bytes), vocab_offsets=np.asarray(wv.vocab_offsets)
+        )
+        wv = table if wv.dtype == "float32" else table.quantize(wv.dtype)
+    return fse.Encoder.from_word_vectors(wv, tokenizer=tokenizer, normalize=normalize)
+
+
 def v2_load(c: dict) -> dict:
     import fse
 
@@ -132,12 +152,11 @@ def _v2_store(encoder, texts, c: dict, run: Path) -> dict:
 
     encode_s, _ = _timed(write)
     save_s, _ = _timed(lambda: encoder.save(run / "encoder.safetensors"))
-    # What reopening needs: the store, the encoder and, if not folded, its word vectors.
-    vectors = 0 if encoder.folded else _paths(c)["wv"].stat().st_size
+    # What reopening needs: the store and the encoder, which holds its table.
     out = {
         "encode_s": encode_s,
         "save_s": save_s,
-        "bytes_on_disk": _bytes(run) + vectors,
+        "bytes_on_disk": _bytes(run),
         "vector_bytes": _bytes(run / "store"),
     }
     _keep(run / "store", _paths(c)["store"])
@@ -149,18 +168,15 @@ def v2_encode(c: dict) -> dict:
     import fse
 
     wv = fse.WordVectors.load(_paths(c)["wv"], mmap=True)
-    out: dict = {"peak_before": _peak(), "source_s": 0.0}
-    texts = Path(c["corpus"])
-    if c["input"] == "list":  # read once for fit and encode, as 1.1 reads them in train
-        tokens = _tokens(c["corpus"])
-        out["source_s"], texts = _timed(lambda: fse.Corpus(tokens))
-        del tokens
-    if c["model"] == "SIF":
-        recipe = fse.SIF(components=COMPONENTS, normalize=False, tokenizer="external")
-        corpus, kwargs = texts, {"counts": np.load(_paths(c)["counts"])}
-    else:
-        recipe, corpus, kwargs = fse.Average(normalize=False, tokenizer="external"), None, {}
-    out["fit_s"], encoder = _timed(lambda: recipe.fit(wv, corpus, workers=c["workers"], **kwargs))
+    finished = v2_finished(wv, c["model"], _paths(c)["counts"], tokenizer="external")
+    out: dict = {"peak_before": _peak()}
+    # The token lists, made before the timer, as 1.1 gets them; encode reads them.
+    texts = _tokens(c["corpus"]) if c["input"] == "list" else Path(c["corpus"])
+    out["build_s"], encoder = _timed(
+        lambda: fse.Encoder.from_word_vectors(
+            finished.word_vectors, tokenizer="external", normalize=False
+        )
+    )
     with tempfile.TemporaryDirectory(dir=c["tmp"]) as run:
         if c["target"] == "memory":
             rows_s, rows = _timed(
@@ -170,7 +186,7 @@ def v2_encode(c: dict) -> dict:
             del rows
         else:
             out.update(_v2_store(encoder, texts, c, Path(run)), peak=_peak())
-    out["total_s"] = out["source_s"] + out["fit_s"] + out["encode_s"] + out["save_s"]
+    out["total_s"] = out["build_s"] + out["encode_s"] + out["save_s"]
     return out
 
 
@@ -213,10 +229,7 @@ def v2_query(c: dict) -> dict:
 def v2_infer(c: dict) -> dict:
     import fse
 
-    # SIF folds its weights and components into the encoder's word vectors; Average does
-    # not change them, so its encoder needs them.
-    wv = None if c["model"] == "SIF" else fse.WordVectors.load(_paths(c)["wv"], mmap=True)
-    encoder = fse.Encoder.load(_paths(c)["encoder"], wv)
+    encoder = fse.Encoder.load(_paths(c)["encoder"])  # it holds its table
     tokens = _tokens(c["corpus"], max(INFER_SIZES))
     out: dict = {}
     for n in (n for n in INFER_SIZES if n <= len(tokens)):  # all but in a short corpus
@@ -270,17 +283,13 @@ def v1_encode(c: dict) -> dict:
     import fse
 
     vectors = fse.Vectors.from_pretrained(c["vectors"], mmap="r")
-    kwargs = {}
-    if c["model"] == "SIF":
-        vectors.expandos["count"] = np.load(_paths(c)["counts"])  # instead of lang_freq
-        kwargs["components"] = COMPONENTS
     sentences = fse.CorpusFile(c["corpus"])
     if c["input"] == "list":
         sentences = fse.IndexedList(_tokens(c["corpus"]))
     cls = getattr(fse, c["model"])
     out: dict = {"peak_before": _peak()}
     out["construct_s"], model = _timed(
-        lambda: cls(vectors, workers=c["workers"], sv_dtype=c["dtype"], **kwargs)
+        lambda: cls(vectors, workers=c["workers"], sv_dtype=c["dtype"])
     )
     out["train_s"], _ = _timed(lambda: model.train(sentences))
     out["save_s"] = 0.0
@@ -344,17 +353,13 @@ def _v2_hub_into(encoder, texts, c: dict) -> float:
 
 
 def v2_hub(c: dict) -> dict:
-    """A fitted, saved SIF encoder (folded, as on the hub) loaded and encoding the corpus,
+    """A saved encoder (a finished table, as on the hub) loaded and encoding the corpus,
     into memory or into a store."""
     import fse
 
-    out: dict = {"peak_before": _peak(), "prepare_s": 0.0}
+    out: dict = {"peak_before": _peak()}
+    texts = _tokens(c["corpus"]) if c["input"] == "list" else Path(c["corpus"])
     out["load_s"], encoder = _timed(lambda: fse.Encoder.load(_paths(c)["encoder"]))
-    texts = Path(c["corpus"])
-    if c["input"] == "list":
-        tokens = _tokens(c["corpus"])
-        out["prepare_s"], texts = _timed(lambda: fse.Corpus(tokens))
-        del tokens
     if c["target"] == "store":
         out["encode_s"] = _v2_hub_into(encoder, texts, c)
     else:
@@ -364,46 +369,6 @@ def v2_hub(c: dict) -> dict:
         out["peak"] = _peak()  # with the rows held, as 1.1 holds them in its model
         del rows
     out.setdefault("peak", _peak())
-    out["total_s"] = out["load_s"] + out["prepare_s"] + out["encode_s"]
-    return out
-
-
-def v1_hub_model(c: dict) -> dict:
-    """Untimed: the trained SIF model of the encode cases without its sentence vectors, as
-    a model from the hub would come (its weights and components kept)."""
-    import fse
-
-    model = fse.SIF.load(str(_paths(c)["model"] / "model"))
-    sv = model.sv
-    sv.vectors = np.zeros((0, sv.vector_size), sv.vectors.dtype)
-    if sv.scales is not None:
-        sv.scales = np.zeros(0, sv.scales.dtype)
-    folder = _paths(c)["hub_model"]
-    folder.mkdir(exist_ok=True)
-    model.save(str(folder / "model"))
-    return {"rows": len(sv.vectors)}
-
-
-def v1_hub(c: dict) -> dict:
-    """The SIF model of 1.1 as from the hub (trained, without sentence vectors) loaded and
-    adding the vectors of the corpus with train(update=True): its bulk path, which keeps
-    the components and runs with its workers (infer is serial); into memory, or then its
-    sentence vectors saved on their own (the model it loaded is unchanged, as 2.0 keeps
-    its encoder)."""
-    import fse
-
-    out: dict = {"peak_before": _peak(), "save_s": 0.0}
-    out["load_s"], model = _timed(lambda: fse.SIF.load(str(_paths(c)["hub_model"] / "model")))
-    model.workers = c["workers"]
-    sentences = fse.CorpusFile(c["corpus"])
-    if c["input"] == "list":
-        sentences = fse.IndexedList(_tokens(c["corpus"]))
-    out["encode_s"], _ = _timed(lambda: model.train(sentences, update=True))
-    if c["target"] == "store":
-        with tempfile.TemporaryDirectory(dir=c["tmp"]) as run:
-            out["save_s"], _ = _timed(lambda: model.sv.save(str(Path(run) / "sv")))
-        out["encode_s"] += out["save_s"]
-    out["peak"] = _peak()
     out["total_s"] = out["load_s"] + out["encode_s"]
     return out
 
@@ -423,8 +388,6 @@ CHILDREN = {
     ("v1", "encode"): v1_encode,
     ("v1", "query"): v1_query,
     ("v1", "infer"): v1_infer,
-    ("v1", "hub"): v1_hub,
-    ("v1", "hub_model"): v1_hub_model,
 }
 
 

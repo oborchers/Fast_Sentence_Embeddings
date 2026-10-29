@@ -12,13 +12,12 @@ the host.
 ``normalize`` as the only step the kernel also normalizes (rows within one threadgroup)
 or the host does on the device's rows. Everything else runs on the injected host backend,
 the cpu backend, with the bits of the cpu operation on the same input: stage 5, the
-inverse norms, the scores and the Gram blocks. The host is injected (``get_backend``) so
+inverse norms and the scores. The host is injected (``get_backend``) so
 that this package imports neither the cpu backend nor ``fse._native``.
 
 The rows keep the tolerance contract of device backends (ARCHITECTURE.md, "MLX"). An
-encoder runs on the host for this backend when its steps are more than ``normalize``
-(``steps``; fse 2.0 folds linear steps into the word vectors), when its rows are wider
-than 65,536 values (``dim``) or when its factors or row values are or may be subnormal
+encoder runs on the host for this backend when its rows are wider than 65,536 values
+(``dim``) or when its factors or row values are or may be subnormal
 (``subnormal_input``). The GPU flushes the subnormal products and partial sums that
 remain; the bound ``(tau + 2 gamma_K) m + delta`` covers them, the term ``2 gamma_K``
 also the roundings a flush turns. From the kernel's ``sum |f| ||x||`` the backend bounds
@@ -46,7 +45,7 @@ from typing import Any, Protocol
 import numpy as np
 from numpy import ndarray
 
-from fse._contract import Aggregation, Batch, Normalize, Op, Step
+from fse._contract import Aggregation, Batch, Op, Step
 
 from .._base import (
     Capabilities,
@@ -75,7 +74,6 @@ _CAPABILITIES = Capabilities(
     device_rows=True,
 )
 _WHY = {
-    "steps": "steps other than normalize alone, which fse 2.0 folds into the word vectors",
     "dim": f"rows of more than {DEVICE_DIM} values",
     "subnormal_input": "a factor or row value of the encoder that is or may be subnormal, "
     "which the GPU would flush to zero",
@@ -98,11 +96,9 @@ class Host(Protocol):
 
     def rows(self, batch: Batch, prepared: Prepared, out: ndarray) -> None: ...
 
-    def steps(self, pooled: ndarray, prepared: Prepared, first_row: int, out: ndarray) -> None: ...
+    def steps(self, rows: ndarray, prepared: Prepared, first_row: int) -> None: ...
 
     def float32(self, values: object) -> ndarray: ...
-
-    def gram_block(self, rows: ndarray) -> ndarray: ...
 
     def score(self, stored: ndarray, scales: Any, weights: ndarray, bias: float) -> ndarray: ...
 
@@ -143,10 +139,8 @@ class _State:
     reason: str = ""
 
 
-def _host_reason(pool: PoolInput, steps: Sequence[Step], oov: ndarray | None) -> str:
+def _host_reason(pool: PoolInput, oov: ndarray | None) -> str:
     """Why an encoder runs on the host for this backend, or ""."""
-    if any(not isinstance(step, Normalize) for step in steps):
-        return "steps"
     if pool.dim > DEVICE_DIM:
         return "dim"
     return "subnormal_input" if _kernels.subnormal_input(pool, oov) else ""
@@ -168,16 +162,16 @@ class MlxBackend:
 
     def prepare(self, pool: PoolInput, steps: Sequence[Step]) -> Prepared:
         check_pool_input(pool)
-        checked, pooled, out = dims(pool, steps)  # checks and materializes the steps once
+        checked, out = dims(pool, steps)  # checks and materializes the steps once
         self.capabilities().check(self.name, pool, checked)
         host = self.host.prepare(pool, checked)
         self.device.ready()  # the canary, once per process
         oov = None if pool.oov_weight is None else self.host.float32([pool.oov_weight])
-        table, reason = None, _host_reason(pool, checked, oov)
+        table, reason = None, _host_reason(pool, oov)
         if not reason:
             table = self.device.call(lambda mx, _stream: _kernels.table(mx, pool, oov))
         state = _State(host, table, Fallbacks(), reason)
-        return Prepared(self.name, pool, checked, pooled, out, state)
+        return Prepared(self.name, pool, checked, out, state)
 
     def rows(self, batch: Batch, prepared: Prepared, out: ndarray) -> None:
         check_prepared(prepared, self.name)
@@ -211,7 +205,7 @@ class MlxBackend:
         self, batch: Batch, state: _State, table: _kernels.Table, task: _kernels.Task, out
     ) -> None:
         """The rows of ``task`` on the device, the flagged ones from the host."""
-        normalize = bool(state.host.steps)  # normalize alone: the others run on the host
+        normalize = bool(state.host.steps)  # normalize@1, the only step
         in_kernel = normalize and _kernels.normalizes(table)
         flags, bounds = self.device.run(
             lambda mx, stream: _kernels.launch(mx, stream, table, task, in_kernel),
@@ -230,7 +224,7 @@ class MlxBackend:
             bad |= _bounds.unnormalizable(low, high, error) & (n > 0)
             if not in_kernel:
                 out[bad] = 0  # normalize keeps a zero row and raises for none
-                self.host.steps(out, state.host, batch.first_row, out)
+                self.host.steps(out, state.host, batch.first_row)
             error = np.where(n > 0, _bounds.after_normalize(error, low, table.dim), 0.0)
         else:
             # The sink's dtype is unknown here: a row that could reach the float16 range on
@@ -263,9 +257,6 @@ class MlxBackend:
                 state.fallbacks.count("large")
             else:
                 self._rows(part, state, out[begin:end])
-
-    def gram_block(self, rows: ndarray) -> ndarray:
-        return self.host.gram_block(rows)
 
     def score(
         self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float

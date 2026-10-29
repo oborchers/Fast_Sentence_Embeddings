@@ -77,7 +77,7 @@ def child_v2_write(args) -> dict:
     # The same tokens as 1.1 gets, as strings the external tokenizer splits natively.
     sentences = [" ".join(tokens) for tokens in _corpus(args.sentences)]
     wv = fse.WordVectors.from_arrays(_rows(), words=[f"w{i}" for i in range(VOCAB)])
-    encoder = fse.Average(normalize=False, tokenizer="external").fit(wv)
+    encoder = fse.Encoder.from_word_vectors(wv, normalize=False, tokenizer="external")
     encoder.encode(sentences[:1000], dtype=args.dtype)  # the table and the pipeline
     with tempfile.TemporaryDirectory(dir=args.tmp) as tmp:
         start = time.perf_counter()
@@ -136,7 +136,7 @@ def child_sync(args) -> dict:
     out = _sync_latencies(args)
     sentences = [" ".join(tokens) for tokens in _corpus(args.sentences)]
     wv = fse.WordVectors.from_arrays(_rows(), words=[f"w{i}" for i in range(VOCAB)])
-    encoder = fse.Average(normalize=False, tokenizer="external").fit(wv)
+    encoder = fse.Encoder.from_word_vectors(wv, normalize=False, tokenizer="external")
     rows = args.shard_rows or 1024
     with tempfile.TemporaryDirectory(dir=args.tmp) as tmp:
         start = time.perf_counter()
@@ -173,7 +173,7 @@ def child_prepare(args) -> dict:
     import fse
 
     wv = fse.WordVectors.from_arrays(_rows(), words=[f"w{i}" for i in range(VOCAB)])
-    encoder = fse.Average(tokenizer="external").fit(wv)
+    encoder = fse.Encoder.from_word_vectors(wv, tokenizer="external")
     path = _store_path(args)
     if not path.exists():
         with fse.ShardSink(path, encoder, dtype=args.dtype) as sink:

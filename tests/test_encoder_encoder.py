@@ -1,23 +1,21 @@
-import hashlib
 import pickle
-import runpy
 import threading
-from dataclasses import replace
-from pathlib import Path
 
 import numpy as np
+import pydantic
 import pytest
 
 from fse import _reference, _text
-from fse._contract import UnsupportedArtifactError
+from fse._contract import Normalize
 from fse._encoder import Encoder, QuantizedRows
 from fse._runtime import Pipeline
-from fse._wordvectors import WordVectors
-from support.container import fake_fingerprint
-from support.encoder import folded, unfolded
+from fse._wordvectors import FastTextParams, WordVectors
+from support.encoder import finished
 from support.runtime import expected, texts, word_vectors
+from support.wordvectors import _flip_last_byte
 
 SENTENCES = texts(700)
+F32 = np.float32
 
 
 def _bytes(rows):
@@ -25,9 +23,9 @@ def _bytes(rows):
 
 
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
-@pytest.mark.parametrize("make", [unfolded, folded], ids=["unfolded", "folded"])
-def test_encode_gives_the_reference_rows(make, dtype):
-    encoder = make()
+@pytest.mark.parametrize("table", ["float32", "int8"])
+def test_encode_gives_the_reference_rows(table, dtype):
+    encoder = finished(table)
     want = expected(encoder._spec, SENTENCES)
     got = encoder.encode(SENTENCES, dtype=dtype, workers=3)
     if dtype == "int8":
@@ -39,95 +37,168 @@ def test_encode_gives_the_reference_rows(make, dtype):
     assert _bytes(encoder.encode(SENTENCES, dtype=dtype, backend="numpy")) == _bytes(got)
 
 
+def test_every_word_weighs_one_and_normalize_is_optional():
+    wv = word_vectors(dim=6)
+    plain = Encoder.from_word_vectors(wv, normalize=False)
+    assert plain.steps == ()
+    assert plain._spec.weights.tobytes() == np.ones(len(wv), F32).tobytes()
+    rows = wv.get_vectors(np.array([1, 2]))
+    mean = (_reference.fma32(1, rows[1], rows[0]) * F32(0.5))[None, :]  # (1/n) * acc
+    assert plain.encode(["w1 w2"], workers=1).tobytes() == mean.tobytes()
+    unit = Encoder.from_word_vectors(wv).encode(["w1 w2"], workers=1)
+    assert unit.tobytes() == _reference.postprocess(mean, [Normalize()]).tobytes()
+
+
 @pytest.mark.parametrize("mmap", [False, True])
-@pytest.mark.parametrize("make", [unfolded, folded], ids=["unfolded", "folded"])
+@pytest.mark.parametrize("make", [finished, lambda: finished("int8", fasttext=True)])
 def test_save_and_load_keep_the_fingerprint_and_the_rows(tmp_path, make, mmap):
     encoder = make()
     path = tmp_path / "encoder.safetensors"
     encoder.save(path)
-    if encoder.folded:
-        loaded = Encoder.load(path, mmap=mmap)
-    else:
-        loaded = Encoder.load(path, word_vectors=encoder.word_vectors, mmap=mmap)
+    loaded = Encoder.load(path, mmap=mmap)
     assert loaded.fingerprint == encoder.fingerprint
-    assert (loaded.steps, loaded.folded, loaded.recipe) == (
+    assert (loaded.steps, loaded.tokenizer, loaded.output_dim) == (
         encoder.steps,
-        encoder.folded,
-        encoder.recipe,
+        encoder.tokenizer,
+        encoder.output_dim,
     )
+    assert loaded.word_vectors.fingerprint == encoder.word_vectors.fingerprint
     assert loaded.encode(SENTENCES).tobytes() == encoder.encode(SENTENCES).tobytes()
     loaded.verify()
     copy = tmp_path / "copy.safetensors"
     loaded.save(copy)
-    assert (
-        Encoder.load(
-            copy, word_vectors=None if encoder.folded else encoder.word_vectors
-        ).fingerprint
-        == encoder.fingerprint
-    )
+    assert Encoder.load(copy).fingerprint == encoder.fingerprint
 
 
-def test_fasttext_and_the_external_tokenizer(tmp_path):
-    encoder = unfolded("int8", fasttext=True)
+def test_load_takes_only_the_path(tmp_path):
+    encoder = finished()
+    encoder.save(tmp_path / "e.safetensors")
+    with pytest.raises(pydantic.ValidationError):
+        Encoder.load(tmp_path / "e.safetensors", encoder.word_vectors)
+    with pytest.raises(pydantic.ValidationError):
+        Encoder.load(tmp_path / "e.safetensors", word_vectors=encoder.word_vectors)
+
+
+def test_an_encoder_of_loaded_word_vectors_is_saved_with_their_checksums(tmp_path):
+    word_vectors(dim=6).save(tmp_path / "wv.safetensors")
+    wv = WordVectors.load(tmp_path / "wv.safetensors", mmap=True)
+    encoder = Encoder.from_word_vectors(wv)
+    encoder.save(tmp_path / "e.safetensors")
+    assert Encoder.load(tmp_path / "e.safetensors").fingerprint == encoder.fingerprint
+    _flip_last_byte(tmp_path / "wv.safetensors", "vectors")  # a mapped file sees it
+    with pytest.raises(ValueError, match="does not match its checksum"):
+        encoder.save(tmp_path / "copy.safetensors")
+    assert not (tmp_path / "copy.safetensors").exists()
+
+
+def test_fasttext_and_the_external_tokenizer():
+    encoder = finished("int8", fasttext=True)
     want = expected(encoder._spec, SENTENCES)
     assert encoder.encode(SENTENCES).tobytes() == want.tobytes()
-    encoder.save(tmp_path / "ft.safetensors")
-    loaded = Encoder.load(tmp_path / "ft.safetensors", word_vectors=encoder.word_vectors)
-    assert loaded.encode(SENTENCES).tobytes() == want.tobytes()
-    external = unfolded(tokenizer="external")
+    external = finished(tokenizer="external")
     tokens = [s.split() for s in SENTENCES]
     assert external.encode(tokens).tobytes() == external.encode(SENTENCES).tobytes()
 
 
-def test_an_unfolded_encoder_loads_only_with_its_word_vectors(tmp_path):
-    encoder = unfolded()
-    path = tmp_path / "e.safetensors"
-    encoder.save(path)
-    with pytest.raises(TypeError, match="unfolded encoder: pass the word_vectors"):
-        Encoder.load(path)
-    with pytest.raises(ValueError, match="fitted on the word vectors"):
-        Encoder.load(path, word_vectors=word_vectors(seed=1))
-    reordered = WordVectors.from_arrays(
-        encoder.word_vectors.stored_vectors, words=[f"w{i}" for i in reversed(range(200))]
+def test_from_word_vectors_gives_fasttext_its_defaults():
+    wv = word_vectors(fasttext=True)
+    encoder = Encoder.from_word_vectors(wv)
+    assert (encoder._spec.max_ngrams, encoder._spec.oov_weight) == (40, np.float32(1))
+    assert encoder._content.oov_weight.dtype == F32
+    given = Encoder.from_word_vectors(wv, max_ngrams=3, oov_weight=0.5)
+    assert (given._spec.max_ngrams, given._spec.oov_weight) == (3, np.float32(0.5))
+    assert given.fingerprint != encoder.fingerprint
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "error", "match"),
+    [
+        ({"max_ngrams": 4}, ValueError, "only to FastText"),
+        ({"oov_weight": 0.5}, ValueError, "only to FastText"),
+        ({"tokenizer": "bert@1"}, ValueError, "tokenizer 'bert@1' is not supported"),
+        ({"normalize": 1}, pydantic.ValidationError, "bool"),
+        ({"max_ngrams": 0}, pydantic.ValidationError, "greater than 0"),
+        ({"weights": np.ones(200, F32)}, pydantic.ValidationError, "weights"),
+    ],
+)
+def test_from_word_vectors_checks_its_arguments(kwargs, error, match):
+    with pytest.raises(error, match=match):
+        Encoder.from_word_vectors(word_vectors(), **kwargs)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"max_ngrams": 2**24 + 1}, "max_ngrams must be at most"),
+        ({"oov_weight": float("inf")}, "finite in float32"),
+        ({"oov_weight": 1e300}, "finite in float32"),
+    ],
+)
+def test_from_word_vectors_checks_the_fasttext_arguments(kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        Encoder.from_word_vectors(word_vectors(fasttext=True), **kwargs)
+
+
+@pytest.mark.parametrize("env", [{"flush": True}, {"round_up": True}], ids=["flush", "round up"])
+def test_oov_weight_is_converted_in_the_kernel_environment(env):
+    """A thread that flushes subnormals or rounds up gives the oov_weight of one that does
+    not: 1e-40 stays subnormal, 0.1 rounds to nearest."""
+    from fse import _native
+
+    wv = word_vectors(fasttext=True)
+    want = {
+        w: Encoder.from_word_vectors(wv, oov_weight=w)._content.oov_weight for w in (1e-40, 0.1)
+    }
+    assert want[1e-40].view(np.uint32) != 0
+    saved = _native._test_fpenv_set(**env)
+    try:
+        got = {w: Encoder.from_word_vectors(wv, oov_weight=w)._content.oov_weight for w in want}
+    finally:
+        _native._test_fpenv_restore(saved)
+    for w, unchanged in want.items():
+        assert got[w].tobytes() == unchanged.tobytes(), w
+        assert got[w].shape == ()
+        assert got[w].dtype == F32
+
+
+def test_from_word_vectors_takes_word_vectors():
+    with pytest.raises(TypeError, match="must be WordVectors, not ndarray"):
+        Encoder.from_word_vectors(np.ones((2, 3), F32))
+
+
+def test_from_arrays_is_from_word_vectors_of_the_same_arrays():
+    rng = np.random.default_rng(4)
+    rows, ngrams = rng.standard_normal((3, 4)).astype(F32), rng.standard_normal((5, 4)).astype(F32)
+    params = FastTextParams(2, 3, 5)
+    got = Encoder.from_arrays(
+        rows, words=["a", "b", "c"], fasttext=params, ngrams=ngrams, normalize=False, oov_weight=2.0
     )
-    with pytest.raises(ValueError, match="fitted on the vocabulary"):
-        Encoder.load(path, word_vectors=reordered)
-    with pytest.raises(ValueError, match="200 weights for 150 words"):
-        Encoder.load(path, word_vectors=word_vectors(n=150))
-    folded_path = tmp_path / "f.safetensors"
-    folded().save(folded_path)
-    with pytest.raises(ValueError, match="holds its word vectors"):
-        Encoder.load(folded_path, word_vectors=encoder.word_vectors)
-
-
-def test_a_folded_encoder_checks_the_word_vectors_it_holds(tmp_path):
-    from fse._container import SafetensorsContainer
-
-    encoder = folded("int8")
-    tensors, metadata, _ = encoder._artifact()
-    metadata["fse.word_vectors"] = fake_fingerprint("0")
-    SafetensorsContainer().write(
-        tmp_path / "bad.safetensors", tensors, {**metadata, "fse.created_by": "test"}
-    )
-    with pytest.raises(ValueError, match="do not have the fingerprint"):
-        Encoder.load(tmp_path / "bad.safetensors")
+    wv = WordVectors.from_arrays(rows, words=["a", "b", "c"], fasttext=params, ngrams=ngrams)
+    want = Encoder.from_word_vectors(wv, normalize=False, oov_weight=2.0)
+    assert got.fingerprint == want.fingerprint
+    with pytest.raises(ValueError, match="either words or"):
+        Encoder.from_arrays(rows)
 
 
 def test_encoders_are_frozen():
-    encoder = unfolded()
+    encoder = finished()
     with pytest.raises(TypeError, match="cannot be pickled"):
         pickle.dumps(encoder)
-    with pytest.raises(TypeError, match="make an Encoder with fit"):
+    with pytest.raises(TypeError, match=r"Encoder\.from_word_vectors, Encoder\.from_arrays"):
         Encoder()
     with pytest.raises(AttributeError):
         encoder.tokenizer = "external"
-    assert repr(encoder) == "Encoder(test, 12 -> 6 dimensions)"
-    assert (encoder.input_dim, encoder.output_dim) == (12, 6)
-    assert encoder.steps == ("remove_components@1", "project@1", "normalize@1")
+    assert repr(encoder) == "Encoder(200 words, 6 dimensions, float32, fse_words@1, normalize@1)"
+    assert repr(finished("int8", True, False, "external")) == (
+        "Encoder(200 words, 6 dimensions, int8, FastText, external)"
+    )
+    assert (encoder.output_dim, encoder.steps) == (6, ("normalize@1",))
+    for removed in ("folded", "recipe", "input_dim"):
+        assert not hasattr(encoder, removed)
 
 
 def test_arguments_are_checked_before_reading():
-    encoder = unfolded()
+    encoder = finished()
     reads = []
 
     def counted():
@@ -159,7 +230,7 @@ def test_the_first_use_from_many_threads_builds_one_table_and_one_pipeline_per_b
 
     monkeypatch.setattr(_text._native, "VocabTable", table)
     monkeypatch.setattr(Pipeline, "__init__", pipeline)
-    encoder = unfolded()
+    encoder = finished()
     want = encoder._spec
     barrier = threading.Barrier(8)
     results, errors = [], []
@@ -186,7 +257,7 @@ def test_the_first_use_from_many_threads_builds_one_table_and_one_pipeline_per_b
 
 
 def test_a_failed_first_use_can_be_retried(monkeypatch):
-    encoder = unfolded()
+    encoder = finished()
     real = Pipeline.__init__
     calls = []
 
@@ -202,91 +273,24 @@ def test_a_failed_first_use_can_be_retried(monkeypatch):
     assert encoder.encode(SENTENCES[:5]).shape == (5, 6)
 
 
-GOLDEN = Path(__file__).parent / "test_data" / "v2"
-
-
-@pytest.mark.parametrize(
-    ("name", "fingerprint", "rows"),
-    [
-        (
-            "encoder_sif_unfolded",
-            "xxh3-128:6bc9a70838ace61a0cf6ce2c8989bdfb",
-            "62b7fcaa61f113edc40f88e3125708faae27c3bf52300f7d6d2530f7f5bee472",
-        ),
-        (
-            "encoder_usif_folded_int8",
-            "xxh3-128:d70aef5b74497744bf672872a1838600",
-            "2a567828aaccdc0494e97c399fe475321695602ab1e6e1eb79f2ca75e73df74a",
-        ),
-    ],
-)
-@pytest.mark.parametrize("mmap", [False, True])
-def test_the_golden_encoders_load_and_give_their_pinned_rows(name, fingerprint, rows, mmap):
-    """encoder 1 is fixed: these files load, keep their fingerprint and give the same bits
-    on every platform (the encoding is contract arithmetic; only fit depends on BLAS). The
-    rows are those of the sha256 files they were transcoded from, never fitted again."""
-    corpus = runpy.run_path(str(GOLDEN / "make_encoder_golden.py"))["CORPUS"]
-    path = GOLDEN / f"{name}.safetensors"
-    if "unfolded" in name:
-        wv = WordVectors.load(GOLDEN / "word_vectors_float32.safetensors")
-        encoder = Encoder.load(path, word_vectors=wv, mmap=mmap)
-    else:
-        encoder = Encoder.load(path, mmap=mmap)
-    assert encoder.fingerprint == fingerprint
-    assert hashlib.sha256(encoder.encode(corpus).tobytes()).hexdigest() == rows
-    encoder.verify()
-
-
-@pytest.mark.parametrize("name", ["encoder_sif_unfolded", "encoder_usif_folded_int8"])
-@pytest.mark.parametrize("mmap", [False, True])
-def test_the_pre_release_golden_encoders_are_rejected(name, mmap):
-    """The same encoders with the sha256 checksums of a pre-release, kept as they were
-    written and rejected by their checksums (their format version is the same)."""
-    wv = WordVectors.load(GOLDEN / "word_vectors_float32.safetensors")
-    kwargs = {"word_vectors": wv} if "unfolded" in name else {}
-    with pytest.raises(UnsupportedArtifactError, match=r"sha256 .* reads xxh3-128"):
-        Encoder.load(GOLDEN / "sha256" / f"{name}.safetensors", mmap=mmap, **kwargs)
-
-
-def _damaged(loaded, field, value):
-    """The encoder as if its copy ``field`` of the spec had been read from a damaged file
-    that was repaired since (replacing a mapped file is not possible on every system)."""
-    object.__setattr__(loaded._spec, field, value)
-    return loaded
-
-
-def test_verify_and_save_check_the_weights_the_encoder_uses(tmp_path):
-    path = tmp_path / "e.safetensors"
-    encoder = unfolded()
-    encoder.save(path)
-    loaded = Encoder.load(path, word_vectors=encoder.word_vectors, mmap=True)
-    weights = loaded._spec.weights.copy()
-    weights[0] = np.nextafter(weights[0], np.float32(2))
-    weights.setflags(write=False)
-    _damaged(loaded, "weights", weights)
-    with pytest.raises(ValueError, match=r"weights of .* does not match its checksum"):
-        loaded.verify()
-    with pytest.raises(ValueError, match="changed since it was checked; nothing was written"):
-        loaded.save(tmp_path / "copy.safetensors")  # never a file of other weights
-    assert not (tmp_path / "copy.safetensors").exists()
-    Encoder.load(path, word_vectors=encoder.word_vectors, mmap=True).verify()
-
-
 def test_verify_and_save_check_the_oov_weight_the_encoder_uses(tmp_path):
     path = tmp_path / "ft.safetensors"
-    encoder = unfolded(fasttext=True)
-    encoder.save(path)
-    loaded = Encoder.load(path, word_vectors=encoder.word_vectors, mmap=True)
-    _damaged(loaded, "oov_weight", np.float32(0.7))
+    finished(fasttext=True).save(path)
+    loaded = Encoder.load(path, mmap=True)
+    # As if the copy of the spec had been read from a damaged file that was repaired since
+    # (replacing a mapped file is not possible on every system).
+    object.__setattr__(loaded._spec, "oov_weight", np.float32(0.7))
     with pytest.raises(ValueError, match=r"oov_weight of .* does not match its checksum"):
         loaded.verify()
     with pytest.raises(ValueError, match="changed since it was checked; nothing was written"):
         loaded.save(tmp_path / "copy.safetensors")
 
 
-def test_the_recipe_is_a_copy_all_the_way_down():
-    encoder = unfolded()
-    content = replace(encoder._content, recipe={"name": "x", "nested": {"a": [1, 2]}})
-    nested = Encoder._new(content, encoder.word_vectors)
-    nested.recipe["nested"]["a"].append(3)
-    assert nested.recipe == {"name": "x", "nested": {"a": [1, 2]}}
+def test_verify_checks_the_table_on_disk(tmp_path):
+    path = tmp_path / "e.safetensors"
+    finished().save(path)
+    loaded = Encoder.load(path, mmap=True)
+    loaded.verify()
+    _flip_last_byte(path, "vectors")
+    with pytest.raises(ValueError, match="does not match its checksum"):
+        loaded.verify()

@@ -13,10 +13,11 @@ the Python of fse 2.0 (``side`` v2) or of fse 1.1.0 (v1), so this file imports o
 standard library, numpy and bench_lifecycle_cases (the same) at the top. Every path comes
 from the parent in the config. The cases:
 
-- ``model``: untimed, the frozen model every length is encoded with: 2.0 fits its recipe
-  (SIF-10 on ``paragraphs`` with the wordfreq counts, Average with or without normalize)
-  and saves the encoder (SIF folded); 1.1 trains its model on ``paragraphs`` and saves it
-  without sentence vectors, as a model from the hub comes (its weights and components);
+- ``model``: untimed, the frozen model every length is encoded with: 2.0 builds the
+  finished encoder (SIFWeights: the table with the SIF weights of the wordfreq counts
+  folded in and no components removed, ``bench_lifecycle_cases.v2_finished``; Average
+  with or without normalize) and saves it; 1.1 trains its model on ``paragraphs`` and
+  saves it without sentence vectors, as a model from the hub comes;
 - ``encode``: one warm-up and ``repeats`` timed encodes of the corpus file, the median,
   minimum and maximum: 2.0 ``Encoder.encode(path)`` into memory or into a ``ShardSink``
   up to its last flush; 1.1 ``train(update=True)`` on a ``CorpusFile`` (its bulk path)
@@ -42,7 +43,14 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
-from bench_lifecycle_cases import COMPONENTS, _p50_ms, _peak, _timed, v1_counts, v2_prepare
+from bench_lifecycle_cases import (
+    _p50_ms,
+    _peak,
+    _timed,
+    v1_counts,
+    v2_finished,
+    v2_prepare,
+)
 
 BATCH_DOCUMENTS = 32
 # The bytes Workspace grows to for a text of n bytes (TextLookup._sentence): cand 2n and
@@ -60,14 +68,6 @@ def _summary(times: list[float]) -> dict:
 
 
 # --- 2.0 ------------------------------------------------------------------------------
-
-
-def _recipe(c: dict):
-    import fse
-
-    if c["model"] == "SIF":
-        return fse.SIF(components=COMPONENTS, normalize=False, tokenizer=c["tokenizer"])
-    return fse.Average(normalize=c["model"] == "AverageNorm", tokenizer=c["tokenizer"])
 
 
 def _save(artifact, path: Path) -> None:
@@ -88,27 +88,22 @@ def v2_quantize(c: dict) -> dict:
 
 
 def v2_model(c: dict) -> dict:
-    """Fit and save the encoder (untimed)."""
+    """Build and save the finished encoder (untimed)."""
     import fse
 
     wv = fse.WordVectors.load(c["wv"], mmap=True)
-    recipe = _recipe(c)
-    if c["model"] == "SIF":
-        counts = np.load(c["counts"])
-        encoder = recipe.fit(wv, Path(c["paragraphs"]), counts=counts)
-    else:
-        encoder = recipe.fit(wv)
+    normalize = c["model"] == "AverageNorm"
+    encoder = v2_finished(
+        wv, c["model"], c["counts"], tokenizer=c["tokenizer"], normalize=normalize
+    )
     _save(encoder, Path(c["encoder"]))
-    return {"folded": encoder.folded, "fingerprint": encoder.fingerprint}
+    return {"fingerprint": encoder.fingerprint}
 
 
 def v2_encoder(c: dict):
     import fse
 
-    path = c["encoder"]
-    if c["model"] == "SIF":  # folded: the encoder holds its word vectors
-        return fse.Encoder.load(path)
-    return fse.Encoder.load(path, fse.WordVectors.load(c["wv"], mmap=True))
+    return fse.Encoder.load(c["encoder"])  # it holds its table
 
 
 def _into_memory(encoder, path: Path, c: dict):
@@ -272,15 +267,11 @@ def v2_strings(c: dict) -> dict:
 
 def v1_model(c: dict) -> dict:
     """Train the 1.1 model on the paragraphs and save it without its sentence vectors
-    (untimed), as bench_lifecycle_cases.v1_hub_model does for SIF."""
+    (untimed), as a model from the hub comes."""
     import fse
 
     vectors = fse.Vectors.from_pretrained(c["vectors"], mmap="r")
-    kwargs = {}
-    if c["model"] == "SIF":
-        vectors.expandos["count"] = np.load(c["counts"])  # instead of lang_freq
-        kwargs["components"] = COMPONENTS
-    model = getattr(fse, c["model"])(vectors, workers=c["workers"], sv_dtype=c["dtype"], **kwargs)
+    model = getattr(fse, c["model"])(vectors, workers=c["workers"], sv_dtype=c["dtype"])
     model.train(fse.CorpusFile(c["paragraphs"]))
     sv = model.sv
     sv.vectors = np.zeros((0, sv.vector_size), sv.vectors.dtype)

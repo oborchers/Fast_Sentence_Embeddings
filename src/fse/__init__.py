@@ -1,9 +1,10 @@
 """fse: fast sentence embeddings.
 
-master is the development branch of fse 2.0: recipes (``Average``, ``SIF``, ``USIF``)
-fit frozen ``Encoder`` objects on ``WordVectors``. The 1.x API (``uSIF``, the input
-classes, ``Vectors``, the 1.x models) was removed here; it lives on in fse 1.1.0 on PyPI
-and on the branch ``1.x``.
+master is the development branch of fse 2.0, the inference engine for static
+embeddings: an ``Encoder`` is a finished model (a table of word rows, a tokenizer and an
+optional normalization) that turns sentences into vectors. It trains nothing. The 1.x
+API (``Average``, ``SIF``, ``uSIF``, the input classes, ``Vectors``) was removed here; it
+lives on in fse 1.1.0 on PyPI and on the branch ``1.x``.
 """
 
 import importlib as _importlib
@@ -19,18 +20,18 @@ from fse._wordvectors import WordVectors
 from fse._wordvectors_format import FastTextParams
 
 if TYPE_CHECKING:
-    from fse._encoder import SIF, USIF, Average, Corpus, EncodedBatch, Encoder, QuantizedRows
+    from fse._encoder import EncodedBatch, Encoder, QuantizedRows
     from fse._runtime import MemorySink, Sink
     from fse._store import SearchResult, ShardSink, VectorStore
 del TYPE_CHECKING  # not a name of fse
 
-# The encoder, the recipes and the sinks load on first access (PEP 562), not when fse is
+# The encoder and the sinks load on first access (PEP 562), not when fse is
 # imported: the modules below them import fse._native, which import-linter cannot see as
 # a module and counts as an import of fse itself, so a static import here would read as a
 # cycle through every layer.
 _LAZY = {
     **dict.fromkeys(
-        ("SIF", "USIF", "Average", "Corpus", "Encoder", "EncodedBatch", "QuantizedRows"),
+        ("Encoder", "EncodedBatch", "QuantizedRows"),
         "fse._encoder",
     ),
     **dict.fromkeys(("MemorySink", "Sink"), "fse._runtime"),
@@ -38,6 +39,7 @@ _LAZY = {
 }
 
 _REMOVED = {
+    "Average",
     "BaseIndexedList",
     "CIndexedList",
     "CorpusFile",
@@ -46,6 +48,7 @@ _REMOVED = {
     "FTVectors",
     "IndexedLineDocument",
     "IndexedList",
+    "SIF",
     "SentenceVectors",
     "SplitCIndexedList",
     "SplitIndexedList",
@@ -60,11 +63,6 @@ def __getattr__(name: str) -> _Any:
         value = getattr(_importlib.import_module(_LAZY[name]), name)
         globals()[name] = value
         return value
-    if name == "uSIF":
-        raise AttributeError(
-            "fse.uSIF is the 1.x model; the 2.0 recipe is fse.USIF (install fse==1.1.0 from "
-            "PyPI or use the branch 1.x for the 1.x API)"
-        )
     if name in _REMOVED:
         raise AttributeError(
             f"fse.{name} is part of the 1.x API, which the 2.0 development branch removed; "
@@ -86,10 +84,6 @@ def __dir__() -> list[str]:
 
 
 __all__ = [
-    "SIF",
-    "USIF",
-    "Average",
-    "Corpus",
     "CorruptArtifactError",
     "EncodedBatch",
     "Encoder",

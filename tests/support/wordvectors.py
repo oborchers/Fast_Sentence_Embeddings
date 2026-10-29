@@ -11,11 +11,11 @@ F32 = np.float32
 WORDS = ["the", "é", "é", "", "naïve", "日本"]
 
 
-def _wv(dtype="float32", fasttext=False, counts=True, n=None, dim=5, seed=0):
+def _wv(dtype="float32", fasttext=False, n=None, dim=5, seed=0):
     rng = np.random.default_rng(seed)
     words = WORDS if n is None else [f"w{i}" for i in range(n)]
     rows = rng.standard_normal((len(words), dim)).astype(F32)
-    kwargs = {"counts": np.arange(len(words), dtype=np.int64)} if counts else {}
+    kwargs = {}
     if fasttext:
         kwargs["fasttext"] = FastTextParams(3, 5, 7)
         kwargs["ngrams"] = rng.standard_normal((7, dim)).astype(F32)
@@ -27,7 +27,6 @@ def _same(a: WordVectors, b: WordVectors):
     for name in (
         "stored_vectors",
         "scales",
-        "counts",
         "vocab_bytes",
         "vocab_offsets",
         "stored_ngrams",

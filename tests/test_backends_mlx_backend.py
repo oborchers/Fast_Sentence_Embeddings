@@ -13,7 +13,7 @@ import pytest
 import fse
 from fse import _reference
 from fse._backends import CpuBackend, PoolInput, Prepared
-from fse._contract import Batch, Normalize, Project, RemoveComponents
+from fse._contract import Batch, Normalize
 from support.conformance import TINY, mlx_module, require_mlx
 from support.runtime import texts, word_vectors
 
@@ -69,29 +69,13 @@ def test_rows_wider_than_the_device_takes_run_on_the_host(mlx, caplog, dim, host
     assert any("65536 values" in r.message for r in caplog.records) == host
 
 
-@pytest.mark.parametrize(
-    "steps",
-    [
-        (Normalize(),),
-        (RemoveComponents(np.eye(1, 7, dtype=F32)), Normalize()),
-        (Project(np.ascontiguousarray(np.eye(3, 7, dtype=F32))),),
-        (
-            RemoveComponents(np.eye(2, 7, dtype=F32), np.array([1, 0.5], F32)),
-            Project(np.ascontiguousarray(np.eye(4, 7, k=1, dtype=F32))),
-            Normalize(),
-        ),
-    ],
-    ids=["normalize", "remove-normalize", "project", "all"],
-)
-def test_linear_steps_run_the_encoder_on_the_host(mlx, steps):
-    """normalize alone on the device; with remove_components or project (fse 2.0 folds
-    them into the word vectors) the encoder runs on the host (``steps``)."""
+@pytest.mark.parametrize("steps", [(), (Normalize(),)], ids=["none", "normalize"])
+def test_both_step_lists_run_on_the_device(mlx, steps):
+    """No step or normalize, the only one: the encoder stays on the device."""
     got, prepared = _rows(mlx, _pool(), steps)
     want, _ = _rows(CpuBackend(), _pool(), steps)
-    assert got.tobytes() == want.tobytes()
-    host = len(steps) > 1 or not isinstance(steps[0], Normalize)
-    assert fallbacks(prepared)["steps"] == int(host)
-    assert sum(fallbacks(prepared).values()) == int(host)
+    assert got.tobytes() == want.tobytes()  # no flush in these rows: the cpu's bits
+    assert sum(fallbacks(prepared).values()) == 0
 
 
 def test_a_batch_the_kernel_cannot_read_raises_the_cpu_error(mlx):
@@ -144,7 +128,7 @@ def test_only_the_flagged_rows_come_from_the_host(mlx, caplog, monkeypatch, dim)
     assert got[3].tobytes() != want[3].tobytes()
     assert not got[1].any()  # the empty sentence
     mlx.rows(_limit_batch(7), prepared, np.empty_like(got))
-    counts = dict.fromkeys(["steps", "dim", "subnormal_input", "long", "nonfinite", "large"], 0)
+    counts = dict.fromkeys(["dim", "subnormal_input", "long", "nonfinite", "large"], 0)
     counts["limit"] = 2
     assert fallbacks(prepared) == counts
     warnings = [r for r in caplog.records if "computes a task on the CPU" in r.message]
@@ -205,7 +189,7 @@ def test_a_row_that_is_not_finite_raises_the_cpu_error_through_the_host(mlx):
 
 def test_fallbacks_need_an_mlx_prepared():
     with pytest.raises(TypeError, match="prepared by the mlx backend"):
-        fallbacks(Prepared("cpu", _pool(), (), 7, 7, None))
+        fallbacks(Prepared("cpu", _pool(), (), 7, None))
 
 
 def test_the_host_runs_everything_else(mlx):
@@ -218,7 +202,6 @@ def test_the_host_runs_everything_else(mlx):
         (mlx.score(stored, None, weights, 0.5), host.score(stored, None, weights, 0.5)),
         (mlx.scores(stored, None, queries, 0.0), host.scores(stored, None, queries, 0.0)),
         (mlx.cosines(stored, inverse, queries), host.cosines(stored, inverse, queries)),
-        (mlx.gram_block(stored), host.gram_block(stored)),
         (mlx.float32([1e-46, 2.5]), host.float32([1e-46, 2.5])),
     ]
     for got, want in pairs:
@@ -230,19 +213,13 @@ def test_the_host_runs_everything_else(mlx):
 
 
 @pytest.mark.usefixtures("mlx")
-@pytest.mark.parametrize(
-    "recipe", [fse.Average(dim=5), fse.SIF(components=1, fold=False)], ids=["average", "sif"]
-)
-def test_encoders_on_mlx_give_the_cpu_bits(recipe):
-    """fit (its Gram matrix from rows of the backend) and encode, with FastText and int8."""
+@pytest.mark.parametrize("normalize", [False, True], ids=["mean", "normalize"])
+def test_encoders_on_mlx_give_the_cpu_bits(normalize):
+    """A finished encoder with FastText and int8, encoded on both backends."""
     wv, sentences = word_vectors("int8", True), texts(400)
-    counts = np.arange(1, len(wv) + 1) * 10
-    options = {} if isinstance(recipe, fse.Average) else {"counts": counts}
-    cpu = recipe.fit(wv, sentences, backend="cpu", **options)
-    on_mlx = recipe.fit(wv, sentences, backend="mlx", **options)
-    assert on_mlx.fingerprint == cpu.fingerprint
-    got = on_mlx.encode(sentences, backend="mlx", workers=3)
-    assert got.tobytes() == cpu.encode(sentences, backend="cpu", workers=3).tobytes()
+    encoder = fse.Encoder.from_word_vectors(wv, normalize=normalize, max_ngrams=12, oov_weight=0.75)
+    got = encoder.encode(sentences, backend="mlx", workers=3)
+    assert got.tobytes() == encoder.encode(sentences, backend="cpu", workers=3).tobytes()
 
 
 @pytest.mark.parametrize("group_tokens", [1, 3, 8])

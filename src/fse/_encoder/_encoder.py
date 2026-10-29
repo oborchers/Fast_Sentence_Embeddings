@@ -4,17 +4,18 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The frozen encoder: word vectors, weights and steps, turned into sentence vectors.
+"""The encoder: a finished model that turns sentences into vectors.
 
-An Encoder does not change once made (by ``fit`` of a recipe or ``load``). It builds the
-VocabTable of its vocabulary once and one Pipeline per backend, both on first use, and
-several threads may encode with it at once. It is saved as one safetensors file
-(ARCHITECTURE.md, "encoder 1").
+An Encoder is a table of word rows (``WordVectors``), a tokenizer and whether every row
+is normalized; it pools the rows of a sentence with ``weighted_mean@1``, every word with
+the weight 1. It does not change once made (``from_word_vectors``, ``from_arrays`` or
+``load``). It builds the VocabTable of its vocabulary once and one Pipeline per backend,
+both on first use, and several threads may encode with it at once. It is saved as one
+self-contained safetensors file (ARCHITECTURE.md, "encoder 1").
 """
 
 from __future__ import annotations
 
-import copy
 import threading
 from collections.abc import Iterator
 from pathlib import Path
@@ -24,7 +25,7 @@ import numpy as np
 from numpy import ndarray
 
 from fse import _codes
-from fse._backends import BACKEND_NAMES
+from fse._backends import BACKEND_NAMES, get_backend
 from fse._container import (
     CHECKSUM_PREFIX,
     CREATED_BY_KEY,
@@ -35,29 +36,27 @@ from fse._container import (
     fingerprint,
     tensor_code,
 )
+from fse._contract import Normalize, check_tokenizer
 from fse._runtime import EncodeSpec, Pipeline, QuantizedRows, check_workers
-from fse._text import Vocabulary, make_vocabulary
-from fse._validation import PathLike, validate_arguments
+from fse._text import MAX_NGRAMS_LIMIT, Vocabulary, make_vocabulary
+from fse._validation import PathLike, PositiveInt, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
 from fse._wordvectors_format import FORMAT_VERSION as WORD_VECTORS_VERSION
 
 from . import _batches
 from ._batches import EncodedBatch, check_sink, flush, run_into
-from ._format import (
-    WORD_VECTOR_KEYS,
-    WORD_VECTOR_TENSORS,
-    EncoderContent,
-    from_artifact,
-    to_artifact,
-)
+from ._format import TABLE_KEYS, TABLE_TENSORS, EncoderContent, from_artifact, to_artifact
 from ._sources import opened
+
+# The ngrams an unknown FastText word uses at most, unless an encoder is given another.
+DEFAULT_MAX_NGRAMS = 40
 
 
 class Encoder:
-    """Turns sentences into vectors with frozen word vectors, weights and steps.
+    """Turns sentences into vectors with a finished table of word rows.
 
-    Make one with ``fit`` of a recipe (``fse.Average``, ``fse.SIF``, ``fse.USIF``) or
-    with ``Encoder.load``; it cannot be changed afterwards.
+    Make one with ``Encoder.from_word_vectors``, ``Encoder.from_arrays`` or
+    ``Encoder.load``; it cannot be changed afterwards.
     """
 
     __slots__ = (
@@ -82,7 +81,9 @@ class Encoder:
     _word_vectors: WordVectors
 
     def __init__(self, *_args: Any, **_kwargs: Any):
-        raise TypeError("make an Encoder with fit of a recipe or with Encoder.load")
+        raise TypeError(
+            "make an Encoder with Encoder.from_word_vectors, Encoder.from_arrays or Encoder.load"
+        )
 
     @classmethod
     def _new(
@@ -95,16 +96,12 @@ class Encoder:
         fingerprint_: str | None = None,
         vocabulary: Vocabulary | None = None,
     ) -> Encoder:
-        _check_binding(content, word_vectors)
         out = object.__new__(cls)
         out._content = content
         out._word_vectors = word_vectors
-        weights = content.weights
-        if weights is None:
-            weights = np.ones(len(word_vectors), dtype=np.float32)
         out._spec = EncodeSpec(
             word_vectors,
-            weights,
+            np.ones(len(word_vectors), dtype=np.float32),  # a finished table: every word weighs 1
             content.steps,
             content.tokenizer,
             oov_weight=None if content.oov_weight is None else content.oov_weight[()],
@@ -118,6 +115,75 @@ class Encoder:
         out._pipelines = {}
         out._lock = threading.Lock()
         return out
+
+    @classmethod
+    @validate_arguments
+    def from_word_vectors(
+        cls,
+        word_vectors: Any,
+        *,
+        tokenizer: str = "fse_words@1",
+        normalize: bool = True,
+        max_ngrams: PositiveInt | None = None,
+        oov_weight: float | None = None,
+    ):  # -> Encoder; pydantic cannot resolve it here
+        """The encoder of a finished table ``word_vectors`` (``fse.WordVectors``): every
+        sentence becomes the mean of the rows of its known words, with ``tokenizer``
+        (``fse_words@1`` or ``external``), and with ``normalize`` scaled to unit length.
+
+        For FastText vectors an unknown word adds its first ``max_ngrams`` ngram rows
+        (default 40), together with the weight ``oov_weight`` (default 1); other vectors
+        take neither. Weights, removed components or projections of a model are folded
+        into its rows before (ARCHITECTURE.md, "2.0 design").
+        """
+        if not isinstance(word_vectors, WordVectors):
+            raise TypeError(f"word_vectors must be WordVectors, not {type(word_vectors).__name__}")
+        content = EncoderContent(
+            tokenizer=check_tokenizer(tokenizer),
+            steps=(Normalize(),) if normalize else (),
+            **_fasttext(word_vectors, max_ngrams, oov_weight),
+        )
+        return cls._new(content, word_vectors)
+
+    @classmethod
+    @validate_arguments
+    def from_arrays(
+        cls,
+        vectors: Any,
+        *,
+        words: Any = None,
+        vocab_bytes: Any = None,
+        vocab_offsets: Any = None,
+        scales: Any = None,
+        fasttext: Any = None,
+        ngrams: Any = None,
+        ngram_scales: Any = None,
+        tokenizer: str = "fse_words@1",
+        normalize: bool = True,
+        max_ngrams: PositiveInt | None = None,
+        oov_weight: float | None = None,
+    ):  # -> Encoder
+        """``from_word_vectors`` of ``fse.WordVectors.from_arrays`` of the same arrays:
+        the rows (float32, float16 or int8 with ``scales``), the vocabulary (``words``, or
+        ``vocab_bytes`` and ``vocab_offsets``) and for FastText ``fasttext`` and ``ngrams``
+        (with ``ngram_scales`` for int8)."""
+        word_vectors = WordVectors.from_arrays(
+            vectors,
+            words=words,
+            vocab_bytes=vocab_bytes,
+            vocab_offsets=vocab_offsets,
+            scales=scales,
+            fasttext=fasttext,
+            ngrams=ngrams,
+            ngram_scales=ngram_scales,
+        )
+        return cls.from_word_vectors(
+            word_vectors,
+            tokenizer=tokenizer,
+            normalize=normalize,
+            max_ngrams=max_ngrams,
+            oov_weight=oov_weight,
+        )
 
     # --- encoding ---------------------------------------------------------------------
 
@@ -137,7 +203,7 @@ class Encoder:
         the sink's (another one raises) and its ``flush`` runs after the last row.
 
         ``texts`` is a list, tuple or numpy array of str, or of token lists for the
-        external tokenizer; a ``fse.Corpus``; a ``pathlib.Path`` (or other
+        external tokenizer; a ``pathlib.Path`` (or other
         ``os.PathLike``) of a text file, one sentence per line (a str is one sentence,
         never a path: pass ``[text]`` for one sentence); or any other iterable of str, a
         stream read once.
@@ -211,65 +277,43 @@ class Encoder:
 
     @validate_arguments
     def save(self, path: PathLike):
-        """Write the encoder into the new ``.safetensors`` file ``path``. A folded encoder
-        (``folded``: a recipe folded learned components or a projection) includes its word
-        vectors; an unfolded one, such as ``Average()`` without ``dim``, does not, and
-        ``load`` then needs them. Data loaded from a file are compared with the checksums
-        they were loaded with while they are written."""
+        """Write the encoder, with its table, into the new ``.safetensors`` file ``path``.
+        Data loaded from a file are compared with the checksums they were loaded with
+        while they are written."""
         tensors, metadata, expected = self._artifact()
         metadata[CREATED_BY_KEY] = _created_by()
         SafetensorsContainer().write(Path(path), tensors, metadata, expected=expected)
 
     def _artifact(self) -> tuple[dict[str, ndarray], dict[str, str], dict[str, str] | None]:
-        embedded = None
+        table, keys, loaded = self._word_vectors._parts()
         expected = dict(self._checksums or {})
-        if self.folded:
-            words, keys, loaded = self._word_vectors._parts()
-            words = {k: v for k, v in words.items() if k != "counts"}
-            embedded = (words, {k: v for k, v in keys.items() if k in WORD_VECTOR_KEYS})
-            expected.update({k: v for k, v in (loaded or {}).items() if k in words})
-        tensors, metadata = to_artifact(self._content, embedded)
-        tensors.update(self._used())
-        return tensors, metadata, expected or None
-
-    def _used(self) -> dict[str, ndarray]:
-        """The copies the pipelines encode with, as tensors: the weights and oov_weight.
-        Saving and verifying use these, so neither can pass data the encoder does not use."""
-        used = {}
-        if self._content.weights is not None:
-            used["weights"] = self._spec.weights
+        expected.update({k: v for k, v in (loaded or {}).items() if k in table})
+        tensors, metadata = to_artifact(
+            self._content, table, {k: v for k, v in keys.items() if k in TABLE_KEYS}
+        )
         if self._spec.oov_weight is not None:
-            used["oov_weight"] = np.array(self._spec.oov_weight, dtype=np.float32)
-        return used
+            # The copy the pipelines encode with, so saving and verifying cannot pass a
+            # value the encoder does not use.
+            tensors["oov_weight"] = np.array(self._spec.oov_weight, dtype=np.float32)
+        return tensors, metadata, expected or None
 
     @classmethod
     @validate_arguments
-    def load(cls, path: PathLike, word_vectors: Any = None, mmap: bool = False):  # -> Encoder
-        """Open an encoder saved with ``save``. An unfolded encoder needs the
-        ``word_vectors`` it was fitted on (checked by fingerprint), ``load(path, wv)``; a
-        folded one holds them and takes none, ``load(path)``. With ``mmap`` the arrays are
-        mapped read-only (see ``verify``)."""
+    def load(cls, path: PathLike, mmap: bool = False):  # -> Encoder
+        """Open an encoder saved with ``save``; it holds its table. With ``mmap`` the
+        arrays are mapped read-only (see ``verify``). An encoder written by a pre-release
+        of 2.0 raises ``fse.UnsupportedArtifactError``: rebuild it."""
         path = Path(path)
         tensors, metadata = SafetensorsContainer().open(path, mmap=mmap)
-        content, embedded = from_artifact(tensors, metadata)
+        content, table, keys = from_artifact(tensors, metadata)
         checksums = {
             k[len(CHECKSUM_PREFIX) :]: v
             for k, v in metadata.items()
             if k.startswith(CHECKSUM_PREFIX)
         }
-        if embedded is None:
-            if not isinstance(word_vectors, WordVectors):
-                raise TypeError(
-                    f"{path} is an unfolded encoder: pass the word_vectors it was fitted on "
-                    f"(fingerprint {content.word_vectors})"
-                )
-        else:
-            if word_vectors is not None:
-                raise ValueError(f"{path} is a folded encoder and holds its word vectors")
-            word_vectors = _embedded(embedded, metadata, checksums, content.word_vectors, path)
         return cls._new(
             content,
-            word_vectors,
+            _table(table, keys, metadata, checksums, path),
             path=path,
             checksums=checksums,
             fingerprint_=metadata.get(FINGERPRINT_KEY),
@@ -277,12 +321,12 @@ class Encoder:
 
     def verify(self):
         """Check the data this encoder holds (as it encodes with them) against the
-        checksums it was loaded with, its file (if loaded), and its word vectors."""
+        checksums it was loaded with, its file (if loaded), and its table."""
         if self._checksums is not None:
             tensors, _, _ = self._artifact()
             held = {k: v for k, v in tensors.items() if k in self._checksums}
             for name, array in held.items():
-                if name not in WORD_VECTOR_TENSORS and checksum(array) != self._checksums[name]:
+                if name not in TABLE_TENSORS and checksum(array) != self._checksums[name]:
                     raise CorruptArtifactError(
                         f"tensor {name} of {self._path} does not match its checksum"
                     )
@@ -320,70 +364,56 @@ class Encoder:
         return tuple(s.op.id for s in self._content.steps)
 
     @property
-    def folded(self) -> bool:
-        """Whether learned linear steps were folded into the encoder's own word vectors."""
-        return bool(self._content.folded)
-
-    @property
-    def input_dim(self) -> int:
-        return self._content.input_dim
-
-    @property
     def output_dim(self) -> int:
-        return self._content.output_dim
-
-    @property
-    def recipe(self) -> dict[str, Any]:
-        """The recipe and its parameters, as recorded (provenance only)."""
-        return copy.deepcopy(self._content.recipe)
+        """The dimension of the rows the encoder gives (that of its table)."""
+        return self._spec.output_dim
 
     def __reduce__(self):
         raise TypeError("an Encoder cannot be pickled; use save() and Encoder.load()")
 
     def __repr__(self) -> str:
-        name = self._content.recipe.get("name", "encoder")
-        kind = ", folded" if self.folded else ""
-        return f"Encoder({name}, {self.input_dim} -> {self.output_dim} dimensions{kind})"
-
-
-def _check_binding(content: EncoderContent, word_vectors: WordVectors):
-    """The word vectors must be the ones the content names."""
-    if word_vectors.dim != content.input_dim:
-        raise ValueError(
-            f"the encoder pools vectors of {content.input_dim} dimensions, not {word_vectors.dim}"
+        wv = self._word_vectors
+        kind = ", FastText" if wv.fasttext else ""
+        steps = "".join(f", {step}" for step in self.steps)
+        return (
+            f"Encoder({len(wv)} words, {self.output_dim} dimensions, {wv.dtype}{kind}, "
+            f"{self.tokenizer}{steps})"
         )
-    if content.weights is not None and len(content.weights) != len(word_vectors):
-        raise ValueError(
-            f"the encoder holds {len(content.weights)} weights for {len(word_vectors)} words"
-        )
-    for name, want, got in (
-        ("vocabulary", content.vocabulary, word_vectors.vocabulary_fingerprint),
-        ("word vectors", content.word_vectors, word_vectors.fingerprint),
-    ):
-        if want != got:
-            raise ValueError(f"the encoder was fitted on the {name} {want}, not {got}")
 
 
-def _embedded(
-    embedded: tuple[dict[str, ndarray], dict[str, str]],
+def _fasttext(word_vectors: WordVectors, max_ngrams: int | None, oov_weight: float | None):
+    """``max_ngrams`` and ``oov_weight`` of an encoder of ``word_vectors``, with their
+    defaults for FastText vectors; other vectors take neither."""
+    if word_vectors.fasttext is None:
+        if max_ngrams is not None or oov_weight is not None:
+            raise ValueError("max_ngrams and oov_weight apply only to FastText vectors")
+        return {"max_ngrams": None, "oov_weight": None}
+    if max_ngrams is not None and max_ngrams > MAX_NGRAMS_LIMIT:
+        raise ValueError(f"max_ngrams must be at most {MAX_NGRAMS_LIMIT}, not {max_ngrams}")
+    # Converted in the floating-point environment of the kernels (round to nearest, no
+    # flush to zero), whatever the calling thread set, as the kernel converts it.
+    given = 1.0 if oov_weight is None else oov_weight
+    weight = get_backend("cpu").float32([given]).reshape(())
+    if not np.isfinite(weight):
+        raise ValueError(f"oov_weight must be finite in float32, not {oov_weight!r}")
+    return {"max_ngrams": max_ngrams or DEFAULT_MAX_NGRAMS, "oov_weight": weight}
+
+
+def _table(
+    tensors: dict[str, ndarray],
+    keys: dict[str, str],
     metadata: dict[str, str],
     checksums: dict[str, str],
-    recorded: str,
     path: Path,
 ) -> WordVectors:
-    """The word vectors a folded encoder holds, as loaded word vectors of its file; their
-    fingerprint from the recorded checksums must be the one the encoder names."""
-    tensors, keys = embedded
+    """The table an encoder holds, as word vectors loaded from its file, with the
+    fingerprint of their recorded checksums."""
     content = {"fse.kind": "word_vectors", "fse.format_version": WORD_VECTORS_VERSION, **keys}
     entries = {k: (tensor_code(v), v.shape, checksums[k]) for k, v in tensors.items()}
-    if fingerprint(entries, content) != recorded:
-        raise CorruptArtifactError(
-            f"the word vectors held by {path} do not have the fingerprint it names ({recorded})"
-        )
     loaded = {
         **content,
         CREATED_BY_KEY: metadata.get(CREATED_BY_KEY, "fse"),
-        FINGERPRINT_KEY: recorded,
+        FINGERPRINT_KEY: fingerprint(entries, content),
         **{CHECKSUM_PREFIX + k: checksums[k] for k in tensors},
     }
     return WordVectors._open(tensors, loaded, path)

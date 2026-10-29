@@ -9,7 +9,7 @@
 The arithmetic is the one of ARCHITECTURE.md, "Numerical contract", and equals
 ``fse._reference.quantize_rows`` and ``dequantize`` bit for bit; here it runs in blocks
 of rows, so only one block of temporaries exists, also for memory-mapped targets.
-Only numpy is imported, so the module can be copied into the 1.x export.
+Only numpy is imported, so the module can be copied into another project.
 """
 
 from __future__ import annotations

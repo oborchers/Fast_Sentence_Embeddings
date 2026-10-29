@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 
 from fse import _native, _reference
-from fse._contract import OOV_TOKEN, Batch, Normalize, Project, RemoveComponents
+from fse._contract import OOV_TOKEN, Batch, Normalize
 from support.cases import CASES, OVERFLOW, random_case
 from support.conformance import (
     BACKENDS,
@@ -219,8 +219,6 @@ def _environment_calls(backend):
     """Every native entry point, on inputs whose results depend on the environment."""
     rows = np.full((3, 20), TINY, dtype=F32) * np.arange(1, 61, dtype=F32).reshape(3, 20)
     inexact = _rng(5).standard_normal((3, 20)).astype(F32)
-    unit = np.zeros((1, 20), dtype=F32)
-    unit[0, 0] = 1
     # Normal values whose sum of squares is subnormal.
     small = np.full((1, 4), F32(2.0**-70), dtype=F32)
     # Inputs are made here, before the environment changes: the calls must only run kernels.
@@ -234,12 +232,6 @@ def _environment_calls(backend):
         calls[f"pool {case.name}"] = lambda case=case: backend.pool(case)
         calls[f"accumulate {case.name}"] = lambda case=case: backend.accumulate(case)[0]
     for label, x in (("subnormal", rows), ("inexact", inexact)):
-        calls[f"remove_components {label}"] = lambda x=x: backend.postprocess(
-            x, [RemoveComponents(unit)]
-        )
-        calls[f"project {label}"] = lambda x=x: backend.postprocess(
-            x, [Project(np.ascontiguousarray(np.eye(2, 20, dtype=F32)))]
-        )
         calls[f"normalize {label}"] = lambda y=shifted[label]: backend.postprocess(y, [Normalize()])
         calls[f"dot16 {label}"] = lambda x=x: backend.dot16(x, third)[:, None]
         calls[f"score {label}"] = lambda x=x: backend.score(x, None, third, tiny)[:, None]
