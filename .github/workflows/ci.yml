@@ -131,8 +131,59 @@ jobs:
           include-hidden-files: true
           retention-days: 7
 
+  # The mlx backend on Apple silicon. The probe prints whether this runner has Metal (a
+  # GitHub macOS runner is a virtual machine; GitHub documents GPU access only for its
+  # larger paid runners) and the canary's result. Where Metal works the tests must run
+  # the backend (FSE_REQUIRE_MLX), otherwise its tests skip with the reason and the
+  # maintainer's `make test-mlx` on an Apple silicon Mac is the gate. The lockfile pins
+  # mlx at its lower bound, 0.32.4, so this job also tests the minimum version.
+  test-mlx:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+        with:
+          enable-cache: true
+      - run: uv python install 3.13
+      - run: uv sync $UV_SYNC_FLAGS --group test --group mlx --python 3.13
+      - name: Probe Metal and the canary
+        id: probe
+        run: |
+          uv run python - <<'PY'
+          import os
+          import mlx.core as mx
+          metal = mx.metal.is_available()
+          print("mlx", mx.__version__, "Metal available:", metal)
+          if metal:
+              print(mx.device_info())
+              from fse._backends import get_backend
+              from fse._backends._mlx._device import DEVICE
+              get_backend("mlx")
+              DEVICE.ready()  # the canary, which every prepare runs once per process
+              print("canary: passed")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"metal={'true' if metal else 'false'}\n")
+          PY
+      - name: Run tests with coverage, the mlx backend required where Metal works
+        run: make test-cov
+        env:
+          FSE_REQUIRE_MLX: ${{ steps.probe.outputs.metal == 'true' && '1' || '' }}
+          COVERAGE_FILE: .coverage.macos-mlx
+      - name: Upload coverage
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: coverage-macos-mlx
+          path: .coverage.*
+          include-hidden-files: true
+          retention-days: 7
+
   coverage:
-    needs: [changes, test]
+    needs: [changes, test, test-mlx]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -241,14 +292,14 @@ jobs:
 
   check:
     if: always()
-    needs: [changes, lint, test, coverage, sdist, wheels]
+    needs: [changes, lint, test, test-mlx, coverage, sdist, wheels]
     runs-on: ubuntu-latest
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35  # v1.3.0
         with:
           jobs: ${{ toJSON(needs) }}
           # A documentation-only pull request skips them on purpose.
-          allowed-skips: ${{ needs.changes.outputs.code == 'false' && 'lint, test, coverage, sdist, wheels' || '' }}
+          allowed-skips: ${{ needs.changes.outputs.code == 'false' && 'lint, test, test-mlx, coverage, sdist, wheels' || '' }}
 
   release:
     needs: check
