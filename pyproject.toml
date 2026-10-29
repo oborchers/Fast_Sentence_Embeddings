@@ -351,6 +351,7 @@ ignore_names = [
     "exc",               # the arguments of __exit__
     "pytestmark",        # read by pytest
     "windows_file_maps", # a fixture used through pytest.mark.usefixtures
+    "python_sigint",     # a fixture used through pytest.mark.usefixtures
     "normalizer",        # attributes of a Hugging Face tokenizer, read by tokenizers
     "pre_tokenizer",
     "hf_split",          # arguments of the MTEB encoder interface

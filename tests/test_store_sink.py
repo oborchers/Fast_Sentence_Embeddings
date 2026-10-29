@@ -330,35 +330,3 @@ def test_an_interrupt_between_the_hand_overs_does_not_hang_close(tmp_path):
     codes, _, _, found = _store_rows(tmp_path / "s", "float32")
     assert [(s.first_row, s.rows) for s in found] == [(0, 4)]
     np.testing.assert_array_equal(codes, np.zeros((4, ENCODER.output_dim), np.float32))
-
-
-def test_an_interrupt_during_close_still_stops_every_thread_and_cleans_up(tmp_path):
-    sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=8)
-    target = sink.target(0, 4)
-    target[0][...] = 0
-    target[1][...] = 0
-    sink.commit(0, target)  # a shard not yet full: its temporary directory exists
-    threads = (sink._hash, sink._io, sink._publisher)
-    real_stop, calls = sink._hash.stop, []
-
-    def settle():
-        raise KeyboardInterrupt  # Ctrl+C while close waits for the threads
-
-    def stop():
-        calls.append(1)
-        if len(calls) == 1:
-            raise KeyboardInterrupt  # and again while it stops the first of them
-        real_stop()
-
-    sink._settle = settle
-    sink._hash.stop = stop
-    with pytest.raises(KeyboardInterrupt):
-        sink.close()
-    assert len(calls) == 2  # stopped again after the interrupt
-    assert not any(t._thread.is_alive() for t in threads)
-    assert all(t.failed for t in threads)  # the work still waiting is dropped
-    assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]
-    assert sink.durable_rows == 0
-    sink.close()  # closed: nothing more to do
-    with pytest.raises(RuntimeError, match="closed"):
-        sink.target(4, 1)

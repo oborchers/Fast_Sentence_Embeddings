@@ -74,34 +74,76 @@ def test_an_error_is_raised_once_and_then_named():
     assert done == []
 
 
-def test_an_interrupt_while_stopping_drops_the_rest_and_still_ends_the_thread():
+def test_abandon_finishes_the_running_piece_drops_the_rest_and_ends_the_thread():
     writer = WriterThread()
-    started, release, done = threading.Event(), threading.Event(), []
+    started, release, finished, done = threading.Event(), threading.Event(), [], []
 
     def block():
         started.set()
         release.wait(10)
+        finished.append(True)
 
-    writer.submit(block)
-    writer.submit(done.append, 1)
-    assert started.wait(10)
-    real_join, real_abandon, joins = writer._thread.join, writer.abandon, []
+    stopper = threading.Thread(target=writer.stop)
+    try:
+        writer.submit(block)
+        writer.submit(done.append, 1)
+        assert started.wait(10)
+        writer.abandon()
+        assert writer.failed
+        with pytest.raises(RuntimeError, match="stopped"):
+            writer.submit(done.append, 2)  # an abandoned thread takes no more work
+        # Ended means the thread said so, not join or is_alive (an interrupted join of
+        # Python 3.11 and 3.12 can report a running thread as ended).
+        writer._thread.is_alive = lambda: False
+        writer._thread.join = lambda *_args: pytest.fail("stop must not rely on join")
+        stopper.start()
+        assert not writer._ended.wait(0.2)  # stop waits for the piece running
+        assert stopper.is_alive()
+        release.set()
+        stopper.join(10)
+        assert not stopper.is_alive()
+        assert writer._ended.is_set()
+        assert finished == [True]  # the running piece was finished
+        assert done == []  # the work after it was dropped
+        writer.settle()  # nothing waits any more
+    finally:
+        release.set()
+        if stopper.is_alive():
+            stopper.join(10)
 
-    def join(*args):
-        joins.append(args)
-        if len(joins) == 1:
-            raise KeyboardInterrupt  # Ctrl+C while stop waits for the thread
-        return real_join(*args)
 
-    def abandon(error):
-        real_abandon(error)
-        release.set()  # the piece running finishes only after the rest is dropped
+@pytest.mark.usefixtures("python_sigint")
+def test_interrupts_are_deferred_to_the_end_of_the_block():
+    import signal
 
-    writer._thread.join = join
-    writer.abandon = abandon
+    calls = []
+    before = signal.getsignal(signal.SIGINT)
+
+    def interrupted():
+        with _writer.deferred_interrupts(lambda: calls.append(1)):
+            signal.raise_signal(signal.SIGINT)
+            signal.raise_signal(signal.SIGINT)  # a further one is only noted
+            calls.append("after")  # the block goes on
+
     with pytest.raises(KeyboardInterrupt):
-        writer.stop()
-    assert not writer._thread.is_alive()
-    assert len(joins) == 2  # waited again after the interrupt
-    assert done == []  # the work after the piece running was dropped
-    writer.stop()  # stopped: nothing to do
+        interrupted()
+    assert calls == [1, "after"]  # on_interrupt once, at the first
+    assert signal.getsignal(signal.SIGINT) is before
+    with _writer.deferred_interrupts(lambda: calls.append(2)):
+        pass  # no interrupt: nothing raised, nothing called
+    assert calls == [1, "after"]
+
+
+def test_interrupts_are_not_deferred_outside_the_main_thread():
+    import signal
+
+    seen = []
+
+    def run():
+        with _writer.deferred_interrupts(lambda: None):
+            seen.append(signal.getsignal(signal.SIGINT))  # unchanged, no ValueError
+
+    thread = threading.Thread(target=run)
+    thread.start()
+    thread.join(10)
+    assert seen == [signal.getsignal(signal.SIGINT)]

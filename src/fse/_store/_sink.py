@@ -30,7 +30,7 @@ from fse._validation import PositiveInt, validate_arguments
 
 from ._layout import StoreInfo, create_store, read_store, shards
 from ._shard import ShardWriter
-from ._writer import WriterThread
+from ._writer import WriterThread, deferred_interrupts
 
 # Shards hold whole multiples of this many rows by default, and at most this many bytes
 # of vectors or rows.
@@ -91,7 +91,7 @@ class ShardSink:
         self._writers: deque[ShardWriter] = deque()  # shards still taking rows
         self._made: set[ShardWriter] = set()  # shards of the run not yet published
         self._targets: dict[int, tuple[list, tuple | None]] = {}  # run row -> parts, own
-        self._closed = False
+        self._closed = self._interrupted = False
         self._created_by = _created_by()
         # Hashing (in order), writing and publishing (syncs, a rename) in three threads, so
         # the flush of one shard does not stop the hashing and writing of the next. One
@@ -189,25 +189,27 @@ class ShardSink:
         return self.durable_rows
 
     def close(self) -> None:
-        """Publish the committed rows and drop the rest; the sink takes no more rows."""
+        """Publish the committed rows and drop the rest; the sink takes no more rows.
+
+        An interrupt (Ctrl+C) in the main thread while it closes abandons the work of
+        every thread at once: the piece each one runs is finished, which has no time
+        bound while a piece blocks, and nothing after it. Further interrupts are only
+        noted; once every thread has ended and the temporary directories of the shards
+        not published are removed, one KeyboardInterrupt is raised.
+        """
         if self._closed:
             return
-        try:
-            self._settle()  # the rows handed over are written, unless a thread failed
-            if self._failed():  # nothing more is published
-                self._raise_unreported()
-            else:
-                self._abort_uncommitted()
-                self._drain()
-        finally:
-            interrupt = self._stop_threads()
-            for writer in list(self._made):  # what was not published
-                writer.abort()
-            self._writers.clear()
-            self._made.clear()
-            self._closed = True
-            if interrupt is not None:
-                raise interrupt
+        with deferred_interrupts(self._abandon_all):
+            try:
+                self._settle()  # the rows handed over are written, unless a thread failed
+                if self._failed():  # nothing more is published
+                    if not self._interrupted:
+                        self._raise_unreported()
+                else:
+                    self._abort_uncommitted()
+                    self._drain()
+            finally:
+                self._shut_down()
 
     def __enter__(self) -> ShardSink:
         return self
@@ -217,23 +219,22 @@ class ShardSink:
 
     # --- internals ---------------------------------------------------------------------
 
-    def _stop_threads(self) -> BaseException | None:
+    def _abandon_all(self) -> None:
+        """Abandon the work of every thread at once (from the handler of an interrupt)."""
+        self._interrupted = True
+        for thread in (self._hash, self._io, self._publisher):
+            thread.abandon()
+
+    def _shut_down(self) -> None:
         """End every thread, the hash thread first (it hands finished shards to the
-        publisher). An interrupt (Ctrl+C) while one is stopped abandons the work of all of
-        them; every thread still ends, and the interrupt is returned to be raised after
-        the clean-up."""
-        threads = (self._hash, self._io, self._publisher)
-        interrupt: BaseException | None = None
-        for thread in threads:
-            while True:
-                try:
-                    thread.stop()
-                    break
-                except BaseException as error:  # stopping again is quick: nothing waits
-                    interrupt = interrupt or error
-                    for each in threads:
-                        each.abandon(error)
-        return interrupt
+        publisher), then remove the shards not published."""
+        for thread in (self._hash, self._io, self._publisher):
+            thread.stop()
+        for writer in list(self._made):  # what was not published
+            writer.abort()
+        self._writers.clear()
+        self._made.clear()
+        self._closed = True
 
     def _check_threads(self) -> None:
         for thread in (self._hash, self._io, self._publisher):
