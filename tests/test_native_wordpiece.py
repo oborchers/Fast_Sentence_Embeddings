@@ -180,3 +180,19 @@ def test_an_unknown_id_beyond_uint32_is_refused_whole():
     with pytest.raises(ValueError, match="unk_id is 4294967297, but the vocabulary holds 10"):
         _state(unk_id=2**32 + 1)
 
+
+@pytest.mark.parametrize("max_chars", [0, 5])
+def test_an_added_token_must_be_utf8(max_chars):
+    """A vocabulary given natively may hold any bytes; an added token that is no UTF-8
+    would let invalid input pass the scan, so the state refuses it, with and without the
+    character cut."""
+    data = np.frombuffer(b"[UNK]\xff", np.uint8)
+    offsets = np.array([0, 5, 6], np.int64)
+    table = _native.VocabTable(data, offsets)
+    with pytest.raises(ValueError, match=r"the added token 1 is not valid UTF-8: b'\\xff'"):
+        _native.WordPieceState(table, data, offsets, 0, "##", 100, (1,), 3, max_chars)
+    state = _native.WordPieceState(table, data, offsets, 0, "##", 100, (0,), 3, max_chars)
+    lookup = _native.TextLookup(table, "wordpiece@1", wordpiece=state)
+    raw = np.frombuffer(b"\xff", np.uint8)
+    with pytest.raises(UnicodeDecodeError):
+        lookup.encode(raw, None, 0, 1, 0, _native.Workspace())

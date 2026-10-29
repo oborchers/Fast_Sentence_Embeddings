@@ -128,8 +128,13 @@ cdef class WordPieceState:
         if len(set(checked)) != len(checked) or any(i >= n for i in checked):
             raise ValueError(f"the added ids must be unique ids below {n}, not {list(added_ids)}")
         tokens = [data[offsets[i] : offsets[i + 1]].tobytes() for i in checked]
-        if any(not t for t in tokens):
-            raise ValueError("an added token must not be empty")
+        for i, t in zip(checked, tokens):
+            if not t:
+                raise ValueError("an added token must not be empty")
+            try:  # the scan matches bytes, so a token that is no UTF-8 would hide bad input
+                t.decode("utf-8")
+            except UnicodeDecodeError:
+                raise ValueError(f"the added token {i} is not valid UTF-8: {t!r}") from None
         order = sorted(range(len(tokens)), key=lambda j: -len(tokens[j]))
         self._added_bytes = np.frombuffer(b"".join(tokens[j] for j in order) + b"\0", np.uint8)
         self._added_offsets = np.zeros(len(tokens) + 1, np.int64)
