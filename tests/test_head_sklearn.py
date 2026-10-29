@@ -333,3 +333,31 @@ def test_a_head_without_probabilities_names_its_estimator():
     model = fse.Classifier.from_sklearn(encoder, _fit(svm.LinearSVC(), x, y))
     with pytest.raises(ValueError, match=r"this classifier \(LinearSVC\) has no probabilities"):
         model.predict_proba(SENTENCES)
+
+
+@pytest.mark.parametrize("with_mean", [True, False])
+@pytest.mark.parametrize("with_std", [True, False])
+def test_every_kind_of_standard_scaler(with_mean, with_std):
+    """mean_ stays set without centering (scikit-learn keeps it for the variance): only the
+    steps the scaler applies may fold into the head."""
+    encoder = finished(normalize=False)
+    x, y = _data(encoder)
+    scaler = preprocessing.StandardScaler(with_mean=with_mean, with_std=with_std)
+    model = _fit(pipeline.make_pipeline(scaler, linear_model.LogisticRegression()), x, y)
+    clf = fse.Classifier.from_sklearn(encoder, model)
+    want = model.decision_function(encoder.encode(SENTENCES))
+    np.testing.assert_allclose(clf.decision_function(SENTENCES), want, rtol=1e-4, atol=1e-4)
+
+
+def test_newton_cholesky_with_many_classes_has_the_link_of_its_version():
+    encoder = finished(normalize=False)
+    x, y = _data(encoder, classes=3)
+    try:
+        sk = _fit(linear_model.LogisticRegression(solver="newton-cholesky"), x, y)
+    except ValueError as error:  # versions without it for several classes
+        pytest.skip(str(error))
+    clf = fse.Classifier.from_sklearn(encoder, sk)
+    assert clf.link == (
+        "ovr@1" if getattr(sk, "multi_class", None) in ("auto", "deprecated") else "softmax@1"
+    )
+    np.testing.assert_allclose(clf.predict_proba(SENTENCES), sk.predict_proba(x), atol=1e-5)

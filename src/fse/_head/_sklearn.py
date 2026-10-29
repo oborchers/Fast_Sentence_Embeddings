@@ -99,14 +99,16 @@ def _classes(model: Any, k: int) -> list:
 
 def _logistic_link(model: Any, k: int) -> str:
     """The rule of the installed version: from 1.8 sigmoid for two classes and softmax
-    else; before, ovr where ``multi_class`` says so (or auto with liblinear or two
-    classes), else softmax, which for two classes is softmax of [-z, z]."""
+    else; before, ovr where ``multi_class`` says so (or auto with two classes or the
+    solver liblinear or newton-cholesky, which fit one-vs-rest), else softmax, which for
+    two classes is softmax of [-z, z]."""
     multi_class = getattr(model, "multi_class", None)
     if multi_class is None:  # scikit-learn 1.8 and newer
         return "sigmoid" if k == 1 else "softmax"
     binary = k == 1
     ovr = multi_class in ("ovr", "warn") or (
-        multi_class in ("auto", "deprecated") and (binary or model.solver == "liblinear")
+        multi_class in ("auto", "deprecated")
+        and (binary or model.solver in ("liblinear", "newton-cholesky"))
     )
     if ovr:
         return "sigmoid" if binary else "ovr"
@@ -180,10 +182,12 @@ def _estimator(model: Any, task: str) -> Found:
 
 
 def _scaled(found: Found, scaler: Any) -> Found:
-    """``A ((x - mean) / scale) + b`` as ``(A / scale) x + (b - (A / scale) mean)``."""
+    """``A ((x - mean) / scale) + b`` as ``(A / scale) x + (b - (A / scale) mean)``, with
+    the steps the scaler applies: it centers only with ``with_mean`` and scales only with
+    ``with_std`` (``mean_`` is kept for the variance even without centering)."""
     weight, bias = found.weight, found.bias
-    scale = getattr(scaler, "scale_", None)
-    mean = getattr(scaler, "mean_", None)
+    scale = getattr(scaler, "scale_", None) if getattr(scaler, "with_std", True) else None
+    mean = getattr(scaler, "mean_", None) if getattr(scaler, "with_mean", True) else None
     if scale is not None:
         scale = _array(scaler, "scale_")
         if scale.shape != (weight.shape[1],):
