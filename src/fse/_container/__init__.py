@@ -30,6 +30,7 @@ from ._common import (
     checksum,
     fingerprint,
     is_fingerprint,
+    strict_json,
     tensor_code,
 )
 from ._foreign import read_foreign
@@ -55,6 +56,7 @@ __all__ = [
     "fingerprint",
     "is_fingerprint",
     "read_foreign",
+    "strict_json",
     "tensor_code",
 ]
 
