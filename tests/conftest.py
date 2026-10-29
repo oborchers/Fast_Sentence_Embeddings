@@ -39,6 +39,17 @@ def sentences(corpus: tuple[tuple[str, ...], ...]) -> list[list[str]]:
 
 
 @pytest.fixture
+def python_sigint():
+    """SIGINT raising KeyboardInterrupt, as Python sets it up unless SIGINT was ignored
+    when it started (a background job of a shell)."""
+    import signal
+
+    previous = signal.signal(signal.SIGINT, signal.default_int_handler)
+    yield
+    signal.signal(signal.SIGINT, previous)
+
+
+@pytest.fixture
 def windows_file_maps(monkeypatch):
     """Fail like Windows: a file that a live memmap maps cannot be replaced, cut or deleted.
 
