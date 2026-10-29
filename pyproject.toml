@@ -237,8 +237,14 @@ environment-pass = ["CI"]
 paths = ["src", "tests", "tools", "benchmarks", "media", "setup.py"]
 max-lines = 500
 max-cognitive-complexity = 15
-# Generated; their generator tools/make_unicode_tables.py is the source.
-generated = ["src/fse/_unicode.py", "src/fse/_native_unicode.h"]
+# Generated; their generators tools/make_unicode_tables.py and tools/make_wordpiece_tables.py
+# are the source.
+generated = [
+    "src/fse/_unicode.py",
+    "src/fse/_native_unicode.h",
+    "src/fse/_unicode_bert.py",
+    "src/fse/_native_unicode_bert.h",
+]
 # The only modules that import the extension fse._native (import-linter cannot see it):
 # _text for stages 1 and 2, the cpu backend for the kernels of stages 2 to 4.
 native-importers = ["src/fse/_text.py", "src/fse/_backends/_cpu.py"]
@@ -298,7 +304,7 @@ layers = [
     "_wordvectors_format",
     # Independent of each other: the references never share code with what they check.
     "_container | _codes | _reference | _reference_text | _validation",
-    "_contract | _cpus | _unicode",
+    "_contract | _cpus | _unicode | _unicode_bert",
 ]
 
 [[tool.importlinter.contracts]]
