@@ -165,6 +165,8 @@ class Contract:
             if self.backend_name == "mlx":
                 require_mlx()
             self._backend = get_backend(self.backend_name, **self.options)
+            if self.backend_name == "mlx":
+                self._backend.device.ready()  # the canary, before a test varies the kernel
         return self._backend
 
     def pool(self, case):
@@ -257,3 +259,14 @@ def assert_bits_equal(got, want, name=""):
             f"{name}: at {where}: {got[where]!r} ({int(g[where]):#0{digits + 2}x}) "
             f"!= {want[where]!r} ({int(w[where]):#0{digits + 2}x})"
         )
+
+
+def pool_on_device(backend, case, steps=()):
+    """The rows of ``case`` from the mlx backend ``backend``, the tasks it computed on the
+    host and the kernels it launched."""
+    prepared = backend.prepare(PoolInput(*case.args()), steps)
+    out = np.empty((case.batch.n_sentences, prepared.output_dim), F32)
+    module = mlx_module("fse._backends._mlx._backend")
+    before = module.DEVICE.launches
+    backend.rows(case.batch, prepared, out)
+    return out, sum(module.fallbacks(prepared).values()), module.DEVICE.launches - before

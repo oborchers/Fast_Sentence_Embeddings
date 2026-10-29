@@ -67,6 +67,8 @@ class Device:
         group_tasks: int = GROUP_TASKS,
         group_tokens: int = GROUP_TOKENS,
     ):
+        if not 0 < group_tokens <= _kernels.LIMIT:
+            raise ValueError(f"group_tokens must be from 1 to {_kernels.LIMIT}, not {group_tokens}")
         self.core, self.group_tasks, self.group_tokens = core, group_tasks, group_tokens
         self._lock = threading.Lock()
         self._queue: deque[Job] = deque()

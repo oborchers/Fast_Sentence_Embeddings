@@ -13,15 +13,21 @@ construction: the steps on the pooled rows (``host.steps``), stage 5, the invers
 the scores and the Gram blocks. The host is injected (``get_backend``) so that this
 package imports neither the cpu backend nor ``fse._native``.
 
-The GPU flushes subnormal values to zero. A task whose kernel flags such a value (or a
-sentence of 2**24 tokens, a value that is not finite) is
-computed again on the host, which gives the bits and the errors of the cpu backend; the
-first such task of an encoder logs a warning, and the backend counts them by reason.
+The GPU flushes subnormal values to zero. The rows the kernel flags (a value that is or may
+be subnormal, a sentence of 2**24 tokens, a value that is not finite, and before normalize
+a row near a limit of its sum of squares) come from the host, which computes their task
+again and so raises the cpu backend's error, if any; every other row keeps the device's
+result. The first such task of an encoder logs a warning, and the backend counts them by
+reason. The kernel keeps the cpu's order and fma, so the rows it does not flag have the
+cpu's bits too; the contract of a device backend asks only for the bound of
+ARCHITECTURE.md, "Tolerance contract of device backends".
 """
 
 from __future__ import annotations
 
+import functools
 import logging
+import operator
 import threading
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -30,7 +36,7 @@ from typing import Any, Protocol
 import numpy as np
 from numpy import ndarray
 
-from fse._contract import Aggregation, Batch, Op, Project, Step
+from fse._contract import Aggregation, Batch, Normalize, Op, Project, Step
 
 from .._base import (
     Capabilities,
@@ -41,7 +47,7 @@ from .._base import (
     check_prepared,
     dims,
 )
-from . import _kernels, _load, _sources
+from . import _kernels, _load
 from ._device import Device
 
 logger = logging.getLogger(__name__)
@@ -58,17 +64,13 @@ _CAPABILITIES = Capabilities(
     max_dim=MAX_DIM,
     device_rows=True,
 )
-_REASONS = (
-    (_sources.SUBNORMAL, "underflow"),
-    (_sources.LONG, "long"),
-    (_sources.NONFINITE, "nonfinite"),
-)
 _WHY = {
     "underflow": "a possible underflow: a subnormal value, or a product or sum that may be "
     "one, which the GPU would flush to zero",
     "long": "a sentence or unknown word of 2**24 tokens or more",
     "nonfinite": "a value that is not finite",
-    "large": "more tokens and ngram buckets than one device group takes",
+    "large": "a sentence of more tokens and ngram buckets than one device group takes",
+    "limit": "a row before normalize whose sum of squares may overflow or be subnormal",
 }
 
 
@@ -107,15 +109,14 @@ class Fallbacks:
     counts: dict[str, int] = field(default_factory=lambda: dict.fromkeys(_WHY, 0))
     lock: threading.Lock = field(default_factory=threading.Lock)
 
-    def count(self, flags: int, reason: str | None = None) -> str:
-        reason = reason or next(name for bit, name in _REASONS if flags & bit)
+    def count(self, reason: str) -> str:
         with self.lock:
             first = not any(self.counts.values())
             self.counts[reason] += 1
         if first:
             logger.warning(
                 "the mlx backend computes a task on the CPU (%s); it does so for every such "
-                "task of this encoder, which is slower but gives the same bits",
+                "task of this encoder, which is slower but gives the cpu's rows",
                 _WHY[reason],
             )
         return reason
@@ -137,7 +138,6 @@ class MlxBackend:
         _load.core()  # raises if this machine cannot run it
         self.host = host
         self.device = device
-        self._checks = True  # False only in the tests that show the flags matter
 
     def capabilities(self) -> Capabilities:
         return _CAPABILITIES
@@ -149,7 +149,7 @@ class MlxBackend:
         host = self.host.prepare(pool, checked)
         self.device.ready()  # the canary, once per process
         oov = None if pool.oov_weight is None else self.host.float32([pool.oov_weight])
-        table = self.device.call(lambda mx, _stream: _kernels.table(mx, pool, oov))
+        table = self.device.call(lambda mx, stream: _kernels.table(mx, stream, pool, oov))
         return Prepared(self.name, pool, checked, pooled, out, _State(host, table, Fallbacks()))
 
     def rows(self, batch: Batch, prepared: Prepared, out: ndarray) -> None:
@@ -159,27 +159,54 @@ class MlxBackend:
         assert isinstance(state, _State)
         if batch.n_sentences == 0:
             return
+        if _kernels.size(batch) > self.device.group_tokens:  # one upload and kernel too large
+            self._large(batch, prepared, out)
+            return
         task = _kernels.task(batch, state.table)
         if task is None:  # an error the cpu backend reports, in its words
             self.host.rows(batch, state.host, out)
             return
-        if task.tokens > self.device.group_tokens:  # a single upload and kernel too large
-            state.fallbacks.count(0, "large")
-            self.host.rows(batch, state.host, out)
-            return
         project = any(isinstance(step, Project) for step in prepared.steps)
         pooled = np.empty((task.n_sentences, prepared.pooled_dim), np.float32) if project else out
-        checks = self._checks
         flags = self.device.run(
-            lambda mx, stream: _kernels.launch(mx, stream, state.table, task, checks),
+            lambda mx, stream: _kernels.launch(mx, stream, state.table, task),
             lambda launched: _kernels.read(launched, pooled),
             task.tokens,
         )
-        if flags:
-            state.fallbacks.count(flags)
-            self.host.rows(batch, state.host, out)
-        elif prepared.steps:
+        normalize = any(isinstance(step, Normalize) for step in prepared.steps)
+        bad = _kernels.flagged(flags, task, normalize)
+        if not bad.any():
+            if prepared.steps:
+                self.host.steps(pooled, state.host, batch.first_row, out)
+            return
+        why = _kernels.reason(
+            functools.reduce(operator.or_, flags[bad].tolist()), task, state.table
+        )
+        state.fallbacks.count(why)
+        self._replace(batch, state, pooled, out, bad)
+
+    def _large(self, batch: Batch, prepared: Prepared, out: ndarray) -> None:
+        """A batch beyond one device group in runs of sentences that fit, after the host
+        has computed it whole (which raises the cpu's error, if any); a sentence beyond
+        a group alone keeps the host's row (``large``)."""
+        state = prepared.state
+        assert isinstance(state, _State)
+        self.host.rows(batch, state.host, out)
+        for begin, end, part in _kernels.split(batch, self.device.group_tokens):
+            if part is None:
+                state.fallbacks.count("large")
+            else:
+                self.rows(part, prepared, out[begin:end])
+
+    def _replace(self, batch: Batch, state: _State, pooled: ndarray, out: ndarray, bad: ndarray):
+        """The rows ``bad`` from the host, the others from the device. The host computes
+        the whole task first, so that its error, if any, is the cpu's for the task."""
+        host = np.empty_like(out)
+        self.host.rows(batch, state.host, host)
+        if state.host.steps:
+            pooled[bad] = 0  # the steps keep a zero row and raise for none
             self.host.steps(pooled, state.host, batch.first_row, out)
+        out[bad] = host[bad]
 
     def gram_block(self, rows: ndarray) -> ndarray:
         return self.host.gram_block(rows)

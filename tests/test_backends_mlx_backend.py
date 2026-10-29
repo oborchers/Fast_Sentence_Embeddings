@@ -1,5 +1,5 @@
 """fse._backends._mlx._backend: rows on the GPU, the rest on the cpu host, the fallback
-of flagged tasks, and encoders on the mlx backend with the bits of the cpu backend.
+of flagged rows, and encoders on the mlx backend with the bits of the cpu backend.
 
 The bits of every case are in the conformance suites; these test the parts around them.
 They skip where the mlx backend cannot run.
@@ -18,6 +18,7 @@ from support.conformance import TINY, mlx_module, require_mlx
 from support.runtime import texts, word_vectors
 
 _backend = mlx_module("fse._backends._mlx._backend")
+_kernels = mlx_module("fse._backends._mlx._kernels")
 MlxBackend, fallbacks = _backend.MlxBackend, _backend.fallbacks
 F32 = np.float32
 
@@ -92,20 +93,74 @@ def test_an_empty_batch_writes_nothing(mlx):
     assert out.shape == (0, 7)
 
 
-def test_a_flagged_task_is_computed_on_the_host_and_counted_once(mlx, caplog):
-    """One sentence with a subnormal value sends its whole task to the host."""
+def _nudged(monkeypatch):
+    """A device whose rows are one ulp above the real ones (still within the bound)."""
+    real = _kernels.read
+
+    def read(launched, target):
+        flags = real(launched, target)
+        target[...] = np.where(target != 0, np.nextafter(target, F32(np.inf)), target)
+        return flags
+
+    monkeypatch.setattr(_kernels, "read", read)
+
+
+def test_only_the_flagged_rows_come_from_the_host(mlx, caplog, monkeypatch):
+    """Word 3 has a subnormal value: sentence 2 comes from the host, the others keep the
+    device's rows; the task counts once per call, the warning once per encoder."""
     pool = _pool()
     pool.vectors[3, 2] = TINY * 5
     caplog.set_level(logging.WARNING, logger="fse")
-    got, prepared = _rows(mlx, pool, (Normalize(),))
-    want, _ = _rows(CpuBackend(), pool, (Normalize(),))
-    assert got.tobytes() == want.tobytes()
-    out = np.empty_like(got)
-    mlx.rows(_batch(7), prepared, out)
-    assert fallbacks(prepared) == {"underflow": 2, "long": 0, "nonfinite": 0, "large": 0}
+    _nudged(monkeypatch)
+    got, prepared = _rows(mlx, pool)
+    want, _ = _rows(CpuBackend(), pool)
+    assert got[2].tobytes() == want[2].tobytes()
+    assert got[[0, 3]].tobytes() == np.nextafter(want[[0, 3]], F32(np.inf)).tobytes()
+    assert not got[1].any()  # the empty sentence
+    mlx.rows(_batch(7), prepared, np.empty_like(got))
+    counts = {"underflow": 2, "long": 0, "nonfinite": 0, "large": 0, "limit": 0}
+    assert fallbacks(prepared) == counts
     warnings = [r for r in caplog.records if "computes a task on the CPU" in r.message]
     assert len(warnings) == 1
     assert "a possible underflow" in warnings[0].message
+
+
+def test_the_steps_of_the_other_rows_run_on_the_device_rows(mlx, monkeypatch):
+    pool = _pool()
+    pool.vectors[3, 2] = TINY * 5
+    steps = (RemoveComponents(np.eye(1, 7, dtype=F32)), Project(np.eye(3, 7, dtype=F32)))
+    _nudged(monkeypatch)
+    got, _ = _rows(mlx, pool, steps)
+    want, _ = _rows(CpuBackend(), pool, steps)
+    assert got[2].tobytes() == want[2].tobytes()
+    assert got[0].tobytes() != want[0].tobytes()  # the device's row, through the steps
+
+
+@pytest.mark.parametrize(
+    ("vectors", "reason"),
+    [([[2.0**-62, 0.0], [1.0, 1.0]], "limit"), ([[2.0**61, 1.0], [1.0, 1.0]], "limit")],
+    ids=["tiny", "huge"],
+)
+def test_rows_near_a_limit_of_normalize_come_from_the_host(mlx, vectors, reason):
+    """Its sum of squares may be subnormal (or overflow): flagged only before normalize."""
+    pool = PoolInput(np.array(vectors, F32), np.ones(2, F32))
+    batch = Batch(0, np.array([0, 1, 2], np.int64), np.array([0, 1], np.uint32))
+    for steps, counted in (((), 0), ((Normalize(),), 1)):
+        prepared = mlx.prepare(pool, steps)
+        out = np.empty((2, 2), F32)
+        mlx.rows(batch, prepared, out)
+        assert fallbacks(prepared)[reason] == counted
+        want, _ = _rows(CpuBackend(), pool, steps, batch)
+        assert out.tobytes() == want.tobytes()
+
+
+def test_a_normalize_error_of_a_flagged_row_is_the_cpus(mlx):
+    """1e-25 squared underflows on the cpu: the host raises for the task."""
+    pool = PoolInput(np.array([[1.0, 1.0], [1e-25, 0.0]], F32), np.ones(2, F32))
+    batch = Batch(3, np.array([0, 1, 2], np.int64), np.array([0, 1], np.uint32))
+    prepared = mlx.prepare(pool, (Normalize(),))
+    with pytest.raises(ValueError, match=r"^row 4 cannot be normalized"):
+        mlx.rows(batch, prepared, np.empty((2, 2), F32))
 
 
 def test_a_row_that_is_not_finite_raises_the_cpu_error_through_the_host(mlx):
@@ -159,11 +214,14 @@ def test_encoders_on_mlx_give_the_cpu_bits(recipe):
     assert got.tobytes() == cpu.encode(sentences, backend="cpu", workers=3).tobytes()
 
 
-def test_a_task_larger_than_a_device_group_runs_on_the_host(mlx, monkeypatch):
-    monkeypatch.setattr(mlx.device, "group_tokens", 8)
-    got, prepared = _rows(mlx, _pool())  # 9 tokens
+def test_a_batch_larger_than_a_device_group_runs_in_parts(mlx, monkeypatch):
+    """Runs of sentences that fit a group on the device, a longer sentence on the host."""
+    monkeypatch.setattr(mlx.device, "group_tokens", 3)
+    _nudged(monkeypatch)
+    got, prepared = _rows(mlx, _pool())  # sentences of 3, 0, 2 and 4 tokens
     want, _ = _rows(CpuBackend(), _pool())
-    assert got.tobytes() == want.tobytes()
+    assert got[3].tobytes() == want[3].tobytes()
+    assert got[[0, 2]].tobytes() == np.nextafter(want[[0, 2]], F32(np.inf)).tobytes()
     assert fallbacks(prepared)["large"] == 1
 
 
