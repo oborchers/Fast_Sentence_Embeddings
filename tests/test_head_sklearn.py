@@ -37,6 +37,10 @@ def _fit(model, x, y):
         warnings.simplefilter("ignore", FutureWarning)
         warnings.simplefilter("ignore", UserWarning)
         warnings.simplefilter("ignore", sklearn.exceptions.ConvergenceWarning)
+        # Old scikit-learn (1.5) passes options to newer SciPy's L-BFGS-B that it deprecates.
+        warnings.filterwarnings(
+            "ignore", "scipy.optimize: The `disp` and `iprint`", DeprecationWarning
+        )
         return model.fit(x, y)
 
 

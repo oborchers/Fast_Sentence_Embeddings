@@ -91,8 +91,8 @@ class Classifier(LinearModel):
     def predict(
         self, texts: Any, *, workers: PositiveInt | None = None, backend: str = "cpu"
     ) -> ndarray:
-        """The label of every text (as ``Encoder.encode`` takes them), as an array of
-        ``classes_``."""
+        """The label of every text (as ``Encoder.encode`` takes them) or of every row of a
+        ``fse.VectorStore`` of the encoder's rows, as an array of ``classes_``."""
         return _run.infer(self, texts, "labels", workers, backend, None)
 
     @validate_arguments
@@ -133,7 +133,8 @@ class Classifier(LinearModel):
         sink: Any = None,
     ) -> Iterator[PredictedBatch]:
         """Predict a stream batch by batch, as ``Encoder.encode_batches``: ``batches``
-        yields finite lists of texts. Every batch gives one ``PredictedBatch`` with its ``outputs``; with
+        yields finite lists of texts, or is a ``fse.VectorStore`` (one batch per block of
+        rows). Every batch gives one ``PredictedBatch`` with its ``outputs``; with
         ``return_vectors=True`` also its vectors, the encoder's own rows (one pooling gives
         both), and a ``sink`` takes the vectors; without it a ``sink`` takes the outputs
         (not labels). Checked before any batch is read."""

@@ -270,6 +270,30 @@ def score(
     return out
 
 
+def score_blocks(
+    backend: Any,
+    shards: Sequence[tuple[Any, dict]],
+    weights: ndarray,
+    bias: Any,
+    *,
+    workers: int,
+    then: Any = None,
+) -> Iterator[tuple[int, Any]]:
+    """The linear scores of the stored rows with every weight vector by the contract, block
+    by block in row order: ``(first row of the store, block)`` with the (rows, vectors)
+    scores of the block, or what ``then(first_row, scores)`` makes of them in the worker
+    (a head's outputs). At most two blocks per worker are in flight or waiting, so a
+    consumer that keeps nothing holds no more than that, whatever the store's size."""
+    biases = _biases(backend, bias, len(weights))
+
+    def run(block):
+        index, begin, end, first_row = block
+        part = _score_block(backend, shards[index][1], begin, end, first_row, weights, biases, True)
+        return first_row, part if then is None else then(first_row, part)
+
+    yield from _run(run, blocks(shards, len(weights)), workers, "fse-score")
+
+
 def _score_block(backend, tensors, begin, end, first_row, weights, biases, exact) -> ndarray:
     stored = tensors["vectors"][begin:end]
     scales = tensors["scales"][begin:end] if "scales" in tensors else None

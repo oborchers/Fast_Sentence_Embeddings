@@ -165,3 +165,49 @@ def test_keys_go_back_to_their_floats():
         _search.from_key(_search.order_key(values)).view(np.uint32), values.view(np.uint32)
     )
     assert _search.from_key(_search.order_key(F32([-0.0]))).view(np.uint32)[0] == 0
+
+
+@pytest.mark.parametrize("workers", [1, 4])
+@pytest.mark.parametrize("dtype", ["float32", "int8"])
+def test_score_blocks_come_in_row_order_with_the_bits_of_score(workers, dtype, monkeypatch):
+    from fse._backends import get_backend
+
+    monkeypatch.setattr(_search, "_MIN_ROWS", 7)  # many blocks per shard
+    monkeypatch.setattr(_search, "_MAX_ROWS", 7)
+    rng = np.random.default_rng(4)
+    rows, scales = _reference.quantize_rows(rng.standard_normal((50, 9)).astype(F32), dtype)
+    shards = []
+    for first, end in ((0, 20), (20, 50)):
+        tensors = {"vectors": rows[first:end]}
+        if scales is not None:
+            tensors["scales"] = scales[first:end]
+        shards.append((Shard(f"s{first}", first, end - first), tensors))
+    weights = rng.standard_normal((3, 9)).astype(F32)
+    bias = np.array([0.5, -0.0, 1.0], F32)
+    found = list(_search.score_blocks(get_backend("cpu"), shards, weights, bias, workers=workers))
+    firsts = [first for first, _ in found]
+    assert firsts == sorted(firsts)
+    assert firsts[:4] == [0, 7, 14, 20]  # blocks do not cross shards
+    joined = np.concatenate([block for _, block in found])
+    want = _reference.scores(rows, scales, weights, bias)
+    np.testing.assert_array_equal(joined.view(np.uint32), want.view(np.uint32))
+    then = list(
+        _search.score_blocks(
+            get_backend("cpu"),
+            shards,
+            weights,
+            bias,
+            workers=workers,
+            then=lambda f, s: (f, len(s)),
+        )
+    )
+    assert [result for _, result in then] == [(f, len(b)) for f, b in found]
+
+
+def test_score_blocks_name_the_rows_of_an_overflow():
+    from fse._backends import get_backend
+
+    vectors = np.full((6, 2), 3e38, F32)
+    shards = [(Shard("a", 0, 6), {"vectors": vectors})]
+    with pytest.raises(ValueError, match="rows 0 to 5: weights 0: the score of row 0 overflows"):
+        list(_search.score_blocks(get_backend("cpu"), shards, np.ones((1, 2), F32), 0.0, workers=1))

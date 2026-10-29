@@ -69,7 +69,7 @@ class Regressor(LinearModel):
         backend: str = "cpu",
         sink: Any = None,
     ) -> ndarray | None:
-        """The values of every text, float32 (n,) for one
+        """The values of every text (or row of a ``fse.VectorStore``), float32 (n,) for one
         target, else (n, targets); with a ``sink`` the rows go there."""
         return _run.infer(self, texts, "values", workers, backend, sink)
 
