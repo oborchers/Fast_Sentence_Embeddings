@@ -62,6 +62,7 @@ class HubFiles:
             config = self._download("config.json", revision)
             self.revision = config.parent.name
             self._pins: dict[str, tuple[str | None, str | None]] | None = None
+            self._sizes: dict[str, int | None] = {}
             self._names = set(os.listdir(config.parent))
         else:
             info = self.hub.HfApi().model_info(
@@ -71,6 +72,10 @@ class HubFiles:
             self._pins = {
                 s.rfilename: (getattr(s.lfs, "sha256", None) if s.lfs else None, s.blob_id)
                 for s in info.siblings
+            }
+            # The size of an LFS file, which the commit records too.
+            self._sizes = {
+                s.rfilename: getattr(s.lfs, "size", None) if s.lfs else None for s in info.siblings
             }
             self._names = set(self._pins)
 
@@ -106,13 +111,26 @@ class HubFiles:
             )
         else:
             blob, etag = path, ""
-        data = read_regular(blob, limit=limit, inspect=inspect)
+        data = read_regular(blob, limit=limit, inspect=_sized(name, self._sizes.get(name), inspect))
         sha256, sha1 = file_digests(io.BytesIO(data), len(data))
         if self._pins is None:
             _check_name(name, etag, sha256, sha1, lfs)
         else:
             _check_pin(name, self._pins[name], sha256, sha1, lfs, self.revision)
         return data
+
+
+def _sized(name: str, expected: int | None, inspect: Any) -> Any:
+    """``inspect`` after a check of the size of the file against the size the commit
+    records for an LFS file, both before anything but the size is read."""
+
+    def check(handle, size: int) -> None:
+        if expected is not None and size != expected:
+            raise CorruptArtifactError(f"{name} has {size} bytes, the commit records {expected}")
+        if inspect is not None:
+            inspect(handle, size)
+
+    return check
 
 
 def resolve_link(path: Path, repo: Path) -> tuple[Path, str]:

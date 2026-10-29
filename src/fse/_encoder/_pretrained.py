@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fse._container import CorruptArtifactError, read_regular, strict_json
+from fse._container import CorruptArtifactError, read_regular, safetensors_header, strict_json
 from fse._contract import UnsupportedArtifactError
 from fse._hub import REPO_ID, HubFiles, resolve_link
 
@@ -207,7 +207,12 @@ def _fse_encoder(files: Files | LocalFiles, config: dict, path: Path, mmap: bool
             "mmap is for local fse encoders: a file of the Hub is checked as one copy in "
             "memory; save the encoder and load it with mmap"
         )
-    return Found(data=(files.read(name, lfs=True), files.where(name)))
+    where = files.where(name)
+
+    def header(handle, size: int) -> None:  # before the data are read
+        safetensors_header(handle, where, size)
+
+    return Found(data=(files.read(name, lfs=True, inspect=header), where))
 
 
 def _check_modules(files: Files | LocalFiles, kind: Any) -> None:

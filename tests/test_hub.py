@@ -46,7 +46,7 @@ class FakeHub:
         siblings = []
         for name, data in self.files.items():
             lfs = (
-                SimpleNamespace(sha256=hashlib.sha256(data).hexdigest())
+                SimpleNamespace(sha256=hashlib.sha256(data).hexdigest(), size=len(data))
                 if name in self.lfs
                 else None
             )
@@ -289,3 +289,49 @@ def test_no_folder_of_the_cache_may_be_a_link(fake, tmp_path, which):
     _relink_dir(folder, tmp_path / "elsewhere")
     with pytest.raises(CorruptArtifactError, match="is a link or no directory"):
         _load(fake, local_files_only=True)
+
+
+def _sparse_blob(fake, name, header=b"\0" * 16):
+    """Replace the blob of ``name`` by a sparse file of 1 GiB that starts with ``header``."""
+    snapshot = fake.folder() / "snapshots" / COMMIT
+    blob = Path(os.path.normpath(snapshot / os.readlink(snapshot / name)))
+    with open(blob, "wb") as f:
+        f.write(header)
+        f.truncate(2**30)
+
+
+def _peak(load):
+    import tracemalloc
+
+    tracemalloc.start()
+    try:
+        with pytest.raises(CorruptArtifactError) as error:
+            load()
+        return error.value, tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+
+def test_a_huge_fse_file_is_refused_before_it_is_read(fake, tmp_path):
+    """The size the commit records and the header are checked on the handle before the
+    data are read: a blob replaced by 1 GiB costs no memory."""
+    encoder = Encoder.from_pretrained(fake.model)
+    encoder.save(tmp_path / "encoder.safetensors")
+    config = {
+        "model_type": "fse",
+        "fse_kind": "encoder",
+        "fse_format_version": 1,
+        "encoder": "encoder.safetensors",
+    }
+    fake.files = {
+        "config.json": json.dumps(config).encode(),
+        "encoder.safetensors": (tmp_path / "encoder.safetensors").read_bytes(),
+    }
+    _load(fake)
+    _sparse_blob(fake, "encoder.safetensors")
+    error, peak = _peak(lambda: _load(fake))
+    assert "the commit records" in str(error)
+    assert peak < 64 * 2**20, peak
+    error, peak = _peak(lambda: _load(fake, local_files_only=True))
+    assert "header" in str(error)
+    assert peak < 64 * 2**20, peak
