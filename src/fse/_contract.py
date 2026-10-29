@@ -95,6 +95,9 @@ class Tokenizer(_Versioned):
     """A native tokenizer that splits the text of a sentence into tokens (stage 1)."""
 
     FSE_WORDS = ("fse_words", 1)
+    # BERT's WordPiece as Hugging Face tokenizers 0.23.3 runs it; its parameters are data
+    # of the model (fse._tokenizer_spec).
+    WORDPIECE = ("wordpiece", 1)
 
 
 class Head(_Versioned):

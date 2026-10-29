@@ -10,6 +10,7 @@ master is the development branch of 2.0, the inference engine for finished stati
 src/fse/
   __init__.py            # public API, __all__, version, the hint for removed 1.x names
   _contract.py           # Batch, identifiers, the step list, errors
+  _tokenizer_spec.py     # TokenizerSpec: a tokenizer with its parameters (wordpiece@1)
   _reference.py          # the reference: numpy code that defines every result
   _reference_head.py     # the reference of linear heads: linear@1, exp@1 and the links
   _codes.py              # float16 and int8 storage arithmetic in blocks
@@ -73,8 +74,9 @@ src/fse/
   _native_steps.pxi      #   dot16, normalize@1 and score,
   _native_store.pxi      #   storage of finished rows (quantize_rows@1),
   _native_search.pxi     #   inverse norms, cosines and scores of many vectors,
-  _native_head.pxi       #   the logits, exp@1, the links and the labels of linear heads,
-  _native_text.pxi       #   the tokenizers and the text lookup
+  _native_text.pxi       #   the tokenizers and the text lookup,
+  _native_wordpiece.pxi  #   wordpiece@1: its state, the greedy match, a sentence
+  _native_head.pxi       #   the logits, exp@1, the links and the labels of linear heads
   _native.pxd, .pyi      # shared C types of the extension, and its type stubs
   _native_kernel.h       # the C kernel: its contract, ISA detection and dispatch, and
   _native_kernel_base.h  #   build checks, macros and shared types,
@@ -87,7 +89,11 @@ src/fse/
   _native_text.h         # the native tokenizers fse_words@1 and external
   _native_unicode.h      # generated: the simple lowercase table for the native code
   _unicode.py            # generated: the same table for the reference
+  _native_wordpiece.h    # wordpiece@1: added tokens, normalization and pre-tokenization
+  _native_unicode_bert.h # generated: the composed normalization table of wordpiece@1
+  _unicode_bert.py       # generated: the Unicode data of wordpiece@1 for the reference
   _reference_text.py     # the reference of stages 1 and 2: tokenizers and lookup
+  _reference_wordpiece.py # the reference of wordpiece@1
   _text.py               # text sources (strings, token lists) to batches, the Vocabulary
   _text_file.py          # FileSource: the lines of a memory-mapped text file
   _stream.py             # StreamSource: sentences from an iterator, read once
@@ -110,7 +116,7 @@ src/fse/
 
 ## Text sources
 
-`fse._text` turns text into batches (stages 1 and 2). A source holds its sentences as one UTF-8 buffer: strings in memory with their offsets, or the memory-mapped lines of a file. `encode` takes texts in memory as a list, tuple or one-dimensional numpy array either of str or of lists or tuples of str (`fse._encoder._inputs`): the first row decides which, a row of the other kind raises with both rows named, and the tokenizer is checked before any row; a path and a stream are passed to it directly. (`fse.Corpus`, which held such a source for the passes of fit, was removed with fit: converting a list of str costs about 3 ms for 400,000 sentences since the native join.) Strings and token lists (the external tokenizer) are joined into that buffer in one native pass, a string as its UTF-8 (`join_strings`) and the tokens of a sentence separated by one space (`join_token_lists`): it reads exact lists, tuples and str through borrowed pointers, checks every str (no lone surrogate; a token also non-empty and without a code point of W) and writes its UTF-8 at once, in parts of at least 4,096 sentences that up to 8 native threads run while the calling thread holds the GIL and waits. No Python code can run during the pass (no calls, no references dropped, no Python object allocated, and no other Python thread gets the GIL; this is why the extension refuses to compile for free-threaded Python, `Py_GIL_DISABLED`), and every str object, scattered in memory, is read once: that read is what the pass costs. 85.7 million WikiText tokens take 0.65 s on an M1 Pro (2.1 s in one thread, 11 s in Python), and 400,000 strings of 20 tokens 3 ms instead of the 70 ms of `str.encode` per string, so `Encoder.encode` of such a list takes 0.64 of its former time on the cpu at 8 workers (every StringSource, so a list or tuple of str passed to `encode`; a `StreamSource` still encodes each string in the calling thread); a second pass to size the buffer first doubled the time, prefetching the next tokens gained nothing measurable; a buffer grows into a new block with a copy, not with `realloc`, because on macOS the blocks of a freed chain of large reallocs stayed resident and the RSS grew by about the joined bytes on every call. Other types (subclasses, which may override `encode` or `split`, a numpy array, a legacy string of 3.11) and every invalid str go through the Python path, which raises the errors in their order: for strings the type and then the UTF-8 of each sentence in turn, for token lists the types and tokens of all sentences first, then the UTF-8 of every sentence. `scan` validates the UTF-8 of every sentence in threads without the GIL and cuts the source into chunks of about 64 KiB to 1 MiB (at most `MAX_CHUNK_ROWS` sentences); `encode` turns one chunk into a Batch with a `TextLookup` (the tokenizer, the `VocabTable` built from the vocabulary bytes of the word vectors, and the FastText buckets) and a `Workspace`, the buffers one worker reuses. `make_vocabulary` builds the `VocabTable` of word vectors once as a `Vocabulary`; every lookup of the same words in the same order (checked by `WordVectors.vocabulary_fingerprint`, the fingerprint of `vocab.bytes` and `vocab.offsets` alone) can share it, so an encoder builds it once for all its backends and passes. `fse._text_file.FileSource` reads the lines of a file. Every sentence is one row, empty ones included. Tokens are matched to the vocabulary by their exact UTF-8 bytes, so with `fse_words@1` a word with uppercase letters or whitespace (such as `New_York` in GoogleNews) is never matched. `tools/make_unicode_tables.py` generates the lowercase tables from `UnicodeData.txt`; both generated files are checked in and compared with each other in the tests.
+`fse._text` turns text into batches (stages 1 and 2). A source holds its sentences as one UTF-8 buffer: strings in memory with their offsets, or the memory-mapped lines of a file. `encode` takes texts in memory as a list, tuple or one-dimensional numpy array either of str or of lists or tuples of str (`fse._encoder._inputs`): the first row decides which, a row of the other kind raises with both rows named, and the tokenizer is checked before any row; a path and a stream are passed to it directly. (`fse.Corpus`, which held such a source for the passes of fit, was removed with fit: converting a list of str costs about 3 ms for 400,000 sentences since the native join.) Strings and token lists (the external tokenizer) are joined into that buffer in one native pass, a string as its UTF-8 (`join_strings`) and the tokens of a sentence separated by one space (`join_token_lists`): it reads exact lists, tuples and str through borrowed pointers, checks every str (no lone surrogate; a token also non-empty and without a code point of W) and writes its UTF-8 at once, in parts of at least 4,096 sentences that up to 8 native threads run while the calling thread holds the GIL and waits. No Python code can run during the pass (no calls, no references dropped, no Python object allocated, and no other Python thread gets the GIL; this is why the extension refuses to compile for free-threaded Python, `Py_GIL_DISABLED`), and every str object, scattered in memory, is read once: that read is what the pass costs. 85.7 million WikiText tokens take 0.65 s on an M1 Pro (2.1 s in one thread, 11 s in Python), and 400,000 strings of 20 tokens 3 ms instead of the 70 ms of `str.encode` per string, so `Encoder.encode` of such a list takes 0.64 of its former time on the cpu at 8 workers (every StringSource, so a list or tuple of str passed to `encode`; a `StreamSource` still encodes each string in the calling thread); a second pass to size the buffer first doubled the time, prefetching the next tokens gained nothing measurable; a buffer grows into a new block with a copy, not with `realloc`, because on macOS the blocks of a freed chain of large reallocs stayed resident and the RSS grew by about the joined bytes on every call. Other types (subclasses, which may override `encode` or `split`, a numpy array, a legacy string of 3.11) and every invalid str go through the Python path, which raises the errors in their order: for strings the type and then the UTF-8 of each sentence in turn, for token lists the types and tokens of all sentences first, then the UTF-8 of every sentence. `scan` validates the UTF-8 of every sentence in threads without the GIL and cuts the source into chunks of about 64 KiB to 1 MiB (at most `MAX_CHUNK_ROWS` sentences); `encode` turns one chunk into a Batch with a `TextLookup` (the tokenizer, the `VocabTable` built from the vocabulary bytes of the word vectors, and the FastText buckets) and a `Workspace`, the buffers one worker reuses. `make_vocabulary` builds the `VocabTable` of word vectors once as a `Vocabulary`; every lookup of the same words in the same order (checked by `WordVectors.vocabulary_fingerprint`, the fingerprint of `vocab.bytes` and `vocab.offsets` alone) can share it, so an encoder builds it once for all its backends and passes. `fse._text_file.FileSource` reads the lines of a file. Every sentence is one row, empty ones included. Tokens are matched to the vocabulary by their exact UTF-8 bytes, so with `fse_words@1` a word with uppercase letters or whitespace (such as `New_York` in GoogleNews) is never matched. `tools/make_unicode_tables.py` generates the lowercase tables from `UnicodeData.txt`; both generated files are checked in and compared with each other in the tests. With `wordpiece@1` the encoder's `TokenizerSpec` (`fse._tokenizer_spec`: the identifier, its parameters, `fse.unknown` and the length rule, immutable) goes through `EncodeSpec` and the `Pipeline` to `make_lookup`, which builds a `WordPieceState` once from it and the vocabulary: the `VocabTable` of all tokens, a second one of the continuation pieces without their prefix with the map of its index to the token id, and the added tokens; a sentence is then split at the added tokens, normalized and pre-tokenized into a buffer of the `Workspace` and matched word by word, without the GIL.
 
 `fse._stream.StreamSource` takes sentences from any iterable (a queue consumer, a crawler, log lines) and is read once. The runtime reads it in the calling thread, a collection of at most `chunk_rows` sentences (65,536) or about `chunk_bytes` (8 MiB) at a time, and only when its window of tasks has room, so a slow sink slows the source and memory stays bounded by one collection and the window. A sentence that is no str or has no UTF-8 form, and an error of the iterator, are raised after the rows before them were committed, with the row number counted from the start of the stream. The iterator is never read from another thread. One thread reads a stream, so a stream gives at most what that thread can collect: about 2.8 million sentences per second on a 16-vCPU EPYC (`bench_runtime.py stream`), the same as a StringSource up to about 8 workers and 0.8 to 0.9 of it at 16; a native reader may lift this later.
 
@@ -226,6 +232,7 @@ The manifest key `fse.tokenizer` holds `external` or the identifier of a native 
 
 - `external`: the caller gives the tokens. Text input is split at the whitespace W below, as `str.split()` does, and the tokens are not changed.
 - `fse_words@1`: the native tokenizer specified here.
+- `wordpiece@1`: the WordPiece tokenizer of BERT vocabularies (POTION/Model2Vec, the static models of sentence-transformers), specified below; its parameters are data of the model.
 
 **Input.** One sentence is a `str` that UTF-8 can encode (a lone surrogate raises), or one line of a UTF-8 file: a line ends at the byte `\n`, which is not part of it; the last line needs no `\n`, a final `\n` starts no empty line, and an empty file has no lines. A file must not start with a UTF-8 byte order mark, which would otherwise stick to the first token as U+FEFF; it raises. Bytes are decoded strictly, as CPython's UTF-8 decoder does, and invalid UTF-8 raises. Sentences are not split further and not normalized: NFC and NFD spellings stay different.
 
@@ -254,7 +261,7 @@ The manifest key `fse.tokenizer` holds `external` or the identifier of a native 
 
 Apart from W, S, the lowercase table and the word characters from U+0080, every rule refers to ASCII only, so an implementation may apply them to UTF-8 bytes.
 
-**Stage 2**, for every tokenizer: a token whose bytes are a vocabulary word becomes its id. Otherwise, with FastText it becomes `OOV_TOKEN` with the first `max_ngrams` `fasttext@1` buckets of `<token>` (possibly none, which still counts for the length); without FastText it is no token.
+**Stage 2** of `fse_words@1` and `external`: a token whose bytes are a vocabulary word becomes its id. Otherwise, with FastText it becomes `OOV_TOKEN` with the first `max_ngrams` `fasttext@1` buckets of `<token>` (possibly none, which still counts for the length); without FastText it is no token.
 
 | Input | `fse_words@1` |
 |---|---|
@@ -276,6 +283,60 @@ Apart from W, S, the lowercase table and the word characters from U+0080, every 
 | `...`, an empty or blank sentence | none |
 
 The rules reproduce the preprocessing of the published 1.x tables on all STS sentences; on WikiText 99.98 % of the paragraphs agree, the rest differ only by the simple lowercase of İ and final sigma.
+
+#### wordpiece@1
+
+`wordpiece@1` gives the ids that Hugging Face tokenizers 0.23.3 gives for a `tokenizer.json` with a `BertNormalizer` (all four flags on), a `BertPreTokenizer` and a `WordPiece` model, whose added tokens are matched on the raw text (`normalized: false`, without `lstrip`, `rstrip` and `single_word`), encoded without special tokens (`add_special_tokens=False`), as model2vec and sentence-transformers call it. The rules are reimplemented from the source of tokenizers at tag v0.23.3 (`tokenizer/added_vocabulary.rs`, `normalizers/bert.rs`, `pre_tokenizers/bert.rs`, `models/wordpiece/mod.rs`) and from the Unicode data; no code is copied. Its parameters are data of the model, in `fse.tokenizer_config` (encoder 1), all required and no others:
+
+| Parameter | Meaning |
+|---|---|
+| `added_tokens` | `[[id, content], ...]`, sorted by id: the tokens matched on the raw text; each content is the vocabulary string of its id, non-empty and unique |
+| `unk_id` | the id of a word WordPiece cannot split |
+| `continuing_subword_prefix` | the prefix of every piece of a word after its first, non-empty (`##`) |
+| `max_input_chars_per_word` | a word of more code points is `unk_id` (100), at least 1 |
+| `clean_text`, `handle_chinese_chars`, `strip_accents`, `lowercase` | the flags of the normalizer; this fse supports only all four true (every target model), so another value raises `UnsupportedArtifactError` |
+
+Every id is an int (not a bool) with `0 <= id < n`, n the number of tokens. The encoder adds `fse.unknown` (`drop`: `unk_id` adds nothing and does not count in n, as model2vec; `keep`: it is a row like any other, as sentence-transformers), and optionally `fse.max_tokens` and `fse.max_chars`, the length rule of the format the model came from (model2vec: 512 tokens and 512 times the median token length in code points).
+
+Input as for `fse_words@1`. Per sentence:
+
+1. **Character cut.** With `fse.max_chars`, keep the first `max_chars` code points. The whole sentence is still decoded: invalid UTF-8 after the cut raises.
+2. **Added tokens.** Split the text at the added tokens, leftmost-longest over the raw code points: at the first position where an added token starts, the longest one starting there is taken and gives its id; the search goes on after it. Each piece between them goes through steps 3 to 5 on its own.
+3. **Normalize** a piece:
+   1. remove U+0000, U+FFFD and every code point of general category Cc, Cf or Co in Unicode 8.0.0 except U+0009, U+000A and U+000D; then replace U+0009, U+000A, U+000D and every code point with the property White_Space of Unicode 17.0.0 by U+0020;
+   2. put U+0020 before and after every code point in U+4E00 to U+9FFF, U+3400 to U+4DBF, U+20000 to U+2A6DF, U+2A700 to U+2B73F, U+2B740 to U+2B81F, U+2B920 to U+2CEAF, U+F900 to U+FAFF and U+2F800 to U+2FA1F (fixed ranges, not Unicode data);
+   3. NFD of Unicode 9.0.0 over the whole piece: the full canonical decomposition (Hangul syllables by the algorithm of the standard), then canonical ordering: every maximal run of code points with a nonzero canonical combining class (9.0.0) is sorted stably by class;
+   4. remove every code point of category Mn in Unicode 8.0.0. This follows step 3, so a removed mark of class 0 (U+034F COMBINING GRAPHEME JOINER) has ended a run, and the marks on either side of it were not reordered across it;
+   5. replace every code point by its full lowercase mapping of Unicode 17.0.0: field 13 of `UnicodeData.txt`, replaced by the unconditional entries of `SpecialCasing.txt` (U+0130 becomes `i` U+0307), without context (Σ always becomes σ).
+4. **Pre-tokenize.** Split at White_Space (17.0.0), which is removed; every ASCII punctuation character (`!` to `/`, `:` to `@`, `[` to `` ` ``, `{` to `~`) and every code point of category Pc, Pd, Ps, Pe, Pi, Pf or Po in Unicode 8.0.0 is a word of its own.
+5. **WordPiece** per word. A word of more than `max_input_chars_per_word` code points is `unk_id`. Otherwise the word is split from the left: the longest prefix of the rest that is a token (a piece after the first with `continuing_subword_prefix` in front), shortened one code point at a time, is the next id; if no prefix is a token at some point, the whole word is one `unk_id`.
+6. **Token cut and unknown tokens.** With `fse.max_tokens`, keep the first `max_tokens` ids of the whole sequence of steps 2 to 5 (added tokens and `unk_id` count). Every word is split whole before the cut, so a word whose split fails after the cut is one `unk_id` (vocabulary `[UNK]`, `a`, text `ab`, one token: `[UNK]`, not `a`). Then `fse.unknown=drop` removes every `unk_id`.
+
+Golden ids (`tests/test_data/v2/wordpiece.json`, written by tokenizers 0.23.3 with a small vocabulary that holds the letters, digits and their continuation pieces; shown as tokens):
+
+| Input | `wordpiece@1` |
+|---|---|
+| `un[MASK]able x[MASK]y [cls]` | un, [MASK], able, x, [MASK], y, [UNK], c, ##l, ##s, [UNK] |
+| `İstanbul ISTANBUL` | istanbul, istanbul (İ decomposes to I and U+0307 before lowercasing) |
+| `ǰ` (U+01F0) | j (decomposed, the mark removed) |
+| 101 times `a` / 100 times `a` | [UNK] / a, ##a, ... |
+| `한` (U+D55C) | ᄒ, ##ᅡ, ##ᆫ (Hangul as conjoining jamo) |
+| `豈中国` (U+F900 first) | 豈 (U+8C48), 中, 国 |
+| `aẔ9͏ᅄ6` | a, ##z, ##9, ##ᅄ, ##6 (U+0331 and U+034F removed) |
+| `a` U+1E949 U+11446 / `a` U+1E949 U+034F U+11446 | a, ##U+11446, ##U+1E949 / a, ##U+1E949, ##U+11446 (classes 7 and 230 reordered, not across U+034F) |
+| `ΣΟΦΟΣ σοφος` | σ, ##ο, ##φ, ##ο, ##σ, σ, ##ο, ##φ, ##ο, ##ς (no final sigma by context) |
+
+**Stage 2** of `wordpiece@1`: token id i is row i. The vocabulary of the table (`vocab.bytes`, `vocab.offsets`) holds the token strings in id order, continuation pieces with their prefix, so every id from 0 to n - 1 exists and the checks of word_vectors 1 cover the tokens.
+
+The rules mix three Unicode versions, those of the libraries tokenizers 0.23.3 is built with:
+
+| Rule | In tokenizers 0.23.3 | Unicode |
+|---|---|---|
+| Cc, Cf (clean), Mn (accents), P* (punctuation) | crate `unicode_categories` 0.1.1 | 8.0.0; Co by fixed ranges, unassigned code points are kept |
+| decomposition and combining classes | crate `unicode-normalization-alignments` 0.1.12 | 9.0.0 |
+| lowercase, White_Space | the Rust standard library that built the wheel | 17.0.0 |
+
+So a code point that became Mn, Cf or P* after 8.0.0 is kept, and the 83 code points with a nonzero class in 9.0.0 that are not Mn in 8.0.0 survive and are reordered. A tokenizers wheel built with another Rust lowercases some rare code points differently; `wordpiece@1` stays fixed to these tables, and any change is a new identifier. `tools/make_wordpiece_tables.py` reads the five UCD files (pinned by sha256) and writes `fse._unicode_bert`, the data for the reference `fse._reference_wordpiece`, and `_native_unicode_bert.h`, the same composed per code point for the native code (steps 3.1 to 3.5 of one code point, with its combining class; only the ordering of runs is computed per piece).
 
 ### Backends
 
@@ -380,6 +441,7 @@ class TensorContainer(Protocol):
 An encoder (`fse._encoder`) is a finished model in one self-contained `.safetensors` file: its table, its tokenizer, `weighted_mean@1` and whether every row is normalized. The keys and tensors are a closed set (`fse._encoder._format`); anything else raises. Version 1 was redefined before the first release (maintainer decision of 29.10.2026; no version was bumped, as nothing was released).
 
 - Metadata: `fse.kind=encoder`, `fse.format_version=1`, `fse.created_by`; `fse.transform_version=2`; `fse.tokenizer`; `fse.aggregation=weighted_mean@1`; `fse.steps`, the canonical JSON list of the steps applied per row, `[]` or `["normalize@1"]`; `fse.output_dim`, the dimension of the rows (that of the table for the weighted mean); `fse.max_ngrams` exactly for FastText; and the keys of the table as in word_vectors 1: `fse.dim`, `fse.dtype`, `fse.quantization`, `fse.quantized_from`, `fse.fasttext`, `fse.ngram_hash`.
+- The keys of a tokenizer with parameters (`wordpiece@1`; the closed set is derived from `fse.tokenizer`, any other key raises): `fse.tokenizer_config`, the canonical JSON object of its parameters (*Tokenizers*); `fse.unknown`, `drop` or `keep`; optional `fse.max_tokens`, a decimal integer of at least 1, and `fse.max_chars`, the same, only with `fse.max_tokens`. A `wordpiece@1` encoder has a float32 table without FastText (model2vec computes the mean of a float16 table in float16, so the bound of a comparison would not hold; other dtypes come with a bound of their own). A tokenizer with data beyond its vocabulary (Unigram, later) stores it as tensors `tokenizer.<name>`, exactly those it defines. Optional provenance, never read to compute and covered by the fingerprint: `fse.source`, the canonical JSON `{"format": <str>, "repo": <str or null>, "revision": <str or null>}` of the model it was converted from, and `fse.license`, the license of that model as its card states it.
 - Tensors: the table under the names of word_vectors 1 (`vectors`, `scales` for int8, `vocab.bytes`, `vocab.offsets`, and for FastText `ngrams` and `ngram_scales`), checked by the rules of word_vectors 1 on every open; `oov_weight` (F32, a scalar, exactly with `fse.max_ngrams`). There are no word weights: every word weighs 1 (a ones array inside, so the kernels keep their arithmetic).
 - `Encoder.from_word_vectors(wv, *, tokenizer="fse_words@1", normalize=True, max_ngrams=None, oov_weight=None)` makes one of `fse.WordVectors`; FastText vectors take `max_ngrams` (default 40) and `oov_weight` (default 1), other vectors neither. `Encoder.from_arrays(vectors, *, words=..., ...)` is the same of `WordVectors.from_arrays` of its arrays. `Encoder.load(path, mmap=False)` reads one, `save` writes one (loaded data compared with the checksums they were loaded with); `encoder.word_vectors` is the table, with the fingerprint of the same tensors and keys as word_vectors 1.
 - Refused as a file of a pre-release ("written by a pre-release of 2.0; rebuild the model", `UnsupportedArtifactError` naming what it holds): the keys `fse.recipe`, `fse.folded`, `fse.folded_from`, `fse.input_dim`, `fse.word_vectors` and `fse.vocabulary`, the tensors `weights`, `step.<i>.*` and `folded.<i>.*`, and an encoder without a `vectors` table of its own. A step list with another identifier (such as the removed `remove_components@1` or `project@1`) raises as an unknown step. There are no converters: such models are made again.
@@ -387,14 +449,14 @@ An encoder (`fse._encoder`) is a finished model in one self-contained `.safetens
 
 **The tokenizer part of a model.** Everything that decides which rows a text pools is in the file:
 
-- **Identity.** `fse.tokenizer` names the tokenizer: `fse_words@1`, whose rules and table (simple lowercase of Unicode 15.1.0, checked in) are fixed by the identifier, so the file needs no data of it; or `external`, where the caller gives the tokens (or text split at whitespace W) and owns reproducing them, so the file promises nothing about tokenization. Any change of rules, tables or Unicode version is a new identifier. Tokenizers with data of their own (WordPiece and Unigram, PR 12) will store it as tensors of the encoder under new names and identifiers, covered by its fingerprint; nothing of that is defined yet.
-- **Token to row.** A token is matched by the exact equality of its UTF-8 bytes with a word of `vocab.bytes`/`vocab.offsets`; the index of that word is the row of `vectors` (no separate map, no normalization of the bytes). For FastText, a token that is no word maps to the rows of its first `max_ngrams` `fasttext@1` buckets.
-- **Special tokens.** Neither tokenizer makes any (no [CLS], [SEP] or padding). A vocabulary word that looks like one (such as `[UNK]`) is an ordinary word, matched only by its exact bytes.
-- **Unknown tokens.** Without FastText a token that is no word is no token: it adds nothing and does not count in n, and a sentence of only unknown tokens is the zero row. With FastText an unknown token counts once and adds its ngram rows with `g = (1/m) * oov_weight` (stage 2 above); with no bucket it only counts. There is no row for unknown tokens.
-- **Length.** No limit: every token of a sentence counts, nothing is truncated, and a sentence is one row whatever its length.
+- **Identity.** `fse.tokenizer` names the tokenizer: `fse_words@1`, whose rules and table (simple lowercase of Unicode 15.1.0, checked in) are fixed by the identifier, so the file needs no data of it; or `external`, where the caller gives the tokens (or text split at whitespace W) and owns reproducing them, so the file promises nothing about tokenization. `wordpiece@1` has its rules and tables fixed by the identifier and its parameters (vocabulary aside) in `fse.tokenizer_config`, covered by the fingerprint. Any change of rules, tables or Unicode version is a new identifier.
+- **Token to row.** For `wordpiece@1` the token id is the row. Otherwise a token is matched by the exact equality of its UTF-8 bytes with a word of `vocab.bytes`/`vocab.offsets`; the index of that word is the row of `vectors` (no separate map, no normalization of the bytes). For FastText, a token that is no word maps to the rows of its first `max_ngrams` `fasttext@1` buckets.
+- **Special tokens.** No tokenizer adds any (no [CLS], [SEP] or padding). With `fse_words@1` and `external` a vocabulary word that looks like one (such as `[UNK]`) is an ordinary word, matched only by its exact bytes; with `wordpiece@1` the added tokens of its parameters are matched in the raw text, as tokenizers does without special tokens.
+- **Unknown tokens.** Without FastText a token that is no word is no token: it adds nothing and does not count in n, and a sentence of only unknown tokens is the zero row. With FastText an unknown token counts once and adds its ngram rows with `g = (1/m) * oov_weight` (stage 2 above); with no bucket it only counts. There is no row for unknown tokens. With `wordpiece@1` an unknown word is `unk_id`, which `fse.unknown` drops or keeps as its row.
+- **Length.** No limit, unless a `wordpiece@1` model states one: `fse.max_chars` and `fse.max_tokens` are the documented length rule of the format the model was converted from (model2vec: 512 tokens and a character cut), visible in its metadata and its `repr`; a converted model can be made without them (PR 12a2, `truncate=False`). Otherwise every token of a sentence counts, nothing is truncated, and a sentence is one row whatever its length.
 - **Normalization.** `fse.steps` of the file says whether every row is normalized by `normalize@1`; `normalize=` sets it when a model is made (default True). A model converted from another library takes the setting of its source, and its rule is `normalize@1` (no epsilon in the norm).
 
-The converted models of PR 12 must state where they differ from their source: per the source code reviewed for this plan, Model2Vec drops unknown token ids, applies length rules and adds a small value to the norm, while StaticEmbedding pools every id its tokenizer gives, and both disable the special tokens of their tokenizers ([Model2Vec](https://github.com/MinishLab/model2vec/blob/main/model2vec/model.py), [StaticEmbedding](https://github.com/huggingface/sentence-transformers/blob/main/sentence_transformers/sentence_transformer/modules/static_embedding.py)). Until then such a model runs with `external` and tokens the caller makes.
+The converted models of PR 12 must state where they differ from their source: per the source code reviewed for this plan, Model2Vec drops unknown token ids, applies length rules and adds a small value to the norm, while StaticEmbedding pools every id its tokenizer gives, and both disable the special tokens of their tokenizers ([Model2Vec](https://github.com/MinishLab/model2vec/blob/main/model2vec/model.py), [StaticEmbedding](https://github.com/huggingface/sentence-transformers/blob/main/sentence_transformers/sentence_transformer/modules/static_embedding.py)). The keys above say all of it for `wordpiece@1` models (`fse.unknown`, the length rule; the epsilon of Model2Vec is not reproduced, so a row whose sum of squares underflows or overflows raises in `normalize@1`, where Model2Vec gives a row that is not of unit length).
 
 ### linear_head 1
 
@@ -450,8 +512,8 @@ The modules form layers, and a module imports only from layers below it. The imp
 7. `_wordvectors`
 8. `_wordvectors_format`
 9. `_reference_head` (the reference of linear heads, on the reference of the encoder)
-10. `_container`, `_codes`, `_reference`, `_reference_text`, `_validation`, independent of each other: the references never share code with what they check
-11. `_contract`, `_cpus`, `_unicode`
+10. `_container`, `_codes`, `_reference`, `_reference_text`, `_reference_wordpiece`, `_tokenizer_spec`, `_validation`, independent of each other: the references never share code with what they check
+11. `_contract`, `_cpus`, `_unicode`, `_unicode_bert`
 
 Inside a package, an import contract keeps its parts apart: `_npy` and `_safetensors` share only `_common`, which sits on `_hash`, each backend shares only `_base`, the runtime's pipeline sits on its tasks, sinks, spec and executor, in the encoder the encoder sits on its batches and format and those on its inputs, in the containers the in-place writer `_npy_inplace` sits on `_npy`, in the store the sink and the vector store sit on the shard writer and the search, those on the layout, the runtime's head sits on its pipeline, and in the heads the classes sit on the model, that on its runs, those on the scikit-learn reader, the format and the outputs, and those on the content.
 

@@ -18,7 +18,7 @@ def reference_batch(spec, sentences, first_row=0):
     return _reference_text.encode_texts(
         sentences,
         index,
-        tokenizer=spec.tokenizer,
+        tokenizer=spec.tokenizer.name,
         fasttext=fasttext,
         max_ngrams=spec.max_ngrams or 0,
         first_row=first_row,

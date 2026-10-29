@@ -17,6 +17,7 @@ standalone (the folded table and b; only for heads on raw means), as one
 
 from __future__ import annotations
 
+import dataclasses
 import threading
 from pathlib import Path
 from typing import Any
@@ -36,7 +37,6 @@ from fse._container import (
 from fse._contract import UnsupportedArtifactError
 from fse._cpus import usable_cpus
 from fse._encoder import Encoder
-from fse._encoder._format import EncoderContent
 from fse._encoder._format import to_artifact as encoder_artifact
 from fse._runtime import HeadPipeline, HeadSpec, make_head
 from fse._runtime._head import fold
@@ -197,8 +197,7 @@ class LinearModel:
             table["ngrams"] = pool.ngram_vectors
         keys = {k: v for k, v in keys.items() if k in ("fse.fasttext", "fse.ngram_hash")}
         keys.update({"fse.dim": str(self._content.k), "fse.dtype": "float32"})
-        content = self._encoder._content
-        folded = EncoderContent(content.tokenizer, (), content.oov_weight, content.max_ngrams)
+        folded = dataclasses.replace(self._encoder._content, steps=())  # tokenizer kept
         tensors, metadata = encoder_artifact(folded, table, keys)
         sums = {k: checksum(v) for k, v in tensors.items()}
         of_encoder = _format.encoder_fingerprint(tensors, metadata, sums)

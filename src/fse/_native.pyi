@@ -103,6 +103,7 @@ def score(
 
 TOKENIZER_EXTERNAL: int
 TOKENIZER_FSE_WORDS: int
+TOKENIZER_WORDPIECE: int
 MAX_SENTENCE_BYTES: int
 
 def tokenize(text: str | bytes, tokenizer: str = "fse_words@1") -> list[str]: ...
@@ -110,6 +111,27 @@ def tokenize(text: str | bytes, tokenizer: str = "fse_words@1") -> list[str]: ..
 class Workspace:
     tokens_seen: int
     def __init__(self) -> None: ...
+
+class WordPieceState:
+    table: VocabTable
+    unk_id: int
+    max_input_chars: int
+    max_tokens: int
+    max_chars: int
+    drop_unknown: bool
+    def __init__(
+        self,
+        table: VocabTable,
+        vocab_bytes: ndarray,
+        vocab_offsets: ndarray,
+        unk_id: int,
+        prefix: str,
+        max_input_chars_per_word: int,
+        added_ids: tuple[int, ...],
+        max_tokens: int = 0,
+        max_chars: int = 0,
+        drop_unknown: bool = True,
+    ) -> None: ...
 
 class TextLookup:
     tokenizer: int
@@ -119,6 +141,7 @@ class TextLookup:
         tokenizer: str,
         fasttext: tuple[int, int, int] | None = None,
         max_ngrams: int = 0,
+        wordpiece: WordPieceState | None = None,
     ) -> None: ...
     def encode(
         self,

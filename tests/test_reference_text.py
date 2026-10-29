@@ -177,3 +177,8 @@ def test_reference_matches_the_golden_tokens():
 def test_lone_surrogates_raise_as_in_the_native_tokenizer(tokenize_one):
     with pytest.raises(UnicodeEncodeError):
         tokenize_one("a\ud800b")
+
+
+def test_wordpiece_has_no_tokens_of_text():
+    with pytest.raises(ValueError, match="ids of its vocabulary"):
+        tokenize("a b", "wordpiece@1")

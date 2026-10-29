@@ -19,8 +19,9 @@ import numpy as np
 from numpy import ndarray
 
 from fse import _native
-from fse._contract import EXTERNAL_TOKENIZER, Batch, check_tokenizer
+from fse._contract import EXTERNAL_TOKENIZER, Batch
 from fse._cpus import usable_cpus
+from fse._tokenizer_spec import TokenizerSpec
 from fse._wordvectors import WordVectors
 
 # Bytes per chunk: small enough to balance workers, large enough that the per-chunk
@@ -84,19 +85,21 @@ def make_vocabulary(word_vectors: WordVectors) -> Vocabulary:
 
 def make_lookup(
     word_vectors: WordVectors,
-    tokenizer: str,
+    tokenizer: TokenizerSpec | str,
     *,
     max_ngrams: int | None = None,
     vocabulary: Vocabulary | None = None,
 ) -> _native.TextLookup:
     """The lookup of stage 2 for word vectors: their vocabulary and FastText buckets.
 
+    ``tokenizer`` is a TokenizerSpec, or the name of a tokenizer without parameters.
     FastText vectors need ``max_ngrams``, the number of ngrams an unknown word uses at
     most (1 to ``MAX_NGRAMS_LIMIT``); other vectors take none. ``vocabulary`` reuses the
     table of ``make_vocabulary``; it must be one of the same words in the same order.
     """
     _check_word_vectors(word_vectors)
-    tokenizer = check_tokenizer(tokenizer)
+    spec = TokenizerSpec.of(tokenizer)
+    tokenizer = spec.name
     if vocabulary is None:
         vocabulary = make_vocabulary(word_vectors)
     elif not isinstance(vocabulary, Vocabulary):
@@ -107,6 +110,8 @@ def make_lookup(
             f"({word_vectors.vocabulary_fingerprint})"
         )
     table = vocabulary.table
+    if spec.config is not None:
+        return _wordpiece_lookup(word_vectors, spec, table, max_ngrams)
     fasttext = word_vectors.fasttext
     if fasttext is None:
         if max_ngrams is not None:
@@ -122,6 +127,33 @@ def make_lookup(
         )
     params = (fasttext.min_n, fasttext.max_n, fasttext.bucket)
     return _native.TextLookup(table, tokenizer, params, max_ngrams)
+
+
+def _wordpiece_lookup(
+    word_vectors: WordVectors,
+    spec: TokenizerSpec,
+    table: _native.VocabTable,
+    max_ngrams: int | None,
+) -> _native.TextLookup:
+    """The lookup of wordpiece@1: its state on the table of the tokens, token id = row."""
+    config = spec.config
+    if config is None or word_vectors.fasttext is not None or max_ngrams is not None:
+        raise ValueError(f"{spec.name} needs its parameters and takes no FastText")
+    data, offsets, _ = word_vectors._vocabulary_snapshot()
+    spec.check_vocabulary(data, offsets)
+    state = _native.WordPieceState(
+        table,
+        data,
+        offsets,
+        config.unk_id,
+        config.continuing_subword_prefix,
+        config.max_input_chars_per_word,
+        tuple(i for i, _ in config.added_tokens),
+        spec.max_tokens or 0,
+        spec.max_chars or 0,
+        spec.unknown == "drop",
+    )
+    return _native.TextLookup(table, spec.name, wordpiece=state)
 
 
 MAX_CHUNK_ROWS = _native.MAX_CHUNK_ROWS
