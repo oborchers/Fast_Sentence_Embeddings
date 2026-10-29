@@ -231,10 +231,11 @@ def test_writing_many_small_shards_keeps_few_files_open(tmp_path, monkeypatch):
     from fse._container import _npy, _npy_inplace
     from fse._store import _shard
 
-    for module in (_shard, _npy_inplace):  # the files matter here, not their syncs
-        monkeypatch.setattr(module, "sync_file", lambda _fd: None)
-    monkeypatch.setattr(_npy_inplace, "_sync_directory", lambda _path: None)
-    monkeypatch.setattr(_npy, "_sync_directory", lambda _path: None)
+    # The files matter here, not their syncs.
+    monkeypatch.setattr(_shard, "sync_data", lambda _fd: None)
+    monkeypatch.setattr(_npy_inplace, "sync_file", lambda _fd: None)
+    monkeypatch.setattr(_npy_inplace, "_sync_directory", lambda _path, full=True: None)
+    monkeypatch.setattr(_npy, "_sync_directory", lambda _path, full=True: None)
     real, most = _shard.create, [0]
 
     def create(*args):

@@ -13,7 +13,9 @@ from support.container import fake_fingerprint
 from support.encoder import unfolded
 from support.runtime import texts
 
+ENCODER = unfolded()
 INFO = StoreInfo(fake_fingerprint("c"), "int8", 4)  # int8: vectors, scales and inv_norms
+POSIX = pytest.mark.skipif(os.name == "nt", reason="Windows syncs no directory")
 
 
 class Recorder:
@@ -56,36 +58,46 @@ class Recorder:
         if self.fail == (kind, sum(k == kind for k, _ in self.events)):
             raise OSError(5, "Input/output error")
 
-    def named(self, store, first_row=0):
-        """The events, with the inodes named by the files of the published shard."""
-        shard = store / shard_name(first_row)
-        names = {store.stat().st_ino: "store", shard.stat().st_ino: "shard"}
-        names |= {p.stat().st_ino: p.name for p in shard.iterdir()}
+    def named(self, store, first_rows=(0,)):
+        """The events, with the inodes named by the files of the published shards."""
+        names = {store.stat().st_ino: "store"}
+        for first_row in first_rows:
+            shard = store / shard_name(first_row)
+            names[shard.stat().st_ino] = "shard"
+            names |= {p.stat().st_ino: p.name for p in shard.iterdir()}
         return [kind if inode is None else f"{kind} {names[inode]}" for kind, inode in self.events]
 
 
 @pytest.fixture
 def store(tmp_path):
-    create_store(tmp_path / "s", INFO)  # its syncs are not the shard's
+    return _store(tmp_path, INFO)
+
+
+def _store(tmp_path, info):
+    create_store(tmp_path / "s", info)  # its syncs are not the shard's
     return tmp_path / "s"
 
 
-def _writer(store, first_row=0, rows=3):
-    writer = ShardWriter(store, INFO, first_row, 8, "test")
+def _writer(store, info=INFO, rows=3, first_row=0):
+    """A shard of 8 rows with ``rows`` committed and written, sealed."""
+    writer = ShardWriter(store, info, first_row, 8, "test")
     codes, scales, norms = writer.reserve(rows)
-    codes[...], scales[...], norms[...] = 1, 0.5, 0.25
-    writer.commit(0, codes)
-    writer.write(0, codes)
+    codes[...], norms[...] = 1, 0.25
+    if scales is not None:
+        scales[...] = 0.5
+    writer.commit(first_row, codes)
+    writer.write(first_row, codes)
     writer.seal()
     return writer
 
 
-def _sequence(final):
+def _sequence(final, dtype="int8", directories=True):
     """The calls of one publication; ``final`` is the kind of the two that make it durable."""
+    files = ["vectors.npy", "inv_norms.npy"] + (["scales.npy"] if dtype == "int8" else [])
+    if not directories:  # Windows: no directory sync, the rename writes through
+        return [f"fsync {name}" for name in [*files, "manifest.json"]] + ["replace", "rename"]
     return [
-        "fsync vectors.npy",
-        "fsync inv_norms.npy",
-        "fsync scales.npy",
+        *(f"fsync {name}" for name in files),
         "fsync manifest.json",
         "fsync shard",  # the entries of the files and the manifest temp reach the drive
         "replace",
@@ -95,19 +107,39 @@ def _sequence(final):
     ]
 
 
-def test_a_shard_makes_two_full_syncs_on_macos(store, monkeypatch):
-    recorder = Recorder(monkeypatch, full=True)
-    assert _writer(store).finish() == 3
-    assert recorder.named(store) == _sequence("full")
-    assert sum(kind == "full" for kind, _ in recorder.events) == 2  # six before
+@POSIX
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+@pytest.mark.parametrize("rows", [3, 8], ids=["ends early", "full"])
+@pytest.mark.parametrize("full", [True, False], ids=["macos", "linux"])
+def test_a_shard_makes_two_full_syncs_on_macos_and_the_old_fsyncs_elsewhere(
+    tmp_path, monkeypatch, dtype, rows, full
+):
+    info = StoreInfo(fake_fingerprint("c"), dtype, 4)
+    store = _store(tmp_path, info)
+    recorder = Recorder(monkeypatch, full=full)
+    assert _writer(store, info, rows).finish() == rows
+    assert recorder.named(store) == _sequence("full" if full else "fsync", dtype)
+    assert sum(kind == "full" for kind, _ in recorder.events) == (2 if full else 0)
 
 
-def test_elsewhere_a_shard_makes_the_fsyncs_it_made_before(store, monkeypatch):
+@pytest.mark.skipif(os.name != "nt", reason="the Windows sequence")
+def test_windows_publishes_with_file_syncs_and_a_rename_that_writes_through(store, monkeypatch):
     recorder = Recorder(monkeypatch, full=False)
     assert _writer(store).finish() == 3
-    assert recorder.named(store) == _sequence("fsync")
+    assert recorder.named(store) == _sequence("fsync", directories=False)
 
 
+@POSIX
+def test_every_shard_of_a_run_makes_two_full_syncs(tmp_path, monkeypatch):
+    sink = ShardSink(tmp_path / "s", ENCODER, dtype="int8", shard_rows=8)
+    recorder = Recorder(monkeypatch, full=True)
+    ENCODER.encode(texts(20), sink=sink, workers=2)
+    sink.close()
+    assert sink.durable_rows == 20
+    assert recorder.named(tmp_path / "s", (0, 8, 16)) == 3 * _sequence("full")
+
+
+@POSIX
 def test_a_single_file_is_still_made_durable_on_its_own(tmp_path, monkeypatch):
     recorder = Recorder(monkeypatch, full=True)
     with (tmp_path / "f").open("wb") as f:
@@ -128,6 +160,7 @@ def test_windows_syncs_no_directory(tmp_path, monkeypatch):
     assert opened == []
 
 
+@POSIX
 @pytest.mark.parametrize(
     "fail",
     [("fsync", 1), ("fsync", 2), ("fsync", 3), ("fsync", 4), ("fsync", 5), ("full", 1)],
@@ -145,6 +178,7 @@ def test_a_failed_sync_before_the_rename_publishes_nothing(store, monkeypatch, f
     assert sorted(p.name for p in store.iterdir()) == ["store.json"]
 
 
+@POSIX
 def test_a_failed_sync_of_the_store_leaves_the_shard_visible(store, monkeypatch):
     recorder = Recorder(monkeypatch, full=True)
     recorder.fail = ("full", 2)
@@ -156,9 +190,7 @@ def test_a_failed_sync_of_the_store_leaves_the_shard_visible(store, monkeypatch)
     assert shard.rows == 3
 
 
-ENCODER = unfolded()
-
-
+@POSIX
 @pytest.mark.parametrize(
     ("fail", "visible"),
     [(("full", 3), [0]), (("full", 4), [0, 8])],

@@ -92,37 +92,48 @@ def child_v2_write(args) -> dict:
     return {"per_s": args.sentences / seconds, "peak": _peak()}
 
 
-def _latency(sync, fd: int, touch) -> tuple[float, float]:
-    """Median and p90 in ms of 50 calls of ``sync(fd)``, each after ``touch()`` dirtied it."""
-    times = []
-    for _ in range(50):
-        touch()
-        start = time.perf_counter()
-        sync(fd)
-        times.append(1e3 * (time.perf_counter() - start))
+def _quantiles(times: list[float]) -> tuple[float, float]:
     return statistics.median(times), statistics.quantiles(times, n=10)[-1]
 
 
-def child_sync(args) -> dict:
+def _sync_latencies(args) -> dict:
+    """Median and p90 in ms of 50 fsyncs (and F_FULLFSYNCs) of a file and a directory."""
     import fcntl
 
-    import fse
-
-    out: dict = {}
     syncs = {"fsync": os.fsync}
     if hasattr(fcntl, "F_FULLFSYNC"):
         syncs["full"] = lambda fd: fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
+    durable = syncs.get("full", os.fsync)
+    times: dict[str, list[float]] = {}
     with tempfile.TemporaryDirectory(dir=args.tmp) as tmp:
+        page, entry = os.urandom(65536), Path(tmp) / "entry"
         file_fd = os.open(Path(tmp) / "f", os.O_RDWR | os.O_CREAT)
-        dir_fd, made = os.open(tmp, os.O_RDONLY), iter(range(10**6))
-        page = os.urandom(65536)
-        for name, sync in syncs.items():  # the same state before each: 64 KiB, one entry
-            file_ms = _latency(sync, file_fd, lambda: os.pwrite(file_fd, page, 0))
-            dir_ms = _latency(sync, dir_fd, lambda: (Path(tmp) / f"e{next(made)}").touch())
-            out |= {f"{name}_file_p50_ms": file_ms[0], f"{name}_file_p90_ms": file_ms[1]}
-            out |= {f"{name}_dir_p50_ms": dir_ms[0], f"{name}_dir_p90_ms": dir_ms[1]}
+        os.pwrite(file_fd, page, 0)  # its full size before the first probe
+        dir_fd = os.open(tmp, os.O_RDONLY)
+        dirty = {"file": (file_fd, lambda: os.pwrite(file_fd, page, 0))}
+        dirty["dir"] = (dir_fd, lambda: entry.unlink() if entry.exists() else entry.touch())
+        for _ in range(50):  # alternating, each from a durable state: 64 KiB, one entry
+            for name, sync in syncs.items():
+                for target, (fd, touch) in dirty.items():
+                    durable(fd)
+                    touch()
+                    begin = time.perf_counter()
+                    sync(fd)
+                    times.setdefault(f"{name}_{target}", []).append(
+                        1e3 * (time.perf_counter() - begin)
+                    )
         os.close(file_fd)
         os.close(dir_fd)
+    out: dict = {}
+    for key, values in times.items():
+        out[f"{key}_p50_ms"], out[f"{key}_p90_ms"] = _quantiles(values)
+    return out
+
+
+def child_sync(args) -> dict:
+    import fse
+
+    out = _sync_latencies(args)
     sentences = [" ".join(tokens) for tokens in _corpus(args.sentences)]
     wv = fse.WordVectors.from_arrays(_rows(), words=[f"w{i}" for i in range(VOCAB)])
     encoder = fse.Average(normalize=False, tokenizer="external").fit(wv)
@@ -132,7 +143,7 @@ def child_sync(args) -> dict:
         with fse.ShardSink(Path(tmp) / "s", encoder, dtype=args.dtype, shard_rows=rows) as sink:
             encoder.encode(sentences, workers=args.workers, sink=sink)
         seconds = time.perf_counter() - start
-    shards = -(-args.sentences // rows)
+    shards = -(-args.sentences // rows)  # run_s includes encoding: compare paired runs
     return out | {"shards": shards, "run_s": seconds, "per_shard_ms": 1e3 * seconds / shards}
 
 

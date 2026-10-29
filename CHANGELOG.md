@@ -20,6 +20,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- On macOS a `ShardSink` publishes a shard with two full syncs (`F_FULLFSYNC`, which flushes the drive cache) instead of six or seven, with the same durability: the files and the manifest are sent to the drive with `fsync`, one full sync of the shard's directory makes them durable before its rename, and one of the store the rename. Linux and Windows sync as before.
 - gensim is no longer a dependency: install `fse[gensim]` for `fse.gensim`.
 - Building from source needs MSVC on Windows, or GCC or Clang elsewhere; MinGW is refused, because its `fmaf` rounds twice.
 - Checksums and fingerprints of every artifact are xxh3-128 (`xxh3-128:` and 32 hex digits) instead of sha256, computed by one harness. Artifacts written by a pre-release of 2.0 with sha256 checksums raise `UnsupportedArtifactError` and must be written again; there is no migration. The values identify content against accidents, not against an attacker (ARCHITECTURE.md, "Identities").
