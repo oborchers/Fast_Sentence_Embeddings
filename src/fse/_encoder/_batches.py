@@ -31,8 +31,10 @@ from ._sources import opened
 class EncodedBatch(NamedTuple):
     """One batch of ``encode_batches``: its rows ``first_row`` to ``first_row + n_rows -
     1`` of the run, as an array or ``QuantizedRows`` (None when a sink took them), and the
-    rows of the run that are durable (the sink's ``durable_rows``; None without a sink or
-    for a sink that promises nothing)."""
+    rows of the run that were durable when the batch was given (the sink's
+    ``durable_rows`` after its ``publish``; None without a sink or for a sink that
+    promises nothing). It is a snapshot: the last batch can report fewer rows than the
+    run has, as the sink's ``flush`` runs after it."""
 
     first_row: int
     n_rows: int

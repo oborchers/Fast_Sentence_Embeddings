@@ -166,7 +166,12 @@ class Encoder:
         confirms its input only up to there; without one the batch holds its rows.
 
         The arguments and the encoder are checked when this is called, before any batch
-        is read; closing the iterator early reads no further batch.
+        is read; closing the iterator early reads no further batch. After a successful
+        full iteration the sink's ``flush`` has run, so its ``durable_rows`` (where it has
+        them) counts every row of the run; the last batch may report fewer. Stopping
+        early (``break``, ``close()``) does not flush: the owner of the sink closes it
+        (``ShardSink.close`` publishes the rows committed so far). Without a sink every
+        batch holds its rows in memory.
         """
         if sink is not None:
             dtype = check_sink(sink, dtype, self.fingerprint, self.output_dim)

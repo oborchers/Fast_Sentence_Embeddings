@@ -256,3 +256,26 @@ def test_a_corpus_is_one_batch():
         assert a.rows.tobytes() == b.rows.tobytes()
     with pytest.raises(TypeError, match=r"or a fse\.Corpus"):
         list(ENCODER.encode_batches([iter(sentences)]))
+
+
+def test_stopping_early_flushes_nothing_until_the_sink_is_closed(tmp_path):
+    polls, _ = _polls([30, 30, 30])
+    sink = fse.ShardSink(tmp_path / "s", ENCODER, shard_rows=64)
+    batches = ENCODER.encode_batches(polls, sink=sink)
+    assert next(batches).durable_rows == 0
+    batches.close()  # the next batches are never read
+    assert sink.durable_rows == 0
+    sink.close()  # publishes the rows committed so far
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        assert len(store) == 30
+
+
+def test_a_sink_takes_one_run(tmp_path):
+    with fse.ShardSink(tmp_path / "s", ENCODER, shard_rows=64) as sink:
+        ENCODER.encode(texts(100), sink=sink)
+        with pytest.raises(ValueError, match="expected rows from 100"):
+            ENCODER.encode(texts(50), sink=sink)
+    memory = fse.MemorySink(ENCODER.output_dim)
+    ENCODER.encode(texts(10), sink=memory)
+    with pytest.raises(ValueError, match="committed already"):
+        ENCODER.encode(texts(5), sink=memory)

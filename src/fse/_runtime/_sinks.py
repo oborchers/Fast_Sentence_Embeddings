@@ -45,8 +45,12 @@ class Sink(Protocol):
     ``inverse_norms`` (True: the target ends with a float32 vector the workers fill with
     the inverse norm of every stored row), ``encoder`` (the fingerprint of the only
     encoder the sink takes), ``flush()`` (called after the last commit of a successful
-    run) and ``durable_rows`` (the number of leading rows that are durable, for a stream
-    that confirms its input only after that; a sink without it promises nothing).
+    run), ``publish()`` (called by ``encode_batches`` after the rows of every batch are
+    committed, before ``durable_rows`` is read: make durable what is finished, without
+    waiting for the end) and ``durable_rows`` (the number of leading rows of the run that
+    are durable, for a stream that confirms its input only up to there; a sink without
+    it promises nothing). A sink takes one run: the rows of a second run into it would
+    start again at row 0, which it refuses.
     """
 
     dim: int
