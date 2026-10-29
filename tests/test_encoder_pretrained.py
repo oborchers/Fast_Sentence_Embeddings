@@ -215,3 +215,59 @@ def test_the_size_limits_hold(model, tmp_path):
         f.truncate(pretrained.MAX_CARD_BYTES + 1)
     with pytest.raises(CorruptArtifactError, match="more than the 16777216 it may have"):
         Encoder.from_pretrained(folder)
+
+
+def _card(front):
+    return ("---\nlibrary_name: model2vec\n" + front + "\ntags:\n- x\n---\n# card\n").encode()
+
+
+@pytest.mark.parametrize(
+    ("front", "want"),
+    [
+        ("license: mit", "mit"),
+        ('license: "apache-2.0"  # the code', "apache-2.0"),
+        ("license: mit # comment", "mit"),
+        ("license: null", None),
+        ("license: ~", None),
+        ("license:", None),
+        ("license:\n- mit\n- apache-2.0", ("mit", "apache-2.0")),
+        ("license:\n  - 'cc-by-4.0'", ("cc-by-4.0",)),
+        ("license: [mit, 'apache-2.0']", ("mit", "apache-2.0")),
+    ],
+)
+def test_the_yaml_rules_of_a_license(tmp_path, front, want):
+    assert card_license(_card(front), tmp_path / "README.md") == want
+
+
+@pytest.mark.parametrize(
+    ("front", "match"),
+    [
+        ("license: true", "no string"),
+        ("license: 123", "no string"),
+        ("license: no", "no string"),
+        ("license: {a: b}", "cannot read"),
+        ("license: []", "list fse cannot read"),
+        ("license: [mit,]", "no string"),
+        ("license:\n- mit\n- null", "no string"),
+        ("license: mit\nlicense: other", "license 2 times"),
+        ("license: mit\n- other", "a value and a list"),
+        ("license: 'mit", "cannot read"),
+    ],
+)
+def test_a_license_of_another_form_raises_naming_it(tmp_path, front, match):
+    with pytest.raises(CorruptArtifactError, match=match):
+        card_license(_card(front), tmp_path / "README.md")
+
+
+def test_a_card_without_front_matter_has_no_license(tmp_path):
+    assert card_license(b"---\nlicense: mit\n", tmp_path / "README.md") is None  # unclosed
+    assert card_license(b"license: mit\n", tmp_path / "README.md") is None
+
+
+def test_several_licenses_reach_the_encoder(model, tmp_path):
+    folder = _copy(model, tmp_path, "licenses")
+    (folder / "README.md").write_bytes(_card("license:\n- mit\n- apache-2.0"))
+    encoder = Encoder.from_pretrained(folder)
+    assert encoder._content.license == ("mit", "apache-2.0")
+    encoder.save(tmp_path / "e.safetensors")
+    assert Encoder.load(tmp_path / "e.safetensors")._content.license == ("mit", "apache-2.0")

@@ -244,7 +244,7 @@ class Encoder:
         *,
         normalize: bool,
         source: Source | None = None,
-        license: str | None = None,
+        license: str | tuple[str, ...] | None = None,
     ) -> Encoder:
         """The encoder of a model converted from another library (the readers of PR 12a2):
         its table, its tokenizer with parameters, whether it normalizes, its provenance."""

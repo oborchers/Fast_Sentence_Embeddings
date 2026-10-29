@@ -134,14 +134,13 @@ class EncoderContent:
     max_ngrams: int | None
     aggregation: Aggregation = Aggregation.WEIGHTED_MEAN
     source: Source | None = None
-    license: str | None = None
+    license: str | tuple[str, ...] | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "tokenizer", TokenizerSpec.of(self.tokenizer))
         if self.source is not None and not isinstance(self.source, Source):
             raise TypeError(f"source must be a Source, not {type(self.source).__name__}")
-        if self.license is not None and (not isinstance(self.license, str) or not self.license):
-            raise ValueError(f"license must be None or a non-empty str, not {self.license!r}")
+        _check_license(self.license)
 
 
 def to_artifact(
@@ -172,7 +171,10 @@ def to_artifact(
             {"format": source.format, "repo": source.repo, "revision": source.revision}
         )
     if content.license is not None:
-        metadata["fse.license"] = content.license
+        license_ = content.license
+        metadata["fse.license"] = (
+            license_ if isinstance(license_, str) else canonical_json(list(license_))
+        )
     return tensors, metadata
 
 
@@ -212,7 +214,7 @@ def from_artifact(
         max_ngrams=_integer(metadata, "fse.max_ngrams") if "fse.max_ngrams" in metadata else None,
         aggregation=aggregation,
         source=_source(metadata),
-        license=metadata.get("fse.license"),
+        license=_license(metadata),
     )
     check_tokenizer_table(
         content.tokenizer,
@@ -375,3 +377,36 @@ def loaded_table(
         **{CHECKSUM_PREFIX + k: checksums[k] for k in tensors},
     }
     return WordVectors._open(tensors, loaded, path)
+
+
+def _check_license(value: object) -> None:
+    """None, a license (a non-empty str) or the licenses a model card lists (a non-empty
+    tuple of them)."""
+    if value is None or (isinstance(value, str) and value and not value.startswith("[")):
+        return
+    if isinstance(value, tuple) and value and all(isinstance(v, str) and v for v in value):
+        return
+    raise ValueError(f"license must be None, a non-empty str or a tuple of them, not {value!r}")
+
+
+def _license(metadata: dict[str, str]) -> str | tuple[str, ...] | None:
+    """fse.license: a license, or the canonical JSON list of several."""
+    value = metadata.get("fse.license")
+    if value is None or not value.startswith("["):
+        return value
+    licenses = _json_list(metadata, "fse.license")
+    if not licenses or not all(isinstance(v, str) and v for v in licenses):
+        raise ValueError("fse.license must be a license or a JSON list of them")
+    return tuple(licenses)
+
+
+def _json_list(metadata: dict[str, str], key: str) -> list:
+    text = metadata[key]
+    try:
+        value = json.loads(text)
+        canonical = canonical_json(value)
+    except ValueError as error:
+        raise ValueError(f"{key} is not canonical JSON: {error}") from None
+    if not isinstance(value, list) or canonical != text:
+        raise ValueError(f"{key} must be a canonical JSON list")
+    return value
