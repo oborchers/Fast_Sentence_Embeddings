@@ -15,12 +15,12 @@ TOKENS = wp.vocabulary()
 CORPUS = wp.corpus(TOKENS, count=1500)
 
 
-def _encode(tokens, texts, prefix="##", unknown="keep", max_tokens=None):
+def _encode(tokens, texts, prefix="##", unknown="keep", max_tokens=None, max_chars=None):
     """The native ids and the ids of the reference for every text."""
     added = wp.added_tokens(tokens)
     config = WordPieceConfig(tuple(sorted((i, t) for t, i in added.items())), wp.UNK_ID, prefix)
     wv = WordVectors.from_arrays(np.zeros((len(tokens), 2), np.float32), words=tokens)
-    lookup = make_lookup(wv, TokenizerSpec("wordpiece@1", config, unknown, max_tokens))
+    lookup = make_lookup(wv, TokenizerSpec("wordpiece@1", config, unknown, max_tokens, max_chars))
     source = StringSource(texts)
     ws = _native.Workspace()
     got = []
@@ -31,6 +31,7 @@ def _encode(tokens, texts, prefix="##", unknown="keep", max_tokens=None):
         ]
     vocab = {t: i for i, t in enumerate(tokens)}
     rules = {"unk_id": wp.UNK_ID, "added": added, "prefix": prefix, "max_tokens": max_tokens}
+    rules["max_chars"] = max_chars
     want = [ref.encode_ids(t, vocab, **rules, drop_unknown=unknown == "drop") for t in texts]
     return got, want
 
@@ -155,3 +156,20 @@ def test_the_generic_switch_is_checked():
         _native.WordPieceState(*args, _generic=1)
     with pytest.raises(TypeError):
         _native.WordPieceState(*args, 0, 0, True, True)  # keyword only
+
+
+def test_the_character_cut_at_every_position():
+    """Cuts 0 to 17 code points into texts of 0 to 17 bytes, at and across the blocks of 8,
+    with a code point that is not ASCII at every position, and invalid UTF-8 behind it."""
+    texts = []
+    for n in range(18):
+        texts += ["a" * n, "ab cd [MASK]efg h"[:n]]
+        texts += ["b" * k + "\u00e9" + "c" * (n - k - 1) for k in range(n)]
+    for max_chars in range(1, 18):
+        got, want = _encode(TOKENS, texts, max_tokens=512, max_chars=max_chars)
+        assert got == want, max_chars
+        fast, generic = _lookups(max_tokens=512, max_chars=max_chars)
+        for text in texts:
+            for tail in (b"", b"\xff", b"x\xc3", b"\xe4\xb8"):
+                data = [text.encode() + tail]
+                assert _batch(fast, data, False) == _batch(generic, data, False), (text, tail)

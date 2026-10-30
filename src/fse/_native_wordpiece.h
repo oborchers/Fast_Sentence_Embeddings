@@ -374,4 +374,33 @@ static inline int64_t fse_wp_char_cut(const uint8_t *p, int64_t n, int64_t max_c
     return cut;
 }
 
+/* fse_wp_char_cut 8 bytes at a time: a block of 8 ASCII bytes (when at least 8 are left,
+   by memcpy) is 8 code points, and holds the cut at i + (max_chars - chars) when it falls
+   inside it; every other byte takes the decoder, so the whole input is still validated. */
+static inline int64_t fse_wp_char_cut_ascii(const uint8_t *p, int64_t n, int64_t max_chars) {
+    uint32_t cp;
+    int64_t i = 0, chars = 0, cut = n;
+    while (i < n) {
+        if (n - i >= 8) {
+            uint64_t x;
+            memcpy(&x, p + i, 8);
+            if (!(x & FSE_WP_HIGH)) {
+                if (cut == n && max_chars - chars < 8) cut = i + (max_chars - chars);
+                i += 8;
+                chars += 8;
+                continue;
+            }
+        }
+        if (chars == max_chars && cut == n) cut = i;
+        int len = 1;
+        if (p[i] >= 0x80) {
+            len = fse_utf8_decode(p, i, n, &cp);
+            if (!len) return -1 - i;
+        }
+        i += len;
+        chars++;
+    }
+    return cut;
+}
+
 #endif /* FSE_NATIVE_WORDPIECE_H */

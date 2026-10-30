@@ -22,6 +22,7 @@ cdef extern from "_native_wordpiece.h":
                                int64_t *start, int64_t *end) nogil
     int64_t fse_wp_validate(const unsigned char *p, int64_t i, int64_t n) nogil
     int64_t fse_wp_char_cut(const unsigned char *p, int64_t n, int64_t max_chars) nogil
+    int64_t fse_wp_char_cut_ascii(const unsigned char *p, int64_t n, int64_t max_chars) nogil
 
 cdef extern from "_native_wordpiece_trie.h":
     ctypedef struct fse_trie:  # base, check and value are only read in C
@@ -354,7 +355,8 @@ cdef int _wordpiece_sentence(WordPieceState st, const unsigned char *p, Py_ssize
     cdef int status = WP_GO_ON
     cdef uINT_t *ids
     if st.max_chars:  # the whole sentence is validated here
-        cut = fse_wp_char_cut(p, n, st.max_chars)
+        cut = (fse_wp_char_cut(p, n, st.max_chars) if st.generic
+               else fse_wp_char_cut_ascii(p, n, st.max_chars))
         if cut < 0:
             bad[0] = -1 - cut
             return ENCODE_BAD_UTF8
