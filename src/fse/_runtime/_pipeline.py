@@ -129,7 +129,8 @@ class Pipeline:
     ) -> Rows | None:
         """The rows of every sentence of ``source``: returned (as ``dtype``: float32 rows,
         float16 codes, or int8 codes and scales), or committed to ``sink`` in its dtype,
-        numbered from ``first_row`` there (the rows of a run before this source).
+        numbered from ``first_row`` there (the rows of a run before this source). Errors
+        name their rows from ``first_row`` either way; rows returned count from 0.
 
         Every argument is checked before the source is read.
         """
@@ -142,12 +143,11 @@ class Pipeline:
             inverse = wants_inverse_norms(sink)
         else:
             dtype = _codes.check_dtype(dtype)
-            if base:
-                raise ValueError("first_row numbers the rows of a sink; without one it is 0")
         tasks, window, stop = self.plan_tasks(
             source, workers, chunk_bytes, self._row_bytes(dtype, inverse), base
         )
         own: ArrayRows | GrowingRows | None = None
+        tbase = base if sink is not None else 0  # own targets count from 0
         if sink is None:
             rows = tasks.rows
             own = (
@@ -159,14 +159,14 @@ class Pipeline:
         local = threading.local()
 
         def reserve(task: Task) -> tuple[Task, Stored]:  # in the calling thread, in order
-            return task, sink.target(base + task.first_row, task.n_rows)
+            return task, sink.target(tbase + task.first_row, task.n_rows)
 
         def work(item: tuple[Task, Stored]) -> Stored:
             self._work(local, item[0], split_target(item[1], dtype, inverse), base)
             return item[1]
 
         def commit(item: tuple[Task, Stored], rows: Stored):
-            sink.commit(base + item[0].first_row, rows)
+            sink.commit(tbase + item[0].first_row, rows)
 
         run(
             tasks.tasks,

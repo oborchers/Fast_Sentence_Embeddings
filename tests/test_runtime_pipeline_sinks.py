@@ -68,9 +68,14 @@ def test_errors_name_the_row_of_the_run():
         Pipeline(spec).infer(StringSource(["w1 w2"]), workers=1, sink=sink, first_row=1000)
 
 
-def test_first_row_needs_a_sink():
-    with pytest.raises(ValueError, match="first_row numbers the rows of a sink"):
-        Pipeline(_spec()).infer(StringSource(["w1"]), first_row=3)
+def test_without_a_sink_first_row_numbers_only_the_errors():
+    wv = word_vectors(dim=4)
+    spec = EncodeSpec(wv, np.full(len(wv), 1e7, F32), ())  # rows beyond float16
+    pipeline = Pipeline(spec)
+    rows = pipeline.infer(StringSource(["", "w1"]), workers=1, first_row=3)
+    assert rows.shape == (2, 4)  # the rows of this source, from 0
+    with pytest.raises(ValueError, match="row 1001 has values beyond the float16 range"):
+        pipeline.infer(StringSource(["", "w1 w2"]), workers=1, dtype="float16", first_row=1000)
     with pytest.raises(ValueError, match="first_row must be a non-negative int"):
         Pipeline(_spec()).infer(StringSource(["w1"]), first_row=-1, sink=MemorySink(12))
 
