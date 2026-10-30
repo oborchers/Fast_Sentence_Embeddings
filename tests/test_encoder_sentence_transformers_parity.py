@@ -96,7 +96,10 @@ def test_truncate_dim_is_that_of_sentence_transformers(saved, kept):
 def test_truncate_dim_of_the_config(tmp_path):
     folder = st.save_model(tmp_path / "m", truncate_dim=4)
     assert (
-        json.loads((folder / "config_sentence_transformers.json").read_text())["truncate_dim"] == 4
+        json.loads((folder / "config_sentence_transformers.json").read_text(encoding="utf-8"))[
+            "truncate_dim"
+        ]
+        == 4
     )
     encoder = Encoder.from_pretrained(folder)
     want = _st(folder).encode(TEXTS)

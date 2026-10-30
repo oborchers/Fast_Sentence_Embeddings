@@ -98,7 +98,7 @@ def test_truncate_dim_keeps_the_first_dimensions(model, kept):
 
 
 def test_truncate_dim_of_the_config_and_its_overrides(model):
-    config = json.loads((model / "config_sentence_transformers.json").read_text())
+    config = json.loads((model / "config_sentence_transformers.json").read_text(encoding="utf-8"))
     (model / "config_sentence_transformers.json").write_text(
         json.dumps(config | {"truncate_dim": 4})
     )
@@ -318,7 +318,7 @@ def test_a_pickle_or_a_missing_table_is_refused(model):
 )
 def test_another_tokenizer_truncation_is_refused(model, truncation):
     path = model / "0_StaticEmbedding" / "tokenizer.json"
-    document = json.loads(path.read_text())
+    document = json.loads(path.read_text(encoding="utf-8"))
     document["truncation"] = truncation
     path.write_text(json.dumps(document))
     with pytest.raises((UnsupportedArtifactError, CorruptArtifactError), match="truncation"):

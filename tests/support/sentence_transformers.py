@@ -60,7 +60,7 @@ def save_model(folder, rows=None, *, tokens=None, truncation=None, truncate_dim=
 def relayout(folder, *, spelling=LEGACY, subfolder="0_StaticEmbedding", tensor=None):
     """Move the module of a saved model into ``subfolder`` and spell its type as another
     version does; ``tensor`` renames the table."""
-    modules = json.loads((folder / "modules.json").read_text())
+    modules = json.loads((folder / "modules.json").read_text(encoding="utf-8"))
     if subfolder:
         (folder / subfolder).mkdir()
         for name in ("model.safetensors", "tokenizer.json"):
