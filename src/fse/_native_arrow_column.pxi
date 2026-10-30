@@ -3,6 +3,7 @@
 # GIL, and released once (ARCHITECTURE.md, "Text sources").
 
 
+
 cdef class ArrowColumn:
     """The chunks of one Arrow string column, owned until release().
 
@@ -332,17 +333,18 @@ cdef class ArrowColumn:
     def span_bytes(self, Py_ssize_t first, Py_ssize_t last):
         """The text bytes of the rows first to last - 1."""
         self._check_range(first, last)
-        cdef Py_ssize_t k, row = first
+        cdef Py_ssize_t row = first
+        cdef _Cursor at
         cdef const unsigned char *p
         cdef int64_t n, total = 0
         cdef int status = 0
         with nogil:
             if row < last:
-                k = _chunk_of(self._starts, self._n, row)
+                _seek(&at, self._chunks, self._starts, self._n, row)
             while row < last:
-                while row >= self._starts[k + 1]:
-                    k += 1
-                if fse_arrow_row(&self._chunks[k], row - self._starts[k], &p, &n) != 0:
+                if row >= at.end:
+                    _seek(&at, self._chunks, self._starts, self._n, row)
+                if fse_arrow_row(at.chunk, row - at.base, &p, &n) != 0:
                     status = 1
                     break
                 total += n
@@ -364,7 +366,8 @@ cdef class ArrowColumn:
             raise ValueError(f"chunk_bytes must be positive, got {chunk_bytes}")
         if not 1 <= chunk_rows <= CHUNK_MAX_ROWS:
             raise ValueError(f"chunk_rows must be between 1 and {CHUNK_MAX_ROWS}, got {chunk_rows}")
-        cdef Py_ssize_t pos = first, k = 0, chunk_start = first, chunk_first = 0
+        cdef Py_ssize_t pos = first, chunk_start = first, chunk_first = 0
+        cdef _Cursor at
         cdef Py_ssize_t sentences = 0, tokens = 0, empty = 0, count, error = -1
         cdef int64_t n, in_chunk = 0
         cdef const unsigned char *p
@@ -377,11 +380,11 @@ cdef class ArrowColumn:
         try:
             with nogil:
                 if pos < last:
-                    k = _chunk_of(self._starts, self._n, pos)
+                    _seek(&at, self._chunks, self._starts, self._n, pos)
                 while pos < last:
-                    while pos >= self._starts[k + 1]:
-                        k += 1
-                    if fse_arrow_row(&self._chunks[k], pos - self._starts[k], &p, &n) != 0:
+                    if pos >= at.end:
+                        _seek(&at, self._chunks, self._starts, self._n, pos)
+                    if fse_arrow_row(at.chunk, pos - at.base, &p, &n) != 0:
                         status = _ARROW_INVALID
                         break
                     count = _arrow_tokens(p, n, &error)
@@ -430,7 +433,8 @@ cdef class ArrowColumn:
         self._check_range(first, last)
         if ws.busy:
             raise RuntimeError("a Workspace is used by one thread at a time")
-        cdef Py_ssize_t pos = first, k = 0, sentence = 0, bad = -1
+        cdef Py_ssize_t pos = first, sentence = 0, bad = -1
+        cdef _Cursor at
         cdef const unsigned char *p = NULL
         cdef int64_t n = 0
         cdef int status = ENCODE_OK
@@ -446,11 +450,11 @@ cdef class ArrowColumn:
                 if _push_i64_nogil(&ws.offsets, 0) or _push_i64_nogil(&ws.ngram_offsets, 0):
                     status = ENCODE_NO_MEMORY
                 if pos < last:
-                    k = _chunk_of(self._starts, self._n, pos)
+                    _seek(&at, self._chunks, self._starts, self._n, pos)
                 while status == ENCODE_OK and pos < last:
-                    while pos >= self._starts[k + 1]:
-                        k += 1
-                    if fse_arrow_row(&self._chunks[k], pos - self._starts[k], &p, &n) != 0:
+                    if pos >= at.end:
+                        _seek(&at, self._chunks, self._starts, self._n, pos)
+                    if fse_arrow_row(at.chunk, pos - at.base, &p, &n) != 0:
                         status = _ARROW_INVALID
                         break
                     status = lookup._sentence(p, n, ws, &bad)

@@ -182,7 +182,10 @@ def child(c: dict) -> dict:
         return {"seconds": best, "texts_per_s": n / best, "to_pylist_s": to_pylist}
 
 
-def run(config: dict) -> dict:
+def run(config: dict, max_load: float | None = None) -> dict:
+    """One child; with ``max_load``, started once the load average is below it."""
+    while max_load is not None and os.getloadavg()[0] >= max_load:
+        time.sleep(10)
     done = subprocess.run(
         [sys.executable, __file__, "_child", json.dumps(config)],
         capture_output=True,
@@ -209,7 +212,8 @@ def _pairs(args, data: str, workers: int, kind: str) -> list[dict]:
                     "sentences": args.sentences,
                     "repeat": args.repeat,
                     "tmp": args.tmp,
-                }
+                },
+                args.max_load,
             )
         runs.append(got)
     return runs
@@ -279,6 +283,7 @@ def main(argv=None):
     parser.add_argument("--pairs", type=int, default=4)
     parser.add_argument("--repeat", type=int, default=3)
     parser.add_argument("--tmp", default=None, help="the directory of temporary files")
+    parser.add_argument("--max-load", type=float, help="start each child below this load")
     parser.add_argument("--json", help="write the results here")
     args = parser.parse_args(argv)
     if os.getloadavg()[0] > 5:

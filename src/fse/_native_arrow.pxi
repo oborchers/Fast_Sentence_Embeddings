@@ -192,6 +192,21 @@ cdef inline Py_ssize_t _chunk_of(const int64_t *starts, Py_ssize_t n, int64_t ro
     return lo
 
 
+cdef struct _Cursor:
+    const fse_arrow_chunk *chunk
+    int64_t base  # the first row of the chunk
+    int64_t end  # the first row after it
+
+
+cdef inline void _seek(_Cursor *at, const fse_arrow_chunk *chunks, const int64_t *starts,
+                       Py_ssize_t n, int64_t row) noexcept nogil:
+    """Point at to the chunk that holds row (the walk changes chunk only at their ends)."""
+    cdef Py_ssize_t k = _chunk_of(starts, n, row)
+    at.chunk = &chunks[k]
+    at.base = starts[k]
+    at.end = starts[k + 1]
+
+
 cdef int _arrow_encode_status(int status, const unsigned char *p, int64_t n, Py_ssize_t bad,
                               Py_ssize_t sentence, Py_ssize_t row) except -1:
     if status == ENCODE_OK:
