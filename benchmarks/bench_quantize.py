@@ -61,6 +61,9 @@ def make(args) -> None:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    found = [d for d in DTYPES if (out / f"{d}.safetensors").exists()]
+    if found:  # files of another model or revision would be measured as this one's
+        raise SystemExit(f"{out} already holds {found}: remove them or choose another --out")
     encoder = Encoder.from_pretrained(args.model, revision=args.revision)
     for dtype in DTYPES:
         started = time.perf_counter()

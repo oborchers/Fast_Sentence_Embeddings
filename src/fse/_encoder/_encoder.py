@@ -249,8 +249,9 @@ class Encoder:
     def quantize(self, dtype: Literal["float16", "int8"]):  # -> Encoder
         """A new encoder with a float16 or int8 copy of this encoder's float32 table
         (``quantize_rows@1``, int8 with one scale per row), in memory; ``save`` writes it.
-        Its rows are those of the quantized table, bit for bit as its reference computes
-        them. They are not the rows of this encoder; how close they are is measured.
+        Its rows are those of the quantized table, on the cpu backend bit for bit as its
+        reference computes them. They are not the rows of this encoder; how close they are
+        is measured.
         Quantizing a float16 or int8 encoder again raises ``ValueError``."""
         content, table = _persist.quantized(
             self._content,
