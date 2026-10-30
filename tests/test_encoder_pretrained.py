@@ -39,45 +39,41 @@ def test_a_model2vec_folder_is_converted_with_its_provenance(model, tmp_path):
     assert loaded.encode(texts).tobytes() == encoder.encode(texts).tobytes()
 
 
-def test_an_fse_model_names_its_encoder_file(model, tmp_path):
-    folder = tmp_path / "fse"
-    folder.mkdir()
+def test_an_fse_folder_names_its_model_file(model, tmp_path):
     encoder = Encoder.from_pretrained(model)
-    encoder.save(folder / "encoder.safetensors")
-    config = {
-        "model_type": "fse",
-        "fse_kind": "encoder",
-        "fse_format_version": 1,
-        "encoder": "encoder.safetensors",
-    }
-    (folder / "config.json").write_text(json.dumps(config))
+    folder = encoder.save_pretrained(tmp_path / "fse", license="mit")
+    config = json.loads((folder / "config.json").read_text())
     for mmap in (False, True):
         assert Encoder.from_pretrained(folder, mmap=mmap).fingerprint == encoder.fingerprint
     with pytest.raises(ValueError, match="truncate: this model holds its own rules"):
         Encoder.from_pretrained(folder, truncate=False)
     with pytest.raises(ValueError, match="max_length: this model holds its own rules"):
-        Encoder.from_pretrained(folder / "encoder.safetensors", max_length=3)
+        Encoder.from_pretrained(folder / "model.safetensors", max_length=3)
     with pytest.raises(ValueError, match="normalize and truncate_dim: this model holds"):
         Encoder.from_pretrained(folder, truncate_dim=2, normalize=False)
+    provisional = {k: v for k, v in config.items() if k in ("model_type", "fse_kind")}
+    provisional |= {"fse_format_version": 1, "encoder": "model.safetensors"}
     cases = [
         ({**config, "extra": 1}, UnsupportedArtifactError, "holds exactly"),
+        ({**config, "fse_config_version": 2}, UnsupportedArtifactError, "a newer fse"),
+        ({**config, "fse_config_version": True}, UnsupportedArtifactError, "a newer fse"),
         ({**config, "fse_format_version": 2}, UnsupportedArtifactError, "format version 2"),
         ({**config, "fse_kind": "word_vectors"}, UnsupportedArtifactError, "'word_vectors'"),
-        (
-            {**config, "encoder": "../encoder.safetensors"},
-            CorruptArtifactError,
-            "must name a .safetensors file",
-        ),
-        (
-            {**config, "encoder": "other.safetensors"},
-            CorruptArtifactError,
-            "no file other.safetensors",
-        ),
+        ({**config, "fse_kind": "linear_head"}, UnsupportedArtifactError, "Classifier.from_pre"),
+        ({**config, "model": "../model.safetensors"}, CorruptArtifactError, "model must be"),
+        ({**config, "model": "other.safetensors"}, CorruptArtifactError, "model must be"),
+        ({**config, "fingerprint": 1}, CorruptArtifactError, "fingerprint must be a str"),
+        ({**config, "fingerprint": "xxh3-128:" + "0" * 32}, CorruptArtifactError, "do not belong"),
+        (provisional, UnsupportedArtifactError, "pre-release of 2.0"),
     ]
     for value, error, match in cases:
         (folder / "config.json").write_text(json.dumps(value))
         with pytest.raises(error, match=match):
             Encoder.from_pretrained(folder)
+    (folder / "config.json").write_text(json.dumps(config))
+    (folder / "model.safetensors").unlink()
+    with pytest.raises(CorruptArtifactError, match=r"no file model\.safetensors"):
+        Encoder.from_pretrained(folder)
 
 
 def test_models_that_are_no_static_embeddings_are_refused(model, tmp_path):

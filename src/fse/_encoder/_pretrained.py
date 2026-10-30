@@ -30,24 +30,24 @@ from fse._container import CorruptArtifactError, read_regular, safetensors_heade
 from fse._contract import UnsupportedArtifactError
 from fse._hub import REPO_ID, HubFiles, check_folders, resolve_link
 
+from . import _folder
 from ._files import MAX_CONFIG_BYTES, NORMALIZE, STATIC_EMBEDDING, Converted, Files, parse_config
 from ._format import Source
 from ._model2vec import FILES, MODEL_RULE, read_model2vec
 from ._sentence_transformers import read_sentence_transformers
 
-# The config.json of an fse encoder on the Hub: exactly these keys (provisional, fixed
-# with the first upload of fse models).
-FSE_CONFIG = {"model_type", "fse_kind", "fse_format_version", "encoder"}
-_FILE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.safetensors")
 MAX_CARD_BYTES = 16 * 2**20
 
 
 @dataclass(frozen=True, eq=False)
 class Found:
-    """A model: a local fse encoder file (``path``), an fse encoder of the Hub as its
-    checked bytes and name (``data``), or the parts of a converted model."""
+    """A model: a local fse model file (``path``), an fse model of the Hub as its checked
+    bytes and name (``data``), or the parts of a converted model; ``config`` is the checked
+    config.json of an fse folder, which the loaded model must match."""
 
     path: Path | None = None
+    config: dict | None = None
+    config_path: Path | None = None
     data: tuple[bytes, Path] | None = None
     converted: Converted | None = None
     source: Source | None = None
@@ -137,7 +137,7 @@ def find(
     kind = None if config is None else config.get("model_type")
     if config is not None and kind == "fse":
         _model_rules(rules | st_rules)
-        return _fse_encoder(files, config, files.where("config.json"), mmap)
+        return fse_model(files, config, "encoder", mmap)
     if mmap:
         raise ValueError("mmap is for fse encoders; a converted model is converted in memory")
     if config is not None and _is_model2vec(files, kind):
@@ -220,33 +220,58 @@ def _refusal(files: Files | LocalFiles, kind: Any) -> UnsupportedArtifactError:
     )
 
 
-def _fse_encoder(files: Files | LocalFiles, config: dict, path: Path, mmap: bool) -> Found:
-    """The encoder file named by the config.json of an fse model."""
-    if set(config) != FSE_CONFIG:
-        raise UnsupportedArtifactError(f"{path} of an fse model holds exactly {sorted(FSE_CONFIG)}")
-    if config["fse_kind"] != "encoder" or config["fse_format_version"] != 1:
+def find_fse(files: Files | LocalFiles | Path, kind: str, mmap: bool) -> Found:
+    """The fse model of ``kind`` in ``files``: a local ``.safetensors`` file, or a folder
+    with the config.json of an fse model; anything else raises."""
+    if isinstance(files, Path):
+        return Found(path=files)
+    config = _config(files)
+    if config is None or config.get("model_type") != "fse":
         raise UnsupportedArtifactError(
-            f"{path} names a {config['fse_kind']!r} of format version "
-            f"{config['fse_format_version']!r}; this fse reads encoders of version 1"
+            f"the model is no fse folder (a config.json with model_type fse); a {kind} is "
+            "read only from fse models"
         )
-    name = config["encoder"]
-    if not isinstance(name, str) or not _FILE_NAME.fullmatch(name):
-        raise CorruptArtifactError(f"{path}: encoder must name a .safetensors file, not {name!r}")
+    return fse_model(files, config, kind, mmap)
+
+
+def fse_model(files: Files | LocalFiles, config: dict, kind: str, mmap: bool) -> Found:
+    """The model file named by the config.json of an fse folder, of ``kind``."""
+    where = files.where("config.json")
+    _folder.parse_config(config, where)
+    if config["fse_kind"] != kind:
+        if kind == "encoder":
+            raise UnsupportedArtifactError(
+                f"{where} names a linear head; open it with fse.Classifier.from_pretrained or "
+                "fse.Regressor.from_pretrained"
+            )
+        raise UnsupportedArtifactError(
+            f"{where} names an {config['fse_kind']}; open it with fse.Encoder.from_pretrained"
+        )
+    name = config["model"]
     if not files.has(name):
-        raise CorruptArtifactError(f"the model has no file {name}, which {path} names")
+        raise CorruptArtifactError(f"the model has no file {name}, which {where} names")
     if isinstance(files, LocalFiles):
-        return Found(path=files.path_of(name))
+        return Found(path=files.path_of(name), config=config, config_path=where)
     if mmap:
         raise ValueError(
-            "mmap is for local fse encoders: a file of the Hub is checked as one copy in "
-            "memory; save the encoder and load it with mmap"
+            "mmap is for local fse models: a file of the Hub is checked as one copy in "
+            "memory; save the model and load it with mmap"
         )
-    where = files.where(name)
+    path = files.where(name)
 
     def header(handle, size: int) -> None:  # before the data are read
-        safetensors_header(handle, where, size)
+        safetensors_header(handle, path, size)
 
-    return Found(data=(files.read(name, lfs=True, inspect=header), where))
+    data = files.read(name, lfs=True, inspect=header)
+    return Found(data=(data, path), config=config, config_path=where)
+
+
+def check_loaded(found: Found, fingerprint: str | None, kind: str) -> None:
+    """The model loaded from an fse folder is the one its config.json names, compared
+    with the metadata actually loaded, so a file swapped after a first look cannot pass."""
+    if found.config is not None:
+        assert found.config_path is not None
+        _folder.check_loaded(found.config, fingerprint, kind, found.config_path)
 
 
 def _check_modules(files: Files | LocalFiles, kind: Any) -> None:

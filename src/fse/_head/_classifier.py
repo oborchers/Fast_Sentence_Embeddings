@@ -81,6 +81,25 @@ class Classifier(LinearModel):
         """Open a classifier saved with ``save``, complete or standalone."""
         return cls._load(path, mmap)
 
+    @classmethod
+    @validate_arguments
+    def from_pretrained(
+        cls,
+        repo_or_path: PathLike,
+        *,
+        revision: str | None = None,
+        token: str | bool | None = None,
+        cache_dir: PathLike | None = None,
+        local_files_only: bool = False,
+        mmap: bool = False,
+    ):  # -> Classifier
+        """The classifier of a local ``.safetensors`` file or of an fse folder written by
+        ``save_pretrained``, local or a Hugging Face Hub repository (``namespace/name``) at
+        ``revision`` (default branch if None), checked against its commit; ``mmap`` as for
+        ``load``, for local files."""
+        options = {"token": token, "cache_dir": cache_dir, "local_files_only": local_files_only}
+        return cls._from_pretrained(repo_or_path, revision=revision, mmap=mmap, **options)
+
     @property
     def classes_(self) -> ndarray:
         """The labels in output order (int64 or str)."""

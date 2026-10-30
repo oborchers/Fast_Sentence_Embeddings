@@ -40,7 +40,7 @@ from fse._tokenizer_spec import TokenizerSpec
 from fse._validation import PathLike, PositiveInt, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
 
-from . import _batches, _persist, _pretrained
+from . import _batches, _folder, _persist, _pretrained
 from ._batches import EncodedBatch, check_sink, flush, run_into
 from ._format import (
     TABLE_TENSORS,
@@ -224,12 +224,15 @@ class Encoder:
             normalize=normalize,
             mmap=mmap,
         )
-        if found.data is not None:  # an fse encoder of the Hub, checked as these bytes
-            tensors, metadata = SafetensorsContainer().open_bytes(*found.data)
-            return cls._from_artifact(tensors, metadata, None, metadata.get(FINGERPRINT_KEY))
         if found.converted is None:
-            assert found.path is not None
-            return cls.load(found.path, mmap=mmap)
+            if found.data is not None:  # an fse encoder of the Hub, checked as these bytes
+                tensors, metadata = SafetensorsContainer().open_bytes(*found.data)
+                encoder = cls._from_artifact(tensors, metadata, None, metadata[FINGERPRINT_KEY])
+            else:
+                assert found.path is not None
+                encoder = cls.load(found.path, mmap=mmap)
+            _pretrained.check_loaded(found, encoder._fingerprint, "encoder")
+            return encoder
         model = found.converted
         return cls._converted(
             model.word_vectors,
@@ -357,6 +360,48 @@ class Encoder:
         return _persist.artifact(
             self._content, self._word_vectors, self._checksums, self._spec.oov_weight
         )
+
+    @validate_arguments
+    def save_pretrained(
+        self,
+        path: PathLike,
+        *,
+        license: str | list[str] | None = None,
+        language: list[str] | None = None,
+        model_name: str | None = None,
+        extra_files: dict[str, PathLike] | None = None,
+    ) -> Path:
+        """Write the encoder as a Hugging Face folder at the new ``path`` (never half written
+        or replaced): ``config.json``, ``model.safetensors`` (as ``save`` writes it), a
+        ``README.md`` model card with the license the encoder records (or ``license`` if it
+        records none) and ``extra_files`` (name to local text file, such as LICENSE).
+        ``from_pretrained`` reads it. ARCHITECTURE.md, "Hub folders"."""
+        card: dict[str, Any] = {"license": license, "language": language, "extra": extra_files}
+        return _folder.save(path, self.save, model_name=model_name, **card)[0]
+
+    @validate_arguments
+    def push_to_hub(
+        self,
+        repo_id: str,
+        *,
+        token: str | bool | None = None,
+        private: bool | None = None,
+        revision: str | None = None,
+        create_pr: bool = False,
+        commit_message: str | None = None,
+        replace: bool = False,
+        license: str | list[str] | None = None,
+        language: list[str] | None = None,
+        extra_files: dict[str, PathLike] | None = None,
+    ) -> str:
+        """Publish the folder of ``save_pretrained`` to the Hub repository ``repo_id`` in
+        one commit and return its URL. A license is required. Files of another content
+        under the same names, and other files, are refused unless ``replace=True``; license
+        files already there are kept. Every file is checked at the new commit."""
+        hub = {"token": token, "private": private, "revision": revision, "replace": replace}
+        hub |= {"create_pr": create_pr, "commit_message": commit_message}
+        card: dict[str, Any] = {"license": license, "language": language, "extra": extra_files}
+        return _folder.push(repo_id, self.save, "encoder", hub, card | {"model_name": repo_id})
 
     @classmethod
     @validate_arguments
