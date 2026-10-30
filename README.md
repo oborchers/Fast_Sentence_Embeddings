@@ -64,6 +64,35 @@ multilingual = fse.Encoder.from_pretrained("minishlab/potion-multilingual-128M")
 
 fse gives the token ids of the model's tokenizer (Hugging Face tokenizers 0.23.3) and the vectors of model2vec 0.10.0 within float32 rounding (not bit for bit: the sums run in another order). Like model2vec, it reads the first 512 tokens of the first 512 times the median token length characters of a text; `from_pretrained(..., truncate=False)` reads texts whole, and `max_length=` sets another token limit. Only float32 models are read, and a row whose sum of squares underflows or overflows float32 raises where model2vec returns a row that is not of unit length. Files of the Hub are checked against the commit they come from (ARCHITECTURE.md, "Model2Vec models and from_pretrained"); the model's license applies to its use.
 
+### Switch from model2vec
+
+`fse.StaticModel` has the API of `model2vec.StaticModel`, so code written for it needs only another import:
+
+```python
+from fse import StaticModel
+
+model = StaticModel.from_pretrained("minishlab/potion-base-8M")
+row = model.encode("the cat sleeps")                 # a vector of 256 float32 values
+rows = model.encode(["the cat sleeps", "a dog runs"], max_length=128, normalize=False)
+model.max_length = 64                                 # the default of encode from now on
+```
+
+Models are read with the rules of model2vec 0.10.0 (its folder layouts, its config, `[UNK]` dropped, the cut at `max_length` tokens and at `max_length` times the median token length characters), also the static models of sentence-transformers, which `fse.Encoder.from_pretrained` reads with the rules of sentence-transformers instead. Rows equal model2vec's within float32 rounding. `model.encoder` is the `fse.Encoder` of the model's settings, for `ShardSink`, `VectorStore` and the heads.
+
+| model2vec | fse.StaticModel |
+|---|---|
+| unknown keywords to `encode` are ignored (`**kwargs`) | raise `TypeError`; `convert_to_numpy=True`, `convert_to_tensor=False` and `device=None` or `"cpu"` are accepted |
+| `show_progress_bar`, `batch_size`, `use_multiprocessing`, `multiprocessing_threshold` | accepted and checked; they change no row (`use_multiprocessing=False` encodes in one thread) |
+| `quantize_to` float16, int8, float64 | raise: float32 tables only |
+| `vocabulary_quantization`, models with `weights` or `mapping` | raise |
+| `max_length=0`, `dimensionality=0` (ignored or empty) | raise |
+| a row whose sum of squares under- or overflows float32 | raises |
+| `embedding` is writable | read-only |
+| `encode([])` raises in numpy | gives a matrix of shape `(0, dim)` |
+| `encode_as_sequence`, `tokenize`, `tokenizer`, `save_pretrained`, `push_to_hub` | not yet provided |
+
+Checks of the type (`isinstance(model, model2vec.StaticModel)`) or of its name in other libraries need a change there.
+
 A static model of sentence-transformers (one StaticEmbedding) is converted the same way, with the rules of its `encode`: every token id is pooled, `[UNK]` included, texts are read whole, and `truncate_dim` keeps the first dimensions of a Matryoshka model, as sentence-transformers' own `truncate_dim` does:
 
 ```python
