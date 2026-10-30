@@ -427,6 +427,8 @@ ignore_names = [
     "hf_split",          # arguments of the MTEB encoder interface
     "hf_subset",
     "prompt_type",
+    "_fields_",          # the layout of a ctypes struct, read by ctypes (tests/support/arrow_c.py)
+    "n_children",        # fields of the Arrow C structs there, read by the extension
 ]
 
 [tool.deptry]
