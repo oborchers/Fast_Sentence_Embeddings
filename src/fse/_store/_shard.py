@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import os
 import secrets
-import shutil
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -35,7 +34,7 @@ from numpy import ndarray
 from numpy.lib import format as npy_format
 
 from fse import _codes
-from fse._container import Hasher, checksum, tensor_code
+from fse._container import Hasher, checksum, remove_temporary, tensor_code
 from fse._container._npy import write_manifest
 from fse._container._npy_inplace import create, publish_directory, shrink, sync_data, write_at
 
@@ -175,13 +174,14 @@ class ShardWriter:
         self.scales = None if self.scales is None else np.empty(0, np.float32)
         return rows
 
-    def abort(self) -> None:
-        """Drop the shard: removes the temporary directory."""
+    def abort(self) -> OSError | None:
+        """Drop the shard: removes the temporary directory; returns the error of a removal
+        that failed (None once it is gone, also if it was gone already)."""
         self._open.clear()
         if self.fd >= 0:
             os.close(self.fd)
             self.fd = -1
-        shutil.rmtree(self.tmp, ignore_errors=True)
+        return remove_temporary(self.tmp)
 
 
 def _write(file: Path, array: ndarray) -> str:

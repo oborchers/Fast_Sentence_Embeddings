@@ -207,3 +207,72 @@ def test_a_head_folded_into_the_table():
     with expect_log("head.folded", outputs=2, rows=len(encoder.word_vectors), backend="cpu"):
         head = fse.Regressor.from_arrays(encoder, weight, np.zeros(2, np.float32), normalized=False)
         head.predict(["w1 w2"])
+
+
+TEXTS = [f"w{i} w{i + 1}" for i in range(40)]
+
+
+def test_the_records_of_a_sink_and_a_store(tmp_path):
+    encoder = finished()
+    with captured() as records:
+        with fse.ShardSink(tmp_path / "s", encoder, shard_rows=16) as sink:
+            encoder.encode(TEXTS, sink=sink, workers=1)
+        store = fse.VectorStore.open(tmp_path / "s")
+        store.verify()
+        store.search(encoder.encode(TEXTS[:2]), k=3)
+    events = {}
+    for r in records:
+        events.setdefault(r.fse_event, []).append(r)
+    (opened,) = events["store.sink_opened"]
+    assert (opened.fse_mode, opened.fse_rows, opened.fse_shard_rows) == ("new", 0, 16)
+    published = events["store.shard_published"]
+    assert [r.fse_rows for r in published] == [16, 16, 8]
+    assert {r.threadName for r in published} == {"fse-shard-publish"}
+    (closed,) = events["store.sink_closed"]
+    assert (closed.fse_outcome, closed.fse_durable_rows, closed.fse_shards) == ("ok", 40, 3)
+    assert closed.fse_dropped_rows == 0
+    assert (events["store.opened"][0].fse_rows, events["store.opened"][0].fse_shards) == (40, 3)
+    assert events["store.verified"][0].fse_rows == 40
+    (search,) = events["store.search"]
+    assert (search.fse_queries, search.fse_k, search.fse_mode) == (2, 3, "exact")
+
+
+def _empty_shard(tmp_path, monkeypatch):
+    """A sink with an empty shard not published, whose removal fails with EACCES."""
+    encoder = finished()
+    sink = fse.ShardSink(tmp_path / "s", encoder, shard_rows=16)
+    encoder.encode(TEXTS, sink=sink, workers=1)
+    sink._writable()  # a new shard that takes no row: dropped at close
+
+    def refuse(path):
+        return PermissionError(errno.EACCES, "Permission denied", str(path))
+
+    monkeypatch.setattr("fse._store._shard.remove_temporary", refuse)
+    return sink
+
+
+def _shard_threads():
+    return [t.name for t in threading.enumerate() if t.name.startswith("fse-shard")]
+
+
+def test_a_failed_cleanup_without_an_error_raises_after_the_threads(tmp_path, monkeypatch):
+    sink = _empty_shard(tmp_path, monkeypatch)
+    with pytest.raises(PermissionError, match="Permission denied"):
+        sink.close()
+    assert _shard_threads() == []
+    assert sink.durable_rows == 40
+    assert len(fse.VectorStore.open(tmp_path / "s")) == 40
+
+
+def test_a_failed_cleanup_after_an_error_is_noted_and_logged(tmp_path, monkeypatch):
+    sink = _empty_shard(tmp_path, monkeypatch)
+    with (
+        expect_log("store.cleanup_failed", error="PermissionError", errno=errno.EACCES),
+        pytest.raises(ValueError, match="the error of the application") as raised,
+        sink,
+    ):
+        raise ValueError("the error of the application")
+    assert str(raised.value) == "the error of the application"
+    (note,) = raised.value.__notes__
+    assert note.startswith("fse could not remove the temporary ")
+    assert _shard_threads() == []
