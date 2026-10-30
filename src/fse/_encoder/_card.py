@@ -141,6 +141,7 @@ def _facts(metadata: dict[str, str], shapes: dict[str, tuple[int, ...]], head: s
     out = [
         f"- rows (vocabulary): {rows}",
         f"- dimensions of the table: {metadata['fse.dim']} ({metadata['fse.dtype']})",
+        *_quantization(metadata),
         f"- tokenizer: {_tokenizer(metadata)}",
         f"- steps per row: {', '.join(json.loads(metadata['fse.steps'])) or 'none'}",
     ]
@@ -151,6 +152,17 @@ def _facts(metadata: dict[str, str], shapes: dict[str, tuple[int, ...]], head: s
     out.append(f"- fingerprint: `{metadata['fse.fingerprint']}`")
     out.append(f"- written by: {metadata.get('fse.created_by', 'fse')}")
     return out
+
+
+def _quantization(metadata: dict[str, str]) -> list[str]:
+    """The fact line of a float16 or int8 table: its rule, and the float32 table it was
+    stored from when that is recorded."""
+    rule = metadata.get("fse.quantization")
+    if rule is None:
+        return []
+    origin = metadata.get("fse.quantized_from")
+    where = f" from the float32 table `{origin}`" if origin else ""
+    return [f"- table stored by `{rule}`{where}"]
 
 
 def _tokenizer(metadata: dict[str, str]) -> str:
@@ -198,7 +210,8 @@ def _usage(head: str | None, location: str) -> list[str]:
 
 def _source(metadata: dict[str, str], license: Any) -> list[str]:
     out = []
-    if "fse.source" in metadata:
+    has_source = "fse.source" in metadata
+    if has_source:
         source = json.loads(metadata["fse.source"])
         where = source.get("repo") or "a local folder"
         at = f" at revision `{source['revision']}`" if source.get("revision") else ""
@@ -208,11 +221,18 @@ def _source(metadata: dict[str, str], license: Any) -> list[str]:
             out.append(f"Its table of {width} dimensions was cut to the first {kept}.")
         out += _differences(source["format"])
         out.append("")
+    if "fse.quantization" in metadata:
+        out += [
+            "The vectors fse computes are those of the quantized table, bit for bit as its "
+            "reference computes them, not those of the model before quantization. How close "
+            "they come to it is measured, not promised by this file.",
+            "",
+        ]
     if license is None:
         out.append("The model records no license.")
     else:
         ids = license if isinstance(license, str) else ", ".join(license)
-        applies = " The license of the source model applies to its use." if out else ""
+        applies = " The license of the source model applies to its use." if has_source else ""
         out.append(f"License: {ids}.{applies}")
     return out
 

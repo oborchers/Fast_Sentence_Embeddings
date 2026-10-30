@@ -17,7 +17,7 @@ import numpy as np
 from numpy import ndarray
 
 from fse._container import INTEGER, canonical_json
-from fse._contract import UnsupportedArtifactError, check_tokenizer
+from fse._contract import check_tokenizer
 from fse._tokenizer_spec import UNIGRAM, WORDPIECE, TokenizerSpec, WordPieceConfig
 from fse._tokenizer_unigram import UnigramConfig
 
@@ -71,23 +71,17 @@ def integer(metadata: dict[str, str], key: str) -> int:
 
 def check_tokenizer_table(
     tokenizer: TokenizerSpec,
-    dtype: str | None,
     fasttext: bool,
     vocab_bytes: ndarray | None,
     vocab_offsets: ndarray | None,
 ) -> None:
-    """The table a tokenizer with parameters needs: float32 rows without FastText, whose
-    vocabulary holds every id of its parameters. Model2vec computes the mean of a float16
-    table in float16, so only float32 tables keep the bound of a comparison for now."""
+    """The table a tokenizer with parameters needs: rows of any dtype without FastText,
+    whose vocabulary holds every id of its parameters. A float16 or int8 table is a
+    quantized one (word_vectors 1 requires ``fse.quantization`` of it)."""
     if tokenizer.config is None:
         return
     if fasttext:
         raise ValueError(f"an encoder of {tokenizer.name} has no FastText table")
-    if dtype != "float32":
-        raise UnsupportedArtifactError(
-            f"encoders of {tokenizer.name} with a {dtype} table are not supported by this "
-            "fse; their tables are float32"
-        )
     if vocab_bytes is None or vocab_offsets is None:
         raise ValueError("an encoder needs the tensors vocab.bytes and vocab.offsets")
     tokenizer.check_vocabulary(vocab_bytes, vocab_offsets)

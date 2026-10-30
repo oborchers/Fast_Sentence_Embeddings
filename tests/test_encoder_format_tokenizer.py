@@ -171,11 +171,15 @@ def test_the_keys_of_wordpiece_are_checked(key, value, error, match):
         from_artifact(tensors, metadata)
 
 
-def test_the_table_of_wordpiece_is_float32_without_fasttext():
+@pytest.mark.parametrize("dtype", ["float16", "int8"])
+def test_the_table_of_wordpiece_may_be_quantized(dtype):
     content = EncoderContent(SPEC, (), None, None)
-    tensors, metadata = to_artifact(content, *_table(_word_vectors("int8")))
-    with pytest.raises(UnsupportedArtifactError, match="with a int8 table are not supported"):
-        from_artifact(tensors, metadata)
+    tensors, metadata = to_artifact(content, *_table(_word_vectors(dtype)))
+    assert metadata["fse.dtype"] == dtype
+    assert from_artifact(tensors, metadata)[0].tokenizer == SPEC
+
+
+def test_the_table_of_wordpiece_has_no_fasttext_and_its_vocabulary():
     tensors, metadata = _artifact()
     with pytest.raises(ValueError, match="has no FastText table"):
         from_artifact(tensors, {**metadata, "fse.fasttext": "{}"})
@@ -213,8 +217,8 @@ def test_a_converted_encoder_checks_its_parts():
         Encoder._converted(_word_vectors(), "wordpiece@1", normalize=True)
     with pytest.raises(TypeError, match="normalize must be a bool"):
         Encoder._converted(_word_vectors(), SPEC, normalize=1)
-    with pytest.raises(UnsupportedArtifactError, match="float16 table"):
-        Encoder._converted(_word_vectors("float16"), SPEC, normalize=True)
+    for dtype in ("float16", "int8"):  # a quantized table is accepted
+        assert Encoder._converted(_word_vectors(dtype), SPEC, normalize=True).tokenizer == SPEC.name
     fasttext = WordVectors.from_arrays(
         np.ones((len(TOKENS), 3), F32),
         words=TOKENS,
@@ -298,11 +302,9 @@ def test_integers_and_json_objects_are_strict():
 
 def test_the_table_of_a_tokenizer_with_parameters():
     data, offsets = _vocabulary(TOKENS)
-    fmt.check_tokenizer_table(SPEC, "float32", False, data, offsets)
-    fmt.check_tokenizer_table(TokenizerSpec("fse_words@1"), "int8", True, None, None)
+    fmt.check_tokenizer_table(SPEC, False, data, offsets)
+    fmt.check_tokenizer_table(TokenizerSpec("fse_words@1"), True, None, None)
     with pytest.raises(ValueError, match="no FastText"):
-        fmt.check_tokenizer_table(SPEC, "float32", True, data, offsets)
-    with pytest.raises(UnsupportedArtifactError, match="float16 table"):
-        fmt.check_tokenizer_table(SPEC, "float16", False, data, offsets)
+        fmt.check_tokenizer_table(SPEC, True, data, offsets)
     with pytest.raises(ValueError, match=r"vocab\.bytes"):
-        fmt.check_tokenizer_table(SPEC, "float32", False, None, offsets)
+        fmt.check_tokenizer_table(SPEC, False, None, offsets)
