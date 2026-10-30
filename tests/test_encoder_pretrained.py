@@ -109,11 +109,21 @@ def test_models_that_are_no_static_embeddings_are_refused(model, tmp_path):
         Encoder.from_pretrained(empty)
     lacking = _copy(model, tmp_path, "lacking")
     (lacking / "tokenizer.json").unlink()
+    # With its modules.json (StaticEmbedding and Normalize), the folder is read as a
+    # sentence-transformers model, which ignores config.json.
+    with pytest.raises(UnsupportedArtifactError, match="Normalize module"):
+        Encoder.from_pretrained(lacking)
+    modules = (lacking / "modules.json").read_text(encoding="utf-8")
+    (lacking / "modules.json").unlink()
     with pytest.raises(UnsupportedArtifactError, match=r"a Model2Vec model has config\.json"):
         Encoder.from_pretrained(lacking)
     (lacking / "modules.json").write_text("{}")
     with pytest.raises(CorruptArtifactError, match="must be a list of modules"):
         Encoder.from_pretrained(lacking)
+    complete = _copy(model, tmp_path, "complete")
+    (complete / "modules.json").write_text(modules.replace("StaticEmbedding", "Pooling"))
+    with pytest.raises(UnsupportedArtifactError, match="its modules are"):
+        Encoder.from_pretrained(complete)  # a Model2Vec model lists only static modules
 
 
 def test_the_arguments_are_checked(model, tmp_path):

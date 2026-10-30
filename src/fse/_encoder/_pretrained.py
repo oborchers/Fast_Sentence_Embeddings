@@ -185,13 +185,17 @@ def _model_rules(given: dict[str, Any]) -> None:
 
 
 def _is_model2vec(files: Files | LocalFiles, kind: Any) -> bool:
-    """A config.json with model_type model2vec or none is a Model2Vec model: its files
-    must be there, and its modules.json, if any, lists only static modules."""
+    """A config.json with model_type model2vec or none, and the files of a Model2Vec
+    model, is one; its modules.json, if any, lists only static modules. Without those
+    files, a modules.json makes it a sentence-transformers model (which ignores the
+    config.json); without one, a missing file raises."""
     if kind not in (None, "model2vec"):
         return False
-    _check_modules(files, kind)
     if not all(files.has(name) for name in FILES):
+        if files.has("modules.json"):
+            return False
         raise _refusal(files, kind)
+    _check_modules(files, kind)
     return True
 
 

@@ -346,6 +346,17 @@ def test_the_arguments_are_checked(model, tmp_path):
             Encoder.from_pretrained(model2vec, **options)
 
 
+@pytest.mark.parametrize(
+    "config", ["{}", '{"architectures": ["BertModel"]}', '{"model_type": "bert"}']
+)
+def test_a_config_json_next_to_the_modules_is_ignored(model, config):
+    """sentence-transformers ignores a config.json next to a StaticEmbedding; without the
+    files of a Model2Vec model, fse does too."""
+    want = Encoder.from_pretrained(model).fingerprint
+    (model / "config.json").write_text(config)
+    assert Encoder.from_pretrained(model).fingerprint == want
+
+
 def test_detection_without_modules_json(tmp_path):
     folder = tmp_path / "st"
     folder.mkdir()
