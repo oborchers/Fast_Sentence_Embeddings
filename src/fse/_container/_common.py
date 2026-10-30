@@ -17,6 +17,7 @@ import json
 import math
 import os
 import re
+import shutil
 import stat
 from collections.abc import Mapping
 from pathlib import Path
@@ -26,6 +27,7 @@ from typing import Any, Protocol
 import numpy as np
 from numpy import ndarray
 
+from fse import _log
 from fse._contract import UnsupportedArtifactError
 
 from . import _hash
@@ -353,3 +355,39 @@ def _sync_directory(path: Path, *, full: bool = True):
             os.fsync(descriptor)
     finally:
         os.close(descriptor)
+
+
+def remove_temporary(path: Path) -> OSError | None:
+    """Remove the temporary file or directory ``path`` of fse; returns the error of a
+    removal that failed, None once it is gone (also if it was gone already)."""
+    try:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    except OSError as error:
+        return error if os.path.lexists(path) else None
+    return None
+
+
+def note_cleanup(error: BaseException, path: Path, failure: OSError) -> None:
+    """Note on ``error`` that the temporary ``path`` could not be removed (a note of the
+    exception, which goes to the caller, so it may name the path; records do not)."""
+    error.add_note(f"fse could not remove the temporary {path}: {failure}")
+
+
+def discard_temporary(path: Path, error: BaseException) -> None:
+    """Remove the temporary ``path`` of an artifact whose writing failed with ``error``;
+    a failed removal never replaces ``error``: it is noted on it and logged."""
+    failure = remove_temporary(path)
+    if failure is not None:
+        note_cleanup(error, path, failure)
+        _log.emit(
+            "artifact.cleanup_failed",
+            "fse artifact: could not remove a temporary file after an error (%s, errno %s); "
+            "the error is raised with a note",
+            type(failure).__name__,
+            failure.errno,
+            error=type(failure).__name__,
+            errno=failure.errno,
+        )

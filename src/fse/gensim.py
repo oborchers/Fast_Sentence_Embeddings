@@ -15,7 +15,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from fse import _codes
+from fse import _codes, _log
 from fse._validation import validate_arguments
 from fse._wordvectors import FastTextParams, WordVectors
 from fse._wordvectors_format import _encode_words
@@ -69,9 +69,23 @@ def from_gensim(
         kwargs["scales"] = scales
     # Codes and vocabulary are new arrays of this call; gensim's float32 rows are copied.
     fasttext_params = kwargs.pop("fasttext", None)
-    return WordVectors._from_arrays(
+    out = WordVectors._from_arrays(
         vectors, None, vocab_bytes, vocab_offsets, fasttext_params, kwargs, copy=dtype == "float32"
     )
+    _log.emit(
+        "artifact.converted",
+        "fse artifact: converted gensim word vectors: %d rows of %d dimensions, %s",
+        len(out),
+        out.dim,
+        dtype,
+        kind="word_vectors",
+        source="gensim",
+        rows=len(out),
+        dim=out.dim,
+        dtype=dtype,
+        fasttext=fasttext is not None,
+    )
+    return out
 
 
 def _word_rows(kv: Any, is_fasttext: bool):

@@ -26,6 +26,7 @@ from typing import Any
 
 import numpy as np
 
+from fse import _log
 from fse._container import CorruptArtifactError
 from fse._contract import UnsupportedArtifactError
 from fse._tokenizer_json import MAX_BYTES as MAX_TOKENIZER_BYTES
@@ -193,6 +194,15 @@ def _config(files: Files) -> int | None:
         raise UnsupportedArtifactError(
             f"{where} holds keys this fse does not know: {sorted(unknown)}; they could change "
             "how the model encodes"
+        )
+    ignored = sorted(_IGNORED & set(config))  # fse's own names of these keys
+    if ignored:
+        _log.emit(
+            "artifact.ignored",
+            "fse artifact: ignored the keys %s of a sentence-transformers config",
+            ignored,
+            source="sentence_transformers",
+            keys=ignored,
         )
     if config.get("model_type", "SentenceTransformer") != "SentenceTransformer":
         raise UnsupportedArtifactError(

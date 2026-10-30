@@ -22,7 +22,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import tempfile
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -32,6 +31,7 @@ from fse import _hub_push
 from fse._container import (
     CorruptArtifactError,
     PublishedNotDurableError,
+    discard_temporary,
     publish_directory,
     read_regular,
     safetensors_header,
@@ -172,18 +172,19 @@ def save(
         for name, data in {CONFIG: config_bytes(metadata), CARD: card, **extras}.items():
             _write_new(tmp / name, data)
         _sync_directory(tmp)
-    except BaseException:
-        shutil.rmtree(tmp, ignore_errors=True)
+    except BaseException as error:
+        discard_temporary(tmp, error)
         raise
     try:
         publish_directory(tmp, path)
     except PublishedNotDurableError:
         raise  # published and complete: path stays, tmp is gone
     except FileExistsError:
-        shutil.rmtree(tmp, ignore_errors=True)
-        raise FileExistsError(f"{path} exists; another writer published it first") from None
-    except BaseException:
-        shutil.rmtree(tmp, ignore_errors=True)  # nothing published, or tmp is gone already
+        exists = FileExistsError(f"{path} exists; another writer published it first")
+        discard_temporary(tmp, exists)
+        raise exists from None
+    except BaseException as error:
+        discard_temporary(tmp, error)  # nothing published, or tmp is gone already
         raise
     return path, chosen
 

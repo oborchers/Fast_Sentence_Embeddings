@@ -29,6 +29,7 @@ import stat
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from fse import _log
 from fse._container import CorruptArtifactError, file_digests, read_regular
 
 REPO_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*")
@@ -84,6 +85,18 @@ class HubFiles:
                 s.rfilename: getattr(s.lfs, "size", None) if s.lfs else None for s in info.siblings
             }
             self._names = set(self._pins)
+        # The commit, never the repository id or revision name (a private repository's
+        # name may be confidential).
+        _log.emit(
+            "hub.resolved",
+            "fse hub: resolved a repository to commit %s (%d files%s)",
+            self.revision,
+            len(self._names),
+            ", offline" if local_files_only else "",
+            commit=self.revision,
+            offline=local_files_only,
+            files=len(self._names),
+        )
 
     def _download(self, name: str, revision: str | None) -> Path:
         path = self.hub.hf_hub_download(
@@ -124,6 +137,15 @@ class HubFiles:
             _check_name(name, etag, sha256, sha1, lfs)
         else:
             _check_pin(name, self._pins[name], sha256, sha1, lfs, self.revision)
+        _log.emit(
+            "hub.file",
+            "fse hub: took a checked file of %d bytes at commit %s",
+            len(data),
+            self.revision,
+            commit=self.revision,
+            bytes=len(data),
+            pin="lfs_sha256" if lfs else "git_sha1",
+        )
         return data
 
 

@@ -14,7 +14,8 @@ content (``fse.fingerprint``), which does not depend on the container.
 
 Only the standard library, numpy and (in ``_hash``) xxhash are used, and the modules
 import each other relatively, so another project can copy this package; from fse they
-import only ``UnsupportedArtifactError`` of ``fse._contract``.
+import only ``UnsupportedArtifactError`` of ``fse._contract`` and the records of
+``fse._log``.
 """
 
 from ._common import (
@@ -29,8 +30,11 @@ from ._common import (
     TensorContainer,
     canonical_json,
     checksum,
+    discard_temporary,
     fingerprint,
     is_fingerprint,
+    note_cleanup,
+    remove_temporary,
     strict_json,
     tensor_code,
 )
@@ -60,14 +64,17 @@ __all__ = [
     "TensorContainer",
     "canonical_json",
     "checksum",
+    "discard_temporary",
     "file_digests",
     "fingerprint",
     "foreign_header",
     "foreign_tensors",
     "is_fingerprint",
+    "note_cleanup",
     "publish_directory",
     "read_foreign",
     "read_regular",
+    "remove_temporary",
     "safetensors_header",
     "strict_json",
     "tensor_code",
