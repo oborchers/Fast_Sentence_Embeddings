@@ -240,6 +240,7 @@ The manifest key `fse.tokenizer` holds `external` or the identifier of a native 
 - `external`: the caller gives the tokens. Text input is split at the whitespace W below, as `str.split()` does, and the tokens are not changed.
 - `fse_words@1`: the native tokenizer specified here.
 - `wordpiece@1`: the WordPiece tokenizer of BERT vocabularies (POTION/Model2Vec, the static models of sentence-transformers), specified below; its parameters are data of the model.
+- `unigram@1`: the Unigram tokenizer of SentencePiece vocabularies as Hugging Face tokenizers runs it (potion-multilingual-128M), specified below; defined by its reference so far, the native tokenizer follows.
 
 **Input.** One sentence is a `str` that UTF-8 can encode (a lone surrogate raises), or one line of a UTF-8 file: a line ends at the byte `\n`, which is not part of it; the last line needs no `\n`, a final `\n` starts no empty line, and an empty file has no lines. A file must not start with a UTF-8 byte order mark, which would otherwise stick to the first token as U+FEFF; it raises. Bytes are decoded strictly, as CPython's UTF-8 decoder does, and invalid UTF-8 raises. Sentences are not split further and not normalized: NFC and NFD spellings stay different.
 
@@ -344,6 +345,40 @@ The rules mix three Unicode versions, those of the libraries tokenizers 0.23.3 i
 | lowercase, White_Space | the Rust standard library that built the wheel | 17.0.0 |
 
 So a code point that became Mn, Cf or P* after 8.0.0 is kept, and the 83 code points with a nonzero class in 9.0.0 that are not Mn in 8.0.0 survive and are reordered. A tokenizers wheel built with another Rust lowercases some rare code points differently; `wordpiece@1` stays fixed to these tables, and any change is a new identifier. `tools/make_wordpiece_tables.py` reads the five UCD files (pinned by sha256) and writes `fse._unicode_bert`, the data for the reference `fse._reference_wordpiece`, and `_native_unicode_bert.h`, the same composed per code point for the native code (steps 3.1 to 3.5 of one code point, with its combining class; only the ordering of runs is computed per piece).
+
+#### unigram@1
+
+`unigram@1` gives the ids that Hugging Face tokenizers 0.23.3 gives for a `tokenizer.json` with a `Unigram` model, a normalizer made of the steps below, a `Metaspace` pre-tokenizer and added tokens matched on the raw text, encoded without special tokens (the tokenizer of minishlab/potion-multilingual-128M). The rules are reimplemented from tokenizers at tag v0.23.3 (`models/unigram/model.rs`, `normalizers/precompiled.rs`, `normalizers/replace.rs`, `normalizers/strip.rs`, `pre_tokenizers/metaspace.rs`), from the crates its Cargo.lock pins (spm_precompiled 0.1.4 for the charsmap, unicode-segmentation 1.13.3 for graphemes, Oniguruma through onig 6.5.3 for the regexes) and from the Unicode data; no code is copied. `fse._reference_unigram` defines the ids. The identifier is not yet one of `fse._contract`: the format, the native tokenizer and the Model2Vec reader follow (PR 12d2), so no encoder holds it yet.
+
+Its parameters are data of the model: the added tokens and `unk_id` as for `wordpiece@1`; `byte_fallback`, which must be false; `normalizer`, a list of steps; `metaspace`, the replacement (`▁`, U+2581), the prepend scheme (`always`) and `split` (false), the only values this fse supports. The score of every piece is a float64 (tokenizers parses and sums them in float64), and the charsmap of a `precompiled` step is the decoded blob of the file, kept as it is. Only these forms are read; any other normalizer, regex, pre-tokenizer value, `byte_fallback: true` or `unk_id: null` raises `UnsupportedArtifactError` naming it.
+
+Input as for `fse_words@1`. Per sentence:
+
+1. **Character cut** and 2. **added tokens** as steps 1 and 2 of `wordpiece@1`. Every piece between added tokens goes through steps 3 to 5 on its own; an empty piece gives no id.
+3. **Normalize** the piece by its steps, in order:
+   - `precompiled`: cut the piece into extended grapheme clusters by UAX #29 of Unicode 17.0.0 (Grapheme_Cluster_Break, Extended_Pictographic and InCB of 17.0.0; rules GB3 to GB13 and GB999, with GB9c). A grapheme of fewer than 6 UTF-8 bytes is searched in the charsmap with its bytes: if any key is a prefix of it, the **shortest** such key wins and the whole grapheme becomes that key's value, so the rest of the grapheme is dropped (`Ａ` U+0301 becomes `A`). Otherwise every code point of the grapheme is searched alone and becomes its key's value, or stays. This is tokenizers' rule, not SentencePiece's (which takes the longest match over the text, without graphemes).
+   - `replace`: every occurrence of a non-empty `pattern` becomes `content`, left to right without overlap (tokenizers' `Replace` with a `String` pattern).
+   - `runs`: every maximal run of at least `min` code points of a class becomes `content`; the class `space` is U+0020 (the regex ` {2,}` is `min` 2), the class `white_space` is White_Space of Unicode 17.0.0 (the regex `\s+` is `min` 1: Oniguruma's `\s` matches exactly these 25 code points).
+   - `strip`: leading and trailing White_Space code points (17.0.0) are removed.
+4. **Metaspace.** Every U+0020 becomes the replacement, which is put in front of the piece unless it starts with it; the piece stays one pre-token.
+5. **Unigram** on the UTF-8 bytes `b` of the pre-token, n bytes. `unk_score = min(scores) - 10.0` and every sum below are float64, round to nearest. `best[0] = 0.0`. For each code point boundary s from 0 up, with m the length of the code point at s: every piece that is a prefix of `b[s:]`, by increasing length, offers `score + best[s]` for its end; it is taken if that end holds nothing yet or the offer is strictly greater. If no piece is exactly the m bytes at s, `unk_score + best[s]` is offered for s + m in the same way, with the id `unk_id`. So a tie goes to the earliest start. Going back from n, consecutive nodes whose id is `unk_id` (unknown code points, and a piece that has that id) are joined into one string, and every string is the id of the piece it equals, else `unk_id`.
+6. **Token cut and unknown tokens** as step 6 of `wordpiece@1`: every pre-token is tokenized whole, then the first `max_tokens` ids are kept and `fse.unknown=drop` removes every `unk_id`.
+
+**The charsmap** (the blob of spm_precompiled 0.1.4, SentencePiece's double array): a little-endian u32 `size`, `size / 4` little-endian u32 units, then the values as UTF-8 strings, each ended by NUL. A unit u has `leaf = (u >> 8) & 1`, `label = u & (2**31 | 255)`, `offset = (u >> 10) << ((u & 512) >> 6)` and `value = u & (2**31 - 1)`. The search starts at `p = offset(a[0])` and takes the bytes of the key in turn, ending at a byte 0: `p ^= c`, it ends unless `label(a[p]) == c`, then `p ^= offset(a[p])`, and if that unit had `leaf`, `value(a[p])` is the offset of a match in the values, whose string runs to the next NUL or the end of the values. The keys are byte strings. A blob is checked completely when it is read, as tokenizers panics on a broken one: `size` a positive multiple of 4 within the blob, the values valid UTF-8, and every node reachable from the root (darts-clone shares the nodes of equal suffixes, so a node is checked once, and a cycle is refused) with every probe `p ^ c` inside the array and every value offset at most the length of the values and on a code point boundary.
+
+| Input (potion-multilingual-128M) | `unigram@1` |
+|---|---|
+| `Hello, World!` | `▁Hello` `▁` `,` `▁World` `▁!` |
+| `a[UNK]b` | `▁a` `[UNK]` `▁b` |
+| `Ａ` U+0301 | `▁A` |
+| `x` U+3000 `y` | `▁x` `▁y` |
+| U+0000 `a` / `x` U+180E `y` | `▁` `[UNK]` `a` / `▁x` `[UNK]` `y` (no key, no White_Space) |
+| `…` | `▁` `.` `▁` `.` `▁` `.` |
+| an empty or blank sentence | none |
+
+`tests/test_data/v2/unigram.json` holds such cases for small tokenizers written by tokenizers 0.23.3 (`make_unigram_golden.py`), including a tie (pieces `a`, `ab`, `bc`, `c` of score -1: `abc` is `a`, `bc`), joined unknowns that are a piece (scores above 20, so two unknown nodes beat the piece `xy`: `axya` is `a`, `xy`, `a`) and the case that needs float64 scores: `a` and `b` of score -1 and `ab` of `-2 - 2**-30` make `ab` `a`, `b`, while scores rounded to float32 tie and give `ab`. Scores rounded to float32 agree on a million texts for the target model, yet 16 of its Viterbi decisions on MASSIVE lie within one float32 rounding of a flip; float32 sums change 380 of those texts.
+
+The Unicode data: `tools/make_grapheme_tables.py` reads `GraphemeBreakProperty.txt`, `emoji-data.txt`, `DerivedCoreProperties.txt` and `PropList.txt` of 17.0.0 (pinned by sha256) and writes `fse._unicode_graphemes`; `tests/test_data/GraphemeBreakTest-17.0.0.txt`, pinned the same way, holds the 766 cases of UAX #29 the segmentation passes. A tokenizers wheel with another unicode-segmentation, or a new form of Precompiled, can change ids; `unigram@1` stays fixed to these rules, and a change is a new identifier.
 
 ### Backends
 
