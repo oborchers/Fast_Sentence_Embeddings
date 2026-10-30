@@ -38,7 +38,7 @@ from fse._container import (
 )
 from fse._contract import UnsupportedArtifactError
 from fse._cpus import usable_cpus
-from fse._encoder import Encoder
+from fse._encoder import Encoder, _folder, _pretrained
 from fse._encoder._format import to_artifact as encoder_artifact
 from fse._runtime import HeadPipeline, HeadSpec, make_head
 from fse._runtime._head import fold
@@ -266,15 +266,24 @@ class LinearModel:
     def _load(cls, path: Any, mmap: bool = False):
         path = Path(path)
         tensors, metadata = SafetensorsContainer().open(path, mmap=mmap)
+        return cls._opened(tensors, metadata, path, path)
+
+    @classmethod
+    def _opened(cls, tensors: dict, metadata: dict, path: Path | None, where: Path):
+        """The model of an opened artifact: from the file ``path``, or of checked bytes
+        (``path`` None) that ``where`` names in errors."""
         if metadata.get("fse.kind") == _format.ENCODER_KIND:
             raise UnsupportedArtifactError(
-                f"{path} is an encoder, not a linear head; make a {cls.__name__} of it with "
+                f"{where} is an encoder, not a linear head; make a {cls.__name__} of it with "
                 "from_arrays or from_sklearn"
             )
         content, enc_tensors, enc_metadata, of_encoder = _format.from_artifact(tensors, metadata)
         if content.task != cls.TASK:
             other = "Regressor" if content.task == "regression" else "Classifier"
-            raise ValueError(f"{path} holds a {content.task} head; open it with fse.{other}.load")
+            raise ValueError(
+                f"{where} holds a {content.task} head; open it with fse.{other}.load or "
+                f"fse.{other}.from_pretrained"
+            )
         encoder = Encoder._from_artifact(enc_tensors, enc_metadata, path, of_encoder)
         checksums = {
             k[len(CHECKSUM_PREFIX) :]: v
@@ -287,6 +296,86 @@ class LinearModel:
             path=path,
             checksums=checksums,
             fingerprint_=metadata.get(FINGERPRINT_KEY),
+        )
+
+    @classmethod
+    def _from_pretrained(
+        cls, repo_or_path: Any, *, revision, token, cache_dir, local_files_only, mmap
+    ):
+        """The model of a local ``.safetensors`` file, or of an fse folder (local or of
+        the Hub) whose config.json names a linear head; the config is compared with the
+        metadata actually loaded."""
+        files = _pretrained.files(
+            repo_or_path,
+            revision=revision,
+            token=token,
+            cache_dir=cache_dir,
+            local_files_only=local_files_only,
+        )
+        found = _pretrained.find_fse(files, _format.KIND, mmap)
+        if found.data is not None:  # of the Hub, checked as these bytes
+            tensors, metadata = SafetensorsContainer().open_bytes(*found.data)
+            model = cls._opened(tensors, metadata, None, found.data[1])
+        else:
+            assert found.path is not None
+            model = cls._load(found.path, mmap)
+        _pretrained.check_loaded(found, model._fingerprint, _format.KIND)
+        return model
+
+    @validate_arguments
+    def save_pretrained(
+        self,
+        path: PathLike,
+        *,
+        standalone: bool = False,
+        license: str | list[str] | None = None,
+        language: list[str] | None = None,
+        model_name: str | None = None,
+        extra_files: dict[str, PathLike] | None = None,
+    ) -> Path:
+        """Write the model as a Hugging Face folder at the new ``path`` (never half written
+        or replaced): ``config.json``, ``model.safetensors`` (as ``save`` writes it,
+        complete or ``standalone``), a ``README.md`` model card of that file with the
+        license its encoder records (or ``license`` if it records none) and
+        ``extra_files`` (name to local text file, such as LICENSE). ``from_pretrained``
+        reads it. ARCHITECTURE.md, "Hub folders"."""
+
+        def write(file: Path) -> None:
+            self.save(file, standalone=standalone)
+
+        card: dict[str, Any] = {"license": license, "language": language, "extra": extra_files}
+        return _folder.save(path, write, model_name=model_name, **card)[0]
+
+    @validate_arguments
+    def push_to_hub(
+        self,
+        repo_id: str,
+        *,
+        standalone: bool = False,
+        token: str | bool | None = None,
+        private: bool | None = None,
+        revision: str | None = None,
+        create_pr: bool = False,
+        commit_message: str | None = None,
+        replace: bool = False,
+        license: str | list[str] | None = None,
+        language: list[str] | None = None,
+        extra_files: dict[str, PathLike] | None = None,
+    ) -> str:
+        """Publish the folder of ``save_pretrained`` to the Hub repository ``repo_id`` in
+        one commit and return its URL, as ``Encoder.push_to_hub`` does: a license is
+        required, other content under the same names and other files are refused unless
+        ``replace=True``, license files already there are kept, every file is checked at
+        the new commit."""
+
+        def write(file: Path) -> None:
+            self.save(file, standalone=standalone)
+
+        hub = {"token": token, "private": private, "revision": revision, "replace": replace}
+        hub |= {"create_pr": create_pr, "commit_message": commit_message}
+        card: dict[str, Any] = {"license": license, "language": language, "extra": extra_files}
+        return _folder.push(
+            repo_id, write, type(self).__name__.lower(), hub, card | {"model_name": repo_id}
         )
 
     # --- properties -------------------------------------------------------------------

@@ -13,12 +13,15 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 import fse._hub as hub
 from fse._container import CorruptArtifactError
+from fse._contract import UnsupportedArtifactError
 from fse._encoder import Encoder
 from fse._encoder._format import Source
+from fse._head import Classifier
 from support import model2vec as mv
 
 pytest.importorskip("model2vec")
@@ -186,25 +189,16 @@ def test_the_name_of_a_cached_blob_is_checked(tmp_path):
 
 def test_an_fse_encoder_on_the_hub_is_an_lfs_file(fake, tmp_path):
     encoder = Encoder.from_pretrained(fake.model)
-    encoder.save(tmp_path / "encoder.safetensors")
-    config = {
-        "model_type": "fse",
-        "fse_kind": "encoder",
-        "fse_format_version": 1,
-        "encoder": "encoder.safetensors",
-    }
+    folder = encoder.save_pretrained(tmp_path / "fse", license="mit")
     fake.files = {
-        "config.json": json.dumps(config).encode(),
-        "encoder.safetensors": (tmp_path / "encoder.safetensors").read_bytes(),
+        name: (folder / name).read_bytes() for name in ("config.json", "model.safetensors")
     }
     assert _load(fake).fingerprint == encoder.fingerprint
-    with pytest.raises(ValueError, match="mmap is for local fse encoders"):
+    with pytest.raises(ValueError, match="mmap is for local fse models"):
         _load(fake, mmap=True)
     fake.cache = tmp_path / "other-cache"
     fake.lfs = set()
-    with pytest.raises(
-        CorruptArtifactError, match=r"encoder\.safetensors of commit .* no LFS file"
-    ):
+    with pytest.raises(CorruptArtifactError, match=r"model\.safetensors of commit .* no LFS file"):
         _load(fake)
 
 
@@ -327,19 +321,12 @@ def test_a_huge_fse_file_is_refused_before_it_is_read(fake, tmp_path):
     """The size the commit records and the header are checked on the handle before the
     data are read: a blob replaced by 1 GiB costs no memory."""
     encoder = Encoder.from_pretrained(fake.model)
-    encoder.save(tmp_path / "encoder.safetensors")
-    config = {
-        "model_type": "fse",
-        "fse_kind": "encoder",
-        "fse_format_version": 1,
-        "encoder": "encoder.safetensors",
-    }
+    folder = encoder.save_pretrained(tmp_path / "fse", license="mit")
     fake.files = {
-        "config.json": json.dumps(config).encode(),
-        "encoder.safetensors": (tmp_path / "encoder.safetensors").read_bytes(),
+        name: (folder / name).read_bytes() for name in ("config.json", "model.safetensors")
     }
     _load(fake)
-    _sparse_blob(fake, "encoder.safetensors")
+    _sparse_blob(fake, "model.safetensors")
     error, peak = _peak(lambda: _load(fake))
     assert "the commit records" in str(error)
     assert peak < 64 * 2**20, peak
@@ -412,3 +399,50 @@ def test_a_local_folder_with_a_linked_folder_is_refused(tmp_path):
         files.read("0_x/a.json")
     with pytest.raises(CorruptArtifactError, match="a link to a folder"):
         hub.files_below(model)
+
+
+def test_an_fse_head_on_the_hub_and_a_config_that_names_another_file(fake, tmp_path):
+    encoder = Encoder.from_pretrained(fake.model)
+    clf = Classifier.from_arrays(encoder, np.ones((2, encoder.output_dim)), labels=["a", "b"])
+    folder = clf.save_pretrained(tmp_path / "clf", license="mit")
+    fake.files = {
+        name: (folder / name).read_bytes() for name in ("config.json", "model.safetensors")
+    }
+    got = Classifier.from_pretrained("acme/tiny", cache_dir=fake.cache)
+    assert got.fingerprint == clf.fingerprint
+    with pytest.raises(UnsupportedArtifactError, match="names a linear head"):
+        _load(fake)
+    config = json.loads(fake.files["config.json"])
+    fake.files["config.json"] = json.dumps(
+        {**config, "fingerprint": "xxh3-128:" + "0" * 32}
+    ).encode()
+    fake.cache = tmp_path / "other-cache"
+    with pytest.raises(CorruptArtifactError, match="do not belong together"):
+        Classifier.from_pretrained("acme/tiny", cache_dir=fake.cache)
+
+
+def test_a_cached_file_at_a_commit_is_served_without_a_request(fake, monkeypatch):
+    """The Hub counts requests to config.json; a cached file at a commit hash is returned
+    by huggingface_hub without one, so a cached load is not counted (ARCHITECTURE.md,
+    "Hub folders")."""
+    _load(fake)  # the first load downloads config.json into the cache
+    import huggingface_hub
+    import huggingface_hub.file_download as download
+    import huggingface_hub.utils._http as http
+
+    def no_request(*_args, **_kwargs):
+        raise AssertionError("a request was made")
+
+    for module, name in [
+        (http, "get_session"),
+        (download, "get_hf_file_metadata"),
+        (download, "http_get"),
+        (download, "_httpx2_follow_hub_redirects_with_backoff"),
+        (download, "_httpx_follow_relative_redirects"),
+        (download, "_request_wrapper"),
+    ]:
+        monkeypatch.setattr(module, name, no_request, raising=False)
+    path = huggingface_hub.hf_hub_download(
+        "acme/tiny", "config.json", revision=COMMIT, cache_dir=fake.cache
+    )
+    assert Path(path) == fake.folder() / "snapshots" / COMMIT / "config.json"

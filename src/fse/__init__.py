@@ -15,7 +15,7 @@ from importlib.metadata import version as _version
 from typing import TYPE_CHECKING
 from typing import Any as _Any
 
-from fse._container import CorruptArtifactError
+from fse._container import CorruptArtifactError, PublishedNotDurableError
 from fse._contract import UnsupportedArtifactError
 from fse._wordvectors import WordVectors
 from fse._wordvectors_format import FastTextParams
@@ -94,6 +94,7 @@ __all__ = [
     "FastTextParams",
     "MemorySink",
     "PredictedBatch",
+    "PublishedNotDurableError",
     "QuantizedRows",
     "Regressor",
     "SearchResult",

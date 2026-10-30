@@ -72,6 +72,12 @@ class CorruptArtifactError(ValueError):
     """An artifact on disk breaks the format: damaged, truncated or edited."""
 
 
+class PublishedNotDurableError(OSError):
+    """A directory was published (renamed into place, complete), but the sync of its
+    parent failed, so the rename is not confirmed durable against a crash or power loss.
+    The directory stays where it is: another process may already read it."""
+
+
 class TensorContainer(Protocol):
     """Writes and opens named tensors with metadata; see ARCHITECTURE.md, "Artifacts"."""
 

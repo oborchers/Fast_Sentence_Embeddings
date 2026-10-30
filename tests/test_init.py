@@ -135,6 +135,7 @@ def test_public_api_is_pinned():
         "FastTextParams",
         "MemorySink",
         "PredictedBatch",
+        "PublishedNotDurableError",
         "QuantizedRows",
         "Regressor",
         "SearchResult",

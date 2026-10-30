@@ -89,11 +89,27 @@ encoder = fse.Encoder.from_word_vectors(wv)  # tokenizer fse_words@1, rows norma
 encoder.save("glove.safetensors")  # one file with the table
 ```
 
+Share a model as a Hugging Face folder (`config.json`, `model.safetensors` and a `README.md` model card). Any fse model can take this way: one converted from a Model2Vec or sentence-transformers model, one made from word vectors, or a classifier or regressor on such an encoder. Convert it, save or push it, and load it back from the folder or the repository:
+
+```python
+import fse
+
+encoder = fse.Encoder.from_pretrained("minishlab/potion-base-8M")  # converted into fse's format
+encoder.save_pretrained("potion-base-8M-fse")  # a new folder, written atomically
+encoder.push_to_hub("you/potion-base-8M-fse")  # one commit; the license of the source comes along
+encoder = fse.Encoder.from_pretrained("you/potion-base-8M-fse")  # the same fingerprint and rows
+clf.push_to_hub("you/my-classifier", license="apache-2.0", extra_files={"LICENSE": "LICENSE"})
+clf = fse.Classifier.from_pretrained("you/my-classifier", revision="main")
+```
+
+The card states the license the model records from its source (a converted model), or `license=` if it records none; `push_to_hub` needs one. It publishes the folder in one commit on top of the commit it read, leaves files of the same content and license files already there alone, refuses other content under the same names and other files unless `replace=True`, and checks every file at the new commit. `fse.Classifier` and `fse.Regressor` have the same three methods (`standalone=True` saves the folded table).
+
 Which call to use when:
 
 | You want to | Call |
 |---|---|
 | load a model | `encoder = fse.Encoder.load("model.safetensors")` (`mmap=True` maps it read-only) |
+| share a model | `encoder.save_pretrained("folder")`, `encoder.push_to_hub("you/model")`; read with `from_pretrained` |
 | make a model of word vectors | `fse.Encoder.from_word_vectors(wv)`, or `fse.Encoder.from_arrays(vectors, words=words)` |
 | keep the mean as it is | `normalize=False` |
 | encode texts in a list | `rows = encoder.encode(texts)` |

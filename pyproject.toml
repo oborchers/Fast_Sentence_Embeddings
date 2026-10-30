@@ -340,6 +340,8 @@ layers = [
     # The store takes an Encoder; fse.gensim only converts word vectors.
     "gensim | _store",
     "_encoder",
+    # Pushes a model folder to the Hub in one checked commit, on fse._hub.
+    "_hub_push",
     "_runtime",
     # Independent: _backends computes on batches, _stream and _text_file read sentences.
     "_backends | _stream | _text_file | _hub",
@@ -399,7 +401,7 @@ name = "Encoder: the encoder on its batches and format, those on its inputs"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_encoder", "_pretrained", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_sources", "_inputs"]
+layers = ["_encoder", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
 name = "Text: the sources and the lookup on the scan of one buffer"

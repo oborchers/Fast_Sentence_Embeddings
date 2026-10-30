@@ -25,6 +25,7 @@ from ._common import (
     FINGERPRINT_KEY,
     INTEGER,
     CorruptArtifactError,
+    PublishedNotDurableError,
     TensorContainer,
     canonical_json,
     checksum,
@@ -36,6 +37,7 @@ from ._common import (
 from ._foreign import foreign_header, foreign_tensors, read_foreign, read_regular
 from ._hash import Hasher, file_digests
 from ._npy import NpyContainer
+from ._npy_inplace import publish_directory
 from ._safetensors import SafetensorsContainer, _read_safetensors_header
 
 #: The checked header of an fse safetensors file: (handle, path, size) -> (data offset,
@@ -53,6 +55,7 @@ __all__ = [
     "CorruptArtifactError",
     "Hasher",
     "NpyContainer",
+    "PublishedNotDurableError",
     "SafetensorsContainer",
     "TensorContainer",
     "canonical_json",
@@ -62,6 +65,7 @@ __all__ = [
     "foreign_header",
     "foreign_tensors",
     "is_fingerprint",
+    "publish_directory",
     "read_foreign",
     "read_regular",
     "safetensors_header",
