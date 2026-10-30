@@ -303,3 +303,14 @@ def test_the_config_schema_is_strict():
         CorruptArtifactError, match="names the kind encoder, the file holds a linear"
     ):
         _folder.check_loaded(config, config["fingerprint"], "linear_head", where)
+
+
+@pytest.mark.parametrize("name", ["", "  ", "two\nlines"])
+def test_an_empty_model_name_is_refused_not_replaced(name, tmp_path):
+    with pytest.raises(ValueError, match="model_name must be"):
+        finished().save_pretrained(tmp_path / "enc", model_name=name)
+    with pytest.raises(ValueError, match="model_name must be"):
+        _classifier().save_pretrained(tmp_path / "clf", model_name=name)
+    assert sorted(os.listdir(tmp_path)) == []
+    folder = finished().save_pretrained(tmp_path / "enc")  # None: the folder's name
+    assert "\n# enc\n" in (folder / "README.md").read_text(encoding="utf-8")

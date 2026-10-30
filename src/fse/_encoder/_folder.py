@@ -166,7 +166,7 @@ def save(
             shapes,
             license=chosen,
             language=language,
-            model_name=model_name or path.name,
+            model_name=path.name if model_name is None else model_name,
             location=location or str(path),
         )
         for name, data in {CONFIG: config_bytes(metadata), CARD: card, **extras}.items():
