@@ -142,7 +142,10 @@ def tokenizer_file(repo: str, hub: Path) -> Path:
     )
     if not found:
         raise SystemExit(f"no tokenizer.json of {repo} in {hub}")
-    return found[0]
+    from fse._hub import resolve_link  # a file of the cache is a link into its blobs
+
+    name = found[0].relative_to(folder / "snapshots").as_posix().split("/", 1)[1]
+    return resolve_link(found[0], name)[0] if found[0].is_symlink() else found[0]
 
 
 def main(argv=None) -> None:
