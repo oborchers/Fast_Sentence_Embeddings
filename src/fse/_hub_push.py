@@ -20,6 +20,7 @@ the returned commit, the file set and every digest are checked.
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import re
 from pathlib import Path
@@ -33,6 +34,7 @@ REPO_ID = _hub.REPO_ID
 # License texts a repository keeps when a push does not bring its own.
 LICENSE_FILE = re.compile(r"(?i)(licen[cs]e|notice|copying)([._-][A-Za-z0-9._-]*)?")
 _KEPT = ".gitattributes"
+_MAX_RULES = 2**20
 
 
 def local_digests(folder: Path) -> dict[str, tuple[str, str]]:
@@ -122,6 +124,7 @@ def push_folder(
     if not add and not delete:  # the commit holds the folder already: checked as it is
         check_files(remote, expected, f"commit {parent} of {repo_id}")
         return f"{hub.constants.ENDPOINT}/{repo_id}/commit/{parent}"
+    check_rules(hub, repo_id, parent, remote, add, token=token, cache=folder.parent / "rules")
     operations = [hub.CommitOperationDelete(path_in_repo=n, is_folder=False) for n in delete]
     operations += [
         hub.CommitOperationAdd(path_in_repo=n, path_or_fileobj=str(folder / n)) for n in add
@@ -140,6 +143,70 @@ def push_folder(
     )
     check_commit(api, repo_id, commit.oid, expected)
     return commit.pr_url if create_pr and commit.pr_url else commit.commit_url
+
+
+def check_rules(
+    hub: Any,
+    repo_id: str,
+    parent: str,
+    remote: dict[str, tuple[str | None, str | None]],
+    add: list[str],
+    *,
+    token: Any,
+    cache: Path,
+) -> None:
+    """Refuse a push, before anything is committed, into a commit whose rules could make
+    the Hub drop or misstore what it adds: any .gitignore (huggingface_hub skips the files
+    it matches without an error), and a .gitattributes that stores no added .safetensors
+    file as an LFS file (fse reads model files only as LFS files)."""
+    where = f"commit {parent} of {repo_id}"
+    if ".gitignore" in remote:
+        raise ValueError(
+            f"{where} has a .gitignore, by which the Hub may skip files of the push without "
+            "an error; nothing was committed (remove it from the repository first)"
+        )
+    models = [n for n in add if n.endswith(".safetensors")]
+    if not models:
+        return
+    text = ""
+    if ".gitattributes" in remote:
+        path = hub.hf_hub_download(
+            repo_id, ".gitattributes", revision=parent, token=token, cache_dir=str(cache)
+        )
+        with open(path, "rb") as f:  # a link into the push's own temporary cache
+            data = f.read(_MAX_RULES + 1)
+        if len(data) > _MAX_RULES:
+            raise ValueError(f"the .gitattributes of {where} has more than {_MAX_RULES} bytes")
+        text = data.decode("utf-8", errors="replace")
+    plain = [n for n in models if not stored_as_lfs(text, n)]
+    if plain:
+        raise ValueError(
+            f"the .gitattributes of {where} does not store {plain} as LFS files, which fse "
+            "needs to read them; nothing was committed (add a rule such as "
+            "'*.safetensors filter=lfs diff=lfs merge=lfs -text')"
+        )
+
+
+def stored_as_lfs(gitattributes: str, name: str) -> bool:
+    """Whether the rules of a .gitattributes give ``name`` the LFS filter: the last line
+    whose pattern matches decides, as in git (``filter=lfs`` on, any other ``filter``,
+    ``-filter`` or ``!filter`` off)."""
+    lfs = False
+    base = name.rsplit("/", 1)[-1]
+    for line in gitattributes.splitlines():
+        parts = line.split()
+        if not parts or parts[0].startswith("#"):
+            continue
+        pattern = parts[0]
+        subject = name if "/" in pattern.strip("/") else base
+        if not fnmatch.fnmatchcase(subject, pattern.lstrip("/")):
+            continue
+        for attribute in parts[1:]:
+            if attribute == "filter=lfs":
+                lfs = True
+            elif attribute.startswith(("filter=", "-filter", "!filter")) or attribute == "filter":
+                lfs = attribute == "filter=lfs"
+    return lfs
 
 
 def check_commit(api: Any, repo_id: str, commit: str, expected: dict[str, tuple[Any, Any]]) -> None:

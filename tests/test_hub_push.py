@@ -6,6 +6,7 @@ operations are huggingface_hub's own classes, so their checks run. Nothing reach
 network: HF_HUB_OFFLINE is set and the token is removed for every test.
 """
 
+import fnmatch
 import hashlib
 import inspect
 import tempfile
@@ -34,8 +35,10 @@ class FakeApi:
     """create_repo, model_info and create_commit of one repository, commit by commit.
 
     How a file is stored is state of the commit, not a rule of its name: ``lfs[commit]``
-    holds the names stored as LFS files. A commit stores what it adds as an LFS file when
-    .gitattributes says so (``*.safetensors``) and keeps how the other files were stored.
+    holds the names stored as LFS files. A commit stores what it adds as an LFS file when a
+    ``filter=lfs`` rule of the .gitattributes of its parent matches it, drops an addition a
+    rule of its .gitignore matches (as huggingface_hub does, without an error), and keeps
+    how the other files were stored.
     A pull request (``create_pr``) is a commit on top of ``parent_commit`` under a ref of
     its own; the branch does not move, as the Hub does it."""
 
@@ -88,9 +91,9 @@ class FakeApi:
                 assert op.is_folder is False
                 del files[op.path_in_repo]  # exactly this name, no pattern
                 lfs.discard(op.path_in_repo)
-            else:
+            elif not _matches(files.get(".gitignore", b""), op.path_in_repo, None):
                 files[op.path_in_repo] = Path(op.path_or_fileobj).read_bytes()
-                if op.path_in_repo.endswith(".safetensors"):  # the rule of .gitattributes
+                if _matches(files.get(".gitattributes", b""), op.path_in_repo, "filter=lfs"):
                     lfs.add(op.path_in_repo)
                 else:
                     lfs.discard(op.path_in_repo)
@@ -109,11 +112,33 @@ class FakeApi:
         self.head = oid
         return SimpleNamespace(oid=oid, commit_url=url, pr_url=None, pr_revision=None)
 
+    def download(self, repo_id, name, *, revision, token, cache_dir):
+        """hf_hub_download: the file of a commit, into ``cache_dir``."""
+        assert repo_id == REPO
+        self.calls.append(("download", name, revision, token))
+        path = Path(cache_dir) / revision / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(self.commits[revision][name])
+        return str(path)
+
     def files(self):
         return self.commits[self.head]
 
     def commit_calls(self):
         return [c for c in self.calls if c[0] == "create_commit"]
+
+
+def _matches(rules: bytes, name: str, attribute: str | None) -> bool:
+    """Whether a line of .gitattributes (with ``attribute``) or .gitignore matches."""
+    for line in rules.decode().splitlines():
+        parts = line.split()
+        if (
+            parts
+            and fnmatch.fnmatchcase(name, parts[0])
+            and (attribute is None or attribute in parts[1:])
+        ):
+            return True
+    return False
 
 
 @pytest.fixture
@@ -128,6 +153,7 @@ def api(monkeypatch, tmp_path):
         CommitOperationAdd=huggingface_hub.CommitOperationAdd,
         CommitOperationDelete=huggingface_hub.CommitOperationDelete,
         constants=SimpleNamespace(ENDPOINT="https://huggingface.co"),
+        hf_hub_download=fake.download,
     )
     monkeypatch.setattr(hub, "_library", lambda: library)
     fake.tmp = tmp_path / "tmp"
@@ -242,6 +268,69 @@ def test_an_unchanged_commit_is_checked_too():
     _hub_push.check_files(
         {"model.safetensors": (sha256, "x")}, {"model.safetensors": (sha256, sha1)}, "c"
     )
+
+
+def _snapshot(api):
+    return api.head, {k: dict(v) for k, v in api.commits.items()}
+
+
+@pytest.mark.parametrize(
+    ("replace", "match"),
+    [
+        (False, r"files of another model \['\.gitignore', 'old\.safetensors'\]"),
+        (True, r"has a \.gitignore, by which the Hub may skip"),  # it would delete it, too late
+    ],
+)
+def test_a_gitignore_in_the_repository_stops_the_push_before_a_commit(api, replace, match):
+    api.put(".gitignore", b"*.safetensors\n")
+    api.put("old.safetensors", b"old weights", lfs=True)
+    before = _snapshot(api)
+    with pytest.raises(ValueError, match=match):
+        _push(finished(), replace=replace)
+    assert api.commit_calls() == []
+    assert _snapshot(api) == before  # the branch and every commit as they were
+
+
+@pytest.mark.parametrize(
+    "rules",
+    [
+        b"*.bin filter=lfs diff=lfs merge=lfs -text\n",
+        b"*.safetensors filter=lfs diff=lfs merge=lfs -text\nmodel.safetensors -filter\n",
+        None,  # no .gitattributes at all
+    ],
+)
+def test_rules_that_would_store_the_model_as_a_plain_blob_stop_the_push(api, rules):
+    if rules is None:
+        del api.commits["0" * 40][".gitattributes"]
+    else:
+        api.put(".gitattributes", rules)
+    before = _snapshot(api)
+    with pytest.raises(ValueError, match=r"does not store \['model\.safetensors'\] as LFS files"):
+        _push(finished(), replace=True)
+    assert api.commit_calls() == []
+    assert _snapshot(api) == before
+
+
+def test_the_lfs_rules_of_a_gitattributes():
+    default = "*.safetensors filter=lfs diff=lfs merge=lfs -text\n"
+    assert _hub_push.stored_as_lfs(default, "model.safetensors")
+    assert not _hub_push.stored_as_lfs(default + "model.safetensors -filter\n", "model.safetensors")
+    assert not _hub_push.stored_as_lfs(default + "*.safetensors !filter\n", "model.safetensors")
+    assert not _hub_push.stored_as_lfs(
+        default + "*.safetensors filter=other\n", "model.safetensors"
+    )
+    assert _hub_push.stored_as_lfs("/model.safetensors filter=lfs\n", "model.safetensors")
+    assert _hub_push.stored_as_lfs(
+        "# a comment\n\n*.safetensors filter=lfs\n", "a/model.safetensors"
+    )
+    assert not _hub_push.stored_as_lfs("other/*.safetensors filter=lfs\n", "model.safetensors")
+    assert not _hub_push.stored_as_lfs("", "model.safetensors")
+
+
+def test_the_rules_are_read_at_the_commit_of_the_push(api):
+    _push(finished(), token=TOKEN)
+    (download,) = [c for c in api.calls if c[0] == "download"]
+    assert download == ("download", ".gitattributes", "0" * 40, TOKEN)
 
 
 def test_the_same_content_makes_no_commit(api):
@@ -387,6 +476,8 @@ def test_the_installed_huggingface_hub_takes_every_argument_fse_passes():
     }
     for method, names in want.items():
         assert names <= set(inspect.signature(getattr(api, method)).parameters), method
+    names = {"repo_id", "filename", "revision", "token", "cache_dir"}
+    assert names <= set(inspect.signature(huggingface_hub.hf_hub_download).parameters)
     assert "is_folder" in inspect.signature(huggingface_hub.CommitOperationDelete).parameters
     assert {"path_in_repo", "path_or_fileobj"} <= set(
         inspect.signature(huggingface_hub.CommitOperationAdd).parameters

@@ -83,21 +83,24 @@ class FakeHub:
 
     # --- what from_pretrained uses ------------------------------------------------
 
-    def folder(self) -> Path:
-        return self.cache / ("models--" + self.repo.replace("/", "--"))
+    def folder(self, cache=None) -> Path:
+        return Path(cache or self.cache) / ("models--" + self.repo.replace("/", "--"))
 
-    def hf_hub_download(self, repo, name, *, revision, local_files_only, cache_dir, token):
-        assert (repo, Path(cache_dir)) == (self.repo, self.cache)
+    def hf_hub_download(
+        self, repo, name, *, revision, cache_dir, token, local_files_only=False
+    ):  # the loader passes local_files_only, push_to_hub reads .gitattributes without it
+        assert repo == self.repo
         del token
         commit = self._commit_of(revision)
-        path = self.folder() / "snapshots" / commit / name
+        folder = self.folder(cache_dir)
+        path = folder / "snapshots" / commit / name
         if os.path.lexists(path):
             return str(path)
         if local_files_only:
             raise FileNotFoundError(f"{name} is not in the cache")
         data = self.commits[commit][name]
         etag = hashlib.sha256(data).hexdigest() if name.endswith(".safetensors") else git_sha1(data)
-        blob = self.folder() / "blobs" / etag
+        blob = folder / "blobs" / etag
         blob.parent.mkdir(parents=True, exist_ok=True)
         path.parent.mkdir(parents=True, exist_ok=True)
         blob.write_bytes(data)
