@@ -97,3 +97,13 @@ def test_threads_with_other_settings_get_the_rows_of_a_serial_run(model):
         thread.join()
     assert not errors
     assert (model.max_length, model.normalize) == (512, True)
+
+
+def test_a_setter_that_fails_pins_nothing(model):
+    variants = Variants(model._rules, limit=2)
+    own = variants.own(512, True)
+    with pytest.raises(ValueError, match="max_tokens"):
+        variants.own(2**62, True)
+    for length in range(1, 8):
+        variants.get(length, False)
+    assert variants.get(512, True) is own

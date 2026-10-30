@@ -16,6 +16,8 @@ refused with the reason, as its rows would not be model2vec's.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from fse._contract import UnsupportedArtifactError
 from fse._encoder import Encoder
 from fse._encoder._model2vec import median_length
@@ -51,9 +53,14 @@ def profile_rules(
             "dropped, model2vec's length rule, optionally normalized); use fse.Encoder for "
             "this model"
         )
+    source = content.source
+    width = words.dim
     table, kept = reduced(words.stored_vectors, dimensionality)
     if kept is not None:
         words = WordVectors._from_arrays(table, tokens, None, None, None, {}, copy=False)
+        if source is not None:  # the first dimensions of the model it came from
+            first = width if source.dims is None else source.dims[0]
+            source = replace(source, dims=(first, kept))
     return Rules(
         words,
         tuple(tokens),
@@ -64,7 +71,7 @@ def profile_rules(
         median,
         None,
         None,
-        content.source,
+        source,
         content.license,
     )
 

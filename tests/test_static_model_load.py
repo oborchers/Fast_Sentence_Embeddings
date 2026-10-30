@@ -123,3 +123,15 @@ def test_force_download_changes_nothing(tmp_path):
     a = fse.StaticModel.from_pretrained(folder, force_download=True)
     b = fse.StaticModel.from_pretrained(folder, force_download=False)
     assert a.encode(TEXTS).tobytes() == b.encode(TEXTS).tobytes()
+
+
+def test_a_second_cut_of_an_fse_encoder_records_the_width_of_the_model_it_came_from(tmp_path):
+    folder = sm.model_folder(tmp_path / "m")
+    cut = Encoder.from_pretrained(folder)
+    first = fse.StaticModel.from_pretrained(folder, dimensionality=12)
+    assert first.encoder._content.source.dims == (16, 12)
+    first.encoder.save(tmp_path / "a.safetensors")
+    second = fse.StaticModel.from_pretrained(tmp_path / "a.safetensors", dimensionality=6)
+    assert second.encoder._content.source.dims == (16, 6)
+    assert second.dim == 6
+    assert cut.output_dim == 16

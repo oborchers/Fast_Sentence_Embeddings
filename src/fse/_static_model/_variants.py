@@ -43,8 +43,9 @@ class Variants:
 
     def own(self, max_length: int | None, normalize: bool) -> Encoder:
         """The encoder of the model's own rules, which stays in the cache."""
+        encoder = self.get(max_length, normalize)  # raises before anything is pinned
         self._own = (max_length, normalize)
-        return self.get(max_length, normalize)
+        return encoder
 
     def get(self, max_length: int | None, normalize: bool) -> Encoder:
         """The encoder that cuts texts to ``max_length`` tokens (None: not at all) and
