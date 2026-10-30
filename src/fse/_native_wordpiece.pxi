@@ -1,23 +1,48 @@
 # Included by _native.pyx: wordpiece@1, its state, the greedy match and one sentence.
 
 # ---------------------------------------------------------------------------------------
-# wordpiece@1 (ARCHITECTURE.md, "wordpiece@1"), as in fse._reference_wordpiece. Correct
-# first, not fast: the added-token scan, the normalization and the greedy match are plain.
+# wordpiece@1 (ARCHITECTURE.md, "wordpiece@1"), as in fse._reference_wordpiece: the fast
+# paths, and the generic path of the plain rules for the tests (WordPieceState._generic).
 # ---------------------------------------------------------------------------------------
 
 cdef extern from "_native_wordpiece.h":
     int64_t fse_wp_added_at(const unsigned char *p, int64_t i, int64_t n,
                             const unsigned char *first, const unsigned char *bytes,
                             const int64_t *offsets, int64_t count) nogil
+    int64_t fse_wp_next_candidate(const unsigned char *p, int64_t i, int64_t n,
+                                  const unsigned char *first, int single) nogil
     int64_t fse_wp_normalize(const unsigned char *p, int64_t n, unsigned char *out,
                              uint32_t *run) nogil
+    int64_t fse_wp_normalize_ascii(const unsigned char *p, int64_t n, unsigned char *out,
+                                   uint32_t *run) nogil
+    int fse_wp_ascii_init() nogil
     int fse_wp_next_word(const unsigned char *q, int64_t m, int64_t *pos, int64_t *start,
                          int64_t *end) nogil
+    int fse_wp_next_word_ascii(const unsigned char *q, int64_t m, int64_t *pos,
+                               int64_t *start, int64_t *end) nogil
     int64_t fse_wp_validate(const unsigned char *p, int64_t i, int64_t n) nogil
     int64_t fse_wp_char_cut(const unsigned char *p, int64_t n, int64_t max_chars) nogil
+    int64_t fse_wp_char_cut_ascii(const unsigned char *p, int64_t n, int64_t max_chars) nogil
+
+cdef extern from "_native_wordpiece_trie.h":
+    ctypedef struct fse_trie:  # base, check and value are only read in C
+        int64_t size, calls, live, fail_at
+    uint32_t FSE_TRIE_NONE
+    int64_t FSE_TRIE_MAX_UNITS
+    int FSE_TRIE_NO_MEMORY
+    void fse_trie_free(fse_trie *t) nogil
+    int fse_trie_build(fse_trie *t, const unsigned char *bytes, const int64_t *offsets,
+                       int64_t count, int64_t limit) nogil
+    int64_t fse_trie_walk(const fse_trie *t, int64_t s, const unsigned char *key,
+                          int64_t n) nogil
+    uint32_t fse_trie_longest(const fse_trie *t, int64_t s, const unsigned char *w, int64_t k,
+                              int64_t n, int64_t *end) nogil
 
 # Parameters stay below this, as they are int64 in the state.
 cdef int64_t _WP_LIMIT = 1 << 62
+# The ASCII tables of the fast paths, derived from the Unicode table once (0, or 1 + the
+# first byte they cannot hold, which WordPieceState refuses).
+cdef int _WP_ASCII = fse_wp_ascii_init()
 
 
 cdef int64_t _wp_int(value, name, int64_t low) except -1:
@@ -45,13 +70,19 @@ def _vocab_arrays(vocab_bytes, vocab_offsets):
 
 cdef class WordPieceState:
     """The state of wordpiece@1 for one vocabulary, built once under the GIL and shared
-    by all workers: the VocabTable of all tokens (whose index is the token id), a second
-    table of the continuation tokens without their prefix with the id of each, and the
-    added tokens, longest first.
+    by all workers: the VocabTable of all tokens (whose index is the token id), the byte
+    trie of all tokens with the node of the continuation prefix, and the added tokens,
+    longest first. The generic path has a second table of the continuation tokens without
+    their prefix with the id of each instead of the trie.
 
     ``vocab_bytes`` and ``vocab_offsets`` are the tokens of ``table`` in id order (checked:
     every token is found at its id); ``added_ids`` the ids of the added tokens, whose
     contents are their tokens. ``max_tokens`` and ``max_chars`` of 0 cut nothing.
+
+    ``_generic`` (private, for the tests, never persisted) takes the generic path of every
+    step, without the fast paths, which give the same ids. ``_trie_units`` (private, for
+    the tests) lowers the limit of the trie, and ``_trie_fail_at`` (private, for the tests)
+    fails that allocation call of its build.
     """
 
     cdef readonly VocabTable table
@@ -63,6 +94,10 @@ cdef class WordPieceState:
     cdef const uint32_t *added_ids
     cdef int64_t n_added
     cdef unsigned char first[256]
+    cdef int single_first
+    cdef bint generic
+    cdef fse_trie trie
+    cdef int64_t cont_root
     cdef readonly uint32_t unk_id
     cdef readonly int64_t max_input_chars, max_tokens, max_chars
     cdef readonly bint drop_unknown
@@ -70,21 +105,31 @@ cdef class WordPieceState:
 
     def __init__(self, VocabTable table not None, vocab_bytes, vocab_offsets, unk_id, prefix,
                  max_input_chars_per_word, added_ids, max_tokens=0, max_chars=0,
-                 drop_unknown=True):
+                 drop_unknown=True, *, _generic=False, _trie_units=FSE_TRIE_MAX_UNITS,
+                 _trie_fail_at=None):
         if self._state != TABLE_NEW:
             raise RuntimeError("a WordPieceState is built once; make a new one")
         self._state = TABLE_BUILDING
         try:
+            if not isinstance(_generic, bool):
+                raise TypeError(f"_generic must be a bool, not {type(_generic).__name__}")
+            self.generic = _generic
+            self.trie.fail_at = -1 if _trie_fail_at is None else _wp_int(_trie_fail_at, "_trie_fail_at", 0)
             self._build(table, vocab_bytes, vocab_offsets, unk_id, prefix,
-                        max_input_chars_per_word, added_ids, max_tokens, max_chars, drop_unknown)
+                        max_input_chars_per_word, added_ids, max_tokens, max_chars, drop_unknown,
+                        _wp_int(_trie_units, "_trie_units", 1))
         except BaseException:
             self._state = TABLE_FAILED
             raise
         self._state = TABLE_READY
 
     cdef _build(self, VocabTable table, vocab_bytes, vocab_offsets, unk_id, prefix,
-                max_input_chars_per_word, added_ids, max_tokens, max_chars, drop_unknown):
+                max_input_chars_per_word, added_ids, max_tokens, max_chars, drop_unknown,
+                int64_t trie_units):
         table._check_ready()
+        if _WP_ASCII:
+            raise RuntimeError(f"the Unicode table of wordpiece@1 has an ASCII byte {_WP_ASCII - 1} "
+                               "of a shape the fast paths cannot take")
         data, offsets = _vocab_arrays(vocab_bytes, vocab_offsets)
         cdef Py_ssize_t n = len(offsets) - 1
         if n != len(table):
@@ -102,8 +147,10 @@ cdef class WordPieceState:
         if not isinstance(drop_unknown, bool):
             raise TypeError(f"drop_unknown must be a bool, not {type(drop_unknown).__name__}")
         self.drop_unknown = drop_unknown
-        self._build_continuation(data, offsets, prefix.encode("utf-8"))
+        if self.generic:  # the fast path reads the continuation tokens from the trie
+            self._build_continuation(data, offsets, prefix.encode("utf-8"))
         self._build_added(data, offsets, added_ids)
+        self._build_trie(data, offsets, prefix.encode("utf-8"), trie_units)
         self.table = table
 
     cdef _build_continuation(self, data, offsets, bytes prefix):
@@ -143,10 +190,51 @@ cdef class WordPieceState:
         memset(self.first, 0, 256)
         for t in tokens:
             self.first[t[0]] = 1
+        starts = {t[0] for t in tokens}
+        self.single_first = starts.pop() if len(starts) == 1 else -1
         self.n_added = len(tokens)
         self.added_bytes = <const unsigned char *>np.PyArray_DATA(self._added_bytes)
         self.added_offsets = <const int64_t *>np.PyArray_DATA(self._added_offsets)
         self.added_ids = <const uint32_t *>np.PyArray_DATA(self._added_ids)
+
+    cdef _build_trie(self, data, offsets, bytes prefix, int64_t limit):
+        """The trie of all tokens, and the node of the continuation prefix (or -1)."""
+        cdef const unsigned char[::1] d = data if len(data) else np.zeros(1, np.uint8)
+        cdef const np.int64_t[::1] o = offsets
+        cdef int err
+        if limit > FSE_TRIE_MAX_UNITS:
+            raise ValueError(f"_trie_units must be at most {FSE_TRIE_MAX_UNITS}, not {limit}")
+        with nogil:
+            err = fse_trie_build(&self.trie, &d[0], &o[0], o.shape[0] - 1, limit)
+        if err == FSE_TRIE_NO_MEMORY:
+            raise MemoryError("no memory for the trie of wordpiece@1")
+        if err:
+            raise ValueError(f"the trie of a vocabulary of {o.shape[0] - 1} tokens needs more "
+                             f"than {limit} units")
+        self.cont_root = fse_trie_walk(&self.trie, 0, prefix, len(prefix))
+
+    def _trie_find(self, bytes key, bint continuation=False):
+        """The id of the token key (after the continuation prefix), or None; for tests."""
+        self._check_ready()
+        cdef int64_t s = self.cont_root if continuation else 0
+        cdef int64_t end = 0
+        if s < 0 or not key:
+            return None
+        cdef uint32_t found = fse_trie_longest(&self.trie, s, key, 0, len(key), &end)
+        return None if found == FSE_TRIE_NONE or end != len(key) else found
+
+    @property
+    def _trie_blocks(self):
+        """The memory blocks the trie holds (3 when built, 0 after a failed build); for tests."""
+        return self.trie.live
+
+    @property
+    def _trie_bytes(self):
+        """The bytes of the trie's double array; for tests and the benchmarks."""
+        return self.trie.size * 12
+
+    def __dealloc__(self):
+        fse_trie_free(&self.trie)
 
     cdef inline int _check_ready(self) except -1:
         if self._state != TABLE_READY:
@@ -205,6 +293,38 @@ cdef inline Py_ssize_t _wp_word(WordPieceState st, const unsigned char *w, Py_ss
     return count
 
 
+cdef inline Py_ssize_t _wp_word_trie(WordPieceState st, const unsigned char *w, Py_ssize_t n,
+                                     uINT_t *ids) noexcept nogil:
+    """_wp_word by the trie: the code points are counted only when the word has more bytes
+    than the limit (n bytes are at most n code points); the whole word is one lookup of the
+    table, and after a miss every piece is the longest token the trie reads from the root
+    or from the node of the prefix, at a code-point boundary: the result of the greedy
+    loop, without a lookup per shorter candidate."""
+    cdef Py_ssize_t chars = 0, k, count = 0
+    cdef int64_t start = 0, end = 0, node = 0
+    cdef uint32_t index
+    if n > st.max_input_chars:
+        for k in range(n):
+            chars += (w[k] & 0xC0) != 0x80
+        if chars > st.max_input_chars:
+            ids[0] = st.unk_id
+            return 1
+    index = _vocab_lookup(&st.table.view, w, n, True)
+    if index != NOT_FOUND:
+        ids[0] = index
+        return 1
+    while start < n:
+        index = fse_trie_longest(&st.trie, node, w, start, n, &end) if node >= 0 else FSE_TRIE_NONE
+        if index == FSE_TRIE_NONE:
+            ids[0] = st.unk_id
+            return 1
+        ids[count] = index
+        count += 1
+        start = end
+        node = st.cont_root
+    return count
+
+
 cdef enum:
     WP_GO_ON = 0
     WP_FULL = 1
@@ -216,13 +336,20 @@ cdef inline int _wp_piece(WordPieceState st, const unsigned char *p, Py_ssize_t 
     """Steps 3 to 5 for the piece p[0:n] between added tokens; WP_FULL once the token cut
     is reached after a whole word."""
     cdef unsigned char *q = <unsigned char *>ws.norm.data
-    cdef int64_t m = fse_wp_normalize(p, n, q, <uint32_t *>ws.run.data)
+    cdef int64_t m = (fse_wp_normalize(p, n, q, <uint32_t *>ws.run.data) if st.generic
+                      else fse_wp_normalize_ascii(p, n, q, <uint32_t *>ws.run.data))
     cdef int64_t pos = 0, start, end
     if m < 0:
         bad[0] = -1 - m
         return WP_BAD
-    while fse_wp_next_word(q, m, &pos, &start, &end):
-        count[0] += _wp_word(st, q + start, end - start, ids + count[0])
+    if st.generic:
+        while fse_wp_next_word(q, m, &pos, &start, &end):
+            count[0] += _wp_word(st, q + start, end - start, ids + count[0])
+            if st.max_tokens and count[0] >= st.max_tokens:
+                return WP_FULL
+        return WP_GO_ON
+    while fse_wp_next_word_ascii(q, m, &pos, &start, &end):
+        count[0] += _wp_word_trie(st, q + start, end - start, ids + count[0])
         if st.max_tokens and count[0] >= st.max_tokens:
             return WP_FULL
     return WP_GO_ON
@@ -236,7 +363,8 @@ cdef int _wordpiece_sentence(WordPieceState st, const unsigned char *p, Py_ssize
     cdef int status = WP_GO_ON
     cdef uINT_t *ids
     if st.max_chars:  # the whole sentence is validated here
-        cut = fse_wp_char_cut(p, n, st.max_chars)
+        cut = (fse_wp_char_cut(p, n, st.max_chars) if st.generic
+               else fse_wp_char_cut_ascii(p, n, st.max_chars))
         if cut < 0:
             bad[0] = -1 - cut
             return ENCODE_BAD_UTF8
@@ -250,6 +378,10 @@ cdef int _wordpiece_sentence(WordPieceState st, const unsigned char *p, Py_ssize
         return ENCODE_NO_MEMORY
     ids = <uINT_t *>(ws.tokens.data + ws.tokens.size)
     while pos < limit and status == WP_GO_ON:
+        if not st.generic:  # straight to the next byte a token may start at
+            pos = fse_wp_next_candidate(p, pos, limit, st.first, st.single_first) if st.n_added else limit
+            if pos == limit:
+                break
         found = fse_wp_added_at(p, pos, limit, st.first, st.added_bytes, st.added_offsets,
                                 st.n_added) if st.n_added else -1
         if found < 0:
