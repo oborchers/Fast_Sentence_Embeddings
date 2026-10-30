@@ -168,7 +168,7 @@ CORRUPTIONS = {
         "not a tensor name",
     ),
     "dtype code": (
-        _edit(lambda m: m["tensors"]["vectors"].update(dtype="F64")),
+        _edit(lambda m: m["tensors"]["vectors"].update(dtype="BF16")),
         CorruptArtifactError,
         "unknown dtype",
     ),

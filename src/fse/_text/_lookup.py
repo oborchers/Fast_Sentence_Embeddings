@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fse import _native
-from fse._tokenizer_spec import TokenizerSpec
+from fse._tokenizer_spec import UNIGRAM, TokenizerSpec
 from fse._wordvectors import WordVectors
 
 from ._scan import _integer
@@ -96,25 +96,16 @@ def _wordpiece_lookup(
     table: _native.VocabTable,
     max_ngrams: int | None,
 ) -> _native.TextLookup:
-    """The lookup of wordpiece@1: its state on the table of the tokens, token id = row."""
-    config = spec.config
-    if config is None or word_vectors.fasttext is not None or max_ngrams is not None:
+    """The lookup of a tokenizer with parameters (wordpiece@1, unigram@1): its state on
+    the table of the tokens, token id = row."""
+    if spec.config is None or word_vectors.fasttext is not None or max_ngrams is not None:
         raise ValueError(f"{spec.name} needs its parameters and takes no FastText")
     data, offsets, _ = word_vectors._vocabulary_snapshot()
     spec.check_vocabulary(data, offsets)
-    state = _native.WordPieceState(
-        table,
-        data,
-        offsets,
-        config.unk_id,
-        config.continuing_subword_prefix,
-        config.max_input_chars_per_word,
-        tuple(i for i, _ in config.added_tokens),
-        spec.max_tokens or 0,
-        spec.max_chars or 0,
-        spec.unknown == "drop",
-    )
-    return _native.TextLookup(table, spec.name, wordpiece=state)
+    arguments = (table, data, offsets, *spec.native_arguments())
+    if spec.name == UNIGRAM:
+        return _native.TextLookup(table, spec.name, unigram=_native.UnigramState(*arguments))
+    return _native.TextLookup(table, spec.name, wordpiece=_native.WordPieceState(*arguments))
 
 
 MAX_CHUNK_ROWS = _native.MAX_CHUNK_ROWS

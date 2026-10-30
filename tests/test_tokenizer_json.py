@@ -1,4 +1,5 @@
-"""tokenizer.json files of Hugging Face tokenizers as the parameters of wordpiece@1."""
+"""tokenizer.json files of Hugging Face tokenizers as the parameters of wordpiece@1 (and,
+for a Unigram model, of unigram@1: tests/test_tokenizer_json_unigram.py)."""
 
 import copy
 import json
@@ -77,11 +78,12 @@ def _changed(document, path, value):
 @pytest.mark.parametrize(
     ("path", "value", "error", "match"),
     [
+        # A Unigram model is read as unigram@1 (test_a_unigram_file_gives_...).
         (
             ("model", "type"),
-            "Unigram",
+            "BPE",
             UnsupportedArtifactError,
-            "a Unigram model; this fse reads WordPiece",
+            "a BPE model; this fse reads WordPiece",
         ),
         (("model", "byte_fallback"), False, UnsupportedArtifactError, "model must hold exactly"),
         (("extra",), 1, UnsupportedArtifactError, "the file must hold exactly"),
@@ -214,3 +216,18 @@ def test_template_processing_without_special_tokens(tmp_path, single, accepted):
     else:
         with pytest.raises(UnsupportedArtifactError, match="the sequence A once"):
             tj.read_tokenizer_json(path)
+
+
+def test_a_unigram_file_gives_the_parameters_of_unigram_1(tmp_path):
+    from fse._tokenizer_unigram import UnigramConfig
+    from support import unigram as uni
+
+    vocab = uni.pieces_and_scores()
+    document = json.loads(uni.hf_tokenizer(vocab).to_str())
+    tokens, config = tj.read_tokenizer_json(_write(tmp_path, document))
+    assert tokens == [p for p, _ in vocab]
+    assert isinstance(config, UnigramConfig)
+    assert config.identifier == "unigram@1"
+    raw = json.dumps(document).encode()
+    with pytest.raises(UnsupportedArtifactError, match="a Unigram model; this fse reads WordPiece"):
+        tj.tokenizer_and_truncation(raw, tmp_path / "tokenizer.json")

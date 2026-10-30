@@ -4,8 +4,9 @@ The data are part of the tokenizer contract (ARCHITECTURE.md, "unigram@1"): the 
 grapheme clusters of UAX #29 in Unicode 17.0.0, the version of unicode-segmentation 1.13.3,
 which Hugging Face tokenizers 0.23.3 uses for its Precompiled normalizer, and White_Space
 of 17.0.0. Changing them needs a new tokenizer identifier. The script reads four UCD files
-(each pinned by its sha256) and writes ``src/fse/_unicode_graphemes.py``, which is checked
-in and never edited by hand. It also pins ``GraphemeBreakTest-17.0.0.txt``, the cases of
+(each pinned by its sha256) and writes ``src/fse/_unicode_graphemes.py`` and, computed from
+its data alone, ``src/fse/_native_unicode_graphemes.h``, the same as one byte per code point
+for the native tokenizer; both are checked in and never edited by hand. It also pins ``GraphemeBreakTest-17.0.0.txt``, the cases of
 UAX #29 that ``tests/test_data`` holds. Download the files from
 https://www.unicode.org/Public/17.0.0/ucd/ (the first two from ``auxiliary/`` and
 ``emoji/``) into one folder, named as in ``UCD`` below::
@@ -25,6 +26,7 @@ from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent.parent
 PYTHON_OUT = ROOT / "src" / "fse" / "_unicode_graphemes.py"
+HEADER_OUT = ROOT / "src" / "fse" / "_native_unicode_graphemes.h"
 VERSION = "17.0.0"
 # The files, the Unicode version they come from, and their sha256.
 UCD = {
@@ -204,19 +206,108 @@ WHITE_SPACE = CodePoints(_WHITE_SPACE)
 '''
 
 
+# The byte of a code point in the native table: Grapheme_Cluster_Break in the low 4 bits
+# (0 for Other, then BREAK_VALUES from 1), Extended_Pictographic, InCB (0 for none, then
+# INCB_VALUES from 1) in 2 bits, and White_Space.
+EXTENDED_PICTOGRAPHIC_BIT = 0x10
+INCB_SHIFT = 5
+WHITE_SPACE_BIT = 0x80
+BLOCK = 128
+MAX_CP = 0x10FFFF
+
+
+def _expand(spans) -> list[int]:
+    return [cp for a, b in getattr(spans, "ranges", spans) for cp in range(a, b + 1)]
+
+
+def native_table(data: SimpleNamespace) -> list[int]:
+    """The byte of every code point from U+0000 to U+10FFFF."""
+    table = [0] * (MAX_CP + 1)
+    for code, value in enumerate(BREAK_VALUES, start=1):
+        for cp in _expand(data.BREAKS[value]):
+            table[cp] |= code
+    for cp in _expand(data.EXTENDED_PICTOGRAPHIC):
+        table[cp] |= EXTENDED_PICTOGRAPHIC_BIT
+    for code, value in enumerate(INCB_VALUES, start=1):
+        for cp in _expand(data.INCB[value]):
+            table[cp] |= code << INCB_SHIFT
+    for cp in _expand(data.WHITE_SPACE):
+        table[cp] |= WHITE_SPACE_BIT
+    return table
+
+
+def _rows(values: list[int], per_line: int, fmt: str = "{}") -> str:
+    return ",\n".join(
+        "    " + ", ".join(fmt.format(v) for v in values[i : i + per_line])
+        for i in range(0, len(values), per_line)
+    )
+
+
+def header_source(data: SimpleNamespace) -> str:
+    table = native_table(data)
+    blocks: list[tuple[int, ...]] = []
+    index: dict[tuple[int, ...], int] = {}
+    stage1 = []
+    for start in range(0, len(table), BLOCK):
+        block = tuple(table[start : start + BLOCK])
+        stage1.append(index.setdefault(block, len(blocks)))
+        if len(index) > len(blocks):
+            blocks.append(block)
+    stage2 = ",\n".join("  {\n" + _rows(list(b), 16, "0x{:02x}") + "\n  }" for b in blocks)
+    breaks = "\n".join(f"#define FSE_GC_{v.upper()} {i}" for i, v in enumerate(BREAK_VALUES, 1))
+    incb = "\n".join(f"#define FSE_INCB_{v.upper()} {i}" for i, v in enumerate(INCB_VALUES, 1))
+    return f"""/* The grapheme data of unigram@1, one byte per code point, in two stages.
+
+   {NOTE}
+
+   fse_gc_props(cp): Grapheme_Cluster_Break in the low 4 bits (FSE_GC_*, 0 for Other),
+   FSE_GC_EXTENDED_PICTOGRAPHIC, InCB in the 2 bits at FSE_INCB_SHIFT (FSE_INCB_*, 0 for
+   none) and FSE_GC_WHITE_SPACE (ARCHITECTURE.md, "unigram@1"). */
+#ifndef FSE_NATIVE_UNICODE_GRAPHEMES_H
+#define FSE_NATIVE_UNICODE_GRAPHEMES_H
+
+#include <stdint.h>
+
+#define FSE_GC_OTHER 0
+{breaks}
+#define FSE_GC_BREAK_MASK 0x0Fu
+#define FSE_GC_EXTENDED_PICTOGRAPHIC 0x{EXTENDED_PICTOGRAPHIC_BIT:02x}u
+#define FSE_INCB_SHIFT {INCB_SHIFT}
+{incb}
+#define FSE_GC_WHITE_SPACE 0x{WHITE_SPACE_BIT:02x}u
+
+static const uint16_t fse_gc_stage1[{len(stage1)}] = {{
+{_rows(stage1, 16)}
+}};
+
+static const uint8_t fse_gc_stage2[{len(blocks)}][{BLOCK}] = {{
+{stage2}
+}};
+
+static inline uint8_t fse_gc_props(uint32_t cp) {{
+    return cp > 0x{MAX_CP:X}u ? 0 : fse_gc_stage2[fse_gc_stage1[cp / {BLOCK}]][cp % {BLOCK}];
+}}
+
+#endif /* FSE_NATIVE_UNICODE_GRAPHEMES_H */
+"""
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--ucd", type=Path, required=True, help="the folder of the UCD files")
     parser.add_argument("--check", action="store_true", help="fail if the file is not current")
     args = parser.parse_args()
-    text = python_source(read_ucd(args.ucd))
+    data = read_ucd(args.ucd)
+    outputs = {PYTHON_OUT: python_source(data), HEADER_OUT: header_source(data)}
     if args.check:
-        if not PYTHON_OUT.exists() or PYTHON_OUT.read_text() != text:
-            raise SystemExit(f"not current: {PYTHON_OUT}")
+        stale = [str(p) for p, text in outputs.items() if not p.exists() or p.read_text() != text]
+        if stale:
+            raise SystemExit(f"not current: {', '.join(stale)}")
         print("the tables are current")
         return
-    PYTHON_OUT.write_text(text)
-    print(f"wrote {PYTHON_OUT}")
+    for path, text in outputs.items():
+        path.write_text(text)
+    print(f"wrote {', '.join(map(str, outputs))}")
 
 
 if __name__ == "__main__":

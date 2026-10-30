@@ -280,6 +280,7 @@ generated = [
     "src/fse/_unicode_bert.py",
     "src/fse/_native_unicode_bert.h",
     "src/fse/_unicode_graphemes.py",
+    "src/fse/_native_unicode_graphemes.h",
 ]
 # The only modules that import the extension fse._native (import-linter cannot see it):
 # the package _text for stages 1 and 2, the cpu backend for the kernels of stages 2 to 4.
@@ -345,14 +346,17 @@ layers = [
     "_backends | _stream | _text_file | _hub",
     "_text",
     "_wordvectors",
-    "_wordvectors_format | _tokenizer_json | _tokenizer_json_unigram",
+    "_wordvectors_format | _tokenizer_json",
+    "_tokenizer_json_unigram",
     # What the readers of a tokenizer.json share.
     "_tokenizer_json_common",
     # The reference of linear heads builds on the reference of the encoder (fma32, dot16),
     # that of unigram@1 on the added tokens of wordpiece@1.
     "_reference_head | _reference_unigram",
     # Independent of each other: the references never share code with what they check.
-    "_container | _codes | _reference | _reference_text | _reference_wordpiece | _tokenizer_spec | _tokenizer_unigram | _validation",
+    "_container | _codes | _reference | _reference_text | _reference_wordpiece | _tokenizer_spec | _validation",
+    # The parameters of unigram@1, which TokenizerSpec holds.
+    "_tokenizer_unigram",
     "_contract | _cpus | _unicode | _unicode_bert | _unicode_graphemes | _charsmap",
 ]
 
@@ -396,7 +400,7 @@ name = "Encoder: the encoder on its batches and format, those on its inputs"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_encoder", "_pretrained", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_sources", "_inputs"]
+layers = ["_encoder", "_pretrained", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
 name = "Text: the sources and the lookup on the scan of one buffer"

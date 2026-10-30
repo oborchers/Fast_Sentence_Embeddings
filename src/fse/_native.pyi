@@ -104,6 +104,7 @@ def score(
 TOKENIZER_EXTERNAL: int
 TOKENIZER_FSE_WORDS: int
 TOKENIZER_WORDPIECE: int
+TOKENIZER_UNIGRAM: int
 MAX_SENTENCE_BYTES: int
 
 def tokenize(text: str | bytes, tokenizer: str = "fse_words@1") -> list[str]: ...
@@ -142,6 +143,32 @@ class WordPieceState:
     @property
     def _trie_blocks(self) -> int: ...
 
+class UnigramState:
+    table: VocabTable
+    unk_id: int
+    unk_score: float
+    max_tokens: int
+    max_chars: int
+    drop_unknown: bool
+    def __init__(
+        self,
+        table: VocabTable,
+        vocab_bytes: ndarray,
+        vocab_offsets: ndarray,
+        scores: ndarray,
+        unk_id: int,
+        added_ids: tuple[int, ...],
+        steps: tuple[tuple[object, ...], ...],
+        charsmap: tuple[ndarray, bytes, int] | None,
+        replacement: bytes,
+        max_tokens: int = 0,
+        max_chars: int = 0,
+        drop_unknown: bool = True,
+    ) -> None: ...
+
+def _grapheme_props(code_points: object) -> ndarray: ...
+def _grapheme_boundaries(code_points: object) -> list[int]: ...
+
 class TextLookup:
     tokenizer: int
     def __init__(
@@ -151,6 +178,7 @@ class TextLookup:
         fasttext: tuple[int, int, int] | None = None,
         max_ngrams: int = 0,
         wordpiece: WordPieceState | None = None,
+        unigram: UnigramState | None = None,
     ) -> None: ...
     def encode(
         self,

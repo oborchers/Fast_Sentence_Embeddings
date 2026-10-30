@@ -1,4 +1,5 @@
-"""The keys of encoder 1 for a tokenizer with parameters (wordpiece@1) and provenance."""
+"""The keys of encoder 1 for a tokenizer with parameters (wordpiece@1) and provenance;
+fse._encoder._format_tokenizer, which holds the tokenizer part, also directly."""
 
 import json
 
@@ -7,6 +8,7 @@ import pytest
 
 from fse._contract import Normalize, UnsupportedArtifactError
 from fse._encoder import Encoder
+from fse._encoder import _format_tokenizer as fmt
 from fse._encoder._format import EncoderContent, Source, from_artifact, to_artifact
 from fse._runtime import EncodeSpec
 from fse._tokenizer_spec import TokenizerSpec, WordPieceConfig
@@ -141,7 +143,12 @@ CANONICAL = json.dumps(CONFIG.to_json(), sort_keys=True, separators=(",", ":"))
             ValueError,
             "whose token is b'a'",
         ),
-        ("fse.tokenizer", "fse_words@1", ValueError, "are keys of wordpiece@1, not of"),
+        (
+            "fse.tokenizer",
+            "fse_words@1",
+            ValueError,
+            "are keys of a tokenizer with parameters, not of",
+        ),
         ("fse.source", '{"format":"x"}', ValueError, "exactly format, repo and revision"),
         ("fse.source", '{"format":"","repo":null,"revision":null}', ValueError, "non-empty str"),
         (
@@ -253,3 +260,49 @@ def test_several_licenses_are_a_json_list():
     for wrong in ((), ("mit", ""), ["mit"], "[mit]"):
         with pytest.raises(ValueError, match="license must be None"):
             _artifact(license=wrong)
+
+
+# --- fse._encoder._format_tokenizer directly ---------------------------------------------
+
+
+def _vocabulary(tokens):
+    data = "".join(tokens).encode()
+    offsets = np.cumsum([0, *(len(t.encode()) for t in tokens)], dtype=np.int64)
+    return np.frombuffer(data, dtype=np.uint8), offsets
+
+
+def test_the_keys_round_trip_in_the_module_of_their_own():
+    metadata = fmt.tokenizer_metadata(SPEC)
+    assert set(metadata) == set(fmt.TOKENIZER_KEYS)
+    assert fmt.tokenizer_of({"fse.tokenizer": "wordpiece@1", **metadata}, {}) == SPEC
+    assert fmt.tokenizer_metadata(TokenizerSpec("fse_words@1")) == {}
+    assert fmt.tokenizer_of({"fse.tokenizer": "external"}, {}) == TokenizerSpec("external")
+    with pytest.raises(ValueError, match="are keys of a tokenizer with parameters"):
+        fmt.tokenizer_of({"fse.tokenizer": "fse_words@1", "fse.unknown": "drop"}, {})
+    config = {"fse.tokenizer_config": metadata["fse.tokenizer_config"]}
+    with pytest.raises(ValueError, match=r"needs the metadata key fse\.unknown"):
+        fmt.tokenizer_of({"fse.tokenizer": "wordpiece@1", **config}, {})
+
+
+def test_integers_and_json_objects_are_strict():
+    assert fmt.integer({"k": "12"}, "k") == 12
+    for bad in ({"k": "-1"}, {"k": "01"}, {"k": "1.0"}, {}):
+        with pytest.raises(ValueError, match="decimal integer"):
+            fmt.integer(bad, "k")
+    assert fmt.json_object({"k": '{"a":1}'}, "k") == {"a": 1}
+    with pytest.raises(ValueError, match="canonical JSON object"):
+        fmt.json_object({"k": '{"a": 1}'}, "k")
+    with pytest.raises(ValueError, match="not canonical JSON"):
+        fmt.json_object({"k": '{"a":NaN}'}, "k")
+
+
+def test_the_table_of_a_tokenizer_with_parameters():
+    data, offsets = _vocabulary(TOKENS)
+    fmt.check_tokenizer_table(SPEC, "float32", False, data, offsets)
+    fmt.check_tokenizer_table(TokenizerSpec("fse_words@1"), "int8", True, None, None)
+    with pytest.raises(ValueError, match="no FastText"):
+        fmt.check_tokenizer_table(SPEC, "float32", True, data, offsets)
+    with pytest.raises(UnsupportedArtifactError, match="float16 table"):
+        fmt.check_tokenizer_table(SPEC, "float16", False, data, offsets)
+    with pytest.raises(ValueError, match=r"vocab\.bytes"):
+        fmt.check_tokenizer_table(SPEC, "float32", False, None, offsets)

@@ -26,3 +26,19 @@ def save_model(folder, table=None, *, normalize=True, max_length=512, tokens=Non
         folder
     )
     return folder
+
+
+def save_unigram_model(folder, *, normalize=True, max_length=512, vocab=None):
+    """A Model2Vec model with a Unigram tokenizer (the normalizer chain of
+    potion-multilingual-128M, tests/support/unigram.py) saved by model2vec 0.10.0."""
+    from model2vec import StaticModel
+
+    from support import unigram
+
+    vocab = unigram.pieces_and_scores() if vocab is None else vocab
+    table = rows(len(vocab), seed=1)
+    tokenizer = unigram.hf_tokenizer(vocab)
+    StaticModel(table, tokenizer, normalize=normalize, max_length=max_length).save_pretrained(
+        folder
+    )
+    return folder

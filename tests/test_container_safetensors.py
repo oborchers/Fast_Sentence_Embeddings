@@ -112,7 +112,7 @@ def test_write_rejects(tmp_path):
     with pytest.raises(ValueError, match="written by the container"):
         c.write(tmp_path / "b.safetensors", _tensors(), {"fse.fingerprint": "x"})
     with pytest.raises(ValueError, match="not one of the format"):
-        c.write(tmp_path / "b.safetensors", {"x": np.zeros(2)}, {})
+        c.write(tmp_path / "b.safetensors", {"x": np.zeros(2, np.complex64)}, {})
     assert sorted(os.listdir(tmp_path)) == ["a.safetensors"]
 
 

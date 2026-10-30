@@ -12,7 +12,8 @@
 
 """Native routines of fse 2.0 without the GIL: ngram hashing, vocabulary table, UTF-8 scan,
 token lists joined, the weighted mean kernel, dot16, steps, score and storage, the search, linear
-heads, the tokenizers (wordpiece@1 among them), the text lookup and Arrow string columns."""
+heads, the tokenizers (wordpiece@1 and unigram@1 among them), the text lookup and Arrow string
+columns."""
 
 import cython
 import numpy as np
@@ -40,5 +41,7 @@ include "_native_search.pxi"
 include "_native_head.pxi"
 include "_native_text.pxi"
 include "_native_wordpiece.pxi"
+include "_native_unigram.pxi"
+include "_native_unigram_steps.pxi"
 include "_native_arrow.pxi"
 include "_native_arrow_column.pxi"

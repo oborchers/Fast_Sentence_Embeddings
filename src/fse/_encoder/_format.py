@@ -30,7 +30,6 @@ from fse._container import (
     CHECKSUM_PREFIX,
     CREATED_BY_KEY,
     FINGERPRINT_KEY,
-    INTEGER,
     canonical_json,
     fingerprint,
     tensor_code,
@@ -43,14 +42,24 @@ from fse._contract import (
     Step,
     UnsupportedArtifactError,
     check_steps,
-    check_tokenizer,
     check_transform_version,
     prerelease_error,
 )
 from fse._text import MAX_NGRAMS_LIMIT
-from fse._tokenizer_spec import WORDPIECE, TokenizerSpec, WordPieceConfig
+from fse._tokenizer_spec import TokenizerSpec
 from fse._wordvectors import WordVectors
 from fse._wordvectors_format import FORMAT_VERSION as WORD_VECTORS_VERSION
+
+from ._format_tokenizer import (
+    TOKENIZER_KEYS,
+    TOKENIZER_TENSORS,
+    check_tokenizer_table,
+    integer,
+    json_object,
+    tokenizer_metadata,
+    tokenizer_of,
+    tokenizer_tensors,
+)
 
 # The ngrams an unknown FastText word uses at most, unless an encoder is given another.
 DEFAULT_MAX_NGRAMS = 40
@@ -78,8 +87,7 @@ _NEEDED = (
     "fse.output_dim",
     "fse.dim",
 )
-# The keys of a tokenizer with parameters (wordpiece@1), and the provenance of a model.
-TOKENIZER_KEYS = ("fse.tokenizer_config", "fse.unknown", "fse.max_tokens", "fse.max_chars")
+# The provenance of a model.
 PROVENANCE_KEYS = ("fse.source", "fse.license")
 _KEYS = frozenset(
     {
@@ -183,7 +191,8 @@ def to_artifact(
     }
     if content.max_ngrams is not None:
         metadata["fse.max_ngrams"] = str(content.max_ngrams)
-    metadata.update(_tokenizer_metadata(content.tokenizer))
+    metadata.update(tokenizer_metadata(content.tokenizer))
+    tensors.update(tokenizer_tensors(content.tokenizer))
     if content.source is not None:
         source = content.source
         value: dict[str, Any] = {
@@ -202,18 +211,6 @@ def to_artifact(
     return tensors, metadata
 
 
-def _tokenizer_metadata(spec: TokenizerSpec) -> dict[str, str]:
-    if spec.config is None:
-        return {}
-    out = {"fse.tokenizer_config": canonical_json(spec.config.to_json())}
-    out["fse.unknown"] = str(spec.unknown)
-    if spec.max_tokens is not None:
-        out["fse.max_tokens"] = str(spec.max_tokens)
-    if spec.max_chars is not None:
-        out["fse.max_chars"] = str(spec.max_chars)
-    return out
-
-
 def from_artifact(
     tensors: dict[str, ndarray], metadata: dict[str, str]
 ) -> tuple[EncoderContent, dict[str, ndarray], dict[str, str]]:
@@ -222,9 +219,9 @@ def from_artifact(
     keys and identifiers, and artifacts of a pre-release, raise UnsupportedArtifactError,
     anything else malformed ValueError."""
     _check_keys(tensors, metadata)
-    check_transform_version(_integer(metadata, "fse.transform_version"))
+    check_transform_version(integer(metadata, "fse.transform_version"))
     aggregation = Aggregation.parse(metadata["fse.aggregation"])
-    dim = _integer(metadata, "fse.dim")
+    dim = integer(metadata, "fse.dim")
     output = aggregation.output_dim(dim)  # raises for fse.dim 0
     if str(output) != metadata["fse.output_dim"]:
         raise ValueError(
@@ -232,10 +229,10 @@ def from_artifact(
             f"aggregate to {output}"
         )
     content = EncoderContent(
-        tokenizer=_tokenizer(metadata),
+        tokenizer=tokenizer_of(metadata, tensors),
         steps=_steps(metadata, output),
         oov_weight=_oov_weight(tensors, metadata),
-        max_ngrams=_integer(metadata, "fse.max_ngrams") if "fse.max_ngrams" in metadata else None,
+        max_ngrams=integer(metadata, "fse.max_ngrams") if "fse.max_ngrams" in metadata else None,
         aggregation=aggregation,
         source=_source(metadata),
         license=_license(metadata),
@@ -247,7 +244,7 @@ def from_artifact(
         tensors.get("vocab.bytes"),
         tensors.get("vocab.offsets"),
     )
-    extra = set(tensors) - TABLE_TENSORS - {"oov_weight"}
+    extra = set(tensors) - TABLE_TENSORS - TOKENIZER_TENSORS - {"oov_weight"}
     if extra:
         raise ValueError(f"tensors the encoder does not use: {sorted(extra)}")
     table = {k: v for k, v in tensors.items() if k in TABLE_TENSORS}
@@ -281,13 +278,6 @@ def _check_keys(tensors: dict[str, ndarray], metadata: dict[str, str]):
             raise ValueError(f"an encoder needs the metadata key {key}")
 
 
-def _integer(metadata: dict[str, str], key: str) -> int:
-    value = metadata.get(key)
-    if value is None or not INTEGER.fullmatch(value):
-        raise ValueError(f"{key} must be a non-negative decimal integer, not {value!r}")
-    return int(value)
-
-
 def _steps(metadata: dict[str, str], dim: int) -> tuple[Step, ...]:
     """The steps of ``fse.steps``: a canonical JSON list, [] or ["normalize@1"]."""
     text = metadata["fse.steps"]
@@ -315,69 +305,10 @@ def _oov_weight(tensors: dict[str, ndarray], metadata: dict[str, str]) -> ndarra
     return value
 
 
-def check_tokenizer_table(
-    tokenizer: TokenizerSpec,
-    dtype: str | None,
-    fasttext: bool,
-    vocab_bytes: ndarray | None,
-    vocab_offsets: ndarray | None,
-) -> None:
-    """The table a tokenizer with parameters needs: float32 rows without FastText, whose
-    vocabulary holds every id of its parameters. Model2vec computes the mean of a float16
-    table in float16, so only float32 tables keep the bound of a comparison for now."""
-    if tokenizer.config is None:
-        return
-    if fasttext:
-        raise ValueError(f"an encoder of {tokenizer.name} has no FastText table")
-    if dtype != "float32":
-        raise UnsupportedArtifactError(
-            f"encoders of {tokenizer.name} with a {dtype} table are not supported by this "
-            "fse; their tables are float32"
-        )
-    if vocab_bytes is None or vocab_offsets is None:
-        raise ValueError("an encoder needs the tensors vocab.bytes and vocab.offsets")
-    tokenizer.check_vocabulary(vocab_bytes, vocab_offsets)
-
-
-def _tokenizer(metadata: dict[str, str]) -> TokenizerSpec:
-    """The tokenizer of ``fse.tokenizer`` with the keys of its parameters, which exist
-    exactly for a tokenizer that has them."""
-    name = check_tokenizer(metadata["fse.tokenizer"])
-    present = [k for k in TOKENIZER_KEYS if k in metadata]
-    if name != WORDPIECE:
-        if present:
-            raise ValueError(f"{present} are keys of wordpiece@1, not of the tokenizer {name}")
-        return TokenizerSpec(name)
-    for key in TOKENIZER_KEYS[:2]:
-        if key not in metadata:
-            raise ValueError(f"an encoder of {name} needs the metadata key {key}")
-    config = WordPieceConfig.from_json(_json_object(metadata, "fse.tokenizer_config"))
-    return TokenizerSpec(
-        name,
-        config,
-        metadata["fse.unknown"],
-        _integer(metadata, "fse.max_tokens") if "fse.max_tokens" in metadata else None,
-        _integer(metadata, "fse.max_chars") if "fse.max_chars" in metadata else None,
-    )
-
-
-def _json_object(metadata: dict[str, str], key: str) -> dict:
-    """The canonical JSON object of a key (no duplicate keys, NaN or whitespace)."""
-    text = metadata[key]
-    try:
-        value = json.loads(text)
-        canonical = canonical_json(value)
-    except ValueError as error:  # malformed JSON, or NaN, which canonical JSON refuses
-        raise ValueError(f"{key} is not canonical JSON: {error}") from None
-    if not isinstance(value, dict) or canonical != text:
-        raise ValueError(f"{key} must be a canonical JSON object")
-    return value
-
-
 def _source(metadata: dict[str, str]) -> Source | None:
     if "fse.source" not in metadata:
         return None
-    value = _json_object(metadata, "fse.source")
+    value = json_object(metadata, "fse.source")
     if set(value) - {"dims"} != {"format", "repo", "revision"}:
         raise ValueError("fse.source holds exactly format, repo and revision, and optionally dims")
     dims = value.get("dims")

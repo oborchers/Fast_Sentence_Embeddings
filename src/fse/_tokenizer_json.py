@@ -35,23 +35,32 @@ from fse._tokenizer_json_common import (
     post_processor,
     truncation,
 )
+from fse._tokenizer_json_unigram import parse_unigram
 from fse._tokenizer_spec import WordPieceConfig
+from fse._tokenizer_unigram import UnigramConfig
 
 _MODEL_KEYS = {"type", "unk_token", "continuing_subword_prefix", "max_input_chars_per_word"}
 _MODEL_KEYS |= {"vocab"}
 _NORMALIZER_KEYS = {"type", "clean_text", "handle_chinese_chars", "strip_accents", "lowercase"}
 
 
-def read_tokenizer_json(path: Path) -> tuple[list[str], WordPieceConfig]:
-    """The tokens in id order and the parameters of wordpiece@1 of a tokenizer.json."""
+def read_tokenizer_json(path: Path) -> tuple[list[str], WordPieceConfig | UnigramConfig]:
+    """The tokens in id order and the parameters of wordpiece@1 or unigram@1 of a
+    tokenizer.json."""
     return tokenizer_of(read_regular(Path(path), limit=MAX_BYTES), Path(path))
 
 
-def tokenizer_of(data: bytes, path: Path) -> tuple[list[str], WordPieceConfig]:
-    """The same of the bytes of a tokenizer.json (``path`` names it in errors)."""
+def tokenizer_of(data: bytes, path: Path) -> tuple[list[str], WordPieceConfig | UnigramConfig]:
+    """The same of the bytes of a tokenizer.json (``path`` names it in errors): a Unigram
+    model gives the parameters of unigram@1 (fse._tokenizer_json_unigram), any other those
+    of wordpiece@1, or the reason it is refused."""
     if len(data) > MAX_BYTES:
         raise CorruptArtifactError(f"{path} has more than {MAX_BYTES} bytes")
-    return parse_tokenizer(strict_json(data, path), path)
+    value = strict_json(data, path)
+    model = value.get("model") if isinstance(value, dict) else None
+    if isinstance(model, dict) and model.get("type") == "Unigram":
+        return parse_unigram(value, path)
+    return parse_tokenizer(value, path)
 
 
 def tokenizer_and_truncation(
