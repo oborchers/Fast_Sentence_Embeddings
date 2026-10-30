@@ -80,3 +80,16 @@ def test_the_python_path_decides_an_invalid_verdict():
     source = TokenListSource([sentence])  # the Python path reads the repaired sentence
     assert source._data == b"ok"
     np.testing.assert_array_equal(source._offsets, [0, 2])
+
+
+def test_bytes_fse_did_not_write_are_scanned():
+    class Raw(str):
+        def encode(self, *_args):  # the Python path takes these bytes as they are
+            return b"ok \xff"
+
+    source = StringSource(["fine", Raw("x")])
+    with pytest.raises(UnicodeDecodeError, match=r"in sentence 1 \(byte 7 of the source\)"):
+        source.scan()
+    encoded = StringSource.encoded([b"fine", b"ok \xff"])
+    with pytest.raises(UnicodeDecodeError, match=r"in sentence 1 \(byte 7 of the source\)"):
+        encoded.scan()
