@@ -118,18 +118,19 @@ def test_an_error_of_get_schema_raises():
     )
 
 
-def test_an_invalid_array_of_a_stream_releases_every_array_taken():
+def test_a_null_in_a_stream_ends_the_column_and_every_array_is_released():
     p = Producer()
     arrays = [
         p.strings(b"u", [b"a"]),
         p.strings(b"u", [b"b", b"c"], nulls=[1]),
         p.strings(b"u", [b"d"]),
     ]
-    capsule = p.stream(p.schema(b"u"), arrays)
-    with pytest.raises(ValueError, match="row 2 of the Arrow column is null"):
-        _native.ArrowColumn.from_stream(capsule)
+    col = _native.ArrowColumn.from_stream(p.stream(p.schema(b"u"), arrays))
+    assert (col.null_row, col.rows) == (2, 2)  # a and b; nothing after the null is read
+    assert "row 2 of the Arrow column is null" in str(_native.arrow_null_error(col.null_row))
+    col.release()
     gc.collect()
-    assert p.releases.count("array") == 2
+    assert p.releases.count("array") == 2  # both arrays read; the third is never asked for
 
 
 def test_a_stream_of_a_table_is_refused_and_released():
@@ -284,3 +285,13 @@ def test_a_release_callback_that_drops_the_gil_finds_the_column_closed():
     assert p.releases.count("array") == len(PARTS)
     addresses = [a for kind, a, _ in p.releases.calls if kind == "array"]
     assert len(set(addresses)) == len(addresses)  # each array once
+
+
+def test_nothing_after_a_null_is_read_so_a_later_error_cannot_displace_it():
+    p = Producer()
+    arrays = [p.strings(b"u", [b"a", b"b"], nulls=[1]), p.strings(b"u", [b"c"])]
+    col = _native.ArrowColumn.from_stream(p.stream(p.schema(b"u"), arrays, fail_at=1))
+    assert (col.null_row, col.rows) == (1, 1)  # get_next 1, which would fail, is not called
+    col.release()
+    gc.collect()
+    assert p.releases.count("array") == 1  # the array read; the next one is never asked for

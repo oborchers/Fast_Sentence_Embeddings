@@ -86,7 +86,7 @@ def _check_span(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssi
     must cover the range, stay inside data and never decrease.
     """
     cdef Py_ssize_t n = data.shape[0]
-    cdef np.int64_t[::1] item_offsets
+    cdef const np.int64_t[::1] item_offsets
     cdef Py_ssize_t i
     if offsets is None:
         if not 0 <= first <= last <= n:
@@ -122,7 +122,7 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
     cdef Py_ssize_t n = data.shape[0]
     cdef const unsigned char *p = &data[0] if n else NULL
     cdef bint lines = offsets is None
-    cdef np.int64_t[::1] item_offsets
+    cdef const np.int64_t[::1] item_offsets
     cdef const np.int64_t *item_ptr = NULL
     if not lines:
         item_offsets = offsets

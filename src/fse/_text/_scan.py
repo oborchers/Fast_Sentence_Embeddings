@@ -23,15 +23,24 @@ from numpy import ndarray
 from fse import _native
 from fse._contract import Batch
 
+from ._plan import offset_cuts
+
 # Bytes per chunk: small enough to balance workers, large enough that the per-chunk
 # overhead does not matter.
 _CHUNK_MIN_BYTES = 1 << 16
 _CHUNK_MAX_BYTES = 1 << 20
+# Tasks per worker of a source below TASKS_PER_WORKER * workers * _CHUNK_MAX_BYTES: a task
+# takes the GIL back at about ten points, which costs about 19 us at one worker but 0.2
+# to 0.34 ms of CPU with 10 threads, so fewer and larger tasks are faster; two per worker
+# leave room to balance cores of different speed (ARCHITECTURE.md, "Runtime", Tasks).
+TASKS_PER_WORKER = 2
 # About this many bytes per scan task, so a failed scan stops after bounded work.
 _SCAN_RANGE_MAX_BYTES = 1 << 26
 # Sources smaller than this are scanned in the calling thread: starting threads would cost
 # more than the scan (about 16 ms of one core at 64 MB/s).
 _SCAN_INLINE_BYTES = 1 << 20
+# Bytes searched at a time for a newline on the path of an error (``prefix``, ``_start_of``).
+_LINE_BLOCK = 1 << 20
 
 
 @dataclass(frozen=True)
@@ -96,6 +105,13 @@ def check_chunk_bytes(chunk_bytes: object) -> int | None:
     return value
 
 
+def default_chunk_bytes(total: int, workers: int, per_worker: int | None = None) -> int:
+    """The bytes per chunk of a source of ``total`` bytes: about ``per_worker`` chunks
+    (TASKS_PER_WORKER) per worker, within 64 KiB and 1 MiB."""
+    per = TASKS_PER_WORKER if per_worker is None else per_worker
+    return max(_CHUNK_MIN_BYTES, min(_CHUNK_MAX_BYTES, -(-total // (per * workers))))
+
+
 def _chunk_sizes(
     total: int, workers: object, chunk_bytes: object, chunk_rows: object
 ) -> tuple[int, int, int]:
@@ -106,7 +122,7 @@ def _chunk_sizes(
         raise ValueError(f"workers must be a positive int, not {workers!r}")
     size = check_chunk_bytes(chunk_bytes)
     if size is None:
-        size = max(_CHUNK_MIN_BYTES, min(_CHUNK_MAX_BYTES, total // (8 * count)))
+        size = default_chunk_bytes(total, count)
     rows = _native.MAX_CHUNK_ROWS if chunk_rows is None else _integer(chunk_rows)
     if rows is None or not 1 <= rows <= _native.MAX_CHUNK_ROWS:
         raise ValueError(
@@ -133,6 +149,29 @@ class _Buffered:
 
     _data: Any
     _offsets: ndarray | None
+    # True only for a buffer that the native join wrote from exact str (``_verify``): it
+    # is valid UTF-8 by construction and is not scanned again (ARCHITECTURE.md, "Text
+    # sources"). Everything else (bytes of a caller, of a str subclass's own encode, of a
+    # file or a producer) is scanned.
+    _verified = False
+
+    def _verify(self, data: bytes, offsets: ndarray) -> None:
+        """Mark the buffer of a successful native join as valid. The join reads only exact,
+        ready str, writes each code point in its shortest UTF-8 form (ASCII copied, a
+        surrogate fails the pass, CPython keeps code points at most U+10FFFF), and writes
+        the offsets itself, from 0 to the length of the data; they are made read-only."""
+        if not (
+            isinstance(data, bytes)
+            and isinstance(offsets, ndarray)
+            and offsets.dtype == np.int64
+            and offsets.ndim == 1
+            and len(offsets) >= 1
+            and offsets[0] == 0
+            and offsets[-1] == len(data)
+        ):
+            raise AssertionError("the native join gave a buffer without its offsets")
+        offsets.flags.writeable = False
+        self._verified = True
 
     @property
     def nbytes(self) -> int:
@@ -178,11 +217,34 @@ class _Buffered:
     ) -> Scan:
         """Validate the UTF-8 of every sentence and cut the source into chunks of about
         ``chunk_bytes`` bytes and at most ``chunk_rows`` sentences (MAX_CHUNK_ROWS)."""
+        scan, error = self.scan_until_error(
+            workers=workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows
+        )
+        if error is not None:
+            raise error
+        return scan
+
+    def scan_until_error(
+        self,
+        *,
+        workers: int = 1,
+        chunk_bytes: int | None = None,
+        chunk_rows: int | None = None,
+        first_row: int = 0,
+    ) -> tuple[Scan, Exception | None]:
+        """As ``scan``, but the first invalid sentence ends the chunks instead of raising:
+        the chunks of the sentences before it and its error (or None). The runtime encodes
+        those sentences first, so an earlier row that fails later in its pipeline is
+        reported before it (ARCHITECTURE.md, "Runtime", Errors). The error names its row
+        from ``first_row``, the row of the run of this source's first sentence."""
+        self._check_open()
         total = self.nbytes
         workers, chunk_bytes, chunk_rows = _chunk_sizes(total, workers, chunk_bytes, chunk_rows)
-        scan = self._scanner(chunk_bytes, chunk_rows)
         if self._positions() == 0:
-            return Scan(0, ())
+            return Scan(0, ()), None
+        if self._offsets is not None:
+            return self._offset_scan(workers, chunk_bytes, chunk_rows, first_row)
+        scan = self._scanner(chunk_bytes, chunk_rows)
         ranges = list(pairwise(self._range_bounds(workers, chunk_bytes)))
 
         def remainder(c: Chunk) -> bool:
@@ -191,10 +253,15 @@ class _Buffered:
         sentences = 0
         chunks: list[Chunk] = []
         with _scan_pool(workers, total) as pool:
-            for result in (map if pool is None else pool.map)(scan, ranges):
-                count, _, _, range_chunks, error_byte, error_sentence = result
+            for span, result in zip(
+                ranges, (map if pool is None else pool.map)(scan, ranges), strict=True
+            ):
+                error_byte, error_sentence = result[4], result[5]
+                error = None
                 if error_byte >= 0:
-                    raise self._error(error_byte, sentences + error_sentence)
+                    error = self._error(error_byte, sentences + error_sentence, first_row)
+                    result = self._valid_part(scan, span[0], error_byte, error_sentence)
+                count, _, _, range_chunks, _, _ = result
                 firsts = [row for _, _, row in range_chunks] + [count]
                 for k, ((start, end, row), following) in enumerate(
                     zip(range_chunks, firsts[1:], strict=True)
@@ -202,7 +269,88 @@ class _Buffered:
                     chunk = Chunk(start, end, sentences + row, following - row)
                     _append(chunks, chunk, merge=k == 0, remainder=remainder, chunk_rows=chunk_rows)
                 sentences += count
-        return Scan(sentences, tuple(chunks))
+                if error is not None:
+                    return Scan(sentences, tuple(chunks)), error
+        return Scan(sentences, tuple(chunks)), None
+
+    def _offset_scan(
+        self, workers: int, chunk_bytes: int, chunk_rows: int, first_row: int
+    ) -> tuple[Scan, Exception | None]:
+        """The scan of sentences with offsets: validated, then cut from the offsets into
+        chunks of about equal bytes (``offset_cuts``)."""
+        rows, error = self._validated(workers, chunk_bytes, first_row)
+        assert self._offsets is not None
+        cuts = offset_cuts(self._offsets[: rows + 1], chunk_bytes, chunk_rows).tolist()
+        chunks = tuple(Chunk(a, b, a, b - a) for a, b in pairwise(cuts))
+        return Scan(rows, chunks), error
+
+    def _validated(
+        self, workers: int, chunk_bytes: int, first_row: int
+    ) -> tuple[int, Exception | None]:
+        """The sentences before the first invalid one, and its error (or None); a verified
+        buffer has no invalid sentence."""
+        if self._verified:
+            return self._positions(), None
+        scan = self._scanner(1 << 62, _native.MAX_CHUNK_ROWS)
+        ranges = list(pairwise(self._range_bounds(workers, chunk_bytes)))
+        sentences = 0
+        with _scan_pool(workers, self.nbytes) as pool:
+            for result in (map if pool is None else pool.map)(scan, ranges):
+                count, _, _, _, error_byte, error_sentence = result
+                if error_byte >= 0:
+                    return sentences + error_sentence, self._error(
+                        error_byte, sentences + error_sentence, first_row
+                    )
+                sentences += count
+        return sentences, None
+
+    def _valid_part(self, scan: Callable, first: int, byte: int, sentences: int) -> Any:
+        """The scan of the valid sentences of a range before its first invalid one."""
+        if not sentences:
+            return 0, 0, 0, [], -1, -1
+        return scan((first, self._start_of(first, byte, sentences)))
+
+    def _start_of(self, first: int, byte: int, sentences: int) -> int:
+        """The position of the sentence that holds ``byte``, the sentence ``sentences`` of
+        the range from ``first``: a string or row number, or in line mode its first byte
+        (searched back from ``byte`` in blocks, so no array of the range is made)."""
+        if not self._lines():
+            return first + sentences
+        data = self._array()
+        end = byte
+        while end > first:
+            start = max(first, end - _LINE_BLOCK)
+            newlines = np.flatnonzero(data[start:end] == 10)
+            if len(newlines):
+                return start + int(newlines[-1]) + 1
+            end = start
+        return first
+
+    def _lines(self) -> bool:
+        """Whether positions are bytes of lines (a file) rather than string numbers."""
+        return self._offsets is None
+
+    def prefix(self, chunk: Chunk, rows: int) -> Chunk:
+        """The chunk of the first ``rows`` sentences of ``chunk`` (1 to all of them)."""
+        if not 0 < rows <= chunk.n_sentences:
+            raise ValueError(f"a prefix of {rows} of the {chunk.n_sentences} sentences of a chunk")
+        if rows == chunk.n_sentences:
+            return chunk
+        end = self._line_end(chunk.start, chunk.end, rows) if self._lines() else chunk.start + rows
+        return Chunk(chunk.start, end, chunk.first_row, rows)
+
+    def _line_end(self, start: int, end: int, rows: int) -> int:
+        """The byte after the ``rows``-th newline from ``start``, searched in blocks up to
+        it, so no array of the chunk is made."""
+        data = self._array()
+        while start < end:
+            stop = min(end, start + _LINE_BLOCK)
+            newlines = np.flatnonzero(data[start:stop] == 10)
+            if len(newlines) >= rows:
+                return start + int(newlines[rows - 1]) + 1
+            rows -= len(newlines)
+            start = stop
+        raise AssertionError("a chunk has fewer lines than its sentences")  # pragma: no cover
 
     def _scanner(self, chunk_bytes: int, chunk_rows: int) -> Callable[[tuple[int, int]], Any]:
         """The scan of one range of positions, as ``_native.scan_spans`` gives it: (sentences,
@@ -220,13 +368,13 @@ class _Buffered:
             return chunk.end - chunk.start
         return int(self._offsets[chunk.end] - self._offsets[chunk.start])
 
-    def _error(self, byte: int, sentence: int) -> UnicodeDecodeError:
+    def _error(self, byte: int, sentence: int, first_row: int = 0) -> UnicodeDecodeError:
         """The error of an invalid UTF-8 byte of the scan: ``byte`` where the scan gave it,
-        ``sentence`` the row."""
+        ``sentence`` the row, named from ``first_row``."""
         if self._offsets is not None:
             k = int(np.searchsorted(self._offsets, byte, side="right")) - 1
             return _decode_error(
-                self._data, int(self._offsets[k]), int(self._offsets[k + 1]), sentence
+                self._data, int(self._offsets[k]), int(self._offsets[k + 1]), first_row + sentence
             )
         start = byte
         while start > 0 and self._data[start - 1] != 10:
@@ -234,7 +382,7 @@ class _Buffered:
         end = byte
         while end < len(self._data) and self._data[end] != 10:
             end += 1
-        return _decode_error(self._data, start, end, sentence)
+        return _decode_error(self._data, start, end, first_row + sentence)
 
     def _check_open(self) -> None:
         """Raise if the source was closed; only a FileSource can be."""

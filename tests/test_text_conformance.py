@@ -300,10 +300,11 @@ def test_encode_reports_invalid_utf8_with_its_sentence():
     table, _ = _lookup_setup(["a b"], share=1)
     lookup = _native.TextLookup(table, "fse_words@1")
     data = np.frombuffer(b"a b\nok\nx \xff y\n", np.uint8)
-    with pytest.raises(
-        UnicodeDecodeError, match=r"in sentence 2 of the range \(byte 9 of the source\)"
-    ):
-        lookup.encode(data, None, 0, len(data), 0, _native.Workspace())
+    for first_row in (0, 40):  # the row of the source, not the position in the range
+        with pytest.raises(
+            UnicodeDecodeError, match=rf"in sentence {first_row + 2} \(byte 9 of the source\)"
+        ):
+            lookup.encode(data, None, 0, len(data), first_row, _native.Workspace())
 
 
 def test_text_lookup_validates():

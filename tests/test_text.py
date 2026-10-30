@@ -41,11 +41,17 @@ def test_string_source_validates():
         StringSource(["a", b"b"])
     with pytest.raises(UnicodeEncodeError, match="in string 1"):
         StringSource(["a", "b\ud800"])
-    # Strings are valid UTF-8 by construction; only a corrupted buffer fails.
+    # Strings are valid UTF-8 by construction; only a corrupted buffer fails, which is
+    # no longer the buffer of the join, so it is scanned like any other.
     corrupted = StringSource(["a", "b"])
-    corrupted._data = b"a\xff"
+    corrupted._data, corrupted._verified = b"a\xff", False
     with pytest.raises(UnicodeDecodeError, match="in sentence 1"):
         corrupted.scan()
+    # Without the scan the tokenizer still finds it.
+    corrupted._verified = True
+    chunk = corrupted.scan().chunks[0]
+    with pytest.raises(UnicodeDecodeError, match="in sentence 1"):
+        corrupted.encode(chunk, make_lookup(vectors(), "external"), _native.Workspace())
     source = StringSource(["a"])
     with pytest.raises(ValueError, match="workers must be"):
         source.scan(workers=0)

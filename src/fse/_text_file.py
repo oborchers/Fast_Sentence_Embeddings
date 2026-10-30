@@ -83,10 +83,17 @@ class FileSource(_Buffered):
         self._check_unchanged()  # a change while the chunk was encoded
         return batch
 
-    def scan(
-        self, *, workers: int = 1, chunk_bytes: int | None = None, chunk_rows: int | None = None
-    ) -> Scan:
-        result = super().scan(workers=workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows)
+    def scan_until_error(
+        self,
+        *,
+        workers: int = 1,
+        chunk_bytes: int | None = None,
+        chunk_rows: int | None = None,
+        first_row: int = 0,
+    ) -> tuple[Scan, Exception | None]:
+        result = super().scan_until_error(
+            workers=workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows, first_row=first_row
+        )
         self._check_unchanged()  # a change during the scan
         return result
 

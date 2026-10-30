@@ -23,6 +23,10 @@ cdef class ArrowColumn:
     cdef readonly bint released  # by release(), or when freed
     cdef readonly int64_t rows
     cdef readonly int64_t nbytes
+    # The row of the first null, or -1: the rows before it are the column, nothing after
+    # it is read, and the source raises it after the rows before it (ARCHITECTURE.md,
+    # "Runtime", Errors).
+    cdef readonly int64_t null_row
     # Bytes of offsets or views copied because they were not aligned; text is never copied.
     cdef readonly int64_t copied_bytes
 
@@ -36,6 +40,7 @@ cdef class ArrowColumn:
         self._starts[0] = 0
         self._byte_starts[0] = 0
         self._kind = -1
+        self.null_row = -1
 
     def __dealloc__(self):
         self._free()
@@ -103,6 +108,8 @@ cdef class ArrowColumn:
                 finally:
                     if array.release != NULL:  # not taken over (no memory): ours to release
                         array.release(&array)
+                if column.null_row >= 0:
+                    break  # nothing after a null is read, so no later error displaces it
         finally:
             if have_schema and schema.release != NULL:
                 schema.release(&schema)
@@ -176,7 +183,16 @@ cdef class ArrowColumn:
         source.release = NULL
         self._n_arrays += 1
         cdef ArrowArray *a = &self._arrays[self._n_arrays - 1]
-        self._check_array(a)
+        cdef ArrowArray head  # the rows of a before its first null
+        cdef int64_t null
+        if self.null_row >= 0:
+            return 0  # after a null nothing is read; the array is released with the rest
+        null = _arrow_check_array(a, self.rows, self._kind)
+        if null >= 0:
+            self.null_row = self.rows + null
+            memcpy(&head, a, sizeof(ArrowArray))
+            head.length = null
+            a = &head
         if a.length == 0:
             return 0
         if self._n == self._capacity:
@@ -190,37 +206,6 @@ cdef class ArrowColumn:
         self.nbytes += text
         self._starts[self._n] = self.rows
         self._byte_starts[self._n] = self.nbytes
-        return 0
-
-    cdef int _check_array(self, ArrowArray *a) except -1:
-        if a.length < 0 or a.offset < 0:
-            raise ValueError(f"an Arrow array has the length {a.length} and offset {a.offset}")
-        if a.offset > INT64_MAX - 1 - a.length:
-            raise ValueError("the offset and length of an Arrow array overflow")
-        if a.length > INT64_MAX - self.rows:
-            raise OverflowError("the Arrow column holds more than 2**63 rows")
-        if a.n_children != 0 or a.dictionary != NULL:
-            raise ValueError("an Arrow string array has no children and no dictionary")
-        if a.buffers == NULL:
-            raise ValueError("the Arrow array has no buffers")
-        if a.n_buffers > PY_SSIZE_T_MAX // <int64_t>sizeof(void *):
-            raise ValueError(f"an Arrow array cannot have {a.n_buffers} buffers")
-        if (a.n_buffers != 3) if self._kind != FSE_ARROW_UTF8_VIEW else (a.n_buffers < 3):
-            raise ValueError(f"an Arrow string array of this format has not {a.n_buffers} buffers")
-        if a.null_count < -1 or a.null_count > a.length:
-            raise ValueError(f"the null count {a.null_count} of an Arrow array of {a.length} rows is invalid")
-        if a.length == 0:
-            return 0
-        cdef const uint8_t *bits = <const uint8_t *>a.buffers[0]
-        cdef int64_t null
-        if bits == NULL:
-            if a.null_count != 0:
-                raise ValueError("an Arrow array without a validity bitmap must have a null count of 0")
-            return 0
-        with nogil:
-            null = fse_arrow_first_null(bits, a.offset, a.length)
-        if null >= 0:
-            raise ValueError(f"row {self.rows + null} of the Arrow column is null: {_ARROW_NULL_HINT}")
         return 0
 
     cdef const void *_index(self, ArrowArray *a, int64_t count, int64_t width, int64_t *first) except NULL:
@@ -477,7 +462,7 @@ cdef class ArrowColumn:
                     if status == ENCODE_OK:
                         sentence += 1
                         pos += 1
-            _arrow_encode_status(status, p, n, bad, sentence, pos)
+            _arrow_encode_status(status, p, n, bad, sentence, first_row + sentence)
             tokens = _to_array(&ws.tokens, np.uint32)
             offsets = _to_array(&ws.offsets, np.int64)
             if not lookup.fasttext:

@@ -113,7 +113,7 @@ def test_batches_take_arrow_columns_and_count_their_rows():
     assert [(b.first_row, b.n_rows) for b in got] == [(0, 300), (300, 300), (600, 100)]
     same(np.concatenate([b.rows for b in got]))
     with pytest.raises(
-        ValueError, match=r"batch 1 \(from row 2 of the run\).*row 1 of the Arrow column is null"
+        ValueError, match=r"batch 1 \(from row 2 of the run\).*row 3 of the Arrow column is null"
     ):
         list(ENCODER.encode_batches([pa.array(["w1", "w2"]), pa.array(["w3", None])]))
     with pytest.raises(TypeError, match="or an Arrow string column"):

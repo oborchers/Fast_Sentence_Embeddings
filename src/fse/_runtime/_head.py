@@ -33,6 +33,7 @@ from fse._backends import PoolInput, get_backend
 from fse._contract import Link, Normalize, Step
 from fse._cpus import usable_cpus
 
+from ._errors import earliest, first_rows
 from ._executor import run
 from ._pipeline import STEP_ROW_BYTES, Pipeline, check_sink_rows, check_workers
 from ._sinks import ArrayRows, GrowingRows, Sink, sink_dtype, split_target, wants_inverse_norms
@@ -242,7 +243,9 @@ class HeadPipeline:
         obase = first_row if sink is not None else 0  # own targets count from 0
         vbase = first_row if vector_sink is not None else 0
         row_bytes = self._row_bytes(output, vector_dtype, inverse)
-        tasks, window, stop = self.reader.plan_tasks(source, workers, chunk_bytes, row_bytes)
+        tasks, window, stop = self.reader.plan_tasks(
+            source, workers, chunk_bytes, row_bytes, first_row
+        )
         outputs = sink if sink is not None else _own(tasks.rows, width, output)
         vectors: Any = vector_sink
         if self.with_vectors and vectors is None:
@@ -257,7 +260,20 @@ class HeadPipeline:
 
         def work(item: tuple) -> tuple:
             task, target, vtarget = item
-            self._work(local, task, target, vtarget, first_row, output, vector_dtype, inverse)
+
+            def rows(n: int) -> None:  # an error is that of the earliest failing row
+                self._work(
+                    local,
+                    task.prefix(n),
+                    first_rows(target, n),
+                    first_rows(vtarget, n),
+                    first_row,
+                    output,
+                    vector_dtype,
+                    inverse,
+                )
+
+            earliest(rows, task.n_rows)
             return target, vtarget
 
         def commit(item: tuple, done: tuple) -> None:
@@ -307,12 +323,14 @@ class HeadPipeline:
         batch = self.reader.batch(local, task, base)
         first = base + task.first_row
         n = task.n_rows
+        vectors = vrows = vsplit = None
         if output == "logits" and self.folded:
             rows = target  # pooled in place, the bias added there
         elif self.with_vectors:
-            vrows = (self.vectors or self.reader).finish(
-                local, batch, split_target(vtarget, vdtype, inverse), first
-            )
+            # The vectors are stored (stage 5) after the head (4b), so for one row the
+            # head's error comes first.
+            vectors, vsplit = self.vectors or self.reader, split_target(vtarget, vdtype, inverse)
+            vrows = vectors.pooled(local, batch, vsplit)
             rows = (
                 vrows
                 if self.vectors is None
@@ -330,6 +348,10 @@ class HeadPipeline:
             backend.outputs(logits, "proba", self.head.link, target, first)
         elif output == "labels":
             backend.outputs(logits, "labels", None, target, first)
+        if vectors is not None:
+            assert vrows is not None
+            assert vsplit is not None
+            vectors.stored(vrows, vsplit, first)
 
 
 def _buffer(local: threading.local, name: str, n_rows: int, dim: int) -> ndarray:

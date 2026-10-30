@@ -161,9 +161,8 @@ def batches(
     for k, item in enumerate(items):
         with _named(k, row, batch_size(k, item)), batch_source(item, tokenizer) as (source, n):
             if sink is None:
-                found = EncodedBatch(
-                    row, n, pipeline.infer(source, workers=workers, dtype=dtype), None
-                )
+                rows = pipeline.infer(source, workers=workers, dtype=dtype, first_row=row)
+                found = EncodedBatch(row, n, rows, None)
             else:
                 run_into(pipeline, source, sink, workers, row)
                 last = durable(sink, row + n, last)

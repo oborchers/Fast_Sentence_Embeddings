@@ -225,7 +225,7 @@ def test_invalid_utf8_is_reported_with_its_row_and_byte(fmt, bad):
         bad.decode()
     assert byte >= 0
     assert bad[byte:].decode("utf-8", "replace").startswith("�")
-    with pytest.raises(UnicodeDecodeError, match="of row 1"):
+    with pytest.raises(UnicodeDecodeError, match=r"in sentence 1 \(byte \d+ of the row\)"):
         col.encode(make_lookup(vectors(), "fse_words@1"), 0, 2, 0, _native.Workspace())
 
 

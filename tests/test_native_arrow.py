@@ -110,9 +110,12 @@ def test_empty_arrays_and_empty_strings(fmt):
 @pytest.mark.parametrize(
     ("offset", "nulls", "row"), [(0, [3], 3), (5, [7], 2), (3, [8], 5), (0, [0, 4], 0)]
 )
-def test_a_null_raises_with_its_row(fmt, offset, nulls, row):
-    with pytest.raises(ValueError, match=f"row {row} of the Arrow column is null: fill or drop"):
-        column(Producer(), fmt, STRINGS, nulls=nulls, slice_=(offset, len(STRINGS) - offset))
+def test_a_null_ends_the_column_and_names_its_row(fmt, offset, nulls, row):
+    col = column(Producer(), fmt, STRINGS, nulls=nulls, slice_=(offset, len(STRINGS) - offset))
+    assert (col.null_row, col.rows) == (row, row)  # the rows before it, nothing after
+    assert rows_of(col) == STRINGS[offset : offset + row]
+    error = _native.arrow_null_error(col.null_row)
+    assert f"row {row} of the Arrow column is null: fill or drop" in str(error)
 
 
 @pytest.mark.parametrize("fmt", FORMATS)
@@ -123,10 +126,8 @@ def test_nulls_outside_the_slice_are_not_rows(fmt):
 
 @pytest.mark.parametrize("fmt", FORMATS)
 def test_the_bitmap_is_read_whatever_the_null_count_says(fmt):
-    with pytest.raises(ValueError, match="row 2 of the Arrow column is null"):
-        column(Producer(), fmt, STRINGS, nulls=[2], null_count=0)
-    with pytest.raises(ValueError, match="row 2 of the Arrow column is null"):
-        column(Producer(), fmt, STRINGS, nulls=[2], null_count=-1)
+    assert column(Producer(), fmt, STRINGS, nulls=[2], null_count=0).null_row == 2
+    assert column(Producer(), fmt, STRINGS, nulls=[2], null_count=-1).null_row == 2
 
 
 @pytest.mark.parametrize("null_count", [-2, len(STRINGS) + 1])

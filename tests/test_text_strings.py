@@ -80,3 +80,56 @@ def test_the_python_path_decides_an_invalid_verdict():
     source = TokenListSource([sentence])  # the Python path reads the repaired sentence
     assert source._data == b"ok"
     np.testing.assert_array_equal(source._offsets, [0, 2])
+
+
+def test_bytes_fse_did_not_write_are_scanned():
+    class Raw(str):
+        def encode(self, *_args):  # the Python path takes these bytes as they are
+            return b"ok \xff"
+
+    source = StringSource(["fine", Raw("x")])
+    with pytest.raises(UnicodeDecodeError, match=r"in sentence 1 \(byte 7 of the source\)"):
+        source.scan()
+    encoded = StringSource.encoded([b"fine", b"ok \xff"])
+    with pytest.raises(UnicodeDecodeError, match=r"in sentence 1 \(byte 7 of the source\)"):
+        encoded.scan()
+
+
+def test_only_buffers_of_the_native_join_are_verified():
+    class Own(str):
+        pass
+
+    assert StringSource(["a b", "café"])._verified
+    assert TokenListSource([["a", "b"], ["c"]])._verified
+    assert not StringSource(["a b", Own("c")])._verified  # a subclass: the Python path
+    assert not StringSource(np.array(["a b", "c"]))._verified
+    assert not StringSource.encoded([b"a b", b"c"])._verified
+    assert not TokenListSource([["a", Own("b")]])._verified
+    with pytest.raises(UnicodeEncodeError, match="in string 1"):
+        StringSource(["a", "\ud800"])
+
+
+def test_verified_buffers_are_not_scanned_again(monkeypatch):
+    texts = [f"sentence {i} " * (i % 7) for i in range(3000)]
+    want = {}
+    for kind in ("verified", "forced"):
+        source = StringSource(texts)
+        if kind == "forced":
+            source._verified = False  # the scan reads the read-only offsets as they are
+        want[kind] = source.scan(workers=4, chunk_bytes=4096)
+    assert want["verified"] == want["forced"]
+
+    def fails(*_args):
+        raise AssertionError("a verified buffer was scanned")
+
+    monkeypatch.setattr(_text._scan._native, "scan_spans", fails)
+    assert StringSource(texts).scan(workers=4, chunk_bytes=4096) == want["verified"]
+    assert TokenListSource([t.split() for t in texts]).scan().sentences == 3000
+    with pytest.raises(AssertionError, match="was scanned"):
+        StringSource.encoded([t.encode() for t in texts]).scan()
+
+
+def test_the_offsets_of_a_verified_buffer_are_read_only():
+    source = StringSource(["a b", "c"])
+    with pytest.raises(ValueError, match="read-only"):
+        source._offsets[1] = 0

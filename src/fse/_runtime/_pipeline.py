@@ -37,6 +37,7 @@ from fse._text import (
     new_workspace,
 )
 
+from ._errors import earliest, first_rows
 from ._executor import run
 from ._sinks import (
     ArrayRows,
@@ -128,7 +129,8 @@ class Pipeline:
     ) -> Rows | None:
         """The rows of every sentence of ``source``: returned (as ``dtype``: float32 rows,
         float16 codes, or int8 codes and scales), or committed to ``sink`` in its dtype,
-        numbered from ``first_row`` there (the rows of a run before this source).
+        numbered from ``first_row`` there (the rows of a run before this source). Errors
+        name their rows from ``first_row`` either way; rows returned count from 0.
 
         Every argument is checked before the source is read.
         """
@@ -141,12 +143,11 @@ class Pipeline:
             inverse = wants_inverse_norms(sink)
         else:
             dtype = _codes.check_dtype(dtype)
-            if base:
-                raise ValueError("first_row numbers the rows of a sink; without one it is 0")
         tasks, window, stop = self.plan_tasks(
-            source, workers, chunk_bytes, self._row_bytes(dtype, inverse)
+            source, workers, chunk_bytes, self._row_bytes(dtype, inverse), base
         )
         own: ArrayRows | GrowingRows | None = None
+        tbase = base if sink is not None else 0  # own targets count from 0
         if sink is None:
             rows = tasks.rows
             own = (
@@ -158,14 +159,14 @@ class Pipeline:
         local = threading.local()
 
         def reserve(task: Task) -> tuple[Task, Stored]:  # in the calling thread, in order
-            return task, sink.target(base + task.first_row, task.n_rows)
+            return task, sink.target(tbase + task.first_row, task.n_rows)
 
         def work(item: tuple[Task, Stored]) -> Stored:
             self._work(local, item[0], split_target(item[1], dtype, inverse), base)
             return item[1]
 
         def commit(item: tuple[Task, Stored], rows: Stored):
-            sink.commit(base + item[0].first_row, rows)
+            sink.commit(tbase + item[0].first_row, rows)
 
         run(
             tasks.tasks,
@@ -180,7 +181,12 @@ class Pipeline:
         return None if own is None else own.result()
 
     def plan_tasks(
-        self, source: object, workers: int, chunk_bytes: int | None, row_bytes: int
+        self,
+        source: object,
+        workers: int,
+        chunk_bytes: int | None,
+        row_bytes: int,
+        first_row: int = 0,
     ) -> tuple[Plan, int, threading.Event]:
         """The tasks of ``source`` for rows of ``row_bytes`` each, the window, and the event
         the executor sets once a task failed. The rows of the window stay within
@@ -197,13 +203,22 @@ class Pipeline:
             chunk_rows=task_rows,
             tokenizer=self.spec.tokenizer.name,
             stop=stop,
+            first_row=first_row,
         )
         return tasks, window, stop
 
     def _work(self, local: threading.local, task: Task, target: tuple, base: int):
         """Stages 1 to 5 of one task in a worker thread: its rows into the codes of
-        ``target`` (codes, scales, inverse norms), numbered from ``base`` in errors."""
-        self.finish(local, self.batch(local, task, base), target, base + task.first_row)
+        ``target`` (codes, scales, inverse norms), numbered from ``base`` in errors; an
+        error is that of its earliest failing row (``earliest``)."""
+
+        def rows(n: int) -> None:
+            part = task.prefix(n)
+            self.finish(
+                local, self.batch(local, part, base), first_rows(target, n), base + task.first_row
+            )
+
+        earliest(rows, task.n_rows)
 
     def batch(self, local: threading.local, task: Task, base: int) -> Batch:
         """Stages 1 and 2 of one task with the workspace of its worker thread; its rows are
@@ -211,27 +226,38 @@ class Pipeline:
         workspace = getattr(local, "workspace", None)
         if workspace is None:
             workspace = local.workspace = new_workspace()
-        batch = task.batch(self.lookup, workspace)
-        if base:
-            batch = dataclasses.replace(batch, first_row=base + batch.first_row)
-        return batch
+        if base:  # the rows of the batch and of the errors of stage 1 count from base
+            task = dataclasses.replace(
+                task, chunk=dataclasses.replace(task.chunk, first_row=base + task.first_row)
+            )
+        return task.batch(self.lookup, workspace)
 
     def finish(self, local: threading.local, batch: Batch, target: tuple, first: int) -> ndarray:
         """Stages 2 to 5 of ``batch`` (rows ``first`` on) into ``target`` (codes, scales,
         inverse norms); returns the float32 rows, the codes themselves or the scratch of
         the worker they were stored from."""
+        rows = self.pooled(local, batch, target)
+        self.stored(rows, target, first)
+        return rows
+
+    def pooled(self, local: threading.local, batch: Batch, target: tuple) -> ndarray:
+        """Stages 2 to 4 of ``batch``: its float32 rows, in the codes of ``target`` if they
+        are float32, else in the scratch of the worker."""
+        codes = target[0]
+        rows = codes if codes.dtype == np.float32 else _scratch(local, len(codes), self.output_dim)
+        with self._serial:
+            self.backend.rows(batch, self.prepared, rows)
+        return rows
+
+    def stored(self, rows: ndarray, target: tuple, first: int) -> None:
+        """Stage 5 of the ``rows`` of ``pooled``: their codes and inverse norms in ``target``
+        (a head runs its stage 4b between both, so its errors come before these)."""
         codes, scales, norms = target
         with self._serial:
-            if codes.dtype == np.float32:
-                rows = codes
-                self.backend.rows(batch, self.prepared, codes)
-            else:
-                rows = _scratch(local, len(codes), self.output_dim)
-                self.backend.rows(batch, self.prepared, rows)
+            if rows is not codes:
                 self.backend.store(rows, codes, scales, first)
             if norms is not None:
                 norms[...] = self.backend.inverse_norms(codes, first)
-        return rows
 
 
 def _scratch(local: threading.local, n_rows: int, dim: int) -> ndarray:

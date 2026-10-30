@@ -76,6 +76,8 @@ class StringSource(_Buffered):
         # an array) or a lone surrogate; the Python path decides and raises the error.
         if joined is None:
             joined = _encode_strings(texts, "string")
+        else:
+            self._verify(*joined)
         self._data, self._offsets = joined
 
     @classmethod
@@ -122,6 +124,8 @@ class TokenListSource(_Buffered):
         # where a subclass changed the lists while they were read.
         if joined is None or joined is False:
             joined = _token_lists(sentences)
+        else:
+            self._verify(*joined)
         self._data, self._offsets = joined
 
     def __len__(self) -> int:

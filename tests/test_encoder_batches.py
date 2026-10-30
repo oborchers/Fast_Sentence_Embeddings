@@ -185,8 +185,8 @@ def test_errors_name_the_rows_of_the_run():
         list(encoder.encode_batches(polls, workers=1, sink=fse.MemorySink(2)))
     with pytest.raises(TypeError, match=r"^batch 1 \(rows 1 to 2 of the run\): .*str"):
         list(encoder.encode_batches([["big"], ["big", 123]], workers=1))  # in its source
-    with pytest.raises(ValueError, match=r"^batch 1 \(rows 2 to 3 of the run\): row 1 cannot"):
-        list(encoder.encode_batches(polls, workers=1))
+    with pytest.raises(ValueError, match=r"^batch 1 \(rows 2 to 3 of the run\): row 3 cannot"):
+        list(encoder.encode_batches(polls, workers=1))  # the row of the run without a sink too
 
 
 class _Odd(fse.MemorySink):
@@ -296,3 +296,15 @@ def test_a_sink_names_the_encoder_it_takes_by_encoder_fingerprint(tmp_path):
     with pytest.raises(ValueError, match="takes the rows of encoder"):
         other.encode(texts(10), sink=Custom(other.output_dim))
     ENCODER.encode(texts(10), sink=Custom(ENCODER.output_dim))
+
+
+@pytest.mark.parametrize("sink", [False, True])
+def test_errors_of_a_later_batch_name_the_rows_of_the_run(sink):
+    words = ["ok", "big"]
+    encoder = fse.Encoder.from_arrays(
+        np.array([[1, 2, 3, 4], [1e5] * 4], np.float32), words=words, normalize=False
+    )
+    batches = [["ok"] * 1000, ["ok"] * 5 + ["big"] + ["ok"] * 4]
+    target = fse.MemorySink(4, "float16") if sink else None
+    with pytest.raises(ValueError, match=r"batch 1 .*row 1005 has values beyond the float16"):
+        list(encoder.encode_batches(batches, dtype=None if sink else "float16", sink=target))
