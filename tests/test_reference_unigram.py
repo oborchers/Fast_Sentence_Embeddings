@@ -110,16 +110,37 @@ def _chunks(items, size=4096):
 def test_every_code_point_normalizes_as_tokenizers_does(separator):
     """Each code point after a separator: a line feed (a grapheme of its own, so each code
     point is alone), a letter, a key of the charsmap (so whatever extends its grapheme is
-    dropped), and NBSP, a key that maps to a space. A chunk of code points is compared at
-    once, and code point by code point when it differs."""
+    dropped), and NBSP, a key that maps to a space."""
     hf = uni.hf_tokenizer(VOCAB).normalizer
-    model = uni.Reference(VOCAB)
-    for chunk in _chunks(CODE_POINTS):
+    _same_by_chunks(hf.normalize_str, uni.Reference(VOCAB).normalize, separator, CODE_POINTS)
+
+
+def _same_by_chunks(expected, got, separator: str, cps: list[int]) -> None:
+    """``got`` normalizes as ``expected`` does: a chunk of code points, each after the
+    separator, at once; where a chunk differs, code point by code point to name the
+    first, and the chunk itself must agree too, so a difference that only the join of two
+    pieces shows still fails."""
+    for chunk in _chunks(cps):
         text = "".join(separator + chr(cp) for cp in chunk)
-        if hf.normalize_str(text) != model.normalize(text):
+        if expected(text) != got(text):
             for cp in chunk:
                 one = separator + chr(cp)
-                assert model.normalize(one) == hf.normalize_str(one), hex(cp)
+                assert got(one) == expected(one), hex(cp)
+            assert got(text) == expected(text), f"the chunk from {hex(chunk[0])}"
+
+
+def test_the_chunks_catch_a_difference_only_between_two_pieces():
+    """A normalizer right on every code point alone but wrong where two pieces meet (it
+    drops a separator that follows a code point above U+0100) must fail."""
+
+    def joined_wrong(text: str) -> str:
+        return "".join(
+            ch for i, ch in enumerate(text) if not (ch == "\n" and i and ord(text[i - 1]) > 0x100)
+        )
+
+    _same_by_chunks(str, str, "\n", [0x41, 0x142, 0x43])
+    with pytest.raises(AssertionError, match="the chunk from 0x41"):
+        _same_by_chunks(str, joined_wrong, "\n", [0x41, 0x142, 0x43])
 
 
 def test_every_code_point_alone_gives_the_ids_of_tokenizers():
