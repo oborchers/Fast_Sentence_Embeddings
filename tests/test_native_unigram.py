@@ -214,3 +214,40 @@ def test_the_steps_of_the_target_become_rows_of_the_state():
     assert values == b" \0"
     assert root > 0
     assert arguments[5] == R.encode()
+
+
+def _charsmap_state(units, values, root):
+    vocab = [("<unk>", -10.0), (R, -1.0), ("a", -1.0), ("x", -1.0), ("\u00e9", -1.0)]
+    return _state(vocab, steps=(("precompiled",),), charsmap=(units, values, root))
+
+
+def test_a_charsmap_given_directly_with_values_that_are_no_utf8_is_refused():
+    """The values become text that every pass decodes; built without fse._charsmap, a
+    value of bytes that are no UTF-8 could make a pass stand still and write outside."""
+    from fse._charsmap import Charsmap
+    from support.charsmap import build
+
+    units, values, root = Charsmap(build({"a": "x"})).parts()
+    assert values == b"x\0"
+    _charsmap_state(units, values, root)
+    with pytest.raises(ValueError, match="values of the charsmap are no UTF-8"):
+        _charsmap_state(units, b"\xff\0", root)
+
+
+def test_a_value_inside_a_code_point_is_an_error_of_the_encode():
+    from fse._charsmap import Charsmap
+    from support.charsmap import build, units_of
+
+    blob = build({"a": "\u00e9"})
+    raw = units_of(blob)
+    root = raw[0] >> 10
+    pos = root ^ ord("a")
+    below = (raw[pos] >> 10) ^ pos
+    units, values, _ = Charsmap(blob).parts()
+    units = units.copy()
+    units[below] = (1 << 31) | 1  # the second byte of "\u00e9"
+    state = _charsmap_state(units, values, root)
+    lookup = _native.TextLookup(state.table, "unigram@1", unigram=state)
+    data = np.frombuffer(b"a", np.uint8)
+    with pytest.raises(AssertionError, match="broke"):
+        lookup.encode(data, np.array([0, 1], np.int64), 0, 1, 0, _native.Workspace())

@@ -149,8 +149,9 @@ cdef class UnigramState:
     every piece is found at its id); ``scores`` one finite float64 per piece; ``steps`` a
     tuple of ("precompiled",), ("replace", pattern, content), ("runs", "space" or
     "white_space", min, content) and ("strip", left, right), bytes as UTF-8; ``charsmap``
-    None or (units, values, root) of a blob that fse._charsmap checked (the search is
-    bounds checked anyway). ``max_tokens`` and ``max_chars`` of 0 cut nothing.
+    None or (units, values, root) of a blob that fse._charsmap checked; built directly,
+    the values must be UTF-8 (checked), the search is bounds checked and a value that
+    starts inside a code point is an error of the encode. ``max_tokens`` and ``max_chars`` of 0 cut nothing.
     """
 
     cdef readonly VocabTable table
@@ -245,6 +246,10 @@ cdef class UnigramState:
             if (not isinstance(units, np.ndarray) or units.dtype != np.uint32 or units.ndim != 1
                     or not len(units) or not isinstance(values, bytes)):
                 raise ValueError("a charsmap is (units, values, root): a uint32 vector and bytes")
+            try:  # the values become text of the pieces, which every pass decodes
+                values.decode("utf-8")
+            except UnicodeDecodeError as error:
+                raise ValueError(f"the values of the charsmap are no UTF-8: {error}") from None
             self._units = np.ascontiguousarray(units).copy()
             self._values = values + b"\0"
             self.units = <const uint32_t *>np.PyArray_DATA(self._units)

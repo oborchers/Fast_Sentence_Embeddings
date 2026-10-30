@@ -12,8 +12,17 @@ cdef inline int _uni_put(_Buffer *b, const unsigned char *src, Py_ssize_t k) noe
     return 0
 
 
+# What a pass returns besides 0: memory ran out, or the text it was given is no UTF-8 (only
+# a value of an unchecked charsmap could make it so; it is an error, never a loop that
+# stands still).
+cdef enum:
+    _UNI_NO_MEMORY = -1
+    _UNI_BAD_TEXT = -2
+
+
 cdef inline int _uni_cp(const unsigned char *s, Py_ssize_t i, Py_ssize_t n, uint32_t *cp) noexcept nogil:
-    """The length of the code point at s[i] of valid UTF-8 (the sentence was validated)."""
+    """The length of the code point at s[i], or 0 if it is no UTF-8 (the sentence was
+    validated, and the values of the charsmap when the state was built)."""
     return fse_utf8_decode(s, i, n, cp)
 
 
@@ -26,6 +35,8 @@ cdef int _uni_value(UnigramState st, uint32_t start, _Buffer *dst) noexcept nogi
     cdef const unsigned char *end
     if start >= st.n_values:
         return 0
+    if (st.values[start] & 0xC0) == 0x80:  # inside a code point: the blob is broken
+        return _UNI_BAD_TEXT
     end = <const unsigned char *>memchr(st.values + start, 0, st.n_values - start)
     return _uni_put(dst, st.values + start, (end - st.values if end != NULL else st.n_values) - start)
 
@@ -38,6 +49,7 @@ cdef int _uni_precompiled(UnigramState st, const unsigned char *s, Py_ssize_t n,
     cdef uint32_t cp, value
     cdef uint32_t *cps
     cdef int64_t *at
+    cdef int err
     ws.run.size = 0
     ws.word.size = 0
     if _ensure(&ws.run, (n + 1) * <Py_ssize_t>sizeof(uint32_t)) or _ensure(&ws.word, (n + 1) * <Py_ssize_t>sizeof(int64_t)):
@@ -46,20 +58,25 @@ cdef int _uni_precompiled(UnigramState st, const unsigned char *s, Py_ssize_t n,
     at = <int64_t *>ws.word.data
     while i < n:
         at[count] = i
-        i += _uni_cp(s, i, n, &cps[count])
+        c = _uni_cp(s, i, n, &cps[count])
+        if c == 0:
+            return _UNI_BAD_TEXT
+        i += c
         count += 1
     at[count] = n
     while g < count:
         j = fse_gc_next(cps, g, count)
         if (at[j] - at[g] < FSE_UNI_GRAPHEME_BYTES
                 and fse_cm_find(st.units, st.n_units, st.root, s + at[g], at[j] - at[g], &value)):
-            if _uni_value(st, value, dst):
-                return -1
+            c = _uni_value(st, value, dst)
+            if c:
+                return c
         else:
             for c in range(g, j):
                 if fse_cm_find(st.units, st.n_units, st.root, s + at[c], at[c + 1] - at[c], &value):
-                    if _uni_value(st, value, dst):
-                        return -1
+                    err = _uni_value(st, value, dst)
+                    if err:
+                        return err
                 elif _uni_put(dst, s + at[c], at[c + 1] - at[c]):
                     return -1
         g = j
@@ -93,6 +110,8 @@ cdef int _uni_runs(const unsigned char *s, Py_ssize_t n, bint white, int64_t min
         runs = 0
         while j < n:
             length = _uni_cp(s, j, n, &cp)
+            if length == 0:
+                return _UNI_BAD_TEXT
             if not (cp == 32 if not white else _uni_space(cp)):
                 break
             j += length
@@ -103,7 +122,10 @@ cdef int _uni_runs(const unsigned char *s, Py_ssize_t n, bint white, int64_t min
         elif _uni_put(dst, s + i, j - i):
             return -1
         if j == i:
-            j += _uni_cp(s, i, n, &cp)
+            length = _uni_cp(s, i, n, &cp)
+            if length == 0:
+                return _UNI_BAD_TEXT
+            j += length
             if _uni_put(dst, s + i, j - i):
                 return -1
         i = j
@@ -116,6 +138,8 @@ cdef int _uni_strip(const unsigned char *s, Py_ssize_t n, int64_t sides, _Buffer
     cdef uint32_t cp
     while sides & 1 and start < end:
         length = _uni_cp(s, start, n, &cp)
+        if length == 0:
+            return _UNI_BAD_TEXT
         if not _uni_space(cp):
             break
         start += length
@@ -123,7 +147,8 @@ cdef int _uni_strip(const unsigned char *s, Py_ssize_t n, int64_t sides, _Buffer
         k = end - 1
         while k > start and (s[k] & 0xC0) == 0x80:
             k -= 1
-        _uni_cp(s, k, n, &cp)
+        if _uni_cp(s, k, n, &cp) == 0:
+            return _UNI_BAD_TEXT
         if not _uni_space(cp):
             break
         end = k
@@ -175,7 +200,7 @@ cdef int _uni_normalize(UnigramState st, const unsigned char *p, Py_ssize_t n, W
             err = _uni_runs(<const unsigned char *>a.data, a.size, row[0] == UNI_RUNS_WHITE_SPACE,
                             row[5], st.pool + row[3], row[4], b)
         if err:
-            return -1
+            return err
         t = a
         a = b
         b = t
@@ -204,7 +229,7 @@ cdef int _uni_candidates(UnigramState st, const unsigned char *q, Py_ssize_t m, 
     """The candidates of every code point boundary of q[0:m] (step 5): every piece that is
     a prefix of the rest, shortest first, then the unknown node if no piece is the code
     point at the start. pos and first of the starts go to ws.starts and ws.ends."""
-    cdef Py_ssize_t s = 0, e, size, k = 0, total = 0
+    cdef Py_ssize_t s = 0, e, size, length, k = 0, total = 0
     cdef bint single
     cdef uINT_t index, prefix
     cdef uint32_t cp
@@ -219,10 +244,15 @@ cdef int _uni_candidates(UnigramState st, const unsigned char *q, Py_ssize_t m, 
         (<int64_t *>ws.starts.data)[k] = s
         (<int64_t *>ws.ends.data)[k] = total
         size = _uni_cp(q, s, m, &cp)
+        if size == 0:
+            return UNI_BROKEN
         single = False
         e = s
         while e < m and e - s < st.max_piece:
-            e += _uni_cp(q, e, m, &cp)
+            length = _uni_cp(q, e, m, &cp)
+            if length == 0:
+                return UNI_BROKEN
+            e += length
             index = _uni_lookup(st, q + s, e - s)
             if index == NOT_FOUND:
                 prefix = _vocab_lookup(&st.prefixes.view, q + s, e - s, True)
@@ -265,16 +295,18 @@ cdef int _uni_piece(UnigramState st, const unsigned char *p, Py_ssize_t n, Works
     cdef uint32_t *best_id
     cdef uint32_t *reversed_ids
     cdef uINT_t joined
-    if _uni_normalize(st, p, n, ws, &pre):
-        return UNI_NO_MEMORY
+    cdef int err = _uni_normalize(st, p, n, ws, &pre)
+    if err:
+        return UNI_BROKEN if err == _UNI_BAD_TEXT else UNI_NO_MEMORY
     q = <const unsigned char *>pre.data
     m = pre.size
     if m == 0:
         return UNI_GO_ON
     if m > (PY_SSIZE_T_MAX // 32) - 2:
         return UNI_NO_MEMORY
-    if _uni_candidates(st, q, m, ws, &starts):
-        return UNI_NO_MEMORY
+    err = _uni_candidates(st, q, m, ws, &starts)
+    if err:
+        return err
     # The lattice: m + 1 doubles, int64 and uint32, each part aligned to 8 bytes.
     ws.lattice.size = 0
     if _ensure(&ws.lattice, 24 * (m + 1)) or _ensure(&ws.run, (m + 1) * <Py_ssize_t>sizeof(uint32_t)):
