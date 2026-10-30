@@ -72,4 +72,3 @@ def test_arrow_columns_give_the_rows_of_the_list(unknown, max_tokens, max_chars,
     for workers in (1, 4):
         got = enc.encode(ArrowSource(Column(TEXTS, fmt, size, skip)), workers=workers)
         assert got.view(np.uint32).tobytes() == want.view(np.uint32).tobytes()
-
