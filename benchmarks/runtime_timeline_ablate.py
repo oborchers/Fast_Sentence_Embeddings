@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import resource
+import statistics
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -50,6 +51,8 @@ def plan(pipeline: Any, sentences: list[str], workers: int, chunk_bytes: int | N
 
 
 def _cuts(rows: list[int]) -> str:
+    if not rows:
+        return "no tasks"
     head = ", ".join(map(str, rows[:12])) + (", ..." if len(rows) > 12 else "")
     return f"{len(rows)} tasks, rows per task {min(rows)} to {max(rows)} [{head}]"
 
@@ -59,7 +62,7 @@ def variant_line(name: str, r: dict) -> str:
         return f"{name:<12} no pass kept (load)"
     ratio = r["ratio_to_first"]
     spread = f"{min(ratio):.3f}..{max(ratio):.3f}" if ratio else "n/a"
-    paired = f"{sorted(ratio)[len(ratio) // 2]:.3f}" if ratio else "n/a"
+    paired = f"{statistics.median(ratio):.3f}" if ratio else "n/a"
     return f"{name:<12} {paired:>7} {spread:>13} {line(r)}  peak {r['peak_tasks']} t/{r['peak_rows']} r"
 
 

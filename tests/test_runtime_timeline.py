@@ -388,7 +388,9 @@ def test_the_report_lines_of_a_summary(attr, report):
     summary = report.summarize([one, one], 2)
     assert summary["exact"] is True
     assert summary["passes"] == 2
-    assert sum(summary["idle_pct"].values()) == pytest.approx(summary["idle_pct_total"])
+    assert sum(summary["idle_pct"].values()) == pytest.approx(
+        summary["idle_pct_total"]
+    )  # equal passes
     assert summary["busy_pct"] + summary["idle_pct_total"] == pytest.approx(100.0)
     assert report.line(summary | {"discarded_blocks": 0}).startswith("      2")
     assert report.summarize([], 2) == {"workers": 2, "passes": 0}
@@ -451,3 +453,26 @@ def test_the_main_script_measures_the_overhead_of_the_tracing(monkeypatch, cell)
 
 def test_a_variant_without_a_kept_pass_prints_that(ablate):
     assert "no pass kept" in ablate.variant_line("x", {"workers": 8, "passes": 0})
+
+
+def test_the_cuts_of_a_plan_without_tasks_and_the_median_of_an_even_count(ablate):
+    assert ablate._cuts([]) == "no tasks"
+    line = ablate.variant_line(
+        "x",
+        {"passes": 1, "ratio_to_first": [0.8, 0.9, 1.1, 1.2], "peak_tasks": 1, "peak_rows": 1}
+        | {
+            "workers": 2,
+            "tasks": 1,
+            "wall_ms": 1.0,
+            "busy_pct": 1.0,
+            "idle_pct": dict.fromkeys(("tail", "ramp", "hol", "producer", "sink", "handover"), 0.0),
+            "idle_pct_total": 0.0,
+            "before_ms": 0.0,
+            "pool_start_ms": 0.0,
+            "after_ms": 0.0,
+            "after_commit_ms": 0.0,
+            "thread_rows_per_s": [],
+            "discarded_blocks": 0,
+        },
+    )
+    assert " 1.000 " in line

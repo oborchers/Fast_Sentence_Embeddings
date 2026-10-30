@@ -193,13 +193,13 @@ Memory of the 1024-dimension WikiText run at 8 workers: peak RSS 362 MiB (`make 
 | producer | the calling thread is in the task iterator |
 | sink | the calling thread is in `reserve` or `commit` |
 
-What happens before the first submit (the scan) and after the last task ends (pool shutdown, the last commit, the result) is outside the area and listed apart. Per thread the tool shows only the rate in rows per busy second; a difference does not name a core type.
+What happens before the first submit and after the last task ends is outside the area. The tool lists the join of the strings, the time from the entry of the executor to the first submit (`enter`) and the time from the last task to the exit of the executor (pool shutdown and the last commit, `after`); the planning inside `infer` and the building of the result are not separated. Per thread the tool shows only the rate in rows per busy second; a difference does not name a core type.
 
 Measured on the M1 Pro of this document, master 14dac29, Python 3.13, one process per cell, `Encoder`-equivalent calls (`StringSource` and `Pipeline.infer`), 30 calls per worker count (6 rounds of 5, the median of the calls), under the shared benchmark lock. The load was 4.5 to 5.7 when a cell started (the tool discards a block of calls with a load above 5 before or after it, so a cell can lose blocks: one worker of potion-base-8M on MASSIVE lost 5 and ten workers 14 blocks, the others none), 4.97 before and 4.52 after the whole series. The machine was not quiet: other work kept the load near 5.
 
 **The observation costs nothing measurable.** Plain call A, a second plain call B (the control) and a traced call, the fastest of 3 calls per round, 6 rounds in rotating order, 8 workers: B over A has a median of 1.006, 0.991 and 1.004 (ranges 0.987 to 1.017, 0.972 to 1.006, 0.966 to 1.170) and traced over A 1.004, 0.989 and 1.019 (ranges 0.983 to 1.022, 0.985 to 1.006, 0.867 to 1.034) on MASSIVE twice and WikiText once. The noise between two equal calls is therefore 1 to 3 % on MASSIVE and up to 17 % on WikiText, where a call takes 6 ms; every ratio below is read against that.
 
-Share of the idle area by cause, potion-base-8M (256 dimensions), median of the calls; "idle" is the sum (busy is 100 % minus idle):
+Share of the idle area by cause, potion-base-8M (256 dimensions), median of the calls; "idle" is the median of the total, and every column is a median of its own, so the columns need not add up to it (busy is 100 % minus idle):
 
 | corpus | workers | tasks | wall ms | idle | tail | ramp | hand-over | head-of-line | producer + sink | slowest/fastest thread |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -262,7 +262,7 @@ potion-base-8M, WikiText, 8 workers, the deciding cell of the ramp and tail (`ma
 ### What this says for the next changes (DR-180)
 
 - **Tail** (largest, 9 to 17 % of the area at 8 and 10 workers, 49 to 55 % on short runs): PR B (a piece count that is a multiple of the workers) can only move the cells whose task count is not one, such as MASSIVE potion-base-8M with 30 tasks at 8 workers (14.9 % tail); PR C (splitting the last tasks, factoring) targets all of it, and the short runs most. A1 shows that task size alone (C3, TASKS_PER_WORKER) does not give a gain outside the noise, so it needs its own measurement in PR B.
-- **Ramp** (10 to 13 % on WikiText with potion-base-8M, 15 to 22 % on short runs): an in-contract start of the threads (C5) can save at most that share; A3 gives 0.78 as the upper bound of full reuse, which needs a maintainer decision.
+- **Ramp** (10 to 13 % on WikiText with potion-base-8M, 15 to 22 % on short runs): the ramp share also counts slots that no task could use and the wait for the first assignment, and it is a share of the worker area, not of the call time, so it is no bound on the saving. A3 gives 0.78 for full reuse in one noisy cell; whether an in-contract start of the threads (C5) can get part of it needs a maintainer decision and its own measurement.
 - **Head-of-line blocking, producer, sink** (0 to 1.5 %): PR D (a window counted in rows) and any change at the sink are not supported by the numbers and should not be built.
 
 ## int8 tables at 1024 dimensions
