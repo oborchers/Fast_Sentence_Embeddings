@@ -131,6 +131,8 @@ class WordPieceState:
         max_tokens: int = 0,
         max_chars: int = 0,
         drop_unknown: bool = True,
+        *,
+        _generic: bool = False,
     ) -> None: ...
 
 class TextLookup:

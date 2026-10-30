@@ -45,6 +45,19 @@ static inline int64_t fse_wp_added_at(const uint8_t *p, int64_t i, int64_t n,
     return -1;
 }
 
+/* The first byte of p[i:n] an added token may start at, or n: memchr for the one byte
+   all tokens start with (single >= 0), else a loop over first. A byte that is not in
+   first starts no token, so fse_wp_added_at needs to run only where this stops. */
+static inline int64_t fse_wp_next_candidate(const uint8_t *p, int64_t i, int64_t n,
+                                            const uint8_t *first, int single) {
+    if (single >= 0) {
+        const uint8_t *q = (const uint8_t *)memchr(p + i, single, (size_t)(n - i));
+        return q ? (int64_t)(q - p) : n;
+    }
+    while (i < n && !first[p[i]]) i++;
+    return i;
+}
+
 /* Sort the run of r items stably by class (insertion sort; runs are short) and write
    their code points at out + m; returns the new end. */
 static inline int64_t fse_wp_flush(uint32_t *run, int64_t r, uint8_t *out, int64_t m) {

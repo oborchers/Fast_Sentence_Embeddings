@@ -9,6 +9,8 @@ cdef extern from "_native_wordpiece.h":
     int64_t fse_wp_added_at(const unsigned char *p, int64_t i, int64_t n,
                             const unsigned char *first, const unsigned char *bytes,
                             const int64_t *offsets, int64_t count) nogil
+    int64_t fse_wp_next_candidate(const unsigned char *p, int64_t i, int64_t n,
+                                  const unsigned char *first, int single) nogil
     int64_t fse_wp_normalize(const unsigned char *p, int64_t n, unsigned char *out,
                              uint32_t *run) nogil
     int fse_wp_next_word(const unsigned char *q, int64_t m, int64_t *pos, int64_t *start,
@@ -52,6 +54,9 @@ cdef class WordPieceState:
     ``vocab_bytes`` and ``vocab_offsets`` are the tokens of ``table`` in id order (checked:
     every token is found at its id); ``added_ids`` the ids of the added tokens, whose
     contents are their tokens. ``max_tokens`` and ``max_chars`` of 0 cut nothing.
+
+    ``_generic`` (private, for the tests, never persisted) takes the generic path of every
+    step, without the fast paths, which give the same ids.
     """
 
     cdef readonly VocabTable table
@@ -63,6 +68,8 @@ cdef class WordPieceState:
     cdef const uint32_t *added_ids
     cdef int64_t n_added
     cdef unsigned char first[256]
+    cdef int single_first
+    cdef bint generic
     cdef readonly uint32_t unk_id
     cdef readonly int64_t max_input_chars, max_tokens, max_chars
     cdef readonly bint drop_unknown
@@ -70,11 +77,14 @@ cdef class WordPieceState:
 
     def __init__(self, VocabTable table not None, vocab_bytes, vocab_offsets, unk_id, prefix,
                  max_input_chars_per_word, added_ids, max_tokens=0, max_chars=0,
-                 drop_unknown=True):
+                 drop_unknown=True, *, _generic=False):
         if self._state != TABLE_NEW:
             raise RuntimeError("a WordPieceState is built once; make a new one")
         self._state = TABLE_BUILDING
         try:
+            if not isinstance(_generic, bool):
+                raise TypeError(f"_generic must be a bool, not {type(_generic).__name__}")
+            self.generic = _generic
             self._build(table, vocab_bytes, vocab_offsets, unk_id, prefix,
                         max_input_chars_per_word, added_ids, max_tokens, max_chars, drop_unknown)
         except BaseException:
@@ -143,6 +153,8 @@ cdef class WordPieceState:
         memset(self.first, 0, 256)
         for t in tokens:
             self.first[t[0]] = 1
+        starts = {t[0] for t in tokens}
+        self.single_first = starts.pop() if len(starts) == 1 else -1
         self.n_added = len(tokens)
         self.added_bytes = <const unsigned char *>np.PyArray_DATA(self._added_bytes)
         self.added_offsets = <const int64_t *>np.PyArray_DATA(self._added_offsets)
@@ -250,6 +262,10 @@ cdef int _wordpiece_sentence(WordPieceState st, const unsigned char *p, Py_ssize
         return ENCODE_NO_MEMORY
     ids = <uINT_t *>(ws.tokens.data + ws.tokens.size)
     while pos < limit and status == WP_GO_ON:
+        if not st.generic:  # straight to the next byte a token may start at
+            pos = fse_wp_next_candidate(p, pos, limit, st.first, st.single_first) if st.n_added else limit
+            if pos == limit:
+                break
         found = fse_wp_added_at(p, pos, limit, st.first, st.added_bytes, st.added_offsets,
                                 st.n_added) if st.n_added else -1
         if found < 0:
