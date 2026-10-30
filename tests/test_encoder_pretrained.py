@@ -53,10 +53,12 @@ def test_an_fse_model_names_its_encoder_file(model, tmp_path):
     (folder / "config.json").write_text(json.dumps(config))
     for mmap in (False, True):
         assert Encoder.from_pretrained(folder, mmap=mmap).fingerprint == encoder.fingerprint
-    with pytest.raises(ValueError, match="holds its length rule"):
+    with pytest.raises(ValueError, match="truncate: this model holds its own rules"):
         Encoder.from_pretrained(folder, truncate=False)
-    with pytest.raises(ValueError, match="holds its length rule"):
+    with pytest.raises(ValueError, match="max_length: this model holds its own rules"):
         Encoder.from_pretrained(folder / "encoder.safetensors", max_length=3)
+    with pytest.raises(ValueError, match="normalize and truncate_dim: this model holds"):
+        Encoder.from_pretrained(folder, truncate_dim=2, normalize=False)
     cases = [
         ({**config, "extra": 1}, UnsupportedArtifactError, "holds exactly"),
         ({**config, "fse_format_version": 2}, UnsupportedArtifactError, "format version 2"),
@@ -96,14 +98,14 @@ def test_models_that_are_no_static_embeddings_are_refused(model, tmp_path):
     st = tmp_path / "st"
     (st / "0_StaticEmbedding").mkdir(parents=True)
     (st / "config_sentence_transformers.json").write_text("{}")
-    with pytest.raises(UnsupportedArtifactError, match="StaticEmbedding is not supported yet"):
+    with pytest.raises(UnsupportedArtifactError, match=r"but no modules\.json"):
         Encoder.from_pretrained(st)
     (st / "config.json").write_text('{"model_type": "x"}')
-    with pytest.raises(UnsupportedArtifactError, match="StaticEmbedding is not supported yet"):
+    with pytest.raises(UnsupportedArtifactError, match=r"but no modules\.json"):
         Encoder.from_pretrained(st)
     empty = tmp_path / "empty"
     empty.mkdir()
-    with pytest.raises(UnsupportedArtifactError, match=r"no config\.json"):
+    with pytest.raises(UnsupportedArtifactError, match=r"no config\.json and no modules\.json"):
         Encoder.from_pretrained(empty)
     lacking = _copy(model, tmp_path, "lacking")
     (lacking / "tokenizer.json").unlink()

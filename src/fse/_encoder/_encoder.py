@@ -204,6 +204,8 @@ class Encoder:
         local_files_only: bool = False,
         truncate: bool = True,
         max_length: PositiveInt | Literal["model"] | None = "model",
+        truncate_dim: PositiveInt | Literal["model"] | None = "model",
+        normalize: bool | Literal["model"] = "model",
         mmap: bool = False,
     ):  # -> Encoder
         """The encoder of a pretrained model: a local ``.safetensors`` file or folder, or
@@ -211,7 +213,10 @@ class Encoder:
         ``revision`` (default branch if None), checked against its commit. An fse encoder
         is loaded (``mmap`` as for ``load``); a Model2Vec model is converted, with its
         length rule unless ``truncate=False`` (``max_length`` sets another token limit,
-        None none, as in model2vec). ARCHITECTURE.md, "from_pretrained"."""
+        None none, as in model2vec); a sentence-transformers model of one StaticEmbedding
+        is converted with the rules of its encode, its first ``truncate_dim`` dimensions
+        (``"model"``: the model's, None: all) and, with ``normalize=True``, fse's own
+        ``normalize@1`` after the cut. ARCHITECTURE.md, "from_pretrained"."""
         files = _pretrained.files(
             repo_or_path,
             revision=revision,
@@ -219,7 +224,14 @@ class Encoder:
             cache_dir=cache_dir,
             local_files_only=local_files_only,
         )
-        found = _pretrained.find(files, truncate=truncate, max_length=max_length, mmap=mmap)
+        found = _pretrained.find(
+            files,
+            truncate=truncate,
+            max_length=max_length,
+            truncate_dim=truncate_dim,
+            normalize=normalize,
+            mmap=mmap,
+        )
         if found.data is not None:  # an fse encoder of the Hub, checked as these bytes
             tensors, metadata = SafetensorsContainer().open_bytes(*found.data)
             return cls._from_artifact(tensors, metadata, None, metadata.get(FINGERPRINT_KEY))
