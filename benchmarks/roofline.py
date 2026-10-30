@@ -236,14 +236,18 @@ def paired(stages: Stages, workers: list[int], rounds: int, passes: int, max_loa
             continue
         loads.append((round(before, 2), round(after, 2)))
         kept.append(got)
-    out: dict = {"rounds": len(kept), "discarded": discarded, "loads": loads}
+    return {"rounds": len(kept), "discarded": discarded, "loads": loads, **_medians(kept, workers)}
+
+
+def _medians(kept: list[dict[int, tuple]], workers: list[int]) -> dict:
+    """Per worker count the medians of the kept rounds, and the range of their seconds."""
+    if not kept:
+        return {key: {} for key in ("seconds", "task_wall", "task_cpu", "tasks", "range")}
+    out: dict = {}
     for i, key in enumerate(("seconds", "task_wall", "task_cpu", "tasks")):
-        out[key] = {w: statistics.median(r[w][i] for r in kept) for w in workers} if kept else {}
-    out["range"] = (
-        {w: (min(r[w][0] for r in kept), max(r[w][0] for r in kept)) for w in workers}
-        if kept
-        else {}
-    )
+        out[key] = {w: statistics.median(r[w][i] for r in kept) for w in workers}
+    seconds = {w: [r[w][0] for r in kept] for w in workers}
+    out["range"] = {w: (min(v), max(v)) for w, v in seconds.items()}
     return out
 
 
