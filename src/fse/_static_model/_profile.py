@@ -20,6 +20,7 @@ from dataclasses import replace
 
 from fse._contract import UnsupportedArtifactError
 from fse._encoder import Encoder
+from fse._encoder._format import Source
 from fse._encoder._model2vec import median_length
 from fse._encoder._model2vec_rules import Rules, Unset, reduced
 from fse._wordvectors import WordVectors
@@ -53,14 +54,7 @@ def profile_rules(
             "dropped, model2vec's length rule, optionally normalized); use fse.Encoder for "
             "this model"
         )
-    source = content.source
-    width = words.dim
-    table, kept = reduced(words.stored_vectors, dimensionality)
-    if kept is not None:
-        words = WordVectors._from_arrays(table, tokens, None, None, None, {}, copy=False)
-        if source is not None:  # the first dimensions of the model it came from
-            first = width if source.dims is None else source.dims[0]
-            source = replace(source, dims=(first, kept))
+    words, source = _first_columns(words, tokens, content.source, dimensionality)
     return Rules(
         words,
         tuple(tokens),
@@ -91,3 +85,18 @@ def _misfit(encoder: Encoder) -> str | None:
     if words.fasttext is not None or content.oov_weight is not None:
         return "has FastText vectors"
     return None
+
+
+def _first_columns(
+    words: WordVectors, tokens: list[str], source: Source | None, dimensionality: int | None
+) -> tuple[WordVectors, Source | None]:
+    """The table cut to its first ``dimensionality`` columns, and its provenance with the
+    width of the model it came from."""
+    table, kept = reduced(words.stored_vectors, dimensionality)
+    if kept is None:
+        return words, source
+    cut = WordVectors._from_arrays(table, tokens, None, None, None, {}, copy=False)
+    if source is None:
+        return cut, None
+    first = words.dim if source.dims is None else source.dims[0]
+    return cut, replace(source, dims=(first, kept))
