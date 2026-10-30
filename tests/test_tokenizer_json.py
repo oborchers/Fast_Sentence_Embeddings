@@ -152,6 +152,9 @@ def test_a_plain_truncation_is_a_token_limit(tmp_path):
         ({"max_length": 0}, CorruptArtifactError, "must be a positive int"),
         ({"max_length": True}, CorruptArtifactError, "must be a positive int"),
         ({"extra": 1}, CorruptArtifactError, "must be null or hold"),
+        ({"stride": False}, CorruptArtifactError, "stride of truncation must be an int"),
+        ({"stride": 0.0}, CorruptArtifactError, "stride of truncation must be an int"),
+        ({"stride": -1}, CorruptArtifactError, "stride of truncation must be an int"),
     ],
 )
 def test_another_truncation_is_refused(tmp_path, change, error, match):

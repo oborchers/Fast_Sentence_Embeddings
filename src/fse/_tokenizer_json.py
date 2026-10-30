@@ -79,6 +79,11 @@ def truncation(value: Any, path: Path) -> int | None:
         raise CorruptArtifactError(
             f"{path}: the max_length of truncation must be a positive int, not {length!r}"
         )
+    stride = value["stride"]
+    if isinstance(stride, bool) or not isinstance(stride, int) or stride < 0:
+        raise CorruptArtifactError(
+            f"{path}: the stride of truncation must be an int of at least 0, not {stride!r}"
+        )
     other = {k: value[k] for k, v in _PLAIN.items() if value[k] != v}
     if other:
         raise UnsupportedArtifactError(
