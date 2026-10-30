@@ -180,6 +180,12 @@ cdef Py_ssize_t _arrow_tokens(
     return tokens
 
 
+# The data of a utf8 chunk that has no data buffer (all its offsets are 0): every row is
+# empty, and fse_arrow_row refuses any other because the chunk's data_len is 0.
+cdef unsigned char _ARROW_NO_DATA_BYTE = 0
+cdef const unsigned char *_ARROW_NO_DATA = &_ARROW_NO_DATA_BYTE
+
+
 cdef inline Py_ssize_t _chunk_of(const int64_t *starts, Py_ssize_t n, int64_t row) noexcept nogil:
     """The chunk that holds row: the last k with starts[k] <= row (starts has n + 1)."""
     cdef Py_ssize_t lo = 0, hi = n - 1, mid
@@ -242,6 +248,15 @@ cdef object _int64_copy(const int64_t *values, Py_ssize_t n):
     if values != NULL:
         memcpy(np.PyArray_DATA(out), values, n * sizeof(int64_t))
     return out
+
+
+cdef int _row_at(const fse_arrow_chunk *chunks, const int64_t *starts, Py_ssize_t n,
+                 Py_ssize_t row, const unsigned char **p, int64_t *length) except -1:
+    """Row ``row`` of a column's chunks as p[0:length], or a ValueError naming it."""
+    cdef Py_ssize_t k = _chunk_of(starts, n, row)
+    if fse_arrow_row(&chunks[k], row - starts[k], p, length) != 0:
+        raise ValueError(f"invalid Arrow offsets or view at row {row}")
+    return 0
 
 
 cdef int _arrow_encode_status(int status, const unsigned char *p, int64_t n, Py_ssize_t bad,

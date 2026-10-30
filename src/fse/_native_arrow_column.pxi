@@ -20,7 +20,7 @@ cdef class ArrowColumn:
     cdef Py_ssize_t _n_owned, _owned_capacity
     cdef int _kind
     cdef int _readers
-    cdef bint _released
+    cdef readonly bint released  # by release(), or when freed
     cdef readonly int64_t rows
     cdef readonly int64_t nbytes
     # Bytes of offsets or views copied because they were not aligned; text is never copied.
@@ -44,15 +44,12 @@ cdef class ArrowColumn:
         raise TypeError("an ArrowColumn cannot be pickled")
 
     cdef void _free(self) noexcept:
-        cdef Py_ssize_t k
-        for k in range(self._n_arrays):
-            if self._arrays[k].release != NULL:
-                self._arrays[k].release(&self._arrays[k])
-        for k in range(self._n_owned):
-            free(self._owned[k])
-        free(self._arrays)
+        """Close and detach everything, then release: a callback may drop the GIL, and
+        another thread finds an empty, released column with nothing left to free."""
+        cdef ArrowArray *arrays = self._arrays
+        cdef void **owned = self._owned
+        cdef Py_ssize_t k, n_arrays = self._n_arrays, n_owned = self._n_owned
         free(self._chunks)
-        free(self._owned)
         free(self._starts)
         free(self._byte_starts)
         self._arrays = NULL
@@ -61,6 +58,16 @@ cdef class ArrowColumn:
         self._starts = NULL
         self._byte_starts = NULL
         self._n_arrays = self._n = self._n_owned = 0
+        self._arrays_capacity = self._capacity = self._owned_capacity = 0
+        self.released = True
+        self.rows = self.nbytes = 0
+        for k in range(n_arrays):
+            if arrays[k].release != NULL:
+                arrays[k].release(&arrays[k])
+        for k in range(n_owned):
+            free(owned[k])
+        free(arrays)
+        free(owned)
 
     @staticmethod
     def from_stream(capsule):
@@ -259,6 +266,7 @@ cdef class ArrowColumn:
         c.data = <const unsigned char *>a.buffers[2]
         if c.data == NULL and last > 0:  # any offset above 0 points into the data
             raise ValueError("the Arrow array has no data buffer")
+        if c.data == NULL: c.data = _ARROW_NO_DATA  # rows all empty at 0 (data_len 0)
         c.data_len = last
         return last - base
 
@@ -299,7 +307,7 @@ cdef class ArrowColumn:
         return total
 
     cdef int _check_range(self, Py_ssize_t first, Py_ssize_t last) except -1:
-        if self._released:
+        if self.released:
             raise ValueError("the Arrow column was released")
         if not 0 <= first <= last <= self.rows:
             raise ValueError(f"range [{first}, {last}) is outside the {self.rows} rows")
@@ -317,22 +325,18 @@ cdef class ArrowColumn:
 
     def row_bytes(self, Py_ssize_t row):
         """A copy of the bytes of one row."""
-        self._check_range(row, row + 1)
-        cdef Py_ssize_t k = _chunk_of(self._starts, self._n, row)
         cdef const unsigned char *p
         cdef int64_t n
-        if fse_arrow_row(&self._chunks[k], row - self._starts[k], &p, &n) != 0:
-            raise ValueError(f"invalid Arrow offsets or view at row {row}")
+        self._check_range(row, row + 1)
+        _row_at(self._chunks, self._starts, self._n, row, &p, &n)
         return PyBytes_FromStringAndSize(<const char *>p, n)
 
     def row_address(self, Py_ssize_t row):
         """The address fse reads row from (for the tests: no copy of the text)."""
-        self._check_range(row, row + 1)
-        cdef Py_ssize_t k = _chunk_of(self._starts, self._n, row)
         cdef const unsigned char *p
         cdef int64_t n
-        if fse_arrow_row(&self._chunks[k], row - self._starts[k], &p, &n) != 0:
-            raise ValueError(f"invalid Arrow offsets or view at row {row}")
+        self._check_range(row, row + 1)
+        _row_at(self._chunks, self._starts, self._n, row, &p, &n)
         return <uintptr_t>p
 
     def span_bytes(self, Py_ssize_t first, Py_ssize_t last):
@@ -491,10 +495,3 @@ cdef class ArrowColumn:
         if self._readers:
             raise RuntimeError("the Arrow column is being read; release it after the run")
         self._free()
-        self._released = True
-        self.rows = 0
-        self.nbytes = 0
-
-    @property
-    def released(self):
-        return self._released

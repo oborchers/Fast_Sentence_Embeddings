@@ -251,3 +251,36 @@ def test_a_released_column_has_no_chunks():
     col.release()
     assert list(col.chunk_starts) == [0]
     assert list(col.byte_starts) == [0]
+
+
+def test_a_release_callback_that_drops_the_gil_finds_the_column_closed():
+    """A release callback may run Python code that drops the GIL; another thread then finds
+    the column released and empty, and its release frees nothing twice."""
+    p = Producer()
+    col = _native.ArrowColumn.from_stream(stream_of(p)[0])
+    inside, go = threading.Event(), threading.Event()
+    seen = {}
+
+    def on_release():
+        if not inside.is_set():
+            inside.set()
+            go.wait(30)  # waits without the GIL
+
+    def other():
+        inside.wait(30)
+        seen["released"], seen["rows"] = col.released, col.rows
+        with pytest.raises(ValueError, match="was released"):
+            col.scan(0, 1, 1)
+        col.release()  # nothing left to release
+        seen["chunks"] = list(col.chunk_starts)
+        go.set()
+
+    p.on_release = on_release
+    worker = threading.Thread(target=other)
+    worker.start()
+    col.release()
+    worker.join()
+    assert seen == {"released": True, "rows": 0, "chunks": [0]}
+    assert p.releases.count("array") == len(PARTS)
+    addresses = [a for kind, a, _ in p.releases.calls if kind == "array"]
+    assert len(set(addresses)) == len(addresses)  # each array once

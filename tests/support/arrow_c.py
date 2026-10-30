@@ -182,6 +182,7 @@ class Producer:
 
     def __init__(self):
         _ALIVE.append(self)
+        self.on_release = None  # called in every array release, before it is recorded
         self.releases = Releases()
         self._keep: list[Any] = []
         self._schema_release = SCHEMA_RELEASE(self._release_schema)
@@ -195,6 +196,8 @@ class Producer:
         schema.contents.release = SCHEMA_RELEASE()
 
     def _release_array(self, array):
+        if self.on_release is not None:
+            self.on_release()
         self.releases.calls.append(
             ("array", ctypes.addressof(array.contents), array.contents.private_data)
         )
