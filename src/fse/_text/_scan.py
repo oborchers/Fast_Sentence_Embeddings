@@ -147,6 +147,29 @@ class _Buffered:
 
     _data: Any
     _offsets: ndarray | None
+    # True only for a buffer that the native join wrote from exact str (``_verify``): it
+    # is valid UTF-8 by construction and is not scanned again (ARCHITECTURE.md, "Text
+    # sources"). Everything else (bytes of a caller, of a str subclass's own encode, of a
+    # file or a producer) is scanned.
+    _verified = False
+
+    def _verify(self, data: bytes, offsets: ndarray) -> None:
+        """Mark the buffer of a successful native join as valid. The join reads only exact,
+        ready str, writes each code point in its shortest UTF-8 form (ASCII copied, a
+        surrogate fails the pass, CPython keeps code points at most U+10FFFF), and writes
+        the offsets itself, from 0 to the length of the data; they are made read-only."""
+        if not (
+            isinstance(data, bytes)
+            and isinstance(offsets, ndarray)
+            and offsets.dtype == np.int64
+            and offsets.ndim == 1
+            and len(offsets) >= 1
+            and offsets[0] == 0
+            and offsets[-1] == len(data)
+        ):
+            raise AssertionError("the native join gave a buffer without its offsets")
+        offsets.flags.writeable = False
+        self._verified = True
 
     @property
     def nbytes(self) -> int:
@@ -254,7 +277,10 @@ class _Buffered:
         return Scan(rows, chunks), error
 
     def _validated(self, workers: int, chunk_bytes: int) -> tuple[int, Exception | None]:
-        """The sentences before the first invalid one, and its error (or None)."""
+        """The sentences before the first invalid one, and its error (or None); a verified
+        buffer has no invalid sentence."""
+        if self._verified:
+            return self._positions(), None
         scan = self._scanner(1 << 62, _native.MAX_CHUNK_ROWS)
         ranges = list(pairwise(self._range_bounds(workers, chunk_bytes)))
         sentences = 0
