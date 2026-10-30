@@ -13,7 +13,10 @@ quality: LogisticRegression trained on ``encode`` of the first ``--train`` revie
 on raw means (the head folds) and once on normalized vectors; on the test split the
 accuracy of scikit-learn (on fse's vectors) and of fse.Classifier, how many labels
 differ and how close those rows are to the decision boundary, and the largest difference
-of the probabilities.
+of the probabilities. With ``--dtype float16 int8`` the same trained head is quantized
+(``Classifier.quantize``, one float32 training, no retraining) and each quantized model
+is scored on the test split: its accuracy, how many labels differ from the float32
+model's, and the largest difference of the probabilities to the float32 model's.
 speed: text to probabilities for the first N reviews (train, then test), in child
 processes: (a) ``encode`` to a matrix, then scikit-learn's predict_proba, (b)
 ``clf.predict_proba`` in the workers, (c) store mode, ``predict_proba`` of a VectorStore
@@ -21,9 +24,12 @@ of the same rows (written before, not timed); seconds, texts/s and peak RSS.
 
     uv run --with pyarrow python benchmarks/bench_head_amazon.py prepare --parquet DIR --data DIR
     uv run python benchmarks/bench_head_amazon.py quality --data DIR --vectors glove.safetensors
+    uv run python benchmarks/bench_head_amazon.py quality --data DIR --encoder potion.safetensors \\
+        --dtype float16 int8
     uv run python benchmarks/bench_head_amazon.py speed --data DIR --vectors glove.safetensors --rows 250000 1000000
 
-The word vectors are any finished table (``fse.WordVectors``), such as GloVe.
+The word vectors are any finished table (``fse.WordVectors``), such as GloVe; ``--encoder``
+takes a finished float32 encoder file instead (its own normalization, one head).
 """
 
 from __future__ import annotations
@@ -77,7 +83,12 @@ def _lines(path: Path, n: int | None) -> list[str]:
     return out
 
 
-def _encoders(vectors: str) -> dict[str, fse.Encoder]:
+def _encoders(vectors: str | None, encoder: str | None = None) -> dict[str, fse.Encoder]:
+    if encoder:
+        enc = fse.Encoder.load(encoder)
+        return {"normalized" if "normalize@1" in enc.steps else "raw": enc}
+    if not vectors:
+        raise SystemExit("give --vectors (a WordVectors file) or --encoder (an Encoder file)")
     wv = fse.WordVectors.load(vectors)
     return {
         "raw": fse.Encoder.from_word_vectors(wv, normalize=False),
@@ -99,7 +110,7 @@ def quality(args) -> list[dict]:
     y_train = np.load(data / "train.labels.npy")[: len(train)]
     y_test = np.load(data / "test.labels.npy")
     results = []
-    for name, enc in _encoders(args.vectors).items():
+    for name, enc in _encoders(args.vectors, args.encoder).items():
         start = time.perf_counter()
         sk = _fit(enc.encode(train), y_train)
         fit = time.perf_counter() - start
@@ -108,11 +119,35 @@ def quality(args) -> list[dict]:
         row = _compare(name, sk, clf, test, x_test, y_test)
         row.update({"train": len(train), "fit_s": fit})
         results.append(row)
+        for dtype in args.dtype:
+            quantized = _compare_quantized(name, clf, dtype, test, y_test)
+            results.append(quantized)
+            print(json.dumps(quantized), flush=True)
         if args.models:
             Path(args.models).mkdir(parents=True, exist_ok=True)
             clf.save(Path(args.models) / f"amazon-{name}.safetensors")
         print(json.dumps(row), flush=True)
     return results
+
+
+def _compare_quantized(name, clf, dtype, test, y_test) -> dict:
+    """The same head on the quantized encoder, against the float32 model's own outputs."""
+    start = time.perf_counter()
+    quantized = clf.quantize(dtype)
+    seconds = time.perf_counter() - start
+    p_base, p_q = clf.predict_proba(test), quantized.predict_proba(test)
+    labels_base, labels_q = clf.predict(test), quantized.predict(test)
+    return {
+        "encoder": name,
+        "dtype": dtype,
+        "accuracy_float32": float(np.mean(labels_base == y_test)),
+        "accuracy_quantized": float(np.mean(labels_q == y_test)),
+        "labels_differ_from_float32": int((labels_base != labels_q).sum()),
+        "largest_proba_difference_to_float32": float(np.abs(p_base - p_q).max()),
+        "mean_abs_proba_difference_to_float32": float(np.abs(p_base - p_q).mean()),
+        "quantize_s": seconds,
+        "test": len(test),
+    }
 
 
 def _compare(name, sk, clf, test, x_test, y_test) -> dict:
@@ -138,7 +173,8 @@ def _compare(name, sk, clf, test, x_test, y_test) -> dict:
 
 def speed(args) -> list[dict]:
     data = Path(args.data)
-    enc = _encoders(args.vectors)["raw"]
+    encoders = _encoders(args.vectors, args.encoder)
+    enc = encoders.get("raw") or next(iter(encoders.values()))
     rng = np.random.default_rng(0)
     weight = (rng.standard_normal(enc.output_dim) * 0.1).astype(F32)
     results = []
@@ -234,6 +270,10 @@ def main(argv=None):
     parser.add_argument("--parquet")
     parser.add_argument("--data", required=True)
     parser.add_argument("--vectors")
+    parser.add_argument("--encoder", help="a finished float32 Encoder file instead of --vectors")
+    parser.add_argument(
+        "--dtype", nargs="*", default=[], choices=["float16", "int8"], help="quality: also score"
+    )
     parser.add_argument("--train", type=int, default=400_000)
     parser.add_argument("--rows", type=int, nargs="+", default=[250_000, 1_000_000, 4_000_000])
     parser.add_argument("--workers", type=int, nargs="+", default=[1, usable_cpus()])

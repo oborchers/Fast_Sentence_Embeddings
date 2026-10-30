@@ -51,9 +51,7 @@ def _logits(model, dtype, sentences=SENTENCES):
 @pytest.mark.parametrize("k", [1, 3])
 @pytest.mark.parametrize("fasttext", [False, True])
 @pytest.mark.parametrize("dtype", DTYPES)
-def test_a_folded_head_gives_the_reference_bits_of_the_quantized_table(
-    dtype, fasttext, k, backend
-):
+def test_a_folded_head_gives_the_reference_bits_of_the_quantized_table(dtype, fasttext, k, backend):
     model = _classifier(finished(fasttext=fasttext, normalize=False), k)
     quantized = model.quantize(dtype)
     want = qz.bits(_logits(model, dtype))
@@ -130,7 +128,7 @@ def test_quantize_refuses_what_it_cannot_do(tmp_path):
         model.quantize("bfloat16")
     model.save(tmp_path / "s.safetensors", standalone=True)
     standalone = fse.Classifier.load(tmp_path / "s.safetensors")
-    with pytest.raises(ValueError, match="standalone model.*quantize the complete model"):
+    with pytest.raises(ValueError, match=r"standalone model.*quantize the complete model"):
         standalone.quantize("int8")
 
 
