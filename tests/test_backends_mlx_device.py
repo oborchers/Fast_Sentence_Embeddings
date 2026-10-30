@@ -19,6 +19,7 @@ from fse._runtime import EncodeSpec, MemorySink, Pipeline, _tasks
 from fse._text import StringSource
 from support.conformance import mlx_module, require_mlx
 from support.fake_mlx import FakeMx
+from support.logs import expect_log
 from support.runtime import expected, texts, word_vectors
 
 F32 = np.float32
@@ -250,9 +251,13 @@ def test_the_canary_runs_once_and_its_error_stays(make, monkeypatch):
     calls = []
     monkeypatch.setattr(_device._canary, "canary", lambda _m, _s: calls.append(1))
     device = make()
-    device.ready()
-    device.ready()
+    with expect_log("backend.canary", backend="mlx") as records:
+        device.ready()
+        device.ready()
     assert calls == [1]
+    assert len(records) == 1
+    assert records[0].threadName != "fse-mlx"  # the calling thread
+    assert records[0].fse_seconds >= 0
 
     def broken(_m, _s):
         raise ValueError("the canary failed")

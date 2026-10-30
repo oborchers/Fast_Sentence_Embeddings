@@ -16,6 +16,7 @@ from fse._backends import CpuBackend, PoolInput, Prepared
 from fse._contract import Batch, Normalize
 from support.conformance import TINY, mlx_module, require_mlx
 from support.encoder import finished
+from support.logs import captured, expect_log
 from support.runtime import texts, word_vectors
 
 _backend = mlx_module("fse._backends._mlx._backend")
@@ -58,16 +59,18 @@ def test_capabilities(mlx):
 
 
 @pytest.mark.parametrize(("dim", "host"), [(1 << 16, False), ((1 << 16) + 1, True)])
-def test_rows_wider_than_the_device_takes_run_on_the_host(mlx, caplog, dim, host):
+def test_rows_wider_than_the_device_takes_run_on_the_host(mlx, dim, host):
     rng = np.random.default_rng(4)
     pool = PoolInput(rng.standard_normal((3, dim)).astype(F32), np.ones(3, F32))
     batch = Batch(0, np.array([0, 2, 3], np.int64), np.array([0, 1, 2], np.uint32))
-    caplog.set_level(logging.WARNING, logger="fse")
-    got, prepared = _rows(mlx, pool, batch=batch)
+    with captured(logging.WARNING) as records:
+        got, prepared = _rows(mlx, pool, batch=batch)
     want, _ = _rows(CpuBackend(), pool, batch=batch)
     assert got.tobytes() == want.tobytes()
     assert fallbacks(prepared)["dim"] == int(host)
-    assert any("65536 values" in r.message for r in caplog.records) == host
+    found = [r for r in records if r.fse_event == "backend.fallback"]
+    assert [(r.fse_backend, r.fse_reason) for r in found] == [("mlx", "dim")] * host
+    assert all("fse mlx backend:" in r.getMessage() for r in found)
 
 
 @pytest.mark.parametrize("steps", [(), (Normalize(),)], ids=["none", "normalize"])
@@ -115,42 +118,44 @@ def _limit_batch(first_row=0):
 
 
 @pytest.mark.parametrize("dim", [7, 2000], ids=["in the kernel", "on the host"])
-def test_only_the_flagged_rows_come_from_the_host(mlx, caplog, monkeypatch, dim):
+def test_only_the_flagged_rows_come_from_the_host(mlx, monkeypatch, dim):
     """Before normalize, in the kernel or on the host: sentence 2 comes from the host, the
     others keep the device's rows (one ulp above the cpu's here); a task counts once per
     call, the warning once per encoder."""
-    caplog.set_level(logging.WARNING, logger="fse")
     _nudged(monkeypatch)
     steps = (Normalize(),)
-    got, prepared = _rows(mlx, _limit_pool(dim), steps, _limit_batch())
+    with captured(logging.WARNING) as records:
+        got, prepared = _rows(mlx, _limit_pool(dim), steps, _limit_batch())
+        mlx.rows(_limit_batch(7), prepared, np.empty_like(got))
     want, _ = _rows(CpuBackend(), _limit_pool(dim), steps, _limit_batch())
     assert got[2].tobytes() == want[2].tobytes()
     assert got[0].tobytes() != want[0].tobytes()
     assert got[3].tobytes() != want[3].tobytes()
     assert not got[1].any()  # the empty sentence
-    mlx.rows(_limit_batch(7), prepared, np.empty_like(got))
     counts = dict.fromkeys(["dim", "subnormal_input", "long", "nonfinite", "large"], 0)
     counts["limit"] = 2
     assert fallbacks(prepared) == counts
-    warnings = [r for r in caplog.records if "computes a task on the CPU" in r.message]
+    warnings = [r for r in records if r.fse_event == "backend.fallback"]
     assert len(warnings) == 1
-    assert "a row near a limit" in warnings[0].message
+    assert warnings[0].fse_reason == "limit"
+    assert "a row near a limit" in warnings[0].getMessage()
 
 
-def test_an_encoder_with_subnormal_inputs_runs_on_the_host(mlx, caplog):
+def test_an_encoder_with_subnormal_inputs_runs_on_the_host(mlx):
     pool = _pool()
     pool.vectors[3, 2] = TINY * 5
-    caplog.set_level(logging.WARNING, logger="fse")
     device = mlx.device
     before = device.launches
-    got, prepared = _rows(mlx, pool)
+    with expect_log("backend.fallback", backend="mlx", reason="subnormal_input") as records:
+        got, prepared = _rows(mlx, pool)
     want, _ = _rows(CpuBackend(), pool)
     assert got.tobytes() == want.tobytes()
     assert device.launches == before
     assert fallbacks(prepared)["subnormal_input"] == 1
-    assert any("subnormal" in r.message for r in caplog.records)
+    assert any("subnormal" in r.getMessage() for r in records)
 
 
+@pytest.mark.expected_log("backend.fallback")  # the fallback counts, tested above
 @pytest.mark.parametrize(
     ("vectors", "raw"),
     [([[2.0**-62, 0.0], [1.0, 1.0]], 0), ([[2.0**61, 1.0], [1.0, 1.0]], 1)],
@@ -170,6 +175,7 @@ def test_rows_near_a_limit_of_normalize_come_from_the_host(mlx, vectors, raw):
         assert out.tobytes() == want.tobytes()
 
 
+@pytest.mark.expected_log("backend.fallback")  # the fallback counts, tested above
 def test_a_normalize_error_of_a_flagged_row_is_the_cpus(mlx):
     """1e-25 squared underflows on the cpu: the host raises for the task."""
     pool = PoolInput(np.array([[1.0, 1.0], [1e-25, 0.0]], F32), np.ones(2, F32))
@@ -179,6 +185,7 @@ def test_a_normalize_error_of_a_flagged_row_is_the_cpus(mlx):
         mlx.rows(batch, prepared, np.empty((2, 2), F32))
 
 
+@pytest.mark.expected_log("backend.fallback")  # the fallback counts, tested above
 def test_a_row_that_is_not_finite_raises_the_cpu_error_through_the_host(mlx):
     pool = PoolInput(np.array([[3e38], [3e38]], F32), np.ones(2, F32))
     batch = Batch(4, np.array([0, 1, 3], np.int64), np.array([0, 0, 1], np.uint32))
@@ -235,7 +242,7 @@ def test_encoders_made_by_quantize_give_the_cpu_bits_on_mlx(dtype, fasttext):
 
 
 @pytest.mark.usefixtures("mlx")
-def test_an_int8_table_with_subnormal_scales_runs_on_the_host(caplog):
+def test_an_int8_table_with_subnormal_scales_runs_on_the_host():
     """A row whose largest value divided by 127 is subnormal gets a subnormal scale from
     quantize_rows@1, which the GPU would flush: the encoder falls back to the host."""
     rows = np.random.default_rng(2).standard_normal((20, 5)).astype(F32)
@@ -243,11 +250,11 @@ def test_an_int8_table_with_subnormal_scales_runs_on_the_host(caplog):
     wv = fse.WordVectors.from_arrays(rows, words=[f"w{i}" for i in range(20)])
     encoder = fse.Encoder.from_word_vectors(wv, normalize=False).quantize("int8")
     assert 0 < encoder.word_vectors.scales[4] < np.finfo(F32).tiny
-    caplog.set_level(logging.WARNING, logger="fse")
     sentences = ["w1 w4 w7", "w4", "w2 w3"]
-    got = encoder.encode(sentences, backend="mlx")
+    with expect_log("backend.fallback", backend="mlx", reason="subnormal_input") as records:
+        got = encoder.encode(sentences, backend="mlx")
     assert got.tobytes() == encoder.encode(sentences, backend="cpu").tobytes()
-    assert any("subnormal" in r.message for r in caplog.records)
+    assert any("subnormal" in r.getMessage() for r in records)
 
 
 @pytest.mark.parametrize("group_tokens", [1, 3, 8])
@@ -286,6 +293,7 @@ def test_normalize_alone_runs_in_the_kernel_with_the_cpu_bits(mlx, monkeypatch, 
     assert sum(fallbacks(prepared).values()) == 0
 
 
+@pytest.mark.expected_log("backend.fallback")  # the fallback counts, tested above
 @pytest.mark.parametrize(("k", "host"), [((1 << 24) - 1, False), (1 << 24, True)])
 def test_a_sentence_of_2_24_contributions_runs_on_the_host(mlx, k, host):
     """K < 2**24 on the device (gamma_K of the bound is undefined from 2**24), alone and

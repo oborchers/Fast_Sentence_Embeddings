@@ -26,6 +26,8 @@ from typing import Any
 import numpy as np
 from numpy import ndarray
 
+from fse import _log
+
 
 @dataclass(frozen=True)
 class Found:
@@ -224,6 +226,24 @@ def _pipeline_steps(model: Any) -> list:
 def read(model: Any, task: str) -> Found:
     """The head of a fitted estimator, or of a Pipeline of an optional ``StandardScaler``
     and the estimator."""
+    found = _read(model, task)
+    outputs, dim = found.weight.shape
+    _log.emit(
+        "artifact.converted",
+        "fse artifact: converted a scikit-learn %s to a linear head: %d outputs of %d dimensions",
+        found.source,
+        outputs,
+        dim,
+        kind="linear_head",
+        source="sklearn",
+        estimator=found.source,
+        outputs=outputs,
+        dim=dim,
+    )
+    return found
+
+
+def _read(model: Any, task: str) -> Found:
     if _name(model) != "Pipeline":
         return _estimator(model, task)
     *before, last = _pipeline_steps(model)

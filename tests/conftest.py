@@ -4,13 +4,51 @@ The corpus in ``tests/test_data`` is read-only input. Tests that write files
 use pytest's ``tmp_path``.
 
 gensim is only needed by tests/test_gensim.py, which builds its own models.
+
+Every WARNING or higher record of fse that no ``expect_log`` expected fails the test in
+the phase it came in (setup, call or teardown; tests/support/logs.py), unless the test is
+marked ``expected_log(event, ...)`` for its event (the device fallbacks of the
+conformance suites).
 """
 
 from pathlib import Path
 
 import pytest
 
+from support.logs import PAUSED, STRICT, TOP, unexpected
+
 TEST_DATA = Path(__file__).parent / "test_data"
+
+
+def _strict(item):
+    STRICT.records.clear()
+    if not PAUSED:
+        TOP.addHandler(STRICT)
+    try:
+        result = yield
+    finally:
+        TOP.removeHandler(STRICT)
+    allowed = {e for mark in item.iter_markers("expected_log") for e in mark.args}
+    found = unexpected([r for r in STRICT.records if r.fse_event not in allowed])
+    STRICT.records.clear()
+    if found:
+        pytest.fail("unexpected records of fse (use expect_log):\n" + "\n".join(found))
+    return result
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_setup(item):
+    return (yield from _strict(item))
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item):
+    return (yield from _strict(item))
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_teardown(item):  # pluggy passes only the arguments a hook names
+    return (yield from _strict(item))
 
 
 @pytest.fixture(scope="session")

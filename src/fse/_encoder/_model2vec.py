@@ -25,6 +25,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from fse import _log
 from fse._container import CorruptArtifactError
 from fse._contract import UnsupportedArtifactError
 from fse._tokenizer_json import MAX_BYTES as MAX_TOKENIZER_BYTES
@@ -87,6 +88,15 @@ def _config(config: Any, path: Path) -> dict[str, Any]:
         )
     if not isinstance(config.get("normalize", False), bool):
         raise CorruptArtifactError(f"{path}: normalize must be true or false")
+    ignored = sorted(_PROVENANCE & set(config))  # fse's own names of these keys
+    if ignored:
+        _log.emit(
+            "artifact.ignored",
+            "fse artifact: ignored the provenance keys %s of a Model2Vec config",
+            ignored,
+            source="model2vec",
+            keys=ignored,
+        )
     length = config.get("max_length", DEFAULT_MAX_LENGTH)
     if length is not None and (
         isinstance(length, bool) or not isinstance(length, int) or length < 1

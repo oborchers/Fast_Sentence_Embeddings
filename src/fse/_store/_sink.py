@@ -16,6 +16,7 @@ and the rest is dropped.
 
 from __future__ import annotations
 
+import time
 from collections import deque
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -24,11 +25,12 @@ from typing import Any, Literal
 import numpy as np
 from numpy import ndarray
 
-from fse import _codes
+from fse import _codes, _log
+from fse._container import note_cleanup
 from fse._encoder import Encoder
 from fse._validation import PositiveInt, validate_arguments
 
-from ._layout import StoreInfo, create_store, read_store, shards
+from ._layout import StoreInfo, create_store, failed_cleanup, read_store, shards
 from ._shard import ShardWriter
 from ._writer import WriterThread, deferred_interrupts
 
@@ -79,8 +81,10 @@ class ShardSink:
         if not isinstance(encoder, Encoder):
             raise TypeError(f"encoder must be an Encoder, not {type(encoder).__name__}")
         self.path = Path(path)
+        self._start = time.perf_counter()
         info = StoreInfo(encoder.fingerprint, dtype, encoder.output_dim)
-        if not self.path.exists() and not self.path.is_symlink():
+        new = not self.path.exists() and not self.path.is_symlink()
+        if new:
             create_store(self.path, info)
         read_store(self.path).check(info, self.path)
         self.first_row = sum(shard.rows for shard, _ in shards(self.path, info))
@@ -93,6 +97,7 @@ class ShardSink:
         self._targets: dict[int, tuple[list, tuple | None]] = {}  # run row -> parts, own
         self._closed = self._interrupted = False
         self._interrupts: list = []  # those noted while it closes
+        self._unnoted: list = []  # failed cleanups for the note of a deferred interrupt
         self._created_by = _created_by()
         # Hashing (in order), writing and publishing (syncs, a rename) in three threads, so
         # the flush of one shard does not stop the hashing and writing of the next. One
@@ -100,6 +105,21 @@ class ShardSink:
         self._hash = WriterThread("fse-shard-hash")
         self._io = WriterThread("fse-shard-write")
         self._publisher = WriterThread("fse-shard-publish")
+        self._published = 0  # shards
+        _log.emit(
+            "store.sink_opened",
+            "fse store: a sink %s a store at row %d: %d dimensions, %s, shards of %d rows",
+            "creates" if new else "appends to",
+            self.first_row,
+            info.dim,
+            dtype,
+            self.shard_rows,
+            mode="new" if new else "append",
+            rows=self.first_row,
+            dim=info.dim,
+            dtype=dtype,
+            shard_rows=self.shard_rows,
+        )
 
     # --- the sink protocol, in the calling thread -------------------------------------
 
@@ -164,7 +184,7 @@ class ShardSink:
         if self._writers and not self._writers[-1].full:
             writer = self._writers[-1]
             if writer.reserved == 0:
-                self._writers.pop().abort()
+                self._writers.pop().abort()  # a failure: removed again (and reported) at close
             else:
                 writer.seal()
 
@@ -199,8 +219,21 @@ class ShardSink:
         temporary directories of the shards not published are removed, one
         KeyboardInterrupt is raised. Otherwise no interrupt is deferred.
         """
+        self._close(None)
+
+    def _close(self, error: BaseException | None) -> None:
+        """``close``; ``error`` is the error the block of ``with`` raised, if any."""
         if self._closed:
             return
+        try:
+            self._close_deferring(error)
+        except KeyboardInterrupt as interrupt:  # the deferred one, raised after the block
+            if interrupt is not error:
+                for path, failure in self._unnoted:
+                    note_cleanup(interrupt, path, failure)
+            raise
+
+    def _close_deferring(self, error: BaseException | None) -> None:
         with deferred_interrupts(self._abandon_all) as self._interrupts:
             try:
                 self._settle()  # the rows handed over are written, unless a thread failed
@@ -210,14 +243,16 @@ class ShardSink:
                 else:
                     self._abort_uncommitted()
                     self._drain()
-            finally:
-                self._shut_down()
+            except BaseException as raised:
+                self._shut_down(raised)
+                raise
+            self._shut_down(error)
 
     def __enter__(self) -> ShardSink:
         return self
 
-    def __exit__(self, *_exc: object) -> None:
-        self.close()
+    def __exit__(self, _kind: object, error: BaseException | None, _tb: object) -> None:
+        self._close(error)
 
     # --- internals ---------------------------------------------------------------------
 
@@ -227,16 +262,52 @@ class ShardSink:
         for thread in (self._hash, self._io, self._publisher):
             thread.abandon()
 
-    def _shut_down(self) -> None:
+    def _shut_down(self, error: BaseException | None) -> None:
         """End every thread, the hash thread first (it hands finished shards to the
-        publisher), then remove the shards not published."""
+        publisher), then remove the shards not published. A removal that fails is raised
+        once every thread has ended, unless an error is raised (``error``, or that of a
+        thread): it is then noted on ``error`` and logged."""
         for thread in (self._hash, self._io, self._publisher):
             thread.stop()
-        for writer in list(self._made):  # what was not published
-            writer.abort()
+        failures = [(w.tmp, w.abort()) for w in list(self._made)]  # what was not published
         self._writers.clear()
         self._made.clear()
         self._closed = True
+        self._closed_record(error, error is not None or self._failed() or self._interrupted)
+        self._report_cleanup([(path, f) for path, f in failures if f is not None], error)
+
+    def _report_cleanup(self, failed: list, error: BaseException | None) -> None:
+        """Raise the first failed removal unless an error is raised now (``error``, or a
+        deferred interrupt; an error of a thread that a call raised before is no longer in
+        flight), with the others noted on it; else note them all on that error."""
+        if self._interrupted:  # also on the KeyboardInterrupt raised after the block
+            self._unnoted = failed
+        if error is None and not self._interrupted and failed:
+            error = failed.pop(0)[1]
+            for path, failure in failed:
+                failed_cleanup(path, failure, error)
+            raise error
+        for path, failure in failed:
+            failed_cleanup(path, failure, error, failing=self._interrupted)
+
+    def _closed_record(self, error: BaseException | None, failing: bool) -> None:
+        interrupted = self._interrupted or isinstance(error, KeyboardInterrupt)
+        outcome = "interrupt" if interrupted else "error" if failing else "ok"
+        dropped = self._committed - self.durable_rows
+        _log.emit(
+            "store.sink_closed",
+            "fse store: a sink closed (%s): %d rows durable in %d shards, %d dropped",
+            outcome,
+            self.durable_rows,
+            self._published,
+            dropped,
+            rows=self._committed,
+            shards=self._published,
+            durable_rows=self.durable_rows,
+            dropped_rows=dropped,
+            outcome=outcome,
+            seconds=time.perf_counter() - self._start,
+        )
 
     def _check_threads(self) -> None:
         for thread in (self._hash, self._io, self._publisher):
@@ -297,17 +368,29 @@ class ShardSink:
         try:
             rows = writer.finish(lambda: self._io.failed)
         except FileExistsError:
-            writer.abort()
-            raise FileExistsError(
+            exists = FileExistsError(
                 f"another writer appended to {self.path} at row {writer.first_row} first; "
                 f"this run published its first {self.durable_rows} rows (rows "
                 f"{self.first_row} to {self.first_row + self.durable_rows - 1} of the store)"
-            ) from None
+            )
+            writer.abort()  # a failure: removed again and reported at close, in its thread
+            raise exists from None
         except BaseException:
-            writer.abort()
+            writer.abort()  # likewise
             raise
         self._made.discard(writer)
         self.durable_rows += rows
+        self._published += 1
+        _log.emit(
+            "store.shard_published",
+            "fse store: published a shard of %d rows at row %d; %d rows of the run durable",
+            rows,
+            writer.first_row,
+            self.durable_rows,
+            first_row=writer.first_row,
+            rows=rows,
+            durable_rows=self.durable_rows,
+        )
 
     def _abort_uncommitted(self) -> None:
         """Publish the committed rows of every shard, end it there, drop the rest."""
@@ -318,7 +401,7 @@ class ShardSink:
             if writer.committed:
                 kept.append(writer)
             else:
-                writer.abort()
+                writer.abort()  # a failure: removed again (and reported) at close
         self._writers = kept
         self._reserved = self._committed
         self._publish_ready()

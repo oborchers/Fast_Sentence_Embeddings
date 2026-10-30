@@ -85,7 +85,7 @@ def _scan_pool(workers: int, total: int) -> AbstractContextManager[ThreadPoolExe
     sources under _SCAN_INLINE_BYTES. The chunks are the same either way."""
     if workers == 1 or total < _SCAN_INLINE_BYTES:
         return nullcontext(None)
-    return ThreadPoolExecutor(max_workers=workers)
+    return ThreadPoolExecutor(max_workers=workers, thread_name_prefix="fse-text")
 
 
 def _integer(value: object) -> int | None:
