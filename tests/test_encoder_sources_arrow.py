@@ -12,7 +12,8 @@ from fse._text import ArrowSource
 from support.encoder import finished
 from support.runtime import texts
 
-pa = pytest.importorskip("pyarrow")
+# ImportError too: pyarrow 26 refuses the numpy 1.26 of the minimum job.
+pa = pytest.importorskip("pyarrow", exc_type=ImportError)
 
 ENCODER = finished()
 SENTENCES = texts(700)
@@ -141,7 +142,7 @@ def test_heads_take_arrow_columns():
 
 
 def test_pandas_series():
-    pd = pytest.importorskip("pandas")
+    pd = pytest.importorskip("pandas", exc_type=ImportError)
     series = pd.Series(SENTENCES)
     assert hasattr(type(series), "__arrow_c_stream__")
     same(ENCODER.encode(series, workers=2))
@@ -165,7 +166,7 @@ def test_a_producer_that_cannot_export_is_read_as_a_stream(caplog):
 
 
 def test_polars_series():
-    pl = pytest.importorskip("polars")
+    pl = pytest.importorskip("polars", exc_type=ImportError)
     series = pl.concat([pl.Series(SENTENCES[:200]), pl.Series(SENTENCES[200:])], rechunk=False)
     assert series.n_chunks() == 2
     same(ENCODER.encode(series, workers=3))
@@ -176,7 +177,7 @@ def test_polars_series():
 
 
 def test_hugging_face_datasets(tmp_path):
-    datasets = pytest.importorskip("datasets")
+    datasets = pytest.importorskip("datasets", exc_type=ImportError)
     datasets.disable_progress_bars()
     datasets.Dataset.from_dict({"text": SENTENCES}).save_to_disk(str(tmp_path / "ds"))
     ds = datasets.load_from_disk(str(tmp_path / "ds"))
