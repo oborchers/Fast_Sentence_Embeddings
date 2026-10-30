@@ -35,7 +35,7 @@ import numpy as np
 from numpy.lib import format as npy_format
 
 from . import _common
-from ._common import ALIGNMENT, _sync_directory
+from ._common import ALIGNMENT, PublishedNotDurableError, _sync_directory
 
 
 def header(dtype: np.dtype, shape: tuple[int, ...], length: int | None = None) -> bytes:
@@ -127,9 +127,18 @@ def sync_data(fd: int) -> None:
 def publish_directory(tmp: Path, path: Path) -> None:
     """Rename the finished directory ``tmp`` to ``path`` without ever replacing anything,
     not even an empty directory, then sync the parent. Raises FileExistsError if ``path``
-    exists, and OSError where the system has no exclusive rename of directories."""
+    exists, and OSError where the system has no exclusive rename of directories; nothing
+    is published then. A failed sync after the rename raises PublishedNotDurableError: the
+    directory is published at ``path`` and stays there, but its rename is not confirmed
+    durable."""
     _rename_exclusive(tmp, path)
-    _sync_directory(path.parent)
+    try:
+        _sync_directory(path.parent)
+    except OSError as error:
+        raise PublishedNotDurableError(
+            f"{path} is published, but syncing {path.parent} failed ({error}); the rename is "
+            "not confirmed durable"
+        ) from error
 
 
 def _rename_exclusive(tmp: Path, path: Path) -> None:
@@ -153,7 +162,7 @@ def _rename_exclusive(tmp: Path, path: Path) -> None:
     if result != 0:
         error = ctypes.get_errno()
         if error in (17, 39, 66):  # EEXIST, ENOTEMPTY (Linux), ENOTEMPTY (macOS)
-            raise FileExistsError(f"{path} exists; a shard is never replaced")
+            raise FileExistsError(f"{path} exists; it is never replaced")
         raise OSError(error, os.strerror(error), str(path))
 
 
@@ -167,5 +176,5 @@ def _move_no_replace(tmp: Path, path: Path) -> None:  # pragma: no cover - Windo
     if not move(str(tmp), str(path), 0x8):
         error = ctypes.get_last_error()  # type: ignore[attr-defined]
         if error in (80, 183):  # ERROR_FILE_EXISTS, ERROR_ALREADY_EXISTS
-            raise FileExistsError(f"{path} exists; a shard is never replaced")
+            raise FileExistsError(f"{path} exists; it is never replaced")
         raise ctypes.WinError(error)  # type: ignore[attr-defined]

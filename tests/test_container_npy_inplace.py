@@ -6,7 +6,7 @@ import os
 import numpy as np
 import pytest
 
-from fse._container import NpyContainer
+from fse._container import NpyContainer, PublishedNotDurableError
 from fse._container import _npy_inplace as inplace
 from fse._container._common import checksum, tensor_code
 from fse._container._npy import write_manifest
@@ -118,3 +118,33 @@ def test_publishing_never_replaces_a_directory(tmp_path):
     inplace.publish_directory(tmp_path / "a", tmp_path / "d")
     assert (tmp_path / "d" / "x").read_bytes() == b"1"
     assert not (tmp_path / "a").exists()
+
+
+def test_a_failed_sync_after_the_rename_keeps_the_published_directory(tmp_path, monkeypatch):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "x").write_bytes(b"1")
+
+    def fail(path, **_kwargs):
+        raise OSError(errno.EIO, "no sync", str(path))
+
+    monkeypatch.setattr(inplace, "_sync_directory", fail)
+    with pytest.raises(PublishedNotDurableError, match="is published, but syncing") as raised:
+        inplace.publish_directory(tmp_path / "a", tmp_path / "b")
+    assert isinstance(raised.value, OSError)
+    assert isinstance(raised.value.__cause__, OSError)
+    assert (tmp_path / "b" / "x").read_bytes() == b"1"  # published, complete, kept
+    assert not (tmp_path / "a").exists()
+
+
+def test_a_failed_rename_publishes_nothing(tmp_path, monkeypatch):
+    (tmp_path / "a").mkdir()
+
+    def fail(_tmp, path):
+        raise OSError(errno.EXDEV, "no rename", str(path))
+
+    monkeypatch.setattr(inplace, "_rename_exclusive", fail)
+    with pytest.raises(OSError, match="no rename") as raised:
+        inplace.publish_directory(tmp_path / "a", tmp_path / "b")
+    assert not isinstance(raised.value, PublishedNotDurableError)
+    assert (tmp_path / "a").exists()
+    assert not (tmp_path / "b").exists()
