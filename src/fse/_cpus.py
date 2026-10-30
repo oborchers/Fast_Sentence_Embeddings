@@ -35,7 +35,7 @@ def usable_cpus() -> int:
         return _reported(override, "override")
     # macOS and Windows have no affinity call.
     affinity = hasattr(os, "sched_getaffinity")
-    cpus = len(os.sched_getaffinity(0)) if affinity else os.cpu_count() or 1
+    cpus = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count() or 1
     quota = _process_quota()
     if quota is not None and quota < cpus:
         return _reported(max(1, quota), "cgroup")
