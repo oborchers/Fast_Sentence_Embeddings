@@ -52,3 +52,37 @@ def close(model, texts, want, *, max_length=UNSET, normalize=None):
     encoder = model._variants.get(cut, norm)
     assert got.dtype == np.float32
     return cv.assert_close(got, want, encoder, texts, norm)
+
+
+def hub_texts(model, extra=()):
+    """Texts for a model of the Hub: the sentences of the STS benchmark, words sampled from
+    its vocabulary, edge cases, and long texts that cross both cuts."""
+    import csv
+    import random
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent.parent
+    with open(root / "evaluation" / "sts-test.csv", encoding="utf-8", newline="") as f:
+        sts = [s for row in csv.reader(f, delimiter="\t", quoting=csv.QUOTE_NONE) for s in row[5:7]]
+    rng = random.Random(7)
+    words = rng.sample([t for t in model.tokens if not t.startswith("[")], 2000)
+    edge = ["hello [MASK] [PAD] [UNK] [CLS] world [SEP]", "x" * 101, "İstanbul", "", "zzqxj"]
+    long = [" ".join(rng.choice(words) for _ in range(n)) for n in (600, 5000)]
+    return sts + list(extra) + wp.corpus(words, count=2000, seed=3) + edge + long
+
+
+def assert_the_model_of_model2vec(ours, theirs, texts):
+    """Attributes equal, and ``encode`` within the bound under the model's settings and
+    under other ones for one call; gives the largest ratio of error to bound."""
+    assert ours.dim == theirs.dim
+    assert tuple(ours.tokens) == tuple(theirs.tokens)
+    assert ours.config == theirs.config
+    assert ours.unk_token_id == theirs.unk_token_id
+    assert ours.median_token_length == theirs.median_token_length
+    assert (ours.normalize, ours.max_length) == (theirs.normalize, theirs.max_length)
+    assert (ours.base_model_name, ours.language) == (theirs.base_model_name, theirs.language)
+    assert np.array_equal(ours.embedding, theirs.embedding)
+    worst = close(ours, texts, theirs.encode(texts))
+    for kwargs in ({"max_length": 64}, {"normalize": not ours.normalize}, {"max_length": None}):
+        worst = max(worst, close(ours, texts, theirs.encode(texts, **kwargs), **kwargs))
+    return worst
