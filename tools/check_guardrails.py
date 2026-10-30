@@ -6,15 +6,10 @@ The guardrails ([tool.fse.guardrails]; AGENTS.md, Guardrails) keep the code revi
 - the ruff complexity limits of [tool.ruff.lint.mccabe] and [tool.ruff.lint.pylint]
   (C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917) and a cognitive complexity of at
   most ``max-cognitive-complexity`` per function (complexipy);
-- the imports of and by the native extension, which import-linter cannot see: only
-  ``native-importers`` import ``fse._native``, the extension imports only
-  ``native-imports`` from fse, and nothing imports the forbidden packages of the
-  import-linter contract;
-- that only ``hash-importers`` import a hash library (``hash-modules``), in Python and
-  Cython sources;
-- that the device library of every device backend (``device-libraries``: backend name to
-  its top-level modules) is imported, by an import statement or ``importlib``, only by
-  that backend's ``src/fse/_backends/_<name>/_load.py``;
+- the import rules import-linter cannot check (``tools/guardrails_imports.py``): the
+  imports of and by the native extension, the only importers of a hash library and of
+  logging, no logging in what the MLX device thread runs, and the only importer of each
+  device library;
 - a test file for every module of fse.
 
 What exceeded a limit when the guardrails came is the ratchet. It only shrinks: a new
@@ -35,6 +30,7 @@ import ast
 import importlib
 import json
 import re
+import runpy
 import subprocess
 import sys
 import tomllib
@@ -46,10 +42,9 @@ RUFF_RULES = ["C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917"]
 _RUFF = [sys.executable, "-m", "ruff", "check", "--output-format", "json", "--exit-zero"]
 _RUFF += ["--no-cache", "--quiet", "--ignore-noqa"]
 _VALUE = re.compile(r"\((\d+) > \d+\)")
-# On code without strings, comments and line continuations: an import statement may
-# start anywhere (after ; or the : of a one-line block) and ends at ; or the line end.
-_FROM = re.compile(r"\bfrom\s+(\.*[\w.]*)\s+c?import\s+(\([^)]*\)|[^;\n]*)")
-_IMPORT = re.compile(r"\bc?import\s+([^;\n]+)")
+# The import rules, in a file of their own beside this one; loaded by its path, so this
+# tool runs the same as a script and through runpy (tests/test_check_guardrails.py).
+IMPORTS = runpy.run_path(str(Path(__file__).resolve().with_name("guardrails_imports.py")))
 
 
 class ToolError(Exception):
@@ -170,187 +165,6 @@ def cognitive_findings(root: Path, py_files: list[str], limit: int) -> dict[str,
     return found
 
 
-def _string_end(source: str, start: int) -> int:
-    """The index after the string literal that starts at start."""
-    quote = (
-        source[start : start + 3] if source[start : start + 3] in ('"""', "'''") else source[start]
-    )
-    end = start + len(quote)
-    while True:
-        end = source.find(quote, end)
-        if end < 0:
-            return len(source)
-        backslashes = len(source[:end]) - len(source[:end].rstrip("\\"))
-        if backslashes % 2 == 0:  # an odd number escapes the quote
-            return end + len(quote)
-        end += 1
-
-
-def code_only(source: str) -> str:
-    """source with string literals emptied and comments removed, in one pass that knows
-    whether a quote or a # starts inside a string or a comment."""
-    out, i = [], 0
-    while i < len(source):
-        if source[i] == "#":
-            newline = source.find("\n", i)
-            i = len(source) if newline < 0 else newline
-        elif source[i] in "'\"":
-            out.append('""')
-            i = _string_end(source, i)
-        else:
-            out.append(source[i])
-            i += 1
-    return "".join(out)
-
-
-def _names(text: str) -> list[str]:
-    """The module names of an import list, aliases and parentheses removed."""
-    parts = text.strip().strip("()").split(",")
-    return [part.split(" as ")[0].strip() for part in parts if part.strip()]
-
-
-def extension_imports(source: str) -> list[str]:
-    """Every module a Cython source imports or cimports, strings and comments removed."""
-    code = code_only(source).replace("\\\n", " ")
-    modules = []
-    for base, names in _FROM.findall(code):
-        if base.rstrip(".") in ("", "fse"):  # from fse import x, from . import x
-            modules += ["fse." + name for name in _names(names)]
-        else:
-            # A relative import inside fse names a module of fse.
-            modules.append("fse." + base.lstrip(".") if base.startswith(".") else base)
-    # The plain imports, with the from-imports (whose names are no modules) taken out.
-    for names in _IMPORT.findall(_FROM.sub("", code)):
-        modules += _names(names)
-    return modules
-
-
-def _breaks_rules(module: str, cfg: dict) -> bool:
-    if module.split(".", maxsplit=1)[0] in cfg["forbidden"]:
-        return True
-    return module.startswith("fse") and module not in cfg["native-imports"]
-
-
-def _extension_import_errors(root: Path, cfg: dict) -> list[str]:
-    errors = []
-    for path in sorted((root / "src" / "fse").rglob("*")):
-        if path.suffix in (".pyx", ".pxd", ".pxi"):
-            for module in extension_imports(path.read_text(encoding="utf-8")):
-                if _breaks_rules(module, cfg):
-                    allowed = cfg["native-imports"]
-                    errors.append(
-                        f"{path.relative_to(root)} imports {module}; from fse only {allowed}"
-                    )
-    return errors
-
-
-def _absolute(node: ast.ImportFrom, package: str) -> str:
-    """The module of a from-import, with a relative one resolved against package."""
-    base = node.module or ""
-    if not node.level:
-        return base
-    parent = package.rsplit(".", node.level - 1)[0] if node.level > 1 else package
-    return f"{parent}.{base}" if base else parent
-
-
-def imported_modules(tree: ast.AST, module: str) -> list[str]:
-    """The absolute names of every module and imported name of a Python module of fse."""
-    package = module.rsplit(".", 1)[0]
-    names = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            names += [alias.name for alias in node.names]
-        elif isinstance(node, ast.ImportFrom):
-            base = _absolute(node, package)
-            names += [base, *(f"{base}.{alias.name}" for alias in node.names)]
-    return names
-
-
-def _native_importer_errors(root: Path, cfg: dict) -> list[str]:
-    errors = []
-    for path in sorted((root / "src" / "fse").rglob("*.py")):
-        rel = path.relative_to(root).as_posix()
-        module = ".".join(path.relative_to(root / "src").with_suffix("").parts)
-        names = imported_modules(ast.parse(path.read_text(encoding="utf-8")), module)
-        if rel not in cfg["native-importers"] and any(n.startswith("fse._native") for n in names):
-            errors.append(f"{rel} imports fse._native; only {cfg['native-importers']} may")
-    return errors
-
-
-def native_import_errors(root: Path, cfg: dict) -> list[str]:
-    """Imports of and by the native extension that break the rules."""
-    return [*_extension_import_errors(root, cfg), *_native_importer_errors(root, cfg)]
-
-
-def hash_import_errors(root: Path, cfg: dict) -> list[str]:
-    """Modules of fse other than ``hash-importers`` that import a hash library."""
-    errors = []
-    for path in sorted((root / "src" / "fse").rglob("*")):
-        rel = path.relative_to(root).as_posix()
-        if path.suffix == ".py":
-            module = ".".join(path.relative_to(root / "src").with_suffix("").parts)
-            names = imported_modules(ast.parse(path.read_text(encoding="utf-8")), module)
-        elif path.suffix in (".pyx", ".pxd", ".pxi"):
-            names = extension_imports(path.read_text(encoding="utf-8"))
-        else:
-            continue
-        hashing = sorted({n.split(".")[0] for n in names} & set(cfg["hash-modules"]))
-        if hashing and rel not in cfg["hash-importers"]:
-            errors.append(f"{rel} imports {', '.join(hashing)}; only {cfg['hash-importers']} may")
-    return errors
-
-
-def _module_argument(node: ast.Call) -> str | None:
-    """The literal module name of an import call, positional or ``name=``."""
-    values = [*node.args[:1], *(k.value for k in node.keywords if k.arg == "name")]
-    literal = [v.value for v in values if isinstance(v, ast.Constant)]
-    return literal[0] if literal and isinstance(literal[0], str) else None
-
-
-def _import_functions(tree: ast.AST) -> set[str]:
-    """``__import__``, ``import_module`` and the names it is imported under."""
-    names = {"__import__", "import_module"}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "importlib":
-            names |= {a.asname or a.name for a in node.names if a.name == "import_module"}
-    return names
-
-
-def dynamic_imports(tree: ast.AST) -> list[str]:
-    """The modules imported by a call with a literal name (positional or ``name=``):
-    ``x.import_module`` (importlib under any alias), ``import_module`` imported under any
-    name, and ``__import__``."""
-    functions = _import_functions(tree)
-    calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
-    names = [
-        _module_argument(c)
-        for c in calls
-        if getattr(c.func, "attr", None) == "import_module"
-        or getattr(c.func, "id", None) in functions
-    ]
-    return [name for name in names if name is not None]
-
-
-def device_import_errors(root: Path, cfg: dict) -> list[str]:
-    """Modules of fse other than a device backend's ``_load`` that import its library."""
-    libraries = {
-        module: (backend, f"src/fse/_backends/_{backend}/_load.py")
-        for backend, modules in cfg.get("device-libraries", {}).items()
-        for module in modules
-    }
-    errors = []
-    for path in sorted((root / "src" / "fse").rglob("*.py")):
-        rel = path.relative_to(root).as_posix()
-        module = ".".join(path.relative_to(root / "src").with_suffix("").parts)
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        names = [*imported_modules(tree, module), *dynamic_imports(tree)]
-        for top in sorted({n.split(".")[0] for n in names} & set(libraries)):
-            backend, loader = libraries[top]
-            if rel != loader:
-                errors.append(f"{rel} imports {top}; only {loader} may (the {backend} backend)")
-    return errors
-
-
 def test_file_for(path: Path, package: Path) -> str:
     """tests/test_<parts>.py for a module: fse/_a.py is test_a, fse/_b/_c.py is test_b_c,
     fse/_b/__init__.py is test_b, fse/__init__.py is test_init."""
@@ -452,9 +266,7 @@ def check(root: Path, base: str | None = None) -> tuple[list[str], dict, dict]:
     errors = [
         *compare({k: {"lines": v} for k, v in lines.items()}, ratchet.get("lines", {}), "line"),
         *compare(functions, ratchet.get("functions", {}), "complexity"),
-        *native_import_errors(root, cfg),
-        *hash_import_errors(root, cfg),
-        *device_import_errors(root, cfg),
+        *IMPORTS["import_errors"](root, cfg),
         *untested_modules(root, cfg),
     ]
     old = base_ratchet(root, base) if base else None

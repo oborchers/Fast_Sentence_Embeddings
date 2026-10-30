@@ -1,4 +1,5 @@
 import importlib.util
+import re
 import runpy
 import shutil
 import subprocess
@@ -83,7 +84,7 @@ def test_extension_imports(tool):
         "from fse import _contract, _text\nfrom . import _wordvectors\nfrom .._x import y\n"
         '"""\nimport torch\n"""\n# import sklearn\ns = "from gensim import x"\n'
     )
-    assert sorted(tool["extension_imports"](source)) == sorted(
+    assert sorted(tool["IMPORTS"]["extension_imports"](source)) == sorted(
         [
             "numpy",
             "scipy",
@@ -107,6 +108,9 @@ def _fse_tree(tmp_path, files):
         "native-importers": ["src/fse/_text.py"],
         "hash-importers": ["src/fse/_container/_hash.py"],
         "hash-modules": ["hashlib", "xxhash"],
+        "log-importers": ["src/fse/_log.py"],
+        "log-modules": ["logging", "warnings"],
+        "log-free": ["src/fse/_dev/_canary.py", "src/fse/_dev/_load.py"],
         "untested-modules": [],
         "forbidden": ["gensim", "scipy", "torch"],
     }
@@ -123,7 +127,7 @@ def test_native_import_rules(tool, tmp_path):
             "src/fse/_fine.py": "from fse import _contract\n",
         },
     )
-    errors = tool["native_import_errors"](tmp_path, cfg)
+    errors = tool["IMPORTS"]["native_import_errors"](tmp_path, cfg)
     assert len(errors) == 4, errors
     assert any("imports fse._wordvectors" in e for e in errors)
     assert any("imports torch" in e for e in errors)
@@ -143,11 +147,32 @@ def test_only_the_harness_imports_a_hash_library(tool, tmp_path):
             "src/fse/_note.py": '"""import hashlib"""\nhashlibrary = 1\n',
         },
     )
-    errors = tool["hash_import_errors"](tmp_path, cfg)
+    errors = tool["IMPORTS"]["exclusive_import_errors"](tmp_path, cfg, "hash")
     assert len(errors) == 3, errors
     assert any("_wordvectors.py imports hashlib" in e for e in errors)
     assert any("_deep.py imports xxhash" in e for e in errors)
     assert any("_native_part.pxi imports hashlib" in e for e in errors)
+
+
+def test_only_the_log_module_imports_logging_and_the_device_thread_never_logs(tool, tmp_path):
+    cfg = _fse_tree(
+        tmp_path,
+        {
+            "src/fse/_log.py": "import logging\nimport warnings\n",
+            "src/fse/_store.py": "from fse import _log\nimport logging.handlers\n",
+            "src/fse/_native_part.pxi": "import warnings\n",
+            "src/fse/_dev/_canary.py": "from fse import _log\n",
+            "src/fse/_dev/_load.py": "from fse._log import emit\n",
+            "src/fse/_dev/_device.py": "from fse import _log\n",
+        },
+    )
+    errors = tool["IMPORTS"]["import_errors"](tmp_path, cfg)
+    assert sorted(errors) == [
+        "src/fse/_dev/_canary.py imports fse._log; the MLX device thread never logs",
+        "src/fse/_dev/_load.py imports fse._log; the MLX device thread never logs",
+        "src/fse/_native_part.pxi imports warnings; only ['src/fse/_log.py'] may",
+        "src/fse/_store.py imports logging; only ['src/fse/_log.py'] may",
+    ]
 
 
 def test_only_the_loader_of_a_device_backend_imports_its_library(tool, tmp_path):
@@ -164,7 +189,7 @@ def test_only_the_loader_of_a_device_backend_imports_its_library(tool, tmp_path)
     files["src/fse/_keyword.py"] = 'import importlib\nimportlib.import_module(name="mlx.core")\n'
     cfg = _fse_tree(tmp_path, files)
     cfg["device-libraries"] = {"mlx": ["mlx"], "cuda": ["cupy"]}
-    errors = tool["device_import_errors"](tmp_path, cfg)
+    errors = tool["IMPORTS"]["device_import_errors"](tmp_path, cfg)
     assert len(errors) == 7, errors
     for name in ("_alias.py", "_renamed.py", "_keyword.py"):
         assert any(f"src/fse/{name} imports mlx" in e for e in errors), (name, errors)
@@ -217,6 +242,8 @@ def _repo(tmp_path, body, ratchet=""):
     pyproject = (ROOT / "pyproject.toml").read_text()
     start = pyproject.index("\n[tool.ruff.lint.mccabe]\n")
     settings = pyproject[start : pyproject.index("# The ratchet:")]
+    # Without the modules of the MLX device thread, which this repository does not have.
+    settings = re.sub(r"\nlog-free = \[[^]]*\]\n", "\n", settings)
     contracts = pyproject[pyproject.index("\n[tool.importlinter]\n") :]
     contracts = contracts[: contracts.index("# --- Unused code")]
     (tmp_path / "pyproject.toml").write_text(settings + ratchet + "\n" + contracts)
@@ -256,7 +283,11 @@ def test_the_command_reports_a_failing_tool(tool, tmp_path, capsys):
 
 def test_extension_imports_across_lines_and_against_comment_tricks(tool):
     source = 'from fse import (\n    _contract,\n    _wordvectors,\n)\n# """\nimport torch\n# """\nx = "# not a comment"\n'
-    assert tool["extension_imports"](source) == ["fse._contract", "fse._wordvectors", "torch"]
+    assert tool["IMPORTS"]["extension_imports"](source) == [
+        "fse._contract",
+        "fse._wordvectors",
+        "torch",
+    ]
 
 
 def _commit(repo, message):
@@ -322,7 +353,9 @@ def test_the_command_rejects_a_forbidden_native_import(tool, tmp_path, capsys):
     ],
 )
 def test_hidden_imports_are_found(tool, source):
-    assert any(m.split(".")[0] == "torch" for m in tool["extension_imports"](source)), source
+    assert any(m.split(".")[0] == "torch" for m in tool["IMPORTS"]["extension_imports"](source)), (
+        source
+    )
 
 
 @pytest.mark.parametrize(
@@ -338,7 +371,9 @@ def test_hidden_imports_are_found(tool, source):
     ],
 )
 def test_imports_in_strings_and_comments_are_ignored(tool, source):
-    assert not any(m.split(".")[0] == "torch" for m in tool["extension_imports"](source)), source
+    assert not any(
+        m.split(".")[0] == "torch" for m in tool["IMPORTS"]["extension_imports"](source)
+    ), source
 
 
 @needs_lint_tools

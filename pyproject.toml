@@ -297,6 +297,18 @@ native-imports = ["fse._contract"]
 # fingerprint of fse is xxh3-128 through it (ARCHITECTURE.md, "Identities").
 hash-importers = ["src/fse/_container/_hash.py"]
 hash-modules = ["hashlib", "xxhash"]
+# The only modules that import logging or warnings: fse logs through fse._log
+# (ARCHITECTURE.md, "Logging"); if one of them splits, its parts join the list.
+log-importers = ["src/fse/_log.py", "src/fse/_log_config.py"]
+log-modules = ["logging", "warnings"]
+# What the MLX device thread runs: it never logs, so none of these imports fse._log.
+log-free = [
+    "src/fse/_backends/_mlx/_canary.py",
+    "src/fse/_backends/_mlx/_kernels.py",
+    "src/fse/_backends/_mlx/_sources.py",
+    "src/fse/_backends/_mlx/_load.py",
+    "src/fse/_backends/_mlx/_bounds.py",
+]
 # The device library of each device backend, by backend name: only
 # src/fse/_backends/_<name>/_load.py imports it; get_backend imports that backend lazily,
 # so `import fse` never does.
@@ -442,6 +454,7 @@ ignore_names = [
     "pytest_runtest_setup",     # hooks of tests/conftest.py, called by pytest
     "pytest_runtest_call",
     "pytest_runtest_teardown",
+    "import_errors",     # called by tools/check_guardrails.py, which loads its module by path
     "windows_file_maps", # a fixture used through pytest.mark.usefixtures
     "python_sigint",     # a fixture used through pytest.mark.usefixtures
     "normalizer",        # attributes of a Hugging Face tokenizer, read by tokenizers
