@@ -262,15 +262,20 @@ class Producer:
         code: int = 5,
         message: bytes | None = b"the producer failed",
         schema_code: int = 0,
+        garbage: bool = False,
     ) -> Any:
         """A stream capsule of ``arrays``; ``fail_at`` makes get_next fail there with
-        ``code`` and ``message`` (None: get_last_error gives NULL)."""
+        ``code`` and ``message`` (None: get_last_error gives NULL). With ``garbage`` a
+        failing callback writes a struct with a release into its output anyway, which a
+        consumer must not touch."""
         state = {"next": 0}
         error = ctypes.create_string_buffer(message) if message is not None else None
         self.keep(error, state)
 
         def get_schema(_stream, out):
             if schema_code:
+                if garbage:
+                    ctypes.memmove(out, ctypes.addressof(schema), ctypes.sizeof(ArrowSchema))
                 return schema_code
             ctypes.memmove(out, ctypes.addressof(schema), ctypes.sizeof(ArrowSchema))
             return 0
@@ -278,6 +283,8 @@ class Producer:
         def get_next(_stream, out):
             k = state["next"]
             if fail_at is not None and k == fail_at:
+                if garbage:
+                    ctypes.memmove(out, ctypes.addressof(arrays[0]), ctypes.sizeof(ArrowArray))
                 return code
             if k == len(arrays):
                 out.contents.release = ARRAY_RELEASE()

@@ -4,12 +4,14 @@ and the release of every struct exactly once (Arrow C Data and C Stream interfac
 import ctypes
 import gc
 import threading
+import time
 
-import numpy as np
 import pytest
 
 from fse import _native
-from support.arrow_c import Producer, layout
+from fse._text import make_lookup
+from support.arrow_c import Producer
+from support.text import vectors
 
 PARTS = [[b"a b", b"c"], [], [b"a longer string of text", b""], [b"d"]]
 
@@ -163,26 +165,89 @@ def test_a_released_column_reads_nothing():
         col.row_bytes(0)
 
 
-def test_a_column_being_read_is_not_released():
+@pytest.fixture
+def hooks():
+    yield _native._arrow_test_hooks
+    _native._arrow_test_hooks()
+
+
+@pytest.mark.parametrize("reader", ["span_bytes", "scan", "encode"])
+def test_a_column_being_read_is_not_released(hooks, reader):
+    """Every reader holds the column without the GIL; release() raises until it is done."""
     p = Producer()
-    strings = [b"some words of text"] * 2_000_000
-    buffers = layout(b"u", strings)
-    col = _native.ArrowColumn.from_array(
-        *p.array_capsules(p.schema(b"u"), p.array(buffers, len(strings)))
-    )
-    refused = []
-    worker = threading.Thread(target=col.scan, args=(0, col.rows, 1 << 30))
+    col = _native.ArrowColumn.from_stream(stream_of(p)[0])
+    lookup = make_lookup(vectors(), "fse_words@1")
+    calls = {
+        "span_bytes": lambda: col.span_bytes(0, col.rows),
+        "scan": lambda: col.scan(0, col.rows, 1),
+        "encode": lambda: col.encode(lookup, 0, col.rows, 0, _native.Workspace()),
+    }
+    hooks(hold=True)
+    worker = threading.Thread(target=calls[reader])
     worker.start()
-    while worker.is_alive():
-        try:
-            col.release()
-        except RuntimeError as error:
-            refused.append(str(error))
-            continue
-        break
+    deadline = time.monotonic() + 30
+    while _native._arrow_test_held() == 0 and time.monotonic() < deadline:
+        time.sleep(0.001)
+    assert _native._arrow_test_held() == 1  # the reader waits inside, without the GIL
+    with pytest.raises(RuntimeError, match="being read"):
+        col.release()
+    assert p.releases.count("array") == 0
+    hooks(hold=False)
     worker.join()
-    assert refused
-    assert "being read" in refused[0]
     col.release()
-    assert p.releases.count("array") == 1
-    assert np.all(buffers[1] >= 0)  # the producer's buffers were never written
+    assert p.releases.count("array") == len(PARTS)
+
+
+def test_a_failed_get_schema_leaves_its_output_alone():
+    p = Producer()
+    capsule, _ = stream_of(p, schema_code=22, garbage=True)
+    with pytest.raises(OSError, match="get_schema"):
+        _native.ArrowColumn.from_stream(capsule)
+    gc.collect()
+    assert (p.releases.count("schema"), p.releases.count("stream")) == (0, 1)
+
+
+def test_a_failed_get_next_leaves_its_output_alone():
+    p = Producer()
+    capsule, _ = stream_of(p, fail_at=1, garbage=True)
+    with pytest.raises(OSError, match="get_next"):
+        _native.ArrowColumn.from_stream(capsule)
+    gc.collect()
+    assert p.releases.count("array") == 1  # the one taken over, not the garbage
+
+
+def test_a_column_that_cannot_be_made_leaves_the_stream_with_its_capsule(hooks):
+    p = Producer()
+    capsule, _ = stream_of(p)
+    hooks(fail_new=True)
+    with pytest.raises(MemoryError):
+        _native.ArrowColumn.from_stream(capsule)
+    hooks()
+    assert p.releases.calls == []
+    col = _native.ArrowColumn.from_stream(capsule)  # not moved, so still there
+    assert col.rows == 5
+
+
+def test_an_array_that_cannot_be_taken_is_released_once(hooks):
+    p = Producer()
+    capsule, _ = stream_of(p)
+    hooks(take_limit=1)
+    with pytest.raises(MemoryError):
+        _native.ArrowColumn.from_stream(capsule)
+    hooks()
+    gc.collect()
+    # the first array by the column, the second (delivered, not taken) at once; no more read
+    assert p.releases.count("array") == 2
+    schema, array = p.array_capsules(p.schema(b"u"), p.strings(b"u", [b"a"]))
+    hooks(take_limit=0)
+    with pytest.raises(MemoryError):
+        _native.ArrowColumn.from_array(schema, array)
+    hooks()
+    assert _native.ArrowColumn.from_array(schema, array).rows == 1  # it stayed in its capsule
+
+
+def test_a_released_column_has_no_chunks():
+    col = _native.ArrowColumn.from_stream(stream_of(Producer())[0])
+    col.release()
+    assert list(col.chunk_starts) == [0]
+    assert list(col.byte_starts) == [0]

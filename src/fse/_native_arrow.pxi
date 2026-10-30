@@ -207,6 +207,43 @@ cdef inline void _seek(_Cursor *at, const fse_arrow_chunk *chunks, const int64_t
     at.end = starts[k + 1]
 
 
+# For the tests: make ArrowColumn() fail, make _take fail once this many arrays are taken,
+# and hold every reader (scan, encode, span_bytes) inside its section without the GIL
+# until the hold is lifted, counting the held ones.
+cdef bint _test_fail_new = False
+cdef Py_ssize_t _test_take_limit = PY_SSIZE_T_MAX
+cdef volatile int _test_hold = 0
+cdef volatile int _test_held = 0
+
+
+def _arrow_test_hooks(fail_new=False, take_limit=None, hold=False):
+    global _test_fail_new, _test_take_limit, _test_hold
+    _test_fail_new = fail_new
+    _test_take_limit = PY_SSIZE_T_MAX if take_limit is None else take_limit
+    _test_hold = 1 if hold else 0
+
+
+def _arrow_test_held():
+    return _test_held
+
+
+cdef inline void _reader_hold() noexcept nogil:
+    global _test_held
+    if _test_hold:
+        _test_held += 1
+        while _test_hold:
+            pass
+        _test_held -= 1
+
+
+cdef object _int64_copy(const int64_t *values, Py_ssize_t n):
+    """A new int64 array of n values; zeros where values is NULL (a released column)."""
+    out = np.zeros(n, dtype=np.int64)
+    if values != NULL:
+        memcpy(np.PyArray_DATA(out), values, n * sizeof(int64_t))
+    return out
+
+
 cdef int _arrow_encode_status(int status, const unsigned char *p, int64_t n, Py_ssize_t bad,
                               Py_ssize_t sentence, Py_ssize_t row) except -1:
     if status == ENCODE_OK:

@@ -27,6 +27,8 @@ cdef class ArrowColumn:
     cdef readonly int64_t copied_bytes
 
     def __cinit__(self):
+        if _test_fail_new:
+            raise MemoryError("could not allocate an ArrowColumn (test)")
         self._starts = <int64_t *>malloc(sizeof(int64_t))
         self._byte_starts = <int64_t *>malloc(sizeof(int64_t))
         if self._starts == NULL or self._byte_starts == NULL:
@@ -66,20 +68,21 @@ cdef class ArrowColumn:
         cdef ArrowArrayStream *source = <ArrowArrayStream *>_capsule_pointer(capsule, b"arrow_array_stream")
         if source.release == NULL:
             raise ValueError("the Arrow stream was released already")
+        cdef ArrowColumn column = ArrowColumn()  # before the move: it may fail
         cdef ArrowArrayStream stream
         memcpy(&stream, source, sizeof(ArrowArrayStream))
         source.release = NULL
         cdef ArrowSchema schema
         cdef ArrowArray array
         cdef int code
-        schema.release = NULL
-        cdef ArrowColumn column = ArrowColumn()
+        cdef bint have_schema = False  # a failed get_schema may leave anything in schema
         try:
             if stream.get_schema == NULL or stream.get_next == NULL:
                 raise ValueError("the Arrow stream has no get_schema or get_next")
             code = stream.get_schema(&stream, &schema)
             if code != 0:
                 _stream_error(&stream, code, "get_schema")
+            have_schema = True
             column._set_kind(_arrow_kind(&schema))
             while True:
                 array.release = NULL
@@ -88,9 +91,13 @@ cdef class ArrowColumn:
                     _stream_error(&stream, code, "get_next")
                 if array.release == NULL:
                     break  # the end of the stream
-                column._take(&array)
+                try:
+                    column._take(&array)
+                finally:
+                    if array.release != NULL:  # not taken over (no memory): ours to release
+                        array.release(&array)
         finally:
-            if schema.release != NULL:
+            if have_schema and schema.release != NULL:
                 schema.release(&schema)
             if stream.release != NULL:
                 stream.release(&stream)
@@ -150,6 +157,8 @@ cdef class ArrowColumn:
     cdef int _take(self, ArrowArray *source) except -1:
         """Take over one array (its release moves here at once), check it and add its rows."""
         cdef ArrowArray *grown
+        if self._n_arrays >= _test_take_limit:
+            raise MemoryError("could not grow the ArrowColumn (test)")
         if self._n_arrays == self._arrays_capacity:
             grown = <ArrowArray *>realloc(self._arrays, (2 * self._arrays_capacity + 4) * sizeof(ArrowArray))
             if grown == NULL:
@@ -187,6 +196,8 @@ cdef class ArrowColumn:
             raise ValueError("an Arrow string array has no children and no dictionary")
         if a.buffers == NULL:
             raise ValueError("the Arrow array has no buffers")
+        if a.n_buffers > PY_SSIZE_T_MAX // <int64_t>sizeof(void *):
+            raise ValueError(f"an Arrow array cannot have {a.n_buffers} buffers")
         if (a.n_buffers != 3) if self._kind != FSE_ARROW_UTF8_VIEW else (a.n_buffers < 3):
             raise ValueError(f"an Arrow string array of this format has not {a.n_buffers} buffers")
         if a.null_count < -1 or a.null_count > a.length:
@@ -297,18 +308,12 @@ cdef class ArrowColumn:
     @property
     def chunk_starts(self):
         """The first row of every chunk, then the number of rows (int64)."""
-        out = np.empty(self._n + 1, dtype=np.int64)
-        if not self._released:
-            memcpy(np.PyArray_DATA(out), self._starts, (self._n + 1) * sizeof(int64_t))
-        return out
+        return _int64_copy(self._starts, self._n + 1)
 
     @property
     def byte_starts(self):
         """The text bytes before every chunk, then all of them (int64)."""
-        out = np.empty(self._n + 1, dtype=np.int64)
-        if not self._released:
-            memcpy(np.PyArray_DATA(out), self._byte_starts, (self._n + 1) * sizeof(int64_t))
-        return out
+        return _int64_copy(self._byte_starts, self._n + 1)
 
     def row_bytes(self, Py_ssize_t row):
         """A copy of the bytes of one row."""
@@ -338,17 +343,22 @@ cdef class ArrowColumn:
         cdef const unsigned char *p
         cdef int64_t n, total = 0
         cdef int status = 0
-        with nogil:
-            if row < last:
-                _seek(&at, self._chunks, self._starts, self._n, row)
-            while row < last:
-                if row >= at.end:
+        self._readers += 1
+        try:
+            with nogil:
+                _reader_hold()
+                if row < last:
                     _seek(&at, self._chunks, self._starts, self._n, row)
-                if fse_arrow_row(at.chunk, row - at.base, &p, &n) != 0:
-                    status = 1
-                    break
-                total += n
-                row += 1
+                while row < last:
+                    if row >= at.end:
+                        _seek(&at, self._chunks, self._starts, self._n, row)
+                    if fse_arrow_row(at.chunk, row - at.base, &p, &n) != 0:
+                        status = 1
+                        break
+                    total += n
+                    row += 1
+        finally:
+            self._readers -= 1
         if status:
             raise ValueError(f"invalid Arrow offsets or view at row {row}")
         return total
@@ -379,6 +389,7 @@ cdef class ArrowColumn:
         self._readers += 1
         try:
             with nogil:
+                _reader_hold()
                 if pos < last:
                     _seek(&at, self._chunks, self._starts, self._n, pos)
                 while pos < last:
@@ -447,6 +458,7 @@ cdef class ArrowColumn:
             ws.ngram_offsets.size = 0
             ws.ngrams.size = 0
             with nogil:
+                _reader_hold()
                 if _push_i64_nogil(&ws.offsets, 0) or _push_i64_nogil(&ws.ngram_offsets, 0):
                     status = ENCODE_NO_MEMORY
                 if pos < last:

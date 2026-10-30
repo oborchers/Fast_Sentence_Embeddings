@@ -236,3 +236,10 @@ def test_ranges_and_sizes_are_checked():
         col.scan(0, 4, 0)
     with pytest.raises(ValueError, match="chunk_rows must be between"):
         col.scan(0, 4, 1, 0)
+
+
+def test_a_view_array_with_too_many_buffers_is_refused_before_they_are_read():
+    p = Producer()
+    buffers = layout(b"vu", STRINGS)
+    with pytest.raises(ValueError, match="cannot have"):
+        from_array(p, b"vu", p.array(buffers, 4, n_buffers=2**62))
