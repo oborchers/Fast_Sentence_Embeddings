@@ -21,7 +21,6 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Literal
 
-import numpy as np
 from numpy import ndarray
 
 from fse import _codes
@@ -29,9 +28,7 @@ from fse._backends import BACKEND_NAMES
 from fse._container import (
     CREATED_BY_KEY,
     FINGERPRINT_KEY,
-    CorruptArtifactError,
     SafetensorsContainer,
-    checksum,
 )
 from fse._contract import Normalize, UnsupportedArtifactError
 from fse._runtime import EncodeSpec, Pipeline, QuantizedRows, check_workers
@@ -43,7 +40,6 @@ from fse._wordvectors import WordVectors, _created_by
 from . import _batches, _folder, _persist, _pretrained
 from ._batches import EncodedBatch, check_sink, flush, run_into
 from ._format import (
-    TABLE_TENSORS,
     EncoderContent,
     Source,
     fasttext_parts,
@@ -98,15 +94,7 @@ class Encoder:
         out = object.__new__(cls)
         out._content = content
         out._word_vectors = word_vectors
-        out._spec = EncodeSpec(
-            word_vectors,
-            np.ones(len(word_vectors), dtype=np.float32),  # a finished table: every word weighs 1
-            content.steps,
-            content.tokenizer,
-            oov_weight=None if content.oov_weight is None else content.oov_weight[()],
-            max_ngrams=content.max_ngrams,
-            aggregation=content.aggregation,
-        )
+        out._spec = _persist.spec(content, word_vectors)
         out._path = path
         out._checksums = checksums
         out._fingerprint = fingerprint_
@@ -256,6 +244,24 @@ class Encoder:
         its table, its tokenizer with parameters, whether it normalizes, its provenance."""
         content = _persist.converted(word_vectors, tokenizer, normalize, source, license)
         return cls._new(content, word_vectors)
+
+    @validate_arguments
+    def quantize(self, dtype: Literal["float16", "int8"]):  # -> Encoder
+        """A new encoder with a float16 or int8 copy of this encoder's float32 table
+        (``quantize_rows@1``, int8 with one scale per row), in memory; ``save`` writes it.
+        Its rows are those of the quantized table, on the cpu backend bit for bit as its
+        reference computes them. They are not the rows of this encoder; how close they are
+        is measured.
+        Quantizing a float16 or int8 encoder again raises ``ValueError``."""
+        content, table = _persist.quantized(
+            self._content,
+            self._word_vectors,
+            self._checksums,
+            self._path,
+            self._spec.oov_weight,
+            dtype,
+        )
+        return Encoder._new(content, table, vocabulary=self._vocabulary)
 
     # --- encoding ---------------------------------------------------------------------
 
@@ -440,14 +446,7 @@ class Encoder:
     def verify(self):
         """Check the data this encoder holds (as it encodes with them) against the
         checksums it was loaded with, its file (if loaded), and its table."""
-        if self._checksums is not None:
-            tensors, _, _ = self._artifact()
-            held = {k: v for k, v in tensors.items() if k in self._checksums}
-            for name, array in held.items():
-                if name not in TABLE_TENSORS and checksum(array) != self._checksums[name]:
-                    raise CorruptArtifactError(
-                        f"tensor {name} of {self._path} does not match its checksum"
-                    )
+        _persist.check_held(self._artifact()[0], self._checksums, self._path)
         if self._path is not None:
             SafetensorsContainer().verify(self._path)
         self._word_vectors.verify()

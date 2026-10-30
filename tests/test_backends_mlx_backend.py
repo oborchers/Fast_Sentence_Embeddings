@@ -15,6 +15,7 @@ from fse import _reference
 from fse._backends import CpuBackend, PoolInput, Prepared
 from fse._contract import Batch, Normalize
 from support.conformance import TINY, mlx_module, require_mlx
+from support.encoder import finished
 from support.logs import captured, expect_log
 from support.runtime import texts, word_vectors
 
@@ -227,6 +228,35 @@ def test_encoders_on_mlx_give_the_cpu_bits(normalize):
     encoder = fse.Encoder.from_word_vectors(wv, normalize=normalize, max_ngrams=12, oov_weight=0.75)
     got = encoder.encode(sentences, backend="mlx", workers=3)
     assert got.tobytes() == encoder.encode(sentences, backend="cpu", workers=3).tobytes()
+
+
+@pytest.mark.usefixtures("mlx")
+@pytest.mark.parametrize("fasttext", [False, True])
+@pytest.mark.parametrize("dtype", ["float16", "int8"])
+def test_encoders_made_by_quantize_agree_with_the_cpu_on_mlx(dtype, fasttext):
+    """Encoder.quantize makes an encoder like any other: the device agrees with the cpu
+    within the tolerance contract (here a bound far looser than any rows need)."""
+    encoder = finished(fasttext=fasttext).quantize(dtype)
+    sentences = texts(400)
+    got = encoder.encode(sentences, backend="mlx", workers=3)
+    want = encoder.encode(sentences, backend="cpu", workers=3)
+    np.testing.assert_allclose(got, want, rtol=0, atol=1e-5)
+
+
+@pytest.mark.usefixtures("mlx")
+def test_an_int8_table_with_subnormal_scales_runs_on_the_host():
+    """A row whose largest value divided by 127 is subnormal gets a subnormal scale from
+    quantize_rows@1, which the GPU would flush: the encoder falls back to the host."""
+    rows = np.random.default_rng(2).standard_normal((20, 5)).astype(F32)
+    rows[4] *= F32(2.0**-120)  # absmax / 127 is below 2**-126
+    wv = fse.WordVectors.from_arrays(rows, words=[f"w{i}" for i in range(20)])
+    encoder = fse.Encoder.from_word_vectors(wv, normalize=False).quantize("int8")
+    assert 0 < encoder.word_vectors.scales[4] < np.finfo(F32).tiny
+    sentences = ["w1 w4 w7", "w4", "w2 w3"]
+    with expect_log("backend.fallback", backend="mlx", reason="subnormal_input") as records:
+        got = encoder.encode(sentences, backend="mlx")
+    assert got.tobytes() == encoder.encode(sentences, backend="cpu").tobytes()
+    assert any("subnormal" in r.getMessage() for r in records)
 
 
 @pytest.mark.parametrize("group_tokens", [1, 3, 8])

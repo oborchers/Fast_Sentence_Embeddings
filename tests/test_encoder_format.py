@@ -201,6 +201,54 @@ def test_the_golden_encoders_load_and_give_their_pinned_rows(name, mmap):
     assert made.fingerprint == fingerprint  # the writer still gives the same file
 
 
+GOLDEN_QUANTIZED = {
+    "encoder_wordpiece_int8": (
+        "xxh3-128:9552732320a90925b39493e87b5b20a5",
+        "int8",
+        [
+            "7f3f9abee5f777befafdf63eef3a49bf",
+            "069348bfe224a23d08e3ba3e7a45febe",
+            "0" * 32,
+            "ec3faebef3e8c4be565b213fc60c153f",
+            "2e5ce7be743d1a3e17fa4c3ee82e5bbf",
+        ],
+    ),
+    "encoder_unigram_float16": (
+        "xxh3-128:6df7a25a5600de6f8c0baef7013a81ad",
+        "float16",
+        [
+            "1e3b88bd00000000ad584c3f824219bf",
+            "000000003bc8473f8a95b1be273005bf",
+            "0" * 32,
+            "0450713e03f52f3f03d216bf03fcb4be",
+            "fd405bbeaebc163ffd405b3eddd83fbf",
+        ],
+    ),
+}
+
+
+@pytest.mark.parametrize("name", sorted(GOLDEN_QUANTIZED))
+@pytest.mark.parametrize("mmap", [False, True])
+def test_the_golden_quantized_encoders_load_and_give_their_pinned_rows(name, mmap):
+    """encoder 1 with a float16 or int8 table of a tokenizer with parameters is fixed:
+    these files, made by Encoder.quantize, load, keep their fingerprint and give the same
+    bits; their float32 tables are exact fractions, so the writer gives the same files."""
+    golden = runpy.run_path(str(GOLDEN / "make_quantized_golden.py"))
+    fingerprint, dtype, rows = GOLDEN_QUANTIZED[name]
+    encoder = Encoder.load(GOLDEN / "finished" / f"{name}.safetensors", mmap=mmap)
+    assert encoder.fingerprint == fingerprint
+    assert encoder.word_vectors.dtype == dtype
+    got = encoder.encode(golden["SENTENCES"], workers=1)
+    assert [row.tobytes().hex() for row in got] == rows
+    encoder.verify()
+    origin = golden["float32_tables"]()[name]
+    metadata = encoder.word_vectors.metadata
+    assert metadata["fse.quantized_from"] == origin.fingerprint
+    assert metadata["fse.quantization"] == "quantize_rows@1"
+    made = golden["encoders"]()[name]
+    assert made.fingerprint == fingerprint  # the writer still gives the same file
+
+
 @pytest.mark.parametrize("name", ["encoder_sif_unfolded", "encoder_usif_folded_int8"])
 @pytest.mark.parametrize("mmap", [False, True])
 def test_the_golden_encoders_of_a_pre_release_are_rejected(name, mmap):
