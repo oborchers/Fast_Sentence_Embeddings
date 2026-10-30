@@ -13,6 +13,9 @@ cdef extern from "_native_wordpiece.h":
                                   const unsigned char *first, int single) nogil
     int64_t fse_wp_normalize(const unsigned char *p, int64_t n, unsigned char *out,
                              uint32_t *run) nogil
+    int64_t fse_wp_normalize_ascii(const unsigned char *p, int64_t n, unsigned char *out,
+                                   uint32_t *run) nogil
+    int fse_wp_ascii_init() nogil
     int fse_wp_next_word(const unsigned char *q, int64_t m, int64_t *pos, int64_t *start,
                          int64_t *end) nogil
     int64_t fse_wp_validate(const unsigned char *p, int64_t i, int64_t n) nogil
@@ -20,6 +23,9 @@ cdef extern from "_native_wordpiece.h":
 
 # Parameters stay below this, as they are int64 in the state.
 cdef int64_t _WP_LIMIT = 1 << 62
+# The ASCII tables of the fast paths, derived from the Unicode table once (0, or 1 + the
+# first byte they cannot hold, which WordPieceState refuses).
+cdef int _WP_ASCII = fse_wp_ascii_init()
 
 
 cdef int64_t _wp_int(value, name, int64_t low) except -1:
@@ -95,6 +101,9 @@ cdef class WordPieceState:
     cdef _build(self, VocabTable table, vocab_bytes, vocab_offsets, unk_id, prefix,
                 max_input_chars_per_word, added_ids, max_tokens, max_chars, drop_unknown):
         table._check_ready()
+        if _WP_ASCII:
+            raise RuntimeError(f"the Unicode table of wordpiece@1 has an ASCII byte {_WP_ASCII - 1} "
+                               "of a shape the fast paths cannot take")
         data, offsets = _vocab_arrays(vocab_bytes, vocab_offsets)
         cdef Py_ssize_t n = len(offsets) - 1
         if n != len(table):
@@ -228,7 +237,8 @@ cdef inline int _wp_piece(WordPieceState st, const unsigned char *p, Py_ssize_t 
     """Steps 3 to 5 for the piece p[0:n] between added tokens; WP_FULL once the token cut
     is reached after a whole word."""
     cdef unsigned char *q = <unsigned char *>ws.norm.data
-    cdef int64_t m = fse_wp_normalize(p, n, q, <uint32_t *>ws.run.data)
+    cdef int64_t m = (fse_wp_normalize(p, n, q, <uint32_t *>ws.run.data) if st.generic
+                      else fse_wp_normalize_ascii(p, n, q, <uint32_t *>ws.run.data))
     cdef int64_t pos = 0, start, end
     if m < 0:
         bad[0] = -1 - m

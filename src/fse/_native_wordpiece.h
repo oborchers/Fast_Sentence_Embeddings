@@ -106,25 +106,82 @@ static inline int64_t fse_wp_items(uint32_t cp, uint32_t e, uint32_t *run, int64
     return fse_wp_item(cp, run, r, out, m);  /* itself, of class 0 */
 }
 
+/* One code point of p at *i, which it advances: its items into the run or out + m.
+   Returns the new end, or -1 - i for invalid UTF-8 at p[i]. */
+static inline int64_t fse_wp_step(const uint8_t *p, int64_t *i, int64_t n, uint8_t *out,
+                                  uint32_t *run, int64_t *r, int64_t m) {
+    uint32_t cp;
+    int len = 1;
+    if (p[*i] < 0x80) {
+        cp = p[*i];
+    } else {
+        len = fse_utf8_decode(p, *i, n, &cp);
+        if (!len) return -1 - *i;
+    }
+    *i += len;
+    uint32_t e = fse_bert_entry(cp);
+    if (e & FSE_BERT_DROP) return m;
+    if (e & FSE_BERT_CJK) m = fse_wp_item(0x20, run, r, out, m);
+    m = fse_wp_items(cp, e, run, r, out, m);
+    if (e & FSE_BERT_CJK) m = fse_wp_item(0x20, run, r, out, m);
+    return m;
+}
+
 /* Steps 3.1 to 3.5 of the piece p[0:n] into out, which holds 3 n bytes; run holds 3 n
-   items (each is at least one byte of out). Returns the bytes written, or -1 - i for the first invalid UTF-8 at p[i]. */
+   items (each is at least one byte of out). Returns the bytes written, or -1 - i for the
+   first invalid UTF-8 at p[i]. The generic path: every code point by fse_wp_step. */
 static int64_t fse_wp_normalize(const uint8_t *p, int64_t n, uint8_t *out, uint32_t *run) {
     int64_t i = 0, m = 0, r = 0;
     while (i < n) {
-        uint32_t cp;
-        int len = 1;
-        if (p[i] < 0x80) {
-            cp = p[i];
-        } else {
-            len = fse_utf8_decode(p, i, n, &cp);
-            if (!len) return -1 - i;
+        m = fse_wp_step(p, &i, n, out, run, &r, m);
+        if (m < 0) return m;
+    }
+    return fse_wp_flush(run, r, out, m);
+}
+
+/* The ASCII tables of the fast paths, derived from fse_bert_entry by fse_wp_ascii_init:
+   the normalized byte of an ASCII byte, whether it is kept, and the class of an ASCII
+   byte of normalized text (FSE_BERT_SPACE, FSE_BERT_PUNCT or 0 for a word byte). */
+static uint8_t fse_wp_ascii_map[128], fse_wp_ascii_keep[128], fse_wp_ascii_class[128];
+
+/* Fills the ASCII tables. Every ASCII entry must have one of three shapes: unchanged,
+   removed (FSE_BERT_DROP), or one ASCII item of class 0 (FSE_BERT_EXPAND). Returns 0, or
+   1 + b for the first byte b of another shape, which the fast paths cannot take. */
+static int fse_wp_ascii_init(void) {
+    for (uint32_t b = 0; b < 128; b++) {
+        uint32_t e = fse_bert_entry(b);
+        fse_wp_ascii_class[b] = (uint8_t)(e & (FSE_BERT_SPACE | FSE_BERT_PUNCT));
+        fse_wp_ascii_map[b] = (uint8_t)b;
+        fse_wp_ascii_keep[b] = 1;
+        if (e & (FSE_BERT_CJK | FSE_BERT_HANGUL)) return 1 + (int)b;
+        if (e & FSE_BERT_DROP) {
+            fse_wp_ascii_keep[b] = 0;
+        } else if (e & FSE_BERT_EXPAND) {
+            const uint32_t *items = fse_bert_pool + (e >> FSE_BERT_SHIFT);
+            if (items[0] != 1 || items[1] >= 0x80) return 1 + (int)b;  /* class 0 below 0x80 */
+            fse_wp_ascii_map[b] = (uint8_t)items[1];
         }
-        i += len;
-        uint32_t e = fse_bert_entry(cp);
-        if (e & FSE_BERT_DROP) continue;
-        if (e & FSE_BERT_CJK) m = fse_wp_item(0x20, run, &r, out, m);
-        m = fse_wp_items(cp, e, run, &r, out, m);
-        if (e & FSE_BERT_CJK) m = fse_wp_item(0x20, run, &r, out, m);
+    }
+    return 0;
+}
+
+/* fse_wp_normalize with the ASCII fast path: while the run of marks is empty, an ASCII
+   byte is its table entry. A byte that is not ASCII, and any byte while the run holds
+   marks (an ASCII byte ends the run, a removed one does not), takes fse_wp_step. */
+static int64_t fse_wp_normalize_ascii(const uint8_t *p, int64_t n, uint8_t *out,
+                                      uint32_t *run) {
+    int64_t i = 0, m = 0, r = 0;
+    while (i < n) {
+        if (r == 0) {
+            while (i < n && p[i] < 0x80) {
+                uint8_t b = p[i++];
+                out[m] = fse_wp_ascii_map[b];
+                m += fse_wp_ascii_keep[b];
+            }
+            if (i == n) break;
+        }
+        m = fse_wp_step(p, &i, n, out, run, &r, m);
+        if (m < 0) return m;
     }
     return fse_wp_flush(run, r, out, m);
 }
