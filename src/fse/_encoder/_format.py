@@ -52,11 +52,13 @@ from fse._wordvectors_format import FORMAT_VERSION as WORD_VECTORS_VERSION
 
 from ._format_tokenizer import (
     TOKENIZER_KEYS,
+    TOKENIZER_TENSORS,
     check_tokenizer_table,
     integer,
     json_object,
     tokenizer_metadata,
     tokenizer_of,
+    tokenizer_tensors,
 )
 
 # The ngrams an unknown FastText word uses at most, unless an encoder is given another.
@@ -190,6 +192,7 @@ def to_artifact(
     if content.max_ngrams is not None:
         metadata["fse.max_ngrams"] = str(content.max_ngrams)
     metadata.update(tokenizer_metadata(content.tokenizer))
+    tensors.update(tokenizer_tensors(content.tokenizer))
     if content.source is not None:
         source = content.source
         value: dict[str, Any] = {
@@ -226,7 +229,7 @@ def from_artifact(
             f"aggregate to {output}"
         )
     content = EncoderContent(
-        tokenizer=tokenizer_of(metadata),
+        tokenizer=tokenizer_of(metadata, tensors),
         steps=_steps(metadata, output),
         oov_weight=_oov_weight(tensors, metadata),
         max_ngrams=integer(metadata, "fse.max_ngrams") if "fse.max_ngrams" in metadata else None,
@@ -241,7 +244,7 @@ def from_artifact(
         tensors.get("vocab.bytes"),
         tensors.get("vocab.offsets"),
     )
-    extra = set(tensors) - TABLE_TENSORS - {"oov_weight"}
+    extra = set(tensors) - TABLE_TENSORS - TOKENIZER_TENSORS - {"oov_weight"}
     if extra:
         raise ValueError(f"tensors the encoder does not use: {sorted(extra)}")
     table = {k: v for k, v in tensors.items() if k in TABLE_TENSORS}

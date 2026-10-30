@@ -143,7 +143,12 @@ CANONICAL = json.dumps(CONFIG.to_json(), sort_keys=True, separators=(",", ":"))
             ValueError,
             "whose token is b'a'",
         ),
-        ("fse.tokenizer", "fse_words@1", ValueError, "are keys of wordpiece@1, not of"),
+        (
+            "fse.tokenizer",
+            "fse_words@1",
+            ValueError,
+            "are keys of a tokenizer with parameters, not of",
+        ),
         ("fse.source", '{"format":"x"}', ValueError, "exactly format, repo and revision"),
         ("fse.source", '{"format":"","repo":null,"revision":null}', ValueError, "non-empty str"),
         (
@@ -269,14 +274,14 @@ def _vocabulary(tokens):
 def test_the_keys_round_trip_in_the_module_of_their_own():
     metadata = fmt.tokenizer_metadata(SPEC)
     assert set(metadata) == set(fmt.TOKENIZER_KEYS)
-    assert fmt.tokenizer_of({"fse.tokenizer": "wordpiece@1", **metadata}) == SPEC
+    assert fmt.tokenizer_of({"fse.tokenizer": "wordpiece@1", **metadata}, {}) == SPEC
     assert fmt.tokenizer_metadata(TokenizerSpec("fse_words@1")) == {}
-    assert fmt.tokenizer_of({"fse.tokenizer": "external"}) == TokenizerSpec("external")
-    with pytest.raises(ValueError, match="are keys of wordpiece@1"):
-        fmt.tokenizer_of({"fse.tokenizer": "fse_words@1", "fse.unknown": "drop"})
+    assert fmt.tokenizer_of({"fse.tokenizer": "external"}, {}) == TokenizerSpec("external")
+    with pytest.raises(ValueError, match="are keys of a tokenizer with parameters"):
+        fmt.tokenizer_of({"fse.tokenizer": "fse_words@1", "fse.unknown": "drop"}, {})
     config = {"fse.tokenizer_config": metadata["fse.tokenizer_config"]}
     with pytest.raises(ValueError, match=r"needs the metadata key fse\.unknown"):
-        fmt.tokenizer_of({"fse.tokenizer": "wordpiece@1", **config})
+        fmt.tokenizer_of({"fse.tokenizer": "wordpiece@1", **config}, {})
 
 
 def test_integers_and_json_objects_are_strict():
