@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.diff.outputs.code }}
-      # The native code and the build: wheels, and the macOS test job.
+      # The native code and the build: wheels (test-mlx covers the macOS tests).
       native: ${{ steps.diff.outputs.native }}
       # The dependency pins: the job with the minimum versions.
       deps: ${{ steps.diff.outputs.deps }}
@@ -90,9 +90,12 @@ jobs:
             flag mlx '^src/fse/_backends/(_mlx/|__init__\.py$)|^tests/test_backends_mlx|^tests/test_conformance_device|^tests/support/(fake_mlx|conformance)\.py$|^src/fse/_native|^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|\.(pyx|pxd|pxi|h)$'
             flag sdist '^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|^src/fse/[^/]*\.(pyx|pxd|pxi|h)$'
           } >> "$GITHUB_OUTPUT"
-          # Linux on 3.13, plus macOS when the native code changes, plus the minimum
-          # versions when the pins change.
-          matrix=$(jq -nc --argjson native "$(grep -qx 'native=true' "$GITHUB_OUTPUT" && echo true || echo false)" --argjson deps "$(grep -qx 'deps=true' "$GITHUB_OUTPUT" && echo true || echo false)" '[{os: "ubuntu-latest", "python-version": "3.13", deps: "latest"}] + (if $native then [{os: "macos-latest", "python-version": "3.13", deps: "latest"}] else [] end) + (if $deps then [{os: "ubuntu-latest", "python-version": "3.11", deps: "min"}] else [] end)')
+          # Linux on 3.13, plus the minimum versions when the pins change. No macOS entry:
+          # test-mlx runs the whole suite (pytest tests -m "not network", Python 3.13, group
+          # test plus mlx) on macOS, and the mlx output is true wherever native is (its
+          # pattern contains all of native's), so a macOS entry here would repeat it. The
+          # entry stays only for a case where native is true and mlx is not.
+          matrix=$(jq -nc --argjson native "$(grep -qx 'native=true' "$GITHUB_OUTPUT" && echo true || echo false)" --argjson mlx "$(grep -qx 'mlx=true' "$GITHUB_OUTPUT" && echo true || echo false)" --argjson deps "$(grep -qx 'deps=true' "$GITHUB_OUTPUT" && echo true || echo false)" '[{os: "ubuntu-latest", "python-version": "3.13", deps: "latest"}] + (if ($native and ($mlx | not)) then [{os: "macos-latest", "python-version": "3.13", deps: "latest"}] else [] end) + (if $deps then [{os: "ubuntu-latest", "python-version": "3.11", deps: "min"}] else [] end)')
           echo "test_matrix={\"include\":$matrix}" >> "$GITHUB_OUTPUT"
 
   lint:
@@ -141,19 +144,22 @@ jobs:
           uv pip install
           "numpy==1.26.4" "pydantic==2.5.0" "xxhash==3.2.0" "gensim==4.3.3" "safetensors==0.4.0"
           "scikit-learn==1.5.0" "huggingface-hub==1.0.0"
-      - name: Run tests with coverage
+      # A pull request skips the coverage (the merged report runs on master and tags only)
+      # and so runs faster.
+      - name: Run tests${{ github.event_name != 'pull_request' && ' with coverage' || '' }}
         if: matrix.deps != 'min'
-        run: make test-cov
+        run: make ${{ github.event_name == 'pull_request' && 'test' || 'test-cov' }}
         env:
           COVERAGE_FILE: .coverage.${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.deps }}
-      - name: Run tests with coverage on minimum dependencies
+      - name: Run tests${{ github.event_name != 'pull_request' && ' with coverage' || '' }} on minimum dependencies
         if: matrix.deps == 'min'
-        run: make test-cov
+        run: make ${{ github.event_name == 'pull_request' && 'test' || 'test-cov' }}
         env:
           # Keep the pinned minimum versions instead of re-syncing the lockfile.
           UV_NO_SYNC: "1"
           COVERAGE_FILE: .coverage.${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.deps }}
       - name: Upload coverage
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: coverage-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.deps }}
@@ -229,12 +235,14 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
               out.write(f"metal={'true' if metal else 'false'}\n")
           PY
-      - name: Run tests with coverage, the mlx backend required where Metal works
-        run: make test-cov
+      # A pull request skips the coverage, as in the test job.
+      - name: Run tests${{ github.event_name != 'pull_request' && ' with coverage' || '' }}, the mlx backend required where Metal works
+        run: make ${{ github.event_name == 'pull_request' && 'test' || 'test-cov' }}
         env:
           FSE_REQUIRE_MLX: ${{ steps.probe.outputs.metal == 'true' && '1' || '' }}
           COVERAGE_FILE: .coverage.macos-mlx
       - name: Upload coverage
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: coverage-macos-mlx
@@ -354,9 +362,9 @@ jobs:
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
       - uses: pypa/cibuildwheel@b9e566a2b284570af229f6c2a33673410d0389a3  # v4.3.4
         env:
-          # A pull request builds every wheel but tests those of the oldest and the newest
-          # Python; the test jobs cover the versions between. master and tags test all.
-          CIBW_TEST_SKIP: ${{ github.event_name == 'pull_request' && 'cp312-* cp313-* cp314-*' || '' }}
+          # A pull request builds every wheel but tests only those of the newest Python; the
+          # test jobs cover 3.11 (the minimum job) to 3.13. master and tags test all.
+          CIBW_TEST_SKIP: ${{ github.event_name == 'pull_request' && 'cp311-* cp312-* cp313-* cp314-*' || '' }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: dist-wheels-${{ matrix.os }}
