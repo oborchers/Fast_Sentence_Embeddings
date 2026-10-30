@@ -17,16 +17,19 @@ cdef extern from "_native_text.h":
     int FSE_TOKENIZER_EXTERNAL
     int FSE_TOKENIZER_FSE_WORDS
     int FSE_TOKENIZER_WORDPIECE
+    int FSE_TOKENIZER_UNIGRAM
 
 fse_text_init()
 
 TOKENIZER_EXTERNAL = FSE_TOKENIZER_EXTERNAL
 TOKENIZER_FSE_WORDS = FSE_TOKENIZER_FSE_WORDS
 TOKENIZER_WORDPIECE = FSE_TOKENIZER_WORDPIECE
+TOKENIZER_UNIGRAM = FSE_TOKENIZER_UNIGRAM
 _TOKENIZERS = {
     "external": FSE_TOKENIZER_EXTERNAL,
     "fse_words@1": FSE_TOKENIZER_FSE_WORDS,
     "wordpiece@1": FSE_TOKENIZER_WORDPIECE,
+    "unigram@1": FSE_TOKENIZER_UNIGRAM,
 }
 
 
@@ -65,8 +68,8 @@ def _raise_decode_error(data, position, where):
 def tokenize(text, tokenizer="fse_words@1"):
     """The tokens of one sentence (str, or UTF-8 bytes) by the native tokenizer."""
     cdef int code = _tokenizer_code(tokenizer)
-    if code == FSE_TOKENIZER_WORDPIECE:
-        raise ValueError("wordpiece@1 gives ids of its vocabulary: encode with a TextLookup")
+    if code == FSE_TOKENIZER_WORDPIECE or code == FSE_TOKENIZER_UNIGRAM:
+        raise ValueError(f"{tokenizer} gives ids of its vocabulary: encode with a TextLookup")
     if isinstance(text, str):
         data = (<str>text).encode("utf-8")
     elif isinstance(text, bytes):
@@ -109,6 +112,7 @@ cdef enum:
     ENCODE_NO_MEMORY = 1
     ENCODE_BAD_UTF8 = 2
     ENCODE_TOO_LONG = 3
+    ENCODE_BROKEN = 4
 
 
 cdef inline int _ensure(_Buffer *b, Py_ssize_t extra) noexcept nogil:
@@ -125,6 +129,7 @@ cdef class Workspace:
     """
 
     cdef _Buffer cand, starts, ends, word, tokens, offsets, ngram_offsets, ngrams, norm, run
+    cdef _Buffer lattice, cands  # the lattice and the candidates of unigram@1
     cdef bint busy
     # The tokens the tokenizer gave in the last encode, unknown words included
     # (benchmarks/bench_vocab.py measures per token with it).
@@ -141,6 +146,8 @@ cdef class Workspace:
         free(self.ngrams.data)
         free(self.norm.data)
         free(self.run.data)
+        free(self.lattice.data)
+        free(self.cands.data)
 
     def __reduce__(self):
         raise TypeError("a Workspace belongs to one worker and cannot be pickled")
@@ -157,6 +164,7 @@ cdef class TextLookup:
 
     cdef VocabTable table
     cdef WordPieceState wordpiece
+    cdef UnigramState unigram
     cdef readonly int tokenizer
     cdef bint fasttext
     cdef unsigned int min_n, max_n
@@ -165,7 +173,7 @@ cdef class TextLookup:
     cdef int _state
 
     def __init__(self, VocabTable table not None, tokenizer, fasttext=None, max_ngrams=0,
-                 wordpiece=None):
+                 wordpiece=None, unigram=None):
         # Built once, as a VocabTable: the state is set before any Python code runs, so a
         # second __init__ (from another thread or from within this one) raises.
         if self._state != TABLE_NEW:
@@ -174,6 +182,7 @@ cdef class TextLookup:
         try:
             self._build(table, tokenizer, fasttext, max_ngrams)
             self._build_wordpiece(table, wordpiece, fasttext)
+            self._build_unigram(table, unigram, fasttext)
         except BaseException:
             self._state = TABLE_FAILED
             raise
@@ -215,6 +224,20 @@ cdef class TextLookup:
             raise ValueError("wordpiece@1 takes no FastText")
         self.wordpiece = wordpiece
 
+    cdef _build_unigram(self, VocabTable table, unigram, fasttext):
+        if self.tokenizer != FSE_TOKENIZER_UNIGRAM:
+            if unigram is not None:
+                raise ValueError("a UnigramState is for the tokenizer unigram@1")
+            return
+        if not isinstance(unigram, UnigramState):
+            raise TypeError(f"unigram@1 needs a UnigramState, not {type(unigram).__name__}")
+        (<UnigramState>unigram)._check_ready()
+        if (<UnigramState>unigram).table is not table:
+            raise ValueError("the UnigramState is built on another VocabTable")
+        if fasttext is not None:
+            raise ValueError("unigram@1 takes no FastText")
+        self.unigram = unigram
+
     def __reduce__(self):
         raise TypeError("a TextLookup cannot be pickled; build it from the word vectors")
 
@@ -232,6 +255,8 @@ cdef class TextLookup:
             return ENCODE_TOO_LONG
         if self.tokenizer == FSE_TOKENIZER_WORDPIECE:
             return _wordpiece_sentence(self.wordpiece, p, n, ws, bad)
+        if self.tokenizer == FSE_TOKENIZER_UNIGRAM:
+            return _unigram_sentence(self.unigram, p, n, ws, bad)
         ws.cand.size = 0
         ws.starts.size = 0
         ws.ends.size = 0
@@ -345,6 +370,8 @@ cdef class TextLookup:
                         sentence += 1
             if status == ENCODE_NO_MEMORY:
                 raise MemoryError("could not grow the buffers of the Workspace")
+            if status == ENCODE_BROKEN:
+                raise AssertionError(f"the lattice of unigram@1 broke in sentence {sentence} of the range")
             if status == ENCODE_TOO_LONG:
                 raise ValueError(
                     f"sentence {sentence} of the range has {end - start} bytes, more than "

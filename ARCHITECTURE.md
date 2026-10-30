@@ -86,6 +86,8 @@ src/fse/
   _native_search.pxi     #   inverse norms, cosines and scores of many vectors,
   _native_text.pxi       #   the tokenizers and the text lookup,
   _native_wordpiece.pxi  #   wordpiece@1: its state, the greedy match, a sentence
+  _native_unigram.pxi    #   unigram@1: its state and its checks,
+  _native_unigram_steps.pxi # the normalizer steps, the candidates, the lattice, a sentence
   _native_head.pxi       #   the logits, exp@1, the links and the labels of linear heads
   _native.pxd, .pyi      # shared C types of the extension, and its type stubs
   _native_kernel.h       # the C kernel: its contract, ISA detection and dispatch, and
@@ -101,6 +103,7 @@ src/fse/
   _unicode.py            # generated: the same table for the reference
   _native_added.h        # the scan for added tokens, UTF-8 validation and the character cut
   _native_wordpiece.h    # wordpiece@1: normalization and pre-tokenization
+  _native_unigram.h      # unigram@1: graphemes, the charsmap search, the float64 Viterbi
   _native_wordpiece_trie.h # the byte trie of a vocabulary for the greedy match of wordpiece@1
   _native_unicode_bert.h # generated: the composed normalization table of wordpiece@1
   _unicode_bert.py       # generated: the Unicode data of wordpiece@1 for the reference

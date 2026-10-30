@@ -333,14 +333,17 @@ layers = [
     "_backends | _stream | _text_file | _hub",
     "_text",
     "_wordvectors",
-    "_wordvectors_format | _tokenizer_json | _tokenizer_json_unigram",
+    "_wordvectors_format | _tokenizer_json",
+    "_tokenizer_json_unigram",
     # What the readers of a tokenizer.json share.
     "_tokenizer_json_common",
     # The reference of linear heads builds on the reference of the encoder (fma32, dot16),
     # that of unigram@1 on the added tokens of wordpiece@1.
     "_reference_head | _reference_unigram",
     # Independent of each other: the references never share code with what they check.
-    "_container | _codes | _reference | _reference_text | _reference_wordpiece | _tokenizer_spec | _tokenizer_unigram | _validation",
+    "_container | _codes | _reference | _reference_text | _reference_wordpiece | _tokenizer_spec | _validation",
+    # The parameters of unigram@1, which TokenizerSpec holds.
+    "_tokenizer_unigram",
     "_contract | _cpus | _unicode | _unicode_bert | _unicode_graphemes | _charsmap",
 ]
 

@@ -57,6 +57,11 @@ class Charsmap:
         self._values = values
         self._cache: dict[int, str] = {}
 
+    def parts(self) -> tuple[np.ndarray, bytes, int]:
+        """The units (uint32), the values and the root of the checked blob, as the native
+        tokenizer takes them."""
+        return np.array(self._units, dtype=np.uint32), self._values, self._root
+
     def find(self, key: bytes) -> str | None:
         """The value of the shortest key that is a prefix of ``key``, or None. The search
         ends at a byte 0, as tokenizers' does."""
