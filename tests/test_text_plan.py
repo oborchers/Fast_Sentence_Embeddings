@@ -27,8 +27,8 @@ def _check(offsets, chunk_bytes, chunk_rows):
         last = offsets[end] - offsets[end - 1]
         assert offsets[end] - offsets[start] <= chunk_bytes + last
     total = int(offsets[-1] - offsets[0])
-    pieces = max(1, -(-total // chunk_bytes))
-    assert len(cuts) - 1 <= pieces + -(-n // chunk_rows)
+    pieces = max(1, -(-total // chunk_bytes), -(-n // chunk_rows))
+    assert len(cuts) - 1 <= pieces + -(-n // chunk_rows)  # the pieces and their row splits
     return cuts
 
 
@@ -78,3 +78,11 @@ def test_the_work_is_bounded_by_the_cuts(monkeypatch):
     assert len(cuts) == 300_001
     assert len(calls) <= 300_001
     assert time.perf_counter() - start < 30
+
+
+def test_where_the_rows_bind_the_pieces_follow_them():
+    """Short sentences: the row bound sets the number of pieces, so they are cut once by
+    bytes into that many, not cut by bytes and each split by rows (twice the tasks)."""
+    cuts = offset_cuts(_offsets([60] * 65_536), 500_000, 5_592)
+    assert len(cuts) - 1 == -(-65_536 // 5_592)
+    assert np.diff(cuts).max() <= 5_592
