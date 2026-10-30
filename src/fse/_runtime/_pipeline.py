@@ -20,7 +20,7 @@ from __future__ import annotations
 import dataclasses
 import threading
 from contextlib import AbstractContextManager, nullcontext
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from numpy import ndarray
@@ -232,12 +232,11 @@ class Pipeline:
         codes = target[0]
         rows = codes if codes.dtype == np.float32 else _scratch(local, len(codes), self.output_dim)
         workspace = _workspace(local)
-        backend, lookup, prepared = self.backend, self.lookup, self.prepared
+        lookup, prepared = self.lookup, self.prepared
+        text_rows = cast(Any, self.backend).text_rows  # where capabilities say text_rows
 
         def run(text: object, first: int, last: int, n: int, row: int, after: Any) -> None:
-            backend.text_rows(
-                text, (first, last, n, base + row), after, lookup, workspace, prepared, rows
-            )
+            text_rows(text, (first, last, n, base + row), after, lookup, workspace, prepared, rows)
 
         with self._serial:
             encode_with(task.chunk, run)

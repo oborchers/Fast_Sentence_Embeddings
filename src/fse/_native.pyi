@@ -256,7 +256,7 @@ def pool_text(
     kernel: WeightedMean,
     lookup: TextLookup,
     ws: Workspace,
-    text: tuple[object, ndarray | None] | ArrowColumn,
+    text: object,
     first: int,
     last: int,
     rows: int,
