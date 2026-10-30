@@ -104,3 +104,25 @@ def test_a_large_vocabulary_closes_blocks():
     state = _state(tokens)
     _assert_exact(state, tokens)
     assert state._trie_bytes > 16 * 256 * 12
+
+
+def _ids(state, texts):
+    lookup = _native.TextLookup(state.table, "wordpiece@1", wordpiece=state)
+    data = np.frombuffer(("\n".join(texts) + "\n").encode(), np.uint8)
+    batch = lookup.encode(data, None, 0, len(data), 0, _native.Workspace())
+    return batch.tokens.tolist(), batch.offsets.tolist()
+
+
+def test_the_trie_gives_the_ids_of_the_greedy_loop():
+    """Tokens that are no UTF-8 can match only where their bytes are a valid prefix, as in
+    the loop of lookups; random words of the test vocabulary split alike."""
+    import random
+
+    odd = [b"[UNK]", b"\xff", b"a\x80", b"##\xc3", b"\xc3\xa9", b"a", b"##\xa9", b"##a", b"\xc3"]
+    texts = ["aé aa éa aéé ÿ", "a" * 30 + "é"]
+    for tokens in (odd, [t.encode() for t in wp.vocabulary()]):
+        fast, generic = _state(tokens), _state(tokens, _generic=True)
+        rng = random.Random(len(tokens))
+        pieces = [t.decode(errors="ignore").removeprefix("##") for t in tokens]
+        words = ["".join(rng.choice(pieces) for _ in range(rng.randint(1, 6))) for _ in range(3000)]
+        assert _ids(fast, texts + words) == _ids(generic, texts + words)

@@ -69,9 +69,10 @@ def _vocab_arrays(vocab_bytes, vocab_offsets):
 
 cdef class WordPieceState:
     """The state of wordpiece@1 for one vocabulary, built once under the GIL and shared
-    by all workers: the VocabTable of all tokens (whose index is the token id), a second
-    table of the continuation tokens without their prefix with the id of each, and the
-    added tokens, longest first.
+    by all workers: the VocabTable of all tokens (whose index is the token id), the byte
+    trie of all tokens with the node of the continuation prefix, and the added tokens,
+    longest first. The generic path has a second table of the continuation tokens without
+    their prefix with the id of each instead of the trie.
 
     ``vocab_bytes`` and ``vocab_offsets`` are the tokens of ``table`` in id order (checked:
     every token is found at its id); ``added_ids`` the ids of the added tokens, whose
@@ -142,7 +143,8 @@ cdef class WordPieceState:
         if not isinstance(drop_unknown, bool):
             raise TypeError(f"drop_unknown must be a bool, not {type(drop_unknown).__name__}")
         self.drop_unknown = drop_unknown
-        self._build_continuation(data, offsets, prefix.encode("utf-8"))
+        if self.generic:  # the fast path reads the continuation tokens from the trie
+            self._build_continuation(data, offsets, prefix.encode("utf-8"))
         self._build_added(data, offsets, added_ids)
         self._build_trie(data, offsets, prefix.encode("utf-8"), trie_units)
         self.table = table
@@ -254,12 +256,11 @@ cdef inline Py_ssize_t _wp_word(WordPieceState st, const unsigned char *w, Py_ss
     piece): its ids, greedy from the left, or one unk_id; returns how many."""
     cdef Py_ssize_t chars = 0, k, start = 0, end, count = 0
     cdef uINT_t index
-    if st.generic or n > st.max_input_chars:  # n bytes are at most n code points
-        for k in range(n):
-            chars += (w[k] & 0xC0) != 0x80
-        if chars > st.max_input_chars:
-            ids[0] = st.unk_id
-            return 1
+    for k in range(n):
+        chars += (w[k] & 0xC0) != 0x80
+    if chars > st.max_input_chars:
+        ids[0] = st.unk_id
+        return 1
     while start < n:
         end = n
         while True:
@@ -280,6 +281,38 @@ cdef inline Py_ssize_t _wp_word(WordPieceState st, const unsigned char *w, Py_ss
         ids[count] = index
         count += 1
         start = end
+    return count
+
+
+cdef inline Py_ssize_t _wp_word_trie(WordPieceState st, const unsigned char *w, Py_ssize_t n,
+                                     uINT_t *ids) noexcept nogil:
+    """_wp_word by the trie: the code points are counted only when the word has more bytes
+    than the limit (n bytes are at most n code points); the whole word is one lookup of the
+    table, and after a miss every piece is the longest token the trie reads from the root
+    or from the node of the prefix, at a code-point boundary: the result of the greedy
+    loop, without a lookup per shorter candidate."""
+    cdef Py_ssize_t chars = 0, k, count = 0
+    cdef int64_t start = 0, end = 0, node = 0
+    cdef uint32_t index
+    if n > st.max_input_chars:
+        for k in range(n):
+            chars += (w[k] & 0xC0) != 0x80
+        if chars > st.max_input_chars:
+            ids[0] = st.unk_id
+            return 1
+    index = _vocab_lookup(&st.table.view, w, n, True)
+    if index != NOT_FOUND:
+        ids[0] = index
+        return 1
+    while start < n:
+        index = fse_trie_longest(&st.trie, node, w, start, n, &end) if node >= 0 else FSE_TRIE_NONE
+        if index == FSE_TRIE_NONE:
+            ids[0] = st.unk_id
+            return 1
+        ids[count] = index
+        count += 1
+        start = end
+        node = st.cont_root
     return count
 
 
@@ -307,7 +340,7 @@ cdef inline int _wp_piece(WordPieceState st, const unsigned char *p, Py_ssize_t 
                 return WP_FULL
         return WP_GO_ON
     while fse_wp_next_word_ascii(q, m, &pos, &start, &end):
-        count[0] += _wp_word(st, q + start, end - start, ids + count[0])
+        count[0] += _wp_word_trie(st, q + start, end - start, ids + count[0])
         if st.max_tokens and count[0] >= st.max_tokens:
             return WP_FULL
     return WP_GO_ON
