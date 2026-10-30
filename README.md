@@ -37,8 +37,6 @@ Installation
 
 `fse.gensim` (converting gensim word vectors) needs the extra `fse[gensim]`.
 
-`Encoder.from_pretrained` of models on the Hugging Face Hub needs the extra `fse[hub]`.
-
 On Apple silicon with macOS 14 or newer, the extra `fse[mlx]` adds the backend `"mlx"`, which averages the word vectors on the GPU within a small tolerance of the CPU's rows (usually with their bits): `encoder.encode(texts, backend="mlx")`. For tiny inputs it is slower than the default `"cpu"`.
 
 Usage
@@ -53,7 +51,7 @@ encoder = fse.Encoder.load("model.safetensors")
 rows = encoder.encode(["the cat sleeps", "a dog runs"])  # one float32 row per text
 ```
 
-Use a Model2Vec model of the Hub (`pip install "fse[hub]"`), converted when it is loaded:
+Use a Model2Vec model of the Hub, converted when it is loaded:
 
 ```python
 import fse

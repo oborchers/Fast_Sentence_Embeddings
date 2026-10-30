@@ -78,6 +78,26 @@ def test_import_without_optional_packages():
     subprocess.run([sys.executable, "-c", code], check=True)
 
 
+def test_import_and_local_models_do_not_load_huggingface_hub(tmp_path):
+    """huggingface-hub is a dependency, imported only when a model of the Hub is loaded:
+    ``import fse``, local files and local folders never load it."""
+    code = (
+        "import sys\n"
+        "import numpy as np\n"
+        "import fse\n"
+        "assert 'huggingface_hub' not in sys.modules, 'import fse'\n"
+        "wv = fse.WordVectors.from_arrays(np.ones((1, 2), np.float32), words=['a'])\n"
+        "encoder = fse.Encoder.from_word_vectors(wv)\n"
+        f"path = {str(tmp_path / 'encoder.safetensors')!r}\n"
+        "encoder.save(path)\n"
+        "loaded = fse.Encoder.from_pretrained(path)\n"
+        "assert loaded.encode(['a'], workers=1).shape == (1, 2)\n"
+        "fse.Encoder.load(path).encode(['a'], workers=1)\n"
+        "assert 'huggingface_hub' not in sys.modules, 'a local model'\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)
+
+
 @pytest.mark.parametrize("module", MODULES)
 def test_modules_import_no_optional_packages(module):
     """A static check of every import statement, also those inside functions."""

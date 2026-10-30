@@ -41,6 +41,9 @@ dependencies = [
     "numpy>=1.26.4",
     "pydantic>=2.5.0",
     "xxhash>=3.2.0",
+    # The Hugging Face Hub of Encoder.from_pretrained; fse._hub imports it on first use only,
+    # so `import fse` and local models never load it.
+    "huggingface-hub>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -50,8 +53,6 @@ gensim = ["gensim>=4.3.3"]
 # the version its kernels were verified on (compile options since 0.32.0, zero-copy input
 # since 0.32.1, thread safety since 0.31.2).
 mlx = ["mlx>=0.32.4; sys_platform == 'darwin' and platform_machine == 'arm64'"]
-# Encoder.from_pretrained of Hub repositories (fse._hub imports it on first use).
-hub = ["huggingface-hub>=1.0"]
 
 [project.urls]
 Homepage = "https://www.drborchers.com"
@@ -76,8 +77,6 @@ version_file = "src/fse/_version.py"
 dev = [
     "pre-commit>=3.0.0",
     "cibuildwheel>=3.0.0",
-    # benchmarks/bench_wordvectors.py finds the hub vectors in the local cache.
-    "huggingface-hub>=0.23.0",
     # Profilers for every gate (AGENTS.md, Commands): py-spy samples the CPU with native
     # frames on Linux; memray traces allocations, native ones too, on macOS and Linux.
     # samply (CPU on macOS without root) is a system tool: cargo install samply.

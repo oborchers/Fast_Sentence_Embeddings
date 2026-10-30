@@ -254,8 +254,8 @@ jobs:
         # below makes sure they run.
         run: |
           uv venv --python 3.13 /tmp/sdist-env
-          uv pip install --python /tmp/sdist-env "$(ls dist/*.tar.gz)[gensim,hub]" pytest "tokenizers==0.23.3" "model2vec==0.10.0" "safetensors>=0.4.0"
-          /tmp/sdist-env/bin/python -c "import tokenizers, model2vec, safetensors; assert tokenizers.__version__ == '0.23.3', tokenizers.__version__"
+          uv pip install --python /tmp/sdist-env "$(ls dist/*.tar.gz)[gensim]" pytest "tokenizers==0.23.3" "model2vec==0.10.0" "safetensors>=0.4.0"
+          /tmp/sdist-env/bin/python -c "import huggingface_hub, tokenizers, model2vec, safetensors; assert tokenizers.__version__ == '0.23.3', tokenizers.__version__"
           /tmp/sdist-env/bin/python -m pytest tests -m "not network" -p no:cacheprovider
       - name: Use the sdist without gensim
         run: |
@@ -266,7 +266,10 @@ jobs:
           for name in ('gensim', 'scipy'):
               assert importlib.util.find_spec(name) is None, name + ' is installed'
           assert importlib.util.find_spec('xxhash') is not None, 'xxhash is not installed'
+          assert importlib.util.find_spec('huggingface_hub') is not None, 'huggingface-hub is not installed'
+          import sys
           import fse
+          assert 'huggingface_hub' not in sys.modules, 'import fse loaded huggingface_hub'
           from fse import _native, _reference
           from fse._contract import Batch
           wv = fse.WordVectors.from_arrays(np.ones((2, 3), np.float32), words=['a', 'b']).quantize('int8')
@@ -291,6 +294,7 @@ jobs:
               assert 'fse==1.1.0' in str(err), err
           else:
               raise AssertionError('the 1.x uSIF exists')
+          assert 'huggingface_hub' not in sys.modules, 'a local model loaded huggingface_hub'
           print('fse without gensim and scipy works')
           "
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2

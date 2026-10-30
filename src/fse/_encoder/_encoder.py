@@ -209,7 +209,7 @@ class Encoder:
         mmap: bool = False,
     ):  # -> Encoder
         """The encoder of a pretrained model: a local ``.safetensors`` file or folder, or
-        a Hugging Face Hub repository (``namespace/name``, extra ``fse[hub]``) at
+        a Hugging Face Hub repository (``namespace/name``) at
         ``revision`` (default branch if None), checked against its commit. An fse encoder
         is loaded (``mmap`` as for ``load``); a Model2Vec model is converted, with its
         length rule unless ``truncate=False`` (``max_length`` sets another token limit,

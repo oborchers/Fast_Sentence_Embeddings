@@ -121,7 +121,7 @@ src/fse/
     _strings.py          #   StringSource and TokenListSource, joined natively,
     _lookup.py           #   the lookup of stage 2, tokenize and the Vocabulary
   _text_file.py          # FileSource: the lines of a memory-mapped text file
-  _hub.py                # a Hub repository at one commit, its files checked (extra fse[hub])
+  _hub.py                # a Hub repository at one commit, its files checked (imports huggingface-hub)
   _stream.py             # StreamSource: sentences from an iterator, read once
   gensim.py              # adapter from gensim word vectors (extra fse[gensim])
 ```
@@ -525,7 +525,7 @@ The converted models of PR 12 must state where they differ from their source: pe
 
 `Encoder.from_pretrained(repo_or_path, *, revision=None, token=None, cache_dir=None, local_files_only=False, truncate=True, max_length="model", truncate_dim="model", normalize="model", mmap=False)` gives the encoder of a pretrained model. It converts a model of another library on every call, in memory (nothing is hosted, the license of the model applies unchanged), or loads an fse encoder.
 
-- **Where.** An existing local path is a `.safetensors` file (an fse encoder, `Encoder.load`) or a folder. Anything else must be a Hub id `namespace/name`, read by `fse._hub` with the extra `fse[hub]` (huggingface-hub 1.0 or newer, imported only there); without it, an ImportError names the extra. `revision`, `token`, `cache_dir` and `local_files_only` are for the Hub and raise with a local path.
+- **Where.** An existing local path is a `.safetensors` file (an fse encoder, `Encoder.load`) or a folder. Anything else must be a Hub id `namespace/name`, read by `fse._hub` with huggingface-hub (a dependency, 1.0 or newer, imported only there and only on first use, so `import fse` and local models never load it). `revision`, `token`, `cache_dir` and `local_files_only` are for the Hub and raise with a local path.
 - **What** (`fse._encoder._pretrained`), in this order:
   - `"model_type": "fse"`: an fse encoder; the config holds exactly `model_type`, `fse_kind` (`encoder`), `fse_format_version` (1) and `encoder`, the name of its `.safetensors` file. `mmap` maps a local one. This schema is provisional: it is fixed with the first upload of fse models to the Hub (with the maintainer's approval), which may add keys, such as a file per dtype.
   - a `config.json` with model_type `model2vec` or none: a Model2Vec model, as model2vec 0.10.0 finds one (`config.json`, `model.safetensors` and `tokenizer.json`; a missing file raises), also with a `modules.json` next to it (as the potion repos have), which must then list only StaticEmbedding and Normalize: behaviour is defined per format, and this one is model2vec's;
