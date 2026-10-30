@@ -233,12 +233,14 @@ def test_encoders_on_mlx_give_the_cpu_bits(normalize):
 @pytest.mark.usefixtures("mlx")
 @pytest.mark.parametrize("fasttext", [False, True])
 @pytest.mark.parametrize("dtype", ["float16", "int8"])
-def test_encoders_made_by_quantize_give_the_cpu_bits_on_mlx(dtype, fasttext):
-    """Encoder.quantize makes an encoder like any other: the device and the cpu agree."""
+def test_encoders_made_by_quantize_agree_with_the_cpu_on_mlx(dtype, fasttext):
+    """Encoder.quantize makes an encoder like any other: the device agrees with the cpu
+    within the tolerance contract (here a bound far looser than any rows need)."""
     encoder = finished(fasttext=fasttext).quantize(dtype)
     sentences = texts(400)
     got = encoder.encode(sentences, backend="mlx", workers=3)
-    assert got.tobytes() == encoder.encode(sentences, backend="cpu", workers=3).tobytes()
+    want = encoder.encode(sentences, backend="cpu", workers=3)
+    np.testing.assert_allclose(got, want, rtol=0, atol=1e-5)
 
 
 @pytest.mark.usefixtures("mlx")

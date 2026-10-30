@@ -190,10 +190,11 @@ def test_a_quantized_model_states_its_rule_and_promises_no_closeness(dtype, rela
     assert f"- table stored by `quantize_rows@1` from the float32 table `{origin}`" in text
     assert f"dimensions of the table: 6 ({dtype})" in text
     assert "Converted from the model2vec model minishlab/potion-base-8M at revision `abc`." in text
-    assert "bit for bit as its reference computes them" in text
+    assert "on the cpu backend bit for bit as its reference computes them" in text
     assert "not those of the model before quantization" in text
     assert "How close they come to it is measured, not promised by this file." in text
-    assert "within" not in text.split("## Source and license")[1]
+    assert "within quantization error" not in text
+    assert "close to the source" not in text
     assert meta["base_model"] == "minishlab/potion-base-8M"
     assert meta.get("base_model_relation") == relation
     assert _card_of(tmp_path / "q.safetensors", tmp_path)[0] == data

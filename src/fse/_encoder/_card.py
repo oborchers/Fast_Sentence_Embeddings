@@ -223,9 +223,10 @@ def _source(metadata: dict[str, str], license: Any) -> list[str]:
         out.append("")
     if "fse.quantization" in metadata:
         out += [
-            "The vectors fse computes are those of the quantized table, bit for bit as its "
-            "reference computes them, not those of the model before quantization. How close "
-            "they come to it is measured, not promised by this file.",
+            "The vectors fse computes are those of the quantized table: on the cpu backend bit "
+            "for bit as its reference computes them (a device backend within its tolerance), "
+            "not those of the model before quantization. How close they come to it is "
+            "measured, not promised by this file.",
             "",
         ]
     if license is None:
