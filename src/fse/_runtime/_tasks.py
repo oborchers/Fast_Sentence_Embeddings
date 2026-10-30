@@ -118,7 +118,7 @@ def _stream_plan(
 ) -> Plan:
     """The first collection is read now, to decide whether the stream runs inline. Once
     ``stop`` is set (a task failed), the stream is not read any further."""
-    collections = source.collections(stop)
+    collections = source.collections(stop, first_row)
     first = next(collections, None)
     if first is None:
         return Plan(iter(()), None, True)

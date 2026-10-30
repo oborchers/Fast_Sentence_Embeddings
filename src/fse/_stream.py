@@ -49,16 +49,19 @@ class StreamSource:
         self.chunk_bytes = _bounded(chunk_bytes, "chunk_bytes", 1 << 40)
         self._read = False
 
-    def collections(self, stop: threading.Event | None = None) -> Iterator[Collection]:
+    def collections(
+        self, stop: threading.Event | None = None, first_row: int = 0
+    ) -> Iterator[Collection]:
         """The collections of the stream, in order. An error of the iterator or a bad
-        sentence is raised after the collection of the sentences before it. Once ``stop``
-        is set, no further sentence is read."""
+        sentence is raised after the collection of the sentences before it, naming its row
+        from ``first_row`` (the row of the run of the first sentence). Once ``stop`` is set,
+        no further sentence is read."""
         if self._read:
             raise RuntimeError("a StreamSource is read once")
         self._read = True
         row = 0
         while stop is None or not stop.is_set():
-            encoded, error, ended = self._collect(row, stop)
+            encoded, error, ended = self._collect(first_row + row, stop)
             if encoded:
                 yield Collection(row, StringSource.encoded(encoded), ended or error is not None)
                 row += len(encoded)

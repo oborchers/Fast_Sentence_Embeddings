@@ -260,3 +260,19 @@ def test_a_failed_run_holds_no_memory_while_its_prefixes_run():
     finally:
         tracemalloc.stop()
     assert peak < 1.5 * rows * (1 << 18)  # one run's array, not the failed one's as well
+
+
+@pytest.mark.parametrize("sink", [False, True])
+def test_errors_of_a_stream_name_the_rows_of_the_run(sink):
+    """Several collections of 3 sentences, from row 1000 of a run: a sentence that is no
+    str and one with a lone surrogate name their rows of the run."""
+    from fse._stream import StreamSource
+
+    kwargs = {"sink": Recording()} if sink else {}
+    for bad, error, pattern in [
+        (None, TypeError, r"string 1007 is a NoneType"),
+        ("ok \ud800", UnicodeEncodeError, r"in string 1007"),
+    ]:
+        texts = ["ok"] * 7 + [bad] + ["ok"] * 3
+        with pytest.raises(error, match=pattern):
+            NORMALIZED.infer(StreamSource(iter(texts), chunk_rows=3), first_row=1000, **kwargs)
