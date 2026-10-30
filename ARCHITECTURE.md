@@ -56,6 +56,7 @@ src/fse/
     _folder.py           #   Hugging Face folders: config.json, the atomic write, save and push,
     _card.py             #   the README.md model card of a folder,
     _model2vec.py        #   Model2Vec models as the parts of an encoder,
+    _model2vec_rules.py  #   a model read under model2vec's own rules (fse.StaticModel),
     _sentence_transformers.py # sentence-transformers StaticEmbedding models, the same,
     _files.py            #   what both readers share: files, configs, the one table,
     _batches.py          #   encode_batches and encoding into a sink,
@@ -63,6 +64,12 @@ src/fse/
     _format_tokenizer.py #   its keys of a tokenizer with parameters and the table it needs,
     _sources.py          #   what encode takes as texts, and its source,
     _inputs.py           #   the rules of texts in memory
+  _static_model/         # fse.StaticModel, the API of model2vec.StaticModel on Encoders:
+    _model.py            #   the class, its properties and encode,
+    _load.py             #   where from_pretrained finds a model and under which rules,
+    _variants.py         #   the encoders of one model per (max_length, normalize), cached,
+    _profile.py          #   the fse encoders that fit model2vec's rules,
+    _arguments.py        #   the arguments that change no row, and the refusals
   _store/                # stores of sentence vectors (sentence_vectors 1):
     _layout.py           #   store.json, shard names and metadata, the shards in order,
     _shard.py            #   one shard being written and published,
@@ -596,6 +603,16 @@ The converted models of PR 12 must state where they differ from their source: pe
   - The encoder: `wordpiece@1` with `fse.unknown=drop` (model2vec removes every unknown id after the cut). With `truncate`, `fse.max_tokens` is `max_length` (the model's, or the argument; None: none) and `fse.max_chars` is `max_length` times the median length of the tokens in code points, as model2vec computes it (`int(np.median(...))` over every token in id order, in integers). `truncate=False` reads texts whole. `fse.source` records the format, repo and commit, and `fse.license` the `license` of the YAML front matter of `README.md` (at most 16 MiB; a larger card raises): a quoted or plain license id, or a block or flow list of them (all kept, in order); null, `~` or no value is no license, and so is a card without front matter or without the key; YAML values that are no string (bools, numbers), an empty list, the key twice and anything else raise.
 - **Equality with model2vec.** The ids are those of the model's tokenizer (wordpiece@1). The rows are model2vec's within the tolerance bound (`tests/support/converted.py`: `(τ + 2 γ_K) m + δ K sqrt(d)` before normalize and `2 E / r` plus the rounding of both normalizations after it), because both are float32 sums of the same K rows in another order: model2vec takes numpy's mean and divides by `norm + 1e-32`. Not reproduced: a nonzero row whose sum of squares underflows or overflows float32 raises in `normalize@1` (the step is unchanged), where model2vec gives `[1e-30, 0]` as `[100, 0]` and a huge row as no unit row. Rows that tiny or that large do not occur with the POTION tables.
 
+### model2vec compatibility (fse.StaticModel)
+
+`fse.StaticModel` (`fse._static_model`) has the API of `model2vec.StaticModel` 0.10.0 (the pin of the test group): `from_pretrained` with its parameters in its order (fse's `revision`, `cache_dir` and `local_files_only` keyword-only after them), `encode`, and the attributes `dim`, `tokens`, `embedding`, `config`, `unk_token_id`, `median_token_length`, `base_model_name`, `language`, `embedding_dtype`, `weights`, `token_mapping`, `vocabulary_quantization` and `normalize` and `max_length` with setters. `tests/test_static_model_model_api.py` compares the signatures with model2vec's and lists every public name that is not provided with its reason, so a new pin fails loudly. It wraps fse `Encoder` objects and adds no arithmetic: under the model's own settings its rows are those of the `Encoder` bit for bit.
+
+- **Rules of model2vec, not of the format.** `fse._encoder._model2vec_rules` reads a model as `model2vec.persistence` does: the first of three layouts whose three files exist (`config.json`; `config_sentence_transformers.json`; the same in `0_StaticEmbedding/`, each with `model.safetensors` and `tokenizer.json`) decides, `modules.json` is not read for that decision, the config of the layout gives `normalize` (default false) and `max_length` (default 512, null for none), the unknown id is dropped, the truncation of the tokenizer.json is ignored, and the table of an ST layout is `embedding.weight`. The same sentence-transformers repository therefore gives other rows in `StaticModel` (`[UNK]` dropped, the cut) and in `Encoder.from_pretrained` (sentence-transformers' rules), and both are tested. It adds two refusals model2vec does not have: a module other than StaticEmbedding or Normalize, and every config of a Model2Vec layout with an unknown key. `dimensionality` keeps the first columns, `subfolder` is a path of plain names read below the model's folder, `base_model` and `language` come from the card.
+- **fse encoders.** A `.safetensors` file or an fse folder loads if it fits a closed profile (`fse._static_model._profile`): `wordpiece@1` or `unigram@1` (so float32 without FastText), the unknown id dropped, `max_chars` equal to `max_tokens` times the median token length (or no cut), at most `normalize@1`. Anything else raises `UnsupportedArtifactError`.
+- **Variants.** An `Encoder` is immutable, so each pair (`max_length`, `normalize`) is an encoder of its own (`fse._static_model._variants`): the same table and `Vocabulary`, another length rule or step, made on first use in a cache of 8, the model's own never evicted. The setters replace the current one by one reference assignment; model2vec is not thread-safe here either, but a running `encode` keeps the encoder it started with.
+- **Neutral arguments and refusals.** `show_progress_bar`, `batch_size`, `use_multiprocessing` and `multiprocessing_threshold` change no row and are accepted after a strict check (`use_multiprocessing=False` means `workers=1`; rows are bit-identical across workers). The `**kwargs` of model2vec's `encode` are a closed list: `convert_to_numpy=True`, `convert_to_tensor=False`, `device` None or `"cpu"`. Another name is a `TypeError` of the signature (`encode` is not decorated, as it is called per batch: the checks are made by hand and the wrapper adds about 1 us to a one-sentence call), a neutral name with another value a `ValueError` naming what to use. `from_pretrained` is validated; `quantize_to` may be `"float32"`, `vocabulary_quantization` None.
+- **Out of this release.** `encode_as_sequence`, `tokenize`, the `tokenizer` object and `save_pretrained`/`push_to_hub` (which need a metadata format for model2vec's config).
+
 ### sentence-transformers models
 
 `fse._encoder._sentence_transformers` reads a sentence-transformers model of one StaticEmbedding with the rules of sentence-transformers 6.2.0 (`StaticEmbedding`, `SentenceTransformer.encode`); parity is defined against that version and tested against it (the group `st`, `make test-st`, the CI job `test-st`).
@@ -672,7 +689,7 @@ New 2.0 code goes into private modules of `fse`: `_contract` and `_reference` (c
 The modules form layers, and a module imports only from layers below it. The import contracts in `pyproject.toml` (`[tool.importlinter]`, run by `make lint`) enforce this, and every new module must take a layer there:
 
 1. `_head` (linear heads; they read stores in store mode)
-2. `gensim` (the adapter, the only module that imports gensim) and `_store` (the shard sink and the vector store, which take an encoder), independent of each other
+2. `gensim` (the adapter, the only module that imports gensim), `_store` (the shard sink and the vector store, which take an encoder) and `_static_model` (the API of model2vec on encoders), independent of each other
 3. `_encoder` (the encoder; `fse` loads its names on first access, because import-linter counts every import of the native extension as an import of `fse` itself, so a static import in `fse/__init__.py` would read as a cycle through every layer)
 4. `_hub_push` (a model folder pushed to the Hub, on `_hub`)
 5. `_runtime`
