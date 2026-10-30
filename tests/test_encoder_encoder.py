@@ -5,7 +5,7 @@ import numpy as np
 import pydantic
 import pytest
 
-from fse import _reference, _text
+from fse import _native, _reference
 from fse._contract import Normalize
 from fse._encoder import Encoder, QuantizedRows
 from fse._runtime import Pipeline
@@ -218,7 +218,7 @@ def test_arguments_are_checked_before_reading():
 
 def test_the_first_use_from_many_threads_builds_one_table_and_one_pipeline_per_backend(monkeypatch):
     built, pipelines = [], []
-    real_table, real_pipeline = _text._native.VocabTable, Pipeline.__init__
+    real_table, real_pipeline = _native.VocabTable, Pipeline.__init__
 
     def table(*args):
         built.append(1)
@@ -228,7 +228,7 @@ def test_the_first_use_from_many_threads_builds_one_table_and_one_pipeline_per_b
         pipelines.append(args[1] if len(args) > 1 else kwargs.get("backend", "cpu"))
         real_pipeline(self, *args, **kwargs)
 
-    monkeypatch.setattr(_text._native, "VocabTable", table)
+    monkeypatch.setattr(_native, "VocabTable", table)
     monkeypatch.setattr(Pipeline, "__init__", pipeline)
     encoder = finished()
     want = encoder._spec

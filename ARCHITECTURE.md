@@ -101,7 +101,10 @@ src/fse/
   _unicode_bert.py       # generated: the Unicode data of wordpiece@1 for the reference
   _reference_text.py     # the reference of stages 1 and 2: tokenizers and lookup
   _reference_wordpiece.py # the reference of wordpiece@1
-  _text.py               # text sources (strings, token lists) to batches, the Vocabulary
+  _text/                 # text sources to batches (stages 1 and 2), the only importer of the extension besides the cpu backend:
+    _scan.py             #   Chunk, Scan and the scan of one UTF-8 buffer (_Buffered),
+    _strings.py          #   StringSource and TokenListSource, joined natively,
+    _lookup.py           #   the lookup of stage 2, tokenize and the Vocabulary
   _text_file.py          # FileSource: the lines of a memory-mapped text file
   _hub.py                # a Hub repository at one commit, its files checked (extra fse[hub])
   _stream.py             # StreamSource: sentences from an iterator, read once

@@ -274,8 +274,13 @@ generated = [
     "src/fse/_native_unicode_bert.h",
 ]
 # The only modules that import the extension fse._native (import-linter cannot see it):
-# _text for stages 1 and 2, the cpu backend for the kernels of stages 2 to 4.
-native-importers = ["src/fse/_text.py", "src/fse/_backends/_cpu.py"]
+# the package _text for stages 1 and 2, the cpu backend for the kernels of stages 2 to 4.
+native-importers = [
+    "src/fse/_text/_lookup.py",
+    "src/fse/_text/_scan.py",
+    "src/fse/_text/_strings.py",
+    "src/fse/_backends/_cpu.py",
+]
 # What the extension may import from fse.
 native-imports = ["fse._contract"]
 # The only module that imports a hash library (hashlib, xxhash): every checksum and
@@ -380,6 +385,13 @@ type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
 layers = ["_encoder", "_pretrained", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_sources", "_inputs"]
+
+[[tool.importlinter.contracts]]
+name = "Text: the sources and the lookup on the scan of one buffer"
+type = "layers"
+containers = ["fse._text"]
+exhaustive = true
+layers = ["_strings | _lookup", "_scan"]
 
 [[tool.importlinter.contracts]]
 name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the executor"
