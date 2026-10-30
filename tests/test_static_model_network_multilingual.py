@@ -16,6 +16,15 @@ REVISION = "73908c3438cf03b6a01bcb9611d62b23d0726f08"
 FILES = ["config.json", "model.safetensors", "tokenizer.json", "modules.json", "README.md"]
 
 
+@pytest.fixture(autouse=True)
+def online(monkeypatch):
+    """The tests of the fake Hub set the offline mode, and huggingface_hub reads it once:
+    these tests need the network, whatever ran before them in the process."""
+    huggingface_hub = pytest.importorskip("huggingface_hub")
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+    monkeypatch.setattr(huggingface_hub.constants, "HF_HUB_OFFLINE", False)
+
+
 def test_potion_multilingual_is_the_static_model_of_model2vec():
     model2vec = pytest.importorskip("model2vec")
     huggingface_hub = pytest.importorskip("huggingface_hub")

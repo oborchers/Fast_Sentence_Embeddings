@@ -15,7 +15,7 @@ with its own: it takes the first of three folder layouts whose three files exist
 the same two files in ``0_StaticEmbedding/``), uses that config as the config, ignores
 ``modules.json`` and prompts, drops the unknown id, cuts to 512 tokens and to 512 times
 the median token length in characters, overrides the truncation of the tokenizer.json and
-normalizes unless the config says so. This module reads the files that way, for
+normalizes only if the config says so (default false). This module reads the files that way, for
 ``fse.StaticModel``, and gives the parts of an encoder: the table, the parameters of the
 tokenizer, the length rule and whether to normalize. It adds two refusals model2vec does
 not have: a module other than a StaticEmbedding or a Normalize (a Dense projection that
