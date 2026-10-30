@@ -1,2 +1,4 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Pinned by sha256 (tools/make_grapheme_tables.py): checked out byte for byte, never with CRLF.
+tests/test_data/GraphemeBreakTest-17.0.0.txt -text
