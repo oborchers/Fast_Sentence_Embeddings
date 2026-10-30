@@ -10,6 +10,7 @@ chunks, ``encode`` turns one chunk into a Batch (ARCHITECTURE.md, "Text sources"
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
@@ -145,7 +146,7 @@ class _Buffered:
     def _range_bounds(self, workers: int, chunk_bytes: int) -> list[int]:
         """Scan ranges of similar byte size that start at sentence starts."""
         size = self._positions()
-        total = len(self._data)
+        total = self.nbytes
         # 4 ranges per worker for balance, but none smaller than a chunk: each range gives
         # at least one chunk, and every chunk costs its task's fixed checks.
         wanted = max(4 * workers, -(-total // _SCAN_RANGE_MAX_BYTES))
@@ -161,6 +162,7 @@ class _Buffered:
         return bounds
 
     def _start_at_or_after(self, byte: int) -> int:
+        """The first position at or after ``byte`` where a sentence starts."""
         if self._offsets is None:
             if byte == 0 or self._data[byte - 1] == 10:
                 return byte
@@ -176,25 +178,15 @@ class _Buffered:
     ) -> Scan:
         """Validate the UTF-8 of every sentence and cut the source into chunks of about
         ``chunk_bytes`` bytes and at most ``chunk_rows`` sentences (MAX_CHUNK_ROWS)."""
-        total = len(self._data)
+        total = self.nbytes
         workers, chunk_bytes, chunk_rows = _chunk_sizes(total, workers, chunk_bytes, chunk_rows)
-        data = self._array()
+        scan = self._scanner(chunk_bytes, chunk_rows)
         if self._positions() == 0:
             return Scan(0, ())
         ranges = list(pairwise(self._range_bounds(workers, chunk_bytes)))
 
-        def scan(span: tuple[int, int]):
-            return _native.scan_spans(
-                data, self._offsets, span[0], span[1], chunk_bytes, chunk_rows
-            )
-
         def remainder(c: Chunk) -> bool:
-            size = (
-                c.end - c.start
-                if self._offsets is None
-                else self._offsets[c.end] - self._offsets[c.start]
-            )
-            return size < chunk_bytes and c.n_sentences < chunk_rows
+            return self._span_bytes(c) < chunk_bytes and c.n_sentences < chunk_rows
 
         sentences = 0
         chunks: list[Chunk] = []
@@ -212,7 +204,25 @@ class _Buffered:
                 sentences += count
         return Scan(sentences, tuple(chunks))
 
+    def _scanner(self, chunk_bytes: int, chunk_rows: int) -> Callable[[tuple[int, int]], Any]:
+        """The scan of one range of positions, as ``_native.scan_spans`` gives it: (sentences,
+        tokens, empty, chunks, error byte, error sentence relative to the range)."""
+        data, offsets = self._array(), self._offsets
+
+        def scan(span: tuple[int, int]):
+            return _native.scan_spans(data, offsets, span[0], span[1], chunk_bytes, chunk_rows)
+
+        return scan
+
+    def _span_bytes(self, chunk: Chunk) -> int:
+        """The bytes of the sentences of ``chunk``."""
+        if self._offsets is None:
+            return chunk.end - chunk.start
+        return int(self._offsets[chunk.end] - self._offsets[chunk.start])
+
     def _error(self, byte: int, sentence: int) -> UnicodeDecodeError:
+        """The error of an invalid UTF-8 byte of the scan: ``byte`` where the scan gave it,
+        ``sentence`` the row."""
         if self._offsets is not None:
             k = int(np.searchsorted(self._offsets, byte, side="right")) - 1
             return _decode_error(
