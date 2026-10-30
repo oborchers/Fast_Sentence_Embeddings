@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import mmap
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -76,6 +77,9 @@ class FileSource(_Buffered):
             current = None
         if current != self._stat:
             raise RuntimeError(f"{self.path} changed while it was read")
+
+    def _after_encode(self) -> Callable[[], None]:
+        return self._check_unchanged  # a change while the chunk was encoded
 
     def encode(self, chunk: Chunk, lookup: TextLookup, workspace: Workspace) -> Batch:
         self._check_open()

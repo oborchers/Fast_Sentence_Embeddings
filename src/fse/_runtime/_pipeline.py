@@ -21,7 +21,7 @@ import dataclasses
 import threading
 import time
 from contextlib import AbstractContextManager, nullcontext
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from numpy import ndarray
@@ -97,6 +97,8 @@ class Pipeline:
         # One call at a time on a backend that is not concurrent; encoding stays parallel.
         concurrent = self.backend.capabilities().concurrent
         self._device_rows = self.backend.capabilities().device_rows
+        # Stages 1 to 4 of a task in one call of the backend, where it has one.
+        self._text_rows = self.backend.capabilities().text_rows
         self._serial: AbstractContextManager[Any] = (
             nullcontext() if concurrent else threading.Lock()
         )
@@ -267,19 +269,37 @@ class Pipeline:
         error is that of its earliest failing row (``earliest``)."""
 
         def rows(n: int) -> None:
-            part = task.prefix(n)
-            self.finish(
-                local, self.batch(local, part, base), first_rows(target, n), base + task.first_row
+            part = first_rows(target, n)
+            self.stored(
+                self.pooled_task(local, task.prefix(n), part, base), part, base + task.first_row
             )
 
         earliest(rows, task.n_rows)
 
+    def pooled_task(self, local: threading.local, task: Task, target: tuple, base: int) -> ndarray:
+        """Stages 1 to 4 of ``task`` (rows numbered from ``base``): ``pooled`` of its batch,
+        or on a backend with ``text_rows`` and a source with ``encode_with`` one call of the
+        backend on its text, without a Batch, with the same rows and errors."""
+        encode_with = getattr(task.source, "encode_with", None)
+        if not self._text_rows or encode_with is None:
+            return self.pooled(local, self.batch(local, task, base), target)
+        codes = target[0]
+        rows = codes if codes.dtype == np.float32 else _scratch(local, len(codes), self.output_dim)
+        workspace = _workspace(local)
+        lookup, prepared = self.lookup, self.prepared
+        text_rows = cast(Any, self.backend).text_rows  # where capabilities say text_rows
+
+        def run(text: object, first: int, last: int, n: int, row: int, after: Any) -> None:
+            text_rows(text, (first, last, n, base + row), after, lookup, workspace, prepared, rows)
+
+        with self._serial:
+            encode_with(task.chunk, run)
+        return rows
+
     def batch(self, local: threading.local, task: Task, base: int) -> Batch:
         """Stages 1 and 2 of one task with the workspace of its worker thread; its rows are
         numbered from ``base`` (errors name the rows of the run)."""
-        workspace = getattr(local, "workspace", None)
-        if workspace is None:
-            workspace = local.workspace = new_workspace()
+        workspace = _workspace(local)
         if base:  # the rows of the batch and of the errors of stage 1 count from base
             task = dataclasses.replace(
                 task, chunk=dataclasses.replace(task.chunk, first_row=base + task.first_row)
@@ -312,6 +332,14 @@ class Pipeline:
                 self.backend.store(rows, codes, scales, first)
             if norms is not None:
                 norms[...] = self.backend.inverse_norms(codes, first)
+
+
+def _workspace(local: threading.local) -> Any:
+    """The workspace of the worker thread, made at its first task."""
+    workspace = getattr(local, "workspace", None)
+    if workspace is None:
+        workspace = local.workspace = new_workspace()
+    return workspace
 
 
 def _scratch(local: threading.local, n_rows: int, dim: int) -> ndarray:

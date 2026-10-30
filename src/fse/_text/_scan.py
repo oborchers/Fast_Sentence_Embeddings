@@ -405,3 +405,24 @@ class _Buffered:
         if batch.n_sentences != chunk.n_sentences:
             raise RuntimeError("the source changed since it was scanned")
         return batch
+
+    def encode_with(self, chunk: Chunk, run: Callable[..., Any]) -> Any:
+        """``run(text, first, last, rows, first_row, after_encode)`` on the text of
+        ``chunk``: a backend's stages 1 to 4 in one native call (``CpuBackend.text_rows``),
+        which checks the sentence count of the chunk as ``encode`` does and runs
+        ``after_encode`` (the source's own check after encoding, or None) before the
+        errors of the stages after it."""
+        if not isinstance(chunk, Chunk):
+            raise TypeError(f"chunk must be a Chunk, not {type(chunk).__name__}")
+        return run(
+            (self._array(), self._offsets),
+            chunk.start,
+            chunk.end,
+            chunk.n_sentences,
+            chunk.first_row,
+            self._after_encode(),
+        )
+
+    def _after_encode(self) -> Callable[[], None] | None:
+        """The source's check after a chunk was encoded, or None."""
+        return None
