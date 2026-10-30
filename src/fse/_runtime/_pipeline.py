@@ -37,6 +37,7 @@ from fse._text import (
     new_workspace,
 )
 
+from ._errors import earliest, first_rows
 from ._executor import run
 from ._sinks import (
     ArrayRows,
@@ -202,8 +203,16 @@ class Pipeline:
 
     def _work(self, local: threading.local, task: Task, target: tuple, base: int):
         """Stages 1 to 5 of one task in a worker thread: its rows into the codes of
-        ``target`` (codes, scales, inverse norms), numbered from ``base`` in errors."""
-        self.finish(local, self.batch(local, task, base), target, base + task.first_row)
+        ``target`` (codes, scales, inverse norms), numbered from ``base`` in errors; an
+        error is that of its earliest failing row (``earliest``)."""
+
+        def rows(n: int) -> None:
+            part = task.prefix(n)
+            self.finish(
+                local, self.batch(local, part, base), first_rows(target, n), base + task.first_row
+            )
+
+        earliest(rows, task.n_rows)
 
     def batch(self, local: threading.local, task: Task, base: int) -> Batch:
         """Stages 1 and 2 of one task with the workspace of its worker thread; its rows are

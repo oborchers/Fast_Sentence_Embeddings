@@ -46,6 +46,12 @@ class Task:
     def batch(self, lookup: Any, workspace: Any) -> Batch:
         return self.source.encode(self.chunk, lookup, workspace)
 
+    def prefix(self, rows: int) -> Task:
+        """The task of its first ``rows`` sentences (1 to all of them)."""
+        return (
+            self if rows == self.n_rows else Task(self.source, self.source.prefix(self.chunk, rows))
+        )
+
 
 @dataclass(frozen=True)
 class Plan:
@@ -73,10 +79,19 @@ def plan(
     if isinstance(source, StreamSource):
         return _stream_plan(source, chunk_bytes, chunk_rows, stop)
     inline = source.nbytes <= INLINE_MAX_BYTES  # scanned as one range, run in the caller
-    scan = source.scan(
+    scan, error = source.scan_until_error(
         workers=1 if inline else workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows
     )
-    return Plan(iter([Task(source, chunk) for chunk in scan.chunks]), scan.sentences, inline)
+    return Plan(_then(scan.chunks, source, error), scan.sentences, inline)
+
+
+def _then(chunks: tuple[Chunk, ...], source: Any, error: Exception | None) -> Iterator[Task]:
+    """The tasks of ``chunks``, then the error of the scan (an invalid sentence after
+    them), which the executor raises after the tasks before it, in row order."""
+    for chunk in chunks:
+        yield Task(source, chunk)
+    if error is not None:
+        raise error
 
 
 def _stream_plan(
@@ -92,10 +107,14 @@ def _stream_plan(
 
     def tasks() -> Iterator[Task]:
         for collection in _chain(first, collections):
-            scan = collection.source.scan(chunk_bytes=chunk_bytes, chunk_rows=chunk_rows)
+            scan, error = collection.source.scan_until_error(
+                chunk_bytes=chunk_bytes, chunk_rows=chunk_rows
+            )
             for c in scan.chunks:
                 chunk = Chunk(c.start, c.end, collection.first_row + c.first_row, c.n_sentences)
                 yield Task(collection.source, chunk)
+            if error is not None:
+                raise error
 
     return Plan(tasks(), None, inline)
 

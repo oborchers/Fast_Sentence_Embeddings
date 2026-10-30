@@ -275,7 +275,7 @@ cdef int _arrow_encode_status(int status, const unsigned char *p, int64_t n, Py_
     if status == ENCODE_BAD_UTF8:
         _raise_decode_error(
             PyBytes_FromStringAndSize(<const char *>p, n), bad,
-            f" in sentence {sentence} of the range (byte {bad} of row {row})",
+            f" in sentence {row} (byte {bad} of the row)",
         )
     raise AssertionError(f"unknown status {status}")
 

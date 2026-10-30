@@ -414,7 +414,7 @@ name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the execu
 type = "layers"
 containers = ["fse._runtime"]
 exhaustive = true
-layers = ["_head", "_pipeline", "_tasks | _sinks | _executor | _spec"]
+layers = ["_head", "_pipeline", "_tasks | _sinks | _executor | _spec | _errors"]
 
 [[tool.importlinter.contracts]]
 # The device libraries (mlx) are checked by tools/check_guardrails.py instead: only the

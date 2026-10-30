@@ -371,16 +371,16 @@ cdef class TextLookup:
             if status == ENCODE_NO_MEMORY:
                 raise MemoryError("could not grow the buffers of the Workspace")
             if status == ENCODE_BROKEN:
-                raise AssertionError(f"the lattice of unigram@1 broke in sentence {sentence} of the range")
+                raise AssertionError(f"the lattice of unigram@1 broke in sentence {first_row + sentence}")
             if status == ENCODE_TOO_LONG:
                 raise ValueError(
-                    f"sentence {sentence} of the range has {end - start} bytes, more than "
+                    f"sentence {first_row + sentence} has {end - start} bytes, more than "
                     f"{MAX_SENTENCE_BYTES}; fse reads one sentence per line or string"
                 )
             if status == ENCODE_BAD_UTF8:
                 _raise_decode_error(
                     bytes(data[start:end]), bad,
-                    f" in sentence {sentence} of the range (byte {start + bad} of the source)",
+                    f" in sentence {first_row + sentence} (byte {start + bad} of the source)",
                 )
             tokens = _to_array(&ws.tokens, np.uint32)
             batch_offsets = _to_array(&ws.offsets, np.int64)

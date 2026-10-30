@@ -178,11 +178,25 @@ class _Buffered:
     ) -> Scan:
         """Validate the UTF-8 of every sentence and cut the source into chunks of about
         ``chunk_bytes`` bytes and at most ``chunk_rows`` sentences (MAX_CHUNK_ROWS)."""
+        scan, error = self.scan_until_error(
+            workers=workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows
+        )
+        if error is not None:
+            raise error
+        return scan
+
+    def scan_until_error(
+        self, *, workers: int = 1, chunk_bytes: int | None = None, chunk_rows: int | None = None
+    ) -> tuple[Scan, Exception | None]:
+        """As ``scan``, but the first invalid sentence ends the chunks instead of raising:
+        the chunks of the sentences before it and its error (or None). The runtime encodes
+        those sentences first, so an earlier row that fails later in its pipeline is
+        reported before it (ARCHITECTURE.md, "Runtime", Errors)."""
         total = self.nbytes
         workers, chunk_bytes, chunk_rows = _chunk_sizes(total, workers, chunk_bytes, chunk_rows)
         scan = self._scanner(chunk_bytes, chunk_rows)
         if self._positions() == 0:
-            return Scan(0, ())
+            return Scan(0, ()), None
         ranges = list(pairwise(self._range_bounds(workers, chunk_bytes)))
 
         def remainder(c: Chunk) -> bool:
@@ -191,10 +205,15 @@ class _Buffered:
         sentences = 0
         chunks: list[Chunk] = []
         with _scan_pool(workers, total) as pool:
-            for result in (map if pool is None else pool.map)(scan, ranges):
-                count, _, _, range_chunks, error_byte, error_sentence = result
+            for span, result in zip(
+                ranges, (map if pool is None else pool.map)(scan, ranges), strict=True
+            ):
+                error_byte, error_sentence = result[4], result[5]
+                error = None
                 if error_byte >= 0:
-                    raise self._error(error_byte, sentences + error_sentence)
+                    error = self._error(error_byte, sentences + error_sentence)
+                    result = self._valid_part(scan, span[0], error_byte, error_sentence)
+                count, _, _, range_chunks, _, _ = result
                 firsts = [row for _, _, row in range_chunks] + [count]
                 for k, ((start, end, row), following) in enumerate(
                     zip(range_chunks, firsts[1:], strict=True)
@@ -202,7 +221,40 @@ class _Buffered:
                     chunk = Chunk(start, end, sentences + row, following - row)
                     _append(chunks, chunk, merge=k == 0, remainder=remainder, chunk_rows=chunk_rows)
                 sentences += count
-        return Scan(sentences, tuple(chunks))
+                if error is not None:
+                    return Scan(sentences, tuple(chunks)), error
+        return Scan(sentences, tuple(chunks)), None
+
+    def _valid_part(self, scan: Callable, first: int, byte: int, sentences: int) -> Any:
+        """The scan of the valid sentences of a range before its first invalid one."""
+        if not sentences:
+            return 0, 0, 0, [], -1, -1
+        return scan((first, self._start_of(first, byte, sentences)))
+
+    def _start_of(self, first: int, byte: int, sentences: int) -> int:
+        """The position of the sentence that holds ``byte``, the sentence ``sentences`` of
+        the range from ``first``: a string or row number, or in line mode its first byte."""
+        if not self._lines():
+            return first + sentences
+        newlines = np.flatnonzero(self._array()[first:byte] == 10)
+        return first + int(newlines[-1]) + 1 if len(newlines) else first
+
+    def _lines(self) -> bool:
+        """Whether positions are bytes of lines (a file) rather than string numbers."""
+        return self._offsets is None
+
+    def prefix(self, chunk: Chunk, rows: int) -> Chunk:
+        """The chunk of the first ``rows`` sentences of ``chunk`` (1 to all of them)."""
+        if not 0 < rows <= chunk.n_sentences:
+            raise ValueError(f"a prefix of {rows} of the {chunk.n_sentences} sentences of a chunk")
+        if rows == chunk.n_sentences:
+            return chunk
+        if self._lines():
+            newlines = np.flatnonzero(self._array()[chunk.start : chunk.end] == 10)
+            end = chunk.start + int(newlines[rows - 1]) + 1
+        else:
+            end = chunk.start + rows
+        return Chunk(chunk.start, end, chunk.first_row, rows)
 
     def _scanner(self, chunk_bytes: int, chunk_rows: int) -> Callable[[tuple[int, int]], Any]:
         """The scan of one range of positions, as ``_native.scan_spans`` gives it: (sentences,

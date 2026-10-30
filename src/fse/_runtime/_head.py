@@ -33,6 +33,7 @@ from fse._backends import PoolInput, get_backend
 from fse._contract import Link, Normalize, Step
 from fse._cpus import usable_cpus
 
+from ._errors import earliest, first_rows
 from ._executor import run
 from ._pipeline import STEP_ROW_BYTES, Pipeline, check_sink_rows, check_workers
 from ._sinks import ArrayRows, GrowingRows, Sink, sink_dtype, split_target, wants_inverse_norms
@@ -257,7 +258,20 @@ class HeadPipeline:
 
         def work(item: tuple) -> tuple:
             task, target, vtarget = item
-            self._work(local, task, target, vtarget, first_row, output, vector_dtype, inverse)
+
+            def rows(n: int) -> None:  # an error is that of the earliest failing row
+                self._work(
+                    local,
+                    task.prefix(n),
+                    first_rows(target, n),
+                    first_rows(vtarget, n),
+                    first_row,
+                    output,
+                    vector_dtype,
+                    inverse,
+                )
+
+            earliest(rows, task.n_rows)
             return target, vtarget
 
         def commit(item: tuple, done: tuple) -> None:

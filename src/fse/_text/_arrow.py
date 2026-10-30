@@ -89,6 +89,9 @@ class ArrowSource(_Buffered):
         within = (byte - int(bytes_before[k])) * rows // size if size else 0
         return int(starts[k]) + within
 
+    def _lines(self) -> bool:
+        return False  # positions are row numbers
+
     def _scanner(self, chunk_bytes: int, chunk_rows: int):
         self._check_open()
         column = self._column
