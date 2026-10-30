@@ -11,10 +11,11 @@ import numpy as np
 import pytest
 
 from fse._container import CorruptArtifactError
-from fse._contract import UnsupportedArtifactError
+from fse._contract import Batch, Normalize, UnsupportedArtifactError
 from fse._encoder import Encoder
 from fse._encoder._format import Source
 from support import converted as cv
+from support import quantized as qz
 from support import sentence_transformers as st
 from support import wordpiece as wp
 
@@ -95,6 +96,30 @@ def test_truncate_dim_keeps_the_first_dimensions(model, kept):
     )
     dims = None if width == st.DIM else (st.DIM, width)
     assert cut._content.source == Source("sentence-transformers", None, None, dims)
+
+
+@pytest.mark.parametrize("dtype", ["float16", "int8"])
+@pytest.mark.parametrize("kept", [4, None])
+def test_a_cut_table_is_quantized_after_the_cut(model, tmp_path, kept, dtype):
+    """The scale of an int8 row belongs to the row that is kept, so the quantized encoder
+    holds the quantization of the cut table, and keeps the dims of its source."""
+    cut = Encoder.from_pretrained(model, truncate_dim=kept, normalize=True)
+    quantized = cut.quantize(dtype)
+    texts = ["hello world", "zzz", "", "the cat sat on the mat"]
+    ids = cv.ids_of(cut, texts)
+    offsets = np.concatenate([[0], np.cumsum([len(i) for i in ids])])
+    batch = Batch(0, offsets, np.concatenate(ids).astype(np.uint32))
+    want = qz.rows(batch, cut.word_vectors, dtype, (Normalize(),))
+    assert qz.bits(quantized.encode(texts)) == qz.bits(want)
+    assert quantized.output_dim == (4 if kept else st.DIM)
+    assert quantized._content.source == cut._content.source
+    assert quantized._content.license == "apache-2.0"
+    quantized.save(tmp_path / "q.safetensors")
+    for mmap in (False, True):
+        loaded = Encoder.load(tmp_path / "q.safetensors", mmap=mmap)
+        assert loaded.fingerprint == quantized.fingerprint
+        assert loaded._content.source == cut._content.source
+        assert loaded.encode(texts).tobytes() == quantized.encode(texts).tobytes()
 
 
 def test_truncate_dim_of_the_config_and_its_overrides(model):

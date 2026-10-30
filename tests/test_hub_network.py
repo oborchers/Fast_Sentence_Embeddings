@@ -9,10 +9,13 @@ import csv
 import random
 from pathlib import Path
 
+import numpy as np
 import pytest
 
+from fse._contract import Batch
 from fse._encoder import Encoder
 from support import converted as cv
+from support import quantized as qz
 from support import wordpiece as wp
 
 pytestmark = pytest.mark.network
@@ -67,3 +70,28 @@ def test_a_potion_model_gives_the_ids_and_vectors_of_model2vec(repo):
     worst = cv.assert_close(encoder.encode(texts), rows, encoder, texts, True)
     print(f"{repo}: {len(texts)} texts, the largest error is {worst:.2e} of the bound")
     assert worst <= 1
+
+
+QUANTIZED = {
+    "float16": "xxh3-128:4db2896287d99b8acaf7f6ce2960f8ab",
+    "int8": "xxh3-128:3fe23dd13d9ad6e8b7c3663acef9fe78",
+}  # of potion-base-8M, quantized
+
+
+@pytest.mark.parametrize("dtype", sorted(QUANTIZED))
+def test_a_quantized_potion_model_has_a_fixed_fingerprint_and_the_reference_rows(dtype):
+    repo = "minishlab/potion-base-8M"
+    revision, fingerprint = MODELS[repo]
+    encoder = Encoder.from_pretrained(repo, revision=revision)
+    quantized = encoder.quantize(dtype)
+    assert quantized.fingerprint == QUANTIZED[dtype]
+    metadata = quantized.word_vectors.metadata
+    assert metadata["fse.quantized_from"] == encoder.word_vectors.fingerprint
+    assert quantized._content.source == encoder._content.source
+    assert encoder.fingerprint == fingerprint  # the float32 encoder is not changed
+    tokens = [encoder.word_vectors.word(i) for i in range(len(encoder.word_vectors))]
+    texts = _texts(tokens)[:600]
+    ids = cv.ids_of(encoder, texts)
+    batch = Batch(0, np.cumsum([0, *(len(i) for i in ids)]), np.concatenate(ids).astype(np.uint32))
+    want = qz.rows(batch, encoder.word_vectors, dtype, encoder._spec.steps)
+    assert qz.bits(quantized.encode(texts)) == qz.bits(want)
