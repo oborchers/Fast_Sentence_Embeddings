@@ -85,3 +85,30 @@ def test_save_and_load_keep_the_tokenizer(tmp_path, standalone):
     np.testing.assert_array_equal(
         bits(loaded.predict_proba(TEXTS)), bits(model.predict_proba(TEXTS))
     )
+
+
+@pytest.mark.parametrize("dtype", ["float16", "int8"])
+@pytest.mark.parametrize("normalize", [False, True])
+def test_a_quantized_head_is_the_reference_of_the_quantized_table(tmp_path, dtype, normalize):
+    """quantize keeps the tokenizer and its drop rule; the rows are those of the table the
+    reference quantized, folded (raw means) or normalized (unfolded)."""
+    quantized = _model(normalize).quantize(dtype)
+    assert quantized.encoder.tokenizer == "wordpiece@1"
+    codes, scales = _reference.quantize_rows(ROWS, dtype)
+    if normalize:
+        rows = _reference.postprocess(
+            _reference.pool_weighted_mean(_batch(), codes, _ones(), scales), (Normalize(),)
+        )
+        z = ref.logits(rows, WEIGHT, BIAS)
+    else:
+        folded = ref.fold(codes, scales, WEIGHT)
+        z = ref.logits(_reference.pool_weighted_mean(_batch(), folded, _ones()), None, BIAS)
+    np.testing.assert_array_equal(bits(quantized.decision_function(TEXTS)), bits(z))
+    quantized.save(tmp_path / "q.safetensors")
+    loaded = fse.Classifier.load(tmp_path / "q.safetensors", mmap=True)
+    assert loaded.fingerprint == quantized.fingerprint
+    np.testing.assert_array_equal(bits(loaded.decision_function(TEXTS)), bits(z))
+    if not normalize:
+        quantized.save(tmp_path / "s.safetensors", standalone=True)
+        standalone = fse.Classifier.load(tmp_path / "s.safetensors")
+        np.testing.assert_array_equal(bits(standalone.decision_function(TEXTS)), bits(z))
