@@ -55,12 +55,12 @@ def read_model2vec(
     """The encoder parts of the files of a Model2Vec model (``FILES``) with its parsed
     ``config``. With ``truncate`` the length rule is the model's, or ``max_length`` tokens
     (None: no cut); without, texts are read whole."""
-    config = _config(config, files.where("config.json"))
+    config = check_config(config, files.where("config.json"))
     where = files.where("tokenizer.json")
     tokens, parameters = tokenizer_of(
         files.read("tokenizer.json", limit=MAX_TOKENIZER_BYTES), where
     )
-    table = _table(files, config, len(tokens))
+    table = model_table(files, config, len(tokens))
     # The table is a read-only view of the bytes that were read once and checked, which
     # nothing else holds: handed over without a copy, with every check of from_arrays.
     words = WordVectors._from_arrays(table, tokens, None, None, None, {}, copy=False)
@@ -70,7 +70,7 @@ def read_model2vec(
     return Converted(words, spec, config.get("normalize", False))
 
 
-def _config(config: Any, path: Path) -> dict[str, Any]:
+def check_config(config: Any, path: Path) -> dict[str, Any]:
     if not isinstance(config, dict):
         raise CorruptArtifactError(f"{path} must be a JSON object")
     for key, what in _REFUSED.items():
@@ -107,7 +107,7 @@ def _config(config: Any, path: Path) -> dict[str, Any]:
     return config
 
 
-def _table(files: Files, config: dict[str, Any], n_tokens: int):
+def model_table(files: Files, config: dict[str, Any], n_tokens: int):
     """The tensor embeddings: float32 rows, one per token, as the config states them."""
 
     def check(path, dtype: str, shape: tuple[int, ...]) -> None:
