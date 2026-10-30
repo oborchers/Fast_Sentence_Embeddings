@@ -347,6 +347,7 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("result")
     s.add_argument("--hardware", default=None)
     s.add_argument("--e-core-ratio", type=float, default=None)
+    s.add_argument("--workers", type=int, nargs="*", default=[], help="more worker counts")
     return parser
 
 
@@ -374,7 +375,13 @@ def main(argv: list[str] | None = None) -> None:
         with open(args.result, encoding="utf-8") as f:
             result = json.load(f)
     print(
-        "\n".join(report(result, _hardware(args.hardware or result["hardware"], args.e_core_ratio)))
+        "\n".join(
+            report(
+                result,
+                _hardware(args.hardware or result["hardware"], args.e_core_ratio),
+                tuple(getattr(args, "workers", ()) if args.command == "show" else ()),
+            )
+        )
     )
     return None
 

@@ -27,8 +27,9 @@ def _get(mapping: dict, workers: int):
     return mapping.get(workers, mapping.get(str(workers)))
 
 
-def report(result: dict, hw: rm.Hardware) -> list[str]:
-    """The lines of the report of a ``measure`` result on hardware ``hw``."""
+def report(result: dict, hw: rm.Hardware, workers: tuple[int, ...] = ()) -> list[str]:
+    """The lines of the report of a ``measure`` result on hardware ``hw``, at the worker
+    counts it measured and at ``workers`` (with the scan time of one worker there)."""
     model, data = rm.Model(**result["model"]), rm.Dataset(**result["dataset"])
     stages = rm.Stages(**result["stages"])
     out = _header(model, data, hw) + _stage_lines(stages, data)
@@ -43,8 +44,8 @@ def report(result: dict, hw: rm.Hardware) -> list[str]:
             "times, and no share is given"
         )
         result = {**result, "measured": {k: {} for k in result["measured"]}}
-    for workers in sorted({1, *map(int, result["plan_at"])}):
-        out += _workers_lines(result, hw, model, data, stages, workers)
+    for n in sorted({1, *map(int, result["plan_at"]), *workers}):
+        out += _workers_lines(result, hw, model, data, stages, n)
     return out
 
 
