@@ -321,12 +321,14 @@ class HeadPipeline:
         batch = self.reader.batch(local, task, base)
         first = base + task.first_row
         n = task.n_rows
+        vectors = vrows = vsplit = None
         if output == "logits" and self.folded:
             rows = target  # pooled in place, the bias added there
         elif self.with_vectors:
-            vrows = (self.vectors or self.reader).finish(
-                local, batch, split_target(vtarget, vdtype, inverse), first
-            )
+            # The vectors are stored (stage 5) after the head (4b), so for one row the
+            # head's error comes first.
+            vectors, vsplit = self.vectors or self.reader, split_target(vtarget, vdtype, inverse)
+            vrows = vectors.pooled(local, batch, vsplit)
             rows = (
                 vrows
                 if self.vectors is None
@@ -344,6 +346,8 @@ class HeadPipeline:
             backend.outputs(logits, "proba", self.head.link, target, first)
         elif output == "labels":
             backend.outputs(logits, "labels", None, target, first)
+        if vectors is not None:
+            vectors.stored(vrows, vsplit, first)
 
 
 def _buffer(local: threading.local, name: str, n_rows: int, dim: int) -> ndarray:

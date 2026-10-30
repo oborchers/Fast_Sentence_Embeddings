@@ -229,18 +229,28 @@ class Pipeline:
         """Stages 2 to 5 of ``batch`` (rows ``first`` on) into ``target`` (codes, scales,
         inverse norms); returns the float32 rows, the codes themselves or the scratch of
         the worker they were stored from."""
+        rows = self.pooled(local, batch, target)
+        self.stored(rows, target, first)
+        return rows
+
+    def pooled(self, local: threading.local, batch: Batch, target: tuple) -> ndarray:
+        """Stages 2 to 4 of ``batch``: its float32 rows, in the codes of ``target`` if they
+        are float32, else in the scratch of the worker."""
+        codes = target[0]
+        rows = codes if codes.dtype == np.float32 else _scratch(local, len(codes), self.output_dim)
+        with self._serial:
+            self.backend.rows(batch, self.prepared, rows)
+        return rows
+
+    def stored(self, rows: ndarray, target: tuple, first: int) -> None:
+        """Stage 5 of the ``rows`` of ``pooled``: their codes and inverse norms in ``target``
+        (a head runs its stage 4b between both, so its errors come before these)."""
         codes, scales, norms = target
         with self._serial:
-            if codes.dtype == np.float32:
-                rows = codes
-                self.backend.rows(batch, self.prepared, codes)
-            else:
-                rows = _scratch(local, len(codes), self.output_dim)
-                self.backend.rows(batch, self.prepared, rows)
+            if rows is not codes:
                 self.backend.store(rows, codes, scales, first)
             if norms is not None:
                 norms[...] = self.backend.inverse_norms(codes, first)
-        return rows
 
 
 def _scratch(local: threading.local, n_rows: int, dim: int) -> ndarray:
