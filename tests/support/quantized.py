@@ -9,6 +9,7 @@ bit for bit.
 import numpy as np
 
 from fse import _reference, _reference_text
+from fse import _reference_head as ref
 
 F32 = np.float32
 
@@ -31,6 +32,26 @@ def rows(batch, wv, dtype, steps=(), oov_weight=None, first_row=0):
         batch, codes, np.ones(len(wv), F32), scales, grams, gram_scales, oov_weight
     )
     return _reference.postprocess(out, steps, first_row) if steps else out
+
+
+def head_logits(batch, wv, dtype, weight, bias, steps=(), oov_weight=None, folded=True):
+    """The logits of the head (``weight``, ``bias``) on the rows of ``batch`` for ``wv``
+    stored as ``dtype``: A folded into the quantized rows (a head on raw means), or applied
+    to the pooled rows after ``steps``."""
+    if not folded:
+        return ref.logits(rows(batch, wv, dtype, steps, oov_weight), weight, bias)
+    codes, scales, grams, gram_scales = tables(wv, dtype)
+    folded_grams = None if grams is None else ref.fold(grams, gram_scales, weight)
+    pooled = _reference.pool_weighted_mean(
+        batch,
+        ref.fold(codes, scales, weight),
+        np.ones(len(wv), F32),
+        None,
+        folded_grams,
+        None,
+        oov_weight,
+    )
+    return ref.logits(pooled, None, bias)
 
 
 def words_batch(wv, sentences, tokenizer="fse_words@1", max_ngrams=0):
