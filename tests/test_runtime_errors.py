@@ -11,6 +11,7 @@ from fse._runtime import EncodeSpec, Pipeline
 from fse._runtime._errors import earliest, first_rows
 from fse._text import StringSource
 from fse._wordvectors import WordVectors
+from support.arrow_c import Producer
 
 F32 = np.float32
 # ok: an ordinary row; tiny: normalize@1 cannot scale it (its squares underflow); huge: two
@@ -31,6 +32,20 @@ class Raw(str):
 
     def encode(self, *_args):
         return b"ok \xff"
+
+
+class Column:
+    """An Arrow string column with nulls, exported through the C stream interface without
+    pyarrow (``support.arrow_c``): ``None`` is a null."""
+
+    def __init__(self, texts):
+        self.producer = Producer()
+        self.strings = [b"" if t is None else t.encode() for t in texts]
+        self.nulls = [i for i, t in enumerate(texts) if t is None]
+
+    def __arrow_c_stream__(self, requested_schema=None):
+        p = self.producer
+        return p.stream(p.schema(b"u"), [p.strings(b"u", self.strings, nulls=self.nulls)])
 
 
 class Recording:
@@ -104,8 +119,6 @@ def test_the_earliest_failing_row_is_reported(case, workers, chunk_bytes):
 def test_errors_of_a_second_batch_name_the_rows_of_the_run():
     """A batch from row 1000 of a run: the scan, the length rule of the tokenizers and an
     Arrow null all name the row of the run."""
-    import pyarrow as pa
-
     from fse import _native
     from fse._text import ArrowSource
 
@@ -119,21 +132,19 @@ def test_errors_of_a_second_batch_name_the_rows_of_the_run():
             NORMALIZED.infer(StringSource(long), sink=Recording(), first_row=1000)
     finally:
         _native._test_sentence_limit(previous)
-    column = pa.array(["ok", "ok", "ok", None, "ok"])
+    column = Column(["ok", "ok", "ok", None, "ok"])
     with pytest.raises(ValueError, match=r"row 1003 of the Arrow column is null"):
         NORMALIZED.infer(ArrowSource(column), sink=Recording(), first_row=1000)
 
 
 @pytest.mark.parametrize("workers", [1, 10])
 def test_an_arrow_null_comes_after_an_earlier_pooling_error(workers):
-    import pyarrow as pa
-
     from fse._text import ArrowSource
 
     with pytest.raises(ValueError, match="row 1 contains NaN"):
-        NORMALIZED.infer(ArrowSource(pa.array(["ok", OVERFLOW, None])), workers=workers)
+        NORMALIZED.infer(ArrowSource(Column(["ok", OVERFLOW, None])), workers=workers)
     with pytest.raises(ValueError, match="row 1 of the Arrow column is null"):
-        NORMALIZED.infer(ArrowSource(pa.array(["ok", None, OVERFLOW])), workers=workers)
+        NORMALIZED.infer(ArrowSource(Column(["ok", None, OVERFLOW])), workers=workers)
 
 
 def test_for_one_row_the_head_comes_before_the_storage_of_its_vectors():
