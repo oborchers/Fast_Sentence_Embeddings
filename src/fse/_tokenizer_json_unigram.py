@@ -192,6 +192,27 @@ def _replace(normalizer: dict, path: Path) -> dict:
     return {**_RUNS[regex], "content": content}
 
 
+# The fields of Metaspace that tokenizers 0.23.3 reads as Option<bool> or Option<String>
+# (null is the default), and the prepend schemes it knows.
+_OPTIONAL_TYPES = {"split": bool, "add_prefix_space": bool, "str_rep": str}
+_SCHEMES = ("first", "never", "always")
+
+
+def _types(value: dict, path: Path) -> None:
+    """The types tokenizers requires of the fields of Metaspace; it refuses others."""
+    for key, kind in _OPTIONAL_TYPES.items():
+        field = value.get(key)
+        if field is not None and not isinstance(field, kind):
+            raise CorruptArtifactError(
+                f"{path}: {key} of Metaspace must be a {kind.__name__} or null, not {field!r}"
+            )
+    if "prepend_scheme" in value and value["prepend_scheme"] not in _SCHEMES:
+        raise CorruptArtifactError(
+            f"{path}: the prepend scheme of Metaspace is one of {_SCHEMES}, not "
+            f"{value['prepend_scheme']!r}"
+        )
+
+
 def _metaspace(value: Any, path: Path) -> None:
     """Metaspace with the values of METASPACE; missing keys take the defaults of
     tokenizers 0.23.3 (prepend scheme always, split true)."""
@@ -205,7 +226,9 @@ def _metaspace(value: Any, path: Path) -> None:
     replacement = value["replacement"]
     if not isinstance(replacement, str) or len(replacement) != 1:
         raise CorruptArtifactError(f"{path}: the replacement of Metaspace is one character")
-    scheme, split = value.get("prepend_scheme", "always"), value.get("split", True)
+    _types(value, path)
+    scheme = value.get("prepend_scheme", "always")
+    split = True if value.get("split") is None else value["split"]
     if value.get("add_prefix_space") is False and scheme != "never":
         raise CorruptArtifactError(
             f"{path}: Metaspace has add_prefix_space false but the prepend scheme {scheme!r}"

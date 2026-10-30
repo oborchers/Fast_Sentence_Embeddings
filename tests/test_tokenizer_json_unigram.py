@@ -53,6 +53,10 @@ def test_missing_metaspace_keys_and_byte_fallback_take_the_defaults():
     assert config.byte_fallback is False
     value["pre_tokenizer"]["str_rep"] = "\u2581"
     _read(value)
+    value["pre_tokenizer"].update(split=None, add_prefix_space=None, str_rep=None)
+    with pytest.raises(UnsupportedArtifactError, match="supports"):
+        _read(value)  # split null is the default, true
+    value["pre_tokenizer"]["split"] = False
     value["normalizer"] = None
     _, config = _read(value)
     assert config.normalizer == ()
@@ -142,6 +146,12 @@ _CORRUPT = [
     ((*_STEPS, 0, "normalizers", 1), "Replace", "JSON object with a type"),
     (("pre_tokenizer", "replacement"), "\u2581\u2581", "one character"),
     (("pre_tokenizer", "add_prefix_space"), False, "add_prefix_space false"),
+    # tokenizers 0.23.3 reads these as Option<bool> or Option<String> and refuses them.
+    (("pre_tokenizer", "split"), 0, "split of Metaspace must be a bool"),
+    (("pre_tokenizer", "add_prefix_space"), "false", "add_prefix_space of Metaspace"),
+    (("pre_tokenizer", "str_rep"), 7, "str_rep of Metaspace must be a str"),
+    (("pre_tokenizer", "prepend_scheme"), None, "prepend scheme of Metaspace"),
+    (("pre_tokenizer", "prepend_scheme"), "sometimes", "prepend scheme of Metaspace"),
 ]
 
 
