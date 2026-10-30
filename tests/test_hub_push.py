@@ -259,15 +259,26 @@ def test_a_model_file_stored_as_a_plain_blob_is_never_taken_as_pushed(api):
     assert "model.safetensors" in api.lfs[api.head]
 
 
-def test_an_unchanged_commit_is_checked_too():
-    sha256, sha1 = "a" * 64, "b" * 40
-    with pytest.raises(CorruptArtifactError, match=r"no LFS file with an lfs\.sha256"):
-        _hub_push.check_files(
-            {"model.safetensors": (None, sha1)}, {"model.safetensors": (sha256, sha1)}, "c"
-        )
-    _hub_push.check_files(
-        {"model.safetensors": (sha256, "x")}, {"model.safetensors": (sha256, sha1)}, "c"
-    )
+def test_an_unchanged_push_checks_the_commit_it_read(api, monkeypatch):
+    encoder = finished()
+    _push(encoder)
+    head = api.head
+    checked, real = [], _hub_push.check_files
+
+    def spy(found, expected, where):
+        checked.append(where)
+        real(found, expected, where)
+
+    monkeypatch.setattr(_hub_push, "check_files", spy)
+    assert _push(encoder).endswith(head)
+    assert checked == [f"commit {head} of {REPO}"]  # no commit, but the read one checked
+    assert len(api.commit_calls()) == 1
+    # A kept license file named .safetensors that is no LFS file: refused, no commit.
+    api.commits[head]["LICENSE.safetensors"] = b"license text\n"
+    with pytest.raises(CorruptArtifactError, match=r"LICENSE\.safetensors of commit .* no LFS"):
+        _push(encoder)
+    assert api.head == head
+    assert len(api.commit_calls()) == 1
 
 
 def _snapshot(api):
