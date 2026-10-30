@@ -102,3 +102,18 @@ def test_the_tensors_belong_to_unigram_1_only():
     }
     with pytest.raises(ValueError, match="holds the tensors"):
         from_artifact(tensors, {**metadata, **wordpiece})
+
+
+@pytest.mark.parametrize("tokenizer", ["fse_words@1", "external"])
+@pytest.mark.parametrize("tensor", ["tokenizer.scores", "tokenizer.charsmap"])
+def test_the_tensors_of_unigram_1_are_refused_with_a_tokenizer_without_parameters(
+    tokenizer, tensor
+):
+    content = EncoderContent(tokenizer=tokenizer, steps=(), oov_weight=None, max_ngrams=None)
+    tensors, metadata = to_artifact(content, *_table())
+    extra = SCORES if tensor == "tokenizer.scores" else np.frombuffer(BLOB, np.uint8)
+    with pytest.raises(
+        ValueError, match=f"are tensors of unigram@1, not of the tokenizer {tokenizer}"
+    ):
+        from_artifact({**tensors, tensor: extra}, metadata)
+    assert from_artifact(tensors, metadata)[0].tokenizer.name == tokenizer

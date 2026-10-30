@@ -101,6 +101,9 @@ def tokenizer_of(metadata: dict[str, str], tensors: dict[str, ndarray]) -> Token
     if name not in (WORDPIECE, UNIGRAM):
         if present:
             raise ValueError(f"{present} are keys of a tokenizer with parameters, not of {name}")
+        held = sorted(TOKENIZER_TENSORS & set(tensors))
+        if held:
+            raise ValueError(f"{held} are tensors of unigram@1, not of the tokenizer {name}")
         return TokenizerSpec(name)
     for key in TOKENIZER_KEYS[:2]:
         if key not in metadata:
