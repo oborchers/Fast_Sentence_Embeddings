@@ -6,7 +6,8 @@
 
 """Verify unigram@1 against Hugging Face tokenizers on a large corpus and a real model.
 
-A check before review, not part of ``make test``: the reference fse._reference_unigram, on
+A check before review, not part of ``make test``: the native tokenizer and the reference
+fse._reference_unigram, on
 the tokenizer.json of minishlab/potion-multilingual-128M read by
 fse._tokenizer_json_unigram, against tokenizers 0.23.3. First every code point in four
 contexts (alone, between two letters, after a key of the charsmap, after NBSP) through the
@@ -107,6 +108,30 @@ class Checked:
         self.added = {content: i for i, content in config.added_tokens}
         self.hf = Tokenizer.from_file(str(path))
         self.chars = 512 * median_length(pieces)
+        self.lookups = {cut: self._lookup(pieces, config, cut) for cut in (False, True)}
+
+    def _lookup(self, pieces, config, cut: bool):
+        import numpy as np
+
+        from fse._text import make_lookup
+        from fse._tokenizer_spec import TokenizerSpec
+        from fse._wordvectors import WordVectors
+
+        rule = ("drop", 512, self.chars) if cut else ("keep", None, None)
+        wv = WordVectors.from_arrays(np.zeros((len(pieces), 1), np.float32), words=pieces)
+        return make_lookup(wv, TokenizerSpec("unigram@1", config, *rule))
+
+    def native_ids(self, texts: list[str], cut: bool) -> list[list[int]]:
+        from fse import _native
+        from fse._text import StringSource
+
+        source, ws, out = StringSource(texts), _native.Workspace(), []
+        for chunk in source.scan().chunks:
+            b = source.encode(chunk, self.lookups[cut], ws)
+            out += [
+                b.tokens[b.offsets[s] : b.offsets[s + 1]].tolist() for s in range(b.n_sentences)
+            ]
+        return out
 
     def normalize(self, text: str) -> str:
         return self.ref.normalize(text, self.config.steps(), self.charsmap)
@@ -133,55 +158,76 @@ class Checked:
         return [[i for i in row if i != self.config.unk_id] for row in rows]
 
 
+CODE_POINTS = [c for c in range(sys.maxunicode + 1) if not 0xD800 <= c <= 0xDFFF]
+_CONTEXTS = (("alone", "", ""), ("between letters", "a", "b"), ("after a key", "\uff21", ""))
+
+
 def code_points(checked: Checked) -> bool:
-    cps = [c for c in range(sys.maxunicode + 1) if not 0xD800 <= c <= 0xDFFF]
+    """The reference against tokenizers on every code point: the normalizer in four
+    contexts, the ids alone."""
     failed = False
-    for name, before in (("alone", ""), ("between letters", "a"), ("after a key", "\uff21")):
+    for name, before, after in (*_CONTEXTS, ("after NBSP", "x\u00a0", "")):
         start = time.perf_counter()
-        texts = [before + chr(c) + ("b" if before == "a" else "") for c in cps]
-        bad = [t for t in texts if checked.hf.normalizer.normalize_str(t) != checked.normalize(t)]
+        texts = [before + chr(c) + after for c in CODE_POINTS]
+        bad = sum(checked.hf.normalizer.normalize_str(t) != checked.normalize(t) for t in texts)
         failed |= bool(bad)
         print(
-            f"every code point {name}: {len(bad)} normalized differently ({time.perf_counter() - start:.0f} s)"
+            f"every code point {name}: {bad} normalized differently ({time.perf_counter() - start:.0f} s)"
         )
-    texts = ["x\u00a0" + chr(c) for c in cps]
-    bad = [t for t in texts if checked.hf.normalizer.normalize_str(t) != checked.normalize(t)]
-    print(f"every code point after NBSP: {len(bad)} normalized differently")
-    texts = [chr(c) for c in cps]
-    ids = [
-        t
-        for t, h in zip(texts, checked.hf_ids(texts, False), strict=True)
-        if checked.ids(t, False) != h
-    ]
-    print(f"every code point alone: {len(ids)} with other ids")
-    return failed or bool(bad) or bool(ids)
+    texts = [chr(c) for c in CODE_POINTS]
+    want = checked.hf_ids(texts, False)
+    bad = sum(checked.ids(t, False) != h for t, h in zip(texts, want, strict=True))
+    print(f"every code point alone: {bad} with other ids")
+    return failed or bool(bad)
+
+
+def native_code_points(checked: Checked) -> bool:
+    """The native tokenizer against tokenizers on every code point in three contexts."""
+    bad = 0
+    for _, before, after in _CONTEXTS:
+        texts = [before + chr(c) + after for c in CODE_POINTS]
+        got, want = checked.native_ids(texts, False), checked.hf_ids(texts, False)
+        bad += sum(a != b for a, b in zip(got, want, strict=True))
+    print(f"every code point alone, between letters and after a key, native: {bad} with other ids")
+    return bool(bad)
+
+
+def compare(checked: Checked, texts: list[str], cut: bool, native_only: bool) -> bool:
+    """The native tokenizer (and the reference) against tokenizers on the texts."""
+    start = time.perf_counter()
+    want = checked.hf_ids(texts, cut)
+    got = checked.native_ids(texts, cut)
+    bad = [i for i in range(len(texts)) if got[i] != want[i]]
+    if not native_only:
+        bad += [i for i, t in enumerate(texts) if checked.ids(t, cut) != want[i]]
+    rule = "model2vec's cuts, unknown dropped" if cut else "whole, unknown kept"
+    who = "native" if native_only else "native and reference"
+    print(
+        f"{MODEL} [{rule}], {who}: {len(bad)} of {len(texts):,} texts differ, "
+        f"{sum(map(len, want)):,} ids ({time.perf_counter() - start:.0f} s)"
+    )
+    for i in bad[:3]:
+        print(f"    {texts[i][:80]!a}")
+    return bool(bad)
 
 
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--hub", type=Path, default=HUB, help="the cache of the model")
+    parser.add_argument("--native-only", action="store_true", help="skip the slow reference")
     args = parser.parse_args(argv)
-    found = sorted(
-        (args.hub / ("models--" + MODEL.replace("/", "--"))).glob("snapshots/*/tokenizer.json")
-    )
+    snapshots = args.hub / ("models--" + MODEL.replace("/", "--"))
+    found = sorted(snapshots.glob("snapshots/*/tokenizer.json"))
     if not found:
         raise SystemExit(f"no tokenizer.json of {MODEL} in {args.hub}")
     checked = Checked(found[0])
-    failed = code_points(checked)
+    failed = native_code_points(checked)
+    if not args.native_only:
+        failed |= code_points(checked)
     texts = corpus()
     print(f"{len(texts):,} texts, {sum(map(len, texts)):,} characters")
     for cut in (False, True):
-        start = time.perf_counter()
-        want = checked.hf_ids(texts, cut)
-        bad = [i for i, t in enumerate(texts) if checked.ids(t, cut) != want[i]]
-        failed |= bool(bad)
-        rule = "model2vec's cuts, unknown dropped" if cut else "whole, unknown kept"
-        print(
-            f"{MODEL} [{rule}]: {len(bad)} of {len(texts):,} texts differ, "
-            f"{sum(map(len, want)):,} ids ({time.perf_counter() - start:.0f} s)"
-        )
-        for i in bad[:3]:
-            print(f"    {texts[i][:80]!a}")
+        failed |= compare(checked, texts, cut, args.native_only)
     sys.exit(1 if failed else 0)
 
 

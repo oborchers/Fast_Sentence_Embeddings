@@ -98,6 +98,9 @@ class Tokenizer(_Versioned):
     # BERT's WordPiece as Hugging Face tokenizers 0.23.3 runs it; its parameters are data
     # of the model (fse._tokenizer_spec).
     WORDPIECE = ("wordpiece", 1)
+    # The Unigram tokenizer of SentencePiece vocabularies as tokenizers 0.23.3 runs it; its
+    # parameters, float64 scores and charsmap are data of the model (fse._tokenizer_unigram).
+    UNIGRAM = ("unigram", 1)
 
 
 class Head(_Versioned):

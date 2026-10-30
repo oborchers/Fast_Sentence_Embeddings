@@ -189,6 +189,26 @@ class UnigramConfig:
             tuple(sorted(metaspace.items())),
         )
 
+    def native_arguments(self) -> tuple:
+        """The arguments of the native UnigramState after its table and vocabulary, and
+        before its cuts: the scores, the unknown id, the ids of the added tokens, the steps
+        (strings as UTF-8), the parts of the charsmap and the replacement of Metaspace."""
+        steps: list[tuple[Any, ...]] = []
+        for step in self.steps():
+            kind = step["type"]
+            if kind == "precompiled":
+                steps.append((kind,))
+            elif kind == "replace":
+                steps.append((kind, step["pattern"].encode(), step["content"].encode()))
+            elif kind == "runs":
+                steps.append((kind, step["class"], step["min"], step["content"].encode()))
+            else:
+                steps.append((kind, step["left"], step["right"]))
+        charsmap = None if self.charsmap is None else Charsmap(self.charsmap).parts()
+        added = tuple(i for i, _ in self.added_tokens)
+        replacement = dict(self.metaspace)["replacement"].encode()
+        return self.scores_array(), self.unk_id, added, tuple(steps), charsmap, replacement
+
     def check_vocabulary(self, vocab_bytes: ndarray, vocab_offsets: ndarray) -> None:
         """One score per token of the vocabulary, and every added token is the
         vocabulary string of its id."""

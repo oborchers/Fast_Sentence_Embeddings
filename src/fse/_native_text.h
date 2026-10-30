@@ -24,6 +24,7 @@
 #define FSE_TOKENIZER_EXTERNAL 0
 #define FSE_TOKENIZER_FSE_WORDS 1
 #define FSE_TOKENIZER_WORDPIECE 2  /* _native_wordpiece.h; never passed to fse_tokenize */
+#define FSE_TOKENIZER_UNIGRAM 3    /* _native_unigram.h; never passed to fse_tokenize */
 
 /* Classes of a lowercased code point: an ASCII token character is its own byte value;
    whitespace, separators and other code points (all word characters) get the codes

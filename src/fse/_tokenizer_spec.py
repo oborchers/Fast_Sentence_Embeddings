@@ -17,16 +17,18 @@ does not support raise UnsupportedArtifactError, malformed ones ValueError.
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 from numpy import ndarray
 
 from fse._contract import Tokenizer, UnsupportedArtifactError, check_tokenizer
+from fse._tokenizer_unigram import UnigramConfig
 
 # What an unknown id does: model2vec drops it, sentence-transformers pools its row.
 UNKNOWN_RULES = ("drop", "keep")
 WORDPIECE = Tokenizer.WORDPIECE.id
+UNIGRAM = Tokenizer.UNIGRAM.id
 _FLAGS = ("clean_text", "handle_chinese_chars", "strip_accents", "lowercase")
 # Integers of the parameters stay within int64, as the native state stores them.
 _INT_LIMIT = 2**62
@@ -63,6 +65,8 @@ def _added_tokens(value: object) -> tuple[tuple[int, str], ...]:
 @dataclass(frozen=True)
 class WordPieceConfig:
     """The parameters of ``wordpiece@1`` (ARCHITECTURE.md, "wordpiece@1")."""
+
+    identifier: ClassVar[str] = Tokenizer.WORDPIECE.id
 
     added_tokens: tuple[tuple[int, str], ...]
     unk_id: int
@@ -144,7 +148,7 @@ class TokenizerSpec:
     its first code points before, only with ``max_tokens``). Other tokenizers take none."""
 
     name: str
-    config: WordPieceConfig | None = None
+    config: WordPieceConfig | UnigramConfig | None = None
     unknown: str | None = None
     max_tokens: int | None = None
     max_chars: int | None = None
@@ -152,14 +156,15 @@ class TokenizerSpec:
     def __post_init__(self):
         name = check_tokenizer(self.name)
         object.__setattr__(self, "name", name)
-        if name != WORDPIECE:
+        parameters = _PARAMETERS.get(name)
+        if parameters is None:
             given = [f.name for f in fields(self)[1:] if getattr(self, f.name) is not None]
             if given:
                 raise ValueError(f"the tokenizer {name} has no parameters, but {given} are given")
             return
-        if not isinstance(self.config, WordPieceConfig):
+        if not isinstance(self.config, parameters):
             raise ValueError(
-                "wordpiece@1 needs its parameters (a WordPieceConfig); its encoders are "
+                f"{name} needs its parameters (a {parameters.__name__}); its encoders are "
                 "converted from models that have a tokenizer"
             )
         if self.unknown not in UNKNOWN_RULES:
@@ -186,6 +191,19 @@ class TokenizerSpec:
         if self.config is not None:
             self.config.check_vocabulary(vocab_bytes, vocab_offsets)
 
+    def native_arguments(self) -> tuple:
+        """The arguments of the native state of the tokenizer after its table and
+        vocabulary (WordPieceState or UnigramState), from its parameters and rules."""
+        cuts = (self.max_tokens or 0, self.max_chars or 0, self.unknown == "drop")
+        config = self.config
+        if isinstance(config, UnigramConfig):
+            return (*config.native_arguments(), *cuts)
+        if config is None:
+            raise ValueError(f"the tokenizer {self.name} has no native state of its own")
+        added = tuple(i for i, _ in config.added_tokens)
+        prefix, chars = config.continuing_subword_prefix, config.max_input_chars_per_word
+        return (config.unk_id, prefix, chars, added, *cuts)
+
     def describe(self) -> str:
         """The tokenizer and its rules in words, for ``repr``."""
         if self.config is None:
@@ -196,3 +214,7 @@ class TokenizerSpec:
         if self.max_chars is not None:
             rules += f" of the first {self.max_chars} characters"
         return f"{self.name} ({rules})"
+
+
+# The tokenizers with parameters and the type of their parameters.
+_PARAMETERS: dict[str, type] = {WORDPIECE: WordPieceConfig, UNIGRAM: UnigramConfig}

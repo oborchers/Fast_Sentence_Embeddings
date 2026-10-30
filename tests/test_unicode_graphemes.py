@@ -61,6 +61,8 @@ def test_white_space_is_the_25_code_points_of_oniguruma_and_rust():
 def test_the_generated_file_comes_from_its_data():
     gen = _generator()
     assert gen.python_source(_data()) == (ROOT / "src/fse/_unicode_graphemes.py").read_text()
+    header = (ROOT / "src/fse/_native_unicode_graphemes.h").read_text()
+    assert gen.header_source(_data()) == header
     assert gen.VERSION == ucd.VERSION
     assert set(gen.BREAK_VALUES) == set(ucd.BREAKS)
 
@@ -102,3 +104,21 @@ def test_the_generator_reads_only_the_pinned_files(tmp_path):
         gen._breaks("0041..0043 ; Extend\n0042 ; ZWJ\n")
     with pytest.raises(SystemExit, match="unknown"):
         gen._breaks("0041 ; Glue\n")
+
+
+@needs_generator
+def test_the_native_byte_of_a_code_point_holds_its_properties():
+    gen = _generator()
+    table = gen.native_table(_data())
+    assert len(table) == 0x110000
+    breaks = {value: code for code, value in enumerate(gen.BREAK_VALUES, start=1)}
+    incb = {value: code for code, value in enumerate(gen.INCB_VALUES, start=1)}
+    for cp in (0x0D, 0x0A, 0x0301, 0x200D, 0x1F1E9, 0x0903, 0xAC00, 0xAC01, 0x094D, 0x0915):
+        byte = table[cp]
+        value = next((v for v, cps in ucd.BREAKS.items() if cp in cps), None)
+        assert byte & 0x0F == (breaks[value] if value else 0), hex(cp)
+        found = next((v for v, cps in ucd.INCB.items() if cp in cps), None)
+        assert (byte >> gen.INCB_SHIFT) & 3 == (incb[found] if found else 0), hex(cp)
+    assert table[0x1F600] & gen.EXTENDED_PICTOGRAPHIC_BIT
+    assert table[0x3000] & gen.WHITE_SPACE_BIT
+    assert table[0x41] == 0

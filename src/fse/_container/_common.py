@@ -34,7 +34,16 @@ from . import _hash
 _fcntl: ModuleType | None = None if os.name == "nt" else importlib.import_module("fcntl")
 
 #: The dtype codes of the format and the numpy type descriptions they stand for.
-DTYPE_CODES = {"F32": "<f4", "F16": "<f2", "I8": "|i1", "U8": "|u1", "U32": "<u4", "I64": "<i8"}
+# F64 holds the scores of unigram@1 (tokenizer.scores); every format allows it only there.
+DTYPE_CODES = {
+    "F64": "<f8",
+    "F32": "<f4",
+    "F16": "<f2",
+    "I8": "|i1",
+    "U8": "|u1",
+    "U32": "<u4",
+    "I64": "<i8",
+}
 
 
 TENSOR_NAME = re.compile(r"[a-z0-9_]+(\.[a-z0-9_]+)*")
