@@ -177,3 +177,39 @@ def test_many_labels_are_cut_in_the_text(tmp_path):
     data, _ = _card_of(tmp_path / "c.safetensors", tmp_path)
     assert "- labels: l0, l1," in data.decode()
     assert "l19 and 5 more" in data.decode()
+
+
+@pytest.mark.parametrize(("dtype", "relation"), [("int8", "quantized"), ("float16", None)])
+def test_a_quantized_model_states_its_rule_and_promises_no_closeness(dtype, relation, tmp_path):
+    encoder = _converted()
+    quantized = encoder.quantize(dtype)
+    quantized.save(tmp_path / "q.safetensors")
+    data, meta = _card_of(tmp_path / "q.safetensors", tmp_path)
+    text = data.decode()
+    origin = encoder.word_vectors.fingerprint
+    assert f"- table stored by `quantize_rows@1` from the float32 table `{origin}`" in text
+    assert f"dimensions of the table: 6 ({dtype})" in text
+    assert "Converted from the model2vec model minishlab/potion-base-8M at revision `abc`." in text
+    assert "on the cpu backend bit for bit as its reference computes them" in text
+    assert "not those of the model before quantization" in text
+    assert "How close they come to it is measured, not promised by this file." in text
+    assert "within quantization error" not in text
+    assert "close to the source" not in text
+    assert meta["base_model"] == "minishlab/potion-base-8M"
+    assert meta.get("base_model_relation") == relation
+    assert _card_of(tmp_path / "q.safetensors", tmp_path)[0] == data
+
+
+def test_a_float32_model_has_no_line_about_a_quantization(tmp_path):
+    _converted().save(tmp_path / "m.safetensors")
+    text = _card_of(tmp_path / "m.safetensors", tmp_path)[0].decode()
+    assert "quantiz" not in text
+
+
+def test_a_quantized_table_without_a_record_of_its_origin_names_only_its_rule(tmp_path):
+    codes, scales = np.ones((2, 3), np.int8), np.ones(2, np.float32)
+    encoder = fse.Encoder.from_arrays(codes, words=["a", "b"], scales=scales)  # not quantize
+    encoder.save(tmp_path / "m.safetensors")
+    text = _card_of(tmp_path / "m.safetensors", tmp_path)[0].decode()
+    assert "- table stored by `quantize_rows@1`\n" in text
+    assert "from the float32 table" not in text

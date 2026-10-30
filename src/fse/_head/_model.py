@@ -20,7 +20,7 @@ from __future__ import annotations
 import dataclasses
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from numpy import ndarray
@@ -164,6 +164,28 @@ class LinearModel:
     @property
     def _tokenizer(self) -> str:
         return self._encoder.tokenizer
+
+    @validate_arguments
+    def quantize(self, dtype: Literal["float16", "int8"]):  # -> Self
+        """A new model of the same class and head whose encoder holds a float16 or int8
+        copy of its float32 table (``Encoder.quantize``); A and b are copied unchanged, a
+        loaded model's compared with their checksums first. Its predictions are those of
+        the quantized rows, on the cpu backend bit for bit as the reference computes them
+        from the quantized table, not those of this model; how close they are is measured.
+        A standalone model has no table to quantize and raises ``ValueError``: quantize the
+        complete model, then ``save(standalone=True)``. A model of a quantized encoder
+        raises as ``Encoder.quantize`` does."""
+        if self._content.standalone:
+            raise ValueError(
+                "a standalone model holds a folded float32 table and cannot be quantized; "
+                "quantize the complete model, then save it with standalone=True"
+            )
+        weight = self._verified("head.weight", self._content.weight)
+        bias = self._verified("head.bias", self._content.bias)
+        for array in (weight, bias):
+            array.setflags(write=False)
+        content = dataclasses.replace(self._content, weight=weight, bias=bias)
+        return type(self)._new(self._encoder.quantize(dtype), content, source=self._source)
 
     # --- persistence ------------------------------------------------------------------
 

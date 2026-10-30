@@ -239,7 +239,6 @@ def from_artifact(
     )
     check_tokenizer_table(
         content.tokenizer,
-        metadata.get("fse.dtype"),
         "fse.fasttext" in metadata,
         tensors.get("vocab.bytes"),
         tensors.get("vocab.offsets"),

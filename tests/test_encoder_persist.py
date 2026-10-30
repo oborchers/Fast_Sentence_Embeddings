@@ -1,14 +1,16 @@
 """An encoder as an artifact and back: its tensors, its loaded parts, converted content."""
 
+import re
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from fse._container import SafetensorsContainer
+from fse._container import CorruptArtifactError, SafetensorsContainer, checksum
 from fse._encoder import Encoder, _persist
 from fse._tokenizer_spec import TokenizerSpec
 from fse._wordvectors import WordVectors
+from support.encoder import finished
 
 FINISHED = Path(__file__).parent / "test_data" / "v2" / "finished"
 
@@ -48,3 +50,57 @@ def test_converted_content_checks_its_parts():
     content = _persist.converted(wv, spec, False, None, "mit")
     assert content.steps == ()
     assert content.license == "mit"
+
+
+def test_the_spec_of_a_finished_table_weighs_every_word_one():
+    encoder = finished(fasttext=True)
+    spec = _persist.spec(encoder._content, encoder.word_vectors)
+    assert spec.weights.tobytes() == np.ones(200, np.float32).tobytes()
+    assert (spec.steps, spec.max_ngrams) == (encoder._content.steps, 12)
+    assert spec.oov_weight == np.float32(0.75)
+    assert spec.tokenizer == encoder._content.tokenizer
+    plain = finished()
+    assert _persist.spec(plain._content, plain.word_vectors).oov_weight is None
+
+
+def test_held_tensors_are_compared_with_their_load_checksums_but_not_the_table():
+    held = {"oov_weight": np.array(0.75, np.float32), "vectors": np.ones((2, 2), np.float32)}
+    good = {"oov_weight": checksum(held["oov_weight"]), "vectors": "xxh3-128:00"}
+    _persist.check_held(held, good, None)  # the table is checked by its own object
+    _persist.check_held(held, None, None)
+    with pytest.raises(CorruptArtifactError, match="oov_weight of this encoder does not match"):
+        _persist.check_held(held, {"oov_weight": "xxh3-128:00"}, None)
+    path = Path("/x/e.safetensors")  # printed with the separator of the platform
+    with pytest.raises(CorruptArtifactError, match=f"oov_weight of {re.escape(str(path))} does"):
+        _persist.check_held(held, {"oov_weight": "xxh3-128:00"}, path)
+
+
+@pytest.mark.parametrize("dtype", ["float16", "int8"])
+def test_quantized_content_owns_the_weight_it_checked(dtype):
+    encoder = finished(fasttext=True)
+    content, table = _persist.quantized(
+        encoder._content, encoder.word_vectors, None, None, encoder._spec.oov_weight, dtype
+    )
+    assert table.dtype == dtype
+    assert content.oov_weight.tobytes() == np.float32(0.75).tobytes()
+    assert content.oov_weight is not encoder._content.oov_weight
+    assert not content.oov_weight.flags.writeable
+    assert (content.tokenizer, content.steps) == (
+        encoder._content.tokenizer,
+        encoder._content.steps,
+    )
+    tensors, _, expected = _persist.artifact(content, table, None, content.oov_weight[()])
+    assert expected is None
+    assert {"vectors", "ngrams", "oov_weight"} <= set(tensors)
+
+
+def test_quantizing_checks_the_held_tensors_first():
+    encoder = finished(fasttext=True)
+    wrong = {"oov_weight": "xxh3-128:00"}
+    with pytest.raises(CorruptArtifactError, match="oov_weight"):
+        _persist.quantized(
+            encoder._content, encoder.word_vectors, wrong, None, encoder._spec.oov_weight, "int8"
+        )
+    plain = finished()
+    content, _ = _persist.quantized(plain._content, plain.word_vectors, None, None, None, "int8")
+    assert content.oov_weight is None
