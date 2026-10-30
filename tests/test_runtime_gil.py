@@ -101,6 +101,7 @@ def test_a_ufunc_added_to_a_task_is_counted(monkeypatch, tmp_path):
     real = module.first_rows
 
     def checked(target, rows):
+        target[0][...] = 0  # the rows are not written yet: uninitialised memory may hold NaN
         np.add(target[0], 0, out=target[0])
         np.add.reduce(target[0], axis=None)
         return real(target, rows)
