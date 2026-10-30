@@ -251,15 +251,17 @@ def _empty_shard(tmp_path, monkeypatch):
     return sink
 
 
-def _shard_threads():
-    return [t.name for t in threading.enumerate() if t.name.startswith("fse-shard")]
+def _shard_threads(sink):
+    """The threads of ``sink`` still alive (others of the process are not its)."""
+    threads = (sink._hash, sink._io, sink._publisher)
+    return [t._thread.name for t in threads if t._thread.is_alive()]
 
 
 def test_a_failed_cleanup_without_an_error_raises_after_the_threads(tmp_path, monkeypatch):
     sink = _empty_shard(tmp_path, monkeypatch)
     with pytest.raises(PermissionError, match="Permission denied"):
         sink.close()
-    assert _shard_threads() == []
+    assert _shard_threads(sink) == []
     assert sink.durable_rows == 40
     assert len(fse.VectorStore.open(tmp_path / "s")) == 40
 
@@ -275,7 +277,7 @@ def test_a_failed_cleanup_after_an_error_is_noted_and_logged(tmp_path, monkeypat
     assert str(raised.value) == "the error of the application"
     (note,) = raised.value.__notes__
     assert note.startswith("fse could not remove the temporary ")
-    assert _shard_threads() == []
+    assert _shard_threads(sink) == []
 
 
 def test_a_header_names_no_other_kind_in_a_record(tmp_path):
@@ -314,4 +316,68 @@ def test_a_failed_cleanup_after_a_reported_error_still_raises(tmp_path, monkeypa
         sink._io.drain()  # the caller saw the error of the thread and goes on
     with pytest.raises(PermissionError, match="Permission denied"):
         sink.close()
-    assert _shard_threads() == []
+    assert _shard_threads(sink) == []
+
+
+@pytest.mark.usefixtures("python_sigint")
+def test_a_failed_cleanup_is_noted_on_a_deferred_interrupt(tmp_path, monkeypatch):
+    import signal
+
+    sink = _empty_shard(tmp_path, monkeypatch)
+    real_stop = sink._hash.stop
+
+    def stop():
+        signal.raise_signal(signal.SIGINT)  # Ctrl+C while close ends the threads
+        real_stop()
+
+    sink._hash.stop = stop
+    with (
+        expect_log("store.cleanup_failed", error="PermissionError"),
+        pytest.raises(KeyboardInterrupt) as raised,
+    ):
+        sink.close()
+    (note,) = raised.value.__notes__
+    assert note.startswith("fse could not remove the temporary ")
+    assert _shard_threads(sink) == []
+
+
+def test_a_failed_publish_reports_its_cleanup_in_the_calling_thread(tmp_path, monkeypatch):
+    from fse._store import _shard
+
+    encoder = finished()
+
+    def broken(*_args, **_kwargs):
+        raise OSError(errno.EIO, "the drive failed")
+
+    monkeypatch.setattr(_shard.ShardWriter, "finish", broken)
+    sink = fse.ShardSink(tmp_path / "s", encoder, shard_rows=16)
+    monkeypatch.setattr(
+        "fse._store._shard.remove_temporary",
+        lambda path: PermissionError(errno.EACCES, "Permission denied", str(path)),
+    )
+    with (
+        expect_log("store.cleanup_failed", error="PermissionError") as records,
+        pytest.raises(OSError, match="the drive failed") as raised,
+    ):
+        _encode_into(sink, encoder)
+    assert {r.threadName for r in records} == {threading.current_thread().name}
+    assert raised.value.__notes__
+    assert _shard_threads(sink) == []
+
+
+def _encode_into(sink, encoder):
+    with sink:
+        encoder.encode(TEXTS, sink=sink, workers=1)
+
+
+def test_expect_log_leaves_other_warnings_unexpected():
+    from fse import _log
+    from support.logs import unexpected
+
+    with captured(logging.WARNING, mark=False) as other, expect_log("store.search"):
+        _log.emit("store.search", "fse store: search")
+        _log.emit("runtime.arrow_copied", "fse runtime: copied", bytes=1)
+    found = [r for r in other if r.fse_event == "runtime.arrow_copied"]
+    assert unexpected(found) == ["fse.runtime WARNING: fse runtime: copied"]
+    for record in found:  # this test expects it after all
+        record.fse_expected = True

@@ -81,7 +81,7 @@ def enabled(event: str) -> bool:
     try:
         return logger.isEnabledFor(level)
     except Exception as error:
-        _report(event, error)
+        report_failure(event, error)
         return False
 
 
@@ -104,10 +104,10 @@ def emit(event: str, message: str, *args: object, **fields: object) -> None:
     try:
         logger.log(level, message, *args, extra=extra, stacklevel=2)
     except Exception as error:
-        _report(event, error)
+        report_failure(event, error)
 
 
-def _report(event: str, error: Exception) -> None:
+def report_failure(event: str, error: BaseException | None) -> None:
     """Say once per event on ``sys.__stderr__`` that logging it failed, without its fields
     (they would be formatted again), if ``logging.raiseExceptions`` is true."""
     with _report_lock:

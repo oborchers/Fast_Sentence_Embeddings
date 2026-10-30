@@ -56,9 +56,9 @@ def suspended() -> Iterator[None]:
 
 
 @contextlib.contextmanager
-def captured(level: int = logging.DEBUG) -> Iterator[list[logging.LogRecord]]:
+def captured(level: int = logging.DEBUG, *, mark: bool = True) -> Iterator[list[logging.LogRecord]]:
     """Every record of fse from ``level`` on within the block (each logger of fse set to
-    ``level``), marked as expected."""
+    ``level``), marked as expected unless ``mark`` is false."""
     capture = Capture(level)
     levels = {name: logging.getLogger(name).level for name in _log.LOGGER_NAMES}
     for name in _log.LOGGER_NAMES:
@@ -70,7 +70,7 @@ def captured(level: int = logging.DEBUG) -> Iterator[list[logging.LogRecord]]:
         TOP.removeHandler(capture)
         for name, value in levels.items():
             logging.getLogger(name).setLevel(value)
-        for record in capture.records:
+        for record in capture.records if mark else ():
             record.fse_expected = True
 
 
@@ -79,10 +79,12 @@ def expect_log(event: str, **fields: object) -> Iterator[list[logging.LogRecord]
     """The records of ``event`` within the block (its level enabled meanwhile); at least
     one must have ``fields`` (``fse_<name>`` equal to each value)."""
     _, level = _log.EVENTS[event]
-    with captured(level) as records:
+    with captured(level, mark=False) as records:
         mine: list[logging.LogRecord] = []
         yield mine
     mine += [r for r in records if r.fse_event == event]
+    for record in mine:  # only these: another WARNING within the block still fails
+        record.fse_expected = True
     assert any(
         all(getattr(r, f"fse_{k}", object()) == v for k, v in fields.items()) for r in mine
     ), f"no record of {event} with {fields}: {[vars(r) for r in mine]}"

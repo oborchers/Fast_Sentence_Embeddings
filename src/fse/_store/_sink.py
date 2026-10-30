@@ -26,6 +26,7 @@ import numpy as np
 from numpy import ndarray
 
 from fse import _codes, _log
+from fse._container import note_cleanup
 from fse._encoder import Encoder
 from fse._validation import PositiveInt, validate_arguments
 
@@ -96,6 +97,7 @@ class ShardSink:
         self._targets: dict[int, tuple[list, tuple | None]] = {}  # run row -> parts, own
         self._closed = self._interrupted = False
         self._interrupts: list = []  # those noted while it closes
+        self._unnoted: list = []  # failed cleanups for the note of a deferred interrupt
         self._created_by = _created_by()
         # Hashing (in order), writing and publishing (syncs, a rename) in three threads, so
         # the flush of one shard does not stop the hashing and writing of the next. One
@@ -223,6 +225,14 @@ class ShardSink:
         """``close``; ``error`` is the error the block of ``with`` raised, if any."""
         if self._closed:
             return
+        try:
+            self._close_deferring(error)
+        except KeyboardInterrupt as interrupt:  # the deferred one, raised after the block
+            for path, failure in self._unnoted:
+                note_cleanup(interrupt, path, failure)
+            raise
+
+    def _close_deferring(self, error: BaseException | None) -> None:
         with deferred_interrupts(self._abandon_all) as self._interrupts:
             try:
                 self._settle()  # the rows handed over are written, unless a thread failed
@@ -267,6 +277,8 @@ class ShardSink:
         # error of a thread that a call raised before is no longer in flight.
         for path, failure in failures:
             failed_cleanup(path, failure, error, failing=self._interrupted)
+        if error is None and self._interrupted:  # noted on the deferred interrupt
+            self._unnoted = [(path, f) for path, f in failures if f is not None]
 
     def _closed_record(self, error: BaseException | None, failing: bool) -> None:
         interrupted = self._interrupted or isinstance(error, KeyboardInterrupt)
@@ -351,10 +363,10 @@ class ShardSink:
                 f"this run published its first {self.durable_rows} rows (rows "
                 f"{self.first_row} to {self.first_row + self.durable_rows - 1} of the store)"
             )
-            failed_cleanup(writer.tmp, writer.abort(), exists)
+            writer.abort()  # a failure: removed again and reported at close, in its thread
             raise exists from None
-        except BaseException as error:
-            failed_cleanup(writer.tmp, writer.abort(), error)
+        except BaseException:
+            writer.abort()  # likewise
             raise
         self._made.discard(writer)
         self.durable_rows += rows

@@ -254,3 +254,21 @@ def test_concurrent_records_while_it_attaches_and_detaches(stderr):
     printed = collections.Counter(re.findall(r"record (\d+-\d+) end", stderr.getvalue()))
     assert max(printed.values()) == 1
     assert _log_config._Owned.handler not in TOP.handlers
+
+
+def test_a_broken_stream_is_reported_once(stderr, monkeypatch):
+    class Broken(io.StringIO):
+        def write(self, _text):
+            raise OSError("the stream is gone")
+
+    monkeypatch.setattr(_log, "_reported", set())
+    report = io.StringIO()
+    monkeypatch.setattr(sys, "__stderr__", report)  # where fse reports a failed record
+    monkeypatch.setattr(sys, "stderr", Broken())
+    fse.enable_logging()
+    for _ in range(3):
+        _fallback()
+    err = report.getvalue()
+    assert err.count("logging the event backend.fallback failed with OSError") == 1
+    assert "Traceback" not in err
+    assert stderr.getvalue() == ""

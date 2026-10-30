@@ -22,6 +22,26 @@ from support.logs import captured
 SECRETS = ("SECRET-PATH-7f3a", "SECRET-TEXT-91c2", "hf_SECRET-TOKEN", "SECRET-REPO", "secret-org")
 REPO = "secret-org/SECRET-REPO"
 TEXTS = [f"w{i} SECRET-TEXT-91c2 w{i + 1}" for i in range(40)]
+REQUIRED = {
+    "artifact.loaded",
+    "artifact.saved",
+    "artifact.verified",
+    "artifact.cleanup_failed",
+    "hub.resolved",
+    "hub.file",
+    "backend.selected",
+    "runtime.workers",
+    "runtime.plan",
+    "runtime.done",
+    "runtime.arrow_stream",
+    "head.folded",
+    "store.sink_opened",
+    "store.shard_published",
+    "store.sink_closed",
+    "store.opened",
+    "store.verified",
+    "store.search",
+}
 
 
 def _values(record: logging.LogRecord) -> list[object]:
@@ -91,13 +111,20 @@ def _has(module: str) -> bool:
 
 @pytest.mark.skipif(not hasattr(os, "symlink"), reason="the Hub cache needs links")
 def test_no_record_holds_a_path_text_token_or_repository(tmp_path, monkeypatch):
+    from fse import _backends, _cpus
+
+    # Events logged once per process (or per change) come again for this test.
+    monkeypatch.setattr(_backends, "_SELECTED", set())
+    monkeypatch.setattr(_cpus, "_REPORTED", [])
     root = tmp_path / "SECRET-PATH-7f3a"
     root.mkdir()
     with captured() as records:
         _everything(root, monkeypatch)
         _failed_cleanup(root, monkeypatch)
     seen = {r.fse_event for r in records}
-    assert len(seen) >= 18, sorted(set(_log.EVENTS) - seen)
+    # The mlx events, the copy of a misaligned Arrow column and the ignored keys need what
+    # this run lacks; the converted model needs model2vec.
+    assert REQUIRED | ({"artifact.converted"} if _has("model2vec") else set()) <= seen
     assert _leaks(records) == []
 
 

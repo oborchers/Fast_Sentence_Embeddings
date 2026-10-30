@@ -21,7 +21,7 @@ import threading
 import time
 from typing import Literal
 
-from fse._log import LOGGER_NAMES
+from fse._log import LOGGER_NAMES, report_failure
 from fse._validation import validate_arguments
 
 _TOP = logging.getLogger("fse")
@@ -33,6 +33,18 @@ _COLOURS = {logging.DEBUG: "2", logging.WARNING: "33", logging.ERROR: "31", logg
 class _FseHandler(logging.StreamHandler):
     """The handler of ``enable_logging``: one line per record, on the stderr of the moment
     ``enable_logging`` was called."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """StreamHandler.emit, but a record that cannot be formatted or written is
+        reported once per event, as an error of the application's handlers is
+        (fse._log), not with a traceback per record."""
+        try:
+            self.stream.write(self.format(record) + self.terminator)
+            self.flush()
+        except RecursionError:
+            raise
+        except Exception as error:
+            report_failure(getattr(record, "fse_event", "fse"), error)
 
     def format(self, record: logging.LogRecord) -> str:
         clock = time.strftime("%H:%M:%S", time.localtime(record.created))
