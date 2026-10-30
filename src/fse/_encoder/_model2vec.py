@@ -21,22 +21,20 @@ ignored silently.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
-from numpy import ndarray
-
-from fse._container import CorruptArtifactError, foreign_header, foreign_tensors, strict_json
+from fse._container import CorruptArtifactError
 from fse._contract import UnsupportedArtifactError
 from fse._tokenizer_json import MAX_BYTES as MAX_TOKENIZER_BYTES
 from fse._tokenizer_json import tokenizer_of
 from fse._tokenizer_spec import TokenizerSpec
 from fse._wordvectors import WordVectors
 
+from ._files import Converted, Files, read_table
+
 FILES = ("config.json", "model.safetensors", "tokenizer.json")
 DEFAULT_MAX_LENGTH = 512
-MAX_CONFIG_BYTES = 2**20
 # The length rule of the model itself, which max_length= of from_pretrained keeps.
 MODEL_RULE = "model"
 # Written by model2vec and its distillation; they do not change how a text is encoded.
@@ -49,37 +47,9 @@ _REFUSED = {
 _DTYPES = {"float32": "float32", "float16": "float16", "int8": "int8", "float64": "float64"}
 
 
-class Files(Protocol):
-    """The files of a model, each read once into bytes: ``read`` checks them (a regular
-    file within ``limit`` bytes; on the Hub against its commit, ``lfs`` for files that
-    must be LFS files there; ``inspect(handle, size)`` may check a prefix before the rest
-    is read), ``has`` says whether the model has a file, ``where`` names it in errors, and
-    ``source`` and ``revision`` say where the model came from."""
-
-    source: str | None
-    revision: str | None
-
-    def has(self, name: str) -> bool: ...
-
-    def where(self, name: str) -> Path: ...
-
-    def read(
-        self, name: str, *, lfs: bool = False, limit: int | None = None, inspect: Any = None
-    ) -> bytes: ...
-
-
-@dataclass(frozen=True, eq=False)
-class Model2Vec:
-    """The parts of the encoder of a Model2Vec model."""
-
-    word_vectors: WordVectors
-    tokenizer: TokenizerSpec
-    normalize: bool
-
-
 def read_model2vec(
     files: Files, config: Any, *, truncate: bool = True, max_length: Any = MODEL_RULE
-) -> Model2Vec:
+) -> Converted:
     """The encoder parts of the files of a Model2Vec model (``FILES``) with its parsed
     ``config``. With ``truncate`` the length rule is the model's, or ``max_length`` tokens
     (None: no cut); without, texts are read whole."""
@@ -95,14 +65,7 @@ def read_model2vec(
     length = _length(config, truncate, max_length)
     max_chars = None if length is None else length * median_length(tokens)
     spec = TokenizerSpec("wordpiece@1", parameters, "drop", length, max_chars)
-    return Model2Vec(words, spec, config.get("normalize", False))
-
-
-def parse_config(data: bytes, path: Path) -> Any:
-    """The parsed config.json (strict JSON of at most MAX_CONFIG_BYTES)."""
-    if len(data) > MAX_CONFIG_BYTES:
-        raise CorruptArtifactError(f"{path} has more than {MAX_CONFIG_BYTES} bytes")
-    return strict_json(data, path)
+    return Converted(words, spec, config.get("normalize", False))
 
 
 def _config(config: Any, path: Path) -> dict[str, Any]:
@@ -133,54 +96,21 @@ def _config(config: Any, path: Path) -> dict[str, Any]:
     return config
 
 
-def _table(files: Files, config: dict[str, Any], n_tokens: int) -> ndarray:
-    """The tensor embeddings: float32 rows, one per token. Its header is checked before
-    the data are read, so a file that holds other tensors costs no memory."""
-    path = files.where("model.safetensors")
+def _table(files: Files, config: dict[str, Any], n_tokens: int):
+    """The tensor embeddings: float32 rows, one per token, as the config states them."""
 
-    def inspect(handle, size: int) -> None:
-        _check_tensors(path, foreign_header(handle, path, size)[1], config, n_tokens)
+    def check(path, dtype: str, shape: tuple[int, ...]) -> None:
+        declared = config.get("embedding_dtype")
+        if declared is not None and _DTYPES.get(declared) != dtype:
+            raise CorruptArtifactError(
+                f"{path}: embedding_dtype is {declared!r}, the table {dtype}"
+            )
+        if config.get("hidden_dim", shape[1]) != shape[1]:
+            raise CorruptArtifactError(
+                f"{path}: hidden_dim is {config['hidden_dim']!r}, the table has {shape[1]} columns"
+            )
 
-    data = files.read("model.safetensors", lfs=True, inspect=inspect)
-    return foreign_tensors(data, path)["embeddings"]
-
-
-_DTYPE_OF_CODE = {"F32": "float32", "F16": "float16", "I8": "int8", "U8": "uint8"}
-_DTYPE_OF_CODE |= {"U32": "uint32", "I64": "int64"}
-
-
-def _check_tensors(path: Path, entries: dict, config: dict[str, Any], n_tokens: int) -> None:
-    """The tensors of the header: exactly a float32 matrix embeddings, one row per token."""
-    quantized = sorted({"weights", "mapping"} & set(entries))
-    if quantized:
-        raise UnsupportedArtifactError(
-            f"{path} holds {quantized}, the tensors of vocabulary quantization, which this "
-            "fse does not read"
-        )
-    if set(entries) != {"embeddings"}:
-        raise CorruptArtifactError(
-            f"{path} must hold exactly the tensor embeddings, not {sorted(entries)}"
-        )
-    code, shape, _, _ = entries["embeddings"]
-    if len(shape) != 2:
-        raise CorruptArtifactError(f"{path}: embeddings must be a matrix, not of shape {shape}")
-    dtype = _DTYPE_OF_CODE[code]
-    declared = config.get("embedding_dtype")
-    if declared is not None and _DTYPES.get(declared) != dtype:
-        raise CorruptArtifactError(f"{path}: embedding_dtype is {declared!r}, the table {dtype}")
-    if dtype != "float32":
-        raise UnsupportedArtifactError(
-            f"{path} has a {dtype} table; this fse reads float32 Model2Vec models "
-            "(model2vec computes others in their own dtype, so their vectors would differ)"
-        )
-    if config.get("hidden_dim", shape[1]) != shape[1]:
-        raise CorruptArtifactError(
-            f"{path}: hidden_dim is {config['hidden_dim']!r}, the table has {shape[1]} columns"
-        )
-    if shape[0] != n_tokens:
-        raise CorruptArtifactError(
-            f"{path} has {shape[0]} rows, but the tokenizer has {n_tokens} tokens"
-        )
+    return read_table(files, "model.safetensors", frozenset({"embeddings"}), n_tokens, check)
 
 
 def _length(config: dict[str, Any], truncate: bool, max_length: Any) -> int | None:

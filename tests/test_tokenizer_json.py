@@ -130,6 +130,38 @@ def test_truncation_padding_and_decoder_are_ignored(tmp_path):
     assert tokens == TOKENS
 
 
+def test_a_plain_truncation_is_a_token_limit(tmp_path):
+    """tokenizers writes a truncation as these four keys; its plain form keeps the first
+    max_length ids, which ``tokenizer_and_truncation`` gives as the token limit."""
+    hf = wp.hf_tokenizer(TOKENS, wp.added_tokens(TOKENS), max_length=3)
+    path = tmp_path / "tokenizer.json"
+    hf.save(str(path))
+    tokens, config, limit = tj.tokenizer_and_truncation(path.read_bytes(), path)
+    assert (tokens, limit) == (TOKENS, 3)
+    assert tj.read_tokenizer_json(path)[1] == config
+    path.write_text(json.dumps(_document()))
+    assert tj.tokenizer_and_truncation(path.read_bytes(), path)[2] is None
+
+
+@pytest.mark.parametrize(
+    ("change", "error", "match"),
+    [
+        ({"direction": "Left"}, UnsupportedArtifactError, "only the plain one"),
+        ({"stride": 2}, UnsupportedArtifactError, "only the plain one"),
+        ({"strategy": "OnlyFirst"}, UnsupportedArtifactError, "only the plain one"),
+        ({"max_length": 0}, CorruptArtifactError, "must be a positive int"),
+        ({"max_length": True}, CorruptArtifactError, "must be a positive int"),
+        ({"extra": 1}, CorruptArtifactError, "must be null or hold"),
+    ],
+)
+def test_another_truncation_is_refused(tmp_path, change, error, match):
+    plain = {"direction": "Right", "max_length": 3, "strategy": "LongestFirst", "stride": 0}
+    path = _write(tmp_path, _changed(_document(), ("truncation",), plain | change))
+    with pytest.raises(error, match=match):
+        tj.tokenizer_and_truncation(path.read_bytes(), path)
+    tj.read_tokenizer_json(path)  # model2vec ignores it
+
+
 def test_the_file_is_strict_and_bounded(tmp_path, monkeypatch):
     path = tmp_path / "tokenizer.json"
     path.write_text('{"a": 1, "a": 2}')

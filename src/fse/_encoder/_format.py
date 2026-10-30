@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from numpy import ndarray
@@ -110,11 +111,14 @@ _REMOVED_PREFIXES = ("step.", "folded.")
 @dataclass(frozen=True)
 class Source:
     """The model a converted encoder came from (``fse.source``), never read to compute:
-    its ``format`` (such as ``model2vec``), and its Hub ``repo`` and ``revision``."""
+    its ``format`` (such as ``model2vec``), its Hub ``repo`` and ``revision``, and
+    ``dims`` ``(width of its table, width kept)`` when the table was cut to its first
+    dimensions (``truncate_dim``)."""
 
     format: str
     repo: str | None = None
     revision: str | None = None
+    dims: tuple[int, int] | None = None
 
     def __post_init__(self):
         if not isinstance(self.format, str) or not self.format:
@@ -123,6 +127,17 @@ class Source:
             value = getattr(self, name)
             if value is not None and (not isinstance(value, str) or not value):
                 raise ValueError(f"the {name} of a source must be None or a non-empty str")
+        dims = self.dims
+        if dims is not None and not (
+            isinstance(dims, tuple)
+            and len(dims) == 2
+            and all(isinstance(d, int) and not isinstance(d, bool) for d in dims)
+            and 1 <= dims[1] < dims[0]
+        ):
+            raise ValueError(
+                f"the dims of a source must be None or (width, kept) with 1 <= kept < width, "
+                f"not {dims!r}"
+            )
 
 
 @dataclass(frozen=True, eq=False)
@@ -171,9 +186,14 @@ def to_artifact(
     metadata.update(_tokenizer_metadata(content.tokenizer))
     if content.source is not None:
         source = content.source
-        metadata["fse.source"] = canonical_json(
-            {"format": source.format, "repo": source.repo, "revision": source.revision}
-        )
+        value: dict[str, Any] = {
+            "format": source.format,
+            "repo": source.repo,
+            "revision": source.revision,
+        }
+        if source.dims is not None:
+            value["dims"] = list(source.dims)
+        metadata["fse.source"] = canonical_json(value)
     if content.license is not None:
         license_ = content.license
         metadata["fse.license"] = (
@@ -358,9 +378,19 @@ def _source(metadata: dict[str, str]) -> Source | None:
     if "fse.source" not in metadata:
         return None
     value = _json_object(metadata, "fse.source")
-    if set(value) != {"format", "repo", "revision"}:
-        raise ValueError("fse.source holds exactly format, repo and revision")
-    return Source(value["format"], value["repo"], value["revision"])
+    if set(value) - {"dims"} != {"format", "repo", "revision"}:
+        raise ValueError("fse.source holds exactly format, repo and revision, and optionally dims")
+    dims = value.get("dims")
+    if "dims" in value:
+        if not isinstance(dims, list):
+            raise ValueError(f"the dims of fse.source must be a list, not {dims!r}")
+        dims = tuple(dims)
+    source = Source(value["format"], value["repo"], value["revision"], dims)
+    if dims is not None and str(dims[1]) != metadata["fse.dim"]:
+        raise ValueError(
+            f"fse.source keeps {dims[1]} dimensions, but fse.dim is {metadata['fse.dim']}"
+        )
+    return source
 
 
 def loaded_table(

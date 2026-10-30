@@ -223,10 +223,10 @@ class Encoder:
         if found.data is not None:  # an fse encoder of the Hub, checked as these bytes
             tensors, metadata = SafetensorsContainer().open_bytes(*found.data)
             return cls._from_artifact(tensors, metadata, None, metadata.get(FINGERPRINT_KEY))
-        if found.model2vec is None:
+        if found.converted is None:
             assert found.path is not None
             return cls.load(found.path, mmap=mmap)
-        model = found.model2vec
+        model = found.converted
         return cls._converted(
             model.word_vectors,
             model.tokenizer,

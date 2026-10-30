@@ -29,36 +29,25 @@ from fse._container import CorruptArtifactError, read_regular, safetensors_heade
 from fse._contract import UnsupportedArtifactError
 from fse._hub import REPO_ID, HubFiles, check_folders, resolve_link
 
+from ._files import MAX_CONFIG_BYTES, NORMALIZE, STATIC_EMBEDDING, Converted, Files, parse_config
 from ._format import Source
-from ._model2vec import (
-    FILES,
-    MAX_CONFIG_BYTES,
-    MODEL_RULE,
-    Files,
-    Model2Vec,
-    parse_config,
-    read_model2vec,
-)
+from ._model2vec import FILES, MODEL_RULE, read_model2vec
 
 # The config.json of an fse encoder on the Hub: exactly these keys (provisional, fixed
 # with the first upload of fse models).
 FSE_CONFIG = {"model_type", "fse_kind", "fse_format_version", "encoder"}
 _FILE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.safetensors")
 MAX_CARD_BYTES = 16 * 2**20
-_STATIC_MODULES = {
-    "sentence_transformers.models.StaticEmbedding",
-    "sentence_transformers.models.Normalize",
-}
 
 
 @dataclass(frozen=True, eq=False)
 class Found:
     """A model: a local fse encoder file (``path``), an fse encoder of the Hub as its
-    checked bytes and name (``data``), or the parts of a Model2Vec model."""
+    checked bytes and name (``data``), or the parts of a converted model."""
 
     path: Path | None = None
     data: tuple[bytes, Path] | None = None
-    model2vec: Model2Vec | None = None
+    converted: Converted | None = None
     source: Source | None = None
     license: str | tuple[str, ...] | None = None
 
@@ -154,7 +143,7 @@ def find(
     source = Source("model2vec", files.source, files.revision)
     card = files.read("README.md", limit=MAX_CARD_BYTES) if files.has("README.md") else None
     return Found(
-        model2vec=model, source=source, license=card_license(card, files.where("README.md"))
+        converted=model, source=source, license=card_license(card, files.where("README.md"))
     )
 
 
@@ -226,7 +215,7 @@ def _check_modules(files: Files | LocalFiles, kind: Any) -> None:
     if not isinstance(modules, list) or not all(isinstance(m, dict) for m in modules):
         raise CorruptArtifactError(f"{where} must be a list of modules")
     types = [m.get("type") for m in modules]
-    if not set(types) <= _STATIC_MODULES:
+    if not set(types) <= STATIC_EMBEDDING | NORMALIZE:
         raise UnsupportedArtifactError(
             f"the model (model_type {kind!r}) is no static embedding model: its modules are {types}"
         )
