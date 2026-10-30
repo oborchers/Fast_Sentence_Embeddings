@@ -9,6 +9,7 @@ import pydantic
 import pytest
 
 import fse
+from fse import _reference
 from fse import _reference_head as ref
 from fse._container import CorruptArtifactError
 from support import quantized as qz
@@ -217,18 +218,26 @@ def _store(tmp_path, encoder, name="store"):
 
 @pytest.mark.parametrize("sink_dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("dtype", DTYPES)
-def test_store_mode_reads_the_rows_of_the_quantized_encoder(tmp_path, dtype, sink_dtype):
-    model = _classifier(finished(fasttext=True, normalize=True), 3)
-    quantized = model.quantize(dtype)
+def test_store_mode_scores_the_stored_rows_of_the_quantized_encoder(tmp_path, dtype, sink_dtype):
+    """The store holds the quantized encoder's rows as float32, float16 or int8 codes; the
+    outputs are the reference's score of exactly those stored values."""
+    quantized = _classifier(finished(fasttext=True, normalize=True), 3).quantize(dtype)
     encoder = quantized.encoder
     with fse.ShardSink(tmp_path / "s", encoder, dtype=sink_dtype, shard_rows=256) as sink:
         encoder.encode(SENTENCES, sink=sink)
     with fse.VectorStore.open(tmp_path / "s", encoder=encoder) as store:
         got = quantized.predict_proba(store)
+        z = np.concatenate(
+            [
+                _reference.scores(
+                    t["vectors"], t.get("scales"), quantized.coef_, quantized.intercept_
+                )
+                for _, t in store._shards
+            ]
+        )
+    assert qz.bits(got) == qz.bits(ref.proba(z, quantized._content.link))
     if sink_dtype == "float32":
         assert qz.bits(got) == qz.bits(quantized.predict_proba(SENTENCES))
-    assert got.shape == (len(SENTENCES), 3)
-    assert quantized.predict(SENTENCES).shape == (len(SENTENCES),)
 
 
 @pytest.mark.parametrize("dtype", DTYPES)

@@ -31,11 +31,21 @@ import numpy as np
 
 import fse
 
-PATTERN = "~/.cache/huggingface/hub/datasets--mteb--amazon_massive_intent/snapshots/*/{split}/{lang}.json.gz"
+SNAPSHOTS = "~/.cache/huggingface/hub/datasets--mteb--amazon_massive_intent/snapshots/*"
 
 
-def _read(split: str, lang: str) -> tuple[list[str], list[str]]:
-    (path,) = glob.glob(str(Path(PATTERN.format(split=split, lang=lang)).expanduser()))
+def _snapshot(lang: str) -> Path:
+    """The newest cached snapshot that holds both splits of ``lang``, used for both."""
+    for snapshot in sorted(glob.glob(str(Path(SNAPSHOTS).expanduser())), reverse=True):
+        if all((Path(snapshot) / s / f"{lang}.json.gz").is_file() for s in ("train", "test")):
+            return Path(snapshot)
+    raise SystemExit(
+        f"no cached snapshot of mteb/amazon_massive_intent has train and test of {lang}"
+    )
+
+
+def _read(snapshot: Path, split: str, lang: str) -> tuple[list[str], list[str]]:
+    path = snapshot / split / f"{lang}.json.gz"
     texts, labels = [], []
     with gzip.open(path, "rt", encoding="utf-8") as f:
         for line in f:
@@ -49,8 +59,9 @@ def _read(split: str, lang: str) -> tuple[list[str], list[str]]:
 def run(encoder: fse.Encoder, lang: str, dtypes: list[str]) -> list[dict]:
     from sklearn.linear_model import LogisticRegression
 
-    train, y_train = _read("train", lang)
-    test, y_test = _read("test", lang)
+    snapshot = _snapshot(lang)
+    train, y_train = _read(snapshot, "train", lang)
+    test, y_test = _read(snapshot, "test", lang)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # convergence notes of scikit-learn
         sk = LogisticRegression(max_iter=1000).fit(encoder.encode(train), y_train)
