@@ -18,6 +18,7 @@ several of them.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -147,6 +148,14 @@ class ArrowSource(_Buffered):
         if not isinstance(chunk, Chunk):
             raise TypeError(f"chunk must be a Chunk, not {type(chunk).__name__}")
         return self._column.encode(lookup, chunk.start, chunk.end, chunk.first_row, workspace)
+
+    def encode_with(self, chunk: Chunk, run: Callable[..., Any]) -> Any:
+        """``run`` on the rows of ``chunk``, as ``_Buffered.encode_with``; the text is the
+        column."""
+        self._check_open()
+        if not isinstance(chunk, Chunk):
+            raise TypeError(f"chunk must be a Chunk, not {type(chunk).__name__}")
+        return run(self._column, chunk.start, chunk.end, chunk.n_sentences, chunk.first_row, None)
 
     def close(self) -> None:
         """Release the Arrow arrays; raises while a worker still reads them."""

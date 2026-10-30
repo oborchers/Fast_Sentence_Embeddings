@@ -318,21 +318,15 @@ cdef class TextLookup:
             return ENCODE_NO_MEMORY
         return ENCODE_OK
 
-    def encode(self, const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssize_t last,
-               first_row, Workspace ws not None):
-        """The Batch of one range of sentences of data, which starts at row first_row.
-
-        Line mode (offsets is None): the sentences are the lines that start in the bytes
-        [first, last), which the caller aligns to line starts. Item mode: the sentences
-        are the strings first to last - 1, delimited by the int64 offsets.
-        """
-        from fse._contract import Batch
-
+    cdef _check_encode(self, const unsigned char[::1] data, offsets, Py_ssize_t first,
+                       Py_ssize_t last, Workspace ws):
+        """The checks before a range of data is read through raw pointers: the state, the
+        range, the offsets (an own copy of those of the range, so the caller cannot change
+        them between the check and the reads without the GIL; returned) and the workspace.
+        Returns (offsets, first, last) of the copy."""
         if self._state != TABLE_READY:
             raise RuntimeError("this TextLookup was not built; make a new one")
         if offsets is not None:
-            # An own copy of the offsets of the range, so the caller cannot change them
-            # between the check and the reads without the GIL.
             if not isinstance(offsets, np.ndarray) or offsets.dtype != np.int64 or offsets.ndim != 1:
                 raise ValueError("offsets must be an int64 vector")
             if not 0 <= first <= last <= len(offsets) - 1:
@@ -343,54 +337,29 @@ cdef class TextLookup:
         _check_span(data, offsets, first, last)
         if ws.busy:
             raise RuntimeError("a Workspace is used by one thread at a time")
-        cdef Py_ssize_t n = data.shape[0]
-        cdef const unsigned char *p = &data[0] if n else NULL
-        cdef bint lines = offsets is None
-        cdef const np.int64_t[::1] item_offsets
-        cdef const np.int64_t *items = NULL
-        if not lines:
-            item_offsets = offsets
-            items = &item_offsets[0]
-        cdef Py_ssize_t pos = first, start, end, sentence = 0, bad = -1
-        cdef const unsigned char *newline
-        cdef int status = ENCODE_OK
+        return offsets, first, last
+
+    def encode(self, const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssize_t last,
+               first_row, Workspace ws not None):
+        """The Batch of one range of sentences of data, which starts at row first_row.
+
+        Line mode (offsets is None): the sentences are the lines that start in the bytes
+        [first, last), which the caller aligns to line starts. Item mode: the sentences
+        are the strings first to last - 1, delimited by the int64 offsets.
+        """
+        from fse._contract import Batch
+
+        global _nogil_sections
+        offsets, first, last = self._check_encode(data, offsets, first, last, ws)
+        cdef _Span span
+        _span_of(&span, data, offsets, first, last)
+        cdef int status
         ws.busy = True
         try:
-            ws.tokens_seen = 0
-            ws.tokens.size = 0
-            ws.offsets.size = 0
-            ws.ngram_offsets.size = 0
-            ws.ngrams.size = 0
+            _nogil_sections += 1
             with nogil:
-                if _push_i64_nogil(&ws.offsets, 0) or _push_i64_nogil(&ws.ngram_offsets, 0):
-                    status = ENCODE_NO_MEMORY
-                while status == ENCODE_OK and pos < last:
-                    if lines:
-                        newline = <const unsigned char *>memchr(p + pos, 10, n - pos)
-                        start = pos
-                        end = (newline - p) if newline != NULL else n
-                        pos = end + 1 if newline != NULL else n
-                    else:
-                        start = items[pos]
-                        end = items[pos + 1]
-                        pos += 1
-                    status = self._sentence(p + start, end - start, ws, &bad)
-                    if status == ENCODE_OK:
-                        sentence += 1
-            if status == ENCODE_NO_MEMORY:
-                raise MemoryError("could not grow the buffers of the Workspace")
-            if status == ENCODE_BROKEN:
-                raise AssertionError(f"the lattice of unigram@1 broke in sentence {first_row + sentence}")
-            if status == ENCODE_TOO_LONG:
-                raise ValueError(
-                    f"sentence {first_row + sentence} has {end - start} bytes, more than "
-                    f"{MAX_SENTENCE_BYTES}; fse reads one sentence per line or string"
-                )
-            if status == ENCODE_BAD_UTF8:
-                _raise_decode_error(
-                    bytes(data[start:end]), bad,
-                    f" in sentence {first_row + sentence} (byte {start + bad} of the source)",
-                )
+                status = _encode_span(self, &span, ws)
+            _raise_encode_status(status, data, &span, first_row)
             tokens = _to_array(&ws.tokens, np.uint32)
             batch_offsets = _to_array(&ws.offsets, np.int64)
             if not self.fasttext:
@@ -401,3 +370,88 @@ cdef class TextLookup:
             )
         finally:
             ws.busy = False
+
+
+cdef struct _Span:
+    # A range of sentences of one buffer: lines (items NULL) or strings, and where the
+    # loop stopped: the sentences done, the bounds of the current one, its bad byte.
+    const unsigned char *p
+    Py_ssize_t n
+    const np.int64_t *items
+    Py_ssize_t first, last
+    Py_ssize_t sentence, start, end, bad
+
+
+cdef int _span_of(_Span *span, const unsigned char[::1] data, offsets, Py_ssize_t first,
+                  Py_ssize_t last) except -1:
+    """The span of the checked range [first, last) of data (offsets as _check_encode gave
+    them)."""
+    cdef const np.int64_t[::1] item_offsets
+    span.n = data.shape[0]
+    span.p = &data[0] if span.n else NULL
+    span.items = NULL
+    if offsets is not None:
+        item_offsets = offsets
+        span.items = &item_offsets[0]  # the copy outlives the call: the caller holds it
+    span.first, span.last = first, last
+    span.sentence, span.start, span.end, span.bad = 0, 0, 0, -1
+    return 0
+
+
+cdef int _start_batch(Workspace ws) noexcept nogil:
+    """Empty the batch buffers of ws and start its offsets at 0."""
+    ws.tokens_seen = 0
+    ws.tokens.size = 0
+    ws.offsets.size = 0
+    ws.ngram_offsets.size = 0
+    ws.ngrams.size = 0
+    if _push_i64_nogil(&ws.offsets, 0) or _push_i64_nogil(&ws.ngram_offsets, 0):
+        return ENCODE_NO_MEMORY
+    return ENCODE_OK
+
+
+cdef int _encode_span(TextLookup lookup, _Span *span, Workspace ws) noexcept nogil:
+    """Stages 1 and 2 of the sentences of span into the batch buffers of ws; stops at the
+    first sentence that fails, with its status. The loop keeps its state in locals (the
+    loop of encode before it was shared) and stores it in span once at the end."""
+    cdef Py_ssize_t pos = span.first, last = span.last, n = span.n
+    cdef Py_ssize_t start = 0, end = 0, sentence = 0, bad = -1
+    cdef const np.int64_t *items = span.items
+    cdef const unsigned char *newline
+    cdef const unsigned char *p = span.p
+    cdef int status = _start_batch(ws)
+    while status == ENCODE_OK and pos < last:
+        if items == NULL:
+            newline = <const unsigned char *>memchr(p + pos, 10, n - pos)
+            start = pos
+            end = (newline - p) if newline != NULL else n
+            pos = end + 1 if newline != NULL else n
+        else:
+            start = items[pos]
+            end = items[pos + 1]
+            pos += 1
+        status = lookup._sentence(p + start, end - start, ws, &bad)
+        if status == ENCODE_OK:
+            sentence += 1
+    span.start, span.end, span.sentence, span.bad = start, end, sentence, bad
+    return status
+
+
+cdef int _raise_encode_status(int status, const unsigned char[::1] data, _Span *span,
+                              first_row) except -1:
+    """Raise the error of a status of _encode_span, naming the row of the run."""
+    if status == ENCODE_OK:
+        return 0
+    if status == ENCODE_NO_MEMORY:
+        raise MemoryError("could not grow the buffers of the Workspace")
+    if status == ENCODE_BROKEN:
+        raise AssertionError(f"the lattice of unigram@1 broke in sentence {first_row + span.sentence}")
+    if status == ENCODE_TOO_LONG:
+        raise ValueError(
+            f"sentence {first_row + span.sentence} has {span.end - span.start} bytes, more than "
+            f"{MAX_SENTENCE_BYTES}; fse reads one sentence per line or string"
+        )
+    _raise_decode_error(
+        bytes(data[span.start:span.end]), span.bad,
+        f" in sentence {first_row + span.sentence} (byte {span.start + span.bad} of the source)",
+    )

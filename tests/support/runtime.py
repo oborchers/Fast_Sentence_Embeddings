@@ -92,6 +92,7 @@ def source(kind, sentences, tmp_path):
         return StreamSource(iter(sentences), chunk_rows=97)
     if kind == "tokens":
         return TokenListSource([s.split(" ") if s else [] for s in sentences])
+    tmp_path.mkdir(parents=True, exist_ok=True)
     path = tmp_path / "sentences.txt"
     path.write_text("".join(s + "\n" for s in sentences), encoding="utf-8")
     return FileSource(path)
