@@ -2,8 +2,6 @@
 source, never from len() of the batch (exporters without __len__ or with a wrong one), also
 when a producer cannot export and is read as a stream. No pyarrow is needed."""
 
-import logging
-
 import numpy as np
 import pytest
 
@@ -53,11 +51,6 @@ def batches_of(kind):
 
 
 KINDS = [Unsized, Missized, CannotExport, CannotExportMissized]
-
-
-@pytest.fixture(autouse=True)
-def _warnings(caplog):
-    caplog.set_level(logging.ERROR, logger="fse._encoder._sources")  # the fallback's warning
 
 
 @pytest.mark.parametrize("kind", KINDS)
