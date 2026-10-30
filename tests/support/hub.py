@@ -63,6 +63,7 @@ class FakeHub:
 
     def create_commit(self, repo_id, operations, **options):
         assert repo_id == self.repo
+        assert not options["create_pr"]  # pull requests: the fake of tests/test_hub_push.py
         branch = options["revision"] or "main"
         if options["parent_commit"] != self.branches[branch]:
             raise RuntimeError("the branch moved since the parent commit")
@@ -113,6 +114,9 @@ class FakeHub:
 
 
 def _sibling(name: str, data: bytes) -> SimpleNamespace:
+    """A file as the Hub stores what a push adds: .gitattributes makes every
+    ``.safetensors`` file an LFS file (the fake of tests/test_hub_push.py also models
+    files stored otherwise)."""
     if name.endswith(".safetensors"):
         lfs = SimpleNamespace(sha256=hashlib.sha256(data).hexdigest(), size=len(data))
         return SimpleNamespace(rfilename=name, lfs=lfs, blob_id=git_sha1(b"pointer " + data))

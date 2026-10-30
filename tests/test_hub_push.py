@@ -31,11 +31,19 @@ def _sha1(data):
 
 
 class FakeApi:
-    """create_repo, model_info and create_commit of one repository, commit by commit."""
+    """create_repo, model_info and create_commit of one repository, commit by commit.
+
+    How a file is stored is state of the commit, not a rule of its name: ``lfs[commit]``
+    holds the names stored as LFS files. A commit stores what it adds as an LFS file when
+    .gitattributes says so (``*.safetensors``) and keeps how the other files were stored.
+    A pull request (``create_pr``) is a commit on top of ``parent_commit`` under a ref of
+    its own; the branch does not move, as the Hub does it."""
 
     def __init__(self):
         self.commits = {"0" * 40: {".gitattributes": b"*.safetensors filter=lfs\n"}}
+        self.lfs = {"0" * 40: set()}
         self.head = "0" * 40
+        self.prs = []
         self.calls = []
         self.after_commit = None
 
@@ -46,42 +54,60 @@ class FakeApi:
     def create_repo(self, repo_id, *, repo_type, private, exist_ok):
         self.calls.append(("create_repo", repo_id, repo_type, private, exist_ok))
 
+    def put(self, name, data, *, lfs=False):
+        """A file of the first commit, stored as an LFS file or as a plain git blob."""
+        self.commits["0" * 40][name] = data
+        if lfs:
+            self.lfs["0" * 40].add(name)
+
     def model_info(self, repo_id, *, revision, files_metadata):
         assert repo_id == REPO
         assert files_metadata
         commit = revision if revision in self.commits else self.head  # a commit, or a branch
-        files = self.commits[commit]
-        siblings = [
-            SimpleNamespace(
-                rfilename=name,
-                lfs=SimpleNamespace(sha256=hashlib.sha256(data).hexdigest(), size=len(data))
-                if name.endswith(".safetensors")
-                else None,
-                blob_id=_sha1(b"pointer " + data) if name.endswith(".safetensors") else _sha1(data),
-            )
-            for name, data in files.items()
-        ]
+        siblings = []
+        for name, data in self.commits[commit].items():
+            if name in self.lfs[commit]:
+                lfs = SimpleNamespace(sha256=hashlib.sha256(data).hexdigest(), size=len(data))
+                siblings.append(
+                    SimpleNamespace(rfilename=name, lfs=lfs, blob_id=_sha1(b"p" + data))
+                )
+            else:
+                siblings.append(SimpleNamespace(rfilename=name, lfs=None, blob_id=_sha1(data)))
         return SimpleNamespace(sha=commit, siblings=siblings)
 
     def create_commit(self, repo_id, operations, **options):
         self.calls.append(("create_commit", repo_id, list(operations), options))
-        if options["parent_commit"] != self.head:
+        parent = options["parent_commit"]
+        if options["create_pr"]:
+            assert parent in self.commits  # a pull request starts from the parent commit
+        elif parent != self.head:
             raise RuntimeError("the branch moved since the parent commit")
-        files = dict(self.commits[self.head])
+        files, lfs = dict(self.commits[parent]), set(self.lfs[parent])
         for op in operations:
             if isinstance(op, huggingface_hub.CommitOperationDelete):
                 assert op.is_folder is False
                 del files[op.path_in_repo]  # exactly this name, no pattern
+                lfs.discard(op.path_in_repo)
             else:
                 files[op.path_in_repo] = Path(op.path_or_fileobj).read_bytes()
-        oid = hashlib.sha1(repr(sorted(files.items())).encode()).hexdigest()
-        self.commits[oid] = files
-        self.head = oid
+                if op.path_in_repo.endswith(".safetensors"):  # the rule of .gitattributes
+                    lfs.add(op.path_in_repo)
+                else:
+                    lfs.discard(op.path_in_repo)
+        oid = hashlib.sha1(repr((sorted(files.items()), sorted(lfs))).encode()).hexdigest()
+        self.commits[oid], self.lfs[oid] = files, lfs
         if self.after_commit is not None:
             self.after_commit(files)
         url = f"https://huggingface.co/{repo_id}/commit/{oid}"
-        pr = "https://huggingface.co/acme/model/discussions/1" if options["create_pr"] else None
-        return SimpleNamespace(oid=oid, commit_url=url, pr_url=pr)
+        if options["create_pr"]:
+            self.prs.append(oid)
+            number = len(self.prs)
+            pr = f"https://huggingface.co/{repo_id}/discussions/{number}"
+            return SimpleNamespace(
+                oid=oid, commit_url=url, pr_url=pr, pr_revision=f"refs/pr/{number}"
+            )
+        self.head = oid
+        return SimpleNamespace(oid=oid, commit_url=url, pr_url=None, pr_revision=None)
 
     def files(self):
         return self.commits[self.head]
@@ -172,6 +198,29 @@ def test_options_pass_through_and_a_pull_request_returns_its_url(api):
     assert url == "https://huggingface.co/acme/model/discussions/1"
 
 
+def test_a_pull_request_starts_from_the_parent_and_leaves_the_branch(api):
+    first = _push(finished(seed=0))
+    branch = api.head
+    real = api.model_info
+
+    def moved(*args, **kwargs):  # the branch moves after the push read it
+        info = real(*args, **kwargs)
+        api.head = "f" * 40
+        api.commits[api.head], api.lfs[api.head] = dict(api.commits[branch]), set()
+        return info
+
+    api.model_info = moved
+    url = _push(finished(seed=1), create_pr=True, replace=True)
+    api.model_info = real
+    (pr,) = api.prs
+    assert url == "https://huggingface.co/acme/model/discussions/1"
+    assert api.head == "f" * 40  # the branch is as the other writer left it
+    assert api.commit_calls()[-1][3]["parent_commit"] == branch
+    assert api.commits[pr]["model.safetensors"] != api.commits[branch]["model.safetensors"]
+    assert "model.safetensors" in api.lfs[pr]
+    assert first.endswith(branch)
+
+
 def test_the_same_content_makes_no_commit(api):
     encoder = finished()
     first = _push(encoder)
@@ -197,11 +246,10 @@ def test_other_content_under_the_same_names_needs_replace(api):
 
 
 def test_other_files_are_deleted_by_their_exact_names_and_licenses_are_kept(api):
-    files = api.commits["0" * 40]
     for name in ("onnx/model.onnx", "w*", "w1", "[LN]x", "Lx"):
-        files[name] = b"x"
-    files["LICENSE"] = b"MIT License, kept\n"
-    files["NOTICE.md"] = b"notice\n"
+        api.put(name, b"x")
+    api.put("LICENSE", b"MIT License, kept\n")
+    api.put("NOTICE.md", b"notice\n")
     with pytest.raises(ValueError, match="files of another model"):
         _push(finished())
     _push(finished(), replace=True)
@@ -222,7 +270,7 @@ def test_other_files_are_deleted_by_their_exact_names_and_licenses_are_kept(api)
 
 
 def test_a_license_file_is_replaced_only_when_passed_and_replaced(api, tmp_path):
-    api.commits["0" * 40]["LICENSE"] = b"old\n"
+    api.put("LICENSE", b"old\n")
     (tmp_path / "LICENSE").write_bytes(b"new\n")
     with pytest.raises(ValueError, match=r"other content under \['LICENSE'\]"):
         _push(finished(), extra_files={"LICENSE": tmp_path / "LICENSE"})
@@ -237,6 +285,7 @@ def test_a_branch_that_moved_meanwhile_makes_no_commit(api):
         info = real(*args, **kwargs)
         api.head = "f" * 40
         api.commits[api.head] = dict(api.commits["0" * 40])
+        api.lfs[api.head] = set()
         return info
 
     api.model_info = moved
