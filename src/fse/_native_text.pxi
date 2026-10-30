@@ -412,24 +412,28 @@ cdef int _start_batch(Workspace ws) noexcept nogil:
 
 cdef int _encode_span(TextLookup lookup, _Span *span, Workspace ws) noexcept nogil:
     """Stages 1 and 2 of the sentences of span into the batch buffers of ws; stops at the
-    first sentence that fails, with its status."""
-    cdef Py_ssize_t pos = span.first
+    first sentence that fails, with its status. The loop keeps its state in locals (the
+    loop of encode before it was shared) and stores it in span once at the end."""
+    cdef Py_ssize_t pos = span.first, last = span.last, n = span.n
+    cdef Py_ssize_t start = 0, end = 0, sentence = 0, bad = -1
+    cdef const np.int64_t *items = span.items
     cdef const unsigned char *newline
     cdef const unsigned char *p = span.p
     cdef int status = _start_batch(ws)
-    while status == ENCODE_OK and pos < span.last:
-        if span.items == NULL:
-            newline = <const unsigned char *>memchr(p + pos, 10, span.n - pos)
-            span.start = pos
-            span.end = (newline - p) if newline != NULL else span.n
-            pos = span.end + 1 if newline != NULL else span.n
+    while status == ENCODE_OK and pos < last:
+        if items == NULL:
+            newline = <const unsigned char *>memchr(p + pos, 10, n - pos)
+            start = pos
+            end = (newline - p) if newline != NULL else n
+            pos = end + 1 if newline != NULL else n
         else:
-            span.start = span.items[pos]
-            span.end = span.items[pos + 1]
+            start = items[pos]
+            end = items[pos + 1]
             pos += 1
-        status = lookup._sentence(p + span.start, span.end - span.start, ws, &span.bad)
+        status = lookup._sentence(p + start, end - start, ws, &bad)
         if status == ENCODE_OK:
-            span.sentence += 1
+            sentence += 1
+    span.start, span.end, span.sentence, span.bad = start, end, sentence, bad
     return status
 
 

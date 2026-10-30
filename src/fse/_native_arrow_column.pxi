@@ -436,8 +436,10 @@ cdef class ArrowColumn:
                           Workspace ws, _ArrowRow *row) noexcept nogil:
         """Stages 1 and 2 of the rows first to last - 1 into the batch buffers of ws; stops
         at the first row that fails, with its status (the caller holds a reader)."""
-        cdef Py_ssize_t pos = first
+        cdef Py_ssize_t pos = first, sentence = 0, bad = -1
         cdef _Cursor at
+        cdef const unsigned char *p = NULL
+        cdef int64_t n = 0
         _reader_hold()
         cdef int status = _start_batch(ws)
         if pos < last:
@@ -445,12 +447,14 @@ cdef class ArrowColumn:
         while status == ENCODE_OK and pos < last:
             if pos >= at.end:
                 _seek(&at, self._chunks, self._starts, self._n, pos)
-            if fse_arrow_row(at.chunk, pos - at.base, &row.p, &row.n) != 0:
-                return _ARROW_INVALID
-            status = lookup._sentence(row.p, row.n, ws, &row.bad)
+            if fse_arrow_row(at.chunk, pos - at.base, &p, &n) != 0:
+                status = _ARROW_INVALID
+                break
+            status = lookup._sentence(p, n, ws, &bad)
             if status == ENCODE_OK:
-                row.sentence += 1
+                sentence += 1
                 pos += 1
+        row.p, row.n, row.bad, row.sentence = p, n, bad, sentence  # once, at the end
         return status
 
     def encode(self, TextLookup lookup not None, Py_ssize_t first, Py_ssize_t last, first_row,
