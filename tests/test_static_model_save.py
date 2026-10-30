@@ -137,7 +137,7 @@ def test_the_language_of_the_card_and_the_license_are_kept(tmp_path):
 
 
 def test_a_language_fse_cannot_write_raises_instead_of_changing(tmp_path):
-    folder = _with_card(sm.model_folder(tmp_path / "source"), language=("english",))
+    folder = _with_card(sm.model_folder(tmp_path / "source"), language=("Klingon",))
     model = fse.StaticModel.from_pretrained(folder)
     with pytest.raises(ValueError, match="no language code"):
         model.save_pretrained(tmp_path / "saved")

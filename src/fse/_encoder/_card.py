@@ -26,8 +26,9 @@ from fse._hub import REPO_ID
 
 # A license id as the Hub writes it (an SPDX id or "other").
 LICENSE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]*")
-# A language code of the Hub: ISO 639-1 or 639-3, optionally with a region or script.
-_LANGUAGE = re.compile(r"[a-z]{2,3}([-_][A-Za-z0-9]{2,8})*")
+# A language code of the Hub: ISO 639-1 or 639-3, optionally with a region or script, or
+# "multilingual" (a value of the Hub, used by multilingual static models).
+_LANGUAGE = re.compile(r"multilingual|[a-z]{2,3}([-_][A-Za-z0-9]{2,8})*")
 _ABOUT = "https://github.com/oborchers/Fast_Sentence_Embeddings"
 _MAX_LABELS = 20
 
