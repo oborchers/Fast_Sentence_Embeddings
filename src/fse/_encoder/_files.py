@@ -4,12 +4,13 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""What the readers of models of other libraries share (ARCHITECTURE.md, "Pretrained
-models and from_pretrained"): the files of a model (``Files``), each read once into bytes
-that are checked and then parsed; strict JSON configs; the float32 table of one tensor,
-whose header is checked before its data are read; the parts of the encoder a reader
-gives (``Converted``); and the module types of sentence-transformers as each version
-writes them.
+"""What the readers of models of other libraries share.
+
+ARCHITECTURE.md, "Model2Vec models and from_pretrained" and "sentence-transformers
+models": the files of a model (``Files``), each read once into bytes that are checked and
+then parsed; strict JSON configs; the float32 table of one tensor, whose header is checked
+before its data are read; the parts of the encoder a reader gives (``Converted``); and the
+module types of sentence-transformers as each version writes them.
 """
 
 from __future__ import annotations
