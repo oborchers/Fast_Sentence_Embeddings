@@ -119,6 +119,7 @@ def quality(args) -> list[dict]:
         row = _compare(name, sk, clf, test, x_test, y_test)
         row.update({"train": len(train), "fit_s": fit})
         results.append(row)
+        print(json.dumps(row), flush=True)
         for dtype in args.dtype:
             quantized = _compare_quantized(name, clf, dtype, test, y_test)
             results.append(quantized)
@@ -126,7 +127,6 @@ def quality(args) -> list[dict]:
         if args.models:
             Path(args.models).mkdir(parents=True, exist_ok=True)
             clf.save(Path(args.models) / f"amazon-{name}.safetensors")
-        print(json.dumps(row), flush=True)
     return results
 
 
