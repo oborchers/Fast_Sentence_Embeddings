@@ -407,7 +407,7 @@ name = "Text: the sources and the lookup on the scan of one buffer"
 type = "layers"
 containers = ["fse._text"]
 exhaustive = true
-layers = ["_arrow | _strings | _lookup", "_scan"]
+layers = ["_arrow | _strings | _lookup", "_scan", "_plan"]
 
 [[tool.importlinter.contracts]]
 name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the executor"

@@ -89,3 +89,18 @@ def test_full_chunks_of_neighbour_ranges_stay_apart(tmp_path):
     with FileSource(path) as source:
         scan = source.scan(workers=8, chunk_bytes=65_536)
     assert len(scan.chunks) == 32
+
+
+def test_strings_are_cut_from_their_offsets():
+    from itertools import pairwise
+
+    from fse._text._plan import offset_cuts
+
+    texts = [f"sentence {i} " * (i % 9) for i in range(5000)]
+    for source in (StringSource(texts), StringSource.encoded([t.encode() for t in texts])):
+        for workers in (1, 4):
+            scan = source.scan(workers=workers, chunk_bytes=4096, chunk_rows=300)
+            cuts = offset_cuts(source._offsets, 4096, 300).tolist()
+            assert [(c.start, c.end, c.first_row) for c in scan.chunks] == [
+                (a, b, a) for a, b in pairwise(cuts)
+            ]

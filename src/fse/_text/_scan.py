@@ -23,6 +23,8 @@ from numpy import ndarray
 from fse import _native
 from fse._contract import Batch
 
+from ._plan import offset_cuts
+
 # Bytes per chunk: small enough to balance workers, large enough that the per-chunk
 # overhead does not matter.
 _CHUNK_MIN_BYTES = 1 << 16
@@ -192,11 +194,14 @@ class _Buffered:
         the chunks of the sentences before it and its error (or None). The runtime encodes
         those sentences first, so an earlier row that fails later in its pipeline is
         reported before it (ARCHITECTURE.md, "Runtime", Errors)."""
+        self._check_open()
         total = self.nbytes
         workers, chunk_bytes, chunk_rows = _chunk_sizes(total, workers, chunk_bytes, chunk_rows)
-        scan = self._scanner(chunk_bytes, chunk_rows)
         if self._positions() == 0:
             return Scan(0, ()), None
+        if self._offsets is not None:
+            return self._offset_scan(workers, chunk_bytes, chunk_rows)
+        scan = self._scanner(chunk_bytes, chunk_rows)
         ranges = list(pairwise(self._range_bounds(workers, chunk_bytes)))
 
         def remainder(c: Chunk) -> bool:
@@ -224,6 +229,32 @@ class _Buffered:
                 if error is not None:
                     return Scan(sentences, tuple(chunks)), error
         return Scan(sentences, tuple(chunks)), None
+
+    def _offset_scan(
+        self, workers: int, chunk_bytes: int, chunk_rows: int
+    ) -> tuple[Scan, Exception | None]:
+        """The scan of sentences with offsets: validated, then cut from the offsets into
+        chunks of about equal bytes (``offset_cuts``)."""
+        rows, error = self._validated(workers, chunk_bytes)
+        assert self._offsets is not None
+        cuts = offset_cuts(self._offsets[: rows + 1], chunk_bytes, chunk_rows).tolist()
+        chunks = tuple(Chunk(a, b, a, b - a) for a, b in pairwise(cuts))
+        return Scan(rows, chunks), error
+
+    def _validated(self, workers: int, chunk_bytes: int) -> tuple[int, Exception | None]:
+        """The sentences before the first invalid one, and its error (or None)."""
+        scan = self._scanner(1 << 62, _native.MAX_CHUNK_ROWS)
+        ranges = list(pairwise(self._range_bounds(workers, chunk_bytes)))
+        sentences = 0
+        with _scan_pool(workers, self.nbytes) as pool:
+            for result in (map if pool is None else pool.map)(scan, ranges):
+                count, _, _, _, error_byte, error_sentence = result
+                if error_byte >= 0:
+                    return sentences + error_sentence, self._error(
+                        error_byte, sentences + error_sentence
+                    )
+                sentences += count
+        return sentences, None
 
     def _valid_part(self, scan: Callable, first: int, byte: int, sentences: int) -> Any:
         """The scan of the valid sentences of a range before its first invalid one."""
