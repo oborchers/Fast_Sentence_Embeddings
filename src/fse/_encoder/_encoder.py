@@ -252,7 +252,7 @@ class Encoder:
         Its rows are those of the quantized table, bit for bit as its reference computes
         them. They are not the rows of this encoder; how close they are is measured.
         Quantizing a float16 or int8 encoder again raises ``ValueError``."""
-        content, table, checksums = _persist.quantized(
+        content, table = _persist.quantized(
             self._content,
             self._word_vectors,
             self._checksums,
@@ -260,7 +260,7 @@ class Encoder:
             self._spec.oov_weight,
             dtype,
         )
-        return Encoder._new(content, table, checksums=checksums, vocabulary=self._vocabulary)
+        return Encoder._new(content, table, vocabulary=self._vocabulary)
 
     # --- encoding ---------------------------------------------------------------------
 

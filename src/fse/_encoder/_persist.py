@@ -139,11 +139,11 @@ def quantized(
     path: Path | None,
     oov_weight: float | None,
     dtype: Literal["float16", "int8"],
-) -> tuple[EncoderContent, WordVectors, dict[str, str] | None]:
-    """The content, the table and the checksums of the held tensors of an encoder with a
-    float16 or int8 copy of its float32 table (``WordVectors.quantize``, which hashes the
-    copy it quantizes). The held tensors are checked first; the weight of unknown words
-    is the verified value the encoder uses, never the mapped array it was loaded as."""
+) -> tuple[EncoderContent, WordVectors]:
+    """The content and the table of an encoder with a float16 or int8 copy of its float32
+    table (``WordVectors.quantize``, which hashes the copy it quantizes). The tensors held
+    besides the table are checked against the load checksums first; the weight of unknown
+    words is the verified value the encoder uses, never the mapped array it was loaded as."""
     tensors, _, _ = artifact(content, word_vectors, checksums, oov_weight)
     check_held(tensors, checksums, path)
     table = word_vectors.quantize(dtype)
@@ -157,8 +157,7 @@ def quantized(
     if oov_weight is not None:
         weight = np.array(oov_weight, dtype=np.float32)
         weight.setflags(write=False)
-    kept = {k: v for k, v in (checksums or {}).items() if k not in TABLE_TENSORS}
-    return replace(content, oov_weight=weight), table, kept or None
+    return replace(content, oov_weight=weight), table
 
 
 def fingerprint_of(
