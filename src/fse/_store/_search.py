@@ -61,11 +61,13 @@ def is_exact(mode: str, n_queries: int) -> bool:
 
 
 def blocks(
-    shards: Sequence[tuple[Any, dict]], n_queries: int, decode_dim: int = 0
+    shards: Sequence[tuple[Any, dict]], n_queries: int, decode_dim: int = 0, rows: int = 0
 ) -> Iterator[tuple[int, int, int, int]]:
     """(shard index, first row in it, end row, first row of the store) of every block; a
-    block decoded to float32 rows of ``decode_dim`` values holds at most _DECODE_BYTES."""
-    rows = max(_MIN_ROWS, min(_MAX_ROWS, _TASK_SCORES // max(1, min(n_queries, _QUERY_BLOCK))))
+    block decoded to float32 rows of ``decode_dim`` values holds at most _DECODE_BYTES;
+    ``rows`` fixes the rows of a block instead."""
+    if not rows:
+        rows = max(_MIN_ROWS, min(_MAX_ROWS, _TASK_SCORES // max(1, min(n_queries, _QUERY_BLOCK))))
     if decode_dim:
         rows = min(rows, max(1, _DECODE_BYTES // (4 * decode_dim)))
     for index, (shard, _) in enumerate(shards):
@@ -268,6 +270,34 @@ def score(
     for _ in _run(run, tasks, workers, "fse-score"):
         pass
     return out
+
+
+def score_blocks(
+    backend: Any,
+    shards: Sequence[tuple[Any, dict]],
+    weights: ndarray,
+    bias: Any,
+    *,
+    workers: int,
+    then: Any = None,
+) -> Iterator[tuple[int, Any]]:
+    """The linear scores of the stored rows with every weight vector by the contract, block
+    by block in row order: ``(first row of the store, block)`` with the (rows, vectors)
+    scores of the block, or what ``then(first_row, scores)`` makes of them in the worker
+    (a head's outputs). A block holds at most _TASK_SCORES values of scores and as many of
+    what ``then`` makes, all vectors at once (unlike search, whose query blocks cap the
+    width), so a wide head takes fewer rows per block; at most two blocks per worker are
+    in flight or waiting, so a consumer that keeps nothing holds no more than that,
+    whatever the store's size."""
+    biases = _biases(backend, bias, len(weights))
+    rows = max(1, min(_MAX_ROWS, _TASK_SCORES // max(1, len(weights))))
+
+    def run(block):
+        index, begin, end, first_row = block
+        part = _score_block(backend, shards[index][1], begin, end, first_row, weights, biases, True)
+        return first_row, part if then is None else then(first_row, part)
+
+    yield from _run(run, blocks(shards, len(weights), rows=rows), workers, "fse-score")
 
 
 def _score_block(backend, tensors, begin, end, first_row, weights, biases, exact) -> ndarray:

@@ -100,6 +100,30 @@ class Tokenizer(_Versioned):
     WORDPIECE = ("wordpiece", 1)
 
 
+class Head(_Versioned):
+    """How a linear head turns a pooled row into logits and labels (stage 4b, PR 13):
+    where the bias is added, the folded and unfolded paths and the decision rules."""
+
+    LINEAR = ("linear", 1)
+
+
+class Link(_Versioned):
+    """How the probabilities of a classifier follow from its finished logits; every link
+    computes ``exp@1`` (``EXP``), never the exp of a library."""
+
+    SIGMOID = ("sigmoid", 1)
+    SOFTMAX = ("softmax", 1)
+    OVR = ("ovr", 1)
+
+
+# The exp of the links: range reduction, a fixed polynomial by fused multiply-adds and an
+# exact scaling (ARCHITECTURE.md, "Numerical contract"); not stored in artifacts, but part
+# of the meaning of every link, so a change of it bumps every link.
+EXP = "exp@1"
+# A head without probabilities (decisions or values only).
+LINK_NONE = "none"
+
+
 # The tokens were given by the caller (or split at whitespace), who owns reproducing them.
 EXTERNAL_TOKENIZER = "external"
 
@@ -117,7 +141,13 @@ def check_tokenizer(text: object) -> str:
         ) from None
 
 
-_KINDS = {"Aggregation": "aggregation", "Op": "postprocessing step", "Tokenizer": "tokenizer"}
+_KINDS = {
+    "Aggregation": "aggregation",
+    "Op": "postprocessing step",
+    "Tokenizer": "tokenizer",
+    "Head": "head",
+    "Link": "link",
+}
 
 
 def check_dim(dim: object, name: str = "dim") -> int:

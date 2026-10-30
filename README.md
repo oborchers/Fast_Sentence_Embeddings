@@ -97,6 +97,32 @@ Which call to use when:
 - Texts are tokenized by `fse_words@1` by default: lowercase, split at whitespace and punctuation, contractions expanded (ARCHITECTURE.md, "Tokenizers"). Subword tokenizers (WordPiece, Unigram), which models such as POTION use, follow in a later PR; until then such models run with `tokenizer="external"` and tokens you make.
 - FastText word vectors keep their ngram rows: an unknown word adds the rows of its first `max_ngrams` ngrams (default 40) with the weight `oov_weight` (default 1).
 
+### Classify and score text
+
+fse runs linear heads trained elsewhere; it trains none. Train in scikit-learn on fse's vectors, then import the head:
+
+```python
+import fse
+from sklearn.linear_model import LogisticRegression
+
+encoder = fse.Encoder.load("model.safetensors")  # or from_word_vectors(wv, normalize=False)
+x = encoder.encode(train_texts)
+head = LogisticRegression(max_iter=1000).fit(x, train_labels)
+
+clf = fse.Classifier.from_sklearn(encoder, head)  # reads coef_, intercept_, classes_
+clf.predict(texts)  # labels, as head.predict(encoder.encode(texts)) gives them
+clf.predict_proba(texts)  # float32 (n, classes)
+for batch in clf.predict_batches(polls, output="proba"):  # a stream, batch by batch
+    handle(batch.outputs)
+clf.save("classifier.safetensors")  # encoder and head
+clf.save("filter.safetensors", standalone=True)  # the folded table and the bias only
+```
+
+- Train on raw means (an encoder with `normalize=False`) when you only need the predictions: such a head folds into the table (every word row times A), so predicting reads k values per word instead of d and is faster than `encode`. A head trained on normalized vectors runs on the full mean; `normalized=` says which one a head is, by default the encoder's setting.
+- `fse.Regressor` does the same for regression heads (`predict`); `from_arrays(encoder, weight, bias, labels=...)` takes a head of your own.
+- `predict` and `predict_proba` also take a `fse.VectorStore` of the encoder's rows (store mode: the texts are not encoded again), and `predict_batches(..., return_vectors=True)` gives the vectors with the predictions from one pooling.
+- The predictions are bit-identical across CPU backends, worker counts and runs. The folded head and the vectors agree with scikit-learn within float32 rounding: on Amazon Reviews Polarity (GloVe 300, LogisticRegression on 400,000 reviews, 400,000 test reviews) fse and scikit-learn give the same label for all but one review on raw means (its logit 7.4e-7 from the decision boundary) and for every review on normalized vectors, an accuracy of 0.8299 and 0.8284, and probabilities within 1.2e-6.
+
 What 2.0 no longer has, against fse 1.1.0 and the earlier development versions of 2.0:
 
 - **training**: `Average`, `SIF` and `uSIF` with `train` or `fit`, and any learning from a corpus. SIF and uSIF tables are made offline; a notebook with the 1.1.0 recipe (word weights and the removal of principal components, folded into the table) follows before the release.

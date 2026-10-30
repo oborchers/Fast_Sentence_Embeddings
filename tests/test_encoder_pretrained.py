@@ -274,3 +274,23 @@ def test_several_licenses_reach_the_encoder(model, tmp_path):
     assert encoder._content.license == ("mit", "apache-2.0")
     encoder.save(tmp_path / "e.safetensors")
     assert Encoder.load(tmp_path / "e.safetensors")._content.license == ("mit", "apache-2.0")
+
+
+def test_a_classifier_on_a_converted_encoder(model, tmp_path):
+    """A linear head on an encoder of from_pretrained: its labels are those of the rows,
+    and its file keeps the tokenizer keys of wordpiece@1 through save and load."""
+    import fse
+
+    encoder = Encoder.from_pretrained(model)
+    rng = np.random.default_rng(5)
+    weight = rng.standard_normal((3, encoder.output_dim)).astype(np.float32)
+    bias = rng.standard_normal(3).astype(np.float32)
+    head = fse.Classifier.from_arrays(encoder, weight, bias, labels=["a", "b", "c"])
+    texts = ["hello world", "the cat sat", "ab [MASK] x", "internationalization"]
+    logits = encoder.encode(texts).astype(np.float64) @ weight.T + bias
+    assert head.predict(texts).tolist() == [["a", "b", "c"][i] for i in logits.argmax(axis=1)]
+    head.save(tmp_path / "head.safetensors")
+    loaded = fse.Classifier.load(tmp_path / "head.safetensors")
+    assert loaded.encoder.tokenizer == "wordpiece@1"
+    assert loaded.encoder._content.tokenizer == encoder._content.tokenizer
+    assert loaded.predict_proba(texts).tobytes() == head.predict_proba(texts).tobytes()

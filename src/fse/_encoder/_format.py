@@ -24,6 +24,7 @@ from pathlib import Path
 import numpy as np
 from numpy import ndarray
 
+from fse._backends import get_backend
 from fse._container import (
     CHECKSUM_PREFIX,
     CREATED_BY_KEY,
@@ -45,10 +46,13 @@ from fse._contract import (
     check_transform_version,
     prerelease_error,
 )
+from fse._text import MAX_NGRAMS_LIMIT
 from fse._tokenizer_spec import WORDPIECE, TokenizerSpec, WordPieceConfig
 from fse._wordvectors import WordVectors
 from fse._wordvectors_format import FORMAT_VERSION as WORD_VECTORS_VERSION
 
+# The ngrams an unknown FastText word uses at most, unless an encoder is given another.
+DEFAULT_MAX_NGRAMS = 40
 KIND = "encoder"
 FORMAT_VERSION = "1"
 # The keys and tensors of the table an encoder holds, as in word_vectors 1.
@@ -410,3 +414,21 @@ def _json_list(metadata: dict[str, str], key: str) -> list:
     if not isinstance(value, list) or canonical != text:
         raise ValueError(f"{key} must be a canonical JSON list")
     return value
+
+
+def fasttext_parts(word_vectors: WordVectors, max_ngrams: int | None, oov_weight: float | None):
+    """``max_ngrams`` and ``oov_weight`` of an encoder of ``word_vectors``, with their
+    defaults for FastText vectors; other vectors take neither."""
+    if word_vectors.fasttext is None:
+        if max_ngrams is not None or oov_weight is not None:
+            raise ValueError("max_ngrams and oov_weight apply only to FastText vectors")
+        return {"max_ngrams": None, "oov_weight": None}
+    if max_ngrams is not None and max_ngrams > MAX_NGRAMS_LIMIT:
+        raise ValueError(f"max_ngrams must be at most {MAX_NGRAMS_LIMIT}, not {max_ngrams}")
+    # Converted in the floating-point environment of the kernels (round to nearest, no
+    # flush to zero), whatever the calling thread set, as the kernel converts it.
+    given = 1.0 if oov_weight is None else oov_weight
+    weight = get_backend("cpu").float32([given]).reshape(())
+    if not np.isfinite(weight):
+        raise ValueError(f"oov_weight must be finite in float32, not {oov_weight!r}")
+    return {"max_ngrams": max_ngrams or DEFAULT_MAX_NGRAMS, "oov_weight": weight}

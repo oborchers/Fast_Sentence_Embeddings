@@ -10,7 +10,8 @@ ARCHITECTURE.md, "Runtime". Private: PR 5's Encoder builds an EncodeSpec and cal
 Pipeline; the public entry points come with it.
 """
 
-from ._pipeline import Pipeline, check_workers
+from ._head import OUTPUTS, HeadPipeline, HeadSpec, make_head
+from ._pipeline import Pipeline, check_sink_rows, check_workers
 from ._sinks import (
     ArrayRows,
     GrowingRows,
@@ -24,15 +25,20 @@ from ._sinks import (
 from ._spec import EncodeSpec
 
 __all__ = [
+    "OUTPUTS",
     "ArrayRows",
     "EncodeSpec",
     "GrowingRows",
+    "HeadPipeline",
+    "HeadSpec",
     "MemorySink",
     "Pipeline",
     "QuantizedRows",
     "Rows",
     "Sink",
     "Stored",
+    "check_sink_rows",
     "check_workers",
+    "make_head",
     "wants_inverse_norms",
 ]

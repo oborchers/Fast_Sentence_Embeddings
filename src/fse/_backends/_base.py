@@ -23,7 +23,7 @@ from typing import Protocol
 import numpy as np
 from numpy import ndarray
 
-from fse._contract import Aggregation, Batch, Op, Step, check_steps
+from fse._contract import Aggregation, Batch, Link, Op, Step, check_steps
 
 _DTYPES = {
     np.dtype(np.float32): "float32",
@@ -71,7 +71,8 @@ class PoolInput:
 class Capabilities:
     """What a backend can run. ``concurrent``: several threads may call ``rows`` at once.
     ``device_rows``: a task's rows also take device memory while it runs (the pooled rows
-    and flags of a device backend), which the runtime's window counts."""
+    and flags of a device backend), which the runtime's window counts. ``heads``: it
+    computes the logits and outputs of linear heads (``logits``, ``outputs``)."""
 
     word_dtypes: frozenset[str]
     aggregations: frozenset[Aggregation]
@@ -80,6 +81,14 @@ class Capabilities:
     concurrent: bool
     max_dim: int
     device_rows: bool = False
+    heads: bool = False
+
+    def check_heads(self, backend: str):
+        """Raise UnsupportedByBackendError if ``backend`` cannot run linear heads."""
+        if not self.heads:
+            raise UnsupportedByBackendError(
+                f"the {backend} backend cannot run linear heads yet; use backend='cpu'"
+            )
 
     def check(self, backend: str, pool: PoolInput, steps: Sequence[Step]):
         """Raise UnsupportedByBackendError for the first thing ``backend`` cannot run."""
@@ -150,6 +159,29 @@ class Backend(Protocol):
     def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
         """Stage 5 of finished float32 ``rows`` (rows ``first_row`` on) into float16 or
         int8 ``codes``, with one scale per row in ``scales`` for int8 (``quantize_rows@1``)."""
+        ...
+
+    def logits(
+        self,
+        rows: ndarray,
+        weights: ndarray | None,
+        bias: ndarray,
+        out: ndarray,
+        first_row: int = 0,
+    ) -> None:
+        """The logits of ``linear@1`` into ``out`` (n, k), as ``fse._reference_head.logits``:
+        with ``weights`` (k, d) ``dot16(row, a_j) + b_j`` of the float32 pooled ``rows``,
+        without them ``rows`` (the pooled rows of a folded table, (n, k), which may be
+        ``out``) plus ``bias``, the bias exactly once. A row whose logits are not finite
+        raises, named from ``first_row``. Only with ``capabilities().heads``."""
+        ...
+
+    def outputs(
+        self, logits: ndarray, kind: str, link: Link | None, out: ndarray, first_row: int = 0
+    ) -> None:
+        """The probabilities (``kind`` "proba", by ``link``: float32 (n, 2) for sigmoid, (n,
+        k) else) or label indices ("labels", int64 (n,)) of finished ``logits`` into
+        ``out``, as ``fse._reference_head.proba`` and ``labels``; no bias is added."""
         ...
 
 
@@ -312,6 +344,86 @@ def _check_store_scales(scales: object, int8: bool, length: int):
         assert isinstance(scales, ndarray)
         if not scales.flags.writeable:
             raise ValueError("scales must be writable")
+
+
+def check_logits_input(
+    rows: object, weights: object, bias: object, out: object, first_row: object
+) -> None:
+    """The arguments of ``logits``, checked the same way by every backend: C-contiguous
+    float32 rows, float32 weights (k, d) or None, a float32 bias of k values and a
+    writable float32 ``out`` (n, k) that shares no memory with the weights or bias, and
+    with the rows only if it is them (in place, without weights)."""
+    if not isinstance(bias, ndarray) or bias.dtype != np.float32 or bias.ndim != 1 or not len(bias):
+        raise ValueError("bias must be a float32 vector of at least one value")
+    k = len(bias)
+    _float32_matrix(rows, "rows", None, k if weights is None else None)
+    assert isinstance(rows, ndarray)
+    if weights is not None:
+        _float32_matrix(weights, "weights", k, rows.shape[1])
+    _float32_matrix(out, "out", len(rows), k, writable=True)
+    for kept in (weights, bias):
+        if kept is not None and np.may_share_memory(out, kept):
+            raise ValueError("out must not share memory with the weights or the bias")
+    if np.may_share_memory(out, rows) and (weights is not None or out is not rows):
+        raise ValueError("out may be the rows themselves (without weights), else apart from them")
+    if isinstance(first_row, bool) or not isinstance(first_row, int | np.integer) or first_row < 0:
+        raise ValueError(f"first_row must be a non-negative int, not {first_row!r}")
+
+
+def check_outputs_input(logits: object, kind: object, link: object, out: object) -> None:
+    """The arguments of ``outputs``: finished float32 logits (n, k), ``kind`` "proba"
+    with a link that fits k (sigmoid for k = 1, softmax or ovr for k >= 2) into float32
+    (n, 2 or k), or "labels" into int64 (n,), ``out`` apart from the logits."""
+    _float32_matrix(logits, "logits", None, None)
+    assert isinstance(logits, ndarray)
+    n, k = logits.shape
+    if kind == "labels":
+        _int64_vector(out, "out", n)
+    elif kind == "proba":
+        _check_link(link, k)
+        _float32_matrix(out, "out", n, 2 if k == 1 else k, writable=True)
+    else:
+        raise ValueError(f"kind must be 'proba' or 'labels', not {kind!r}")
+    if np.may_share_memory(out, logits):
+        raise ValueError("out must not share memory with the logits")
+
+
+def _int64_vector(value: object, name: str, length: int):
+    if (
+        not isinstance(value, ndarray)
+        or value.dtype != np.int64
+        or value.shape != (length,)
+        or not value.flags.c_contiguous
+        or not value.flags.writeable
+    ):
+        raise ValueError(f"{name} must be a writable C-contiguous int64 vector of {length} values")
+
+
+def _check_link(link: object, k: int):
+    """``link`` must be a Link that takes k logits: sigmoid one, ovr two or more, softmax
+    any (of one logit z, softmax of [-z, z])."""
+    if not isinstance(link, Link):
+        raise ValueError(f"link must be one of {[str(member) for member in Link]}")
+    if (link is Link.SIGMOID and k != 1) or (link is Link.OVR and k == 1):
+        want = "one logit" if link is Link.SIGMOID else "at least two logits"
+        raise ValueError(f"{link} takes {want} per row")
+
+
+def _float32_matrix(
+    value: object, name: str, rows: int | None, cols: int | None, writable: bool = False
+):
+    if (
+        not isinstance(value, ndarray)
+        or value.dtype != np.float32
+        or value.ndim != 2
+        or not value.flags.c_contiguous
+        or (writable and not value.flags.writeable)
+        or (rows is not None and value.shape[0] != rows)
+        or (cols is not None and value.shape[1] != cols)
+    ):
+        shape = (rows if rows is not None else "n", cols if cols is not None else "k")
+        kind = "a writable" if writable else "a"
+        raise ValueError(f"{name} must be {kind} C-contiguous float32 matrix of shape {shape}")
 
 
 def check_prepared(prepared: object, backend: str) -> Prepared:

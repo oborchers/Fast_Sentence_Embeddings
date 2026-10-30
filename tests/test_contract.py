@@ -2,11 +2,15 @@ import numpy as np
 import pytest
 
 from fse._contract import (
+    EXP,
     EXTERNAL_TOKENIZER,
+    LINK_NONE,
     OOV_TOKEN,
     TRANSFORM_VERSION,
     Aggregation,
     Batch,
+    Head,
+    Link,
     Normalize,
     Op,
     Tokenizer,
@@ -20,16 +24,24 @@ from fse._contract import (
 
 
 def test_identifiers_round_trip():
-    for member in [*Aggregation, *Op]:
+    for member in [*Aggregation, *Op, *Head, *Link]:
         assert type(member).parse(str(member)) is member
     assert str(Aggregation.WEIGHTED_MEAN) == "weighted_mean@1"
     assert Op.NORMALIZE.id == "normalize@1"
     assert parse_id("max@12") == ("max", 12)
+    assert [m.id for m in (Head.LINEAR, *Link)] == ["linear@1", "sigmoid@1", "softmax@1", "ovr@1"]
+    assert (EXP, LINK_NONE) == ("exp@1", "none")  # exp@1 is not stored; none is no identifier
 
 
 @pytest.mark.parametrize(
     ("cls", "text"),
-    [(Aggregation, "max@1"), (Aggregation, "weighted_mean@2"), (Op, "normalize@9")],
+    [
+        (Aggregation, "max@1"),
+        (Aggregation, "weighted_mean@2"),
+        (Op, "normalize@9"),
+        (Head, "linear@2"),
+        (Link, "tanh@1"),
+    ],
 )
 def test_unknown_identifiers_are_rejected(cls, text):
     with pytest.raises(UnsupportedArtifactError, match=r"supported: .*@1"):

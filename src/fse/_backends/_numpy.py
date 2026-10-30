@@ -18,14 +18,16 @@ from collections.abc import Sequence
 import numpy as np
 from numpy import ndarray
 
-from fse import _reference
-from fse._contract import Aggregation, Batch, Op, Step
+from fse import _reference, _reference_head
+from fse._contract import Aggregation, Batch, Link, Op, Step
 
 from ._base import (
     Capabilities,
     PoolInput,
     Prepared,
+    check_logits_input,
     check_out,
+    check_outputs_input,
     check_pool_input,
     check_prepared,
     check_score_input,
@@ -42,6 +44,7 @@ _CAPABILITIES = Capabilities(
     steps=frozenset(Op),
     fasttext=True,
     concurrent=True,
+    heads=True,
     max_dim=1 << 30,
 )
 
@@ -102,6 +105,28 @@ class NumpyBackend:
         codes[...] = got
         if scales is not None:
             scales[...] = got_scales
+
+    def logits(
+        self,
+        rows: ndarray,
+        weights: ndarray | None,
+        bias: ndarray,
+        out: ndarray,
+        first_row: int = 0,
+    ) -> None:
+        check_logits_input(rows, weights, bias, out, first_row)
+        out[...] = _reference_head.logits(rows, weights, bias, int(first_row))
+
+    def outputs(
+        self, logits: ndarray, kind: str, link: Link | None, out: ndarray, first_row: int = 0
+    ) -> None:
+        check_outputs_input(logits, kind, link, out)
+        _reference_head.check_logits(logits, int(first_row))
+        if kind == "labels":
+            out[...] = _reference_head.labels(logits)
+        else:
+            assert link is not None
+            out[...] = _reference_head.proba(logits, link)
 
 
 def _check_storable(rows: ndarray, dtype: np.dtype, first_row: int):

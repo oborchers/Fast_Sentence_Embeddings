@@ -25,7 +25,7 @@ import numpy as np
 from numpy import ndarray
 
 from fse import _codes
-from fse._backends import BACKEND_NAMES, get_backend
+from fse._backends import BACKEND_NAMES
 from fse._container import (
     CHECKSUM_PREFIX,
     CREATED_BY_KEY,
@@ -36,9 +36,9 @@ from fse._container import (
     fingerprint,
     tensor_code,
 )
-from fse._contract import Normalize
+from fse._contract import Normalize, UnsupportedArtifactError
 from fse._runtime import EncodeSpec, Pipeline, QuantizedRows, check_workers
-from fse._text import MAX_NGRAMS_LIMIT, Vocabulary, make_vocabulary
+from fse._text import Vocabulary, make_vocabulary
 from fse._tokenizer_spec import TokenizerSpec
 from fse._validation import PathLike, PositiveInt, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
@@ -51,14 +51,12 @@ from ._format import (
     EncoderContent,
     Source,
     check_tokenizer_table,
+    fasttext_parts,
     from_artifact,
     loaded_table,
     to_artifact,
 )
 from ._sources import opened
-
-# The ngrams an unknown FastText word uses at most, unless an encoder is given another.
-DEFAULT_MAX_NGRAMS = 40
 
 
 class Encoder:
@@ -150,7 +148,7 @@ class Encoder:
         content = EncoderContent(
             tokenizer=TokenizerSpec.of(tokenizer),
             steps=(Normalize(),) if normalize else (),
-            **_fasttext(word_vectors, max_ngrams, oov_weight),
+            **fasttext_parts(word_vectors, max_ngrams, oov_weight),
         )
         return cls._new(content, word_vectors)
 
@@ -223,7 +221,8 @@ class Encoder:
         )
         found = _pretrained.find(files, truncate=truncate, max_length=max_length, mmap=mmap)
         if found.data is not None:  # an fse encoder of the Hub, checked as these bytes
-            return cls._artifact_of(*SafetensorsContainer().open_bytes(*found.data), None)
+            tensors, metadata = SafetensorsContainer().open_bytes(*found.data)
+            return cls._from_artifact(tensors, metadata, None, metadata.get(FINGERPRINT_KEY))
         if found.model2vec is None:
             assert found.path is not None
             return cls.load(found.path, mmap=mmap)
@@ -390,24 +389,36 @@ class Encoder:
         arrays are mapped read-only (see ``verify``). An encoder written by a pre-release
         of 2.0 raises ``fse.UnsupportedArtifactError``: rebuild it."""
         path = Path(path)
-        return cls._artifact_of(*SafetensorsContainer().open(path, mmap=mmap), path)
+        tensors, metadata = SafetensorsContainer().open(path, mmap=mmap)
+        if metadata.get("fse.kind") == "linear_head":
+            raise UnsupportedArtifactError(
+                f"{path} is a linear head (fse.kind linear_head), not an encoder; open it with "
+                "fse.Classifier.load or fse.Regressor.load"
+            )
+        return cls._from_artifact(tensors, metadata, path, metadata.get(FINGERPRINT_KEY))
 
     @classmethod
-    def _artifact_of(cls, tensors: dict, metadata: dict, path: Path | None) -> Encoder:
-        """The encoder of opened tensors and metadata: of the file ``path``, or of bytes
-        read and checked by the caller (None, like an encoder made in memory)."""
+    def _from_artifact(
+        cls,
+        tensors: dict[str, ndarray],
+        metadata: dict[str, str],
+        path: Path | None,
+        fingerprint_: str | None,
+    ) -> Encoder:
+        """The encoder of an encoder artifact opened from ``path`` (also the encoder part of
+        a head file), with its recorded checksums and ``fingerprint_``."""
         content, table, keys = from_artifact(tensors, metadata)
         checksums = {
             k[len(CHECKSUM_PREFIX) :]: v
             for k, v in metadata.items()
-            if k.startswith(CHECKSUM_PREFIX)
+            if k.startswith(CHECKSUM_PREFIX) and k[len(CHECKSUM_PREFIX) :] in tensors
         }
         return cls._new(
             content,
             loaded_table(table, keys, metadata, checksums, path),
             path=path,
             checksums=checksums if path is not None else None,
-            fingerprint_=metadata.get(FINGERPRINT_KEY),
+            fingerprint_=fingerprint_,
         )
 
     def verify(self):
@@ -471,21 +482,3 @@ class Encoder:
             f"Encoder({len(wv)} words, {self.output_dim} dimensions, {wv.dtype}{kind}, "
             f"{self._content.tokenizer.describe()}{steps})"
         )
-
-
-def _fasttext(word_vectors: WordVectors, max_ngrams: int | None, oov_weight: float | None):
-    """``max_ngrams`` and ``oov_weight`` of an encoder of ``word_vectors``, with their
-    defaults for FastText vectors; other vectors take neither."""
-    if word_vectors.fasttext is None:
-        if max_ngrams is not None or oov_weight is not None:
-            raise ValueError("max_ngrams and oov_weight apply only to FastText vectors")
-        return {"max_ngrams": None, "oov_weight": None}
-    if max_ngrams is not None and max_ngrams > MAX_NGRAMS_LIMIT:
-        raise ValueError(f"max_ngrams must be at most {MAX_NGRAMS_LIMIT}, not {max_ngrams}")
-    # Converted in the floating-point environment of the kernels (round to nearest, no
-    # flush to zero), whatever the calling thread set, as the kernel converts it.
-    given = 1.0 if oov_weight is None else oov_weight
-    weight = get_backend("cpu").float32([given]).reshape(())
-    if not np.isfinite(weight):
-        raise ValueError(f"oov_weight must be finite in float32, not {oov_weight!r}")
-    return {"max_ngrams": max_ngrams or DEFAULT_MAX_NGRAMS, "oov_weight": weight}
