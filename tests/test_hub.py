@@ -208,13 +208,15 @@ def test_an_fse_encoder_on_the_hub_is_an_lfs_file(fake, tmp_path):
         _load(fake)
 
 
-def test_repository_ids_and_the_extra(monkeypatch):
+def test_repository_ids_and_a_broken_install(monkeypatch):
     with pytest.raises(FileNotFoundError, match="nor a Hub repository id"):
         Encoder.from_pretrained("no/such/thing")
     with pytest.raises(ValueError, match="no Hub repository id"):
         hub.HubFiles("a/b/c", revision=None, token=None, cache_dir=None, local_files_only=False)
     monkeypatch.setitem(sys.modules, "huggingface_hub", None)
-    with pytest.raises(ImportError, match=r'pip install "fse\[hub\]"'):
+    with pytest.raises(
+        ImportError, match="huggingface-hub is a dependency of fse but cannot be imported"
+    ):
         Encoder.from_pretrained("acme/tiny")
 
 

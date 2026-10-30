@@ -6,8 +6,8 @@
 
 """A repository of the Hugging Face Hub at one commit, its files checked against it.
 
-ARCHITECTURE.md, "from_pretrained". The extra ``fse[hub]`` (huggingface-hub) is imported
-only here, on first use. ``revision`` (a branch, tag or commit; None is the default
+ARCHITECTURE.md, "from_pretrained". huggingface-hub, a dependency of fse, is imported only
+here, on first use, so ``import fse`` and local models never load it. ``revision`` (a branch, tag or commit; None is the default
 branch) is resolved to its commit once, and every file comes from that commit. The
 commit pins every file: an LFS file by its ``lfs.sha256``, any other by its git blob
 sha1. A file that must be an LFS file (every safetensors file, so an encoder or a table)
@@ -37,13 +37,13 @@ _SHA1 = re.compile(r"[0-9a-f]{40}")
 
 
 def _library():
-    """huggingface_hub, or an ImportError that names the extra."""
+    """huggingface_hub, or an ImportError that names its cause."""
     try:
-        import huggingface_hub  # noqa: PLC0415 - only on first use, the extra fse[hub]
-    except ImportError:
+        import huggingface_hub  # noqa: PLC0415 - only on first use, so `import fse` stays fast
+    except ImportError as error:
         raise ImportError(
-            'models of the Hugging Face Hub need huggingface-hub: pip install "fse[hub]"'
-        ) from None
+            f"huggingface-hub is a dependency of fse but cannot be imported: {error}"
+        ) from error
     return huggingface_hub
 
 
