@@ -241,7 +241,7 @@ def test_a_charsmap_given_directly_with_values_that_are_no_utf8_is_refused():
         _charsmap_state(units, b"\xff\0", root)
 
 
-def test_a_value_inside_a_code_point_is_an_error_of_the_encode():
+def test_a_value_inside_a_code_point_or_past_the_values_is_an_error_of_the_encode():
     from fse._charsmap import Charsmap
     from support.charsmap import build, units_of
 
@@ -252,9 +252,16 @@ def test_a_value_inside_a_code_point_is_an_error_of_the_encode():
     below = (raw[pos] >> 10) ^ pos
     units, values, _ = Charsmap(blob).parts()
     units = units.copy()
-    units[below] = (1 << 31) | 1  # the second byte of "\u00e9"
+    data = np.frombuffer(b"a", np.uint8)
+    # the second byte of "\u00e9", and past the values (which hold 3 bytes)
+    for offset in (1, 4, 1000):
+        units[below] = (1 << 31) | offset
+        state = _charsmap_state(units, values, root)
+        lookup = _native.TextLookup(state.table, "unigram@1", unigram=state)
+        with pytest.raises(AssertionError, match="broke"):
+            lookup.encode(data, np.array([0, 1], np.int64), 0, 1, 0, _native.Workspace())
+    units[below] = (1 << 31) | 3  # the end of the values: the empty string, valid
     state = _charsmap_state(units, values, root)
     lookup = _native.TextLookup(state.table, "unigram@1", unigram=state)
-    data = np.frombuffer(b"a", np.uint8)
-    with pytest.raises(AssertionError, match="broke"):
-        lookup.encode(data, np.array([0, 1], np.int64), 0, 1, 0, _native.Workspace())
+    batch = lookup.encode(data, np.array([0, 1], np.int64), 0, 1, 0, _native.Workspace())
+    assert batch.tokens.tolist() == []

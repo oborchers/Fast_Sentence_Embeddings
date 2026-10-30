@@ -33,7 +33,9 @@ cdef inline bint _uni_space(uint32_t cp) noexcept nogil:
 cdef int _uni_value(UnigramState st, uint32_t start, _Buffer *dst) noexcept nogil:
     """The value of a charsmap match: from start to the next NUL or the end of the values."""
     cdef const unsigned char *end
-    if start >= st.n_values:
+    if start > st.n_values:  # past the values: the blob is broken
+        return _UNI_BAD_TEXT
+    if start == st.n_values:  # the end of the values is the empty string
         return 0
     if (st.values[start] & 0xC0) == 0x80:  # inside a code point: the blob is broken
         return _UNI_BAD_TEXT
