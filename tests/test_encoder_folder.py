@@ -85,7 +85,7 @@ def test_an_encoder_folder_gives_the_rows_of_the_encoder(tmp_path):
     for mmap in (False, True):
         got = fse.Encoder.from_pretrained(folder, mmap=mmap).encode(SENTENCES, workers=1)
         assert got.view(np.uint32).tolist() == want.view(np.uint32).tolist()
-    card = (folder / "README.md").read_text()
+    card = (folder / "README.md").read_text(encoding="utf-8")
     assert '- "apache-2.0"' not in card
     assert 'license: "apache-2.0"' in card
 
@@ -93,10 +93,12 @@ def test_an_encoder_folder_gives_the_rows_of_the_encoder(tmp_path):
 def test_a_standalone_head_folder_describes_the_folded_file(tmp_path):
     clf = _classifier()
     folder = clf.save_pretrained(tmp_path / "clf", standalone=True)
-    config = json.loads((folder / "config.json").read_text())
+    config = json.loads((folder / "config.json").read_bytes())
     written = _fingerprint_of_file(folder / "model.safetensors")
     assert config["fingerprint"] == written != clf.fingerprint
-    assert "standalone: the head is folded into the table" in (folder / "README.md").read_text()
+    assert "standalone: the head is folded into the table" in (folder / "README.md").read_text(
+        encoding="utf-8"
+    )
     loaded = fse.Classifier.from_pretrained(folder)
     assert loaded.standalone
     assert loaded.fingerprint == written
@@ -191,12 +193,12 @@ def test_an_existing_path_is_never_written_into(kind, tmp_path):
 
 
 def test_extra_files_are_checked_and_copied_as_read(tmp_path):
-    (tmp_path / "LICENSE.txt").write_text("MIT License\n")
-    (tmp_path / "NOTICE").write_text("Notice é\n")
+    (tmp_path / "LICENSE.txt").write_bytes(b"MIT License\n")
+    (tmp_path / "NOTICE").write_bytes("Notice é\r\n".encode())  # bytes, copied as they are
     extra = {"LICENSE": tmp_path / "LICENSE.txt", "NOTICE": tmp_path / "NOTICE"}
     folder = finished().save_pretrained(tmp_path / "enc", extra_files=extra)
-    assert (folder / "LICENSE").read_text() == "MIT License\n"
-    assert (folder / "NOTICE").read_text() == "Notice é\n"
+    assert (folder / "LICENSE").read_bytes() == b"MIT License\n"
+    assert (folder / "NOTICE").read_bytes() == "Notice é\r\n".encode()
     (tmp_path / "bin").write_bytes(b"\xff\xfe")
     (tmp_path / "big").write_bytes(b"a" * (2**20 + 1))
     (tmp_path / "link").symlink_to(tmp_path / "NOTICE")

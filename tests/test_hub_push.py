@@ -223,7 +223,7 @@ def test_other_files_are_deleted_by_their_exact_names_and_licenses_are_kept(api)
 
 def test_a_license_file_is_replaced_only_when_passed_and_replaced(api, tmp_path):
     api.commits["0" * 40]["LICENSE"] = b"old\n"
-    (tmp_path / "LICENSE").write_text("new\n")
+    (tmp_path / "LICENSE").write_bytes(b"new\n")
     with pytest.raises(ValueError, match=r"other content under \['LICENSE'\]"):
         _push(finished(), extra_files={"LICENSE": tmp_path / "LICENSE"})
     _push(finished(), extra_files={"LICENSE": tmp_path / "LICENSE"}, replace=True)
