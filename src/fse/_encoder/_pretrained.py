@@ -27,7 +27,7 @@ from typing import Any
 
 from fse._container import CorruptArtifactError, read_regular, safetensors_header, strict_json
 from fse._contract import UnsupportedArtifactError
-from fse._hub import REPO_ID, HubFiles, resolve_link
+from fse._hub import REPO_ID, HubFiles, check_folders, resolve_link
 
 from ._format import Source
 from ._model2vec import (
@@ -65,7 +65,8 @@ class Found:
 
 class LocalFiles:
     """The files of a folder; a link is followed only into the blobs of the cache of a
-    Hugging Face snapshot (``<repo>/snapshots/<commit>/`` next to ``<repo>/blobs``)."""
+    Hugging Face snapshot (``<repo>/snapshots/<commit>/`` next to ``<repo>/blobs``), and
+    no folder below the model's folder may be a link."""
 
     source: str | None = None
     revision: str | None = None
@@ -82,8 +83,9 @@ class LocalFiles:
     def path_of(self, name: str) -> Path:
         """The regular file of ``name``: itself, or the blob a cache link points to."""
         path = self.folder / name
+        check_folders(self.folder, name)
         if path.is_symlink():
-            return resolve_link(path, self.folder.parent.parent)[0]
+            return resolve_link(path, name)[0]
         return path
 
     def read(
