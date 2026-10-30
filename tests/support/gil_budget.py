@@ -6,8 +6,8 @@ the guard counts the two ways the worker side of a task gives it up and takes it
 - fse's own sections without the GIL, which every task-path entry point of fse._native
   counts right before it enters one (``_native._test_nogil_sections``), and which the
   source check ``uncounted`` keeps counted;
-- numpy calls, which release the GIL above 500 elements: every function of the numpy
-  module is wrapped (Cython looks a function up on the module at each call, so calls
+- numpy calls, which release the GIL above 500 elements: every function and ufunc (with
+  its methods) of the numpy module is wrapped (Cython looks a function up on the module at each call, so calls
   from the extension are counted too), and a profile function counts the ndarray
   methods and the blocking calls (os, time, locks) that Python code of the task makes.
 
@@ -81,19 +81,23 @@ class Budget:
         for name, value in list(vars(np).items()):  # no lazy submodule is imported
             if name.startswith("_") or inspect.isclass(value) or inspect.ismodule(value):
                 continue
-            if isinstance(value, np.ufunc) or not callable(value):
-                continue
-            monkeypatch.setattr(np, name, self._counting(name, value))
+            if isinstance(value, np.ufunc):
+                monkeypatch.setattr(np, name, _Ufunc(self, name, value))
+            elif callable(value):
+                monkeypatch.setattr(np, name, self._counting(name, value))
+
+    def count(self, name: str) -> None:
+        """Count a numpy call of the caller's caller, inside a window."""
+        window = self._window()
+        if window is not None:
+            window.numpy[f"{name} in {sys._getframe(2).f_code.co_name}"] += 1
 
     def _counting(self, name, function):
         budget = self
 
         @functools.wraps(function)
         def counted(*args, **kwargs):
-            window = budget._window()
-            if window is not None:
-                caller = sys._getframe(1).f_code.co_name
-                window.numpy[f"{name} in {caller}"] += 1
+            budget.count(name)
             return function(*args, **kwargs)
 
         return counted
@@ -120,6 +124,31 @@ class Budget:
         sys.setprofile(None)
         threading.setprofile(None)  # type: ignore[arg-type]
         return False
+
+
+class _Ufunc:
+    """A ufunc of the numpy module that counts its calls and those of its methods
+    (``reduce``, ``accumulate``, ``at`` ...); every other attribute is the ufunc's.
+    ``isinstance(np.add, np.ufunc)`` is False under it, which nothing in fse asks."""
+
+    def __init__(self, budget: Budget, name: str, ufunc: np.ufunc):
+        self._budget, self._name, self._ufunc = budget, name, ufunc
+
+    def __call__(self, *args, **kwargs):
+        self._budget.count(self._name)
+        return self._ufunc(*args, **kwargs)
+
+    def __getattr__(self, attr):
+        value = getattr(self._ufunc, attr)
+        if not callable(value):
+            return value
+        budget, name = self._budget, f"{self._name}.{attr}"
+
+        def method(*args, **kwargs):
+            budget.count(name)
+            return value(*args, **kwargs)
+
+        return method
 
 
 # The task-path functions of the extension, by part: each of their sections without the
@@ -213,3 +242,66 @@ def forbidden(text: str) -> list[str]:
             if pattern.search(code):
                 found.append(f"line {k + 1}: {what}")
     return found
+
+
+# A cdef function called without the GIL must be noexcept: otherwise Cython checks for an
+# exception after every call, and a void function takes the GIL back to do so (Cython
+# docs, "Using the nogil statement").
+_CALL = re.compile(r"(?:\b|\.)(\w+)\(")
+
+
+def _cdef_signatures(texts: list[str]) -> dict[str, str]:
+    """The signature (up to its colon) of every cdef function of the sources, by name."""
+    found = {}
+    for text in texts:
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            match = re.match(r"^\s*cdef\b(?!\s+(?:class|struct|enum|extern)\b).*?\b(\w+)\(", line)
+            if not match or "=" in line[: match.end()]:
+                continue  # not a function, or a variable made from a call
+            j = i
+            while not lines[j].rstrip().endswith(":") and j + 1 < len(lines):
+                j += 1
+            found[match.group(1)] = " ".join(lines[i : j + 1])
+    return found
+
+
+def _nogil_calls(text: str) -> set[str]:
+    """The names called inside the ``with nogil`` blocks of a source."""
+    calls: set[str] = set()
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if not line.strip().startswith("with nogil"):
+            continue
+        indent = _indent(line)
+        for body in lines[i + 1 :]:
+            if body.strip() and _indent(body) <= indent:
+                break
+            calls.update(_CALL.findall(body.split("#", 1)[0]))
+    return calls
+
+
+def checked_without_gil(fused: str, others: list[str]) -> list[str]:
+    """The cdef functions the nogil blocks of ``fused`` call, directly or through each
+    other, whose signature lacks ``noexcept``."""
+    signatures = _cdef_signatures([fused, *others])
+    bodies = {
+        name: "\n".join(body) for text in (fused, *others) for name, _, body in _functions(text)
+    }
+    todo, seen, found = list(_nogil_calls(fused)), set(), []
+    while todo:
+        name = todo.pop()
+        if name in seen or name not in signatures:
+            continue  # a C function, or one already seen
+        seen.add(name)
+        if "noexcept" not in signatures[name]:
+            found.append(name)
+        body = bodies.get(name, "")
+        todo.extend(_CALL.findall(body[body.find(":") + 1 :]))
+    return sorted(found)
+
+
+def native_sources() -> list[str]:
+    """Every part of fse._native but the fused one."""
+    folder = Path(fse.__file__).parent
+    return [p.read_text() for p in sorted(folder.glob("_native*.pxi")) if p.name != FUSED]

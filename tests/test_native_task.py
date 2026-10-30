@@ -3,6 +3,8 @@ of text in one section without the GIL, against the calls it replaces (TextLooku
 the Batch, CpuBackend.rows) one after the other: the same rows, bits and errors."""
 
 import re
+import threading
+import time
 
 import numpy as np
 import pytest
@@ -311,7 +313,7 @@ def test_every_check_of_the_batch_still_fires(kind, fasttext):
     assert got == want
 
 
-def test_a_lookup_that_was_never_built_and_a_busy_workspace_raise():
+def test_a_lookup_that_was_never_built_and_a_wrong_text_raise():
     pipeline = _pipeline()
     lookup = _native.TextLookup.__new__(_native.TextLookup)
     out = np.zeros((1, pipeline.output_dim), F32)
@@ -321,6 +323,72 @@ def test_a_lookup_that_was_never_built_and_a_busy_workspace_raise():
         _native.pool_text(kernel, lookup, new_workspace(), text, 0, 1, 1, 0, out, True)
     with pytest.raises(TypeError, match="text must be"):
         _native.pool_text(kernel, pipeline.lookup, new_workspace(), [text], 0, 1, 1, 0, out, True)
+
+
+def test_a_workspace_in_use_raises_on_both_routes():
+    """A Workspace held by a pool_text of an Arrow column, waiting without the GIL inside
+    its section (the reader hold of the tests), refuses a second pool_text on the buffer
+    and on the Arrow route."""
+    pipeline = _pipeline()
+    kernel = pipeline.prepared.state.kernel
+    sentences = texts(50)
+    column = ArrowSource(_Strings(Producer(), sentences))._column
+    ws = new_workspace()
+    errors = []
+
+    def first():
+        try:
+            _native.pool_text(
+                kernel,
+                pipeline.lookup,
+                ws,
+                column,
+                0,
+                50,
+                50,
+                0,
+                np.zeros((50, pipeline.output_dim), F32),
+                True,
+            )
+        except Exception as error:  # reported by the main thread
+            errors.append(error)
+
+    _native._arrow_test_hooks(hold=True)
+    thread = threading.Thread(target=first)
+    try:
+        thread.start()
+        deadline = time.monotonic() + 10
+        while _native._arrow_test_held() == 0 and time.monotonic() < deadline:
+            time.sleep(0.001)
+        assert _native._arrow_test_held() == 1
+        out = np.zeros((50, pipeline.output_dim), F32)
+        for text in (_text(sentences), column):
+            with pytest.raises(RuntimeError, match="a Workspace is used by one thread at a time"):
+                _native.pool_text(kernel, pipeline.lookup, ws, text, 0, 50, 50, 0, out, True)
+    finally:
+        _native._arrow_test_hooks()
+        thread.join()
+    assert errors == []
+    _fused(pipeline, _text(sentences), 0, 50, 50)  # the workspace is free again
+
+
+def test_empty_arrays_inside_out_share_no_memory():
+    """As np.may_share_memory: an array of no bytes overlaps nothing (review round 1)."""
+    pipeline = _pipeline()
+    out = np.zeros((2, 4), F32)
+    vectors = np.ndarray((0, 4), F32, buffer=out, offset=16)
+    weights = np.ndarray((0,), F32, buffer=out, offset=16)
+    assert not np.may_share_memory(out, vectors)
+    kernel = _native.WeightedMean(vectors, weights)
+    text = _text(["", ""])
+    batch = pipeline.lookup.encode(text[0], text[1], 0, 2, 0, new_workspace())
+    kernel.pool(batch, out)  # the Batch route takes it
+    out[...] = 1
+    _native.pool_text(kernel, pipeline.lookup, new_workspace(), text, 0, 2, 2, 0, out, False)
+    np.testing.assert_array_equal(out, np.zeros((2, 4), F32))
+    empty = np.zeros((0, 4), F32)
+    kernel = _native.WeightedMean(np.ones((1, 4), F32), np.ones(1, F32))
+    _native.pool_text(kernel, pipeline.lookup, new_workspace(), _text([]), 0, 0, 0, 0, empty, False)
 
 
 def test_the_floating_point_environment_of_the_thread_changes_no_bit():

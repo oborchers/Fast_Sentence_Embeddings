@@ -219,7 +219,10 @@ cdef bint _overlaps(out, kept):
     np.may_share_memory, by pointer compares (no numpy call)."""
     cdef char *a = <char *>np.PyArray_DATA(out)
     cdef char *b = <char *>np.PyArray_DATA(kept)
-    return a < b + np.PyArray_NBYTES(kept) and b < a + np.PyArray_NBYTES(out)
+    cdef Py_ssize_t na = np.PyArray_NBYTES(out), nb = np.PyArray_NBYTES(kept)
+    if na == 0 or nb == 0:
+        return False  # an empty array shares no memory, as np.may_share_memory says
+    return a < b + nb and b < a + na
 
 
 cdef object _out_error(WeightedMean kernel, out, Py_ssize_t rows):

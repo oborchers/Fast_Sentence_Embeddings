@@ -94,6 +94,23 @@ def test_a_numpy_call_added_to_a_task_is_counted(monkeypatch, tmp_path):
         assert w.numpy["may_share_memory in checked"] == 1
 
 
+def test_a_ufunc_added_to_a_task_is_counted(monkeypatch, tmp_path):
+    """The mutation of review round 1: a ufunc (and a ufunc method) in the task path."""
+    from fse._runtime import _pipeline as module
+
+    real = module.first_rows
+
+    def checked(target, rows):
+        np.add(target[0], 0, out=target[0])
+        np.add.reduce(target[0], axis=None)
+        return real(target, rows)
+
+    monkeypatch.setattr(module, "first_rows", checked)
+    for w in _windows(monkeypatch, tmp_path, "strings"):
+        assert w.numpy["add in checked"] == 1
+        assert w.numpy["add.reduce in checked"] == 1
+
+
 def test_the_counts_are_per_task_whatever_its_size(monkeypatch):
     pipeline = _pipeline("strings")
     sizes = []
@@ -106,9 +123,11 @@ def test_the_counts_are_per_task_whatever_its_size(monkeypatch):
 
 
 def test_the_budget_keeps_numpy_usable(monkeypatch):
-    """Wrapping the functions of numpy leaves its types alone."""
+    """Wrapping the functions of numpy leaves its types alone, and ufuncs work."""
     with Budget(monkeypatch):
         rows = np.zeros(3, F32)
+        assert np.add(rows, 1).sum() == 3
+        assert np.add.identity == 0
         assert isinstance(rows, np.ndarray)
         assert rows.dtype == np.float32
         assert np.may_share_memory(rows, rows)
@@ -149,3 +168,35 @@ def test_the_source_check_finds_each_defect(defect):
     found = gil_budget.uncounted(text, None) + gil_budget.forbidden(text)
     assert len(found) == 1
     assert gil_budget.forbidden('def f(out):\n    """np.may_share_memory, in words"""\n') == []
+
+
+def test_every_function_called_without_the_gil_is_noexcept():
+    fused, others = gil_budget.source(gil_budget.FUSED), gil_budget.native_sources()
+    assert {"_encode_span", "_pool_stages", "_encode_rows"} <= gil_budget._nogil_calls(fused)
+    assert gil_budget.checked_without_gil(fused, others) == []
+
+
+@pytest.mark.parametrize(
+    ("part", "declaration"),
+    [
+        (gil_budget.FUSED, "cdef void _pool_stages("),
+        ("_native_text.pxi", "    cdef int _sentence("),
+        ("_native_wordpiece.pxi", "cdef inline int _wp_piece("),
+    ],
+)
+def test_a_dropped_noexcept_is_found(part, declaration):
+    """The mutation of review round 1: without noexcept Cython checks for an exception
+    after every call, and a void function takes the GIL back for it."""
+    texts = {gil_budget.FUSED: gil_budget.source(gil_budget.FUSED)}
+    for name in ("_native_text.pxi", "_native_wordpiece.pxi"):
+        texts[name] = gil_budget.source(name)
+    text = texts[part]
+    start = text.index(declaration)
+    end = text.index(":\n", start)
+    assert "noexcept" in text[start:end]
+    texts[part] = text[:start] + text[start:end].replace(" noexcept", "") + text[end:]
+    others = [t for name, t in texts.items() if name != gil_budget.FUSED]
+    others += [
+        t for t in gil_budget.native_sources() if t not in (gil_budget.source(n) for n in texts)
+    ]
+    assert gil_budget.checked_without_gil(texts[gil_budget.FUSED], others) != []
