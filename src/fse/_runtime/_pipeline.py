@@ -19,13 +19,14 @@ from __future__ import annotations
 
 import dataclasses
 import threading
+import time
 from contextlib import AbstractContextManager, nullcontext
 from typing import Any
 
 import numpy as np
 from numpy import ndarray
 
-from fse import _codes
+from fse import _codes, _log
 from fse._backends import PoolInput, get_backend
 from fse._contract import Batch, Step
 from fse._cpus import usable_cpus
@@ -134,6 +135,7 @@ class Pipeline:
 
         Every argument is checked before the source is read.
         """
+        start = time.perf_counter()
         workers = check_workers(workers) or usable_cpus()
         base = _non_negative(first_row, "first_row")
         inverse = False
@@ -146,6 +148,7 @@ class Pipeline:
         tasks, window, stop = self.plan_tasks(
             source, workers, chunk_bytes, self._row_bytes(dtype, inverse), base
         )
+        self._planned(source, tasks, workers, window, dtype, sink)
         own: ArrayRows | GrowingRows | None = None
         tbase = base if sink is not None else 0  # own targets count from 0
         if sink is None:
@@ -157,6 +160,7 @@ class Pipeline:
             )
             sink = own
         local = threading.local()
+        done = [0, 0]  # the rows and tasks committed, for the record of the run
 
         def reserve(task: Task) -> tuple[Task, Stored]:  # in the calling thread, in order
             return task, sink.target(tbase + task.first_row, task.n_rows)
@@ -167,6 +171,8 @@ class Pipeline:
 
         def commit(item: tuple[Task, Stored], rows: Stored):
             sink.commit(tbase + item[0].first_row, rows)
+            done[0] += item[0].n_rows
+            done[1] += 1
 
         run(
             tasks.tasks,
@@ -178,7 +184,55 @@ class Pipeline:
             reserve=reserve,
             stop=stop,
         )
+        self._done(done[0], done[1], time.perf_counter() - start)
         return None if own is None else own.result()
+
+    def _planned(self, source, tasks: Plan, workers, window, dtype, sink) -> None:
+        """The record of the plan of a run (the calling thread, before any task runs)."""
+        _log.emit(
+            "runtime.plan",
+            "fse runtime: %s rows of a %s on %d workers%s, %s backend, %s",
+            "unknown" if tasks.rows is None else tasks.rows,
+            type(source).__name__,
+            workers,
+            " (inline)" if tasks.inline else "",
+            self.backend.name,
+            dtype,
+            source=type(source).__name__,
+            rows=tasks.rows,
+            workers=workers,
+            inline=tasks.inline,
+            backend=self.backend.name,
+            dtype=dtype,
+            sink=None if sink is None else type(sink).__name__,
+            window_tasks=window,
+        )
+
+    def _done(self, rows: int, tasks: int, seconds: float) -> None:
+        """The records of a finished run: its summary and the device's fallbacks so far."""
+        _log.emit(
+            "runtime.done",
+            "fse runtime: %d rows in %d tasks in %.3f s",
+            rows,
+            tasks,
+            seconds,
+            rows=rows,
+            tasks=tasks,
+            seconds=seconds,
+            rows_per_second=rows / seconds if seconds > 0 else None,
+        )
+        counts = getattr(self.backend, "fallbacks", None)
+        if counts is not None and _log.enabled("backend.fallbacks"):
+            found = {k: v for k, v in counts(self.prepared).items() if v}
+            if found:
+                _log.emit(
+                    "backend.fallbacks",
+                    "fse %s backend: tasks of this encoder on the CPU so far: %s",
+                    self.backend.name,
+                    found,
+                    backend=self.backend.name,
+                    counts=found,
+                )
 
     def plan_tasks(
         self,

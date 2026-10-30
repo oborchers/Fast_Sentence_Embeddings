@@ -282,6 +282,10 @@ class MlxBackend:
         """Stage 5 on the host: the exact quantization of ``rows`` (checked there)."""
         self.host.store(rows, codes, scales, first_row)
 
+    def fallbacks(self, prepared: Prepared) -> dict[str, int]:
+        """``fallbacks`` of ``prepared``, which the runtime logs after a run."""
+        return fallbacks(prepared)
+
 
 def _use(viewed: tuple, out: ndarray) -> tuple[ndarray, ndarray]:
     """Copy the device's rows into ``out``: their flags and bounds."""
