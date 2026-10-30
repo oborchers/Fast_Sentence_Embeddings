@@ -81,13 +81,19 @@ class Tokenizer:
 
     def token_to_id(self, token: str) -> int | None:
         """The id of ``token``, or None."""
+        if not isinstance(token, str):
+            raise TypeError(f"token must be a str, not {type(token).__name__}")
         return self._mapping(True).get(token)
 
     def id_to_token(self, id: int) -> str | None:
-        """The token of ``id``, or None when there is no such id."""
+        """The token of ``id``, or None when there is no such id (``tokenizers`` takes a u32
+        and raises ``OverflowError`` outside it; a bool is refused here, where it counts as 0
+        or 1 there)."""
         if isinstance(id, bool) or not isinstance(id, int):
             raise TypeError(f"id must be an int, not {type(id).__name__}")
-        return self._tokens[id] if 0 <= id < len(self._tokens) else None
+        if not 0 <= id < 2**32:
+            raise OverflowError(f"id must fit an unsigned 32-bit integer, not {id}")
+        return self._tokens[id] if id < len(self._tokens) else None
 
     def _mapping(self, with_added_tokens: object) -> dict[str, int]:
         if with_added_tokens is not True:

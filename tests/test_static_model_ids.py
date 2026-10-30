@@ -57,6 +57,19 @@ def test_every_rule_is_a_lookup_of_its_own_on_the_shared_vocabulary(model):
     assert model._variants.vocabulary() is model._variants.vocabulary()
 
 
+def test_every_lookup_is_made_on_the_one_vocabulary_of_the_model(model, monkeypatch):
+    from fse._static_model import _ids
+
+    seen = []
+    make = _ids.make_lookup
+    monkeypatch.setattr(_ids, "make_lookup", lambda *a, **k: seen.append(k) or make(*a, **k))
+    ids = Ids(model._rules, model._variants.vocabulary)
+    for rule in ((1, 5, "drop"), (None, None, "keep"), (3, None, "drop")):
+        ids.lookup(rule)
+    assert len(seen) == 3
+    assert {id(k["vocabulary"]) for k in seen} == {id(model._variants.vocabulary())}
+
+
 def test_the_chunks_hold_one_array_per_text_the_empty_ones_included(model):
     ids = Ids(model._rules, model._variants.vocabulary)
     rows = [

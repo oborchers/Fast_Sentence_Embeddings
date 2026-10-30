@@ -86,7 +86,16 @@ def test_the_vocabulary_is_that_of_model2vec(models):
     assert tok.token_to_id("no such token") is None is ref.token_to_id("no such token")
     n = len(ours.tokens)
     assert tok.id_to_token(n) is None is ref.id_to_token(n)
-    assert tok.id_to_token(-1) is None
+    for bad in (-1, 2**32):
+        with pytest.raises(OverflowError):
+            tok.id_to_token(bad)
+        with pytest.raises(OverflowError):
+            ref.id_to_token(bad)
+    for bad in (None, 1, True, b"hello", ["a"]):
+        with pytest.raises(TypeError, match="token must be a str"):
+            tok.token_to_id(bad)
+    with pytest.raises(TypeError):
+        ref.token_to_id(None)
     with pytest.raises(TypeError, match="id must be an int"):
         tok.id_to_token("1")
     with pytest.raises(TypeError, match="id must be an int"):
