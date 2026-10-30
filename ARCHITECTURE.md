@@ -98,7 +98,8 @@ src/fse/
   _native_text.h         # the native tokenizers fse_words@1 and external
   _native_unicode.h      # generated: the simple lowercase table for the native code
   _unicode.py            # generated: the same table for the reference
-  _native_wordpiece.h    # wordpiece@1: added tokens, normalization and pre-tokenization
+  _native_added.h        # the scan for added tokens, UTF-8 validation and the character cut
+  _native_wordpiece.h    # wordpiece@1: normalization and pre-tokenization
   _native_wordpiece_trie.h # the byte trie of a vocabulary for the greedy match of wordpiece@1
   _native_unicode_bert.h # generated: the composed normalization table of wordpiece@1
   _unicode_bert.py       # generated: the Unicode data of wordpiece@1 for the reference
