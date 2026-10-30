@@ -99,6 +99,8 @@ test = [
     "gensim>=4.3.3; python_version < '3.14'",
     # Checks that the reference implementation reads fse's safetensors files.
     "safetensors>=0.4.0",
+    # The tests of Classifier.from_sklearn and Regressor.from_sklearn (fse never imports it).
+    "scikit-learn>=1.5.0",
     # The reference of wordpiece@1 against Hugging Face tokenizers. Pinned exactly: its
     # lowercase is the Unicode of the Rust that built the wheel (17.0.0 for 0.23.3), so a
     # newer wheel can change ids, and the exhaustive tests then name the code points.
@@ -297,6 +299,8 @@ containers = ["fse"]
 exhaustive = true
 exhaustive_ignores = ["_version"]
 layers = [
+    # Linear heads on an encoder; they read stores in store mode.
+    "_head",
     # The store takes an Encoder; fse.gensim only converts word vectors.
     "gensim | _store",
     "_encoder",
@@ -306,6 +310,8 @@ layers = [
     "_text",
     "_wordvectors",
     "_wordvectors_format",
+    # The reference of linear heads builds on the reference of the encoder (fma32, dot16).
+    "_reference_head",
     # Independent of each other: the references never share code with what they check.
     "_container | _codes | _reference | _reference_text | _reference_wordpiece | _tokenizer_spec | _validation",
     "_contract | _cpus | _unicode | _unicode_bert",
@@ -340,6 +346,13 @@ exhaustive = true
 layers = ["_backend", "_device", "_canary", "_kernels", "_sources | _load | _bounds"]
 
 [[tool.importlinter.contracts]]
+name = "Heads: the classes on the model, that on its runs, the readers and formats on the content"
+type = "layers"
+containers = ["fse._head"]
+exhaustive = true
+layers = ["_classifier | _regressor", "_model", "_run", "_sklearn | _format | _outputs", "_content"]
+
+[[tool.importlinter.contracts]]
 name = "Encoder: the encoder on its batches and format, those on its inputs"
 type = "layers"
 containers = ["fse._encoder"]
@@ -347,11 +360,11 @@ exhaustive = true
 layers = ["_encoder", "_batches | _format", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
-name = "Runtime: the pipeline on tasks, sinks and the executor"
+name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the executor"
 type = "layers"
 containers = ["fse._runtime"]
 exhaustive = true
-layers = ["_pipeline", "_tasks | _sinks | _executor | _spec"]
+layers = ["_head", "_pipeline", "_tasks | _sinks | _executor | _spec"]
 
 [[tool.importlinter.contracts]]
 # The device libraries (mlx) are checked by tools/check_guardrails.py instead: only the

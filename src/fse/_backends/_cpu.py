@@ -21,13 +21,15 @@ import numpy as np
 from numpy import ndarray
 
 from fse import _native
-from fse._contract import Aggregation, Batch, Op, Step
+from fse._contract import Aggregation, Batch, Link, Op, Step
 
 from ._base import (
     Capabilities,
     PoolInput,
     Prepared,
+    check_logits_input,
     check_out,
+    check_outputs_input,
     check_pool_input,
     check_prepared,
     check_score_input,
@@ -44,6 +46,7 @@ _CAPABILITIES = Capabilities(
     steps=frozenset(Op),
     fasttext=True,
     concurrent=True,
+    heads=True,
     max_dim=_native.MAX_DIM,
 )
 
@@ -138,3 +141,20 @@ class CpuBackend:
     def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
         check_store_input(rows, codes, scales, first_row)
         _native.store_rows(rows, codes, scales, int(first_row), isa=self.isa)
+
+    def logits(
+        self,
+        rows: ndarray,
+        weights: ndarray | None,
+        bias: ndarray,
+        out: ndarray,
+        first_row: int = 0,
+    ) -> None:
+        check_logits_input(rows, weights, bias, out, first_row)
+        _native.head_logits(rows, weights, bias, out, int(first_row), isa=self.isa)
+
+    def outputs(
+        self, logits: ndarray, kind: str, link: Link | None, out: ndarray, first_row: int = 0
+    ) -> None:
+        check_outputs_input(logits, kind, link, out)
+        _native.head_outputs(logits, kind, link, out, int(first_row), isa=self.isa)

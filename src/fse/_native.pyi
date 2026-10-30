@@ -166,3 +166,22 @@ def scores(
     *,
     isa: str | None = None,
 ) -> ndarray: ...
+def exp1(x: ndarray, *, isa: str | None = None) -> ndarray: ...
+def head_logits(
+    rows: ndarray,
+    weights: ndarray | None,
+    bias: ndarray,
+    out: ndarray,
+    first_row: int = 0,
+    *,
+    isa: str | None = None,
+) -> None: ...
+def head_outputs(
+    logits: ndarray,
+    kind: str,
+    link: object,
+    out: ndarray,
+    first_row: int = 0,
+    *,
+    isa: str | None = None,
+) -> None: ...

@@ -19,7 +19,7 @@ MODULES = sorted(
     for p in SRC.rglob("*.py")
     if p.relative_to(SRC).as_posix() not in ("gensim.py", "_version.py")
 )
-FORBIDDEN = ("gensim", "scipy", "smart_open", "psutil", "threadpoolctl", "wordfreq")
+FORBIDDEN = ("gensim", "scipy", "smart_open", "psutil", "threadpoolctl", "wordfreq", "sklearn")
 
 
 @pytest.mark.parametrize("name", fse.__all__)
@@ -71,6 +71,9 @@ def test_import_without_optional_packages():
         "wv = fse.WordVectors.from_arrays(np.ones((1, 2), np.float32), words=['a'])\n"
         "assert wv.index('a') == 0\n"
         "assert fse.Encoder.from_word_vectors(wv).encode(['a'], workers=1).shape == (1, 2)\n"
+        "enc = fse.Encoder.from_word_vectors(wv, normalize=False)\n"
+        "clf = fse.Classifier.from_arrays(enc, np.ones(2), labels=[0, 1])\n"
+        "assert clf.predict(['a'], workers=1).tolist() == [1]\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
 
@@ -105,12 +108,15 @@ def test_native_imports_no_optional_packages():
 def test_public_api_is_pinned():
     """A new public name needs a deliberate change of this test."""
     names = [
+        "Classifier",
         "CorruptArtifactError",
         "EncodedBatch",
         "Encoder",
         "FastTextParams",
         "MemorySink",
+        "PredictedBatch",
         "QuantizedRows",
+        "Regressor",
         "SearchResult",
         "ShardSink",
         "Sink",

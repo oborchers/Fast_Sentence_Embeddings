@@ -2,7 +2,8 @@
 
 master is the development branch of fse 2.0, the inference engine for static
 embeddings: an ``Encoder`` is a finished model (a table of word rows, a tokenizer and an
-optional normalization) that turns sentences into vectors. It trains nothing. The 1.x
+optional normalization) that turns sentences into vectors; ``Classifier`` and
+``Regressor`` add a linear head trained elsewhere (scikit-learn). It trains nothing. The 1.x
 API (``Average``, ``SIF``, ``uSIF``, the input classes, ``Vectors``) was removed here; it
 lives on in fse 1.1.0 on PyPI and on the branch ``1.x``.
 """
@@ -21,6 +22,7 @@ from fse._wordvectors_format import FastTextParams
 
 if TYPE_CHECKING:
     from fse._encoder import EncodedBatch, Encoder, QuantizedRows
+    from fse._head import Classifier, PredictedBatch, Regressor
     from fse._runtime import MemorySink, Sink
     from fse._store import SearchResult, ShardSink, VectorStore
 del TYPE_CHECKING  # not a name of fse
@@ -36,6 +38,7 @@ _LAZY = {
     ),
     **dict.fromkeys(("MemorySink", "Sink"), "fse._runtime"),
     **dict.fromkeys(("SearchResult", "ShardSink", "VectorStore"), "fse._store"),
+    **dict.fromkeys(("Classifier", "PredictedBatch", "Regressor"), "fse._head"),
 }
 
 _REMOVED = {
@@ -84,12 +87,15 @@ def __dir__() -> list[str]:
 
 
 __all__ = [
+    "Classifier",
     "CorruptArtifactError",
     "EncodedBatch",
     "Encoder",
     "FastTextParams",
     "MemorySink",
+    "PredictedBatch",
     "QuantizedRows",
+    "Regressor",
     "SearchResult",
     "ShardSink",
     "Sink",
