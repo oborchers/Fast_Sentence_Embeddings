@@ -30,11 +30,17 @@ from ._common import (
     checksum,
     fingerprint,
     is_fingerprint,
+    strict_json,
     tensor_code,
 )
-from ._hash import Hasher
+from ._foreign import foreign_header, foreign_tensors, read_foreign, read_regular
+from ._hash import Hasher, file_digests
 from ._npy import NpyContainer
-from ._safetensors import SafetensorsContainer
+from ._safetensors import SafetensorsContainer, _read_safetensors_header
+
+#: The checked header of an fse safetensors file: (handle, path, size) -> (data offset,
+#: tensors, metadata); reads the header only.
+safetensors_header = _read_safetensors_header
 
 __all__ = [
     "CHECKSUM_PREFIX",
@@ -51,8 +57,15 @@ __all__ = [
     "TensorContainer",
     "canonical_json",
     "checksum",
+    "file_digests",
     "fingerprint",
+    "foreign_header",
+    "foreign_tensors",
     "is_fingerprint",
+    "read_foreign",
+    "read_regular",
+    "safetensors_header",
+    "strict_json",
     "tensor_code",
 ]
 

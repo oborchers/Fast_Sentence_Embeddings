@@ -253,6 +253,12 @@ def _strict_json(raw: bytes, file: Path) -> Any:
     return value
 
 
+def strict_json(raw: bytes, file: Path) -> Any:
+    """JSON of a file without duplicate keys, NaN, infinity or strings without UTF-8;
+    raises CorruptArtifactError naming ``file``. For JSON files of other writers too."""
+    return _strict_json(raw, file)
+
+
 def _strings(value: Any):
     """Every string of a parsed JSON value, keys included, without recursion."""
     stack = [value]

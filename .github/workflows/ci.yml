@@ -111,7 +111,7 @@ jobs:
         run: >-
           uv pip install
           "numpy==1.26.4" "pydantic==2.5.0" "xxhash==3.2.0" "gensim==4.3.3" "safetensors==0.4.0"
-          "scikit-learn==1.5.0"
+          "scikit-learn==1.5.0" "huggingface-hub==1.0.0"
       - name: Run tests with coverage
         if: matrix.deps != 'min'
         run: make test-cov
@@ -218,12 +218,13 @@ jobs:
       - run: uv build --sdist
       - run: uv run --no-project --with twine twine check dist/*
       - name: Install the sdist into a clean environment and run the tests
-        # tokenizers as pinned in the test group of pyproject.toml: the conformance tests
-        # of wordpiece@1 skip without it, so the check below makes sure they run.
+        # tokenizers, model2vec and safetensors as in the test group of pyproject.toml: the
+        # conformance tests of wordpiece@1 and Model2Vec skip without them, so the check
+        # below makes sure they run.
         run: |
           uv venv --python 3.13 /tmp/sdist-env
-          uv pip install --python /tmp/sdist-env "$(ls dist/*.tar.gz)[gensim]" pytest "tokenizers==0.23.3"
-          /tmp/sdist-env/bin/python -c "import tokenizers; assert tokenizers.__version__ == '0.23.3', tokenizers.__version__"
+          uv pip install --python /tmp/sdist-env "$(ls dist/*.tar.gz)[gensim,hub]" pytest "tokenizers==0.23.3" "model2vec==0.10.0" "safetensors>=0.4.0"
+          /tmp/sdist-env/bin/python -c "import tokenizers, model2vec, safetensors; assert tokenizers.__version__ == '0.23.3', tokenizers.__version__"
           /tmp/sdist-env/bin/python -m pytest tests -m "not network" -p no:cacheprovider
       - name: Use the sdist without gensim
         run: |

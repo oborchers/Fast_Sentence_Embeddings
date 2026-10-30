@@ -37,6 +37,8 @@ Installation
 
 `fse.gensim` (converting gensim word vectors) needs the extra `fse[gensim]`.
 
+`Encoder.from_pretrained` of models on the Hugging Face Hub needs the extra `fse[hub]`.
+
 On Apple silicon with macOS 14 or newer, the extra `fse[mlx]` adds the backend `"mlx"`, which averages the word vectors on the GPU within a small tolerance of the CPU's rows (usually with their bits): `encoder.encode(texts, backend="mlx")`. For tiny inputs it is slower than the default `"cpu"`.
 
 Usage
@@ -50,6 +52,18 @@ import fse
 encoder = fse.Encoder.load("model.safetensors")
 rows = encoder.encode(["the cat sleeps", "a dog runs"])  # one float32 row per text
 ```
+
+Use a Model2Vec model of the Hub (`pip install "fse[hub]"`), converted when it is loaded:
+
+```python
+import fse
+
+encoder = fse.Encoder.from_pretrained("minishlab/potion-base-8M")
+rows = encoder.encode(["the cat sleeps", "a dog runs"])  # normalized, 256 values per text
+encoder.save("potion-base-8M.safetensors")  # an fse encoder, loaded without the Hub
+```
+
+fse gives the token ids of the model's tokenizer (Hugging Face tokenizers 0.23.3) and the vectors of model2vec 0.10.0 within float32 rounding (not bit for bit: the sums run in another order). Like model2vec, it reads the first 512 tokens of the first 512 times the median token length characters of a text; `from_pretrained(..., truncate=False)` reads texts whole, and `max_length=` sets another token limit. Only float32 models are read, and a row whose sum of squares underflows or overflows float32 raises where model2vec returns a row that is not of unit length. Files of the Hub are checked against the commit they come from (ARCHITECTURE.md, "Model2Vec models and from_pretrained"); the model's license applies to its use.
 
 Make a model from word vectors (every word weighs 1) and save it:
 

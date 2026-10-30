@@ -121,7 +121,11 @@ CANONICAL = json.dumps(CONFIG.to_json(), sort_keys=True, separators=(",", ":"))
             "the repo of a source",
         ),
         ("fse.source", '{"format": "x"}', ValueError, "canonical"),
-        ("fse.license", "", ValueError, "license must be None or a non-empty str"),
+        ("fse.license", "", ValueError, "license must be None, a non-empty str"),
+        ("fse.license", "[]", ValueError, "a license or a JSON list of them"),
+        ("fse.license", '["mit",""]', ValueError, "a license or a JSON list of them"),
+        ("fse.license", '["mit", "x"]', ValueError, "canonical JSON list"),
+        ("fse.license", '["mit"', ValueError, "not canonical JSON"),
     ],
 )
 def test_the_keys_of_wordpiece_are_checked(key, value, error, match):
@@ -210,3 +214,12 @@ def test_the_encode_spec_checks_the_tokenizer_against_its_table():
     )
     with pytest.raises(ValueError, match="takes no FastText vectors"):
         EncodeSpec(fasttext, weights, tokenizer=SPEC, oov_weight=1.0, max_ngrams=2)
+
+
+def test_several_licenses_are_a_json_list():
+    tensors, metadata = _artifact(license=("mit", "apache-2.0"))
+    assert metadata["fse.license"] == '["mit","apache-2.0"]'
+    assert from_artifact(tensors, metadata)[0].license == ("mit", "apache-2.0")
+    for wrong in ((), ("mit", ""), ["mit"], "[mit]"):
+        with pytest.raises(ValueError, match="license must be None"):
+            _artifact(license=wrong)

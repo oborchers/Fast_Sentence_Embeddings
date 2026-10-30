@@ -19,13 +19,13 @@ from __future__ import annotations
 import threading
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from numpy import ndarray
 
 from fse import _codes
-from fse._backends import BACKEND_NAMES, get_backend
+from fse._backends import BACKEND_NAMES
 from fse._container import (
     CHECKSUM_PREFIX,
     CREATED_BY_KEY,
@@ -38,13 +38,12 @@ from fse._container import (
 )
 from fse._contract import Normalize, UnsupportedArtifactError
 from fse._runtime import EncodeSpec, Pipeline, QuantizedRows, check_workers
-from fse._text import MAX_NGRAMS_LIMIT, Vocabulary, make_vocabulary
+from fse._text import Vocabulary, make_vocabulary
 from fse._tokenizer_spec import TokenizerSpec
 from fse._validation import PathLike, PositiveInt, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
-from fse._wordvectors_format import FORMAT_VERSION as WORD_VECTORS_VERSION
 
-from . import _batches
+from . import _batches, _pretrained
 from ._batches import EncodedBatch, check_sink, flush, run_into
 from ._format import (
     TABLE_KEYS,
@@ -52,13 +51,12 @@ from ._format import (
     EncoderContent,
     Source,
     check_tokenizer_table,
+    fasttext_parts,
     from_artifact,
+    loaded_table,
     to_artifact,
 )
 from ._sources import opened
-
-# The ngrams an unknown FastText word uses at most, unless an encoder is given another.
-DEFAULT_MAX_NGRAMS = 40
 
 
 class Encoder:
@@ -150,7 +148,7 @@ class Encoder:
         content = EncoderContent(
             tokenizer=TokenizerSpec.of(tokenizer),
             steps=(Normalize(),) if normalize else (),
-            **_fasttext(word_vectors, max_ngrams, oov_weight),
+            **fasttext_parts(word_vectors, max_ngrams, oov_weight),
         )
         return cls._new(content, word_vectors)
 
@@ -195,6 +193,49 @@ class Encoder:
         )
 
     @classmethod
+    @validate_arguments
+    def from_pretrained(
+        cls,
+        repo_or_path: PathLike,
+        *,
+        revision: str | None = None,
+        token: str | bool | None = None,
+        cache_dir: PathLike | None = None,
+        local_files_only: bool = False,
+        truncate: bool = True,
+        max_length: PositiveInt | Literal["model"] | None = "model",
+        mmap: bool = False,
+    ):  # -> Encoder
+        """The encoder of a pretrained model: a local ``.safetensors`` file or folder, or
+        a Hugging Face Hub repository (``namespace/name``, extra ``fse[hub]``) at
+        ``revision`` (default branch if None), checked against its commit. An fse encoder
+        is loaded (``mmap`` as for ``load``); a Model2Vec model is converted, with its
+        length rule unless ``truncate=False`` (``max_length`` sets another token limit,
+        None none, as in model2vec). ARCHITECTURE.md, "from_pretrained"."""
+        files = _pretrained.files(
+            repo_or_path,
+            revision=revision,
+            token=token,
+            cache_dir=cache_dir,
+            local_files_only=local_files_only,
+        )
+        found = _pretrained.find(files, truncate=truncate, max_length=max_length, mmap=mmap)
+        if found.data is not None:  # an fse encoder of the Hub, checked as these bytes
+            tensors, metadata = SafetensorsContainer().open_bytes(*found.data)
+            return cls._from_artifact(tensors, metadata, None, metadata.get(FINGERPRINT_KEY))
+        if found.model2vec is None:
+            assert found.path is not None
+            return cls.load(found.path, mmap=mmap)
+        model = found.model2vec
+        return cls._converted(
+            model.word_vectors,
+            model.tokenizer,
+            normalize=model.normalize,
+            source=found.source,
+            license=found.license,
+        )
+
+    @classmethod
     def _converted(
         cls,
         word_vectors: WordVectors,
@@ -202,7 +243,7 @@ class Encoder:
         *,
         normalize: bool,
         source: Source | None = None,
-        license: str | None = None,
+        license: str | tuple[str, ...] | None = None,
     ) -> Encoder:
         """The encoder of a model converted from another library (the readers of PR 12a2):
         its table, its tokenizer with parameters, whether it normalizes, its provenance."""
@@ -374,9 +415,9 @@ class Encoder:
         }
         return cls._new(
             content,
-            _table(table, keys, metadata, checksums, path),
+            loaded_table(table, keys, metadata, checksums, path),
             path=path,
-            checksums=checksums,
+            checksums=checksums if path is not None else None,
             fingerprint_=fingerprint_,
         )
 
@@ -441,41 +482,3 @@ class Encoder:
             f"Encoder({len(wv)} words, {self.output_dim} dimensions, {wv.dtype}{kind}, "
             f"{self._content.tokenizer.describe()}{steps})"
         )
-
-
-def _fasttext(word_vectors: WordVectors, max_ngrams: int | None, oov_weight: float | None):
-    """``max_ngrams`` and ``oov_weight`` of an encoder of ``word_vectors``, with their
-    defaults for FastText vectors; other vectors take neither."""
-    if word_vectors.fasttext is None:
-        if max_ngrams is not None or oov_weight is not None:
-            raise ValueError("max_ngrams and oov_weight apply only to FastText vectors")
-        return {"max_ngrams": None, "oov_weight": None}
-    if max_ngrams is not None and max_ngrams > MAX_NGRAMS_LIMIT:
-        raise ValueError(f"max_ngrams must be at most {MAX_NGRAMS_LIMIT}, not {max_ngrams}")
-    # Converted in the floating-point environment of the kernels (round to nearest, no
-    # flush to zero), whatever the calling thread set, as the kernel converts it.
-    given = 1.0 if oov_weight is None else oov_weight
-    weight = get_backend("cpu").float32([given]).reshape(())
-    if not np.isfinite(weight):
-        raise ValueError(f"oov_weight must be finite in float32, not {oov_weight!r}")
-    return {"max_ngrams": max_ngrams or DEFAULT_MAX_NGRAMS, "oov_weight": weight}
-
-
-def _table(
-    tensors: dict[str, ndarray],
-    keys: dict[str, str],
-    metadata: dict[str, str],
-    checksums: dict[str, str],
-    path: Path | None,
-) -> WordVectors:
-    """The table an encoder holds, as word vectors loaded from its file, with the
-    fingerprint of their recorded checksums."""
-    content = {"fse.kind": "word_vectors", "fse.format_version": WORD_VECTORS_VERSION, **keys}
-    entries = {k: (tensor_code(v), v.shape, checksums[k]) for k, v in tensors.items()}
-    loaded = {
-        **content,
-        CREATED_BY_KEY: metadata.get(CREATED_BY_KEY, "fse"),
-        FINGERPRINT_KEY: fingerprint(entries, content),
-        **{CHECKSUM_PREFIX + k: checksums[k] for k in tensors},
-    }
-    return WordVectors._open(tensors, loaded, path)

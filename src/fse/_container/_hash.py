@@ -12,12 +12,17 @@ streams and formats; reading arrays in bounded chunks belongs to the containers.
 only module of fse that imports a hash library (``hash-importers`` of the guardrails) and
 imports nothing from fse, so it can be copied with the containers.
 
+It also gives the two digests the Hugging Face Hub pins a file of a commit with (``file_digests``):
+the sha256 of an LFS file and the git blob sha1 of any file; they identify a downloaded
+file against a trusted commit and are no checksums of fse.
+
 The data always go through the streaming object: python-xxhash releases the GIL in
 ``update`` (for inputs over 64 KiB from 4.0 on), never in its one-shot functions before 4.0.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 from typing import Literal
 
@@ -97,3 +102,19 @@ def classify(value: object) -> Literal["ok", "legacy", "unknown", "malformed"]:
     if _OTHER.fullmatch(value):
         return "unknown"
     return "malformed"
+
+
+def file_digests(handle, size: int, chunk: int = 2**22) -> tuple[str, str]:
+    """The sha256 and the git blob sha1 (``sha1(b"blob <size>\\0" + data)``) of the
+    ``size`` bytes read from ``handle``, both as hex; raises if the file is shorter."""
+    sha256 = hashlib.sha256()
+    sha1 = hashlib.sha1(b"blob %d\0" % size)  # the id git gives the content, not security
+    remaining = size
+    while remaining:
+        part = handle.read(min(chunk, remaining))
+        if not part:
+            raise ValueError(f"the file ended {remaining} bytes early")
+        sha256.update(part)
+        sha1.update(part)
+        remaining -= len(part)
+    return sha256.hexdigest(), sha1.hexdigest()
