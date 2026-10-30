@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import shutil
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -65,6 +66,7 @@ def test_the_ignored_keys_of_a_sentence_transformers_model(tmp_path):
 def test_word_vectors_of_gensim():
     gensim = pytest.importorskip("gensim")
     from fse.gensim import from_gensim
+
     kv = gensim.models.KeyedVectors(4)
     kv.add_vectors(["a", "b"], np.ones((2, 4), np.float32))
     with expect_log("artifact.converted", kind="word_vectors", source="gensim", rows=2, dim=4):
@@ -170,3 +172,38 @@ def test_records_cost_no_hashing_when_disabled(tmp_path, monkeypatch):
     with captured():
         loud = run("loud")
     assert loud == quiet > 0
+
+
+def test_the_plan_and_summary_of_a_run_in_the_calling_thread():
+    encoder = finished()
+    with captured() as records:
+        encoder.encode([f"w{i}" for i in range(10)], workers=2)
+    events = {r.fse_event: r for r in records}
+    plan, done = events["runtime.plan"], events["runtime.done"]
+    assert (plan.fse_source, plan.fse_rows, plan.fse_workers) == ("StringSource", 10, 2)
+    assert (plan.fse_backend, plan.fse_dtype, plan.fse_sink) == ("cpu", "float32", None)
+    assert (done.fse_rows, done.fse_tasks) == (10, 1)
+    assert plan.threadName == done.threadName == threading.current_thread().name
+    assert [r.fse_event for r in records].count("runtime.done") == 1
+
+
+def test_the_default_workers_are_logged_when_they_change(monkeypatch):
+    from fse import _cpus
+
+    monkeypatch.setattr(_cpus, "_REPORTED", [])
+    monkeypatch.setenv("PYTHON_CPU_COUNT", "3")
+    with expect_log("runtime.workers", workers=3, origin="override") as records:
+        _cpus.usable_cpus()
+        _cpus.usable_cpus()
+        monkeypatch.delenv("PYTHON_CPU_COUNT")
+        _cpus.usable_cpus()
+    assert len(records) == 2
+    assert records[1].fse_origin in ("affinity", "cpu_count", "cgroup")
+
+
+def test_a_head_folded_into_the_table():
+    encoder = finished(normalize=False)
+    weight = np.ones((2, encoder.output_dim), np.float32)
+    with expect_log("head.folded", outputs=2, rows=len(encoder.word_vectors), backend="cpu"):
+        head = fse.Regressor.from_arrays(encoder, weight, np.zeros(2, np.float32), normalized=False)
+        head.predict(["w1 w2"])

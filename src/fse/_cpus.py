@@ -22,18 +22,39 @@ import os
 import sys
 from pathlib import Path
 
+from fse import _log
+
 _PROC = Path("/proc/self")
+_REPORTED: list[tuple[int, str]] = []  # the last default logged (once per change)
 
 
 def usable_cpus() -> int:
     """The CPUs this process may use, at least 1."""
     override = _override()
     if override is not None:
-        return override
+        return _reported(override, "override")
     # macOS and Windows have no affinity call.
-    cpus = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count() or 1
+    affinity = hasattr(os, "sched_getaffinity")
+    cpus = len(os.sched_getaffinity(0)) if affinity else os.cpu_count() or 1
     quota = _process_quota()
-    return max(1, cpus if quota is None else min(cpus, quota))
+    if quota is not None and quota < cpus:
+        return _reported(max(1, quota), "cgroup")
+    return _reported(max(1, cpus), "affinity" if affinity else "cpu_count")
+
+
+def _reported(workers: int, origin: str) -> int:
+    """``workers``, logged the first time and whenever it or its origin changes."""
+    if _REPORTED[-1:] != [(workers, origin)]:
+        _REPORTED[:] = [(workers, origin)]
+        _log.emit(
+            "runtime.workers",
+            "fse runtime: %d workers by default (%s)",
+            workers,
+            origin,
+            workers=workers,
+            origin=origin,
+        )
+    return workers
 
 
 @functools.cache
