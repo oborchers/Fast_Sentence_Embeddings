@@ -21,6 +21,7 @@ concurrency:
 
 env:
   COLUMNS: 150
+  PYTEST_DIST: load
   # The scheduled run resolves the newest versions instead of the lockfile.
   UV_SYNC_FLAGS: ${{ github.event_name == 'schedule' && '--upgrade' || '--locked' }}
 
