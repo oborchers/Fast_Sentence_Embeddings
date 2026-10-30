@@ -273,6 +273,7 @@ generated = [
     "src/fse/_unicode_bert.py",
     "src/fse/_native_unicode_bert.h",
     "src/fse/_unicode_graphemes.py",
+    "src/fse/_native_unicode_graphemes.h",
 ]
 # The only modules that import the extension fse._native (import-linter cannot see it):
 # _text for stages 1 and 2, the cpu backend for the kernels of stages 2 to 4.
