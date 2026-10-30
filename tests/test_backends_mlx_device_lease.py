@@ -4,7 +4,6 @@ the caller returned them, also when the caller fails or is interrupted, and with
 waiting for a slow caller before a group already queued. A fake MLX stands in for the GPU."""
 
 import threading
-import time
 
 import numpy as np
 import pytest
@@ -12,6 +11,7 @@ import pytest
 from fse._backends._mlx import _device, _kernels
 from fse._backends._mlx._device import Device
 from support.fake_mlx import FakeMx
+from support.waiting import until
 
 
 class Tracked:
@@ -290,6 +290,7 @@ def test_a_new_call_does_not_wait_under_the_lock_for_the_thread_before(device, m
     queues a job and starts a new thread. B must not hold the lock while it joins the
     thread before (which waits for A): both calls end."""
     b_queued = threading.Event()
+    b_in_enqueue = []
     real_wait = threading.Event.wait
 
     class Done(threading.Event):
@@ -300,7 +301,9 @@ def test_a_new_call_does_not_wait_under_the_lock_for_the_thread_before(device, m
             if self.interrupts:  # once, after the job is done
                 self.interrupts -= 1
                 b_queued.wait(10)
-                time.sleep(0.2)  # B is in its enqueue now
+                # B is in its enqueue: it has started the thread behind the one that waits
+                # for A (``_thread`` was None until then).
+                b_in_enqueue.append(until(lambda: device._thread is not None))
                 raise KeyboardInterrupt
             return True
 
@@ -321,23 +324,27 @@ def test_a_new_call_does_not_wait_under_the_lock_for_the_thread_before(device, m
             results["a"] = "interrupted"
 
     thread_a = threading.Thread(target=call_a)
-    thread_a.start()
-    while not _threads():
-        pass
-    while device._thread is not None:  # the thread found no more jobs: it waits for A
-        pass
-    monkeypatch.setattr(_device, "Job", plain)
+    thread_b = threading.Thread(target=lambda: None)
 
     def call_b():
         b_queued.set()
         results["b"] = device.run(lambda _m, _s: (), lambda _a: "b")
 
-    thread_b = threading.Thread(target=call_b)
-    thread_b.start()
-    thread_a.join(10)
-    thread_b.join(10)
+    try:
+        thread_a.start()
+        assert until(_threads), "the device thread never started"
+        # the thread found no more jobs: it waits for A
+        assert until(lambda: device._thread is None), "the device thread never went idle"
+        monkeypatch.setattr(_device, "Job", plain)
+        thread_b = threading.Thread(target=call_b)
+        thread_b.start()
+    finally:
+        b_queued.set()  # whatever happened, A's wait must end
+        thread_a.join(10)
+        thread_b.join(10)
     assert not thread_a.is_alive(), "the calls wait for each other"
     assert not thread_b.is_alive()
+    assert b_in_enqueue == [True], "B was not in its enqueue when A was interrupted"
     assert results == {"a": "interrupted", "b": "b"}
     assert freed == ["fse-mlx"]
     assert _threads() == []

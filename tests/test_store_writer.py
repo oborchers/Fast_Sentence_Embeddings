@@ -8,6 +8,7 @@ import pytest
 
 from fse._store import _writer
 from fse._store._writer import WriterThread
+from support.waiting import arrived, blocked_in_wait
 
 
 def test_work_runs_in_order_in_one_thread():
@@ -30,21 +31,28 @@ def test_the_bytes_waiting_are_bounded(monkeypatch):
     monkeypatch.setattr(_writer, "MAX_PENDING_BYTES", 100)
     writer = WriterThread()
     gate = threading.Event()
-    writer.submit(gate.wait, nbytes=60)
     submitted = threading.Event()
+    reached = blocked_in_wait(writer._state, "second")
 
     def second():
         writer.submit(lambda: None, nbytes=60)  # 120 > 100: waits for the first
         submitted.set()
 
-    thread = threading.Thread(target=second)
-    thread.start()
-    assert not submitted.wait(0.2)
-    gate.set()
-    assert submitted.wait(5)
-    thread.join()
-    writer.drain()
-    writer.stop()
+    thread = threading.Thread(target=second, name="second")
+    try:
+        writer.submit(gate.wait, nbytes=60)
+        thread.start()
+        assert arrived(reached, writer._state), "the second piece never waited for room"
+        assert not submitted.wait(0.2)
+        gate.set()
+        assert submitted.wait(5)
+        thread.join(5)
+        writer.drain()
+    finally:
+        gate.set()
+        if thread.is_alive():
+            thread.join(5)
+        writer.stop()
     big = WriterThread()
     big.submit(lambda: None, nbytes=10_000)  # one piece larger than the budget still passes
     big.drain()
@@ -168,6 +176,7 @@ def test_a_producer_waiting_for_room_is_released_when_the_thread_ends(monkeypatc
     writer = WriterThread()
     started, release, waiting = (threading.Event() for _ in range(3))
     errors = []
+    reached = blocked_in_wait(writer._state, "producer")
 
     def block():
         started.set()
@@ -186,6 +195,7 @@ def test_a_producer_waiting_for_room_is_released_when_the_thread_ends(monkeypatc
         assert started.wait(TIMEOUT)
         producer.start()
         assert waiting.wait(TIMEOUT)
+        assert arrived(reached, writer._state), "the producer never waited for room"
         producer.join(0.2)
         assert producer.is_alive()  # it waits for room
         writer.abandon()
@@ -202,6 +212,7 @@ def test_a_producer_waiting_for_room_is_released_when_the_thread_ends(monkeypatc
 def test_at_most_max_pending_pieces_wait():
     writer = WriterThread()
     started, release = threading.Event(), threading.Event()
+    reached = blocked_in_wait(writer._state, "extra")
 
     def block():
         started.set()
@@ -215,6 +226,7 @@ def test_at_most_max_pending_pieces_wait():
         assert len(writer._items) == _writer.MAX_PENDING
         extra = threading.Thread(target=writer.submit, args=(lambda: None,), name="extra")
         extra.start()
+        assert arrived(reached, writer._state), "the 17th piece never waited for room"
         extra.join(0.2)
         assert extra.is_alive()  # the 17th waits
         release.set()
