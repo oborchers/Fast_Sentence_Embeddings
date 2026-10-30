@@ -276,3 +276,35 @@ def test_errors_of_a_stream_name_the_rows_of_the_run(sink):
         texts = ["ok"] * 7 + [bad] + ["ok"] * 3
         with pytest.raises(error, match=pattern):
             NORMALIZED.infer(StreamSource(iter(texts), chunk_rows=3), first_row=1000, **kwargs)
+
+
+@pytest.mark.parametrize("workers", [1, 3])
+@pytest.mark.parametrize("block", [1, 7])
+def test_a_file_across_line_blocks_reports_the_earliest_row(monkeypatch, tmp_path, workers, block):
+    """Lines longer than the block of the newline search, the failing ones too, and a last
+    line without a newline: the bisection's prefixes and the end of the scan stay exact."""
+    from fse import _text
+    from fse._text_file import FileSource
+
+    monkeypatch.setattr(_text._scan, "_LINE_BLOCK", block)
+    lines = [("ok " * (i % 4 + 3)).encode() for i in range(12)]
+    lines[6] = b" ".join([b"huge"] * 2 + [b"ok"] * 9)  # pooling overflows, a long line
+    lines[8] = b"tiny " * 6  # cannot be normalized
+    lines[11] = b"ok \xff ok"  # invalid, the last line, without a newline
+    path = tmp_path / "lines.txt"
+    path.write_bytes(b"\n".join(lines))
+    sink = Recording()
+    with FileSource(path) as source, pytest.raises(ValueError, match="row 6 contains NaN"):
+        NORMALIZED.infer(source, workers=workers, chunk_bytes=16, sink=sink)
+    rows = [first for first, _ in sink.committed]
+    ends = [first + n for first, n in sink.committed]
+    assert rows == [0, *ends[:-1]][: len(rows)]
+    assert not ends or ends[-1] <= 6
+    lines[6] = lines[7]
+    path.write_bytes(b"\n".join(lines))
+    with FileSource(path) as source, pytest.raises(ValueError, match="row 8 cannot be normalized"):
+        NORMALIZED.infer(source, workers=workers, chunk_bytes=16)
+    lines[8] = lines[7]
+    path.write_bytes(b"\n".join(lines))
+    with FileSource(path) as source, pytest.raises(UnicodeDecodeError, match="in sentence 11 "):
+        NORMALIZED.infer(source, workers=workers, chunk_bytes=16)

@@ -133,3 +133,58 @@ def test_a_stream_keeps_eight_tasks_per_collection():
         tokenizer="fse_words@1",
     )
     assert len(list(planned.tasks)) == STREAM_TASKS_PER_COLLECTION
+
+
+def _lines_across_blocks(block):
+    """Lines of 0 to 3 blocks, newlines just before, at and just after the block edges,
+    and a last line without a newline."""
+    lengths = [block - 1, block, block + 1, 0, 3 * block, 1, block - 2, 2 * block + 1, 0, 5]
+    return [bytes([97 + i % 26]) * n for i, n in enumerate(lengths)]
+
+
+def _starts(data):
+    """The byte where every line starts, then the length of the data (naively)."""
+    starts = [0] + [i + 1 for i, b in enumerate(data) if b == 10]
+    return starts if starts[-1] != len(data) else starts[:-1]
+
+
+@pytest.mark.parametrize("block", [1, 4, 7, 16])
+def test_prefixes_of_file_chunks_across_line_blocks(monkeypatch, tmp_path, block):
+    monkeypatch.setattr(_text._scan, "_LINE_BLOCK", block)
+    data = b"\n".join(_lines_across_blocks(block))  # the last line ends without a newline
+    path = tmp_path / "lines.txt"
+    path.write_bytes(data)
+    starts = [*_starts(data), len(data)]
+    with FileSource(path) as source:
+        for chunk in source.scan(chunk_bytes=2 * block + 1).chunks:
+            first = starts.index(chunk.start)
+            for rows in range(1, chunk.n_sentences + 1):
+                got = source.prefix(chunk, rows)
+                assert (got.start, got.end, got.n_sentences) == (
+                    chunk.start,
+                    starts[first + rows],
+                    rows,
+                ), (chunk, rows)
+
+
+@pytest.mark.parametrize("block", [1, 4, 7, 16])
+@pytest.mark.parametrize("bad", [2, 4, 7, 9])  # lines longer than a block, and the last
+def test_an_invalid_line_across_line_blocks(monkeypatch, tmp_path, block, bad):
+    monkeypatch.setattr(_text._scan, "_LINE_BLOCK", block)
+    lines = _lines_across_blocks(block)
+    lines[bad] = lines[bad] + b"\xff" + lines[bad]
+    data = b"\n".join(lines)
+    path = tmp_path / "lines.txt"
+    path.write_bytes(data)
+    starts = _starts(data)
+    with FileSource(path) as source:
+        scan, error = source.scan_until_error(workers=2, chunk_bytes=block, first_row=500)
+    assert isinstance(error, UnicodeDecodeError)
+    assert f"in sentence {500 + bad} " in str(error)
+    assert scan.sentences == bad
+    assert sum(c.n_sentences for c in scan.chunks) == bad
+    assert [c.first_row for c in scan.chunks] == [
+        sum(c.n_sentences for c in scan.chunks[:i]) for i in range(len(scan.chunks))
+    ]
+    if scan.chunks:
+        assert scan.chunks[-1].end == starts[bad]  # the chunks end where the bad line starts
