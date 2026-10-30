@@ -65,6 +65,19 @@ encoder.save("potion-base-8M.safetensors")  # an fse encoder, loaded without the
 
 fse gives the token ids of the model's tokenizer (Hugging Face tokenizers 0.23.3) and the vectors of model2vec 0.10.0 within float32 rounding (not bit for bit: the sums run in another order). Like model2vec, it reads the first 512 tokens of the first 512 times the median token length characters of a text; `from_pretrained(..., truncate=False)` reads texts whole, and `max_length=` sets another token limit. Only float32 models are read, and a row whose sum of squares underflows or overflows float32 raises where model2vec returns a row that is not of unit length. Files of the Hub are checked against the commit they come from (ARCHITECTURE.md, "Model2Vec models and from_pretrained"); the model's license applies to its use.
 
+A static model of sentence-transformers (one StaticEmbedding) is converted the same way, with the rules of its `encode`: every token id is pooled, `[UNK]` included, texts are read whole, and `truncate_dim` keeps the first dimensions of a Matryoshka model, as sentence-transformers' own `truncate_dim` does:
+
+```python
+import fse
+
+encoder = fse.Encoder.from_pretrained(
+    "sentence-transformers/static-retrieval-mrl-en-v1", truncate_dim=256
+)
+rows = encoder.encode(["what is a panda?", "can lavender grow indoors?"])  # 256 values each
+```
+
+The rows equal those of sentence-transformers 6.2.0 within float32 rounding. Models with a Normalize or Dense module after the StaticEmbedding, or with prompts, are refused with the reason; `normalize=True` normalizes the rows with fse's own `normalize@1` after the cut.
+
 Make a model from word vectors (every word weighs 1) and save it:
 
 ```python

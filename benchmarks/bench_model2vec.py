@@ -4,24 +4,29 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""fse against model2vec end to end: the same texts, the same model, normalized vectors.
+"""fse against model2vec or sentence-transformers end to end: the same texts, the same
+model, the same vectors.
 
 Contenders: ``Encoder.encode`` of the model converted by ``Encoder.from_pretrained``
 (workers 1 and N) against ``StaticModel.encode`` of model2vec (without its threads, and
 with them: ``use_multiprocessing``, which model2vec runs in threads with the parallelism
-of tokenizers off). Both keep model2vec's length rule. Every round runs each contender in
-a fresh process, in alternating order, for five passes of which the fastest counts, and
-reports the median of the rounds. Before the rounds, the vectors of both are compared on
-the corpus (the largest difference of a value and the smallest cosine).
+of tokenizers off), or with ``--against st`` against ``SentenceTransformer.encode`` of
+sentence-transformers on the CPU (torch with 1 and N threads, batch size 1024). Each keeps
+its library's rules. Every round runs each contender in a fresh process, in alternating
+order, for five passes of which the fastest counts, and reports the median of the
+rounds. Before the rounds, the vectors of both are compared on the corpus (the largest
+difference of a value and the smallest cosine).
 
-The model (minishlab/potion-base-8M by default) and the texts (the non-empty lines of
-WikiText-103 validation and test, and the MASSIVE intent test set) come from the local
-Hugging Face cache; nothing is downloaded.
+The model (minishlab/potion-base-8M by default, or the --model) and the texts (the
+non-empty lines of WikiText-103 validation and test, and the MASSIVE intent test set)
+come from the local Hugging Face cache; nothing is downloaded.
 
     uv run --with pyarrow python benchmarks/bench_model2vec.py --rounds 3
+    uv run --with pyarrow python benchmarks/bench_model2vec.py --against st \
+        --model sentence-transformers/static-retrieval-mrl-en-v1
     uv run --with pyarrow python benchmarks/bench_model2vec.py _child fse 1 wikitext 5
 
-The second form runs one contender and prints its seconds per pass, for the profilers.
+The last form runs one contender and prints its seconds per pass, for the profilers.
 """
 
 from __future__ import annotations
@@ -51,10 +56,18 @@ def texts(corpus: str) -> list[str]:
     return read(corpus)
 
 
+def _revision(repo: str) -> str | None:
+    """The commit of a model of the network tests (their cache has no refs/main)."""
+    sys.path.insert(0, str(Path(__file__).parent))
+    from bench_pretrained import COMMITS
+
+    return COMMITS.get(repo)
+
+
 def _snapshot(repo: str) -> Path:
     from huggingface_hub import snapshot_download
 
-    return Path(snapshot_download(repo, local_files_only=True))
+    return Path(snapshot_download(repo, revision=_revision(repo), local_files_only=True))
 
 
 def contender(kind: str, threads: int, repo: str):
@@ -62,9 +75,18 @@ def contender(kind: str, threads: int, repo: str):
     if kind == "fse":
         from fse import Encoder
 
-        encoder = Encoder.from_pretrained(repo, local_files_only=True)
+        encoder = Encoder.from_pretrained(repo, revision=_revision(repo), local_files_only=True)
         return lambda batch: encoder.encode(batch, workers=threads)
-    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    # model2vec runs its own threads; sentence-transformers leaves N threads to torch and
+    # tokenizers.
+    os.environ["TOKENIZERS_PARALLELISM"] = "true" if kind == "st" and threads > 1 else "false"
+    if kind == "st":
+        import torch
+        from sentence_transformers import SentenceTransformer
+
+        torch.set_num_threads(threads)
+        model = SentenceTransformer(str(_snapshot(repo)), device="cpu")
+        return lambda batch: model.encode(batch, batch_size=1024)
     from model2vec import StaticModel
 
     model = StaticModel.from_pretrained(_snapshot(repo))
@@ -82,11 +104,11 @@ def child(kind: str, threads: int, corpus: str, repeats: int, repo: str = MODEL)
     print(json.dumps({"seconds": seconds, "texts": len(sentences)}))
 
 
-def compare(corpus: str, repo: str) -> tuple[float, float]:
+def compare(corpus: str, repo: str, against: str) -> tuple[float, float]:
     """The largest difference of a value and the smallest cosine of the two encoders."""
     sentences = texts(corpus)
     a = contender("fse", 1, repo)(sentences).astype(np.float64)
-    b = contender("model2vec", 1, repo)(sentences).astype(np.float64)
+    b = contender(against, 1, repo)(sentences).astype(np.float64)
     keep = np.linalg.norm(b, axis=1) > 0
     cosine = (
         (a[keep] * b[keep]).sum(axis=1)
@@ -120,24 +142,27 @@ def main(argv=None) -> None:
     parser.add_argument("--threads", type=int, default=usable_cpus())
     parser.add_argument("--model", default=MODEL)
     parser.add_argument("--corpora", nargs="+", choices=CORPORA, default=list(CORPORA))
+    parser.add_argument("--against", choices=("model2vec", "st"), default="model2vec")
     args = parser.parse_args(argv)
+    other = args.against
     load = os.getloadavg()[0]
     print(f"# {platform.platform()} | {usable_cpus()} usable CPUs | load {load:.1f} | {args.model}")
     if load > 2:
         print(f"# warning: the load average is {load:.1f}; timings may be noisy")
-    contenders = [("fse", 1), ("fse", args.threads), ("model2vec", 1), ("model2vec", args.threads)]
+    contenders = [("fse", 1), ("fse", args.threads), (other, 1), (other, args.threads)]
     for corpus in args.corpora:
-        largest, cosine = compare(corpus, args.model)
+        largest, cosine = compare(corpus, args.model, other)
         rounds = [_round(contenders, corpus, args.model, k) for k in range(args.rounds)]
         n = rounds[0][contenders[0]]["texts"]
         print(
             f"## {corpus}: {n:,} texts; largest difference {largest:.2e}, smallest cosine {cosine:.9f}"
         )
-        base = statistics.median(min(r[("model2vec", 1)]["seconds"]) for r in rounds)
+        base = statistics.median(min(r[(other, 1)]["seconds"]) for r in rounds)
         for kind, threads in contenders:
             median = statistics.median(min(r[(kind, threads)]["seconds"]) for r in rounds)
             print(
-                f"{kind:9s} {threads:2d} threads  {n / median:12,.0f} texts/s  {base / median:6.2f} x model2vec 1 thread"
+                f"{kind:9s} {threads:2d} threads  {n / median:12,.0f} texts/s  "
+                f"{base / median:6.2f} x {other} 1 thread"
             )
         print(f"# load {os.getloadavg()[0]:.1f}")
     return None

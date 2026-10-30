@@ -65,8 +65,10 @@ def windows_file_maps(monkeypatch):
     def mapped(path) -> bool:
         target = os.path.realpath(path)
         for obj in gc.get_objects():
+            # type(), not isinstance(): isinstance reads __class__, which some objects of
+            # third-party modules turn into a deprecation warning (torch.distributed).
             if (
-                isinstance(obj, np.memmap)
+                issubclass(type(obj), np.memmap)
                 and getattr(obj, "_mmap", None) is not None
                 and obj.filename is not None
                 and os.path.realpath(obj.filename) == target

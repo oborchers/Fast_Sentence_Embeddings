@@ -56,6 +56,36 @@ def test_the_keys_of_wordpiece_round_trip():
     assert from_artifact(tensors, metadata)[0].tokenizer.unknown == "keep"
 
 
+def test_a_truncated_table_records_its_dims():
+    source = Source("sentence-transformers", "acme/static", "c0ffee", (8, 3))
+    tensors, metadata = _artifact(source=source)
+    assert metadata["fse.source"] == (
+        '{"dims":[8,3],"format":"sentence-transformers","repo":"acme/static","revision":"c0ffee"}'
+    )
+    assert from_artifact(tensors, metadata)[0].source == source
+    for dims in ((3, 3), (3, 4), (8, 0), [8, 3], (8,), (8.0, 3), (True, 1)):
+        with pytest.raises(ValueError, match="the dims of a source"):
+            Source("x", dims=dims)
+
+
+@pytest.mark.parametrize(
+    ("dims", "match"),
+    [
+        ("[8,2]", "keeps 2 dimensions, but fse.dim is 3"),
+        ("[3,3]", "the dims of a source"),
+        ("null", "must be a list"),
+        ('"8x3"', "must be a list"),
+        ("[8,3,1]", "the dims of a source"),
+    ],
+)
+def test_the_dims_of_a_source_are_checked(dims, match):
+    tensors, metadata = _changed(
+        "fse.source", '{"dims":' + dims + ',"format":"x","repo":null,"revision":null}'
+    )
+    with pytest.raises(ValueError, match=match):
+        from_artifact(tensors, metadata)
+
+
 def _changed(key, value):
     tensors, metadata = _artifact(source=Source("model2vec"))
     if value is None:

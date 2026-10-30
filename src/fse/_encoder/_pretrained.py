@@ -7,14 +7,15 @@
 """Where ``Encoder.from_pretrained`` finds a model, and what kind it is.
 
 ARCHITECTURE.md, "from_pretrained". A local ``.safetensors`` file is an fse encoder; a
-local folder or a Hub repository holds a model whose ``config.json`` says what it is:
-``"model_type": "fse"`` names the file of an fse encoder; a Model2Vec model has
+local folder or a Hub repository holds a model that says what it is: a ``config.json``
+with ``"model_type": "fse"`` names the file of an fse encoder; a Model2Vec model has
 ``config.json``, ``model.safetensors`` and ``tokenizer.json`` (as model2vec finds it, with
-any or no model_type of model2vec); a sentence-transformers model is not supported yet;
-anything else is no static embedding model and raises, naming what it is. The files come
-through ``Files`` (``fse._encoder._model2vec``), each read once into bytes that are checked
-and then parsed: a folder, whose links are followed only into the blobs of a Hugging Face
-cache, or a Hub snapshot checked against its commit (``fse._hub``).
+any or no model_type of model2vec); otherwise a ``modules.json`` makes it a
+sentence-transformers model (``fse._encoder._sentence_transformers``); anything else is no
+static embedding model and raises, naming what it is. The files come through ``Files``
+(``fse._encoder._files``), each read once into bytes that are checked and then parsed: a
+folder, whose links are followed only into the blobs of a Hugging Face cache, or a Hub
+snapshot checked against its commit (``fse._hub``).
 """
 
 from __future__ import annotations
@@ -25,47 +26,38 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fse._container import CorruptArtifactError, read_regular, safetensors_header, strict_json
+from fse._container import CorruptArtifactError, read_regular, safetensors_header
 from fse._contract import UnsupportedArtifactError
-from fse._hub import REPO_ID, HubFiles, resolve_link
+from fse._hub import REPO_ID, HubFiles, check_folders, resolve_link
 
+from ._files import MAX_CONFIG_BYTES, NORMALIZE, STATIC_EMBEDDING, Converted, Files, parse_config
 from ._format import Source
-from ._model2vec import (
-    FILES,
-    MAX_CONFIG_BYTES,
-    MODEL_RULE,
-    Files,
-    Model2Vec,
-    parse_config,
-    read_model2vec,
-)
+from ._model2vec import FILES, MODEL_RULE, read_model2vec
+from ._sentence_transformers import read_sentence_transformers
 
 # The config.json of an fse encoder on the Hub: exactly these keys (provisional, fixed
 # with the first upload of fse models).
 FSE_CONFIG = {"model_type", "fse_kind", "fse_format_version", "encoder"}
 _FILE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.safetensors")
 MAX_CARD_BYTES = 16 * 2**20
-_STATIC_MODULES = {
-    "sentence_transformers.models.StaticEmbedding",
-    "sentence_transformers.models.Normalize",
-}
 
 
 @dataclass(frozen=True, eq=False)
 class Found:
     """A model: a local fse encoder file (``path``), an fse encoder of the Hub as its
-    checked bytes and name (``data``), or the parts of a Model2Vec model."""
+    checked bytes and name (``data``), or the parts of a converted model."""
 
     path: Path | None = None
     data: tuple[bytes, Path] | None = None
-    model2vec: Model2Vec | None = None
+    converted: Converted | None = None
     source: Source | None = None
     license: str | tuple[str, ...] | None = None
 
 
 class LocalFiles:
     """The files of a folder; a link is followed only into the blobs of the cache of a
-    Hugging Face snapshot (``<repo>/snapshots/<commit>/`` next to ``<repo>/blobs``)."""
+    Hugging Face snapshot (``<repo>/snapshots/<commit>/`` next to ``<repo>/blobs``), and
+    no folder below the model's folder may be a link."""
 
     source: str | None = None
     revision: str | None = None
@@ -82,8 +74,9 @@ class LocalFiles:
     def path_of(self, name: str) -> Path:
         """The regular file of ``name``: itself, or the blob a cache link points to."""
         path = self.folder / name
+        check_folders(self.folder, name)
         if path.is_symlink():
-            return resolve_link(path, self.folder.parent.parent)[0]
+            return resolve_link(path, name)[0]
         return path
 
     def read(
@@ -129,61 +122,102 @@ def find(
     *,
     truncate: bool = True,
     max_length: Any = MODEL_RULE,
+    truncate_dim: Any = MODEL_RULE,
+    normalize: Any = MODEL_RULE,
     mmap: bool = False,
 ) -> Found:
-    """The model in ``files``: an fse encoder, or the parts of a Model2Vec model."""
+    """The model in ``files``: an fse encoder, or the parts of a Model2Vec or a
+    sentence-transformers model."""
+    rules = {"truncate": truncate, "max_length": max_length}
+    st_rules = {"truncate_dim": truncate_dim, "normalize": normalize}
     if isinstance(files, Path):  # a local encoder file
-        _no_length_rule(truncate, max_length)
+        _model_rules(rules | st_rules)
         return Found(path=files)
+    config = _config(files)
+    kind = None if config is None else config.get("model_type")
+    if config is not None and kind == "fse":
+        _model_rules(rules | st_rules)
+        return _fse_encoder(files, config, files.where("config.json"), mmap)
+    if mmap:
+        raise ValueError("mmap is for fse encoders; a converted model is converted in memory")
+    if config is not None and _is_model2vec(files, kind):
+        _model_rules(st_rules)
+        return _found(files, "model2vec", read_model2vec(files, config, **rules))
+    if files.has("modules.json"):
+        model = read_sentence_transformers(files, kind=kind, **rules, **st_rules)
+        return _found(files, "sentence-transformers", model)
+    raise _refusal(files, kind)
+
+
+def _config(files: Files | LocalFiles) -> dict | None:
+    """The parsed config.json, or None without one."""
     if not files.has("config.json"):
-        _refuse_sentence_transformers(files)
-        raise UnsupportedArtifactError("the model has no config.json: it is no model fse reads")
+        return None
     where = files.where("config.json")
     config = parse_config(files.read("config.json", limit=MAX_CONFIG_BYTES), where)
     if not isinstance(config, dict):
         raise CorruptArtifactError(f"{where} must be a JSON object")
-    if config.get("model_type") == "fse":
-        _no_length_rule(truncate, max_length)
-        return _fse_encoder(files, config, where, mmap)
-    _model2vec_files(files, config.get("model_type"))
-    if mmap:
-        raise ValueError("mmap is for fse encoders; a Model2Vec model is converted in memory")
-    model = read_model2vec(files, config, truncate=truncate, max_length=max_length)
-    source = Source("model2vec", files.source, files.revision)
+    return config
+
+
+def _found(files: Files | LocalFiles, kind: str, model: Converted) -> Found:
+    """A converted model with its provenance: where it came from, and its license."""
+    source = Source(kind, files.source, files.revision, model.dims)
     card = files.read("README.md", limit=MAX_CARD_BYTES) if files.has("README.md") else None
     return Found(
-        model2vec=model, source=source, license=card_license(card, files.where("README.md"))
+        converted=model, source=source, license=card_license(card, files.where("README.md"))
     )
 
 
-def _no_length_rule(truncate: bool, max_length: Any) -> None:
-    if not truncate or max_length != MODEL_RULE:
+_DEFAULTS = {"truncate": True, "max_length": MODEL_RULE}
+_DEFAULTS |= {"truncate_dim": MODEL_RULE, "normalize": MODEL_RULE}
+
+
+def _model_rules(given: dict[str, Any]) -> None:
+    """No rule of a converted model is given for a model that holds its own."""
+    changed = sorted(name for name, value in given.items() if value != _DEFAULTS[name])
+    if changed:
         raise ValueError(
-            "an fse encoder holds its length rule; truncate and max_length are for converted models"
+            f"{' and '.join(changed)}: this model holds its own rules (truncate and "
+            "max_length are for Model2Vec and sentence-transformers models, truncate_dim "
+            "and normalize for sentence-transformers models)"
         )
 
 
-_SENTENCE_TRANSFORMERS = (
-    "the model is a sentence-transformers model; its StaticEmbedding is not supported yet "
-    "(a later fse reads it)"
-)
-
-
-def _refuse_sentence_transformers(files: Files | LocalFiles) -> None:
-    if files.has("config_sentence_transformers.json"):
-        raise UnsupportedArtifactError(_SENTENCE_TRANSFORMERS)
-
-
-def _model2vec_files(files: Files | LocalFiles, kind: Any) -> None:
-    """The model is a Model2Vec model; anything else raises, naming what it is."""
+def _is_model2vec(files: Files | LocalFiles, kind: Any) -> bool:
+    """A config.json with model_type model2vec or none, and the files of a Model2Vec
+    model, is one; its modules.json, if any, lists only static modules. Without those
+    files, a modules.json makes it a sentence-transformers model (which ignores the
+    config.json); without one, a missing file raises."""
+    if kind not in (None, "model2vec"):
+        return False
+    if not all(files.has(name) for name in FILES):
+        if files.has("modules.json"):
+            return False
+        raise _refusal(files, kind)
     _check_modules(files, kind)
-    present = [name for name in FILES if files.has(name)]
-    if kind not in (None, "model2vec") or len(present) < len(FILES):
-        _refuse_sentence_transformers(files)
-        raise UnsupportedArtifactError(
-            f"the model (model_type {kind!r}, files {present}) is no static embedding "
-            f"model fse reads: a Model2Vec model has {', '.join(FILES)}"
+    return True
+
+
+def _refusal(files: Files | LocalFiles, kind: Any) -> UnsupportedArtifactError:
+    """Neither an fse, a Model2Vec nor a sentence-transformers model: the error that
+    names what the model is."""
+    if files.has("config_sentence_transformers.json"):
+        return UnsupportedArtifactError(
+            "the model has config_sentence_transformers.json but no modules.json; "
+            "sentence-transformers builds a Transformer and Pooling for it, which is no "
+            "static embedding model"
         )
+    if not files.has("config.json"):
+        return UnsupportedArtifactError(
+            "the model has no config.json and no modules.json: it is no model fse reads"
+        )
+    present = [name for name in FILES if files.has(name)]
+    return UnsupportedArtifactError(
+        f"the model (model_type {kind!r}, files {present}) is no static embedding "
+        f"model fse reads: a Model2Vec model has {', '.join(FILES)}, a "
+        "sentence-transformers model a modules.json"
+    )
 
 
 def _fse_encoder(files: Files | LocalFiles, config: dict, path: Path, mmap: bool) -> Found:
@@ -220,11 +254,11 @@ def _check_modules(files: Files | LocalFiles, kind: Any) -> None:
     if not files.has("modules.json"):
         return
     where = files.where("modules.json")
-    modules = strict_json(files.read("modules.json", limit=MAX_CONFIG_BYTES), where)
+    modules = parse_config(files.read("modules.json", limit=MAX_CONFIG_BYTES), where)
     if not isinstance(modules, list) or not all(isinstance(m, dict) for m in modules):
         raise CorruptArtifactError(f"{where} must be a list of modules")
     types = [m.get("type") for m in modules]
-    if not set(types) <= _STATIC_MODULES:
+    if not set(types) <= STATIC_EMBEDDING | NORMALIZE:
         raise UnsupportedArtifactError(
             f"the model (model_type {kind!r}) is no static embedding model: its modules are {types}"
         )

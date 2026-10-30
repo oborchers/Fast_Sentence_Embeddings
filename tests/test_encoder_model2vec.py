@@ -13,6 +13,7 @@ from fse._container import CorruptArtifactError
 from fse._contract import UnsupportedArtifactError
 from fse._encoder import Encoder
 from fse._encoder._model2vec import median_length
+from support import converted as cv
 from support import model2vec as mv
 from support import wordpiece as wp
 
@@ -40,7 +41,7 @@ def test_the_vectors_are_those_of_model2vec(models, normalize, length):
     encoder = Encoder.from_pretrained(folder)
     want = model2vec.StaticModel.from_pretrained(folder).encode(TEXTS)
     got = encoder.encode(TEXTS)
-    assert mv.assert_close_to_model2vec(got, want, encoder, TEXTS, normalize) <= 1
+    assert cv.assert_close(got, want, encoder, TEXTS, normalize) <= 1
     assert encoder.steps == (("normalize@1",) if normalize else ())
 
 
@@ -51,7 +52,7 @@ def test_another_length_rule(models, truncate, max_length, theirs):
     folder = models[(True, 512)]
     encoder = Encoder.from_pretrained(folder, truncate=truncate, max_length=max_length)
     want = model2vec.StaticModel.from_pretrained(folder).encode(TEXTS, max_length=theirs)
-    mv.assert_close_to_model2vec(encoder.encode(TEXTS), want, encoder, TEXTS, True)
+    cv.assert_close(encoder.encode(TEXTS), want, encoder, TEXTS, True)
     spec = encoder._content.tokenizer
     assert spec.max_tokens == theirs
     median = median_length(TOKENS)
@@ -243,3 +244,20 @@ def test_the_table_is_the_checked_buffer_with_every_check(tmp_path):
     broken[3, 1] = np.nan
     with pytest.raises(ValueError, match="row 3 of vectors contains NaN"):
         Encoder.from_pretrained(mv.save_model(tmp_path / "nan", broken))
+
+
+def test_rows_that_cancel_are_zero_on_both_sides(tmp_path):
+    """A zero table, and two tokens of opposite rows, give zero rows before normalize; the
+    bound (which divides by the norm of that row) does not apply, both rows are zero."""
+    table = mv.rows(len(TOKENS))
+    a, b = TOKENS.index("ab"), TOKENS.index("x")
+    table[b] = -table[a]
+    for name, rows in (("zero", np.zeros_like(table)), ("opposite", table)):
+        folder = mv.save_model(tmp_path / name, rows, normalize=True)
+        encoder = Encoder.from_pretrained(folder)
+        texts = ["ab x", "x ab", "", "hello world"]
+        want = model2vec.StaticModel.from_pretrained(folder).encode(texts)
+        got = encoder.encode(texts)
+        cv.assert_close(got, want, encoder, texts, True)
+        assert not got[0].any()
+        assert not got[1].any()
