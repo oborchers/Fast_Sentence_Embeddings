@@ -68,7 +68,7 @@ Each bound holds only under its assumptions. A share above 100 % (the tool flags
 6. **The scan at N workers is measured at N**, every other stage of the calling thread at one worker.
 7. **The calling thread's part during the run overlaps the workers** (`max` with their work, not the sum).
 
-Not in the model: waits of the tasks (they show as the gap between their wall and CPU time), imbalance at the end of a call, and the system level cache, whose size Apple does not publish.
+Not in the model: waits of the tasks (they show as the gap between their wall and CPU time), imbalance at the end of a call (measured by `benchmarks/runtime_timeline.py`, "Where the workers idle"), and the system level cache, whose size Apple does not publish.
 
 ## Hardware profiles
 
@@ -180,6 +180,91 @@ The rests are differences of the fastest times of separate stages, so they can c
 
 Memory of the 1024-dimension WikiText run at 8 workers: peak RSS 362 MiB (`make profile-rss`). memray (`make profile-mem`) shows a peak of 1.32 GB of allocations, of which 1.08 GB is one allocation made while modules are imported; the RSS shows that most of it is never touched. Per pass the result (21 MiB) and the joined buffer are the largest allocations.
 
+## Where the workers idle
+
+`benchmarks/runtime_timeline.py` observes the executor from the benchmark process only (nothing in `src`): the start and end of every task, and the time of the calling thread in the task iterator, in `reserve`, waiting for the oldest future and in `commit`. The idle area of a run, `N * (end of the last task - first submit) - the wall time of all tasks`, is split exactly (integer nanoseconds, the parts add up to the area) into the causes below. Every moment of an idle worker slot gets the first cause that holds:
+
+| cause | meaning |
+|---|---|
+| tail | every task has started: nothing is left to hand out |
+| ramp | the slot has not started its first task (its thread is not running yet, or the run is too small to use it) |
+| hand-over | a task is submitted and waits in the queue while the slot is idle, or the calling thread is between two tasks |
+| head-of-line | the calling thread waits for the oldest task with a full window, a later task exists and the queue is empty |
+| producer | the calling thread is in the task iterator |
+| sink | the calling thread is in `reserve` or `commit` |
+
+What happens before the first submit (the scan) and after the last task ends (pool shutdown, the last commit, the result) is outside the area and listed apart. Per thread the tool shows only the rate in rows per busy second; a difference does not name a core type.
+
+Measured on the M1 Pro of this document, master 14dac29, Python 3.13, one process per cell, `Encoder`-equivalent calls (`StringSource` and `Pipeline.infer`), 30 calls per worker count (6 rounds of 5, the median of the calls), under the shared benchmark lock. The load was 4.5 to 5.7 when a cell started (the tool discards a block of calls with a load above 5 before or after it, so a cell can lose blocks: one worker of potion-base-8M on MASSIVE lost 5 and ten workers 14 blocks, the others none), 4.97 before and 4.52 after the whole series. The machine was not quiet: other work kept the load near 5.
+
+**The observation costs nothing measurable.** Plain call A, a second plain call B (the control) and a traced call, the fastest of 3 calls per round, 6 rounds in rotating order, 8 workers: B over A has a median of 1.006, 0.991 and 1.004 (ranges 0.987 to 1.017, 0.972 to 1.006, 0.966 to 1.170) and traced over A 1.004, 0.989 and 1.019 (ranges 0.983 to 1.022, 0.985 to 1.006, 0.867 to 1.034) on MASSIVE twice and WikiText once. The noise between two equal calls is therefore 1 to 3 % on MASSIVE and up to 17 % on WikiText, where a call takes 6 ms; every ratio below is read against that.
+
+Share of the idle area by cause, potion-base-8M (256 dimensions), median of the calls; "idle" is the sum (busy is 100 % minus idle):
+
+| corpus | workers | tasks | wall ms | idle | tail | ramp | hand-over | head-of-line | producer + sink | slowest/fastest thread |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| WikiText | 1 | 3 | 24.1 | 0.3 % | 0 | 0 | 0.08 % | 0 | 0.2 % | |
+| WikiText | 4 | 8 | 7.7 | 5.3 % | 2.0 % | 3.2 % | 0.2 % | 0 | 0 | 0.88 |
+| WikiText | 8 | 16 | 5.6 | 20.2 % | 8.9 % | 10.0 % | 0.3 % | 0 | 0 | 0.78 |
+| WikiText | 10 | 20 | 5.7 | 30.2 % | 15.8 % | 12.7 % | 1.3 % | 0 | 0.02 % | 0.69 |
+| MASSIVE | 1 | 14 | 164.9 | 0.3 % | 0 | 0 | 0.07 % | 0 | 0.2 % | |
+| MASSIVE | 4 | 14 | 48.3 | 8.3 % | 7.7 % | 0.6 % | 0.1 % | 0 | 0 | 0.81 |
+| MASSIVE | 8 | 30 | 28.6 | 17.0 % | 14.9 % | 1.8 % | 0.1 % | 0 | 0 | 0.85 |
+| MASSIVE | 10 | 36 | 26.0 | 16.3 % | 10.3 % | 3.5 % | 1.0 % | 0.2 % | 0.04 % | 0.72 |
+
+static-retrieval-mrl-en-v1 at 1024 dimensions:
+
+| corpus | workers | tasks | wall ms | idle | tail | ramp | hand-over | head-of-line | producer + sink | slowest/fastest thread |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| WikiText | 1 | 3 | 72.5 | 0.1 % | 0 | 0 | 0.04 % | 0 | 0.1 % | |
+| WikiText | 4 | 8 | 20.6 | 3.1 % | 2.1 % | 1.0 % | 0.1 % | 0 | 0 | 0.89 |
+| WikiText | 8 | 16 | 13.7 | 18.3 % | 14.3 % | 3.6 % | 0.1 % | 0 | 0 | 0.84 |
+| WikiText | 10 | 20 | 13.5 | 25.9 % | 16.7 % | 6.5 % | 1.0 % | 0 | 0.01 % | 0.69 |
+| MASSIVE | 1 | 57 | 312.6 | 0.5 % | 0 | 0 | 0.13 % | 0 | 0.4 % | |
+| MASSIVE | 4 | 57 | 85.9 | 2.7 % | 2.1 % | 0.3 % | 0.2 % | 0.01 % | 0.02 % | 0.96 |
+| MASSIVE | 8 | 57 | 49.8 | 11.3 % | 9.9 % | 1.0 % | 0.2 % | 0 | 0 | 0.89 |
+| MASSIVE | 10 | 57 | 49.3 | 18.5 % | 11.6 % | 2.2 % | 1.7 % | 1.5 % | 0.08 % | 0.88 |
+
+Short runs (the first texts of a corpus, potion-base-8M; still above the inline limit of 64 KiB):
+
+| texts | workers | tasks | wall ms | idle | tail | ramp | other causes |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| WikiText, 500 | 4 | 3 | 1.10 | 42.7 % | 23.5 % | 19.4 % | 0 |
+| WikiText, 500 | 8 | 3 | 1.06 | 70.7 % | 48.7 % | 22.3 % | 0 |
+| WikiText, 500 | 10 | 3 | 1.06 | 76.3 % | 54.5 % | 21.9 % | 0 |
+| MASSIVE, 5000 | 4 | 4 | 1.95 | 28.0 % | 16.2 % | 11.7 % | 0 |
+| MASSIVE, 5000 | 8 | 4 | 1.92 | 63.9 % | 48.6 % | 15.0 % | 0 |
+| MASSIVE, 5000 | 10 | 4 | 1.94 | 71.2 % | 55.1 % | 15.9 % | 0 |
+
+What the tables show:
+
+- **The tail is the largest cause**, 8.9 to 16.7 % of the area at 8 and 10 workers on full corpora and 49 to 55 % on the short runs, where there are fewer tasks than workers (4 tasks, 8 or 10 workers). The numbers of tasks differ from the guess in the plan: WikiText makes 16 and 20 tasks at 8 and 10 workers, MASSIVE with potion-base-8M 30 and 36 (not 19), with mrl-en-v1 57.
+- **The ramp is second**: 10.0 and 12.7 % on WikiText with potion-base-8M, 3.6 and 6.5 % with mrl-en-v1 (a longer task hides the same start-up), 15 to 22 % on short runs, 0.3 to 3.5 % on MASSIVE. The `enter` time (call to first submit) is 0.01 to 0.02 ms; the starts of the threads happen inside the area.
+- **Head-of-line blocking is not a cause**: 0 to 0.2 % in every cell, 1.5 % in the one with ten workers, 57 tasks and a window of 20 (mrl-en-v1, MASSIVE). Only cells with more tasks than the window can show it at all, which is MASSIVE with both models.
+- **Producer and sink are not causes**: together 0.2 to 0.4 % at one worker (the commits of an inline run) and below 0.1 % with threads; the final commit after the last task (0.01 to 0.03 ms) is outside the area.
+- **Hand-over** is 0.04 to 0.3 % up to 8 workers and 1.0 to 1.7 % at 10.
+- **Threads run at different rates**: the slowest thread processes 0.69 to 0.96 of the rows per busy second of the fastest, lowest with 10 workers (0.69 to 0.88). This fits unequal cores but also unequal tasks and migration; the tool cannot tell them apart.
+- The shutdown of the pool and the result after the last task take 0.16 to 0.35 ms with threads (the `after` column of the tool), 0.3 to 9 % of the call, most on the short ones.
+
+### The ablations
+
+All from the benchmark process, no change in `src`, variants alternating in rounds of 3 calls (4 rounds); the ratio is the median over rounds of a variant's wall time over the first variant's, with the range, so read it against the noise of 1 to 3 % (MASSIVE) and up to 17 % (WikiText) above.
+
+- **A1, task size** (`chunk_bytes` for 1, 2, 3, 4, 8 tasks per worker; `chunk_bytes` does not force a count, the tool prints the real cuts). WikiText, potion-base-8M, 8 workers: 1/worker gives 8 tasks, 2/worker 16 (the default plan, the same cuts), 3/worker 24, 4/worker 32, 8/worker 64. Wall time over the default 0.983 (0.921 to 1.393), 1.014 (0.952 to 1.666), 1.056, 1.088 (0.886 to 1.094) and 1.146 (0.943 to 1.242). The tail falls from 8.9 % to 4.1 % at 64 tasks, but hand-over rises to 2.4 % and the run does not get faster. mrl-en-v1, MASSIVE, 8 workers: the settings 1 to 4 per worker all give the default 57 tasks (the row cap of the plan binds), 8/worker gives 65 tasks and an idle share of 5.7 % against 11.8 % and a ratio of 0.954 (0.873 to 1.059). Task size alone does not show a gain outside the noise.
+- **A2, window** (experimental: the same task plan, only the window passed to the executor is 1, 2, 4 times or unbounded, which lifts the cap of WINDOW_BYTES on rows in flight). WikiText, 8 workers: 16 tasks fit every window, so nothing changes by construction (ratios 1.130, 0.936, 0.944, all within the noise); peak resident set per process after one call with the normal window: growth 0.2, 3.3, 0.2 and 0.1 MiB for x1, x2, x4 and unbounded. mrl-en-v1, MASSIVE: peak tasks in flight 16, 32, 57 and 57 (rows 44,531, 87,953, 151,674), head-of-line 0.00 % in all, ratios 0.996, 1.029, 1.030. A wider window does not remove idle time.
+- **A3, pool** (a thread pool that outlives the call, its threads started, against one per call; the whole effect of reuse, not only of the start of the threads, and it breaks "no thread outlives a call"). WikiText, potion-base-8M, 8 workers: wall time 0.784 (0.737 to 1.113) of the per-call pool; idle 30.1 % to 13.1 %, tail 19.2 % to 5.7 %, ramp 10.2 % to 7.1 %, the time after the last task 0.27 to 0.04 ms. This is an upper bound, and with a range reaching 1.113 it is a single noisy cell (the cell of MASSIVE lost its blocks to the load).
+- **A4, sink** (the same preallocated target array, `ArrayRows.commit` against a commit that does nothing): ratios 1.024 (0.826 to 1.157) and 1.001 (0.826 to 1.196) against the call with the sink of `infer`; sink idle 0.00 % in all three. Nothing to gain at the commit.
+
+### Profiles
+
+potion-base-8M, WikiText, 8 workers, the deciding cell of the ramp and tail (`make profile-cpu`, samply, 12 s, all threads, 75,747 samples): `fse_loop_f32_neon` 36.3 %, `__psynch_cvwait` 27.2 % (55.2 % of the samples of the calling thread, 16.3 % in `_append_str`), `_wp_piece` 21.5 %, `_append_str` 2.8 %, `fse_normalize_body` 2.7 %. `make profile-mem` (memray, native): peak 1.194 GB, of which one allocation of 1.074 GB is made while modules are imported (as in the profile above); the allocations of the run are the joined strings (`_strings.py:74`), the result rows (`_sinks.py:116`) and the pooled rows (`_cpu.py:116`). `make profile-rss`: peak 241 MiB at 8.5 s, 239 MiB at the end (8 workers, 106 samples). The profiles ran at a rising load (7.6 after) and are no timings.
+
+### What this says for the next changes (DR-180)
+
+- **Tail** (largest, 9 to 17 % of the area at 8 and 10 workers, 49 to 55 % on short runs): PR B (a piece count that is a multiple of the workers) can only move the cells whose task count is not one, such as MASSIVE potion-base-8M with 30 tasks at 8 workers (14.9 % tail); PR C (splitting the last tasks, factoring) targets all of it, and the short runs most. A1 shows that task size alone (C3, TASKS_PER_WORKER) does not give a gain outside the noise, so it needs its own measurement in PR B.
+- **Ramp** (10 to 13 % on WikiText with potion-base-8M, 15 to 22 % on short runs): an in-contract start of the threads (C5) can save at most that share; A3 gives 0.78 as the upper bound of full reuse, which needs a maintainer decision.
+- **Head-of-line blocking, producer, sink** (0 to 1.5 %): PR D (a window counted in rows) and any change at the sink are not supported by the numbers and should not be built.
+
 ## int8 tables at 1024 dimensions
 
 Earlier measurements found no gain from int8 tables at 256 and 300 dimensions. At 1024 dimensions `roofline.py compare` ran static-retrieval-mrl-en-v1 with its table as float32 and as int8 (`WordVectors.quantize("int8")`) in one process, 5 paired rounds of alternating order, the best of 5 passes each, no round discarded. `Encoder` does not yet accept int8 tables for `wordpiece@1`, so both run the encoder's spec on a `Pipeline` of their own (`roofline_dtype.SpecEncoder`); the vectors of int8 differ from float32 by the quantization, which is not judged here.
@@ -205,6 +290,8 @@ PR 136 (2.0: stages 1 to 4 of a task in one nogil section on the cpu backend, La
     uv run python benchmarks/roofline.py measure --model potion-base-8M --corpus massive --workers 8 10 --json out.json
     uv run python benchmarks/roofline.py show out.json --hardware m4-pro-14 --workers 14
     uv run python benchmarks/roofline.py compare --model static-retrieval-mrl-en-v1 --dim 1024 --corpus wikitext --dtypes float32 int8 --workers 1 8
+    uv run --with pyarrow python benchmarks/runtime_timeline.py measure --model potion-base-8M --corpus wikitext --workers 1 4 8 10
+    uv run python benchmarks/runtime_timeline.py ablate all --model potion-base-8M --corpus massive --workers 8 --rss
 
 The models and corpora come from the local Hugging Face cache; nothing is downloaded. A new machine gets a profile in `benchmarks/roofline_hardware.toml` with the sources of its numbers and the read roofs that `probe` measures on it.
 

@@ -55,6 +55,8 @@ def _cuts(rows: list[int]) -> str:
 
 
 def variant_line(name: str, r: dict) -> str:
+    if not r.get("passes"):
+        return f"{name:<12} no pass kept (load)"
     ratio = r["ratio_to_first"]
     spread = f"{min(ratio):.3f}..{max(ratio):.3f}" if ratio else "n/a"
     paired = f"{sorted(ratio)[len(ratio) // 2]:.3f}" if ratio else "n/a"

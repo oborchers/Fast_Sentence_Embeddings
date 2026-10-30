@@ -447,3 +447,7 @@ def test_the_main_script_measures_the_overhead_of_the_tracing(monkeypatch, cell)
         ["ablate", "all", "--model", "potion-base-8M", "--corpus", "massive", "--sentences", "9"]
     )
     assert main._child_args(args, 4)[-2:] == ["--sentences", "9"]
+
+
+def test_a_variant_without_a_kept_pass_prints_that(ablate):
+    assert "no pass kept" in ablate.variant_line("x", {"workers": 8, "passes": 0})
