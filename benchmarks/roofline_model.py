@@ -167,9 +167,10 @@ def bounds(
     """The bounds at ``workers``; ``plan`` replaces the scan time of one worker by the
     one measured at ``workers`` (the scan makes more chunks there)."""
     serial = stages.serial + (0.0 if plan is None else plan - stages.plan)
-    t_ser = serial / data.tokens
+    # The rests are differences of measured times; one below 0 is noise and counts as 0.
+    t_ser = max(serial, 0.0) / data.tokens
     t_par = stages.parallel / data.tokens
-    t_call = stages.caller / data.tokens
+    t_call = max(stages.caller, 0.0) / data.tokens
     c = cores(hw, workers)
     work = t_par / c
     memory, combined, binding = {}, {}, {}
