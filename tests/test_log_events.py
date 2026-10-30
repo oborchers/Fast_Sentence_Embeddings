@@ -252,9 +252,13 @@ def _empty_shard(tmp_path, monkeypatch):
 
 
 def _shard_threads(sink):
-    """The threads of ``sink`` still alive (others of the process are not its)."""
-    threads = (sink._hash, sink._io, sink._publisher)
-    return [t._thread.name for t in threads if t._thread.is_alive()]
+    """The threads of ``sink`` still alive after they had 10 s to end (others of the process
+    are not its). ``stop`` returns when a thread has said it ended, a moment before the
+    thread itself is gone, which a loaded machine makes visible."""
+    threads = [t._thread for t in (sink._hash, sink._io, sink._publisher)]
+    for thread in threads:
+        thread.join(10)
+    return [t.name for t in threads if t.is_alive()]
 
 
 def test_a_failed_cleanup_without_an_error_raises_after_the_threads(tmp_path, monkeypatch):
