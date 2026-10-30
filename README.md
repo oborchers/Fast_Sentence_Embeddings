@@ -89,11 +89,24 @@ encoder = fse.Encoder.from_word_vectors(wv)  # tokenizer fse_words@1, rows norma
 encoder.save("glove.safetensors")  # one file with the table
 ```
 
+Share a model as a Hugging Face folder (`config.json`, `model.safetensors` and a `README.md` model card):
+
+```python
+import fse
+
+encoder.save_pretrained("my-model", license="apache-2.0")  # a new folder, written atomically
+encoder = fse.Encoder.from_pretrained("my-model")  # or a Hub repository with such a folder
+encoder.push_to_hub("you/my-model", extra_files={"LICENSE": "LICENSE"})  # one commit
+```
+
+The card states the license the model records from its source (a converted model), or `license=` if it records none; `push_to_hub` needs one. It publishes the folder in one commit on top of the commit it read, leaves files of the same content and license files already there alone, refuses other content under the same names and other files unless `replace=True`, and checks every file at the new commit. `fse.Classifier` and `fse.Regressor` have the same three methods (`standalone=True` saves the folded table).
+
 Which call to use when:
 
 | You want to | Call |
 |---|---|
 | load a model | `encoder = fse.Encoder.load("model.safetensors")` (`mmap=True` maps it read-only) |
+| share a model | `encoder.save_pretrained("folder")`, `encoder.push_to_hub("you/model")`; read with `from_pretrained` |
 | make a model of word vectors | `fse.Encoder.from_word_vectors(wv)`, or `fse.Encoder.from_arrays(vectors, words=words)` |
 | keep the mean as it is | `normalize=False` |
 | encode texts in a list | `rows = encoder.encode(texts)` |
