@@ -331,14 +331,14 @@ jobs:
 
   check:
     if: always()
-    needs: [changes, lint, test, test-mlx, coverage, sdist, wheels]
+    needs: [changes, lint, test, test-st, test-mlx, coverage, sdist, wheels]
     runs-on: ubuntu-latest
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35  # v1.3.0
         with:
           jobs: ${{ toJSON(needs) }}
           # A documentation-only pull request skips them on purpose.
-          allowed-skips: ${{ needs.changes.outputs.code == 'false' && 'lint, test, test-mlx, coverage, sdist, wheels' || '' }}
+          allowed-skips: ${{ needs.changes.outputs.code == 'false' && 'lint, test, test-st, test-mlx, coverage, sdist, wheels' || '' }}
 
   release:
     needs: check
