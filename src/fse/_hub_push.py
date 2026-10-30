@@ -52,9 +52,13 @@ def _remote(info: Any) -> dict[str, tuple[str | None, str | None]]:
     }
 
 
-def _same(local: tuple[str, str], remote: tuple[str | None, str | None]) -> bool:
+def _same(name: str, local: tuple[str, str], remote: tuple[str | None, str | None]) -> bool:
+    """The remote file is the local one as fse reads it: a ``.safetensors`` file only as
+    an LFS file with its sha256, any other by its sha256 or git blob id."""
     sha256, sha1 = local
     lfs, blob = remote
+    if lfs is None and name.endswith(".safetensors"):
+        return False  # stored as a plain git blob, which fse refuses to read
     return lfs == sha256 if lfs is not None else blob == sha1
 
 
@@ -64,10 +68,10 @@ def plan(
     replace: bool,
 ) -> tuple[list[str], list[str], set[str]]:
     """The names to add, the names to delete and the names the commit keeps."""
-    differ = sorted(n for n in local if n in remote and not _same(local[n], remote[n]))
+    differ = sorted(n for n in local if n in remote and not _same(n, local[n], remote[n]))
     foreign = sorted(n for n in remote if n not in local and not _keeps(n))
     if not replace and (differ or foreign):
-        raise ValueError(_refusal(differ, foreign))
+        raise ValueError(_refusal(differ, foreign, _plain(differ, remote)))
     add = sorted(n for n in local if n not in remote or n in differ)
     kept = {n for n in remote if n not in local and n not in foreign}
     return add, foreign, kept
@@ -78,8 +82,15 @@ def _keeps(name: str) -> bool:
     return name == _KEPT or LICENSE_FILE.fullmatch(name) is not None
 
 
-def _refusal(differ: list[str], foreign: list[str]) -> str:
+def _plain(names: list[str], remote: dict[str, tuple[str | None, str | None]]) -> list[str]:
+    """The ``.safetensors`` files of ``names`` that the repository holds as plain blobs."""
+    return [n for n in names if n.endswith(".safetensors") and remote[n][0] is None]
+
+
+def _refusal(differ: list[str], foreign: list[str], plain: list[str]) -> str:
     parts = [f"other content under {differ}"] if differ else []
+    if plain:
+        parts[0] += f" ({plain} stored as plain git blobs, no LFS files that fse reads)"
     parts += [f"files of another model {foreign}"] if foreign else []
     return (
         f"the repository holds {' and '.join(parts)}; pass replace=True to replace and remove "
@@ -106,7 +117,10 @@ def push_folder(
     info = api.model_info(repo_id, revision=revision, files_metadata=True)
     parent, remote = info.sha, _remote(info)
     add, delete, kept = plan(local, remote, replace)
-    if not add and not delete:
+    expected: dict[str, tuple[Any, Any]] = {n: remote[n] for n in kept}
+    expected.update(local)  # (sha256, git blob id) of every file of the folder
+    if not add and not delete:  # the commit holds the folder already: checked as it is
+        check_files(remote, expected, f"commit {parent} of {repo_id}")
         return f"{hub.constants.ENDPOINT}/{repo_id}/commit/{parent}"
     operations = [hub.CommitOperationDelete(path_in_repo=n, is_folder=False) for n in delete]
     operations += [
@@ -124,8 +138,6 @@ def push_folder(
         create_pr=create_pr,
         parent_commit=parent,
     )
-    expected: dict[str, tuple[Any, Any]] = {n: remote[n] for n in kept}
-    expected.update(local)  # (sha256, git blob id) of every file of the folder
     check_commit(api, repo_id, commit.oid, expected)
     return commit.pr_url if create_pr and commit.pr_url else commit.commit_url
 
@@ -134,7 +146,16 @@ def check_commit(api: Any, repo_id: str, commit: str, expected: dict[str, tuple[
     """The commit holds exactly the expected files, each with its digest; every
     ``.safetensors`` file is an LFS file. The commit is not undone on a mismatch."""
     found = _remote(api.model_info(repo_id, revision=commit, files_metadata=True))
-    where = f"commit {commit} of {repo_id}"
+    check_files(found, expected, f"commit {commit} of {repo_id}")
+
+
+def check_files(
+    found: dict[str, tuple[str | None, str | None]],
+    expected: dict[str, tuple[Any, Any]],
+    where: str,
+) -> None:
+    """``found`` (the files of a commit) holds exactly the expected files with their
+    digests, and every ``.safetensors`` file is an LFS file."""
     if set(found) != set(expected):
         missing, extra = sorted(set(expected) - set(found)), sorted(set(found) - set(expected))
         raise CorruptArtifactError(

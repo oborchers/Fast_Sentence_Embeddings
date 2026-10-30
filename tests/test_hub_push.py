@@ -221,6 +221,29 @@ def test_a_pull_request_starts_from_the_parent_and_leaves_the_branch(api):
     assert first.endswith(branch)
 
 
+def test_a_model_file_stored_as_a_plain_blob_is_never_taken_as_pushed(api):
+    encoder = finished()
+    _push(encoder)
+    api.lfs[api.head].discard("model.safetensors")  # the same bytes, but no LFS file
+    with pytest.raises(ValueError, match=r"\['model.safetensors'\] stored as plain git blobs"):
+        _push(encoder)
+    assert len(api.commit_calls()) == 1
+    _push(encoder, replace=True)
+    assert len(api.commit_calls()) == 2
+    assert "model.safetensors" in api.lfs[api.head]
+
+
+def test_an_unchanged_commit_is_checked_too():
+    sha256, sha1 = "a" * 64, "b" * 40
+    with pytest.raises(CorruptArtifactError, match=r"no LFS file with an lfs\.sha256"):
+        _hub_push.check_files(
+            {"model.safetensors": (None, sha1)}, {"model.safetensors": (sha256, sha1)}, "c"
+        )
+    _hub_push.check_files(
+        {"model.safetensors": (sha256, "x")}, {"model.safetensors": (sha256, sha1)}, "c"
+    )
+
+
 def test_the_same_content_makes_no_commit(api):
     encoder = finished()
     first = _push(encoder)
