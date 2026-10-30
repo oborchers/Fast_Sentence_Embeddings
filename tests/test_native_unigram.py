@@ -4,7 +4,9 @@ its checks, and the floating-point environment of the Viterbi."""
 import ctypes
 import ctypes.util
 import platform
+import struct
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -13,8 +15,6 @@ import pytest
 from fse import _native
 from fse import _reference_unigram as ref
 from fse import _unicode_graphemes as ucd
-from fse._text import StringSource, make_lookup
-from fse._tokenizer_spec import TokenizerSpec
 from fse._tokenizer_unigram import UnigramConfig, step_of
 from fse._wordvectors import WordVectors
 
@@ -163,39 +163,46 @@ def _fesetround():
     return libm.fesetround, libm.fegetround, upward
 
 
-def _rounding_ids(vocab):
-    """The ids of 'ab' under the encoder of a vocabulary without a normalizer."""
-    config = UnigramConfig((), 0, (), np.array([s for _, s in vocab], "<f8").tobytes())
-    spec = TokenizerSpec("unigram@1", config, "keep")
-    tokens = _tokens(vocab)
-    lookup = make_lookup(
-        WordVectors.from_arrays(np.zeros((len(tokens), 1), np.float32), words=tokens), spec
-    )
-    source = StringSource(["ab"])
-    batch = source.encode(source.scan().chunks[0], lookup, _native.Workspace())
-    return batch.tokens.tolist()
+def _rounding_run(vocab):
+    """unk_score of a state built in this thread, and the ids of 'ab' and 'abz' it gives."""
+    state = _state(vocab, drop_unknown=False)
+    lookup = _native.TextLookup(state.table, "unigram@1", unigram=state)
+    data = np.frombuffer(b"ababz", np.uint8)
+    batch = lookup.encode(data, np.array([0, 2, 5], np.int64), 0, 2, 0, _native.Workspace())
+    ids = [batch.tokens[batch.offsets[k] : batch.offsets[k + 1]].tolist() for k in range(2)]
+    return struct.pack("<d", state.unk_score), ids
 
 
-def test_the_viterbi_rounds_to_nearest_whatever_the_thread_set():
+def test_the_viterbi_and_unk_score_round_to_nearest_whatever_the_thread_set():
     """a of -0.1 and b of -0.2 sum to ab's score in round to nearest, a tie that ab wins as
-    the earlier start; rounding upward the sum would be higher and a, b would win."""
+    the earlier start; rounding upward the sum would be higher and a, b would win. The
+    lowest score, -10.1, minus 10 rounds differently upward too. The state is built and
+    encodes in this thread and in a worker thread, each set to round upward."""
     found = _fesetround()
     if found is None:
         pytest.skip("no fesetround with a known upward mode here")
     fesetround, fegetround, upward = found
-    tenth, fifth = -0.1, -0.2
-    vocab = [("<unk>", -10.0), (R, 0.0), ("a", tenth), ("b", fifth), ("ab", tenth + fifth)]
-    want = _rounding_ids(vocab)
-    assert want == [1, 4]
-    assert fesetround(upward) == 0
-    try:
-        assert tenth + fifth != vocab[4][1]  # this mode would change the sum
-        got = _rounding_ids(vocab)  # the state is built and encodes in this mode
-        mode = fegetround()
-    finally:
-        fesetround(0)
-    assert got == want
-    assert mode == upward  # the mode of the thread is restored after every call
+    tenth, fifth, low, penalty = -0.1, -0.2, -10.1, 10.0
+    vocab = [("<unk>", low), (R, 0.0), ("a", tenth), ("b", fifth), ("ab", tenth + fifth)]
+    want = _rounding_run(vocab)
+    assert want == (struct.pack("<d", low - penalty), [[1, 4], [1, 4, 0]])
+
+    def upward_run():
+        assert fesetround(upward) == 0
+        try:
+            # this mode would change both the sum and unk_score
+            assert tenth + fifth != vocab[4][1]
+            assert low - penalty != struct.unpack("<d", want[0])[0]
+            got = _rounding_run(vocab)
+            return got, fegetround()
+        finally:
+            fesetround(0)
+
+    with ThreadPoolExecutor(1) as pool:
+        in_worker = pool.submit(upward_run).result()
+    for got, mode in (upward_run(), in_worker):
+        assert got == want  # unk_score bit for bit, and the ids
+        assert mode == upward  # the mode of the thread is restored after every call
 
 
 def test_the_steps_of_the_target_become_rows_of_the_state():
