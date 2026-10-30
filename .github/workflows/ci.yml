@@ -76,8 +76,10 @@ jobs:
           }
           other=$(echo "$files" | grep -vE '^docs/|\.md$' || true)  # files beyond the docs
           # pyproject.toml counts for the outputs below (not for code) only when one of its
-          # build and dependency tables differs from the merge base. A change of the tool
-          # settings (ruff, importlinter, pytest) is an ordinary code change. An absent table
+          # build and dependency tables differs from the merge base: build-system, project,
+          # dependency-groups, setuptools, setuptools_scm, cibuildwheel (how the wheels are
+          # built and tested) and uv (the resolution), each with its subtables. A change of
+          # the other tool settings (ruff, importlinter, pytest) is an ordinary code change. An absent table
           # equals an empty one; a pyproject.toml that is new or unreadable counts.
           if touches '^pyproject\.toml$'; then
             mb=$(git merge-base "origin/$BASE" HEAD)
@@ -89,7 +91,8 @@ jobs:
                   d = tomllib.load(f)
               tool = d.get("tool", {})
               return [d.get("build-system", {}), d.get("project", {}), d.get("dependency-groups", {}),
-                      tool.get("setuptools", {}), tool.get("setuptools_scm", {})]
+                      tool.get("setuptools", {}), tool.get("setuptools_scm", {}),
+                      tool.get("cibuildwheel", {}), tool.get("uv", {})]
           sys.exit(tables(sys.argv[1]) != tables(sys.argv[2]))
           PY
             then
