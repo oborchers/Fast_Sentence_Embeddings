@@ -68,7 +68,9 @@ def pieces_and_scores(seed: int = 0) -> list[tuple[str, float]]:
     -14 to -2 (most not float32 values); the pieces of two characters share one score, so
     ties occur."""
     rng = random.Random(seed)
-    words = sorted({w for line in SENTENCES.read_text().split("\n") for w in line.split()})
+    words = sorted(
+        {w for line in SENTENCES.read_text(encoding="utf-8").split("\n") for w in line.split()}
+    )
     pieces = {REPLACEMENT, *_ALPHABET, *(REPLACEMENT + c for c in _ALPHABET)}
     for k, word in enumerate(words):
         if k % 2 == 0:
@@ -191,6 +193,6 @@ def random_text(rng: random.Random, words: list[str]) -> str:
 def corpus(n: int, seed: int = 0) -> list[str]:
     """The test sentences and ``n`` seeded random texts."""
     rng = random.Random(seed)
-    lines = SENTENCES.read_text().split("\n")
+    lines = SENTENCES.read_text(encoding="utf-8").split("\n")
     words = sorted({w for line in lines for w in line.split()})
     return lines + [random_text(rng, words) for _ in range(n)]

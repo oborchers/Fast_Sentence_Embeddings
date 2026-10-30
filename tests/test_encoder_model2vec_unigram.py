@@ -103,6 +103,6 @@ def test_a_sentence_transformers_model_with_a_unigram_tokenizer_is_refused(tmp_p
 
     folder = st.write_model(tmp_path / "st")  # written without sentence-transformers
     for path in folder.rglob("tokenizer.json"):
-        path.write_text(uni.hf_tokenizer(uni.pieces_and_scores()).to_str())
+        path.write_text(uni.hf_tokenizer(uni.pieces_and_scores()).to_str(), encoding="utf-8")
     with pytest.raises(UnsupportedArtifactError, match="a Unigram model; this fse reads WordPiece"):
         Encoder.from_pretrained(folder)
