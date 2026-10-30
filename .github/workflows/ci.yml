@@ -167,7 +167,7 @@ jobs:
         run: >-
           uv pip install
           "numpy==1.26.4" "pydantic==2.5.0" "xxhash==3.2.0" "gensim==4.3.3" "safetensors==0.4.0"
-          "scikit-learn==1.5.0" "huggingface-hub==1.0.0"
+          "scikit-learn==1.5.0" "huggingface-hub==1.0.0" "pytest-xdist==3.6.1"
       # A pull request skips the coverage (the merged report runs on master and tags only)
       # and so runs faster.
       - name: Run tests${{ github.event_name != 'pull_request' && ' with coverage' || '' }}

@@ -3,6 +3,13 @@ PACKAGE := fse
 SRC := src/$(PACKAGE)
 LINT_PATHS := $(SRC) tests tools benchmarks
 
+# The worker processes of pytest-xdist for the targets that run the whole suite: `auto` is
+# one per logical CPU, `make test PYTEST_N=0` runs serially in one process (to debug a test,
+# or as the baseline of a measurement). PYTEST_DIST is the xdist distribution mode.
+PYTEST_N ?= auto
+PYTEST_DIST ?= load
+XDIST = -n $(PYTEST_N) --dist $(PYTEST_DIST)
+
 .DEFAULT_GOAL := help
 
 .PHONY: help env install init sync rebuild-ext format format-check lint lint-fix guardrails typecheck test test-network test-st test-mlx test-cov check build clean pre-commit profile-cpu profile-mem profile-rss
@@ -80,7 +87,7 @@ profile-rss: ## Resident memory of RUN and its child processes over time
 
 ##@ Testing
 test: ## Run tests without network access
-	$(UV) run pytest tests -m "not network"
+	$(UV) run pytest tests -m "not network" $(XDIST)
 
 test-network: ## Run the tests that download from the Hugging Face Hub
 	$(UV) run pytest tests -m network
@@ -89,10 +96,10 @@ test-st: ## Run the comparisons with sentence-transformers (group st), required 
 	FSE_REQUIRE_ST=1 $(UV) run --group st pytest tests/test_encoder_sentence_transformers_parity.py tests/test_encoder_sentence_transformers.py -m "not network"
 
 test-mlx: ## Run the tests with the mlx backend required (Apple silicon with Metal)
-	FSE_REQUIRE_MLX=1 $(UV) run --group mlx pytest tests -m "not network"
+	FSE_REQUIRE_MLX=1 $(UV) run --group mlx pytest tests -m "not network" $(XDIST)
 
 test-cov: ## Run tests with coverage
-	$(UV) run pytest tests -m "not network" --cov=$(PACKAGE) --cov-report=term-missing --cov-fail-under=0
+	$(UV) run pytest tests -m "not network" $(XDIST) --cov=$(PACKAGE) --cov-report=term-missing --cov-fail-under=0
 
 ##@ Combined
 check: format-check lint typecheck test ## Run all checks: format + lint + typecheck + test
