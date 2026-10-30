@@ -41,6 +41,7 @@ from ._common import (
     canonical_json,
     discard_temporary,
     fingerprint,
+    is_fingerprint,
 )
 
 MAX_SAFETENSORS_HEADER_BYTES = 16 * 2**20
@@ -220,10 +221,10 @@ class SafetensorsContainer:
         _log.emit(
             "artifact.saved",
             "fse artifact: saved %s %s, %d bytes",
-            metadata.get("fse.kind"),
+            _kind(metadata),
             full[FINGERPRINT_KEY],
             size,
-            kind=metadata.get("fse.kind"),
+            kind=_kind(metadata),
             fingerprint=full[FINGERPRINT_KEY],
             bytes=size,
             seconds=time.perf_counter() - start,
@@ -308,7 +309,7 @@ class SafetensorsContainer:
                     )
             _unchanged(handle, path, before)
         size = start + max((end for _, _, _, end in layout.values()), default=0)
-        kind = metadata.get("fse.kind")
+        kind = _kind(metadata)
         _log.emit(
             "artifact.verified",
             "fse artifact: verified %s, %d bytes",
@@ -320,9 +321,23 @@ class SafetensorsContainer:
         )
 
 
+# The kinds of fse's artifacts; a header may state anything, so records name no other.
+_KINDS = frozenset({"word_vectors", "encoder", "linear_head"})
+
+
+def _kind(metadata: Mapping[str, str]) -> str:
+    kind = metadata.get("fse.kind")
+    return kind if kind in _KINDS else "other"
+
+
+def _fingerprint(metadata: Mapping[str, str]) -> str | None:
+    value = metadata.get(FINGERPRINT_KEY)
+    return value if isinstance(value, str) and is_fingerprint(value) else None
+
+
 def _loaded(metadata: Mapping[str, str], size: int, mmap: bool, begin: float) -> None:
     """The record of an artifact opened, with what its header states (nothing hashed)."""
-    kind, fingerprint_ = metadata.get("fse.kind"), metadata.get(FINGERPRINT_KEY)
+    kind, fingerprint_ = _kind(metadata), _fingerprint(metadata)
     _log.emit(
         "artifact.loaded",
         "fse artifact: loaded %s %s, %d bytes",

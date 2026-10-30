@@ -194,3 +194,16 @@ def test_the_architecture_lists_every_event():
     rows = dict(re.findall(r"^\| `([a-z]+\.[a-z_]+)` \| (DEBUG|INFO|WARNING) \|", text, re.M))
     expected = {e: logging.getLevelName(level) for e, (_, level) in _log.EVENTS.items()}
     assert rows == expected
+
+
+def test_a_level_check_that_raises_is_inside_the_boundary(capfd, monkeypatch):
+    def broken(_level):
+        raise RuntimeError("the logger class of the application failed")
+
+    logger = logging.Logger("fse.store")  # as a logger class of the application would be
+    logger.isEnabledFor = broken
+    monkeypatch.setattr(_log, "_reported", set())
+    monkeypatch.setitem(_log._ROUTES, "store.search", (logger, logging.DEBUG))
+    assert _log.enabled("store.search") is False
+    _log.emit("store.search", "x", queries=1)
+    assert "store.search failed with RuntimeError" in capfd.readouterr().err

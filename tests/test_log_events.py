@@ -276,3 +276,42 @@ def test_a_failed_cleanup_after_an_error_is_noted_and_logged(tmp_path, monkeypat
     (note,) = raised.value.__notes__
     assert note.startswith("fse could not remove the temporary ")
     assert _shard_threads() == []
+
+
+def test_a_header_names_no_other_kind_in_a_record(tmp_path):
+    from fse._container import SafetensorsContainer
+
+    path = tmp_path / "x.safetensors"
+    with captured() as records:
+        SafetensorsContainer().write(path, {"a": np.ones(2, np.float32)}, {"fse.kind": "/a/b"})
+        SafetensorsContainer().open(path, mmap=False)
+        SafetensorsContainer().verify(path)
+    assert {r.fse_kind for r in records if r.fse_event.startswith("artifact.")} == {"other"}
+
+
+def test_a_removal_that_cannot_be_checked_is_a_failure(tmp_path, monkeypatch):
+    from fse._container import remove_temporary
+
+    target = tmp_path / "t"
+    target.mkdir()
+
+    def refuse(path, *_args, **_kwargs):
+        raise PermissionError(errno.EACCES, "Permission denied", str(path))
+
+    monkeypatch.setattr(shutil, "rmtree", refuse)
+    monkeypatch.setattr(os, "lstat", refuse)  # a folder above it that cannot be read
+    assert isinstance(remove_temporary(target), PermissionError)
+
+
+def test_a_failed_cleanup_after_a_reported_error_still_raises(tmp_path, monkeypatch):
+    sink = _empty_shard(tmp_path, monkeypatch)
+
+    def broken():
+        raise OSError(errno.EIO, "the drive failed")
+
+    sink._io.submit(broken)
+    with pytest.raises(OSError, match="the drive failed"):
+        sink._io.drain()  # the caller saw the error of the thread and goes on
+    with pytest.raises(PermissionError, match="Permission denied"):
+        sink.close()
+    assert _shard_threads() == []

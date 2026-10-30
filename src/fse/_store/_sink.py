@@ -262,10 +262,11 @@ class ShardSink:
         self._writers.clear()
         self._made.clear()
         self._closed = True
-        failing = error is not None or self._failed() or self._interrupted
-        self._closed_record(error, failing)
+        self._closed_record(error, error is not None or self._failed() or self._interrupted)
+        # Raised unless an error is raised now: this one, or the deferred interrupt. An
+        # error of a thread that a call raised before is no longer in flight.
         for path, failure in failures:
-            failed_cleanup(path, failure, error, failing=failing)
+            failed_cleanup(path, failure, error, failing=self._interrupted)
 
     def _closed_record(self, error: BaseException | None, failing: bool) -> None:
         interrupted = self._interrupted or isinstance(error, KeyboardInterrupt)

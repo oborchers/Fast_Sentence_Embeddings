@@ -366,7 +366,13 @@ def remove_temporary(path: Path) -> OSError | None:
         else:
             path.unlink()
     except OSError as error:
-        return error if os.path.lexists(path) else None
+        try:
+            os.lstat(path)
+        except FileNotFoundError:
+            return None  # gone, by this call or before it
+        except OSError:
+            return error  # unknown, such as a folder above it that cannot be read
+        return error
     return None
 
 

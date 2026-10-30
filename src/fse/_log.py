@@ -75,9 +75,14 @@ def _route(event: str) -> tuple[logging.Logger, int]:
 
 
 def enabled(event: str) -> bool:
-    """Whether a record of ``event`` would be handled at its level (``isEnabledFor``)."""
+    """Whether a record of ``event`` would be handled at its level (``isEnabledFor``);
+    False if the check itself fails (a logger class of the application)."""
     logger, level = _route(event)
-    return logger.isEnabledFor(level)
+    try:
+        return logger.isEnabledFor(level)
+    except Exception as error:
+        _report(event, error)
+        return False
 
 
 def emit(event: str, message: str, *args: object, **fields: object) -> None:
@@ -88,9 +93,9 @@ def emit(event: str, message: str, *args: object, **fields: object) -> None:
     cannot be formatted) is reported once per event and swallowed, so logging never
     changes a result or an exception of fse; KeyboardInterrupt and SystemExit propagate.
     """
-    logger, level = _route(event)
-    if not logger.isEnabledFor(level):
+    if not enabled(event):
         return
+    logger, level = _ROUTES[event]
     extra: dict[str, object] = {"fse_event": event}
     for name, value in fields.items():
         if not name.isidentifier():
