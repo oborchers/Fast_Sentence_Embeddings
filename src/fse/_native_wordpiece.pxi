@@ -1,8 +1,8 @@
 # Included by _native.pyx: wordpiece@1, its state, the greedy match and one sentence.
 
 # ---------------------------------------------------------------------------------------
-# wordpiece@1 (ARCHITECTURE.md, "wordpiece@1"), as in fse._reference_wordpiece. Correct
-# first, not fast: the added-token scan, the normalization and the greedy match are plain.
+# wordpiece@1 (ARCHITECTURE.md, "wordpiece@1"), as in fse._reference_wordpiece: the fast
+# paths, and the generic path of the plain rules for the tests (WordPieceState._generic).
 # ---------------------------------------------------------------------------------------
 
 cdef extern from "_native_wordpiece.h":

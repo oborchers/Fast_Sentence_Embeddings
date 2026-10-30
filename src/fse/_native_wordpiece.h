@@ -1,6 +1,6 @@
 /* wordpiece@1 (ARCHITECTURE.md, "wordpiece@1"): the added tokens, the normalization and
    the pre-tokenization of one sentence; _native_wordpiece.pxi holds the greedy match on
-   the VocabTable and the sentence around them.
+   the VocabTable and the trie of _native_wordpiece_trie.h, and the sentence around them.
 
    fse_wp_normalize gives the UTF-8 of steps 3.1 to 3.5 of one piece: every code point
    gives its items from the composed table of _native_unicode_bert.h (its code points
@@ -11,8 +11,10 @@
    The table guarantees at most 3 bytes out per byte in and that items of a nonzero class
    are single code points.
 
-   Correct first, not fast: 12b profiles and optimizes. fse._reference_wordpiece defines
-   the result; tests/test_text_conformance_wordpiece.py compares. */
+   The fast paths (the *_ascii functions and fse_wp_next_candidate) give the result of the
+   generic ones, which a private switch of WordPieceState keeps for the tests.
+   fse._reference_wordpiece defines the result; tests/test_text_conformance_wordpiece.py
+   compares. */
 #ifndef FSE_NATIVE_WORDPIECE_H
 #define FSE_NATIVE_WORDPIECE_H
 
