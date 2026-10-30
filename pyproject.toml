@@ -457,6 +457,7 @@ ignore_names = [
     "import_errors",     # called by tools/check_guardrails.py, which loads its module by path
     "windows_file_maps", # a fixture used through pytest.mark.usefixtures
     "python_sigint",     # a fixture used through pytest.mark.usefixtures
+    "broken_logging",    # a fixture used through pytest.mark.usefixtures
     "normalizer",        # attributes of a Hugging Face tokenizer, read by tokenizers
     "pre_tokenizer",
     "post_processor",
