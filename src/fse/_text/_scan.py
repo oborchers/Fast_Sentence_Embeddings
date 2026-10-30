@@ -39,6 +39,8 @@ _SCAN_RANGE_MAX_BYTES = 1 << 26
 # Sources smaller than this are scanned in the calling thread: starting threads would cost
 # more than the scan (about 16 ms of one core at 64 MB/s).
 _SCAN_INLINE_BYTES = 1 << 20
+# Bytes searched at a time for a newline on the path of an error (``prefix``, ``_start_of``).
+_LINE_BLOCK = 1 << 20
 
 
 @dataclass(frozen=True)
@@ -302,11 +304,19 @@ class _Buffered:
 
     def _start_of(self, first: int, byte: int, sentences: int) -> int:
         """The position of the sentence that holds ``byte``, the sentence ``sentences`` of
-        the range from ``first``: a string or row number, or in line mode its first byte."""
+        the range from ``first``: a string or row number, or in line mode its first byte
+        (searched back from ``byte`` in blocks, so no array of the range is made)."""
         if not self._lines():
             return first + sentences
-        newlines = np.flatnonzero(self._array()[first:byte] == 10)
-        return first + int(newlines[-1]) + 1 if len(newlines) else first
+        data = self._array()
+        end = byte
+        while end > first:
+            start = max(first, end - _LINE_BLOCK)
+            newlines = np.flatnonzero(data[start:end] == 10)
+            if len(newlines):
+                return start + int(newlines[-1]) + 1
+            end = start
+        return first
 
     def _lines(self) -> bool:
         """Whether positions are bytes of lines (a file) rather than string numbers."""
@@ -318,12 +328,21 @@ class _Buffered:
             raise ValueError(f"a prefix of {rows} of the {chunk.n_sentences} sentences of a chunk")
         if rows == chunk.n_sentences:
             return chunk
-        if self._lines():
-            newlines = np.flatnonzero(self._array()[chunk.start : chunk.end] == 10)
-            end = chunk.start + int(newlines[rows - 1]) + 1
-        else:
-            end = chunk.start + rows
+        end = self._line_end(chunk.start, chunk.end, rows) if self._lines() else chunk.start + rows
         return Chunk(chunk.start, end, chunk.first_row, rows)
+
+    def _line_end(self, start: int, end: int, rows: int) -> int:
+        """The byte after the ``rows``-th newline from ``start``, searched in blocks up to
+        it, so no array of the chunk is made."""
+        data = self._array()
+        while start < end:
+            stop = min(end, start + _LINE_BLOCK)
+            newlines = np.flatnonzero(data[start:stop] == 10)
+            if len(newlines) >= rows:
+                return start + int(newlines[rows - 1]) + 1
+            rows -= len(newlines)
+            start = stop
+        raise AssertionError("a chunk has fewer lines than its sentences")  # pragma: no cover
 
     def _scanner(self, chunk_bytes: int, chunk_rows: int) -> Callable[[tuple[int, int]], Any]:
         """The scan of one range of positions, as ``_native.scan_spans`` gives it: (sentences,
