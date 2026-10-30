@@ -156,6 +156,30 @@ cdef int _arrow_kind(ArrowSchema *schema) except -1:
     return _ARROW_FORMATS[fmt]
 
 
+cdef Py_ssize_t _arrow_tokens(
+    const unsigned char *p, Py_ssize_t n, Py_ssize_t *error
+) noexcept nogil:
+    """The str.split() tokens of p[0:n], as _count_tokens counts them; sets error to the
+    first bad byte. A copy of its own: a second caller of _count_tokens changes how the
+    compiler builds scan_spans, whose machine code this part leaves as it is."""
+    cdef Py_ssize_t i = 0
+    cdef Py_ssize_t tokens = 0
+    cdef bint inside = False
+    cdef int m
+    while i < n:
+        m = _utf8_len(p, i, n)
+        if m == 0:
+            error[0] = i
+            return tokens
+        if _is_space(p, i, m):
+            inside = False
+        elif not inside:
+            inside = True
+            tokens += 1
+        i += m
+    return tokens
+
+
 cdef inline Py_ssize_t _chunk_of(const int64_t *starts, Py_ssize_t n, int64_t row) noexcept nogil:
     """The chunk that holds row: the last k with starts[k] <= row (starts has n + 1)."""
     cdef Py_ssize_t lo = 0, hi = n - 1, mid

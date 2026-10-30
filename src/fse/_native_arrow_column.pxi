@@ -384,7 +384,7 @@ cdef class ArrowColumn:
                     if fse_arrow_row(&self._chunks[k], pos - self._starts[k], &p, &n) != 0:
                         status = _ARROW_INVALID
                         break
-                    count = _count_tokens(p, 0, n, &error)
+                    count = _arrow_tokens(p, n, &error)
                     if error >= 0:
                         break
                     tokens += count
