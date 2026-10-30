@@ -161,24 +161,70 @@ static int fse_wp_ascii_init(void) {
             if (items[0] != 1 || items[1] >= 0x80) return 1 + (int)b;  /* class 0 below 0x80 */
             fse_wp_ascii_map[b] = (uint8_t)items[1];
         }
+        /* The block step of fse_wp_normalize_ascii keeps printable ASCII and lowercases A to Z. */
+        uint32_t lower = b >= 'A' && b <= 'Z' ? b + 0x20 : b;
+        if (b >= 0x20 && b < 0x7F && (!fse_wp_ascii_keep[b] || fse_wp_ascii_map[b] != lower))
+            return 1 + (int)b;
     }
     return 0;
 }
 
-/* fse_wp_normalize with the ASCII fast path: while the run of marks is empty, an ASCII
+#define FSE_WP_ONES 0x0101010101010101ull
+#define FSE_WP_HIGH 0x8080808080808080ull
+
+/* The high bit of each byte of x that is not printable ASCII (0x20 to 0x7E); the lowest
+   flagged byte is exact (a borrow can only flag bytes above it). */
+static inline uint64_t fse_wp_unprintable8(uint64_t x) {
+    uint64_t below = (x - FSE_WP_ONES * 0x20) & ~x;             /* bytes below 0x20 */
+    uint64_t del = ((x ^ (FSE_WP_ONES * 0x7F)) - FSE_WP_ONES) & ~(x ^ (FSE_WP_ONES * 0x7F));
+    return (x | below | del) & FSE_WP_HIGH;
+}
+
+/* x with A to Z lowercased; exact in each byte below the first byte at or above 0x80
+   (a carry only moves up, out of a byte at or above 0x80). */
+static inline uint64_t fse_wp_lower8(uint64_t x) {
+    uint64_t from_a = x + FSE_WP_ONES * (0x80 - 'A');
+    uint64_t after_z = x + FSE_WP_ONES * (0x80 - 'Z' - 1);
+    return x | (((from_a & ~after_z) & FSE_WP_HIGH) >> 2);
+}
+
+/* The number of bytes below the lowest flagged byte of a nonzero mask of high bits. */
+static inline int fse_wp_bytes_below(uint64_t mask) {
+    uint64_t below = (mask & (~mask + 1)) - 1;  /* all bits below the lowest flagged one */
+    return (int)((((below >> 7) & FSE_WP_ONES) * FSE_WP_ONES) >> 56);
+}
+
+/* fse_wp_normalize with the ASCII fast path: while the run of marks is empty, at an ASCII
+   byte, 8 bytes of printable ASCII are lowercased at once (when at least 8 bytes of the piece are left;
+   loads and stores by memcpy, so nothing is read beyond the piece), and any other ASCII
    byte is its table entry. A byte that is not ASCII, and any byte while the run holds
-   marks (an ASCII byte ends the run, a removed one does not), takes fse_wp_step. */
+   marks (an ASCII byte ends the run, a removed one does not), takes fse_wp_step. out has
+   3 n bytes, so the 8 bytes stored at out + m always fit (m <= 3 i and i + 8 <= n). */
 static int64_t fse_wp_normalize_ascii(const uint8_t *p, int64_t n, uint8_t *out,
                                       uint32_t *run) {
     int64_t i = 0, m = 0, r = 0;
     while (i < n) {
-        if (r == 0) {
-            while (i < n && p[i] < 0x80) {
-                uint8_t b = p[i++];
-                out[m] = fse_wp_ascii_map[b];
-                m += fse_wp_ascii_keep[b];
+        if (r == 0 && p[i] < 0x80) {
+            if (n - i >= 8) {
+                uint64_t x, low;
+                memcpy(&x, p + i, 8);
+                uint64_t bad = fse_wp_unprintable8(x);
+                low = fse_wp_lower8(x);
+                memcpy(out + m, &low, 8);
+                if (!bad) {
+                    i += 8;
+                    m += 8;
+                    continue;
+                }
+                int k = fse_wp_bytes_below(bad);
+                i += k;
+                m += k;
+                if (p[i] >= 0x80) continue;
             }
-            if (i == n) break;
+            uint8_t b = p[i++];
+            out[m] = fse_wp_ascii_map[b];
+            m += fse_wp_ascii_keep[b];
+            continue;
         }
         m = fse_wp_step(p, &i, n, out, run, &r, m);
         if (m < 0) return m;
