@@ -12,6 +12,8 @@ every stage at one worker; then ``Encoder.encode`` at 1 and N workers in paired,
 alternating rounds (a round with a load above ``--max-load`` before or after is
 discarded), with the summed wall and thread CPU time of the tasks at each N; then the
 bounds of roofline_model.py and the measured shares. ``--json`` keeps the numbers.
+compare: two or more table dtypes end to end on one encoder and corpus, paired and
+alternating in one process (roofline_dtype.py), as the time ratio to the first.
 probe: the attainable rate of reading a float32 table far larger than the caches, by
 numpy's sum and by fse's pooling kernel on consecutive and on random rows, in 1 to N
 threads (roofline_probe.py).
@@ -21,6 +23,8 @@ times stay those of the machine that measured them).
     uv run python benchmarks/roofline.py measure --model potion-base-8M --corpus massive
     uv run python benchmarks/roofline.py measure --model static-retrieval-mrl-en-v1 \\
         --dim 1024 --corpus wikitext --workers 8 10 --json out.json
+    uv run python benchmarks/roofline.py compare --model static-retrieval-mrl-en-v1 \\
+        --dim 1024 --corpus massive --dtypes float32 int8 --workers 1 8
     uv run python benchmarks/roofline.py probe --workers 1 4 8 10
     uv run python benchmarks/roofline.py show out.json --hardware m4-pro-14
     uv run python benchmarks/roofline.py _encode potion-base-8M none float32 massive 1 40
@@ -45,6 +49,7 @@ import numpy as np
 import roofline_model as rm
 from bench_pretrained import COMMITS
 from bench_wordpiece import texts
+from roofline_dtype import SpecEncoder, compare, lines
 from roofline_probe import probe
 from roofline_report import report
 
@@ -73,20 +78,21 @@ def _best(fn, repeats: int) -> float:
     return min(_seconds(fn) for _ in range(repeats))
 
 
-def encoder(name: str, dim: int | None, dtype: str):
+def pretrained(name: str, dim: int | None):
     """The pretrained encoder ``name`` at its pinned snapshot, cut to ``dim`` (the
-    sentence-transformers model only), its table stored as ``dtype``. Another dtype than
-    the model's wraps the quantized table with the private ``Encoder._converted``, with the
-    tokenizer and normalize of the model (a measurement, not an API)."""
+    sentence-transformers model only)."""
     from fse import Encoder
 
     repo, commit = MODELS[name]
     options = {} if dim is None else {"truncate_dim": dim}
-    enc = Encoder.from_pretrained(repo, revision=commit, local_files_only=True, **options)
-    if dtype == enc.word_vectors.dtype:
-        return enc
-    table = enc.word_vectors.quantize(dtype)
-    return Encoder._converted(table, enc._content.tokenizer, normalize=bool(enc.steps))
+    return Encoder.from_pretrained(repo, revision=commit, local_files_only=True, **options)
+
+
+def encoder(name: str, dim: int | None, dtype: str):
+    """``pretrained``, its table stored as ``dtype``; another dtype than the model's runs
+    as a ``SpecEncoder`` (roofline_dtype.py: Encoder refuses it for these tokenizers)."""
+    enc = pretrained(name, dim)
+    return enc if dtype == enc.word_vectors.dtype else SpecEncoder(enc, dtype)
 
 
 class TaskClock:
@@ -278,6 +284,19 @@ def _hardware(name: str, ratio: float | None) -> rm.Hardware:
     return hw if ratio is None else replace(hw, e_core_ratio=ratio, e_core_source="--e-core-ratio")
 
 
+def _compare(args) -> None:
+    """The dtypes of ``--dtypes`` end to end on one encoder and corpus, paired."""
+    sentences = texts(args.corpus)
+    enc = pretrained(args.model, args.dim)
+    tokens = Stages(SpecEncoder(enc, args.dtypes[0]), sentences).dataset(args.corpus).tokens
+    w = (args.workers, args.rounds, args.passes, args.max_load)
+    results = compare(enc, sentences, args.dtypes, *w)
+    print("\n".join(lines(results, args.dtypes, tokens)))
+    if args.json:
+        with open(args.json, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=1)
+
+
 def _encode_loop(argv: list[str]) -> None:
     """Encode at ``workers`` for ``seconds``, for the profilers."""
     name, dim, dtype, corpus, workers, seconds = argv
@@ -312,6 +331,16 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--table-gib", type=float, default=1.0)
     p.add_argument("--dim", type=int, default=1024)
     p.add_argument("--repeats", type=int, default=5)
+    c = sub.add_parser("compare")
+    c.add_argument("--model", choices=MODELS, required=True)
+    c.add_argument("--dim", type=int, default=None)
+    c.add_argument("--corpus", choices=("wikitext", "massive"), required=True)
+    c.add_argument("--dtypes", nargs="+", choices=rm.ITEMSIZE, default=["float32", "int8"])
+    c.add_argument("--workers", type=int, nargs="+", default=[1, 8])
+    c.add_argument("--rounds", type=int, default=5)
+    c.add_argument("--passes", type=int, default=5)
+    c.add_argument("--max-load", type=float, default=5.0)
+    c.add_argument("--json", default=None)
     s = sub.add_parser("show")
     s.add_argument("result")
     s.add_argument("--hardware", default=None)
@@ -332,6 +361,8 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "probe":
         probe(args.workers, args.table_gib, args.dim, args.repeats)
         return None
+    if args.command == "compare":
+        return _compare(args)
     if args.command == "measure":
         result = measure(args)
         if args.json:

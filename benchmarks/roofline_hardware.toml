@@ -16,6 +16,18 @@ gb_per_s = 200
 kind = "spec"
 source = "Apple Newsroom, 18.10.2021: M1 Pro 'offers up to 200GB/s of memory bandwidth', https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max-the-most-powerful-chips-apple-has-ever-built/"
 
+[["m1-pro-10".bandwidth]]
+name = "read"
+gb_per_s = 115.6
+kind = "measured"
+source = "roofline.py probe, reader sum (numpy.sum of a 1 GiB float32 table in 8 threads, the most of 1 to 10 threads), 30.10.2026, master db387ff, load 3.7; a second run at load 4.9 gave 115.1; a lower estimate of what the CPU cores read from memory"
+
+[["m1-pro-10".bandwidth]]
+name = "random rows"
+gb_per_s = 77.3
+kind = "measured"
+source = "roofline.py probe, reader random (fse's pooling kernel over uniformly random rows of 4 KiB of a 1 GiB table in 8 threads, the most of 1 to 10 threads), 30.10.2026, master db387ff, load 3.7 to 4.8; a second run gave 80.0; what fse reads when no row is reused"
+
 ["m4-pro-14"]
 p_cores = 10
 e_cores = 4

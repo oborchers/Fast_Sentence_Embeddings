@@ -12,6 +12,12 @@ from __future__ import annotations
 
 import roofline_model as rm
 
+# A share counts as above its bound beyond this factor: the stage times are the fastest of
+# several rounds, the measured rate the median, so they differ by a few percent of noise.
+NOISE = 1.02
+# What a share above a bound tells: which assumption failed.
+WORK = "a core ran faster than alone"
+REUSE = "rows came from the caches"
 SERIAL = ("join", "plan", "caller", "encode_rest")
 WORKER = ("tokenize", "pool", "normalize", "task_rest")
 
@@ -98,14 +104,14 @@ def _workers_lines(result, hw, model, data, stages, workers: int) -> list[str]:
     serial = stages.serial + (0.0 if plan is None else plan - stages.plan)
     out = [head, *_task_lines(run, workers, serial)]
     out += [
-        _bound("per core (work)", b.core, got),
-        _bound("Amdahl (serial + work)", b.amdahl, got),
+        _bound("per core (work)", b.core, got, why=WORK),
+        _bound("Amdahl (serial + work)", b.amdahl, got, why=WORK),
     ]
     for roof in hw.bandwidths:
-        out.append(_bound(f"memory, {roof.name} {roof.gb_per_s:g} GB/s", b.memory[roof.name], got))
-        out.append(
-            _bound(f"combined, {roof.name} roof", b.combined[roof.name], got, b.binding[roof.name])
-        )
+        name, binding = roof.name, b.binding[roof.name]
+        out.append(_bound(f"memory, {name} {roof.gb_per_s:g} GB/s", b.memory[name], got, why=REUSE))
+        why = REUSE if binding == "memory" else WORK
+        out.append(_bound(f"combined, {name} roof", b.combined[name], got, binding, why))
     return out
 
 
@@ -124,10 +130,10 @@ def _task_lines(run: dict, workers: int, serial: float) -> list[str]:
     ]
 
 
-def _bound(name: str, bound: float, got: float | None, binding: str = "") -> str:
+def _bound(name: str, bound: float, got: float | None, binding: str = "", why: str = "") -> str:
     line = f"  {name:30s} {bound / 1e6:9.1f} M tokens/s"
     if got is not None:
         line += f"  share {rm.share(got, bound):6.1%}"
-        if got > bound:
-            line += " (above: an assumption failed)"
+        if got > NOISE * bound:
+            line += f" (above: {why})"
     return line + (f"  bound by {binding}" if binding else "")
