@@ -134,10 +134,13 @@ class WordPieceState:
         *,
         _generic: bool = False,
         _trie_units: int = ...,
+        _trie_fail_at: int | None = None,
     ) -> None: ...
     def _trie_find(self, key: bytes, continuation: bool = False) -> int | None: ...
     @property
     def _trie_bytes(self) -> int: ...
+    @property
+    def _trie_blocks(self) -> int: ...
 
 class TextLookup:
     tokenizer: int

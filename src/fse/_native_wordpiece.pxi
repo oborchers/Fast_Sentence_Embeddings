@@ -26,7 +26,7 @@ cdef extern from "_native_wordpiece.h":
 
 cdef extern from "_native_wordpiece_trie.h":
     ctypedef struct fse_trie:  # base, check and value are only read in C
-        int64_t size
+        int64_t size, calls, live, fail_at
     uint32_t FSE_TRIE_NONE
     int64_t FSE_TRIE_MAX_UNITS
     int FSE_TRIE_NO_MEMORY
@@ -81,7 +81,8 @@ cdef class WordPieceState:
 
     ``_generic`` (private, for the tests, never persisted) takes the generic path of every
     step, without the fast paths, which give the same ids. ``_trie_units`` (private, for
-    the tests) lowers the limit of the trie.
+    the tests) lowers the limit of the trie, and ``_trie_fail_at`` (private, for the tests)
+    fails that allocation call of its build.
     """
 
     cdef readonly VocabTable table
@@ -104,7 +105,8 @@ cdef class WordPieceState:
 
     def __init__(self, VocabTable table not None, vocab_bytes, vocab_offsets, unk_id, prefix,
                  max_input_chars_per_word, added_ids, max_tokens=0, max_chars=0,
-                 drop_unknown=True, *, _generic=False, _trie_units=FSE_TRIE_MAX_UNITS):
+                 drop_unknown=True, *, _generic=False, _trie_units=FSE_TRIE_MAX_UNITS,
+                 _trie_fail_at=None):
         if self._state != TABLE_NEW:
             raise RuntimeError("a WordPieceState is built once; make a new one")
         self._state = TABLE_BUILDING
@@ -112,6 +114,7 @@ cdef class WordPieceState:
             if not isinstance(_generic, bool):
                 raise TypeError(f"_generic must be a bool, not {type(_generic).__name__}")
             self.generic = _generic
+            self.trie.fail_at = -1 if _trie_fail_at is None else _wp_int(_trie_fail_at, "_trie_fail_at", 0)
             self._build(table, vocab_bytes, vocab_offsets, unk_id, prefix,
                         max_input_chars_per_word, added_ids, max_tokens, max_chars, drop_unknown,
                         _wp_int(_trie_units, "_trie_units", 1))
@@ -219,6 +222,11 @@ cdef class WordPieceState:
             return None
         cdef uint32_t found = fse_trie_longest(&self.trie, s, key, 0, len(key), &end)
         return None if found == FSE_TRIE_NONE or end != len(key) else found
+
+    @property
+    def _trie_blocks(self):
+        """The memory blocks the trie holds (3 when built, 0 after a failed build); for tests."""
+        return self.trie.live
 
     @property
     def _trie_bytes(self):

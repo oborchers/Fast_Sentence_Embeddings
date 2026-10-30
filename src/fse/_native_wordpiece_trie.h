@@ -27,7 +27,24 @@ typedef struct {
     int32_t *check;
     uint32_t *value;
     int64_t size;  /* units allocated */
+    /* The allocations of the build: calls so far, blocks held, and the call that fails
+       (-1 for none; a private switch of the tests). */
+    int64_t calls, live, fail_at;
 } fse_trie;
+
+/* realloc (malloc for p NULL) of the build, counted; NULL for the call fail_at. */
+static void *fse_trie_realloc(fse_trie *t, void *p, size_t n) {
+    if (t->calls++ == t->fail_at) return NULL;
+    void *q = realloc(p, n);
+    if (q && !p) t->live++;
+    return q;
+}
+
+static void fse_trie_release(fse_trie *t, void *p) {
+    if (!p) return;
+    t->live--;
+    free(p);
+}
 
 /* The temporary trie of the build: children as a linked list. */
 typedef struct {
@@ -42,21 +59,21 @@ typedef struct {
 } fse_trie_nodes;
 
 static void fse_trie_free(fse_trie *t) {
-    free(t->base);
-    free(t->check);
-    free(t->value);
+    fse_trie_release(t, t->base);
+    fse_trie_release(t, t->check);
+    fse_trie_release(t, t->value);
     t->base = t->check = NULL;
     t->value = NULL;
     t->size = 0;
 }
 
 /* A new node of the temporary trie, or -1 when it cannot grow. */
-static int64_t fse_trie_new_node(fse_trie_nodes *a, uint8_t label, int64_t limit) {
+static int64_t fse_trie_new_node(fse_trie *t, fse_trie_nodes *a, uint8_t label, int64_t limit) {
     if (a->count == a->capacity) {
         int64_t want = a->capacity ? 2 * a->capacity : 1024;
         if (want > limit) want = limit;
         if (a->count >= want || (uint64_t)want > SIZE_MAX / sizeof(fse_trie_node)) return -1;
-        fse_trie_node *grown = (fse_trie_node *)realloc(a->nodes, (size_t)want * sizeof(fse_trie_node));
+        fse_trie_node *grown = (fse_trie_node *)fse_trie_realloc(t, a->nodes, (size_t)want * sizeof(fse_trie_node));
         if (!grown) return -1;
         a->nodes = grown;
         a->capacity = want;
@@ -69,14 +86,14 @@ static int64_t fse_trie_new_node(fse_trie_nodes *a, uint8_t label, int64_t limit
 }
 
 /* Insert key[0:n] with the id value; returns 0, or an FSE_TRIE_ error. */
-static int fse_trie_insert(fse_trie_nodes *a, const uint8_t *key, int64_t n, uint32_t value,
+static int fse_trie_insert(fse_trie *t, fse_trie_nodes *a, const uint8_t *key, int64_t n, uint32_t value,
                            int64_t limit) {
     int64_t s = 0;
     for (int64_t i = 0; i < n; i++) {
         int64_t c = a->nodes[s].child;
         while (c >= 0 && a->nodes[c].label != key[i]) c = a->nodes[c].sibling;
         if (c < 0) {
-            c = fse_trie_new_node(a, key[i], limit);
+            c = fse_trie_new_node(t, a, key[i], limit);
             if (c < 0) return a->count >= limit ? FSE_TRIE_TOO_LARGE : FSE_TRIE_NO_MEMORY;
             a->nodes[c].sibling = a->nodes[s].child;
             a->nodes[s].child = (int32_t)c;
@@ -97,15 +114,15 @@ static int fse_trie_reserve(fse_trie *t, int32_t **next, int32_t **prev, int64_t
     while (size < want) size = size > limit / 2 ? limit : 2 * size;
     if ((uint64_t)size > SIZE_MAX / sizeof(int32_t)) return FSE_TRIE_NO_MEMORY;
     size_t bytes = (size_t)size * sizeof(int32_t);
-    int32_t *base = (int32_t *)realloc(t->base, bytes);
+    int32_t *base = (int32_t *)fse_trie_realloc(t, t->base, bytes);
     if (base) t->base = base;
-    int32_t *check = (int32_t *)realloc(t->check, bytes);
+    int32_t *check = (int32_t *)fse_trie_realloc(t, t->check, bytes);
     if (check) t->check = check;
-    uint32_t *value = (uint32_t *)realloc(t->value, bytes);
+    uint32_t *value = (uint32_t *)fse_trie_realloc(t, t->value, bytes);
     if (value) t->value = value;
-    int32_t *n = (int32_t *)realloc(*next, bytes);
+    int32_t *n = (int32_t *)fse_trie_realloc(t, *next, bytes);
     if (n) *next = n;
-    int32_t *p = (int32_t *)realloc(*prev, bytes);
+    int32_t *p = (int32_t *)fse_trie_realloc(t, *prev, bytes);
     if (p) *prev = p;
     if (!base || !check || !value || !n || !p) return FSE_TRIE_NO_MEMORY;
     for (int64_t k = t->size; k < size; k++) {
@@ -223,12 +240,12 @@ static int fse_trie_build(fse_trie *t, const uint8_t *bytes, const int64_t *offs
     fse_trie_nodes a = {NULL, 0, 0};
     fse_trie_units f = {NULL, NULL, -1, 0, 0};
     int64_t *queue = NULL, head = 0, tail = 0;
-    int err = fse_trie_new_node(&a, 0, limit) < 0 ? FSE_TRIE_NO_MEMORY : FSE_TRIE_OK;
+    int err = fse_trie_new_node(t, &a, 0, limit) < 0 ? FSE_TRIE_NO_MEMORY : FSE_TRIE_OK;
     for (int64_t k = 0; k < count && !err; k++)
-        err = fse_trie_insert(&a, bytes + offsets[k], offsets[k + 1] - offsets[k], (uint32_t)k, limit);
+        err = fse_trie_insert(t, &a, bytes + offsets[k], offsets[k + 1] - offsets[k], (uint32_t)k, limit);
     if (!err && (uint64_t)a.count > SIZE_MAX / (2 * sizeof(int64_t))) err = FSE_TRIE_NO_MEMORY;
     if (!err) {
-        queue = (int64_t *)malloc((size_t)a.count * 2 * sizeof(int64_t));
+        queue = (int64_t *)fse_trie_realloc(t, NULL, (size_t)a.count * 2 * sizeof(int64_t));
         if (!queue) err = FSE_TRIE_NO_MEMORY;
     }
     if (!err) err = fse_trie_add_block(t, &f, limit);
@@ -244,21 +261,21 @@ static int fse_trie_build(fse_trie *t, const uint8_t *bytes, const int64_t *offs
         head++;
         err = fse_trie_place(t, &f, &a, s, at, queue, &tail, limit);
     }
-    free(a.nodes);
-    free(queue);
-    free(f.next);
-    free(f.prev);
+    fse_trie_release(t, a.nodes);
+    fse_trie_release(t, queue);
+    fse_trie_release(t, f.next);
+    fse_trie_release(t, f.prev);
     if (err) {
         fse_trie_free(t);
         return err;
     }
     /* Down to the units in blocks; a failed shrink keeps the larger arrays. */
     size_t kept = (size_t)f.used * sizeof(int32_t);
-    int32_t *base = (int32_t *)realloc(t->base, kept);
+    int32_t *base = (int32_t *)fse_trie_realloc(t, t->base, kept);
     if (base) t->base = base;
-    int32_t *check = (int32_t *)realloc(t->check, kept);
+    int32_t *check = (int32_t *)fse_trie_realloc(t, t->check, kept);
     if (check) t->check = check;
-    uint32_t *value = (uint32_t *)realloc(t->value, kept);
+    uint32_t *value = (uint32_t *)fse_trie_realloc(t, t->value, kept);
     if (value) t->value = value;
     t->size = f.used;
     return FSE_TRIE_OK;

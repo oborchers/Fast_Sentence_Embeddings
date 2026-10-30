@@ -126,3 +126,45 @@ def test_the_trie_gives_the_ids_of_the_greedy_loop():
         pieces = [t.decode(errors="ignore").removeprefix("##") for t in tokens]
         words = ["".join(rng.choice(pieces) for _ in range(rng.randint(1, 6))) for _ in range(3000)]
         assert _ids(fast, texts + words) == _ids(generic, texts + words)
+
+
+def test_a_failed_allocation_frees_the_trie_at_every_call():
+    """Every allocation call of the build fails in turn, the first ones and those of the
+    later growth: the build raises MemoryError, holds no memory and is refused, or (when
+    only a final shrink fails) it is complete; a state destroyed either way is safe."""
+    import gc
+    import random
+
+    rng = random.Random(9)
+    tokens = sorted(
+        {bytes(rng.choice(b"abcdefgh") for _ in range(rng.randint(1, 7))) for _ in range(9000)}
+    )
+    tokens = [b"[UNK]", *tokens]
+    arguments = _arguments(tokens)
+    complete = _state(tokens)
+    assert complete._trie_blocks == 3
+    failed = built = 0
+    for k in range(10_000):
+        state = _native.WordPieceState.__new__(_native.WordPieceState)
+        try:
+            state.__init__(*arguments, _trie_fail_at=k)
+        except MemoryError:
+            failed += 1
+            assert state._trie_blocks == 0
+            with pytest.raises(RuntimeError, match="was not built"):
+                state._trie_find(b"a")
+            with pytest.raises(RuntimeError, match="was not built"):
+                _native.TextLookup(arguments[0], "wordpiece@1", wordpiece=state)
+        else:
+            assert state._trie_blocks == 3
+            assert state._trie_bytes == complete._trie_bytes
+            _assert_exact(state, tokens[:500])
+            built += 1
+            if built > 3:  # past the three shrinks of the end: no call fails any more
+                break
+        del state
+        gc.collect()
+    assert failed > 20
+    assert built == 4
+    with pytest.raises(ValueError, match="_trie_fail_at must be between 0"):
+        _state(tokens, _trie_fail_at=-1)
