@@ -46,6 +46,35 @@ def length(name: str, value: object) -> int | Unset | None:
     return count(name, value, 1)
 
 
+def texts(sentences: object, hint: str = "") -> tuple[object, bool]:
+    """``sentences`` as a list, tuple or numpy array of texts, and whether it was one str
+    (model2vec gives a vector or one array for it, a matrix or a list for a list)."""
+    if isinstance(sentences, str):
+        return [sentences], True
+    if not isinstance(sentences, list | tuple | np.ndarray):
+        raise TypeError(
+            f"sentences must be a str or a list, tuple or numpy array of str, not "
+            f"{type(sentences).__name__}{hint}"
+        )
+    return sentences, False
+
+
+def sequence_arguments(
+    *,
+    show_progress_bar: object,
+    batch_size: object,
+    use_multiprocessing: object,
+    multiprocessing_threshold: object,
+) -> bool:
+    """Check the arguments that change no row (fse sizes its own tasks and shows no bar);
+    whether ``use_multiprocessing`` is on."""
+    flag("show_progress_bar", show_progress_bar)
+    count("batch_size", batch_size, 1)
+    parallel = flag("use_multiprocessing", use_multiprocessing)
+    count("multiprocessing_threshold", multiprocessing_threshold, 0)
+    return parallel
+
+
 def encode_arguments(
     *,
     show_progress_bar: object,
@@ -58,10 +87,12 @@ def encode_arguments(
 ) -> int | None:
     """Check the arguments of ``encode`` that change no row and give the ``workers`` the
     others imply (1 without multiprocessing, else None: fse's own)."""
-    flag("show_progress_bar", show_progress_bar)
-    count("batch_size", batch_size, 1)
-    parallel = flag("use_multiprocessing", use_multiprocessing)
-    count("multiprocessing_threshold", multiprocessing_threshold, 0)
+    parallel = sequence_arguments(
+        show_progress_bar=show_progress_bar,
+        batch_size=batch_size,
+        use_multiprocessing=use_multiprocessing,
+        multiprocessing_threshold=multiprocessing_threshold,
+    )
     if flag("convert_to_numpy", convert_to_numpy) is not True:
         raise ValueError(
             "convert_to_numpy=False: encode gives a numpy array; convert it with "

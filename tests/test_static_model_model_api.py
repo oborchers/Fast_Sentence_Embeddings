@@ -21,9 +21,6 @@ pytest.importorskip("safetensors")
 FOLLOW_UP = "follow-up PR"
 # What model2vec has and this PR does not provide, with the reason.
 NOT_PROVIDED = {
-    "encode_as_sequence": FOLLOW_UP,
-    "tokenize": FOLLOW_UP,
-    "tokenizer": FOLLOW_UP,
     "save_pretrained": FOLLOW_UP,
     "push_to_hub": FOLLOW_UP,
     "quantize_model": "out of scope: fse.StaticModel has float32 tables and no vocabulary clusters",
@@ -81,6 +78,20 @@ def test_encode_has_the_parameters_of_model2vec_and_a_closed_list_for_its_kwargs
     assert {n: d for n, _, d in ours if n in defaults} == defaults
     assert [n for n, _, _ in ours[len(named) :]] == NEUTRAL
     assert inspect.Parameter.VAR_KEYWORD not in {kind for _, kind, _ in ours}
+
+
+def test_encode_as_sequence_and_tokenize_have_the_parameters_of_model2vec():
+    for name in ("encode_as_sequence", "tokenize"):
+        ours = _parameters(getattr(fse.StaticModel, name))
+        theirs = _parameters(getattr(model2vec.StaticModel, name))
+        assert ours == theirs, name
+    assert [n for n, _, _ in _parameters(fse.StaticModel.encode_as_sequence)][1:] == [
+        "max_length",
+        "batch_size",
+        "show_progress_bar",
+        "use_multiprocessing",
+        "multiprocessing_threshold",
+    ]
 
 
 def test_every_public_name_of_model2vec_is_provided_or_listed_with_its_reason(folder):
