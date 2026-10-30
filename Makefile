@@ -7,7 +7,7 @@ LINT_PATHS := $(SRC) tests tools benchmarks
 # one per logical CPU, `make test PYTEST_N=0` runs serially in one process (to debug a test,
 # or as the baseline of a measurement). PYTEST_DIST is the xdist distribution mode.
 PYTEST_N ?= auto
-PYTEST_DIST ?= load
+PYTEST_DIST ?= loadfile
 XDIST = -n $(PYTEST_N) --dist $(PYTEST_DIST)
 
 .DEFAULT_GOAL := help
