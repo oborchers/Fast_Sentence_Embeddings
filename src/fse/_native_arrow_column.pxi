@@ -108,6 +108,8 @@ cdef class ArrowColumn:
                 finally:
                     if array.release != NULL:  # not taken over (no memory): ours to release
                         array.release(&array)
+                if column.null_row >= 0:
+                    break  # nothing after a null is read, so no later error displaces it
         finally:
             if have_schema and schema.release != NULL:
                 schema.release(&schema)
