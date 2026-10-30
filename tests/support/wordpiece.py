@@ -156,6 +156,75 @@ def corpus(tokens: list[str], count: int = 6000, seed: int = 0) -> list[str]:
     texts += ["a\U0001e949\u034f\U00011446", "a\U0001e949\U00011446", "e\u0301\u0327x"]
     # Words of 51 to 100 code points but more than 100 bytes, which the vocabulary splits.
     texts += ["\u03c3" * 70, "\U0001f600" * 60]
+    return texts + edge_cases()
+
+
+_PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
+
+
+def _mark_runs() -> list[str]:
+    """ASCII right after a run of marks, and an ASCII control or DEL inside a run (removed,
+    and the run goes on)."""
+    out = []
+    for ascii_ in ("A", "b", "9", " ", ".", "\t", "x[MASK]"):
+        out += [f"e\u0301\u0327{ascii_}", f"\u0301{ascii_}\u0327", f"a\U0001e949{ascii_}"]
+    for control in ("\x00", "\x01", "\x1f", "\x7f", "\x0b"):
+        out += [f"e\u0301{control}\u0327x", f"a\u0327{control}\u0301{control}B"]
+    return out
+
+
+def _ascii_classes() -> list[str]:
+    """Uppercase letters, tab, newline and return, and every ASCII punctuation character
+    next to letters, digits and code points that are not ASCII."""
+    out = ["ABC Def GHIJKLMNOPQRSTUVWXYZ abcXYZ", "a\tb\nc\rd \t\n\r\x0b\x0c e"]
+    for c in _PUNCTUATION:
+        out.append(f"a{c}b 9{c}9 \u00e9{c}\u4e2d {c}{c}X\t{c}\r\nAB{c}")
+    return out
+
+
+def _word_limits() -> list[str]:
+    """Words of exactly 100 and 101 code points, in ASCII and not, words longer than any
+    token, and words the greedy match splits after a miss of the whole word."""
+    out = []
+    for n in (100, 101):
+        out += ["b" * n, "\u00e9" * n, "B" * (n - 1) + "\u00c9", "a" * (n - 1) + "\u0301"]
+    out += ["internationalizationally", "internationalizationallyxyz", "INTERNATIONALIZATION"]
+    out += ["unbelievable unbelievably unbeliev unable", "abab ##able ##"]
+    # The first piece matches, a later one does not: the whole word is one unknown id.
+    out += ["unbelievqq", "abzz ab", "unbeliev\u0378able"]
+    return out
+
+
+def _added_and_bytes() -> list[str]:
+    """A [ that starts no added token, added tokens back to back at the start and the end,
+    single-byte words, and pieces of 0 to 17 bytes between added tokens."""
+    out = ["[x [MAS [MASK [ ] [[MASK]] [MASK[MASK]", "[MASK][CLS]a[SEP]", "a[MASK][MASK]"]
+    out += ["[UNK][UNK]", "<<[MASK]<<<\u00fc[CLS]", "a b c ~ ^ z q 9 6 , . ! \u00e9"]
+    for k in range(18):
+        out += [f"[MASK]{'aB'[: k % 2 + 1] * (k // 2)}{'c' * (k % 2)}[MASK]", "Ab" * k + "[CLS]"]
+        out += ["[SEP]" + "x" * k + "\u00e9" + "A" * k, "\u0301" * (k % 3) + "B" * k + "[PAD]"]
+    return out
+
+
+def edge_cases() -> list[str]:
+    """Texts for the paths of a native implementation: runs of marks against ASCII, the ASCII
+    classes, the word limit, the greedy match, added tokens and short pieces."""
+    return _mark_runs() + _ascii_classes() + _word_limits() + _added_and_bytes()
+
+
+def ascii_heavy(count: int, seed: int) -> list[str]:
+    """Random ASCII text with about 1 % of marks, controls, CJK, other code points that
+    are not ASCII and added tokens: the mixtures where an ASCII path meets the generic one."""
+    rng = random.Random(seed)
+    rare = ["\u0301", "\u0327", "\U0001e949", "\x01", "\x7f", "\u4e2d", "\u00e9", "\u00c9"]
+    rare += ["\u3000", "\u00a0", "\u2014", "\uac01", "[MASK]", "<<", "\u00fc", "\U0001f600"]
+    common = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" + _PUNCTUATION
+    common += " " * 12 + "\t\n\r"
+    texts = []
+    for _ in range(count):
+        n = rng.randint(0, 40)
+        chars = [rng.choice(rare) if rng.random() < 0.01 else rng.choice(common) for _ in range(n)]
+        texts.append("".join(chars))
     return texts
 
 
