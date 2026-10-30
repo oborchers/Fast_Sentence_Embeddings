@@ -349,6 +349,7 @@ class HeadPipeline:
         elif output == "labels":
             backend.outputs(logits, "labels", None, target, first)
         if vectors is not None:
+            assert vrows is not None and vsplit is not None
             vectors.stored(vrows, vsplit, first)
 
 
