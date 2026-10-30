@@ -7,9 +7,10 @@
 """Model2Vec models as the parts of an encoder (ARCHITECTURE.md, "Model2Vec models").
 
 A Model2Vec model is ``config.json``, ``model.safetensors`` with the tensor ``embeddings``
-and a BERT ``tokenizer.json``. Its encoder pools the rows of the token ids with
-``weighted_mean@1``, the tokenizer is ``wordpiece@1`` with the unknown id dropped, and the
-length rule is model2vec 0.10.0's (``model.py``): ``max_length`` tokens (512 unless the
+and a ``tokenizer.json``. Its encoder pools the rows of the token ids with
+``weighted_mean@1``, the tokenizer is ``wordpiece@1`` (a WordPiece tokenizer.json) or
+``unigram@1`` (a Unigram one, such as that of potion-multilingual-128M) with the unknown id
+dropped, and the length rule is model2vec 0.10.0's (``model.py``): ``max_length`` tokens (512 unless the
 config says otherwise, null for none) of the first ``max_length`` times the median token
 length characters. ``normalize`` comes from the config (default false). Only float32
 tables: model2vec computes the mean of a float16 table in float16, so the bound of the
@@ -64,7 +65,7 @@ def read_model2vec(
     words = WordVectors._from_arrays(table, tokens, None, None, None, {}, copy=False)
     length = _length(config, truncate, max_length)
     max_chars = None if length is None else length * median_length(tokens)
-    spec = TokenizerSpec("wordpiece@1", parameters, "drop", length, max_chars)
+    spec = TokenizerSpec(parameters.identifier, parameters, "drop", length, max_chars)
     return Converted(words, spec, config.get("normalize", False))
 
 
