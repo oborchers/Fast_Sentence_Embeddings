@@ -81,13 +81,19 @@ def test_a_kept_unknown_id_is_refused(encoder, tmp_path):
 
 
 @pytest.mark.parametrize("dtype", ["float16", "int8"])
-def test_a_table_that_is_not_float32_is_refused(encoder, dtype):
-    """Built by hand past the format, which may allow such tables with a tokenizer with
-    parameters: the profile refuses them itself."""
-    words = encoder.word_vectors.quantize(dtype)
-    other = Encoder._new(encoder._content, words)
+def test_a_quantized_encoder_is_refused_by_loading_and_by_the_profile(encoder, tmp_path, dtype):
+    """A float16 or int8 fse encoder (Encoder.quantize) has the rows of a table that model2vec
+    would compute in that dtype or not at all; StaticModel refuses it, loaded from a file, and
+    the profile refuses a table of another dtype itself."""
+    quantized = encoder.quantize(dtype)
     with pytest.raises(UnsupportedArtifactError, match=f"has a {dtype} table"):
-        fse_profile(other)
+        _load(quantized, tmp_path)
+    folder = quantized.save_pretrained(tmp_path / f"folder-{dtype}", license="mit")
+    with pytest.raises(UnsupportedArtifactError, match=f"has a {dtype} table"):
+        fse.StaticModel.from_pretrained(folder)
+    by_hand = Encoder._new(encoder._content, encoder.word_vectors.quantize(dtype))
+    with pytest.raises(UnsupportedArtifactError, match=f"has a {dtype} table"):
+        fse_profile(by_hand)
 
 
 def test_fasttext_vectors_are_refused(encoder):
