@@ -102,6 +102,7 @@ src/fse/
   _charsmap.py           # the precompiled charsmap of SentencePiece normalizers: its checks and search
   _reference_text.py     # the reference of stages 1 and 2: tokenizers and lookup
   _reference_wordpiece.py # the reference of wordpiece@1
+  _reference_unigram.py  # the reference of unigram@1
   _text.py               # text sources (strings, token lists) to batches, the Vocabulary
   _text_file.py          # FileSource: the lines of a memory-mapped text file
   _hub.py                # a Hub repository at one commit, its files checked (extra fse[hub])
