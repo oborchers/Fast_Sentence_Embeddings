@@ -337,8 +337,9 @@ exhaustive_ignores = ["_version"]
 layers = [
     # Linear heads on an encoder; they read stores in store mode.
     "_head",
-    # The store takes an Encoder; fse.gensim only converts word vectors.
-    "gensim | _store",
+    # The store takes an Encoder; fse.gensim only converts word vectors; the static model
+    # is the API of model2vec on Encoders.
+    "gensim | _store | _static_model",
     "_encoder",
     # Pushes a model folder to the Hub in one checked commit, on fse._hub.
     "_hub_push",
@@ -401,7 +402,14 @@ name = "Encoder: the encoder on its batches and format, those on its inputs"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_encoder", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_sources", "_inputs"]
+layers = ["_encoder | _model2vec_rules", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_sources", "_inputs"]
+
+[[tool.importlinter.contracts]]
+name = "Static model: the class on the loading and the encoders of its rules, those on the profile and the arguments"
+type = "layers"
+containers = ["fse._static_model"]
+exhaustive = true
+layers = ["_model", "_load | _variants", "_profile", "_arguments"]
 
 [[tool.importlinter.contracts]]
 name = "Text: the sources and the lookup on the scan of one buffer"

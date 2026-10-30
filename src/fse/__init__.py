@@ -24,10 +24,11 @@ if TYPE_CHECKING:
     from fse._encoder import EncodedBatch, Encoder, QuantizedRows
     from fse._head import Classifier, PredictedBatch, Regressor
     from fse._runtime import MemorySink, Sink
+    from fse._static_model import StaticModel
     from fse._store import SearchResult, ShardSink, VectorStore
 del TYPE_CHECKING  # not a name of fse
 
-# The encoder and the sinks load on first access (PEP 562), not when fse is
+# The encoder, the static model and the sinks load on first access (PEP 562), not when fse is
 # imported: the modules below them import fse._native, which import-linter cannot see as
 # a module and counts as an import of fse itself, so a static import here would read as a
 # cycle through every layer.
@@ -37,6 +38,7 @@ _LAZY = {
         "fse._encoder",
     ),
     **dict.fromkeys(("MemorySink", "Sink"), "fse._runtime"),
+    "StaticModel": "fse._static_model",
     **dict.fromkeys(("SearchResult", "ShardSink", "VectorStore"), "fse._store"),
     **dict.fromkeys(("Classifier", "PredictedBatch", "Regressor"), "fse._head"),
 }
@@ -100,6 +102,7 @@ __all__ = [
     "SearchResult",
     "ShardSink",
     "Sink",
+    "StaticModel",
     "UnsupportedArtifactError",
     "VectorStore",
     "WordVectors",
