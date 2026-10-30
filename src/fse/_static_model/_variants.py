@@ -42,22 +42,23 @@ class Variants:
         self._own: tuple[int | None, bool] | None = None
 
     def own(self, max_length: int | None, normalize: bool) -> Encoder:
-        """The encoder of the model's own rules, which stays in the cache."""
-        encoder = self.get(max_length, normalize)  # raises before anything is pinned
-        self._own = (max_length, normalize)
-        return encoder
+        """The encoder of the model's own rules, which stays in the cache. It is made and
+        pinned under one lock, so no other thread can evict it in between, and nothing is
+        pinned when making it fails."""
+        return self.get(max_length, normalize, pin=True)
 
-    def get(self, max_length: int | None, normalize: bool) -> Encoder:
+    def get(self, max_length: int | None, normalize: bool, *, pin: bool = False) -> Encoder:
         """The encoder that cuts texts to ``max_length`` tokens (None: not at all) and
         normalizes its rows or not."""
         key = (max_length, normalize)
         with self._lock:
             encoder = self._made.get(key)
-            if encoder is not None:
+            if encoder is None:
+                encoder = self._made[key] = self._make(max_length, normalize)
+            else:
                 self._made.move_to_end(key)
-                return encoder
-            encoder = self._make(max_length, normalize)
-            self._made[key] = encoder
+            if pin:
+                self._own = key
             self._evict()
             return encoder
 

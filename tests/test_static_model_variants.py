@@ -107,3 +107,26 @@ def test_a_setter_that_fails_pins_nothing(model):
     for length in range(1, 8):
         variants.get(length, False)
     assert variants.get(512, True) is own
+
+
+def test_the_own_encoder_survives_threads_that_fill_the_cache(model):
+    variants = Variants(model._rules, limit=2)
+    stop = threading.Event()
+
+    def hammer(offset):
+        length = offset
+        while not stop.is_set():
+            variants.get(length % 40 + 1, False)
+            length += 7
+
+    pool = [threading.Thread(target=hammer, args=(k,)) for k in range(4)]
+    for thread in pool:
+        thread.start()
+    try:
+        for length in range(100, 160):
+            encoder = variants.own(length, True)
+            assert variants._made.get((length, True)) is encoder
+    finally:
+        stop.set()
+        for thread in pool:
+            thread.join()
