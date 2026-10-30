@@ -133,7 +133,11 @@ class WordPieceState:
         drop_unknown: bool = True,
         *,
         _generic: bool = False,
+        _trie_units: int = ...,
     ) -> None: ...
+    def _trie_find(self, key: bytes, continuation: bool = False) -> int | None: ...
+    @property
+    def _trie_bytes(self) -> int: ...
 
 class TextLookup:
     tokenizer: int

@@ -23,6 +23,20 @@ cdef extern from "_native_wordpiece.h":
     int64_t fse_wp_validate(const unsigned char *p, int64_t i, int64_t n) nogil
     int64_t fse_wp_char_cut(const unsigned char *p, int64_t n, int64_t max_chars) nogil
 
+cdef extern from "_native_wordpiece_trie.h":
+    ctypedef struct fse_trie:  # base, check and value are only read in C
+        int64_t size
+    uint32_t FSE_TRIE_NONE
+    int64_t FSE_TRIE_MAX_UNITS
+    int FSE_TRIE_NO_MEMORY
+    void fse_trie_free(fse_trie *t) nogil
+    int fse_trie_build(fse_trie *t, const unsigned char *bytes, const int64_t *offsets,
+                       int64_t count, int64_t limit) nogil
+    int64_t fse_trie_walk(const fse_trie *t, int64_t s, const unsigned char *key,
+                          int64_t n) nogil
+    uint32_t fse_trie_longest(const fse_trie *t, int64_t s, const unsigned char *w, int64_t k,
+                              int64_t n, int64_t *end) nogil
+
 # Parameters stay below this, as they are int64 in the state.
 cdef int64_t _WP_LIMIT = 1 << 62
 # The ASCII tables of the fast paths, derived from the Unicode table once (0, or 1 + the
@@ -64,7 +78,8 @@ cdef class WordPieceState:
     contents are their tokens. ``max_tokens`` and ``max_chars`` of 0 cut nothing.
 
     ``_generic`` (private, for the tests, never persisted) takes the generic path of every
-    step, without the fast paths, which give the same ids.
+    step, without the fast paths, which give the same ids. ``_trie_units`` (private, for
+    the tests) lowers the limit of the trie.
     """
 
     cdef readonly VocabTable table
@@ -78,6 +93,8 @@ cdef class WordPieceState:
     cdef unsigned char first[256]
     cdef int single_first
     cdef bint generic
+    cdef fse_trie trie
+    cdef int64_t cont_root
     cdef readonly uint32_t unk_id
     cdef readonly int64_t max_input_chars, max_tokens, max_chars
     cdef readonly bint drop_unknown
@@ -85,7 +102,7 @@ cdef class WordPieceState:
 
     def __init__(self, VocabTable table not None, vocab_bytes, vocab_offsets, unk_id, prefix,
                  max_input_chars_per_word, added_ids, max_tokens=0, max_chars=0,
-                 drop_unknown=True, *, _generic=False):
+                 drop_unknown=True, *, _generic=False, _trie_units=FSE_TRIE_MAX_UNITS):
         if self._state != TABLE_NEW:
             raise RuntimeError("a WordPieceState is built once; make a new one")
         self._state = TABLE_BUILDING
@@ -94,14 +111,16 @@ cdef class WordPieceState:
                 raise TypeError(f"_generic must be a bool, not {type(_generic).__name__}")
             self.generic = _generic
             self._build(table, vocab_bytes, vocab_offsets, unk_id, prefix,
-                        max_input_chars_per_word, added_ids, max_tokens, max_chars, drop_unknown)
+                        max_input_chars_per_word, added_ids, max_tokens, max_chars, drop_unknown,
+                        _wp_int(_trie_units, "_trie_units", 1))
         except BaseException:
             self._state = TABLE_FAILED
             raise
         self._state = TABLE_READY
 
     cdef _build(self, VocabTable table, vocab_bytes, vocab_offsets, unk_id, prefix,
-                max_input_chars_per_word, added_ids, max_tokens, max_chars, drop_unknown):
+                max_input_chars_per_word, added_ids, max_tokens, max_chars, drop_unknown,
+                int64_t trie_units):
         table._check_ready()
         if _WP_ASCII:
             raise RuntimeError(f"the Unicode table of wordpiece@1 has an ASCII byte {_WP_ASCII - 1} "
@@ -125,6 +144,7 @@ cdef class WordPieceState:
         self.drop_unknown = drop_unknown
         self._build_continuation(data, offsets, prefix.encode("utf-8"))
         self._build_added(data, offsets, added_ids)
+        self._build_trie(data, offsets, prefix.encode("utf-8"), trie_units)
         self.table = table
 
     cdef _build_continuation(self, data, offsets, bytes prefix):
@@ -170,6 +190,40 @@ cdef class WordPieceState:
         self.added_bytes = <const unsigned char *>np.PyArray_DATA(self._added_bytes)
         self.added_offsets = <const int64_t *>np.PyArray_DATA(self._added_offsets)
         self.added_ids = <const uint32_t *>np.PyArray_DATA(self._added_ids)
+
+    cdef _build_trie(self, data, offsets, bytes prefix, int64_t limit):
+        """The trie of all tokens, and the node of the continuation prefix (or -1)."""
+        cdef const unsigned char[::1] d = data if len(data) else np.zeros(1, np.uint8)
+        cdef const np.int64_t[::1] o = offsets
+        cdef int err
+        if limit > FSE_TRIE_MAX_UNITS:
+            raise ValueError(f"_trie_units must be at most {FSE_TRIE_MAX_UNITS}, not {limit}")
+        with nogil:
+            err = fse_trie_build(&self.trie, &d[0], &o[0], o.shape[0] - 1, limit)
+        if err == FSE_TRIE_NO_MEMORY:
+            raise MemoryError("no memory for the trie of wordpiece@1")
+        if err:
+            raise ValueError(f"the trie of a vocabulary of {o.shape[0] - 1} tokens needs more "
+                             f"than {limit} units")
+        self.cont_root = fse_trie_walk(&self.trie, 0, prefix, len(prefix))
+
+    def _trie_find(self, bytes key, bint continuation=False):
+        """The id of the token key (after the continuation prefix), or None; for tests."""
+        self._check_ready()
+        cdef int64_t s = self.cont_root if continuation else 0
+        cdef int64_t end = 0
+        if s < 0 or not key:
+            return None
+        cdef uint32_t found = fse_trie_longest(&self.trie, s, key, 0, len(key), &end)
+        return None if found == FSE_TRIE_NONE or end != len(key) else found
+
+    @property
+    def _trie_bytes(self):
+        """The bytes of the trie's double array; for tests and the benchmarks."""
+        return self.trie.size * 12
+
+    def __dealloc__(self):
+        fse_trie_free(&self.trie)
 
     cdef inline int _check_ready(self) except -1:
         if self._state != TABLE_READY:
