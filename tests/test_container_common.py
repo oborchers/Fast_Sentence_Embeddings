@@ -52,7 +52,8 @@ def test_write_rejects(tmp_path):
     with pytest.raises(ValueError, match="C-contiguous"):
         c.write(tmp_path / "b", {"x": np.zeros((3, 3), F32)[:, :2]}, {})
     for array in (
-        np.zeros(2),
+        np.zeros(2, np.complex64),
+        np.zeros(2, dtype=">f8"),
         np.zeros(2, dtype=">f4"),
         np.zeros(2, dtype=object),
         np.zeros(2, bool),
@@ -84,3 +85,16 @@ def test_nested_headers_never_escape_as_recursion_errors(tmp_path, depth):
             SafetensorsContainer().open(path, mmap=mmap)
     with pytest.raises(CorruptArtifactError):
         SafetensorsContainer().verify(path)
+
+
+@pytest.mark.parametrize("container", [SafetensorsContainer(), NpyContainer()])
+@pytest.mark.parametrize("mmap", [False, True])
+def test_float64_tensors_round_trip_bit_for_bit(tmp_path, container, mmap):
+    """F64 holds the scores of unigram@1; the containers keep every bit of it."""
+    scores = np.array([-2.0 - 2.0**-30, -1.0, 5e-324, -0.0], dtype="<f8")
+    path = tmp_path / ("a.safetensors" if isinstance(container, SafetensorsContainer) else "a")
+    container.write(path, {**_tensors(), "tokenizer.scores": scores}, _METADATA)
+    tensors, _ = container.open(path, mmap=mmap)
+    assert tensor_code(tensors["tokenizer.scores"]) == "F64"
+    assert tensors["tokenizer.scores"].tobytes() == scores.tobytes()
+    container.verify(path)

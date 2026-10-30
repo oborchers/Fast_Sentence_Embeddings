@@ -74,6 +74,25 @@ SCHEMA_ERRORS = {
         "quantization",
     ),
     "scales missing": (lambda t: t.pop("scales"), None, ValueError, "scales are given exactly"),
+    # F64 is a dtype of the containers for the scores of unigram@1, never of word vectors.
+    "float64 scales": (
+        lambda t: t.update(scales=t["scales"].astype("<f8")),
+        None,
+        ValueError,
+        "scales",
+    ),
+    "float64 offsets": (
+        lambda t: t.update({"vocab.offsets": t["vocab.offsets"].astype("<f8")}),
+        None,
+        ValueError,
+        "offsets",
+    ),
+    "float64 vectors": (
+        lambda t: t.update(vectors=t["vectors"].astype("<f8")),
+        None,
+        ValueError,
+        "matrix of int8, not F64",
+    ),
     "scales shape": (
         lambda t: t.update(scales=np.ones(2, F32)),
         None,
