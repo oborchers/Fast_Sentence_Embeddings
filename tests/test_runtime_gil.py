@@ -64,7 +64,7 @@ def test_a_task_hands_the_gil_over_within_its_budget(monkeypatch, tmp_path, kind
     windows = _windows(monkeypatch, tmp_path, kind, dtype=dtype, workers=workers)
     view = Counter() if kind == "arrow" else VIEW
     # A file is checked unchanged before and after it is encoded (os.stat), as before.
-    blocking = Counter({"posix.stat": 2}) if kind == "file" else Counter()
+    blocking = Counter({"os.stat": 2}) if kind == "file" else Counter()
     for w in windows:
         assert w.sections == SECTIONS[dtype]
         assert _without_scratch(w.numpy) == view + STORE[dtype]

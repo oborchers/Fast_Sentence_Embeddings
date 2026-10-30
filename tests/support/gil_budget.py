@@ -108,6 +108,7 @@ class Budget:
         if isinstance(owner, np.ndarray):
             window.profiled[f"ndarray.{name}"] += 1
         elif module in _BLOCKING_MODULES or name in _BLOCKING_NAMES:
+            module = "os" if module in ("posix", "nt") else module  # the same on every OS
             window.profiled[f"{module}.{name}"] += 1
 
     def __enter__(self):
