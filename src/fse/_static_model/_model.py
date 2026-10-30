@@ -172,7 +172,8 @@ class StaticModel:
     ) -> list[ndarray] | ndarray:
         """Encode a sentence or a list, tuple or numpy array of sentences as the rows of
         their tokens: a ``(tokens, dim)`` float32 array each (a list of them for a list),
-        the rows of the table gathered as they are, equal to model2vec's bit for bit.
+        the rows of the table gathered as they are (``table.take``, the same bytes as
+        model2vec's ``table[ids]``).
 
         Unlike ``encode`` it cuts only with the ``max_length`` given here (the first
         ``max_length * median_token_length`` characters, then ``max_length`` tokens), not
@@ -192,7 +193,7 @@ class StaticModel:
         table = self._rules.word_vectors.stored_vectors
         empty = np.zeros((0, self.dim), np.float32)
         out = [
-            table[ids] if len(ids) else empty.copy()
+            table.take(ids, axis=0) if len(ids) else empty.copy()
             for rows in self._ids.chunks(texts, rule)
             for ids in rows
         ]
