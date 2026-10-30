@@ -59,6 +59,30 @@ def _timed(call, texts, calls: int) -> float:
     return (time.perf_counter() - start) / calls
 
 
+def _rounds(encoder, model, texts, args) -> tuple[list[float], list[float], int]:
+    """Seconds per call of the encoder and of the model, round by round in alternating
+    order, and how many rounds were dropped for load."""
+    calls = max(1, min(2000, 20_000 // len(texts)))
+    for _ in range(3):  # warm up: pipeline, pages
+        encoder.encode(texts)
+        model.encode(texts)
+    theirs: list[float] = []
+    ours: list[float] = []
+    dropped = 0
+    for k in range(args.rounds):
+        before = os.getloadavg()[0]
+        flipped = k % 2 == 1
+        order = (model.encode, encoder.encode) if flipped else (encoder.encode, model.encode)
+        first, second = (_timed(call, texts, calls) for call in order)
+        if max(before, os.getloadavg()[0]) > args.max_load:
+            dropped += 1
+            continue
+        a, b = (second, first) if flipped else (first, second)
+        theirs.append(a)
+        ours.append(b)
+    return theirs, ours, dropped
+
+
 def encode(args) -> None:
     model, _ = load()
     encoder = model.encoder
@@ -67,32 +91,15 @@ def encode(args) -> None:
         f"{'sentences':>9} {'encoder':>12} {'static model':>13} {'difference':>11} {'ratio':>7} {'rounds':>7}"
     )
     for size in args.sizes:
-        texts = sentences(size)
-        calls = max(1, min(2000, 20_000 // size))
-        for _ in range(3):  # warm up: pipeline, pages
-            encoder.encode(texts)
-            model.encode(texts)
-        theirs: list[float] = []
-        ours: list[float] = []
-        dropped = 0
-        for k in range(args.rounds):
-            before = os.getloadavg()[0]
-            order = (encoder.encode, model.encode) if k % 2 == 0 else (model.encode, encoder.encode)
-            first, second = (_timed(call, texts, calls) for call in order)
-            if max(before, os.getloadavg()[0]) > args.max_load:
-                dropped += 1
-                continue
-            a, b = (first, second) if k % 2 == 0 else (second, first)
-            theirs.append(a)
-            ours.append(b)
+        theirs, ours, dropped = _rounds(encoder, model, sentences(size), args)
         if not theirs:
             print(f"{size:>9}  every round ran at a load above {args.max_load}")
             continue
         a, b = statistics.median(theirs), statistics.median(ours)
-        diffs = [o - t for o, t in zip(ours, theirs, strict=True)]
+        diff = statistics.median(o - t for o, t in zip(ours, theirs, strict=True))
         print(
             f"{size:>9} {a * 1e6:>10.2f}us {b * 1e6:>11.2f}us "
-            f"{statistics.median(diffs) * 1e6:>+9.2f}us {b / a:>7.4f} {len(theirs):>3}/{args.rounds}"
+            f"{diff * 1e6:>+9.2f}us {b / a:>7.4f} {len(theirs):>3}/{args.rounds}"
         )
         if dropped:
             print(f"          ({dropped} rounds dropped for load)")
