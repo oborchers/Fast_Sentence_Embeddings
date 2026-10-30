@@ -193,7 +193,7 @@ Memory of the 1024-dimension WikiText run at 8 workers: peak RSS 362 MiB (`make 
 | producer | the calling thread is in the task iterator |
 | sink | the calling thread is in `reserve` or `commit` |
 
-What happens before the first submit and after the last task ends is outside the area. The tool lists the join of the strings, the time from the entry of the executor to the first submit (`enter`) and the time from the last task to the exit of the executor (pool shutdown and the last commit, `after`); the planning inside `infer` and the building of the result are not separated. Per thread the tool shows only the rate in rows per busy second; a difference does not name a core type.
+What happens before the first submit and after the last task ends is outside the area. The tool lists the join of the strings, the time from the entry of the executor to the first submit (`enter`) and the time from the last task to the exit of the executor (pool shutdown and the last commit, `after`); the planning inside `infer` and the building of the result are not separated. Per thread the tool can show the rate in rows per busy second; a difference does not name a core type.
 
 Measured on the M1 Pro of this document, master 14dac29, Python 3.13, one process per cell, `Encoder`-equivalent calls (`StringSource` and `Pipeline.infer`), 30 calls per worker count (6 rounds of 5, the median of the calls), under the shared benchmark lock. The load was 4.5 to 5.7 when a cell started (the tool discards a block of calls with a load above 5 before or after it, so a cell can lose blocks: one worker of potion-base-8M on MASSIVE lost 5 and ten workers 14 blocks, the others none), 4.97 before and 4.52 after the whole series. The machine was not quiet: other work kept the load near 5.
 
@@ -201,29 +201,29 @@ Measured on the M1 Pro of this document, master 14dac29, Python 3.13, one proces
 
 Share of the idle area by cause, potion-base-8M (256 dimensions), median of the calls; "idle" is the median of the total, and every column is a median of its own, so the columns need not add up to it (busy is 100 % minus idle):
 
-| corpus | workers | tasks | wall ms | idle | tail | ramp | hand-over | head-of-line | producer + sink | slowest/fastest thread |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| WikiText | 1 | 3 | 24.1 | 0.3 % | 0 | 0 | 0.08 % | 0 | 0.2 % | |
-| WikiText | 4 | 8 | 7.7 | 5.3 % | 2.0 % | 3.2 % | 0.2 % | 0 | 0 | 0.88 |
-| WikiText | 8 | 16 | 5.6 | 20.2 % | 8.9 % | 10.0 % | 0.3 % | 0 | 0 | 0.78 |
-| WikiText | 10 | 20 | 5.7 | 30.2 % | 15.8 % | 12.7 % | 1.3 % | 0 | 0.02 % | 0.69 |
-| MASSIVE | 1 | 14 | 164.9 | 0.3 % | 0 | 0 | 0.07 % | 0 | 0.2 % | |
-| MASSIVE | 4 | 14 | 48.3 | 8.3 % | 7.7 % | 0.6 % | 0.1 % | 0 | 0 | 0.81 |
-| MASSIVE | 8 | 30 | 28.6 | 17.0 % | 14.9 % | 1.8 % | 0.1 % | 0 | 0 | 0.85 |
-| MASSIVE | 10 | 36 | 26.0 | 16.3 % | 10.3 % | 3.5 % | 1.0 % | 0.2 % | 0.04 % | 0.72 |
+| corpus | workers | tasks | wall ms | idle | tail | ramp | hand-over | head-of-line | producer + sink |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| WikiText | 1 | 3 | 24.1 | 0.3 % | 0 | 0 | 0.08 % | 0 | 0.2 % |
+| WikiText | 4 | 8 | 7.7 | 5.3 % | 2.0 % | 3.2 % | 0.2 % | 0 | 0 |
+| WikiText | 8 | 16 | 5.6 | 20.2 % | 8.9 % | 10.0 % | 0.3 % | 0 | 0 |
+| WikiText | 10 | 20 | 5.7 | 30.2 % | 15.8 % | 12.7 % | 1.3 % | 0 | 0.02 % |
+| MASSIVE | 1 | 14 | 164.9 | 0.3 % | 0 | 0 | 0.07 % | 0 | 0.2 % |
+| MASSIVE | 4 | 14 | 48.3 | 8.3 % | 7.7 % | 0.6 % | 0.1 % | 0 | 0 |
+| MASSIVE | 8 | 30 | 28.6 | 17.0 % | 14.9 % | 1.8 % | 0.1 % | 0 | 0 |
+| MASSIVE | 10 | 36 | 26.0 | 16.3 % | 10.3 % | 3.5 % | 1.0 % | 0.2 % | 0.04 % |
 
 static-retrieval-mrl-en-v1 at 1024 dimensions:
 
-| corpus | workers | tasks | wall ms | idle | tail | ramp | hand-over | head-of-line | producer + sink | slowest/fastest thread |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| WikiText | 1 | 3 | 72.5 | 0.1 % | 0 | 0 | 0.04 % | 0 | 0.1 % | |
-| WikiText | 4 | 8 | 20.6 | 3.1 % | 2.1 % | 1.0 % | 0.1 % | 0 | 0 | 0.89 |
-| WikiText | 8 | 16 | 13.7 | 18.3 % | 14.3 % | 3.6 % | 0.1 % | 0 | 0 | 0.84 |
-| WikiText | 10 | 20 | 13.5 | 25.9 % | 16.7 % | 6.5 % | 1.0 % | 0 | 0.01 % | 0.69 |
-| MASSIVE | 1 | 57 | 312.6 | 0.5 % | 0 | 0 | 0.13 % | 0 | 0.4 % | |
-| MASSIVE | 4 | 57 | 85.9 | 2.7 % | 2.1 % | 0.3 % | 0.2 % | 0.01 % | 0.02 % | 0.96 |
-| MASSIVE | 8 | 57 | 49.8 | 11.3 % | 9.9 % | 1.0 % | 0.2 % | 0 | 0 | 0.89 |
-| MASSIVE | 10 | 57 | 49.3 | 18.5 % | 11.6 % | 2.2 % | 1.7 % | 1.5 % | 0.08 % | 0.88 |
+| corpus | workers | tasks | wall ms | idle | tail | ramp | hand-over | head-of-line | producer + sink |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| WikiText | 1 | 3 | 72.5 | 0.1 % | 0 | 0 | 0.04 % | 0 | 0.1 % |
+| WikiText | 4 | 8 | 20.6 | 3.1 % | 2.1 % | 1.0 % | 0.1 % | 0 | 0 |
+| WikiText | 8 | 16 | 13.7 | 18.3 % | 14.3 % | 3.6 % | 0.1 % | 0 | 0 |
+| WikiText | 10 | 20 | 13.5 | 25.9 % | 16.7 % | 6.5 % | 1.0 % | 0 | 0.01 % |
+| MASSIVE | 1 | 57 | 312.6 | 0.5 % | 0 | 0 | 0.13 % | 0 | 0.4 % |
+| MASSIVE | 4 | 57 | 85.9 | 2.7 % | 2.1 % | 0.3 % | 0.2 % | 0.01 % | 0.02 % |
+| MASSIVE | 8 | 57 | 49.8 | 11.3 % | 9.9 % | 1.0 % | 0.2 % | 0 | 0 |
+| MASSIVE | 10 | 57 | 49.3 | 18.5 % | 11.6 % | 2.2 % | 1.7 % | 1.5 % | 0.08 % |
 
 Short runs (the first texts of a corpus, potion-base-8M; still above the inline limit of 64 KiB):
 
@@ -243,7 +243,7 @@ What the tables show:
 - **Head-of-line blocking is not a cause**: 0 to 0.2 % in every cell, 1.5 % in the one with ten workers, 57 tasks and a window of 20 (mrl-en-v1, MASSIVE). Only cells with more tasks than the window can show it at all, which is MASSIVE with both models.
 - **Producer and sink are not causes**: together 0.2 to 0.4 % at one worker (the commits of an inline run) and below 0.1 % with threads; the final commit after the last task (0.01 to 0.03 ms) is outside the area.
 - **Hand-over** is 0.04 to 0.3 % up to 8 workers and 1.0 to 1.7 % at 10.
-- **Threads run at different rates**: the slowest thread processes 0.69 to 0.96 of the rows per busy second of the fastest, lowest with 10 workers (0.69 to 0.88). This fits unequal cores but also unequal tasks and migration; the tool cannot tell them apart.
+- **Threads at different rates**: not reported. The first version of the tool compared the rate of the n-th started thread across calls, which names different threads in each call and hides the spread; the tool now takes the slowest over the fastest rate within each call (`thread_spread`), and the figure has not been re-measured.
 - The shutdown of the pool and the result after the last task take 0.16 to 0.35 ms with threads (the `after` column of the tool), 0.3 to 9 % of the call, most on the short ones.
 
 ### The ablations

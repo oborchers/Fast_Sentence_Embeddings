@@ -394,6 +394,7 @@ def test_the_report_lines_of_a_summary(attr, report):
     assert summary["busy_pct"] + summary["idle_pct_total"] == pytest.approx(100.0)
     assert report.line(summary | {"discarded_blocks": 0}).startswith("      2")
     assert report.summarize([], 2) == {"workers": 2, "passes": 0}
+    assert summary["thread_spread"] == 0.0  # one rate per thread of a pass: a pair is needed
     assert report.spread([2.0, 1.0, 0.0]) == 0.5
     assert report.spread([1.0]) == 0.0
 
@@ -471,7 +472,7 @@ def test_the_cuts_of_a_plan_without_tasks_and_the_median_of_an_even_count(ablate
             "pool_start_ms": 0.0,
             "after_ms": 0.0,
             "after_commit_ms": 0.0,
-            "thread_rows_per_s": [],
+            "thread_spread": 0.0,
             "discarded_blocks": 0,
         },
     )

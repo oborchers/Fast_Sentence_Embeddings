@@ -163,7 +163,7 @@ def summarize(kept: list[Pass], workers: int) -> dict:
         "before_ms": _median([p.before / 1e6 for p in kept]),
         "peak_tasks": max(p.peak_tasks for p in kept),
         "peak_rows": max(p.peak_rows for p in kept),
-        "thread_rows_per_s": _thread_medians(kept),
+        "thread_spread": _thread_spread(kept),
         "exact": all(s.busy + s.idle_total == s.area for s in splits),
     }
     return out | _split_medians(splits)
@@ -186,16 +186,14 @@ def _split_medians(splits: list[Split]) -> dict:
     }
 
 
-def _thread_medians(kept: list[Pass]) -> list[float]:
-    """Per thread (by order of first task) the median rows per busy second."""
-    count = max(len(p.rates) for p in kept)
-    return [
-        _median([p.rates[i]["rows_per_s"] for p in kept if i < len(p.rates)]) for i in range(count)
-    ]
+def _thread_spread(kept: list[Pass]) -> float:
+    """The median over the calls of the slowest over the fastest thread rate of each call
+    (threads are compared within a call; their order differs between calls)."""
+    return _median([spread([r["rows_per_s"] for r in p.rates]) for p in kept])
 
 
 def spread(rates: list[float]) -> float:
-    """Slowest over fastest thread rate (1.0 when equal; 0 without a pair)."""
+    """Slowest over fastest rate (1.0 when equal; 0 without a pair)."""
     rates = [r for r in rates if r > 0]
     return min(rates) / max(rates) if len(rates) > 1 else 0.0
 
@@ -213,6 +211,6 @@ def line(r: dict) -> str:
     return (
         f"{r['workers']:7d} {r['tasks']:5.0f} {r['wall_ms']:8.2f} | {r['busy_pct']:5.1f} | {idle}"
         f" | {r['idle_pct_total']:5.1f} | {r['before_ms']:7.2f} {r['pool_start_ms']:8.2f}"
-        f" {r['after_ms']:8.2f} ({r['after_commit_ms']:5.2f}) | {spread(r['thread_rows_per_s']):6.2f}"
+        f" {r['after_ms']:8.2f} ({r['after_commit_ms']:5.2f}) | {r['thread_spread']:6.2f}"
         f" | {r['discarded_blocks']}"
     )
