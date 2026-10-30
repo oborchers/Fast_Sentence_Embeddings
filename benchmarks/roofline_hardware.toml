@@ -1,0 +1,31 @@
+# Hardware profiles of benchmarks/roofline.py (PERFORMANCE.md). Every number names its
+# source; a "measured" bandwidth names the command, date and commit that measured it.
+# l2_cluster_bytes is the L2 of one P cluster, which its cores share. Apple publishes no size of the system level
+# cache, so no profile counts one.
+
+["m1-pro-10"]
+p_cores = 8
+e_cores = 2
+l2_cluster_bytes = 12582912  # one P cluster of 4 cores
+topology_source = "sysctl on an M1 Pro (10-core): hw.perflevel0.physicalcpu 8, hw.perflevel1.physicalcpu 2, hw.perflevel0.l2cachesize 12 MiB shared by 4 cores (hw.perflevel0.cpusperl2), hw.perflevel1.l2cachesize 4 MiB"
+measured = true
+
+[["m1-pro-10".bandwidth]]
+name = "spec"
+gb_per_s = 200
+kind = "spec"
+source = "Apple Newsroom, 18.10.2021: M1 Pro 'offers up to 200GB/s of memory bandwidth', https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max-the-most-powerful-chips-apple-has-ever-built/"
+
+["m4-pro-14"]
+p_cores = 10
+e_cores = 4
+l2_cluster_bytes = 0
+topology_source = "Apple Newsroom, 30.10.2024: M4 Pro has 'an up to 14-core CPU consisting of up to 10 performance cores and four efficiency cores', https://www.apple.com/newsroom/2024/10/apple-introduces-m4-pro-and-m4-max/; its L2 is not given there and counts as 0, so the note on rows that fit in L2 never appears"
+measured = false
+notes = ["spec only, not measured: the stage times of a report on this profile are those of the machine that measured them"]
+
+[["m4-pro-14".bandwidth]]
+name = "spec"
+gb_per_s = 273
+kind = "spec"
+source = "Apple Newsroom, 30.10.2024: M4 Pro '273GB/s of memory bandwidth', https://www.apple.com/newsroom/2024/10/apple-introduces-m4-pro-and-m4-max/"
