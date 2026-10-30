@@ -27,14 +27,11 @@ from numpy import ndarray
 from fse import _codes
 from fse._backends import BACKEND_NAMES
 from fse._container import (
-    CHECKSUM_PREFIX,
     CREATED_BY_KEY,
     FINGERPRINT_KEY,
     CorruptArtifactError,
     SafetensorsContainer,
     checksum,
-    fingerprint,
-    tensor_code,
 )
 from fse._contract import Normalize, UnsupportedArtifactError
 from fse._runtime import EncodeSpec, Pipeline, QuantizedRows, check_workers
@@ -43,18 +40,13 @@ from fse._tokenizer_spec import TokenizerSpec
 from fse._validation import PathLike, PositiveInt, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
 
-from . import _batches, _pretrained
+from . import _batches, _persist, _pretrained
 from ._batches import EncodedBatch, check_sink, flush, run_into
 from ._format import (
-    TABLE_KEYS,
     TABLE_TENSORS,
     EncoderContent,
     Source,
-    check_tokenizer_table,
     fasttext_parts,
-    from_artifact,
-    loaded_table,
-    to_artifact,
 )
 from ._sources import opened
 
@@ -259,27 +251,7 @@ class Encoder:
     ) -> Encoder:
         """The encoder of a model converted from another library (the readers of PR 12a2):
         its table, its tokenizer with parameters, whether it normalizes, its provenance."""
-        if not isinstance(word_vectors, WordVectors):
-            raise TypeError(f"word_vectors must be WordVectors, not {type(word_vectors).__name__}")
-        if not isinstance(tokenizer, TokenizerSpec):
-            raise TypeError(f"tokenizer must be a TokenizerSpec, not {type(tokenizer).__name__}")
-        if not isinstance(normalize, bool):
-            raise TypeError(f"normalize must be a bool, not {type(normalize).__name__}")
-        check_tokenizer_table(
-            tokenizer,
-            word_vectors.dtype,
-            word_vectors.fasttext is not None,
-            word_vectors.vocab_bytes,
-            word_vectors.vocab_offsets,
-        )
-        content = EncoderContent(
-            tokenizer=tokenizer,
-            steps=(Normalize(),) if normalize else (),
-            oov_weight=None,
-            max_ngrams=None,
-            source=source,
-            license=license,
-        )
+        content = _persist.converted(word_vectors, tokenizer, normalize, source, license)
         return cls._new(content, word_vectors)
 
     # --- encoding ---------------------------------------------------------------------
@@ -382,17 +354,9 @@ class Encoder:
         SafetensorsContainer().write(Path(path), tensors, metadata, expected=expected)
 
     def _artifact(self) -> tuple[dict[str, ndarray], dict[str, str], dict[str, str] | None]:
-        table, keys, loaded = self._word_vectors._parts()
-        expected = dict(self._checksums or {})
-        expected.update({k: v for k, v in (loaded or {}).items() if k in table})
-        tensors, metadata = to_artifact(
-            self._content, table, {k: v for k, v in keys.items() if k in TABLE_KEYS}
+        return _persist.artifact(
+            self._content, self._word_vectors, self._checksums, self._spec.oov_weight
         )
-        if self._spec.oov_weight is not None:
-            # The copy the pipelines encode with, so saving and verifying cannot pass a
-            # value the encoder does not use.
-            tensors["oov_weight"] = np.array(self._spec.oov_weight, dtype=np.float32)
-        return tensors, metadata, expected or None
 
     @classmethod
     @validate_arguments
@@ -419,15 +383,10 @@ class Encoder:
     ) -> Encoder:
         """The encoder of an encoder artifact opened from ``path`` (also the encoder part of
         a head file), with its recorded checksums and ``fingerprint_``."""
-        content, table, keys = from_artifact(tensors, metadata)
-        checksums = {
-            k[len(CHECKSUM_PREFIX) :]: v
-            for k, v in metadata.items()
-            if k.startswith(CHECKSUM_PREFIX) and k[len(CHECKSUM_PREFIX) :] in tensors
-        }
+        content, table, checksums = _persist.opened(tensors, metadata, path)
         return cls._new(
             content,
-            loaded_table(table, keys, metadata, checksums, path),
+            table,
             path=path,
             checksums=checksums if path is not None else None,
             fingerprint_=fingerprint_,
@@ -455,13 +414,7 @@ class Encoder:
         """The fingerprint of the encoder (ARCHITECTURE.md, "Identities"), the same in
         memory and after save and load."""
         if self._fingerprint is None:
-            tensors, metadata, expected = self._artifact()
-            known = expected or {}
-            entries = {
-                k: (tensor_code(v), v.shape, known.get(k) or checksum(v))
-                for k, v in tensors.items()
-            }
-            self._fingerprint = fingerprint(entries, metadata)
+            self._fingerprint = _persist.fingerprint_of(*self._artifact())
         return self._fingerprint
 
     @property
