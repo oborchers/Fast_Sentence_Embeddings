@@ -126,7 +126,7 @@ class StaticModel:
         ``config`` holds ``normalize`` and ``max_length`` only, its ``base_model_name`` is
         the Hub repository the table came from and its ``language`` that of the card.
         ``subfolder`` other than None raises."""
-        return _save.save(self, Path(path), model_name, subfolder)
+        return _save.save(self.encoder, self.language, Path(path), model_name, subfolder)
 
     @validate_arguments
     def push_to_hub(
@@ -141,7 +141,7 @@ class StaticModel:
         model's source card; a model without one raises (use ``encoder.push_to_hub`` with
         ``license=``). Files of another content in the repository are refused, see
         ``Encoder.push_to_hub``. ``subfolder`` other than None raises."""
-        return _save.push(self, repo_id, private, token, subfolder)
+        return _save.push(self.encoder, self.language, repo_id, private, token, subfolder)
 
     # --- encoding ---------------------------------------------------------------------
 

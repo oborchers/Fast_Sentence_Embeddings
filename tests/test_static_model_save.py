@@ -255,7 +255,7 @@ def test_a_model_without_a_license_saves_but_does_not_push(fake, tmp_path, layou
     )
     with pytest.raises(ValueError, match=r"records no license.*model\.encoder\.push_to_hub"):
         model.push_to_hub(REPO)
-    assert fake.pushes == [] and fake.created == []
+    assert (fake.pushes, fake.created) == ([], [])
     model.encoder.push_to_hub(REPO, license="mit")  # the way the message names
     assert len(fake.pushes) == 1
 
@@ -270,7 +270,7 @@ def test_push_refuses_a_subfolder_and_a_bad_repository_before_the_hub(fake, tmp_
         model.push_to_hub(REPO, private="yes")
     with pytest.raises(ValidationError):
         model.push_to_hub(3)
-    assert fake.pushes == [] and fake.created == []
+    assert (fake.pushes, fake.created) == ([], [])
 
 
 def test_a_push_never_replaces_other_content(fake, tmp_path):

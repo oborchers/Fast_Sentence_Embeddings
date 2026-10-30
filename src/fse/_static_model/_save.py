@@ -19,10 +19,8 @@ model is rebuilt from what determines its rows (``normalize``, ``max_length``), 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from ._model import StaticModel
+from fse._encoder import Encoder
 
 
 def language_list(language: str | list[str] | None) -> list[str] | None:
@@ -41,17 +39,22 @@ def refuse_subfolder(subfolder: str | None) -> None:
         )
 
 
-def save(model: StaticModel, path: Path, model_name: str | None, subfolder: str | None) -> Path:
-    """Write the folder of ``model`` (with its current ``normalize`` and ``max_length``)
-    at the new ``path``."""
+def save(
+    encoder: Encoder,
+    language: str | list[str] | None,
+    path: Path,
+    model_name: str | None,
+    subfolder: str | None,
+) -> Path:
+    """Write the folder of a model (its ``encoder`` with the current ``normalize`` and
+    ``max_length``, and its ``language``) at the new ``path``."""
     refuse_subfolder(subfolder)
-    return model.encoder.save_pretrained(
-        path, language=language_list(model.language), model_name=model_name
-    )
+    return encoder.save_pretrained(path, language=language_list(language), model_name=model_name)
 
 
 def push(
-    model: StaticModel,
+    encoder: Encoder,
+    language: str | list[str] | None,
     repo_id: str,
     private: bool,
     token: str | bool | None,
@@ -60,13 +63,13 @@ def push(
     """Publish the folder of ``model`` to ``repo_id`` in one commit and return its URL.
     A model whose source records no license is refused before the Hub is asked."""
     refuse_subfolder(subfolder)
-    if model.encoder._content.license is None:
+    if encoder._content.license is None:
         raise ValueError(
             "the model records no license (its model card names none), and StaticModel."
             "push_to_hub has no license argument: use model.encoder.push_to_hub(repo_id, "
             "license=...) with the license of the model, as a repository without one cannot "
             "be used by others"
         )
-    return model.encoder.push_to_hub(
-        repo_id, token=token, private=private, language=language_list(model.language)
+    return encoder.push_to_hub(
+        repo_id, token=token, private=private, language=language_list(language)
     )
