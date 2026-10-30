@@ -1,5 +1,16 @@
 # Included by _native.pyx: Growable buffers for the arrays of a chunk.
 
+# The nogil sections of the task path entered so far (encode, pool, the steps, storage,
+# inverse norms and pool_text), counted with the GIL held right before each one, for the
+# guard of GIL hand-overs per task (tests/test_runtime_gil.py).
+cdef long long _nogil_sections = 0
+
+
+def _test_nogil_sections():
+    """For the tests: the nogil sections of the task path entered in this process."""
+    return _nogil_sections
+
+
 cdef struct _Buffer:
     char *data
     Py_ssize_t size  # bytes used

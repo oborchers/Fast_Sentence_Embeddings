@@ -49,15 +49,18 @@ def store_rows(rows, codes, scales=None, first_row=0, *, isa=None):
     cdef int8_t[:, ::1] c8
     cdef uint16_t[:, ::1] c16
     cdef float[::1] s
+    global _nogil_sections
     if n and dim:
         r = rows
         if int8:
             c8 = codes
             s = scales
+            _nogil_sections += 1
             with nogil:
                 fse_store_i8(code, &r[0, 0], n, dim, &c8[0, 0], &s[0], &bad)
         else:
             c16 = codes.view(np.uint16)
+            _nogil_sections += 1
             with nogil:
                 fse_store_f16(code, &r[0, 0], n, dim, &c16[0, 0], &bad, &beyond)
     elif int8:

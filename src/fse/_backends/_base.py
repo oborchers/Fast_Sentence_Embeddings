@@ -72,7 +72,9 @@ class Capabilities:
     """What a backend can run. ``concurrent``: several threads may call ``rows`` at once.
     ``device_rows``: a task's rows also take device memory while it runs (the pooled rows
     and flags of a device backend), which the runtime's window counts. ``heads``: it
-    computes the logits and outputs of linear heads (``logits``, ``outputs``)."""
+    computes the logits and outputs of linear heads (``logits``, ``outputs``).
+    ``text_rows``: it runs stages 1 to 4 of a range of text in one call (``text_rows``),
+    with the rows and errors of ``rows`` on the batch of that range."""
 
     word_dtypes: frozenset[str]
     aggregations: frozenset[Aggregation]
@@ -82,6 +84,7 @@ class Capabilities:
     max_dim: int
     device_rows: bool = False
     heads: bool = False
+    text_rows: bool = False
 
     def check_heads(self, backend: str):
         """Raise UnsupportedByBackendError if ``backend`` cannot run linear heads."""

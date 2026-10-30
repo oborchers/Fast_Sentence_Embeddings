@@ -14,7 +14,7 @@ none. Several threads may call ``rows`` and ``store`` at once.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -48,6 +48,7 @@ _CAPABILITIES = Capabilities(
     concurrent=True,
     heads=True,
     max_dim=_native.MAX_DIM,
+    text_rows=True,
 )
 
 
@@ -93,6 +94,39 @@ class CpuBackend:
         state.kernel.pool(batch, out)
         if prepared.steps:  # normalize@1, in place
             _native.postprocess_pooled(out, prepared.steps, batch.first_row, isa=state.isa)
+
+    def text_rows(
+        self,
+        text: object,
+        span: tuple[int, int, int, int],
+        after_encode: Callable[[], None] | None,
+        lookup: _native.TextLookup,
+        workspace: _native.Workspace,
+        prepared: Prepared,
+        out: ndarray,
+    ) -> None:
+        """Stages 1 to 4 of a range of text into ``out`` in one native call without the
+        GIL in between (``_native.pool_text``): the rows, bits and errors of ``rows`` on
+        the Batch that ``lookup.encode`` makes of it. ``span`` is (first, last, rows,
+        first_row) of the range."""
+        check_prepared(prepared, self.name)
+        state = prepared.state
+        assert isinstance(state, _State)
+        first, last, n_rows, first_row = span
+        _native.pool_text(
+            state.kernel,
+            lookup,
+            workspace,
+            text,
+            first,
+            last,
+            n_rows,
+            first_row,
+            out,
+            bool(prepared.steps),
+            after_encode,
+            isa=state.isa,
+        )
 
     def steps(self, rows: ndarray, prepared: Prepared, first_row: int) -> None:
         """Stage 4 alone: the step of ``prepared`` (normalize, if any) in place on rows a

@@ -9,10 +9,11 @@
 ARCHITECTURE.md, "Hub folders". The card is made from the header of the model file
 actually written (its metadata and tensor shapes), so it describes exactly that file,
 also the folded table of a standalone head. Its YAML front matter holds ``library_name:
-fse``, the license, the base model, the language, the task and tags; every string is
-written double-quoted, so no YAML 1.1 rule turns a value into a bool or a number. The
-text states only facts of the file: no number that was not measured. Written without a
-template engine, so the same file gives the same bytes.
+fse``, the license, the base model (with ``base_model_relation: quantized`` when its
+table is int8), the language, the task and tags; every string is written double-quoted,
+so no YAML 1.1 rule turns a value into a bool or a number. The text states only facts of
+the file: no number that was not measured. Written without a template engine, so the
+same file gives the same bytes.
 """
 
 from __future__ import annotations
@@ -103,6 +104,10 @@ def _front_matter(
     base = base_model(metadata)
     if base is not None:
         out.append("base_model: " + _quoted(base))
+        # An int8 table is a quantized version of its base model. In every other case the
+        # relation is left to the Hub: none of its values names a plain conversion.
+        if metadata.get("fse.dtype") == "int8":
+            out.append("base_model_relation: " + _quoted("quantized"))
     if language:
         out += ["language:", *(f"- {_quoted(v)}" for v in language)]
     task = {None: "feature-extraction", "classification": "text-classification"}.get(head)

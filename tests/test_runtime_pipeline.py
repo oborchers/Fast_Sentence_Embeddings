@@ -162,21 +162,23 @@ def test_sources_and_arguments_are_checked(tmp_path):
     assert got.shape == (20_000, 12)
 
 
-def test_a_file_changed_during_the_run_raises(tmp_path, monkeypatch):
+@pytest.mark.parametrize("method", ["text_rows", "rows"])
+def test_a_file_changed_during_the_run_raises(tmp_path, monkeypatch, method):
     path = tmp_path / "a.txt"
     path.write_text("w1 w2\n" * 50_000)
     pipeline = Pipeline(_spec())
-    real = pipeline.backend.rows
+    pipeline._text_rows = method == "text_rows"  # the fused route, or the Batch route
+    real = getattr(pipeline.backend, method)
     calls = []
 
-    def rows(batch, prepared, out):
+    def rows(*args):
         calls.append(1)
         if len(calls) == 3:
             with open(path, "a") as f:
                 f.write("w3\n")
-        real(batch, prepared, out)
+        real(*args)
 
-    monkeypatch.setattr(pipeline.backend, "rows", rows)
+    monkeypatch.setattr(pipeline.backend, method, rows)
     with FileSource(path) as source, pytest.raises(RuntimeError, match="changed"):
         pipeline.infer(source, workers=1, chunk_bytes=4096)
 
@@ -217,3 +219,25 @@ def test_pipelines_share_one_vocabulary():
     assert Pipeline(_spec(wv=word_vectors(seed=1)), vocabulary=vocabulary).lookup is not None
     with pytest.raises(ValueError, match="is not the one of the word vectors"):
         Pipeline(_spec(wv=word_vectors(n=150)), vocabulary=vocabulary)
+
+
+@pytest.mark.parametrize("kind", ["strings", "tokens", "file", "stream", "arrow", "arrow_view"])
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+@pytest.mark.parametrize("fasttext", [False, True])
+def test_the_text_rows_route_gives_the_rows_of_the_batch_route(tmp_path, kind, dtype, fasttext):
+    from fse._tokenizer_spec import TokenizerSpec
+    from support.runtime import source
+
+    wv = word_vectors(dtype, fasttext=fasttext)
+    tokenizer = TokenizerSpec.of("external" if kind == "tokens" else "fse_words@1")
+    extra = {"oov_weight": 0.5, "max_ngrams": 4} if fasttext else {}
+    spec = EncodeSpec(wv, np.ones(len(wv), F32), (Normalize(),), tokenizer, **extra)
+    got = []
+    for fused in (True, False):
+        pipeline = Pipeline(spec)
+        pipeline._text_rows = fused
+        rows = pipeline.infer(
+            source(kind, texts(700), tmp_path / str(fused)), workers=3, chunk_bytes=2048
+        )
+        got.append(rows.view(np.uint32).tobytes())
+    assert got[0] == got[1]

@@ -92,6 +92,8 @@ def _parts(u: str) -> Sequence[str]:
     """Step 5b: the parts of a candidate after stripping."""
     if u in CONTRACTIONS:
         return CONTRACTIONS[u]
+    if type(u) is str and "'" not in u:
+        return (u,)
     if u == "n't":
         return ("not",)
     if u.endswith("n't") and len(u) > 3 and u[-4] != "'":
