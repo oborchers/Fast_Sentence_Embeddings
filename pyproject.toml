@@ -383,7 +383,7 @@ name = "Encoder: the encoder on its batches and format, those on its inputs"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_encoder", "_pretrained", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_sources", "_inputs"]
+layers = ["_encoder", "_pretrained", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
 name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the executor"

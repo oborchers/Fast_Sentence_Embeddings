@@ -55,6 +55,7 @@ src/fse/
     _files.py            #   what both readers share: files, configs, the one table,
     _batches.py          #   encode_batches and encoding into a sink,
     _format.py           #   the format rules of encoder 1,
+    _format_tokenizer.py #   its keys of a tokenizer with parameters and the table it needs,
     _sources.py          #   what encode takes as texts, and its source,
     _inputs.py           #   the rules of texts in memory
   _store/                # stores of sentence vectors (sentence_vectors 1):
