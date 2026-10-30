@@ -7,12 +7,20 @@ import fse
 from fse._contract import UnsupportedArtifactError
 from fse._encoder import Encoder
 from fse._encoder._model2vec import median_length
+from fse._encoder._model2vec_rules import UNSET
+from fse._static_model._profile import _misfit, profile_rules
 from fse._tokenizer_spec import TokenizerSpec
 from support import static_model as sm
 from support.encoder import finished
 
 pytest.importorskip("model2vec")
 pytest.importorskip("safetensors")
+
+
+def fse_profile(encoder):
+    return profile_rules(encoder, normalize=None, max_length=UNSET, dimensionality=None)
+
+
 MEDIAN = median_length(sm.TOKENS)
 
 
@@ -73,11 +81,26 @@ def test_a_kept_unknown_id_is_refused(encoder, tmp_path):
 
 
 @pytest.mark.parametrize("dtype", ["float16", "int8"])
-def test_the_format_keeps_float32(encoder, dtype):
-    """The profile has no check of the dtype of the table: the format of an encoder allows
-    a tokenizer with parameters on a float32 table only. If that changes, so must the profile."""
-    with pytest.raises(UnsupportedArtifactError, match=f"with a {dtype} table"):
-        _with(encoder, words=encoder.word_vectors.quantize(dtype))
+def test_a_table_that_is_not_float32_is_refused(encoder, dtype):
+    """Built by hand past the format, which may allow such tables with a tokenizer with
+    parameters: the profile refuses them itself."""
+    words = encoder.word_vectors.quantize(dtype)
+    other = Encoder._new(encoder._content, words)
+    with pytest.raises(UnsupportedArtifactError, match=f"has a {dtype} table"):
+        fse_profile(other)
+
+
+def test_fasttext_vectors_are_refused(encoder):
+    """EncodeSpec already refuses FastText with a tokenizer with parameters, so the case
+    is a stand-in for the encoder the profile judges."""
+    from types import SimpleNamespace
+
+    fasttext = SimpleNamespace(
+        steps=encoder.steps,
+        _content=SimpleNamespace(tokenizer=encoder._content.tokenizer, oov_weight=None),
+        word_vectors=SimpleNamespace(dtype="float32", fasttext=object()),
+    )
+    assert _misfit(fasttext) == "has FastText vectors"
 
 
 def test_a_tokenizer_without_parameters_is_refused(tmp_path):

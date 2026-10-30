@@ -72,13 +72,15 @@ def profile_rules(
 def _misfit(encoder: Encoder) -> str | None:
     """Why the encoder is no model2vec model (judged without its vocabulary), or None."""
     content = encoder._content
-    spec = content.tokenizer
+    spec, words = content.tokenizer, encoder.word_vectors
     if spec.config is None:
         return f"has the tokenizer {spec.name}, which has no parameters"
     if encoder.steps not in ((), (NORMALIZE,)):
         return f"has the steps {list(encoder.steps)}"
     if spec.unknown != "drop":
         return f"keeps the unknown id ({spec.name})"
-    # The format of an encoder allows a tokenizer with parameters only on a float32 table
-    # without FastText (check_tokenizer_table), which test_the_format_keeps_float32 pins.
+    if words.dtype != "float32":
+        return f"has a {words.dtype} table (model2vec computes the mean in that dtype)"
+    if words.fasttext is not None or content.oov_weight is not None:
+        return "has FastText vectors"
     return None
