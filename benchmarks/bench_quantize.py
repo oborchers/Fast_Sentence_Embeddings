@@ -7,12 +7,13 @@
 """Size, memory, time and closeness of quantized encoders (``Encoder.quantize``).
 
     uv run python benchmarks/bench_quantize.py make --out DIR [--model minishlab/potion-base-8M]
+    uv run python benchmarks/bench_quantize.py quantize --out DIR [--mmap]
     uv run python benchmarks/bench_quantize.py loadtimes --out DIR --rounds 5
     uv run python benchmarks/bench_quantize.py encode DIR/int8.safetensors --texts 100000 --mmap
     uv run python benchmarks/bench_quantize.py closeness --out DIR --texts 20000
 
 ``make`` writes float32.safetensors, float16.safetensors and int8.safetensors of the model
-(from the local Hugging Face cache) into DIR and prints the seconds of ``quantize`` and the
+(the Hugging Face cache, or the Hub for what it lacks) into DIR and prints the seconds of ``quantize`` and the
 file sizes, as one JSON line per dtype. ``loadtimes`` runs ``load`` in fresh processes,
 alternating the dtypes, and prints the median milliseconds and the peak resident memory of
 the child. ``encode`` loads a file and encodes the first lines of the WikiText-103 file
@@ -60,7 +61,7 @@ def make(args) -> None:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    encoder = Encoder.from_pretrained(args.model, revision=args.revision, local_files_only=True)
+    encoder = Encoder.from_pretrained(args.model, revision=args.revision)
     for dtype in DTYPES:
         started = time.perf_counter()
         made = encoder if dtype == "float32" else encoder.quantize(dtype)
@@ -70,6 +71,19 @@ def make(args) -> None:
             made.save(path)
         row = {"dtype": dtype, "quantize_s": round(seconds, 3), "file_bytes": path.stat().st_size}
         print(json.dumps(row | {"peak_rss_mib": round(_peak_mib())}))
+
+
+def quantize_only(args) -> None:
+    """``quantize`` of the saved float32 encoder alone, for the profilers."""
+    from fse import Encoder
+
+    encoder = Encoder.load(Path(args.out) / "float32.safetensors", mmap=args.mmap)
+    for dtype in DTYPES[1:]:
+        started = time.perf_counter()
+        encoder.quantize(dtype)
+        seconds = time.perf_counter() - started
+        print(json.dumps({"dtype": dtype, "quantize_s": round(seconds, 3)}))
+    print(json.dumps({"peak_rss_mib": round(_peak_mib())}))
 
 
 def load_child(args) -> None:
@@ -158,7 +172,7 @@ def _top10(rows: np.ndarray, queries: np.ndarray) -> list[list[int]]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("make", "loadtimes", "closeness"):
+    for name in ("make", "quantize", "loadtimes", "closeness"):
         p = sub.add_parser(name)
         p.add_argument("--out", required=True)
         p.add_argument("--model", default="minishlab/potion-base-8M")
@@ -166,6 +180,7 @@ def main() -> None:
         p.add_argument("--rounds", type=int, default=5)
         p.add_argument("--texts", type=int, default=20000)
         p.add_argument("--workers", type=int, default=4)
+        p.add_argument("--mmap", action="store_true")
     for name in ("load", "encode"):
         p = sub.add_parser(name)
         p.add_argument("path")
@@ -176,6 +191,7 @@ def main() -> None:
     args = parser.parse_args()
     {
         "make": make,
+        "quantize": quantize_only,
         "load": load_child,
         "loadtimes": loadtimes,
         "encode": encode,
