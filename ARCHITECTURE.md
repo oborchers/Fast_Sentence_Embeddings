@@ -25,6 +25,7 @@ src/fse/
   _wordvectors.py        # WordVectors
   _wordvectors_format.py # the format rules of word_vectors 1: keys, checks, vocabulary encoding
   _tokenizer_json.py     # a BERT tokenizer.json of Hugging Face as the parameters of wordpiece@1
+  _tokenizer_json_common.py # what the readers of a tokenizer.json share: keys, added tokens, post-processor, truncation
   _cpus.py               # usable_cpus: the default number of workers
   _backends/             # the backends behind one contract:
     __init__.py          #   BACKEND_NAMES, get_backend,

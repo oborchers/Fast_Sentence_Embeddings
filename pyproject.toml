@@ -333,6 +333,8 @@ layers = [
     "_text",
     "_wordvectors",
     "_wordvectors_format | _tokenizer_json",
+    # What the readers of a tokenizer.json share.
+    "_tokenizer_json_common",
     # The reference of linear heads builds on the reference of the encoder (fma32, dot16),
     # that of unigram@1 on the added tokens of wordpiece@1.
     "_reference_head | _reference_unigram",
