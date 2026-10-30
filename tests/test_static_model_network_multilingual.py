@@ -35,5 +35,6 @@ def test_potion_multilingual_is_the_static_model_of_model2vec():
     assert ours.encoder.tokenizer == "unigram@1"
     texts = [*uni.corpus(2000, seed=13), *sm.hub_texts(ours)[:3000]]
     worst = sm.assert_the_model_of_model2vec(ours, theirs, texts)
+    sm.assert_the_sequences_and_ids_of_model2vec(ours, theirs, texts)
     print(f"{REPO}: {len(texts)} texts, the largest error is {worst:.2e} of the bound")
     assert worst <= 1

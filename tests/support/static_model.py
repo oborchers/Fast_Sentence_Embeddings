@@ -86,3 +86,29 @@ def assert_the_model_of_model2vec(ours, theirs, texts):
     for kwargs in ({"max_length": 64}, {"normalize": not ours.normalize}, {"max_length": None}):
         worst = max(worst, close(ours, texts, theirs.encode(texts, **kwargs), **kwargs))
     return worst
+
+
+def assert_the_sequences_and_ids_of_model2vec(ours, theirs, texts):
+    """``encode_as_sequence`` equal to model2vec's bit for bit (float32; a text without
+    tokens gives a (0, dim) array, float64 there), with and without ``max_length``;
+    ``tokenize`` and the ids of the tokenizer equal, also after a new
+    ``max_length`` of the model; the vocabulary of the tokenizer equal."""
+    for kwargs in ({}, {"max_length": 7}, {"max_length": 64}):
+        got = ours.encode_as_sequence(texts, **kwargs)
+        want = theirs.encode_as_sequence(texts, **kwargs)
+        assert len(got) == len(want) == len(texts)
+        for i, (g, w) in enumerate(zip(got, want, strict=True)):
+            assert g.dtype == np.float32
+            assert g.shape == w.shape, (i, kwargs)
+            assert g.tobytes() == w.astype(np.float32).tobytes(), (i, kwargs)
+    theirs_vocab = theirs.tokenizer.get_vocab()
+    assert ours.tokenizer.get_vocab() == theirs_vocab
+    assert ours.tokenizer.get_vocab_size() == theirs.tokenizer.get_vocab_size()
+    assert all(ours.tokenizer.token_to_id(t) == i for t, i in list(theirs_vocab.items())[:500])
+    original = ours.max_length
+    for max_length in (original, 9, None, original):
+        ours.max_length = theirs.max_length = max_length
+        assert ours.tokenize(texts) == theirs.tokenize(texts)
+        got = ours.tokenizer.encode_batch(texts, add_special_tokens=False)
+        want = theirs.tokenizer.encode_batch(texts, add_special_tokens=False)
+        assert [e.ids for e in got] == [e.ids for e in want]

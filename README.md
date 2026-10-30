@@ -74,6 +74,8 @@ from fse import StaticModel
 model = StaticModel.from_pretrained("minishlab/potion-base-8M")
 row = model.encode("the cat sleeps")                 # a vector of 256 float32 values
 rows = model.encode(["the cat sleeps", "a dog runs"], max_length=128, normalize=False)
+tokens = model.encode_as_sequence("the cat sleeps")  # one row of the table per token
+ids = model.tokenize(["the cat sleeps"])              # [[...]], the unknown id dropped
 model.max_length = 64                                 # the default of encode from now on
 ```
 
@@ -89,7 +91,9 @@ Models are read with the rules of model2vec 0.10.0 (its folder layouts, its conf
 | a row whose sum of squares under- or overflows float32 | raises |
 | `embedding` is writable | read-only |
 | `encode([])` raises in numpy | gives a matrix of shape `(0, dim)` |
-| `encode_as_sequence`, `tokenize`, `tokenizer`, `save_pretrained`, `push_to_hub` | not yet provided |
+| `encode_as_sequence` of a text without tokens is a float64 `(0, dim)` array | float32 `(0, dim)`; the other rows are model2vec's bit for bit |
+| `tokenizer` is a `tokenizers.Tokenizer` | a read-only facade: `encode` and `encode_batch` give `.ids` (unknown id kept, cut at `max_length`), `get_vocab`, `get_vocab_size`, `token_to_id`, `id_to_token`; no offsets, no `.tokens`, and `add_special_tokens` must be `False` |
+| `save_pretrained`, `push_to_hub` | not yet provided |
 
 Checks of the type (`isinstance(model, model2vec.StaticModel)`) or of its name in other libraries need a change there.
 
