@@ -13,7 +13,6 @@ import json
 import math
 import os
 import secrets
-import shutil
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -40,6 +39,7 @@ from ._common import (
     _shape,
     _strict_json,
     _sync_directory,
+    discard_temporary,
     fingerprint,
     tensor_code,
 )
@@ -265,8 +265,8 @@ class NpyContainer:
                     )
                 entries[name] = (codes[name], tuple(int(n) for n in array.shape), digest)
             write_manifest(path, entries, metadata, tmp)
-        except BaseException:
-            shutil.rmtree(path, ignore_errors=True)
+        except BaseException as error:
+            discard_temporary(path, error)
             raise
         _sync_directory(path.parent)
 

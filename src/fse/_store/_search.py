@@ -41,7 +41,7 @@ from typing import Any
 import numpy as np
 from numpy import ndarray
 
-from fse import _reference
+from fse import _log, _reference
 from fse._contract import Normalize
 
 F32 = np.float32
@@ -229,6 +229,20 @@ def search(
     """The ids (int64) and scores (float32) of the ``k`` best rows for every query, each
     (queries, k)."""
     check_queries(backend, queries)
+    _log.emit(
+        "store.search",
+        "fse store: %d queries, k %d, %s, over %d rows on %d workers",
+        len(queries),
+        k,
+        "exact" if exact else "blas",
+        sum(shard.rows for shard, _ in shards),
+        workers,
+        queries=len(queries),
+        k=k,
+        mode="exact" if exact else "blas",
+        rows=sum(shard.rows for shard, _ in shards),
+        workers=workers,
+    )
     # The tolerance mode normalizes in numpy: its results are not bit-defined anyway.
     normalized = None if exact else _reference.postprocess(queries, [Normalize()])
     decode = 0 if exact else queries.shape[1]

@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import dataclasses
 import functools
-import logging
 import operator
 import threading
 from collections.abc import Sequence
@@ -45,6 +44,7 @@ from typing import Any, Protocol
 import numpy as np
 from numpy import ndarray
 
+from fse import _log
 from fse._contract import Aggregation, Batch, Op, Step
 
 from .._base import (
@@ -58,8 +58,6 @@ from .._base import (
 )
 from . import _bounds, _kernels, _load
 from ._device import Device
-
-logger = logging.getLogger(__name__)
 
 DEVICE = Device(_load.core)  # the one device thread of the process, for every encoder
 
@@ -123,10 +121,13 @@ class Fallbacks:
             first = not any(self.counts.values())
             self.counts[reason] += 1
         if first:
-            logger.warning(
-                "the mlx backend computes a task on the CPU (%s); it does so for every such "
+            _log.emit(
+                "backend.fallback",
+                "fse mlx backend: computes a task on the CPU (%s); it does so for every such "
                 "task of this encoder, which is slower but gives the cpu's rows",
                 _WHY[reason],
+                backend="mlx",
+                reason=reason,
             )
         return reason
 
@@ -280,6 +281,10 @@ class MlxBackend:
     def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
         """Stage 5 on the host: the exact quantization of ``rows`` (checked there)."""
         self.host.store(rows, codes, scales, first_row)
+
+    def fallbacks(self, prepared: Prepared) -> dict[str, int]:
+        """``fallbacks`` of ``prepared``, which the runtime logs after a run."""
+        return fallbacks(prepared)
 
 
 def _use(viewed: tuple, out: ndarray) -> tuple[ndarray, ndarray]:

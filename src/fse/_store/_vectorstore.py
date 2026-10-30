@@ -19,13 +19,14 @@ and BLAS above, so its bits depend on how many are asked at once (maintainer dec
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
 import numpy as np
 from numpy import ndarray
 
-from fse import _codes
+from fse import _codes, _log
 from fse._backends import BACKEND_NAMES, get_backend
 from fse._container import CorruptArtifactError, NpyContainer
 from fse._cpus import usable_cpus
@@ -171,10 +172,20 @@ class VectorStore:
         """Hash every shard on disk against its checksums and check its values: finite
         scales and inverse norms of at least 0, finite float rows, int8 codes within
         +-127."""
+        start = time.perf_counter()
         with self._using():
             for shard, tensors in self._shards:
                 NpyContainer().verify(self.path / shard.name)
                 _check_values(shard, tensors)
+        _log.emit(
+            "store.verified",
+            "fse store: verified %d rows in %d shards",
+            len(self),
+            len(self._shards),
+            rows=len(self),
+            shards=len(self._shards),
+            seconds=time.perf_counter() - start,
+        )
 
     # --- life cycle ---------------------------------------------------------------------
 
@@ -269,4 +280,18 @@ def _open(cls: Any, path: Any, *, encoder: Any = None, backend: str = "cpu") -> 
     out._lock = threading.Lock()
     out._active = 0
     out._closed = False
+    _log.emit(
+        "store.opened",
+        "fse store: opened %d rows in %d shards: %d dimensions, %s, %s backend",
+        len(out),
+        len(out._shards),
+        info.dim,
+        info.dtype,
+        backend,
+        rows=len(out),
+        shards=len(out._shards),
+        dim=info.dim,
+        dtype=info.dtype,
+        backend=backend,
+    )
     return out

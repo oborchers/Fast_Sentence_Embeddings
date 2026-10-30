@@ -21,6 +21,7 @@ task never leaves its worker unless the vectors are asked for.
 from __future__ import annotations
 
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any
@@ -28,7 +29,7 @@ from typing import Any
 import numpy as np
 from numpy import ndarray
 
-from fse import _codes
+from fse import _codes, _log
 from fse._backends import PoolInput, get_backend
 from fse._contract import Link, Normalize, Step
 from fse._cpus import usable_cpus
@@ -108,12 +109,25 @@ def fold(backend: Any, pool: PoolInput, weight: ndarray, workers: int) -> PoolIn
     """The pool of the folded table: every word and ngram row of ``pool`` scored with every
     row of ``weight`` (``score(row, scale, a_j, 0)``, k float32 columns, no scales), in
     blocks of rows over ``workers`` threads; weights and ``oov_weight`` are kept."""
+    start = time.perf_counter()
     vectors = _fold_rows(backend, pool.vectors, pool.scales, weight, workers, "word")
     ngrams = None
     if pool.ngram_vectors is not None:
         ngrams = _fold_rows(
             backend, pool.ngram_vectors, pool.ngram_scales, weight, workers, "ngram"
         )
+    rows = len(vectors) + (0 if ngrams is None else len(ngrams))
+    _log.emit(
+        "head.folded",
+        "fse runtime: folded a head of %d outputs into %d rows of the table",
+        len(weight),
+        rows,
+        rows=rows,
+        outputs=len(weight),
+        workers=workers,
+        backend=backend.name,
+        seconds=time.perf_counter() - start,
+    )
     return PoolInput(vectors, pool.weights, None, ngrams, None, pool.oov_weight, pool.aggregation)
 
 
