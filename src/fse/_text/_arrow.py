@@ -17,17 +17,14 @@ several of them.
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import numpy as np
 
-from fse import _native
+from fse import _log, _native
 from fse._contract import Batch
 
 from ._scan import Chunk, Scan, _Buffered
-
-logger = logging.getLogger(__name__)
 
 
 def is_arrow(texts: object) -> bool:
@@ -55,10 +52,12 @@ class ArrowSource(_Buffered):
         self._data = None
         self._offsets = None
         if self._column.copied_bytes:
-            logger.warning(
-                "the offsets or views of the Arrow column were not aligned: fse copied %d "
-                "bytes of them (no text)",
+            _log.emit(
+                "runtime.arrow_copied",
+                "fse runtime: the offsets or views of the Arrow column were not aligned: fse "
+                "copied %d bytes of them (no text)",
                 self._column.copied_bytes,
+                bytes=self._column.copied_bytes,
             )
 
     def __len__(self) -> int:

@@ -13,6 +13,9 @@ from fse import _reference
 from fse._contract import Normalize
 from support.conformance import BACKENDS, BIG, F32, _rng, assert_bits_equal
 
+# The mlx backend warns at the first fallback of an encoder, which these suites cause.
+pytestmark = pytest.mark.expected_log("backend.fallback")
+
 STEP_LISTS = {"none": [], "normalize": [Normalize()]}
 
 

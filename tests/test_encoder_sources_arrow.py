@@ -1,8 +1,6 @@
 """Arrow string columns passed to encode, encode_batches and the heads: pyarrow, pandas,
 Polars and Hugging Face datasets as producers (each skipped where it is not installed)."""
 
-import logging
-
 import numpy as np
 import pytest
 
@@ -10,6 +8,7 @@ import fse
 from fse._encoder._sources import opened
 from fse._text import ArrowSource
 from support.encoder import finished
+from support.logs import expect_log
 from support.runtime import texts
 
 # ImportError too: pyarrow 26 refuses the numpy 1.26 of the minimum job.
@@ -152,16 +151,17 @@ def test_pandas_series():
         ENCODER.encode(pd.DataFrame({"text": SENTENCES[:3]}))
 
 
-def test_a_producer_that_cannot_export_is_read_as_a_stream(caplog):
+def test_a_producer_that_cannot_export_is_read_as_a_stream():
     class NoArrow(list):
         def __arrow_c_stream__(self, requested_schema=None):
             raise ImportError("pyarrow is not installed")
 
-    with caplog.at_level(logging.WARNING, logger="fse._encoder._sources"):
+    with expect_log("runtime.arrow_stream", producer="NoArrow", error="ImportError") as records:
         got = ENCODER.encode(NoArrow(SENTENCES[:50]))
-    assert "read it as a stream" in caplog.text or "reads it as a stream" in caplog.text
+    assert "reads it as a stream" in records[0].getMessage()
     same(got, WANT[:50])
-    batches = list(ENCODER.encode_batches([NoArrow(SENTENCES[:4])]))
+    with expect_log("runtime.arrow_stream"):
+        batches = list(ENCODER.encode_batches([NoArrow(SENTENCES[:4])]))
     assert batches[0].n_rows == 4
 
 

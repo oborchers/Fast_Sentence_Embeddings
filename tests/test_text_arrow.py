@@ -1,8 +1,6 @@
 """Tests of fse._text._arrow: ArrowSource, an Arrow string column as a text source, with
 the producer in ctypes (no pyarrow needed)."""
 
-import logging
-
 import numpy as np
 import pytest
 
@@ -10,6 +8,7 @@ from fse import _native
 from fse._runtime._tasks import plan
 from fse._text import ArrowSource, StringSource, is_arrow, make_lookup
 from support.arrow_c import Producer, layout
+from support.logs import expect_log
 from support.runtime import texts
 from support.text import TEXTS, concat, encode_all, vectors
 
@@ -152,7 +151,7 @@ def test_a_closed_source_reads_nothing_and_releases_its_arrays():
         source.encode(None, None, None)
 
 
-def test_misaligned_offsets_are_copied_and_logged(caplog):
+def test_misaligned_offsets_are_copied_and_logged():
     p = Producer()
     buffers = layout(b"U", [b"one", b"two"])
     raw = np.zeros(buffers[1].nbytes + 1, np.uint8)
@@ -164,8 +163,8 @@ def test_misaligned_offsets_are_copied_and_logged(caplog):
         def __arrow_c_array__(self, requested_schema=None):
             return p.array_capsules(p.schema(b"U"), p.array(buffers, 2))
 
-    with caplog.at_level(logging.WARNING, logger="fse._text._arrow"):
+    with expect_log("runtime.arrow_copied", bytes=24) as records:
         source = ArrowSource(Misaligned())
     assert source.copied_bytes == 24
-    assert "copied 24 bytes of them (no text)" in caplog.text
+    assert "copied 24 bytes of them (no text)" in records[0].getMessage()
     assert ArrowSource(Exporter(b"U", [[b"x"]])).copied_bytes == 0
