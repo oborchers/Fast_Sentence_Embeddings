@@ -148,7 +148,7 @@ def closeness(args) -> None:
         encoder = Encoder.load(Path(args.out) / f"{dtype}.safetensors")
         rows[dtype] = encoder.encode(texts, workers=args.workers).astype(np.float64)
     base = rows["float32"]
-    queries = np.random.default_rng(0).choice(len(texts), 500, replace=False)
+    queries = np.random.default_rng(0).choice(len(texts), min(500, len(texts)), replace=False)
     top = _top10(base, queries)
     for dtype in DTYPES[1:]:
         other = rows[dtype]
@@ -159,10 +159,16 @@ def closeness(args) -> None:
             [len(set(a) & set(b)) / 10 for a, b in zip(top, _top10(other, queries), strict=True)]
         )
         print(
-            f"{dtype}: cosine to float32 min {cosine.min():.6f}, p1 {np.percentile(cosine, 1):.6f}, "
-            f"median {np.median(cosine):.6f}; top-10 overlap {overlap:.4f} "
+            f"{dtype}: cosine to float32 {_spread(cosine)}; top-10 overlap {overlap:.4f} "
             f"({int((~valid).sum())} zero rows of {len(texts)})"
         )
+
+
+def _spread(cosine: np.ndarray) -> str:
+    if not len(cosine):
+        return "undefined (every row is zero on one side)"
+    p1, median = np.percentile(cosine, 1), np.median(cosine)
+    return f"min {cosine.min():.6f}, p1 {p1:.6f}, median {median:.6f}"
 
 
 def _top10(rows: np.ndarray, queries: np.ndarray) -> list[list[int]]:
