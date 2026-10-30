@@ -110,6 +110,13 @@ test = [
     # The vectors of Model2Vec models against model2vec's own encode. Pinned exactly: the
     # rules the reader reproduces (cuts, unknown ids, normalize) are those of 0.10.0.
     "model2vec==0.10.0",
+    # Producers of Arrow string columns for the tests of Arrow input (fse imports none of
+    # them; it reads the PyCapsule interface). Pinned exactly, each where it has wheels, so
+    # that `uv sync --group test` never builds them; the tests skip where one is missing.
+    "pyarrow==26.0.0; python_version < '3.16'",
+    "pandas==3.1.0; python_version < '3.16'",
+    "polars==2.1.0; python_version < '3.16'",
+    "datasets==5.1.0; python_version < '3.16'",
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
     "coverage[toml]>=7.0.0",
@@ -276,8 +283,14 @@ generated = [
     "src/fse/_native_unicode_graphemes.h",
 ]
 # The only modules that import the extension fse._native (import-linter cannot see it):
-# _text for stages 1 and 2, the cpu backend for the kernels of stages 2 to 4.
-native-importers = ["src/fse/_text.py", "src/fse/_backends/_cpu.py"]
+# the package _text for stages 1 and 2, the cpu backend for the kernels of stages 2 to 4.
+native-importers = [
+    "src/fse/_text/_arrow.py",
+    "src/fse/_text/_lookup.py",
+    "src/fse/_text/_scan.py",
+    "src/fse/_text/_strings.py",
+    "src/fse/_backends/_cpu.py",
+]
 # What the extension may import from fse.
 native-imports = ["fse._contract"]
 # The only module that imports a hash library (hashlib, xxhash): every checksum and
@@ -390,6 +403,13 @@ exhaustive = true
 layers = ["_encoder", "_pretrained", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
+name = "Text: the sources and the lookup on the scan of one buffer"
+type = "layers"
+containers = ["fse._text"]
+exhaustive = true
+layers = ["_arrow | _strings | _lookup", "_scan"]
+
+[[tool.importlinter.contracts]]
 name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the executor"
 type = "layers"
 containers = ["fse._runtime"]
@@ -399,10 +419,10 @@ layers = ["_head", "_pipeline", "_tasks | _sinks | _executor | _spec"]
 [[tool.importlinter.contracts]]
 # The device libraries (mlx) are checked by tools/check_guardrails.py instead: only the
 # loader of their backend imports them ([tool.fse.guardrails] device-libraries).
-name = "Optional and 1.x packages stay out of fse; gensim only in fse.gensim"
+name = "Optional and 1.x packages and the Arrow producers stay out of fse; gensim only in fse.gensim"
 type = "forbidden"
 source_modules = ["fse"]
-forbidden_modules = ["gensim", "scipy", "smart_open", "psutil", "threadpoolctl", "wordfreq", "torch", "sklearn"]
+forbidden_modules = ["gensim", "scipy", "smart_open", "psutil", "threadpoolctl", "wordfreq", "torch", "sklearn", "pyarrow", "pandas", "polars", "datasets", "nanoarrow"]
 ignore_imports = ["fse.gensim -> gensim"]
 
 # --- Unused code and dependencies (make lint) ---
@@ -423,6 +443,8 @@ ignore_names = [
     "hf_split",          # arguments of the MTEB encoder interface
     "hf_subset",
     "prompt_type",
+    "_fields_",          # the layout of a ctypes struct, read by ctypes (tests/support/arrow_c.py)
+    "n_children",        # fields of the Arrow C structs there, read by the extension
 ]
 
 [tool.deptry]

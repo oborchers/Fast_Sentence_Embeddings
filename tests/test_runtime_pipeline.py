@@ -39,7 +39,7 @@ def test_small_inputs_start_no_thread(monkeypatch):
     monkeypatch.setattr(_executor, "ThreadPoolExecutor", no_threads)
     from fse import _text
 
-    monkeypatch.setattr(_text, "ThreadPoolExecutor", no_threads)
+    monkeypatch.setattr(_text._scan, "ThreadPoolExecutor", no_threads)
     pipeline = Pipeline(_spec())
     for sentences in (["w1 w2"], texts(50)):
         got = pipeline.infer(StringSource(sentences), workers=16)

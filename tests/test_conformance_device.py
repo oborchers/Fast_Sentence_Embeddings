@@ -216,7 +216,7 @@ def _sentences(n):
 
 
 @pytest.mark.parametrize(("workers", "chunk_bytes"), [(1, 1 << 20), (3, 512), (3, 4096)])
-@pytest.mark.parametrize("kind", ["strings", "tokens"])
+@pytest.mark.parametrize("kind", ["strings", "tokens", "arrow_view"])
 @pytest.mark.usefixtures("mlx")
 def test_workers_tasks_and_inputs_give_the_same_bits(tmp_path, workers, chunk_bytes, kind):
     """The runtime with rows that go to the host before normalize: every

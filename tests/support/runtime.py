@@ -4,9 +4,10 @@ import numpy as np
 
 from fse import _reference, _reference_text
 from fse._stream import StreamSource
-from fse._text import StringSource, TokenListSource
+from fse._text import ArrowSource, StringSource, TokenListSource
 from fse._text_file import FileSource
 from fse._wordvectors import FastTextParams, WordVectors
+from support.arrow_c import Producer
 
 F32 = np.float32
 
@@ -61,7 +62,30 @@ def expected(spec, sentences, first_row=0):
     return _reference.postprocess(rows, spec.steps, first_row) if spec.steps else rows
 
 
+class ArrowChunks:
+    """Sentences as an Arrow C stream of chunks of ``size`` rows in format ``fmt``."""
+
+    def __init__(self, sentences, fmt, size):
+        self.encoded = [s.encode() for s in sentences]
+        self.fmt, self.size = fmt, size
+
+    def __arrow_c_stream__(self, requested_schema=None):
+        p = Producer()
+        parts = [self.encoded[i : i + self.size] for i in range(0, len(self.encoded), self.size)]
+        return p.stream(p.schema(self.fmt), [p.strings(self.fmt, part) for part in parts])
+
+
+ARROW_KINDS = {
+    "arrow": (b"u", 37),
+    "arrow_large": (b"U", 500),
+    "arrow_view": (b"vu", 50),
+    "arrow_external": (b"vu", 23),  # for the external tokenizer
+}
+
+
 def source(kind, sentences, tmp_path):
+    if kind in ARROW_KINDS:
+        return ArrowSource(ArrowChunks(sentences, *ARROW_KINDS[kind]))
     if kind == "strings":
         return StringSource(sentences)
     if kind == "stream":

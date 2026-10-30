@@ -14,7 +14,7 @@ ALPHABET = ["a", "Z", "0", "_", "\x00", "\xe9", "\xff", "Ā", "日", "￿", "\U0
 
 
 def _python(sentences):
-    return _text._token_lists(sentences)
+    return _text._strings._token_lists(sentences)
 
 
 def _same(sentences):
@@ -199,7 +199,7 @@ TEXT_ALPHABET = [*ALPHABET, " ", "\t", "\n", "\x85", "\xa0", "\u3000", "\u2028"]
 
 def _same_strings(texts, threads=1):
     data, offsets = _native.join_strings(texts, threads)
-    want_data, want_offsets = _text._encode_strings(texts, "string")
+    want_data, want_offsets = _text._strings._encode_strings(texts, "string")
     assert data == want_data
     np.testing.assert_array_equal(offsets, want_offsets)
     assert offsets.dtype == np.int64
@@ -302,7 +302,7 @@ def test_a_str_subclass_that_changes_the_list_is_read_like_python():
     texts = _changing_texts()
     source = StringSource(texts)  # the native pass reads every part, then leaves it
     assert len(texts) == 4 * 4096 - 100
-    want_data, want_offsets = _text._encode_strings(_changing_texts(), "string")
+    want_data, want_offsets = _text._strings._encode_strings(_changing_texts(), "string")
     assert source._data == want_data
     np.testing.assert_array_equal(source._offsets, want_offsets)
     assert len(source) == 4 * 4096 - 100
@@ -350,7 +350,7 @@ def test_a_legacy_string_takes_the_python_path():
 )
 def test_string_errors_are_those_of_the_python_path(bad):
     with pytest.raises((TypeError, ValueError)) as want:  # UnicodeEncodeError is a ValueError
-        _text._encode_strings(bad, "string")
+        _text._strings._encode_strings(bad, "string")
     with pytest.raises(want.type) as got:
         StringSource(bad)
     assert str(got.value) == str(want.value)

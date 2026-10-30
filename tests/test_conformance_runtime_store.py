@@ -41,7 +41,7 @@ def _check(got, want_rows, store):
 
 
 @pytest.mark.parametrize("workers", [1, 3])
-@pytest.mark.parametrize("kind", ["strings", "file", "tokens", "stream"])
+@pytest.mark.parametrize("kind", ["strings", "file", "tokens", "stream", "arrow_large"])
 @pytest.mark.parametrize("fasttext", [False, True], ids=["plain", "fasttext"])
 @pytest.mark.parametrize("steps", list(STEPS))
 @pytest.mark.parametrize("store", ["float16", "int8"])

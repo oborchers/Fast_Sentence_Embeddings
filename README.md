@@ -101,6 +101,7 @@ Which call to use when:
 | encode texts in a list | `rows = encoder.encode(texts)` |
 | encode token lists you made yourself | a model with `tokenizer="external"` and lists of lists of str |
 | encode a text file, one text per line | `encoder.encode(Path("texts.txt"))` |
+| encode a column of a table, read in place | `encoder.encode(table["text"])` for a pyarrow column, a pandas 3 or Polars Series, or `dataset.with_format("arrow")["text"]` of Hugging Face datasets |
 | encode a stream (a generator, a queue) | `encoder.encode(iterator)`: it is read once |
 | encode a stream batch by batch and confirm what is safe | `for batch in encoder.encode_batches(polls, sink=sink)`, confirming up to `batch.durable_rows` |
 | write the vectors to disk | `with fse.ShardSink("store", encoder, dtype="int8") as sink: encoder.encode(texts, sink=sink)` |

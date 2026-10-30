@@ -24,7 +24,7 @@ from numpy import ndarray
 
 from fse._backends import BACKEND_NAMES, get_backend
 from fse._cpus import usable_cpus
-from fse._encoder._batches import _named, check_sink, durable, flush
+from fse._encoder._batches import _named, batch_size, batch_source, check_sink, durable, flush
 from fse._encoder._sources import opened
 from fse._runtime import check_workers
 from fse._store import ShardSink, VectorStore
@@ -141,13 +141,13 @@ def batches(
 def _text_batches(model, head, items: Iterable[Any], output, return_vectors, workers, sink):
     row, last = 0, None
     for k, item in enumerate(items):
-        if not isinstance(item, list | tuple):
-            raise TypeError(
-                f"batch {k} is a {type(item).__name__}; every batch is a list (or tuple) of "
-                "sentences"
-            )
-        n = len(item)
-        with _named(k, row, n), opened(item, model._tokenizer) as source:
+        with (
+            _named(k, row, batch_size(k, item)),
+            batch_source(item, model._tokenizer) as (
+                source,
+                n,
+            ),
+        ):
             sinks = {"vector_sink": sink} if return_vectors else {"sink": sink}
             rows, vectors = head.infer(
                 source, output=RUNTIME[output], workers=workers, first_row=row, **sinks

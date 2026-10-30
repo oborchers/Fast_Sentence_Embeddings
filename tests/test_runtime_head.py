@@ -116,7 +116,7 @@ def test_logits_are_the_reference(dtype, fasttext, normalize, normalized, backen
     np.testing.assert_array_equal(bits(got), bits(want))
 
 
-@pytest.mark.parametrize("kind", ["strings", "stream", "tokens", "file"])
+@pytest.mark.parametrize("kind", ["strings", "stream", "tokens", "file", "arrow"])
 @pytest.mark.parametrize("output", ["logits", "proba", "labels"])
 def test_every_source_and_output(kind, output, tmp_path):
     spec = _spec(fasttext=True, tokenizer="external")
