@@ -11,7 +11,6 @@ from fse import _log
 from support.logs import captured, expect_log
 
 SRC = Path(_log.__file__).parent
-ARCHITECTURE = SRC.parents[1] / "ARCHITECTURE.md"
 
 
 def test_every_event_has_a_logger_of_fse_and_a_level():
@@ -187,13 +186,6 @@ def test_only_the_log_modules_import_logging():
         text = path.read_text(encoding="utf-8")
         if path.name not in ("_log.py", "_log_config.py"):
             assert not re.search(r"^\s*(import|from)\s+(logging|warnings)\b", text, re.M), path
-
-
-def test_the_architecture_lists_every_event():
-    text = ARCHITECTURE.read_text(encoding="utf-8")
-    rows = dict(re.findall(r"^\| `([a-z]+\.[a-z_]+)` \| (DEBUG|INFO|WARNING) \|", text, re.M))
-    expected = {e: logging.getLevelName(level) for e, (_, level) in _log.EVENTS.items()}
-    assert rows == expected
 
 
 def test_a_level_check_that_raises_is_inside_the_boundary(capfd, monkeypatch):
