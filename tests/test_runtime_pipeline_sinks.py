@@ -114,3 +114,74 @@ def test_targets_are_checked():
 
     with pytest.raises(TypeError, match="inverse_norms of a sink must be a bool"):
         wants_inverse_norms(Odd())
+
+
+def _long_fasttext(n=400, giant=8 << 20):
+    """FastText vectors and texts with one sentence of ``giant`` bytes of unknown words."""
+    wv = word_vectors(fasttext=True)
+    spec = EncodeSpec(wv, np.ones(len(wv), F32), (Normalize(),), oov_weight=1.0, max_ngrams=40)
+    sentences = texts(n)
+    sentences[n // 2] = " ".join(["zzunknownword"] * (giant // 14))
+    return spec, sentences
+
+
+class _Window:
+    """Counts the targets reserved and not yet committed; can fail a commit."""
+
+    def __init__(self, dim, fail_at=None):
+        self.dim, self.fail_at = dim, fail_at
+        self.open = self.most = 0
+
+    def target(self, _first_row, n_rows):
+        self.open += 1
+        self.most = max(self.most, self.open)
+        return np.empty((n_rows, self.dim), F32)
+
+    def commit(self, first_row, _rows):
+        self.open -= 1
+        if self.fail_at is not None and first_row >= self.fail_at:
+            raise RuntimeError("the sink failed")
+
+
+def test_a_long_sentence_with_fasttext_keeps_the_bounds_of_a_task():
+    spec, sentences = _long_fasttext()
+    source = StringSource(sentences)
+    pipeline = Pipeline(spec)
+    plan, window, _ = pipeline.plan_tasks(source, 10, 1 << 16, pipeline._row_bytes("float32"))
+    for task in plan.tasks:
+        chunk = task.chunk
+        last = int(source._offsets[chunk.end] - source._offsets[chunk.end - 1])
+        assert source._span_bytes(chunk) <= (1 << 16) + last  # one long sentence at most
+    sink = _Window(spec.word_vectors.dim)
+    pipeline.infer(StringSource(sentences), workers=10, sink=sink, chunk_bytes=1 << 16)
+    assert sink.most <= window
+    alone = pipeline.infer(StringSource(sentences), workers=1)
+    assert pipeline.infer(StringSource(sentences), workers=10).tobytes() == alone.tobytes()
+
+
+def test_a_batch_holds_at_most_its_tokens_and_buckets():
+    from fse._text import make_lookup, new_workspace
+
+    spec, sentences = _long_fasttext(giant=1 << 20)
+    source = StringSource(sentences)
+    lookup = make_lookup(spec.word_vectors, spec.tokenizer, max_ngrams=40)
+    for chunk in source.scan(chunk_bytes=1 << 16).chunks:
+        batch = source.encode(chunk, lookup, new_workspace())
+        unknown = len(batch.ngram_offsets) - 1  # one range of buckets per unknown word
+        assert len(batch.tokens) <= source._span_bytes(chunk)
+        assert len(batch.ngrams) <= 40 * unknown
+
+
+def test_a_failing_sink_stops_a_run_of_long_sentences():
+    import threading
+
+    spec, sentences = _long_fasttext()
+    before = threading.active_count()
+    with pytest.raises(RuntimeError, match="the sink failed"):
+        Pipeline(spec).infer(
+            StringSource(sentences),
+            workers=10,
+            sink=_Window(spec.word_vectors.dim, 100),
+            chunk_bytes=1 << 16,
+        )
+    assert threading.active_count() == before  # no thread outlives the call
