@@ -9,10 +9,9 @@
 A ``StaticModel`` encodes the way model2vec does: it pools the float32 rows of the token ids
 with the unknown id dropped, cuts a text to ``max_length`` tokens of its first
 ``max_length * median token length`` characters, and normalizes or not. An fse encoder is
-one only if it fits that closed profile; everything else (int8 or float16 rows, FastText,
-the tokenizers without parameters, an unknown id that is kept, another length rule or a
-step model2vec has no name for) is refused with the reason, as its rows would not be
-model2vec's.
+one only if it fits that closed profile; everything else (a tokenizer without parameters,
+an unknown id that is kept, another length rule, a step model2vec has no name for) is
+refused with the reason, as its rows would not be model2vec's.
 """
 
 from __future__ import annotations
@@ -73,15 +72,13 @@ def profile_rules(
 def _misfit(encoder: Encoder) -> str | None:
     """Why the encoder is no model2vec model (judged without its vocabulary), or None."""
     content = encoder._content
-    spec, words = content.tokenizer, encoder.word_vectors
+    spec = content.tokenizer
     if spec.config is None:
         return f"has the tokenizer {spec.name}, which has no parameters"
     if encoder.steps not in ((), (NORMALIZE,)):
         return f"has the steps {list(encoder.steps)}"
     if spec.unknown != "drop":
         return f"keeps the unknown id ({spec.name})"
-    if words.dtype != "float32":
-        return f"has a {words.dtype} table"
-    if words.fasttext is not None or content.oov_weight is not None:
-        return "has FastText vectors"
+    # The format of an encoder allows a tokenizer with parameters only on a float32 table
+    # without FastText (check_tokenizer_table), which test_the_format_keeps_float32 pins.
     return None
