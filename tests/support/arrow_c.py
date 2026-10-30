@@ -142,6 +142,35 @@ def _address(buffer: Any) -> int | None:
     return buffer.ctypes.data
 
 
+class _StreamCalls:
+    """The callbacks of one stream: its schema, then its arrays, failing as asked."""
+
+    def __init__(self, schema, arrays, fail_at, code, message, schema_code, garbage):
+        self.schema, self.arrays, self.fail_at, self.code = schema, arrays, fail_at, code
+        self.schema_code, self.garbage, self.next = schema_code, garbage, 0
+        self.error = ctypes.create_string_buffer(message) if message is not None else None
+
+    def get_schema(self, _stream, out):
+        if not self.schema_code or self.garbage:
+            ctypes.memmove(out, ctypes.addressof(self.schema), ctypes.sizeof(ArrowSchema))
+        return self.schema_code
+
+    def get_next(self, _stream, out):
+        if self.fail_at is not None and self.next == self.fail_at:
+            if self.garbage:
+                ctypes.memmove(out, ctypes.addressof(self.arrays[0]), ctypes.sizeof(ArrowArray))
+            return self.code
+        if self.next == len(self.arrays):
+            out.contents.release = ARRAY_RELEASE()
+            return 0
+        ctypes.memmove(out, ctypes.addressof(self.arrays[self.next]), ctypes.sizeof(ArrowArray))
+        self.next += 1
+        return 0
+
+    def get_last_error(self, _stream):
+        return ctypes.addressof(self.error) if self.error is not None else None
+
+
 # Every producer lives until the end of the process: a column fse holds calls the release
 # callbacks (ctypes thunks of its producer) when it is freed, which may be after the test.
 _ALIVE: list[Producer] = []
@@ -268,36 +297,14 @@ class Producer:
         ``code`` and ``message`` (None: get_last_error gives NULL). With ``garbage`` a
         failing callback writes a struct with a release into its output anyway, which a
         consumer must not touch."""
-        state = {"next": 0}
-        error = ctypes.create_string_buffer(message) if message is not None else None
-        self.keep(error, state)
-
-        def get_schema(_stream, out):
-            if schema_code:
-                if garbage:
-                    ctypes.memmove(out, ctypes.addressof(schema), ctypes.sizeof(ArrowSchema))
-                return schema_code
-            ctypes.memmove(out, ctypes.addressof(schema), ctypes.sizeof(ArrowSchema))
-            return 0
-
-        def get_next(_stream, out):
-            k = state["next"]
-            if fail_at is not None and k == fail_at:
-                if garbage:
-                    ctypes.memmove(out, ctypes.addressof(arrays[0]), ctypes.sizeof(ArrowArray))
-                return code
-            if k == len(arrays):
-                out.contents.release = ARRAY_RELEASE()
-                return 0
-            state["next"] = k + 1
-            ctypes.memmove(out, ctypes.addressof(arrays[k]), ctypes.sizeof(ArrowArray))
-            return 0
-
-        def get_last_error(_stream):
-            return ctypes.addressof(error) if error is not None else None
-
+        calls = _StreamCalls(schema, arrays, fail_at, code, message, schema_code, garbage)
+        self.keep(calls)
         s = ArrowArrayStream()
-        callbacks = (GET_SCHEMA(get_schema), GET_NEXT(get_next), GET_LAST_ERROR(get_last_error))
+        callbacks = (
+            GET_SCHEMA(calls.get_schema),
+            GET_NEXT(calls.get_next),
+            GET_LAST_ERROR(calls.get_last_error),
+        )
         s.get_schema, s.get_next, s.get_last_error = callbacks
         s.release = self._stream_release
         s.private_data = 0x57E4
