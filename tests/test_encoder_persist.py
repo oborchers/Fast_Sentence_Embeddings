@@ -22,7 +22,8 @@ def test_an_opened_artifact_gives_its_tensors_back_with_its_checksums(name):
         content, table, checksums, None if content.oov_weight is None else content.oov_weight[()]
     )
     assert sorted(again) == sorted(tensors)
-    assert expected is not None and set(expected) == set(tensors)
+    assert expected is not None
+    assert set(expected) == set(tensors)
     assert _persist.fingerprint_of(again, keys, expected) == metadata["fse.fingerprint"]
     assert Encoder.load(path).fingerprint == metadata["fse.fingerprint"]
 
@@ -45,4 +46,5 @@ def test_converted_content_checks_its_parts():
     with pytest.raises(TypeError, match="normalize must be a bool"):
         _persist.converted(wv, spec, 1, None, None)
     content = _persist.converted(wv, spec, False, None, "mit")
-    assert content.steps == () and content.license == "mit"
+    assert content.steps == ()
+    assert content.license == "mit"
