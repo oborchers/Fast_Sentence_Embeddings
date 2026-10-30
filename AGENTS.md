@@ -17,10 +17,12 @@ Use uv and the Makefile; CI calls the same targets.
 
     make install       # uv sync --all-groups, builds the extension
     make check         # format-check + lint + typecheck + test
-    make test          # tests without network
+    make test          # tests without network, in parallel (pytest-xdist, PYTEST_N=auto)
     make test-network  # tests that download from the Hugging Face Hub
     make rebuild-ext   # after editing .pyx, .pxi, .pxd or .h
     make build         # sdist + wheel, twine check
+
+`make test`, `make test-cov` and `make test-mlx` run the tests in worker processes of pytest-xdist; `make test PYTEST_N=0` runs them in one process (to debug a test, and as the baseline of a measurement), and a single file with `uv run pytest tests/test_x.py` is always serial. A test must not depend on the order of the tests, on another test's files or on running alone: each worker is a separate process with its own temporary directories. A test that waits for another thread proves it reached the blocking call (`tests/support/waiting.py`) instead of sleeping, because a loaded machine breaks a sleep.
 
 Performance changes report before and after numbers: `uv run python benchmarks/bench_kernel.py --python-v1 <python of fse 1.1.0>` for the kernel and `benchmarks/bench_tokenize.py` from raw text; `benchmarks/baseline/` holds the 1.1.0 values 2.0 is compared with. Keep measurements proportionate:
 
