@@ -2,6 +2,8 @@
 of text in one section without the GIL, against the calls it replaces (TextLookup.encode,
 the Batch, CpuBackend.rows) one after the other: the same rows, bits and errors."""
 
+import re
+
 import numpy as np
 import pytest
 
@@ -65,7 +67,7 @@ def _sequence(pipeline, text, first, last, rows, first_row=0, out=None, after=No
 def _outcome(call, *args, **kwargs):
     try:
         return call(*args, **kwargs).view(np.uint32).tobytes()
-    except Exception as error:  # noqa: BLE001 - compared by type and message
+    except Exception as error:  # compared by type and message
         return type(error), str(error)
 
 
@@ -145,20 +147,23 @@ def test_errors_and_their_order_are_those_of_the_calls(sentences):
     except UnicodeEncodeError:
         return
     got = _same(pipeline, text, 0, 3, 3, first_row=50)
-    assert got[0] is ValueError and ("row 51" in got[1] or "row 52" in got[1])
+    assert got[0] is ValueError
+    assert re.search(r"row 5[12] ", got[1])
 
 
 def test_invalid_utf8_and_too_long_sentences_are_stage_1():
     pipeline = _errors_pipeline()
     data = np.frombuffer(b"ok\nhuge huge\nok \xff\n", np.uint8)
     got = _same(pipeline, (data, None), 0, len(data), 3, first_row=7)
-    assert got[0] is UnicodeDecodeError and "in sentence 9" in got[1]
+    assert got[0] is UnicodeDecodeError
+    assert "in sentence 9" in got[1]
     previous = _native._test_sentence_limit(4)
     try:
         got = _same(pipeline, _text(["ok", "huge huge", "ok"]), 0, 3, 3, out=np.zeros((3, 3), F32))
     finally:
         _native._test_sentence_limit(previous)
-    assert got[0] is ValueError and "sentence 1 has 9 bytes" in got[1]  # before out's error
+    assert got[0] is ValueError
+    assert "sentence 1 has 9 bytes" in got[1]  # before out's error
 
 
 def _read_only():
@@ -180,7 +185,8 @@ def _read_only():
 )
 def test_out_is_checked_as_check_out_does(make):
     got = _same(_errors_pipeline(), _text(["ok"] * 3), 0, 3, 3, out=make())
-    assert got[0] is ValueError and got[1].startswith("out must be a writable")
+    assert got[0] is ValueError
+    assert got[1].startswith("out must be a writable")
 
 
 def test_out_must_not_overlap_the_word_rows_or_weights():
@@ -194,7 +200,7 @@ def test_out_must_not_overlap_the_word_rows_or_weights():
     for out in (vectors, weights.reshape(5, 4)):
         with pytest.raises(ValueError, match="must not share memory with the vectors") as old:
             kernel.pool(batch, out)
-        with pytest.raises(ValueError) as new:
+        with pytest.raises(ValueError, match="must not share memory") as new:
             _native.pool_text(
                 kernel, pipeline.lookup, new_workspace(), text, 0, 5, 5, 0, out, False
             )
@@ -243,33 +249,31 @@ def test_first_row_is_checked_as_batch_does(first_row, kind):
     assert got[0] is kind
 
 
-# The corruptions of _test_corrupt, and what they do to the arrays of the Batch route.
-def _corrupt(kind, tokens, offsets, ngram_offsets, ngrams):
-    if kind == 1:
-        offsets[0] = 1
-    elif kind == 2:
-        offsets[1] = offsets[-1] + 1
-    elif kind == 3:
-        offsets[-1] += 1
-    elif kind == 4:
-        tokens[0] = _N_WORDS
-    elif kind == 5:
-        ngrams[0] = _N_BUCKETS
-    elif kind == 6:
-        ngram_offsets = ngram_offsets[:-1]
-    elif kind == 7:
-        tokens[0] = OOV_TOKEN
-    elif kind == 8:
-        offsets = np.append(offsets, offsets[-1])
-    elif kind == 9:
-        ngram_offsets[0] = 1
-    elif kind == 10:
-        ngram_offsets[-1] += 1
-    return tokens, offsets, ngram_offsets, ngrams
+# The corruptions of _test_corrupt, and what they do to the arrays of the Batch route:
+# (tokens, offsets, ngram_offsets, ngrams) to the same, broken.
+def _set(array, index, value):
+    array[index] = value
+    return array
 
 
 _N_WORDS = 200
 _N_BUCKETS = 97
+_CORRUPT = {
+    1: lambda t, o, no, ng: (t, _set(o, 0, 1), no, ng),
+    2: lambda t, o, no, ng: (t, _set(o, 1, o[-1] + 1), no, ng),
+    3: lambda t, o, no, ng: (t, _set(o, -1, o[-1] + 1), no, ng),
+    4: lambda t, o, no, ng: (_set(t, 0, _N_WORDS), o, no, ng),
+    5: lambda t, o, no, ng: (t, o, no, _set(ng, 0, _N_BUCKETS)),
+    6: lambda t, o, no, ng: (t, o, no[:-1], ng),
+    7: lambda t, o, no, ng: (_set(t, 0, OOV_TOKEN), o, no, ng),
+    8: lambda t, o, no, ng: (t, np.append(o, o[-1]), no, ng),
+    9: lambda t, o, no, ng: (t, o, _set(no, 0, 1), ng),
+    10: lambda t, o, no, ng: (t, o, _set(no, -1, no[-1] + 1), ng),
+}
+
+
+def _corrupt(kind, *arrays):
+    return _CORRUPT[kind](*arrays)
 
 
 @pytest.mark.parametrize("kind", range(1, 11))
@@ -296,7 +300,7 @@ def test_every_check_of_the_batch_still_fires(kind, fasttext):
         old = Batch(0, offsets, tokens, ngram_offsets, ngrams)
         pipeline.backend.rows(old, pipeline.prepared, np.zeros((3, pipeline.output_dim), F32))
         want = None
-    except Exception as error:  # noqa: BLE001 - compared by type and message
+    except Exception as error:  # compared by type and message
         want = (type(error), str(error))
     previous = _native._test_corrupt(kind)
     try:
@@ -328,7 +332,7 @@ def test_the_floating_point_environment_of_the_thread_changes_no_bit():
         inside = _native._test_fpenv_get()
         got = _fused(pipeline, text, 0, 200, 200).view(np.uint32)
         assert _native._test_fpenv_get() == inside  # restored after the call
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="row 0 contains NaN"):
             _fused(_errors_pipeline(), _text(["huge huge"]), 0, 1, 1)
         assert _native._test_fpenv_get() == inside  # and after an error
     finally:
