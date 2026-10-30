@@ -81,10 +81,17 @@ def batch_size(k: int, item: Any) -> int | None:
     return len(item)
 
 
-def source_rows(source: Any, item: Any) -> int:
-    """The rows of a batch from its source; an Arrow column read as a stream (its producer
-    could not export) has as many as its own length."""
-    return len(item) if isinstance(source, StreamSource) else len(source)
+@contextmanager
+def batch_source(item: Any, tokenizer: str) -> Iterator[tuple[Any, int]]:
+    """The source of one batch and its rows, which the source counts (no ``len()`` of the
+    item). An Arrow column whose producer could not export comes as a stream; its texts
+    are read now, as the stream would read them, so the batch knows its rows."""
+    with opened(item, tokenizer) as source:
+        if not isinstance(source, StreamSource):
+            yield source, len(source)
+            return
+    with opened(list(item), tokenizer) as listed:
+        yield listed, len(listed)
 
 
 @contextmanager
@@ -152,8 +159,7 @@ def batches(
     lists) or an Arrow string column each."""
     row, last = 0, None
     for k, item in enumerate(items):
-        with _named(k, row, batch_size(k, item)), opened(item, tokenizer) as source:
-            n = source_rows(source, item)
+        with _named(k, row, batch_size(k, item)), batch_source(item, tokenizer) as (source, n):
             if sink is None:
                 found = EncodedBatch(
                     row, n, pipeline.infer(source, workers=workers, dtype=dtype), None
