@@ -166,7 +166,9 @@ class Stages:
             _native.postprocess_pooled(view, steps, b.first_row)
 
     def infer(self) -> None:
-        self.pipeline.infer(self.source, workers=1)
+        """The join and ``infer`` at one worker, as ``Encoder.encode`` runs them: the
+        joined buffer is in the caches when the tasks read it."""
+        self.pipeline.infer(self.join(), workers=1)
 
     def encode(self, workers: int):
         return self.enc.encode(self.sentences, workers=workers)
@@ -203,8 +205,8 @@ class Stages:
         return rm.Stages(
             join=b["join"],
             plan=b["plan"],
-            caller=b["infer"] - b["plan"] - b["tasks"],
-            encode_rest=b["encode"] - b["join"] - b["infer"],
+            caller=b["infer"] - b["join"] - b["plan"] - b["tasks"],
+            encode_rest=b["encode"] - b["infer"],
             tokenize=b["tokenize"],
             pool=b["pool"],
             normalize=b["normalize"],

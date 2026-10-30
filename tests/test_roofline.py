@@ -195,3 +195,23 @@ def test_report_gives_no_share_on_other_hardware(rm):
     text = "\n".join(report(_result("elsewhere"), _hw(rm)))
     assert "measured on elsewhere, not on t" in text
     assert "  share " not in text
+
+
+@pytest.mark.usefixtures("rm")  # puts benchmarks/ on the path
+def test_dtype_comparison_gives_time_ratios_to_the_first():
+    dtype = importlib.import_module("roofline_dtype")
+    kept = [
+        {"float32": 2.0, "int8": 1.0},
+        {"float32": 3.0, "int8": 2.0},
+        {"float32": 1.0, "int8": 1.0},
+    ]
+    summary = dtype._summary(kept, ["float32", "int8"], 8, 1)
+    assert summary["int8"]["ratio"] == 1.5
+    assert summary["int8"]["range"] == (1.0, 2.0)
+    assert summary["float32"]["seconds"] == 2.0
+    line = dtype.lines([summary], ["float32", "int8"], 10**6)[0]
+    assert line.startswith("workers 8: 3 rounds (1 discarded); float32 0.5 M tokens/s; int8 1.0 M")
+    assert "float32 time / int8 time 1.500 (1.000 to 2.000)" in line
+    assert dtype.lines([{"workers": 1, "rounds": 0, "discarded": 3}], ["float32"], 1) == [
+        "workers 1: 0 rounds (3 discarded)"
+    ]
