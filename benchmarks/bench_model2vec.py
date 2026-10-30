@@ -56,10 +56,18 @@ def texts(corpus: str) -> list[str]:
     return read(corpus)
 
 
+def _revision(repo: str) -> str | None:
+    """The commit of a model of the network tests (their cache has no refs/main)."""
+    sys.path.insert(0, str(Path(__file__).parent))
+    from bench_pretrained import COMMITS
+
+    return COMMITS.get(repo)
+
+
 def _snapshot(repo: str) -> Path:
     from huggingface_hub import snapshot_download
 
-    return Path(snapshot_download(repo, local_files_only=True))
+    return Path(snapshot_download(repo, revision=_revision(repo), local_files_only=True))
 
 
 def contender(kind: str, threads: int, repo: str):
@@ -67,7 +75,7 @@ def contender(kind: str, threads: int, repo: str):
     if kind == "fse":
         from fse import Encoder
 
-        encoder = Encoder.from_pretrained(repo, local_files_only=True)
+        encoder = Encoder.from_pretrained(repo, revision=_revision(repo), local_files_only=True)
         return lambda batch: encoder.encode(batch, workers=threads)
     # model2vec runs its own threads; sentence-transformers leaves N threads to torch and
     # tokenizers.
