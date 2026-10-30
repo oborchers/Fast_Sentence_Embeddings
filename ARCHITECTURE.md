@@ -647,3 +647,5 @@ Defaults are part of the API and chosen for speed: `workers` is the number of us
 ### Baseline
 
 `benchmarks/baseline/` records the values of fse 1.1.0 from PyPI that 2.0 is compared with: STS, an MTEB selection, training throughput, memory and a lifecycle benchmark. Its README holds the tables and the commands to reproduce them.
+
+PERFORMANCE.md holds the model of the throughput bounds of a machine (per core, Amdahl, memory), its assumptions and the measured shares; `benchmarks/roofline.py` computes them from a hardware profile in `benchmarks/roofline_hardware.toml`, whose numbers each name their source.
