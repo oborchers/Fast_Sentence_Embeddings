@@ -178,6 +178,13 @@ def check_rules(
         if len(data) > _MAX_RULES:
             raise ValueError(f"the .gitattributes of {where} has more than {_MAX_RULES} bytes")
         text = data.decode("utf-8", errors="replace")
+    unread = unsupported_rules(text)
+    if unread:
+        raise ValueError(
+            f"the .gitattributes of {where} has lines this fse does not read ({unread}: quoted "
+            "patterns, macros, negative or escaped patterns), so it cannot tell whether the "
+            "Hub stores the model file as an LFS file; nothing was committed"
+        )
     plain = [n for n in models if not stored_as_lfs(text, n)]
     if plain:
         raise ValueError(
@@ -187,25 +194,41 @@ def check_rules(
         )
 
 
+def unsupported_rules(gitattributes: str) -> list[str]:
+    """The lines of a .gitattributes whose syntax ``stored_as_lfs`` does not read: a quoted
+    or escaped pattern, a macro definition (``[attr]``) and a negative pattern. A push
+    refuses them rather than skip a rule that could change how a file is stored."""
+    out = []
+    for line in gitattributes.splitlines():
+        parts = line.split()
+        if parts and not parts[0].startswith("#"):
+            pattern = parts[0]
+            if pattern.startswith(('"', "[attr]", "!")) or "\\" in pattern:
+                out.append(line.strip())
+    return out
+
+
 def stored_as_lfs(gitattributes: str, name: str) -> bool:
-    """Whether the rules of a .gitattributes give ``name`` the LFS filter: the last line
-    whose pattern matches decides, as in git (``filter=lfs`` on, any other ``filter``,
-    ``-filter`` or ``!filter`` off)."""
+    """Whether the rules of a .gitattributes give the file ``name`` of the root of the
+    repository the LFS filter: the last line whose pattern matches decides, as in git
+    (``filter=lfs`` on, any other ``filter``, ``-filter`` or ``!filter`` off). A leading
+    ``/`` or ``**/`` matches at the root; any other pattern with a ``/`` names files in
+    folders only. The lines of ``unsupported_rules`` must have been refused before."""
+    if "/" in name:
+        raise ValueError(f"{name} is no file of the root of a repository")
     lfs = False
-    base = name.rsplit("/", 1)[-1]
     for line in gitattributes.splitlines():
         parts = line.split()
         if not parts or parts[0].startswith("#"):
             continue
-        pattern = parts[0]
-        subject = name if "/" in pattern.strip("/") else base
-        if not fnmatch.fnmatchcase(subject, pattern.lstrip("/")):
+        pattern = parts[0].removeprefix("**/").removeprefix("/")
+        if "/" in pattern or not fnmatch.fnmatchcase(name, pattern):
             continue
         for attribute in parts[1:]:
             if attribute == "filter=lfs":
                 lfs = True
             elif attribute.startswith(("filter=", "-filter", "!filter")) or attribute == "filter":
-                lfs = attribute == "filter=lfs"
+                lfs = False
     return lfs
 
 

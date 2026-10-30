@@ -20,11 +20,37 @@ def test_the_lfs_rules_of_a_gitattributes():
         default + "*.safetensors filter=other\n", "model.safetensors"
     )
     assert _hub_push.stored_as_lfs("/model.safetensors filter=lfs\n", "model.safetensors")
-    assert _hub_push.stored_as_lfs(
-        "# a comment\n\n*.safetensors filter=lfs\n", "a/model.safetensors"
-    )
+    assert _hub_push.stored_as_lfs("# a comment\n\n*.safetensors filter=lfs\n", "model.safetensors")
+    assert _hub_push.stored_as_lfs("**/model.safetensors filter=lfs\n", "model.safetensors")
     assert not _hub_push.stored_as_lfs("other/*.safetensors filter=lfs\n", "model.safetensors")
+    assert not _hub_push.stored_as_lfs(default + "**/*.safetensors -filter\n", "model.safetensors")
     assert not _hub_push.stored_as_lfs("", "model.safetensors")
+    with pytest.raises(ValueError, match="no file of the root"):
+        _hub_push.stored_as_lfs(default, "a/model.safetensors")
+
+
+# The .gitattributes a new repository of the Hub gets (excerpt, as create_repo writes it).
+HUB_DEFAULT = """*.7z filter=lfs diff=lfs merge=lfs -text
+*.bin filter=lfs diff=lfs merge=lfs -text
+*.safetensors filter=lfs diff=lfs merge=lfs -text
+saved_model/**/* filter=lfs diff=lfs merge=lfs -text
+*tfevents* filter=lfs diff=lfs merge=lfs -text
+"""
+
+
+def test_lines_the_rule_reader_does_not_read_are_named():
+    assert _hub_push.unsupported_rules(HUB_DEFAULT) == []
+    assert _hub_push.stored_as_lfs(HUB_DEFAULT, "model.safetensors")
+    assert not _hub_push.stored_as_lfs(HUB_DEFAULT, "config.json")
+    lines = [
+        '"model.safetensors" -filter',
+        '"*.safetensors" filter=lfs',
+        "[attr]weights filter=lfs diff=lfs",
+        "!*.safetensors filter",
+        "model\\.safetensors -filter",
+    ]
+    text = HUB_DEFAULT + "# a comment\n" + "\n".join(lines) + "\n"
+    assert _hub_push.unsupported_rules(text) == lines
 
 
 def test_the_installed_huggingface_hub_takes_every_argument_fse_passes():

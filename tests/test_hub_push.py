@@ -321,6 +321,24 @@ def test_rules_that_would_store_the_model_as_a_plain_blob_stop_the_push(api, rul
     assert _snapshot(api) == before
 
 
+@pytest.mark.parametrize(
+    "rules",
+    [
+        b'*.safetensors filter=lfs diff=lfs merge=lfs -text\n"model.safetensors" -filter\n',
+        b'"*.safetensors" filter=lfs diff=lfs merge=lfs -text\n',
+    ],
+)
+def test_quoted_patterns_stop_the_push_before_a_commit(api, rules):
+    """git allows quoted patterns, which fse does not read: a quoted override of the LFS rule
+    and a lone quoted LFS rule are both refused, never skipped."""
+    api.put(".gitattributes", rules)
+    before = _snapshot(api)
+    with pytest.raises(ValueError, match=r"has lines this fse does not read \(\['\""):
+        _push(finished(), replace=True)
+    assert api.commit_calls() == []
+    assert _snapshot(api) == before
+
+
 def test_the_rules_are_read_at_the_commit_of_the_push(api):
     _push(finished(), token=TOKEN)
     (download,) = [c for c in api.calls if c[0] == "download"]
