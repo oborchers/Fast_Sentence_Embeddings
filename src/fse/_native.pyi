@@ -1,5 +1,6 @@
 # Type stubs of the compiled extension fse._native.
 
+from collections.abc import Callable
 from typing import Literal
 
 from numpy import ndarray
@@ -250,3 +251,21 @@ class ArrowColumn:
         self, lookup: TextLookup, first: int, last: int, first_row: int, ws: Workspace
     ) -> Batch: ...
     def release(self) -> None: ...
+
+def pool_text(
+    kernel: WeightedMean,
+    lookup: TextLookup,
+    ws: Workspace,
+    text: tuple[object, ndarray | None] | ArrowColumn,
+    first: int,
+    last: int,
+    rows: int,
+    first_row: int,
+    out: ndarray,
+    normalize: bool,
+    after_encode: Callable[[], None] | None = None,
+    *,
+    isa: str | None = None,
+) -> int: ...
+def _test_corrupt(kind: int) -> int: ...
+def _test_nogil_sections() -> int: ...
