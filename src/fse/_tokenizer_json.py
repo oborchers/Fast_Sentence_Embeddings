@@ -13,8 +13,11 @@ BertNormalizer, a BertPreTokenizer, added tokens matched on the raw text (``norm
 the same id, and a post-processor that is null or a TemplateProcessing whose single template holds
 the sequence A once (tokenizers 0.23.3 runs it also without special tokens; it then drops
 the special tokens but repeats the sequences, so only such a template changes no id).
-``truncation`` and ``padding`` are ignored, as model2vec overrides both, and ``decoder``,
-as nothing decodes. The file is strict JSON of at most 64 MiB.
+``padding`` is ignored, as model2vec and sentence-transformers disable it, and ``decoder``,
+as nothing decodes. ``truncation`` is ignored by ``tokenizer_of`` (model2vec overrides
+it); ``tokenizer_and_truncation`` gives it as a token limit (sentence-transformers keeps
+it), only in its plain form: the first ``max_length`` ids (direction Right, stride 0,
+strategy LongestFirst), any other form raises. The file is strict JSON of at most 64 MiB.
 """
 
 from __future__ import annotations
@@ -45,6 +48,49 @@ def tokenizer_of(data: bytes, path: Path) -> tuple[list[str], WordPieceConfig]:
     if len(data) > MAX_BYTES:
         raise CorruptArtifactError(f"{path} has more than {MAX_BYTES} bytes")
     return parse_tokenizer(strict_json(data, path), path)
+
+
+def tokenizer_and_truncation(
+    data: bytes, path: Path
+) -> tuple[list[str], WordPieceConfig, int | None]:
+    """The tokens, the parameters and the token limit of the plain truncation (None
+    without one) of the bytes of a tokenizer.json."""
+    if len(data) > MAX_BYTES:
+        raise CorruptArtifactError(f"{path} has more than {MAX_BYTES} bytes")
+    value = strict_json(data, path)
+    tokens, config = parse_tokenizer(value, path)
+    return tokens, config, truncation(value["truncation"], path)
+
+
+_PLAIN = {"direction": "Right", "stride": 0, "strategy": "LongestFirst"}
+
+
+def truncation(value: Any, path: Path) -> int | None:
+    """The token limit of a truncation of tokenizers: null is none; the plain form keeps
+    the first ``max_length`` ids of a text, as step 6 of wordpiece@1 does."""
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) != {"max_length", *_PLAIN}:
+        raise CorruptArtifactError(
+            f"{path}: truncation must be null or hold max_length, {', '.join(_PLAIN)}"
+        )
+    length = value["max_length"]
+    if isinstance(length, bool) or not isinstance(length, int) or length < 1:
+        raise CorruptArtifactError(
+            f"{path}: the max_length of truncation must be a positive int, not {length!r}"
+        )
+    stride = value["stride"]
+    if isinstance(stride, bool) or not isinstance(stride, int) or stride < 0:
+        raise CorruptArtifactError(
+            f"{path}: the stride of truncation must be an int of at least 0, not {stride!r}"
+        )
+    other = {k: value[k] for k, v in _PLAIN.items() if value[k] != v}
+    if other:
+        raise UnsupportedArtifactError(
+            f"{path} has a truncation with {other}; this fse reproduces only the plain one "
+            f"({_PLAIN}), which keeps the first max_length ids"
+        )
+    return length
 
 
 def parse_tokenizer(value: Any, path: Path) -> tuple[list[str], WordPieceConfig]:

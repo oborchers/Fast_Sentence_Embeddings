@@ -132,6 +132,37 @@ jobs:
           include-hidden-files: true
           retention-days: 7
 
+  # The comparisons with sentence-transformers 6.2.0 (group st, torch from the CPU index
+  # of PyTorch). A job of its own: sentence-transformers needs huggingface-hub 1.3 or
+  # newer, so it cannot share the minimum job, and torch would slow every other job.
+  # FSE_REQUIRE_ST makes a missing package fail the tests instead of skipping them.
+  test-st:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, python-version: "3.11" }
+          - { os: ubuntu-latest, python-version: "3.15" }
+          - { os: macos-latest, python-version: "3.13" }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+        with:
+          enable-cache: true
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+      - run: uv sync $UV_SYNC_FLAGS --group test --group st --python ${{ matrix.python-version }}
+      - run: uv run python -c "import sentence_transformers, torch; print(sentence_transformers.__version__, torch.__version__)"
+      - run: make test-st
+        env:
+          UV_NO_SYNC: "1"
+
   # The mlx backend on Apple silicon. The probe prints whether this runner has Metal (a
   # GitHub macOS runner is a virtual machine; GitHub documents GPU access only for its
   # larger paid runners) and the canary's result. Where Metal works the tests must run
@@ -300,14 +331,14 @@ jobs:
 
   check:
     if: always()
-    needs: [changes, lint, test, test-mlx, coverage, sdist, wheels]
+    needs: [changes, lint, test, test-st, test-mlx, coverage, sdist, wheels]
     runs-on: ubuntu-latest
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35  # v1.3.0
         with:
           jobs: ${{ toJSON(needs) }}
           # A documentation-only pull request skips them on purpose.
-          allowed-skips: ${{ needs.changes.outputs.code == 'false' && 'lint, test, test-mlx, coverage, sdist, wheels' || '' }}
+          allowed-skips: ${{ needs.changes.outputs.code == 'false' && 'lint, test, test-st, test-mlx, coverage, sdist, wheels' || '' }}
 
   release:
     needs: check

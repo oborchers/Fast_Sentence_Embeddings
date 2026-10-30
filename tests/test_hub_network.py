@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from fse._encoder import Encoder
-from support import model2vec as mv
+from support import converted as cv
 from support import wordpiece as wp
 
 pytestmark = pytest.mark.network
@@ -61,9 +61,9 @@ def test_a_potion_model_gives_the_ids_and_vectors_of_model2vec(repo):
     hf = Tokenizer.from_file(str(folder / "tokenizer.json"))
     want = [e.ids for e in hf.encode_batch_fast(texts, add_special_tokens=False)]
     unk = hf.token_to_id("[UNK]")
-    got = [ids.tolist() for ids in mv.ids_of(whole, texts)]
+    got = [ids.tolist() for ids in cv.ids_of(whole, texts)]
     assert got == [[i for i in ids if i != unk] for ids in want]
     rows = model2vec.StaticModel.from_pretrained(folder).encode(texts)
-    worst = mv.assert_close_to_model2vec(encoder.encode(texts), rows, encoder, texts, True)
+    worst = cv.assert_close(encoder.encode(texts), rows, encoder, texts, True)
     print(f"{repo}: {len(texts)} texts, the largest error is {worst:.2e} of the bound")
     assert worst <= 1

@@ -73,10 +73,19 @@ class FakeHub:
             / (hashlib.sha256(data).hexdigest() if name in self.lfs else _sha1(data))
         )
         blob.parent.mkdir(parents=True, exist_ok=True)
-        snapshot.mkdir(parents=True, exist_ok=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
         blob.write_bytes(data)
-        path.symlink_to(os.path.relpath(blob, snapshot))
+        path.symlink_to(os.path.relpath(blob, path.parent))
         return str(path)
+
+    def snapshot_download(self, repo, *, revision, local_files_only, cache_dir, token):
+        assert local_files_only
+        assert (repo, cache_dir) == (self.repo, self.cache)
+        assert token in (None, "t")
+        snapshot = self.folder() / "snapshots" / COMMIT
+        if revision not in (None, "main", COMMIT) or not snapshot.is_dir():
+            raise FileNotFoundError(f"{repo} is not in the cache")
+        return str(snapshot)
 
 
 @pytest.fixture
@@ -335,3 +344,69 @@ def test_a_huge_fse_file_is_refused_before_it_is_read(fake, tmp_path):
     error, peak = _peak(lambda: _load(fake, local_files_only=True))
     assert "header" in str(error)
     assert peak < 64 * 2**20, peak
+
+
+def _hub_files(fake, offline=False):
+    return hub.HubFiles(
+        "acme/tiny", revision=None, token=None, cache_dir=fake.cache, local_files_only=offline
+    )
+
+
+def test_files_in_a_folder_of_the_repository(fake):
+    """A repository of sentence-transformers keeps its module in a folder
+    (``0_StaticEmbedding/``): its files are read online and from the cache, and the cache
+    lists them without a config.json at the top."""
+    fake.files = {"modules.json": b"[]", "0_x/a.json": b"{}", "0_x/b/c.txt": b"c"}
+    online = _hub_files(fake)
+    assert online.read("0_x/a.json") == b"{}"
+    assert online.read("0_x/b/c.txt") == b"c"
+    assert online.where("0_x/a.json") == Path(f"acme/tiny@{COMMIT}/0_x/a.json")
+    with pytest.raises(CorruptArtifactError, match="not a file of the commit"):
+        _hub_files(fake, offline=True).read("modules.json")  # not in the cache yet
+    online.read("modules.json")
+    offline = _hub_files(fake, offline=True)
+    assert offline.revision == COMMIT
+    assert offline._names == {"modules.json", "0_x/a.json", "0_x/b/c.txt"}
+    assert offline.read("0_x/b/c.txt") == b"c"
+
+
+@pytest.mark.parametrize("offline", [False, True])
+def test_a_folder_of_a_snapshot_that_is_a_link_is_refused(fake, tmp_path, offline):
+    fake.files = {"modules.json": b"[]", "0_x/a.json": b"{}"}
+    _hub_files(fake).read("0_x/a.json")
+    _hub_files(fake).read("modules.json")
+    folder = fake.folder() / "snapshots" / COMMIT / "0_x"
+    _relink_dir(folder, tmp_path / "elsewhere")
+    with pytest.raises(CorruptArtifactError, match="is a link"):
+        _hub_files(fake, offline).read("0_x/a.json")
+
+
+def test_a_copy_in_a_linked_folder_is_refused(fake, tmp_path):
+    """Online, a copy instead of a link is checked by its hash; its folders still may not
+    be links."""
+    fake.files = {"modules.json": b"[]", "0_x/a.json": b"{}"}
+    _hub_files(fake).read("0_x/a.json")
+    folder = fake.folder() / "snapshots" / COMMIT / "0_x"
+    blob = os.path.realpath(folder / "a.json")
+    (folder / "a.json").unlink()
+    shutil.copy(blob, folder / "a.json")
+    assert _hub_files(fake).read("0_x/a.json") == b"{}"
+    _relink_dir(folder, tmp_path / "elsewhere")
+    with pytest.raises(CorruptArtifactError, match="is a link or no directory"):
+        _hub_files(fake).read("0_x/a.json")
+
+
+def test_a_local_folder_with_a_linked_folder_is_refused(tmp_path):
+    from fse._encoder._pretrained import LocalFiles
+
+    model = tmp_path / "model"
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "elsewhere" / "a.json").write_text("{}")
+    model.mkdir()
+    (model / "0_x").symlink_to(tmp_path / "elsewhere", target_is_directory=True)
+    files = LocalFiles(model)
+    assert files.has("0_x/a.json")
+    with pytest.raises(CorruptArtifactError, match="is a link or no directory"):
+        files.read("0_x/a.json")
+    with pytest.raises(CorruptArtifactError, match="a link to a folder"):
+        hub.files_below(model)

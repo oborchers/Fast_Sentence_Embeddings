@@ -13,9 +13,11 @@ commit pins every file: an LFS file by its ``lfs.sha256``, any other by its git 
 sha1. A file that must be an LFS file (every safetensors file, so an encoder or a table)
 without ``lfs.sha256`` raises. A file of the cache is a link of its snapshot into the
 blobs of the same cached repository, which is resolved only there, and the blob is
-checked. With ``local_files_only`` nothing is asked of the Hub: the commit and the files
-come from the cache, and each blob is checked against its name, which is its sha256 or git
-sha1 (this detects damage, not forgery).
+checked; a file may lie in a folder of the repository (``0_StaticEmbedding/``), and no
+folder from the repository down to it may be a link. With ``local_files_only`` nothing is
+asked of the Hub: the commit is the cached snapshot of ``revision`` and the files are
+those below it, and each blob is checked against its name, which is its sha256 or git sha1
+(this detects damage, not forgery).
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ import io
 import os
 import re
 import stat
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from fse._container import CorruptArtifactError, file_digests, read_regular
@@ -59,11 +61,15 @@ class HubFiles:
         self._options = {"cache_dir": cache_dir, "token": token}
         self._offline = local_files_only
         if local_files_only:
-            config = self._download("config.json", revision)
-            self.revision = config.parent.name
+            snapshot = Path(
+                self.hub.snapshot_download(
+                    repo, revision=revision, local_files_only=True, **self._options
+                )
+            )
+            self.revision = snapshot.name
             self._pins: dict[str, tuple[str | None, str | None]] | None = None
             self._sizes: dict[str, int | None] = {}
-            self._names = set(os.listdir(config.parent))
+            self._names = files_below(snapshot)
         else:
             info = self.hub.HfApi().model_info(
                 repo, revision=revision, files_metadata=True, token=token
@@ -104,12 +110,13 @@ class HubFiles:
             raise CorruptArtifactError(f"{self.where(name)} is not a file of the commit")
         path = self._download(name, self.revision)
         if path.is_symlink():
-            blob, etag = resolve_link(path, path.parent.parent.parent)
+            blob, etag = resolve_link(path, name)
         elif self._offline:
             raise CorruptArtifactError(
                 f"{path} is a copy without its blob name, which local_files_only cannot check"
             )
         else:
+            snapshot_of(path, name)  # a copy, which the hash checks; its folders are not links
             blob, etag = path, ""
         data = read_regular(blob, limit=limit, inspect=_sized(name, self._sizes.get(name), inspect))
         sha256, sha1 = file_digests(io.BytesIO(data), len(data))
@@ -133,23 +140,58 @@ def _sized(name: str, expected: int | None, inspect: Any) -> Any:
     return check
 
 
-def resolve_link(path: Path, repo: Path) -> tuple[Path, str]:
+def files_below(folder: Path) -> set[str]:
+    """The names of the files below ``folder`` (relative POSIX paths, links to files
+    included); a folder below it that is a link raises."""
+    names = set()
+    with os.scandir(folder) as entries:
+        found = list(entries)
+    for entry in found:
+        if entry.is_dir(follow_symlinks=False):
+            names |= {f"{entry.name}/{n}" for n in files_below(Path(entry.path))}
+        elif entry.is_symlink() and os.path.isdir(entry.path):
+            raise CorruptArtifactError(
+                f"{entry.path} is a link to a folder; fse follows no link out of a model"
+            )
+        else:
+            names.add(entry.name)
+    return names
+
+
+def check_folders(base: Path, name: str) -> None:
+    """Every folder of ``name`` below ``base`` is a directory of its own, no link."""
+    parts = PurePosixPath(name).parts
+    _plain_dirs(*(base.joinpath(*parts[:i]) for i in range(1, len(parts))))
+
+
+def snapshot_of(path: Path, name: str) -> Path:
+    """The snapshot folder ``<repo>/snapshots/<commit>`` of ``path``, the file ``name`` of
+    it; every folder from the repository down to the file is a directory of its own."""
+    snapshot = path.parents[len(PurePosixPath(name).parts) - 1]
+    repo = Path(os.path.normpath(snapshot.parent.parent))
+    _plain_dirs(repo, repo / "snapshots", snapshot)
+    check_folders(snapshot, name)
+    return snapshot
+
+
+def resolve_link(path: Path, name: str) -> tuple[Path, str]:
     """The regular file a snapshot link of a Hugging Face cache points to, and its blob
-    name (the etag: sha256 of an LFS file, else the git blob sha1). ``path`` lies in
-    ``<repo>/snapshots/<commit>/`` and must link to ``<repo>/blobs/<etag>``, the blobs of
-    the same cached repository; huggingface-hub 2 makes that entry a link into the
-    cache-wide store of Xet files, ``<cache>/blobs/<2 hex digits>/<64 hex digits>``, which
-    is followed too. Links are compared as written, never resolved, and no directory from
-    the repository down to a blob may be a link, so nothing leads out of the cache (the
-    cache folder itself may be one); anything else raises."""
+    name (the etag: sha256 of an LFS file, else the git blob sha1). ``path`` is the file
+    ``name`` (it may lie in a folder) of ``<repo>/snapshots/<commit>/`` and must link to
+    ``<repo>/blobs/<etag>``, the blobs of the same cached repository; huggingface-hub 2
+    makes that entry a link into the cache-wide store of Xet files,
+    ``<cache>/blobs/<2 hex digits>/<64 hex digits>``, which is followed too. Links are
+    compared as written, never resolved, and no directory from the repository down to a
+    blob may be a link, so nothing leads out of the cache (the cache folder itself may be
+    one); anything else raises."""
     # The folders are checked here and the blob is opened later by its path, so a folder
     # swapped in between could lead elsewhere. That is no gap of integrity, and no
     # descriptor-based walk is needed: the Hub reads the bytes once and compares their
     # hash with the commit (or, with local_files_only, with the etag resolved here), so
     # whatever a swap leads to gives the pinned bytes or a refusal. Local folders carry
     # no such claim; their files are the caller's.
-    repo = Path(os.path.normpath(repo))
-    _plain_dirs(repo, repo / "snapshots", path.parent, repo / "blobs")
+    repo = Path(os.path.normpath(snapshot_of(path, name).parent.parent))
+    _plain_dirs(repo / "blobs")
     blob = _step(path)
     if blob.parent != repo / "blobs":
         raise CorruptArtifactError(
@@ -180,11 +222,11 @@ def _plain_dirs(*folders: Path) -> None:
         try:
             mode = os.lstat(folder).st_mode
         except FileNotFoundError:
-            raise CorruptArtifactError(f"{folder} of the Hugging Face cache is missing") from None
+            raise CorruptArtifactError(f"{folder} is missing") from None
         if not stat.S_ISDIR(mode):
             raise CorruptArtifactError(
-                f"{folder} of the Hugging Face cache is a link or no directory; fse follows "
-                "no link out of the cache"
+                f"{folder} is a link or no directory; fse follows no link out of a model "
+                "or the Hugging Face cache"
             )
 
 
