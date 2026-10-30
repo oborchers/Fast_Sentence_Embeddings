@@ -17,7 +17,7 @@ import roofline_model as rm
 NOISE = 1.02
 # What a share above a bound tells: which assumption failed.
 WORK = "a core ran faster than alone"
-REUSE = "rows came from the caches"
+REUSE = "rows came from the caches, or the roof is an underestimate"
 SERIAL = ("join", "plan", "caller", "encode_rest")
 WORKER = ("tokenize", "pool", "normalize", "task_rest")
 

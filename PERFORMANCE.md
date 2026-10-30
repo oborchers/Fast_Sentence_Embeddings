@@ -8,7 +8,7 @@ On an M1 Pro (8 performance and 2 efficiency cores), master of 30.10.2026 with P
 
 - **One worker** runs at 86 to 99 % of the per-core bound: almost all of its time is the work of the stages that more cores share.
 - **Eight workers** reach 69 to 97 % of the Amdahl bound and 44 to 78 % of the per-core bound. The gap has two measured parts: each task takes 2 to 11 % more CPU time than alone when all cores run, and the workers are busy only about 70 to 100 % of the parallel time (the last tasks of a call, and waits between tasks).
-- **The measurements show no memory bandwidth limit**, also not at 1024 dimensions. static-retrieval-mrl-en-v1 at 1024 dimensions reads 164 to 197 GB/s of table rows (logical bytes) with 8 or 10 workers. That is 82 to 99 % of Apple's 200 GB/s, but more than any reader of the probe got from memory (115.6 GB/s at most). This points to many rows coming from the caches; it is no proof, because the probe gives lower estimates and hardware counters were not read. What the measurements do show is the pooling work: timed on its own, pooling takes 72 to 83 % of the time of one worker.
+- **The measurements show no memory bandwidth limit**, also not at 1024 dimensions. static-retrieval-mrl-en-v1 at 1024 dimensions reads 164 to 197 GB/s of table rows (logical bytes) with 8 or 10 workers. That is 82 to 99 % of Apple's 200 GB/s, but more than any reader of the probe got from memory (115.6 GB/s at most). This points to many rows coming from the caches; it is no proof, because the probe gives lower estimates and hardware counters were not read. What the measurements do show: pooling is the largest stage, 72 to 83 % of the time of one worker when timed on its own; that time includes its waits for memory, which these measurements do not separate from its arithmetic.
 - **int8 tables at 1024 dimensions** are 1.20 to 1.34 times as fast as float32 on WikiText and 0.98 to 1.10 times on MASSIVE, end to end.
 
 ## The model in plain words
@@ -115,9 +115,9 @@ WikiText:
 | static-retrieval-mrl-en-v1, 256 | 1 | 22.0 to 23.3 | 23 to 24 | 86% to 91% | 92% to 98% | 11% to 12% | 20% to 21% |
 |  | 8 | 90.1 to 99.0 | 92 to 101 | 44% to 48% | 69% to 80% | 47% to 52% | 81% to 89% |
 |  | 10 | 91.7 to 95.3 | 94 to 98 | 36% to 37% | 62% to 68% | 48% to 50% | 83% to 86% |
-| static-retrieval-mrl-en-v1, 1024 | 1 | 7.2 to 7.3 | 30 | 97% | 98% to 100% | 15% | 26% |
-|  | 8 | 43.0 | 176 | 71% to 72% | 76% to 87% | 89% | 154% |
-|  | 10 | 40.1 to 40.6 | 164 to 166 | 54% | 57% to 68% | 83% to 84% | 144% to 145% |
+| static-retrieval-mrl-en-v1, 1024 | 1 | 7.2 to 7.3 | 30 | 97% | 99% to 100% | 15% | 26% |
+|  | 8 | 43.0 | 176 | 71% to 72% | 84% to 87% | 89% | 154% |
+|  | 10 | 40.1 to 40.6 | 164 to 166 | 54% | 65% to 68% | 83% to 84% | 144% to 145% |
 | static-retrieval-mrl-en-v1, 1024, int8 table | 1 | 9.3 to 9.5 | 9 to 10 | 95% to 99% | 98% to 103% | 5% | 9% |
 |  | 8 | 54.2 | 56 | 70% | 88% to 92% | 29% | 51% |
 |  | 10 | 46.9 to 51.4 | 48 to 53 | 48% to 53% | 64% to 74% | 25% to 28% | 44% to 48% |
@@ -131,15 +131,15 @@ MASSIVE:
 | potion-base-8M, 256 | 1 | 12.5 to 12.7 | 13 | 96% to 98% | 98% to 100% | 7% | 12% |
 |  | 8 | 72.7 | 74 | 70% | 81% to 84% | 40% | 70% |
 |  | 10 | 81.6 to 81.7 | 84 | 63% | 75% to 78% | 45% | 78% |
-| potion-base-32M, 512 | 1 | 8.1 | 17 | 99% to 100% | 100% | 9% | 15% to 16% |
-|  | 8 | 50.3 to 51.0 | 103 to 104 | 77% to 78% | 78% to 82% | 56% to 57% | 96% to 98% |
-|  | 10 | 54.1 to 55.2 | 111 to 113 | 67% | 67% to 72% | 60% to 61% | 104% to 106% |
-| static-retrieval-mrl-en-v1, 256 | 1 | 17.0 to 17.1 | 17 | 96% to 98% | 98% to 99% | 9% | 16% |
-|  | 8 | 92.2 to 92.4 | 94 to 95 | 65% to 66% | 70% to 77% | 51% | 88% |
-|  | 10 | 97.1 to 99.9 | 99 to 102 | 56% | 60% to 69% | 53% to 55% | 93% to 95% |
+| potion-base-32M, 512 | 1 | 8.1 | 17 | 99% to 100% | 100% to 101% | 9% | 15% to 16% |
+|  | 8 | 50.3 to 51.0 | 103 to 104 | 77% to 78% | 85% | 56% to 57% | 96% to 98% |
+|  | 10 | 54.1 to 55.2 | 111 to 113 | 67% | 75% | 60% to 61% | 104% to 106% |
+| static-retrieval-mrl-en-v1, 256 | 1 | 17.0 to 17.1 | 17 | 96% to 98% | 98% to 101% | 9% | 16% |
+|  | 8 | 92.2 to 92.4 | 94 to 95 | 65% to 66% | 77% to 78% | 51% | 88% |
+|  | 10 | 97.1 to 99.9 | 99 to 102 | 56% | 68% to 69% | 53% to 55% | 93% to 95% |
 | static-retrieval-mrl-en-v1, 1024 | 1 | 7.1 to 7.2 | 29 | 98% | 99% | 16% | 27% |
-|  | 8 | 43.5 to 45.6 | 178 to 187 | 75% to 78% | 79% to 83% | 95% to 100% | 165% to 173% |
-|  | 10 | 45.9 to 48.1 | 188 to 197 | 64% to 66% | 67% to 71% | 101% to 105% | 174% to 182% |
+|  | 8 | 43.5 to 45.6 | 178 to 187 | 75% to 78% | 81% to 83% | 95% to 100% | 165% to 173% |
+|  | 10 | 45.9 to 48.1 | 188 to 197 | 64% to 66% | 69% to 72% | 101% to 105% | 174% to 182% |
 | static-retrieval-mrl-en-v1, 1024, int8 table | 1 | 7.5 | 8 | 98% | 100% to 101% | 5% | 9% |
 |  | 8 | 47.8 to 48.0 | 49 | 78% | 88% to 97% | 31% to 32% | 54% to 55% |
 |  | 10 | 49.8 to 50.1 | 51 | 65% | 76% to 85% | 33% | 57% |
@@ -167,7 +167,7 @@ The rests are differences of the fastest times of separate stages, so they can c
 
 - **One worker** is at 86 to 99 % of the per-core bound: the stages of the workers are almost all of the time. Its share of the Amdahl bound (92 to 103 %) is no independent check, because the rests are defined so that the stages add up to the measured encode; it only shows the noise between the fastest stage times and the median of the paired passes.
 - **256 and 512 dimensions** (POTION, the Matryoshka cut to 256): tokenizing and pooling take about the same time on WikiText; on MASSIVE, with 13 to 15 tokens per text, tokenizing takes twice the pooling of 256 dimensions and normalize adds 11 to 21 ns per token. The bound is the work of the workers. Eight workers lose against it in two measured ways: each task takes 2 to 11 % more wall time and 2 to 10 % more CPU time than alone, and the workers are busy only 70 to 100 % of the time outside the serial part (an estimate, from the serial time at one worker: the last tasks of a call and the hand-over between tasks). Ten workers are no faster than eight on WikiText (the tasks take 20 to 24 % more wall time than alone, and the busy share falls to 63 to 80 %) and 4 to 12 % faster on MASSIVE.
-- **1024 dimensions** (static-retrieval-mrl-en-v1): pooling, timed on its own over the prepared batches, takes 100 to 115 ns per token, 72 to 83 % of the time at one worker. With 8 or 10 workers fse reads 164 to 197 GB/s of rows. In the probe the cores read at most 115.6 GB/s from memory sequentially, and fse's kernel at most 88.6 GB/s on consecutive rows. That fse reads more points to reuse from the caches: the 10,141 (MASSIVE) to 19,871 (WikiText) distinct rows of a corpus take 40 to 78 MiB, but a few frequent tokens make up most reads. The probe gives lower estimates, so this is an indication, not a proof. Earlier reports read the 130 to 180 GB/s against Apple's 200 GB/s and concluded that this case is near the memory bandwidth limit; the measured read roofs do not support that conclusion, though they cannot rule out that the misses alone saturate memory. The measured limit is the pooling work per core.
+- **1024 dimensions** (static-retrieval-mrl-en-v1): pooling, timed on its own over the prepared batches, takes 100 to 115 ns per token, 72 to 83 % of the time at one worker. With 8 or 10 workers fse reads 164 to 197 GB/s of rows. In the probe the cores read at most 115.6 GB/s from memory sequentially, and fse's kernel at most 88.6 GB/s on consecutive rows. That fse reads more points to reuse from the caches: the 10,141 (MASSIVE) to 19,871 (WikiText) distinct rows of a corpus take 40 to 78 MiB, but a few frequent tokens make up most reads. The probe gives lower estimates, so this is an indication, not a proof. Earlier reports read the 130 to 180 GB/s against Apple's 200 GB/s and concluded that this case is near the memory bandwidth limit; the measured read roofs do not support that conclusion, though they cannot rule out that the misses alone saturate memory. Pooling is the largest measured stage per core; its time includes its waits for memory, so the measurements do not tell whether its arithmetic or those waits limit it.
 - **The serial part** (mostly the join of the strings, `_append_str`, 1.2 to 2.8 ns per token, the largest serial stage in most cells) limits only far beyond these core counts: its Amdahl limit is 230 million tokens per second or more.
 
 ### Profiles

@@ -233,3 +233,11 @@ def test_a_negative_rest_counts_as_no_serial_time(rm):
     stages = rm.Stages(0.0, 0.0, -0.1, -0.2, 0.8, 0.0, 0.0, 0.0)
     b = rm.bounds(_hw(rm), model, data, stages, 8)
     assert b.amdahl == pytest.approx(b.core)
+
+
+def test_a_negative_rest_takes_nothing_from_the_join(rm):
+    data = rm.Dataset("d", texts=1, bytes=1, tokens=10**6, distinct_ids=1)
+    model = rm.Model("m", 8, "float32", 10, False)
+    stages = rm.Stages(0.2, 0.05, 0.0, -0.1, 0.8, 0.0, 0.0, 0.0)  # join, scan, rest -0.1 s
+    b = rm.bounds(_hw(rm), model, data, stages, 8)
+    assert b.amdahl == pytest.approx(1 / (2.5e-7 + 1e-7))  # not 1.5e-7 + 1e-7
