@@ -37,7 +37,9 @@ def _expected(dtype, fasttext, steps, tokenizer, n):
 
 
 @pytest.mark.parametrize("workers", [1, 3])
-@pytest.mark.parametrize("kind", ["strings", "file", "tokens", "stream", "arrow", "arrow_view"])
+@pytest.mark.parametrize(
+    "kind", ["strings", "file", "tokens", "stream", "arrow", "arrow_view", "arrow_external"]
+)
 @pytest.mark.parametrize("fasttext", [False, True], ids=["plain", "fasttext"])
 @pytest.mark.parametrize("steps", list(STEPS))
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
@@ -47,7 +49,7 @@ def test_runtime_gives_the_reference_bits(
 ):
     if backend == "mlx":
         require_mlx()
-    tokenizer = "external" if kind == "tokens" else "fse_words@1"
+    tokenizer = "external" if kind in ("tokens", "arrow_external") else "fse_words@1"
     n = 120 if backend == "numpy" else 500
     sentences = texts(n)
     spec = _spec(dtype, fasttext, steps, tokenizer)

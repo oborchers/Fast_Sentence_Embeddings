@@ -75,7 +75,12 @@ class ArrowChunks:
         return p.stream(p.schema(self.fmt), [p.strings(self.fmt, part) for part in parts])
 
 
-ARROW_KINDS = {"arrow": (b"u", 37), "arrow_large": (b"U", 500), "arrow_view": (b"vu", 50)}
+ARROW_KINDS = {
+    "arrow": (b"u", 37),
+    "arrow_large": (b"U", 500),
+    "arrow_view": (b"vu", 50),
+    "arrow_external": (b"vu", 23),  # for the external tokenizer
+}
 
 
 def source(kind, sentences, tmp_path):
