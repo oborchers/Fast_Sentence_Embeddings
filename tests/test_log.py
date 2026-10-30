@@ -1,5 +1,6 @@
 """Tests of fse._log: the registry, enabled, emit and its error boundary."""
 
+import ast
 import logging
 import re
 from pathlib import Path
@@ -10,6 +11,7 @@ from fse import _log
 from support.logs import captured, expect_log
 
 SRC = Path(_log.__file__).parent
+ARCHITECTURE = SRC.parents[1] / "ARCHITECTURE.md"
 
 
 def test_every_event_has_a_logger_of_fse_and_a_level():
@@ -153,3 +155,42 @@ def test_keyboard_interrupt_from_a_handler_propagates():
                 _log.emit("store.search", "x")
         finally:
             logger.handlers.clear()
+
+
+def _calls(tree):
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "_log"
+            and node.func.attr in ("emit", "enabled")
+        ):
+            yield node
+
+
+def test_every_call_names_a_registered_event_as_a_literal():
+    used = set()
+    for path in SRC.rglob("*.py"):
+        for call in _calls(ast.parse(path.read_text(encoding="utf-8"))):
+            first = call.args[0] if call.args else None
+            where = f"{path.relative_to(SRC)}:{call.lineno}"
+            assert isinstance(first, ast.Constant), where
+            assert isinstance(first.value, str), where
+            assert first.value in _log.EVENTS, where
+            used.add(first.value)
+    assert used == set(_log.EVENTS), sorted(set(_log.EVENTS) - used)
+
+
+def test_only_the_log_modules_import_logging():
+    for path in SRC.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        if path.name not in ("_log.py", "_log_config.py"):
+            assert not re.search(r"^\s*(import|from)\s+(logging|warnings)\b", text, re.M), path
+
+
+def test_the_architecture_lists_every_event():
+    text = ARCHITECTURE.read_text(encoding="utf-8")
+    rows = dict(re.findall(r"^\| `([a-z]+\.[a-z_]+)` \| (DEBUG|INFO|WARNING) \|", text, re.M))
+    expected = {e: logging.getLevelName(level) for e, (_, level) in _log.EVENTS.items()}
+    assert rows == expected

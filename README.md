@@ -161,6 +161,20 @@ What 2.0 no longer has, against fse 1.1.0 and the earlier development versions o
 - **`Corpus`**: encode takes lists, paths and streams directly.
 - Files written by a development version of 2.0 before this change are refused (`fse.UnsupportedArtifactError`); rebuild them.
 
+### Logging
+
+fse logs through the standard library on five loggers below the logger `fse` (named "fse.artifact", "fse.hub", "fse.backend", "fse.runtime" and "fse.store") and configures nothing itself: without a configuration only its warnings (a slower fallback, a temporary file it could not remove) reach stderr. To see what it does:
+
+```python
+import fse
+
+fse.enable_logging()  # or "DEBUG" for plans, summaries and the fields of each record
+encoder = fse.Encoder.from_pretrained("minishlab/potion-base-8M")
+fse.disable_logging()
+```
+
+An application with its own logging attaches its handler to the logger `fse` instead; every record carries the attribute `fse_event` and its fields as `fse_<name>` (ARCHITECTURE.md, "Logging", lists them), and none holds a path, a text, a token of the Hub or a repository id. Downloads of the Hub show the progress bars of huggingface_hub (`HF_HUB_DISABLE_PROGRESS_BARS=1` hides them).
+
 ARCHITECTURE.md describes the design and the numerical contract, CHANGELOG.md every change against 1.1.0.
 
 Results

@@ -29,6 +29,8 @@ src/fse/
   _tokenizer_json_common.py # what the readers of a tokenizer.json share: keys, added tokens, post-processor, truncation
   _tokenizer_json_unigram.py # a Unigram tokenizer.json as the parameters of unigram@1
   _cpus.py               # usable_cpus: the default number of workers
+  _log.py                # the loggers and events of fse, emit with its error boundary
+  _log_config.py         # enable_logging and disable_logging
   _backends/             # the backends behind one contract:
     __init__.py          #   BACKEND_NAMES, get_backend,
     _base.py             #   Capabilities, PoolInput, Prepared, the Backend protocol and checks,
@@ -157,13 +159,57 @@ src/fse/
 
 ### Validate strictly, never fail silently
 
-Invalid input raises a clear exception at the API boundary. Nothing is coerced, ignored or truncated without an error, and an unexpected keyword argument is an error (`pydantic.ValidationError` at validated entry points). A slower but correct fallback is logged as a warning.
+Invalid input raises a clear exception at the API boundary. Nothing is coerced, ignored or truncated without an error, and an unexpected keyword argument is an error (`pydantic.ValidationError` at validated entry points). A slower but correct fallback is logged as a warning (Logging, below).
 
 Public entry points whose own work dwarfs a few microseconds use `fse._validation.validate_arguments`, a strict pydantic `validate_call`, with constraints such as `PositiveInt` in the signatures. Methods called per element in loops, and parameters that hold bulk data, check explicitly instead, because validation would add measurable overhead or copy the data; such parameters stay `Any` in validated signatures. Integer constraints accept numpy integer scalars, float constraints reject infinity and NaN.
 
 ### float32 throughout
 
 Word vectors, weights and sentence vectors are computed in float32. Word vectors may be stored as float16 or int8 and are widened exactly; every sum runs in float32. The kernel takes raw pointers, so arrays must have the expected dtype and be C-contiguous, which `_native.pyx` checks before the GIL is released.
+
+### Logging
+
+fse logs through the standard library only, on the fixed loggers `fse.artifact` (load, save, convert and verify of artifacts, their cleanup), `fse.hub` (a repository resolved to a commit, the files taken), `fse.backend` (the choice of a backend, the MLX canary and fallbacks), `fse.runtime` (the plan and summary of a run, the default workers, the fold of a head, the Arrow inputs) and `fse.store` (sinks, shards, stores, searches), below their parent `fse`, which logs nothing itself. `fse._log` holds the names and the registry of events; `fse._log_config` holds `fse.enable_logging(level="INFO")` and `fse.disable_logging()`, the only public surface (no `logger=` parameter, no environment variable, no public formatter). With nothing configured, a WARNING of fse reaches stderr through the standard library's `lastResort`; INFO and DEBUG stay silent. `enable_logging` prints fse's records to the stderr of the moment, one line each (time, level, logger, message; the thread for records of other threads than the main thread; at DEBUG the fields; colours only on a terminal and never with `NO_COLOR`), through one handler fse owns on "fse", and stops propagation from "fse" meanwhile so a root handler prints nothing twice; it raises if the application attached a handler of its own to "fse" or below. `disable_logging` detaches it and restores the level and propagation of "fse" where nobody changed them since; a record in flight in another thread at that instant may reach both fse's handler and a root handler, because the standard library reads `propagate` after it called the handlers of "fse", without a lock. Applications that configure logging themselves attach their handler to "fse" (structlog through `ExtraAdder`, loguru through an `InterceptHandler`); downloads of the Hub show huggingface_hub's own progress bars (`HF_HUB_DISABLE_PROGRESS_BARS=1`).
+
+1. fse logs only through `fse._log.emit`, with an event of `fse._log.EVENTS` named as a string literal; every event is in the table below (a test parses both). Logger, event and field names are fixed for 2.x: an event may gain fields, never lose or rename one, and renaming a logger is a breaking change recorded in CHANGELOG.md.
+2. fse adds no handler, sets no level and never touches the root logger or the warnings filters, except in `enable_logging` and `disable_logging` as their docstrings say.
+3. Logging never changes a result or an exception. `emit` returns at once for a level nobody listens to and catches every `Exception` of the logging machinery (a handler, filter, formatter or record factory of the application, a field that cannot be formatted): it reports the first failure of each event once to `sys.__stderr__` (if `logging.raiseExceptions`) and goes on; KeyboardInterrupt and SystemExit propagate. No state of an operation depends on a record.
+4. Errors raise and are never also logged. A slower but correct fallback logs a WARNING once per cause and object. The failed removal of a temporary file or directory is raised when no other error is raised (a store raises it once every thread of its sink has ended); while another error is raised, that error is raised unchanged with a note naming the temporary path, and the failure is logged as `*.cleanup_failed` with its class and errno. A temporary path that is already gone counts as removed.
+5. INFO is for operations on artifacts and stores, never for each call of `encode`, `search` or `predict`; DEBUG for plans, summaries and automatic choices, at most two records per call.
+6. No record per task, row or sentence: nothing in the native code (the extension imports neither `logging` nor `warnings`), nothing in the tasks of the runtime (stages 1 to 5 in the workers, the section without the GIL), and nothing in what the MLX device thread runs (`log-free` in `[tool.fse.guardrails]`); only the first fallback of an encoder logs from a worker. Fields that would hash, read or stat a file are computed only behind `fse._log.enabled` at the call site, since the arguments of `emit` are evaluated before it is called; the artifact records take kind, fingerprint and size from what a header states, so logging hashes nothing.
+7. The events of a call are emitted in the calling thread, where the application's context variables are. The exceptions are `backend.fallback` (a worker, when the slow path starts) and `store.shard_published` (the publisher thread).
+8. Records contain no paths, OS error texts, repository ids or revision names, tokens of the Hub, input texts, tokens, words, labels, vectors or scores: counts, sizes, dtypes, dimensions, durations, commits, fingerprints and fse's own names only (a class name of a source, sink or producer). Errors appear as class and errno. Exceptions keep naming paths: they go to the caller, not to an aggregator.
+9. Every WARNING message names fse and its component in its text ("fse mlx backend: ..."), so it reads on its own under `lastResort`.
+
+| Event (`fse_event`) | Level | Logger | Fields (each `fse_<name>`) | Emitted in |
+|---|---|---|---|---|
+| `backend.fallback` | WARNING | `fse.backend` | backend, reason (`dim`, `subnormal_input`, `long`, `nonfinite`, `limit`, `large`) | the first fallback of an mlx encoder, in a worker thread |
+| `backend.fallbacks` | DEBUG | `fse.backend` | backend, counts (by reason, so far) | after a run on mlx with a fallback |
+| `backend.selected` | DEBUG | `fse.backend` | backend, isa, concurrent | `get_backend`, once per backend and kernel per process |
+| `backend.canary` | DEBUG | `fse.backend` | backend, seconds | `Device.ready`, in the calling thread after the device thread returned |
+| `artifact.loaded` | INFO | `fse.artifact` | kind, fingerprint, bytes, mmap, seconds | the safetensors container: `open`, `open_bytes` |
+| `artifact.saved` | INFO | `fse.artifact` | kind, fingerprint, bytes, seconds | the safetensors container: `write` |
+| `artifact.verified` | INFO | `fse.artifact` | kind, bytes, seconds | the safetensors container: `verify` (a failure raises, no record) |
+| `artifact.converted` | INFO | `fse.artifact` | kind, source (`model2vec`, `sentence_transformers`, `gensim`, `sklearn`), rows, dim, tokenizer, normalize; dtype, fasttext (gensim); estimator, outputs, dim (sklearn) | a converted encoder (`_encoder._persist.converted`), `fse.gensim.from_gensim`, `from_sklearn` |
+| `artifact.ignored` | DEBUG | `fse.artifact` | source, keys (fse's own names of known keys, never values) | the Model2Vec and sentence-transformers readers |
+| `artifact.cleanup_failed` | WARNING | `fse.artifact` | error, errno | a temporary file of a failed write that could not be removed (containers, Hub folders) |
+| `hub.resolved` | INFO | `fse.hub` | commit, offline, files | `HubFiles`, once the commit is known |
+| `hub.file` | DEBUG | `fse.hub` | commit, bytes, pin (`lfs_sha256`, `git_sha1`) | `HubFiles.read`, after the check |
+| `runtime.workers` | DEBUG | `fse.runtime` | workers, origin (`override`, `affinity`, `cpu_count`, `cgroup`) | `usable_cpus`, when the default or its origin changes |
+| `runtime.plan` | DEBUG | `fse.runtime` | source (class), rows, workers, inline, backend, dtype, sink (class), window_tasks | `Pipeline.infer` after its checks |
+| `runtime.done` | DEBUG | `fse.runtime` | rows, tasks, seconds, rows_per_second | `Pipeline.infer` after a run |
+| `runtime.arrow_copied` | WARNING | `fse.runtime` | bytes | an Arrow column whose offsets or views were copied to align them |
+| `runtime.arrow_stream` | WARNING | `fse.runtime` | producer (class), error (class) | a producer that cannot export Arrow data, read as a stream |
+| `head.folded` | INFO | `fse.runtime` | rows, outputs, workers, backend, seconds | `fold` of a head on raw means |
+| `store.sink_opened` | INFO | `fse.store` | mode (`new`, `append`), rows, dim, dtype, shard_rows | `ShardSink` |
+| `store.shard_published` | DEBUG | `fse.store` | first_row, rows, durable_rows | the publisher of `ShardSink` (thread `fse-shard-publish`) |
+| `store.sink_closed` | INFO | `fse.store` | rows, shards, durable_rows, dropped_rows, outcome (`ok`, `error`, `interrupt`), seconds | `ShardSink.close` |
+| `store.cleanup_failed` | WARNING | `fse.store` | error, errno | a temporary shard or store directory that could not be removed while an error is raised |
+| `store.opened` | INFO | `fse.store` | rows, shards, dim, dtype, backend | `VectorStore.open` |
+| `store.verified` | INFO | `fse.store` | rows, shards, seconds | `VectorStore.verify` |
+| `store.search` | DEBUG | `fse.store` | queries, k, mode (`exact`, `blas`), rows, workers | `VectorStore.search`, once per call |
+
+Tests fail on every WARNING or higher of fse that no `support.logs.expect_log` expected, in setup, call and teardown (`tests/conftest.py`); a suite that causes a warning by design marks itself `expected_log(event)`.
 
 ## Build
 
@@ -634,13 +680,14 @@ The modules form layers, and a module imports only from layers below it. The imp
 7. `_text`
 8. `_wordvectors`
 9. `_wordvectors_format`, `_tokenizer_json`
-10. `_reference_head` (the reference of linear heads, on the reference of the encoder)
+10. `_reference_head` (the reference of linear heads, on the reference of the encoder) and `_log_config` (`enable_logging`, on `_validation`)
 11. `_container`, `_codes`, `_reference`, `_reference_text`, `_reference_wordpiece`, `_tokenizer_spec`, `_validation`, independent of each other: the references never share code with what they check
 12. `_contract`, `_cpus`, `_unicode`, `_unicode_bert`
+13. `_log` (the records of fse, which every module may emit)
 
 Inside a package, an import contract keeps its parts apart: `_npy` and `_safetensors` share only `_common`, which sits on `_hash`, each backend shares only `_base`, the runtime's pipeline sits on its tasks, sinks, spec and executor, in the encoder the encoder sits on `_pretrained` and `_persist` (an encoder as an artifact and back), `_pretrained` on `_folder` (Hugging Face folders), that on `_card` (their model card), that on the readers `_model2vec` and `_sentence_transformers`, those on `_files`, that on its batches and format and those on its inputs, in the containers the in-place writer `_npy_inplace` sits on `_npy` and the reader of foreign files `_foreign` on `_safetensors`, in the store the sink and the vector store sit on the shard writer and the search, those on the layout, the runtime's head sits on its pipeline, and in the heads the classes sit on the model, that on its runs, those on the scikit-learn reader, the format and the outputs, and those on the content.
 
-The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` (stages 1 and 2) and the cpu backend `_backends._cpu` (the kernels) import it and that it imports only `_contract` from fse. It also checks that only `_container._hash` imports a hash library (hashlib or xxhash), and that the library of each device backend (`device-libraries` in `[tool.fse.guardrails]`: mlx, later CUDA's) is imported, by an import statement or `importlib`, only by that backend's `_backends._<name>._load`; `get_backend` imports that backend's package only when it makes the backend, so that `import fse` and the other backends never load it. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list, with the device libraries, to the extension. Inside the mlx backend the backend sits on the device thread, that on the kernels, those on the Metal source and the loader.
+The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` (stages 1 and 2) and the cpu backend `_backends._cpu` (the kernels) import it and that it imports only `_contract` from fse. It also checks (in `tools/guardrails_imports.py`) that only `_container._hash` imports a hash library (hashlib or xxhash), that only `_log` and `_log_config` import `logging` or `warnings` and the modules the MLX device thread runs do not import `_log`, and that the library of each device backend (`device-libraries` in `[tool.fse.guardrails]`: mlx, later CUDA's) is imported, by an import statement or `importlib`, only by that backend's `_backends._<name>._load`; `get_backend` imports that backend's package only when it makes the backend, so that `import fse` and the other backends never load it. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list, with the device libraries, to the extension. Inside the mlx backend the backend sits on the device thread, that on the kernels, those on the Metal source and the loader.
 
 ### Defaults
 

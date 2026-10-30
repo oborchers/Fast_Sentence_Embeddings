@@ -44,6 +44,7 @@ Never wait for pull request checks or CI in the foreground. Start the wait as a 
 - Do not hard-code vocabulary positions in tests. gensim versions order words with equal counts differently; derive expectations from `key_to_index`.
 - The dependency lower bounds in pyproject.toml must match the pins of the minimum job in `.github/workflows/ci.yml`.
 - pytest treats warnings as errors. Add a narrow, commented `filterwarnings` ignore only for warnings from third-party code.
+- Log only through `fse._log.emit` with an event of `fse._log.EVENTS`; errors raise and are never also logged; no paths, error texts or input data in records; nothing per task, row or sentence, in native code or on the MLX device thread. See ARCHITECTURE.md, Logging.
 - Record user-visible changes in `CHANGELOG.md`.
 - Test modules never import each other. Helpers several of them share live in `tests/support/` (on the pytest `pythonpath`); a long test module splits by topic into `test_<module>_<topic>.py`.
 
@@ -56,6 +57,7 @@ Never wait for pull request checks or CI in the foreground. Start the wait as a 
 - the import layers and forbidden packages in `[tool.importlinter]`;
 - that only `fse._text` (stages 1 and 2) and the cpu backend `fse._backends._cpu` (the kernels) import `fse._native`, and the extension imports only `fse._contract` from fse;
 - that only `fse._container._hash` imports a hash library (hashlib, xxhash): every checksum and fingerprint is xxh3-128 through it;
+- that only `fse._log` and `fse._log_config` import `logging` or `warnings` (the extension neither), and that the modules the MLX device thread runs (`log-free`) do not import `fse._log` (these import rules are `tools/guardrails_imports.py`);
 - a test file for every module of fse (`fse/_a.py` is `tests/test_a.py`, `fse/_b/_c.py` is `tests/test_b_c.py`; only the generated `_version.py` has none, and the `.pxi` parts that `_native.pyx` includes are tested through `tests/test_native.py` and checked for imports like it);
 - no unused code (vulture, with the names Python, pytest or a library use by name in `[tool.vulture]`) and no undeclared or unused dependency (deptry).
 
