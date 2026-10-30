@@ -1,5 +1,6 @@
 """An encoder as an artifact and back: its tensors, its loaded parts, converted content."""
 
+import re
 from pathlib import Path
 
 import numpy as np
@@ -69,8 +70,9 @@ def test_held_tensors_are_compared_with_their_load_checksums_but_not_the_table()
     _persist.check_held(held, None, None)
     with pytest.raises(CorruptArtifactError, match="oov_weight of this encoder does not match"):
         _persist.check_held(held, {"oov_weight": "xxh3-128:00"}, None)
-    with pytest.raises(CorruptArtifactError, match=r"oov_weight of /x/e\.safetensors does not"):
-        _persist.check_held(held, {"oov_weight": "xxh3-128:00"}, Path("/x/e.safetensors"))
+    path = Path("/x/e.safetensors")  # printed with the separator of the platform
+    with pytest.raises(CorruptArtifactError, match=f"oov_weight of {re.escape(str(path))} does"):
+        _persist.check_held(held, {"oov_weight": "xxh3-128:00"}, path)
 
 
 @pytest.mark.parametrize("dtype", ["float16", "int8"])
