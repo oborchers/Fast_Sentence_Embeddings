@@ -18,6 +18,7 @@ Errors). This costs nothing until a task fails, and then about log2 of its rows 
 
 from __future__ import annotations
 
+import traceback
 from collections.abc import Callable
 from typing import Any
 
@@ -32,17 +33,25 @@ def earliest(run: Callable[[int], None], rows: int) -> None:
         run(rows)
         return
     except ValueError as error:
-        failed = error
+        failed = _kept(error)
     good, bad = 0, rows  # run(good) succeeds (nothing to run for 0), run(bad) fails
     while bad - good > 1:
         middle = (good + bad) // 2
         try:
             run(middle)
         except ValueError as error:
-            bad, failed = middle, error
+            bad, failed = middle, _kept(error)
         else:
             good = middle
     raise failed
+
+
+def _kept(error: ValueError) -> ValueError:
+    """``error`` with the locals of its frames dropped: its traceback would hold the batch
+    and the buffers of the failed run while the shorter runs make theirs. The traceback
+    keeps its lines."""
+    traceback.clear_frames(error.__traceback__)
+    return error
 
 
 def first_rows(target: Any, rows: int) -> Any:
