@@ -13,6 +13,7 @@ them into chunks; ``encode`` turns one chunk into a Batch with a ``TextLookup`` 
 per-worker ``Workspace``. Every sentence is one row, empty ones included.
 """
 
+from ._arrow import ArrowSource, is_arrow
 from ._lookup import (
     MAX_CHUNK_ROWS,
     MAX_NGRAMS_LIMIT,
@@ -30,6 +31,7 @@ from ._strings import RowTypeError, StringSource, TokenListSource, encode_string
 __all__ = [
     "MAX_CHUNK_ROWS",
     "MAX_NGRAMS_LIMIT",
+    "ArrowSource",
     "Chunk",
     "RowTypeError",
     "Scan",
@@ -41,6 +43,7 @@ __all__ = [
     "_Buffered",
     "check_chunk_bytes",
     "encode_string",
+    "is_arrow",
     "make_lookup",
     "make_vocabulary",
     "new_workspace",

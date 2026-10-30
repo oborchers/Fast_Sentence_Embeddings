@@ -37,7 +37,7 @@ def _expected(dtype, fasttext, steps, tokenizer, n):
 
 
 @pytest.mark.parametrize("workers", [1, 3])
-@pytest.mark.parametrize("kind", ["strings", "file", "tokens", "stream"])
+@pytest.mark.parametrize("kind", ["strings", "file", "tokens", "stream", "arrow", "arrow_view"])
 @pytest.mark.parametrize("fasttext", [False, True], ids=["plain", "fasttext"])
 @pytest.mark.parametrize("steps", list(STEPS))
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])

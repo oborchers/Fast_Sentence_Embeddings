@@ -276,6 +276,7 @@ generated = [
 # The only modules that import the extension fse._native (import-linter cannot see it):
 # the package _text for stages 1 and 2, the cpu backend for the kernels of stages 2 to 4.
 native-importers = [
+    "src/fse/_text/_arrow.py",
     "src/fse/_text/_lookup.py",
     "src/fse/_text/_scan.py",
     "src/fse/_text/_strings.py",
@@ -391,7 +392,7 @@ name = "Text: the sources and the lookup on the scan of one buffer"
 type = "layers"
 containers = ["fse._text"]
 exhaustive = true
-layers = ["_strings | _lookup", "_scan"]
+layers = ["_arrow | _strings | _lookup", "_scan"]
 
 [[tool.importlinter.contracts]]
 name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the executor"
