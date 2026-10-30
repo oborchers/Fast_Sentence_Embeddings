@@ -49,7 +49,9 @@ def store_rows(rows, codes, scales=None, first_row=0, *, isa=None):
     cdef int8_t[:, ::1] c8
     cdef uint16_t[:, ::1] c16
     cdef float[::1] s
+    global _nogil_sections
     if n and dim:
+        _nogil_sections += 1
         r = rows
         if int8:
             c8 = codes

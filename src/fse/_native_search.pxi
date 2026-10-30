@@ -44,6 +44,8 @@ cdef int64_t _inverse_norms_into(stored, int64_t n, int dim, out):
     cdef const void *data = np.PyArray_DATA(stored)
     cdef int dtype = _DTYPES[stored.dtype]
     cdef int64_t bad
+    global _nogil_sections
+    _nogil_sections += 1
     with nogil:
         bad = fse_inverse_norms(dtype, data, n, dim, &o[0], &scratch[0])
     return bad

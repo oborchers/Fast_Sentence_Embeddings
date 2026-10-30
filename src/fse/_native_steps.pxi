@@ -75,11 +75,13 @@ def _apply_steps(out, steps, first_row, int code):
     cdef int64_t bad, unnormalizable
     cdef int64_t n
     cdef int dim
+    global _nogil_sections
     for _ in check_steps(steps, out.shape[1]):
         n, dim = out.shape[0], out.shape[1]
         if n == 0:
             continue
         view = out
+        _nogil_sections += 1
         with nogil:
             bad = fse_normalize(code, &view[0, 0], n, dim, &unnormalizable)
         if unnormalizable >= 0:

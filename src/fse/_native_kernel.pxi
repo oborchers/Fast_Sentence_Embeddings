@@ -229,8 +229,10 @@ cdef class WeightedMean:
             b.ngrams = <const uint32_t *>&ngrams[0] if ngrams.shape[0] else NULL
         cdef float *target = &out[0, 0] if out.shape[0] else NULL
         cdef int64_t bad
+        global _nogil_sections
         if b.n_sentences == 0:
             return -1
+        _nogil_sections += 1
         with nogil:
             bad = fse_run(self.isa, &self.params, &b, target, counts, finish)
         return bad

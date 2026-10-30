@@ -423,46 +423,53 @@ cdef class ArrowColumn:
             self._readers -= 1
         return sentences, tokens, empty, [tuple(flat[c : c + 3]) for c in range(0, len(flat), 3)], -1, -1
 
-    def encode(self, TextLookup lookup not None, Py_ssize_t first, Py_ssize_t last, first_row,
-               Workspace ws not None):
-        """The Batch of the rows first to last - 1, which starts at row first_row."""
-        from fse._contract import Batch
-
+    cdef int _check_encode(self, TextLookup lookup, Py_ssize_t first, Py_ssize_t last,
+                           Workspace ws) except -1:
         if lookup._state != TABLE_READY:
             raise RuntimeError("this TextLookup was not built; make a new one")
         self._check_range(first, last)
         if ws.busy:
             raise RuntimeError("a Workspace is used by one thread at a time")
-        cdef Py_ssize_t pos = first, sentence = 0, bad = -1
+        return 0
+
+    cdef int _encode_rows(self, TextLookup lookup, Py_ssize_t first, Py_ssize_t last,
+                          Workspace ws, _ArrowRow *row) noexcept nogil:
+        """Stages 1 and 2 of the rows first to last - 1 into the batch buffers of ws; stops
+        at the first row that fails, with its status (the caller holds a reader)."""
+        cdef Py_ssize_t pos = first
         cdef _Cursor at
-        cdef const unsigned char *p = NULL
-        cdef int64_t n = 0
-        cdef int status = ENCODE_OK
+        _reader_hold()
+        cdef int status = _start_batch(ws)
+        if pos < last:
+            _seek(&at, self._chunks, self._starts, self._n, pos)
+        while status == ENCODE_OK and pos < last:
+            if pos >= at.end:
+                _seek(&at, self._chunks, self._starts, self._n, pos)
+            if fse_arrow_row(at.chunk, pos - at.base, &row.p, &row.n) != 0:
+                return _ARROW_INVALID
+            status = lookup._sentence(row.p, row.n, ws, &row.bad)
+            if status == ENCODE_OK:
+                row.sentence += 1
+                pos += 1
+        return status
+
+    def encode(self, TextLookup lookup not None, Py_ssize_t first, Py_ssize_t last, first_row,
+               Workspace ws not None):
+        """The Batch of the rows first to last - 1, which starts at row first_row."""
+        from fse._contract import Batch
+
+        global _nogil_sections
+        self._check_encode(lookup, first, last, ws)
+        cdef _ArrowRow row
+        row.p, row.n, row.bad, row.sentence = NULL, 0, -1, 0
+        cdef int status
         ws.busy = True
         self._readers += 1
         try:
-            ws.tokens_seen = 0
-            ws.tokens.size = 0
-            ws.offsets.size = 0
-            ws.ngram_offsets.size = 0
-            ws.ngrams.size = 0
+            _nogil_sections += 1
             with nogil:
-                _reader_hold()
-                if _push_i64_nogil(&ws.offsets, 0) or _push_i64_nogil(&ws.ngram_offsets, 0):
-                    status = ENCODE_NO_MEMORY
-                if pos < last:
-                    _seek(&at, self._chunks, self._starts, self._n, pos)
-                while status == ENCODE_OK and pos < last:
-                    if pos >= at.end:
-                        _seek(&at, self._chunks, self._starts, self._n, pos)
-                    if fse_arrow_row(at.chunk, pos - at.base, &p, &n) != 0:
-                        status = _ARROW_INVALID
-                        break
-                    status = lookup._sentence(p, n, ws, &bad)
-                    if status == ENCODE_OK:
-                        sentence += 1
-                        pos += 1
-            _arrow_encode_status(status, p, n, bad, sentence, first_row + sentence)
+                status = self._encode_rows(lookup, first, last, ws, &row)
+            _arrow_encode_status(status, row.p, row.n, row.bad, row.sentence, first_row + row.sentence)
             tokens = _to_array(&ws.tokens, np.uint32)
             offsets = _to_array(&ws.offsets, np.int64)
             if not lookup.fasttext:

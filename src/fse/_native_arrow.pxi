@@ -198,6 +198,13 @@ cdef inline Py_ssize_t _chunk_of(const int64_t *starts, Py_ssize_t n, int64_t ro
     return lo
 
 
+cdef struct _ArrowRow:
+    # The row an encode stopped at: its text, the bad byte in it, the rows done before it.
+    const unsigned char *p
+    int64_t n
+    Py_ssize_t bad, sentence
+
+
 cdef struct _Cursor:
     const fse_arrow_chunk *chunk
     int64_t base  # the first row of the chunk
