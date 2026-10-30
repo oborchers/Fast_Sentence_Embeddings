@@ -144,6 +144,9 @@ _CORRUPT = [
     ((*_STEPS, -1, "strip_left"), "yes", "left of strip"),
     ((*_STEPS, 0, "normalizers"), {}, "must be a list"),
     ((*_STEPS, 0, "normalizers", 1), "Replace", "JSON object with a type"),
+    # tokenizers refuses null inside a Sequence; only the file's normalizer may be null.
+    ((*_STEPS, 0, "normalizers", 1), None, "JSON object with a type"),
+    ((*_STEPS, 1), None, "JSON object with a type"),
     (("pre_tokenizer", "replacement"), "\u2581\u2581", "one character"),
     (("pre_tokenizer", "add_prefix_space"), False, "add_prefix_space false"),
     # tokenizers 0.23.3 reads these as Option<bool> or Option<String> and refuses them.

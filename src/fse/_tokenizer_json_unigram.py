@@ -120,9 +120,8 @@ def _vocab(vocab: Any, path: Path) -> tuple[list[str], bytes]:
 
 
 def _flatten(value: Any, path: Path) -> list[dict]:
-    """The normalizers in the order they apply; null is none."""
-    if value is None:
-        return []
+    """The normalizers of a normalizer in the order they apply. null is allowed only for
+    the normalizer of the file (``_normalizer``), not inside a Sequence, as in tokenizers."""
     if not isinstance(value, dict) or "type" not in value:
         raise CorruptArtifactError(f"{path}: a normalizer must be a JSON object with a type")
     if value["type"] != "Sequence":
@@ -136,7 +135,7 @@ def _flatten(value: Any, path: Path) -> list[dict]:
 def _normalizer(value: Any, path: Path) -> tuple[list[tuple], bytes | None]:
     """The steps of unigram@1 and the charsmap of its precompiled step."""
     steps, charsmap = [], None
-    for normalizer in _flatten(value, path):
+    for normalizer in [] if value is None else _flatten(value, path):
         kind = normalizer["type"]
         if kind == "Precompiled":
             if charsmap is not None:
