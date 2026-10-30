@@ -134,6 +134,41 @@ def test_a_converted_model_names_its_source_and_its_differences(tmp_path):
     assert "`[UNK]` included" in data.decode()
 
 
+def _converted(dtype="float32", normalize=True):
+    encoder = finished(dtype=dtype, normalize=normalize)
+    source = Source("model2vec", "minishlab/potion-base-8M", "abc")
+    content = dataclasses.replace(encoder._content, source=source)
+    return type(encoder)._new(content, encoder.word_vectors)
+
+
+@pytest.mark.parametrize(
+    ("dtype", "relation"), [("int8", "quantized"), ("float16", None), ("float32", None)]
+)
+def test_only_an_int8_table_of_a_base_model_is_a_quantized_version(dtype, relation, tmp_path):
+    _converted(dtype).save(tmp_path / "m.safetensors")
+    data, meta = _card_of(tmp_path / "m.safetensors", tmp_path)
+    assert meta["base_model"] == "minishlab/potion-base-8M"
+    assert meta.get("base_model_relation") == relation
+    assert data.decode().count("base_model_relation") == (relation is not None)
+
+
+def test_a_classifier_on_a_float32_base_model_leaves_the_relation_to_the_hub(tmp_path):
+    encoder = _converted(normalize=False)
+    clf = fse.Classifier.from_arrays(encoder, np.ones((2, 6)), labels=["a", "b"])
+    for standalone in (False, True):
+        clf.save(tmp_path / f"c{standalone}.safetensors", standalone=standalone)
+        _, meta = _card_of(tmp_path / f"c{standalone}.safetensors", tmp_path)
+        assert meta["base_model"] == "minishlab/potion-base-8M"
+        assert "base_model_relation" not in meta
+
+
+def test_an_int8_table_without_a_base_model_has_no_relation(tmp_path):
+    for name in ("encoder_int8", "regressor_int8"):
+        data, meta = _card_of(FINISHED / f"{name}.safetensors", tmp_path)
+        assert "base_model" not in meta
+        assert b"base_model_relation" not in data
+
+
 def test_many_labels_are_cut_in_the_text(tmp_path):
     encoder = finished(normalize=False)
     labels = [f"l{i}" for i in range(25)]
