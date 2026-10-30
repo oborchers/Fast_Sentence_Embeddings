@@ -145,7 +145,7 @@ class Pipeline:
             if base:
                 raise ValueError("first_row numbers the rows of a sink; without one it is 0")
         tasks, window, stop = self.plan_tasks(
-            source, workers, chunk_bytes, self._row_bytes(dtype, inverse)
+            source, workers, chunk_bytes, self._row_bytes(dtype, inverse), base
         )
         own: ArrayRows | GrowingRows | None = None
         if sink is None:
@@ -181,7 +181,12 @@ class Pipeline:
         return None if own is None else own.result()
 
     def plan_tasks(
-        self, source: object, workers: int, chunk_bytes: int | None, row_bytes: int
+        self,
+        source: object,
+        workers: int,
+        chunk_bytes: int | None,
+        row_bytes: int,
+        first_row: int = 0,
     ) -> tuple[Plan, int, threading.Event]:
         """The tasks of ``source`` for rows of ``row_bytes`` each, the window, and the event
         the executor sets once a task failed. The rows of the window stay within
@@ -198,6 +203,7 @@ class Pipeline:
             chunk_rows=task_rows,
             tokenizer=self.spec.tokenizer.name,
             stop=stop,
+            first_row=first_row,
         )
         return tasks, window, stop
 
@@ -220,10 +226,11 @@ class Pipeline:
         workspace = getattr(local, "workspace", None)
         if workspace is None:
             workspace = local.workspace = new_workspace()
-        batch = task.batch(self.lookup, workspace)
-        if base:
-            batch = dataclasses.replace(batch, first_row=base + batch.first_row)
-        return batch
+        if base:  # the rows of the batch and of the errors of stage 1 count from base
+            task = dataclasses.replace(
+                task, chunk=dataclasses.replace(task.chunk, first_row=base + task.first_row)
+            )
+        return task.batch(self.lookup, workspace)
 
     def finish(self, local: threading.local, batch: Batch, target: tuple, first: int) -> ndarray:
         """Stages 2 to 5 of ``batch`` (rows ``first`` on) into ``target`` (codes, scales,

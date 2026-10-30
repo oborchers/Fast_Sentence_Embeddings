@@ -225,19 +225,25 @@ class _Buffered:
         return scan
 
     def scan_until_error(
-        self, *, workers: int = 1, chunk_bytes: int | None = None, chunk_rows: int | None = None
+        self,
+        *,
+        workers: int = 1,
+        chunk_bytes: int | None = None,
+        chunk_rows: int | None = None,
+        first_row: int = 0,
     ) -> tuple[Scan, Exception | None]:
         """As ``scan``, but the first invalid sentence ends the chunks instead of raising:
         the chunks of the sentences before it and its error (or None). The runtime encodes
         those sentences first, so an earlier row that fails later in its pipeline is
-        reported before it (ARCHITECTURE.md, "Runtime", Errors)."""
+        reported before it (ARCHITECTURE.md, "Runtime", Errors). The error names its row
+        from ``first_row``, the row of the run of this source's first sentence."""
         self._check_open()
         total = self.nbytes
         workers, chunk_bytes, chunk_rows = _chunk_sizes(total, workers, chunk_bytes, chunk_rows)
         if self._positions() == 0:
             return Scan(0, ()), None
         if self._offsets is not None:
-            return self._offset_scan(workers, chunk_bytes, chunk_rows)
+            return self._offset_scan(workers, chunk_bytes, chunk_rows, first_row)
         scan = self._scanner(chunk_bytes, chunk_rows)
         ranges = list(pairwise(self._range_bounds(workers, chunk_bytes)))
 
@@ -253,7 +259,7 @@ class _Buffered:
                 error_byte, error_sentence = result[4], result[5]
                 error = None
                 if error_byte >= 0:
-                    error = self._error(error_byte, sentences + error_sentence)
+                    error = self._error(error_byte, sentences + error_sentence, first_row)
                     result = self._valid_part(scan, span[0], error_byte, error_sentence)
                 count, _, _, range_chunks, _, _ = result
                 firsts = [row for _, _, row in range_chunks] + [count]
@@ -268,17 +274,19 @@ class _Buffered:
         return Scan(sentences, tuple(chunks)), None
 
     def _offset_scan(
-        self, workers: int, chunk_bytes: int, chunk_rows: int
+        self, workers: int, chunk_bytes: int, chunk_rows: int, first_row: int
     ) -> tuple[Scan, Exception | None]:
         """The scan of sentences with offsets: validated, then cut from the offsets into
         chunks of about equal bytes (``offset_cuts``)."""
-        rows, error = self._validated(workers, chunk_bytes)
+        rows, error = self._validated(workers, chunk_bytes, first_row)
         assert self._offsets is not None
         cuts = offset_cuts(self._offsets[: rows + 1], chunk_bytes, chunk_rows).tolist()
         chunks = tuple(Chunk(a, b, a, b - a) for a, b in pairwise(cuts))
         return Scan(rows, chunks), error
 
-    def _validated(self, workers: int, chunk_bytes: int) -> tuple[int, Exception | None]:
+    def _validated(
+        self, workers: int, chunk_bytes: int, first_row: int
+    ) -> tuple[int, Exception | None]:
         """The sentences before the first invalid one, and its error (or None); a verified
         buffer has no invalid sentence."""
         if self._verified:
@@ -291,7 +299,7 @@ class _Buffered:
                 count, _, _, _, error_byte, error_sentence = result
                 if error_byte >= 0:
                     return sentences + error_sentence, self._error(
-                        error_byte, sentences + error_sentence
+                        error_byte, sentences + error_sentence, first_row
                     )
                 sentences += count
         return sentences, None
@@ -360,13 +368,13 @@ class _Buffered:
             return chunk.end - chunk.start
         return int(self._offsets[chunk.end] - self._offsets[chunk.start])
 
-    def _error(self, byte: int, sentence: int) -> UnicodeDecodeError:
+    def _error(self, byte: int, sentence: int, first_row: int = 0) -> UnicodeDecodeError:
         """The error of an invalid UTF-8 byte of the scan: ``byte`` where the scan gave it,
-        ``sentence`` the row."""
+        ``sentence`` the row, named from ``first_row``."""
         if self._offsets is not None:
             k = int(np.searchsorted(self._offsets, byte, side="right")) - 1
             return _decode_error(
-                self._data, int(self._offsets[k]), int(self._offsets[k + 1]), sentence
+                self._data, int(self._offsets[k]), int(self._offsets[k + 1]), first_row + sentence
             )
         start = byte
         while start > 0 and self._data[start - 1] != 10:
@@ -374,7 +382,7 @@ class _Buffered:
         end = byte
         while end < len(self._data) and self._data[end] != 10:
             end += 1
-        return _decode_error(self._data, start, end, sentence)
+        return _decode_error(self._data, start, end, first_row + sentence)
 
     def _check_open(self) -> None:
         """Raise if the source was closed; only a FileSource can be."""

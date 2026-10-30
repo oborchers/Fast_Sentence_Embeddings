@@ -118,18 +118,19 @@ def test_an_error_of_get_schema_raises():
     )
 
 
-def test_an_invalid_array_of_a_stream_releases_every_array_taken():
+def test_a_null_in_a_stream_ends_the_column_and_every_array_is_released():
     p = Producer()
     arrays = [
         p.strings(b"u", [b"a"]),
         p.strings(b"u", [b"b", b"c"], nulls=[1]),
         p.strings(b"u", [b"d"]),
     ]
-    capsule = p.stream(p.schema(b"u"), arrays)
-    with pytest.raises(ValueError, match="row 2 of the Arrow column is null"):
-        _native.ArrowColumn.from_stream(capsule)
+    col = _native.ArrowColumn.from_stream(p.stream(p.schema(b"u"), arrays))
+    assert (col.null_row, col.rows) == (2, 2)  # a and b; nothing after the null is read
+    assert "row 2 of the Arrow column is null" in str(_native.arrow_null_error(col.null_row))
+    col.release()
     gc.collect()
-    assert p.releases.count("array") == 2
+    assert p.releases.count("array") == 3
 
 
 def test_a_stream_of_a_table_is_refused_and_released():

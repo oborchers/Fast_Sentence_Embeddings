@@ -107,6 +107,15 @@ def tokenize(text, tokenizer="fse_words@1"):
 cdef Py_ssize_t _MAX_SENTENCE_BYTES = 1 << 30
 MAX_SENTENCE_BYTES = _MAX_SENTENCE_BYTES
 
+
+def _test_sentence_limit(Py_ssize_t limit):
+    """For the tests: the largest sentence the tokenizers take, so a sentence that is too
+    long needs no GiB; returns the previous limit."""
+    global _MAX_SENTENCE_BYTES
+    previous = _MAX_SENTENCE_BYTES
+    _MAX_SENTENCE_BYTES = limit
+    return previous
+
 cdef enum:
     ENCODE_OK = 0
     ENCODE_NO_MEMORY = 1

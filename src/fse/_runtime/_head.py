@@ -243,7 +243,9 @@ class HeadPipeline:
         obase = first_row if sink is not None else 0  # own targets count from 0
         vbase = first_row if vector_sink is not None else 0
         row_bytes = self._row_bytes(output, vector_dtype, inverse)
-        tasks, window, stop = self.reader.plan_tasks(source, workers, chunk_bytes, row_bytes)
+        tasks, window, stop = self.reader.plan_tasks(
+            source, workers, chunk_bytes, row_bytes, first_row
+        )
         outputs = sink if sink is not None else _own(tasks.rows, width, output)
         vectors: Any = vector_sink
         if self.with_vectors and vectors is None:

@@ -78,8 +78,10 @@ def plan(
     chunk_rows: int,
     tokenizer: str,
     stop: threading.Event | None = None,
+    first_row: int = 0,
 ) -> Plan:
-    """Scan ``source`` and plan one task per chunk of at most ``chunk_rows`` rows."""
+    """Scan ``source`` and plan one task per chunk of at most ``chunk_rows`` rows; an error
+    of the scan names its row from ``first_row`` (the row of the run where it starts)."""
     if not isinstance(source, SOURCES):
         names = ", ".join(cls.__name__ for cls in SOURCES)
         raise TypeError(f"source must be one of {names}, not {type(source).__name__}")
@@ -87,10 +89,13 @@ def plan(
         raise ValueError("token lists are for the external tokenizer")
     chunk_bytes = check_chunk_bytes(chunk_bytes)  # before a stream is read
     if isinstance(source, StreamSource):
-        return _stream_plan(source, chunk_bytes, chunk_rows, stop)
+        return _stream_plan(source, chunk_bytes, chunk_rows, stop, first_row)
     inline = source.nbytes <= INLINE_MAX_BYTES  # scanned as one range, run in the caller
     scan, error = source.scan_until_error(
-        workers=1 if inline else workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows
+        workers=1 if inline else workers,
+        chunk_bytes=chunk_bytes,
+        chunk_rows=chunk_rows,
+        first_row=first_row,
     )
     return Plan(_then(scan.chunks, source, error), scan.sentences, inline)
 
@@ -105,7 +110,11 @@ def _then(chunks: tuple[Chunk, ...], source: Any, error: Exception | None) -> It
 
 
 def _stream_plan(
-    source: StreamSource, chunk_bytes: int | None, chunk_rows: int, stop: threading.Event | None
+    source: StreamSource,
+    chunk_bytes: int | None,
+    chunk_rows: int,
+    stop: threading.Event | None,
+    first_row: int,
 ) -> Plan:
     """The first collection is read now, to decide whether the stream runs inline. Once
     ``stop`` is set (a task failed), the stream is not read any further."""
@@ -121,7 +130,7 @@ def _stream_plan(
                 collection.source.nbytes, 1, STREAM_TASKS_PER_COLLECTION
             )
             scan, error = collection.source.scan_until_error(
-                chunk_bytes=size, chunk_rows=chunk_rows
+                chunk_bytes=size, chunk_rows=chunk_rows, first_row=first_row + collection.first_row
             )
             for c in scan.chunks:
                 chunk = Chunk(c.start, c.end, collection.first_row + c.first_row, c.n_sentences)

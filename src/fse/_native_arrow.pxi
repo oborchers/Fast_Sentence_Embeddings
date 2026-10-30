@@ -284,3 +284,40 @@ cdef int _stream_error(ArrowArrayStream *stream, int code, what) except -1:
     cdef const char *message = stream.get_last_error(stream) if stream.get_last_error != NULL else NULL
     text = (<bytes>message).decode("utf-8", "replace") if message != NULL else f"error code {code}"
     raise OSError(code, f"the Arrow stream failed in {what}: {text}")
+
+
+cdef int64_t _arrow_check_array(ArrowArray *a, int64_t rows, int kind) except -2:
+    """Check one array of a column of ``rows`` rows so far and of ``kind``; the first null
+    row in it, or -1."""
+    if a.length < 0 or a.offset < 0:
+        raise ValueError(f"an Arrow array has the length {a.length} and offset {a.offset}")
+    if a.offset > INT64_MAX - 1 - a.length:
+        raise ValueError("the offset and length of an Arrow array overflow")
+    if a.length > INT64_MAX - rows:
+        raise OverflowError("the Arrow column holds more than 2**63 rows")
+    if a.n_children != 0 or a.dictionary != NULL:
+        raise ValueError("an Arrow string array has no children and no dictionary")
+    if a.buffers == NULL:
+        raise ValueError("the Arrow array has no buffers")
+    if a.n_buffers > PY_SSIZE_T_MAX // <int64_t>sizeof(void *):
+        raise ValueError(f"an Arrow array cannot have {a.n_buffers} buffers")
+    if (a.n_buffers != 3) if kind != FSE_ARROW_UTF8_VIEW else (a.n_buffers < 3):
+        raise ValueError(f"an Arrow string array of this format has not {a.n_buffers} buffers")
+    if a.null_count < -1 or a.null_count > a.length:
+        raise ValueError(f"the null count {a.null_count} of an Arrow array of {a.length} rows is invalid")
+    if a.length == 0:
+        return -1
+    cdef const uint8_t *bits = <const uint8_t *>a.buffers[0]
+    cdef int64_t null
+    if bits == NULL:
+        if a.null_count != 0:
+            raise ValueError("an Arrow array without a validity bitmap must have a null count of 0")
+        return -1
+    with nogil:
+        null = fse_arrow_first_null(bits, a.offset, a.length)
+    return null
+
+
+def arrow_null_error(row):
+    """The error of a null at ``row`` of an Arrow column (its rows numbered in the run)."""
+    return ValueError(f"row {row} of the Arrow column is null: {_ARROW_NULL_HINT}")

@@ -25,7 +25,7 @@ import numpy as np
 from fse import _native
 from fse._contract import Batch
 
-from ._scan import Chunk, _Buffered
+from ._scan import Chunk, Scan, _Buffered
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +92,24 @@ class ArrowSource(_Buffered):
     def _lines(self) -> bool:
         return False  # positions are row numbers
 
+    def scan_until_error(
+        self,
+        *,
+        workers: int = 1,
+        chunk_bytes: int | None = None,
+        chunk_rows: int | None = None,
+        first_row: int = 0,
+    ) -> tuple[Scan, Exception | None]:
+        """As for every source; a null ends the column like an invalid sentence: the rows
+        before it are the chunks, and its error follows them unless one of them is
+        invalid."""
+        scan, error = super().scan_until_error(
+            workers=workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows, first_row=first_row
+        )
+        if error is None and self._column.null_row >= 0:
+            error = _native.arrow_null_error(first_row + self._column.null_row)
+        return scan, error
+
     def _scanner(self, chunk_bytes: int, chunk_rows: int):
         self._check_open()
         column = self._column
@@ -104,7 +122,7 @@ class ArrowSource(_Buffered):
     def _span_bytes(self, chunk: Chunk) -> int:
         return self._column.span_bytes(chunk.start, chunk.end)
 
-    def _error(self, byte: int, sentence: int) -> UnicodeDecodeError:
+    def _error(self, byte: int, sentence: int, first_row: int = 0) -> UnicodeDecodeError:
         raw = self._column.row_bytes(sentence)
         try:
             raw.decode("utf-8")
@@ -114,7 +132,7 @@ class ArrowSource(_Buffered):
                 err.object,
                 err.start,
                 err.end,
-                f"{err.reason} in sentence {sentence} (byte {byte} of the row)",
+                f"{err.reason} in sentence {first_row + sentence} (byte {byte} of the row)",
             )
         raise AssertionError(f"no UTF-8 error in row {sentence}")  # pragma: no cover
 

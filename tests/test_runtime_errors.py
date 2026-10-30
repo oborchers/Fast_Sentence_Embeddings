@@ -1,6 +1,8 @@
 """Tests of fse._runtime._errors: the error of a run is that of its earliest failing row,
 whatever the task boundaries and the workers, and only successful tasks are committed."""
 
+import re
+
 import numpy as np
 import pytest
 
@@ -50,19 +52,18 @@ def _error(pipeline, texts, **kwargs):
     return type(caught.value), str(caught.value)
 
 
-def _oracle(pipeline, texts, **kwargs):
-    """The error of the first row that fails when it is encoded alone, from the same
-    bytes: the run of the texts up to it."""
-    row = next(r for r, t in enumerate(texts) if _fails(pipeline, t, **kwargs))
-    return _error(pipeline, texts[: row + 1], workers=1, **kwargs)
+def _isolated(pipeline, text, row, **kwargs):
+    """The error of ``text`` encoded alone as row ``row`` of a run (into a sink numbered
+    from it), so neither the rows around it nor the task boundaries take part; the byte of
+    the source, which depends on the rows before it, is left out."""
+    dtype = kwargs.get("dtype", "float32")
+    with pytest.raises(ValueError, match=rf"(row|sentence) {row}\b") as caught:
+        pipeline.infer(StringSource([text]), workers=1, sink=Recording(dtype=dtype), first_row=row)
+    return type(caught.value), _bytes_out(str(caught.value))
 
 
-def _fails(pipeline, text, **kwargs):
-    try:
-        pipeline.infer(StringSource([text]), workers=1, **kwargs)
-    except ValueError:
-        return True
-    return False
+def _bytes_out(message):
+    return re.sub(r"\(byte \d+ of the source\)", "(byte of the source)", message)
 
 
 def _texts(n, placed):
@@ -72,14 +73,19 @@ def _texts(n, placed):
     return texts
 
 
+NORMALIZE = r"row {} cannot be normalized"
+POOLING = r"row {} contains NaN or infinite values"
+FLOAT16 = r"row {} has values beyond the float16 range"
+UTF8 = r"in sentence {} \(byte \d+ of the source\)"
 CASES = [
-    # (pipeline, the rows that fail and how, keyword arguments of infer)
-    (NORMALIZED, {120: TOO_TINY, 2900: OVERFLOW}, {}),  # a late stage on the earlier row
-    (NORMALIZED, {120: OVERFLOW, 2900: TOO_TINY}, {}),
-    (NORMALIZED, {120: TOO_TINY, 121: OVERFLOW}, {}),  # neighbours, mostly in one task
-    (RAW, {500: TOO_BIG, 2000: OVERFLOW}, {"dtype": "float16"}),  # storage against pooling
-    (NORMALIZED, {700: TOO_TINY, 1800: Raw("x")}, {}),  # normalize against the scan
-    (NORMALIZED, {700: Raw("x"), 1800: OVERFLOW}, {}),
+    # (pipeline, the rows that fail and how, keyword arguments of infer, the error of the
+    # earliest row by construction)
+    (NORMALIZED, {120: TOO_TINY, 2900: OVERFLOW}, {}, NORMALIZE),  # a late stage, earlier row
+    (NORMALIZED, {120: OVERFLOW, 2900: TOO_TINY}, {}, POOLING),
+    (NORMALIZED, {120: TOO_TINY, 121: OVERFLOW}, {}, NORMALIZE),  # neighbours, mostly one task
+    (RAW, {500: TOO_BIG, 2000: OVERFLOW}, {"dtype": "float16"}, FLOAT16),  # storage, pooling
+    (NORMALIZED, {700: TOO_TINY, 1800: Raw("x")}, {}, NORMALIZE),  # normalize against the scan
+    (NORMALIZED, {700: Raw("x"), 1800: OVERFLOW}, {}, UTF8),
 ]
 
 
@@ -87,11 +93,61 @@ CASES = [
 @pytest.mark.parametrize("workers", [1, 2, 10])
 @pytest.mark.parametrize("chunk_bytes", [64, 4096, 1 << 30])
 def test_the_earliest_failing_row_is_reported(case, workers, chunk_bytes):
-    pipeline, placed, kwargs = CASES[case]
+    pipeline, placed, kwargs, pattern = CASES[case]
+    row = min(placed)
     texts = _texts(3000, placed)
-    want = _oracle(pipeline, texts, **kwargs)
-    assert str(min(placed)) in want[1]
-    assert _error(pipeline, texts, workers=workers, chunk_bytes=chunk_bytes, **kwargs) == want
+    kind, message = _error(pipeline, texts, workers=workers, chunk_bytes=chunk_bytes, **kwargs)
+    assert re.search(pattern.format(row), message)  # the row of the run, named explicitly
+    assert (kind, _bytes_out(message)) == _isolated(pipeline, texts[row], row, **kwargs)
+
+
+def test_errors_of_a_second_batch_name_the_rows_of_the_run():
+    """A batch from row 1000 of a run: the scan, the length rule of the tokenizers and an
+    Arrow null all name the row of the run."""
+    import pyarrow as pa
+
+    from fse import _native
+    from fse._text import ArrowSource
+
+    texts = _texts(50, {5: Raw("x")})
+    with pytest.raises(UnicodeDecodeError, match=r"in sentence 1005 \(byte \d+ of the source\)"):
+        NORMALIZED.infer(StringSource(texts), sink=Recording(), first_row=1000)
+    previous = _native._test_sentence_limit(64)
+    try:
+        long = _texts(50, {7: "ok " * 40})
+        with pytest.raises(ValueError, match=r"sentence 1007 has 120 bytes"):
+            NORMALIZED.infer(StringSource(long), sink=Recording(), first_row=1000)
+    finally:
+        _native._test_sentence_limit(previous)
+    column = pa.array(["ok", "ok", "ok", None, "ok"])
+    with pytest.raises(ValueError, match=r"row 1003 of the Arrow column is null"):
+        NORMALIZED.infer(ArrowSource(column), sink=Recording(), first_row=1000)
+
+
+@pytest.mark.parametrize("workers", [1, 10])
+def test_an_arrow_null_comes_after_an_earlier_pooling_error(workers):
+    import pyarrow as pa
+
+    from fse._text import ArrowSource
+
+    with pytest.raises(ValueError, match="row 1 contains NaN"):
+        NORMALIZED.infer(ArrowSource(pa.array(["ok", OVERFLOW, None])), workers=workers)
+    with pytest.raises(ValueError, match="row 1 of the Arrow column is null"):
+        NORMALIZED.infer(ArrowSource(pa.array(["ok", None, OVERFLOW])), workers=workers)
+
+
+def test_for_one_row_the_head_comes_before_the_storage_of_its_vectors():
+    """Row 3 has values beyond float16 (its vectors cannot be stored, stage 5) and logits
+    that overflow (stage 4b): the head's error is raised."""
+    from fse._contract import Link
+    from fse._runtime._head import HeadSpec, make_head
+
+    spec = RAW.spec
+    head = HeadSpec(np.full((2, 4), 1e34, F32), np.zeros(2, F32), False, Link.SOFTMAX)
+    pipeline = make_head(spec, head, "cpu", own=Pipeline(spec), with_vectors=True)
+    texts = ["ok", "ok", "ok", TOO_BIG, "ok"]
+    with pytest.raises(ValueError, match="the logits of row 3 are not finite"):
+        pipeline.infer(StringSource(texts), output="logits", vector_dtype="float16")
 
 
 @pytest.mark.parametrize("workers", [1, 2, 10])
@@ -170,3 +226,26 @@ def test_a_file_reports_the_earliest_failing_row(tmp_path, workers, chunk_bytes)
     path.write_bytes(b"\n".join(lines) + b"\n")
     with FileSource(path) as source, pytest.raises(UnicodeDecodeError, match="in sentence 2000 "):
         NORMALIZED.infer(source, workers=workers, chunk_bytes=chunk_bytes)
+
+
+def test_a_failed_run_holds_no_memory_while_its_prefixes_run():
+    """An error only in the last row: the error of the whole run is kept while the shorter
+    runs make their own arrays, but not the arrays of the failed run."""
+    import tracemalloc
+
+    rows = 64
+
+    def run(n):
+        batch = np.ones(n * (1 << 15))  # 256 KiB per row
+        if n == rows:
+            raise ValueError(f"row {n - 1} fails")
+        del batch
+
+    tracemalloc.start()
+    try:
+        with pytest.raises(ValueError, match="row 63 fails"):
+            earliest(run, rows)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert peak < 1.5 * rows * (1 << 18)  # one run's array, not the failed one's as well
