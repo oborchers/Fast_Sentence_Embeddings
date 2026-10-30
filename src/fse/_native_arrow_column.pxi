@@ -319,6 +319,16 @@ cdef class ArrowColumn:
             raise ValueError(f"invalid Arrow offsets or view at row {row}")
         return PyBytes_FromStringAndSize(<const char *>p, n)
 
+    def row_address(self, Py_ssize_t row):
+        """The address fse reads row from (for the tests: no copy of the text)."""
+        self._check_range(row, row + 1)
+        cdef Py_ssize_t k = _chunk_of(self._starts, self._n, row)
+        cdef const unsigned char *p
+        cdef int64_t n
+        if fse_arrow_row(&self._chunks[k], row - self._starts[k], &p, &n) != 0:
+            raise ValueError(f"invalid Arrow offsets or view at row {row}")
+        return <uintptr_t>p
+
     def span_bytes(self, Py_ssize_t first, Py_ssize_t last):
         """The text bytes of the rows first to last - 1."""
         self._check_range(first, last)

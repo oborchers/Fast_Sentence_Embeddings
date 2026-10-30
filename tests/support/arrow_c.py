@@ -73,9 +73,10 @@ ArrowArrayStream._fields_ = [
     ("private_data", c_void_p),
 ]
 
-_capsule_new = ctypes.pythonapi.PyCapsule_New
-_capsule_new.restype = ctypes.py_object
-_capsule_new.argtypes = [c_void_p, c_void_p, c_void_p]
+# An own prototype: ctypes.pythonapi.PyCapsule_New is shared, and other code sets its types.
+_capsule_new = ctypes.PYFUNCTYPE(ctypes.py_object, c_void_p, c_void_p, c_void_p)(
+    ("PyCapsule_New", ctypes.pythonapi)
+)
 
 _NAMES = {
     name: ctypes.create_string_buffer(name)

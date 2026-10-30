@@ -23,6 +23,8 @@ import numpy as np
 
 from fse import _codes
 from fse._runtime import Pipeline, wants_inverse_norms
+from fse._stream import StreamSource
+from fse._text import is_arrow
 
 from ._sources import opened
 
@@ -66,13 +68,34 @@ def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int) -> str:
     return own
 
 
+def batch_size(k: int, item: Any) -> int | None:
+    """The rows of batch ``k``, a list or tuple of sentences; None for an Arrow string
+    column, whose rows are known once its source is made (no ``len()`` is needed)."""
+    if is_arrow(item):
+        return None
+    if not isinstance(item, list | tuple):
+        raise TypeError(
+            f"batch {k} is a {type(item).__name__}; every batch is a list (or tuple) of "
+            "sentences, or an Arrow string column"
+        )
+    return len(item)
+
+
+def source_rows(source: Any, item: Any) -> int:
+    """The rows of a batch from its source; an Arrow column read as a stream (its producer
+    could not export) has as many as its own length."""
+    return len(item) if isinstance(source, StreamSource) else len(source)
+
+
 @contextmanager
-def _named(k: int, row: int, n: int) -> Iterator[None]:
-    """A ValueError or TypeError of batch ``k`` names the batch and its rows of the run."""
+def _named(k: int, row: int, n: int | None) -> Iterator[None]:
+    """A ValueError or TypeError of batch ``k`` names the batch and its rows of the run
+    (from ``row`` on, where its rows are not known yet)."""
     try:
         yield
     except (ValueError, TypeError) as error:
-        where = f"batch {k} (rows {row} to {row + n - 1} of the run)"
+        rows = f"from row {row}" if n is None else f"rows {row} to {row + n - 1}"
+        where = f"batch {k} ({rows} of the run)"
         if type(error) not in (ValueError, TypeError):  # such as UnicodeEncodeError: kept
             error.add_note(f"in {where}")
             raise
@@ -126,16 +149,11 @@ def batches(
     sink: Any,
 ) -> Iterator[EncodedBatch]:
     """The EncodedBatch of every item of ``items``, a finite list of sentences (or token
-    lists) each."""
+    lists) or an Arrow string column each."""
     row, last = 0, None
     for k, item in enumerate(items):
-        if not isinstance(item, list | tuple):
-            raise TypeError(
-                f"batch {k} is a {type(item).__name__}; every batch is a list (or tuple) of "
-                "sentences"
-            )
-        n = len(item)
-        with _named(k, row, n), opened(item, tokenizer) as source:
+        with _named(k, row, batch_size(k, item)), opened(item, tokenizer) as source:
+            n = source_rows(source, item)
             if sink is None:
                 found = EncodedBatch(
                     row, n, pipeline.infer(source, workers=workers, dtype=dtype), None

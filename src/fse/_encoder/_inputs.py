@@ -35,6 +35,13 @@ def refuse(texts: Any):
         raise TypeError(f"texts must be sentences as str, not {type(texts).__name__}")
     if isinstance(texts, set | frozenset | Mapping):
         raise TypeError(f"texts must be ordered, not a {type(texts).__name__}")
+    kind = type(texts)
+    if kind.__name__ == "Column" and kind.__module__.startswith("datasets."):
+        raise TypeError(
+            "a datasets Column exports no Arrow data: pass the column in Arrow format, "
+            "dataset.with_format('arrow')['text'] (dataset.data.table['text'] ignores "
+            "select and shuffle)"
+        )
     if isinstance(texts, ndarray) and texts.ndim != 1:
         hint = ": pass arr.tolist() for a 2-D array of tokens" if texts.ndim == 2 else ""
         raise TypeError(f"a numpy array of texts must be one-dimensional, not {texts.ndim}-D{hint}")
