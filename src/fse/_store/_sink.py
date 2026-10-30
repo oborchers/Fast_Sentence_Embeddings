@@ -228,8 +228,9 @@ class ShardSink:
         try:
             self._close_deferring(error)
         except KeyboardInterrupt as interrupt:  # the deferred one, raised after the block
-            for path, failure in self._unnoted:
-                note_cleanup(interrupt, path, failure)
+            if interrupt is not error:
+                for path, failure in self._unnoted:
+                    note_cleanup(interrupt, path, failure)
             raise
 
     def _close_deferring(self, error: BaseException | None) -> None:
@@ -273,12 +274,21 @@ class ShardSink:
         self._made.clear()
         self._closed = True
         self._closed_record(error, error is not None or self._failed() or self._interrupted)
-        # Raised unless an error is raised now: this one, or the deferred interrupt. An
-        # error of a thread that a call raised before is no longer in flight.
-        for path, failure in failures:
+        self._report_cleanup([(path, f) for path, f in failures if f is not None], error)
+
+    def _report_cleanup(self, failed: list, error: BaseException | None) -> None:
+        """Raise the first failed removal unless an error is raised now (``error``, or a
+        deferred interrupt; an error of a thread that a call raised before is no longer in
+        flight), with the others noted on it; else note them all on that error."""
+        if self._interrupted:  # also on the KeyboardInterrupt raised after the block
+            self._unnoted = failed
+        if error is None and not self._interrupted and failed:
+            error = failed.pop(0)[1]
+            for path, failure in failed:
+                failed_cleanup(path, failure, error)
+            raise error
+        for path, failure in failed:
             failed_cleanup(path, failure, error, failing=self._interrupted)
-        if error is None and self._interrupted:  # noted on the deferred interrupt
-            self._unnoted = [(path, f) for path, f in failures if f is not None]
 
     def _closed_record(self, error: BaseException | None, failing: bool) -> None:
         interrupted = self._interrupted or isinstance(error, KeyboardInterrupt)

@@ -381,3 +381,43 @@ def test_expect_log_leaves_other_warnings_unexpected():
     assert unexpected(found) == ["fse.runtime WARNING: fse runtime: copied"]
     for record in found:  # this test expects it after all
         record.fse_expected = True
+
+
+def test_every_failed_cleanup_is_raised_or_noted(tmp_path, monkeypatch):
+    sink = _empty_shard(tmp_path, monkeypatch)
+    sink._writers[-1].seal()  # another empty shard after this one
+    sink._writable()
+    with (
+        expect_log("store.cleanup_failed", error="PermissionError"),
+        pytest.raises(PermissionError, match="Permission denied") as raised,
+    ):
+        sink.close()
+    (note,) = raised.value.__notes__  # the second removal, noted on the first
+    assert note.startswith("fse could not remove the temporary ")
+
+
+@pytest.mark.usefixtures("python_sigint")
+def test_a_deferred_interrupt_after_an_error_gets_the_note_too(tmp_path, monkeypatch):
+    import signal
+
+    sink = _empty_shard(tmp_path, monkeypatch)
+    real_stop = sink._hash.stop
+
+    def stop():
+        signal.raise_signal(signal.SIGINT)
+        real_stop()
+
+    sink._hash.stop = stop
+    with (
+        expect_log("store.cleanup_failed"),
+        pytest.raises(KeyboardInterrupt) as raised,
+    ):
+        _fail_within(sink, ValueError("the error of the application"))
+    (note,) = raised.value.__notes__
+    assert note.startswith("fse could not remove the temporary ")
+    assert raised.value.__context__.__notes__  # the error of the block has it too
+
+
+def _fail_within(sink, error):
+    with sink:
+        raise error
