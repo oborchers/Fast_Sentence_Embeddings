@@ -98,6 +98,8 @@ src/fse/
   _native_wordpiece.h    # wordpiece@1: added tokens, normalization and pre-tokenization
   _native_unicode_bert.h # generated: the composed normalization table of wordpiece@1
   _unicode_bert.py       # generated: the Unicode data of wordpiece@1 for the reference
+  _unicode_graphemes.py  # generated: the grapheme data of unigram@1 (Unicode 17.0.0) for the reference
+  _charsmap.py           # the precompiled charsmap of SentencePiece normalizers: its checks and search
   _reference_text.py     # the reference of stages 1 and 2: tokenizers and lookup
   _reference_wordpiece.py # the reference of wordpiece@1
   _text.py               # text sources (strings, token lists) to batches, the Vocabulary

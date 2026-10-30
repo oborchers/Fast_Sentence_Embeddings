@@ -337,7 +337,7 @@ layers = [
     "_reference_head",
     # Independent of each other: the references never share code with what they check.
     "_container | _codes | _reference | _reference_text | _reference_wordpiece | _tokenizer_spec | _validation",
-    "_contract | _cpus | _unicode | _unicode_bert | _unicode_graphemes",
+    "_contract | _cpus | _unicode | _unicode_bert | _unicode_graphemes | _charsmap",
 ]
 
 [[tool.importlinter.contracts]]
