@@ -19,6 +19,7 @@ from pathlib import Path
 import numpy as np
 from numpy import ndarray
 
+from fse import _log
 from fse._container import CHECKSUM_PREFIX, checksum, fingerprint, tensor_code
 from fse._contract import Normalize
 from fse._tokenizer_spec import TokenizerSpec
@@ -91,6 +92,19 @@ def converted(
         word_vectors.fasttext is not None,
         word_vectors.vocab_bytes,
         word_vectors.vocab_offsets,
+    )
+    _log.emit(
+        "artifact.converted",
+        "fse artifact: converted a %s model to an encoder: %d rows of %d dimensions",
+        None if source is None else source.format,
+        len(word_vectors),
+        word_vectors.dim,
+        kind="encoder",
+        source=None if source is None else source.format,
+        rows=len(word_vectors),
+        dim=word_vectors.dim,
+        tokenizer=tokenizer.name,
+        normalize=normalize,
     )
     return EncoderContent(
         tokenizer=tokenizer,

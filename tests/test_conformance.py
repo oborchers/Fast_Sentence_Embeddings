@@ -34,6 +34,9 @@ from support.conformance import (
     assert_bits_equal,
 )
 
+# The mlx backend warns at the first fallback of an encoder, which these suites cause.
+pytestmark = pytest.mark.expected_log("backend.fallback")
+
 
 @functools.cache
 def expected(index: int, kind: str):

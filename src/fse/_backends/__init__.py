@@ -15,6 +15,8 @@ backends never load MLX.
 
 import importlib
 
+from fse import _log
+
 from ._base import (
     Backend,
     Capabilities,
@@ -40,8 +42,29 @@ __all__ = [
 BACKEND_NAMES = ("cpu", "numpy", "mlx")
 
 
+_SELECTED: set[tuple[str, str | None]] = set()  # logged once per process each
+
+
 def get_backend(name: str, *, isa: str | None = None) -> Backend:
     """The backend called ``name``; ``isa`` selects the kernel of the cpu backend."""
+    backend = _make(name, isa)
+    kernel = getattr(getattr(backend, "host", backend), "isa", None)
+    if (backend.name, kernel) not in _SELECTED:
+        _SELECTED.add((backend.name, kernel))
+        concurrent = backend.capabilities().concurrent
+        _log.emit(
+            "backend.selected",
+            "fse %s backend: kernel %s",
+            backend.name,
+            kernel,
+            backend=backend.name,
+            isa=kernel,
+            concurrent=concurrent,
+        )
+    return backend
+
+
+def _make(name: str, isa: str | None) -> Backend:
     if name == "cpu":
         return CpuBackend(isa)
     if name in ("numpy", "mlx") and isa is not None:

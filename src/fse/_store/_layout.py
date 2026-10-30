@@ -20,7 +20,6 @@ from __future__ import annotations
 import json
 import os
 import secrets
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -28,7 +27,7 @@ from typing import Any
 import numpy as np
 from numpy import ndarray
 
-from fse import _codes
+from fse import _codes, _log
 from fse._container import (
     CHECKSUM_PREFIX,
     CREATED_BY_KEY,
@@ -38,6 +37,8 @@ from fse._container import (
     CorruptArtifactError,
     NpyContainer,
     is_fingerprint,
+    note_cleanup,
+    remove_temporary,
 )
 from fse._container._common import _open_regular, _strict_json, _sync_directory
 from fse._container._npy_inplace import publish_directory, sync_file, write_at
@@ -149,11 +150,37 @@ def create_store(path: Path, info: StoreInfo) -> bool:
         _sync_directory(tmp)  # the entry of store.json, before the store appears
         try:
             publish_directory(tmp, path)
+            published = True
         except FileExistsError:
-            return False
-        return True
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+            published = False
+    except BaseException as error:
+        failed_cleanup(tmp, remove_temporary(tmp), error)
+        raise
+    failed_cleanup(tmp, remove_temporary(tmp), None)  # gone once published
+    return published
+
+
+def failed_cleanup(
+    path: Path, failure: OSError | None, error: BaseException | None, *, failing: bool = False
+) -> None:
+    """Report ``failure``, the failed removal of the temporary ``path`` of a store (None:
+    removed): raised unless an error is raised (``error``, or another one: ``failing``),
+    else noted on ``error`` and logged, so it never replaces the error."""
+    if failure is None:
+        return
+    if error is None and not failing:
+        raise failure
+    if error is not None:
+        note_cleanup(error, path, failure)
+    _log.emit(
+        "store.cleanup_failed",
+        "fse store: could not remove a temporary directory after an error (%s, errno %s); "
+        "the error is raised with a note",
+        type(failure).__name__,
+        failure.errno,
+        error=type(failure).__name__,
+        errno=failure.errno,
+    )
 
 
 def read_store(path: Path) -> StoreInfo:

@@ -17,6 +17,9 @@ from fse._text import StringSource
 from support.conformance import require_mlx
 from support.runtime import expected, source, texts, word_vectors
 
+# The mlx backend warns at the first fallback of an encoder, which these suites cause.
+pytestmark = pytest.mark.expected_log("backend.fallback")
+
 F32 = np.float32
 
 

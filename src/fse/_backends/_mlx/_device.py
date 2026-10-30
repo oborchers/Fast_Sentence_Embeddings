@@ -35,11 +35,14 @@ The device thread gets MLX from ``core`` (``_load.core`` for the process's ``DEV
 from __future__ import annotations
 
 import threading
+import time
 import traceback
 from collections import deque
 from collections.abc import Callable
 from types import ModuleType
 from typing import Any
+
+from fse import _log
 
 from . import _canary, _kernels
 
@@ -133,12 +136,21 @@ class Device:
         with self._lock:
             known = self._canary
         if known is False:
+            start = time.perf_counter()
             try:
                 self.call(_canary.canary)
             except Exception as err:
                 known = err
             else:
                 known = True
+                # Here, in the calling thread: the device thread never logs.
+                seconds = time.perf_counter() - start
+                _log.emit(
+                    "backend.canary",
+                    "fse mlx backend: canary passed",
+                    backend="mlx",
+                    seconds=seconds,
+                )
             with self._lock:
                 self._canary = known
         if isinstance(known, BaseException):

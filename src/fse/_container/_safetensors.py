@@ -12,6 +12,7 @@ import io
 import math
 import os
 import tempfile
+import time
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,7 @@ from typing import Any
 import numpy as np
 from numpy import ndarray
 
+from fse import _log
 from fse._contract import UnsupportedArtifactError
 
 from . import _hash
@@ -37,7 +39,9 @@ from ._common import (
     _strict_json,
     _sync_directory,
     canonical_json,
+    discard_temporary,
     fingerprint,
+    is_fingerprint,
 )
 
 MAX_SAFETENSORS_HEADER_BYTES = 16 * 2**20
@@ -173,6 +177,7 @@ class SafetensorsContainer:
         The data are hashed while they are written; the header, whose length does not
         depend on the checksums, is completed afterwards.
         """
+        start = time.perf_counter()
         path = Path(path)
         if path.suffix != self.suffix:
             raise ValueError(f"{path} must end with {self.suffix}")
@@ -208,10 +213,22 @@ class SafetensorsContainer:
                 f.flush()
                 os.fsync(f.fileno())
             _publish(tmp, path)
-        except BaseException:
-            tmp.unlink(missing_ok=True)
+        except BaseException as error:
+            discard_temporary(tmp, error)
             raise
         _sync_directory(path.parent)
+        size = _SAFETENSORS_LENGTH + length + sum(a.nbytes for a in tensors.values())
+        _log.emit(
+            "artifact.saved",
+            "fse artifact: saved %s %s, %d bytes",
+            _kind(metadata),
+            full[FINGERPRINT_KEY],
+            size,
+            kind=_kind(metadata),
+            fingerprint=full[FINGERPRINT_KEY],
+            bytes=size,
+            seconds=time.perf_counter() - start,
+        )
 
     def _reserved_length(self, tensors, codes, layout, metadata) -> int:
         """The header length to reserve: the header with placeholder checksums and
@@ -238,6 +255,7 @@ class SafetensorsContainer:
         return canonical_json(header).encode("utf-8")
 
     def open(self, path, *, mmap: bool) -> tuple[dict[str, ndarray], dict[str, str]]:
+        begin = time.perf_counter()
         path = Path(path)
         with _open_regular(path) as handle:
             before = _identity(handle)
@@ -249,12 +267,14 @@ class SafetensorsContainer:
             name: _open_tensor(path, name, spec, data, entries[name][2])
             for name, spec in layout.items()
         }
+        _loaded(metadata, start + size, mmap, begin)
         return tensors, dict(metadata)
 
     def open_bytes(self, data: bytes, path) -> tuple[dict[str, ndarray], dict[str, str]]:
         """``open`` of a file given as its bytes (read once and checked by the caller,
         such as a file of the Hub); ``path`` names it in errors. Every checksum is
         checked."""
+        begin = time.perf_counter()
         path = Path(path)
         start, layout, metadata = _read_safetensors_header(io.BytesIO(data), path, len(data))
         entries = _integrity(path, {n: (c, s) for n, (c, s, _, _) in layout.items()}, metadata)
@@ -263,9 +283,11 @@ class SafetensorsContainer:
             name: _open_tensor(path, name, spec, view, entries[name][2])
             for name, spec in layout.items()
         }
+        _loaded(metadata, len(data), False, begin)
         return tensors, dict(metadata)
 
     def verify(self, path):
+        begin = time.perf_counter()
         path = Path(path)
         with _open_regular(path) as handle:
             before = _identity(handle)
@@ -286,6 +308,48 @@ class SafetensorsContainer:
                         f"tensor {name} of {path} does not match its checksum"
                     )
             _unchanged(handle, path, before)
+        size = start + max((end for _, _, _, end in layout.values()), default=0)
+        kind = _kind(metadata)
+        _log.emit(
+            "artifact.verified",
+            "fse artifact: verified %s, %d bytes",
+            kind,
+            size,
+            kind=kind,
+            bytes=size,
+            seconds=time.perf_counter() - begin,
+        )
+
+
+# The kinds of fse's artifacts; a header may state anything, so records name no other.
+_KINDS = frozenset({"word_vectors", "encoder", "linear_head"})
+
+
+def _kind(metadata: Mapping[str, str]) -> str:
+    kind = metadata.get("fse.kind")
+    return kind if kind in _KINDS else "other"
+
+
+def _fingerprint(metadata: Mapping[str, str]) -> str | None:
+    value = metadata.get(FINGERPRINT_KEY)
+    return value if isinstance(value, str) and is_fingerprint(value) else None
+
+
+def _loaded(metadata: Mapping[str, str], size: int, mmap: bool, begin: float) -> None:
+    """The record of an artifact opened, with what its header states (nothing hashed)."""
+    kind, fingerprint_ = _kind(metadata), _fingerprint(metadata)
+    _log.emit(
+        "artifact.loaded",
+        "fse artifact: loaded %s %s, %d bytes",
+        kind,
+        fingerprint_,
+        size,
+        kind=kind,
+        fingerprint=fingerprint_,
+        bytes=size,
+        mmap=mmap,
+        seconds=time.perf_counter() - begin,
+    )
 
 
 def _layout(tensors: dict[str, ndarray]) -> tuple[list[str], dict[str, tuple[int, int]]]:

@@ -22,12 +22,12 @@ before anything is read.
 
 from __future__ import annotations
 
-import logging
 import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
+from fse import _log
 from fse._stream import StreamSource
 from fse._text import ArrowSource, StringSource, TokenListSource, is_arrow
 from fse._text_file import FileSource
@@ -35,8 +35,6 @@ from fse._text_file import FileSource
 from ._inputs import COLLECTIONS, build, check_tokenizer, is_token_lists, refuse
 
 SOURCES = (StringSource, TokenListSource, FileSource, StreamSource, ArrowSource)
-
-logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -75,9 +73,13 @@ def _arrow_source(texts: Any) -> ArrowSource | None:
     try:
         return ArrowSource(texts)
     except ImportError as error:
-        logger.warning(
-            "%s could not export Arrow data (%s); fse reads it as a stream of str, which is slower",
+        _log.emit(
+            "runtime.arrow_stream",
+            "fse runtime: %s could not export Arrow data (%s); fse reads it as a stream of "
+            "str, which is slower",
             type(texts).__name__,
-            error,
+            type(error).__name__,
+            producer=type(texts).__name__,
+            error=type(error).__name__,
         )
         return None

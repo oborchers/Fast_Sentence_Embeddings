@@ -39,6 +39,9 @@ from support.conformance import (
 )
 from support.runtime import expected, source, texts, word_vectors
 
+# The mlx backend warns at the first fallback of an encoder, which these suites cause.
+pytestmark = pytest.mark.expected_log("backend.fallback")
+
 # The encoders whose factors or row values are or may be subnormal: the host runs them.
 SUBNORMAL_INPUT = {
     ("float32", "subnormal rows"),

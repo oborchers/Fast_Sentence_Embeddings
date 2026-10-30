@@ -50,7 +50,14 @@ def batches_of(kind):
     return [kind(SENTENCES[:120]), kind(SENTENCES[120:121]), kind(SENTENCES[121:])]
 
 
-KINDS = [Unsized, Missized, CannotExport, CannotExportMissized]
+# The producers that cannot export are read as streams, with a warning each.
+_STREAM = pytest.mark.expected_log("runtime.arrow_stream")
+KINDS = [
+    Unsized,
+    Missized,
+    pytest.param(CannotExport, marks=_STREAM),
+    pytest.param(CannotExportMissized, marks=_STREAM),
+]
 
 
 @pytest.mark.parametrize("kind", KINDS)

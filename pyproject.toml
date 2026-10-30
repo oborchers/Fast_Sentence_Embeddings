@@ -218,6 +218,7 @@ addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 xfail_strict = true
 markers = [
     "network: needs access to the Hugging Face Hub",
+    "expected_log(*events): WARNING records of these fse events do not fail the test",
 ]
 filterwarnings = [
     "error",
@@ -296,6 +297,18 @@ native-imports = ["fse._contract"]
 # fingerprint of fse is xxh3-128 through it (ARCHITECTURE.md, "Identities").
 hash-importers = ["src/fse/_container/_hash.py"]
 hash-modules = ["hashlib", "xxhash"]
+# The only modules that import logging or warnings: fse logs through fse._log
+# (ARCHITECTURE.md, "Logging"); if one of them splits, its parts join the list.
+log-importers = ["src/fse/_log.py", "src/fse/_log_config.py"]
+log-modules = ["logging", "warnings"]
+# What the MLX device thread runs: it never logs, so none of these imports fse._log.
+log-free = [
+    "src/fse/_backends/_mlx/_canary.py",
+    "src/fse/_backends/_mlx/_kernels.py",
+    "src/fse/_backends/_mlx/_sources.py",
+    "src/fse/_backends/_mlx/_load.py",
+    "src/fse/_backends/_mlx/_bounds.py",
+]
 # The device library of each device backend, by backend name: only
 # src/fse/_backends/_<name>/_load.py imports it; get_backend imports that backend lazily,
 # so `import fse` never does.
@@ -354,12 +367,14 @@ layers = [
     "_tokenizer_json_common",
     # The reference of linear heads builds on the reference of the encoder (fma32, dot16),
     # that of unigram@1 on the added tokens of wordpiece@1.
-    "_reference_head | _reference_unigram",
+    "_reference_head | _reference_unigram | _log_config",
     # Independent of each other: the references never share code with what they check.
     "_container | _codes | _reference | _reference_text | _reference_wordpiece | _tokenizer_spec | _validation",
     # The parameters of unigram@1, which TokenizerSpec holds.
     "_tokenizer_unigram",
     "_contract | _cpus | _unicode | _unicode_bert | _unicode_graphemes | _charsmap",
+    # The records of fse (ARCHITECTURE.md, "Logging"), which every module may emit.
+    "_log",
 ]
 
 [[tool.importlinter.contracts]]
@@ -444,8 +459,13 @@ ignore_names = [
     "__dir__",
     "exc",               # the arguments of __exit__
     "pytestmark",        # read by pytest
+    "pytest_runtest_setup",     # hooks of tests/conftest.py, called by pytest
+    "pytest_runtest_call",
+    "pytest_runtest_teardown",
+    "import_errors",     # called by tools/check_guardrails.py, which loads its module by path
     "windows_file_maps", # a fixture used through pytest.mark.usefixtures
     "python_sigint",     # a fixture used through pytest.mark.usefixtures
+    "broken_logging",    # a fixture used through pytest.mark.usefixtures
     "normalizer",        # attributes of a Hugging Face tokenizer, read by tokenizers
     "pre_tokenizer",
     "post_processor",

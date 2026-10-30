@@ -9,7 +9,6 @@ lives on in fse 1.1.0 on PyPI and on the branch ``1.x``.
 """
 
 import importlib as _importlib
-import logging as _logging
 from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _version
 from typing import TYPE_CHECKING
@@ -17,6 +16,7 @@ from typing import Any as _Any
 
 from fse._container import CorruptArtifactError, PublishedNotDurableError
 from fse._contract import UnsupportedArtifactError
+from fse._log_config import disable_logging, enable_logging
 from fse._wordvectors import WordVectors
 from fse._wordvectors_format import FastTextParams
 
@@ -81,8 +81,6 @@ try:
 except _PackageNotFoundError:  # pragma: no cover
     __version__ = "0+unknown"
 
-_logging.getLogger("fse").addHandler(_logging.NullHandler())
-
 
 def __dir__() -> list[str]:
     return sorted({*globals(), *_LAZY})
@@ -107,4 +105,6 @@ __all__ = [
     "VectorStore",
     "WordVectors",
     "__version__",
+    "disable_logging",
+    "enable_logging",
 ]
