@@ -15,6 +15,7 @@ ARCHITECTURE.md, "model2vec compatibility". A ``StaticModel`` is a thin wrapper 
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -25,6 +26,7 @@ from fse._encoder._model2vec_rules import UNSET, Rules, Unset
 from fse._validation import PathLike, PositiveInt, validate_arguments
 
 from . import _arguments as arguments
+from . import _save
 from ._ids import Ids
 from ._load import load_rules
 from ._tokenizer import Tokenizer
@@ -109,6 +111,37 @@ class StaticModel:
             dimensionality=dimensionality,
         )
         return cls._new(rules)
+
+    # --- persistence ------------------------------------------------------------------
+
+    @validate_arguments
+    def save_pretrained(
+        self, path: PathLike, model_name: str | None = None, subfolder: str | None = None
+    ) -> Path:
+        """Write the model as an fse folder at the new ``path`` (``config.json``,
+        ``model.safetensors``, a model card with ``model_name``), with the current
+        ``normalize``, ``max_length`` and dimensions; returns the path (model2vec returns
+        None). ``from_pretrained`` of fse reads it, ``model2vec`` cannot: the folder is
+        not a model2vec folder. A reloaded model encodes bit for bit as this one; its
+        ``config`` holds ``normalize`` and ``max_length`` only, its ``base_model_name`` is
+        the Hub repository the table came from and its ``language`` that of the card.
+        ``subfolder`` other than None raises."""
+        return _save.save(self, Path(path), model_name, subfolder)
+
+    @validate_arguments
+    def push_to_hub(
+        self,
+        repo_id: str,
+        private: bool = False,
+        token: str | bool | None = None,
+        subfolder: str | None = None,
+    ) -> str:
+        """Publish the folder of ``save_pretrained`` to the Hub repository ``repo_id`` in
+        one commit and return its URL (model2vec returns None). The license is that of the
+        model's source card; a model without one raises (use ``encoder.push_to_hub`` with
+        ``license=``). Files of another content in the repository are refused, see
+        ``Encoder.push_to_hub``. ``subfolder`` other than None raises."""
+        return _save.push(self, repo_id, private, token, subfolder)
 
     # --- encoding ---------------------------------------------------------------------
 

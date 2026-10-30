@@ -37,7 +37,8 @@ def profile_rules(
 ) -> Rules:
     """The ``Rules`` of an fse ``encoder`` that fits the profile: its own ``normalize`` and
     length rule, unless ``normalize`` or ``max_length`` (not ``UNSET``) state others, and
-    its first ``dimensionality`` columns. Anything else raises UnsupportedArtifactError."""
+    its first ``dimensionality`` columns; ``base_model_name`` is the Hub repository of its
+    ``fse.source``. Anything else raises UnsupportedArtifactError."""
     content = encoder._content
     spec, words = content.tokenizer, encoder.word_vectors
     reason = _misfit(encoder)
@@ -63,7 +64,7 @@ def profile_rules(
         (NORMALIZE in encoder.steps) if normalize is None else normalize,
         spec.max_tokens if isinstance(max_length, Unset) else max_length,
         median,
-        None,
+        None if source is None else source.repo,
         None,
         source,
         content.license,

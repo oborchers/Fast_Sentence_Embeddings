@@ -18,11 +18,8 @@ from support import static_model as sm
 
 model2vec = pytest.importorskip("model2vec")
 pytest.importorskip("safetensors")
-FOLLOW_UP = "follow-up PR"
 # What model2vec has and this PR does not provide, with the reason.
 NOT_PROVIDED = {
-    "save_pretrained": FOLLOW_UP,
-    "push_to_hub": FOLLOW_UP,
     "quantize_model": "out of scope: fse.StaticModel has float32 tables and no vocabulary clusters",
 }
 # The submodules of model2vec for other jobs than encoding with a finished model.
@@ -78,6 +75,19 @@ def test_encode_has_the_parameters_of_model2vec_and_a_closed_list_for_its_kwargs
     assert {n: d for n, _, d in ours if n in defaults} == defaults
     assert [n for n, _, _ in ours[len(named) :]] == NEUTRAL
     assert inspect.Parameter.VAR_KEYWORD not in {kind for _, kind, _ in ours}
+
+
+def test_save_pretrained_and_push_to_hub_have_the_parameters_of_model2vec():
+    for name in ("save_pretrained", "push_to_hub"):
+        ours = _parameters(getattr(fse.StaticModel, name))
+        theirs = _parameters(getattr(model2vec.StaticModel, name))
+        assert ours == theirs, name
+    assert [n for n, _, _ in _parameters(fse.StaticModel.push_to_hub)] == [
+        "repo_id",
+        "private",
+        "token",
+        "subfolder",
+    ]
 
 
 def test_encode_as_sequence_and_tokenize_have_the_parameters_of_model2vec():
