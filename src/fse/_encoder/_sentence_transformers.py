@@ -15,7 +15,7 @@ included (``fse.unknown=keep``), with no length rule but the plain truncation of
 tokenizer.json. ``truncate_dim`` (the argument, else the config's) keeps the first
 dimensions of the table, which is ST's truncation of the mean. A Normalize module (ST
 divides by ``max(norm, 1e-12)``, which ``normalize@1`` does not reproduce for tiny rows),
-a Dense module (not folded into the table), any other module and non-empty prompts are
+a Dense module (a projection with or without an activation, refused unread), any other module and non-empty prompts are
 refused; ``normalize=True`` applies fse's own ``normalize@1`` after the truncation.
 """
 
@@ -50,7 +50,6 @@ _MODULE_KEYS = {"idx", "name", "path", "type"}
 _FOLDER = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._-]*")
 _IGNORED = {"__version__", "similarity_fn_name", "requirements"}
 _CONFIG_KEYS = _IGNORED | {"model_type", "prompts", "default_prompt_name", "truncate_dim"}
-_IDENTITY = "torch.nn.modules.linear.Identity"
 _TABLE_NAMES = frozenset({"embedding.weight", "embeddings"})
 
 
@@ -104,7 +103,7 @@ def static_folder(files: Files, kind: Any = None) -> str:
         )
     types = [m["type"] for m in modules]
     if types[0] not in STATIC_EMBEDDING or len(types) > 1:
-        _refuse(files, modules, types, kind)
+        _refuse(types, kind)
     module = modules[0]
     if not _MODULE_KEYS <= set(module) <= _MODULE_KEYS | {"kwargs"}:
         raise CorruptArtifactError(
@@ -125,7 +124,7 @@ def static_folder(files: Files, kind: Any = None) -> str:
     return _folder(module["path"], where)
 
 
-def _refuse(files: Files, modules: list, types: list[str], kind: Any) -> None:
+def _refuse(types: list[str], kind: Any) -> None:
     """A model of other modules than one StaticEmbedding raises, naming them."""
     static = types[0] in STATIC_EMBEDDING and len(types) == 2
     if static and types[1] in NORMALIZE:
@@ -134,31 +133,16 @@ def _refuse(files: Files, modules: list, types: list[str], kind: Any) -> None:
             "divides by max(norm, 1e-12); this fse does not read it, as normalize@1 "
             "(without that floor) would give other rows for tiny ones"
         )
-    if (
-        types[0] in STATIC_EMBEDDING
-        and types[1:2]
-        and types[1] in DENSE
-        and _linear(files, modules[1])
-    ):
+    if types[0] in STATIC_EMBEDDING and types[1:2] and types[1] in DENSE:
         raise UnsupportedArtifactError(
-            "the model has a Dense module (a linear projection) after its StaticEmbedding, "
-            "which this fse does not fold into the table (yet)"
+            "the model has a Dense module (a projection, with or without an activation) "
+            "after its StaticEmbedding, which this fse does not read"
         )
     what = "" if kind is None else f" (model_type {kind!r})"
     raise UnsupportedArtifactError(
         f"the model{what} is no static embedding model: its modules are {types}; fse reads "
         "a sentence-transformers model of one StaticEmbedding"
     )
-
-
-def _linear(files: Files, module: dict) -> bool:
-    """Whether a Dense module has no activation (its config names Identity)."""
-    folder = _folder(module.get("path"), files.where("modules.json"))
-    name = ("" if folder in ("", ".") else folder + "/") + "config.json"
-    if not files.has(name):
-        return False
-    config = read_config(files, name)
-    return isinstance(config, dict) and config.get("activation_function") == _IDENTITY
 
 
 def _name(name: Any, where: Any) -> None:

@@ -33,6 +33,7 @@ from fse._hub import REPO_ID, HubFiles, check_folders, resolve_link
 from . import _folder
 from ._files import MAX_CONFIG_BYTES, NORMALIZE, STATIC_EMBEDDING, Converted, Files, parse_config
 from ._format import Source
+from ._front_matter import front_matter, strings
 from ._model2vec import FILES, MODEL_RULE, read_model2vec
 from ._sentence_transformers import read_sentence_transformers
 
@@ -289,94 +290,16 @@ def _check_modules(files: Files | LocalFiles, kind: Any) -> None:
         )
 
 
-# A license id as the Hub writes it (an SPDX id or "other"), and the YAML values that are
-# none (null) or no string (bools and numbers of YAML 1.1 and 1.2).
+# A license id as the Hub writes it: an SPDX id or "other".
 _LICENSE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]*")
-_NULL = {"", "~", "null", "Null", "NULL"}
-_NOT_A_STRING = re.compile(
-    r"(?i:true|false|yes|no|on|off|y|n|[-+]?\.inf|\.nan)"
-    r"|[-+]?(\d[\d_]*(\.\d*)?|\.\d+)([eE][-+]?\d+)?|0x[0-9a-fA-F]+|0o[0-7]+"
-)
 
 
 def card_license(data: bytes | None, path: Path) -> str | tuple[str, ...] | None:
     """The ``license`` of the YAML front matter of a model card: one license id, a tuple of
-    the ids of a list (block or flow), or None for a card without front matter, without
-    the key or with null. Anything else (another YAML value, an empty list, the key twice)
-    raises."""
+    the ids of a list, or None for a card without front matter, without the key or with
+    null. Anything else (another YAML value, an empty list, the key twice, a YAML error in
+    the front matter) raises."""
     if data is None:
         return None
-    lines = _front_matter(data.decode("utf-8", errors="strict"))
-    found = [k for k, line in enumerate(lines) if line.startswith("license:")]
-    if len(found) > 1:
-        raise CorruptArtifactError(f"{path} states license {len(found)} times")
-    if not found:
-        return None
-    k = found[0]
-    return _licenses(
-        _without_comment(lines[k][len("license:") :]), _block_items(lines[k + 1 :]), path
-    )
-
-
-def _licenses(value: str, items: list[str], path: Path) -> str | tuple[str, ...] | None:
-    """The license of the value of the key, or of the block list that follows it."""
-    if value in _NULL and not items:
-        return None
-    if items:
-        if value:
-            raise CorruptArtifactError(f"{path} states license as a value and a list")
-        return tuple(_license_id(item, path) for item in items)
-    if value.startswith("["):
-        if not value.endswith("]") or not value[1:-1].strip():
-            raise CorruptArtifactError(f"{path} states a license list fse cannot read: {value!r}")
-        return tuple(_license_id(item, path) for item in value[1:-1].split(","))
-    return _license_id(value, path)
-
-
-def _front_matter(text: str) -> list[str]:
-    """The lines between the first two lines ``---`` of a card, or none."""
-    lines = text.splitlines()
-    if not lines or lines[0].rstrip() != "---":
-        return []
-    for k, line in enumerate(lines[1:], start=1):
-        if line.rstrip() in ("---", "..."):
-            return lines[1:k]
-    return []
-
-
-def _without_comment(text: str) -> str:
-    """A YAML value without a trailing comment (`` #`` outside quotes), stripped."""
-    text = text.strip()
-    if text[:1] in ("'", '"'):
-        end = text.find(text[0], 1)
-        rest = text[end + 1 :].strip() if end > 0 else "?"
-        return text[: end + 1] if not rest or rest.startswith("#") else text
-    return text.split(" #", 1)[0].strip()
-
-
-def _block_items(lines: list[str]) -> list[str]:
-    """The items of a block list (``- id`` lines, indented or not) that follows a key;
-    blank lines and comments between them belong to the list, as in YAML."""
-    items = []
-    for line in lines:
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        match = re.match(r"\s*- (.*)$", line)
-        if match is None:
-            break
-        items.append(_without_comment(match.group(1)))
-    return items
-
-
-def _license_id(text: str, path: Path) -> str:
-    """One license id: a plain or quoted YAML string of an id, never null, a bool or a
-    number."""
-    value = text.strip()
-    quoted = len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"')
-    if quoted:
-        value = value[1:-1]
-    elif value in _NULL or _NOT_A_STRING.fullmatch(value):
-        raise CorruptArtifactError(f"{path} states a license that is no string: {text!r}")
-    if not _LICENSE_ID.fullmatch(value):
-        raise CorruptArtifactError(f"{path} states a license fse cannot read: {text!r}")
-    return value
+    value = strings(front_matter(data, path, ("license",))["license"], "license", path, _LICENSE_ID)
+    return tuple(value) if isinstance(value, list) else value

@@ -220,6 +220,10 @@ FRONT_MATTERS = [
     "license: mit\nbase_model_relation: finetune\nwidget:\n- text: hello\n  language: fr",
     "language:\n\n# a comment\n- en\n\n- fr",
     "library_name: model2vec",
+    # YAML 1.1 words PyYAML (and so huggingface_hub and model2vec) reads as strings here.
+    "language: y\nbase_model: n",
+    "base_model: &anchor x/y\nlanguage: [en,]",
+    '"language": en\n"base_model": a/b',
 ]
 
 
@@ -244,17 +248,29 @@ def test_a_card_without_front_matter_has_no_fields(tmp_path):
     ("front", "match"),
     [
         ("language: en\nlanguage: de", "language 2 times"),
-        ("language: en\n- de", "as a value and a list"),
-        ("language:\n- en\nlanguage: [", "language 2 times"),
+        ("language: en\n- de", "cannot read as YAML: expected <block end>"),
+        ("language:\n- en\nlanguage: [", "cannot read as YAML"),
         ("language: []", "list fse cannot read"),
-        ("language: [en", "list fse cannot read"),
+        ("language: [en", "cannot read as YAML"),
+        ("language: ''", "language fse cannot read: ''"),
+        ('language: ""', "language fse cannot read: ''"),
+        ('language: "日本語"', "language fse cannot read: '日本語'"),
+        ("language: 日本語", "language fse cannot read: '日本語'"),
+        ('language: "a b"', "language fse cannot read: 'a b'"),
+        ("language: [en, null]", "language fse cannot read: None"),
         ("language: yes", "language fse cannot read"),
         ("language:\n- no", "language fse cannot read"),
         ("base_model: 12", "base_model fse cannot read"),
-        ("base_model: 'a'b'", "base_model fse cannot read"),
         ("base_model: a b", "base_model fse cannot read"),
-        ("base_model: &anchor x", "base_model fse cannot read"),
-        ("base_model: {a: b}", "base_model fse cannot read"),
+        ("base_model: 'a'b'", "cannot read as YAML"),
+        ("base_model: {a: b}", "base_model fse cannot read: a mapping"),
+        ('base_model: "a b"', "base_model fse cannot read: 'a b'"),
+        ('base_model: "a\\nb"', "base_model fse cannot read: 'a"),
+        ("base_model: ''", "base_model fse cannot read: ''"),
+        ('base_model: x\n"base_model": y', "base_model 2 times"),
+        ("base_model: x\nlanguage: !!int abc", "cannot read as YAML"),
+        ("base_model: x\nfoo: [", "cannot read as YAML"),
+        ("language: en\n<<: {a: b}", "merges keys"),
     ],
 )
 def test_a_card_field_in_another_form_raises(tmp_path, front, match):

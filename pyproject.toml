@@ -44,6 +44,9 @@ dependencies = [
     # The Hugging Face Hub of Encoder.from_pretrained; fse._hub imports it on first use only,
     # so `import fse` and local models never load it.
     "huggingface-hub>=1.0",
+    # The YAML front matter of a model card (fse._encoder._front_matter); huggingface-hub
+    # needs it too (pyyaml>=5.1), 6.0.1 is the first release with wheels for Python 3.11.
+    "pyyaml>=6.0.1",
 ]
 
 [project.optional-dependencies]
@@ -86,6 +89,8 @@ dev = [
 lint = [
     "ruff>=0.17.2",
     "mypy>=1.18.0",
+    # The types of yaml for mypy (pyyaml ships none).
+    "types-PyYAML>=6.0.12",
     # Import contracts of the layers ([tool.importlinter]).
     "import-linter>=2.15",
     # Cognitive complexity for tools/check_guardrails.py; 8.x changes quickly.
@@ -417,7 +422,7 @@ name = "Encoder: the encoder on its batches and format, those on its inputs"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_encoder | _model2vec_rules", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_sources", "_inputs"]
+layers = ["_encoder | _model2vec_rules", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files | _front_matter", "_batches | _format", "_format_tokenizer", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
 name = "Static model: the class on the loading, the encoders, the tokenizer and the saving, those on the profile and the ids, those on the arguments"

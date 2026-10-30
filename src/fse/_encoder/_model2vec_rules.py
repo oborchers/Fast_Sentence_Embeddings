@@ -42,18 +42,9 @@ from fse._wordvectors import WordVectors
 
 from ._files import MAX_CONFIG_BYTES, Files, parse_config, read_table
 from ._format import Source
+from ._front_matter import front_matter, strings
 from ._model2vec import DEFAULT_MAX_LENGTH, check_config, median_length, model_table
-from ._pretrained import (
-    _NOT_A_STRING,
-    _NULL,
-    MAX_CARD_BYTES,
-    LocalFiles,
-    _block_items,
-    _check_modules,
-    _front_matter,
-    _without_comment,
-    card_license,
-)
+from ._pretrained import MAX_CARD_BYTES, LocalFiles, _check_modules, card_license
 
 
 class Unset:
@@ -92,7 +83,7 @@ LAYOUTS = (
 )
 _ST_TABLE = frozenset({"embedding.weight"})
 _FOLDER = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._-]*")
-# A plain value of a model card field (a repository id, a language code), or a quoted one.
+# The value of a model card field: a repository id or a language code.
 _PLAIN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/+-]*")
 
 
@@ -260,45 +251,8 @@ def card_fields(data: bytes | None, path: Path) -> dict[str, str | list[str] | N
     """``base_model`` and ``language`` of the YAML front matter of a model card as model2vec
     reads them: a string, a list of strings, or None (no card, no key, null). Another form
     raises."""
-    fields: dict[str, str | list[str] | None] = {"base_model": None, "language": None}
+    keys = ("base_model", "language")
     if data is None:
-        return fields
-    lines = _front_matter(data.decode("utf-8", errors="strict"))
-    for key in fields:
-        found = [k for k, line in enumerate(lines) if line.startswith(key + ":")]
-        if len(found) > 1:
-            raise CorruptArtifactError(f"{path} states {key} {len(found)} times")
-        if found:
-            k = found[0]
-            value = _without_comment(lines[k][len(key) + 1 :])
-            fields[key] = _field(key, value, _block_items(lines[k + 1 :]), path)
-    return fields
-
-
-def _field(key: str, value: str, items: list[str], path: Path) -> str | list[str] | None:
-    """The value of a card field, or its block list."""
-    if value in _NULL and not items:
-        return None
-    if items:
-        if value:
-            raise CorruptArtifactError(f"{path} states {key} as a value and a list")
-        return [_string(item, key, path) for item in items]
-    if value.startswith("["):
-        if not value.endswith("]") or not value[1:-1].strip():
-            raise CorruptArtifactError(f"{path} states a {key} list fse cannot read: {value!r}")
-        return [_string(item, key, path) for item in value[1:-1].split(",")]
-    return _string(value, key, path)
-
-
-def _string(text: str, key: str, path: Path) -> str:
-    """One string of a card field: plain (a name or code, no YAML bool or number) or
-    quoted without escapes."""
-    value = text.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
-        inner = value[1:-1]
-        if value[0] in inner or "\\" in inner or "\n" in inner:
-            raise CorruptArtifactError(f"{path} states a {key} fse cannot read: {text!r}")
-        return inner
-    if value in _NULL or _NOT_A_STRING.fullmatch(value) or not _PLAIN.fullmatch(value):
-        raise CorruptArtifactError(f"{path} states a {key} fse cannot read: {text!r}")
-    return value
+        return dict.fromkeys(keys)
+    values = front_matter(data, path, keys)
+    return {key: strings(values[key], key, path, _PLAIN) for key in keys}
