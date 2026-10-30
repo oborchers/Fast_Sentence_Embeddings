@@ -215,3 +215,13 @@ def test_dtype_comparison_gives_time_ratios_to_the_first():
     assert dtype.lines([{"workers": 1, "rounds": 0, "discarded": 3}], ["float32"], 1) == [
         "workers 1: 0 rounds (3 discarded)"
     ]
+
+
+def test_the_callers_part_overlaps_the_workers(rm):
+    data = rm.Dataset("d", texts=1, bytes=1, tokens=10**6, distinct_ids=1)
+    model = rm.Model("m", 8, "float32", 10, False)
+    stages = rm.Stages(0.1, 0.0, 0.5, 0.0, 0.8, 0.0, 0.0, 0.0)  # caller 0.5 s, work 0.8 s
+    b = rm.bounds(_hw(rm), model, data, stages, 8)
+    assert b.amdahl == pytest.approx(1 / (1e-7 + 5e-7))  # not 1e-7 + 5e-7 + 1e-7
+    assert b.binding["spec"] == "caller"
+    assert rm.serial_fraction(stages) == pytest.approx(0.1 / 1.4)

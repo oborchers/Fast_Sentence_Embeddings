@@ -36,7 +36,8 @@ def report(result: dict, hw: rm.Hardware, workers: tuple[int, ...] = ()) -> list
     out.append(
         f"assumptions: threads fill the P cores first; an E core counts {hw.e_core_ratio} P "
         f"core ({hw.e_core_source}); a core works as fast as it did alone (no lower clock, no "
-        "shared-cache contention, no GIL waits); the memory roof reads every byte from memory"
+        "shared-cache contention, no GIL waits); the caller's part overlaps the workers; the "
+        "memory roof reads every byte from memory"
     )
     if hw.name != result["hardware"]:
         out.append(
@@ -73,11 +74,11 @@ def _header(model: rm.Model, data: rm.Dataset, hw: rm.Hardware) -> list[str]:
 
 
 def _stage_lines(stages: rm.Stages, data: rm.Dataset) -> list[str]:
-    total = stages.serial + stages.parallel
+    total = stages.serial + stages.caller + stages.parallel
     out = [f"one worker, ns per token and share of {total * 1e3:.2f} ms:"]
     for name in SERIAL + WORKER:
         seconds = getattr(stages, name)
-        kind = "serial" if name in SERIAL else "worker"
+        kind = "worker" if name in WORKER else "overlaps" if name == "caller" else "serial"
         out.append(
             f"  {name:12s} {seconds / data.tokens * 1e9:7.2f}  {seconds / total:6.1%}  {kind}"
         )
@@ -126,8 +127,8 @@ def _task_lines(run: dict, workers: int, serial: float) -> list[str]:
     busy = wall / (workers * max(seconds - serial, 1e-12))
     return [
         f"  tasks: {_get(run['tasks'], workers):.0f}, summed wall {wall / one:.2f}x and thread "
-        f"CPU {cpu / _get(run['task_cpu'], 1):.2f}x of one worker (wall above CPU: waits, "
-        f"mostly for the GIL); workers busy {busy:.0%} of the time outside the serial part"
+        f"CPU {cpu / _get(run['task_cpu'], 1):.2f}x of one worker (wall above CPU: waits for "
+        f"the GIL, other processes or the scheduler); workers busy {busy:.0%} of the time outside the serial part"
     ]
 
 

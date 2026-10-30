@@ -8,13 +8,15 @@
 measurement, so the formulas can be checked on their own (tests/test_roofline.py).
 
 Work is counted in tokens, the rows the kernel adds (token ids and FastText buckets). For
-an encoder on one corpus at N workers, with t_ser and t_par the serial and parallel
-seconds per token measured at one worker and C(N) the summed speed of the cores in use:
+an encoder on one corpus at N workers, with seconds per token measured at one worker:
+t_ser in the calling thread before and after the run, t_call in the calling thread while
+the workers run (it overlaps their work), t_par in the workers, and C(N) the summed speed
+of the cores in use:
 
-- per core:  C(N) / t_par                          (the work roof)
-- Amdahl:    1 / (t_ser + t_par / C(N))            (Amdahl 1967; Hill and Marty 2008)
-- memory:    BW / bytes_per_token                  (the no-reuse roof; Williams et al. 2009)
-- combined:  1 / (t_ser + max(t_par / C(N), bytes_per_token / BW))
+- per core:  C(N) / t_par                                   (the work roof)
+- Amdahl:    1 / (t_ser + max(t_par / C(N), t_call))         (Amdahl 1967; Hill and Marty 2008)
+- memory:    BW / bytes_per_token                           (the no-reuse roof; Williams et al. 2009)
+- combined:  1 / (t_ser + max(t_par / C(N), t_call, bytes_per_token / BW))
 
 These are bounds under the assumptions PERFORMANCE.md lists, not guarantees: the memory
 roof counts every row as read from memory, which cache hits beat, and t_par holds the
@@ -103,7 +105,8 @@ class Dataset:
 @dataclass(frozen=True)
 class Stages:
     """Seconds of one pass over the corpus at one worker, per stage. The first four run
-    in the calling thread (serial), the others in the workers (parallel)."""
+    in the calling thread: join, plan and encode_rest before or after the run (serial),
+    caller while the workers run (overlapping them); the others run in the workers."""
 
     join: float  # the strings joined into one buffer (StringSource; up to 8 threads)
     plan: float  # the scan into chunks
@@ -116,7 +119,8 @@ class Stages:
 
     @property
     def serial(self) -> float:
-        return self.join + self.plan + self.caller + self.encode_rest
+        """The calling thread's time before and after the run, which no worker overlaps."""
+        return self.join + self.plan + self.encode_rest
 
     @property
     def parallel(self) -> float:
@@ -149,7 +153,7 @@ class Bounds:
     amdahl: float
     memory: dict[str, float]  # by the name of the roof
     combined: dict[str, float]
-    binding: dict[str, str]  # "serial", "work" or "memory"
+    binding: dict[str, str]  # "serial", "work", "caller" or "memory"
 
 
 def bounds(
@@ -165,25 +169,29 @@ def bounds(
     serial = stages.serial + (0.0 if plan is None else plan - stages.plan)
     t_ser = serial / data.tokens
     t_par = stages.parallel / data.tokens
+    t_call = stages.caller / data.tokens
     c = cores(hw, workers)
     work = t_par / c
     memory, combined, binding = {}, {}, {}
     for roof in hw.bandwidths:
         per_token = bytes_per_token(model, data) / (roof.gb_per_s * 1e9)
         memory[roof.name] = 1 / per_token
-        combined[roof.name] = 1 / (t_ser + max(work, per_token))
-        binding[roof.name] = _binding(t_ser, work, per_token)
-    return Bounds(workers, c / t_par, 1 / (t_ser + work), memory, combined, binding)
+        terms = {"work": work, "caller": t_call, "memory": per_token}
+        combined[roof.name] = 1 / (t_ser + max(terms.values()))
+        binding[roof.name] = _binding(t_ser, terms)
+    amdahl = 1 / (t_ser + max(work, t_call))
+    return Bounds(workers, c / t_par, amdahl, memory, combined, binding)
 
 
-def _binding(serial: float, work: float, memory: float) -> str:
-    if serial >= max(work, memory):
-        return "serial"
-    return "work" if work >= memory else "memory"
+def _binding(serial: float, terms: dict[str, float]) -> str:
+    """What binds: the serial part if it takes longer than the slowest overlapping term."""
+    name = max(terms, key=lambda k: terms[k])
+    return "serial" if serial >= terms[name] else name
 
 
 def serial_fraction(stages: Stages) -> float:
-    return stages.serial / (stages.serial + stages.parallel)
+    """The share of the time at one worker that no worker overlaps."""
+    return stages.serial / (stages.serial + stages.caller + stages.parallel)
 
 
 def share(measured: float, bound: float) -> float:
