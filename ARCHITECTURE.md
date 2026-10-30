@@ -11,6 +11,7 @@ src/fse/
   __init__.py            # public API, __all__, version, the hint for removed 1.x names
   _contract.py           # Batch, identifiers, the step list, errors
   _tokenizer_spec.py     # TokenizerSpec: a tokenizer with its parameters (wordpiece@1)
+  _tokenizer_unigram.py  # UnigramConfig: the parameters of unigram@1, its scores and charsmap
   _reference.py          # the reference: numpy code that defines every result
   _reference_head.py     # the reference of linear heads: linear@1, exp@1 and the links
   _codes.py              # float16 and int8 storage arithmetic in blocks
@@ -26,6 +27,7 @@ src/fse/
   _wordvectors_format.py # the format rules of word_vectors 1: keys, checks, vocabulary encoding
   _tokenizer_json.py     # a BERT tokenizer.json of Hugging Face as the parameters of wordpiece@1
   _tokenizer_json_common.py # what the readers of a tokenizer.json share: keys, added tokens, post-processor, truncation
+  _tokenizer_json_unigram.py # a Unigram tokenizer.json as the parameters of unigram@1
   _cpus.py               # usable_cpus: the default number of workers
   _backends/             # the backends behind one contract:
     __init__.py          #   BACKEND_NAMES, get_backend,
