@@ -226,6 +226,50 @@ static inline int fse_wp_next_word(const uint8_t *q, int64_t m, int64_t *pos, in
     return 0;
 }
 
+/* The class of the code point at q[i] of normalized UTF-8 (FSE_BERT_SPACE, FSE_BERT_PUNCT
+   or 0) and its length: an ASCII byte by its table, the rest by fse_bert_entry. */
+static inline uint32_t fse_wp_class_at(const uint8_t *q, int64_t i, int64_t m, int *len) {
+    if (q[i] < 0x80) {
+        *len = 1;
+        return fse_wp_ascii_class[q[i]];
+    }
+    uint32_t cp;
+    *len = fse_wp_decode(q, i, m, &cp);
+    return fse_bert_entry(cp) & (FSE_BERT_SPACE | FSE_BERT_PUNCT);
+}
+
+/* fse_wp_next_word with the class of ASCII bytes from a table: no decode and no two-stage
+   lookup for them. */
+static inline int fse_wp_next_word_ascii(const uint8_t *q, int64_t m, int64_t *pos,
+                                         int64_t *start, int64_t *end) {
+    int64_t i = *pos;
+    int len;
+    while (i < m) {
+        uint32_t c = fse_wp_class_at(q, i, m, &len);
+        if (c & FSE_BERT_SPACE) {
+            i += len;
+            continue;
+        }
+        *start = i;
+        i += len;
+        if (!(c & FSE_BERT_PUNCT)) {
+            while (i < m) {
+                if (q[i] < 0x80) {
+                    if (fse_wp_ascii_class[q[i]]) break;
+                    i++;
+                    continue;
+                }
+                if (fse_wp_class_at(q, i, m, &len)) break;
+                i += len;
+            }
+        }
+        *end = *pos = i;
+        return 1;
+    }
+    *pos = m;
+    return 0;
+}
+
 /* The first invalid UTF-8 byte of p[i:n], or -1. */
 static inline int64_t fse_wp_validate(const uint8_t *p, int64_t i, int64_t n) {
     uint32_t cp;

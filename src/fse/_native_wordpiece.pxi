@@ -18,6 +18,8 @@ cdef extern from "_native_wordpiece.h":
     int fse_wp_ascii_init() nogil
     int fse_wp_next_word(const unsigned char *q, int64_t m, int64_t *pos, int64_t *start,
                          int64_t *end) nogil
+    int fse_wp_next_word_ascii(const unsigned char *q, int64_t m, int64_t *pos,
+                               int64_t *start, int64_t *end) nogil
     int64_t fse_wp_validate(const unsigned char *p, int64_t i, int64_t n) nogil
     int64_t fse_wp_char_cut(const unsigned char *p, int64_t n, int64_t max_chars) nogil
 
@@ -198,11 +200,12 @@ cdef inline Py_ssize_t _wp_word(WordPieceState st, const unsigned char *w, Py_ss
     piece): its ids, greedy from the left, or one unk_id; returns how many."""
     cdef Py_ssize_t chars = 0, k, start = 0, end, count = 0
     cdef uINT_t index
-    for k in range(n):
-        chars += (w[k] & 0xC0) != 0x80
-    if chars > st.max_input_chars:
-        ids[0] = st.unk_id
-        return 1
+    if st.generic or n > st.max_input_chars:  # n bytes are at most n code points
+        for k in range(n):
+            chars += (w[k] & 0xC0) != 0x80
+        if chars > st.max_input_chars:
+            ids[0] = st.unk_id
+            return 1
     while start < n:
         end = n
         while True:
@@ -243,7 +246,13 @@ cdef inline int _wp_piece(WordPieceState st, const unsigned char *p, Py_ssize_t 
     if m < 0:
         bad[0] = -1 - m
         return WP_BAD
-    while fse_wp_next_word(q, m, &pos, &start, &end):
+    if st.generic:
+        while fse_wp_next_word(q, m, &pos, &start, &end):
+            count[0] += _wp_word(st, q + start, end - start, ids + count[0])
+            if st.max_tokens and count[0] >= st.max_tokens:
+                return WP_FULL
+        return WP_GO_ON
+    while fse_wp_next_word_ascii(q, m, &pos, &start, &end):
         count[0] += _wp_word(st, q + start, end - start, ids + count[0])
         if st.max_tokens and count[0] >= st.max_tokens:
             return WP_FULL
