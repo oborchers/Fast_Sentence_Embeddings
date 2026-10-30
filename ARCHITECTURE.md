@@ -83,6 +83,8 @@ src/fse/
   _native_text.pxi       #   the tokenizers and the text lookup,
   _native_wordpiece.pxi  #   wordpiece@1: its state, the greedy match, a sentence
   _native_head.pxi       #   the logits, exp@1, the links and the labels of linear heads
+  _native_arrow.pxi      #   Arrow string columns: the C structs, their checks and errors,
+  _native_arrow_column.pxi #  the ArrowColumn: chunks taken over, scanned, encoded and released
   _native.pxd, .pyi      # shared C types of the extension, and its type stubs
   _native_kernel.h       # the C kernel: its contract, ISA detection and dispatch, and
   _native_kernel_base.h  #   build checks, macros and shared types,
@@ -97,6 +99,7 @@ src/fse/
   _unicode.py            # generated: the same table for the reference
   _native_wordpiece.h    # wordpiece@1: added tokens, normalization and pre-tokenization
   _native_wordpiece_trie.h # the byte trie of a vocabulary for the greedy match of wordpiece@1
+  _native_arrow.h        # the Arrow C Data and C Stream structs, and one row of utf8, large_utf8 or utf8_view
   _native_unicode_bert.h # generated: the composed normalization table of wordpiece@1
   _unicode_bert.py       # generated: the Unicode data of wordpiece@1 for the reference
   _reference_text.py     # the reference of stages 1 and 2: tokenizers and lookup

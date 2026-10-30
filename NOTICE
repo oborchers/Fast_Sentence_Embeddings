@@ -79,3 +79,14 @@ tools/make_wordpiece_tables.py. The data is used under the Unicode License v3:
     not be used in advertising or otherwise to promote the sale, use or other
     dealings in these Data Files or Software without prior written
     authorization of the copyright holder.
+
+Arrow C Data Interface
+----------------------
+
+The structs ArrowSchema, ArrowArray and ArrowArrayStream in
+src/fse/_native_arrow.h are copied from the Apache Arrow C Data Interface and
+C Stream Interface specifications
+(https://arrow.apache.org/docs/format/CDataInterface.html,
+https://arrow.apache.org/docs/format/CStreamInterface.html), which ask consumers
+to copy them. Apache Arrow is licensed under the Apache License 2.0,
+Copyright 2016-2026 The Apache Software Foundation.
