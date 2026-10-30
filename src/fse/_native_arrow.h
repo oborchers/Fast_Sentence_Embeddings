@@ -134,6 +134,12 @@ static inline int fse_arrow_row(const fse_arrow_chunk* c, int64_t i, const unsig
     end = offsets[j + 1];
   }
   if (start < 0 || start > end || end > c->data_len) return 1;
+  if (c->data == NULL) { /* only a chunk whose offsets are all 0 has none */
+    if (end > 0) return 1;
+    *p = c->data;
+    *n = 0;
+    return 0;
+  }
   *p = c->data + start;
   *n = end - start;
   return 0;

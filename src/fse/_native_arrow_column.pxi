@@ -257,7 +257,7 @@ cdef class ArrowColumn:
         if base < 0 or last < base:
             raise ValueError(f"invalid Arrow offsets in the chunk from row {self.rows}")
         c.data = <const unsigned char *>a.buffers[2]
-        if c.data == NULL and last > base:
+        if c.data == NULL and last > 0:  # any offset above 0 points into the data
             raise ValueError("the Arrow array has no data buffer")
         c.data_len = last
         return last - base

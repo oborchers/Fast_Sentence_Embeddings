@@ -123,6 +123,9 @@ def test_null_pointers_raise():
         from_array(p, b"u", p.array([None, None, buffers[2]], 4))
     with pytest.raises(ValueError, match="no data buffer"):
         from_array(p, b"u", p.array([None, buffers[1], None], 4))
+    for offsets in ([1, 0, 1], [1, 1, 1], [3, 3, 3]):  # first == last > 0: still into the data
+        with pytest.raises(ValueError, match="no data buffer"):
+            from_array(p, b"u", p.array([None, np.array(offsets, np.int32), None], 2))
     empty = from_array(p, b"u", p.array([None, np.zeros(3, np.int32), None], 2))
     assert [empty.row_bytes(0), empty.row_bytes(1)] == [b"", b""]
     assert from_array(p, b"u", p.array([None, None, None], 0)).rows == 0
