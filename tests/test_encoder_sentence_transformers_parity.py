@@ -82,6 +82,15 @@ def test_the_rows_are_those_of_sentence_transformers(tmp_path, spelling, subfold
     print(f"{spelling}: worst {worst:.2e} of the bound, at most {ulps.max()} ulp")
 
 
+def test_empty_kwargs_as_sentence_transformers_reads_them(tmp_path):
+    folder = st.save_model(tmp_path / "m")
+    modules = json.loads((folder / "modules.json").read_text(encoding="utf-8"))
+    modules[0]["kwargs"] = []
+    (folder / "modules.json").write_text(json.dumps(modules))
+    encoder = Encoder.from_pretrained(folder)
+    cv.assert_close(encoder.encode(TEXTS), _st(folder).encode(TEXTS), encoder, TEXTS, False)
+
+
 @pytest.mark.parametrize("kept", [4, 8])
 def test_truncate_dim_is_that_of_sentence_transformers(saved, kept):
     encoder = Encoder.from_pretrained(saved, truncate_dim=kept)

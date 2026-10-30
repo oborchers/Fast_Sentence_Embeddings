@@ -110,10 +110,15 @@ def static_folder(files: Files, kind: Any = None) -> str:
             f"{where}: a module holds exactly {sorted(_MODULE_KEYS)} and optionally kwargs, "
             f"not {sorted(module)}"
         )
-    if "kwargs" in module:
+    kwargs = module.get("kwargs", [])  # absent is [], as sentence-transformers reads it
+    if not isinstance(kwargs, list):
+        raise CorruptArtifactError(
+            f"{where}: the kwargs of a module must be a list, not {kwargs!r}"
+        )
+    if kwargs:
         raise UnsupportedArtifactError(
-            f"{where}: the StaticEmbedding has kwargs {module['kwargs']!r}, which this fse "
-            "does not pass to anything"
+            f"{where}: the StaticEmbedding has kwargs {kwargs!r}, which this fse does not "
+            "pass to anything"
         )
     _name(module["name"], where)
     return _folder(module["path"], where)

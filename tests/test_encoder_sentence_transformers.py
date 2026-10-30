@@ -226,7 +226,9 @@ def test_models_of_other_modules_are_no_static_models(model, types):
         (_static(path="/tmp"), CorruptArtifactError, "path of a module"),
         (_static(path="a/b"), CorruptArtifactError, "path of a module"),
         (_static(path="a\\b"), CorruptArtifactError, "path of a module"),
-        (_static(kwargs=["task"]), UnsupportedArtifactError, "kwargs"),
+        (_static(kwargs=["task"]), UnsupportedArtifactError, r"kwargs \['task'\]"),
+        (_static(kwargs={}), CorruptArtifactError, "kwargs of a module must be a list"),
+        (_static(kwargs=None), CorruptArtifactError, "kwargs of a module must be a list"),
         ({"name": "0", "path": "", "type": st.LEGACY}, CorruptArtifactError, "holds exactly"),
     ],
 )
@@ -234,6 +236,14 @@ def test_the_module_entry_is_checked(model, module, error, match):
     _modules(model, module)
     with pytest.raises(error, match=match):
         Encoder.from_pretrained(model)
+
+
+def test_empty_kwargs_are_none(model):
+    """sentence-transformers reads a missing kwargs as [] and writes it only when it is
+    not empty; an empty list changes nothing."""
+    want = Encoder.from_pretrained(model).fingerprint
+    _modules(model, _static(kwargs=[]))
+    assert Encoder.from_pretrained(model).fingerprint == want
 
 
 def test_modules_json_is_a_list_of_modules(model):
