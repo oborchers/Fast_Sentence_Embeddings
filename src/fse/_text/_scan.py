@@ -29,6 +29,11 @@ from ._plan import offset_cuts
 # overhead does not matter.
 _CHUNK_MIN_BYTES = 1 << 16
 _CHUNK_MAX_BYTES = 1 << 20
+# Tasks per worker of a source below TASKS_PER_WORKER * workers * _CHUNK_MAX_BYTES: a task
+# takes the GIL back at about ten points, which costs about 19 us at one worker but 0.2
+# to 0.34 ms of CPU with 10 threads, so fewer and larger tasks are faster; two per worker
+# leave room to balance cores of different speed (ARCHITECTURE.md, "Runtime", Tasks).
+TASKS_PER_WORKER = 2
 # About this many bytes per scan task, so a failed scan stops after bounded work.
 _SCAN_RANGE_MAX_BYTES = 1 << 26
 # Sources smaller than this are scanned in the calling thread: starting threads would cost
@@ -98,6 +103,13 @@ def check_chunk_bytes(chunk_bytes: object) -> int | None:
     return value
 
 
+def default_chunk_bytes(total: int, workers: int, per_worker: int | None = None) -> int:
+    """The bytes per chunk of a source of ``total`` bytes: about ``per_worker`` chunks
+    (TASKS_PER_WORKER) per worker, within 64 KiB and 1 MiB."""
+    per = TASKS_PER_WORKER if per_worker is None else per_worker
+    return max(_CHUNK_MIN_BYTES, min(_CHUNK_MAX_BYTES, -(-total // (per * workers))))
+
+
 def _chunk_sizes(
     total: int, workers: object, chunk_bytes: object, chunk_rows: object
 ) -> tuple[int, int, int]:
@@ -108,7 +120,7 @@ def _chunk_sizes(
         raise ValueError(f"workers must be a positive int, not {workers!r}")
     size = check_chunk_bytes(chunk_bytes)
     if size is None:
-        size = max(_CHUNK_MIN_BYTES, min(_CHUNK_MAX_BYTES, total // (8 * count)))
+        size = default_chunk_bytes(total, count)
     rows = _native.MAX_CHUNK_ROWS if chunk_rows is None else _integer(chunk_rows)
     if rows is None or not 1 <= rows <= _native.MAX_CHUNK_ROWS:
         raise ValueError(

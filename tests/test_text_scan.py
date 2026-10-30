@@ -104,3 +104,32 @@ def test_strings_are_cut_from_their_offsets():
             assert [(c.start, c.end, c.first_row) for c in scan.chunks] == [
                 (a, b, a) for a, b in pairwise(cuts)
             ]
+
+
+@pytest.mark.parametrize("workers", [1, 2, 8, 10, 16])
+@pytest.mark.parametrize("total", [100 << 10, 2_430_000, 8_350_000, 50_000_000])
+def test_the_default_rule_gives_about_two_tasks_per_worker(workers, total):
+    from fse._text._scan import TASKS_PER_WORKER, default_chunk_bytes
+
+    texts = ["x" * 99] * (total // 99)
+    source = StringSource(texts)
+    size = default_chunk_bytes(source.nbytes, workers)
+    assert size == max(1 << 16, min(1 << 20, -(-source.nbytes // (TASKS_PER_WORKER * workers))))
+    scan = source.scan(workers=workers)
+    assert len(scan.chunks) == max(1, -(-len(texts) * 99 // size))
+    assert all((c.end - c.start) * 99 <= size + 99 for c in scan.chunks)
+
+
+def test_a_stream_keeps_eight_tasks_per_collection():
+    from fse._runtime._tasks import STREAM_TASKS_PER_COLLECTION, plan
+    from fse._stream import StreamSource
+
+    texts = ["x" * 99] * 40_000  # one collection of about 4 MB
+    planned = plan(
+        StreamSource(texts),
+        workers=4,
+        chunk_bytes=None,
+        chunk_rows=1 << 16,
+        tokenizer="fse_words@1",
+    )
+    assert len(list(planned.tasks)) == STREAM_TASKS_PER_COLLECTION

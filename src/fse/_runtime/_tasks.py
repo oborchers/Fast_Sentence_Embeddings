@@ -20,12 +20,22 @@ from typing import Any
 
 from fse._contract import Batch
 from fse._stream import StreamSource
-from fse._text import ArrowSource, Chunk, StringSource, TokenListSource, check_chunk_bytes
+from fse._text import (
+    ArrowSource,
+    Chunk,
+    StringSource,
+    TokenListSource,
+    check_chunk_bytes,
+    default_chunk_bytes,
+)
 from fse._text_file import FileSource
 
 # A source of at most this many bytes runs in the calling thread: threads would cost more
 # than they save (bench_runtime.py latency).
 INLINE_MAX_BYTES = 1 << 16
+# The chunks of a collection of a stream: a collection is not the whole input and the
+# window spans collections, so a stream keeps its smaller tasks.
+STREAM_TASKS_PER_COLLECTION = 8
 
 SOURCES = (StringSource, FileSource, TokenListSource, StreamSource, ArrowSource)
 
@@ -107,8 +117,11 @@ def _stream_plan(
 
     def tasks() -> Iterator[Task]:
         for collection in _chain(first, collections):
+            size = chunk_bytes or default_chunk_bytes(
+                collection.source.nbytes, 1, STREAM_TASKS_PER_COLLECTION
+            )
             scan, error = collection.source.scan_until_error(
-                chunk_bytes=chunk_bytes, chunk_rows=chunk_rows
+                chunk_bytes=size, chunk_rows=chunk_rows
             )
             for c in scan.chunks:
                 chunk = Chunk(c.start, c.end, collection.first_row + c.first_row, c.n_sentences)

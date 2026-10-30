@@ -25,7 +25,7 @@ from ._lookup import (
     new_workspace,
     tokenize,
 )
-from ._scan import Chunk, Scan, _Buffered, check_chunk_bytes
+from ._scan import Chunk, Scan, _Buffered, check_chunk_bytes, default_chunk_bytes
 from ._strings import RowTypeError, StringSource, TokenListSource, encode_string
 
 __all__ = [
@@ -42,6 +42,7 @@ __all__ = [
     "Workspace",
     "_Buffered",
     "check_chunk_bytes",
+    "default_chunk_bytes",
     "encode_string",
     "is_arrow",
     "make_lookup",
