@@ -35,10 +35,11 @@ import os
 import platform
 import resource
 import statistics
-import subprocess
 import sys
 import time
 from pathlib import Path
+
+from bench_harness import rounds, run_child
 
 DIM = 300
 CORPUS = Path("~/.cache/fse-quality/wikitext-103-b08601e0.txt")
@@ -102,15 +103,7 @@ def child_encode(c: dict) -> dict:
 
 
 def _run(python: str, config: dict) -> dict:
-    done = subprocess.run(
-        [python, __file__, "--child", json.dumps(config)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if done.returncode:
-        raise SystemExit(f"{config} failed:\n{done.stderr[-3000:]}")
-    return json.loads(done.stdout.strip().splitlines()[-1])
+    return run_child([python, __file__, "--child", json.dumps(config)], label=config)
 
 
 def _cases(args) -> list[dict]:
@@ -124,15 +117,15 @@ def _cases(args) -> list[dict]:
 
 
 def _paired(config: dict, pythons: dict[str, str], pairs: int) -> dict:
-    """``pairs`` runs of every side, alternating which goes first."""
-    runs: dict[str, list[dict]] = {side: [] for side in pythons}
-    for pair in range(pairs):
-        for side in sorted(pythons, reverse=pair % 2 == 1):
-            load = os.getloadavg()[0]
-            runs[side].append({**_run(pythons[side], config), "load_average": load})
+    """``pairs`` runs of every side, alternating which goes first (the sorted first, then
+    the last); the load is taken before each run."""
+    done = rounds(sorted(pythons), lambda side: _run(pythons[side], config), pairs)
     return {
-        side: {"median_s": statistics.median(r["seconds"] for r in rs), "runs": rs}
-        for side, rs in runs.items()
+        side: {
+            "median_s": statistics.median(r["seconds"] for r in done.results(side)),
+            "runs": done.records(side),
+        }
+        for side in pythons
     }
 
 

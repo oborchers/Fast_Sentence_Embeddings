@@ -56,12 +56,11 @@ import itertools
 import json
 import os
 import platform
-import statistics
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+import bench_harness as harness
 from bench_lifecycle_cases import BATCH, INFER_SIZES, K
 
 MODELS = ("SIFWeights", "Average")
@@ -153,39 +152,26 @@ def grid(args) -> list[dict]:
 def _run(python: str, config: dict) -> dict:
     # Offline: 1.1 resolves the hub cache through snapshot_download, which would otherwise
     # ask the hub inside the measurement.
-    done = subprocess.run(
+    return harness.run_child(
         [python, str(CASES), json.dumps(config)],
         env={**os.environ, "HF_HUB_OFFLINE": "1"},
-        capture_output=True,
-        text=True,
-        check=False,
+        label=config,
     )
-    if done.returncode:
-        raise SystemExit(f"{config} failed:\n{done.stderr[-3000:]}")
-    return json.loads(done.stdout.strip().splitlines()[-1])
-
-
-def _median(runs: list[dict]) -> dict:
-    numbers = (int, float)
-    return {
-        k: statistics.median(r[k] for r in runs)
-        for k, v in runs[0].items()
-        if isinstance(v, numbers) and not isinstance(v, bool)
-    }
 
 
 def _pairs(config: dict, pythons: dict[str, str], pairs: int, warm: list[Path]) -> dict:
-    """``pairs`` runs of every side, alternating which goes first, each with its inputs in
-    the page cache."""
-    runs: dict[str, list[dict]] = {side: [] for side in pythons}
-    for pair in range(pairs):
-        for side in sorted(pythons, reverse=pair % 2 == 0):  # v2 first, then v1 first
-            _warm([*warm, *_written(Path(config["tmp"]))])
-            load = os.getloadavg()[0]  # before the run
-            runs[side].append(
-                {**_run(pythons[side], {**config, "side": side}), "load_average": load}
-            )
-    return {side: {"median": _median(r), "runs": r} for side, r in runs.items()}
+    """``pairs`` runs of every side, alternating which goes first (v2 first, then v1 first),
+    each with its inputs in the page cache; the load is taken after that, before the run."""
+    done = harness.rounds(
+        sorted(pythons, reverse=True),
+        lambda side: _run(pythons[side], {**config, "side": side}),
+        pairs,
+        warm=lambda _: _warm([*warm, *_written(Path(config["tmp"]))]),
+    )
+    return {
+        side: {"median": harness.median_numbers(done.records(side)), "runs": done.records(side)}
+        for side in pythons
+    }
 
 
 def _prepare(args, base: dict) -> None:

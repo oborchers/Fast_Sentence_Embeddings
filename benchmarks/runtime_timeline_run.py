@@ -10,14 +10,14 @@ discarded), and the report lines of the splits."""
 
 from __future__ import annotations
 
-import os
-import statistics
 import time
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from typing import Any
 
+from bench_harness import median as _median
+from bench_harness import rounds as run_rounds
 from runtime_timeline_attr import (
     CAUSES,
     Run,
@@ -29,10 +29,6 @@ from runtime_timeline_attr import (
 from runtime_timeline_probe import Recorder, Reuse, tracing
 
 now = time.perf_counter_ns
-
-
-def load() -> float:
-    return os.getloadavg()[0]
 
 
 def call(pipeline: Any, sentences: list[str], workers: int, **options: Any) -> Any:
@@ -102,24 +98,21 @@ def compare(
     calls (``summarize``), and its wall time over the first variant's, round by round, in
     ``variants``; the loads of the kept rounds."""
     names = list(variants)
-    kept: list[dict[str, list[Pass]]] = []
-    loads: list[tuple[float, float]] = []
-    discarded = 0
-    for attempt in range(3 * rounds):
-        if len(kept) == rounds:
-            break
-        order = names if attempt % 2 == 0 else names[::-1]
-        before = load()
-        got = {n: _passes(pipeline, sentences, workers, variants[n], per_round) for n in order}
-        after = load()
-        if max(before, after) > max_load:
-            discarded += 1
-            continue
-        kept.append(got)
-        loads.append((round(before, 2), round(after, 2)))
+    done = run_rounds(
+        names,
+        lambda n: _passes(pipeline, sentences, workers, variants[n], per_round),
+        rounds,
+        max_load=max_load,
+    )
+    discarded = len(done.discarded)
+    kept = done.by_round()
     out = {n: summarize([p for r in kept for p in r[n]], workers) for n in names}
     for n in names:
-        out[n] |= {"ratio_to_first": _ratios(kept, n, names[0]), "discarded_blocks": discarded}
+        out[n] |= {
+            "ratio_to_first": done.ratios(n, names[0], lambda ps: _median([p.wall for p in ps])),
+            "discarded_blocks": discarded,
+        }
+    loads = [(round(b, 2), round(a, 2)) for b, a in done.loads]
     return {"variants": out, "loads": loads, "discarded": discarded}
 
 
@@ -130,23 +123,10 @@ def _passes(pipeline: Any, sentences: list[str], workers: int, v: Variant, n: in
         return [record_pass(rec, pipeline, sentences, workers, **v.options()) for _ in range(n)]
 
 
-def _ratios(kept: list[dict[str, list[Pass]]], name: str, first: str) -> list[float]:
-    """Per round the median wall of ``name`` over that of ``first``."""
-    return [
-        _median([p.wall for p in r[name]]) / _median([p.wall for p in r[first]])
-        for r in kept
-        if r[first]
-    ]
-
-
 def series(pipeline: Any, sentences: list[str], workers: int, rounds: int, max_load: float) -> dict:
     """The traced calls of one cell at ``workers``."""
     result = compare(pipeline, sentences, workers, {"base": Variant()}, rounds, max_load, 5)
     return result["variants"]["base"] | {"loads": result["loads"]}
-
-
-def _median(values: list[float]) -> float:
-    return statistics.median(values) if values else 0.0
 
 
 def summarize(kept: list[Pass], workers: int) -> dict:

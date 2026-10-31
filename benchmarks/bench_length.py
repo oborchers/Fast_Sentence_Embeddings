@@ -72,6 +72,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import bench_harness as harness
 import bench_length_corpus as corpora
 from bench_length_cases import BATCH_DOCUMENTS
 from bench_length_files import (
@@ -83,7 +84,7 @@ from bench_length_files import (
     vocabulary_words,
 )
 from bench_length_report import print_analysis, print_header, print_row
-from bench_lifecycle import _hub_files, _identity, _median, _warm
+from bench_lifecycle import _hub_files, _identity, _warm
 
 MODES = ("prepare", "compare", "matrix", "verify", "profile")
 MODELS = ("SIFWeights", "Average", "AverageNorm")
@@ -225,16 +226,25 @@ def _sides(case: dict, pythons: dict[str, str]) -> list[str]:
 
 
 def run_pairs(ctx: Prepared, case: dict, pythons: dict[str, str], tmp: Path) -> dict:
-    """--pairs runs of every side, alternating which goes first, each warm."""
+    """--pairs runs of every side, alternating which goes first (v2 first, then v1 first),
+    each warm; the load is taken after that, before the run."""
     sides = _sides(case, pythons)
-    runs: dict[str, list[dict]] = {side: [] for side in sides}
-    for pair in range(ctx.args.pairs):
-        for side in sorted(sides, reverse=pair % 2 == 0):  # v2 first, then v1 first
-            config = side_config(ctx, case, side, tmp)
-            _warm(_inputs(config))
-            load = os.getloadavg()[0]  # before the run
-            runs[side].append({**run_child(pythons[side], config), "load_average": load})
-    return {side: {"median": _median(r), "runs": r} for side, r in runs.items()}
+    configs: dict[str, dict] = {}
+
+    def warm(side: str) -> None:
+        configs[side] = side_config(ctx, case, side, tmp)
+        _warm(_inputs(configs[side]))
+
+    done = harness.rounds(
+        sorted(sides, reverse=True),
+        lambda side: run_child(pythons[side], configs[side]),
+        ctx.args.pairs,
+        warm=warm,
+    )
+    return {
+        side: {"median": harness.median_numbers(done.records(side)), "runs": done.records(side)}
+        for side in sides
+    }
 
 
 def _models_of(ctx: Prepared, cases: list[dict], pythons: dict[str, str]) -> None:

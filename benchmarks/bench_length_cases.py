@@ -155,61 +155,25 @@ def _percentile(values: list[int], q: float) -> float:
     return float(np.percentile(values, q)) if values else 0.0
 
 
-# The lines of the task plan that ``_chunks`` repeats, as the source has them: if one is
-# gone, the plan changed and ``_chunks`` must follow (there is no function to call).
-PLAN = {
-    "Pipeline.infer": (
-        "inverse = wants_inverse_norms(sink)",
-        "row_bytes = self._row_bytes(dtype, inverse)",
-        "window = max(1, min(2 * workers, WINDOW_BYTES // row_bytes))",
-        "task_rows = max(1, min(self.task_rows, WINDOW_BYTES // (window * row_bytes)))",
-        "chunk_rows=task_rows,",
-    ),
-    "plan": (
-        "inline = source.nbytes <= INLINE_MAX_BYTES",
-        "workers=1 if inline else workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows",
-    ),
-}
-
-
-def check_plan() -> None:
-    """Fail loudly if the task plan of the runtime is no longer the one ``_chunks`` uses."""
-    import inspect
-
-    from fse._runtime import _pipeline, _tasks
-
-    functions = {"Pipeline.infer": _pipeline.Pipeline.infer, "plan": _tasks.plan}
-    for name, lines in PLAN.items():
-        source = " ".join(inspect.getsource(functions[name]).split())
-        if missing := [line for line in lines if line not in source]:
-            raise RuntimeError(f"{name} changed its task plan ({missing}): update _chunks")
-
-
 def _chunks(encoder, c: dict) -> dict:
-    """The chunks of the corpus as the pipeline cuts them, untimed: the window, the rows
-    per task and the inline limit of Pipeline.infer and plan (checked by ``check_plan``),
-    with their constants imported. There is no per-task timing; these explain the
-    balance."""
+    """The chunks of the corpus as ``Pipeline.infer`` plans them, untimed: the tasks and
+    the window of ``Pipeline.plan_tasks`` itself (row width, window, rows per task, inline
+    limit, ``split_tail``), the row width of the target as ``infer`` takes it. There is no
+    per-task timing; these explain the balance."""
     from fse import ShardSink
-    from fse._runtime._pipeline import WINDOW_BYTES
-    from fse._runtime._tasks import INLINE_MAX_BYTES
+    from fse._runtime._sinks import wants_inverse_norms
     from fse._text_file import FileSource
 
-    check_plan()
     pipeline = encoder._pipeline("cpu")
-    inverse = c["target"] == "store" and ShardSink.inverse_norms
+    inverse = c["target"] == "store" and wants_inverse_norms(ShardSink)
     row_bytes = pipeline._row_bytes(c["dtype"], inverse)
-    window = max(1, min(2 * c["workers"], WINDOW_BYTES // row_bytes))
-    task_rows = max(1, min(pipeline.task_rows, WINDOW_BYTES // (window * row_bytes)))
     with FileSource(Path(c["corpus"])) as source:
-        inline = source.nbytes <= INLINE_MAX_BYTES
-        scan = source.scan(
-            workers=1 if inline else c["workers"],
-            chunk_bytes=c.get("chunk_bytes"),
-            chunk_rows=task_rows,
+        tasks, window, _ = pipeline.plan_tasks(
+            source, c["workers"], c.get("chunk_bytes"), row_bytes
         )
-    rows = [chunk.n_sentences for chunk in scan.chunks]
-    sizes = [chunk.end - chunk.start for chunk in scan.chunks]
+        chunks = [task.chunk for task in tasks.tasks]
+    rows = [chunk.n_sentences for chunk in chunks]
+    sizes = [chunk.end - chunk.start for chunk in chunks]
     return {
         "chunks": len(rows),
         "chunk_rows_p50": _percentile(rows, 50),
@@ -217,7 +181,6 @@ def _chunks(encoder, c: dict) -> dict:
         "chunk_bytes_p50": _percentile(sizes, 50),
         "chunk_bytes_max": max(sizes, default=0),
         "chunks_per_worker": len(rows) / c["workers"],
-        "task_rows": task_rows,
         "window": window,
     }
 
