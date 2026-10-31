@@ -163,7 +163,7 @@ def stats(done, name: str, first: str) -> dict:
     """The per-pair ratios of ``name`` to ``first`` and their summary."""
     ratios = done.ratios(name, first, lambda r: r["seconds"])
     return {
-        "ratios": [round(r, 4) for r in ratios],
+        "ratios": ratios,  # unrounded: the verdict reads these; the summary below is for the eye
         "median": round(median(ratios), 4) if ratios else None,
         "min": round(min(ratios), 4) if ratios else None,
         "max": round(max(ratios), 4) if ratios else None,

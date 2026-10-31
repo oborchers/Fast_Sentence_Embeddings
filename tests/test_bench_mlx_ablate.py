@@ -225,3 +225,13 @@ def test_a_stopped_sigint_sends_nothing(cancel, sigint):
     sent = cancel.Sigint(lambda: True, 0.05)
     sent.stop()
     assert sent.at is None
+
+
+def test_the_verdict_reads_unrounded_ratios(ablate):
+    class Done:
+        def ratios(self, *_args):
+            return [1.02004, 1.02004, 1.02004]
+
+    got = ablate.stats(Done(), "x", "base")
+    assert got["ratios"] == [1.02004, 1.02004, 1.02004]
+    assert ablate.verdict(got["ratios"], [1.03, 1.03, 1.03]) == "unclear"
