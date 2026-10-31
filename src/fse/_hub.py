@@ -173,7 +173,10 @@ def cached_snapshot(hub: Any, repo: str, revision: str | None, cache_dir) -> Pat
     parts = revision.split("/")
     if not revision or any(p in ("", ".", "..") for p in parts) or "\\" in revision:
         raise ValueError(f"{revision!r} is no revision name of the Hugging Face cache")
-    base = Path(hub.constants.HF_HUB_CACHE if cache_dir is None else cache_dir)
+    # As huggingface_hub does: ~ is expanded and the folder resolved (it may be a link).
+    base = (
+        Path(hub.constants.HF_HUB_CACHE if cache_dir is None else cache_dir).expanduser().resolve()
+    )
     storage = base / ("models--" + repo.replace("/", "--"))
     commit = revision
     if not _COMMIT.fullmatch(revision):

@@ -193,3 +193,16 @@ def test_the_real_huggingface_hub_refuses_the_snapshot_that_fse_loads(fake, monk
     except FileNotFoundError:  # IncompleteSnapshotError, huggingface_hub 2 and newer
         return
     assert folder == str(_snapshot(fake))  # huggingface_hub 1 checks no listing
+
+
+def test_a_cache_folder_with_a_tilde_is_expanded(fake, tmp_path, monkeypatch):
+    _load(fake)
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    home.mkdir()
+    os.rename(fake.cache, home / "hf-cache")
+    files = hub.HubFiles(
+        "acme/tiny", revision=COMMIT, token=None, cache_dir="~/hf-cache", local_files_only=True
+    )
+    assert files.revision == COMMIT
