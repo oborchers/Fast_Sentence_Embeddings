@@ -84,3 +84,6 @@ Old fragment links land here. Follow the section link to its current location.
 | <a id="errors"></a>Errors | [Runtime](docs/architecture/runtime.md#runtime) |
 | <a id="linear-heads"></a>Linear heads | [linear_head 1](docs/architecture/formats.md#linear_head-1), [Numerical contract (`transform_version` 2)](docs/architecture/numerical-contract.md#numerical-contract-transform_version-2), [Runtime](docs/architecture/runtime.md#runtime) |
 | <a id="quantized-models"></a>Quantized models | [encoder 1](docs/architecture/formats.md#encoder-1) |
+| <a id="numerical-contract"></a>Numerical contract | [Numerical contract (`transform_version` 2)](docs/architecture/numerical-contract.md#numerical-contract-transform_version-2) |
+| <a id="model2vec-compatibility"></a>model2vec compatibility | [model2vec compatibility (fse.StaticModel)](docs/architecture/hub.md#model2vec-compatibility-fsestaticmodel) |
+| <a id="20"></a>2.0 | [Principle and stages](docs/architecture/overview.md#principle-and-stages) |
