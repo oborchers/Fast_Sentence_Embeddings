@@ -126,7 +126,14 @@ Adjacent keys reuse their common prefix through a node stack, avoiding a sibling
 for every byte. Temporary key references are freed before the shared double-array
 placement. Sorting never changes vocabulary ids.
 
-The trie path reserves the candidate buffer once per start, including every candidate
+The production trie walk offers each candidate directly to the Viterbi lattice, without
+materializing candidate arrays. The complete walk and every binary64 addition stay
+in one noinline body inside the floating-point environment guard. Unknown offers
+come after all matching pieces. Backtracking and joined unknown lookup are unchanged.
+Private `_fused=False` states retain the materialized trie path, and `_lattice` exposes
+every score, start and id before backtracking for bitwise differential tests.
+
+The materialized trie path reserves the candidate buffer once per start, including every candidate
 already stored and at most `min(bytes_remaining, max_piece_bytes) + 1` new candidates.
 The addition and byte-size multiplication are checked before allocation. A private
 `_generic=True` state retains the hash and proper-prefix tables for tests. Only this
