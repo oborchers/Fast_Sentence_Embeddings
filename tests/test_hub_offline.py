@@ -314,3 +314,38 @@ def test_a_cache_folder_with_a_tilde_is_expanded(fake, tmp_path, monkeypatch):
         "acme/tiny", revision=COMMIT, token=None, cache_dir="~/hf-cache", local_files_only=True
     )
     assert files.revision == COMMIT
+
+
+def test_a_rename_refused_for_a_moment_is_tried_again(fake, monkeypatch):
+    """Windows refuses a rename over a ref another process renames over or reads at that
+    moment; the writer tries again, and leaves no temporary file."""
+    storage = fake.folder()
+    storage.mkdir(parents=True)
+    real = os.replace
+    refusals = iter([PermissionError(13, "in use"), PermissionError(13, "in use")])
+
+    def replace(src, dst):
+        error = next(refusals, None)
+        if error is not None:
+            raise error
+        real(src, dst)
+
+    monkeypatch.setattr(hub.os, "replace", replace)
+    monkeypatch.setattr(hub, "_REPLACE_WAIT", 0)
+    hub.write_ref(storage, "main", COMMIT)
+    assert _ref(fake).read_text() == COMMIT
+    assert [p.name for p in (storage / "refs").iterdir()] == ["main"]
+
+
+def test_a_rename_refused_for_good_raises_and_leaves_no_temporary_file(fake, monkeypatch):
+    storage = fake.folder()
+    storage.mkdir(parents=True)
+
+    def replace(*_):
+        raise PermissionError(13, "in use")
+
+    monkeypatch.setattr(hub.os, "replace", replace)
+    monkeypatch.setattr(hub, "_REPLACE_WAIT", 0)
+    with pytest.raises(PermissionError):
+        hub.write_ref(storage, "main", COMMIT)
+    assert list((storage / "refs").iterdir()) == []

@@ -27,6 +27,7 @@ from __future__ import annotations
 import os
 import re
 import stat
+import time
 import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -215,7 +216,30 @@ def write_ref(storage: Path, revision: str, commit: str) -> None:
     tmp = ref.with_name(f"{uuid.uuid4().hex}.tmp")  # short: the name of a ref may fill a file name
     with open(tmp, "x", encoding="ascii") as handle:  # exclusive: no other writer, no link
         handle.write(commit)
-    os.replace(tmp, ref)
+    try:
+        _replace(tmp, ref)
+    finally:
+        if os.path.lexists(tmp):
+            tmp.unlink()
+
+
+# Windows refuses to rename over a file another process is renaming over or reading at that
+# moment (PermissionError, WinError 5); the other writer's rename takes milliseconds.
+_REPLACE_TRIES = 50
+_REPLACE_WAIT = 0.01
+
+
+def _replace(tmp: Path, ref: Path) -> None:
+    """``os.replace(tmp, ref)``, tried again while another process holds ``ref`` for its own
+    rename or a read; the last refusal is raised."""
+    for attempt in range(_REPLACE_TRIES):
+        try:
+            os.replace(tmp, ref)
+            return
+        except PermissionError:
+            if attempt == _REPLACE_TRIES - 1:
+                raise
+            time.sleep(_REPLACE_WAIT)
 
 
 def cached_snapshot(hub: Any, repo: str, revision: str | None, cache_dir) -> Path:
