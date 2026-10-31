@@ -15,6 +15,7 @@ from fse._contract import Normalize
 from fse._runtime import EncodeSpec, Pipeline, _executor, _pipeline
 from fse._text import StringSource
 from support.runtime import expected, texts, word_vectors
+from support.waiting import until
 
 BENCHMARKS = Path(__file__).resolve().parent.parent / "benchmarks"
 
@@ -244,10 +245,16 @@ def test_thread_rates_name_the_rate_of_each_thread_only(attr):
     assert rates[1]["rows_per_s"] == pytest.approx(50.0)
 
 
-def _run_traced(probe, *, workers, count, window=None, pause=lambda _n: 0.002, reuse=None):
+def _run_traced(
+    probe, *, workers, count, window=None, pause=lambda _n: 0.002, reuse=None, wait_for_second=False
+):
     rec = probe.Recorder()
 
     def work(item):
+        if wait_for_second and item == 0:
+            run = rec.current
+            assert run is not None
+            assert until(lambda: any(task.seq == 1 for task in run.tasks))
         time.sleep(pause(item))
         return item
 
@@ -297,14 +304,14 @@ def _slow_first(item):  # the pause of a task, by its number
 
 
 def test_head_of_line_blocking_shows_with_one_task_more_than_the_window(attr, probe):
-    run = _run_traced(probe, workers=2, count=3, window=2, pause=_slow_first)
+    run = _run_traced(probe, workers=2, count=3, window=2, pause=_slow_first, wait_for_second=True)
     split = attr.attribute(run)
     assert split.idle["hol"] > 0.05 * 1e9  # the second worker waits ~0.2 s for the window
     _check(split, run.tasks)
 
 
 def test_no_head_of_line_blocking_when_the_tasks_fit_the_window(attr, probe):
-    run = _run_traced(probe, workers=2, count=2, window=2, pause=_slow_first)
+    run = _run_traced(probe, workers=2, count=2, window=2, pause=_slow_first, wait_for_second=True)
     split = attr.attribute(run)
     assert split.idle["hol"] == 0
     assert split.idle["tail"] > 0.05 * 1e9
