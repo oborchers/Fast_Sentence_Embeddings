@@ -11,7 +11,6 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -22,83 +21,15 @@ from fse._contract import UnsupportedArtifactError
 from fse._encoder import Encoder
 from fse._encoder._format import Source
 from fse._head import Classifier
-from support import model2vec as mv
+from support.hubcache import COMMIT, git_sha1, make_fake
 
 pytest.importorskip("model2vec")
 pytestmark = pytest.mark.skipif(not hasattr(os, "symlink"), reason="the cache needs links")
-COMMIT = "c" * 40
-LFS = {"model.safetensors", "encoder.safetensors"}
-
-
-def _sha1(data):
-    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
-
-
-class FakeHub:
-    """model_info and hf_hub_download of one repository, on a real cache layout."""
-
-    def __init__(self, cache, repo, files, lfs=LFS):
-        self.cache, self.repo, self.files, self.lfs = cache, repo, files, lfs
-        self.pins = {}
-        self.asked = []
-        self.HfApi = lambda: self  # huggingface_hub's class, which this fake stands for
-
-    def model_info(self, repo, *, revision, files_metadata, token):
-        assert files_metadata
-        self.asked.append((repo, revision, token))
-        siblings = []
-        for name, data in self.files.items():
-            lfs = (
-                SimpleNamespace(sha256=hashlib.sha256(data).hexdigest(), size=len(data))
-                if name in self.lfs
-                else None
-            )
-            blob_id, sha = self.pins.get(name, (_sha1(data), lfs))
-            siblings.append(SimpleNamespace(rfilename=name, blob_id=blob_id, lfs=sha))
-        return SimpleNamespace(sha=COMMIT, siblings=siblings)
-
-    def folder(self):
-        return self.cache / ("models--" + self.repo.replace("/", "--"))
-
-    def hf_hub_download(self, repo, name, *, revision, local_files_only, cache_dir, token):
-        assert (repo, cache_dir) == (self.repo, self.cache)
-        assert token in (None, "t")
-        snapshot = self.folder() / "snapshots" / COMMIT
-        path = snapshot / name
-        if local_files_only or os.path.lexists(path):
-            if revision not in (None, "main", COMMIT) or not os.path.lexists(path):
-                raise FileNotFoundError(f"{name} is not in the cache")
-            return str(path)
-        data = self.files[name]
-        blob = (
-            self.folder()
-            / "blobs"
-            / (hashlib.sha256(data).hexdigest() if name in self.lfs else _sha1(data))
-        )
-        blob.parent.mkdir(parents=True, exist_ok=True)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        blob.write_bytes(data)
-        path.symlink_to(os.path.relpath(blob, path.parent))
-        return str(path)
-
-    def snapshot_download(self, repo, *, revision, local_files_only, cache_dir, token):
-        assert local_files_only
-        assert (repo, cache_dir) == (self.repo, self.cache)
-        assert token in (None, "t")
-        snapshot = self.folder() / "snapshots" / COMMIT
-        if revision not in (None, "main", COMMIT) or not snapshot.is_dir():
-            raise FileNotFoundError(f"{repo} is not in the cache")
-        return str(snapshot)
 
 
 @pytest.fixture
 def fake(tmp_path, monkeypatch):
-    model = mv.save_model(tmp_path / "model")
-    files = {p.name: p.read_bytes() for p in model.iterdir()}
-    fake = FakeHub(tmp_path / "cache", "acme/tiny", files)
-    monkeypatch.setattr(hub, "_library", lambda: fake)
-    fake.model = model
-    return fake
+    return make_fake(tmp_path, monkeypatch)
 
 
 def _load(fake, **options):
@@ -178,13 +109,13 @@ def test_a_link_out_of_the_blobs_is_refused(fake, tmp_path):
 def test_the_name_of_a_cached_blob_is_checked(tmp_path):
     blob = tmp_path / "blob"
     blob.write_bytes(b"x")
-    sha256, sha1 = hashlib.sha256(b"x").hexdigest(), _sha1(b"x")
-    hub._check_name("f", sha256, sha256, sha1, True)
-    hub._check_name("f", sha1, sha256, sha1, False)
+    sha256, sha1 = hashlib.sha256(b"x").hexdigest(), git_sha1(b"x")
+    assert hub._check_name("f", sha256, b"x", True) == "lfs_sha256"
+    assert hub._check_name("f", sha1, b"x", False) == "git_sha1"
     with pytest.raises(CorruptArtifactError, match="no LFS file of the cache"):
-        hub._check_name("f", sha1, sha256, sha1, True)
+        hub._check_name("f", sha1, b"x", True)
     with pytest.raises(CorruptArtifactError, match="has the git blob id"):
-        hub._check_name("f", "1" * 40, sha256, sha1, False)
+        hub._check_name("f", "1" * 40, b"x", False)
 
 
 def test_an_fse_encoder_on_the_hub_is_an_lfs_file(fake, tmp_path):
@@ -255,23 +186,52 @@ def test_a_blob_replaced_after_its_check_changes_nothing(fake, monkeypatch):
     after its check (between check and load, if they read the file twice) is not read."""
     online = _load(fake)
     blob = os.path.realpath(fake.folder() / "snapshots" / COMMIT / "model.safetensors")
-    original, swapped = hub._check_pin, []
+    swapped = []
 
-    def check_then_swap(name, *args):
-        original(name, *args)
-        if name == "model.safetensors":
-            data = bytearray(Path(blob).read_bytes())
-            data[-4:] = b"\1\2\3\4"
-            Path(blob).write_bytes(bytes(data))
-            swapped.append(name)
+    def swap_after(check):
+        def check_then_swap(name, *args):
+            pin = check(name, *args)  # the pin the check returns is the one read logs
+            if name == "model.safetensors":
+                data = bytearray(Path(blob).read_bytes())
+                data[-4:] = b"\1\2\3\4"
+                Path(blob).write_bytes(bytes(data))
+                swapped.append(name)
+            return pin
 
-    monkeypatch.setattr(hub, "_check_pin", check_then_swap)
+        return check_then_swap
+
+    original = hub._check_pin
+    monkeypatch.setattr(hub, "_check_pin", swap_after(original))
     again = _load(fake)
     assert swapped == ["model.safetensors"]
     assert again.encode(["hello world"]).tobytes() == online.encode(["hello world"]).tobytes()
     monkeypatch.setattr(hub, "_check_pin", original)
     with pytest.raises(CorruptArtifactError, match="the commit pins"):
         _load(fake)
+
+
+def test_a_cached_blob_replaced_after_its_check_changes_nothing_offline(fake, monkeypatch):
+    """The same with ``local_files_only``, where the blob name is the check."""
+    online = _load(fake)
+    blob = os.path.realpath(fake.folder() / "snapshots" / COMMIT / "model.safetensors")
+    original, swapped = hub._check_name, []
+
+    def check_then_swap(name, *args):
+        pin = original(name, *args)
+        if name == "model.safetensors":
+            data = bytearray(Path(blob).read_bytes())
+            data[-4:] = b"\1\2\3\4"
+            Path(blob).write_bytes(bytes(data))
+            swapped.append(pin)
+        return pin
+
+    monkeypatch.setattr(hub, "_check_name", check_then_swap)
+    again = _load(fake, local_files_only=True)
+    assert swapped == ["lfs_sha256"]
+    assert again.encode(["hello world"]).tobytes() == online.encode(["hello world"]).tobytes()
+    monkeypatch.setattr(hub, "_check_name", original)
+    with pytest.raises(CorruptArtifactError, match="has sha256"):
+        _load(fake, local_files_only=True)
 
 
 def _relink_dir(folder, elsewhere):
