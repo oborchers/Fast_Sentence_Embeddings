@@ -28,10 +28,12 @@ def test_load_measures_first_encode_and_peak_before_separate_lookup(bench, monke
     class Encoder:
         @staticmethod
         def from_pretrained(path):
+            assert path == Path("model")
             events.append("load")
             return Encoder()
 
         def encode(self, sentences, workers):
+            assert sentences == ["Hello, World!"]
             assert workers == 1
             events.append("encode")
 
@@ -64,7 +66,7 @@ def test_timed_worker_keeps_build_identity(bench, monkeypatch, capsys):
     import json
 
     monkeypatch.setattr(bench, "identity", lambda: {"fse": "base/src/fse", "commit": "abc"})
-    monkeypatch.setattr(bench, "child", lambda *args: print('{"seconds": [1.5]}'))
+    monkeypatch.setattr(bench, "child", lambda *_args: print('{"seconds": [1.5]}'))
     bench.worker(["fse", "1", "massive", "1"])
     assert json.loads(capsys.readouterr().out) == {
         "fse": "base/src/fse",
