@@ -32,6 +32,10 @@ Paired base/branch measurements, load and id workers live in bench_unigram_compa
     uv run python benchmarks/bench_unigram.py ids
     uv run python benchmarks/bench_unigram.py --base-python PATH --output paired.json fse 1 massive 2
 
+Use ``massive-nonlatin`` for the MASSIVE zh-CN, zh-TW and ja-JP subset, with the
+same ids path. The cached MTEB source labels ja-JP as ``ja``. This subset is already
+included in the full MASSIVE id digest.
+
 The second form runs one contender (fse, hf, enc or m2v, the threads, the corpus, repeats)
 and prints its seconds per pass, for ``make profile-cpu RUN=...``. Keep a run to a few
 minutes (AGENTS.md); the script warns about a high load.
@@ -55,6 +59,8 @@ import numpy as np
 HUB = Path(os.environ.get("HF_HUB_CACHE", Path.home() / ".cache" / "huggingface" / "hub"))
 MODEL = "models--minishlab--potion-multilingual-128M"
 CORPORA = ("massive", "wikitext")
+# MTEB keeps the original Chinese locale tags and labels MASSIVE ja-JP as ja.
+NON_LATIN_LANGS = frozenset({"zh-CN", "zh-TW", "ja", "ja-JP"})
 PASSES = 3
 
 
@@ -67,6 +73,8 @@ def _one(pattern: str) -> list[Path]:
 
 def texts(corpus: str) -> list[str]:
     """The texts of a corpus from the local cache."""
+    if corpus not in (*CORPORA, "massive-nonlatin"):
+        raise ValueError(f"unknown Unigram benchmark corpus {corpus!r}")
     if corpus == "wikitext":
         import pyarrow.parquet as pq  # only here (uv run --with pyarrow)
 
@@ -75,7 +83,10 @@ def texts(corpus: str) -> list[str]:
     out = []
     for path in _one("datasets--mteb--amazon_massive_intent/snapshots/*/test/*.json.gz"):
         with gzip.open(path, "rt", encoding="utf-8") as f:
-            out += [json.loads(line)["text"] for line in f]
+            for line in f:
+                row = json.loads(line)
+                if corpus == "massive" or row["lang"] in NON_LATIN_LANGS:
+                    out.append(row["text"])
     return out
 
 
