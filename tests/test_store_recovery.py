@@ -86,11 +86,9 @@ def test_every_open_refuses_an_orphan_inside_or_after_the_chain(tmp_path, opener
     path = tmp_path / "store"
     info = make_store(path, sizes=(4, 4))
     add_shard(path, info, orphan, 1)
+    factory = VectorStore.open if opener == "reader" else lambda store: ShardSink(store, ENCODER)
     with pytest.raises(CorruptArtifactError, match=r"fse\.repair_store"):
-        if opener == "reader":
-            VectorStore.open(path)
-        else:
-            ShardSink(path, ENCODER)
+        factory(path)
 
 
 def test_a_missing_shard_with_a_later_shard_is_a_gap(tmp_path):
