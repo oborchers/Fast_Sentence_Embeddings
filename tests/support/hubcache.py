@@ -23,6 +23,10 @@ class FakeHub:
     def __init__(self, cache, repo, files, lfs=LFS):
         self.cache, self.repo, self.files, self.lfs = cache, repo, files, lfs
         self.pins = {}
+        # Whether a download leaves refs/main. The real hf_hub_download does so only for a
+        # revision by name, and fse downloads at the commit it resolved, so a cache filled by
+        # fse alone has no ref; the tests keep it for the offline loads by revision name.
+        self.refs = True
         self.asked = []
         self.HfApi = lambda: self  # huggingface_hub's class, which this fake stands for
 
@@ -43,6 +47,13 @@ class FakeHub:
     def folder(self):
         return self.cache / ("models--" + self.repo.replace("/", "--"))
 
+    def write_ref(self, revision):
+        """``refs/<revision>``, which a download of the revision by name leaves in the cache
+        (a download at a commit hash does not)."""
+        ref = self.folder() / "refs" / revision
+        ref.parent.mkdir(parents=True, exist_ok=True)
+        ref.write_text(COMMIT)
+
     def hf_hub_download(self, repo, name, *, revision, local_files_only, cache_dir, token):
         assert (repo, cache_dir) == (self.repo, self.cache)
         assert token in (None, "t")
@@ -52,6 +63,8 @@ class FakeHub:
             if revision not in (None, "main", COMMIT) or not os.path.lexists(path):
                 raise FileNotFoundError(f"{name} is not in the cache")
             return str(path)
+        if self.refs:
+            self.write_ref("main")
         data = self.files[name]
         blob = (
             self.folder()
@@ -63,15 +76,6 @@ class FakeHub:
         blob.write_bytes(data)
         path.symlink_to(os.path.relpath(blob, path.parent))
         return str(path)
-
-    def snapshot_download(self, repo, *, revision, local_files_only, cache_dir, token):
-        assert local_files_only
-        assert (repo, cache_dir) == (self.repo, self.cache)
-        assert token in (None, "t")
-        snapshot = self.folder() / "snapshots" / COMMIT
-        if revision not in (None, "main", COMMIT) or not snapshot.is_dir():
-            raise FileNotFoundError(f"{repo} is not in the cache")
-        return str(snapshot)
 
 
 def make_fake(tmp_path, monkeypatch):

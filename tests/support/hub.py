@@ -34,7 +34,6 @@ class FakeHub:
             CommitOperationDelete=huggingface_hub.CommitOperationDelete,
             constants=SimpleNamespace(ENDPOINT="https://huggingface.co"),
             hf_hub_download=self.hf_hub_download,
-            snapshot_download=self.snapshot_download,
         )
 
     def api(self, token=None):  # huggingface_hub.HfApi(token=...)
@@ -98,6 +97,10 @@ class FakeHub:
             return str(path)
         if local_files_only:
             raise FileNotFoundError(f"{name} is not in the cache")
+        for branch, tip in self.branches.items():  # refs/<branch>, as a download by name leaves
+            if tip == commit:
+                (folder / "refs").mkdir(parents=True, exist_ok=True)
+                (folder / "refs" / branch).write_text(commit)
         data = self.commits[commit][name]
         etag = hashlib.sha256(data).hexdigest() if name.endswith(".safetensors") else git_sha1(data)
         blob = folder / "blobs" / etag
@@ -106,14 +109,6 @@ class FakeHub:
         blob.write_bytes(data)
         path.symlink_to(os.path.relpath(blob, path.parent))
         return str(path)
-
-    def snapshot_download(self, repo, *, revision, local_files_only, cache_dir, token):
-        assert local_files_only
-        del repo, cache_dir, token
-        snapshot = self.folder() / "snapshots" / self._commit_of(revision)
-        if not snapshot.is_dir():
-            raise FileNotFoundError(f"{self.repo} is not in the cache")
-        return str(snapshot)
 
 
 def _sibling(name: str, data: bytes) -> SimpleNamespace:
