@@ -72,9 +72,16 @@ def parser() -> argparse.ArgumentParser:
 
 def cell(model: str, corpus: str, size: str, calls: int):
     from bench_wordpiece import texts
-    from roofline import encoder
+    from huggingface_hub import constants
+    from roofline import MODELS as PINNED_MODELS
 
-    pipeline = encoder(model, None, "float32")._pipeline("cpu")
+    from fse import Encoder
+
+    repo, commit = PINNED_MODELS[model]
+    enc = Encoder.from_pretrained(
+        repo, revision=commit, cache_dir=constants.HF_HUB_CACHE, local_files_only=True
+    )
+    pipeline = enc._pipeline("cpu")
     sentences = texts(corpus)
     if size == "short":
         sentences = sentences[: 500 if corpus == "wikitext" else 5000]
