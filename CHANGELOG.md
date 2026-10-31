@@ -35,7 +35,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
-- The native `unigram@1` finds candidates with the vocabulary double-array trie, built at load, instead of repeated hashes and a Python set of proper prefixes. Candidate order, float64 scores and token ids are unchanged. Nothing new is persisted.
+- The native `unigram@1` finds candidates with the vocabulary double-array trie, built at load, instead of repeated hashes and a Python set of proper prefixes. Its construction sorts binary keys and reuses their common prefixes to avoid repeated sibling searches on large vocabularies. Candidate order, float64 scores and token ids are unchanged. Nothing new is persisted.
 
 - Loading a model from the Hugging Face Hub hashes each file once, with the one digest the commit pins it by (the sha256 of an LFS file, else the git blob id), where it computed both; the checks and their messages are unchanged. The `pin` of the `hub.file` record names that digest for every LFS file, also a `tokenizer.json` stored in LFS, which it used to name `git_sha1`.
 - The automatic task plan (`chunk_bytes=None`) splits the last `workers` chunks of a run into two parts each when both keep the minimum chunk size (64 KiB), so fewer workers idle at the end of a run: on an M1 Pro MASSIVE encodes 4 to 5 % faster (potion-base-8M at 4 workers, static-retrieval-mrl-en-v1 at 8 and 10 workers) and 200,000 synthetic sentences 12 % faster at 4 workers, with the same bits and no change at one worker. An explicit `chunk_bytes`, inline runs and streams keep their cuts.

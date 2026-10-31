@@ -54,6 +54,10 @@ def test_candidates_and_ids_on_random_vocabularies():
             *sorted({"".join(rng.choices(alphabet, k=rng.randint(1, 8))) for _ in range(80)}),
         ]
         pieces += ["a" * 340, "a" * 341 + "é"]
+        # Binary sorting during construction must preserve arbitrary vocabulary ids.
+        tail = pieces[1:]
+        rng.shuffle(tail)
+        pieces[1:] = tail
         scores = [rng.choice([-1.0, -2.0, -0.1, 20.0, 20.0 + 2**-30]) for _ in pieces]
         tokens = [p.encode() for p in pieces]
         fast, generic = _state(tokens, scores), _state(tokens, scores, _generic=True)

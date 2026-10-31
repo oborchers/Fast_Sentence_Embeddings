@@ -242,7 +242,7 @@ cdef class UnigramState:
         cdef const np.int64_t[::1] o = offsets
         cdef int err
         with nogil:
-            err = fse_trie_build(&self.trie, &d[0], &o[0], o.shape[0] - 1, limit)
+            err = fse_trie_build_sorted(&self.trie, &d[0], &o[0], o.shape[0] - 1, limit)
         if err == FSE_TRIE_NO_MEMORY:
             raise MemoryError("no memory for the trie of unigram@1")
         if err:

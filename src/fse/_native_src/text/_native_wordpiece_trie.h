@@ -232,25 +232,86 @@ static int fse_trie_place(fse_trie *t, fse_trie_units *f, const fse_trie_nodes *
     return FSE_TRIE_OK;
 }
 
-/* Build the trie of the count keys bytes[offsets[k]:offsets[k + 1]], key k with the id k,
-   in at most limit units. Returns 0, or an FSE_TRIE_ error and frees all it allocated. */
-static int fse_trie_build(fse_trie *t, const uint8_t *bytes, const int64_t *offsets,
-                          int64_t count, int64_t limit) {
-    fse_trie_nodes a = {NULL, 0, 0};
+/* Sorted binary keys keep their original ids, including when a key is empty. */
+typedef struct {
+    const uint8_t *bytes;
+    int64_t length;
+    uint32_t id;
+} fse_trie_key;
+
+static int fse_trie_key_order(const void *left, const void *right) {
+    const fse_trie_key *a = (const fse_trie_key *)left;
+    const fse_trie_key *b = (const fse_trie_key *)right;
+    int64_t common = a->length < b->length ? a->length : b->length;
+    int compared = memcmp(a->bytes, b->bytes, (size_t)common);
+    if (compared) return compared;
+    if (a->length != b->length) return a->length < b->length ? -1 : 1;
+    return (a->id > b->id) - (a->id < b->id);
+}
+
+/* Adjacent sorted keys reuse their common prefix. No sibling search is needed;
+   every new suffix is linked to the existing parent, as in fse_trie_insert. */
+static int fse_trie_insert_sorted(fse_trie *t, fse_trie_nodes *a, const uint8_t *bytes,
+                                   const int64_t *offsets, int64_t count, int64_t limit) {
+    if (!count) return FSE_TRIE_OK;
+    if ((uint64_t)count > SIZE_MAX / sizeof(fse_trie_key)) return FSE_TRIE_NO_MEMORY;
+    int64_t longest = 0;
+    for (int64_t k = 0; k < count; k++)
+        if (offsets[k + 1] - offsets[k] > longest) longest = offsets[k + 1] - offsets[k];
+    if (longest >= limit) return FSE_TRIE_TOO_LARGE;
+    if ((uint64_t)longest >= SIZE_MAX / sizeof(int32_t)) return FSE_TRIE_NO_MEMORY;
+    fse_trie_key *keys = (fse_trie_key *)fse_trie_realloc(t, NULL, (size_t)count * sizeof(fse_trie_key));
+    if (!keys) return FSE_TRIE_NO_MEMORY;
+    int32_t *path = (int32_t *)fse_trie_realloc(t, NULL, ((size_t)longest + 1) * sizeof(int32_t));
+    if (!path) {
+        fse_trie_release(t, keys);
+        return FSE_TRIE_NO_MEMORY;
+    }
+    for (int64_t k = 0; k < count; k++) {
+        keys[k].bytes = bytes + offsets[k];
+        keys[k].length = offsets[k + 1] - offsets[k];
+        keys[k].id = (uint32_t)k;
+    }
+    qsort(keys, (size_t)count, sizeof(fse_trie_key), fse_trie_key_order);
+    path[0] = 0;
+    int err = FSE_TRIE_OK;
+    for (int64_t k = 0; k < count && !err; k++) {
+        int64_t common = 0;
+        if (k)
+            while (common < keys[k - 1].length && common < keys[k].length &&
+                   keys[k - 1].bytes[common] == keys[k].bytes[common]) common++;
+        for (int64_t i = common; i < keys[k].length; i++) {
+            int64_t c = fse_trie_new_node(t, a, keys[k].bytes[i], limit);
+            if (c < 0) {
+                err = a->count >= limit ? FSE_TRIE_TOO_LARGE : FSE_TRIE_NO_MEMORY;
+                break;
+            }
+            int32_t parent = path[i];
+            a->nodes[c].sibling = a->nodes[parent].child;
+            a->nodes[parent].child = (int32_t)c;
+            path[i + 1] = (int32_t)c;
+        }
+        if (!err && a->nodes[path[keys[k].length]].value == FSE_TRIE_NONE)
+            a->nodes[path[keys[k].length]].value = keys[k].id;
+    }
+    fse_trie_release(t, keys);
+    fse_trie_release(t, path);
+    return err;
+}
+
+/* Place an already constructed temporary trie; owns and releases its nodes. */
+static int fse_trie_finish(fse_trie *t, fse_trie_nodes *a, int64_t limit, int err) {
     fse_trie_units f = {NULL, NULL, -1, 0, 0};
     int64_t *queue = NULL, head = 0, tail = 0;
-    int err = fse_trie_new_node(t, &a, 0, limit) < 0 ? FSE_TRIE_NO_MEMORY : FSE_TRIE_OK;
-    for (int64_t k = 0; k < count && !err; k++)
-        err = fse_trie_insert(t, &a, bytes + offsets[k], offsets[k + 1] - offsets[k], (uint32_t)k, limit);
-    if (!err && (uint64_t)a.count > SIZE_MAX / (2 * sizeof(int64_t))) err = FSE_TRIE_NO_MEMORY;
+    if (!err && (uint64_t)a->count > SIZE_MAX / (2 * sizeof(int64_t))) err = FSE_TRIE_NO_MEMORY;
     if (!err) {
-        queue = (int64_t *)fse_trie_realloc(t, NULL, (size_t)a.count * 2 * sizeof(int64_t));
+        queue = (int64_t *)fse_trie_realloc(t, NULL, (size_t)a->count * 2 * sizeof(int64_t));
         if (!queue) err = FSE_TRIE_NO_MEMORY;
     }
     if (!err) err = fse_trie_add_block(t, &f, limit);
     if (!err) {
         fse_trie_occupy(t, &f, 0, -2);  /* the root: no transition leads to it */
-        t->value[0] = a.nodes[0].value;
+        t->value[0] = a->nodes[0].value;
         queue[0] = 0;
         queue[1] = 0;
         tail = 1;
@@ -258,9 +319,9 @@ static int fse_trie_build(fse_trie *t, const uint8_t *bytes, const int64_t *offs
     while (!err && head < tail) {
         int64_t s = queue[2 * head], at = queue[2 * head + 1];
         head++;
-        err = fse_trie_place(t, &f, &a, s, at, queue, &tail, limit);
+        err = fse_trie_place(t, &f, a, s, at, queue, &tail, limit);
     }
-    fse_trie_release(t, a.nodes);
+    fse_trie_release(t, a->nodes);
     fse_trie_release(t, queue);
     fse_trie_release(t, f.next);
     fse_trie_release(t, f.prev);
@@ -278,6 +339,25 @@ static int fse_trie_build(fse_trie *t, const uint8_t *bytes, const int64_t *offs
     if (value) t->value = value;
     t->size = f.used;
     return FSE_TRIE_OK;
+}
+
+/* Build at most limit units, freeing all allocations on error. WordPiece keeps
+   insertion in id order; Unigram uses the sorted constructor for large vocabularies. */
+static int fse_trie_build(fse_trie *t, const uint8_t *bytes, const int64_t *offsets,
+                          int64_t count, int64_t limit) {
+    fse_trie_nodes a = {NULL, 0, 0};
+    int err = fse_trie_new_node(t, &a, 0, limit) < 0 ? FSE_TRIE_NO_MEMORY : FSE_TRIE_OK;
+    for (int64_t k = 0; k < count && !err; k++)
+        err = fse_trie_insert(t, &a, bytes + offsets[k], offsets[k + 1] - offsets[k], (uint32_t)k, limit);
+    return fse_trie_finish(t, &a, limit, err);
+}
+
+static int fse_trie_build_sorted(fse_trie *t, const uint8_t *bytes, const int64_t *offsets,
+                                 int64_t count, int64_t limit) {
+    fse_trie_nodes a = {NULL, 0, 0};
+    int err = fse_trie_new_node(t, &a, 0, limit) < 0 ? FSE_TRIE_NO_MEMORY : FSE_TRIE_OK;
+    if (!err) err = fse_trie_insert_sorted(t, &a, bytes, offsets, count, limit);
+    return fse_trie_finish(t, &a, limit, err);
 }
 
 /* The node of key[0:n] from node s, or -1. */

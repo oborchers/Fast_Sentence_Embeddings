@@ -34,6 +34,8 @@ cdef extern from "_native_wordpiece_trie.h":
     void fse_trie_free(fse_trie *t) nogil
     int fse_trie_build(fse_trie *t, const unsigned char *bytes, const int64_t *offsets,
                        int64_t count, int64_t limit) nogil
+    int fse_trie_build_sorted(fse_trie *t, const unsigned char *bytes, const int64_t *offsets,
+                              int64_t count, int64_t limit) nogil
     int64_t fse_trie_walk(const fse_trie *t, int64_t s, const unsigned char *key,
                           int64_t n) nogil
     uint32_t fse_trie_longest(const fse_trie *t, int64_t s, const unsigned char *w, int64_t k,
