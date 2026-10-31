@@ -198,7 +198,7 @@ def test_close_raises_a_publish_error_another_thread_met_first(tmp_path, monkeyp
     failed, resume = threading.Event(), threading.Event()
     real_commit = _shard.ShardWriter.commit
 
-    def publish(*_args):
+    def publish(*_args, **_kwargs):
         failed.set()
         raise OSError(5, "Input/output error")
 
@@ -264,10 +264,10 @@ def test_two_writers_meet_at_the_rename_and_one_wins(tmp_path, monkeypatch):
     meet, real = threading.Barrier(2, timeout=10), _shard.publish_directory
     seen = []
 
-    def publish(tmp, path):
+    def publish(tmp, path, **kwargs):
         meet.wait()  # both shards are written and synced; both rename now
         before = len(fse.VectorStore.open(tmp_path / "s"))
-        real(tmp, path)
+        real(tmp, path, **kwargs)
         seen.append((before, len(fse.VectorStore.open(tmp_path / "s"))))
 
     monkeypatch.setattr(_shard, "publish_directory", publish)

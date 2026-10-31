@@ -26,7 +26,7 @@ import bench_harness as harness
 import bench_store as store_bench
 import bench_store_sync_run as run
 
-SIDES = ("full", "fsync", "none", "deferred", "flush_model", "aa")
+SIDES = ("full", "fsync", "none", "none_impl", "deferred", "flush_model", "aa")
 
 
 def evidence(rounds, side, threshold):
@@ -171,7 +171,13 @@ def measure(args, encoder, texts, *, verify=True):
         initialisation = {"seconds": time.perf_counter() - start, "syncs": trace.snapshot()}
         trace.syncs.clear()
         cls = SealingSink if args.batch else fse.ShardSink
-        sink = cls(path, encoder, dtype=args.dtype, shard_rows=rows)
+        sink = cls(
+            path,
+            encoder,
+            dtype=args.dtype,
+            shard_rows=rows,
+            durability="none" if args.side == "none_impl" else "full",
+        )
         batches = []
         with run.ablation(args.side), trace.endpoints(sink):
             start = time.perf_counter()
@@ -188,7 +194,9 @@ def measure(args, encoder, texts, *, verify=True):
             end = time.perf_counter()
         syncs = trace.snapshot()
         peak = store_bench._peak()
-        checked = run.checked(path) if verify else {}  # outside write timing and RSS peak
+        checked = (
+            run.checked(path, unsynced=args.side == "none_impl") if verify else {}
+        )  # outside write timing and RSS peak
     last = trace.events["last_commit"]
     close = trace.events["close_end"]
     publish_tail = sum(max(0, b - max(a, last)) for a, b in trace.publications)

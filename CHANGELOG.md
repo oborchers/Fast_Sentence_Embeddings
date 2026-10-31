@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- `ShardSink` accepts `durability="full"` (default) or `"none"`. The latter skips shard syncs and tags every published shard, including on Windows; store creation stays fully synced. `published_rows` counts visible rows under both policies, while `durable_rows` stays zero under "none". A final full-publication sync failure counts as published but not durable. Sink logs include the new counts and policy; `dropped_rows` counts committed rows that were not published.
+
 - Well-formed unknown store-shard quantization identifiers, including unknown families, raise `UnsupportedArtifactError`. Repair preserves such artifacts for newer readers instead of treating them as damage.
 
 - Store format version 1 accepts the optional shard tag `fse.durability=none`. `VectorStore.open` verifies every tagged tensor on every open, using the checksums from the same mapped artifact. Readers and sinks reject gaps and overlapping orphan shards for every store, and a full-durability sink refuses to append behind tagged rows. Store identity files remain immutable. `store.opened` gains `unsynced_shards`, `verified_bytes` and `verify_seconds`.

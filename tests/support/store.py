@@ -61,13 +61,13 @@ def change_metadata(path, changes):
     write_manifest(path, entries, metadata, tmp)
 
 
-def append_rows(path, *, value=99, rows=4):
+def append_rows(path, *, value=99, rows=4, durability="full"):
     """Append distinguishable rows through the real full writer, returning their start."""
     from fse import ShardSink
     from fse._store._layout import read_store
 
     info = read_store(path)
-    with ShardSink(path, ENCODER, dtype=info.dtype, shard_rows=rows) as sink:
+    with ShardSink(path, ENCODER, dtype=info.dtype, shard_rows=rows, durability=durability) as sink:
         first = sink.first_row
         target = sink.target(0, rows)
         target[0][...] = value

@@ -440,6 +440,43 @@ CPU self samples: C1/full spends 18.3 percent in `__psynch_cvwait` and 5.2 in `_
 
 [Raw kept and discarded runs, sync counts, endpoints and profile metadata](benchmarks/baseline/store_sync_20261031.json). These measurements concern this local filesystem and do not test power loss, Windows, bare-metal Linux or network filesystems.
 
+### Implemented `durability="none"` (31.10.2026)
+
+The real writer policy (`none_impl`) was measured against the full writer and the sync-ablation `none`, on the same M1 Pro, macOS 27.0.1 and CPython 3.13.16. Code head `c603984` includes merged base `2b75759`. Every kept timed child has load strictly below 5 before and after (3.36 to 4.984). The main series and fixed full-writer confirmation used 7.05 minutes of job time including waits and eight profiles, spanning 10.45 minutes with the intervening analysis. Three children crossing load 5 were discarded, with every result retained in the raw data. Store creation stays fully synced and is outside write timing. Digests compare tensor bytes and identical `store.json`; the expected durability tags are checked separately.
+
+| Comparison | Pairs | Median paired ratio | Symmetric A/A band | Result |
+|---|---:|---:|---|---|
+| C1-10000 `none_impl/full` | 3 | 0.371916 | 0.961816 to 1.039700 (full control) | at most 0.50, every ratio below the noise floor |
+| C1-10000 `none_impl/none` | 3 | 0.862463 | 0.859843 to 1.163004 (ablation control) | within A/A |
+| Default full writer/base, fixed confirmation | 3 | 1.010353 | 0.842792 to 1.186533 (base control) | within A/A |
+
+C1 uses 200,000 sentences, batches of 10,000, float32 and 10 workers. Independent median write times are 0.294475 seconds for full, 0.113770 for `none_impl` and 0.131913 for the ablation. The table uses medians of paired ratios, not ratios of those independent medians. Individual implementation/ablation ratios are 1.046946, 0.862463 and 0.810403, the last outside its A/A band; the registered median criterion passes. An additional initial full-writer/base median was 0.961028, just below its branch-full A/A lower bound 0.961816. This small speedup triggered three fixed confirmation pairs with an independent base/base control, without changing the criterion. Their individual writer ratios are 0.854499, 1.010353 and 1.078300. No speedup of the default writer is claimed.
+
+The required `bench_runtime.py throughput` float32 base/branch gate also has three alternating pairs plus three base/base controls. All four median throughput ratios are inside their corresponding A/A bands:
+
+| Normalization steps | Workers | Branch/base median | Symmetric A/A band |
+|---:|---:|---:|---|
+| 0 | 1 | 1.016897 | 0.981676 to 1.018666 |
+| 0 | 10 | 1.031263 | 0.878878 to 1.137815 |
+| 1 | 1 | 1.003363 | 0.987329 to 1.012834 |
+| 1 | 10 | 1.019905 | 0.948581 to 1.054206 |
+
+C2 and C3 each have one informative full/implementation pair, with verification outside the timer. C2 default: 0.217526/0.141617 seconds (full/none). C3: 0.776175/1.331381 seconds. **None is slower in that C3 pair; no bulk speedup is claimed.** C3 still warms each side before its timed write. These single pairs are not a bulk performance gate.
+
+A separate C3 store was written with the real none policy: 1,105,490 rows, 300 dimensions, six tagged shards and 1,331,009,960 tensor bytes. Its tensor digest and store identity match the full fixture. Three alternating warm-open pairs, five opens per child, give median-of-child-medians 1.468 ms for full and 189.846 ms for none. Every none open reports all 1,331,009,960 bytes verified, full reports zero. Existing empty-store sink construction, three pairs with 20 opens per child, gives 0.539 ms for full and 0.508 ms for none; close is excluded and neither policy rewrites the identity. A full sink cannot open the tagged C3 store for append, so the constructor comparison uses the same empty store.
+
+CPU, native-memory and RSS profiles cover C1 `none_impl` and C3 verified opens; the runtime gate also has CPU and native-memory profiles. Write profiles include preparation and warm-up but exclude post-write correctness verification. Reader profiles include import and warm-up. Sample shares include waiting threads and are not speedup measurements. Whole-process peaks therefore do not isolate sink buffers. Native peaks include tracked mappings and are decimal MB; RSS covers the sampled process tree in MiB.
+
+| Configuration | Native peak MB | RSS peak MiB |
+|---|---:|---:|
+| Runtime throughput, float32, 10 workers | 1160.318 | not separately required |
+| C1 none implementation, 10 workers | 413.477 | 564.984 |
+| C3 verified open | 1348.303 | 1302.313 |
+
+Runtime CPU self samples: `fse_loop_f32_neon` 18.8 percent, `__psynch_cvwait` 14.2, `fse_tokenize` 6.9 and `_platform_memmove` 6.1 (3,905 samples). C1 none: waits 43.2 percent, pooling 8.6, `pwrite` 4.6 and `fse_inverse_norms_body` 2.6 (5,397 samples). C3 reader: native `XXH3_64bits_update` symbol 70.4 percent, `FLOAT_isfinite` 11.8 and `__munmap` 3.1 (4,746 samples); artifact hashes remain xxh3-128. The single-thread reader CPU profile ended at load 5.405 and is used only for relative shares, under the permitted profile exception. Every timing remains below 5; memory/RSS profiles remain below 20. Cumulative allocation sites include the runtime reference and `MemorySink`, `ShardWriter.reserve`, corpus/table preparation, numpy memmaps and bounded `_recovery._vectors` checks. These totals are not simultaneous peaks.
+
+[Raw kept/discarded runs, both control series, correctness digests, byte counts and profile metadata](benchmarks/baseline/store_none_20261031.json). These are local warm-cache measurements, not physical power-loss tests or Windows performance measurements.
+
 ## int8 tables at 1024 dimensions
 
 Earlier measurements found no gain from int8 tables at 256 and 300 dimensions. At 1024 dimensions `roofline.py compare` ran static-retrieval-mrl-en-v1 with its table as float32 and as int8 (`WordVectors.quantize("int8")`) in one process, 5 paired rounds of alternating order, the best of 5 passes each, no round discarded. `Encoder` does not yet accept int8 tables for `wordpiece@1`, so both run the encoder's spec on a `Pipeline` of their own (`roofline_dtype.SpecEncoder`); the vectors of int8 differ from float32 by the quantization, which is not judged here.

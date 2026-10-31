@@ -185,3 +185,10 @@ Page cache warming
 - https://github.com/elastic/elasticsearch/issues/27748
 - https://db.cs.cmu.edu/mmap-cidr2022/ (page only; numbers not read)
 - Lucene mailing-list pre-touch remark: seen only in a search snippet (https://go.mail-archive.com/java-user@lucene.apache.org/msg52397.html), unverified.
+
+
+## 10. fse 2.0 publication policy
+
+Rebello et al., [Can Applications Recover from fsync Failures? (USENIX ATC 2020)](https://www.usenix.org/conference/atc20/presentation/rebello), find that tested Linux filesystems mark pages clean after failed flushes. Retrying fsync can then miss the lost writes. fse adopts a conservative policy: a shard originally tagged `fse.durability=none` is never promoted by a later sync or successful checksum verification. This is an application policy informed by that failure study, not a claim that its Linux experiments establish Windows behavior.
+
+Windows permits "none". The existing [MoveFileExW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw) call retains MOVEFILE_WRITE_THROUGH and omits replacement. Microsoft documents write-through behavior for that move flag, specifically flushing copy-and-delete moves. It does not establish fse's entire multi-file protocol. "none" omits explicit file flushes while preserving that rename. [FlushFileBuffers](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers) separately flushes a file's buffered information. Store identity is immutable, so publication does not replace an open store.json. Real Windows CI checks behavior and mapping lifetimes; POSIX power-loss models are not a physical Windows power-loss proof.

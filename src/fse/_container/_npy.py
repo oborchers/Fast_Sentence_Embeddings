@@ -191,6 +191,7 @@ def write_manifest(
     sync=os.fsync,
     *,
     staged: bool = False,
+    directories: bool = True,
 ):
     """Commit the artifact in directory ``path`` whose tensor files are written and
     synced: ``entries`` holds (dtype code, shape, checksum) per tensor. The manifest (with
@@ -200,7 +201,8 @@ def write_manifest(
     ``staged`` is for files only sent to the drive (``_npy_inplace.sync_data``): the
     directory is then synced plainly before the replace, and its full sync after it makes
     the files, the manifest and the entries durable together (one F_FULLFSYNC on macOS
-    instead of two; elsewhere the calls are the same)."""
+    instead of two; elsewhere the calls are the same). ``directories=False`` skips
+    both directory syncs. The caller separately chooses the file ``sync`` callback."""
     full = dict(metadata)
     for name, (_, _, digest) in entries.items():
         full[CHECKSUM_PREFIX + name] = digest
@@ -221,9 +223,11 @@ def write_manifest(
         f.write(text)
         f.flush()
         sync(f.fileno())
-    _sync_directory(path, full=not staged)
+    if directories:
+        _sync_directory(path, full=not staged)
     os.replace(tmp, path / MANIFEST)
-    _sync_directory(path)
+    if directories:
+        _sync_directory(path)
 
 
 class NpyContainer:

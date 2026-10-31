@@ -72,11 +72,11 @@ fse gives the token ids of the model's tokenizer (Hugging Face tokenizers 0.23.3
 from fse import StaticModel
 
 model = StaticModel.from_pretrained("minishlab/potion-base-8M")
-row = model.encode("the cat sleeps")                 # a vector of 256 float32 values
+row = model.encode("the cat sleeps")  # a vector of 256 float32 values
 rows = model.encode(["the cat sleeps", "a dog runs"], max_length=128, normalize=False)
 tokens = model.encode_as_sequence("the cat sleeps")  # one row of the table per token
-ids = model.tokenize(["the cat sleeps"])              # [[...]], the unknown id dropped
-model.max_length = 64                                 # the default of encode from now on
+ids = model.tokenize(["the cat sleeps"])  # [[...]], the unknown id dropped
+model.max_length = 64  # the default of encode from now on
 ```
 
 Models are read with the rules of model2vec 0.10.0 (its folder layouts, its config, `[UNK]` dropped, the cut at `max_length` tokens and at `max_length` times the median token length characters), also the static models of sentence-transformers, which `fse.Encoder.from_pretrained` reads with the rules of sentence-transformers instead. Rows equal model2vec's within float32 rounding. `model.encoder` is the `fse.Encoder` of the model's settings, for `ShardSink`, `VectorStore` and the heads.
@@ -152,6 +152,7 @@ Which call to use when:
 | encode a stream (a generator, a queue) | `encoder.encode(iterator)`: it is read once |
 | encode a stream batch by batch and confirm what is safe | `for batch in encoder.encode_batches(polls, sink=sink)`, confirming up to `batch.durable_rows` |
 | write the vectors to disk | `with fse.ShardSink("store", encoder, dtype="int8") as sink: encoder.encode(texts, sink=sink)` |
+| publish rows without durability confirmation | `fse.ShardSink("store", encoder, durability="none")`, track `sink.published_rows`; tagged rows are verified on every open |
 | repair a damaged tail, with no active readers or writers | `kept_rows = fse.repair_store("store")` |
 | search them | `with fse.VectorStore.open("store") as store: result = store.search(encoder.encode(["query"]), k=10)` |
 
