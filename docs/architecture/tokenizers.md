@@ -161,6 +161,16 @@ normalizer rules nor persisted parameters.
 
 **The charsmap** (the blob of spm_precompiled 0.1.4, SentencePiece's double array): a little-endian u32 `size`, `size / 4` little-endian u32 units, then the values as UTF-8 strings, each ended by NUL. A unit u has `leaf = (u >> 8) & 1`, `label = u & (2**31 | 255)`, `offset = (u >> 10) << ((u & 512) >> 6)` and `value = u & (2**31 - 1)`. The search starts at `p = offset(a[0])` and takes the bytes of the key in turn, ending at a byte 0: `p ^= c`, it ends unless `label(a[p]) == c`, then `p ^= offset(a[p])`, and if that unit had `leaf`, `value(a[p])` is the offset of a match in the values, whose string runs to the next NUL or the end of the values. The keys are byte strings. A blob is checked completely when it is read, as tokenizers panics on a broken one: `size` a positive multiple of 4 within the blob, the values valid UTF-8, and every node reachable from the root (darts-clone shares the nodes of equal suffixes, so a node is checked once, and a cycle is refused) with every probe `p ^ c` inside the array and every value offset at most the length of the values and on a code point boundary.
 
+`UnigramConfig` retains its checked charsmap, excluded from equality, hashing and repr.
+Every `native_arguments()` call still returns an independent writable uint32 array.
+The reference search creates its Python list of units on first `find` only. The
+complete depth-first check stays unchanged, including shared-subtree and cycle rules.
+The JSON readers reuse one piece-to-id index for uniqueness and added-token checks.
+Byte readers release their own extracted vocabulary rows before constructing the config;
+`parse_unigram` preserves caller-owned parsed JSON. Strict JSON scans every decoded
+string when the raw bytes contain a possible surrogate escape. Otherwise strict UTF-8
+decoding and JSON parsing already exclude lone surrogates.
+
 | Input (potion-multilingual-128M) | `unigram@1` |
 |---|---|
 | `Hello, World!` | `▁Hello` `▁` `,` `▁World` `▁!` |

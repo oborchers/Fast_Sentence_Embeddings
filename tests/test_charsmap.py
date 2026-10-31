@@ -123,3 +123,23 @@ def test_a_cycle_is_refused():
     broken[pos] = ord("a") | (pos ^ root) << 10  # "a" leads back to the root
     with pytest.raises(ValueError, match="cycle"):
         Charsmap(with_units(blob, broken))
+
+
+def test_native_parts_do_not_build_or_share_the_lazy_search_list():
+    import numpy as np
+
+    charsmap = Charsmap(build(MAPPING))
+    assert charsmap._python_units is None
+    first, _, _ = charsmap.parts()
+    second, _, _ = charsmap.parts()
+    assert charsmap._python_units is None
+    assert first.dtype == np.uint32
+    assert first.flags.writeable
+    assert not np.shares_memory(first, second)
+    first.fill(0)
+    np.testing.assert_array_equal(charsmap.parts()[0], second)
+    assert charsmap.find(b"ab") == "q"
+    units = charsmap._python_units
+    assert isinstance(units, list)
+    assert charsmap.find(b"xa") == "Q"
+    assert charsmap._python_units is units

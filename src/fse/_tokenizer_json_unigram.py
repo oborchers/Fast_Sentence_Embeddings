@@ -53,11 +53,16 @@ def unigram_of(data: bytes, path: Path) -> tuple[list[str], UnigramConfig]:
     tokenizer.json (``path`` names it in errors)."""
     if len(data) > MAX_BYTES:
         raise CorruptArtifactError(f"{path} has more than {MAX_BYTES} bytes")
-    return parse_unigram(strict_json(data, path), path)
+    return _parse_unigram(strict_json(data, path), path, owned=True)
 
 
 def parse_unigram(value: Any, path: Path) -> tuple[list[str], UnigramConfig]:
-    """The pieces and parameters of the parsed JSON of a tokenizer.json at ``path``."""
+    """Read parsed tokenizer JSON without mutating the caller's value."""
+    return _parse_unigram(value, path, owned=False)
+
+
+def _parse_unigram(value: Any, path: Path, *, owned: bool) -> tuple[list[str], UnigramConfig]:
+    """Read a tokenizer; byte readers own the JSON and can release its extracted rows."""
     json_object(value, path, FILE_KEYS, "the file")
     model = json_object(value["model"], path, _MODEL_KEYS, "model", "type", "unk_id", "vocab")
     if model["type"] != "Unigram":
@@ -65,7 +70,9 @@ def parse_unigram(value: Any, path: Path) -> tuple[list[str], UnigramConfig]:
             f"{path} has a {model['type']} model; unigram@1 reads a Unigram model"
         )
     _known(model, _MODEL_KEYS, "model", path)
-    pieces, scores = _vocab(model["vocab"], path)
+    pieces, scores, vocabulary = _vocab(model["vocab"], path)
+    if owned:
+        del model["vocab"]
     unk_id = model["unk_id"]
     if unk_id is None:
         raise UnsupportedArtifactError(f"{path}: unigram@1 needs an unknown id, not null")
@@ -74,7 +81,8 @@ def parse_unigram(value: Any, path: Path) -> tuple[list[str], UnigramConfig]:
             f"{path}: unk_id {unk_id!r} is no id of the {len(pieces)} pieces"
         )
     fallback = model.get("byte_fallback", False)
-    added = added_tokens(value["added_tokens"], {p: i for i, p in enumerate(pieces)}, path)
+    added = added_tokens(value["added_tokens"], vocabulary, path)
+    del vocabulary
     steps, charsmap = _normalizer(value["normalizer"], path)
     _metaspace(value["pre_tokenizer"], path)
     post_processor(value["post_processor"], path)
@@ -94,7 +102,7 @@ def _known(value: dict, keys: set[str], what: str, path: Path) -> None:
         raise UnsupportedArtifactError(f"{path}: {what} holds keys this fse does not know: {extra}")
 
 
-def _vocab(vocab: Any, path: Path) -> tuple[list[str], bytes]:
+def _vocab(vocab: Any, path: Path) -> tuple[list[str], bytes, dict[str, int]]:
     """The pieces and their scores as float64 bytes; pieces unique and non-empty, scores
     numbers (an int is its float, as serde reads it), finite."""
     if not isinstance(vocab, list) or not vocab:
@@ -114,9 +122,10 @@ def _vocab(vocab: Any, path: Path) -> tuple[list[str], bytes]:
             raise CorruptArtifactError(f"{path}: the score of {piece!r} is {score!r}, no number")
         pieces.append(piece)
         scores.append(float(score))
-    if len(set(pieces)) != len(pieces):
+    vocabulary = {piece: i for i, piece in enumerate(pieces)}
+    if len(vocabulary) != len(pieces):
         raise CorruptArtifactError(f"{path}: a piece is in the vocabulary twice")
-    return pieces, np.array(scores, dtype="<f8").tobytes()
+    return pieces, np.array(scores, dtype="<f8").tobytes(), vocabulary
 
 
 def _flatten(value: Any, path: Path) -> list[dict]:

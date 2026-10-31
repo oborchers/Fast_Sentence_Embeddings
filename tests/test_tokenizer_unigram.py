@@ -127,3 +127,40 @@ def test_the_vocabulary_is_checked():
     shifted = _config(added_tokens=((0, "[PAD]"), (5, "[UNK]")))
     with pytest.raises(ValueError, match="has id 5 of 4"):
         shifted.check_vocabulary(*_vocabulary(["[PAD]", "[UNK]", "ab", "a"]))
+
+
+def test_charsmap_is_checked_once_per_config_and_does_not_change_identity(monkeypatch):
+    from fse import _charsmap
+
+    calls = []
+    original = _charsmap._check
+
+    def checked(*args):
+        calls.append(1)
+        return original(*args)
+
+    monkeypatch.setattr(_charsmap, "_check", checked)
+    first = _config()
+    first_hash = hash(first)
+    for _ in range(3):
+        first.native_arguments()
+    assert len(calls) == 1
+    second = _config()
+    second.native_arguments()
+    assert len(calls) == 2
+    assert first == second
+    assert hash(first) == hash(second) == first_hash
+    assert "_checked_charsmap" not in repr(first)
+    assert first.to_json() == second.to_json()
+
+
+def test_mutating_native_charsmap_arguments_does_not_change_the_next_call():
+    config = _config()
+    first = config.native_arguments()[4]
+    second = config.native_arguments()[4]
+    expected = second[0].copy()
+    assert first[0].flags.writeable
+    assert not np.shares_memory(first[0], second[0])
+    first[0].fill(0)
+    np.testing.assert_array_equal(second[0], expected)
+    np.testing.assert_array_equal(config.native_arguments()[4][0], expected)
