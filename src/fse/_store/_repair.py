@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import errno
+import re
 import secrets
+import stat
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,6 +48,7 @@ def repair_store(path: PathLike) -> int:
     root = Path(path)
     info = read_store(root)
     checked = _preflight(root, info)
+    _complete_quarantines(root)
     rows, kept = _prefix(checked)
     moved = [entry for row, entry in sorted(checked.items(), reverse=True) if row not in kept]
     if moved:
@@ -141,4 +144,17 @@ def _quarantine(path: Path, moved: list[_Checked]) -> None:
     for entry in moved:
         _rename_exclusive(path / entry.name, broken / entry.name)
         _sync_directory(broken)
+        _sync_directory(path)
+
+
+def _complete_quarantines(path: Path) -> None:
+    """Finish a last rename whose directory syncs a prior process never reached."""
+    found = False
+    for entry in path.iterdir():
+        if re.fullmatch(r"\.broken-[0-9a-f]{16}", entry.name) and stat.S_ISDIR(
+            entry.lstat().st_mode
+        ):
+            _sync_directory(entry)
+            found = True
+    if found:
         _sync_directory(path)

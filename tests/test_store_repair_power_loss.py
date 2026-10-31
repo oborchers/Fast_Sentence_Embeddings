@@ -11,7 +11,7 @@ from fse._container import _npy_inplace
 from fse._store import _recovery, _repair
 from fse._store._layout import shard_name
 from support.durability import PowerLoss, materialize
-from support.repair import after_crash, damaged_store
+from support.repair import after_crash, contents, damaged_store
 from support.store import append_rows
 
 POSIX = pytest.mark.skipif(os.name == "nt", reason="the POSIX persistence models")
@@ -176,3 +176,42 @@ def test_a_failed_second_rename_preserves_the_first_move(tmp_path, monkeypatch):
             fse.repair_store(path)
     assert calls == [shard_name(12), shard_name(8)]
     after_crash(path, expected)
+
+
+@POSIX
+@pytest.mark.parametrize("platform", ["linux", "darwin"])
+def test_rerun_without_append_finishes_pending_syncs_before_later_power_loss(
+    tmp_path, monkeypatch, platform
+):
+    path = tmp_path / "store"
+    expected = damaged_store(path)
+    with monkeypatch.context() as patch:
+        trace = PowerLoss(path, patch, platform, include_hidden=True)
+        real = _npy_inplace._rename_exclusive
+
+        def crash_after_last(source, destination):
+            real(source, destination)
+            if source.name == shard_name(4):
+                raise OSError(5, "process stopped after the last rename")
+
+        patch.setattr(_repair, "_rename_exclusive", crash_after_last)
+        with pytest.raises(OSError, match="process stopped after the last rename"):
+            fse.repair_store(path)
+        patch.setattr(_repair, "_rename_exclusive", real)
+        assert fse.repair_store(path) == 4  # no append to provide unrelated syncs
+        trace.capture()
+        trace.points[:] = trace.points[-1:]  # power loss AFTER successful recovery
+    count = 0
+    for state, _ in trace.states():
+        image = tmp_path / "image"
+        materialize(image, state)
+        try:
+            with fse.VectorStore.open(image) as store:
+                assert len(store) == 4
+                store.verify()
+            (group,) = image.glob(".broken-*")
+            assert {p.name: contents(p) for p in group.iterdir()} == expected
+        finally:
+            shutil.rmtree(image)
+        count += 1
+    assert count >= 1

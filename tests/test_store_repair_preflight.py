@@ -15,11 +15,14 @@ from support.repair import contents
 from support.store import change_metadata, make_store
 
 
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("kind", ["container", "quantization", "durability"])
 @pytest.mark.parametrize("damage", ["missing_tensor", "extra_field", "invalid_tensor_entry"])
-def test_readable_future_identifiers_win_over_known_format_corruption(tmp_path, kind, damage):
+def test_readable_future_identifiers_win_over_known_format_corruption(
+    tmp_path, kind, damage, dtype
+):
     path = tmp_path / "store"
-    make_store(path, dtype="int8", sizes=(4, 4, 4))
+    make_store(path, dtype=dtype, sizes=(4, 4, 4))
     (path / shard_name(4) / "manifest.json").unlink()
     last = path / shard_name(8)
     if kind != "container":

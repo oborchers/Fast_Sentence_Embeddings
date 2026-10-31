@@ -306,7 +306,7 @@ def _shard_keys(info: StoreInfo) -> tuple[str, ...]:
 def _check_quantization(metadata: dict, info: StoreInfo, file: Path) -> None:
     """A float16 or int8 shard names the storage rule of its codes: quantize_rows@1."""
     rule = metadata.get("fse.quantization")
-    if info.dtype == "float32" or rule == QUANTIZATION:
+    if (info.dtype == "float32" and rule is None) or rule == QUANTIZATION:
         return
     try:
         parse_id(rule)
