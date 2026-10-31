@@ -97,7 +97,7 @@ def test_a_good_tagged_prefix_is_kept_without_promotion(tmp_path):
         append_rows(path)
 
 
-@pytest.mark.parametrize("kind", ["container", "quantization", "durability"])
+@pytest.mark.parametrize("kind", ["container", "quantization", "new_quantization", "durability"])
 def test_unsupported_tail_is_refused_before_any_mutation(tmp_path, kind):
     path = tmp_path / "store"
     make_store(path, dtype="int8", sizes=(4, 4, 4))
@@ -108,8 +108,9 @@ def test_unsupported_tail_is_refused_before_any_mutation(tmp_path, kind):
         raw = json.loads(file.read_text())
         raw["container"] = "future"
         file.write_text(json.dumps(raw))
-    elif kind == "quantization":
-        change_metadata(last, {"fse.quantization": "quantize_rows@9"})
+    elif kind in ("quantization", "new_quantization"):
+        rule = "quantize_rows@9" if kind == "quantization" else "future_quantization@1"
+        change_metadata(last, {"fse.quantization": rule})
     else:
         tag_shard(last, "future")
     before = tree(path)

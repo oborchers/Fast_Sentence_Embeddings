@@ -131,3 +131,45 @@ def test_combined_mutant_relinks_old_rows_after_a_new_append(tmp_path, monkeypat
         finally:
             shutil.rmtree(image)
     pytest.fail("the combined mutation failed to expose old-row relinking")
+
+
+@pytest.mark.parametrize("failed_call", range(1, 8))
+def test_a_failed_directory_sync_preserves_partial_work_for_rerun(
+    tmp_path, monkeypatch, failed_call
+):
+    path = tmp_path / "store"
+    damaged_store(path)
+    calls = []
+    real = _repair._sync_directory
+
+    def sync(directory, *, full=True):
+        calls.append(directory)
+        if len(calls) == failed_call:
+            raise OSError(5, "injected sync failure")
+        return real(directory, full=full)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_repair, "_sync_directory", sync)
+        with pytest.raises(OSError, match="injected sync failure"):
+            fse.repair_store(path)
+    after_crash(path)
+
+
+def test_a_failed_second_rename_preserves_the_first_move(tmp_path, monkeypatch):
+    path = tmp_path / "store"
+    damaged_store(path)
+    calls = []
+    real = _repair._rename_exclusive
+
+    def rename(source, destination):
+        calls.append(source.name)
+        if len(calls) == 2:
+            raise OSError(5, "injected rename failure")
+        return real(source, destination)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_repair, "_rename_exclusive", rename)
+        with pytest.raises(OSError, match="injected rename failure"):
+            fse.repair_store(path)
+    assert calls == [shard_name(12), shard_name(8)]
+    after_crash(path)

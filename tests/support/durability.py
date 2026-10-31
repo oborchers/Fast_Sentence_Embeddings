@@ -256,7 +256,7 @@ def _apply(unit, entries, sizes, data, *, torn=False):
 
 
 def _visible(root, entries, sizes, data, *, include_hidden=False):
-    """Ignore hidden work directories, exactly as the store reader does."""
+    """Project visible entries; repair tests can retain hidden quarantine contents."""
     out, todo = {}, [(root, "")]
     children = {}
     for (parent, name), inode in entries.items():

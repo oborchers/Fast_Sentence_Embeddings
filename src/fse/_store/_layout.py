@@ -42,7 +42,7 @@ from fse._container import (
 )
 from fse._container._common import _open_regular, _strict_json, _sync_directory
 from fse._container._npy_inplace import publish_directory, sync_file, write_at
-from fse._contract import UnsupportedArtifactError
+from fse._contract import UnsupportedArtifactError, parse_id
 
 STORE_FILE = "store.json"
 STORE_NAME = "fse_shards"
@@ -308,9 +308,14 @@ def _check_quantization(metadata: dict, info: StoreInfo, file: Path) -> None:
     rule = metadata.get("fse.quantization")
     if info.dtype == "float32" or rule == QUANTIZATION:
         return
-    if isinstance(rule, str) and rule.startswith("quantize_rows@"):
-        raise UnsupportedArtifactError(f"{file} is stored by {rule}; this fse reads {QUANTIZATION}")
-    raise CorruptArtifactError(f"{file}: fse.quantization must be {QUANTIZATION}")
+    if not (isinstance(rule, str) and rule.startswith("quantize_rows@")):
+        try:
+            parse_id(rule)
+        except ValueError as error:
+            raise CorruptArtifactError(
+                f"{file}: fse.quantization must be {QUANTIZATION}"
+            ) from error
+    raise UnsupportedArtifactError(f"{file} is stored by {rule}; this fse reads {QUANTIZATION}")
 
 
 def shards(path: Path, info: StoreInfo) -> list[tuple[Shard, dict[str, ndarray]]]:
