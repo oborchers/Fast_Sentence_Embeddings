@@ -70,9 +70,9 @@ class Sigint:
 
     def _send(self) -> None:
         deadline = time.monotonic() + 10
-        while not self._ready() and time.monotonic() < deadline:
+        while not (self._stopped or self._ready()) and time.monotonic() < deadline:
             time.sleep(0.0005)
-        if not self._ready():
+        if self._stopped or not self._ready():
             return
         time.sleep(self._delay)
         with self._lock:

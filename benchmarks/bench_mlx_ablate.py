@@ -207,7 +207,7 @@ def verdicts_of(done, checked: dict, reps: int, pairs: dict) -> tuple[dict, dict
     verdicts = {}
     for key, value in pairs.items():
         if key != "base2/base":
-            bad = unequal & set(key.split("/"))
+            bad = unequal & {*key.split("/"), "base2"}  # base2 is the noise of every verdict
             verdicts[key] = (
                 "invalid: bits or fallbacks differ" if bad else verdict(value["ratios"], noise)
             )

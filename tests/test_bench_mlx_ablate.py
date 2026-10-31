@@ -222,8 +222,10 @@ def test_a_sigint_during_the_write_leaves_no_write_after_the_return(variants, ca
 
 def test_a_stopped_sigint_sends_nothing(cancel, sigint):
     assert sigint is signal.default_int_handler
-    sent = cancel.Sigint(lambda: True, 0.05)
+    point = threading.Event()  # the point it waits for, reached only after the stop
+    sent = cancel.Sigint(point.is_set, 0.0)
     sent.stop()
+    point.set()
     assert sent.at is None
 
 
@@ -235,3 +237,15 @@ def test_the_verdict_reads_unrounded_ratios(ablate):
     got = ablate.stats(Done(), "x", "base")
     assert got["ratios"] == [1.02004, 1.02004, 1.02004]
     assert ablate.verdict(got["ratios"], [1.03, 1.03, 1.03]) == "unclear"
+
+
+def test_a_side_with_other_bits_invalidates_the_verdicts_it_decides(ablate):
+    class Done:
+        def results(self, name):
+            return [{"rows_differing": int(name == "base2"), "fallbacks": {}}] * 3
+
+    checked = {n: {"rows_differing": 0, "fallbacks_equal": True} for n in ablate.NAMES}
+    checked["base"]["fallbacks_per_checks"] = {}
+    pairs = {k: {"ratios": [1.0, 1.0, 1.0]} for k in ("copy/base", "base2/base")}
+    _, _, verdicts = ablate.verdicts_of(Done(), checked, 1, pairs)
+    assert verdicts == {"copy/base": "invalid: bits or fallbacks differ"}
