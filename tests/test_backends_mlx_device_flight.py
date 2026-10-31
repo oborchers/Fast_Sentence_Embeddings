@@ -9,6 +9,7 @@ import pytest
 
 from fse._backends._mlx._device import Device
 from support.fake_mlx import FakeMx
+from support.waiting import until
 
 
 @pytest.fixture
@@ -25,10 +26,11 @@ def _two_groups(mx, launch_b=None, finish_a=None):
     results or errors."""
     device = Device(lambda: mx, group_tasks=1)
     entered, queued, out = threading.Event(), threading.Event(), {}
+    released = []
 
     def launch_a(_mx, _s):
         entered.set()
-        queued.wait(10)
+        released.append(queued.wait(10))  # False: B was not queued, the test fails below
         return ("a",)
 
     def call(name, launch, finish):
@@ -38,16 +40,21 @@ def _two_groups(mx, launch_b=None, finish_a=None):
             out[name] = err
 
     a = threading.Thread(target=call, args=("a", launch_a, finish_a or (lambda r: r[0])))
-    a.start()
-    entered.wait(10)
     b_launch = launch_b or (lambda _mx, _s: ("b",))
     b = threading.Thread(target=call, args=("b", b_launch, lambda r: r[0]))
-    b.start()
-    while not device._queue:
-        pass
-    queued.set()
-    a.join(10)
-    b.join(10)
+    try:
+        a.start()
+        assert entered.wait(10), "the launch of A never ran"
+        b.start()
+        # A's launch still blocks the device thread, so B stays queued until it is set.
+        assert until(lambda: device._queue), "B was never queued behind A"
+    finally:
+        queued.set()
+        a.join(10)
+        b.join(10)
+    assert released == [True]
+    assert not a.is_alive()
+    assert not b.is_alive()
     assert _threads() == []
     return out
 
