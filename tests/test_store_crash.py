@@ -17,7 +17,7 @@ ENCODER = finished()
 TESTS = Path(__file__).parent
 
 CHILD = """
-import os, sys, time
+import os, sys, threading
 from pathlib import Path
 sys.path.insert(0, sys.argv[3])
 import fse
@@ -27,13 +27,11 @@ from support.runtime import texts
 
 point, calls, real = sys.argv[2], [0], _shard.publish_directory
 real_write, real_shrink = _shard.ShardWriter.write, _shard.shrink
+first_published = threading.Event()
 
 def write(self, begin, codes):
     if point == "write" and self.first_row == 64:
-        first = Path(sys.argv[1]) / _shard.shard_name(0)
-        deadline = time.monotonic() + 30
-        while not first.exists() and time.monotonic() < deadline:
-            time.sleep(0.01)  # the first shard is published by its own thread
+        assert first_published.wait(30), "first shard was not published"
         self._file()
         _shard.write_at(self.fd, memoryview(codes).cast("B")[: codes.nbytes // 2], self.offset)
         os._exit(3)  # halfway through a write of the second shard
@@ -44,18 +42,20 @@ def shrink(*args):
         os._exit(3)  # finishing the last shard, which ends early
     real_shrink(*args)
 
-def publish(tmp, path):
+def publish(tmp, path, **kwargs):
     calls[0] += 1
     if point == "before" and calls[0] == 2:
         os._exit(3)  # the second shard is written and synced, not renamed
-    real(tmp, path)
+    real(tmp, path, **kwargs)
+    if path.name == _shard.shard_name(0):
+        first_published.set()
     if point == "after" and calls[0] == 2:
         os._exit(3)  # the second shard is published, the sink never learns it
 
 _shard.publish_directory = publish
 _shard.ShardWriter.write, _shard.shrink = write, shrink
 encoder = finished()
-with fse.ShardSink(sys.argv[1], encoder, shard_rows=64) as sink:
+with fse.ShardSink(sys.argv[1], encoder, shard_rows=64, durability=sys.argv[4]) as sink:
     encoder.encode(texts(300), sink=sink, workers=2)
 """
 
@@ -68,13 +68,14 @@ def _rows(path):
     )
 
 
+@pytest.mark.parametrize("durability", ["full", "none"])
 @pytest.mark.parametrize(
     ("point", "published"), [("write", 64), ("before", 64), ("after", 128), ("shrink", 256)]
 )
-def test_a_crash_leaves_a_prefix_that_appends_continue(tmp_path, point, published):
+def test_a_crash_leaves_a_prefix_that_appends_continue(tmp_path, point, published, durability):
     store = tmp_path / "s"
     done = subprocess.run(
-        [sys.executable, "-c", CHILD, str(store), point, str(TESTS)],
+        [sys.executable, "-c", CHILD, str(store), point, str(TESTS), durability],
         capture_output=True,
         text=True,
         check=False,
@@ -87,7 +88,13 @@ def test_a_crash_leaves_a_prefix_that_appends_continue(tmp_path, point, publishe
     assert leftovers
     assert all(name.startswith(".shard-") and ".writing-" in name for name in leftovers)
     want = ENCODER.encode(texts(300))
-    with fse.ShardSink(store, ENCODER, shard_rows=64) as sink:
+    with fse.VectorStore.open(store) as reader:
+        assert reader.get_vectors().tobytes() == want[:published].tobytes()
+        reader.verify()
+    if durability == "none":
+        with pytest.raises(ValueError, match="durability='none'"):
+            fse.ShardSink(store, ENCODER)
+    with fse.ShardSink(store, ENCODER, shard_rows=64, durability=durability) as sink:
         assert sink.first_row == published
         ENCODER.encode(texts(300)[published:], sink=sink)
     found, codes = _rows(store)
