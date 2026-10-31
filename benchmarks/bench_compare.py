@@ -61,6 +61,11 @@ def child(args) -> None:
     start = time.perf_counter()
     encode = contender(args.kind, args.threads, args.model)
     load_s = time.perf_counter() - start
+    if args.kind == "model2vec" and args.threads > 1:
+        # Preserve the library default: below its 10,000-row threshold the
+        # tokenizer can parallelize. Above it model2vec disables tokenizer
+        # parallelism itself and uses its default joblib thread pool.
+        os.environ["TOKENIZERS_PARALLELISM"] = "true"
     durations = []
     shape = None
     for _ in range(args.passes + 1):
@@ -126,6 +131,10 @@ def operation(args, label: str, threads: int) -> dict:
 
 
 def run(args) -> None:
+    from fse._cpus import usable_cpus
+
+    if args.against == "model2vec" and args.threads not in (1, usable_cpus()):
+        raise ValueError("model2vec comparison supports one worker or the default all cores")
     sides = [("fse-a", args.threads), ("fse-b", args.threads), (args.against, args.threads)]
     for pair in range(args.rounds):
         ordered = sides[pair % len(sides) :] + sides[: pair % len(sides)]
