@@ -20,12 +20,16 @@ def after_crash(path):
         with fse.VectorStore.open(path) as store:
             before = store.get_vectors()
             assert before.tobytes() == first.tobytes()
-    except fse.CorruptArtifactError:
+    except fse.CorruptArtifactError as error:
+        message = str(error)
+        outcome = "gap" if "a shard follows a gap from row 4" in message else "damaged"
+        assert outcome == "gap" or "has no manifest.json" in message
         with pytest.raises(fse.CorruptArtifactError):
             append_rows(path)
         assert fse.repair_store(path) == 4
         assert append_rows(path) == 4
     else:
+        outcome = "prefix"
         assert append_rows(path) == 4
         assert fse.repair_store(path) == 8
     with fse.VectorStore.open(path) as store:
@@ -36,3 +40,4 @@ def after_crash(path):
     assert fse.repair_store(path) == 8
     moved = [p.name for group in path.glob(".broken-*") for p in group.iterdir()]
     assert sorted(moved) == [shard_name(row) for row in (4, 8, 12)]
+    return outcome

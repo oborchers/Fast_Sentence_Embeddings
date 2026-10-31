@@ -96,15 +96,18 @@ def test_power_loss_at_every_repair_event_allows_safe_rerun_and_append(
 def test_gap_guard_alone_keeps_every_unsynced_repair_crash_safe(tmp_path, monkeypatch, platform):
     trace = _record(tmp_path / "store", monkeypatch, platform, intermediate=False)
     count = 0
+    outcomes = set()
     for state, _ in trace.states():
         image = tmp_path / "image"
         materialize(image, state)
         try:
-            after_crash(image)
+            outcomes.add(after_crash(image))
         finally:
             shutil.rmtree(image)
         count += 1
     assert count >= 8
+
+    assert {"gap", "prefix"} <= outcomes
 
 
 @POSIX

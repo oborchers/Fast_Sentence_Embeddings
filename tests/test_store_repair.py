@@ -148,3 +148,14 @@ def test_empty_store_is_a_noop(tmp_path):
     make_store(path, sizes=())
     assert fse.repair_store(str(path)) == 0
     assert sorted(p.name for p in path.iterdir()) == ["store.json"]
+
+
+def test_an_unsupported_orphan_is_preserved_before_mutation(tmp_path):
+    path = tmp_path / "store"
+    info = make_store(path)
+    add_shard(path, info, 15, 1)
+    tag_shard(path / shard_name(15), "future")
+    before = tree(path)
+    with pytest.raises(fse.UnsupportedArtifactError):
+        fse.repair_store(path)
+    assert tree(path) == before
