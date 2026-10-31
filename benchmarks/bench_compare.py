@@ -11,17 +11,18 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import platform
 import resource
 import subprocess
 import sys
 import time
+import uuid
 from contextlib import contextmanager
-from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
-from bench_model2vec import _revision, contender, texts
+from bench_model2vec import _revision, contender
+from bench_pretrained import COMMITS
+from compare_inputs import corpus_identity, identity, texts
 
 
 @contextmanager
@@ -44,20 +45,9 @@ def reservation(lock: Path):
             lock.rmdir()
 
 
-def identity() -> dict:
-    return {
-        "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
-        "machine": platform.platform(),
-        "cpu": subprocess.check_output(
-            ["sysctl", "-n", "machdep.cpu.brand_string"], text=True
-        ).strip(),
-        "python": sys.version,
-        "versions": {p: version(p) for p in ("fse", "numpy", "model2vec", "tokenizers")},
-    }
-
-
 def child(args) -> None:
     sentences = texts(args.corpus)
+    provenance = {**identity(), **corpus_identity(args.corpus, sentences)}
     start = time.perf_counter()
     encode = contender(args.kind, args.threads, args.model)
     load_s = time.perf_counter() - start
@@ -76,12 +66,12 @@ def child(args) -> None:
     print(
         json.dumps(
             {
-                **identity(),
+                **provenance,
                 "time_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "kind": args.kind,
                 "threads": args.threads,
                 "model": args.model,
-        "revision": _revision(args.model),
+                "revision": _revision(args.model),
                 "corpus": args.corpus,
                 "texts": len(sentences),
                 "shape": shape,
@@ -130,31 +120,90 @@ def operation(args, label: str, threads: int) -> dict:
         }
 
 
+def append(path: Path, row: dict) -> None:
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(row) + "\n")
+
+
+def one_round(args, ordered, series: str, attempt: int) -> bool:
+    rows = []
+    context = {"series_id": series, "round": attempt}
+    try:
+        for index, (label, threads) in enumerate(ordered):
+            row = {
+                **context,
+                "event": "operation",
+                "operation_index": index,
+                **operation(args, label, threads),
+            }
+            rows.append(row)
+            append(args.results, row)
+    except (RuntimeError, FileExistsError) as error:
+        append(
+            args.results,
+            {
+                **context,
+                "event": "round_complete",
+                "valid": False,
+                "complete": False,
+                "reason": str(error),
+            },
+        )
+        raise
+    valid = all(row["valid"] for row in rows)
+    digests = {row["input_digest"] for row in rows}
+    valid = valid and len(digests) == 1
+    append(
+        args.results,
+        {
+            **context,
+            "event": "round_complete",
+            "valid": valid,
+            "complete": True,
+            "operations": len(rows),
+        },
+    )
+    return valid
+
+
 def run(args) -> None:
     from fse._cpus import usable_cpus
 
     if args.against == "model2vec" and args.threads not in (1, usable_cpus()):
         raise ValueError("model2vec comparison supports one worker or the default all cores")
     sides = [("fse-a", args.threads), ("fse-b", args.threads), (args.against, args.threads)]
-    for pair in range(args.rounds):
-        ordered = sides[pair % len(sides) :] + sides[: pair % len(sides)]
-        rows = []
-        for label, threads in ordered:
-            row = {"round": pair, **operation(args, label, threads)}
-            rows.append(row)
-            with args.results.open("a", encoding="utf-8") as stream:
-                stream.write(json.dumps(row) + "\n")
-        print(json.dumps({"round": pair, "valid": all(r["valid"] for r in rows)}), flush=True)
+    series = uuid.uuid4().hex
+    deadline = time.monotonic() + args.budget_s
+    kept = 0
+    for attempt in range(args.rounds * 3):
+        if time.monotonic() >= deadline:
+            break
+        ordered = sides[attempt % len(sides) :] + sides[: attempt % len(sides)]
+        kept += one_round(args, ordered, series, attempt)
+        if kept == args.rounds:
+            break
+    append(
+        args.results,
+        {
+            "series_id": series,
+            "event": "series_complete",
+            "valid_rounds": kept,
+            "required_rounds": args.rounds,
+        },
+    )
+    if kept < args.rounds:
+        raise RuntimeError(f"only {kept} valid rounds, need {args.rounds}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("run", "child"))
-    parser.add_argument("--model", default="minishlab/potion-base-8M")
+    parser.add_argument("--model", choices=sorted(COMMITS), default="minishlab/potion-base-8M")
     parser.add_argument("--corpus", choices=("wikitext", "massive"), default="wikitext")
     parser.add_argument("--threads", type=int, default=1)
     parser.add_argument("--passes", type=int, default=5)
     parser.add_argument("--rounds", type=int, default=3)
+    parser.add_argument("--budget-s", type=float, default=600)
     parser.add_argument("--against", choices=("model2vec", "st"), default="model2vec")
     parser.add_argument("--kind", choices=("fse", "model2vec", "st"), default="fse")
     parser.add_argument("--lock", type=Path)
@@ -162,6 +211,8 @@ def main() -> None:
     args = parser.parse_args()
     if min(args.threads, args.passes, args.rounds) < 1:
         parser.error("threads, passes and rounds must be positive")
+    if args.mode == "run" and args.rounds < 3:
+        parser.error("comparisons require at least three valid rounds")
     if args.mode == "run" and (args.lock is None or args.results is None):
         parser.error("run requires --lock and --results")
     (child if args.mode == "child" else run)(args)

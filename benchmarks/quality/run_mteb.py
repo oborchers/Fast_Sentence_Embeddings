@@ -49,12 +49,15 @@ from typing import Any
 
 import mteb
 import numpy as np
+from model2vec_adapter import NativeModel2VecEncoder
 from mteb.cache import ResultCache
 from mteb.models.abs_encoder import AbsEncoder
 from mteb.models.model_meta import ModelMeta, ScoringFunction
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from quality_coordination import task_reservation  # isort: skip
+from bench_pretrained import COMMITS  # isort: skip
+from compare_inputs import identity  # isort: skip
 
 HERE = Path(__file__).resolve().parent
 RESULTS = HERE / "results.jsonl"  # the default of --results
@@ -76,11 +79,11 @@ BASELINE_TASKS = [
 ]  # fmt: skip
 # Registered in mteb with pinned revisions.
 OTHER_MODELS = [
-    "minishlab/potion-base-8M",
-    "minishlab/potion-base-32M",
-    "sentence-transformers/static-retrieval-mrl-en-v1",
+    *sorted(COMMITS),
+    *[f"model2vec/{name}" for name in sorted(COMMITS) if name.startswith("minishlab/")],
     "sentence-transformers/all-MiniLM-L6-v2",
 ]
+
 
 logger = logging.getLogger("run_mteb")
 
@@ -215,6 +218,21 @@ def tasks_for(names: list[str] | None) -> list[Any]:
     return tasks
 
 
+def metadata(name: str) -> ModelMeta:
+    if name.startswith("fse/"):
+        return fse_meta(name)
+    if name.startswith("model2vec/"):
+        repo = name.removeprefix("model2vec/")
+        return mteb.get_model_meta(repo).model_copy(
+            update={
+                "name": name,
+                "revision": COMMITS[repo],
+                "loader": NativeModel2VecEncoder,
+            }
+        )
+    return mteb.get_model_meta(name)
+
+
 def run(models: list[str], task_names: list[str] | None, results: Path = RESULTS) -> None:
     from nltk import download
 
@@ -222,9 +240,10 @@ def run(models: list[str], task_names: list[str] | None, results: Path = RESULTS
     tasks = tasks_for(task_names)
     benchmark_of = {t.metadata.name: b for b in BENCHMARKS for t in mteb.get_benchmark(b).tasks}
     cache = ResultCache(CACHE / "mteb")
+    environment = identity()
     for name in models:
         with task_reservation(FseEncoder.coordination):
-            meta = fse_meta(name) if name.startswith("fse/") else mteb.get_model_meta(name)
+            meta = metadata(name)
             model = meta.load_model()
         timer = EncodeTimer(model)
         for task_to_run in tasks:
@@ -242,7 +261,10 @@ def run(models: list[str], task_names: list[str] | None, results: Path = RESULTS
                     f.write(
                         json.dumps(
                             {
+                                **environment,
                                 "model": name,
+                                "loader": f"{type(model).__module__}.{type(model).__name__}",
+                                "workers": FseEncoder.workers,
                                 "revision": meta.revision,
                                 "benchmark": benchmark_of[task],
                                 "task": task,
@@ -331,6 +353,10 @@ def main() -> None:
         return
     if args.workers < 1:
         parser.error("workers must be positive")
+    import torch
+
+    torch.set_num_threads(args.workers)
+    os.environ["RAYON_NUM_THREADS"] = str(args.workers)
     FseEncoder.workers = args.workers
     FseEncoder.coordination = args.coordination
     FseEncoder.folder = args.fse_models
