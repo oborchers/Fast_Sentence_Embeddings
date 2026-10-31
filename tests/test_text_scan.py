@@ -188,3 +188,68 @@ def test_an_invalid_line_across_line_blocks(monkeypatch, tmp_path, block, bad):
     ]
     if scan.chunks:
         assert scan.chunks[-1].end == starts[bad]  # the chunks end where the bad line starts
+
+
+def _sentences(n=2000):
+    return [f"sentence {i} " * (1 + i % 7) for i in range(n)]
+
+
+@pytest.mark.parametrize("kind", ["strings", "file", "arrow"])
+def test_split_tail_cuts_the_last_chunks_in_halves(monkeypatch, tmp_path, kind):
+    from support.runtime import assert_chunks_tile, source
+
+    monkeypatch.setattr(_text._scan, "_CHUNK_MIN_BYTES", 1)
+    src = source(kind, _sentences(), tmp_path)
+    scan = src.scan(chunk_bytes=8000)
+    lines = None if kind != "file" else bytes(src._data)
+    assert len(scan.chunks) > 8
+    for workers in (1, 4, len(scan.chunks), 100):
+        chunks = src.split_tail(scan.chunks, workers)
+        assert_chunks_tile(chunks, scan.sentences, lines=lines)
+        whole = len(scan.chunks) - min(workers, len(scan.chunks))
+        assert chunks[:whole] == scan.chunks[:whole]  # only the tail changes
+        assert len(chunks) == len(scan.chunks) + min(workers, len(scan.chunks))
+        # Each of the last chunks gives two parts of about equal rows.
+        for old, a, b in zip(
+            scan.chunks[whole:], chunks[whole::2], chunks[whole + 1 :: 2], strict=True
+        ):
+            assert a.n_sentences + b.n_sentences == old.n_sentences
+            assert abs(a.n_sentences - b.n_sentences) <= 1
+    # The result depends only on the arguments.
+    assert src.split_tail(scan.chunks, 4) == src.split_tail(scan.chunks, 4)
+
+
+def test_split_tail_keeps_small_chunks_and_single_sentences_whole(monkeypatch):
+    src = StringSource(_sentences(400))
+    scan = src.scan(chunk_bytes=8000)
+    sizes = sorted(src._span_bytes(c) for c in scan.chunks)
+    monkeypatch.setattr(_text._scan, "_CHUNK_MIN_BYTES", sizes[-1])  # no part reaches it
+    assert src.split_tail(scan.chunks, 4) == scan.chunks
+    monkeypatch.setattr(_text._scan, "_CHUNK_MIN_BYTES", sizes[0] // 4)  # every chunk splits
+    assert len(src.split_tail(scan.chunks, 4)) == 2 * len(scan.chunks)
+    monkeypatch.setattr(_text._scan, "_CHUNK_MIN_BYTES", 1)
+    one = StringSource(["a long sentence " * 200])
+    assert one.split_tail(one.scan().chunks, 8) == one.scan().chunks
+
+
+def test_split_tail_of_fewer_chunks_than_workers_splits_all_of_them(monkeypatch):
+    monkeypatch.setattr(_text._scan, "_CHUNK_MIN_BYTES", 1)
+    src = StringSource(_sentences(300))
+    scan = src.scan(chunk_bytes=1 << 20)
+    assert len(scan.chunks) == 1
+    assert len(src.split_tail(scan.chunks, 8)) == 2
+
+
+@pytest.mark.parametrize("kind", ["strings", "file"])
+def test_split_tail_never_makes_a_part_below_the_minimum_size(monkeypatch, tmp_path, kind):
+    """Halves by rows can differ greatly in bytes: one short and one long sentence."""
+    from support.runtime import source
+
+    monkeypatch.setattr(_text._scan, "_CHUNK_MIN_BYTES", 1000)
+    src = source(kind, ["a", "b", "c " * 5000, "d " * 4000], tmp_path)
+    chunks = src.scan(chunk_bytes=1 << 20).chunks
+    assert len(chunks) == 1
+    assert src.split_tail(chunks, 4) == chunks  # 2 + 2 sentences: 2 bytes against 18,000
+    lopsided = source(kind, ["a " * 600, "b " * 600, "c " * 600, "d " * 600], tmp_path / "even")
+    parts = lopsided.split_tail(lopsided.scan(chunk_bytes=1 << 20).chunks, 4)
+    assert [p.n_sentences for p in parts] == [2, 2]

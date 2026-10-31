@@ -339,6 +339,31 @@ class _Buffered:
         end = self._line_end(chunk.start, chunk.end, rows) if self._lines() else chunk.start + rows
         return Chunk(chunk.start, end, chunk.first_row, rows)
 
+    def split_tail(self, chunks: tuple[Chunk, ...], workers: int) -> tuple[Chunk, ...]:
+        """``chunks`` with the last ``workers`` of them cut into two parts of about equal
+        rows (factoring), so the workers that finish last hold the least work. A chunk of
+        fewer than 2 sentences, or one of whose parts would be below _CHUNK_MIN_BYTES, stays
+        whole. The chunks stay contiguous, in row order and non-empty, and the result
+        depends only on the arguments."""
+        first = max(0, len(chunks) - workers)
+        return (
+            *chunks[:first],
+            *(part for chunk in chunks[first:] for part in self._halves(chunk)),
+        )
+
+    def _halves(self, chunk: Chunk) -> tuple[Chunk, ...]:
+        """``chunk`` cut into its first ``n // 2`` sentences and the rest, or whole."""
+        rows = chunk.n_sentences
+        if rows < 2 or self._span_bytes(chunk) < 2 * _CHUNK_MIN_BYTES:
+            return (chunk,)
+        head = self.prefix(chunk, rows // 2)
+        rest = Chunk(
+            head.end, chunk.end, chunk.first_row + head.n_sentences, rows - head.n_sentences
+        )
+        if min(self._span_bytes(head), self._span_bytes(rest)) < _CHUNK_MIN_BYTES:
+            return (chunk,)  # the rows are unequal in bytes: a part would be too small
+        return head, rest
+
     def _line_end(self, start: int, end: int, rows: int) -> int:
         """The byte after the ``rows``-th newline from ``start``, searched in blocks up to
         it, so no array of the chunk is made."""

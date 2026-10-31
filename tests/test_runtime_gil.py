@@ -15,7 +15,7 @@ from fse._text import StringSource
 from fse._tokenizer_spec import TokenizerSpec
 from support import gil_budget
 from support.gil_budget import Budget
-from support.runtime import source, texts, word_vectors
+from support.runtime import small_tasks, source, texts, word_vectors
 
 F32 = np.float32
 # np.frombuffer of a buffered source's bytes makes a view (no loop, no GIL release).
@@ -39,13 +39,18 @@ def _pipeline(kind, normalize=True):
     return Pipeline(EncodeSpec(wv, np.ones(len(wv), F32), steps, TokenizerSpec.of(tokenizer)))
 
 
-def _windows(monkeypatch, tmp_path, kind, *, dtype="float32", workers=3, fused=True):
+def _windows(
+    monkeypatch, tmp_path, kind, *, dtype="float32", workers=3, fused=True, chunk_bytes=8000
+):
     pipeline = _pipeline(kind)
     pipeline._text_rows = fused
     monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
     with Budget(monkeypatch) as budget:
         pipeline.infer(
-            source(kind, texts(2000), tmp_path), workers=workers, chunk_bytes=8000, dtype=dtype
+            source(kind, texts(2000), tmp_path),
+            workers=workers,
+            chunk_bytes=chunk_bytes,
+            dtype=dtype,
         )
     assert len(budget.windows) > 5
     return budget.windows
@@ -69,6 +74,21 @@ def test_a_task_hands_the_gil_over_within_its_budget(monkeypatch, tmp_path, kind
         assert w.sections == SECTIONS[dtype]
         assert _without_scratch(w.numpy) == view + STORE[dtype]
         assert w.numpy["empty in _scratch"] <= (0 if dtype == "float32" else 1)
+        assert w.profiled == blocking
+
+
+@pytest.mark.parametrize("kind", KINDS)
+@pytest.mark.parametrize("dtype", ["float32", "int8"])
+def test_a_task_of_the_split_tail_has_the_same_budget(monkeypatch, tmp_path, kind, dtype):
+    """The automatic plan (``chunk_bytes=None``) splits the last tasks; their windows count
+    like those of every other task."""
+    small_tasks(monkeypatch)
+    windows = _windows(monkeypatch, tmp_path, kind, dtype=dtype, workers=4, chunk_bytes=None)
+    view = Counter() if kind == "arrow" else VIEW
+    blocking = Counter({"os.stat": 2}) if kind == "file" else Counter()
+    for w in windows:
+        assert w.sections == SECTIONS[dtype]
+        assert _without_scratch(w.numpy) == view + STORE[dtype]
         assert w.profiled == blocking
 
 

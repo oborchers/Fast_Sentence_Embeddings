@@ -261,9 +261,52 @@ potion-base-8M, WikiText, 8 workers, the deciding cell of the ramp and tail (`ma
 
 ### What this says for the next changes (DR-180)
 
-- **Tail** (largest, 9 to 17 % of the area at 8 and 10 workers, 49 to 55 % on short runs): PR B (a piece count that is a multiple of the workers) can only move the cells whose task count is not one, such as MASSIVE potion-base-8M with 30 tasks at 8 workers (14.9 % tail); PR C (splitting the last tasks, factoring) targets all of it, and the short runs most. A1 shows that task size alone (C3, TASKS_PER_WORKER) does not give a gain outside the noise, so it needs its own measurement in PR B.
+- **Tail** (largest, 9 to 17 % of the area at 8 and 10 workers, 49 to 55 % on short runs): PR B (a piece count that is a multiple of the workers) can only move the cells whose task count is not one, such as MASSIVE potion-base-8M with 30 tasks at 8 workers (14.9 % tail); PR C (splitting the last tasks, factoring) targets all of it and is measured in "The tail split" below: it cuts the tail share by 40 to 60 % in the MASSIVE cells, and leaves the short runs (3 or 4 chunks near the minimum size) as they are. A1 shows that task size alone (C3, TASKS_PER_WORKER) does not give a gain outside the noise, so it needs its own measurement in PR B.
 - **Ramp** (10 to 13 % on WikiText with potion-base-8M, 15 to 22 % on short runs): the ramp share also counts slots that no task could use and the wait for the first assignment, and it is a share of the worker area, not of the call time, so it is no bound on the saving. A3 gives 0.78 for full reuse in one noisy cell; whether an in-contract start of the threads (C5) can get part of it needs a maintainer decision and its own measurement.
 - **Head-of-line blocking, producer, sink** (0 to 1.5 %): PR D (a window counted in rows) and any change at the sink are not supported by the numbers and should not be built.
+
+## The tail split (DR-180)
+
+The automatic plan (`chunk_bytes=None`) cuts each of the last `workers` chunks into two parts of about equal rows (`_Buffered.split_tail`), in the calling thread before the tasks run, when both parts keep the minimum chunk size (64 KiB). An explicit `chunk_bytes`, one worker, inline runs and streams keep their cuts.
+
+Measured as in "Where the workers idle" (M1 Pro, Python 3.13, `runtime_timeline.py measure`, 8 rounds of 5 calls, the median wall time of the call), base (master 77e57e3) and branch alternating twice, each run under the shared benchmark lock at a load below 4 at its start (the load reached 4.4 at the end of two runs). Wall time in ms (the two runs of base, the two of the branch), tasks, and the tail share and the idle share of the means of the two runs:
+
+| cell | workers | tasks | wall base | wall branch | branch / base (means) | tail share | idle share |
+|---|---:|---:|---|---|---:|---|---|
+| potion-base-8M, MASSIVE | 1 | 14 | 165.6, 165.4 | 164.6, 172.8 | 1.019 | 0 | 0.3 % |
+| | 4 | 14 to 18 | 48.3, 48.3 | 46.0, 46.3 | 0.955 | 7.9 to 3.1 % | 8.6 to 3.8 % |
+| | 8 | 30 to 38 | 28.5, 29.2 | 26.5, 30.9 | 0.994 | 13.9 to 5.7 % | 16.3 to 10.7 % |
+| | 10 | 36 to 46 | 26.9, 29.2 | 26.3, 29.2 | 0.991 | 10.5 to 5.7 % | 20.8 to 19.5 % |
+| mrl-en-v1 1024, MASSIVE | 8 | 57 to 61 | 49.8, 50.2 | 47.2, 47.5 | 0.947 | 10.1 to 3.8 % | 11.6 to 5.7 % |
+| | 10 | 57 to 63 | 50.3, 49.0 | 48.0, 46.9 | 0.956 | 11.7 to 6.3 % | 18.3 to 14.4 % |
+| potion-base-8M, WikiText | 4 | 8 to 12 | 7.86, 7.70 | 7.93, 7.92 | 1.019 | 2.3 to 3.5 % | 5.7 to 6.9 % |
+| | 8 | 16 to 24 | 5.50, 5.48 | 5.60, 5.66 | 1.026 | 7.7 to 7.3 % | 18.1 to 18.0 % |
+| | 10 | 20 | 5.82, 5.70 | 6.04, 5.77 | 1.025 | 15.5 % | 30.4 to 31.9 % |
+| mrl-en-v1 1024, WikiText | 8 | 16 to 24 | 13.75, 14.39 | 13.86, 13.14 | 0.959 | 15.5 to 9.2 % | 19.8 to 14.1 % |
+| | 10 | 20 | 13.02, 13.45 | 14.13, 13.50 | 1.044 | 16.9 to 16.4 % | 24.6 to 27.6 % |
+| MASSIVE, 5000 texts | 4, 8, 10 | 4 | 1.92 to 2.03 | 1.92 to 2.10 | 1.02 to 1.07 | unchanged | 28 to 71 %, unchanged |
+| WikiText, 500 texts | 4, 8, 10 | 3 | 1.03 to 1.28 | 1.06 to 1.28 | 0.98 to 1.13 | unchanged | 41 to 77 %, unchanged |
+
+Where the plan has chunks of at least 128 KiB the tail share falls by 40 to 60 % in the MASSIVE cells and with mrl-en-v1 on WikiText at 8 workers (and by 5 % with potion-base-8M there), the idle share falls with it where the ramp does not rise, and MASSIVE gets 4.5 to 5.3 % faster at 4 workers and with mrl-en-v1 at 8 and 10 workers, in both pairs. The 8 workers of potion-base-8M on MASSIVE are inconclusive in this series (one branch run at a load of 4.4: 26.5 and 30.9 ms); five more runs of the branch in the tuning series (one halving, the same code) gave a median of 26.9 ms against 28.9 ms for six runs of the base. The WikiText cells with 20 tasks (10 workers) are not split at all, so their 2.5 and 4.4 % are the noise of two identical plans; in the other WikiText cells the idle time moves less than the noise (1 ms and 6 ms calls vary by 3 to 13 % between identical runs). The short runs have 3 or 4 chunks near 64 KiB, which the minimum size does not split: they are unchanged.
+
+**Variants tried (the tuning series, same method):** halving the last chunks twice (two rounds) gave the same gain as once (potion-base-8M MASSIVE 4, 8, 10 workers: 46.0, 26.5, 26.2 ms against 46.2, 26.9, 25.5 for one round), with more tasks. Parts down to 16 KiB (a quarter of the minimum chunk size) split the short runs too: MASSIVE with 5000 texts fell from 1.93 to 1.52 ms at 8 workers (8 tasks, 20 % faster) and WikiText with 500 texts rose from 1.06 to 1.28 ms (9 tasks, ramp 21 to 37 %), because a thread start costs about as much as such a part: texts that cost less per byte lose what the others gain. The minimum chunk size stays.
+
+**End to end** (`bench_runtime.py throughput --dim 256 --dtypes float32 --workers 1 4 8 10 --rounds 5`, 200,000 synthetic sentences, base and branch alternating in 4 pairs; ratio of the branch's sentences per second to the base's, median and range; the pairs ran at a load of 3.4 to 4.8 at their start and end, a fifth pair with a load of 5.5 at the end of one run was discarded):
+
+| steps | workers | branch / base | range | spread of the base over the pairs |
+|---|---:|---:|---|---:|
+| plain | 1 | 1.009 | 0.972 to 1.340 | 1.34 |
+| | 4 | 1.126 | 1.094 to 1.151 | 1.03 |
+| | 8 | 0.975 | 0.813 to 1.204 | 1.22 |
+| | 10 | 1.055 | 0.917 to 1.082 | 1.05 |
+| normalize | 1 | 0.999 | 0.965 to 1.040 | 1.04 |
+| | 4 | 1.119 | 1.049 to 1.137 | 1.01 |
+| | 8 | 1.110 | 0.766 to 1.144 | 1.03 |
+| | 10 | 1.005 | 0.807 to 1.147 | 1.14 |
+
+One worker does not change (the plan is the same by construction); 4 workers gain 12 %, outside a base spread of 1 to 3 %; the 8 and 10 worker cells have a base spread of 3 to 22 %, so their medians (plain at 8 workers 0.975, the others 1.005 to 1.110) show no regression that the spread does not cover.
+
+**Profile** (potion-base-8M, MASSIVE, 8 workers, 12 s, all threads; samples, no timings; the load was 3.9 at the start): `_wp_piece` 28.7 and 29.4 % (base, branch), `fse_loop_f32_neon` 20.6 and 20.9 %, `__psynch_cvwait` 14.8 and 13.3 %, `fse_normalize_body` 9.0 and 9.4 %, `_append_str` 6.0 and 5.9 %. Memory (`make profile-mem`, memray, native): peak 431.9 and 431.6 MB, the allocation sites the same (`_sinks.py:116`, the result rows: 42.1 and 44.9 GB over the whole run, because the branch made 6.6 % more passes in the same 8 s under memray, which is no timing). `make profile-rss` (8 workers, 8 s): peak 366 MiB against 368 MiB (+0.5 %).
 
 ## int8 tables at 1024 dimensions
 
