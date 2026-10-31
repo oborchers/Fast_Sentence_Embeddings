@@ -39,7 +39,7 @@ from ._common import (
     tensor_code,
 )
 from ._foreign import foreign_header, foreign_tensors, read_foreign, read_regular
-from ._hash import Hasher, file_digests
+from ._hash import Hasher, PinKind, file_digests, pin_digest
 from ._npy import NpyContainer
 from ._npy_inplace import publish_directory
 from ._safetensors import SafetensorsContainer, _read_safetensors_header
@@ -58,6 +58,7 @@ __all__ = [
     "INTEGER",
     "CorruptArtifactError",
     "Hasher",
+    "PinKind",
     "NpyContainer",
     "PublishedNotDurableError",
     "SafetensorsContainer",
@@ -71,6 +72,7 @@ __all__ = [
     "foreign_tensors",
     "is_fingerprint",
     "note_cleanup",
+    "pin_digest",
     "publish_directory",
     "read_foreign",
     "read_regular",

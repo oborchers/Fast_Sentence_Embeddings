@@ -170,3 +170,31 @@ def test_the_digests_of_the_hub_are_sha256_and_the_git_blob_id():
     assert sha1 == "b6fc4c620b67d95f953a5c1c1230aaab5db5a1b0"
     with pytest.raises(ValueError, match="ended 1 bytes early"):
         file_digests(io.BytesIO(b"hell"), 5)
+
+
+def test_pin_digest_hashes_one_algorithm_of_any_buffer():
+    sha256_empty = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    assert _hash.pin_digest(b"", "sha256") == sha256_empty
+    assert _hash.pin_digest(b"", "git_sha1") == "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    hello = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    for data in (b"hello", bytearray(b"hello"), memoryview(b"hello")):
+        assert _hash.pin_digest(data, "sha256") == hello
+        assert _hash.pin_digest(data, "git_sha1") == "b6fc4c620b67d95f953a5c1c1230aaab5db5a1b0"
+    with pytest.raises(ValueError, match="unknown digest kind 'md5'"):
+        _hash.pin_digest(b"x", "md5")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("size", [0, 1, 4097, 2**22 + 3])
+def test_pin_digest_equals_file_digests(size):
+    import io
+
+    from fse._container import file_digests
+
+    data = np.random.default_rng(size).bytes(size)
+    assert (_hash.pin_digest(data, "sha256"), _hash.pin_digest(data, "git_sha1")) == file_digests(
+        io.BytesIO(data), size
+    )
+    assert (
+        _hash.pin_digest(memoryview(data)[: size // 2], "sha256")
+        == (file_digests(io.BytesIO(data[: size // 2]), size // 2)[0])
+    )

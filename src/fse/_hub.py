@@ -22,7 +22,6 @@ those below it, and each blob is checked against its name, which is its sha256 o
 
 from __future__ import annotations
 
-import io
 import os
 import re
 import stat
@@ -30,7 +29,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from fse import _log
-from fse._container import CorruptArtifactError, file_digests, read_regular
+from fse._container import CorruptArtifactError, pin_digest, read_regular
 
 REPO_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -132,11 +131,10 @@ class HubFiles:
             snapshot_of(path, name)  # a copy, which the hash checks; its folders are not links
             blob, etag = path, ""
         data = read_regular(blob, limit=limit, inspect=_sized(name, self._sizes.get(name), inspect))
-        sha256, sha1 = file_digests(io.BytesIO(data), len(data))
         if self._pins is None:
-            _check_name(name, etag, sha256, sha1, lfs)
+            pin = _check_name(name, etag, data, lfs)
         else:
-            _check_pin(name, self._pins[name], sha256, sha1, lfs, self.revision)
+            pin = _check_pin(name, self._pins[name], data, lfs, self.revision)
         _log.emit(
             "hub.file",
             "fse hub: took a checked file of %d bytes at commit %s",
@@ -144,7 +142,7 @@ class HubFiles:
             self.revision,
             commit=self.revision,
             bytes=len(data),
-            pin="lfs_sha256" if lfs else "git_sha1",
+            pin=pin,
         )
         return data
 
@@ -252,8 +250,9 @@ def _plain_dirs(*folders: Path) -> None:
             )
 
 
-def _check_pin(name: str, pin: Any, sha256: str, sha1: str, lfs: bool, commit: str | None) -> None:
-    """The file against the commit: its lfs.sha256, or its git blob sha1."""
+def _check_pin(name: str, pin: Any, data: bytes, lfs: bool, commit: str | None) -> str:
+    """The file against the commit, by the one digest the commit pins it with: its
+    lfs.sha256, or its git blob sha1. Returns the pin (``lfs_sha256`` or ``git_sha1``)."""
     lfs_sha256, blob_id = pin
     if lfs and lfs_sha256 is None:
         raise CorruptArtifactError(
@@ -261,22 +260,30 @@ def _check_pin(name: str, pin: Any, sha256: str, sha1: str, lfs: bool, commit: s
             "safetensors files only as LFS files, whose sha256 the commit pins"
         )
     if lfs_sha256 is not None:
+        sha256 = pin_digest(data, "sha256")
         if sha256 != lfs_sha256:
             raise CorruptArtifactError(f"{name} has sha256 {sha256}, the commit pins {lfs_sha256}")
-    elif blob_id is None or sha1 != blob_id:
+        return "lfs_sha256"
+    sha1 = pin_digest(data, "git_sha1")  # also with no blob id, for the message
+    if blob_id is None or sha1 != blob_id:
         raise CorruptArtifactError(f"{name} has the git blob id {sha1}, the commit pins {blob_id}")
+    return "git_sha1"
 
 
-def _check_name(name: str, etag: str, sha256: str, sha1: str, lfs: bool) -> None:
-    """A cached blob against its name in the repository: sha256 (LFS) or git blob sha1."""
+def _check_name(name: str, etag: str, data: bytes, lfs: bool) -> str:
+    """A cached blob against its name in the repository, by the one digest the name says:
+    sha256 (LFS) or git blob sha1. Returns the pin (``lfs_sha256`` or ``git_sha1``)."""
     if _SHA256.fullmatch(etag):
+        sha256 = pin_digest(data, "sha256")
         if sha256 != etag:
             raise CorruptArtifactError(f"{name}: the blob {etag} has sha256 {sha256}")
-        return
+        return "lfs_sha256"
     if lfs or not _SHA1.fullmatch(etag):
         raise CorruptArtifactError(
             f"{name}: the blob {etag} is no {'LFS ' if lfs else ''}file of the cache "
             "named by its hash"
         )
+    sha1 = pin_digest(data, "git_sha1")
     if sha1 != etag:
         raise CorruptArtifactError(f"{name}: the blob {etag} has the git blob id {sha1}")
+    return "git_sha1"

@@ -12,9 +12,10 @@ streams and formats; reading arrays in bounded chunks belongs to the containers.
 only module of fse that imports a hash library (``hash-importers`` of the guardrails) and
 imports nothing from fse, so it can be copied with the containers.
 
-It also gives the two digests the Hugging Face Hub pins a file of a commit with (``file_digests``):
-the sha256 of an LFS file and the git blob sha1 of any file; they identify a downloaded
-file against a trusted commit and are no checksums of fse.
+It also gives the two digests the Hugging Face Hub pins a file of a commit with: the sha256
+of an LFS file and the git blob sha1 of any file; they identify a downloaded file against a
+trusted commit and are no checksums of fse. Loading computes the one a file is pinned by
+(``pin_digest``), pushing both (``file_digests``).
 
 The data always go through the streaming object: python-xxhash releases the GIL in
 ``update`` (for inputs over 64 KiB from 4.0 on), never in its one-shot functions before 4.0.
@@ -102,6 +103,22 @@ def classify(value: object) -> Literal["ok", "legacy", "unknown", "malformed"]:
     if _OTHER.fullmatch(value):
         return "unknown"
     return "malformed"
+
+
+PinKind = Literal["sha256", "git_sha1"]
+
+
+def pin_digest(data: bytes | bytearray | memoryview, kind: PinKind) -> str:
+    """The one digest ``kind`` of ``data`` as hex, hashed in place (no copy): the sha256,
+    or the git blob sha1 (``sha1(b"blob <size>\\0" + data)``). Exactly one algorithm runs."""
+    view = memoryview(data).cast("B")
+    if kind == "sha256":
+        return hashlib.sha256(view).hexdigest()
+    if kind == "git_sha1":
+        sha1 = hashlib.sha1(b"blob %d\0" % view.nbytes)  # the id git gives the content
+        sha1.update(view)
+        return sha1.hexdigest()
+    raise ValueError(f"unknown digest kind {kind!r}")
 
 
 def file_digests(handle, size: int, chunk: int = 2**22) -> tuple[str, str]:
