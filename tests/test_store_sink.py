@@ -195,10 +195,11 @@ def test_close_raises_a_publish_error_another_thread_met_first(tmp_path, monkeyp
 
     from fse._store import _shard
 
-    failed, resume = threading.Event(), threading.Event()
+    failed, resume, committed = threading.Event(), threading.Event(), threading.Event()
     real_commit = _shard.ShardWriter.commit
 
     def publish(*_args, **_kwargs):
+        committed.wait(10)  # fail only after both commits, so neither of them raises it
         failed.set()
         raise OSError(5, "Input/output error")
 
@@ -215,6 +216,7 @@ def test_close_raises_a_publish_error_another_thread_met_first(tmp_path, monkeyp
         target[0][...] = 0
         target[1][...] = 0
         sink.commit(first, target)
+    committed.set()
     assert failed.wait(10)
     deadline = time.monotonic() + 10
     while not sink._publisher.failed and time.monotonic() < deadline:
