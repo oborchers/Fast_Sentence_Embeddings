@@ -21,7 +21,7 @@ from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
-from bench_model2vec import contender, texts
+from bench_model2vec import _revision, contender, texts
 
 
 @contextmanager
@@ -76,6 +76,7 @@ def child(args) -> None:
                 "kind": args.kind,
                 "threads": args.threads,
                 "model": args.model,
+        "revision": _revision(args.model),
                 "corpus": args.corpus,
                 "texts": len(sentences),
                 "shape": shape,

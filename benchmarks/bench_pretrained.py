@@ -39,6 +39,8 @@ COMMITS = {
     "sentence-transformers/static-retrieval-mrl-en-v1": "f60985c706f192d45d218078e49e5a8b6f15283a",
     MODEL: "b68f4122911bcffcd6e1f695f2d99cd6788972d8",
     "minishlab/potion-base-8M": "bf8b056651a2c21b8d2565580b8569da283cab23",
+    "minishlab/potion-base-32M": "1e5a03f8eeb2c98b928fbbd846f22f816360919f",
+    "minishlab/potion-retrieval-32M": "6fc8051fab2a1e0ee76689cf08c853792ac285e7",
     "minishlab/potion-multilingual-128M": "73908c3438cf03b6a01bcb9611d62b23d0726f08",
 }
 

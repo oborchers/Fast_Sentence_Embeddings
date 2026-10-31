@@ -53,6 +53,9 @@ from mteb.cache import ResultCache
 from mteb.models.abs_encoder import AbsEncoder
 from mteb.models.model_meta import ModelMeta, ScoringFunction
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from quality_coordination import task_reservation  # isort: skip
+
 HERE = Path(__file__).resolve().parent
 RESULTS = HERE / "results.jsonl"  # the default of --results
 CACHE = Path(os.environ.get("FSE_QUALITY_CACHE", Path.home() / ".cache" / "fse-quality"))
@@ -117,6 +120,8 @@ class FseEncoder(AbsEncoder):
     """Encode with a finished fse model (``fse.Encoder.load``)."""
 
     folder = CACHE / "models"  # set by --fse-models
+    workers = 2
+    coordination: Path | None = None
 
     def __init__(self, model_name: str, revision: str | None = None, **kwargs: Any) -> None:
         import fse
@@ -138,7 +143,7 @@ class FseEncoder(AbsEncoder):
         texts = [text for batch in inputs for text in batch["text"]]
         if self.model.tokenizer == "external":
             texts = [tokenize(text) for text in texts]
-        return self.model.encode(texts, workers=os.cpu_count())
+        return self.model.encode(texts, workers=self.workers)
 
 
 def vector_license(name: str) -> str:
@@ -218,34 +223,41 @@ def run(models: list[str], task_names: list[str] | None, results: Path = RESULTS
     benchmark_of = {t.metadata.name: b for b in BENCHMARKS for t in mteb.get_benchmark(b).tasks}
     cache = ResultCache(CACHE / "mteb")
     for name in models:
-        meta = fse_meta(name) if name.startswith("fse/") else mteb.get_model_meta(name)
-        model = meta.load_model()
+        with task_reservation(FseEncoder.coordination):
+            meta = fse_meta(name) if name.startswith("fse/") else mteb.get_model_meta(name)
+            model = meta.load_model()
         timer = EncodeTimer(model)
-        result = mteb.evaluate(
-            model, tasks, cache=cache, overwrite_strategy="always", show_progress_bar=False
-        )
-        with results.open("a", encoding="utf-8") as f:
+        for task_to_run in tasks:
+            with task_reservation(FseEncoder.coordination):
+                result = mteb.evaluate(
+                    model,
+                    [task_to_run],
+                    cache=cache,
+                    overwrite_strategy="always",
+                    show_progress_bar=False,
+                )
             for task_result in result.task_results:
                 task = task_result.task_name
-                f.write(
-                    json.dumps(
-                        {
-                            "model": name,
-                            "revision": meta.revision,
-                            "benchmark": benchmark_of[task],
-                            "task": task,
-                            "type": mteb.get_task(task).metadata.type,
-                            "main_score": task_result.get_score(),
-                            **timer.stats.get(task, {}),
-                            "machine": platform.platform(),
-                            "python": sys.version.split()[0],
-                            "mteb": version("mteb"),
-                            "fse": version("fse"),
-                            "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                        }
+                with results.open("a", encoding="utf-8") as f:
+                    f.write(
+                        json.dumps(
+                            {
+                                "model": name,
+                                "revision": meta.revision,
+                                "benchmark": benchmark_of[task],
+                                "task": task,
+                                "type": mteb.get_task(task).metadata.type,
+                                "main_score": task_result.get_score(),
+                                **timer.stats.get(task, {}),
+                                "machine": platform.platform(),
+                                "python": sys.version.split()[0],
+                                "mteb": version("mteb"),
+                                "fse": version("fse"),
+                                "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                            }
+                        )
+                        + "\n"
                     )
-                    + "\n"
-                )
         logger.info("finished %s", name)
 
 
@@ -308,6 +320,8 @@ def main() -> None:
     run_parser.add_argument(
         "--fse-models", type=Path, default=FseEncoder.folder, help="the finished fse models"
     )
+    run_parser.add_argument("--workers", type=int, default=2)
+    run_parser.add_argument("--coordination", type=Path, help="shared scratchpad lock directory")
     summary = sub.add_parser("summarize")
     summary.add_argument("--results", type=Path, default=RESULTS)
     args = parser.parse_args()
@@ -315,6 +329,10 @@ def main() -> None:
     if args.command == "summarize":
         summarize(args.results)
         return
+    if args.workers < 1:
+        parser.error("workers must be positive")
+    FseEncoder.workers = args.workers
+    FseEncoder.coordination = args.coordination
     FseEncoder.folder = args.fse_models
     ours = fse_models(args.fse_models) if {"fse", "all"} & set(args.models) else []
     groups = {"fse": ours, "others": OTHER_MODELS, "all": ours + OTHER_MODELS}
