@@ -52,6 +52,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- The native `unigram@1` normalizer combines independent consecutive single-byte Replace steps into one pass, with unchanged normalization and token ids.
 - The native `unigram@1` finds candidates with the vocabulary double-array trie, built at load, instead of repeated hashes and a Python set of proper prefixes. Its construction sorts binary keys and reuses their common prefixes to avoid repeated sibling searches on large vocabularies. Candidate order, float64 scores and token ids are unchanged. Nothing new is persisted.
 
 - Loading a model from the Hugging Face Hub hashes each file once, with the one digest the commit pins it by (the sha256 of an LFS file, else the git blob id), where it computed both; the checks and their messages are unchanged. The `pin` of the `hub.file` record names that digest for every LFS file, also a `tokenizer.json` stored in LFS, which it used to name `git_sha1`.

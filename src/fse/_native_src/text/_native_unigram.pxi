@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------------------
 # unigram@1 (docs/architecture/tokenizers.md, "unigram@1"), as in fse._reference_unigram.
 # The byte trie enumerates candidates; the generic hash path remains for tests.
-# Every normalizer step is its own pass over the piece.
+# Independent single-byte replacements share one pass over the piece.
 # ---------------------------------------------------------------------------------------
 
 from libc.stdint cimport uint8_t
@@ -38,6 +38,7 @@ cdef enum:
     UNI_RUNS_SPACE = 2
     UNI_RUNS_WHITE_SPACE = 3
     UNI_STRIP = 4
+    UNI_REPLACE_BYTES = 5
     _UNI_ROW = 6
 
 
@@ -161,7 +162,7 @@ cdef class UnigramState:
     cdef VocabTable prefixes
     cdef bint generic
     cdef fse_trie trie
-    cdef object _scores, _units, _values, _ops, _pool, _replacement
+    cdef object _scores, _units, _values, _ops, _pool, _replacement, _byte_maps
     cdef object _added_bytes, _added_offsets, _added_ids
     cdef const double *scores
     cdef const uint32_t *units
@@ -169,6 +170,7 @@ cdef class UnigramState:
     cdef const unsigned char *values
     cdef int64_t n_values
     cdef bint has_charsmap
+    cdef const int64_t *byte_maps
     cdef const int64_t *ops
     cdef int64_t n_ops
     cdef const unsigned char *pool
@@ -272,6 +274,28 @@ cdef class UnigramState:
         return [[(cands[j].end, cands[j].id, cands[j].score)
                  for j in range(first[k], first[k + 1])] for k in range(count)]
 
+    def _normalize(self, bytes data):
+        """Normalized pre-token bytes; private, for differential normalizer tests."""
+        self._check_ready()
+        data.decode("utf-8")
+        cdef const unsigned char *p = data
+        cdef Py_ssize_t n = len(data)
+        cdef Workspace ws = Workspace()
+        cdef _Buffer *out
+        cdef int err
+        with nogil:
+            err = _uni_normalize(self, p, n, ws, &out)
+        if err == _UNI_NO_MEMORY:
+            raise MemoryError("no memory for Unigram normalization")
+        if err:
+            raise AssertionError("the internal Unigram text broke")
+        return (<char *>out.data)[:out.size]
+
+    @property
+    def _normalizer_kinds(self):
+        """Built pass kinds; private, for fusion tests."""
+        return tuple(self._ops[:, 0].tolist())
+
     @property
     def _trie_blocks(self):
         """Live trie allocations; private, for failure-injection tests."""
@@ -298,6 +322,9 @@ cdef class UnigramState:
 
     cdef _build_steps(self, steps, charsmap, replacement):
         ops, pool = _steps_parts(steps)
+        ops, maps = _uni_fuse_replaces(ops, pool, not self.generic)
+        self._byte_maps = maps
+        self.byte_maps = <const int64_t *>np.PyArray_DATA(maps)
         kinds = ops[:, 0].tolist()
         if (charsmap is None) != (UNI_PRECOMPILED not in kinds):
             raise ValueError("a charsmap is given exactly with a precompiled step")
