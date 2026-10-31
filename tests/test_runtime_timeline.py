@@ -3,6 +3,7 @@ events with hand-computed splits, the recording of the executor (runtime_timelin
 and the helpers of the ablations and the report (PERFORMANCE.md, "Where the workers idle")."""
 
 import importlib
+import sys
 import threading
 import time
 from pathlib import Path
@@ -17,10 +18,16 @@ from support.runtime import expected, texts, word_vectors
 
 BENCHMARKS = Path(__file__).resolve().parent.parent / "benchmarks"
 
-pytestmark = pytest.mark.skipif(
-    not (BENCHMARKS / "runtime_timeline_attr.py").exists(),
-    reason="benchmarks/ is not part of this checkout",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not (BENCHMARKS / "runtime_timeline_attr.py").exists(),
+        reason="benchmarks/ is not part of this checkout",
+    ),
+    pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="the benchmark scripts use resource and os.getloadavg (POSIX only)",
+    ),
+]
 
 
 @pytest.fixture
