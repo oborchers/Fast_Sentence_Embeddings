@@ -36,11 +36,11 @@ import json
 import os
 import platform
 import statistics
-import subprocess
 import sys
 import time
 from pathlib import Path
 
+import bench_harness as harness
 import numpy as np
 
 MODEL = "minishlab/potion-base-8M"
@@ -118,17 +118,19 @@ def compare(corpus: str, repo: str, against: str) -> tuple[float, float]:
     return float(np.abs(a - b).max()), float(cosine.min())
 
 
-def _round(contenders, corpus: str, repo: str, k: int) -> dict:
-    out = {}
-    for kind, threads in contenders if k % 2 == 0 else contenders[::-1]:
-        result = subprocess.run(
-            [sys.executable, __file__, "_child", kind, str(threads), corpus, str(PASSES), repo],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        out[(kind, threads)] = json.loads(result.stdout)
-    return out
+def _child_command(kind: str, threads: int, corpus: str, repo: str) -> list[str]:
+    return [sys.executable, __file__, "_child", kind, str(threads), corpus, str(PASSES), repo]
+
+
+def _rounds(contenders, corpus: str, repo: str, n: int) -> list[dict]:
+    """``n`` rounds of every contender in alternating order (the first round starts with
+    the first); the whole stdout of a child is its JSON."""
+    done = harness.rounds(
+        contenders,
+        lambda c: harness.run_child(_child_command(*c, corpus, repo), stdout="all", label=c),
+        n,
+    )
+    return done.by_round()
 
 
 def main(argv=None) -> None:
@@ -152,7 +154,7 @@ def main(argv=None) -> None:
     contenders = [("fse", 1), ("fse", args.threads), (other, 1), (other, args.threads)]
     for corpus in args.corpora:
         largest, cosine = compare(corpus, args.model, other)
-        rounds = [_round(contenders, corpus, args.model, k) for k in range(args.rounds)]
+        rounds = _rounds(contenders, corpus, args.model, args.rounds)
         n = rounds[0][contenders[0]]["texts"]
         print(
             f"## {corpus}: {n:,} texts; largest difference {largest:.2e}, smallest cosine {cosine:.9f}"

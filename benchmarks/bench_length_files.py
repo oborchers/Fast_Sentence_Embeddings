@@ -24,10 +24,10 @@ import itertools
 import json
 import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
+import bench_harness as harness
 import bench_length_corpus as corpora
 
 CASES = Path(__file__).with_name("bench_length_cases.py")
@@ -253,16 +253,11 @@ class Prepared:
 
 def run_child(python: str, config: dict) -> dict:
     # Offline: 1.1 resolves the hub cache through snapshot_download.
-    done = subprocess.run(
+    return harness.run_child(
         [python, str(CASES), json.dumps(config)],
         env={**os.environ, "HF_HUB_OFFLINE": "1"},
-        capture_output=True,
-        text=True,
-        check=False,
+        label=config,
     )
-    if done.returncode:
-        raise SystemExit(f"{config} failed:\n{done.stderr[-3000:]}")
-    return json.loads(done.stdout.strip().splitlines()[-1])
 
 
 def ensure_vectors(ctx: Prepared, dtype: str) -> Path:

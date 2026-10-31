@@ -34,12 +34,12 @@ import json
 import os
 import resource
 import statistics
-import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
 
+import bench_harness as harness
 import numpy as np
 
 DIM, VOCAB = 300, 100_000
@@ -239,10 +239,7 @@ def _run(python: str, child: str, **options) -> dict:
             f"--{key.replace('_', '-')}",
             *map(str, value if isinstance(value, list) else [value]),
         ]
-    done = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    if done.returncode:
-        raise SystemExit(f"{child} failed:\n{done.stderr[-3000:]}")
-    return json.loads(done.stdout.strip().splitlines()[-1])
+    return harness.run_child(cmd, label=child)
 
 
 _CONTENDERS = (
@@ -263,14 +260,22 @@ def _write_row(args, dtype: str, workers: int, n: int) -> dict:
     """The median of the rounds of every contender for one dtype, worker count and size."""
     row: dict = {"dtype": dtype, "workers": workers, "sentences": n, "load": os.getloadavg()[0]}
     common = _options(args, dtype=dtype, workers=workers, sentences=n)
-    runs: dict[str, list[dict]] = {}
-    for _ in range(args.rounds):
-        for name, child, kind in _CONTENDERS:
-            python = args.python_v1 if name == "v1_ring" else sys.executable
-            if python:
-                runs.setdefault(name, []).append(_run(python, child, kind=kind, **common))
-    for name, results in runs.items():
-        row[name] = {field: statistics.median(r[field] for r in results) for field in results[0]}
+    names = [c[0] for c in _CONTENDERS if c[0] != "v1_ring" or args.python_v1]
+    kinds = {name: (child, kind) for name, child, kind in _CONTENDERS}
+
+    def run_one(name: str) -> dict:
+        child, kind = kinds[name]
+        python = args.python_v1 if name == "v1_ring" else sys.executable
+        return _run(python, child, kind=kind, **common)
+
+    # Not alternated: every round runs the contenders in the order of _CONTENDERS.
+    done = harness.rounds(names, run_one, args.rounds, alternate=False)
+    for name in names:
+        results = done.results(name)
+        if results:
+            row[name] = {
+                field: statistics.median(r[field] for r in results) for field in results[0]
+            }
     return row
 
 
@@ -301,14 +306,22 @@ def search_or_score(args) -> list[dict]:
     return rows
 
 
+def _sync_run(args, dtype: str) -> dict:
+    """One sync child, shown as it ends."""
+    common = _options(args, dtype=dtype, sentences=args.sentences)
+    result = _run(sys.executable, "sync", workers=args.workers[0], **common)
+    print(dtype, json.dumps({k: round(v, 3) for k, v in result.items()}), flush=True)
+    return result
+
+
 def sync(args) -> list[dict]:
     rows = []
     for dtype in args.dtypes:
-        common = _options(args, dtype=dtype, sentences=args.sentences)
-        for _ in range(args.rounds):
-            result = _run(sys.executable, "sync", workers=args.workers[0], **common)
-            print(dtype, json.dumps({k: round(v, 3) for k, v in result.items()}), flush=True)
-            rows.append({"dtype": dtype, "load": os.getloadavg()[0], **result})
+        # The load goes after the run, as before.
+        done = harness.rounds(
+            ["sync"], lambda _, d=dtype: _sync_run(args, d), args.rounds, alternate=False
+        )
+        rows += [{"dtype": dtype, "load": run.after, **run.result} for run in done.runs("sync")]
     return rows
 
 

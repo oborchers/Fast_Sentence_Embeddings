@@ -39,10 +39,11 @@ import platform
 import statistics
 import sys
 
+from bench_harness import load
 from roofline import MODELS, encoder
 from runtime_timeline_ablate import ABLATIONS, rss_children, rss_probe
 from runtime_timeline_probe import Recorder, tracing
-from runtime_timeline_run import HEADER, line, load, series, timed
+from runtime_timeline_run import HEADER, line, series, timed
 
 
 def overhead(pipeline, sentences, workers: int, rounds: int, passes: int, max_load: float) -> dict:
