@@ -243,36 +243,35 @@ cdef int _uni_normalize(UnigramState st, const unsigned char *p, Py_ssize_t n, W
     cdef _Buffer *a = &ws.norm
     cdef _Buffer *b = &ws.cand
     cdef _Buffer *t
-    cdef Py_ssize_t k, size = n
-    cdef const unsigned char *src = p
+    cdef Py_ssize_t k
     cdef const int64_t *row
     cdef int err = 0
     a.size = 0
+    if _uni_put(a, p, n):
+        return -1
     for k in range(st.n_ops):
         row = st.ops + k * _UNI_ROW
         b.size = 0
         if row[0] == UNI_PRECOMPILED:
-            err = _uni_precompiled(st, src, size, b, ws)
+            err = _uni_precompiled(st, <const unsigned char *>a.data, a.size, b, ws)
         elif row[0] == UNI_REPLACE:
-            err = _uni_replace(src, size, st.pool + row[1], row[2],
+            err = _uni_replace(<const unsigned char *>a.data, a.size, st.pool + row[1], row[2],
                                st.pool + row[3], row[4], b)
         elif row[0] == UNI_REPLACE_BYTES:
-            err = _uni_replace_bytes(src, size,
+            err = _uni_replace_bytes(<const unsigned char *>a.data, a.size,
                                      st.byte_maps + row[1], st.pool, b)
         elif row[0] == UNI_STRIP:
-            err = _uni_strip(src, size, row[5], b)
+            err = _uni_strip(<const unsigned char *>a.data, a.size, row[5], b)
         else:
-            err = _uni_runs(src, size, row[0] == UNI_RUNS_WHITE_SPACE,
+            err = _uni_runs(<const unsigned char *>a.data, a.size, row[0] == UNI_RUNS_WHITE_SPACE,
                             row[5], st.pool + row[3], row[4], b)
         if err:
             return err
         t = a
         a = b
         b = t
-        src = <const unsigned char *>a.data
-        size = a.size
     b.size = 0
-    if _uni_metaspace(st, src, size, b):
+    if _uni_metaspace(st, <const unsigned char *>a.data, a.size, b):
         return -1
     # 32 bytes of slack, so a candidate can be read 16 bytes wide.
     if _ensure(b, 32):
