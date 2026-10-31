@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import tokenize
 
 import numpy as np
 import pytest
@@ -76,8 +77,6 @@ def test_full_writer_survives_every_admitted_power_loss(tmp_path, monkeypatch, p
 def test_model_detects_missing_full_sync_before_shard_rename(tmp_path, monkeypatch):
     trace, expected = _record(tmp_path / "store", monkeypatch, "darwin", "float32", broken=True)
     # Require silent wrong rows, not just a missing manifest or an open error.
-    from fse import CorruptArtifactError
-
     for state, _ in trace.states():
         root = tmp_path / "crash"
         materialize(root, state)
@@ -85,8 +84,10 @@ def test_model_detects_missing_full_sync_before_shard_rename(tmp_path, monkeypat
             with VectorStore.open(root) as store:
                 if store.get_vectors().tobytes() != expected[: len(store)].tobytes():
                     return
-        except CorruptArtifactError:
-            pass  # This state is detected by structural checks, try another one.
+        except (ValueError, tokenize.TokenError):
+            # Numpy can report a torn .npy header as TokenError. Only a successful
+            # open returning wrong rows is a witness for this mutation oracle.
+            pass
         finally:
             shutil.rmtree(root)
     pytest.fail("the darwin model missed silently damaged rows after the persisted rename")
