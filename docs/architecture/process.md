@@ -32,12 +32,6 @@ src/fse/
     _base.py             #   Capabilities, PoolInput, Prepared, the Backend protocol and checks,
     _cpu.py              #   the cpu backend on the native kernel,
     _numpy.py            #   the numpy backend on fse._reference (the oracle),
-    _mlx/                #   the mlx backend (fse[mlx]): the weighted mean on Apple GPUs:
-      _load.py           #     the only importer of MLX, on first use, with the reason it cannot run,
-      _sources.py        #     the Metal source of the pooling kernel and its subnormal flags,
-      _kernels.py        #     the device rows, the arrays of a task, the launch, the canary,
-      _device.py         #     the device thread that evaluates waiting calls together,
-      _backend.py        #     MlxBackend on its injected cpu host
   _runtime/              # the runtime of encoding:
     _executor.py         #   run: inline or threads, ordered commits, a window, errors in order,
     _tasks.py            #   the tasks of a source and the inline rule,
@@ -184,7 +178,6 @@ tests skip through `pytest.importorskip`.
 PyArrow, pandas, Polars and datasets remain installed on every target interpreter.
 PyYAML, required by huggingface-hub and datasets, builds from source on CPython 3.15
 musllinux because its current release has no wheel for that interpreter.
-MLX requires Apple silicon and Metal and is tested separately by `test-mlx`.
 On every platform, gensim tests skip on Python 3.14 and newer. The wheel logs show
 the test summary for each interpreter, and artifacts retain the built filenames.
 
@@ -228,7 +221,7 @@ The modules form layers, and a module imports only from layers below it. The imp
 
 Inside a package, an import contract keeps its parts apart: `_npy` and `_safetensors` share only `_common`, which sits on `_hash`, each backend shares only `_base`, the runtime's pipeline sits on its tasks, sinks, spec and executor, in the encoder the encoder sits on `_pretrained` and `_persist` (an encoder as an artifact and back), `_pretrained` on `_folder` (Hugging Face folders), that on `_card` (their model card), that on the readers `_model2vec` and `_sentence_transformers`, those on `_files`, that on its batches and format and those on its inputs, in the containers the in-place writer `_npy_inplace` sits on `_npy` and the reader of foreign files `_foreign` on `_safetensors`, in the store repair sits beside the sink and the vector store, above the shard writer, the search and recovery, those on the layout, the runtime's head sits on its pipeline, and in the heads the classes sit on the model, that on its runs, those on the scikit-learn reader, the format and the outputs, and those on the content.
 
-The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` (stages 1 and 2) and the cpu backend `_backends._cpu` (the kernels) import it and that it imports only `_contract` from fse. It also checks (in `tools/guardrails_imports.py`) that only `_container._hash` imports a hash library (hashlib or xxhash), that only `_log` and `_log_config` import `logging` or `warnings` and the modules the MLX device thread runs do not import `_log`, and that the library of each device backend (`device-libraries` in `[tool.fse.guardrails]`: mlx, later CUDA's) is imported, by an import statement or `importlib`, only by that backend's `_backends._<name>._load`; `get_backend` imports that backend's package only when it makes the backend, so that `import fse` and the other backends never load it. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list, with the device libraries, to the extension. Inside the mlx backend the backend sits on the device thread, that on the kernels, those on the Metal source and the loader.
+The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` (stages 1 and 2) and the cpu backend `_backends._cpu` (the kernels) import it and that it imports only `_contract` from fse. It also checks (in `tools/guardrails_imports.py`) that only `_container._hash` imports a hash library (hashlib or xxhash), that only `_log` and `_log_config` import `logging` or `warnings`. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list to the extension.
 
 ## Baseline
 

@@ -1,5 +1,7 @@
 # Research notes
 
+Historical note (31.10.2026): MLX was removed from fse. These research findings describe the earlier investigation.
+
 Prior art gathered before planning a pull request (AGENTS.md: research hard questions before planning them). The notes are inputs to plans, not decisions: what was decided is in ARCHITECTURE.md, the CHANGELOG and the pull requests. Each note marks its claims by source (read in the source code or docs, derived, background knowledge, unverified); numbers come from the cited sources or from measurements described in the note, and a cited number is only as good as its source.
 
 | Note | Question | Used for |

@@ -24,7 +24,7 @@ Sections formerly under "2.0 design" are binding for every 2.0 module.
 | [text.md](docs/architecture/text.md) | Text sources |
 | [logging.md](docs/architecture/logging.md) | Logging |
 | [overview.md](docs/architecture/overview.md) | Principle and stages, Batch |
-| [backends.md](docs/architecture/backends.md) | Tolerance contract of device backends, Backends, MLX |
+| [backends.md](docs/architecture/backends.md) | Backends |
 | [persistence.md](docs/architecture/persistence.md) | Identifiers and versions, Identities, Persistence names replace class paths, Migration |
 | [tokenizers.md](docs/architecture/tokenizers.md) | Tokenizers, wordpiece@1, unigram@1 |
 | [runtime.md](docs/architecture/runtime.md) | Runtime, Defaults |
@@ -48,14 +48,12 @@ Old fragment links land here. Follow the section link to its current location.
 | <a id="20-design"></a>2.0 design | [2.0 design](#documents) |
 | <a id="principle-and-stages"></a>Principle and stages | [Principle and stages](docs/architecture/overview.md#principle-and-stages) |
 | <a id="numerical-contract-transform_version-2"></a>Numerical contract (`transform_version` 2) | [Numerical contract (`transform_version` 2)](docs/architecture/numerical-contract.md#numerical-contract-transform_version-2) |
-| <a id="tolerance-contract-of-device-backends"></a>Tolerance contract of device backends | [Tolerance contract of device backends](docs/architecture/backends.md#tolerance-contract-of-device-backends) |
 | <a id="identifiers-and-versions"></a>Identifiers and versions | [Identifiers and versions](docs/architecture/persistence.md#identifiers-and-versions) |
 | <a id="batch"></a>Batch | [Batch](docs/architecture/overview.md#batch) |
 | <a id="tokenizers"></a>Tokenizers | [Tokenizers](docs/architecture/tokenizers.md#tokenizers) |
 | <a id="wordpiece1"></a>wordpiece@1 | [wordpiece@1](docs/architecture/tokenizers.md#wordpiece1) |
 | <a id="unigram1"></a>unigram@1 | [unigram@1](docs/architecture/tokenizers.md#unigram1) |
 | <a id="backends"></a>Backends | [Backends](docs/architecture/backends.md#backends) |
-| <a id="mlx"></a>MLX | [MLX](docs/architecture/backends.md#mlx) |
 | <a id="runtime"></a>Runtime | [Runtime](docs/architecture/runtime.md#runtime) |
 | <a id="artifacts"></a>Artifacts | [Artifacts](docs/architecture/formats.md#artifacts) |
 | <a id="safetensors-1"></a>safetensors 1 | [safetensors 1](docs/architecture/formats.md#safetensors-1) |
@@ -76,7 +74,6 @@ Old fragment links land here. Follow the section link to its current location.
 | <a id="baseline"></a>Baseline | [Baseline](docs/architecture/process.md#baseline) |
 | <a id="writing"></a>Writing | [sentence_vectors 1](docs/architecture/store.md#sentence_vectors-1) |
 | <a id="reading-stored-rows"></a>Reading stored rows | [Numerical contract (`transform_version` 2)](docs/architecture/numerical-contract.md#numerical-contract-transform_version-2) |
-| <a id="device-thread"></a>Device thread | [MLX](docs/architecture/backends.md#mlx) |
 | <a id="from_pretrained"></a>from_pretrained | [Model2Vec models and from_pretrained](docs/architecture/hub.md#model2vec-models-and-from_pretrained) |
 | <a id="model2vec-models"></a>Model2Vec models | [Model2Vec models and from_pretrained](docs/architecture/hub.md#model2vec-models-and-from_pretrained) |
 | <a id="compatibility-limit-of-persistence"></a>Compatibility limit of persistence | [model2vec compatibility (fse.StaticModel)](docs/architecture/hub.md#model2vec-compatibility-fsestaticmodel) |
