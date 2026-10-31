@@ -105,6 +105,18 @@ def test_no_ref_or_snapshot_raises_file_not_found(fake, revision):
         _files(fake, revision)
 
 
+def test_a_cache_filled_by_fse_alone_has_no_ref_and_loads_by_commit(fake):
+    """fse downloads at the commit it resolved, which leaves no refs/main (as before this
+    change): a revision name needs a ref, the commit hash does not."""
+    fake.refs = False
+    online = _load(fake)
+    assert not (fake.folder() / "refs").exists()
+    with pytest.raises(FileNotFoundError, match="no ref 'main'"):
+        _load(fake, local_files_only=True)
+    offline = _load(fake, revision=COMMIT, local_files_only=True)
+    assert offline.fingerprint == online.fingerprint
+
+
 def test_an_empty_cache_raises_file_not_found(fake):
     with pytest.raises(FileNotFoundError, match="no ref 'main'"):
         _files(fake)

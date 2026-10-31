@@ -23,6 +23,10 @@ class FakeHub:
     def __init__(self, cache, repo, files, lfs=LFS):
         self.cache, self.repo, self.files, self.lfs = cache, repo, files, lfs
         self.pins = {}
+        # Whether a download leaves refs/main. The real hf_hub_download does so only for a
+        # revision by name, and fse downloads at the commit it resolved, so a cache filled by
+        # fse alone has no ref; the tests keep it for the offline loads by revision name.
+        self.refs = True
         self.asked = []
         self.HfApi = lambda: self  # huggingface_hub's class, which this fake stands for
 
@@ -59,7 +63,8 @@ class FakeHub:
             if revision not in (None, "main", COMMIT) or not os.path.lexists(path):
                 raise FileNotFoundError(f"{name} is not in the cache")
             return str(path)
-        self.write_ref("main")
+        if self.refs:
+            self.write_ref("main")
         data = self.files[name]
         blob = (
             self.folder()
