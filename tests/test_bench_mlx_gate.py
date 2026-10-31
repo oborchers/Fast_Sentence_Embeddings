@@ -78,9 +78,10 @@ def test_idle_receipt_cannot_loosen_the_fixed_formula(modules, receipt):
 
 @pytest.mark.parametrize(("baseline", "limit"), [(0, 1.5), (2.39, 3.89), (4, 5)])
 def test_normal_idle_formula_is_unchanged(modules, baseline, limit):
-    assert modules.mlx_gate_safety.threshold(
-        {"valid": True, "baseline": baseline, "max_load": limit}
-    ) == limit
+    assert (
+        modules.mlx_gate_safety.threshold({"valid": True, "baseline": baseline, "max_load": limit})
+        == limit
+    )
 
 
 @pytest.fixture
@@ -118,9 +119,7 @@ def test_threshold_override_requires_exact_policy_actor_and_aware_timestamp(
 @pytest.mark.parametrize(
     "decision", [None, {}, {"policy": "dr147-oliver-limit-5@1"}, {"extra": True}]
 )
-def test_incomplete_threshold_override_is_not_silently_ignored(
-    modules, override_receipt, decision
-):
+def test_incomplete_threshold_override_is_not_silently_ignored(modules, override_receipt, decision):
     override_receipt["threshold_override"] = decision
     with pytest.raises(ValueError, match="threshold override"):
         modules.mlx_gate_safety.threshold(override_receipt)
