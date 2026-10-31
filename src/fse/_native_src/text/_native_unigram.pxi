@@ -202,6 +202,7 @@ cdef class UnigramState:
                         charsmap, replacement, max_tokens, max_chars, drop_unknown,
                         _wp_int(_trie_units, "_trie_units", 1))
         except BaseException:
+            fse_trie_free(&self.trie)
             self._state = TABLE_FAILED
             raise
         self._state = TABLE_READY
@@ -253,7 +254,10 @@ cdef class UnigramState:
         private, for tests. Reject malformed input before entering native code."""
         self._check_ready()
         data.decode("utf-8")
-        cdef const unsigned char *q = data
+        # Generic VocabTable probes may read masked words past the logical end,
+        # just as they do in the padded production normalization buffers.
+        cdef bytes padded = data + b"\0" * 32
+        cdef const unsigned char *q = padded
         cdef Py_ssize_t m = len(data), count = 0, k, j
         cdef Workspace ws = Workspace()
         cdef int err

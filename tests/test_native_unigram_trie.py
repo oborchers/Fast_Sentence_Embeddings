@@ -157,3 +157,25 @@ def test_candidate_hook_refuses_invalid_utf8(generic):
     state = _state([b"<unk>", b"a"], _generic=generic)
     with pytest.raises(UnicodeDecodeError):
         state._candidates(b"a\xff")
+
+
+def test_failure_after_building_the_trie_releases_its_allocations(monkeypatch):
+    arguments = _arguments([b"<unk>", b"a", b"ab"])
+    state = _native.UnigramState.__new__(_native.UnigramState)
+
+    def fail(*_args):
+        raise MemoryError("after trie construction")
+
+    monkeypatch.setattr(np, "diff", fail)
+    with pytest.raises(MemoryError, match="after trie construction"):
+        state.__init__(*arguments)
+    assert state._trie_blocks == 0
+    with pytest.raises(RuntimeError, match="was not built"):
+        state._candidates(b"a")
+
+
+@pytest.mark.parametrize("length", [1, 2, 3, 7, 8, 9, 15, 16, 17])
+def test_generic_hook_handles_short_suffixes_at_word_boundaries(length):
+    tokens = [b"<unk>", *[b"a" * n for n in range(1, 18)]]
+    data = b"a" * length
+    assert _state(tokens, _generic=True)._candidates(data) == _state(tokens)._candidates(data)

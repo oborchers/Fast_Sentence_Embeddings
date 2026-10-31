@@ -28,12 +28,24 @@ from bench_unigram import child, folder, fse_lookup, run_fse, texts
 
 def identity() -> dict:
     import fse
+    from fse import _native
+    from fse._container._hash import checksum
 
     path = Path(fse.__file__).resolve()
     commit = subprocess.check_output(
         ["git", "-C", str(path.parent), "rev-parse", "HEAD"], text=True
     ).strip()
-    return {"fse": str(path), "commit": commit}
+    native = Path(_native.__file__).resolve()
+    dirty = subprocess.check_output(
+        ["git", "-C", str(path.parent), "status", "--porcelain", "--untracked-files=no"], text=True
+    ).strip()
+    return {
+        "fse": str(path),
+        "commit": commit,
+        "native": str(native),
+        "native_checksum": checksum(native.read_bytes()),
+        "source_dirty": bool(dirty),
+    }
 
 
 def fuzz() -> list[str]:
@@ -98,7 +110,9 @@ def load(corpus: str | None = None, *, measure_lookup: bool = True) -> dict:
 def worker(argv: list[str]) -> None:
     mode = argv[0]
     meta = identity()
-    if mode == "ids":
+    if mode == "identity":
+        result = {}
+    elif mode == "ids":
         result = ids()
     elif mode in ("load", "load-profile"):
         result = load(argv[1] if len(argv) > 1 else None, measure_lookup=mode == "load")
