@@ -110,8 +110,12 @@ def test_headers_survive_short_writes_and_no_progress_raises(tmp_path, monkeypat
 @pytest.mark.parametrize("libc_api", ["native", "syscall"])
 def test_publishing_never_replaces_a_directory(tmp_path, monkeypatch, libc_api):
     if libc_api == "syscall":
-        if sys.platform != "linux":
-            pytest.skip("the direct renameat2 syscall is Linux only")
+        if (
+            sys.platform != "linux"
+            or os.uname().machine not in ("x86_64", "aarch64")
+            or ctypes.sizeof(ctypes.c_void_p) != 8
+        ):
+            pytest.skip("the direct renameat2 syscall needs 64-bit Linux x86_64 or aarch64")
         # Exercise musl's missing wrapper on glibc too, with the actual kernel syscall.
         libc = ctypes.CDLL(None, use_errno=True)
         monkeypatch.setattr(
