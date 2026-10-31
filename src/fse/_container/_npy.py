@@ -84,8 +84,10 @@ def _manifest_bytes(path: Path, file: Path) -> bytes:
     """The bytes of the manifest ``file`` of the artifact directory ``path``, bounded."""
     if not path.is_dir():
         raise FileNotFoundError(f"{path} is not a directory with an artifact")
-    if not os.path.lexists(file):
-        raise CorruptArtifactError(f"{path} has no {MANIFEST}")
+    try:
+        os.lstat(file)
+    except FileNotFoundError:
+        raise CorruptArtifactError(f"{path} has no {MANIFEST}") from None
     with _open_regular(file) as handle:
         size = os.fstat(handle.fileno()).st_size
         if size > MAX_MANIFEST_BYTES:

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from fse._head import Classifier, PredictedBatch, Regressor
     from fse._runtime import MemorySink, Sink
     from fse._static_model import StaticModel
-    from fse._store import SearchResult, ShardSink, VectorStore
+    from fse._store import SearchResult, ShardSink, VectorStore, repair_store
 del TYPE_CHECKING  # not a name of fse
 
 # The encoder, the static model and the sinks load on first access (PEP 562), not when fse is
@@ -39,7 +39,7 @@ _LAZY = {
     ),
     **dict.fromkeys(("MemorySink", "Sink"), "fse._runtime"),
     "StaticModel": "fse._static_model",
-    **dict.fromkeys(("SearchResult", "ShardSink", "VectorStore"), "fse._store"),
+    **dict.fromkeys(("SearchResult", "ShardSink", "VectorStore", "repair_store"), "fse._store"),
     **dict.fromkeys(("Classifier", "PredictedBatch", "Regressor"), "fse._head"),
 }
 
@@ -107,4 +107,5 @@ __all__ = [
     "__version__",
     "disable_logging",
     "enable_logging",
+    "repair_store",
 ]

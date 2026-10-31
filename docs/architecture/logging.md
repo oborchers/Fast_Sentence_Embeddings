@@ -40,8 +40,11 @@ fse logs through the standard library only, on the fixed loggers `fse.artifact` 
 | `store.cleanup_failed` | WARNING | `fse.store` | error, errno | a temporary shard or store directory that could not be removed while an error is raised |
 | `store.opened` | INFO | `fse.store` | rows, shards, dim, dtype, backend, unsynced_shards, verified_bytes, verify_seconds | `VectorStore.open` |
 | `store.verified` | INFO | `fse.store` | rows, shards, seconds | `VectorStore.verify` |
+| `store.repaired` | INFO | `fse.store` | rows, moved_shards, moved_rows, seconds | `repair_store`, in the calling thread |
 | `store.search` | DEBUG | `fse.store` | queries, k, mode (`exact`, `blas`), rows, workers | `VectorStore.search`, once per call |
 
 Tests fail on every WARNING or higher of fse that no `support.logs.expect_log` expected, in setup, call and teardown (`tests/conftest.py`); a suite that causes a warning by design marks itself `expected_log(event)`.
 
 For `store.opened`, `unsynced_shards` counts shards tagged `fse.durability=none`. `verified_bytes` counts their mapped tensor data bytes, excluding headers and manifests. `verify_seconds` covers their checksum and value checks. All three fields are zero for an untagged snapshot.
+
+For `store.repaired`, `rows` is the kept prefix length. `moved_rows` sums the row counts of moved entries whose structure was readable; it is `None` if any moved entry has an unknown row count. It is zero when nothing moved. A failed repair raises without also emitting this event.

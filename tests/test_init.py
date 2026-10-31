@@ -146,7 +146,7 @@ def test_public_api_is_pinned():
         "VectorStore",
         "WordVectors",
     ]
-    functions = ["disable_logging", "enable_logging"]
+    functions = ["disable_logging", "enable_logging", "repair_store"]
     assert fse.__all__ == [*names, "__version__", *functions]
     public = {name for name in dir(fse) if not name.startswith("_")}
     assert public - {"gensim"} == {*names, *functions}

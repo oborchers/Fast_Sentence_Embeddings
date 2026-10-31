@@ -84,8 +84,9 @@ class PowerLoss:
     ``points`` includes a crash immediately before and after every sync or mutation.
     """
 
-    def __init__(self, root: Path, monkeypatch, platform: str):
+    def __init__(self, root: Path, monkeypatch, platform: str, *, include_hidden=False):
         self.root, self.platform = root, platform
+        self.include_hidden = include_hidden
         self.baseline = self.previous = Tree.read(root)
         self.root_inode = root.stat().st_ino
         self.units: list[Unit] = []
@@ -190,7 +191,7 @@ class PowerLoss:
         for index in range(count):
             if index in selected:
                 _apply(self.units[index], entries, sizes, data, torn=index in torn)
-        return _visible(self.root_inode, entries, sizes, data)
+        return _visible(self.root_inode, entries, sizes, data, include_hidden=self.include_hidden)
 
 
 def _subsets(pending, data_units, seed):
@@ -254,8 +255,8 @@ def _apply(unit, entries, sizes, data, *, torn=False):
         target[offset : offset + len(raw)] = raw
 
 
-def _visible(root, entries, sizes, data):
-    """Ignore hidden work directories, exactly as the store reader does."""
+def _visible(root, entries, sizes, data, *, include_hidden=False):
+    """Project visible entries; repair tests can retain hidden quarantine contents."""
     out, todo = {}, [(root, "")]
     children = {}
     for (parent, name), inode in entries.items():
@@ -263,7 +264,7 @@ def _visible(root, entries, sizes, data):
     while todo:
         parent, prefix = todo.pop()
         for name, inode in children.get(parent, []):
-            if name.startswith("."):
+            if name.startswith(".") and not include_hidden:
                 continue
             path = prefix + name
             if inode in sizes or inode in data:
