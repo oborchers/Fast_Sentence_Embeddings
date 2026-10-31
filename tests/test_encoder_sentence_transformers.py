@@ -6,6 +6,7 @@ tests/test_encoder_sentence_transformers_parity.py.
 """
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -14,6 +15,7 @@ from fse._container import CorruptArtifactError
 from fse._contract import Batch, Normalize, UnsupportedArtifactError
 from fse._encoder import Encoder
 from fse._encoder._format import Source
+from fse._encoder._sentence_transformers import static_folder
 from support import converted as cv
 from support import quantized as qz
 from support import sentence_transformers as st
@@ -204,9 +206,9 @@ def test_a_normalize_module_is_refused(model, spelling):
 @pytest.mark.parametrize(
     ("activation", "match"),
     [
-        ("torch.nn.modules.linear.Identity", "Dense module .* does not fold"),
-        ("torch.nn.modules.activation.Tanh", "no static embedding model"),
-        (None, "no static embedding model"),
+        ("torch.nn.modules.linear.Identity", "Dense module .* does not read"),
+        ("torch.nn.modules.activation.Tanh", "Dense module .* does not read"),
+        (None, "Dense module .* does not read"),
     ],
 )
 def test_a_dense_module_is_refused(model, activation, match):
@@ -217,6 +219,50 @@ def test_a_dense_module_is_refused(model, activation, match):
             json.dumps({"in_features": 16, "out_features": 4, "activation_function": activation})
         )
     with pytest.raises(UnsupportedArtifactError, match=match):
+        Encoder.from_pretrained(model)
+
+
+class _Spy:
+    """The files of a model of which only modules.json exists: any other access to a file
+    is recorded and refused."""
+
+    source = None
+    revision = None
+
+    def __init__(self, modules):
+        self.modules = json.dumps(modules).encode()
+        self.accessed = []
+
+    def has(self, name):
+        self.accessed.append(("has", name))
+        raise AssertionError(f"has({name!r})")
+
+    def where(self, name):
+        return Path(name)
+
+    def read(self, name, **_):
+        if name != "modules.json":
+            self.accessed.append(("read", name))
+            raise AssertionError(f"read({name!r})")
+        return self.modules
+
+
+@pytest.mark.parametrize("path", ["1_Dense", "", ".", "../x", "a/b", 5, None, "a b"])
+def test_a_dense_module_is_refused_without_reading_its_folder(path):
+    """Neither its path nor its config.json is looked at: a broken one cannot change the
+    refusal."""
+    module = {**_dense(), "path": path}
+    spy = _Spy([_static(), module])
+    with pytest.raises(UnsupportedArtifactError, match="Dense module"):
+        static_folder(spy)
+    assert spy.accessed == []
+
+
+def test_a_dense_module_with_a_broken_config_is_refused_as_a_dense_module(model):
+    _modules(model, _static(), _dense())
+    (model / "1_Dense").mkdir()
+    (model / "1_Dense" / "config.json").write_bytes(b"{")
+    with pytest.raises(UnsupportedArtifactError, match="Dense module"):
         Encoder.from_pretrained(model)
 
 
