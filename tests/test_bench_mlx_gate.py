@@ -142,7 +142,7 @@ def test_override_cannot_change_real_baseline_limit_or_idle_validity(
     modules, override_receipt, field, value
 ):
     override_receipt[field] = value
-    with pytest.raises(ValueError, match="idle receipt|threshold override"):
+    with pytest.raises(ValueError, match=r"idle receipt|threshold override"):
         modules.mlx_gate_safety.threshold(override_receipt)
 
 
