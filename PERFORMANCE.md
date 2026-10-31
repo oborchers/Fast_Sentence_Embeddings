@@ -450,7 +450,54 @@ Normal baseline: the predeclared median of all eleven fixed uptime 1-minute read
 
 Actual pair guards classify 150 accepted pairs/50 cells as low, 30 pairs/10 cells as elevated-only, no mixed/unknown. Accepted load range: 2.09033203125 to 4.6435546875. No accepted cell spans regimes, so within-cell load/spread dependence is not identifiable. Separate same-cell exploratory partial-pair comparisons show wider higher-load ranges in two tiny comparisons, but lack full historical restart/acceptance and share attempt/order confounds. A third n=1 group cannot establish spread. Cross-cell mixtures do not support load or Defender causality. Every valid higher-load cell is retained; partial or discarded rounds never supply acceptance.
 
-The seven attempts consumed 532.6694807500007/1800 active seconds globally and 523.0340705840008/900 for the matrix. All reservations settled without overrun. **Required CPU/allocation/RSS profiling has not run because the current instruction forbids profiles.** Hot-function attribution and memory peaks are unavailable. MLX policy remains **undecided**, ticket acceptance is incomplete and the PR remains draft. Proposed future profile: raw MRL1024/WikiText float32, actual CPU-default 12 versus MLX default, as the closest median comparison with narrower MLX A/A spread than normalized. This is a proposal, not permission to profile or a backend-policy decision.
+### Completed deciding-cell profiles
+
+All six requested make targets completed on profile commit 937860e99f1f6c373bb04d7fd2f8a5272e4cb29f: raw MRL1024/full WikiText/float32, CPU12 and MLX default12. Samply guards were CPU 2.6650390625 to 3.01171875 and MLX 2.7822265625 to 2.8505859375, strictly below 5. Memory/RSS-only limit 20 was explicit but never needed: every six-profile guard stayed below 5 (maximum 4.9619140625). All first/last bits matched accepted references; no fallback. Fresh guarded scratch Make overrides avoided deletion and checked every recorder/summary. Actual profile_top, native memray temporal/stats and RSS outputs remain local.
+
+Offline mapping: sample Unix ms = meta.startTime + samples.time[i], contained exactly in [1000*encode_start,1000*encode_stop], no padding/rounding. Inclusive samples: CPU 30771, MLX 39125. Encode-only: CPU 28253, MLX 36706. The denominator below is non-null thread-stack samples summed over all threads in that scope, including waiting stacks. These are exclusive self sample shares, **not end-to-end wall percentages or summed thread-time fractions**. Loading/guard __open samples are excluded by filtering.
+
+| Function/proxy | CPU inclusive / encode-only sample % | MLX inclusive / encode-only sample % |
+|---|---|---|
+| fse_loop_f32_neon | 42.3808 / 46.0447 | not resolved |
+| host _wp_piece | 11.6993 / 12.7385 | 6.2696 / 6.6610 |
+| __psynch_cvwait | 32.7939 / 35.5290 | 63.8722 / 67.7437 |
+| __workq_kernreturn | 0.0130 / 0.0000 | 13.0888 / 13.6272 |
+| IOKit+0x1ecc0 | not resolved | 4.3834 / 4.6314 |
+| _platform_memmove | 0.3770 / 0.3752 | 0.5725 / 0.5530 |
+| FLOAT_absolute (bounds proxy only) | not resolved | 0.3425 / 0.3623 |
+
+All IOKit offsets together give 4.6341198% encode-only (1701 samples), versus the dominant symbol 4.6313954% (1700); one sample is IOKit+0x1ecbc. Neither measures GPU transfer wall cost. Copy samples occur on main and unlabelled native threads; worker/device roles and critical-path overlap are not recoverable from names alone.
+
+| Exact peak measure | CPU bytes | MLX bytes | Scope |
+|---|---:|---:|---|
+| Native memray peak | 1308904403 | 1318022310 | FileReader.metadata.peak_memory, whole traced process including loading/checks |
+| RSS target-tree sampled peak | 382844928 | 579715072 | tools/rss.py CSV maximum, separate recording |
+| MLX allocator peak in mem recording | not applicable | 137620176 | get_peak_memory since process start |
+
+These are different, overlapping scopes and must not be summed. Native cumulative allocation is not the peak and is not normalized per call. Instrumented record durations/call counts are not throughput comparisons.
+
+| Desired deciding-cell end-to-end wall share | Result | Method limit | Smallest additional probe, not run |
+|---|---|---|---|
+| GPU transfer | unmeasured/not identifiable, no wall % | IOKit stacks do not isolate shared-memory conversion, device transfer or overlap. | Correlate input-conversion spans and Metal command-buffer timestamps with call/group IDs. |
+| Critical-path copy, worker | unmeasured/not identifiable, no wall % | memmove samples have no reliable role/critical-path mapping. | Tag worker _use/np.copyto spans and native thread IDs; reconstruct overlap on the call DAG. |
+| Critical-path copy, device thread | unmeasured/not identifiable, no wall % | No isolated device-copy span or counterfactual was recorded. | Tag device finish/copy spans separately, correlated with worker leases and group IDs. |
+| Group-boundary wait | unmeasured/not identifiable, no wall % | cvwait combines multiple conditions and overlapping workers. | Timestamp group evaluation start/finish and boundary waits, with group/call IDs. |
+| Queue wait | unmeasured/not identifiable, no wall % | Queue enqueue/take timestamps were not recorded. | Timestamp enqueue/take/done per job and correlate with the critical path. |
+| Host WordPiece | unmeasured/not identifiable, no wall % | Parallel leaf sample shares are not exclusive wall duration. | Tag per-task WordPiece spans and overlap within each encode window. |
+| Token/bucket checks | unmeasured/not identifiable, no wall % | No isolated check span or resolved exclusive symbol. | Tag host validation spans without removing safety checks. |
+| _bounds | unmeasured/not identifiable, no wall % | FLOAT_absolute is a native proxy, not the complete Python bounds function. | Tag bounds subcalls on each worker and preserve overlap/critical-path correlation. |
+| memmove | unmeasured/not identifiable, no wall % | Generic sampled copies include unrelated movement; role/overlap unknown. | Tag call-site copy spans and worker/device roles; do not sum overlapping thread times. |
+| Fixed per-call costs | unmeasured/not identifiable, no wall % | A single workload provides no fixed-cost intercept. | Use a separately authorized small batch-size probe with unchanged outputs and validated overhead. |
+
+The desired denominator is end-to-end encode wall time. Samples do not partition that critical path: overlapping worker times cannot be added, and cvwait cannot be split into queue/group/GPU causes. Unresolved costs are not zero. Any proposed instrumentation needs separate authorization and an unchanged-output probe validated within10% of base before ablation; none was run.
+
+Compared with the M1 "Device thread, measured" table in docs/architecture/backends.md, the reported lease/copy ablation was on MRL1024/MASSIVE at 8 workers: moving copy to the device thread cost 1.179 (1.141 to 1.289), while WikiText was 1.007 (0.977 to 1.078). Its base profile reported 37% cvwait, 11 to 12% WordPiece and 8.8% memmove samples. Our M4 profile is WikiText at 12 workers with encode-window filtering, not a matching workload/scope. The M1 mechanism finding does not supply M4 wall shares or justify removing the lease; group-boundary benefit remains unproved here.
+
+The small-dimension explanation is limited to the observed WikiText trend: MRL float32 raw MLX/CPU10 rises from 0.9893 at 1024 to 2.2066 at 256. Retained host WordPiece and waiting samples are compatible with less useful GPU work relative to host work as rows shrink, but this is inference, not a measured per-cause decomposition. It is not universal: MASSIVE raw is 1.8007 at 1024 and 1.8027 at 256; normalized is 2.6997 versus 2.3071. Larger dimensions do not consistently rescue MLX across corpora.
+
+Recommendation for Oliver: retain CPU as default and MLX as opt-in; the measured near tie does not justify a default change, while host work/waits remain visible. This is a recommendation, not a policy decision or runtime change. MLX policy remains undecided and PR remains Draft by explicit instruction.
+
+Whole six-profile recording/startup/model-loading/postprocess charge 60.617446750000454 seconds, reservation 360, no retries. Global 593.2869275000012/1800, matrix fixed 523.0340705840008/900. One own terminal lock was verified and Finder-released; immediate/delayed checks found no duplicates. Raw profiles/windows/symbols/traces/CSV and wrapper sources are preserved under dr147-profiles-3101e4a7fdd8 in task scratch. Compact profiles.json and profile_offline.py replay the existing evidence without a new recording. No extra measurement or ablation.
 
 ## Sources
 

@@ -2,7 +2,7 @@
 
 DR-147 (MLX-Gate entscheiden und auf dem M4 Pro nachmessen), measured 31 October 2026 on an Apple M4 Pro using Codex.
 
-The 60-cell matrix is complete. Required CPU, allocation and RSS profiles have **not run due the current no-profile instruction**. Hot-function attribution and memory peaks are therefore unavailable. MLX policy remains **undecided**, ticket acceptance is incomplete and the PR must remain draft.
+The 60-cell matrix and six requested representative profiles are complete. Per-cause end-to-end wall percentages remain unmeasured/not identifiable, explicitly tabulated in PERFORMANCE.md and the full report. MLX policy remains undecided; PR stays Draft by instruction. See profiles.json and profile_offline.py for sample shares and exact memory peaks.
 
 ## Replay without measurements
 
@@ -43,10 +43,16 @@ Per pair: low means every observation <3.89; elevated-only means every observati
 
 No accepted cell spans regimes. Accepted within-cell load/spread dependence is therefore not identifiable. Cross-cell/model comparisons are confounded. `exploratory` separately retains valid pairs from incomplete historical cells and the one-round pilot; none contributes to acceptance. Old partial cells lack complete/restart acceptance. Replay keeps their n=1 group width null. Same-cell exploratory higher-load ranges are wider in the two comparisons with n>=2 groups, but tiny samples and different attempt/order/threshold history prevent causal attribution to load or Defender. No discarded round is reused and no inconvenient higher-load cell is dropped.
 
-## Costs and outstanding evidence
+## Matrix-cutoff costs and later profile evidence
 
 Global actual charge: 532.6694807500007/1800 seconds, remaining 1267.3305192499993. Matrix actual: 523.0340705840008/900, remaining 376.9659294159992. Every reservation settled without overrun. Replay recomputes accounts from the original ledger. Remaining budget is not permission for new profiles or measurements.
 
 Against CPU10 only the raw MRL1024/WikiText float32 cell has median MLX time below CPU time: 0.989344, range 0.962579 to 1.440726. That near tie does not demonstrate a robust advantage. Its actual CPU-default comparison is 1.183355, range 1.088285 to 1.660089. Normalized MLX A/A varies from 0.544806 to 1.844942. No policy conclusion follows.
 
-Proposed future deciding configuration: MRL1024/WikiText/raw/float32, full 5352 texts, CPU actual default 12 versus MLX default (12 here). It is the closest median comparison to parity and has narrower MLX A/A spread than normalized. Required profiling is not run and needs separate authorization. No hot functions or memory peaks are invented. See PERFORMANCE.md and the local full report `/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-report.md`.
+Selected configuration for the later separately authorized six profiles: MRL1024/WikiText/raw/float32, full 5352 texts, CPU actual default 12 versus MLX default (12 here). It is the closest median comparison to parity and has narrower MLX A/A spread than normalized. The later separately authorized six profiles are now complete; see profiles.json for actual functions/peaks and unresolved wall attribution. See PERFORMANCE.md and the local full report `/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-report.md`.
+
+## Completed profile replay
+
+`uv run --no-sync --offline python benchmarks/evidence/dr147-m4/profile_offline.py /path/to/dr147-profiles-3101e4a7fdd8` reads existing local traces only. It maps sample Unix ms from meta.startTime + samples.time into exact encode windows, then uses tools/profile_top.py Symbols/thread_counts. Inclusive and encode-only self sample shares are distinct from wall time. Exact native peaks come from memray.FileReader.metadata.peak_memory. CPU 1308904403 bytes and MLX 1318022310 bytes are whole-process peaks, not cumulative or per-call allocations. RSS and MLX allocator scopes overlap and are not summed. Full per-thread data remains local; profiles.json retains busiest eight per scope, without assuming thread roles.
+
+The earlier matrix accounting is its historical cutoff. Current combined root charge is593.2869275000012, with matrix fixed 523.0340705840008 and separate six-profile charge 60.617446750000454. No extra measurement, speculative ablation or policy decision. The full report and PERFORMANCE.md compare the M1 table with workload/filtering caveats and restrict small-dimension inference to WikiText, preserving the MASSIVE counterexample.

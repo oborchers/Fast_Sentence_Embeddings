@@ -217,7 +217,7 @@ def summarize(data: dict) -> dict:
 
 def render(result: dict) -> str:
     lines = [
-        "60 complete cells, three valid pairs each. Required profiles: not run. MLX policy: undecided.",
+        f"60 complete cells, three valid pairs each. Profiles: {result['status']['required_profiles']}. MLX policy: undecided.",
         "",
         "Ratios are MLX time / CPU time, computed per pair before aggregation.",
         "",

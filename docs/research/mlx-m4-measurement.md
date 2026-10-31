@@ -4,8 +4,8 @@ DR-147 (MLX-Gate entscheiden und auf dem M4 Pro nachmessen) uses the frozen base
 `c754efd382f7b42504d140cabf5aab6e40ad51bb`. This driver was written on an M4 Pro
 using Codex. It changes no inference code. Completed matrix evidence is in
 `benchmarks/evidence/dr147-m4/`; `benchmarks/report_mlx_gate.py` replays it without
-measurements. Required profiling has not run under the current no-profile instruction;
-MLX policy and full ticket acceptance remain open.
+measurements. Six representative profiles are recorded separately at evidence commit 937860e.
+Per-cause wall attribution remains unresolved; MLX policy and final inspection remain open.
 
 `benchmarks/bench_mlx_gate.py list` lists all 60 required cells. Each crosses five
 model/dimension variants, two corpora, raw/normalized output and three table dtypes.
@@ -177,3 +177,5 @@ claims. The current draft is a driver checkpoint, not completed gate evidence.
 Primary sources: [MLX evaluation](https://ml-explore.github.io/mlx/build/html/usage/lazy_evaluation.html),
 [MLX unified memory](https://ml-explore.github.io/mlx/build/html/usage/unified_memory.html),
 [Hub revisions](https://huggingface.co/docs/huggingface_hub/guides/download).
+
+Completed profile provenance, guarded scratch target overrides, phase/sample mapping and exact peaks are in `benchmarks/evidence/dr147-m4/profiles.json`. The read-only `profile_offline.py` reproduces inclusive versus encode-only sample shares from local raw traces. These are not wall percentages. Memory/RSS-only limit20 exceptions were explicit but every observed profile guard stayed below5. Ordinary timing policy and idle data were unchanged. No ablation or policy change followed.
