@@ -88,10 +88,9 @@ def test_separate_runs_keep_step_order_and_multiple_byte_tables():
 
 
 def test_ascii_charsmap_fast_path_matches_every_pair_and_grapheme_context():
-    from support.charsmap import build
-
     from fse import _reference_unigram as ref
     from fse._charsmap import Charsmap
+    from support.charsmap import build
 
     mapping = {chr(c): f"v{c}" for c in range(1, 128)}
     mapping.update({"\r\n": "pair", "a\u0301": "accent", "\u0915": "K"})
@@ -114,9 +113,8 @@ def test_ascii_charsmap_fast_path_matches_every_pair_and_grapheme_context():
 
 
 def test_cached_ascii_values_keep_broken_charsmap_errors():
-    from support.charsmap import build
-
     from fse._charsmap import Charsmap
+    from support.charsmap import build
 
     units, values, root = Charsmap(build({"a": "é"})).parts()
     # Every leaf points to a value: move its start inside the UTF-8 code point.
