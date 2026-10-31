@@ -11,6 +11,47 @@ On an M1 Pro (8 performance and 2 efficiency cores), master of 30.10.2026 with P
 - **The measurements show no memory bandwidth limit**, also not at 1024 dimensions. static-retrieval-mrl-en-v1 at 1024 dimensions reads 164 to 197 GB/s of table rows (logical bytes) with 8 or 10 workers. That is 82 to 99 % of Apple's 200 GB/s, but more than any reader of the probe got from memory (115.6 GB/s at most). This points to many rows coming from the caches; it is no proof, because the probe gives lower estimates and hardware counters were not read. What the measurements do show: pooling is the largest stage, 72 to 83 % of the time of one worker when timed on its own; that time includes its waits for memory, which these measurements do not separate from its arithmetic.
 - **int8 tables at 1024 dimensions** are 1.20 to 1.34 times as fast as float32 on WikiText and 0.98 to 1.10 times on MASSIVE, end to end.
 
+## RunPod Linux x86 observations
+
+DR-190 (Profiling-Durchgang auf Linux x86 bei RunPod durchführen), 31.10.2026,
+source `4d92d61`: the primary run used an AMD EPYC 9655P host with 96 physical
+cores and a pod affinity of 32 logical CPUs, 64 GB memory limit and an overlay
+filesystem. Host load ranged from 4.94 to 10.31. These are single observations
+on a shared host, not a stable performance baseline. The
+[`runpod-epyc-9655p` profile](benchmarks/roofline_hardware.toml) records the
+observed read references. Its host core count does not calibrate the model's
+per-core/Amdahl predictions for pod affinity or SMT placement.
+
+| workers | sum read GB/s | random pooling GB/s | runtime float32 sentences/s | normalized sentences/s |
+|---|---|---|---|---|
+| 1 | 31.59 | 21.35 | 1,652,196 | 1,294,669 |
+| 8 | 130.17 | 64.62 | 8,915,302 | 7,870,744 |
+| 16 | 182.98 | 113.94 | 11,903,145 | 11,366,842 |
+| 32 | 235.47 | 188.23 | 11,043,664 | 9,546,759 |
+
+The probe uses a 1 GiB float32 table at dimension 1024, warm-up and the fastest
+of three passes. Runtime uses 200,000 synthetic sentences at dimension 300 and
+one round. GB/s counts logical bytes, not measured DRAM traffic. The runtime
+peaks at 16 workers in this sample. A WordPiece WikiText trace is 44.68% busy
+at 16 workers and 26.58% at 32, with ramp-up the largest idle cause.
+
+Native one-worker profiles attribute 46.17% inclusive active samples to
+WordPiece's sentence tokenizer and 43.00% to AVX2 pooling. Unigram's token-piece
+entry has 71.30%, versus 12.01% pooling. Inclusive totals overlap; active-thread
+samples are not wall-time fractions. This supports deferring an AVX-512 pooling
+path while investigating tokenization and short-call scheduling. No AVX-512
+comparison or float16/int8 input-pooling measurement was made.
+
+Full/none store pairs verified with matching data digests. File/directory sync
+p50 was 0.042/0.047 ms. A second observation, on EPYC 9B45 at host load above
+1000, gave 55.58/63.41 ms; it measures host/storage variation, not same-host
+repeatability or a Linux-wide cost. Two multiworker profiles wrote samples but
+their recorder exited with `No child process (os error 10)` before table
+reduction; their function shares remain unavailable. The
+[evidence summary](benchmarks/baseline/dr190_runpod_20261031.json) preserves both
+hosts, results, profile failures and limitations. No paired optimization gain
+is claimed.
+
 ## The model in plain words
 
 fse turns a text into a vector in a few steps: the strings are joined into one buffer, the buffer is cut into tasks, each task is tokenized and its token rows are averaged (pooled), and the result is normalized. The work grows with the tokens, so the model counts **tokens per second**. A text costs its tokens: texts per second are tokens per second divided by the tokens per text.
