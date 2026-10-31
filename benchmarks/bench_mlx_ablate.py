@@ -193,24 +193,34 @@ def run_time(args) -> dict:
         max_load=args.max_load,
         budget_s=args.budget,
     )
-    pairs = {f"{a}/{b}": stats(done, a, b) for a, b in COMPARISONS}
-    noise = pairs["base2/base"]["ratios"]
+    return report(args, done, checked, reps, len(texts))
+
+
+def verdicts_of(done, checked: dict, reps: int, pairs: dict) -> tuple[dict, dict, dict]:
+    """Rows and runs differing from base's per side, and the verdict of every comparison
+    (``invalid`` for one with a side whose bits or fallback counts differ)."""
     differs = {n: sum(r["rows_differing"] for r in done.results(n)) for n in NAMES}
     fallback = {n: fallback_differences(done.results(n), checked, reps) for n in NAMES}
     unequal = {n for n in NAMES if differs[n] or fallback[n] or checked[n]["rows_differing"]}
     unequal |= {n for n in NAMES if not checked[n]["fallbacks_equal"]}
-    verdicts = {
-        k: "invalid: bits or fallbacks differ"
-        if unequal & set(k.split("/"))
-        else verdict(v["ratios"], noise)
-        for k, v in pairs.items()
-        if k != "base2/base"
-    }
-    seconds = {n: [round(r["seconds"], 5) for r in done.results(n)] for n in NAMES}
+    noise = pairs["base2/base"]["ratios"]
+    verdicts = {}
+    for key, value in pairs.items():
+        if key != "base2/base":
+            bad = unequal & set(key.split("/"))
+            verdicts[key] = (
+                "invalid: bits or fallbacks differ" if bad else verdict(value["ratios"], noise)
+            )
+    return differs, fallback, verdicts
+
+
+def report(args, done, checked: dict, reps: int, texts: int) -> dict:
+    pairs = {f"{a}/{b}": stats(done, a, b) for a, b in COMPARISONS}
+    differs, fallback, verdicts = verdicts_of(done, checked, reps, pairs)
     return {
         "cell": cell_name(args),
         "workers": args.workers,
-        "texts": len(texts),
+        "texts": texts,
         "reps_per_run": reps,
         "pairs": len(done.kept),
         "discarded": len(done.discarded),
@@ -219,7 +229,7 @@ def run_time(args) -> dict:
         "check": checked,
         "rows_differing_in_runs": differs,
         "fallbacks_differ_in_runs": fallback,
-        "seconds_per_encode": seconds,
+        "seconds_per_encode": {n: [round(r["seconds"], 5) for r in done.results(n)] for n in NAMES},
         "ratios": pairs,
         "verdicts": verdicts,
     }
