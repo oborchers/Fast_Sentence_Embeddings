@@ -17,7 +17,9 @@ from support.store import change_metadata, make_store
 
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("kind", ["container", "quantization", "durability"])
-@pytest.mark.parametrize("damage", ["missing_tensor", "extra_field", "invalid_tensor_entry"])
+@pytest.mark.parametrize(
+    "damage", ["missing_tensor", "extra_field", "invalid_tensor_entry", "missing_container_version"]
+)
 def test_readable_future_identifiers_win_over_known_format_corruption(
     tmp_path, kind, damage, dtype
 ):
@@ -36,8 +38,10 @@ def test_readable_future_identifiers_win_over_known_format_corruption(
         (last / "vectors.npy").unlink()
     elif damage == "extra_field":
         manifest["future_field"] = 1
-    else:
+    elif damage == "invalid_tensor_entry":
         manifest["tensors"]["vectors"] = None
+    else:
+        del manifest["container_version"]
     file.write_text(json.dumps(manifest))
     before = contents(path)
     with captured() as records, pytest.raises(fse.UnsupportedArtifactError):

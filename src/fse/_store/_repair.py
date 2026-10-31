@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fse import _log
-from fse._container import CorruptArtifactError
+from fse._container import CorruptArtifactError, NpyContainer
 from fse._container._common import _strict_json, _sync_directory
 from fse._container._npy import _check_version, _manifest_bytes
 from fse._container._npy_inplace import _rename_exclusive
@@ -116,6 +116,9 @@ def _check_identifiers(directory: Path, info: StoreInfo) -> None:
     manifest = _strict_json(_manifest_bytes(directory, file), file)
     if not isinstance(manifest, dict):
         return  # open_shard diagnoses corruption of the known format
+    container = manifest.get("container")
+    if isinstance(container, str) and container != NpyContainer.name:
+        raise UnsupportedArtifactError(f"{file}: unsupported container {container!r}")
     if "container" in manifest and "container_version" in manifest:
         _check_version(directory, manifest)
     metadata = manifest.get("metadata")
