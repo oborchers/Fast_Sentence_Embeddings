@@ -51,7 +51,7 @@ def test_every_move_syncs_destination_and_source_before_the_next_move(tmp_path, 
 
 
 def _record(path, monkeypatch, platform, *, intermediate=True):
-    damaged_store(path)
+    expected = damaged_store(path)
     with monkeypatch.context() as patch:
         trace = PowerLoss(path, patch, platform, include_hidden=True)
         renamed = []
@@ -70,7 +70,7 @@ def _record(path, monkeypatch, platform, *, intermediate=True):
         patch.setattr(_repair, "_sync_directory", sync)
         assert fse.repair_store(path) == 4
         trace.capture()
-    return trace
+    return trace, expected
 
 
 @POSIX
@@ -78,13 +78,13 @@ def _record(path, monkeypatch, platform, *, intermediate=True):
 def test_power_loss_at_every_repair_event_allows_safe_rerun_and_append(
     tmp_path, monkeypatch, platform
 ):
-    trace = _record(tmp_path / "store", monkeypatch, platform)
+    trace, expected = _record(tmp_path / "store", monkeypatch, platform)
     count = 0
     for state, _ in trace.states():
         image = tmp_path / "image"
         materialize(image, state)
         try:
-            after_crash(image)
+            after_crash(image, expected)
         finally:
             shutil.rmtree(image)
         count += 1
@@ -94,14 +94,14 @@ def test_power_loss_at_every_repair_event_allows_safe_rerun_and_append(
 @POSIX
 @pytest.mark.parametrize("platform", ["linux", "darwin"])
 def test_gap_guard_alone_keeps_every_unsynced_repair_crash_safe(tmp_path, monkeypatch, platform):
-    trace = _record(tmp_path / "store", monkeypatch, platform, intermediate=False)
+    trace, expected = _record(tmp_path / "store", monkeypatch, platform, intermediate=False)
     count = 0
     outcomes = set()
     for state, _ in trace.states():
         image = tmp_path / "image"
         materialize(image, state)
         try:
-            outcomes.add(after_crash(image))
+            outcomes.add(after_crash(image, expected))
         finally:
             shutil.rmtree(image)
         count += 1
@@ -113,7 +113,7 @@ def test_gap_guard_alone_keeps_every_unsynced_repair_crash_safe(tmp_path, monkey
 @POSIX
 @pytest.mark.parametrize("platform", ["linux", "darwin"])
 def test_combined_mutant_relinks_old_rows_after_a_new_append(tmp_path, monkeypatch, platform):
-    trace = _record(tmp_path / "store", monkeypatch, platform, intermediate=False)
+    trace, _ = _record(tmp_path / "store", monkeypatch, platform, intermediate=False)
     monkeypatch.setattr(_recovery, "check_gaps", lambda *_args: None)
     for state, _ in trace.states():
         image = tmp_path / "image"
@@ -141,7 +141,7 @@ def test_a_failed_directory_sync_preserves_partial_work_for_rerun(
     tmp_path, monkeypatch, failed_call
 ):
     path = tmp_path / "store"
-    damaged_store(path)
+    expected = damaged_store(path)
     calls = []
     real = _repair._sync_directory
 
@@ -155,12 +155,12 @@ def test_a_failed_directory_sync_preserves_partial_work_for_rerun(
         patch.setattr(_repair, "_sync_directory", sync)
         with pytest.raises(OSError, match="injected sync failure"):
             fse.repair_store(path)
-    after_crash(path)
+    after_crash(path, expected)
 
 
 def test_a_failed_second_rename_preserves_the_first_move(tmp_path, monkeypatch):
     path = tmp_path / "store"
-    damaged_store(path)
+    expected = damaged_store(path)
     calls = []
     real = _repair._rename_exclusive
 
@@ -175,4 +175,4 @@ def test_a_failed_second_rename_preserves_the_first_move(tmp_path, monkeypatch):
         with pytest.raises(OSError, match="injected rename failure"):
             fse.repair_store(path)
     assert calls == [shard_name(12), shard_name(8)]
-    after_crash(path)
+    after_crash(path, expected)

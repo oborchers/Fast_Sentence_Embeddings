@@ -11,9 +11,17 @@ from support.store import append_rows, make_store
 def damaged_store(path):
     make_store(path, sizes=(4, 4, 4, 4))
     (path / shard_name(4) / "manifest.json").unlink()
+    return {shard_name(row): contents(path / shard_name(row)) for row in (4, 8, 12)}
 
 
-def after_crash(path):
+def contents(path):
+    """All directory entries and file bytes below one shard."""
+    return {
+        str(p.relative_to(path)): p.read_bytes() if p.is_file() else None for p in path.rglob("*")
+    }
+
+
+def after_crash(path, expected):
     """Try a real open and append before rerunning repair, never hiding a gap first."""
     first = np.arange(1, 17, dtype=np.float32).reshape(4, 4)
     try:
@@ -38,6 +46,7 @@ def after_crash(path):
         assert (store.get_vectors(start=4) == 99).all()
         store.verify()
     assert fse.repair_store(path) == 8
-    moved = [p.name for group in path.glob(".broken-*") for p in group.iterdir()]
-    assert sorted(moved) == [shard_name(row) for row in (4, 8, 12)]
+    moved = [p for group in path.glob(".broken-*") for p in group.iterdir()]
+    assert sorted(p.name for p in moved) == sorted(expected)
+    assert {p.name: contents(p) for p in moved} == expected
     return outcome

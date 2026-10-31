@@ -48,7 +48,7 @@ assert fse.repair_store(Path(sys.argv[1])) == 4
 @pytest.mark.parametrize("point", range(1, 19))
 def test_process_crash_at_every_move_and_directory_sync(tmp_path, point):
     path = tmp_path / "store"
-    damaged_store(path)
+    expected = damaged_store(path)
     child = subprocess.run(
         [sys.executable, "-c", CHILD, str(path), str(point)],
         capture_output=True,
@@ -56,14 +56,14 @@ def test_process_crash_at_every_move_and_directory_sync(tmp_path, point):
         check=False,
     )
     assert child.returncode == 77, child.stderr
-    after_crash(path)
+    after_crash(path, expected)
 
 
 def test_repair_finishes_without_a_crash(tmp_path):
     import fse
 
     path = tmp_path / "store"
-    damaged_store(path)
+    expected = damaged_store(path)
     child = subprocess.run(
         [sys.executable, "-c", CHILD, str(path), "100"],
         capture_output=True,
@@ -72,4 +72,4 @@ def test_repair_finishes_without_a_crash(tmp_path):
     )
     assert child.returncode == 0, child.stderr
     assert fse.repair_store(path) == 4
-    after_crash(path)
+    after_crash(path, expected)

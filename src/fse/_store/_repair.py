@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+import errno
 import secrets
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from fse import _log
-from fse._container import CorruptArtifactError
-from fse._container._common import _sync_directory
+from fse._container import CorruptArtifactError, UnsupportedArtifactError
+from fse._container._common import _strict_json, _sync_directory
+from fse._container._npy import _check_version, _manifest_bytes
 from fse._container._npy_inplace import _rename_exclusive
 from fse._validation import PathLike, validate_arguments
 
-from ._layout import StoreInfo, open_shard, read_store, shard_name
+from ._layout import StoreInfo, _check_quantization, open_shard, read_store, shard_name
 from ._recovery import canonical_shards, clear_exception_frames, verify_shard
 
 
@@ -84,14 +86,42 @@ def _checked(path: Path, info: StoreInfo, row: int) -> _Checked:
 
 def _inspect(path: Path, info: StoreInfo, row: int) -> tuple[_Checked, BaseException | None]:
     try:
+        _check_identifiers(path / shard_name(row), info)
         shard, tensors = open_shard(path, info, row)
     except CorruptArtifactError as error:
+        cause = error.__cause__
+        if isinstance(cause, OSError) and cause.errno not in (
+            errno.ENOENT,
+            errno.ENOTDIR,
+            errno.ELOOP,
+        ):
+            raise cause from None
         return _Checked(row, None, False), error
     try:
         verify_shard(shard, tensors)
     except CorruptArtifactError as error:
         return _Checked(row, shard.rows, False), error
     return _Checked(row, shard.rows, True), None
+
+
+def _check_identifiers(directory: Path, info: StoreInfo) -> None:
+    """Recognize readable future identifiers before applying today's structure rules."""
+    if not directory.is_dir() or directory.is_symlink():
+        return
+    file = directory / "manifest.json"
+    manifest = _strict_json(_manifest_bytes(directory, file), file)
+    if not isinstance(manifest, dict):
+        return  # open_shard diagnoses corruption of the known format
+    if "container" in manifest and "container_version" in manifest:
+        _check_version(directory, manifest)
+    metadata = manifest.get("metadata")
+    if not isinstance(metadata, dict):
+        return
+    durability = metadata.get("fse.durability")
+    if isinstance(durability, str) and durability != "none":
+        raise UnsupportedArtifactError(f"{file}: unsupported fse.durability {durability!r}")
+    if isinstance(metadata.get("fse.quantization"), str):
+        _check_quantization(metadata, info, file)
 
 
 def _prefix(checked: dict[int, _Checked]) -> tuple[int, set[int]]:
