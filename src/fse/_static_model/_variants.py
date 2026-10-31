@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The encoders of one model under different rules (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)").
 

@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Word vectors in the 2.0 format: immutable, memory-mappable, without pickle.
 

@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The canary of the mlx backend: cases whose bits and flags the GPU must give, checked
 against fixed patterns once per process (``_device``), not against a reference computed

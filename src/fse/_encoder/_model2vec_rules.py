@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """A model read under the rules of model2vec 0.10.0 itself (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)").
 

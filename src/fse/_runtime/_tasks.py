@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The tasks of a source: one chunk each, and whether a source is small enough to run inline.
 

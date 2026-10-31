@@ -37,7 +37,7 @@ Date 2026-10-28. "UNVERIFIED" = not confirmed by a primary source I could read. 
 - Recommendation Q3: memray with `--native` for allocation flame graphs; a small harness script for RSS over time + final ru_maxrss (normalize units).
 
 ## Q4. Recommendation
-- Dev group (pip wheels): `py-spy` (MIT, pure wheels incl. macosx arm64 and manylinux x86_64/aarch64 in older releases; 0.4.2 file list not confirmed) and `memray` (Apache-2.0). Both compatible with a GPL project. psutil as third (optional).
+- Dev group (pip wheels): `py-spy` (MIT, pure wheels incl. macosx arm64 and manylinux x86_64/aarch64 in older releases; 0.4.2 file list not confirmed) and `memray` (Apache-2.0). Both compatible with an MIT project. psutil as third (optional).
 - System tool: `samply` via `cargo install samply` or Homebrew (license not checked, UNVERIFIED; Apache/MIT upstream per repo is likely). Not a PyPI package.
 - Commands (verify flags with --help before documenting):
   - CPU flame graph, Linux: `py-spy record --native --threads -f speedscope -o prof.json -- python benchmarks/x.py`

@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """One shard being written: rows reserved for the workers, committed in order, then
 published whole (docs/architecture/store.md, "sentence_vectors 1").

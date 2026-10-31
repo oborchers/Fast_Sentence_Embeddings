@@ -8,7 +8,6 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Parts adapted from gensim (LGPL 2.1, used under the GPL 3); see NOTICE.
 
 """Native routines of fse 2.0 without the GIL: ngram hashing, vocabulary table, UTF-8 scan,
 token lists joined, the weighted mean kernel, dot16, steps, score and storage, the search, linear

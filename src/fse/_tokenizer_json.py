@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """A BERT ``tokenizer.json`` of Hugging Face tokenizers as the parameters of wordpiece@1.
 

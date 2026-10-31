@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The attainable rate of reading random rows of a table far larger than the caches, the
 memory roof of roofline.py measured instead of quoted (the role STREAM plays in Williams

@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Model2Vec models as the parts of an encoder (docs/architecture/hub.md, "Model2Vec models and from_pretrained").
 

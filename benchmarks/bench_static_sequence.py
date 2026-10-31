@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """``fse.StaticModel.encode_as_sequence`` and ``tokenize`` against model2vec 0.10.0
 (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)"), on a model of the local Hugging Face cache.

@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """``fse.Classifier``: an encoder and a linear classification head, as scikit-learn names
 its outputs (``predict``, ``predict_proba``, ``decision_function``, ``classes_``)."""

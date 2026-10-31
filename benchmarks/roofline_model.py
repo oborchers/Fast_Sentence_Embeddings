@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The arithmetic of the throughput bounds of fse (PERFORMANCE.md): no fse import and no
 measurement, so the formulas can be checked on their own (tests/test_roofline.py).

@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The lookup of stage 2: the vocabulary table of word vectors, the tokenizer and the
 FastText buckets, and the workspace one worker reuses."""

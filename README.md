@@ -4,7 +4,7 @@
 <a href="https://pypi.org/project/fse/"><img alt="Python versions" src="https://img.shields.io/pypi/pyversions/fse.svg"></a>
 <a href="https://pepy.tech/project/fse"><img alt="Downloads" src="https://pepy.tech/badge/fse"></a>
 <a href="https://github.com/astral-sh/ruff"><img alt="Code style: ruff" src="https://img.shields.io/badge/code%20style-ruff-000000.svg"></a>
-<a href="https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"></a>
+<a href="https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"></a>
 </p>
 <p align="center">
 <picture>
@@ -301,7 +301,7 @@ Author
 
 Built by [Dr. Oliver Borchers](https://www.drborchers.com). For questions that do not belong in a GitHub issue, use the [contact page](https://www.drborchers.com/en/contact/).
 
-Copyright (C) 2019 to 2026 Oliver Borchers, licensed under the [GNU General Public License v3.0](LICENSE).
+Copyright (C) 2019 to 2026 Oliver Borchers, licensed under the [MIT License](LICENSE).
 
 Citation
 -------------
@@ -316,3 +316,6 @@ If you found this software useful, please cite it in your publication.
 		journal = {GitHub Repository},
 		howpublished = {\url{https://github.com/oborchers/Fast_Sentence_Embeddings}},
 	}
+
+fse 2.0 uses the MIT license. The `1.x` branch and existing 1.x releases remain GPL-3.0.
+Model licenses apply separately: GloVe uses PDDL, word2vec uses Apache-2.0, fastText vectors use CC BY-SA 3.0, and POTION uses MIT. The licenses of paranmt and paragram are unknown. The third-party STS Benchmark data in `evaluation/` keeps the terms in `evaluation/LICENSE.txt`.

@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The cost of ``fse.StaticModel`` over the ``fse.Encoder`` it wraps (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)"), on a model of the local Hugging Face cache.
 

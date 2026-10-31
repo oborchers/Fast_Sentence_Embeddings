@@ -7,7 +7,7 @@ name = "fse"
 dynamic = ["version"]
 description = "Fast Sentence Embeddings from word vectors"
 readme = "README.md"
-license = "GPL-3.0-only"
+license = "MIT"
 license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.11"
 authors = [{ name = "Oliver Borchers", email = "26734737+oborchers@users.noreply.github.com" }]

@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Chunks and scans of the sources whose sentences are one UTF-8 buffer (``_Buffered``):
 ``scan`` validates and counts the sentences in threads without the GIL and cuts them into

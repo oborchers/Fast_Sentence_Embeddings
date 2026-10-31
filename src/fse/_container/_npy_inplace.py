@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Writing an NpyContainer artifact in place: a .npy file written at the offsets of its
 rows, and the exclusive publication of a finished artifact directory.

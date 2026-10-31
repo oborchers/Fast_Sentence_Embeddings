@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The ablations A1 to A4 of runtime_timeline.py, all from the benchmark process, with no
 change in ``src``. Each runs variants of the same call in alternating order and prints the

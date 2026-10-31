@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The lifecycle of fse 2.0 against fse 1.1.0 on real data: load, encode, search, infer.
 

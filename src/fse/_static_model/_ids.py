@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The token ids of texts under a length rule (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)").
 

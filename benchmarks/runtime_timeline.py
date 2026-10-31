@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Where the workers of a run idle, as a timeline (PERFORMANCE.md, "Where the workers
 idle"). The executor is observed from this process only (runtime_timeline_probe.py): the

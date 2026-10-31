@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The mlx backend: stage 2 (the weighted mean) and ``normalize`` on the GPU, the rest on
 the host.

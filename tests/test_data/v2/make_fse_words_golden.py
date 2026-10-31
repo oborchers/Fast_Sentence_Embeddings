@@ -6,7 +6,6 @@ with it, so a change of either is noticed. Never regenerate it for a released id
     uv run python tests/test_data/v2/make_fse_words_golden.py
 """
 
-import csv
 import json
 from pathlib import Path
 
@@ -33,10 +32,45 @@ EXTRA = [
 
 
 def main() -> None:
+    # Original templates, not excerpts from a corpus. Pair all subjects, actions and
+    # settings, then vary punctuation, contractions, numbers and Unicode boundaries.
+    subjects = [
+        "The quiet gardener",
+        "Our small robot",
+        "A curious otter",
+        "My neighbour",
+        "Three tired sailors",
+        "An amber kite",
+        "The station clock",
+    ]
+    actions = ["inspects", "carries", "paints", "measures", "repairs", "finds", "circles"]
+    objects = [
+        "a blue ladder",
+        "the wooden box",
+        "seven paper stars",
+        "a silver wheel",
+        "the empty basket",
+        "a tiny compass",
+        "some folded maps",
+        "a glass bead",
+    ]
+    endings = [
+        "near the café.",
+        "at 10:30, isn't it?",
+        "in room 3.14; we'll return.",
+        "by the well-known tree!",
+        "in Zürich, 中国 and Αθήνα.",
+        "under sign_7... wait--don't move?",
+        "beside e\u0301 and 😀.",
+    ]
     texts = list(EXTRA)
-    with open(ROOT / "evaluation" / "sts-test.csv", encoding="utf-8", newline="") as f:
-        for row in csv.reader(f, delimiter="\t", quoting=csv.QUOTE_NONE):
-            texts.extend(row[5:7])
+    texts.extend(
+        f"{subject} {action} {obj} {ending}"
+        for subject in subjects
+        for action in actions
+        for obj in objects
+        for ending in endings
+    )
     cases = [[text, tokenize_fse_words(text)] for text in texts]
     payload = {"tokenizer": "fse_words@1", "unicode": UNICODE_VERSION, "cases": cases}
     (HERE / "fse_words.json").write_text(json.dumps(payload, ensure_ascii=True, indent=0) + "\n")
