@@ -1,0 +1,6 @@
+# Complete Python 3.13 quality stack plus the CPU comparison counterparts.
+-r quality/requirements.lock.txt
+fastembed==0.9.1
+faiss-cpu==1.15.1
+hnswlib==0.8.0
+fasttext-numpy2==0.10.4

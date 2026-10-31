@@ -9,7 +9,9 @@ import pytest
 @pytest.fixture
 def coordination(monkeypatch):
     monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "benchmarks"))
-    return importlib.import_module("quality_coordination")
+    module = importlib.import_module("quality_coordination")
+    monkeypatch.setattr(module, "_next_acquisition", 0)
+    return module
 
 
 def test_task_releases_lock_on_error(coordination, tmp_path):
@@ -46,3 +48,19 @@ def test_other_lock_preserved_while_waiting(coordination, tmp_path, monkeypatch)
     with pytest.raises(TimeoutError, match="still busy"), coordination.task_reservation(tmp_path):
         pytest.fail("entered occupied lock")
     assert (lock / "owner").read_text() == "other"
+
+
+def test_next_task_waits_two_minutes_after_release(coordination, tmp_path, monkeypatch):
+    now = [1000.0]
+    waits = []
+    monkeypatch.setattr(coordination.time, "monotonic", lambda: now[0])
+
+    def sleep(seconds):
+        waits.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(coordination.time, "sleep", sleep)
+    with coordination.task_reservation(tmp_path):
+        pass
+    with coordination.task_reservation(tmp_path):
+        assert waits == [60, 60]

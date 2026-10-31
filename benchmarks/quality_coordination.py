@@ -7,6 +7,8 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+_next_acquisition = 0.0
+
 
 def paused(folder: Path) -> bool:
     return any((folder / name).exists() for name in ("pause-local.marker", "timing-window.marker"))
@@ -15,6 +17,7 @@ def paused(folder: Path) -> bool:
 @contextmanager
 def task_reservation(folder: Path | None):
     """Wait in the background, acquire exclusively, then recheck pause markers."""
+    global _next_acquisition
     if folder is None:
         yield
         return
@@ -22,7 +25,7 @@ def task_reservation(folder: Path | None):
     owner = lock / "owner"
     identity = f"dr151-compare pid={os.getpid()} start={time.time()}"
     while True:
-        if paused(folder):
+        if paused(folder) or time.monotonic() < _next_acquisition:
             time.sleep(60)
             continue
         try:
@@ -41,3 +44,4 @@ def task_reservation(folder: Path | None):
         if owner.read_text(encoding="utf-8") == identity:
             owner.unlink()
             lock.rmdir()
+            _next_acquisition = time.monotonic() + 120
