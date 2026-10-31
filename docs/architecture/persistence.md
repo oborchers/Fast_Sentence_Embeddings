@@ -26,4 +26,3 @@ Saved 2.0 artifacts contain no Python class paths. Their persistence API is the 
 Binding for every 2.0 module (formerly under "2.0 design").
 
 2.0 has no pickle loader and no converter of 1.x models: 2.0 models are finished tables, made of word vectors (`fse.gensim.from_gensim`, `Encoder.from_word_vectors`) or, for SIF and uSIF, by the offline notebook with the 1.1.0 recipe (word weights, the uncentered removal of principal components, folded into the table, then quantized), which follows before the release and is checked against the 1.1.0 results of the README. The hub will carry such finished models.
-

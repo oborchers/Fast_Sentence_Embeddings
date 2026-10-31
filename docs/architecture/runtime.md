@@ -21,4 +21,3 @@ A `Pipeline` holds an encoder on one backend (prepared once, before any input is
 Binding for every 2.0 module (formerly under "2.0 design").
 
 Defaults are part of the API and chosen for speed: `workers` is the number of usable CPUs (`fse._cpus.usable_cpus`: an explicit `PYTHON_CPU_COUNT` or `-X cpu_count`, else the CPUs of the process affinity limited by the CPU quota of its Linux cgroup and every visible ancestor, rounded up (the quota is read once per process); `PYTHON_CPU_COUNT` thus also sets the default workers; small inputs run inline in the calling thread), and new encoders, also the pretrained ones on the hub, end with `normalize`, so the cosine of two rows is their dot product. A server that encodes many small requests in parallel sets `workers=1`.
-

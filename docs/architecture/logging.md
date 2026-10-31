@@ -43,4 +43,3 @@ fse logs through the standard library only, on the fixed loggers `fse.artifact` 
 | `store.search` | DEBUG | `fse.store` | queries, k, mode (`exact`, `blas`), rows, workers | `VectorStore.search`, once per call |
 
 Tests fail on every WARNING or higher of fse that no `support.logs.expect_log` expected, in setup, call and teardown (`tests/conftest.py`); a suite that causes a warning by design marks itself `expected_log(event)`.
-
