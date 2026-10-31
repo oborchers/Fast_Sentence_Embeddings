@@ -4,8 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The encoders of one model under different rules (ARCHITECTURE.md, "model2vec
-compatibility").
+"""The encoders of one model under different rules (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)").
 
 model2vec lets every ``encode`` call state another ``max_length`` or ``normalize``. An
 fse ``Encoder`` is immutable, so each pair of the two is an encoder of its own: the same

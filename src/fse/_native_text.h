@@ -1,4 +1,4 @@
-/* The native tokenizers of fse (ARCHITECTURE.md, "Tokenizers").
+/* The native tokenizers of fse (docs/architecture/tokenizers.md, "Tokenizers").
 
    fse_tokenize splits one sentence of UTF-8 bytes into the bytes of its tokens: one pass
    over the code points with one code point of lookahead, which decides whether each is

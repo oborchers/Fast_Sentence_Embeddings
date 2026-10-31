@@ -4,7 +4,7 @@ library (model2vec, sentence-transformers).
 fse and the original both pool float32 rows of the same token ids; fse sums by fma in token
 order and scales by ``1/n``, model2vec takes numpy's ``mean`` (pairwise sums, then a
 division), sentence-transformers' EmbeddingBag a sum in token order divided by n. So rows
-agree within the bound of the tolerance contract (ARCHITECTURE.md), computed here from the
+agree within the bound of the tolerance contract (docs/architecture/backends.md, "Tolerance contract of device backends"), computed here from the
 ids and the table: before normalize ``(TAU + 2 gamma_K) m + DELTA K sqrt(d)``, after it
 ``2 E / r`` plus the rounding of both normalizations, with K the ids of a text, m the norm
 of ``(1/K) sum |x|`` and r the norm of fse's row before normalize. A row that is zero

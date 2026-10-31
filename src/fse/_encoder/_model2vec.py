@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""Model2Vec models as the parts of an encoder (ARCHITECTURE.md, "Model2Vec models").
+"""Model2Vec models as the parts of an encoder (docs/architecture/hub.md, "Model2Vec models and from_pretrained").
 
 A Model2Vec model is ``config.json``, ``model.safetensors`` with the tensor ``embeddings``
 and a ``tokenizer.json``. Its encoder pools the rows of the token ids with

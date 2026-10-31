@@ -1,6 +1,6 @@
 # Included by _native.pyx after _native_arrow.pxi: the ArrowColumn, the chunks of one Arrow
 # string column taken over from their capsules, checked, scanned and encoded without the
-# GIL, and released once (ARCHITECTURE.md, "Text sources").
+# GIL, and released once (docs/architecture/text.md, "Text sources").
 
 
 
@@ -24,8 +24,8 @@ cdef class ArrowColumn:
     cdef readonly int64_t rows
     cdef readonly int64_t nbytes
     # The row of the first null, or -1: the rows before it are the column, nothing after
-    # it is read, and the source raises it after the rows before it (ARCHITECTURE.md,
-    # "Runtime", Errors).
+    # it is read, and the source raises it after the rows before it
+    # (docs/architecture/runtime.md, "Runtime", Errors).
     cdef readonly int64_t null_row
     # Bytes of offsets or views copied because they were not aligned; text is never copied.
     cdef readonly int64_t copied_bytes

@@ -6,7 +6,7 @@
 
 """A Unigram ``tokenizer.json`` of Hugging Face tokenizers as the parameters of unigram@1.
 
-ARCHITECTURE.md, "unigram@1". Only the forms of potion-multilingual-128M are accepted, and
+docs/architecture/tokenizers.md, "unigram@1". Only the forms of potion-multilingual-128M are accepted, and
 everything else is refused by name: a Unigram model with unique pieces, float scores, an
 unknown id and no byte fallback; a normalizer of Precompiled (at most one), Replace with a
 String pattern or with exactly the regex `` {2,}`` or ``\\s+``, and Strip, in Sequences

@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The records of fse, through the standard library only (ARCHITECTURE.md, "Logging").
+"""The records of fse, through the standard library only (docs/architecture/logging.md, "Logging").
 
 fse logs on five fixed component loggers below ``fse``; their names, the events and the
 fields of each event are fixed for 2.x. Every record carries ``fse_event`` and its fields
@@ -32,7 +32,7 @@ DEBUG, INFO, WARNING = logging.DEBUG, logging.INFO, logging.WARNING
 #: The loggers of fse; "fse" is their parent and logs nothing itself.
 LOGGER_NAMES = ("fse", "fse.artifact", "fse.hub", "fse.backend", "fse.runtime", "fse.store")
 
-#: Every event of fse: its logger and level (the table in ARCHITECTURE.md, "Logging").
+#: Every event of fse: its logger and level (the table in docs/architecture/logging.md, "Logging").
 EVENTS: dict[str, tuple[str, int]] = {
     "backend.fallback": ("fse.backend", WARNING),
     "backend.fallbacks": ("fse.backend", DEBUG),

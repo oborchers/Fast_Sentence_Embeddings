@@ -13,7 +13,7 @@ Run `make help` for all targets.
 
 ## Notes
 
-- Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing the contracts or the native kernel.
+- Read [ARCHITECTURE.md](ARCHITECTURE.md), the index of [docs/architecture/](docs/architecture/), before changing the contracts or the native kernel.
 - `make lint` checks file length, function complexity and the import layers against a ratchet that only shrinks; see the Guardrails section of [AGENTS.md](AGENTS.md). Split code that does not fit instead of adding exceptions.
 - After editing `src/fse/_native.pyx`, its `.pxi` parts, `.pxd` or a `_native*.h` header, run `make rebuild-ext`.
 - For performance changes, compare `uv run python benchmarks/bench_kernel.py --python-v1 <python of fse 1.1.0>` before and after on an idle machine and put both tables in the pull request. `--help` lists the dtypes, dimensions and vocabulary sizes it covers.

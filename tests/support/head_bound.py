@@ -1,5 +1,4 @@
-"""The error bound of a head's logits against an exact head in float64 (ARCHITECTURE.md,
-"Numerical contract", linear@1), per row and output.
+"""The error bound of a head's logits against an exact head in float64 (docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)", linear@1), per row and output.
 
 The reference value is scikit-learn's: ``z* = A64 r + b64`` in float64 on the float32
 vector r that fse gives (``encode``). With u = 2**-24, gamma(m) = m u / (1 - m u) and g =

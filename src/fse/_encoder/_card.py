@@ -6,7 +6,7 @@
 
 """The model card (``README.md``) of a Hugging Face folder of an fse model.
 
-ARCHITECTURE.md, "Hub folders". The card is made from the header of the model file
+docs/architecture/hub.md, "Hub folders". The card is made from the header of the model file
 actually written (its metadata and tensor shapes), so it describes exactly that file,
 also the folded table of a standalone head. Its YAML front matter holds ``library_name:
 fse``, the license, the base model (with ``base_model_relation: quantized`` when its
@@ -240,8 +240,7 @@ def _source(metadata: dict[str, str], license: Any) -> list[str]:
 
 
 def _differences(format: str) -> list[str]:
-    """Where a converted model differs from its source library (ARCHITECTURE.md,
-    "encoder 1")."""
+    """Where a converted model differs from its source library (docs/architecture/formats.md, "encoder 1")."""
     if format == "model2vec":
         return [
             "As model2vec does, fse drops unknown token ids and applies the length rule above; "

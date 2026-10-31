@@ -6,7 +6,7 @@
 
 """The number of CPUs this process may use, the default number of workers.
 
-ARCHITECTURE.md, "Defaults": an explicit override (``PYTHON_CPU_COUNT`` or
+docs/architecture/runtime.md, "Defaults": an explicit override (``PYTHON_CPU_COUNT`` or
 ``-X cpu_count``, as in Python 3.13) wins. Otherwise the CPUs of the process affinity,
 limited by the CPU quota of its Linux cgroup and every visible ancestor (v2 ``cpu.max``,
 v1 ``cpu.cfs_quota_us`` / ``cpu.cfs_period_us``), rounded up. A container whose host

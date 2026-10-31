@@ -2,7 +2,8 @@
 # sentence.
 
 # ---------------------------------------------------------------------------------------
-# unigram@1 (ARCHITECTURE.md, "unigram@1"), as in fse._reference_unigram. Correct first,
+# unigram@1 (docs/architecture/tokenizers.md, "unigram@1"), as in fse._reference_unigram.
+# Correct first,
 # not fast: every step is its own pass over the piece, and the candidates of a start are
 # found by one lookup of the pieces and one of their proper prefixes per code point.
 # ---------------------------------------------------------------------------------------

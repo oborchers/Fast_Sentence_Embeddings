@@ -1,5 +1,5 @@
 /* Linear heads: the bias of folded logits, exp@1, the links and the labels
-   (ARCHITECTURE.md, "Numerical contract"; fse._reference_head is the reference).
+   (docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)"; fse._reference_head is the reference).
    Included by _native_kernel.h, after _native_kernel_steps.h, whose floating-point
    environment it uses.
 

@@ -5,7 +5,7 @@
 # Licensed under GNU General Public License v3.0
 
 """``StaticModel.save_pretrained`` and ``push_to_hub``: the fse folder of the model's encoder
-(ARCHITECTURE.md, "model2vec compatibility", "Compatibility limit of persistence").
+(docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)" (Persistence and its compatibility limit)).
 
 The signatures are model2vec's, but the folder is not: it is the folder of
 ``Encoder.save_pretrained`` (``config.json`` of ``model_type`` fse, ``model.safetensors``,

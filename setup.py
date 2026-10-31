@@ -8,7 +8,8 @@ from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 
 # The kernel's rounding is part of the contract: no contraction of a multiply and an add
-# other than the explicit ones, and no fast math (ARCHITECTURE.md, "Numerical contract").
+# other than the explicit ones, and no fast math (docs/architecture/numerical-contract.md,
+# "Numerical contract (`transform_version` 2)").
 FLAGS = {
     "unix": ["-ffp-contract=off", "-fno-fast-math"],
     "msvc": ["/fp:precise"],

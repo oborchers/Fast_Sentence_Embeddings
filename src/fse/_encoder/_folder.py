@@ -7,7 +7,7 @@
 """The Hugging Face folder of an fse model: ``config.json``, ``model.safetensors`` and a
 ``README.md`` model card, written atomically, and pushed to the Hub.
 
-ARCHITECTURE.md, "Hub folders". ``config.json`` is the query file by which the Hub counts
+docs/architecture/hub.md, "Hub folders". ``config.json`` is the query file by which the Hub counts
 downloads; it names the model file and repeats its kind, format version and fingerprint,
 which a reader compares with the metadata it actually loaded. The model file is exactly
 what ``save`` writes; config and card are made from its header. A folder is written into

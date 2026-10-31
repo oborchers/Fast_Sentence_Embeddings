@@ -1,5 +1,5 @@
 # Included by _native.pyx after _native_arrow_column.pxi: stages 1 to 4 of one task in one
-# section without the GIL (ARCHITECTURE.md, "Runtime", Tasks).
+# section without the GIL (docs/architecture/runtime.md, "Runtime", Tasks).
 
 # ---------------------------------------------------------------------------------------
 # pool_text: tokenize, check the batch, pool and normalize, without the GIL in between.

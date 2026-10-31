@@ -6,7 +6,7 @@
 
 """Artifacts as named tensors with string metadata, and the containers that store them.
 
-ARCHITECTURE.md, "Artifacts", "safetensors 1" and "NpyContainer 1", specifies the format.
+docs/architecture/formats.md, "Artifacts", "safetensors 1" and "NpyContainer 1", specifies the format.
 A container writes a mapping of names to numpy arrays plus a flat ``str`` to ``str``
 metadata map and opens it again, bit for bit. It adds the integrity keys itself: the
 xxh3-128 checksum of every tensor (``fse.checksum.<name>``) and the fingerprint of the

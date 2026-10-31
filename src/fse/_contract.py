@@ -6,7 +6,7 @@
 
 """Contracts of fse 2.0: versions, aggregations, the normalize step and batches.
 
-ARCHITECTURE.md, section "2.0", states the rules these types encode. Aggregations and
+docs/architecture/overview.md, "Principle and stages", states the rules these types encode. Aggregations and
 postprocessing steps are identified as ``"<name>@<version>"``; saved artifacts carry
 these strings instead of Python class paths, so the strings are the persistence API.
 A released identifier never changes its meaning, and an unknown one is rejected when an
@@ -23,8 +23,9 @@ from enum import Enum
 import numpy as np
 from numpy import ndarray
 
-# The version of the numerical rules shared by every aggregation and step (ARCHITECTURE.md,
-# "Numerical contract"). 1 is the arithmetic of fse 1.x, which only exported data carries.
+# The version of the numerical rules shared by every aggregation and step
+# (docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)"). 1 is
+# the arithmetic of fse 1.x, which only exported data carries.
 TRANSFORM_VERSION = 2
 SUPPORTED_TRANSFORM_VERSIONS = frozenset({TRANSFORM_VERSION})
 
@@ -120,7 +121,8 @@ class Link(_Versioned):
 
 
 # The exp of the links: range reduction, a fixed polynomial by fused multiply-adds and an
-# exact scaling (ARCHITECTURE.md, "Numerical contract"); not stored in artifacts, but part
+# exact scaling (docs/architecture/numerical-contract.md, "Numerical contract
+# (`transform_version` 2)"); not stored in artifacts, but part
 # of the meaning of every link, so a change of it bumps every link.
 EXP = "exp@1"
 # A head without probabilities (decisions or values only).

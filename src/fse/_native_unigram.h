@@ -1,4 +1,4 @@
-/* unigram@1 (ARCHITECTURE.md, "unigram@1"): the graphemes, the charsmap search and the
+/* unigram@1 (docs/architecture/tokenizers.md, "unigram@1"): the graphemes, the charsmap search and the
    float64 Viterbi; _native_unigram.pxi holds the state, the normalizer steps, the lookups
    of the candidates and the sentence around them. Correct first, not fast.
 
@@ -6,7 +6,7 @@
    precision (checked below), runs in the floating-point environment of the kernels
    (round to nearest, set and restored per call by the wrapper) and only in functions
    marked never to be inlined, so no compiler moves it before the environment is set
-   (ARCHITECTURE.md, "Native kernel"). fse._reference_unigram defines the result;
+   (docs/architecture/numerical-contract.md, "Native kernel"). fse._reference_unigram defines the result;
    tests/test_text_conformance_unigram.py compares. */
 #ifndef FSE_NATIVE_UNIGRAM_H
 #define FSE_NATIVE_UNIGRAM_H

@@ -1,5 +1,4 @@
-/* The byte trie of a wordpiece@1 vocabulary for the greedy match (ARCHITECTURE.md,
-   "wordpiece@1"): a static double array built once at load, never persisted.
+/* The byte trie of a wordpiece@1 vocabulary for the greedy match (docs/architecture/tokenizers.md, "wordpiece@1"): a static double array built once at load, never persisted.
 
    A transition from node s by byte c goes to t = base[s] + c when 0 <= t < size and
    check[t] == s; value[t] is the id of the token that ends at t, or FSE_TRIE_NONE. Node 0

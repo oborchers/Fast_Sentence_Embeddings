@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The device-neutral contract of a backend (ARCHITECTURE.md, "Backends").
+"""The device-neutral contract of a backend (docs/architecture/backends.md, "Backends").
 
 A backend prepares the arrays of an encoder once (``prepare``), then turns one batch
 into finished rows (``rows``: stages 2 to 4, the aggregation and then the postprocessing

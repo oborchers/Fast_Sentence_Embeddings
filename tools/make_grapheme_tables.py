@@ -1,6 +1,6 @@
 """Generate the grapheme data of unigram@1 from the Unicode Character Database.
 
-The data are part of the tokenizer contract (ARCHITECTURE.md, "unigram@1"): the extended
+The data are part of the tokenizer contract (docs/architecture/tokenizers.md, "unigram@1"): the extended
 grapheme clusters of UAX #29 in Unicode 17.0.0, the version of unicode-segmentation 1.13.3,
 which Hugging Face tokenizers 0.23.3 uses for its Precompiled normalizer, and White_Space
 of 17.0.0. Changing them needs a new tokenizer identifier. The script reads four UCD files
@@ -262,7 +262,7 @@ def header_source(data: SimpleNamespace) -> str:
 
    fse_gc_props(cp): Grapheme_Cluster_Break in the low 4 bits (FSE_GC_*, 0 for Other),
    FSE_GC_EXTENDED_PICTOGRAPHIC, InCB in the 2 bits at FSE_INCB_SHIFT (FSE_INCB_*, 0 for
-   none) and FSE_GC_WHITE_SPACE (ARCHITECTURE.md, "unigram@1"). */
+   none) and FSE_GC_WHITE_SPACE (docs/architecture/tokenizers.md, "unigram@1"). */
 #ifndef FSE_NATIVE_UNICODE_GRAPHEMES_H
 #define FSE_NATIVE_UNICODE_GRAPHEMES_H
 

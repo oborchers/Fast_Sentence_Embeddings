@@ -1,4 +1,4 @@
-"""The guard of GIL hand-overs per task (ARCHITECTURE.md, "Runtime", Tasks): on the cpu
+"""The guard of GIL hand-overs per task (docs/architecture/runtime.md, "Runtime", Tasks): on the cpu
 backend a task of a text source enters one section without the GIL for its stages 1 to
 4 and makes no numpy call that could release the GIL, so the hand-overs cannot grow back
 unnoticed. The budgets are exact: a change either way fails until the test is changed

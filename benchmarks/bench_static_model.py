@@ -4,8 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The cost of ``fse.StaticModel`` over the ``fse.Encoder`` it wraps (ARCHITECTURE.md,
-"model2vec compatibility"), on a model of the local Hugging Face cache.
+"""The cost of ``fse.StaticModel`` over the ``fse.Encoder`` it wraps (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)"), on a model of the local Hugging Face cache.
 
     uv run python benchmarks/bench_static_model.py encode
     uv run python benchmarks/bench_static_model.py encode --sizes 1 1024 --rounds 40

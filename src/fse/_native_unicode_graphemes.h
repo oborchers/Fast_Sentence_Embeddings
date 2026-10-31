@@ -4,7 +4,7 @@
 
    fse_gc_props(cp): Grapheme_Cluster_Break in the low 4 bits (FSE_GC_*, 0 for Other),
    FSE_GC_EXTENDED_PICTOGRAPHIC, InCB in the 2 bits at FSE_INCB_SHIFT (FSE_INCB_*, 0 for
-   none) and FSE_GC_WHITE_SPACE (ARCHITECTURE.md, "unigram@1"). */
+   none) and FSE_GC_WHITE_SPACE (docs/architecture/tokenizers.md, "unigram@1"). */
 #ifndef FSE_NATIVE_UNICODE_GRAPHEMES_H
 #define FSE_NATIVE_UNICODE_GRAPHEMES_H
 

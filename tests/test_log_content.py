@@ -1,6 +1,6 @@
 """What fse's records hold and what they cannot change: no path, text, token or
 repository id in any record at DEBUG, and the same results and errors whatever the
-handlers of the application do (ARCHITECTURE.md, "Logging")."""
+handlers of the application do (docs/architecture/logging.md, "Logging")."""
 
 import errno
 import logging

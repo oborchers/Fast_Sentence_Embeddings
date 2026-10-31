@@ -298,11 +298,11 @@ native-importers = [
 # What the extension may import from fse.
 native-imports = ["fse._contract"]
 # The only module that imports a hash library (hashlib, xxhash): every checksum and
-# fingerprint of fse is xxh3-128 through it (ARCHITECTURE.md, "Identities").
+# fingerprint of fse is xxh3-128 through it (docs/architecture/persistence.md, "Identities").
 hash-importers = ["src/fse/_container/_hash.py"]
 hash-modules = ["hashlib", "xxhash"]
 # The only modules that import logging or warnings: fse logs through fse._log
-# (ARCHITECTURE.md, "Logging"); if one of them splits, its parts join the list.
+# (docs/architecture/logging.md, "Logging"); if one of them splits, its parts join the list.
 log-importers = ["src/fse/_log.py", "src/fse/_log_config.py"]
 log-modules = ["logging", "warnings"]
 # What the MLX device thread runs: it never logs, so none of these imports fse._log.
@@ -345,7 +345,7 @@ include_external_packages = true
 exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]
-name = "Layers (ARCHITECTURE.md, Layout): a module imports only from layers below it"
+name = "Layers (docs/architecture/process.md, Layout): a module imports only from layers below it"
 type = "layers"
 containers = ["fse"]
 # Every new module must be placed in a layer.
@@ -377,7 +377,7 @@ layers = [
     # The parameters of unigram@1, which TokenizerSpec holds.
     "_tokenizer_unigram",
     "_contract | _cpus | _unicode | _unicode_bert | _unicode_graphemes | _charsmap",
-    # The records of fse (ARCHITECTURE.md, "Logging"), which every module may emit.
+    # The records of fse (docs/architecture/logging.md, "Logging"), which every module may emit.
     "_log",
 ]
 

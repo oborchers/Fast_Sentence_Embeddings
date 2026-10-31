@@ -18,7 +18,7 @@ from support.container import _METADATA, F32, _assemble, _tensors
 
 
 def test_fingerprint_test_vector():
-    """The pinned fingerprint of ARCHITECTURE.md, "Identities"; never change it."""
+    """The pinned fingerprint of docs/architecture/persistence.md, "Identities"; never change it."""
     tensors = _tensors()
     entries = {k: (tensor_code(v), v.shape, checksum(v)) for k, v in tensors.items()}
     metadata = {**_METADATA, "fse.created_by": "anything", "fse.checksum.vectors": "ignored"}

@@ -5,7 +5,7 @@
 # Licensed under GNU General Public License v3.0
 
 """The two ablations of the MLX device thread, as patches of ``Device`` in the benchmark
-process (no change in ``src``; DR-178 PR 4, ARCHITECTURE.md, "Device thread").
+process (no change in ``src``; DR-178 PR 4, docs/architecture/backends.md, "MLX").
 
 - ``copy``: the caller's copy (``use``) runs in the device thread, as part of the job's
   ``finish``, with nothing lent: the MLX arrays are dropped right after the copy, and the

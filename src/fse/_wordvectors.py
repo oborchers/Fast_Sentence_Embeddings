@@ -6,7 +6,7 @@
 
 """Word vectors in the 2.0 format: immutable, memory-mappable, without pickle.
 
-ARCHITECTURE.md, "word_vectors 1", specifies the artifact. The vocabulary is the UTF-8
+docs/architecture/formats.md, "word_vectors 1", specifies the artifact. The vocabulary is the UTF-8
 bytes of the words with int64 offsets; a word is found by an exact match of its bytes.
 Vectors are stored as float32, float16 or int8 codes with a float32 scale per row, and
 read as float32. FastText vectors also hold their ngram rows and hashing parameters.
@@ -385,7 +385,7 @@ class WordVectors:
 
     @property
     def fingerprint(self) -> str:
-        """The fingerprint of the content (ARCHITECTURE.md, "Identities")."""
+        """The fingerprint of the content (docs/architecture/persistence.md, "Identities")."""
         if self._fingerprint is None:
             entries = {k: (tensor_code(v), v.shape, checksum(v)) for k, v in self._tensors.items()}
             self._fingerprint = fingerprint(entries, self._metadata)

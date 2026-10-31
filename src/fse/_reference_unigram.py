@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The reference of unigram@1 (ARCHITECTURE.md, "unigram@1").
+"""The reference of unigram@1 (docs/architecture/tokenizers.md, "unigram@1").
 
 Plain Python on code points and bytes that follows the specification step by step and
 defines the ids. It uses the grapheme data of ``fse._unicode_graphemes`` (Unicode 17.0.0)

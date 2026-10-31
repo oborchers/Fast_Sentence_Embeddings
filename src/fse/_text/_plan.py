@@ -12,7 +12,7 @@ split), and a piece that still has more than ``chunk_rows`` sentences is split i
 parts of about equal rows. So no chunk holds
 more than ``chunk_bytes`` plus its last sentence, and the work is bounded by the cuts it
 makes, not by the bytes: the targets inside one sentence are skipped at once
-(ARCHITECTURE.md, "Runtime", Tasks).
+(docs/architecture/runtime.md, "Runtime", Tasks).
 """
 
 from __future__ import annotations

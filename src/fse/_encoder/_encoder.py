@@ -11,7 +11,7 @@ is normalized; it pools the rows of a sentence with ``weighted_mean@1``, every w
 the weight 1. It does not change once made (``from_word_vectors``, ``from_arrays`` or
 ``load``). It builds the VocabTable of its vocabulary once and one Pipeline per backend,
 both on first use, and several threads may encode with it at once. It is saved as one
-self-contained safetensors file (ARCHITECTURE.md, "encoder 1").
+self-contained safetensors file (docs/architecture/formats.md, "encoder 1").
 """
 
 from __future__ import annotations
@@ -121,7 +121,7 @@ class Encoder:
         For FastText vectors an unknown word adds its first ``max_ngrams`` ngram rows
         (default 40), together with the weight ``oov_weight`` (default 1); other vectors
         take neither. Weights, removed components or projections of a model are folded
-        into its rows before (ARCHITECTURE.md, "2.0 design").
+        into its rows before (docs/architecture/overview.md, "Principle and stages").
         """
         if not isinstance(word_vectors, WordVectors):
             raise TypeError(f"word_vectors must be WordVectors, not {type(word_vectors).__name__}")
@@ -196,7 +196,7 @@ class Encoder:
         None none, as in model2vec); a sentence-transformers model of one StaticEmbedding
         is converted with the rules of its encode, its first ``truncate_dim`` dimensions
         (``"model"``: the model's, None: all) and, with ``normalize=True``, fse's own
-        ``normalize@1`` after the cut. ARCHITECTURE.md, "from_pretrained"."""
+        ``normalize@1`` after the cut. docs/architecture/hub.md, "Model2Vec models and from_pretrained"."""
         files = _pretrained.files(
             repo_or_path,
             revision=revision,
@@ -381,7 +381,7 @@ class Encoder:
         or replaced): ``config.json``, ``model.safetensors`` (as ``save`` writes it), a
         ``README.md`` model card with the license the encoder records (or ``license`` if it
         records none) and ``extra_files`` (name to local text file, such as LICENSE).
-        ``from_pretrained`` reads it. ARCHITECTURE.md, "Hub folders"."""
+        ``from_pretrained`` reads it. docs/architecture/hub.md, "Hub folders"."""
         card: dict[str, Any] = {"license": license, "language": language, "extra": extra_files}
         return _folder.save(path, self.save, model_name=model_name, **card)[0]
 
@@ -455,7 +455,7 @@ class Encoder:
 
     @property
     def fingerprint(self) -> str:
-        """The fingerprint of the encoder (ARCHITECTURE.md, "Identities"), the same in
+        """The fingerprint of the encoder (docs/architecture/persistence.md, "Identities"), the same in
         memory and after save and load."""
         if self._fingerprint is None:
             self._fingerprint = _persist.fingerprint_of(*self._artifact())
