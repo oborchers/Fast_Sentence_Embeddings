@@ -40,6 +40,7 @@ import time
 from pathlib import Path
 
 import bench_harness as harness
+import bench_store_fused as fused
 import numpy as np
 
 DIM, VOCAB = 300, 100_000
@@ -84,12 +85,16 @@ def child_v2_write(args) -> dict:
         if args.kind == "memory":
             encoder.encode(sentences, dtype=args.dtype, workers=args.workers)
         else:
-            with fse.ShardSink(
-                Path(tmp) / "store", encoder, dtype=args.dtype, shard_rows=args.shard_rows
-            ) as sink:
+            with fused.make_sink(
+                args.sink, Path(tmp) / "store", encoder, dtype=args.dtype,
+                shard_rows=args.shard_rows,
+            ) as sink:  # fmt: skip
                 encoder.encode(sentences, workers=args.workers, sink=sink)
         seconds = time.perf_counter() - start
-    return {"per_s": args.sentences / seconds, "peak": _peak()}
+        out = {"per_s": args.sentences / seconds, "seconds": seconds, "peak": _peak()}
+        if args.check and args.kind != "memory":
+            out |= fused.check_store(Path(tmp) / "store")
+    return out
 
 
 def _quantiles(times: list[float]) -> tuple[float, float]:
@@ -140,11 +145,16 @@ def child_sync(args) -> dict:
     rows = args.shard_rows or 1024
     with tempfile.TemporaryDirectory(dir=args.tmp) as tmp:
         start = time.perf_counter()
-        with fse.ShardSink(Path(tmp) / "s", encoder, dtype=args.dtype, shard_rows=rows) as sink:
+        with fused.make_sink(
+            args.sink, Path(tmp) / "s", encoder, dtype=args.dtype, shard_rows=rows
+        ) as sink:
             encoder.encode(sentences, workers=args.workers, sink=sink)
         seconds = time.perf_counter() - start
+        peak = _peak()
+        checked = fused.check_store(Path(tmp) / "s") if args.check else {}
     shards = -(-args.sentences // rows)  # run_s includes encoding: compare paired runs
-    return out | {"shards": shards, "run_s": seconds, "per_shard_ms": 1e3 * seconds / shards}
+    out |= {"shards": shards, "run_s": seconds, "per_shard_ms": 1e3 * seconds / shards}
+    return out | {"peak": peak} | checked
 
 
 def child_v1_write(args) -> dict:
@@ -338,6 +348,8 @@ def main(argv=None):
     parser.add_argument("--queries", type=int, nargs="+", default=[1, 4, 16, 64, 256])
     parser.add_argument("--rounds", type=int, default=1)
     parser.add_argument("--shard-rows", type=int)
+    parser.add_argument("--sink", choices=["split", "fused"], default="split")
+    parser.add_argument("--check", action="store_true", help="verify the store, digest it")
     parser.add_argument("--json")
     args = parser.parse_args(argv)
     if args.mode == "child":
