@@ -342,7 +342,7 @@ class _Buffered:
     def split_tail(self, chunks: tuple[Chunk, ...], workers: int) -> tuple[Chunk, ...]:
         """``chunks`` with the last ``workers`` of them cut into two parts of about equal
         rows (factoring), so the workers that finish last hold the least work. A chunk of
-        fewer than 2 sentences, or whose parts would be below _CHUNK_MIN_BYTES, stays
+        fewer than 2 sentences, or one of whose parts would be below _CHUNK_MIN_BYTES, stays
         whole. The chunks stay contiguous, in row order and non-empty, and the result
         depends only on the arguments."""
         first = max(0, len(chunks) - workers)
@@ -360,6 +360,8 @@ class _Buffered:
         rest = Chunk(
             head.end, chunk.end, chunk.first_row + head.n_sentences, rows - head.n_sentences
         )
+        if min(self._span_bytes(head), self._span_bytes(rest)) < _CHUNK_MIN_BYTES:
+            return (chunk,)  # the rows are unequal in bytes: a part would be too small
         return head, rest
 
     def _line_end(self, start: int, end: int, rows: int) -> int:
