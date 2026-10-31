@@ -113,24 +113,7 @@ def corpus(cell: Cell, receipt: list[dict]) -> tuple[list[str], dict]:
     """The same selection and ordering as bench_wordpiece.texts, at one exact snapshot."""
     repo, revision, expected = DATASETS[cell.corpus]
     path = snapshot(receipt, repo, revision, "dataset")
-    files, texts = [], []
-    if cell.corpus == "wikitext":
-        import pyarrow.parquet as pq
-
-        for split in ("validation", "test"):
-            shards = sorted(path.glob(f"wikitext-103-raw-v1/{split}-*"))
-            if len(shards) != 1:
-                raise ValueError(f"expected one {split} parquet shard")
-            files.extend(shards)
-            texts.extend(pq.read_table(shards[0]).column("text").to_pylist())
-        texts = [s for s in texts if s.strip()]
-    else:
-        files = sorted(path.glob("test/*.json.gz"))
-        if len(files) != 51:
-            raise ValueError("expected all 51 MASSIVE test languages")
-        for file in files:
-            with gzip.open(file, "rt", encoding="utf-8") as stream:
-                texts.extend(json.loads(line)["text"] for line in stream)
+    files, texts = _wikitext(path) if cell.corpus == "wikitext" else _massive(path)
     if len(texts) != expected:
         raise ValueError(f"expected {expected} texts, got {len(texts)}")
     from fse._container._hash import Hasher
@@ -147,6 +130,29 @@ def corpus(cell: Cell, receipt: list[dict]) -> tuple[list[str], dict]:
         "texts": len(texts),
         "checksum": digest.checksum(),
     }
+
+
+def _wikitext(path: Path) -> tuple[list[Path], list[str]]:
+    import pyarrow.parquet as pq
+
+    files, texts = [], []
+    for split in ("validation", "test"):
+        shards = sorted(path.glob(f"wikitext-103-raw-v1/{split}-*"))
+        if len(shards) != 1:
+            raise ValueError(f"expected one {split} parquet shard")
+        files.extend(shards)
+        texts.extend(pq.read_table(shards[0]).column("text").to_pylist())
+    return files, [s for s in texts if s.strip()]
+
+
+def _massive(path: Path) -> tuple[list[Path], list[str]]:
+    files, texts = sorted(path.glob("test/*.json.gz")), []
+    if len(files) != 51:
+        raise ValueError("expected all 51 MASSIVE test languages")
+    for file in files:
+        with gzip.open(file, "rt", encoding="utf-8") as stream:
+            texts.extend(json.loads(line)["text"] for line in stream)
+    return files, texts
 
 
 def describe(cell: Cell, enc) -> dict:

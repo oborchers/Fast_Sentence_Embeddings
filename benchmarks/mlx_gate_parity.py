@@ -127,20 +127,9 @@ def audit(enc, texts: list[str], cpu: np.ndarray, mlx: np.ndarray, guard) -> dic
         guard.check("parity token chunk")
         batch = source.encode(chunk, lookup, ws)
         tokens += len(batch.tokens)
-        for local, (start, end) in enumerate(
-            zip(batch.offsets[:-1], batch.offsets[1:], strict=True)
-        ):
-            row = batch.first_row + local
-            if start == end:
-                empty += 1
-                if cpu[row].view(np.uint32).any() or mlx[row].view(np.uint32).any():
-                    raise AssertionError("an empty sentence must give positive zero")
-            if row in different:
-                ids = batch.tokens[start:end]
-                bound, exact = acceptance(
-                    len(ids), enc.output_dim, magnitude(ids, enc), radii.get(row)
-                )
-                worst = max(worst, check_bound(mlx[row], cpu[row], bound, exact))
+        batch_empty, batch_worst = _audit_batch(batch, enc, cpu, mlx, different, radii)
+        empty += batch_empty
+        worst = max(worst, batch_worst)
     return {
         "bit_equal": not len(differing),
         "differing_rows": len(differing),
@@ -150,6 +139,21 @@ def audit(enc, texts: list[str], cpu: np.ndarray, mlx: np.ndarray, guard) -> dic
         "empty_rows": empty,
         "contract_passed": True,
     }
+
+
+def _audit_batch(batch, enc, cpu, mlx, different, radii) -> tuple[int, float]:
+    empty, worst = 0, 0.0
+    for local, (start, end) in enumerate(zip(batch.offsets[:-1], batch.offsets[1:], strict=True)):
+        row = batch.first_row + local
+        if start == end:
+            empty += 1
+            if cpu[row].view(np.uint32).any() or mlx[row].view(np.uint32).any():
+                raise AssertionError("an empty sentence must give positive zero")
+        if row in different:
+            ids = batch.tokens[start:end]
+            bound, exact = acceptance(len(ids), enc.output_dim, magnitude(ids, enc), radii.get(row))
+            worst = max(worst, check_bound(mlx[row], cpu[row], bound, exact))
+    return empty, worst
 
 
 def _radii(enc, texts, differing, guard) -> dict:

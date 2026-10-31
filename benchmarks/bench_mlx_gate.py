@@ -398,6 +398,11 @@ def main(argv=None) -> int:
     if args.action == "list":
         print(json.dumps([asdict(c) | {"key": c.key} for c in cells], indent=2))
         return 0
+    validate(args, cells)
+    return execute(args, cells)
+
+
+def validate(args, cells) -> None:
     if not all((args.scratch, args.idle, args.cache)):
         raise ValueError("scratch, idle and cache receipts are required")
     if args.action == "profile" and len(cells) != 1:
@@ -408,7 +413,6 @@ def main(argv=None) -> int:
         raise ValueError("workers must be positive")
     if not np.isfinite(args.profile_seconds) or args.profile_seconds <= 0:
         raise ValueError("profile duration must be finite and positive")
-    return execute(args, cells)
 
 
 if __name__ == "__main__":
