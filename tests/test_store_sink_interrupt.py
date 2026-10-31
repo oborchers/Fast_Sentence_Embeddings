@@ -34,11 +34,11 @@ def _publishing(tmp_path, monkeypatch):
     entered, release, real_publish = threading.Event(), threading.Event(), _shard.publish_directory
     held = []  # checked after close: an assert inside it would be masked
 
-    def publish(tmp, path):
+    def publish(tmp, path, **kwargs):
         if path.name == shard_name(4):
             entered.set()
             held.append(release.wait(TIMEOUT))  # the publisher runs this while close stops
-        real_publish(tmp, path)
+        real_publish(tmp, path, **kwargs)
 
     monkeypatch.setattr(_shard, "publish_directory", publish)
     _commit(sink, 4, 4, 1.0)  # shard 2, full: handed to the publisher
@@ -129,7 +129,7 @@ def wait_for(done, what):
         time.sleep(0.01)
 
 
-def publish(tmp, path):
+def publish(tmp, path, **kwargs):
     if path.name == shard_name(4):
         # Close has deferred SIGINT; the parent sends it now, then once more.
         installed = lambda: signal.getsignal(signal.SIGINT) is not signal.default_int_handler

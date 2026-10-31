@@ -12,9 +12,10 @@ store. The worker of a task writes its rows into a buffer of the task (the windo
 runtime bounds them); its commit writes them into ``vectors.npy`` at their offset
 (``pwrite``, so a full disk raises an OSError there) and feeds the checksum of the vectors,
 in row order. The scales and inverse norms are kept in memory. Finishing shrinks a shard
-that ends early, syncs the file, writes the scales, the inverse norms and the manifest,
+that ends early, writes the scales, the inverse norms and the manifest,
 and renames the directory into place without replacing anything. Until then the rows are
-not durable; ``abort`` removes the temporary directory.
+not published; ``abort`` removes the temporary directory. With ``synced=True``, every
+file and the directory entries are synced before publication is confirmed.
 
 Writing through a mapping of the file instead (the first design) cost about half the
 throughput: page faults on fresh file pages and a mapping per task (``bench_store.py``,
@@ -45,10 +46,17 @@ class ShardWriter:
     """The shard of the rows ``first_row`` to ``first_row + capacity - 1`` of a store."""
 
     def __init__(
-        self, store: Path, info: StoreInfo, first_row: int, capacity: int, created_by: str
+        self,
+        store: Path,
+        info: StoreInfo,
+        first_row: int,
+        capacity: int,
+        created_by: str,
+        *,
+        synced: bool = True,
     ):
         self.store, self.info, self.first_row, self.capacity = store, info, first_row, capacity
-        self.created_by = created_by
+        self.created_by, self.synced = created_by, synced
         self.dtype = np.dtype(_codes.STORAGE_TYPES[info.dtype])
         self.row_bytes = info.dim * self.dtype.itemsize
         self.tmp = store / f".{shard_name(first_row)}.writing-{secrets.token_hex(4)}"
@@ -149,7 +157,8 @@ class ShardWriter:
         rows = self.committed
         if rows != self.capacity:
             shrink(self.fd, self.offset, self.dtype, (rows, self.info.dim))
-        sync_data(self.fd)
+        if self.synced:
+            sync_data(self.fd)
         os.close(self.fd)
         self.fd = -1
         code = tensor_code(np.empty(0, self.dtype))
@@ -161,15 +170,27 @@ class ShardWriter:
             entries[name] = (
                 tensor_code(array),
                 array.shape,
-                _write(self.tmp / f"{name}.npy", array),
+                _write(self.tmp / f"{name}.npy", array, synced=self.synced),
             )
-        metadata = shard_metadata(self.info, self.first_row, rows, self.created_by)
+        metadata = shard_metadata(
+            self.info, self.first_row, rows, self.created_by, unsynced=not self.synced
+        )
         manifest_tmp = self.tmp / f".manifest.json.writing-{secrets.token_hex(4)}"
         # Two full syncs on macOS: the directory before the rename makes the files and
         # the manifest durable, the store after it the rename (docs/architecture/store.md,
         # "sentence_vectors 1").
-        write_manifest(self.tmp, entries, metadata, manifest_tmp, sync_data, staged=True)
-        publish_directory(self.tmp, self.store / shard_name(self.first_row))
+        write_manifest(
+            self.tmp,
+            entries,
+            metadata,
+            manifest_tmp,
+            sync_data if self.synced else lambda _fd: None,
+            staged=True,
+            directories=self.synced,
+        )
+        publish_directory(
+            self.tmp, self.store / shard_name(self.first_row), sync_parent=self.synced
+        )
         # A long stream keeps no arrays of published shards.
         self.norms = np.empty(0, np.float32)
         self.scales = None if self.scales is None else np.empty(0, np.float32)
@@ -185,7 +206,7 @@ class ShardWriter:
         return remove_temporary(self.tmp)
 
 
-def _write(file: Path, array: ndarray) -> str:
+def _write(file: Path, array: ndarray, *, synced: bool = True) -> str:
     """A small tensor as a .npy file sent to the drive; returns the checksum of its data."""
     data = np.ascontiguousarray(array)
     fd = os.open(file, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o644)
@@ -193,5 +214,6 @@ def _write(file: Path, array: ndarray) -> str:
         npy_format.write_array_header_1_0(f, npy_format.header_data_from_array_1_0(data))
         f.write(data.tobytes())
         f.flush()
-        sync_data(f.fileno())
+        if synced:
+            sync_data(f.fileno())
     return checksum(data)

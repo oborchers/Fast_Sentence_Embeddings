@@ -25,7 +25,8 @@ def bench(monkeypatch):
 
 @pytest.mark.parametrize(("dtype", "files"), [("float32", 3), ("float16", 3), ("int8", 4)])
 @pytest.mark.parametrize(
-    "side", ["full", "fsync", "none", "deferred", "flush_model", "aa", "pend1g", "pend1g_n"]
+    "side",
+    ["full", "fsync", "none", "none_impl", "deferred", "flush_model", "aa", "pend1g", "pend1g_n"],
 )
 def test_sync_counts_and_restoration(bench, tmp_path, monkeypatch, dtype, files, side):
     import fcntl
@@ -48,7 +49,7 @@ def test_sync_counts_and_restoration(bench, tmp_path, monkeypatch, dtype, files,
     limits = (_writer.MAX_PENDING, _writer.MAX_PENDING_BYTES)
     result = bench.measure(args, encoder, ["a b"] * 8)
     counts = {k: v["calls"] for k, v in result["syncs"].items()}
-    if side == "none":
+    if side in {"none", "none_impl"}:
         assert counts == {}
     elif side == "fsync":
         assert counts == {"fsync_file": 2 * files, "fsync_dir": 6}
@@ -61,6 +62,7 @@ def test_sync_counts_and_restoration(bench, tmp_path, monkeypatch, dtype, files,
         }
     else:
         assert counts == {"fsync_file": 2 * files, "fsync_dir": 2, "full": 4}
+    assert result["unsynced_shards"] == (2 if side == "none_impl" else 0)
     assert result["initialisation"]["syncs"]
     assert _shard.sync_data is sync
     assert limits == (_writer.MAX_PENDING, _writer.MAX_PENDING_BYTES)
@@ -156,7 +158,7 @@ def test_budget_timeout_preserves_completed_pairs(bench, tmp_path, monkeypatch):
 
     def child_result(_cmd, **_kwargs):
         calls.append(1)
-        if len(calls) == 25:
+        if len(calls) == 3 * (len(bench.SIDES) + 2) + 1:
             raise SystemExit("timeout") from subprocess.TimeoutExpired("child", 1)
         return {"seconds": 1, "digest": "same"}
 

@@ -34,9 +34,9 @@ fse logs through the standard library only, on the fixed loggers `fse.artifact` 
 | `runtime.arrow_copied` | WARNING | `fse.runtime` | bytes | an Arrow column whose offsets or views were copied to align them |
 | `runtime.arrow_stream` | WARNING | `fse.runtime` | producer (class), error (class) | a producer that cannot export Arrow data, read as a stream |
 | `head.folded` | INFO | `fse.runtime` | rows, outputs, workers, backend, seconds | `fold` of a head on raw means |
-| `store.sink_opened` | INFO | `fse.store` | mode (`new`, `append`), rows, dim, dtype, shard_rows | `ShardSink` |
-| `store.shard_published` | DEBUG | `fse.store` | first_row, rows, durable_rows | the publisher of `ShardSink` (thread `fse-shard-publish`) |
-| `store.sink_closed` | INFO | `fse.store` | rows, shards, durable_rows, dropped_rows, outcome (`ok`, `error`, `interrupt`), seconds | `ShardSink.close` |
+| `store.sink_opened` | INFO | `fse.store` | mode (`new`, `append`), rows, dim, dtype, shard_rows, durability (`full`, `none`) | `ShardSink` |
+| `store.shard_published` | DEBUG | `fse.store` | first_row, rows, published_rows, durable_rows | the publisher of `ShardSink` (thread `fse-shard-publish`) |
+| `store.sink_closed` | INFO | `fse.store` | rows, shards, published_rows, durable_rows, dropped_rows, durability (`full`, `none`), outcome (`ok`, `error`, `interrupt`), seconds | `ShardSink.close` |
 | `store.cleanup_failed` | WARNING | `fse.store` | error, errno | a temporary shard or store directory that could not be removed while an error is raised |
 | `store.opened` | INFO | `fse.store` | rows, shards, dim, dtype, backend, unsynced_shards, verified_bytes, verify_seconds | `VectorStore.open` |
 | `store.verified` | INFO | `fse.store` | rows, shards, seconds | `VectorStore.verify` |

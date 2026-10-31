@@ -102,7 +102,7 @@ def refuse_unsynced(path: Path, found: list) -> None:
         raise ValueError(
             f"the store {path} holds rows written with durability='none' from row {first}; "
             "rows appended with durability='full' cannot be durable while rows before them "
-            "are not; write a new store"
+            "are not; append with durability='none' or write a new store"
         )
 
 

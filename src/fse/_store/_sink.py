@@ -9,9 +9,9 @@
 The worker of a task writes its rows into a buffer of the task (stage 5 and the inverse
 norms in the worker); its commit writes them into the current shard at their offset. A
 task that crosses the end of a shard is split over the shards at its commit. A shard
-whose rows are all committed is published at once, and only then ``durable_rows`` grows:
-a stream confirms its input up to there. After an error the committed rows are published
-and the rest is dropped.
+whose rows are all committed is published at once, then ``published_rows`` grows.
+With full durability its successful sync also grows ``durable_rows``; none keeps it zero.
+After an error the committed rows are published and the rest is dropped.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import numpy as np
 from numpy import ndarray
 
 from fse import _codes, _log
-from fse._container import note_cleanup
+from fse._container import PublishedNotDurableError, note_cleanup
 from fse._encoder import Encoder
 from fse._validation import PositiveInt, validate_arguments
 
@@ -63,9 +63,10 @@ class ShardSink:
 
     Use it as a context manager (or call ``close``): leaving it publishes the committed
     rows, also after an error. ``first_row`` is the row of the store the first row of the
-    run becomes; ``durable_rows`` counts the leading rows of the run that are published
-    and synced; ``seal`` ends the current shard early, so ``publish`` can make its rows
-    durable without waiting for a full shard.
+    run becomes; ``published_rows`` counts visible leading rows. ``durable_rows`` counts
+    rows published and synced with ``durability="full"`` and stays zero under "none".
+    ``seal`` ends the current shard early, so ``publish`` can publish its rows without
+    waiting for a full shard. Store creation always uses full durability.
     """
 
     inverse_norms = True
@@ -78,6 +79,7 @@ class ShardSink:
         *,
         dtype: Literal["float32", "float16", "int8"] = "float32",
         shard_rows: PositiveInt | None = None,
+        durability: Literal["full", "none"] = "full",
     ):
         if not isinstance(encoder, Encoder):
             raise TypeError(f"encoder must be an Encoder, not {type(encoder).__name__}")
@@ -88,9 +90,11 @@ class ShardSink:
         if new:
             create_store(self.path, info)
         read_store(self.path).check(info, self.path)
+        self._synced = durability == "full"
         checked = snapshot(self.path, info, verify=False)
         try:
-            refuse_unsynced(self.path, checked.shards)
+            if self._synced:
+                refuse_unsynced(self.path, checked.shards)
             self.first_row = sum(shard.rows for shard, _ in checked.shards)
         finally:
             checked.shards.clear()  # a sink keeps no mappings, also on refusal
@@ -98,7 +102,7 @@ class ShardSink:
         self._info = info
         self.dim, self.dtype, self.encoder_fingerprint = info.dim, dtype, info.encoder
         self.shard_rows = shard_rows or default_shard_rows(info.dim, dtype)
-        self._reserved = self._committed = self.durable_rows = 0
+        self._reserved = self._committed = self.published_rows = self.durable_rows = 0
         self._writers: deque[ShardWriter] = deque()  # shards still taking rows
         self._made: set[ShardWriter] = set()  # shards of the run not yet published
         self._targets: dict[int, tuple[list, tuple | None]] = {}  # run row -> parts, own
@@ -116,18 +120,25 @@ class ShardSink:
         self._published = 0  # shards
         _log.emit(
             "store.sink_opened",
-            "fse store: a sink %s a store at row %d: %d dimensions, %s of %d rows",
+            "fse store: a sink %s a store at row %d: %d dimensions, %s of %d rows, durability=%s",
             "creates" if new else "appends to",
             self.first_row,
             info.dim,
             dtype,
             self.shard_rows,
+            durability,
             mode="new" if new else "append",
             rows=self.first_row,
             dim=info.dim,
             dtype=dtype,
             shard_rows=self.shard_rows,
+            durability=durability,
         )
+
+    @property
+    def durability(self) -> Literal["full", "none"]:
+        """The publication policy fixed when this sink was opened."""
+        return "full" if self._synced else "none"
 
     # --- the sink protocol, in the calling thread -------------------------------------
 
@@ -301,18 +312,21 @@ class ShardSink:
     def _closed_record(self, error: BaseException | None, failing: bool) -> None:
         interrupted = self._interrupted or isinstance(error, KeyboardInterrupt)
         outcome = "interrupt" if interrupted else "error" if failing else "ok"
-        dropped = self._committed - self.durable_rows
+        dropped = self._committed - self.published_rows
         _log.emit(
             "store.sink_closed",
-            "fse store: a sink closed (%s): %d rows durable in %d shards, %d dropped",
+            "fse store: a sink closed (%s): %d rows published, %d durable in %d shards, %d dropped",
             outcome,
+            self.published_rows,
             self.durable_rows,
             self._published,
             dropped,
             rows=self._committed,
             shards=self._published,
+            published_rows=self.published_rows,
             durable_rows=self.durable_rows,
             dropped_rows=dropped,
+            durability=self.durability,
             outcome=outcome,
             seconds=time.perf_counter() - self._start,
         )
@@ -349,7 +363,12 @@ class ShardSink:
         if not self._writers or self._writers[-1].full:
             store_row = self.first_row + self._reserved
             writer = ShardWriter(
-                self.path, self._info, store_row, self.shard_rows, self._created_by
+                self.path,
+                self._info,
+                store_row,
+                self.shard_rows,
+                self._created_by,
+                synced=self._synced,
             )
             self._writers.append(writer)
             self._made.add(writer)
@@ -375,30 +394,41 @@ class ShardSink:
         """Publish ``writer`` (in the writer thread, after its commits)."""
         try:
             rows = writer.finish(lambda: self._io.failed)
+        except PublishedNotDurableError:
+            self._count_published(writer, writer.committed, durable=False)
+            writer.abort()
+            raise
         except FileExistsError:
             exists = FileExistsError(
                 f"another writer appended to {self.path} at row {writer.first_row} first; "
-                f"this run published its first {self.durable_rows} rows (rows "
-                f"{self.first_row} to {self.first_row + self.durable_rows - 1} of the store)"
+                f"this run published its first {self.published_rows} rows from store row "
+                f"{self.first_row}, of which {self.durable_rows} are durable"
             )
             writer.abort()  # a failure: removed again and reported at close, in its thread
             raise exists from None
         except BaseException:
             writer.abort()  # likewise
             raise
-        self._made.discard(writer)
-        self.durable_rows += rows
-        self._published += 1
+        self._count_published(writer, rows, durable=self._synced)
         _log.emit(
             "store.shard_published",
-            "fse store: published a shard of %d rows at row %d; %d rows of the run durable",
+            "fse store: published a shard of %d rows at row %d; %d rows published, %d durable",
             rows,
             writer.first_row,
+            self.published_rows,
             self.durable_rows,
             first_row=writer.first_row,
             rows=rows,
+            published_rows=self.published_rows,
             durable_rows=self.durable_rows,
         )
+
+    def _count_published(self, writer: ShardWriter, rows: int, *, durable: bool) -> None:
+        self._made.discard(writer)
+        self.published_rows += rows
+        if durable:
+            self.durable_rows += rows
+        self._published += 1
 
     def _abort_uncommitted(self) -> None:
         """Publish the committed rows of every shard, end it there, drop the rest."""

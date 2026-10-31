@@ -123,14 +123,17 @@ def sync_data(fd: int) -> None:
     os.fsync(fd)
 
 
-def publish_directory(tmp: Path, path: Path) -> None:
+def publish_directory(tmp: Path, path: Path, *, sync_parent: bool = True) -> None:
     """Rename the finished directory ``tmp`` to ``path`` without ever replacing anything,
     not even an empty directory, then sync the parent. Raises FileExistsError if ``path``
     exists, and OSError where the system has no exclusive rename of directories; nothing
     is published then. A failed sync after the rename raises PublishedNotDurableError: the
     directory is published at ``path`` and stays there, but its rename is not confirmed
-    durable."""
+    durable. ``sync_parent=False`` skips the parent sync; the exclusive rename and
+    its Windows write-through flag remain unchanged."""
     _rename_exclusive(tmp, path)
+    if not sync_parent:
+        return
     try:
         _sync_directory(path.parent)
     except OSError as error:

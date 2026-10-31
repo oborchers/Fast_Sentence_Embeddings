@@ -109,13 +109,17 @@ def shard_name(first_row: int) -> str:
     return f"{SHARD_PREFIX}{first_row:016d}"
 
 
-def shard_metadata(info: StoreInfo, first_row: int, rows: int, created_by: str) -> dict[str, str]:
+def shard_metadata(
+    info: StoreInfo, first_row: int, rows: int, created_by: str, *, unsynced: bool = False
+) -> dict[str, str]:
     metadata = info.metadata()
     metadata[CREATED_BY_KEY] = created_by
     if info.dtype != "float32":
         metadata["fse.quantization"] = QUANTIZATION
     metadata["fse.first_row"] = str(first_row)
     metadata["fse.rows"] = str(rows)
+    if unsynced:
+        metadata["fse.durability"] = "none"
     return metadata
 
 

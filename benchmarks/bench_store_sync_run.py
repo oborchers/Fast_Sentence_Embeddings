@@ -163,7 +163,7 @@ def sync_tree(path, *, model=False, rows=0):
         marker(path, rows)
 
 
-def checked(path):
+def checked(path, *, unsynced=False):
     """Verify all artifacts; digest tensors in row order independent of shard size."""
     import numpy as np
 
@@ -175,6 +175,8 @@ def checked(path):
         store.verify()
     info = read_store(path)
     chain = shards(path, info)
+    if any(shard.unsynced != unsynced for shard, _ in chain):
+        raise AssertionError("the durability tag does not match the benchmark side")
     digest = Hasher()
     digest.update((path / "store.json").read_bytes())
     for name in ("vectors", "inv_norms", "scales"):
@@ -184,4 +186,8 @@ def checked(path):
                 array = np.load(file, mmap_mode="r")
                 digest.update(array)
                 del array
-    return {"digest": digest.checksum(), "shards": len(chain)}
+    return {
+        "digest": digest.checksum(),
+        "shards": len(chain),
+        "unsynced_shards": sum(shard.unsynced for shard, _ in chain),
+    }
