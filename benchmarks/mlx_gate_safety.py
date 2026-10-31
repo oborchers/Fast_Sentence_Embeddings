@@ -68,7 +68,10 @@ def identity(repo: Path, commit: str) -> dict:
     }
     if any(not Path(p).is_relative_to(repo / "src") for p in files.values()):
         raise StopError("imports do not come from this checkout")
-    from fse._container import checksum
+    from fse._container._hash import Hasher
+
+    native_digest = Hasher()
+    native_digest.update(Path(files["native"]).read_bytes())
 
     hardware = {}
     if sys.platform == "darwin":
@@ -91,7 +94,7 @@ def identity(repo: Path, commit: str) -> dict:
         "compiler": platform.python_compiler(),
         "default_workers": usable_cpus(),
         "hardware": hardware,
-        "native_checksum": checksum(Path(files["native"]).read_bytes()),
+        "native_checksum": native_digest.checksum(),
         "native_isa": _native.default_isa(),
         "versions": {p: version(p) for p in ("numpy", "mlx", "memray")},
     }

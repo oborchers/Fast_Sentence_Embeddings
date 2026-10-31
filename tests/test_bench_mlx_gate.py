@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import time
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -201,3 +202,34 @@ def test_unknown_or_duplicate_cells_are_not_silently_skipped(modules):
     for keys in ([key, key], ["unknown"]):
         with pytest.raises(ValueError, match="duplicate or unknown"):
             driver.selected(keys)
+
+
+def test_identity_preflight_on_the_real_clean_checkout(modules):
+    """Exercise actual imports, native bytes hashing, ISA and host metadata, without a run.
+
+    This integration witness needs the prepared MLX environment and recorded Git
+    history. Ordinary wheel/minimum jobs need neither, so report that limitation.
+    No lock, budget reservation, encoder, corpus or device operation is involved.
+    """
+    safety, repo = modules.mlx_gate_safety, BENCHMARKS.parent
+    try:
+        for package in ("numpy", "mlx", "memray"):
+            version(package)
+    except PackageNotFoundError:
+        pytest.skip("real gate preflight requires the prepared MLX/profiler environment")
+    if safety.git(repo, "status", "--porcelain"):
+        pytest.skip("real gate preflight requires a clean committed checkout")
+    if safety.git(repo, "rev-parse", "--is-shallow-repository") == "true":
+        pytest.skip("real gate preflight requires the frozen base history")
+    commit = safety.git(repo, "rev-parse", "HEAD")
+    result = safety.identity(repo, commit)
+    assert result["commit"] == commit
+    assert result["base"] == modules.mlx_gate_data.BASE
+    assert result["native_checksum"].startswith("xxh3-128:")
+    assert len(result["native_checksum"]) == 41
+    assert result["native_isa"] in ("portable", "neon", "avx2")
+    assert result["default_workers"] >= 1
+    assert Path(result["files"]["native"]).is_file()
+    assert Path(result["files"]["fse"]).is_relative_to(repo / "src")
+    assert result["versions"]["numpy"] == np.__version__
+    json.dumps(result, allow_nan=False)
