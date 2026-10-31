@@ -12,9 +12,10 @@ Describe the problem and resulting behavior. Link the relevant issue with its ti
 - Platforms checked (x86 AVX2, ARM NEON, Linux, Windows), and untested platforms:
 - Factual claims and their sources (including documentation changes):
 
-For performance or hot-path changes, include paired alternating rounds, median and range,
-load, an A/A control, required kernel and end-to-end throughput comparisons, and CPU,
-allocation-memory and process-tree RSS profiles. Otherwise state why these do not apply.
+For performance or hot-path changes, report paired alternating rounds, median and range, load, and an A/A control.
+Include the required kernel and end-to-end throughput comparisons.
+Attach CPU, allocation-memory and process-tree resident set size (RSS) profiles.
+Otherwise state why these do not apply.
 
 ## Checks
 
