@@ -143,7 +143,11 @@ def test_the_line_of_a_yaml_error(tmp_path):
     _raises(
         tmp_path, "license: mit\nx: [", r"\(line 3\)"
     )  # the line of the file, the first being the ---
-    _raises(tmp_path, "license: 2020-13-01", r"month must be in 1\.\.12\) \(line 2\)")
+    _raises(
+        tmp_path,
+        "license: 2020-13-01",
+        r"invalid timestamp value: month must be in 1\.\.12 \(line 2\)",
+    )
 
 
 @pytest.mark.parametrize(

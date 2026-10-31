@@ -282,8 +282,11 @@ def test_the_yaml_rules_of_a_license(tmp_path, front, want):
         ("license: 'mit", "cannot read as YAML"),
         ('license: "mit"\n"license": other', "license 2 times"),
         ("license: mit\n? license\n: other", "license 2 times"),
-        ("license: 2020-13-01", "cannot read as YAML: month must be in 1..12"),
-        ("license: !!int abc", "cannot read as YAML: invalid literal"),
+        (
+            "license: 2020-13-01",
+            "cannot read as YAML: invalid timestamp value: month must be in 1..12",
+        ),
+        ("license: !!int abc", "cannot read as YAML: invalid int value: invalid literal"),
         ("license: !!float x", "cannot read as YAML"),
         ("license: !!python/object/apply:os.system [x]", "license fse cannot read: a list"),
         ("license: !!python/name:os.system", "cannot read as YAML"),

@@ -44,7 +44,7 @@ from ._files import MAX_CONFIG_BYTES, Files, parse_config, read_table
 from ._format import Source
 from ._front_matter import front_matter, strings
 from ._model2vec import DEFAULT_MAX_LENGTH, check_config, median_length, model_table
-from ._pretrained import MAX_CARD_BYTES, LocalFiles, _check_modules, card_license
+from ._pretrained import MAX_CARD_BYTES, LocalFiles, _check_modules, license_of
 
 
 class Unset:
@@ -164,7 +164,7 @@ def find_rules(
     table, kept = reduced(table, dimensionality)
     words = WordVectors._from_arrays(table, tokens, None, None, None, {}, copy=False)
     card = files.read("README.md", limit=MAX_CARD_BYTES) if files.has("README.md") else None
-    fields = card_fields(card, files.where("README.md"))
+    fields, license = read_card(card, files.where("README.md"))
     return Rules(
         words,
         tuple(tokens),
@@ -178,7 +178,7 @@ def find_rules(
         fields["base_model"],
         fields["language"],
         Source("model2vec", files.source, files.revision, None if kept is None else (width, kept)),
-        card_license(card, files.where("README.md")),
+        license,
     )
 
 
@@ -251,8 +251,18 @@ def card_fields(data: bytes | None, path: Path) -> dict[str, str | list[str] | N
     """``base_model`` and ``language`` of the YAML front matter of a model card as model2vec
     reads them: a string, a list of strings, or None (no card, no key, null). Another form
     raises."""
-    keys = ("base_model", "language")
+    return _fields(data, path, ("base_model", "language"))[0]
+
+
+def read_card(data: bytes | None, path: Path) -> tuple[dict, Any]:
+    """The fields of ``card_fields`` and the license of ``card_license``, from one read of
+    the front matter (composing it is the cost of a card)."""
+    return _fields(data, path, ("base_model", "language"), license=True)
+
+
+def _fields(data, path, keys, *, license=False):
     if data is None:
-        return dict.fromkeys(keys)
-    values = front_matter(data, path, keys)
-    return {key: strings(values[key], key, path, _PLAIN) for key in keys}
+        return dict.fromkeys(keys), None
+    values = front_matter(data, path, (*keys, "license") if license else keys)
+    fields = {key: strings(values[key], key, path, _PLAIN) for key in keys}
+    return fields, license_of(values["license"], path) if license else None

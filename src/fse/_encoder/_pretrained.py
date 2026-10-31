@@ -301,5 +301,10 @@ def card_license(data: bytes | None, path: Path) -> str | tuple[str, ...] | None
     the front matter) raises."""
     if data is None:
         return None
-    value = strings(front_matter(data, path, ("license",))["license"], "license", path, _LICENSE_ID)
-    return tuple(value) if isinstance(value, list) else value
+    return license_of(front_matter(data, path, ("license",))["license"], path)
+
+
+def license_of(value: Any, path: Path) -> str | tuple[str, ...] | None:
+    """The license of the value of the key ``license``: see ``card_license``."""
+    ids = strings(value, "license", path, _LICENSE_ID)
+    return tuple(ids) if isinstance(ids, list) else ids

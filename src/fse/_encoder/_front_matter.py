@@ -137,7 +137,7 @@ def _scalar(loader: yaml.SafeLoader, node: Node) -> Any:
     except yaml.YAMLError:
         raise
     except Exception as err:
-        problem = f"{node.tag} is no valid value ({type(err).__name__}: {err})"
+        problem = f"invalid {node.tag.rsplit(':', 1)[-1]} value: {err}"
         raise yaml.constructor.ConstructorError(None, None, problem, node.start_mark) from err
 
 
