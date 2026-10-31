@@ -92,11 +92,12 @@ def load(corpus: str | None = None, *, measure_lookup: bool = True) -> dict:
         encoder.encode(texts(corpus), workers=1)
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     peak *= 1 if sys.platform == "darwin" else 1024
-    start_lookup = time.perf_counter()
+    lookup_seconds = None
     if measure_lookup:
+        start_lookup = time.perf_counter()
         lookup = fse_lookup(folder() / "tokenizer.json")
+        lookup_seconds = time.perf_counter() - start_lookup
         del lookup
-    lookup_seconds = time.perf_counter() - start_lookup
     return {
         "load_s": loaded - start,
         "first_s": first - loaded,

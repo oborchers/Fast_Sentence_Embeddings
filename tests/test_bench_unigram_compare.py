@@ -41,17 +41,29 @@ def test_load_measures_first_encode_and_peak_before_separate_lookup(bench, monke
         events.append("peak")
         return SimpleNamespace(ru_maxrss=123)
 
+    class Lookup:
+        def __del__(self):
+            events.append("destroy")
+
     def lookup(_):
         events.append("lookup")
+        return Lookup()
 
     ticks = iter([0, 2, 5, 6, 8, 12])
     monkeypatch.setattr(fse, "Encoder", Encoder)
     monkeypatch.setattr(bench, "folder", lambda: Path("model"))
     monkeypatch.setattr(bench, "fse_lookup", lookup)
-    monkeypatch.setattr(bench.time, "perf_counter", lambda: next(ticks))
+
+    def clock():
+        value = next(ticks)
+        if value == 12:
+            events.append("lookup end")
+        return value
+
+    monkeypatch.setattr(bench.time, "perf_counter", clock)
     monkeypatch.setattr(bench.resource, "getrusage", peak)
     got = bench.load()
-    assert events == ["load", "encode", "encode", "peak", "lookup"]
+    assert events == ["load", "encode", "encode", "peak", "lookup", "lookup end", "destroy"]
     assert got == {
         "load_s": 2,
         "first_s": 3,
@@ -73,3 +85,17 @@ def test_timed_worker_keeps_build_identity(bench, monkeypatch, capsys):
         "commit": "abc",
         "seconds": [1.5],
     }
+
+
+def test_profile_mode_does_not_time_or_construct_a_second_lookup(bench, monkeypatch):
+    import fse
+
+    encoder = SimpleNamespace(encode=lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(fse, "Encoder", SimpleNamespace(from_pretrained=lambda _path: encoder))
+    monkeypatch.setattr(bench, "folder", lambda: Path("model"))
+
+    def refuse(_path):
+        raise AssertionError("a second lookup would distort the profile")
+
+    monkeypatch.setattr(bench, "fse_lookup", refuse)
+    assert bench.load(measure_lookup=False)["lookup_s"] is None
