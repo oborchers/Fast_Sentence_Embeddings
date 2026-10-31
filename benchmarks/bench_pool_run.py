@@ -42,9 +42,31 @@ def injected(reuse: Reuse) -> Iterator[None]:
 
 def batches(sentences: list[str], size: str, calls: int) -> list[list[str]]:
     """Short prefixes, a full corpus, or consecutive wrapping server requests."""
-    if size == "many":
+    if size == "inline":
         return [[sentences[(32 * k + j) % len(sentences)] for j in range(32)] for k in range(calls)]
+    if size == "many":
+        return server_requests(sentences, calls)
     return [sentences]
+
+
+def server_requests(sentences: list[str], calls: int) -> list[list[str]]:
+    """Consecutive requests just above 64 KiB, without splitting any text."""
+    from fse._runtime._tasks import INLINE_MAX_BYTES
+
+    lengths = [len(s.encode("utf-8")) for s in sentences]
+    if not any(lengths):
+        raise ValueError("server requests need nonempty text")
+    requests = []
+    position = 0
+    for _ in range(calls):
+        request, nbytes = [], 0
+        while nbytes <= INLINE_MAX_BYTES:
+            index = position % len(sentences)
+            request.append(sentences[index])
+            nbytes += lengths[index]
+            position += 1
+        requests.append(request)
+    return requests
 
 
 def measure(pipeline: Any, requests: list[list[str]], workers: int, side: str, passes: int) -> dict:
@@ -56,7 +78,8 @@ def measure(pipeline: Any, requests: list[list[str]], workers: int, side: str, p
     from fse._runtime._tasks import INLINE_MAX_BYTES
     from fse._text import StringSource
 
-    inline = sum(StringSource(r).nbytes <= INLINE_MAX_BYTES for r in requests)
+    byte_sizes = [StringSource(r).nbytes for r in requests]
+    inline = sum(n <= INLINE_MAX_BYTES for n in byte_sizes)
     reuse = Reuse()
     startup = 0.0
     if side == "reuse":
@@ -88,4 +111,6 @@ def measure(pipeline: Any, requests: list[list[str]], workers: int, side: str, p
         "requests_inline": inline,
         "requests": len(requests),
         "texts_per_call": [min(map(len, requests)), max(map(len, requests))],
+        "bytes_per_call": [min(byte_sizes), max(byte_sizes)],
+        "inline_max_bytes": INLINE_MAX_BYTES,
     }

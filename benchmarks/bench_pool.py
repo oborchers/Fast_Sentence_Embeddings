@@ -54,9 +54,12 @@ def parser() -> argparse.ArgumentParser:
         "--corpora", nargs="+", choices=("wikitext", "massive"), default=["wikitext", "massive"]
     )
     p.add_argument(
-        "--sizes", nargs="+", choices=("full", "short", "many"), default=["full", "short", "many"]
+        "--sizes",
+        nargs="+",
+        choices=("full", "short", "many", "inline"),
+        default=["full", "short", "many"],
     )
-    p.add_argument("--workers", nargs="+", type=positive, default=[4, 8, 10])
+    p.add_argument("--workers", nargs="+", type=positive, default=[4, 10])
     p.add_argument("--rounds", type=positive, default=3)
     p.add_argument("--passes", type=positive, default=7)
     p.add_argument("--calls", type=positive, default=1000)
@@ -157,7 +160,7 @@ def run_cell(args, model: str, corpus: str, size: str, workers: int) -> dict:
                 "--side",
                 side,
                 "--passes",
-                str(args.passes),
+                str(1 if size in {"many", "inline"} else args.passes),
                 "--calls",
                 str(args.calls),
             ],

@@ -84,7 +84,7 @@ def test_real_measurement_keeps_bits_and_cleans_up(runner, side):
 
 
 def test_many_requests_wrap_the_corpus(runner):
-    requests = runner.batches(["a", "b", "c"], "many", 1000)
+    requests = runner.batches(["a", "b", "c"], "inline", 1000)
     assert len(requests) == 1000
     assert all(len(r) == 32 for r in requests)
     assert requests[0][:3] == ["a", "b", "c"]
@@ -122,3 +122,15 @@ def test_decision_rule_uses_both_directions_of_aa_noise(bench):
     assert not summary["regression_beyond_noise"]
     assert summary["noise_bounds"] == pytest.approx([1 / 1.02, 1.02])
     assert bench.summary(Rounds(list(bench.SIDES)))["valid_pairs"] == 0
+
+
+def test_server_requests_cross_inline_threshold_without_splitting_text(runner):
+    sentences = ["x" * 1000, "ä" * 700]
+    requests = runner.batches(sentences, "many", 10)
+    assert len(requests) == 10
+    for request in requests:
+        total = sum(len(s.encode("utf-8")) for s in request)
+        assert total > 65536
+        assert total - len(request[-1].encode("utf-8")) <= 65536
+    with pytest.raises(ValueError, match="nonempty"):
+        runner.server_requests([""], 2)
