@@ -88,7 +88,7 @@ def test_separate_runs_keep_step_order_and_multiple_byte_tables():
 
 
 def test_ascii_charsmap_fast_path_matches_every_pair_and_grapheme_context():
-    from charsmap import build
+    from support.charsmap import build
 
     from fse import _reference_unigram as ref
     from fse._charsmap import Charsmap
@@ -114,7 +114,7 @@ def test_ascii_charsmap_fast_path_matches_every_pair_and_grapheme_context():
 
 
 def test_cached_ascii_values_keep_broken_charsmap_errors():
-    from charsmap import build
+    from support.charsmap import build
 
     from fse._charsmap import Charsmap
 
