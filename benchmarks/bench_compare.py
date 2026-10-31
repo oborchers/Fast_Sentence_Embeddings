@@ -47,44 +47,57 @@ def reservation(lock: Path):
 
 def child(args) -> None:
     sentences = texts(args.corpus)
-    provenance = {**identity(), **corpus_identity(args.corpus, sentences)}
+    provenance = identity()
+    if args.kind == "rust":
+        from compare_rust_worker import measure
+
+        record, vectors = measure(args, sentences)
+    else:
+        record, vectors = python_measure(args, sentences)
+    from fse._container._hash import checksum
+
+    provenance.update(corpus_identity(args.corpus, sentences))
+    if args.vectors_out is not None:
+        np.save(args.vectors_out, vectors)
+    record.update(
+        {
+            **provenance,
+            "time_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "kind": args.kind,
+            "threads": args.threads,
+            "model": args.model,
+            "revision": _revision(args.model),
+            "corpus": args.corpus,
+            "texts": len(sentences),
+            "output_digest": checksum(np.ascontiguousarray(vectors)),
+            "p50_s": float(np.median(record["warm_seconds"])),
+            "p95_s": float(np.percentile(record["warm_seconds"], 95)),
+        }
+    )
+    print(json.dumps(record))
+
+
+def python_measure(args, sentences):
     start = time.perf_counter()
     encode = contender(args.kind, args.threads, args.model)
     load_s = time.perf_counter() - start
     if args.kind == "model2vec" and args.threads > 1:
-        # Preserve the library default: below its 10,000-row threshold the
-        # tokenizer can parallelize. Above it model2vec disables tokenizer
-        # parallelism itself and uses its default joblib thread pool.
+        # Above its threshold model2vec disables tokenizer parallelism itself.
         os.environ["TOKENIZERS_PARALLELISM"] = "true"
     durations = []
-    shape = None
     for _ in range(args.passes + 1):
         start = time.perf_counter()
         out = encode(sentences)
         durations.append(time.perf_counter() - start)
-        shape = out.shape
-    print(
-        json.dumps(
-            {
-                **provenance,
-                "time_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "kind": args.kind,
-                "threads": args.threads,
-                "model": args.model,
-                "revision": _revision(args.model),
-                "corpus": args.corpus,
-                "texts": len(sentences),
-                "shape": shape,
-                "load_s": load_s,
-                "first_encode_s": durations[0],
-                "warm_seconds": durations[1:],
-                "p50_s": float(np.median(durations[1:])),
-                "p95_s": float(np.percentile(durations[1:], 95)),
-                "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-                * (1 if sys.platform == "darwin" else 1024),
-            }
-        )
-    )
+    return {
+        "load_s": load_s,
+        "first_encode_s": durations[0],
+        "warm_seconds": durations[1:],
+        "shape": out.shape,
+        "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        * (1 if sys.platform == "darwin" else 1024),
+        "rss_scope": "Python encoder process",
+    }, out
 
 
 def operation(args, label: str, threads: int) -> dict:
@@ -204,8 +217,9 @@ def main() -> None:
     parser.add_argument("--passes", type=int, default=5)
     parser.add_argument("--rounds", type=int, default=3)
     parser.add_argument("--budget-s", type=float, default=600)
-    parser.add_argument("--against", choices=("model2vec", "st"), default="model2vec")
-    parser.add_argument("--kind", choices=("fse", "model2vec", "st"), default="fse")
+    parser.add_argument("--against", choices=("model2vec", "st", "rust"), default="model2vec")
+    parser.add_argument("--kind", choices=("fse", "model2vec", "st", "rust"), default="fse")
+    parser.add_argument("--vectors-out", type=Path)
     parser.add_argument("--lock", type=Path)
     parser.add_argument("--results", type=Path)
     args = parser.parse_args()

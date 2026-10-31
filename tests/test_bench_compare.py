@@ -69,7 +69,12 @@ def test_default_model2vec_keeps_tokenizer_parallelism(bench, monkeypatch, capsy
 
     monkeypatch.setattr(bench, "contender", contender)
     args = SimpleNamespace(
-        corpus="wikitext", kind="model2vec", threads=10, model="minishlab/potion-base-8M", passes=2
+        corpus="wikitext",
+        kind="model2vec",
+        threads=10,
+        model="minishlab/potion-base-8M",
+        passes=2,
+        vectors_out=None,
     )
     bench.child(args)
     row = json.loads(capsys.readouterr().out)

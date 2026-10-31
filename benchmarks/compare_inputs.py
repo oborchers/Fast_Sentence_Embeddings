@@ -11,8 +11,6 @@ import sys
 from importlib.metadata import distributions
 from pathlib import Path
 
-from fse._container._hash import Hasher
-
 DATASETS = {
     "wikitext": ("Salesforce/wikitext", "b08601e04326c79dfdd32d625aee71d232d685c3"),
     "massive": ("mteb/amazon_massive_intent", "4672e20407010da34463acc759c162ca9734bca6"),
@@ -51,6 +49,8 @@ def _massive(folder: Path) -> list[str]:
 
 
 def corpus_identity(name: str, rows: list[str]) -> dict:
+    from fse._container._hash import Hasher
+
     hasher = Hasher()
     for row in rows:
         data = row.encode("utf-8")
