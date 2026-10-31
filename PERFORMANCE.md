@@ -310,7 +310,7 @@ One worker does not change (the plan is the same by construction); 4 workers gai
 
 ## A pool reused across calls
 
-Part of DR-180 (Leerlauf der Worker am Laufende messen und verringern). This experiment changes only the benchmark process. The production rule "No thread outlives a call" remains in force. Reuse measures startup avoidance, shutdown avoidance and retained thread state together, not startup alone.
+Part of DR-180 (Leerlauf der Worker am Laufende messen und verringern). This experiment changes only the benchmark process. The production rule "No thread outlives a call" remains in force ([docs/architecture/runtime.md](docs/architecture/runtime.md), "Runtime"). Reuse measures startup avoidance, shutdown avoidance and retained thread state together, not startup alone.
 
 Measured on the same M1 Pro (10 cores, 16 GiB), Python 3.13.16, source base `140e9e2`, with the model snapshots pinned in `roofline.py`. `bench_pool.py` runs base, a second base (A/A control) and reuse in fresh child processes, alternating their order. Every cell has three valid pairs, with load strictly below 5 before and after every side. Calls include `StringSource` construction and `Pipeline.infer`, without tracing. Full and short corpora use seven individual calls per side. The server cells time one block of 1000 sequential calls per side. Ratios compare each side's median time per call within each pair, then take the median over pairs. First warm and last timed outputs are checked against base with uint32 views, outside the clock. Warmup outputs are released before timing. Peak process RSS includes loading and bit checks as well as inference, and counts an old result still live while its replacement is built. It is not a steady-state footprint. [Raw kept and discarded rounds](benchmarks/baseline/thread_pool_20261031.json).
 
@@ -373,7 +373,18 @@ Prestarting all workers to a barrier, outside timing, costs 4 workers: 0.378 ms 
 
 The corrected matrix took 325.7 active seconds including child startup and loading. Load pauses are separate. 9 rounds crossed the load limit and are retained as discarded data. The initial series was replaced in full after removing retained byte copies used for bit checks, which inflated RSS. It is not combined with this series.
 
-CPU, allocation and RSS profiles and the timeline split are pending the shared gate window.
+**Timeline and profiles, deciding cell:** potion-base-8M, first 5000 MASSIVE texts, 10 workers, both variants. Three paired traced rounds of three calls at load 4.63, no discarded round. Every pass has an exact disjoint idle split; columns below are separate medians. [Raw timeline and profile summaries](benchmarks/baseline/thread_pool_profiles_20261031.json).
+
+| variant | traced wall ms | idle share | tail share | ramp share | after last task ms |
+|---|---:|---:|---:|---:|---:|
+| per call | 1.966 | 70.86 % | 55.91 % | 15.03 % | 0.144 |
+| reuse | 1.820 | 70.95 % | 61.66 % | 10.48 % | 0.057 |
+
+Head-of-line, producer, sink and hand-over shares have zero medians. Four tasks leave six worker slots unused. The call becomes shorter while the idle share stays near 71 %. Time after the last task includes the final commit and pool shutdown.
+
+CPU (`make profile-cpu`, samply, 6 s per variant): `_wp_piece` 17.7/11.1 %, `fse_loop_f32_neon` 17.3/8.0 %, `fse_normalize_body` 7.5/4.5 %, `__psynch_cvwait` 38.6/66.4 % (per call/reuse, self samples). The all-thread sample populations differ because reused workers remain alive. These shares are not speedup measurements.
+
+Memory (`make profile-mem`, native memray, 3 s each): peak live allocations 74.58/77.20 MiB. The largest cumulative allocation sites are result rows (`_sinks._new`), joined strings (`StringSource.__init__`) and pooled rows (`text_rows`). Memray lacks interpreter debug symbols, limiting native stack attribution. Process-tree RSS (`make profile-rss`, 3 s each): peaks 146.89/151.91 MiB. The profile phase took 38.9 s under the lock, at load 4.63 before and 6.50 after. It supplies attribution and memory peaks, not wall-time decisions.
 
 A production persistent pool would need a defined owner and lifetime, explicit close or atexit behavior, fork safety, cleanup after KeyboardInterrupt, concurrent and nested-call behavior, and the existing GIL-budget tests without weaker limits. The benchmark patch is process-global, sequential and limited to this experiment. None of those production changes is implemented.
 
