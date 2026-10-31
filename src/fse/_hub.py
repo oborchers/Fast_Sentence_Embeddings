@@ -177,7 +177,7 @@ def cached_snapshot(hub: Any, repo: str, revision: str | None, cache_dir) -> Pat
     storage = base / ("models--" + repo.replace("/", "--"))
     commit = revision
     if not _COMMIT.fullmatch(revision):
-        commit = _read_ref(storage / "refs" / revision, repo, revision)
+        commit = _read_ref(storage, revision, repo)
     snapshot = storage / "snapshots" / commit
     if not os.path.lexists(snapshot):
         raise FileNotFoundError(
@@ -188,17 +188,24 @@ def cached_snapshot(hub: Any, repo: str, revision: str | None, cache_dir) -> Pat
     return snapshot
 
 
-def _read_ref(ref: Path, repo: str, revision: str) -> str:
-    """The commit that the file ``ref`` of the cache holds."""
-    try:
-        mode = os.lstat(ref).st_mode
-    except (FileNotFoundError, NotADirectoryError):
-        raise FileNotFoundError(
-            f"{repo}: the cache has no ref {revision!r}; local_files_only cannot resolve a "
-            "revision it never downloaded (a commit hash needs no ref)"
-        ) from None
-    if not stat.S_ISREG(mode):
-        raise CorruptArtifactError(f"{ref} is a link or no file; fse follows no link in the cache")
+def _read_ref(storage: Path, revision: str, repo: str) -> str:
+    """The commit that the file ``refs/<revision>`` of the cached repository ``storage``
+    holds; ``refs`` and the folders of the revision are plain directories, the file is
+    a regular file, no link."""
+    parts = ["refs", *revision.split("/")]
+    for i in range(1, len(parts) + 1):
+        ref = storage.joinpath(*parts[:i])
+        try:
+            mode = os.lstat(ref).st_mode
+        except (FileNotFoundError, NotADirectoryError):
+            raise FileNotFoundError(
+                f"{repo}: the cache has no ref {revision!r}; local_files_only cannot resolve "
+                "a revision it never downloaded (a commit hash needs no ref)"
+            ) from None
+        if not (stat.S_ISREG(mode) if i == len(parts) else stat.S_ISDIR(mode)):
+            raise CorruptArtifactError(
+                f"{ref} is a link or the wrong kind of entry; fse follows no link in the cache"
+            )
     commit = ref.read_text(encoding="ascii", errors="replace").strip()
     if not _COMMIT.fullmatch(commit):
         raise CorruptArtifactError(f"{ref} holds {commit[:60]!r}, no commit hash")

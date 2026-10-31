@@ -141,6 +141,21 @@ def test_a_ref_that_is_a_link_raises(fake, tmp_path):
         _files(fake)
 
 
+def test_a_folder_of_the_ref_that_is_a_link_raises(fake, tmp_path):
+    _load(fake)
+    fake.write_ref("refs/pr/1")
+    elsewhere = tmp_path / "elsewhere"
+    os.rename(fake.folder() / "refs" / "refs", elsewhere)
+    (fake.folder() / "refs" / "refs").symlink_to(elsewhere, target_is_directory=True)
+    with pytest.raises(CorruptArtifactError, match="is a link"):
+        _files(fake, "refs/pr/1")
+    refs = fake.folder() / "refs"
+    os.rename(refs, tmp_path / "all-refs")
+    refs.symlink_to(tmp_path / "all-refs", target_is_directory=True)
+    with pytest.raises(CorruptArtifactError, match="is a link"):
+        _files(fake)
+
+
 def test_a_snapshot_that_is_a_link_raises(fake, tmp_path):
     _load(fake)
     elsewhere = tmp_path / "elsewhere"
