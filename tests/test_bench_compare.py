@@ -2,6 +2,7 @@
 
 import importlib
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -49,3 +50,28 @@ def test_reservation_rechecks_load_after_acquisition(bench, tmp_path, monkeypatc
     with pytest.raises(RuntimeError), bench.reservation(lock):
         pytest.fail("load rose while reserving")
     assert not lock.exists()
+
+
+def test_default_model2vec_keeps_tokenizer_parallelism(bench, monkeypatch, capsys):
+    import json
+
+    monkeypatch.setattr(bench, "texts", lambda _: ["a short corpus"])
+    monkeypatch.setattr(bench, "identity", lambda: {})
+
+    def contender(*_args):
+        monkeypatch.setenv("TOKENIZERS_PARALLELISM", "false")
+
+        def encode(_texts):
+            assert bench.os.environ["TOKENIZERS_PARALLELISM"] == "true"
+            return bench.np.zeros((1, 2))
+
+        return encode
+
+    monkeypatch.setattr(bench, "contender", contender)
+    args = SimpleNamespace(
+        corpus="wikitext", kind="model2vec", threads=10, model="minishlab/potion-base-8M", passes=2
+    )
+    bench.child(args)
+    row = json.loads(capsys.readouterr().out)
+    assert len(row["warm_seconds"]) == 2
+    assert row["texts"] == 1
