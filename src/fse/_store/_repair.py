@@ -9,10 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fse import _log
-from fse._container import CorruptArtifactError, UnsupportedArtifactError
+from fse._container import CorruptArtifactError
 from fse._container._common import _strict_json, _sync_directory
 from fse._container._npy import _check_version, _manifest_bytes
 from fse._container._npy_inplace import _rename_exclusive
+from fse._contract import UnsupportedArtifactError
 from fse._validation import PathLike, validate_arguments
 
 from ._layout import StoreInfo, _check_quantization, open_shard, read_store, shard_name
