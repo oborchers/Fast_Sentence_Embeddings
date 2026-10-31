@@ -190,13 +190,15 @@ def sigint():
     if threading.current_thread() is not threading.main_thread():
         pytest.skip("a SIGINT is delivered to the main thread only")
     before = signal.signal(signal.SIGINT, signal.default_int_handler)
-    yield
+    yield signal.getsignal(signal.SIGINT)
     signal.signal(signal.SIGINT, before)
 
 
-@pytest.mark.usefixtures("sigint")
 @pytest.mark.parametrize("name", ["base", "copy", "single", "both"])
-def test_a_sigint_in_the_queue_launches_nothing_and_leaves_no_thread(variants, cancel, name):
+def test_a_sigint_in_the_queue_launches_nothing_and_leaves_no_thread(
+    variants, cancel, sigint, name
+):
+    assert sigint is signal.default_int_handler
     device = Device(lambda: FakeMx())
     with variants.patched(name):
         run = cancel.one_queue(device, lambda _mx: np.ones(4, np.float32))
@@ -205,9 +207,9 @@ def test_a_sigint_in_the_queue_launches_nothing_and_leaves_no_thread(variants, c
     assert cancel.threads_left() == 0
 
 
-@pytest.mark.usefixtures("sigint")
 @pytest.mark.parametrize("name", ["base", "copy", "single", "both"])
-def test_a_sigint_during_the_write_leaves_no_write_after_the_return(variants, cancel, name):
+def test_a_sigint_during_the_write_leaves_no_write_after_the_return(variants, cancel, sigint, name):
+    assert sigint is signal.default_int_handler
     device = Device(lambda: FakeMx())
     with variants.patched(name):
         run = cancel.one_write(device, lambda _mx: np.ones((cancel.CHUNKS, 8), np.float32))
