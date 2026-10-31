@@ -312,26 +312,70 @@ One worker does not change (the plan is the same by construction); 4 workers gai
 
 Part of DR-180 (Leerlauf der Worker am Laufende messen und verringern). This experiment changes only the benchmark process. The production rule "No thread outlives a call" remains in force. Reuse measures startup avoidance, shutdown avoidance and retained thread state together, not startup alone.
 
-Initial measurements on the same M1 Pro, Python 3.13.16, source base `140e9e2`, pinned model snapshots from `roofline.py`. `bench_pool.py` runs base, a second base (A/A control) and reuse in fresh child processes, alternating their order. Each cell needs three valid pairs, with load strictly below 5 before and after every side. The calls include construction of `StringSource` and `Pipeline.infer`, without tracing. Seven individual calls per side for full and short corpora, one block of 1000 calls for the server workload. Ratios use the median time per call of each side within each pair. Peak RSS includes loading the model and corpus, outside the timing. Raw kept and discarded rounds: [thread_pool_20261031.json](benchmarks/baseline/thread_pool_20261031.json).
+Measured on the same M1 Pro (10 cores, 16 GiB), Python 3.13.16, source base `140e9e2`, with the model snapshots pinned in `roofline.py`. `bench_pool.py` runs base, a second base (A/A control) and reuse in fresh child processes, alternating their order. Every cell has three valid pairs, with load strictly below 5 before and after every side. Calls include `StringSource` construction and `Pipeline.infer`, without tracing. Full and short corpora use seven individual calls per side. The server cells time one block of 1000 sequential calls per side. Ratios compare each side's median time per call within each pair, then take the median over pairs. First warm and last timed outputs are checked against base with uint32 views, outside the clock. Warmup outputs are released before timing. Peak process RSS includes loading and bit checks as well as inference, and counts an old result still live while its replacement is built. It is not a steady-state footprint. [Raw kept and discarded rounds](benchmarks/baseline/thread_pool_20261031.json).
 
-Rule fixed in the draft PR before timing: a gain requires median reuse/base at most 0.97. It is beyond noise only if every ratio is below min(1, minimum A/A, reciprocal maximum A/A) from the same cell. A regression is beyond noise only if every ratio exceeds the symmetric upper bound. Peak RSS may rise by at most 5 %. This classifies evidence for the maintainer, without implementing a persistent pool.
+Rule fixed in the draft PR before timing: a gain requires median reuse/base at most 0.97. It is beyond noise only if every ratio is below min(1, minimum A/A, reciprocal maximum A/A) from the same cell. A regression is beyond noise only if every ratio exceeds the symmetric upper bound. Peak RSS may rise by at most 5 %. These classify evidence for the maintainer, without authorizing a lifetime change. In the tables, "gain/noise" means median gain of at least 3 % / beyond the observed noise, and RSS is base/control/reuse. Each range is over the three pairs.
 
-**Partial series:** the rows below have three valid pairs. The remaining cells and profiles are pending a quiet window. Two valid pairs of potion MASSIVE at 4 workers are preserved in the raw data but excluded from decisions.
+**potion-base-8M (256 dimensions)**
 
-| potion-base-8M, WikiText | workers | base / reuse ms | reuse/base median (range) | A/A range | gain / beyond noise | peak RSS base/control/reuse MiB | load range |
+| corpus and size | workers | base / reuse ms | reuse/base median (range) | A/A median (range) | gain/noise | peak RSS MiB | load range |
 |---|---:|---|---|---|---|---|---|
-| full corpus | 4 | 7.933 / 7.703 | 0.973 (0.948 to 0.976) | 0.971 to 1.033 | no / no | 234.0/219.0/218.2 | 3.48 to 3.60 |
-| full corpus | 10 | 5.998 / 5.267 | 0.878 (0.768 to 0.905) | 0.818 to 1.006 | yes / no | 217.0/217.4/217.9 | 3.55 to 4.39 |
-| first 500 texts | 4 | 1.052 / 0.947 | 0.900 (0.822 to 0.911) | 1.005 to 1.083 | yes / yes | 184.0/184.6/188.2 | 3.38 to 3.41 |
-| first 500 texts | 10 | 1.089 / 0.960 | 0.881 (0.873 to 0.889) | 1.019 to 1.033 | yes / yes | 187.8/185.2/185.5 | 3.35 to 3.38 |
-| 1000 calls, each >64 KiB | 4 | 0.621 / 0.510 | 0.822 (0.821 to 0.844) | 1.005 to 1.025 | yes / yes | 188.0/186.9/187.0 | 3.32 to 4.25 |
-| 1000 calls, each >64 KiB | 10 | 0.625 / 0.505 | 0.804 (0.803 to 0.820) | 0.983 to 1.033 | yes / yes | 186.7/187.9/189.0 | 3.90 to 4.25 |
+| massive, full | 4 | 45.979 / 45.890 | 0.998 (0.994 to 0.998) | 1.009 (0.997 to 1.012) | no/no | 483.8/484.3/485.3 | 4.30 to 4.71 |
+| massive, full | 10 | 25.690 / 25.897 | 1.015 (0.980 to 1.018) | 0.996 (0.990 to 1.000) | no/no | 486.9/487.3/487.3 | 4.25 to 4.36 |
+| massive, 5000 texts | 4 | 1.967 / 1.849 | 0.945 (0.886 to 0.977) | 0.990 (0.969 to 1.053) | yes/no | 126.4/126.6/125.5 | 4.25 to 4.55 |
+| massive, 5000 texts | 8 | 1.990 / 1.845 | 0.946 (0.918 to 0.956) | 1.003 (0.944 to 1.006) | yes/no | 126.2/126.1/128.0 | 4.38 to 4.58 |
+| massive, 5000 texts | 10 | 1.998 / 1.829 | 0.937 (0.915 to 0.939) | 0.972 (0.971 to 1.059) | yes/yes | 125.8/127.6/128.1 | 4.43 to 4.55 |
+| massive, 1000 server calls | 4 | 1.031 / 0.897 | 0.870 (0.864 to 0.878) | 0.974 (0.964 to 1.001) | yes/yes | 143.2/141.8/141.9 | 4.05 to 4.89 |
+| massive, 1000 server calls | 10 | 1.009 / 0.917 | 0.913 (0.895 to 0.917) | 1.007 (0.997 to 1.027) | yes/yes | 139.8/141.8/139.2 | 4.24 to 4.87 |
+| massive, 1000 inline calls | 4 | 0.064 / 0.063 | 0.980 (0.972 to 1.007) | 1.019 (1.000 to 1.064) | no/no | 120.3/119.9/119.1 | 4.46 to 4.58 |
+| wikitext, full | 4 | 7.923 / 7.713 | 0.973 (0.961 to 0.992) | 1.006 (0.983 to 1.016) | no/no | 201.1/201.5/201.6 | 3.87 to 4.03 |
+| wikitext, full | 8 | 5.910 / 5.653 | 0.954 (0.944 to 1.002) | 1.013 (0.991 to 1.022) | yes/no | 202.6/202.1/205.1 | 4.59 to 4.73 |
+| wikitext, full | 10 | 5.783 / 5.331 | 0.928 (0.914 to 0.936) | 1.011 (0.981 to 1.018) | yes/yes | 204.3/202.1/204.2 | 3.80 to 3.87 |
+| wikitext, 500 texts | 4 | 1.076 / 0.904 | 0.839 (0.817 to 0.878) | 0.986 (0.977 to 1.036) | yes/yes | 184.9/184.5/185.7 | 3.80 to 3.82 |
+| wikitext, 500 texts | 10 | 1.104 / 0.979 | 0.898 (0.830 to 0.904) | 0.969 (0.953 to 0.975) | yes/yes | 184.4/187.2/184.5 | 3.82 to 4.07 |
+| wikitext, 1000 server calls | 4 | 0.629 / 0.514 | 0.819 (0.815 to 0.864) | 0.992 (0.987 to 1.039) | yes/yes | 186.1/190.2/185.8 | 4.07 to 4.52 |
+| wikitext, 1000 server calls | 8 | 0.614 / 0.506 | 0.822 (0.789 to 0.842) | 1.008 (0.987 to 1.032) | yes/yes | 186.0/189.1/187.7 | 4.55 to 4.59 |
+| wikitext, 1000 server calls | 10 | 0.617 / 0.504 | 0.818 (0.719 to 0.927) | 0.998 (0.878 to 1.009) | yes/no | 187.6/186.3/184.4 | 4.52 to 4.88 |
 
-The full WikiText pilot has no gain beyond noise at either 4 or 10 workers. Both short and server workloads do, with peak RSS within 5 %. Eight workers are omitted where these endpoint conclusions agree, as requested to keep the full experiment within about 30 minutes. The short prefixes use the tail split already on the base. The 16 KiB minimum-chunk combination remains a follow-up.
+**static-retrieval-mrl-en-v1 (1024 dimensions)**
 
-Server requests accumulate consecutive whole texts until their UTF-8 bytes first exceed the normal 65,536-byte inline threshold. The runner records actual byte and row ranges. A separate 32-text workload below the threshold is an inline control and cannot demonstrate pool reuse.
+| corpus and size | workers | base / reuse ms | reuse/base median (range) | A/A median (range) | gain/noise | peak RSS MiB | load range |
+|---|---:|---|---|---|---|---|---|
+| massive, full | 4 | 86.685 / 86.257 | 1.001 (0.983 to 1.001) | 0.996 (0.988 to 1.020) | no/no | 1588.8/1588.5/1591.6 | 4.17 to 4.70 |
+| massive, full | 10 | 46.474 / 46.509 | 1.001 (0.971 to 1.035) | 1.047 (0.995 to 1.073) | no/no | 1590.1/1591.1/1592.1 | 4.06 to 4.98 |
+| massive, 5000 texts | 4 | 3.807 / 3.651 | 0.956 (0.955 to 0.990) | 1.004 (0.983 to 1.013) | yes/no | 268.3/265.4/265.4 | 4.63 to 4.66 |
+| massive, 5000 texts | 10 | 3.870 / 3.663 | 0.977 (0.896 to 0.995) | 0.990 (0.971 to 0.991) | no/no | 266.3/267.6/265.5 | 4.66 to 4.69 |
+| massive, 1000 server calls | 4 | 1.697 / 1.577 | 0.929 (0.919 to 0.935) | 1.005 (0.995 to 1.008) | yes/yes | 308.3/308.1/308.1 | 4.31 to 4.93 |
+| massive, 1000 server calls | 10 | 1.704 / 1.587 | 0.929 (0.908 to 0.940) | 0.995 (0.984 to 0.999) | yes/yes | 308.8/307.9/311.8 | 4.06 to 4.58 |
+| wikitext, full | 4 | 21.109 / 20.971 | 0.996 (0.986 to 1.003) | 0.999 (0.994 to 1.008) | no/no | 342.2/343.1/343.7 | 4.68 to 4.74 |
+| wikitext, full | 8 | 14.229 / 13.868 | 0.981 (0.957 to 0.995) | 1.011 (1.001 to 1.035) | no/no | 345.7/344.7/345.7 | 4.38 to 4.83 |
+| wikitext, full | 10 | 13.586 / 12.763 | 0.939 (0.935 to 0.949) | 0.984 (0.966 to 1.010) | yes/yes | 344.4/344.7/343.5 | 4.50 to 4.68 |
+| wikitext, 500 texts | 4 | 2.501 / 2.561 | 1.000 (0.919 to 1.149) | 1.044 (1.011 to 1.114) | no/no | 295.6/295.7/297.6 | 4.38 to 4.50 |
+| wikitext, 500 texts | 8 | 2.675 / 2.352 | 0.867 (0.835 to 0.954) | 0.930 (0.888 to 1.032) | yes/no | 295.9/293.3/294.8 | 4.49 to 4.61 |
+| wikitext, 500 texts | 10 | 2.635 / 2.344 | 0.898 (0.853 to 0.921) | 0.963 (0.932 to 1.016) | yes/yes | 296.8/295.5/299.9 | 4.27 to 4.38 |
+| wikitext, 1000 server calls | 4 | 1.414 / 1.278 | 0.907 (0.904 to 0.909) | 0.996 (0.994 to 1.006) | yes/yes | 292.4/294.2/294.7 | 4.25 to 4.63 |
+| wikitext, 1000 server calls | 10 | 1.409 / 1.266 | 0.898 (0.895 to 0.917) | 1.013 (0.994 to 1.026) | yes/yes | 293.8/292.8/293.8 | 4.49 to 4.69 |
 
-A production pool would require an owner and lifetime policy, explicit close or atexit behavior, fork safety, cleanup after KeyboardInterrupt, concurrent and nested-call behavior, and the existing GIL-budget tests without weaker limits. The benchmark patch is global, sequential and limited to this experiment.
+Server requests accumulate consecutive whole texts until their joined UTF-8 bytes first exceed the normal 65,536-byte inline threshold. Actual request sizes (identical for both models):
+
+| corpus | texts per server call | UTF-8 bytes per call | inline requests |
+|---|---|---|---|
+| wikitext | 76 to 260 | 65,537 to 67,315 | 0 of 1000 |
+| massive | 452 to 2417 | 65,537 to 65,900 | 0 of 1000 |
+
+The inline control uses 32 MASSIVE texts per call (609 to 4,834 bytes), below the threshold in all 1000 requests. It never uses a pool, so a ratio there is a control for noise, not evidence of reuse.
+
+Eight workers are measured only where the 4- and 10-worker conclusions differ (gain beyond noise with acceptable RSS, regression beyond noise, or inconclusive). The remaining 8-worker cells are omitted to bound the experiment. Short prefixes use the tail split already on the base. The combination with a 16 KiB minimum chunk remains a follow-up.
+
+Reuse passes both time criteria in 14 of 29 target cells. Full MASSIVE shows no gain beyond noise at either worker count, while full WikiText does at 10 workers with both models. Short and server results vary by cell, so the tables retain inconclusive rows. No cell regresses beyond the observed A/A range, and every peak RSS is within 5 % (largest ratio 1.019). The inline control shows no gain beyond noise.
+
+Prestarting all workers to a barrier, outside timing, costs 4 workers: 0.378 ms (0.326 to 0.526), 8 workers: 0.598 ms (0.508 to 0.927), 10 workers: 0.714 ms (0.560 to 0.898). This is full-pool initialization, not the lazy start cost of one call, which may start fewer threads.
+
+The corrected matrix took 325.7 active seconds including child startup and loading. Load pauses are separate. 9 rounds crossed the load limit and are retained as discarded data. The initial series was replaced in full after removing retained byte copies used for bit checks, which inflated RSS. It is not combined with this series.
+
+CPU, allocation and RSS profiles and the timeline split are pending the shared gate window.
+
+A production persistent pool would need a defined owner and lifetime, explicit close or atexit behavior, fork safety, cleanup after KeyboardInterrupt, concurrent and nested-call behavior, and the existing GIL-budget tests without weaker limits. The benchmark patch is process-global, sequential and limited to this experiment. None of those production changes is implemented.
 
 ## int8 tables at 1024 dimensions
 
