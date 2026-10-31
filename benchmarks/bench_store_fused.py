@@ -32,7 +32,8 @@ and ``aa``, a second ``split`` that is the noise of the same run):
 Every run checks the store it wrote: ``VectorStore.open`` and ``verify``, and a digest of
 all its files, which the fused and the A/A run must equal that of the split run of their
 round. A cell passes the rule fixed before the measurement when the median of fused/split
-wall times is at most 1.02 and not above the upper end of the A/A ratios, not every
+wall times is at most 1.02 and not above the upper end of the A/A ratios (but at least 1.0, so a
+faster fused run passes), not every
 pair is slower, and the median peak RSS is at most 5 % above that of split.
 """
 
