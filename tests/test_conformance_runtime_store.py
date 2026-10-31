@@ -13,7 +13,7 @@ from fse._runtime import EncodeSpec, GrowingRows, Pipeline, _executor, _pipeline
 from fse._stream import StreamSource
 from fse._text import StringSource
 from fse._wordvectors import WordVectors
-from support.conformance import assert_bits_equal, require_mlx
+from support.conformance import assert_bits_equal
 from support.runtime import expected, source, texts, word_vectors
 
 F32 = np.float32
@@ -45,12 +45,10 @@ def _check(got, want_rows, store):
 @pytest.mark.parametrize("fasttext", [False, True], ids=["plain", "fasttext"])
 @pytest.mark.parametrize("steps", list(STEPS))
 @pytest.mark.parametrize("store", ["float16", "int8"])
-@pytest.mark.parametrize("backend", ["cpu", "numpy", "mlx"])
+@pytest.mark.parametrize("backend", ["cpu", "numpy"])
 def test_stored_rows_are_the_reference_bits(
     tmp_path, monkeypatch, backend, store, steps, fasttext, kind, workers
 ):
-    if backend == "mlx":
-        require_mlx()
     tokenizer = "external" if kind == "tokens" else "fse_words@1"
     sentences = texts(120 if backend == "numpy" else 400)
     spec = _spec(fasttext, steps, tokenizer)
@@ -62,12 +60,10 @@ def test_stored_rows_are_the_reference_bits(
     _check(got, expected(spec, sentences), store)
 
 
-@pytest.mark.parametrize("backend", ["cpu", "mlx"])
+@pytest.mark.parametrize("backend", ["cpu"])
 @pytest.mark.parametrize("store", ["float16", "int8"])
 @pytest.mark.parametrize("env", [{"flush": True}, {"round_up": True}])
 def test_workers_store_in_the_kernel_environment(monkeypatch, env, store, backend):
-    if backend == "mlx":
-        require_mlx()
     spec = _spec(False, "normalize", "fse_words@1")
     sentences = texts(2000)
     made = _pipeline.new_workspace

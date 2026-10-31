@@ -9,7 +9,7 @@ import pytest
 
 from fse import _native
 from fse import _reference_head as ref
-from fse._backends import UnsupportedByBackendError, get_backend
+from fse._backends import get_backend
 from fse._contract import Link
 from fse._runtime import Pipeline
 from fse._runtime._head import HeadPipeline, HeadSpec, fold, make_head
@@ -157,15 +157,6 @@ def test_a_row_whose_norm_overflows_raises_on_the_normalized_path(backend):
         pipeline.infer(StringSource(texts), output="labels", workers=1)
     raw = make_head(spec, head_of(spec, 2, False), name, own=_own(spec, name, isa), isa=isa)
     raw.infer(StringSource(texts), output="labels", workers=1)  # the raw head folds and runs
-
-
-def test_the_mlx_backend_refuses_heads():
-    try:
-        backend = get_backend("mlx")
-    except UnsupportedByBackendError:
-        pytest.skip("mlx cannot run here")
-    with pytest.raises(UnsupportedByBackendError, match="mlx backend cannot run linear heads"):
-        backend.capabilities().check_heads("mlx")
 
 
 def test_isas_cover_this_machine():

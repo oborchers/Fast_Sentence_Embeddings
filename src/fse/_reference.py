@@ -7,7 +7,7 @@
 """The numpy reference of the 2.0 numerics (``transform_version`` 2).
 
 Every function here computes exactly what docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)",
-prescribes, bit for bit, in plain numpy: the oracle for the compiled and device
+prescribes, bit for bit, in plain numpy: the oracle for the compiled
 backends. It is written for clarity, not speed, and loops over tokens in Python.
 
 numpy has no float32 fused multiply-add, so ``fma32`` emulates it: the product of two

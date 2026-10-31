@@ -36,14 +36,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.diff.outputs.code }}
-      # The native code and the build: wheels (test-mlx covers the macOS tests).
+      # The native code and the build: wheels.
       native: ${{ steps.diff.outputs.native }}
       # The dependency pins: the job with the minimum versions.
       deps: ${{ steps.diff.outputs.deps }}
       # The sentence-transformers path: test-st.
       st: ${{ steps.diff.outputs.st }}
-      # The mlx backend and what it shares with the native code: test-mlx.
-      mlx: ${{ steps.diff.outputs.mlx }}
       # The packaging: the sdist job.
       sdist: ${{ steps.diff.outputs.sdist }}
       # The matrix of the test job.
@@ -61,7 +59,7 @@ jobs:
           full=$(jq -nc '[{os: "ubuntu-latest", "python-version": ("3.11", "3.12", "3.13", "3.14", "3.15"), deps: "latest"}, {os: "macos-latest", "python-version": ("3.11", "3.12", "3.13", "3.14", "3.15"), deps: "latest"}, {os: "ubuntu-latest", "python-version": "3.11", deps: "min"}]')
           if [ "$EVENT" != "pull_request" ]; then
             {
-              for name in code native deps st mlx sdist; do echo "$name=true"; done
+              for name in code native deps st sdist; do echo "$name=true"; done
               echo "test_matrix={\"include\":$full}"
             } >> "$GITHUB_OUTPUT"
             exit 0
@@ -109,17 +107,10 @@ jobs:
             # The converter, its tests and helpers (tests/support/converted.py builds the
             # models of the conversion tests), and the pins of the st group.
             flag st '^src/fse/_encoder/_sentence_transformers|^tests/test_encoder_sentence_transformers|^tests/support/(sentence_transformers|converted)\.py$|^(pyproject\.toml|uv\.lock)$'
-            # The backend and its tests, the backend registry, the device conformance
-            # tests with their helpers, and everything native (the kernels it mirrors).
-            flag mlx '^src/fse/_backends/(_mlx/|__init__\.py$)|^tests/test_backends_mlx|^tests/test_conformance_device|^tests/support/(fake_mlx|conformance)\.py$|^src/fse/_native|^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|\.(pyx|pxd|pxi|h)$'
             flag sdist '^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|^src/fse/(_native_src/.*|[^/]*)\.(pyx|pxd|pxi|h)$'
           } >> "$GITHUB_OUTPUT"
-          # Linux on 3.13, plus the minimum versions when the pins change. No macOS entry:
-          # test-mlx runs the whole suite (pytest tests -m "not network", Python 3.13, group
-          # test plus mlx) on macOS, and the mlx output is true wherever native is (its
-          # pattern contains all of native's), so a macOS entry here would repeat it. The
-          # entry stays only for a case where native is true and mlx is not.
-          matrix=$(jq -nc --argjson native "$(grep -qx 'native=true' "$GITHUB_OUTPUT" && echo true || echo false)" --argjson mlx "$(grep -qx 'mlx=true' "$GITHUB_OUTPUT" && echo true || echo false)" --argjson deps "$(grep -qx 'deps=true' "$GITHUB_OUTPUT" && echo true || echo false)" '[{os: "ubuntu-latest", "python-version": "3.13", deps: "latest"}] + (if ($native and ($mlx | not)) then [{os: "macos-latest", "python-version": "3.13", deps: "latest"}] else [] end) + (if $deps then [{os: "ubuntu-latest", "python-version": "3.11", deps: "min"}] else [] end)')
+          # Linux on 3.13, macOS for native changes, and minimum dependency versions.
+          matrix=$(jq -nc --argjson native "$(grep -qx 'native=true' "$GITHUB_OUTPUT" && echo true || echo false)" --argjson deps "$(grep -qx 'deps=true' "$GITHUB_OUTPUT" && echo true || echo false)" '[{os: "ubuntu-latest", "python-version": "3.13", deps: "latest"}] + (if $native then [{os: "macos-latest", "python-version": "3.13", deps: "latest"}] else [] end) + (if $deps then [{os: "ubuntu-latest", "python-version": "3.11", deps: "min"}] else [] end)')
           echo "test_matrix={\"include\":$matrix}" >> "$GITHUB_OUTPUT"
 
   lint:
@@ -222,61 +213,9 @@ jobs:
         env:
           UV_NO_SYNC: "1"
 
-  # The mlx backend on Apple silicon. The probe prints whether this runner has Metal (a
-  # GitHub macOS runner is a virtual machine; GitHub documents GPU access only for its
-  # larger paid runners) and the canary's result. Where Metal works the tests must run
-  # the backend (FSE_REQUIRE_MLX), otherwise its tests skip with the reason and the
-  # maintainer's `make test-mlx` on an Apple silicon Mac is the gate. The lockfile pins
-  # mlx at its lower bound, 0.32.4, so this job also tests the minimum version.
-  test-mlx:
-    needs: changes
-    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.mlx == 'true'
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
-        with:
-          enable-cache: true
-      - run: uv python install 3.13
-      - run: uv sync $UV_SYNC_FLAGS --group test --group mlx --python 3.13
-      - name: Probe Metal and the canary
-        id: probe
-        run: |
-          uv run python - <<'PY'
-          import os
-          import mlx.core as mx
-          metal = mx.metal.is_available()
-          print("mlx", mx.__version__, "Metal available:", metal)
-          if metal:
-              print(mx.device_info())
-              from fse._backends import get_backend
-              backend = get_backend("mlx")
-              backend.device.ready()  # the canary, which every prepare runs once per process
-              print("canary: passed")
-          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
-              out.write(f"metal={'true' if metal else 'false'}\n")
-          PY
-      # A pull request skips the coverage, as in the test job.
-      - name: Run tests${{ github.event_name != 'pull_request' && ' with coverage' || '' }}, the mlx backend required where Metal works
-        run: make ${{ github.event_name == 'pull_request' && 'test' || 'test-cov' }}
-        env:
-          FSE_REQUIRE_MLX: ${{ steps.probe.outputs.metal == 'true' && '1' || '' }}
-          COVERAGE_FILE: .coverage.macos-mlx
-      - name: Upload coverage
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
-        with:
-          name: coverage-macos-mlx
-          path: .coverage.*
-          include-hidden-files: true
-          retention-days: 7
-
   # The merged coverage of the test jobs: a pull request runs only some of them.
   coverage:
-    needs: [changes, test, test-mlx]
+    needs: [changes, test]
     if: needs.changes.outputs.code == 'true' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -398,7 +337,7 @@ jobs:
 
   check:
     if: always()
-    needs: [changes, lint, test, test-st, test-mlx, coverage, sdist, wheels]
+    needs: [changes, lint, test, test-st, coverage, sdist, wheels]
     runs-on: ubuntu-latest
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35  # v1.3.0
@@ -406,7 +345,7 @@ jobs:
           jobs: ${{ toJSON(needs) }}
           # A pull request skips jobs on purpose (documentation only, no native code
           # changed, and so on); a skipped job counts as passed, a failed one fails.
-          allowed-skips: lint, test, test-st, test-mlx, coverage, sdist, wheels
+          allowed-skips: lint, test, test-st, coverage, sdist, wheels
 
   release:
     needs: check

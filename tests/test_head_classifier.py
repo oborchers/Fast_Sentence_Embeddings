@@ -184,14 +184,18 @@ def test_errors_of_a_batch_name_the_batch():
         list(model.predict_batches([[""], ["w1 w2"]], output="decision"))
 
 
-def test_the_mlx_backend_says_it_runs_no_heads_yet():
-    from fse._backends import UnsupportedByBackendError
-    from support.conformance import mlx_skip_reason
+@pytest.mark.parametrize(
+    "method", ["predict", "predict_proba", "decision_function", "predict_batches"]
+)
+def test_removed_backend_is_rejected_before_reading_input(method):
+    def unread():
+        raise AssertionError("input was read before backend validation")
+        yield "w1"
 
-    reason = mlx_skip_reason()
-    if reason:
-        pytest.skip(reason)
-    for normalize in (False, True):
-        model = _model(2, normalize=normalize)
-        with pytest.raises(UnsupportedByBackendError, match="mlx backend cannot run linear heads"):
-            model.predict(["w1"], backend="mlx")
+    def run():
+        output = getattr(_model(), method)(unread(), backend="mlx")
+        if method == "predict_batches":
+            next(output)
+
+    with pytest.raises(ValueError, match=r"backend must be one of.*cpu.*numpy.*mlx"):
+        run()

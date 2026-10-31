@@ -5,7 +5,7 @@ import pytest
 
 from fse import _native
 from fse import _reference_head as ref
-from fse._backends import UnsupportedByBackendError, get_backend
+from fse._backends import get_backend
 from fse._contract import Link
 
 F32 = np.float32
@@ -26,15 +26,9 @@ def backend(request):
     return _backend(request.param)
 
 
-def test_cpu_and_numpy_run_heads_and_mlx_says_it_cannot():
+def test_cpu_and_numpy_run_heads():
     for spec in BACKENDS:
         assert _backend(spec).capabilities().heads
-    try:
-        mlx = get_backend("mlx")
-    except UnsupportedByBackendError:
-        pytest.skip("mlx cannot run here")
-    with pytest.raises(UnsupportedByBackendError, match="mlx backend cannot run linear heads"):
-        mlx.capabilities().check_heads("mlx")
 
 
 def test_logits_are_the_reference(backend):

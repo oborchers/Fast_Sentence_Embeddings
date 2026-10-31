@@ -1,10 +1,9 @@
 """The conformance suite: every backend gives the bits of fse._reference.
 
 docs/architecture/backends.md, "Backends": a backend is done when it passes this suite. Every case runs
-for every backend in BACKENDS (the pooled rows of a device backend, mlx, are compared
-under the bound of its tolerance contract in tests/test_conformance_device.py instead);
+for every backend in BACKENDS;
 a backend that cannot run a case skips it and names the capability. PR 4 adds the CPU
-runtime backend, PR 9 the MLX backend, later CUDA, by appending to BACKENDS in
+runtime backend by appending to BACKENDS in
 tests/support/conformance.py; dot16, the steps and score are in
 tests/test_conformance_steps.py. Meta-tests at the end check that the suite catches typical
 mistakes (no fma, acc / n, an EPS start), so it cannot pass by accident.
@@ -33,9 +32,6 @@ from support.conformance import (
     _rng,
     assert_bits_equal,
 )
-
-# The mlx backend warns at the first fallback of an encoder, which these suites cause.
-pytestmark = pytest.mark.expected_log("backend.fallback")
 
 
 @functools.cache
@@ -206,13 +202,13 @@ def test_the_suite_catches_zero_padded_dot16():
 
 # --- The floating-point environment ----------------------------------------------------------
 
-# The kernels, the cpu backend and the mlx backend (the GPU and its cpu host) set the
+# The kernels and the cpu backend set the
 # environment themselves; the numpy backend, like the reference, computes in the
 # environment of its thread.
 NATIVE = [
     b
     for b in BACKENDS
-    if isinstance(b, Native) or (isinstance(b, Contract) and b.backend_name in ("cpu", "mlx"))
+    if isinstance(b, Native) or (isinstance(b, Contract) and b.backend_name == "cpu")
 ]
 # Flush-to-zero changes subnormal results, rounding up changes inexact ones.
 ENVIRONMENTS = {"flush to zero": {"flush": True}, "round up": {"round_up": True}}

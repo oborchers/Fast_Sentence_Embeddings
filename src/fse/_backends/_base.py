@@ -4,14 +4,13 @@
 # Copyright (C) Oliver Borchers
 # SPDX-License-Identifier: MIT
 
-"""The device-neutral contract of a backend (docs/architecture/backends.md, "Backends").
+"""The contract of a backend (docs/architecture/backends.md, "Backends").
 
 A backend prepares the arrays of an encoder once (``prepare``), then turns one batch
 into finished rows (``rows``: stages 2 to 4, the aggregation and then the postprocessing
 step on the rows of that batch) and computes scores. Arguments and
 outputs are host numpy arrays; what ``prepare`` returns holds the backend's own state,
-which may live on a device. Every result has the bits of ``fse._reference``. ``store``
-runs on the host, for the mlx backend too; a device backend may fuse it with ``rows`` later.
+and every result has the bits of ``fse._reference``.
 """
 
 from __future__ import annotations
@@ -69,9 +68,7 @@ class PoolInput:
 
 @dataclass(frozen=True)
 class Capabilities:
-    """What a backend can run. ``concurrent``: several threads may call ``rows`` at once.
-    ``device_rows``: a task's rows also take device memory while it runs (the pooled rows
-    and flags of a device backend), which the runtime's window counts. ``heads``: it
+    """What a backend can run. ``heads``: it
     computes the logits and outputs of linear heads (``logits``, ``outputs``).
     ``text_rows``: it runs stages 1 to 4 of a range of text in one call (``text_rows``),
     with the rows and errors of ``rows`` on the batch of that range."""
@@ -80,9 +77,7 @@ class Capabilities:
     aggregations: frozenset[Aggregation]
     steps: frozenset[Op]
     fasttext: bool
-    concurrent: bool
     max_dim: int
-    device_rows: bool = False
     heads: bool = False
     text_rows: bool = False
 

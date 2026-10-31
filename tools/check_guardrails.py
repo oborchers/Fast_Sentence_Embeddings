@@ -8,8 +8,7 @@ The guardrails ([tool.fse.guardrails]; AGENTS.md, Guardrails) keep the code revi
   most ``max-cognitive-complexity`` per function (complexipy);
 - the import rules import-linter cannot check (``tools/guardrails_imports.py``): the
   imports of and by the native extension, the only importers of a hash library and of
-  logging, no logging in what the MLX device thread runs, and the only importer of each
-  device library;
+  logging;
 - a test file for every module of fse.
 
 What exceeded a limit when the guardrails came is the ratchet. It only shrinks: a new
@@ -57,13 +56,11 @@ def load_pyproject(root: Path) -> dict:
 
 
 def load_config(root: Path) -> dict:
-    """The [tool.fse.guardrails] table, with the forbidden packages of import-linter and
-    the device libraries, which the extension must not import either."""
+    """The [tool.fse.guardrails] table, with the forbidden packages of import-linter."""
     tool = load_pyproject(root)["tool"]
     cfg = dict(tool["fse"]["guardrails"])
     forbidden = [c for c in tool["importlinter"]["contracts"] if c["type"] == "forbidden"]
-    devices = [m for modules in cfg.get("device-libraries", {}).values() for m in modules]
-    cfg["forbidden"] = sorted({m for c in forbidden for m in c["forbidden_modules"]} | set(devices))
+    cfg["forbidden"] = sorted({m for c in forbidden for m in c["forbidden_modules"]})
     return cfg
 
 

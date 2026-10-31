@@ -6,7 +6,7 @@ import pytest
 from fse import _codes, _native, _reference
 from fse._backends import get_backend
 from fse._backends._base import check_store_input
-from support.conformance import BIG, TINY, assert_bits_equal, mlx_skip_reason, require_mlx
+from support.conformance import BIG, TINY, assert_bits_equal
 
 F32 = np.float32
 F16_MAX = F32(np.finfo(np.float16).max)
@@ -14,7 +14,6 @@ F16_MAX = F32(np.finfo(np.float16).max)
 BACKENDS = [
     *(("cpu", {"isa": isa}) for isa in _native.available_isas()),
     ("numpy", {}),
-    ("mlx", {}),
 ]
 IDS = [f"{name}-{'-'.join(options.values())}".rstrip("-") for name, options in BACKENDS]
 
@@ -45,8 +44,6 @@ CASES = _cases()
 
 
 def _backend(name, options):
-    if name == "mlx":
-        require_mlx()
     return get_backend(name, **options)
 
 
@@ -145,8 +142,6 @@ def test_arguments_are_checked(rows, codes, scales, first_row, match):
     with pytest.raises(ValueError, match=match):
         check_store_input(rows, codes, scales, first_row)
     for name, options in BACKENDS:
-        if name == "mlx" and mlx_skip_reason() is not None:
-            continue  # the other backends still check
         with pytest.raises(ValueError, match=match):
             _backend(name, options).store(rows, codes, scales, first_row)
 

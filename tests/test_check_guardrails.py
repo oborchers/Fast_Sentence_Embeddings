@@ -1,5 +1,4 @@
 import importlib.util
-import re
 import runpy
 import shutil
 import subprocess
@@ -110,7 +109,6 @@ def _fse_tree(tmp_path, files):
         "hash-modules": ["hashlib", "xxhash"],
         "log-importers": ["src/fse/_log.py"],
         "log-modules": ["logging", "warnings"],
-        "log-free": ["src/fse/_dev/_canary.py", "src/fse/_dev/_load.py"],
         "untested-modules": [],
         "forbidden": ["gensim", "scipy", "torch"],
     }
@@ -154,51 +152,20 @@ def test_only_the_harness_imports_a_hash_library(tool, tmp_path):
     assert any("_native_part.pxi imports hashlib" in e for e in errors)
 
 
-def test_only_the_log_module_imports_logging_and_the_device_thread_never_logs(tool, tmp_path):
+def test_only_the_log_module_imports_logging(tool, tmp_path):
     cfg = _fse_tree(
         tmp_path,
         {
             "src/fse/_log.py": "import logging\nimport warnings\n",
             "src/fse/_store.py": "from fse import _log\nimport logging.handlers\n",
             "src/fse/_native_part.pxi": "import warnings\n",
-            "src/fse/_dev/_canary.py": "from fse import _log\n",
-            "src/fse/_dev/_load.py": "from fse._log import emit\n",
-            "src/fse/_dev/_device.py": "from fse import _log\n",
         },
     )
     errors = tool["IMPORTS"]["import_errors"](tmp_path, cfg)
     assert sorted(errors) == [
-        "src/fse/_dev/_canary.py imports fse._log; the MLX device thread never logs",
-        "src/fse/_dev/_load.py imports fse._log; the MLX device thread never logs",
         "src/fse/_native_part.pxi imports warnings; only ['src/fse/_log.py'] may",
         "src/fse/_store.py imports logging; only ['src/fse/_log.py'] may",
     ]
-
-
-def test_only_the_loader_of_a_device_backend_imports_its_library(tool, tmp_path):
-    files = {
-        "src/fse/_backends/_mlx/_load.py": 'import importlib\nmx = importlib.import_module("mlx.core")\n',
-        "src/fse/_backends/_mlx/_kernels.py": "import mlx.core as mx\n",
-        "src/fse/_backends/_mlx/_device.py": 'mx = __import__("mlx")\n',
-        "src/fse/_backends/_cuda/_load.py": "from mlx import core\n",
-        "src/fse/_backends/_cuda/_other.py": "import cupy\n",
-        "src/fse/_text.py": '"""import mlx"""\nmlxish = importlib.import_module(name)\n',
-    }
-    files["src/fse/_alias.py"] = 'import importlib as il\nil.import_module("mlx.core")\n'
-    files["src/fse/_renamed.py"] = 'from importlib import import_module as load\nload("mlx.core")\n'
-    files["src/fse/_keyword.py"] = 'import importlib\nimportlib.import_module(name="mlx.core")\n'
-    cfg = _fse_tree(tmp_path, files)
-    cfg["device-libraries"] = {"mlx": ["mlx"], "cuda": ["cupy"]}
-    errors = tool["IMPORTS"]["device_import_errors"](tmp_path, cfg)
-    assert len(errors) == 7, errors
-    for name in ("_alias.py", "_renamed.py", "_keyword.py"):
-        assert any(f"src/fse/{name} imports mlx" in e for e in errors), (name, errors)
-    for name in ("_mlx/_kernels.py imports mlx", "_mlx/_device.py imports mlx"):
-        assert any(name in e and "_mlx/_load.py may" in e for e in errors), errors
-    assert any("_cuda/_load.py imports mlx" in e for e in errors)
-    assert any(
-        "_cuda/_other.py imports cupy; only src/fse/_backends/_cuda/_load.py" in e for e in errors
-    )
 
 
 def test_every_module_needs_a_test_file(tool, tmp_path):
@@ -226,8 +193,6 @@ def test_the_repository_config_parses(tool):
     assert cfg["max-lines"] == 500
     assert set(cfg["ratchet"]) == {"lines", "functions"}
     assert {"gensim", "scipy", "torch"} <= set(cfg["forbidden"])
-    assert cfg["device-libraries"] == {"mlx": ["mlx"]}
-    assert "mlx" in cfg["forbidden"]  # for the extension
 
 
 @needs_lint_tools
@@ -242,8 +207,6 @@ def _repo(tmp_path, body, ratchet=""):
     pyproject = (ROOT / "pyproject.toml").read_text()
     start = pyproject.index("\n[tool.ruff.lint.mccabe]\n")
     settings = pyproject[start : pyproject.index("# The ratchet:")]
-    # Without the modules of the MLX device thread, which this repository does not have.
-    settings = re.sub(r"\nlog-free = \[[^]]*\]\n", "\n", settings)
     contracts = pyproject[pyproject.index("\n[tool.importlinter]\n") :]
     contracts = contracts[: contracts.index("# --- Unused code")]
     (tmp_path / "pyproject.toml").write_text(settings + ratchet + "\n" + contracts)

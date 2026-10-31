@@ -125,7 +125,7 @@ def test_no_record_holds_a_path_text_token_or_repository(tmp_path, monkeypatch):
         _everything(root, monkeypatch)
         _failed_cleanup(root, monkeypatch)
     seen = {r.fse_event for r in records}
-    # The mlx events, the copy of a misaligned Arrow column and the ignored keys need what
+    # The copy of a misaligned Arrow column and the ignored keys need what
     # this run lacks; the converted model needs model2vec.
     assert REQUIRED | ({"artifact.converted"} if _has("model2vec") else set()) <= seen
     assert _leaks(records) == []

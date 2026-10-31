@@ -19,7 +19,6 @@ ALL = Capabilities(
     aggregations=frozenset({Aggregation.WEIGHTED_MEAN}),
     steps=frozenset(Op),
     fasttext=True,
-    concurrent=True,
     max_dim=8,
 )
 
