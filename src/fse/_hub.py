@@ -212,7 +212,7 @@ def write_ref(storage: Path, revision: str, commit: str) -> None:
             )
         if ref.read_text(encoding="ascii", errors="replace") == commit:
             return
-    tmp = ref.with_name(f"{ref.name}.{uuid.uuid4().hex}.tmp")
+    tmp = ref.with_name(f"{uuid.uuid4().hex}.tmp")  # short: the name of a ref may fill a file name
     with open(tmp, "x", encoding="ascii") as handle:  # exclusive: no other writer, no link
         handle.write(commit)
     os.replace(tmp, ref)

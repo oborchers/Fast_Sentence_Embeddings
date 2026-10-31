@@ -166,6 +166,12 @@ def test_a_ref_of_the_commit_is_not_written_again(fake, monkeypatch):
     assert calls == []
 
 
+def test_a_revision_name_that_fills_a_file_name_is_recorded(fake):
+    name = "b" * 240
+    _load(fake, revision=name)
+    assert _ref(fake, name).read_text() == COMMIT
+
+
 def test_no_temporary_file_stays_in_refs(fake):
     _load(fake, revision="refs/pr/1")
     _load(fake)
