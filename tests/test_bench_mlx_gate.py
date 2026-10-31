@@ -233,3 +233,42 @@ def test_identity_preflight_on_the_real_clean_checkout(modules):
     assert Path(result["files"]["fse"]).is_relative_to(repo / "src")
     assert result["versions"]["numpy"] == np.__version__
     json.dumps(result, allow_nan=False)
+
+
+@pytest.mark.parametrize(("corpus_launch", "fallback_delta"), [(False, 0), (False, 1), (True, 0)])
+def test_corpus_launch_observation_excludes_canary_and_old_fallbacks(
+    modules, monkeypatch, corpus_launch, fallback_delta
+):
+    from fse._backends._mlx import _kernels
+
+    driver = modules.bench_mlx_gate
+    calls, fallback, prepared = [], {"subnormal_input": 7}, []
+    monkeypatch.setattr(_kernels, "launch", calls.append)
+    monkeypatch.setattr(driver, "counts", lambda _enc: fallback.copy())
+
+    def prepare(backend):
+        assert backend == "mlx"
+        for _ in range(4):
+            _kernels.launch("canary")
+        prepared.append(True)
+
+    def warm(_enc, _texts, _backend, _workers, _guard):
+        assert prepared
+        if corpus_launch:
+            _kernels.launch("corpus")
+        fallback["subnormal_input"] += fallback_delta
+        return np.ones((1, 2), np.float32)
+
+    monkeypatch.setattr(driver, "warm", warm)
+    enc, guard = SimpleNamespace(_pipeline=prepare), SimpleNamespace(check=lambda *_a: None)
+    if not corpus_launch and not fallback_delta:
+        with pytest.raises(AssertionError, match="no GPU launch"):
+            driver.observed_corpus(enc, ["x"], guard)
+    else:
+        _, result = driver.observed_corpus(enc, ["x"], guard)
+        assert result["untimed_corpus_gpu_launches"] == int(corpus_launch)
+        assert result["corpus_device_launch_observed"] == corpus_launch
+        assert result["observed_run_fallback_events"] == (
+            {"subnormal_input": fallback_delta} if fallback_delta else {}
+        )
+    assert calls.count("canary") == 4

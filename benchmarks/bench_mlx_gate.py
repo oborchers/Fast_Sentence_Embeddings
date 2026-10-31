@@ -88,12 +88,26 @@ def warm(enc, texts, backend, workers, guard):
     return result
 
 
-def references(enc, texts, cell, guard, folder: Path) -> tuple[dict, dict]:
-    cpu = warm(enc, texts, "cpu", 1, guard)
+def observed_corpus(enc, texts, guard) -> tuple[np.ndarray, dict]:
+    guard.check("before MLX preparation")
+    enc._pipeline("mlx")  # includes the canary, before counting any corpus launches
+    guard.check("after MLX preparation")
+    before = counts(enc)
     with launches() as seen:
         mlx = warm(enc, texts, "mlx", None, guard)
-    if not seen and not any(counts(enc).values()):
+    fallback_events = delta(counts(enc), before)
+    if not seen and not any(fallback_events.values()):
         raise AssertionError("no GPU launch and no declared host fallback")
+    return mlx, {
+        "untimed_corpus_gpu_launches": len(seen),
+        "observed_run_fallback_events": fallback_events,
+        "corpus_device_launch_observed": bool(seen),
+    }
+
+
+def references(enc, texts, cell, guard, folder: Path) -> tuple[dict, dict]:
+    cpu = warm(enc, texts, "cpu", 1, guard)
+    mlx, observed = observed_corpus(enc, texts, guard)
     parity = audit(enc, texts, cpu, mlx, guard)
     for backend, workers in dict.fromkeys(sides(cell).values()):
         equal(warm(enc, texts, backend, workers, guard), cpu if backend == "cpu" else mlx)
@@ -105,7 +119,7 @@ def references(enc, texts, cell, guard, folder: Path) -> tuple[dict, dict]:
             np.save(stream, rows, allow_pickle=False)
     return {"cpu": cpu, "mlx": mlx}, {
         **parity,
-        "untimed_gpu_launches": len(seen),
+        **observed,
         "worker_determinism": True,
     }
 

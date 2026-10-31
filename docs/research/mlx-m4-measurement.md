@@ -82,7 +82,9 @@ CPU outputs must retain their bits across worker counts. MLX rows are checked
 bitwise where equal, otherwise with independent per-row pooling and normalization
 bounds. Empty, tiny and possibly cancelled rows require exact bits. Every timed
 pass is compared with its backend's reference outside the clock. Untimed launch
-observation proves real GPU execution or records declared host fallback events.
+observation follows complete backend preparation, excluding canary starts. It records
+corpus launches and that observed run's fallback deltas separately. A canary or
+historical fallback count alone cannot establish corpus GPU execution.
 Fresh-process checks compare full saved CPU and MLX arrays. Counter units are
 backend fallback events, not row counts. Device conformance remains a separate gate.
 
