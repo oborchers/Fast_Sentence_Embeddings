@@ -172,7 +172,9 @@ def test_rows_past_the_token_cut_drop_the_unknown_ids_after_it(tmp_path):
     folder = mv.save_model(tmp_path / "m", max_length=6)
     ours = fse.StaticModel.from_pretrained(folder)
     theirs = model2vec.StaticModel.from_pretrained(folder)
-    texts = ["zzzq " * 5 + "hello world", "hello " * 5 + "zzzq world"]
+    # Fill all six token slots with unknown words. The character cut also depends
+    # on the vocabulary's median length, so five words could leave room for hello.
+    texts = ["zzzq " * 6 + "hello world", "hello " * 5 + "zzzq world"]
     want = theirs.encode(texts)
     assert sm.close(ours, texts, want) <= 1
     cut = [t[: 6 * theirs.median_token_length] for t in texts]
