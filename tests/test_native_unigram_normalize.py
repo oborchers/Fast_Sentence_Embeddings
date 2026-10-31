@@ -85,3 +85,44 @@ def test_separate_runs_keep_step_order_and_multiple_byte_tables():
     compiled = state(steps)
     assert compiled._normalizer_kinds == (5, 4, 5)
     assert compiled._normalize(b" ab ") == state(steps, generic=True)._normalize(b" ab ") == b"_zw"
+
+
+def test_ascii_charsmap_fast_path_matches_every_pair_and_grapheme_context():
+    from charsmap import build
+
+    from fse import _reference_unigram as ref
+    from fse._charsmap import Charsmap
+
+    mapping = {chr(c): f"v{c}" for c in range(1, 128)}
+    mapping.update({"\r\n": "pair", "a\u0301": "accent", "\u0915": "K"})
+    charsmap = Charsmap(build(mapping))
+    steps = (("precompiled",),)
+    compiled = state(steps, charsmap=charsmap.parts())
+    generic = state(steps, generic=True, charsmap=charsmap.parts())
+    texts = [chr(a) + chr(b) for a in range(128) for b in range(128)]
+    texts += [chr(a) for a in range(128)]
+    texts += [
+        chr(a) + suffix
+        for a in range(128)
+        for suffix in ("\u0301", "\u200d", "\u0903", "\U0001f1e6")
+    ]
+    texts += ["\u0915\u094d\u0915a", "\U0001f469\u200d\U0001f469a", "a\0\r\n"]
+    for text in texts:
+        normalized = ref.precompiled(text, charsmap).encode()
+        want = sequential(normalized, ())
+        assert compiled._normalize(text.encode()) == generic._normalize(text.encode()) == want
+
+
+def test_cached_ascii_values_keep_broken_charsmap_errors():
+    from charsmap import build
+
+    from fse._charsmap import Charsmap
+
+    units, values, root = Charsmap(build({"a": "é"})).parts()
+    # Every leaf points to a value: move its start inside the UTF-8 code point.
+    leaf = np.flatnonzero(units & (1 << 31))
+    units[leaf] = (1 << 31) | 1
+    for generic in (False, True):
+        broken = state((("precompiled",),), generic=generic, charsmap=(units, values, root))
+        with pytest.raises(AssertionError, match="internal Unigram"):
+            broken._normalize(b"a")

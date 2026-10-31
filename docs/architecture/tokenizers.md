@@ -151,7 +151,12 @@ Input as for `fse_words@1`. Per sentence:
 The native normalizer combines a maximal run of consecutive single-byte Replace
 patterns into one byte-mapping pass only when the patterns are distinct and no later
 pattern occurs in an earlier replacement content. Otherwise the steps remain separate.
-The generic test path always runs the steps separately. This changes neither the
+The generic test path always runs the steps separately. For Precompiled, the native
+state caches each ASCII byte's shortest charsmap match, leaving NUL unchanged. An ASCII
+code point at the end, or before another ASCII code point except CR LF, uses this cache.
+All code points are still decoded for the contextual grapheme rules. State construction
+checks all ASCII pairs against the grapheme table, and cached values retain the usual
+value-boundary checks. This changes neither the
 normalizer rules nor persisted parameters.
 
 **The charsmap** (the blob of spm_precompiled 0.1.4, SentencePiece's double array): a little-endian u32 `size`, `size / 4` little-endian u32 units, then the values as UTF-8 strings, each ended by NUL. A unit u has `leaf = (u >> 8) & 1`, `label = u & (2**31 | 255)`, `offset = (u >> 10) << ((u & 512) >> 6)` and `value = u & (2**31 - 1)`. The search starts at `p = offset(a[0])` and takes the bytes of the key in turn, ending at a byte 0: `p ^= c`, it ends unless `label(a[p]) == c`, then `p ^= offset(a[p])`, and if that unit had `leaf`, `value(a[p])` is the offset of a match in the values, whose string runs to the next NUL or the end of the values. The keys are byte strings. A blob is checked completely when it is read, as tokenizers panics on a broken one: `size` a positive multiple of 4 within the blob, the values valid UTF-8, and every node reachable from the root (darts-clone shares the nodes of equal suffixes, so a node is checked once, and a cycle is refused) with every probe `p ^ c` inside the array and every value offset at most the length of the values and on a code point boundary.

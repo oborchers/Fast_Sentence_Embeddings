@@ -169,6 +169,7 @@ cdef class UnigramState:
     cdef int64_t n_units, root
     cdef const unsigned char *values
     cdef int64_t n_values
+    cdef int64_t ascii_cm[128]
     cdef bint has_charsmap
     cdef const int64_t *byte_maps
     cdef const int64_t *ops
@@ -351,12 +352,30 @@ cdef class UnigramState:
             self.values = self._values
             self.n_values = len(values)
             self.has_charsmap = True
+            self._build_ascii_charsmap()
         if not isinstance(replacement, bytes) or not replacement:
             raise ValueError("the replacement of Metaspace must be non-empty bytes")
         replacement.decode("utf-8")
         self._replacement = replacement
         self.replacement = self._replacement
         self.n_replacement = len(replacement)
+
+    cdef _build_ascii_charsmap(self):
+        """Verify the table's ASCII shape, then cache shortest single-byte matches."""
+        cdef uint32_t pair[2]
+        cdef uint32_t value
+        cdef unsigned char key
+        cdef int a, b
+        for a in range(128):
+            pair[0] = a
+            for b in range(128):
+                pair[1] = b
+                if fse_gc_next(pair, 0, 2) != (2 if a == 13 and b == 10 else 1):
+                    raise RuntimeError("the grapheme table has an unsupported ASCII shape")
+            key = a
+            self.ascii_cm[a] = -1
+            if a != 0 and fse_cm_find(self.units, self.n_units, self.root, &key, 1, &value):
+                self.ascii_cm[a] = value
 
     cdef _build_added(self, data, offsets, added_ids):
         joined, lengths, ids, starts, single = _added_parts(data, offsets, added_ids)

@@ -116,6 +116,18 @@ cdef int _uni_precompiled(UnigramState st, const unsigned char *s, Py_ssize_t n,
         count += 1
     at[count] = n
     while g < count:
+        cp = cps[g]
+        if (not st.generic and cp < 128
+                and (g + 1 == count or (cps[g + 1] < 128
+                     and not (cp == 13 and cps[g + 1] == 10)))):
+            if st.ascii_cm[cp] >= 0:
+                err = _uni_value(st, <uint32_t>st.ascii_cm[cp], dst)
+            else:
+                err = _uni_put(dst, s + at[g], 1)
+            if err:
+                return err
+            g += 1
+            continue
         j = fse_gc_next(cps, g, count)
         if (at[j] - at[g] < FSE_UNI_GRAPHEME_BYTES
                 and fse_cm_find(st.units, st.n_units, st.root, s + at[g], at[j] - at[g], &value)):
