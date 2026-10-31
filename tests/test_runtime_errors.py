@@ -116,6 +116,30 @@ def test_the_earliest_failing_row_is_reported(case, workers, chunk_bytes):
     assert (kind, _bytes_out(message)) == _isolated(pipeline, texts[row], row, **kwargs)
 
 
+TAIL_CASES = [
+    (NORMALIZED, {2990: OVERFLOW}, {}, POOLING),  # one failing row in a task of the split tail
+    (NORMALIZED, {2970: TOO_TINY, 2990: OVERFLOW}, {}, NORMALIZE),  # the later, earlier-stage row
+    (NORMALIZED, {2960: OVERFLOW, 2999: TOO_TINY}, {}, POOLING),  # in the smallest last task
+    (RAW, {2950: TOO_BIG, 2995: OVERFLOW}, {"dtype": "float16"}, FLOAT16),
+    (NORMALIZED, {2980: OVERFLOW, 2999: Raw("x")}, {}, POOLING),  # a scan error after the tasks
+    (NORMALIZED, {2900: Raw("x")}, {}, UTF8),
+]
+
+
+@pytest.mark.parametrize("case", range(len(TAIL_CASES)))
+@pytest.mark.parametrize("workers", [1, 4, 8, 10])
+def test_the_earliest_failing_row_is_reported_in_the_split_tail(monkeypatch, case, workers):
+    from support.runtime import small_tasks
+
+    small_tasks(monkeypatch)
+    pipeline, placed, kwargs, pattern = TAIL_CASES[case]
+    row = min(placed)
+    texts = _texts(3000, placed)
+    kind, message = _error(pipeline, texts, workers=workers, **kwargs)
+    assert re.search(pattern.format(row), message)
+    assert (kind, _bytes_out(message)) == _isolated(pipeline, texts[row], row, **kwargs)
+
+
 def test_errors_of_a_second_batch_name_the_rows_of_the_run():
     """A batch from row 1000 of a run: the scan, the length rule of the tokenizers and an
     Arrow null all name the row of the run."""

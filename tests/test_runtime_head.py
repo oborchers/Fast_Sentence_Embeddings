@@ -162,6 +162,36 @@ def test_with_vectors_one_pooling_gives_both_where_the_flags_agree(
     np.testing.assert_array_equal(bits(got), bits(ref.proba(z, Link.SIGMOID)))
 
 
+@pytest.mark.parametrize("workers", [1, 4, 10])
+def test_the_split_tail_of_the_automatic_plan_changes_no_output(monkeypatch, workers):
+    """Heads with their vectors, rows numbered from a later first row, chunk_bytes=None."""
+    from support.runtime import small_tasks, whole_tail
+
+    small_tasks(monkeypatch)
+    spec = _spec(normalize=True)
+    head = _head(spec, k=3, normalized=True)
+    pipeline = make_head(spec, head, "cpu", own=_own(spec), with_vectors=True)
+    sentences = texts(1500)
+    runs = []
+    for split in (True, False):
+        if not split:
+            whole_tail(monkeypatch)
+        out, vec = MemorySink(3), MemorySink(spec.output_dim)
+        out.next_row = vec.next_row = 700
+        pipeline.infer(
+            source("strings", sentences, None),
+            output="proba",
+            workers=workers,
+            sink=out,
+            vector_sink=vec,
+            first_row=700,
+        )
+        runs.append((bits(out.result()).tobytes(), bits(vec.result()).tobytes()))
+    assert runs[0] == runs[1]
+    z = support.logits(spec, head.weight, head.bias, sentences, normalized=True)
+    assert runs[0][0] == bits(ref.proba(z, Link.SOFTMAX)).tobytes()
+
+
 def test_a_standalone_head_reads_the_folded_table_of_its_spec():
     spec = _spec()
     head = _head(spec, k=2, link=Link.SOFTMAX)

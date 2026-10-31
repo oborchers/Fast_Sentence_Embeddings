@@ -97,7 +97,10 @@ def plan(
         chunk_rows=chunk_rows,
         first_row=first_row,
     )
-    return Plan(_then(scan.chunks, source, error), scan.sentences, inline)
+    chunks = scan.chunks
+    if chunk_bytes is None and not inline and workers > 1:  # the automatic plan only
+        chunks = source.split_tail(chunks, workers)
+    return Plan(_then(chunks, source, error), scan.sentences, inline)
 
 
 def _then(chunks: tuple[Chunk, ...], source: Any, error: Exception | None) -> Iterator[Task]:
