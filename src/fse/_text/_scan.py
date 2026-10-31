@@ -256,12 +256,12 @@ class _Buffered:
             for span, result in zip(
                 ranges, (map if pool is None else pool.map)(scan, ranges), strict=True
             ):
-                error_byte, error_sentence = result[4], result[5]
+                error_byte, error_sentence = result[2], result[3]
                 error = None
                 if error_byte >= 0:
                     error = self._error(error_byte, sentences + error_sentence, first_row)
                     result = self._valid_part(scan, span[0], error_byte, error_sentence)
-                count, _, _, range_chunks, _, _ = result
+                count, range_chunks, _, _ = result
                 firsts = [row for _, _, row in range_chunks] + [count]
                 for k, ((start, end, row), following) in enumerate(
                     zip(range_chunks, firsts[1:], strict=True)
@@ -296,7 +296,7 @@ class _Buffered:
         sentences = 0
         with _scan_pool(workers, self.nbytes) as pool:
             for result in (map if pool is None else pool.map)(scan, ranges):
-                count, _, _, _, error_byte, error_sentence = result
+                count, _, error_byte, error_sentence = result
                 if error_byte >= 0:
                     return sentences + error_sentence, self._error(
                         error_byte, sentences + error_sentence, first_row
@@ -307,7 +307,7 @@ class _Buffered:
     def _valid_part(self, scan: Callable, first: int, byte: int, sentences: int) -> Any:
         """The scan of the valid sentences of a range before its first invalid one."""
         if not sentences:
-            return 0, 0, 0, [], -1, -1
+            return 0, [], -1, -1
         return scan((first, self._start_of(first, byte, sentences)))
 
     def _start_of(self, first: int, byte: int, sentences: int) -> int:
@@ -354,7 +354,7 @@ class _Buffered:
 
     def _scanner(self, chunk_bytes: int, chunk_rows: int) -> Callable[[tuple[int, int]], Any]:
         """The scan of one range of positions, as ``_native.scan_spans`` gives it: (sentences,
-        tokens, empty, chunks, error byte, error sentence relative to the range)."""
+        chunks, error byte, error sentence relative to the range)."""
         data, offsets = self._array(), self._offsets
 
         def scan(span: tuple[int, int]):

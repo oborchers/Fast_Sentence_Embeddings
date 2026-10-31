@@ -47,6 +47,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 - Building from source needs MSVC on Windows, or GCC or Clang elsewhere; MinGW is refused, because its `fmaf` rounds twice.
 - Checksums and fingerprints of every artifact are xxh3-128 (`xxh3-128:` and 32 hex digits) instead of sha256, computed by one harness. Artifacts written by a pre-release of 2.0 with sha256 checksums raise `UnsupportedArtifactError` and must be written again; there is no migration. The values identify content against accidents, not against an attacker (ARCHITECTURE.md, "Identities").
 - The only dependencies are numpy, pydantic, xxhash (`xxhash>=3.2.0`) and huggingface-hub (`huggingface-hub>=1.0`, imported only when a model of the Hub is loaded, so `import fse` stays as fast as without it). scipy, smart_open, wordfreq, psutil and threadpoolctl are no longer needed.
+- The scan of a file, a string collection or an Arrow column, which validates the UTF-8 and cuts the chunks, no longer counts the tokens and empty sentences it never used; it returns only the sentences, chunks and the first invalid sentence. No result, error message or chunk changes.
+- The MLX backend no longer computes an error bound after `normalize@1` that nothing read; the check that sends rows to the CPU is unchanged.
 
 ### Removed
 
