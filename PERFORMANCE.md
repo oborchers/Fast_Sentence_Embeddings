@@ -497,7 +497,7 @@ The small-dimension explanation is limited to the observed WikiText trend: MRL f
 
 Recommendation for Oliver: retain CPU as default and MLX as opt-in; the measured near tie does not justify a default change, while host work/waits remain visible. This is a recommendation, not a policy decision or runtime change. MLX policy remains undecided and PR remains Draft by explicit instruction.
 
-Whole six-profile recording/startup/model-loading/postprocess charge 60.617446750000454 seconds, reservation 360, no retries. Global 593.2869275000012/1800, matrix fixed 523.0340705840008/900. One own terminal lock was verified and Finder-released; immediate/delayed checks found no duplicates. Raw profiles/windows/symbols/traces/CSV and wrapper sources are preserved under dr147-profiles-3101e4a7fdd8 in task scratch. Compact profiles.json and profile_offline.py replay the existing evidence without a new recording. No extra measurement or ablation.
+At the historical six-profile stage cutoff, recording/startup/model-loading/postprocess charge was 60.617446750000454 seconds, reservation 360, no retries. Combined root charge at that historical phase cutoff was 593.2869275000012/1800, matrix fixed 523.0340705840008/900. One own terminal lock was verified and Finder-released; immediate/delayed checks found no duplicates. Raw profiles/windows/symbols/traces/CSV and wrapper sources are preserved under dr147-profiles-3101e4a7fdd8 in task scratch. Compact profiles.json and profile_offline.py replay the existing evidence without a new recording. No additional measurement or ablation occurred in that stage; the later failed probe follows below.
 
 ### Failed timestamp-probe validity gate (no accepted wall shares)
 
