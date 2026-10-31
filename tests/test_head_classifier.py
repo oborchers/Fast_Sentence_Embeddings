@@ -189,8 +189,7 @@ def test_errors_of_a_batch_name_the_batch():
 )
 def test_removed_backend_is_rejected_before_reading_input(method):
     def unread():
-        raise AssertionError("input was read before backend validation")
-        yield "w1"
+        yield pytest.fail("input was read before backend validation")
 
     def run():
         output = getattr(_model(), method)(unread(), backend="mlx")

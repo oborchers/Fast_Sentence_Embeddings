@@ -37,8 +37,7 @@ def test_removed_backend_is_rejected_before_reading_input(method):
     from support.encoder import finished
 
     def unread():
-        raise AssertionError("input was read before backend validation")
-        yield "w1"
+        yield pytest.fail("input was read before backend validation")
 
     result = getattr(finished(), method)
 

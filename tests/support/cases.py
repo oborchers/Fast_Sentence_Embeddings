@@ -1,5 +1,4 @@
-"""The cases of the conformance suite of the weighted mean (tests/test_conformance.py and
-tests/test_conformance_device.py): every dtype, dimensions across the vector widths, empty,
+"""The cases of the conformance suite of the weighted mean (tests/test_conformance.py): every dtype, dimensions across the vector widths, empty,
 long and unknown-word sentences, subnormal values and exact constructions."""
 
 from __future__ import annotations
@@ -162,7 +161,7 @@ def _cases():
 
 
 def _flush_cases(rng):
-    """The cases of values a GPU flushes, or of inputs a device must refuse."""
+    """Subnormal inputs, factors and intermediate values, including cancellation."""
     out = []
     # Subnormal values only in the middle of the arithmetic, which a GPU that flushes them
     # gets wrong: a tiny oov_weight / m, a product in the subnormal range whose sum is
