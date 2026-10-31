@@ -1,8 +1,8 @@
 """Small syscall-trace power-loss model, following ALICE (OSDI 2014, §2.2).
 
 Directory-entry operations persist atomically. Data extents and file sizes persist
-independently. Each extent is split in halves, so a persisted first half models a
-torn write (the second-half-only case is conservatively admitted too). Linux fsync
+independently. A data extent may persist wholly, only its first half, or not at
+all. Enumeration counts whole extents, including their torn variants. Linux fsync
 persists its inode. Darwin fsync only fills the drive cache; F_FULLFSYNC persists
 its inode and that cache. This is a model, not a claim about a particular drive.
 """
@@ -73,10 +73,7 @@ def _file_units(inode, old, new):
     if not changed:
         return
     start, end = changed[0], changed[-1] + 1
-    middle = start + (end - start) // 2
-    for lo, hi in ((start, middle), (middle, end)):
-        if hi > lo:
-            yield Unit("data", inode, (lo, new[lo:hi]))
+    yield Unit("data", inode, (start, new[start:end]))
 
 
 class PowerLoss:
@@ -174,41 +171,53 @@ class PowerLoss:
         seen = {}
         for count, durable, barriers, rows in self.points:
             pending = sorted(set(range(count)) - durable)
-            for subset in _subsets(pending, seed):
+            data_units = {i for i in pending if self.units[i].kind == "data"}
+            for subset, torn in _subsets(pending, data_units, seed):
                 selected = durable | subset
                 if not _ordered(selected, count, barriers):
                     continue
-                state = self._state(selected, count)
+                state = self._state(selected, count, torn)
                 key = tuple(sorted(state.items()))
                 if seen.get(key, -1) < rows:
                     seen[key] = rows
                     yield state, rows
 
-    def _state(self, selected, count):
+    def _state(self, selected, count, torn):
         entries = self.baseline.entries.copy()
         sizes = dict.fromkeys(self.previous.files, 0)
         sizes.update({inode: len(data) for inode, data in self.baseline.files.items()})
         data = {inode: bytearray(raw) for inode, raw in self.baseline.files.items()}
         for index in range(count):
             if index in selected:
-                _apply(self.units[index], entries, sizes, data)
+                _apply(self.units[index], entries, sizes, data, torn=index in torn)
         return _visible(self.root_inode, entries, sizes, data)
 
 
-def _subsets(pending, seed):
+def _subsets(pending, data_units, seed):
     if len(pending) <= 10:
-        for bits in itertools.product((False, True), repeat=len(pending)):
-            yield {i for i, bit in zip(pending, bits, strict=True) if bit}
+        choices = [(0, 1, 2) if i in data_units else (0, 2) for i in pending]
+        for values in itertools.product(*choices):
+            selected = {i for i, value in zip(pending, values, strict=True) if value}
+            torn = {i for i, value in zip(pending, values, strict=True) if value == 1}
+            yield selected, torn
         return
-    all_units = set(pending)
-    yield set()
-    yield all_units
-    for i in pending:
-        yield {i}
-        yield all_units - {i}
+    yield from _flips(set(pending), data_units)
     rng = random.Random(seed)
     for _ in range(256):
-        yield {i for i in pending if rng.getrandbits(1)}
+        selected = {i for i in pending if rng.getrandbits(1)}
+        torn = {i for i in selected & data_units if rng.getrandbits(1)}
+        yield selected, torn
+
+
+def _flips(all_units, data_units):
+    yield set(), set()
+    yield all_units, set()
+    for i in sorted(all_units):
+        yield {i}, set()
+        yield all_units - {i}, set()
+    for i in sorted(data_units):
+        yield {i}, {i}
+        yield all_units, {i}
 
 
 def _ordered(selected, count, barriers):
@@ -219,7 +228,7 @@ def _ordered(selected, count, barriers):
     )
 
 
-def _apply(unit, entries, sizes, data):
+def _apply(unit, entries, sizes, data, *, torn=False):
     if unit.kind == "entry":
         for key, inode in unit.value:
             if inode is None:
@@ -230,6 +239,8 @@ def _apply(unit, entries, sizes, data):
         sizes[unit.inode] = unit.value
     else:
         offset, raw = unit.value
+        if torn:
+            raw = raw[: len(raw) // 2]
         target = data.setdefault(unit.inode, bytearray())
         target.extend(b"\0" * max(0, offset + len(raw) - len(target)))
         target[offset : offset + len(raw)] = raw
