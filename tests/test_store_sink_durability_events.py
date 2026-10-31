@@ -19,10 +19,12 @@ def _events(records, name):
 @pytest.mark.parametrize("policy", ["full", "none"])
 def test_policy_and_both_counts_are_recorded_for_a_complete_run(tmp_path, policy):
     encoder = finished()
-    with captured() as records:
-        with fse.ShardSink(tmp_path / "store", encoder, shard_rows=4, durability=policy) as sink:
-            encoder.encode(texts(10), sink=sink)
-            assert sink.publish() == (10 if policy == "full" else 0)
+    with (
+        captured() as records,
+        fse.ShardSink(tmp_path / "store", encoder, shard_rows=4, durability=policy) as sink,
+    ):
+        encoder.encode(texts(10), sink=sink)
+        assert sink.publish() == (10 if policy == "full" else 0)
     (opened,) = _events(records, "store.sink_opened")
     assert opened.fse_durability == policy
     published = _events(records, "store.shard_published")
@@ -40,14 +42,19 @@ def test_policy_and_both_counts_are_recorded_for_a_complete_run(tmp_path, policy
 
 def test_none_keeps_committed_rows_after_a_caller_error_without_confirming_them(tmp_path):
     path = tmp_path / "store"
-    with captured() as records, pytest.raises(ValueError, match="caller failed"):
-        with fse.ShardSink(path, finished(), shard_rows=8, durability="none") as sink:
+    sink = fse.ShardSink(path, finished(), shard_rows=8, durability="none")
+
+    def fail_after_commits():
+        with sink:
             target = sink.target(0, 6)
             target[0][...] = 1
             target[1][...] = 0.25
             sink.commit(0, target)
             sink.target(6, 2)  # reserved but not committed, never counted as dropped commits
             raise ValueError("caller failed")
+
+    with captured() as records, pytest.raises(ValueError, match="caller failed"):
+        fail_after_commits()
     assert (sink.published_rows, sink.durable_rows) == (6, 0)
     (closed,) = _events(records, "store.sink_closed")
     assert (closed.fse_rows, closed.fse_dropped_rows, closed.fse_outcome) == (6, 0, "error")
@@ -66,9 +73,13 @@ def test_none_counts_unpublished_commits_as_dropped_after_a_write_failure(tmp_pa
     with captured() as records:
         target = sink.target(0, 8)
         target[0][...] = target[1][...] = 0
-        with pytest.raises(OSError, match="injected write failure"):
+
+        def commit_and_close():
             sink.commit(0, target)
             sink.close()
+
+        with pytest.raises(OSError, match="injected write failure"):
+            commit_and_close()
         sink.close()
     assert (sink.published_rows, sink.durable_rows) == (0, 0)
     assert not _events(records, "store.shard_published")
