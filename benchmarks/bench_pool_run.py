@@ -75,10 +75,10 @@ def measure(pipeline: Any, requests: list[list[str]], workers: int, side: str, p
     Startup is the wall time to create and rendezvous all idle workers, not the
     per-call ramp nor an attribution of reuse's total gain to startup alone.
     """
+    import numpy as np
+
     from fse._runtime._tasks import INLINE_MAX_BYTES
     from fse._text import StringSource
-
-    import numpy as np
 
     byte_sizes = [StringSource(r).nbytes for r in requests]
     inline = sum(n <= INLINE_MAX_BYTES for n in byte_sizes)

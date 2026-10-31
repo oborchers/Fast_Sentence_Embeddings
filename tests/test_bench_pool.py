@@ -165,3 +165,21 @@ def test_child_rounds_alternate_and_stop_before_a_high_load(bench, monkeypatch):
     result = bench.run_cell(args, "potion-base-8M", "wikitext", "short", 4)
     assert result["summary"]["valid_pairs"] == 0
     assert sides == []
+
+
+def test_warmup_arrays_are_released_before_timed_calls(runner, monkeypatch):
+    import weakref
+
+    references = []
+
+    def fake_call(*_args):
+        if len(references) == 2:
+            assert all(ref() is None for ref in references)
+        array = np.ones((1, 2), np.float32)
+        references.append(weakref.ref(array))
+        return array
+
+    monkeypatch.setattr(runner, "call", fake_call)
+    runner.measure(None, [["hello"]], 4, "base", 1)
+    assert len(references) == 4
+    assert all(ref() is None for ref in references)
