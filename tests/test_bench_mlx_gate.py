@@ -272,3 +272,46 @@ def test_corpus_launch_observation_excludes_canary_and_old_fallbacks(
             {"subnormal_input": fallback_delta} if fallback_delta else {}
         )
     assert calls.count("canary") == 4
+
+
+@pytest.mark.parametrize("change", ["pause", "owner", "deadline", "load"])
+def test_profile_postprocessing_stops_between_steps(modules, tmp_path, monkeypatch, change):
+    driver, safety = modules.bench_mlx_gate, modules.mlx_gate_safety
+    guard = _guard(modules, tmp_path, monkeypatch)
+    calls = []
+
+    def run(command, _log, *, deadline):
+        assert deadline == guard.deadline
+        calls.append(command)
+        if change == "pause":
+            (tmp_path / "pause-local.marker").touch()
+        elif change == "owner":
+            (tmp_path / "bench.lock" / "owner.json").write_text("{}")
+        elif change == "deadline":
+            guard.deadline = time.monotonic() - 1
+        else:
+            monkeypatch.setattr(safety.os, "getloadavg", lambda: (guard.limit, 1, 1))
+        return 0
+
+    monkeypatch.setattr(driver, "run_job", run)
+    args = SimpleNamespace(action="profile", profiler="mem")
+    with pytest.raises(safety.StopError):
+        driver.postprocess(args, tmp_path, guard)
+    assert len(calls) == 1
+    assert "flamegraph" in calls[0]
+    assert not (tmp_path / "profile-summary-1.log").exists()
+
+
+def test_profile_postprocessing_with_expired_budget_starts_nothing(modules, tmp_path, monkeypatch):
+    driver, safety = modules.bench_mlx_gate, modules.mlx_gate_safety
+    guard = _guard(modules, tmp_path, monkeypatch)
+    guard.deadline = time.monotonic() - 1
+
+    def forbidden(*_a, **_k):
+        pytest.fail("expired postprocessing must not launch a subprocess")
+
+    monkeypatch.setattr(driver, "run_job", forbidden)
+    args = SimpleNamespace(action="profile", profiler="mem")
+    with pytest.raises(safety.StopError, match="budget exhausted"):
+        driver.postprocess(args, tmp_path, guard)
+    assert not (tmp_path / "profile-summary-0.log").exists()

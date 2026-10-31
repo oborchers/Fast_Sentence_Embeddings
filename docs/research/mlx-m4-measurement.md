@@ -123,6 +123,9 @@ functions, or renders the temporal memray flamegraph and allocation stats. All
 artifacts have exclusive fresh paths. Profiler startup, recording and postprocessing
 consume the same shared budget. Never invoke the stock `profile-mem` deletion recipe
 or trace only an outer parent whose exec'd child would escape memray.
+Before and after each summary subprocess the driver checks pause, live ownership,
+load and the global deadline. Expired budgets start no subprocess, including
+restart checks or later cells. Absolute deadlines are preserved across supervision.
 
 Report hot functions per thread, allocation/RSS/MLX memory peaks and attribution
 limits. CPU samples waiting in MLX do not isolate GPU time or copy time. Separate

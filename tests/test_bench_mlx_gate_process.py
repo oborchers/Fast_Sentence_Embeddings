@@ -131,3 +131,5 @@ def test_exhausted_timeout_starts_nothing(monkeypatch):
     monkeypatch.setattr(process.subprocess, "Popen", forbidden)
     with pytest.raises(ValueError, match="finite and positive"):
         process.run_job(["unused"], None, 0)
+    with pytest.raises(subprocess.TimeoutExpired):
+        process.run_job(["unused"], None, deadline=time.monotonic() - 1)

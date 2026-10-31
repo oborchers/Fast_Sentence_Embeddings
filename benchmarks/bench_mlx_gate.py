@@ -137,14 +137,12 @@ def restart(config: dict) -> None:
 def verify_restart(config: dict, guard: Guard) -> None:
     path = Path(config["folder"]) / "restart.json"
     write(path, config)
+    guard.check("before restart subprocess")
+    command = [sys.executable, __file__, "_restart", str(path)]
     with (path.parent / "restart.log").open("x", encoding="utf-8") as log:
-        subprocess.run(
-            [sys.executable, __file__, "_restart", str(path)],
-            check=True,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            timeout=max(0.01, guard.deadline - time.monotonic()),
-        )
+        code = run_job(command, log, deadline=guard.deadline)
+    if code:
+        raise subprocess.CalledProcessError(code, command)
 
 
 def profile_loop(enc, texts, config: dict, guard: Guard) -> dict:
@@ -291,7 +289,6 @@ def children(args, cells, config, folder) -> int:
         passes = (
             args.passes if args.passes is not None else (10 if cell.corpus == "wikitext" else 3)
         )
-        remaining = config["deadline"] - time.monotonic()
         job = {
             **config,
             "cell": asdict(cell),
@@ -301,11 +298,13 @@ def children(args, cells, config, folder) -> int:
         }
         write(target / "job.json", job)
         try:
+            guard = guard_of(job)
+            guard.check("before cell subprocess")
             with (target / "worker.log").open("x", encoding="utf-8") as log:
-                code = run_job(job_command(args, target), log, max(0.01, min(600, remaining)))
+                code = run_job(job_command(args, target), log, deadline=guard.deadline)
             if code:
                 raise StopError(f"cell failed ({code}); inspect {target}")
-            postprocess(args, target, config["deadline"])
+            postprocess(args, target, guard_of({**job, "deadline": config["deadline"]}))
         except (StopError, subprocess.TimeoutExpired) as error:
             write(
                 folder / "coverage.json",
@@ -360,7 +359,7 @@ def job_command(args, target: Path) -> list[str]:
     ]
 
 
-def postprocess(args, target: Path, deadline: float) -> None:
+def postprocess(args, target: Path, guard: Guard) -> None:
     if args.action != "profile":
         return
     commands = []
@@ -381,9 +380,11 @@ def postprocess(args, target: Path, deadline: float) -> None:
     elif args.profiler == "cpu":
         commands = [[sys.executable, str(REPO / "tools/profile_top.py"), str(target / "cpu.json")]]
     for i, command in enumerate(commands):
+        guard.check(f"before profile summary {i}")
         with (target / f"profile-summary-{i}.log").open("x", encoding="utf-8") as log:
-            if run_job(command, log, max(0.01, deadline - time.monotonic())):
+            if run_job(command, log, deadline=guard.deadline):
                 raise StopError("profile postprocessing failed")
+        guard.check(f"after profile summary {i}")
 
 
 def main(argv=None) -> int:

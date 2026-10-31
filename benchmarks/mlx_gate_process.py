@@ -57,15 +57,27 @@ def _finish(supervisor) -> None:
             supervisor.wait(timeout=CLEANUP_SECONDS)
 
 
-def run_job(command, log, timeout: float) -> int:
-    """Start no job without time remaining; controlled and hard owner death are covered."""
-    if not math.isfinite(timeout) or timeout <= 0:
+def _deadline(timeout: float | None, deadline: float | None) -> float:
+    if deadline is not None:
+        if timeout is not None or not math.isfinite(deadline):
+            raise ValueError("provide one finite deadline or a positive timeout")
+        return deadline
+    if timeout is None or not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("subprocess timeout must be finite and positive")
-    deadline = time.monotonic() + timeout
+    return time.monotonic() + timeout
+
+
+def run_job(command, log, timeout: float | None = None, *, deadline: float | None = None) -> int:
+    """Start no job without time remaining; controlled and hard owner death are covered."""
+    deadline = _deadline(timeout, deadline)
+    if time.monotonic() >= deadline:
+        raise subprocess.TimeoutExpired(command, 0)
     read_fd, owner_fd = os.pipe()
     supervisor = None
     try:
         with controlled_termination():
+            if time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired(command, 0)
             supervisor = subprocess.Popen(
                 [
                     sys.executable,
