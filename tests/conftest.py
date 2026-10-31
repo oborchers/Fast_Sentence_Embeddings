@@ -66,7 +66,7 @@ def corpus_path(test_data_dir: Path) -> Path:
 @pytest.fixture(scope="session")
 def corpus(corpus_path: Path) -> tuple[tuple[str, ...], ...]:
     """The tokenized corpus, read once and immutable."""
-    with open(corpus_path) as file:
+    with open(corpus_path, encoding="utf-8") as file:
         return tuple(tuple(line.split()) for line in file)
 
 
