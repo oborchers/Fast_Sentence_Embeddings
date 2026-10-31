@@ -28,7 +28,7 @@ from numpy import ndarray
 
 from fse import _codes, _log
 from fse._backends import BACKEND_NAMES, get_backend
-from fse._container import CorruptArtifactError, NpyContainer
+from fse._container import NpyContainer
 from fse._cpus import usable_cpus
 from fse._encoder import Encoder
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments

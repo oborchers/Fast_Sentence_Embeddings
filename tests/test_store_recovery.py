@@ -50,7 +50,7 @@ def test_tagged_tensor_damage_is_detected_before_rows_are_served(tmp_path, dtype
     path = tmp_path / "store"
     make_store(path, dtype=dtype, tagged=(4,))
     _flip_data(path / shard_name(4) / f"{tensor}.npy")
-    with pytest.raises(CorruptArtifactError, match=r"first row 4.*fse.repair_store"):
+    with pytest.raises(CorruptArtifactError, match=r"first row 4.*fse\.repair_store"):
         VectorStore.open(path)
 
 
@@ -58,7 +58,7 @@ def test_tagged_int8_scales_are_hashed(tmp_path):
     path = tmp_path / "store"
     make_store(path, dtype="int8", tagged=(4,))
     _flip_data(path / shard_name(4) / "scales.npy")
-    with pytest.raises(CorruptArtifactError, match=r"scales.*fse.repair_store"):
+    with pytest.raises(CorruptArtifactError, match=r"scales.*fse\.repair_store"):
         VectorStore.open(path)
 
 
@@ -76,7 +76,7 @@ def test_damaged_shards_name_the_row_and_repair_action(tmp_path, damage):
         with (shard / "vectors.npy").open("r+b") as handle:
             handle.seek(128 if damage == "zero_vectors" else 32)
             handle.write(b"\0" * (64 if damage == "zero_vectors" else 16))
-    with pytest.raises(CorruptArtifactError, match=r"first row 4.*fse.repair_store"):
+    with pytest.raises(CorruptArtifactError, match=r"first row 4.*fse\.repair_store"):
         VectorStore.open(path)
 
 
@@ -86,7 +86,7 @@ def test_every_open_refuses_an_orphan_inside_or_after_the_chain(tmp_path, opener
     path = tmp_path / "store"
     info = make_store(path, sizes=(4, 4))
     add_shard(path, info, orphan, 1)
-    with pytest.raises(CorruptArtifactError, match="fse.repair_store"):
+    with pytest.raises(CorruptArtifactError, match=r"fse\.repair_store"):
         if opener == "reader":
             VectorStore.open(path)
         else:
@@ -97,7 +97,7 @@ def test_a_missing_shard_with_a_later_shard_is_a_gap(tmp_path):
     path = tmp_path / "store"
     info = make_store(path, sizes=(4,))
     add_shard(path, info, 8, 2)
-    with pytest.raises(CorruptArtifactError, match="gap.*row 4.*fse.repair_store"):
+    with pytest.raises(CorruptArtifactError, match=r"gap.*row 4.*fse\.repair_store"):
         VectorStore.open(path)
 
 
