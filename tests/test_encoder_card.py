@@ -95,6 +95,8 @@ def test_names_and_languages_are_checked(tmp_path):
     for code in ("english", "EN", "e"):
         with pytest.raises(ValueError, match="no language code"):
             _card_of(path, tmp_path, language=[code])
+    data, _ = _card_of(path, tmp_path, language=["multilingual", "en"])  # a value of the Hub
+    assert b'language:\n- "multilingual"\n- "en"\n' in data
 
 
 def test_the_text_states_the_facts_of_the_file(tmp_path):

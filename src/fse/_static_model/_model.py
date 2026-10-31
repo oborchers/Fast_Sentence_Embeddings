@@ -15,6 +15,7 @@ ARCHITECTURE.md, "model2vec compatibility". A ``StaticModel`` is a thin wrapper 
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -25,7 +26,10 @@ from fse._encoder._model2vec_rules import UNSET, Rules, Unset
 from fse._validation import PathLike, PositiveInt, validate_arguments
 
 from . import _arguments as arguments
+from . import _save
+from ._ids import Ids
 from ._load import load_rules
+from ._tokenizer import Tokenizer
 from ._variants import Variants
 
 
@@ -40,9 +44,11 @@ class StaticModel:
     read-only, and ``encoder`` is the ``fse.Encoder`` of the model's own settings.
     """
 
-    __slots__ = ("_rules", "_state", "_variants")
+    __slots__ = ("_ids", "_rules", "_state", "_tokenizer", "_variants")
+    _ids: Ids
     _rules: Rules
     _state: tuple[int | None, bool, Encoder]
+    _tokenizer: Tokenizer
     _variants: Variants
 
     def __init__(self, *_args: Any, **_kwargs: Any):
@@ -53,6 +59,8 @@ class StaticModel:
         out = object.__new__(cls)
         out._rules = rules
         out._variants = Variants(rules)
+        out._ids = Ids(rules, out._variants.vocabulary)
+        out._tokenizer = Tokenizer(out._kept_ids, rules.tokens)
         out._state = (
             rules.max_length,
             rules.normalize,
@@ -104,6 +112,37 @@ class StaticModel:
         )
         return cls._new(rules)
 
+    # --- persistence ------------------------------------------------------------------
+
+    @validate_arguments
+    def save_pretrained(
+        self, path: PathLike, model_name: str | None = None, subfolder: str | None = None
+    ) -> Path:
+        """Write the model as an fse folder at the new ``path`` (``config.json``,
+        ``model.safetensors``, a model card with ``model_name``), with the current
+        ``normalize``, ``max_length`` and dimensions; returns the path (model2vec returns
+        None). ``from_pretrained`` of fse reads it, ``model2vec`` cannot: the folder is
+        not a model2vec folder. A reloaded model encodes bit for bit as this one; its
+        ``config`` holds ``normalize`` and ``max_length`` only, its ``base_model_name`` is
+        the Hub repository the table came from and its ``language`` that of the card.
+        ``subfolder`` other than None raises."""
+        return _save.save(self.encoder, self.language, Path(path), model_name, subfolder)
+
+    @validate_arguments
+    def push_to_hub(
+        self,
+        repo_id: str,
+        private: bool = False,
+        token: str | bool | None = None,
+        subfolder: str | None = None,
+    ) -> str:
+        """Publish the folder of ``save_pretrained`` to the Hub repository ``repo_id`` in
+        one commit and return its URL (model2vec returns None). The license is that of the
+        model's source card; a model without one raises (use ``encoder.push_to_hub`` with
+        ``license=``). Files of another content in the repository are refused, see
+        ``Encoder.push_to_hub``. ``subfolder`` other than None raises."""
+        return _save.push(self.encoder, self.language, repo_id, private, token, subfolder)
+
     # --- encoding ---------------------------------------------------------------------
 
     def encode(
@@ -148,15 +187,71 @@ class StaticModel:
         norm = own_normalize if normalize is None else arguments.flag("normalize", normalize)
         if cut != own_length or norm != own_normalize:
             encoder = self._variants.get(cut, norm)  # type: ignore[arg-type]
-        if isinstance(sentences, str):
-            rows = encoder.encode([sentences], workers=workers)
-            return rows[0]  # type: ignore[index]
-        if not isinstance(sentences, list | tuple | np.ndarray):
+        texts, single = arguments.texts(
+            sentences, "; streams and files go to StaticModel.encoder.encode"
+        )
+        rows = encoder.encode(texts, workers=workers)
+        return rows[0] if single else rows  # type: ignore[index, return-value]
+
+    def encode_as_sequence(
+        self,
+        sentences: Any,
+        *,
+        max_length: int | None = None,
+        batch_size: int = 1024,
+        show_progress_bar: bool = False,
+        use_multiprocessing: bool = True,
+        multiprocessing_threshold: int = 10_000,
+    ) -> list[ndarray] | ndarray:
+        """Encode a sentence or a list, tuple or numpy array of sentences as the rows of
+        their tokens: a ``(tokens, dim)`` float32 array each (a list of them for a list),
+        the rows of the table gathered as they are (``table.take``, the same bytes as
+        model2vec's ``table[ids]``).
+
+        Unlike ``encode`` it cuts only with the ``max_length`` given here (the first
+        ``max_length * median_token_length`` characters, then ``max_length`` tokens), not
+        with the model's. A text without tokens gives a ``(0, dim)`` array, float32 where
+        model2vec's is float64. The unknown token is dropped. The other arguments change no
+        row, as in ``encode``.
+        """
+        arguments.sequence_arguments(
+            show_progress_bar=show_progress_bar,
+            batch_size=batch_size,
+            use_multiprocessing=use_multiprocessing,
+            multiprocessing_threshold=multiprocessing_threshold,
+        )
+        cut = None if max_length is None else arguments.count("max_length", max_length, 1)
+        texts, single = arguments.texts(sentences)
+        rule = (cut, None if cut is None else cut * self.median_token_length, "drop")
+        table = self._rules.word_vectors.stored_vectors
+        empty = np.zeros((0, self.dim), np.float32)
+        out = [
+            table.take(ids, axis=0) if len(ids) else empty.copy()
+            for rows in self._ids.chunks(texts, rule)
+            for ids in rows
+        ]
+        return out[0] if single else out
+
+    def tokenize(self, sentences: Any) -> list[list[int]]:
+        """The token ids of a list, tuple or numpy array of sentences, each cut to the
+        model's ``max_length`` tokens (not in characters first, as ``encode`` does) and
+        without the unknown id (which still counts for the cut)."""
+        if isinstance(sentences, str) or not isinstance(sentences, list | tuple | np.ndarray):
             raise TypeError(
-                f"sentences must be a str or a list, tuple or numpy array of str, not "
-                f"{type(sentences).__name__}; streams and files go to StaticModel.encoder.encode"
+                f"sentences must be a list, tuple or numpy array of str, not "
+                f"{type(sentences).__name__}"
             )
-        return encoder.encode(sentences, workers=workers)  # type: ignore[return-value]
+        return self._ids.lists(sentences, (self.max_length, None, "drop"))
+
+    @property
+    def tokenizer(self) -> Tokenizer:
+        """A read-only tokenizer with the ids of ``tokenize``, but the unknown id kept, as the
+        ``tokenizers.Tokenizer`` of model2vec's model: cut to the model's current
+        ``max_length`` tokens, no characters first. See ``fse._static_model._tokenizer``."""
+        return self._tokenizer
+
+    def _kept_ids(self, texts: Any) -> list[list[int]]:
+        return self._ids.lists(texts, (self.max_length, None, "keep"))
 
     # --- attributes -------------------------------------------------------------------
 

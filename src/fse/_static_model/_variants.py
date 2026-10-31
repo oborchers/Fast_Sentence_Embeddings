@@ -62,17 +62,25 @@ class Variants:
             self._evict()
             return encoder
 
+    def vocabulary(self) -> Vocabulary:
+        """The ``Vocabulary`` that every encoder and lookup of the model shares."""
+        with self._lock:
+            return self._shared()
+
+    def _shared(self) -> Vocabulary:
+        if self._vocabulary is None:
+            self._vocabulary = make_vocabulary(self._rules.word_vectors)
+        return self._vocabulary
+
     def _make(self, max_length: int | None, normalize: bool) -> Encoder:
         rules = self._rules
-        if self._vocabulary is None:
-            self._vocabulary = make_vocabulary(rules.word_vectors)
         chars = None if max_length is None else max_length * rules.median_token_length
         spec = TokenizerSpec(
             rules.parameters.identifier, rules.parameters, "drop", max_length, chars
         )
         source: Source | None = rules.source
         content = converted(rules.word_vectors, spec, normalize, source, rules.license)
-        return Encoder._new(content, rules.word_vectors, vocabulary=self._vocabulary)
+        return Encoder._new(content, rules.word_vectors, vocabulary=self._shared())
 
     def _evict(self) -> None:
         """Drop the least recently used encoders beyond the limit, but the model's own."""

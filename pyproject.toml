@@ -424,11 +424,11 @@ exhaustive = true
 layers = ["_encoder | _model2vec_rules", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
-name = "Static model: the class on the loading and the encoders of its rules, those on the profile and the arguments"
+name = "Static model: the class on the loading, the encoders, the tokenizer and the saving, those on the profile and the ids, those on the arguments"
 type = "layers"
 containers = ["fse._static_model"]
 exhaustive = true
-layers = ["_model", "_load | _variants", "_profile", "_arguments"]
+layers = ["_model", "_load | _variants | _tokenizer | _save", "_profile | _ids", "_arguments"]
 
 [[tool.importlinter.contracts]]
 name = "Text: the sources and the lookup on the scan of one buffer"

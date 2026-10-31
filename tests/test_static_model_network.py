@@ -10,6 +10,7 @@ model2vec takes no revision, so it reads the snapshot of the pinned commit.
 import pytest
 
 import fse
+from fse._static_model._save import language_list
 from support import static_model as sm
 
 pytestmark = pytest.mark.network
@@ -52,12 +53,32 @@ def test_a_hub_model_is_the_static_model_of_model2vec(repo):
     assert ours.encoder._content.source.revision == revision
     texts = sm.hub_texts(ours, SCRIPTS)
     worst = sm.assert_the_model_of_model2vec(ours, theirs, texts)
+    sm.assert_the_sequences_and_ids_of_model2vec(ours, theirs, texts)
     if repo in MRL:
         cut_ours = fse.StaticModel.from_pretrained(repo, revision=revision, dimensionality=256)
         cut_theirs = model2vec.StaticModel.from_pretrained(folder, dimensionality=256)
         assert cut_ours.dim == 256
         worst = max(worst, sm.assert_the_model_of_model2vec(cut_ours, cut_theirs, texts))
+        sm.assert_the_sequences_and_ids_of_model2vec(cut_ours, cut_theirs, texts)
     offline = fse.StaticModel.from_pretrained(repo, revision=revision, local_files_only=True)
     assert offline.encode(texts[:50]).tobytes() == ours.encode(texts[:50]).tobytes()
     print(f"{repo}: {len(texts)} texts, the largest error is {worst:.2e} of the bound")
     assert worst <= 1
+
+
+@pytest.mark.parametrize(
+    "repo",
+    ["minishlab/potion-base-8M", "sentence-transformers/static-similarity-mrl-multilingual-v1"],
+)
+def test_a_saved_hub_model_reloads_with_its_rows_and_what_the_folder_holds(repo, tmp_path):
+    revision = MODELS[repo]
+    model = fse.StaticModel.from_pretrained(repo, revision=revision, dimensionality=128)
+    model.normalize = not model.normalize
+    model.max_length = 64
+    texts = sm.hub_texts(model, SCRIPTS)[:200]
+    again = fse.StaticModel.from_pretrained(model.save_pretrained(tmp_path / "saved"))
+    assert again.encode(texts).tobytes() == model.encode(texts).tobytes()
+    assert again.config == {"normalize": model.normalize, "max_length": 64}
+    assert (again.dim, again.base_model_name) == (128, repo)
+    assert again.language == language_list(model.language)  # a str becomes a list
+    assert again.encoder._content.license == model.encoder._content.license
