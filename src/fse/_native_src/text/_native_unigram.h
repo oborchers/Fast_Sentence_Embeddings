@@ -208,4 +208,62 @@ static int64_t fse_uni_viterbi(int64_t size, const int64_t *pos, const int64_t *
     return out;
 }
 
+/* Offer directly while walking prefixes, in the same order as the candidate array.
+   Keep every binary64 addition in this noinline body, after the wrapper enters fpenv. */
+FSE_NOINLINE static int64_t fse_uni_trie_viterbi_body(
+    const fse_trie *t, const uint8_t *q, int64_t size, const double *scores,
+    double unk_score, uint32_t unk_id, double *best, int64_t *best_start,
+    uint32_t *best_id) {
+    best[0] = 0.0;
+    best_start[0] = 0;
+    for (int64_t e = 1; e <= size; e++) best_start[e] = -1;
+    int64_t s = 0;
+    while (s < size) {
+        uint32_t cp;
+        int64_t width = fse_utf8_decode(q, s, size, &cp);
+        if (!width || best_start[s] < 0) return s;
+        double here = best[s];
+        int64_t node = 0;
+        int single = 0;
+        for (int64_t i = s; i < size; i++) {
+            int64_t next = (int64_t)t->base[node] + q[i];
+            if (next < 0 || next >= t->size || t->check[next] != node) break;
+            node = next;
+            uint32_t id = t->value[node];
+            if (id != FSE_TRIE_NONE && (i + 1 == size || (q[i + 1] & 0xC0) != 0x80)) {
+                int64_t e = i + 1;
+                double offer = scores[id] + here;
+                if (best_start[e] < 0 || offer > best[e]) {
+                    best[e] = offer;
+                    best_start[e] = s;
+                    best_id[e] = id;
+                }
+                if (e - s == width) single = 1;
+            }
+        }
+        if (!single) {
+            int64_t e = s + width;
+            double offer = unk_score + here;
+            if (best_start[e] < 0 || offer > best[e]) {
+                best[e] = offer;
+                best_start[e] = s;
+                best_id[e] = unk_id;
+            }
+        }
+        s += width;
+    }
+    return -1;
+}
+
+static int64_t fse_uni_trie_viterbi(
+    const fse_trie *t, const uint8_t *q, int64_t size, const double *scores,
+    double unk_score, uint32_t unk_id, double *best, int64_t *best_start,
+    uint32_t *best_id) {
+    fse_fpenv env = fse_fpenv_enter();
+    int64_t out = fse_uni_trie_viterbi_body(
+        t, q, size, scores, unk_score, unk_id, best, best_start, best_id);
+    fse_fpenv_leave(env);
+    return out;
+}
+
 #endif /* FSE_NATIVE_UNIGRAM_H */

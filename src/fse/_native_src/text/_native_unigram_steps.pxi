@@ -10,6 +10,40 @@ cdef inline uINT_t _uni_lookup(UnigramState st, const unsigned char *q, Py_ssize
     return _vocab_lookup(&st.table.view, q, k, True)
 
 
+def _uni_lattice_snapshot(UnigramState st not None, bytes data):
+    """The full dynamic program before backtracking, with defined unreachable slots."""
+    st._check_ready()
+    data.decode("utf-8")
+    cdef Py_ssize_t m = len(data), count = 0
+    if m > (PY_SSIZE_T_MAX // 32) - 2:
+        raise MemoryError("no memory for Unigram lattice")
+    cdef bytes padded = data + b"\0" * 32
+    cdef const unsigned char *q = padded
+    cdef double[::1] best = np.full(m + 1, np.nan, dtype=np.float64)
+    cdef int64_t[::1] starts = np.full(m + 1, -1, dtype=np.int64)
+    cdef uint32_t[::1] ids = np.zeros(m + 1, dtype=np.uint32)
+    cdef Workspace ws = Workspace()
+    cdef int err = UNI_GO_ON
+    with nogil:
+        if st.fused and not st.generic:
+            if fse_uni_trie_viterbi(&st.trie, q, m, st.scores, st.unk_score, st.unk_id,
+                                    &best[0], &starts[0], &ids[0]) >= 0:
+                err = UNI_BROKEN
+        else:
+            err = _uni_candidates(st, q, m, ws, &count)
+            if not err:
+                if fse_uni_viterbi(m, <const int64_t *>ws.starts.data,
+                                  <const int64_t *>ws.ends.data, count,
+                                  <const fse_uni_cand *>ws.cands.data,
+                                  &best[0], &starts[0], &ids[0]) >= 0:
+                    err = UNI_BROKEN
+    if err == UNI_NO_MEMORY:
+        raise MemoryError("no memory for Unigram candidates")
+    if err:
+        raise AssertionError("the internal Unigram text broke")
+    return np.asarray(best), np.asarray(starts), np.asarray(ids)
+
+
 cdef int _uni_candidates_generic(UnigramState st, const unsigned char *q, Py_ssize_t m, Workspace ws,
                          Py_ssize_t *count) noexcept nogil:
     """The candidates of every code point boundary of q[0:m] (step 5): every piece that is
@@ -116,7 +150,7 @@ cdef int _uni_piece(UnigramState st, const unsigned char *p, Py_ssize_t n, Works
     the count ids of the sentence so far in ws.tokens."""
     cdef _Buffer *pre
     cdef const unsigned char *q
-    cdef Py_ssize_t m, starts, end, start, run_end, run_start, k, found = 0
+    cdef Py_ssize_t m, starts = 0, end, start, run_end, run_start, k, found = 0
     cdef uINT_t *ids
     cdef double *best
     cdef int64_t *best_start
@@ -132,9 +166,10 @@ cdef int _uni_piece(UnigramState st, const unsigned char *p, Py_ssize_t n, Works
         return UNI_GO_ON
     if m > (PY_SSIZE_T_MAX // 32) - 2:
         return UNI_NO_MEMORY
-    err = _uni_candidates(st, q, m, ws, &starts)
-    if err:
-        return err
+    if st.generic or not st.fused:
+        err = _uni_candidates(st, q, m, ws, &starts)
+        if err:
+            return err
     # The lattice: m + 1 doubles, int64 and uint32, each part aligned to 8 bytes.
     ws.lattice.size = 0
     if _ensure(&ws.lattice, 24 * (m + 1)) or _ensure(&ws.run, (m + 1) * <Py_ssize_t>sizeof(uint32_t)):
@@ -142,7 +177,11 @@ cdef int _uni_piece(UnigramState st, const unsigned char *p, Py_ssize_t n, Works
     best = <double *>ws.lattice.data
     best_start = <int64_t *>(ws.lattice.data + 8 * (m + 1))
     best_id = <uint32_t *>(ws.lattice.data + 16 * (m + 1))
-    if fse_uni_viterbi(m, <const int64_t *>ws.starts.data, <const int64_t *>ws.ends.data, starts,
+    if st.fused and not st.generic:
+        if fse_uni_trie_viterbi(&st.trie, q, m, st.scores, st.unk_score, st.unk_id,
+                                best, best_start, best_id) >= 0:
+            return UNI_BROKEN
+    elif fse_uni_viterbi(m, <const int64_t *>ws.starts.data, <const int64_t *>ws.ends.data, starts,
                        <const fse_uni_cand *>ws.cands.data, best, best_start, best_id) >= 0:
         return UNI_BROKEN
     # Back from the end: nodes of unk_id join, and the joined bytes are looked up again.

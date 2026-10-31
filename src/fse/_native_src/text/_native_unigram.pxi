@@ -26,6 +26,9 @@ cdef extern from "_native_unigram.h":
     int64_t fse_uni_candidates(const fse_trie *trie, const unsigned char *q, int64_t m,
                                 int64_t start, int64_t first_size, const double *scores,
                                 fse_uni_cand *out, int *single) nogil
+    int64_t fse_uni_trie_viterbi(const fse_trie *trie, const unsigned char *q, int64_t size,
+                                const double *scores, double unk_score, uint32_t unk_id,
+                                double *best, int64_t *best_start, uint32_t *best_id) nogil
     unsigned FSE_GC_WHITE_SPACE
     int FSE_UNI_GRAPHEME_BYTES
 
@@ -161,6 +164,7 @@ cdef class UnigramState:
     cdef readonly VocabTable table
     cdef VocabTable prefixes
     cdef bint generic
+    cdef bint fused
     cdef fse_trie trie
     cdef object _scores, _units, _values, _ops, _pool, _replacement, _byte_maps
     cdef object _added_bytes, _added_offsets, _added_ids
@@ -191,7 +195,7 @@ cdef class UnigramState:
 
     def __init__(self, VocabTable table not None, vocab_bytes, vocab_offsets, scores, unk_id,
                  added_ids, steps, charsmap, replacement, max_tokens=0, max_chars=0,
-                 drop_unknown=True, *, _generic=False, _trie_units=FSE_TRIE_MAX_UNITS,
+                 drop_unknown=True, *, _generic=False, _fused=True, _trie_units=FSE_TRIE_MAX_UNITS,
                  _trie_fail_at=None):
         if self._state != TABLE_NEW:
             raise RuntimeError("a UnigramState is built once; make a new one")
@@ -200,6 +204,9 @@ cdef class UnigramState:
             if not isinstance(_generic, bool):
                 raise TypeError(f"_generic must be a bool, not {type(_generic).__name__}")
             self.generic = _generic
+            if not isinstance(_fused, bool):
+                raise TypeError(f"_fused must be a bool, not {type(_fused).__name__}")
+            self.fused = _fused
             self.trie.fail_at = -1 if _trie_fail_at is None else _wp_int(_trie_fail_at, "_trie_fail_at", 0)
             self._build(table, vocab_bytes, vocab_offsets, scores, unk_id, added_ids, steps,
                         charsmap, replacement, max_tokens, max_chars, drop_unknown,
@@ -291,6 +298,10 @@ cdef class UnigramState:
         if err:
             raise AssertionError("the internal Unigram text broke")
         return (<char *>out.data)[:out.size]
+
+    def _lattice(self, bytes data):
+        """Scores, starts and ids at every byte end of a pre-token; private, for tests."""
+        return _uni_lattice_snapshot(self, data)
 
     @property
     def _normalizer_kinds(self):
