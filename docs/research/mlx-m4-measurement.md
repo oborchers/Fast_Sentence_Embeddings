@@ -2,7 +2,10 @@
 
 DR-147 (MLX-Gate entscheiden und auf dem M4 Pro nachmessen) uses the frozen base
 `c754efd382f7b42504d140cabf5aab6e40ad51bb`. This driver was written on an M4 Pro
-using Codex. It changes no inference code and contains no measurement results yet.
+using Codex. It changes no inference code. Completed matrix evidence is in
+`benchmarks/evidence/dr147-m4/`; `benchmarks/report_mlx_gate.py` replays it without
+measurements. Required profiling has not run under the current no-profile instruction;
+MLX policy and full ticket acceptance remain open.
 
 `benchmarks/bench_mlx_gate.py list` lists all 60 required cells. Each crosses five
 model/dimension variants, two corpora, raw/normalized output and three table dtypes.

@@ -1,6 +1,6 @@
 # Performance: how close fse comes to the hardware limit
 
-This document says how fast fse can be on a given machine, why, and how close it comes. It holds a small model of the limits (a roofline model), the assumptions behind it, and measurements on an Apple M1 Pro. `benchmarks/roofline.py` computes the same numbers for any encoder, corpus and hardware profile.
+This document says how fast fse can be on a given machine, why, and how close it comes. It holds a small model of the limits (a roofline model), the assumptions behind it, and measurements on an Apple M1 Pro and an 8P+4E M4 Pro. `benchmarks/roofline.py` computes the same numbers for any encoder, corpus and hardware profile.
 
 ## In short
 
@@ -81,7 +81,7 @@ Not in the model: waits of the tasks (they show as the gap between their wall an
 | | | 77.3 GB/s (measured, random rows) | `roofline.py probe`, this machine |
 | `m4-pro-14` | 10 P + 4 E | 273 GB/s (spec) | Apple Newsroom, 30.10.2024 |
 
-The topology of the M1 Pro comes from `sysctl` (`hw.perflevel0.physicalcpu` 8, `hw.perflevel1.physicalcpu` 2, 12 MiB L2 per cluster of 4 performance cores). The M4 Pro is a spec profile and was not measured: `roofline.py show result.json --hardware m4-pro-14 --workers 14` gives its bounds with the stage times of the machine that measured them.
+The topology of the M1 Pro comes from `sysctl` (`hw.perflevel0.physicalcpu` 8, `hw.perflevel1.physicalcpu` 2, 12 MiB L2 per cluster of 4 performance cores). The `m4-pro-14` M4 Pro is an unmeasured specification profile, distinct from the measured 8P+4E machine below: `roofline.py show result.json --hardware m4-pro-14 --workers 14` gives its bounds with the stage times of the machine that measured them.
 
 ### The measured memory roofs
 
@@ -417,6 +417,40 @@ PR 136 (2.0: stages 1 to 4 of a task in one nogil section on the cpu backend, La
     uv run python benchmarks/runtime_timeline.py ablate all --model potion-base-8M --corpus massive --workers 8 --rss
 
 The models and corpora come from the local Hugging Face cache; nothing is downloaded. A new machine gets a profile in `benchmarks/roofline_hardware.toml` with the sources of its numbers and the read roofs that `probe` measures on it.
+
+## MLX matrix on the M4 Pro (31 October 2026)
+
+DR-147 (MLX-Gate entscheiden und auf dem M4 Pro nachmessen) measured all 60 requested real-model cells on an actual M4 Pro with 8 performance and 4 efficiency cores, 48 GiB, default 12 workers. CPU14 is oversubscribed. The m4-pro-14 roofline specification is not this machine, and actual-variant bandwidth is unverified. Work performed using Codex. Frozen base c754efd382f7b42504d140cabf5aab6e40ad51bb; 43 accepted cells retain measured driver d8a61a5, 17 retain 9fc6a93. Both have identical inference sources and native checksum, recorded in [compact evidence](benchmarks/evidence/dr147-m4/README.md).
+
+Each cell has three paired alternating rounds, best of three passes on full WikiText (5352 texts) or two on MASSIVE (151674 texts), with CPU1/10/14 and MLX default plus A/A controls. Actual CPU-default plus A/A is included in the two deciding float32 WikiText cells. All model/dataset revisions are pinned; public Encoder.quantize supplies float16/int8 tables. All output rows are float32. All 60 full comparisons were bit-identical; worker/restart/GPU checks passed with no fallback or accepted discard. These results concern table dtype, not comparison of quantization error against original float32 tables.
+
+Below are the float32 time ratios MLX/CPU10, median and range of three paired ratios. Values below 1 favor MLX. Full float16/int8 results, CPU1/14/default, all unrounded A/A controls and texts/s replay from [matrix.json](benchmarks/evidence/dr147-m4/matrix.json) using `python benchmarks/report_mlx_gate.py --json`, without MLX or measurements. L means all accepted pair observations below 3.89; E means all from 3.89 to strict 5.
+
+| Model/dim | Corpus | Raw ratio (range) | Normalized ratio (range) | Raw/norm load |
+|---|---|---|---|---|
+| static-retrieval-mrl-en-v1/1024 | wikitext | 0.989344 (0.962579 to 1.440726) | 1.457620 (0.826732 to 1.677063) | L/L |
+| static-retrieval-mrl-en-v1/1024 | massive | 1.800728 (1.742174 to 1.802737) | 2.699700 (2.601370 to 2.793482) | L/L |
+| static-retrieval-mrl-en-v1/512 | wikitext | 1.996510 (1.930977 to 2.033243) | 2.019273 (1.901230 to 2.027938) | L/L |
+| static-retrieval-mrl-en-v1/512 | massive | 1.846385 (1.810518 to 1.895829) | 2.489930 (2.341543 to 2.594380) | L/L |
+| static-retrieval-mrl-en-v1/256 | wikitext | 2.206636 (2.099671 to 2.314705) | 2.247844 (2.074070 to 2.285782) | L/L |
+| static-retrieval-mrl-en-v1/256 | massive | 1.802697 (1.723051 to 1.811691) | 2.307149 (2.226299 to 2.325002) | L/E |
+| potion-base-8M/256 | wikitext | 2.125816 (1.750080 to 2.169504) | 2.121527 (2.098611 to 2.210607) | L/L |
+| potion-base-8M/256 | massive | 1.695953 (1.656746 to 1.701466) | 2.093748 (2.029371 to 2.148079) | E/E |
+| potion-base-32M/512 | wikitext | 1.892005 (1.840041 to 1.957113) | 1.862794 (1.799634 to 1.892968) | L/L |
+| potion-base-32M/512 | massive | 1.731875 (1.692832 to 1.750620) | 2.464521 (2.408432 to 2.569616) | L/L |
+
+Only the raw MRL1024/WikiText float32 cell has median MLX time below CPU10 among all 60 cells. Its range crosses parity, so the near tie is not a robust speed advantage. Actual CPU-default comparisons are:
+
+| MRL1024/WikiText float32 | MLX/CPU-default median (range) | CPU-default / MLX median texts/s | MLX A/A range |
+|---|---|---|---|
+| raw | 1.183355 (1.088285 to 1.660089) | 708084.8 / 598370.5 | 0.975194 to 1.088690 |
+| norm | 1.710866 (0.915435 to 1.882586) | 658326.2 / 400109.7 | 0.544806 to 1.844942 |
+
+Normal baseline: the predeclared median of all eleven fixed uptime 1-minute readings is 2.39, giving min(2.39+1.5,5)=3.89. All raw timestamped values are retained in evidence. Oliver then explicitly authorized strict limit 5 and load-only automatic retries, received by coordinator at 2026-10-31T13:40:11+01:00. This is a decision-backed override, not a fabricated baseline. Previous stops retain their original limits. Defender remained active and unchanged.
+
+Actual pair guards classify 150 accepted pairs/50 cells as low, 30 pairs/10 cells as elevated-only, no mixed/unknown. Accepted load range: 2.09033203125 to 4.6435546875. No accepted cell spans regimes, so within-cell load/spread dependence is not identifiable. Separate same-cell exploratory partial-pair comparisons show wider higher-load ranges in two tiny comparisons, but lack full historical restart/acceptance and share attempt/order confounds. A third n=1 group cannot establish spread. Cross-cell mixtures do not support load or Defender causality. Every valid higher-load cell is retained; partial or discarded rounds never supply acceptance.
+
+The seven attempts consumed 532.6694807500007/1800 active seconds globally and 523.0340705840008/900 for the matrix. All reservations settled without overrun. **Required CPU/allocation/RSS profiling has not run because the current instruction forbids profiles.** Hot-function attribution and memory peaks are unavailable. MLX policy remains **undecided**, ticket acceptance is incomplete and the PR remains draft. Proposed future profile: raw MRL1024/WikiText float32, actual CPU-default 12 versus MLX default, as the closest median comparison with narrower MLX A/A spread than normalized. This is a proposal, not permission to profile or a backend-policy decision.
 
 ## Sources
 
