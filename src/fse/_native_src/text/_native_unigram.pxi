@@ -351,3 +351,39 @@ cdef class UnigramState:
     def __reduce__(self):
         raise TypeError("a UnigramState cannot be pickled; build it from the encoder")
 
+
+
+def _trie_constructed_ids(vocab_bytes, vocab_offsets, *, _sorted=False):
+    """Root and exact ids of raw keys, below VocabTable's uniqueness check; for tests."""
+    if not isinstance(_sorted, bool):
+        raise TypeError("_sorted must be a bool")
+    data, offsets = _vocab_arrays(vocab_bytes, vocab_offsets)
+    cdef const unsigned char[::1] d = data if len(data) else np.zeros(1, np.uint8)
+    cdef const np.int64_t[::1] o = offsets
+    cdef fse_trie trie
+    cdef int err
+    cdef Py_ssize_t i
+    cdef uint32_t found
+    cdef bint sorted_keys = _sorted
+    memset(&trie, 0, sizeof(fse_trie))
+    trie.fail_at = -1
+    try:
+        with nogil:
+            if sorted_keys:
+                err = fse_trie_build_sorted(&trie, &d[0], &o[0], o.shape[0] - 1, FSE_TRIE_MAX_UNITS)
+            else:
+                err = fse_trie_build(&trie, &d[0], &o[0], o.shape[0] - 1, FSE_TRIE_MAX_UNITS)
+        if err == FSE_TRIE_NO_MEMORY:
+            raise MemoryError("no memory for the test trie")
+        if err:
+            raise ValueError("the test trie exceeds its unit limit")
+        found = fse_trie_exact(&trie, &d[0], 0)
+        root = None if found == FSE_TRIE_NONE else found
+        ids = []
+        for i in range(o.shape[0] - 1):
+            found = fse_trie_exact(&trie, &d[0] + o[i], o[i + 1] - o[i])
+            ids.append(None if found == FSE_TRIE_NONE else found)
+        return root, ids
+    finally:
+        with nogil:
+            fse_trie_free(&trie)

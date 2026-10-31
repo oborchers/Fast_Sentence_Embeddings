@@ -201,3 +201,19 @@ def test_empty_and_prefix_keys_keep_their_original_ids():
         for t in texts
     ]
     assert _ids(fast, texts) == _ids(generic, texts) == want_ids
+
+
+@pytest.mark.parametrize("sorted_keys", [False, True])
+@pytest.mark.parametrize(
+    "tokens", [[], [b""], [b"ab", b"", b"a", b"ab", b"", b"\x00", b"a", b"\xff"]]
+)
+def test_raw_constructors_keep_the_first_id_for_duplicates(tokens, sorted_keys):
+    data = np.frombuffer(b"".join(tokens), np.uint8)
+    offsets = np.zeros(len(tokens) + 1, np.int64)
+    np.cumsum([len(t) for t in tokens], out=offsets[1:])
+    first = {}
+    for i, token in enumerate(tokens):
+        first.setdefault(token, i)
+    root, ids = _native._trie_constructed_ids(data, offsets, _sorted=sorted_keys)
+    assert root == first.get(b"")
+    assert ids == [first[token] for token in tokens]

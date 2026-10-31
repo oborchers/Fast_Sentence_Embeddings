@@ -369,6 +369,12 @@ static inline int64_t fse_trie_walk(const fse_trie *t, int64_t s, const uint8_t 
     return s;
 }
 
+/* Exact lookup, including an empty key at the root; for constructor tests. */
+static uint32_t fse_trie_exact(const fse_trie *t, const uint8_t *key, int64_t n) {
+    int64_t node = fse_trie_walk(t, 0, key, n);
+    return node < 0 ? FSE_TRIE_NONE : t->value[node];
+}
+
 /* The greedy step: the id of the longest token w[k:j] read from node s (the root, or the
    node of the continuation prefix) with j > k on a code-point boundary of w[0:n] (j == n,
    or w[j] is no continuation byte), and *end = j; FSE_TRIE_NONE when there is none. */
