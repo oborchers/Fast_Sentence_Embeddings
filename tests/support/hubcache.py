@@ -43,6 +43,13 @@ class FakeHub:
     def folder(self):
         return self.cache / ("models--" + self.repo.replace("/", "--"))
 
+    def write_ref(self, revision):
+        """``refs/<revision>``, which a download of the revision by name leaves in the cache
+        (a download at a commit hash does not)."""
+        ref = self.folder() / "refs" / revision
+        ref.parent.mkdir(parents=True, exist_ok=True)
+        ref.write_text(COMMIT)
+
     def hf_hub_download(self, repo, name, *, revision, local_files_only, cache_dir, token):
         assert (repo, cache_dir) == (self.repo, self.cache)
         assert token in (None, "t")
@@ -52,6 +59,7 @@ class FakeHub:
             if revision not in (None, "main", COMMIT) or not os.path.lexists(path):
                 raise FileNotFoundError(f"{name} is not in the cache")
             return str(path)
+        self.write_ref("main")
         data = self.files[name]
         blob = (
             self.folder()
@@ -63,15 +71,6 @@ class FakeHub:
         blob.write_bytes(data)
         path.symlink_to(os.path.relpath(blob, path.parent))
         return str(path)
-
-    def snapshot_download(self, repo, *, revision, local_files_only, cache_dir, token):
-        assert local_files_only
-        assert (repo, cache_dir) == (self.repo, self.cache)
-        assert token in (None, "t")
-        snapshot = self.folder() / "snapshots" / COMMIT
-        if revision not in (None, "main", COMMIT) or not snapshot.is_dir():
-            raise FileNotFoundError(f"{repo} is not in the cache")
-        return str(snapshot)
 
 
 def make_fake(tmp_path, monkeypatch):

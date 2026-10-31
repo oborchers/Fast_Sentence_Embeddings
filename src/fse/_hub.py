@@ -15,8 +15,10 @@ without ``lfs.sha256`` raises. A file of the cache is a link of its snapshot int
 blobs of the same cached repository, which is resolved only there, and the blob is
 checked; a file may lie in a folder of the repository (``0_StaticEmbedding/``), and no
 folder from the repository down to it may be a link. With ``local_files_only`` nothing is
-asked of the Hub: the commit is the cached snapshot of ``revision`` and the files are
-those below it, and each blob is checked against its name, which is its sha256 or git sha1
+asked of the Hub: the commit is the cached snapshot of ``revision`` (a commit hash, or the
+commit in ``refs/<revision>``, found in the layout of the cache without
+``snapshot_download``, which refuses a snapshot that lacks any file its cached tree
+listing names) and the files are those below it, and each blob is checked against its name, which is its sha256 or git sha1
 (this detects damage, not forgery).
 """
 
@@ -34,6 +36,7 @@ from fse._container import CorruptArtifactError, pin_digest, read_regular
 REPO_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _SHA1 = re.compile(r"[0-9a-f]{40}")
+_COMMIT = _SHA1  # a commit hash is a git sha1
 
 
 def _library():
@@ -61,11 +64,7 @@ class HubFiles:
         self._options = {"cache_dir": cache_dir, "token": token}
         self._offline = local_files_only
         if local_files_only:
-            snapshot = Path(
-                self.hub.snapshot_download(
-                    repo, revision=revision, local_files_only=True, **self._options
-                )
-            )
+            snapshot = cached_snapshot(self.hub, repo, revision, cache_dir)
             self.revision = snapshot.name
             self._pins: dict[str, tuple[str | None, str | None]] | None = None
             self._sizes: dict[str, int | None] = {}
@@ -158,6 +157,52 @@ def _sized(name: str, expected: int | None, inspect: Any) -> Any:
             inspect(handle, size)
 
     return check
+
+
+def cached_snapshot(hub: Any, repo: str, revision: str | None, cache_dir) -> Path:
+    """The cached snapshot folder ``<cache>/models--<namespace>--<name>/snapshots/<commit>``
+    of ``revision`` (None is ``main``), resolved from the documented layout of the cache:
+    a commit hash names its snapshot, any other revision is the commit in the file
+    ``refs/<revision>``. Nothing else is read, so files of the commit that were never
+    downloaded (the tree listing that ``snapshot_download`` checks, 25 evaluation files of
+    ``minishlab/potion-multilingual-128M``) do not matter: ``HubFiles.read`` takes only
+    the files below the snapshot that the model needs, each checked by its blob name.
+    A missing repository, ref or snapshot raises ``FileNotFoundError``, as
+    ``snapshot_download(local_files_only=True)`` does (``LocalEntryNotFoundError``)."""
+    revision = "main" if revision is None else revision
+    parts = revision.split("/")
+    if not revision or any(p in ("", ".", "..") for p in parts) or "\\" in revision:
+        raise ValueError(f"{revision!r} is no revision name of the Hugging Face cache")
+    base = Path(hub.constants.HF_HUB_CACHE if cache_dir is None else cache_dir)
+    storage = base / ("models--" + repo.replace("/", "--"))
+    commit = revision
+    if not _COMMIT.fullmatch(revision):
+        commit = _read_ref(storage / "refs" / revision, repo, revision)
+    snapshot = storage / "snapshots" / commit
+    if not os.path.lexists(snapshot):
+        raise FileNotFoundError(
+            f"{repo}: the cache {base} has no snapshot of commit {commit} (revision "
+            f"{revision!r}); local_files_only cannot load it, download it once first"
+        )
+    _plain_dirs(storage, storage / "snapshots", snapshot)
+    return snapshot
+
+
+def _read_ref(ref: Path, repo: str, revision: str) -> str:
+    """The commit that the file ``ref`` of the cache holds."""
+    try:
+        mode = os.lstat(ref).st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        raise FileNotFoundError(
+            f"{repo}: the cache has no ref {revision!r}; local_files_only cannot resolve a "
+            "revision it never downloaded (a commit hash needs no ref)"
+        ) from None
+    if not stat.S_ISREG(mode):
+        raise CorruptArtifactError(f"{ref} is a link or no file; fse follows no link in the cache")
+    commit = ref.read_text(encoding="ascii", errors="replace").strip()
+    if not _COMMIT.fullmatch(commit):
+        raise CorruptArtifactError(f"{ref} holds {commit[:60]!r}, no commit hash")
+    return commit
 
 
 def files_below(folder: Path) -> set[str]:
