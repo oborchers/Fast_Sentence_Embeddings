@@ -24,6 +24,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Added
 
+- Local recipe notebooks for offline SIF/uSIF tables, linear heads, resumable file and queue jobs, folder polling and application integrations, with a localhost overhead measurement. Recipe dependencies remain separate from fse.
+
 - A measured RunPod EPYC 9655P roofline profile and Linux x86 performance observations, with shared-host, CPU-affinity and profiling limitations.
 
 - `fse.repair_store(path)` verifies every shard and preserves the valid prefix, moving the damaged tail and orphans into `.broken-<hex>` without deleting data. Each descending move is synced before the next. Unknown formats are refused before mutation. Run it only with no active reader or writer. It returns kept rows, leaves durability tags and `store.json` unchanged, and emits `store.repaired`.
