@@ -19,6 +19,7 @@ class Trace:
         self.syncs = defaultdict(lambda: {"calls": 0, "seconds": 0.0})
         self.finishes = []
         self.events = {}
+        self.publications = []
 
     def wrap_sync(self, name, operation):
         def measured(fd, *args):
@@ -57,15 +58,24 @@ class Trace:
 
     @contextmanager
     def endpoints(self, sink):
-        from fse._encoder import _encoder
+        from fse._encoder import _batches, _encoder
         from fse._store._shard import ShardWriter
 
         finish, commit, flush = ShardWriter.finish, sink.commit, _encoder.flush
+        wait = ShardWriter.wait_written
+        ready = {}
+
+        def waited(writer, *args):
+            result = wait(writer, *args)
+            ready[id(writer)] = time.perf_counter()
+            return result
 
         def finished(writer, *args, **kwargs):
             begin = time.perf_counter()
             result = finish(writer, *args, **kwargs)
-            self.finishes.append([begin, time.perf_counter()])
+            end = time.perf_counter()
+            self.finishes.append([begin, end])
+            self.publications.append([ready.pop(id(writer)), end])
             return result
 
         def committed(*args, **kwargs):
@@ -80,6 +90,8 @@ class Trace:
 
         with (
             patch.object(ShardWriter, "finish", finished),
+            patch.object(ShardWriter, "wait_written", waited),
+            patch.object(_batches, "flush", flushed),
             patch.object(sink, "commit", committed),
             patch.object(_encoder, "flush", flushed),
         ):

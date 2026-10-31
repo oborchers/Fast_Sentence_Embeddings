@@ -92,7 +92,8 @@ def prepare(args):
         root = Path(args.corpus) if args.corpus else roots[0]
         tensors = load_file(CACHE / "glove-wiki-gigaword-300.safetensors")
         wv = fse.WordVectors.from_arrays(
-            tensors["vectors"], vocab_bytes=tensors["vocab.bytes"],
+            tensors["vectors"],
+            vocab_bytes=tensors["vocab.bytes"],
             vocab_offsets=tensors["vocab.offsets"],
         )
         encoder = v2_finished(wv, "SIFWeights", CACHE / "counts-en.npy", tokenizer="external")
@@ -106,9 +107,26 @@ def prepare(args):
     return encoder, sentences
 
 
+def encode(args, encoder, texts, sink):
+    if not args.batch:
+        encoder.encode(texts, workers=args.workers, sink=sink)
+        return []
+    batches = []
+    begin = time.perf_counter()
+    for _ in encoder.encode_batches(
+        (texts[i : i + args.batch] for i in range(0, len(texts), args.batch)),
+        workers=args.workers,
+        sink=sink,
+    ):
+        now = time.perf_counter()
+        batches.append(now - begin)
+        begin = now
+    return batches
+
+
 def measure(args, encoder, texts):
     import fse
-    from fse._store._layout import default_shard_rows
+    from fse._store._sink import default_shard_rows
 
     class SealingSink(fse.ShardSink):
         def publish(self):
@@ -136,17 +154,7 @@ def measure(args, encoder, texts):
             try:
                 if args.side == "flush_model":
                     run.marker(path, 0)  # before any shard can be renamed
-                if args.batch:
-                    begin = time.perf_counter()
-                    for _ in encoder.encode_batches(
-                        (texts[i:i + args.batch] for i in range(0, len(texts), args.batch)),
-                        workers=args.workers, sink=sink,
-                    ):
-                        now = time.perf_counter()
-                        batches.append(now - begin)
-                        begin = now
-                else:
-                    encoder.encode(texts, workers=args.workers, sink=sink)
+                batches = encode(args, encoder, texts, sink)
                 trace.events["encode_return"] = time.perf_counter()
             finally:
                 sink.close()
@@ -155,16 +163,22 @@ def measure(args, encoder, texts):
                 run.sync_tree(path, model=args.side == "flush_model", rows=sink.durable_rows)
             end = time.perf_counter()
         syncs = trace.snapshot()
+        peak = store_bench._peak()
         checked = run.checked(path)  # verification and digests outside write timer
     last = trace.events["last_commit"]
     close = trace.events["close_end"]
-    publish_tail = sum(max(0, b - max(a, last)) for a, b in trace.finishes)
+    publish_tail = sum(max(0, b - max(a, last)) for a, b in trace.publications)
     result = {
-        "seconds": end - start, "peak": store_bench._peak(), "initialisation": initialisation,
-        "syncs": syncs, "events": {k: v - start for k, v in trace.events.items()},
+        "seconds": end - start,
+        "peak": peak,
+        "initialisation": initialisation,
+        "syncs": syncs,
+        "events": {k: v - start for k, v in trace.events.items()},
         "finishes": [[a - start, b - start] for a, b in trace.finishes],
-        "tail_seconds": close - last, "tail_publish_seconds": publish_tail,
-        "tail_wait_seconds": max(0, close - last - publish_tail), **checked,
+        "tail_seconds": close - last,
+        "tail_publish_seconds": publish_tail,
+        "tail_wait_seconds": max(0, close - last - publish_tail),
+        **checked,
     }
     if batches:
         result["batch_p50_s"] = statistics.median(batches)
@@ -179,6 +193,28 @@ def child(args):
     return measure(args, encoder, texts)
 
 
+def dirty_probe(target, file_fd, path):
+    if target == "file":
+        os.pwrite(file_fd, b"y" * 65536, 0)
+    else:
+        entry = path / "entry"
+        entry.unlink() if entry.exists() else entry.touch()
+
+
+def probe_samples(operations, durable, file_fd, dir_fd, path):
+    values = {}
+    for _ in range(50):
+        for name, operation in operations.items():
+            for target, descriptor in (("file", file_fd), ("dir", dir_fd)):
+                durable(file_fd)
+                durable(dir_fd)
+                dirty_probe(target, file_fd, path)
+                begin = time.perf_counter()
+                operation(descriptor)
+                values.setdefault(f"{name}_{target}", []).append(time.perf_counter() - begin)
+    return values
+
+
 def probe(args):
     import fcntl
 
@@ -190,35 +226,51 @@ def probe(args):
         }
     durable = operations.get("full", os.fsync)
     values = {}
-    with tempfile.TemporaryDirectory(dir=args.tmp) as tmp:
-        with (Path(tmp) / "data").open("w+b") as file:
-            file.write(b"x" * 65536)
-            file.flush()
-            fd = os.open(tmp, os.O_RDONLY)
-            try:
-                for _ in range(50):
-                    for name, operation in operations.items():
-                        for target, descriptor in (("file", file.fileno()), ("dir", fd)):
-                            durable(file.fileno())
-                            durable(fd)
-                            if target == "file":
-                                os.pwrite(file.fileno(), b"y" * 65536, 0)
-                            else:
-                                entry = Path(tmp) / "entry"
-                                entry.unlink() if entry.exists() else entry.touch()
-                            begin = time.perf_counter()
-                            operation(descriptor)
-                            values.setdefault(f"{name}_{target}", []).append(time.perf_counter() - begin)
-            finally:
-                os.close(fd)
-    return {k: {"p50_ms": 1000 * statistics.median(v),
-                "p90_ms": 1000 * statistics.quantiles(v, n=10)[-1]} for k, v in values.items()}
+    with (
+        tempfile.TemporaryDirectory(dir=args.tmp) as tmp,
+        (Path(tmp) / "data").open("w+b") as file,
+    ):
+        file.write(b"x" * 65536)
+        file.flush()
+        fd = os.open(tmp, os.O_RDONLY)
+        try:
+            values = probe_samples(operations, durable, file.fileno(), fd, Path(tmp))
+        finally:
+            os.close(fd)
+    return {
+        k: {
+            "p50_ms": 1000 * statistics.median(v),
+            "p90_ms": 1000 * statistics.quantiles(v, n=10)[-1],
+        }
+        for k, v in values.items()
+    }
 
 
 def valid_round(round_, sides, limit):
     return set(round_) == set(sides) and all(
         r["before"] < limit and r["after"] < limit for r in round_.values()
     )
+
+
+def child_command(args, cell, side):
+    cmd = [
+        sys.executable,
+        __file__,
+        "child",
+        "--tmp",
+        args.tmp,
+        "--side",
+        side,
+        "--workers",
+        str(args.workers),
+    ]
+    for key, value in cell.items():
+        if key == "name" or value is None:
+            continue
+        cmd += [f"--{key.replace('_', '-')}"] + ([] if value is True else [str(value)])
+    if args.corpus:
+        cmd += ["--corpus", args.corpus]
+    return cmd
 
 
 def run_cell(args, cell, deadline):
@@ -233,22 +285,19 @@ def run_cell(args, cell, deadline):
         round_ = {}
         for side in harness.order(sides, attempt):
             before = harness.load()
-            if before >= args.max_load or time.monotonic() >= deadline:
+            if (
+                before >= args.max_load
+                or time.monotonic() >= deadline
+                or (Path(args.tmp) / "pause-local.marker").exists()
+            ):
                 break
-            cmd = [sys.executable, __file__, "child", "--tmp", args.tmp, "--side", side,
-                   "--workers", str(args.workers)]
-            for key, value in cell.items():
-                if key == "name" or value is None:
-                    continue
-                cmd += [f"--{key.replace('_', '-')}"] + ([] if value is True else [str(value)])
-            if args.corpus:
-                cmd += ["--corpus", args.corpus]
+            cmd = child_command(args, cell, side)
             result = harness.run_child(cmd, timeout=max(1, deadline - time.monotonic()))
             round_[side] = result | {"before": before, "after": harness.load()}
             print(json.dumps({"cell": cell["name"], "side": side, **round_[side]}), flush=True)
         (kept if valid_round(round_, sides, args.max_load) else discarded).append(round_)
-        if not round_:  # external scheduler can retry once load has fallen
-            break
+        if not round_:
+            time.sleep(min(10, max(0, deadline - time.monotonic())))
         attempt += 1
     return {"name": cell["name"], "kept": kept, "discarded": discarded}
 
@@ -258,7 +307,9 @@ def parser():
     p.add_argument("mode", choices=["cells", "child", "probe"])
     p.add_argument("--tmp", required=True)
     p.add_argument("--json")
-    p.add_argument("--side", choices=[*SIDES, "large4", "single", "pend1g", "pend1g_n"], default="full")
+    p.add_argument(
+        "--side", choices=[*SIDES, "large4", "single", "pend1g", "pend1g_n"], default="full"
+    )
     p.add_argument("--length", action="store_true")
     p.add_argument("--corpus")
     p.add_argument("--workers", type=int, default=10)
@@ -268,7 +319,9 @@ def parser():
     p.add_argument("--dtype", choices=["float32", "float16", "int8"], default="float32")
     p.add_argument("--pairs", type=int, default=3)
     p.add_argument("--max-load", type=float, default=5)
-    p.add_argument("--budget", type=float, default=1200, help="shared seconds, reserve 600 for profiles")
+    p.add_argument(
+        "--budget", type=float, default=1200, help="shared seconds, reserve 600 for profiles"
+    )
     p.add_argument("--only", nargs="+")
     return p
 
