@@ -2,7 +2,6 @@
 
 import json
 
-import numpy as np
 import pytest
 from pydantic import ValidationError
 
@@ -37,7 +36,7 @@ def test_repair_keeps_the_prefix_and_moves_the_tail_and_orphans(tmp_path):
     assert append_rows(path) == 4
     with fse.VectorStore.open(path) as store:
         assert len(store) == 8
-        assert (store.get_vectors(4) == 99).all()
+        assert (store.get_vectors(start=4) == 99).all()
     (record,) = [r for r in records if r.fse_event == "store.repaired"]
     assert (record.fse_rows, record.fse_moved_shards) == (4, 3)
     assert record.fse_moved_rows is None  # the missing manifest gives no trusted count
