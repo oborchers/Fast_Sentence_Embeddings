@@ -58,6 +58,7 @@ EVENTS: dict[str, tuple[str, int]] = {
     "store.cleanup_failed": ("fse.store", WARNING),
     "store.opened": ("fse.store", INFO),
     "store.verified": ("fse.store", INFO),
+    "store.repaired": ("fse.store", INFO),
     "store.search": ("fse.store", DEBUG),
 }
 

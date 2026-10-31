@@ -152,6 +152,7 @@ Which call to use when:
 | encode a stream (a generator, a queue) | `encoder.encode(iterator)`: it is read once |
 | encode a stream batch by batch and confirm what is safe | `for batch in encoder.encode_batches(polls, sink=sink)`, confirming up to `batch.durable_rows` |
 | write the vectors to disk | `with fse.ShardSink("store", encoder, dtype="int8") as sink: encoder.encode(texts, sink=sink)` |
+| repair a damaged tail, with no active readers or writers | `kept_rows = fse.repair_store("store")` |
 | search them | `with fse.VectorStore.open("store") as store: result = store.search(encoder.encode(["query"]), k=10)` |
 
 - `encode` returns float32 rows by default; `dtype="float16"` gives float16 rows and `dtype="int8"` a `fse.QuantizedRows` (int8 codes and one scale per row).

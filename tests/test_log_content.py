@@ -40,6 +40,7 @@ REQUIRED = {
     "store.sink_closed",
     "store.opened",
     "store.verified",
+    "store.repaired",
     "store.search",
 }
 
@@ -88,6 +89,8 @@ def _everything(root: Path, monkeypatch):
     store = fse.VectorStore.open(root / "store", encoder=loaded)
     store.verify()
     store.search(loaded.encode(TEXTS[:2]), k=3)
+    store.close()
+    fse.repair_store(root / "store")
     head = fse.Regressor.from_arrays(
         loaded, np.ones((2, loaded.output_dim), np.float32), np.zeros(2), normalized=False
     )

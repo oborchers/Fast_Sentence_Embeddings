@@ -1,0 +1,52 @@
+"""A corrupt tail and the append-before-rerun oracle shared by repair crash tests."""
+
+import numpy as np
+import pytest
+
+import fse
+from fse._store._layout import shard_name
+from support.store import append_rows, make_store
+
+
+def damaged_store(path):
+    make_store(path, sizes=(4, 4, 4, 4))
+    (path / shard_name(4) / "manifest.json").unlink()
+    return {shard_name(row): contents(path / shard_name(row)) for row in (4, 8, 12)}
+
+
+def contents(path):
+    """All directory entries and file bytes below one shard."""
+    return {
+        str(p.relative_to(path)): p.read_bytes() if p.is_file() else None for p in path.rglob("*")
+    }
+
+
+def after_crash(path, expected):
+    """Try a real open and append before rerunning repair, never hiding a gap first."""
+    first = np.arange(1, 17, dtype=np.float32).reshape(4, 4)
+    try:
+        with fse.VectorStore.open(path) as store:
+            before = store.get_vectors()
+            assert before.tobytes() == first.tobytes()
+    except fse.CorruptArtifactError as error:
+        message = str(error)
+        outcome = "gap" if "a shard follows a gap from row 4" in message else "damaged"
+        assert outcome == "gap" or "has no manifest.json" in message
+        with pytest.raises(fse.CorruptArtifactError):
+            append_rows(path)
+        assert fse.repair_store(path) == 4
+        assert append_rows(path) == 4
+    else:
+        outcome = "prefix"
+        assert append_rows(path) == 4
+        assert fse.repair_store(path) == 8
+    with fse.VectorStore.open(path) as store:
+        assert len(store) == 8
+        assert store.get_vectors(stop=4).tobytes() == first.tobytes()
+        assert (store.get_vectors(start=4) == 99).all()
+        store.verify()
+    assert fse.repair_store(path) == 8
+    moved = [p for group in path.glob(".broken-*") for p in group.iterdir()]
+    assert sorted(p.name for p in moved) == sorted(expected)
+    assert {p.name: contents(p) for p in moved} == expected
+    return outcome

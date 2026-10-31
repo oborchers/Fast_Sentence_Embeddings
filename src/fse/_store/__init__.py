@@ -11,7 +11,8 @@ The layout is in ``_layout``, the writing of one shard in ``_shard``, the search
 in ``_search``.
 """
 
+from ._repair import repair_store
 from ._sink import ShardSink
 from ._vectorstore import SearchResult, VectorStore
 
-__all__ = ["SearchResult", "ShardSink", "VectorStore"]
+__all__ = ["SearchResult", "ShardSink", "VectorStore", "repair_store"]
