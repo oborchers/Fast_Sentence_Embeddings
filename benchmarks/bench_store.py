@@ -256,6 +256,10 @@ def _options(args, **options) -> dict:
     return {"tmp": args.tmp, **options}
 
 
+def _medians(results: list[dict]) -> dict:
+    return {field: statistics.median(r[field] for r in results) for field in results[0]}
+
+
 def _write_row(args, dtype: str, workers: int, n: int) -> dict:
     """The median of the rounds of every contender for one dtype, worker count and size."""
     row: dict = {"dtype": dtype, "workers": workers, "sentences": n, "load": os.getloadavg()[0]}
@@ -270,12 +274,7 @@ def _write_row(args, dtype: str, workers: int, n: int) -> dict:
 
     # Not alternated: every round runs the contenders in the order of _CONTENDERS.
     done = harness.rounds(names, run_one, args.rounds, alternate=False)
-    for name in names:
-        results = done.results(name)
-        if results:
-            row[name] = {
-                field: statistics.median(r[field] for r in results) for field in results[0]
-            }
+    row |= {name: _medians(done.results(name)) for name in names if done.results(name)}
     return row
 
 

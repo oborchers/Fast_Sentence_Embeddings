@@ -167,16 +167,21 @@ def rounds(
     for attempt in range(attempts * n):
         if len(result.kept) == n or (deadline is not None and time.monotonic() > deadline):
             break
-        got: dict[Hashable, Run] = {}
-        for name in order(names, attempt) if alternate else names:
-            if warm is not None:
-                warm(name)
-            before = load()
-            start = time.perf_counter()
-            value = run_one(name)
-            got[name] = Run(name, value, before, load(), time.perf_counter() - start)
-        if max_load is not None and max(_round_load(got)) > max_load:
-            result.discarded.append(got)
-        else:
-            result.kept.append(got)
+        got = _one_round(order(names, attempt) if alternate else names, run_one, warm)
+        high = max_load is not None and max(_round_load(got)) > max_load
+        (result.discarded if high else result.kept).append(got)
     return result
+
+
+def _one_round(
+    names: Sequence[Hashable], run_one: Callable[[Any], Any], warm: Callable[[Any], None] | None
+) -> dict[Hashable, Run]:
+    got: dict[Hashable, Run] = {}
+    for name in names:
+        if warm is not None:
+            warm(name)
+        before = load()
+        start = time.perf_counter()
+        value = run_one(name)
+        got[name] = Run(name, value, before, load(), time.perf_counter() - start)
+    return got
