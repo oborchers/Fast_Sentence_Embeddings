@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +101,8 @@ class Shard:
     name: str
     first_row: int
     rows: int
+    unsynced: bool = False
+    checksums: dict[str, str] = field(default_factory=dict)
 
 
 def shard_name(first_row: int) -> str:
@@ -240,15 +242,16 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
     """The shard of the store ``path`` that starts at ``first_row``, mapped and checked
     against the store: its metadata, tensors and shapes."""
     name = shard_name(first_row)
-    tensors, metadata = NpyContainer().open(path / name, mmap=True)
+    directory = path / name
+    if not directory.is_dir() or directory.is_symlink():
+        raise CorruptArtifactError(f"{directory} is not a regular shard directory")
+    tensors, metadata = NpyContainer().open(directory, mmap=True)
     file = path / name / "manifest.json"
-    content = {  # without the checksums and the fingerprint the container checked
-        k: v
-        for k, v in metadata.items()
-        if k != FINGERPRINT_KEY and not k.startswith(CHECKSUM_PREFIX)
-    }
-    shard_info = _info(content, file, _shard_keys(info))
-    info.check(shard_info, path)
+    shard_info, unsynced = _shard_info(metadata, info, file)
+    try:
+        info.check(shard_info, path)
+    except ValueError as error:
+        raise CorruptArtifactError(str(error)) from error
     _check_quantization(metadata, info, file)
     rows = metadata.get("fse.rows", "")
     if (
@@ -271,7 +274,27 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
         raise CorruptArtifactError(
             f"{file}: the vectors must be {info.dtype}, the inverse norms and scales float32"
         )
-    return Shard(name, first_row, n), tensors
+    expected = {key: metadata[CHECKSUM_PREFIX + key] for key in tensors}
+    return Shard(name, first_row, n, unsynced, expected), tensors
+
+
+def _shard_info(metadata: dict, info: StoreInfo, file: Path) -> tuple[StoreInfo, bool]:
+    """Check the optional durability tag alongside the exact shard metadata keys."""
+    content = {
+        key: value
+        for key, value in metadata.items()
+        if key != FINGERPRINT_KEY and not key.startswith(CHECKSUM_PREFIX)
+    }
+    extra = _shard_keys(info)
+    unsynced = "fse.durability" in content
+    if unsynced:
+        if content["fse.durability"] != "none":
+            raise UnsupportedArtifactError(
+                f"{file}: fse.durability is {content['fse.durability']!r}; "
+                "this fse supports only 'none' or an absent durability tag"
+            )
+        extra = (*extra, "fse.durability")
+    return _info(content, file, extra), unsynced
 
 
 def _shard_keys(info: StoreInfo) -> tuple[str, ...]:

@@ -30,7 +30,8 @@ from fse._container import note_cleanup
 from fse._encoder import Encoder
 from fse._validation import PositiveInt, validate_arguments
 
-from ._layout import StoreInfo, create_store, failed_cleanup, read_store, shards
+from ._layout import StoreInfo, create_store, failed_cleanup, read_store
+from ._recovery import refuse_unsynced, snapshot
 from ._shard import ShardWriter
 from ._writer import WriterThread, deferred_interrupts
 
@@ -87,7 +88,13 @@ class ShardSink:
         if new:
             create_store(self.path, info)
         read_store(self.path).check(info, self.path)
-        self.first_row = sum(shard.rows for shard, _ in shards(self.path, info))
+        checked = snapshot(self.path, info, verify=False)
+        try:
+            refuse_unsynced(self.path, checked.shards)
+            self.first_row = sum(shard.rows for shard, _ in checked.shards)
+        finally:
+            checked.shards.clear()  # a sink keeps no mappings, also on refusal
+
         self._info = info
         self.dim, self.dtype, self.encoder_fingerprint = info.dim, dtype, info.encoder
         self.shard_rows = shard_rows or default_shard_rows(info.dim, dtype)
@@ -109,7 +116,7 @@ class ShardSink:
         self._published = 0  # shards
         _log.emit(
             "store.sink_opened",
-            "fse store: a sink %s a store at row %d: %d dimensions, %s, shards of %d rows",
+            "fse store: a sink %s a store at row %d: %d dimensions, %s of %d rows",
             "creates" if new else "appends to",
             self.first_row,
             info.dim,

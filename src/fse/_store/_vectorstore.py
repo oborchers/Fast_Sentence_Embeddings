@@ -28,13 +28,14 @@ from numpy import ndarray
 
 from fse import _codes, _log
 from fse._backends import BACKEND_NAMES, get_backend
-from fse._container import CorruptArtifactError, NpyContainer
+from fse._container import NpyContainer
 from fse._cpus import usable_cpus
 from fse._encoder import Encoder
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
 from . import _search
-from ._layout import Shard, StoreInfo, read_store, shards
+from ._layout import Shard, StoreInfo, read_store
+from ._recovery import check_values, clear_exception_frames, snapshot
 
 F32 = np.float32
 
@@ -176,7 +177,7 @@ class VectorStore:
         with self._using():
             for shard, tensors in self._shards:
                 NpyContainer().verify(self.path / shard.name)
-                _check_values(shard, tensors)
+                check_values(shard, tensors)
         _log.emit(
             "store.verified",
             "fse store: verified %d rows in %d shards",
@@ -245,23 +246,16 @@ class _Use:
             self.store._active -= 1
 
 
-def _check_values(shard: Shard, tensors: dict[str, ndarray]) -> None:
-    for name in ("inv_norms", "scales"):
-        values = tensors.get(name)
-        if values is not None and not (np.isfinite(values) & (values >= 0)).all():
-            raise CorruptArtifactError(
-                f"{shard.name}: {name} holds values that are not finite and at least 0"
-            )
-    vectors = tensors["vectors"]
-    if vectors.dtype == np.int8:
-        if (vectors == -128).any():
-            raise CorruptArtifactError(f"{shard.name}: an int8 code is -128, beyond +-127")
-    elif not np.isfinite(vectors).all():
-        raise CorruptArtifactError(f"{shard.name}: the vectors hold values that are not finite")
-
-
 @validate_arguments
 def _open(cls: Any, path: Any, *, encoder: Any = None, backend: str = "cpu") -> Any:
+    try:
+        return _opened(cls, path, encoder=encoder, backend=backend)
+    except BaseException as error:
+        clear_exception_frames(error)
+        raise
+
+
+def _opened(cls: Any, path: Any, *, encoder: Any, backend: str) -> Any:
     if backend not in BACKEND_NAMES:
         raise ValueError(f"backend must be one of {list(BACKEND_NAMES)}, not {backend!r}")
     path = Path(path)
@@ -275,7 +269,8 @@ def _open(cls: Any, path: Any, *, encoder: Any = None, backend: str = "cpu") -> 
             )
     out = cls.__new__(cls)
     out.path, out._info = path, info
-    out._shards = shards(path, info)
+    checked = snapshot(path, info, verify=True)
+    out._shards = checked.shards
     out._backend = get_backend(backend)
     out._lock = threading.Lock()
     out._active = 0
@@ -293,5 +288,8 @@ def _open(cls: Any, path: Any, *, encoder: Any = None, backend: str = "cpu") -> 
         dim=info.dim,
         dtype=info.dtype,
         backend=backend,
+        unsynced_shards=checked.unsynced_shards,
+        verified_bytes=checked.verified_bytes,
+        verify_seconds=checked.verify_seconds,
     )
     return out

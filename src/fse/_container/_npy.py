@@ -13,6 +13,7 @@ import json
 import math
 import os
 import secrets
+import tokenize
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -158,7 +159,7 @@ def _read_header(handle, file: Path, code: str, shape: tuple[int, ...]) -> int:
             npy_format.read_array_header_1_0 if width == 2 else npy_format.read_array_header_2_0
         )
         header = reader(buffer, max_header_size=MAX_HEADER_BYTES)
-    except (ValueError, OSError) as err:
+    except (ValueError, OSError, tokenize.TokenError) as err:
         raise CorruptArtifactError(f"{file} has no valid .npy header: {err}") from err
     found_shape, fortran, dtype = header
     if dtype.hasobject or dtype.str != DTYPE_CODES[code]:
