@@ -145,6 +145,7 @@ def test_child_rounds_alternate_and_stop_before_a_high_load(bench, monkeypatch):
 
     monkeypatch.setattr(bench, "run_child", child_result)
     monkeypatch.setattr(bench, "load", lambda: 3.0)
+    monkeypatch.setattr(importlib.import_module("bench_harness"), "load", lambda: 3.0)
     args = bench.parser().parse_args(["measure"])
     result = bench.run_cell(args, "potion-base-8M", "wikitext", "short", 4)
     assert result["summary"]["valid_pairs"] == 3
