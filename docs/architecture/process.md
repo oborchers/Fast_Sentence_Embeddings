@@ -172,7 +172,9 @@ that option off and publishing wheels built against stable CPython releases.
 
 musllinux runs the offline suite with Arrow producers, tokenizers and Model2Vec.
 gensim and scikit-learn lack musllinux wheels. The musllinux test command excludes
-`test_gensim.py`; scikit-learn adapter tests skip through `pytest.importorskip`.
+`test_gensim.py` and the native random-Unicode comparison that imports gensim.
+The native hash tests against pinned gensim values still run. Scikit-learn adapter
+tests skip through `pytest.importorskip`.
 Polars 2.1.0 has no usable musllinux runtime wheel on CPython 3.14 and newer, so
 its producer tests skip there. PyArrow, pandas and datasets remain installed.
 PyYAML, required by huggingface-hub and datasets, builds from source on CPython 3.15
