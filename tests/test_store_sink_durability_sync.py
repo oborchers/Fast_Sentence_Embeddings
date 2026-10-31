@@ -39,7 +39,8 @@ def test_empty_store_creation_uses_the_identical_full_protocol_under_both_polici
     with fse.ShardSink(tmp_path / "none", encoder, durability="none"):
         pass
     assert [kind for kind, _ in recorder.events] == expected
-    assert "fsync" in expected and "rename" in expected
+    assert "full" in expected
+    assert "rename" in expected
 
 
 def test_batches_never_confirm_input_written_with_none(tmp_path):
