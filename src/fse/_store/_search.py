@@ -83,7 +83,8 @@ def order_key(values: ndarray) -> ndarray:
     """int32 keys in the order of the float32 ``values`` (finite or infinite), -0.0 equal to
     0.0: integer comparisons, whatever flushing or rounding the thread set, keep every
     subnormal score apart from zero."""
-    bits = np.ascontiguousarray(values, F32).view(np.int32)
+    # The view has the same itemsize, so even strided scores need no layout copy.
+    bits = np.asarray(values, F32).view(np.int32)
     sign = bits >> 31  # -1 for a negative value, else 0
     key = sign & np.int32(0x7FFFFFFF)
     key ^= bits  # the magnitude bits of negative values reversed

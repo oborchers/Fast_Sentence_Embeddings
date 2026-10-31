@@ -159,6 +159,86 @@ def test_a_subnormal_score_beats_zero():
     assert ids.tolist() == [[1]]
 
 
+def _score_layout(values, layout):
+    if layout in ("C", "F"):
+        return np.array(values, order=layout)
+    if layout == "reversed":
+        return np.array(values[::-1, ::-1])[::-1, ::-1]
+    if layout == "broadcast":
+        return np.broadcast_to(values[:1], values.shape)
+    backing = np.empty((values.shape[0] * 2, values.shape[1] * 3), values.dtype)
+    backing[::2, ::3] = values
+    return backing[::2, ::3]
+
+
+@pytest.mark.parametrize("layout", ["C", "F", "strided", "reversed", "broadcast"])
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+def test_order_keys_accept_score_layouts_without_changing_input(layout, dtype):
+    # Fixed bits include both signs of zero, subnormals, infinities and NaN payloads.
+    bits = np.array(
+        [
+            0xFF800000,
+            0xBF800000,
+            0x80000001,
+            0x80000000,
+            0,
+            1,
+            0x3F800000,
+            0x7F800000,
+            0x7FC00001,
+            0xFFC00001,
+            2,
+            0x80000002,
+        ],
+        np.uint32,
+    ).reshape(3, 4)
+    values = _score_layout(bits.view(F32).astype(dtype), layout)
+    before = values.tobytes()
+    values.flags.writeable = False
+    converted = np.asarray(values, F32)
+    signed = converted.view(np.int32).astype(np.int64)
+    # The pre-change mapping, expressed with wide integers and no in-place operations.
+    expected = np.where(signed < 0, (signed ^ 0x7FFFFFFF) + 1, signed).astype(np.int32)
+    keys = _search.order_key(values)
+    np.testing.assert_array_equal(keys, expected)
+    assert keys.dtype == np.int32
+    assert values.tobytes() == before
+    assert not np.shares_memory(keys, values)
+    if layout == "F":
+        assert keys.flags.f_contiguous  # column-selected scores keep their fast layout
+
+
+@pytest.mark.parametrize("layout", ["C", "F", "strided", "reversed", "broadcast"])
+@pytest.mark.parametrize("k", [1, 5, 32])
+def test_search_layouts_preserve_ids_ties_and_score_bits(layout, k):
+    tiny = np.finfo(F32).smallest_subnormal
+    rng = np.random.default_rng(18)
+    values = rng.integers(-2, 3, (32, 5)).astype(F32)
+    values[:8] = F32([[-tiny], [-0.0], [tiny], [0.0], [tiny], [-tiny], [1], [1]])
+    values[:, 4] = -0.0
+    scores = _score_layout(values, layout)
+    before = scores.tobytes()
+    scores.flags.writeable = False
+    ids, found = _search_blocks(scores, k, [3, 1, 0, 2], size=8)
+    for query in range(scores.shape[1]):
+        want = _reference.top_k(scores[:, query], k)
+        np.testing.assert_array_equal(ids[query], want)
+        np.testing.assert_array_equal(
+            found[query].view(np.uint32), scores[want, query].view(np.uint32)
+        )
+    assert scores.tobytes() == before
+
+
+@pytest.mark.parametrize("layout", ["C", "F", "strided", "reversed"])
+def test_best_excludes_nan_scores_in_every_layout(layout):
+    # Backends reject non-finite cosines. At this internal boundary NaNs fail the mask.
+    scores = _score_layout(F32([[np.nan, 1], [1, np.nan], [0, 0], [np.nan, np.nan]]), layout)
+    queries, values, ids = _search.best(scores, 10, 4, np.full(2, _search.LOWEST, np.int32))
+    assert queries.tolist() == [0, 0, 1, 1]
+    assert ids.tolist() == [11, 12, 10, 12]
+    np.testing.assert_array_equal(values.view(np.uint32), F32([1, 0, 1, 0]).view(np.uint32))
+
+
 def test_keys_go_back_to_their_floats():
     values = F32([-np.inf, -1.0, -np.finfo(F32).smallest_subnormal, 0.0, 1e-40, 2.5, np.inf])
     np.testing.assert_array_equal(

@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- Search order keys preserve the score array layout, avoiding a C-order copy of column-selected scores while keeping the same results.
+
 - `ShardSink` accepts `durability="full"` (default) or `"none"`. The latter skips shard syncs and tags every published shard, including on Windows; store creation stays fully synced. `published_rows` counts visible rows under both policies, while `durable_rows` stays zero under "none". A final full-publication sync failure counts as published but not durable. Sink logs include the new counts and policy; `dropped_rows` counts committed rows that were not published.
 
 - Well-formed unknown store-shard quantization identifiers, including unknown families, raise `UnsupportedArtifactError`. Repair preserves such artifacts for newer readers instead of treating them as damage.
