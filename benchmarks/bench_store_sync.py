@@ -188,9 +188,7 @@ def measure(args, encoder, texts, *, verify=True):
             end = time.perf_counter()
         syncs = trace.snapshot()
         peak = store_bench._peak()
-        checked = (
-            run.checked(path) if verify else {}
-        )  #  # verification and digests outside write timer
+        checked = run.checked(path) if verify else {}  # outside write timing and RSS peak
     last = trace.events["last_commit"]
     close = trace.events["close_end"]
     publish_tail = sum(max(0, b - max(a, last)) for a, b in trace.publications)

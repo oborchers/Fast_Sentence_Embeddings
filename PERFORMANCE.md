@@ -388,6 +388,58 @@ Memory (`make profile-mem`, native memray, 3 s each): peak live allocations 74.5
 
 A production persistent pool would need a defined owner and lifetime, explicit close or atexit behavior, fork safety, cleanup after KeyboardInterrupt, concurrent and nested-call behavior, and the existing GIL-budget tests without weaker limits. The benchmark patch is process-global, sequential and limited to this experiment. None of those production changes is implemented.
 
+## Store
+
+### Sync costs (31.10.2026)
+
+Benchmark-only ablations on an Apple M1 Pro (10 cores, 16 GiB), macOS 27.0.1, CPython 3.13.16, source `7ec7ba1`. `bench_store_sync.py` runs each side in a fresh process on a pre-initialised durable store. Store creation is counted separately. Write times include encoding, sink flush and close, plus the final sync point for `deferred` and `flush_model`. Verification and partition-independent tensor digests run outside timing. C3 warms the same side without verification before measuring. Process peak RSS includes preparation and warm-up, but excludes store verification.
+
+Rule registered in the draft PR before timing: at least three valid pairs. Every run must have load strictly below 5 before and after it. Beyond noise means every side/full ratio is below min(min A/A, 1/max A/A, 1). Bulk needs median `flush_model/full` at most 0.90 in C2 default float32 or C3. Stream needs median `none/full` at most 0.50 at 10,000 sentences per batch. `deferred` is only an optimistic lower bound. Larger shards under `full` use the same bulk threshold and noise rule.
+
+| Cell | Valid pairs | full median seconds | none/full | deferred/full | flush_model/full | A/A range | Run loads |
+|---|---:|---:|---:|---:|---:|---|---|
+| C1-1000 | 3 | 2.283 | 0.169 | 0.194 | 0.197 | 0.943 to 1.040 | 3.72 to 4.62 |
+| C1-10000 | 3 | 0.279 | 0.387 | 0.415 | 0.446 | 0.867 to 1.036 | 3.82 to 4.33 |
+| C1-65536 | 3 | 0.277 | 0.642 | 0.683 | 0.722 | 0.982 to 1.107 | 3.46 to 4.81 |
+| C2-default | 3 | 0.105 | 0.710 | 1.370 | 0.987 | 0.857 to 1.082 | 4.12 to 4.47 |
+| C2-small-f32 | 3 | 0.215 | 0.399 | 0.444 | 0.463 | 0.721 to 0.981 | 4.10 to 4.91 |
+| C2-small-i8 | 3 | 0.207 | 0.255 | 0.289 | 0.350 | 0.917 to 1.094 | 3.47 to 4.10 |
+| C3 | 3 | 0.613 | 0.572 | 0.908 | 1.345 | 0.681 to 1.284 | 3.92 to 4.88 |
+
+C1 seals and publishes after every batch (200,000 sentences at 1,000 and 10,000 per batch, 524,288 at 65,536). C2 writes 250,000 synthetic sentences (float32 default shards, float32 and int8 at 16,384 rows). C3 uses the cached 20M-token corpus and a finished SIF-weighted table without component removal (about 1.33 GB of float32 vectors). All use 10 workers. `fsync` replaces full drive flushes with plain fsyncs. `flush_model` includes an initial marker sync, data and directory fsyncs, a full sync, marker replacement and a final full sync. Its hidden marker models costs only. `large4` uses four times the default shard size, `single` one shard, both under `full`.
+
+C0, 50 samples per primitive and target, median/p90 milliseconds from a dirty file or directory after restoring a durable state:
+
+| Primitive | File | Directory |
+|---|---:|---:|
+| fsync | 0.099/0.158 | 0.003/0.007 |
+| full | 3.957/4.894 | 3.418/3.823 |
+| barrier | 0.767/1.007 | 0.693/0.967 |
+
+C0 load: 4.54 before, 4.33 after. F_BARRIERFSYNC uses macOS fcntl command 85.
+
+The fixed rule selects **full + none in 2.0, flush in 2.1**. The 10,000-row stream saves 61.3 percent at median, beyond its A/A noise. Bulk `flush_model/full` medians are 0.987 (C2 default) and 1.345 (C3), so neither passes B. C3's A/A range is wide (0.681 to 1.284). A single full shard has median ratio 0.836 there, but does not pass the noise rule. Larger shards remain a measured alternative, without a qualifying gate result.
+
+`pend1g` and `pend1g_n` have C3 paired median ratios 0.872 and 0.701. Neither is consistently beyond noise (the latter's pairs are 0.640, 0.701, 1.189). Their peak RSS ratios are 1.042 to 1.069 and 1.093 to 1.183, within 1.25. Keep both current queue constants. C0 qualifies the barrier by cost: median barrier/full ratios 0.194 on files and 0.203 on directories. The last `ShardWriter.finish` is 2.1 to 3.0 percent of C3 wall time. Encode flushes before returning, and close adds about 0.1 ms. Do not build an async final flush.
+
+The shared timing/profile budget used 26.4 minutes including load waits. Five nonempty rounds (24 child runs) were discarded, with five individual runs crossing load 5. Another 51 empty attempts waited for load. One extra CPU profile crossed the limit and was discarded. All seven cells retain three complete valid pairs. All 156 retained child runs have matching tensor digests, expected sync counts, valid endpoints and load below 5. In particular `none` records zero write-phase syncs. Store creation records three full syncs separately.
+
+CPU, native-memory and RSS profiles use `make profile-cpu`, `make profile-mem` and `make profile-rss` on the deciding configurations. Every accepted profile starts and ends below load 5 (3.47 to 4.98). Native peaks below are memray's reported live-allocation peaks in decimal MB. RSS is the sampled peak of the whole command's process tree. Profiles include preparation, C3 warm-up and post-timer verification, so their memory peaks do not isolate sink buffers.
+
+| Configuration | Native peak MB | RSS peak MiB |
+|---|---:|---:|
+| C1-full | 508.7 | 922.6 |
+| C1-none | 509.7 | 734.3 |
+| C2-full | 755.2 | 1151.1 |
+| C2-flush_model | 755.2 | 916.0 |
+| C3-full | 2186.0 | 3320.3 |
+| C3-flush_model | 2185.0 | 3465.5 |
+| C3-pend1g_n | 2186.0 | 2541.8 |
+
+CPU self samples: C1/full spends 18.3 percent in `__psynch_cvwait` and 5.2 in `__fcntl` (0 recorded write syncs under none). C2/full includes corpus preparation (`random_zipf` 6.5 percent), `XXH3_64bits_update` 4.0, `pwrite` 2.7 and `fse_loop_f32_neon` 2.0. C3/full shows `fse_loop_f32_neon` 17.7, `__psynch_cvwait` 16.3, `_platform_memmove` 15.3, `pwrite` 8.3 and hashing 5.0 percent. C3/pend1g_n shows pooling 41.5 percent. The populations include waits and verification, and these shares are not speedup measurements. Largest cumulative allocation sites include numpy memmaps, `NpyContainer.verify`, `ShardWriter.reserve` and model preparation (`_wordvectors_format._frozen`), with the synthetic corpus and table preparation prominent in C1/C2. Cumulative allocation totals are not simultaneous memory peaks.
+
+[Raw kept and discarded runs, sync counts, endpoints and profile metadata](benchmarks/baseline/store_sync_20261031.json). These measurements concern this local filesystem and do not test power loss, Windows, bare-metal Linux or network filesystems.
+
 ## int8 tables at 1024 dimensions
 
 Earlier measurements found no gain from int8 tables at 256 and 300 dimensions. At 1024 dimensions `roofline.py compare` ran static-retrieval-mrl-en-v1 with its table as float32 and as int8 (`WordVectors.quantize("int8")`) in one process, 5 paired rounds of alternating order, the best of 5 passes each, no round discarded. `Encoder` does not yet accept int8 tables for `wordpiece@1`, so both run the encoder's spec on a `Pipeline` of their own (`roofline_dtype.SpecEncoder`); the vectors of int8 differ from float32 by the quantization, which is not judged here.
