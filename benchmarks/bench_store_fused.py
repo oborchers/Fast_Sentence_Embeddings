@@ -206,6 +206,8 @@ def _store_cmd(args, cell: dict, side: str) -> list[str]:
 
 def _length_cmd(args, side: str) -> list[str]:
     cmd = [sys.executable, __file__, "child", "--child", "length", "--tmp", args.tmp]
+    if args.corpus:
+        cmd += ["--corpus", args.corpus]
     return [*cmd, "--workers", str(args.workers), "--sink", side if side == "fused" else "split"]
 
 
@@ -213,8 +215,8 @@ def _seconds(result: dict) -> float:
     return result.get("seconds", result.get("run_s", 0.0))
 
 
-def judge(done: harness.Rounds) -> dict:
-    """The medians and the verdict of one cell against the rule."""
+def judge(done: harness.Rounds, need: int = 3) -> dict:
+    """The medians and the verdict of one cell against the rule (``need`` valid pairs)."""
     pairs = len(done.kept)
     fused = done.ratios("fused", "split", _seconds)
     noise = done.ratios("aa", "split", _seconds)
@@ -227,7 +229,7 @@ def judge(done: harness.Rounds) -> dict:
     median = harness.median(fused)
     upper = max([1.0, *noise])
     verdict = (
-        pairs >= 3
+        pairs >= need
         and same
         and median <= MAX_RATIO
         and median <= upper
@@ -276,7 +278,7 @@ def cells(args) -> list[dict]:
             "pairs": 2,
         }
     )
-    if not args.skip_length and any(CACHE.glob("*-20000000-s0")):
+    if not args.skip_length and (args.corpus or any(CACHE.glob("*-20000000-s0"))):
         plan.append({"name": "1.33 GB sentences SIF float32", "length": True})
     out = []
     for cell in plan:
@@ -294,7 +296,7 @@ def cells(args) -> list[dict]:
             max_load=args.max_load,
             budget_s=args.budget,
         )
-        row = {"cell": cell["name"]} | judge(done)
+        row = {"cell": cell["name"]} | judge(done, min(3, cell.get("pairs", args.pairs)))
         print(json.dumps(row), flush=True)
         out.append(row)
     return out
