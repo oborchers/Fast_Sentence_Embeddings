@@ -419,7 +419,7 @@ name = "Store: the sink and the vector store on shards, the shards on the layout
 type = "layers"
 containers = ["fse._store"]
 exhaustive = true
-layers = ["_sink | _vectorstore", "_shard | _writer | _search", "_layout"]
+layers = ["_sink | _vectorstore", "_shard | _writer | _search | _recovery", "_layout"]
 
 [[tool.importlinter.contracts]]
 name = "Backends: each shares only _base with the others"

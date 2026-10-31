@@ -232,6 +232,12 @@ def test_the_records_of_a_sink_and_a_store(tmp_path):
     assert (closed.fse_outcome, closed.fse_durable_rows, closed.fse_shards) == ("ok", 40, 3)
     assert closed.fse_dropped_rows == 0
     assert (events["store.opened"][0].fse_rows, events["store.opened"][0].fse_shards) == (40, 3)
+    record = events["store.opened"][0]
+    assert (record.fse_unsynced_shards, record.fse_verified_bytes, record.fse_verify_seconds) == (
+        0,
+        0,
+        0.0,
+    )
     assert events["store.verified"][0].fse_rows == 40
     (search,) = events["store.search"]
     assert (search.fse_queries, search.fse_k, search.fse_mode) == (2, 3, "exact")
