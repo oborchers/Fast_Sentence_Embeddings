@@ -31,7 +31,7 @@ def _offset(unit):
 class Charsmap:
     """A checked charsmap; ``blob`` is the decoded bytes of the file."""
 
-    __slots__ = ("_cache", "_root", "_units", "_values", "blob")
+    __slots__ = ("_cache", "_python_units", "_root", "_units", "_values", "blob")
 
     def __init__(self, blob: bytes):
         if not isinstance(blob, bytes):
@@ -53,19 +53,22 @@ class Charsmap:
         self._root = int(_offset(units[0]))
         _check(units, values, self._root)
         self.blob = blob
-        self._units = units.tolist()
+        self._units = units
+        self._python_units: list[int] | None = None
         self._values = values
         self._cache: dict[int, str] = {}
 
     def parts(self) -> tuple[np.ndarray, bytes, int]:
         """The units (uint32), the values and the root of the checked blob, as the native
         tokenizer takes them."""
-        return np.array(self._units, dtype=np.uint32), self._values, self._root
+        return np.array(self._units, dtype=np.uint32, copy=True), self._values, self._root
 
     def find(self, key: bytes) -> str | None:
         """The value of the shortest key that is a prefix of ``key``, or None. The search
         ends at a byte 0, as tokenizers' does."""
-        units, p = self._units, self._root
+        if self._python_units is None:
+            self._python_units = self._units.tolist()
+        units, p = self._python_units, self._root
         for c in key:
             if c == 0:
                 return None

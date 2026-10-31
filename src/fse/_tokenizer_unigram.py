@@ -16,7 +16,7 @@ UnsupportedArtifactError, malformed ones ValueError.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 import numpy as np
@@ -123,6 +123,9 @@ class UnigramConfig:
     charsmap: bytes | None = None
     byte_fallback: bool = False
     metaspace: tuple[tuple[str, Any], ...] = METASPACE
+    _checked_charsmap: Charsmap | None = field(
+        default=None, init=False, compare=False, hash=False, repr=False
+    )
 
     def __post_init__(self):
         _added(self.added_tokens)
@@ -136,8 +139,8 @@ class UnigramConfig:
             raise UnsupportedArtifactError("unigram@1 takes at most one precompiled step")
         if (self.charsmap is not None) != bool(precompiled):
             raise ValueError("a charsmap is given exactly with a precompiled step")
-        if self.charsmap is not None:
-            Charsmap(self.charsmap)
+        checked = None if self.charsmap is None else Charsmap(self.charsmap)
+        object.__setattr__(self, "_checked_charsmap", checked)
         n = _scores(self.scores)
         if self.unk_id >= n:
             raise ValueError(f"unk_id is {self.unk_id}, but there are {n} pieces")
@@ -204,7 +207,7 @@ class UnigramConfig:
                 steps.append((kind, step["class"], step["min"], step["content"].encode()))
             else:
                 steps.append((kind, step["left"], step["right"]))
-        charsmap = None if self.charsmap is None else Charsmap(self.charsmap).parts()
+        charsmap = None if self._checked_charsmap is None else self._checked_charsmap.parts()
         added = tuple(i for i, _ in self.added_tokens)
         replacement = dict(self.metaspace)["replacement"].encode()
         return self.scores_array(), self.unk_id, added, tuple(steps), charsmap, replacement
