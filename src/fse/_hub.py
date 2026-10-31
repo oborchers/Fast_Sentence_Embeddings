@@ -72,21 +72,7 @@ class HubFiles:
             self._sizes: dict[str, int | None] = {}
             self._names = files_below(snapshot)
         else:
-            name = _revision_name(revision)
-            self._ref = None if _COMMIT.fullmatch(name) else name
-            info = self.hub.HfApi().model_info(
-                repo, revision=revision, files_metadata=True, token=token
-            )
-            self.revision = info.sha
-            self._pins = {
-                s.rfilename: (getattr(s.lfs, "sha256", None) if s.lfs else None, s.blob_id)
-                for s in info.siblings
-            }
-            # The size of an LFS file, which the commit records too.
-            self._sizes = {
-                s.rfilename: getattr(s.lfs, "size", None) if s.lfs else None for s in info.siblings
-            }
-            self._names = set(self._pins)
+            self._resolve(repo, revision, token)
         # The commit, never the repository id or revision name (a private repository's
         # name may be confidential).
         _log.emit(
@@ -99,6 +85,24 @@ class HubFiles:
             offline=local_files_only,
             files=len(self._names),
         )
+
+    def _resolve(self, repo: str, revision, token) -> None:
+        """Online: ``revision`` to its commit and the files with their pins."""
+        name = _revision_name(revision)
+        self._ref = None if _COMMIT.fullmatch(name) else name
+        info = self.hub.HfApi().model_info(
+            repo, revision=revision, files_metadata=True, token=token
+        )
+        self.revision = info.sha
+        self._pins = {
+            s.rfilename: (getattr(s.lfs, "sha256", None) if s.lfs else None, s.blob_id)
+            for s in info.siblings
+        }
+        # The size of an LFS file, which the commit records too.
+        self._sizes = {
+            s.rfilename: getattr(s.lfs, "size", None) if s.lfs else None for s in info.siblings
+        }
+        self._names = set(self._pins)
 
     def _download(self, name: str, revision: str | None) -> Path:
         path = self.hub.hf_hub_download(
@@ -117,6 +121,8 @@ class HubFiles:
         ``local_files_only`` and no revision finds no ``refs/main``. Never written offline
         or for a commit hash."""
         storage = Path(os.path.normpath(snapshot_of(path, name).parent.parent))
+        if self._ref is None or self.revision is None:
+            raise AssertionError("no ref to record")  # callers check; also narrows the types
         write_ref(storage, self._ref, self.revision)
         self._ref = None  # once per load
 
