@@ -16,7 +16,8 @@ it: it keeps the ``written`` counter, its condition and ``wait_written``, which 
 design drops.
 
 Modes (paired runs of fresh children, alternating, the load before and after each run,
-rounds with a load above --max-load discarded and made again; sides ``split``, ``fused``
+rounds with a load above --max-load before the first run or after the last discarded and
+made again (the loads between the runs are recorded, not filtered); sides ``split``, ``fused``
 and ``aa``, a second ``split`` that is the noise of the same run):
 
 - ``cells``: the cells of the plan, ``bench_store.py`` children (synthetic, 10 workers) for
@@ -244,6 +245,9 @@ def judge(done: harness.Rounds) -> dict:
         "median_ratio": round(median, 3),
         "rss_ratio": round(rss, 3),
         "loads": [(round(a, 1), round(b, 1)) for a, b in done.loads],
+        "load_of_runs": [
+            round(x, 1) for r in done.kept for run in r.values() for x in (run.before, run.after)
+        ],
         "bit_equal": same,
         "within_rule": verdict,
     }

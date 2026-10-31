@@ -244,6 +244,8 @@ CHILDREN = {
 
 def _run(python: str, child: str, **options) -> dict:
     cmd = [python, __file__, "child", "--child", child]
+    if options.pop("check", False):
+        cmd.append("--check")
     for key, value in options.items():
         cmd += [
             f"--{key.replace('_', '-')}",
@@ -263,11 +265,16 @@ def _options(args, **options) -> dict:
     """The options of a child: ``tmp``, ``options`` and ``--shard-rows`` if given."""
     if args.shard_rows:
         options["shard_rows"] = args.shard_rows
-    return {"tmp": args.tmp, **options}
+    return {"tmp": args.tmp, "sink": args.sink, "check": args.check, **options}
 
 
 def _medians(results: list[dict]) -> dict:
-    return {field: statistics.median(r[field] for r in results) for field in results[0]}
+    return {
+        field: statistics.median(r[field] for r in results)
+        if isinstance(value, (int, float))
+        else value
+        for field, value in results[0].items()
+    }
 
 
 def _write_row(args, dtype: str, workers: int, n: int) -> dict:
@@ -315,11 +322,15 @@ def search_or_score(args) -> list[dict]:
     return rows
 
 
+def _rounded(result: dict) -> dict:
+    return {k: round(v, 3) if isinstance(v, float) else v for k, v in result.items()}
+
+
 def _sync_run(args, dtype: str) -> dict:
     """One sync child, shown as it ends."""
     common = _options(args, dtype=dtype, sentences=args.sentences)
     result = _run(sys.executable, "sync", workers=args.workers[0], **common)
-    print(dtype, json.dumps({k: round(v, 3) for k, v in result.items()}), flush=True)
+    print(dtype, json.dumps(_rounded(result)), flush=True)
     return result
 
 
