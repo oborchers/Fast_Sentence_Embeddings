@@ -26,11 +26,6 @@ def backend(request):
     return _backend(request.param)
 
 
-def test_cpu_and_numpy_run_heads():
-    for spec in BACKENDS:
-        assert _backend(spec).capabilities().heads
-
-
 def test_logits_are_the_reference(backend):
     rng = np.random.default_rng(0)
     rows = rng.standard_normal((30, 21)).astype(F32)

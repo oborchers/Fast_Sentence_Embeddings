@@ -68,8 +68,7 @@ class PoolInput:
 
 @dataclass(frozen=True)
 class Capabilities:
-    """What a backend can run. ``heads``: it
-    computes the logits and outputs of linear heads (``logits``, ``outputs``).
+    """What a backend can run.
     ``text_rows``: it runs stages 1 to 4 of a range of text in one call (``text_rows``),
     with the rows and errors of ``rows`` on the batch of that range."""
 
@@ -78,15 +77,7 @@ class Capabilities:
     steps: frozenset[Op]
     fasttext: bool
     max_dim: int
-    heads: bool = False
     text_rows: bool = False
-
-    def check_heads(self, backend: str):
-        """Raise UnsupportedByBackendError if ``backend`` cannot run linear heads."""
-        if not self.heads:
-            raise UnsupportedByBackendError(
-                f"the {backend} backend cannot run linear heads yet; use backend='cpu'"
-            )
 
     def check(self, backend: str, pool: PoolInput, steps: Sequence[Step]):
         """Raise UnsupportedByBackendError for the first thing ``backend`` cannot run."""
@@ -171,7 +162,7 @@ class Backend(Protocol):
         with ``weights`` (k, d) ``dot16(row, a_j) + b_j`` of the float32 pooled ``rows``,
         without them ``rows`` (the pooled rows of a folded table, (n, k), which may be
         ``out``) plus ``bias``, the bias exactly once. A row whose logits are not finite
-        raises, named from ``first_row``. Only with ``capabilities().heads``."""
+        raises, named from ``first_row``."""
         ...
 
     def outputs(

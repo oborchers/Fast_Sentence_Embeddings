@@ -183,7 +183,6 @@ def make_head(
             return HeadPipeline(own, head, folded=False, with_vectors=with_vectors)
         reader = Pipeline(spec, backend, isa=isa, vocabulary=vocabulary, steps=head.steps)
         return HeadPipeline(reader, head, folded=False, vectors=own, with_vectors=with_vectors)
-    own.backend.capabilities().check_heads(own.backend.name)  # before the fold
     pool = fold(
         get_backend(backend, isa=isa), spec.pool_input(), head.weight, workers or usable_cpus()
     )
@@ -205,7 +204,6 @@ class HeadPipeline:
         vectors: Pipeline | None = None,
         with_vectors: bool = False,
     ):
-        reader.backend.capabilities().check_heads(reader.backend.name)
         want = head.k if folded else (head.weight.shape[1] if head.weight is not None else -1)
         if reader.output_dim != want:
             raise ValueError(f"the reader gives rows of {reader.output_dim} values, not {want}")

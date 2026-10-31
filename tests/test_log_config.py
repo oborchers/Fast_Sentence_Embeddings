@@ -81,13 +81,13 @@ def test_last_resort_prints_without_propagation_and_handler():
     assert done.stderr == "fse runtime: slower\n"
 
 
-def _fallback(message="fse runtime: slower"):
+def _warning(message="fse runtime: slower"):
     _log.emit("runtime.arrow_copied", message, source="ArrowSource", reason="copy")
 
 
 def test_enable_logging_prints_one_line_per_record(stderr):
     fse.enable_logging()
-    _fallback()
+    _warning()
     _log.emit("store.opened", "fse store: opened", rows=3)
     _log.emit("store.search", "fse store: search")  # DEBUG, below INFO
     lines = stderr.getvalue().splitlines()
@@ -100,7 +100,7 @@ def test_enable_logging_prints_one_line_per_record(stderr):
 
 def test_at_debug_lines_carry_the_fields_and_threads_their_names(stderr):
     fse.enable_logging("DEBUG")
-    thread = threading.Thread(target=_fallback, name="fse-worker_3")
+    thread = threading.Thread(target=_warning, name="fse-worker_3")
     thread.start()
     thread.join()
     line = stderr.getvalue().strip()
@@ -115,10 +115,10 @@ def test_colours_only_on_a_terminal_and_never_with_no_color(stderr, monkeypatch)
     monkeypatch.setattr(sys, "stderr", terminal)
     monkeypatch.delenv("NO_COLOR", raising=False)
     fse.enable_logging()
-    _fallback()
+    _warning()
     assert "\033[33mWARN \033[0m" in terminal.getvalue()
     monkeypatch.setenv("NO_COLOR", "1")
-    _fallback()
+    _warning()
     assert terminal.getvalue().splitlines()[1].split()[1] == "WARN"
     assert stderr.getvalue() == ""
 
@@ -131,12 +131,12 @@ def test_a_root_handler_prints_nothing_twice_and_child_levels_stay(stderr):
     store.setLevel(logging.ERROR)
     try:
         fse.enable_logging()
-        _fallback()
+        _warning()
         _log.emit("store.opened", "fse store: opened")  # below the level of fse.store
         assert len(stderr.getvalue().splitlines()) == 1
         assert root.getvalue() == ""
         fse.disable_logging()
-        _fallback("after")
+        _warning("after")
         assert root.getvalue() == "after\n"
         assert store.level == logging.ERROR
     finally:
@@ -192,7 +192,7 @@ def test_the_stream_is_the_stderr_of_each_call(stderr, monkeypatch):
     later = io.StringIO()
     monkeypatch.setattr(sys, "stderr", later)
     fse.enable_logging()
-    _fallback()
+    _warning()
     assert stderr.getvalue() == ""
     assert "slower" in later.getvalue()
 
@@ -213,14 +213,14 @@ def test_concurrent_records_while_it_attaches_and_detaches(stderr):
     def emitting(worker):
         n = 0
         while not stop.is_set() and n < 3000:  # pytest's own root handlers keep each
-            _fallback(f"fse runtime: record {worker}-{n} end")
+            _warning(f"fse runtime: record {worker}-{n} end")
             n += 1
 
     def toggling():
         try:
             for i in range(1000):
                 fse.enable_logging()
-                _fallback(f"fse runtime: record 99-{i} end")  # one while attached
+                _warning(f"fse runtime: record 99-{i} end")  # one while attached
                 fse.disable_logging()
         except BaseException as error:
             errors.append(error)
@@ -267,7 +267,7 @@ def test_a_broken_stream_is_reported_once(stderr, monkeypatch):
     monkeypatch.setattr(sys, "stderr", Broken())
     fse.enable_logging()
     for _ in range(3):
-        _fallback()
+        _warning()
     err = report.getvalue()
     assert err.count("logging the event runtime.arrow_copied failed with OSError") == 1
     assert "Traceback" not in err

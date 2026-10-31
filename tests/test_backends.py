@@ -5,7 +5,7 @@ from support.logs import expect_log
 
 
 def test_backends_by_name():
-    assert "numpy" in BACKEND_NAMES
+    assert BACKEND_NAMES == ("cpu", "numpy")
     assert isinstance(get_backend("numpy"), NumpyBackend)
 
 

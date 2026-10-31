@@ -184,7 +184,6 @@ def _store_blocks(model: Any, store: VectorStore, output: str, workers: Any, bac
     """(first row, outputs) of every block of the store, in row order."""
     _check_store(model, store)
     host = get_backend(backend)
-    host.capabilities().check_heads(host.name)
     head = model._head
     kind = RUNTIME[output]
 
