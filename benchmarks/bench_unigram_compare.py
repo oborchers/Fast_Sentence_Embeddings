@@ -66,7 +66,7 @@ def ids() -> dict:
     return out
 
 
-def load(corpus: str | None = None) -> dict:
+def load(corpus: str | None = None, *, measure_lookup: bool = True) -> dict:
     from fse import Encoder
 
     start = time.perf_counter()
@@ -81,9 +81,10 @@ def load(corpus: str | None = None) -> dict:
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     peak *= 1 if sys.platform == "darwin" else 1024
     start_lookup = time.perf_counter()
-    lookup = fse_lookup(folder() / "tokenizer.json")
+    if measure_lookup:
+        lookup = fse_lookup(folder() / "tokenizer.json")
+        del lookup
     lookup_seconds = time.perf_counter() - start_lookup
-    del lookup
     return {
         "load_s": loaded - start,
         "first_s": first - loaded,
@@ -99,8 +100,8 @@ def worker(argv: list[str]) -> None:
     meta = identity()
     if mode == "ids":
         result = ids()
-    elif mode == "load":
-        result = load(argv[1] if len(argv) > 1 else None)
+    elif mode in ("load", "load-profile"):
+        result = load(argv[1] if len(argv) > 1 else None, measure_lookup=mode == "load")
     else:
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
