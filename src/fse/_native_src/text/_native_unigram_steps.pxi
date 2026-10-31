@@ -226,7 +226,7 @@ cdef inline uINT_t _uni_lookup(UnigramState st, const unsigned char *q, Py_ssize
     return _vocab_lookup(&st.table.view, q, k, True)
 
 
-cdef int _uni_candidates(UnigramState st, const unsigned char *q, Py_ssize_t m, Workspace ws,
+cdef int _uni_candidates_generic(UnigramState st, const unsigned char *q, Py_ssize_t m, Workspace ws,
                          Py_ssize_t *count) noexcept nogil:
     """The candidates of every code point boundary of q[0:m] (step 5): every piece that is
     a prefix of the rest, shortest first, then the unknown node if no piece is the code
@@ -273,6 +273,48 @@ cdef int _uni_candidates(UnigramState st, const unsigned char *q, Py_ssize_t m, 
             if _ensure(&ws.cands, (total + 1) * <Py_ssize_t>sizeof(fse_uni_cand)):
                 return UNI_NO_MEMORY
             cands = <fse_uni_cand *>ws.cands.data
+            cands[total].end = s + size
+            cands[total].id = st.unk_id
+            cands[total].score = st.unk_score
+            total += 1
+        s += size
+        k += 1
+    (<int64_t *>ws.ends.data)[k] = total
+    count[0] = k
+    return UNI_GO_ON
+
+
+cdef int _uni_candidates(UnigramState st, const unsigned char *q, Py_ssize_t m, Workspace ws,
+                         Py_ssize_t *count) noexcept nogil:
+    """The same ordered offers as the generic path, with one byte-trie walk per start."""
+    cdef Py_ssize_t s = 0, size, k = 0, total = 0, bound
+    cdef uint32_t cp
+    cdef int single
+    cdef fse_uni_cand *cands
+    if m > (PY_SSIZE_T_MAX // 32) - 2:
+        return UNI_NO_MEMORY
+    if st.generic:
+        return _uni_candidates_generic(st, q, m, ws, count)
+    ws.starts.size = ws.ends.size = ws.cands.size = 0
+    if (_ensure(&ws.starts, (m + 1) * <Py_ssize_t>sizeof(int64_t))
+            or _ensure(&ws.ends, (m + 2) * <Py_ssize_t>sizeof(int64_t))):
+        return UNI_NO_MEMORY
+    while s < m:
+        size = _uni_cp(q, s, m, &cp)
+        if size == 0:
+            return UNI_BROKEN
+        (<int64_t *>ws.starts.data)[k] = s
+        (<int64_t *>ws.ends.data)[k] = total
+        bound = min(m - s, st.max_piece) + 1
+        # cands.size stays zero. Reserve for the previous starts too, checking the
+        # addition and byte multiplication before evaluating either one.
+        if total > PY_SSIZE_T_MAX // <Py_ssize_t>sizeof(fse_uni_cand) - bound:
+            return UNI_NO_MEMORY
+        if _ensure(&ws.cands, (total + bound) * <Py_ssize_t>sizeof(fse_uni_cand)):
+            return UNI_NO_MEMORY
+        cands = <fse_uni_cand *>ws.cands.data  # growth may have moved the buffer
+        total += fse_uni_candidates(&st.trie, q, m, s, size, st.scores, cands + total, &single)
+        if not single:
             cands[total].end = s + size
             cands[total].id = st.unk_id
             cands[total].score = st.unk_score

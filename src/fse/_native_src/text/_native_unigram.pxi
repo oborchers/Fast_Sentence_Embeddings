@@ -3,9 +3,8 @@
 
 # ---------------------------------------------------------------------------------------
 # unigram@1 (docs/architecture/tokenizers.md, "unigram@1"), as in fse._reference_unigram.
-# Correct first,
-# not fast: every step is its own pass over the piece, and the candidates of a start are
-# found by one lookup of the pieces and one of their proper prefixes per code point.
+# The byte trie enumerates candidates; the generic hash path remains for tests.
+# Every normalizer step is its own pass over the piece.
 # ---------------------------------------------------------------------------------------
 
 from libc.stdint cimport uint8_t
@@ -24,6 +23,9 @@ cdef extern from "_native_unigram.h":
     int64_t fse_uni_viterbi(int64_t size, const int64_t *pos, const int64_t *first,
                             int64_t count, const fse_uni_cand *cands, double *best,
                             int64_t *best_start, uint32_t *best_id) nogil
+    int64_t fse_uni_candidates(const fse_trie *trie, const unsigned char *q, int64_t m,
+                                int64_t start, int64_t first_size, const double *scores,
+                                fse_uni_cand *out, int *single) nogil
     unsigned FSE_GC_WHITE_SPACE
     int FSE_UNI_GRAPHEME_BYTES
 
@@ -143,7 +145,7 @@ def _steps_parts(steps):
 cdef class UnigramState:
     """The state of unigram@1 for one vocabulary, built once under the GIL and shared by
     all workers: the VocabTable of the pieces (whose index is the id), a VocabTable of
-    their proper prefixes, the float64 scores and unk_score, the charsmap, the normalizer
+    their proper prefixes on the generic path only, the float64 scores and unk_score, the charsmap, the normalizer
     steps, the replacement of Metaspace and the added tokens, longest first.
 
     ``vocab_bytes`` and ``vocab_offsets`` are the pieces of ``table`` in id order (checked:
@@ -157,6 +159,8 @@ cdef class UnigramState:
 
     cdef readonly VocabTable table
     cdef VocabTable prefixes
+    cdef bint generic
+    cdef fse_trie trie
     cdef object _scores, _units, _values, _ops, _pool, _replacement
     cdef object _added_bytes, _added_offsets, _added_ids
     cdef const double *scores
@@ -184,20 +188,28 @@ cdef class UnigramState:
 
     def __init__(self, VocabTable table not None, vocab_bytes, vocab_offsets, scores, unk_id,
                  added_ids, steps, charsmap, replacement, max_tokens=0, max_chars=0,
-                 drop_unknown=True):
+                 drop_unknown=True, *, _generic=False, _trie_units=FSE_TRIE_MAX_UNITS,
+                 _trie_fail_at=None):
         if self._state != TABLE_NEW:
             raise RuntimeError("a UnigramState is built once; make a new one")
         self._state = TABLE_BUILDING
         try:
+            if not isinstance(_generic, bool):
+                raise TypeError(f"_generic must be a bool, not {type(_generic).__name__}")
+            self.generic = _generic
+            self.trie.fail_at = -1 if _trie_fail_at is None else _wp_int(_trie_fail_at, "_trie_fail_at", 0)
             self._build(table, vocab_bytes, vocab_offsets, scores, unk_id, added_ids, steps,
-                        charsmap, replacement, max_tokens, max_chars, drop_unknown)
+                        charsmap, replacement, max_tokens, max_chars, drop_unknown,
+                        _wp_int(_trie_units, "_trie_units", 1))
         except BaseException:
+            fse_trie_free(&self.trie)
             self._state = TABLE_FAILED
             raise
         self._state = TABLE_READY
 
     cdef _build(self, VocabTable table, vocab_bytes, vocab_offsets, scores, unk_id, added_ids,
-                steps, charsmap, replacement, max_tokens, max_chars, drop_unknown):
+                steps, charsmap, replacement, max_tokens, max_chars, drop_unknown,
+                int64_t trie_units):
         table._check_ready()
         data, offsets = _vocab_arrays(vocab_bytes, vocab_offsets)
         cdef Py_ssize_t n = len(offsets) - 1
@@ -215,10 +227,63 @@ cdef class UnigramState:
         self._build_scores(scores, n)
         self._build_steps(steps, charsmap, replacement)
         self._build_added(data, offsets, added_ids)
-        prefix_bytes, prefix_offsets = _proper_prefixes(data, offsets)
-        self.prefixes = VocabTable(prefix_bytes, prefix_offsets)
+        if trie_units > FSE_TRIE_MAX_UNITS:
+            raise ValueError(f"_trie_units must be at most {FSE_TRIE_MAX_UNITS}, not {trie_units}")
+        if self.generic:
+            prefix_bytes, prefix_offsets = _proper_prefixes(data, offsets)
+            self.prefixes = VocabTable(prefix_bytes, prefix_offsets)
+        else:
+            self._build_trie(data, offsets, trie_units)
         self.max_piece = int(np.diff(offsets).max())
         self.table = table
+
+    cdef _build_trie(self, data, offsets, int64_t limit):
+        cdef const unsigned char[::1] d = data if len(data) else np.zeros(1, np.uint8)
+        cdef const np.int64_t[::1] o = offsets
+        cdef int err
+        with nogil:
+            err = fse_trie_build_sorted(&self.trie, &d[0], &o[0], o.shape[0] - 1, limit)
+        if err == FSE_TRIE_NO_MEMORY:
+            raise MemoryError("no memory for the trie of unigram@1")
+        if err:
+            raise ValueError(f"the trie of a vocabulary of {o.shape[0] - 1} pieces needs more "
+                             f"than {limit} units")
+
+    def _candidates(self, bytes data):
+        """Ordered (end, id, score) offers per code point start, before normalization;
+        private, for tests. Reject malformed input before entering native code."""
+        self._check_ready()
+        data.decode("utf-8")
+        # Generic VocabTable probes may read masked words past the logical end,
+        # just as they do in the padded production normalization buffers.
+        cdef bytes padded = data + b"\0" * 32
+        cdef const unsigned char *q = padded
+        cdef Py_ssize_t m = len(data), count = 0, k, j
+        cdef Workspace ws = Workspace()
+        cdef int err
+        with nogil:
+            err = _uni_candidates(self, q, m, ws, &count)
+        if err == UNI_NO_MEMORY:
+            raise MemoryError("no memory for Unigram candidates")
+        if err:
+            raise AssertionError("the internal Unigram text broke")
+        cdef int64_t *first = <int64_t *>ws.ends.data
+        cdef fse_uni_cand *cands = <fse_uni_cand *>ws.cands.data
+        return [[(cands[j].end, cands[j].id, cands[j].score)
+                 for j in range(first[k], first[k + 1])] for k in range(count)]
+
+    @property
+    def _trie_blocks(self):
+        """Live trie allocations; private, for failure-injection tests."""
+        return self.trie.live
+
+    @property
+    def _trie_bytes(self):
+        """Bytes in the double array; private, for tests and benchmarks."""
+        return self.trie.size * 12
+
+    def __dealloc__(self):
+        fse_trie_free(&self.trie)
 
     cdef _build_scores(self, scores, Py_ssize_t n):
         if (not isinstance(scores, np.ndarray) or scores.dtype != np.dtype("<f8")
@@ -286,3 +351,42 @@ cdef class UnigramState:
     def __reduce__(self):
         raise TypeError("a UnigramState cannot be pickled; build it from the encoder")
 
+
+
+def _trie_constructed_ids(vocab_bytes, vocab_offsets, *, _sorted=False):
+    """Root and exact ids of raw keys, below VocabTable's uniqueness check; for tests."""
+    if not isinstance(_sorted, bool):
+        raise TypeError("_sorted must be a bool")
+    if (isinstance(vocab_offsets, np.ndarray) and vocab_offsets.ndim == 1
+            and len(vocab_offsets) > OOV_TOKEN):
+        raise ValueError(f"a raw trie holds fewer than {OOV_TOKEN} keys")
+    data, offsets = _vocab_arrays(vocab_bytes, vocab_offsets)
+    cdef const unsigned char[::1] d = data if len(data) else np.zeros(1, np.uint8)
+    cdef const np.int64_t[::1] o = offsets
+    cdef fse_trie trie
+    cdef int err
+    cdef Py_ssize_t i
+    cdef uint32_t found
+    cdef bint sorted_keys = _sorted
+    memset(&trie, 0, sizeof(fse_trie))
+    trie.fail_at = -1
+    try:
+        with nogil:
+            if sorted_keys:
+                err = fse_trie_build_sorted(&trie, &d[0], &o[0], o.shape[0] - 1, FSE_TRIE_MAX_UNITS)
+            else:
+                err = fse_trie_build(&trie, &d[0], &o[0], o.shape[0] - 1, FSE_TRIE_MAX_UNITS)
+        if err == FSE_TRIE_NO_MEMORY:
+            raise MemoryError("no memory for the test trie")
+        if err:
+            raise ValueError("the test trie exceeds its unit limit")
+        found = fse_trie_exact(&trie, &d[0], 0)
+        root = None if found == FSE_TRIE_NONE else found
+        ids = []
+        for i in range(o.shape[0] - 1):
+            found = fse_trie_exact(&trie, &d[0] + o[i], o[i + 1] - o[i])
+            ids.append(None if found == FSE_TRIE_NONE else found)
+        return root, ids
+    finally:
+        with nogil:
+            fse_trie_free(&trie)
