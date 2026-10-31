@@ -41,3 +41,34 @@ name = "spec"
 gb_per_s = 273
 kind = "spec"
 source = "Apple Newsroom, 30.10.2024: M4 Pro '273GB/s of memory bandwidth', https://www.apple.com/newsroom/2024/10/apple-introduces-m4-pro-and-m4-max/"
+
+["runpod-epyc-9655p"]
+p_cores = 96  # host physical cores, not the pod's allocated logical CPUs
+e_cores = 0
+l2_cluster_bytes = 0  # no calibrated cache-sharing model for the pod allocation
+topology_source = "lscpu on RunPod, 31.10.2026: AMD EPYC 9655P, one socket, 96 physical cores, two threads per core; pod affinity contains 32 logical CPUs, cpu.max is max 100000, memory.max is 64000000000; physical sibling placement within the allocation was not recorded"
+measured = true
+notes = [
+    "Observed shared-host pod configuration, not a specification or a stable machine-wide bandwidth guarantee; host load during the probe was 8.46 to 8.91.",
+    "p_cores describes host topology. Per-core and Amdahl predictions are not calibrated for the pod cpuset or SMT placement; use the measured bandwidth references independently.",
+    "One probe series, fastest of three measured passes after warm-up. A second pod used a different CPU (EPYC 9B45) at host load above 1000 and is only a host/load variation comparison.",
+    "Evidence and limitations: benchmarks/baseline/dr190_runpod_20261031.json and PERFORMANCE.md, RunPod Linux x86 observations.",
+]
+
+[["runpod-epyc-9655p".bandwidth]]
+name = "read"
+gb_per_s = 235.47021366687153
+kind = "measured"
+source = "roofline_probe.probe (the probe of roofline.py), sum reader, 1 GiB float32 table, dim 1024, 32 workers; 31.10.2026, source 4d92d61cb8b9351ac13d54feaa86ee711c08c13f, RunPod run 2; logical GB/s, fastest of three passes; load 8.91"
+
+[["runpod-epyc-9655p".bandwidth]]
+name = "random rows"
+gb_per_s = 188.23389431855193
+kind = "measured"
+source = "roofline_probe.probe (the probe of roofline.py), random pooling reader, 1 GiB float32 table, dim 1024, 32 workers, 262144 tokens per worker; 31.10.2026, source 4d92d61cb8b9351ac13d54feaa86ee711c08c13f, RunPod run 2; logical GB/s, fastest of three passes; load 8.91"
+
+[["runpod-epyc-9655p".bandwidth]]
+name = "spec"
+gb_per_s = 614
+kind = "spec"
+source = "AMD EPYC 9655P product specifications, retrieved 31.10.2026: Per Socket Mem BW 614 GB/s, 12 DDR5 channels, up to 6400 MT/s; https://www.amd.com/en/products/processors/server/epyc/9005-series/amd-epyc-9655p.html ; host specification only, pod memory population/speed and bandwidth entitlement were not measured"
