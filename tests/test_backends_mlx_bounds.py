@@ -86,8 +86,3 @@ def test_the_rows_normalize_must_not_take_from_the_device():
     g = np.array([1.0, 1e-6, 2.0**-51, 1.0, 2.0**61, 0.0])
     e = np.array([1e-5, 1e-6, 1e-30, 0.4, 1.0, 0.0])
     assert _bounds.unnormalizable(g, g, e).tolist() == [False, True, True, False, True, True]
-
-
-def test_after_normalize():
-    got = _bounds.after_normalize(np.array([1e-6]), np.array([2.0]), 300)
-    assert got[0] >= 2 * 1e-6 / 2

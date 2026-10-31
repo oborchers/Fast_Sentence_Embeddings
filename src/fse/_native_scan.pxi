@@ -34,48 +34,18 @@ cdef inline int _utf8_len(const unsigned char *p, Py_ssize_t i, Py_ssize_t end) 
     return 0
 
 
-cdef inline bint _is_space(const unsigned char *p, Py_ssize_t i, int n) noexcept nogil:
-    """Whether the valid UTF-8 sequence of length n at p[i] satisfies str.isspace()."""
-    cdef unsigned char b = p[i]
-    cdef unsigned char c, d
-    if n == 1:
-        return (9 <= b <= 13) or (28 <= b <= 32)
-    if n == 2:
-        return b == 0xC2 and (p[i + 1] == 0x85 or p[i + 1] == 0xA0)
-    if n == 3:
-        c = p[i + 1]
-        d = p[i + 2]
-        if b == 0xE1:
-            return c == 0x9A and d == 0x80  # U+1680
-        if b == 0xE2:
-            if c == 0x80:  # U+2000 to U+200A, U+2028, U+2029, U+202F
-                return d <= 0x8A or d == 0xA8 or d == 0xA9 or d == 0xAF
-            return c == 0x81 and d == 0x9F  # U+205F
-        if b == 0xE3:
-            return c == 0x80 and d == 0x80  # U+3000
-    return False
-
-
-cdef Py_ssize_t _count_tokens(
-    const unsigned char *p, Py_ssize_t start, Py_ssize_t end, Py_ssize_t *error
+cdef inline Py_ssize_t _utf8_error(
+    const unsigned char *p, Py_ssize_t start, Py_ssize_t end
 ) noexcept nogil:
-    """Number of str.split() tokens in p[start:end]; sets error to the first bad byte."""
+    """The first byte of p[start:end] where CPython's decoder fails, or -1 if it is valid."""
     cdef Py_ssize_t i = start
-    cdef Py_ssize_t tokens = 0
-    cdef bint inside = False
     cdef int m
     while i < end:
         m = _utf8_len(p, i, end)
         if m == 0:
-            error[0] = i
-            return tokens
-        if _is_space(p, i, m):
-            inside = False
-        elif not inside:
-            inside = True
-            tokens += 1
+            return i
         i += m
-    return tokens
+    return -1
 
 
 def _check_span(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssize_t last):
@@ -114,9 +84,9 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
     in [first, last); the caller aligns first and last to line starts. Item mode: the
     range holds the strings first to last - 1 of a TextList, delimited by offsets.
 
-    Returns (sentences, tokens, empty, chunks, error_byte, error_sentence): chunks is a
-    list of (start, end, first_sentence) with positions in the same unit as the range and
-    sentence numbers relative to the range; error_byte is -1 if the range is valid.
+    Returns (sentences, chunks, error_byte, error_sentence): chunks is a list of
+    (start, end, first_sentence) with positions in the same unit as the range and sentence
+    numbers relative to the range; error_byte is -1 if the range is valid.
     """
     _check_span(data, offsets, first, last)
     cdef Py_ssize_t n = data.shape[0]
@@ -127,7 +97,7 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
     if not lines:
         item_offsets = offsets
         item_ptr = &item_offsets[0]
-    cdef Py_ssize_t sentences = 0, tokens = 0, empty = 0, count
+    cdef Py_ssize_t sentences = 0
     cdef Py_ssize_t error = -1
     cdef Py_ssize_t pos = first, span_end, next_pos, chunk_start = first, chunk_first = 0
     cdef const unsigned char *newline
@@ -155,12 +125,9 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
                 else:
                     span_end = item_ptr[pos + 1]
                     next_pos = pos + 1
-                count = _count_tokens(p, item_ptr[pos] if not lines else pos, span_end, &error)
+                error = _utf8_error(p, item_ptr[pos] if not lines else pos, span_end)
                 if error >= 0:
                     break
-                tokens += count
-                if count == 0:
-                    empty += 1
                 sentences += 1
                 pos = next_pos
                 if (
@@ -180,7 +147,7 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
         if failed:
             raise MemoryError("could not grow the list of chunks")
         if error >= 0:
-            return sentences, tokens, empty, [], error, sentences
+            return sentences, [], error, sentences
         if chunk_start < last:
             _push_i64(&bounds, chunk_start)
             _push_i64(&bounds, last)
@@ -189,7 +156,7 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
     finally:
         free(bounds.data)
     chunk_list = [tuple(flat[c : c + 3]) for c in range(0, len(flat), 3)]
-    return sentences, tokens, empty, chunk_list, -1, -1
+    return sentences, chunk_list, -1, -1
 
 
 cdef int _push_u32_nogil(_Buffer *b, uINT_t value) noexcept nogil:

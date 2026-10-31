@@ -356,9 +356,9 @@ cdef class ArrowColumn:
              Py_ssize_t chunk_rows=CHUNK_MAX_ROWS):
         """Validate and count the rows first to last - 1 without the GIL, as scan_spans.
 
-        Returns (sentences, tokens, empty, chunks, error_byte, error_sentence): chunks of
-        (start, end, first_sentence) in rows of the column and sentences relative to first;
-        error_byte is the bad byte within the row, or -1.
+        Returns (sentences, chunks, error_byte, error_sentence): chunks of (start, end,
+        first_sentence) in rows of the column and sentences relative to first; error_byte
+        is the bad byte within the row, or -1.
         """
         self._check_range(first, last)
         if chunk_bytes < 1:
@@ -367,7 +367,7 @@ cdef class ArrowColumn:
             raise ValueError(f"chunk_rows must be between 1 and {CHUNK_MAX_ROWS}, got {chunk_rows}")
         cdef Py_ssize_t pos = first, chunk_start = first, chunk_first = 0
         cdef _Cursor at
-        cdef Py_ssize_t sentences = 0, tokens = 0, empty = 0, count, error = -1
+        cdef Py_ssize_t sentences = 0, error = -1
         cdef int64_t n, in_chunk = 0
         cdef const unsigned char *p
         cdef int status = 0
@@ -387,12 +387,9 @@ cdef class ArrowColumn:
                     if fse_arrow_row(at.chunk, pos - at.base, &p, &n) != 0:
                         status = _ARROW_INVALID
                         break
-                    count = _arrow_tokens(p, n, &error)
+                    error = _utf8_error(p, 0, n)
                     if error >= 0:
                         break
-                    tokens += count
-                    if count == 0:
-                        empty += 1
                     sentences += 1
                     in_chunk += n
                     pos += 1
@@ -412,7 +409,7 @@ cdef class ArrowColumn:
             if status == _ARROW_INVALID:
                 raise ValueError(f"invalid Arrow offsets or view at row {pos}")
             if error >= 0:
-                return sentences, tokens, empty, [], error, sentences
+                return sentences, [], error, sentences
             if chunk_start < last:
                 _push_i64(&bounds, chunk_start)
                 _push_i64(&bounds, last)
@@ -421,7 +418,7 @@ cdef class ArrowColumn:
         finally:
             free(bounds.data)
             self._readers -= 1
-        return sentences, tokens, empty, [tuple(flat[c : c + 3]) for c in range(0, len(flat), 3)], -1, -1
+        return sentences, [tuple(flat[c : c + 3]) for c in range(0, len(flat), 3)], -1, -1
 
     cdef int _check_encode(self, TextLookup lookup, Py_ssize_t first, Py_ssize_t last,
                            Workspace ws) except -1:

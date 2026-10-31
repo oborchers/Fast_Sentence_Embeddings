@@ -76,7 +76,7 @@ cdef struct _Part:
 
 
 cdef inline bint _is_space_code(uint32_t c) noexcept nogil:
-    """Whether c is in W (str.isspace), the code points of _is_space."""
+    """Whether c is in W (str.isspace), the code points of str.isspace()."""
     if c < 0x80:
         return (9 <= c <= 13) or (28 <= c <= 32)
     if c < 0x1680:

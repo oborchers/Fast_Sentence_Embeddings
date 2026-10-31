@@ -29,7 +29,7 @@ def test_a_stream_gives_its_chunks_as_one_column(fmt):
     assert [col.row_bytes(i) for i in range(col.rows)] == [s for part in PARTS for s in part]
     assert list(col.chunk_starts) == [0, 2, 4, 5]
     assert col.span_bytes(1, 4) == len(b"c") + len(b"a longer string of text")
-    assert col.scan(0, 5, 1)[3] == [
+    assert col.scan(0, 5, 1)[1] == [
         (0, 1, 0),
         (1, 2, 1),
         (2, 3, 2),

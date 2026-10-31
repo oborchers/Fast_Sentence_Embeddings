@@ -219,7 +219,7 @@ def test_capsules_of_another_name_are_refused():
 def test_invalid_utf8_is_reported_with_its_row_and_byte(fmt, bad):
     p = Producer()
     col = from_array(p, fmt, p.strings(fmt, [b"fine", bad]))
-    count, _, _, chunks, byte, sentence = col.scan(0, 2, 1 << 20)
+    count, chunks, byte, sentence = col.scan(0, 2, 1 << 20)
     assert (count, chunks, sentence) == (1, [], 1)
     with pytest.raises(UnicodeDecodeError):
         bad.decode()

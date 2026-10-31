@@ -103,7 +103,7 @@ def test_empty_arrays_and_empty_strings(fmt):
     col = column(Producer(), fmt, [b"", b"", b""])
     assert rows_of(col) == [b"", b"", b""]
     assert col.nbytes == 0
-    assert col.scan(0, 3, 1)[:3] == (3, 0, 3)
+    assert col.scan(0, 3, 1) == (3, [(0, 3, 0)], -1, -1)
 
 
 @pytest.mark.parametrize("fmt", FORMATS)
