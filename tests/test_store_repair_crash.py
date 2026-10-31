@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+
 import pytest
 
 from support.repair import after_crash, damaged_store
