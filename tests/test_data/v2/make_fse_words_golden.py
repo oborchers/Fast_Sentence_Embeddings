@@ -2,11 +2,11 @@
 
 Written once and checked in; the tests compare the reference and the native tokenizer
 with it, so a change of either is noticed. Never regenerate it for a released identifier.
+The original synthetic corpus replaces separately licensed prose before the 2.0 release.
 
     uv run python tests/test_data/v2/make_fse_words_golden.py
 """
 
-import csv
 import json
 from pathlib import Path
 
@@ -14,7 +14,6 @@ from fse._reference_text import tokenize_fse_words
 from fse._unicode import UNICODE_VERSION
 
 HERE = Path(__file__).parent
-ROOT = HERE.parent.parent.parent
 
 # Sentences that exercise every rule, the lowercase table and UTF-8 lengths.
 EXTRA = [
@@ -33,10 +32,34 @@ EXTRA = [
 
 
 def main() -> None:
-    texts = list(EXTRA)
-    with open(ROOT / "evaluation" / "sts-test.csv", encoding="utf-8", newline="") as f:
-        for row in csv.reader(f, delimiter="\t", quoting=csv.QUOTE_NONE):
-            texts.extend(row[5:7])
+    # Original templates and unique labels exercise a vocabulary at least as large
+    # as the former STS corpus, including known and unknown halves in lookup tests.
+    subjects = [
+        "Our robot",
+        "A sailor",
+        "The otter",
+        "My neighbour",
+        "The pilot",
+        "A weaver",
+        "The clock",
+    ]
+    actions = ["inspects", "carries", "paints", "measures", "repairs", "finds", "circles"]
+    endings = [
+        "near café.",
+        "at 10:30, isn't it?",
+        "in room 3.14; we'll return.",
+        "by a well-known tree!",
+        "in Zürich, 中国 and Αθήνα.",
+        "under sign_7... don't move?",
+        "beside e\u0301 and 😀.",
+    ]
+    texts = [*EXTRA, "Quiet morning."]
+    # 31 tokens and more than 215 UTF-8 bytes, the former corpus' upper bounds.
+    texts.append("The cartographer inspects " + " ".join(f"instrument{i}" for i in range(28)))
+    texts.extend(
+        f"{subjects[i % 7]} {actions[(i // 7) % 7]} crate{i} for team{i} {endings[(i // 49) % 7]}"
+        for i in range(2756)
+    )
     cases = [[text, tokenize_fse_words(text)] for text in texts]
     payload = {"tokenizer": "fse_words@1", "unicode": UNICODE_VERSION, "cases": cases}
     (HERE / "fse_words.json").write_text(json.dumps(payload, ensure_ascii=True, indent=0) + "\n")

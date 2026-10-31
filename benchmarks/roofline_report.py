@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The text report of ``roofline.py measure`` and ``show``: the dataset, the stages at one
 worker, then per worker count the measured rate, how much the tasks grew against one

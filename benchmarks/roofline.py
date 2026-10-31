@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The throughput bounds of fse for one encoder, one corpus and one machine, and the
 measured throughput as a share of each (PERFORMANCE.md explains the model).

@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Where the runtime puts finished rows (docs/architecture/runtime.md, "Runtime"; PR 6 adds more).
 

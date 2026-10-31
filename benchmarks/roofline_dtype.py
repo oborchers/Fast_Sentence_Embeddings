@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Tables of another dtype for roofline.py: an encoder's stages 1 to 4 with its table
 stored as float16 or int8, and the paired comparison of two dtypes end to end.

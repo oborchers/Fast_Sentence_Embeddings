@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The two ablations of the MLX device thread, as patches of ``Device`` in the benchmark
 process (no change in ``src``; DR-178 PR 4, docs/architecture/backends.md, "MLX").

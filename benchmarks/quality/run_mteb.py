@@ -141,6 +141,23 @@ class FseEncoder(AbsEncoder):
         return self.model.encode(texts, workers=os.cpu_count())
 
 
+def vector_license(name: str) -> str:
+    """The source vectors' terms, independent of fse's code license.
+
+    Legacy converted files may have no provenance metadata. Unrecognised sources,
+    including paranmt and paragram, have unknown terms, never an assumed license.
+    """
+    for source, license_id in (
+        ("glove-", "pddl"),
+        ("word2vec-google-news-", "apache-2.0"),
+        ("fasttext-", "cc-by-sa-3.0"),
+        ("potion-", "mit"),
+    ):
+        if source in name.lower():
+            return license_id
+    return "unknown"
+
+
 def fse_meta(name: str) -> ModelMeta:
     return ModelMeta(
         loader=FseEncoder,
@@ -152,7 +169,7 @@ def fse_meta(name: str) -> ModelMeta:
         memory_usage_mb=None,
         max_tokens=np.inf,
         embed_dim=FseEncoder(name).model.output_dim,
-        license="gpl-3.0",
+        license=vector_license(name),
         open_weights=True,
         public_training_code="https://github.com/oborchers/Fast_Sentence_Embeddings",
         public_training_data=None,

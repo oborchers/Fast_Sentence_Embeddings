@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Gate G3 of linear heads: scikit-learn on Amazon Reviews Polarity, quality and speed.
 

@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Conservative per-row error bounds of the mlx backend and the checks they drive
 (docs/architecture/backends.md, "Tolerance contract of device backends" and "MLX").

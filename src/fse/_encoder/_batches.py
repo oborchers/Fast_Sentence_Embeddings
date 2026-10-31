@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Encoding into a sink and in batches: what ``Encoder.encode(sink=)`` and
 ``Encoder.encode_batches`` run (docs/architecture/runtime.md, "Runtime").

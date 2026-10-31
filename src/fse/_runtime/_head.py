@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Linear heads in the runtime: a head ``z = A x + b`` on the rows of an encoder, in the
 worker of every task (docs/architecture/runtime.md, "Runtime"; the rule ``linear@1``).

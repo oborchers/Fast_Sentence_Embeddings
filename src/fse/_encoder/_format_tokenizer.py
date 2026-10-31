@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The tokenizer part of encoder 1 (docs/architecture/formats.md, "encoder 1"): the keys of a tokenizer
 with parameters, written from and parsed into a TokenizerSpec, and the table it needs.

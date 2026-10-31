@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Measure the two scheduling mechanisms of the MLX device thread (DR-178 PR 4, DR-147):
 the lease (the caller copies the rows while the device thread lends the MLX arrays) and

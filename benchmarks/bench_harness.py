@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The one harness of the paired benchmarks: rounds of runs in alternating order, with the
 load before and after every run, the raw data of every run kept, rounds with a high load

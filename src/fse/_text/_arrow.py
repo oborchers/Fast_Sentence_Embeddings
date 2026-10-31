@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Arrow string columns as a source: any object that exports one through the PyCapsule
 interface (``__arrow_c_stream__`` or ``__arrow_c_array__``), such as a pyarrow Array or

@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """``StaticModel.save_pretrained`` and ``push_to_hub``: the fse folder of the model's encoder
 (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)" (Persistence and its compatibility limit)).

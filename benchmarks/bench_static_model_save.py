@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Save and reload of ``fse.StaticModel`` (``save_pretrained``, ``from_pretrained``) for a
 model of the Hub: wall time of each, and bit identity of the rows after the reload.

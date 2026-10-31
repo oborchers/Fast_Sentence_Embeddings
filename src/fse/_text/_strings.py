@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Sentences as str and as token lists in memory, joined into one UTF-8 buffer by one
 native pass (``_native_lists.pxi``) or, for the inputs it does not read, in Python."""

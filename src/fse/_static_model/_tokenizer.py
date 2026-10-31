@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The read-only tokenizer of a ``StaticModel`` (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)").
 

@@ -1,6 +1,7 @@
 /* The weighted mean kernel of fse 2.0 (docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)").
 
-   Author: Oliver Borchers. Licensed under GNU General Public License v3.0.
+   Author: Oliver Borchers.
+   SPDX-License-Identifier: MIT
 
    Every contribution does acc[i] = fma(f, x[i], acc[i]) in token order, with the factor
    f = weight (times the scale for int8 rows) and the stored row x read exactly; a

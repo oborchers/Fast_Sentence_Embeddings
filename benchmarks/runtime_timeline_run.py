@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The measured passes of runtime_timeline.py: one encode call, recorded, split and
 summarized over many passes (blocks of passes with a high load before or after are

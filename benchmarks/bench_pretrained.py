@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The load of ``Encoder.from_pretrained``: seconds and peak resident memory of converting a
 model of the local Hugging Face cache (``local_files_only``), each in a fresh process.

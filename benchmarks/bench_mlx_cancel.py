@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Cancellation of a call to the MLX device thread under each variant of
 bench_mlx_variants.py: a SIGINT sent explicitly to the process at two synchronised points.

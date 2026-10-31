@@ -8,6 +8,10 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 - Architecture documentation is split by topic under `docs/architecture/`; `ARCHITECTURE.md` indexes it and preserves the former section links.
 
+### Changed
+
+- fse 2.0 uses the MIT license. The 1.x branch and existing releases remain GPL-3.0. Model and dataset licenses apply separately. FastText hashing is derived directly from the MIT fastText source with unchanged buckets; shipped text fixtures now contain original synthetic sentences instead of STS Benchmark sentences and reviews of unknown provenance.
+
 ### Added
 
 - A benchmark-only comparison of per-call and reused thread pools, with paired A/A controls, short and server workloads, separate startup time and process RSS. Production thread lifetimes are unchanged.

@@ -1,33 +1,36 @@
-fse includes code adapted from gensim
-=====================================
+Third-party notices
+===================
 
-fse is licensed under the GNU General Public License version 3 (see LICENSE).
-
-Parts of fse are adapted from gensim (https://github.com/piskvorky/gensim),
-which is licensed under the GNU Lesser General Public License version 2.1.
-Section 3 of the LGPL 2.1 permits applying the terms of the GNU GPL instead;
-fse applies the GPL version 3 to these parts. The copyright notices of the
-original files are reproduced below.
-
-Cython kernel
--------------
-
-src/fse/_native.pyx follows the conventions of gensim/models/word2vec_inner.pyx
-and gensim/models/fasttext_inner.pyx, such as preparing the data while holding
-the GIL so the averaging can run without it.
-
-    Copyright (C) 2013 Radim Rehurek
-    Licensed under the GNU LGPL v2.1
+fse 2.0 is licensed under the MIT License (see LICENSE).
 
 FastText ngram hashing
 ----------------------
 
-_ft_hash and ft_ngram_hashes_into in src/fse/_native_src/text/_native_hash.pxi
-reimplement compute_ngrams_bytes and ft_hash_bytes of
-gensim/models/fasttext_inner.pyx (compared with gensim 4.4.0). gensim ported
-them from Facebook's fastText (src/dictionary.cc,
-https://github.com/facebookresearch/fastText), which is licensed under the
-MIT License, Copyright (c) 2016-present, Facebook, Inc.
+The hashing in src/fse/_native_src/text/_native_hash.pxi is adapted directly
+from Dictionary::hash and Dictionary::computeSubwords in fastText's
+src/dictionary.cc (https://github.com/facebookresearch/fastText).
+
+MIT License
+
+Copyright (c) 2016-present, Facebook, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 Unicode Character Database
 --------------------------
@@ -95,3 +98,10 @@ C Stream Interface specifications
 https://arrow.apache.org/docs/format/CStreamInterface.html), which ask consumers
 to copy them. Apache Arrow is licensed under the Apache License 2.0,
 Copyright 2016-2026 The Apache Software Foundation.
+
+STS Benchmark data
+------------------
+
+The evaluation/ directory contains third-party STS Benchmark data under the
+terms in evaluation/LICENSE.txt. It is excluded from source distributions
+and wheels. The MIT license of fse does not relicense these datasets.

@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The Hugging Face folder of an fse model: ``config.json``, ``model.safetensors`` and a
 ``README.md`` model card, written atomically, and pushed to the Hub.

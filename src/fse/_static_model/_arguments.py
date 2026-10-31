@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """The arguments of ``StaticModel.encode`` and ``from_pretrained`` that change no row, and
 the refusal of the ones that would (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)").

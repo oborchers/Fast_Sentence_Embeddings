@@ -2,7 +2,7 @@
 
 # Author: Oliver Borchers
 # Copyright (C) Oliver Borchers
-# Licensed under GNU General Public License v3.0
+# SPDX-License-Identifier: MIT
 
 """Stores of sentence vectors: the ShardSink that writes them while an encoder runs and the
 VectorStore that searches them (docs/architecture/store.md, "sentence_vectors 1").
