@@ -62,9 +62,7 @@ def main() -> None:
     )
     cases = [[text, tokenize_fse_words(text)] for text in texts]
     payload = {"tokenizer": "fse_words@1", "unicode": UNICODE_VERSION, "cases": cases}
-    (HERE / "fse_words.json").write_text(
-        json.dumps(payload, ensure_ascii=True, indent=0) + "\n"
-    )
+    (HERE / "fse_words.json").write_text(json.dumps(payload, ensure_ascii=True, indent=0) + "\n")
     print(f"{len(cases)} cases")
 
 
