@@ -197,11 +197,19 @@ def _subsets(pending, data_units, seed):
     if len(pending) <= 10:
         choices = [(0, 1, 2) if i in data_units else (0, 2) for i in pending]
         for values in itertools.product(*choices):
-            selected = {i for i, value in zip(pending, values, strict=True) if value}
-            torn = {i for i, value in zip(pending, values, strict=True) if value == 1}
-            yield selected, torn
+            yield _selection(pending, values)
         return
     yield from _flips(set(pending), data_units)
+    yield from _random_subsets(pending, data_units, seed)
+
+
+def _selection(pending, values):
+    selected = {i for i, value in zip(pending, values, strict=True) if value}
+    torn = {i for i, value in zip(pending, values, strict=True) if value == 1}
+    return selected, torn
+
+
+def _random_subsets(pending, data_units, seed):
     rng = random.Random(seed)
     for _ in range(256):
         selected = {i for i in pending if rng.getrandbits(1)}
