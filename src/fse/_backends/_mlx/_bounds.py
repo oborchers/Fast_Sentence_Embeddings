@@ -91,14 +91,6 @@ def unnormalizable(low: ndarray, high: ndarray, error: ndarray) -> ndarray:
     return near | ~np.isfinite(error)
 
 
-def after_normalize(error: ndarray, low: ndarray, dim: int) -> ndarray:
-    """E after normalize for rows it takes from the device: ``2 E / r`` (r at least
-    ``low - E``) plus the rounding of both normalizations (the dot product, the square
-    root, the reciprocal and one product per value)."""
-    r = np.maximum(low - error, LOW)
-    return (2 * error / r + 2 * gamma(dim + 4)) * SAFE
-
-
 def beyond_float16(rows: ndarray, error: ndarray) -> ndarray:
     """Rows whose values could reach the float16 range on the cpu (within E of the
     device's), or without a finite bound: storing them, the cpu may raise."""

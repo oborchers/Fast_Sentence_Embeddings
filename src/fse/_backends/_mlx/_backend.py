@@ -226,7 +226,6 @@ class MlxBackend:
             if not in_kernel:
                 out[bad] = 0  # normalize keeps a zero row and raises for none
                 self.host.steps(out, state.host, batch.first_row)
-            error = np.where(n > 0, _bounds.after_normalize(error, low, table.dim), 0.0)
         else:
             # The sink's dtype is unknown here: a row that could reach the float16 range on
             # the cpu takes the cpu's row for every target, and a float16 store raises its
