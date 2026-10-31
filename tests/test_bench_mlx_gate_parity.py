@@ -66,7 +66,8 @@ def test_real_encoder_variant_uses_public_quantization_and_keeps_model_rules(
     assert enc._content.source == model._content.source
     assert enc._content.license == "mit"
     rows = enc.encode(["hello unknown", "", "world"], workers=1)
-    assert rows.dtype == np.float32 and rows.shape == (3, 2)
+    assert rows.dtype == np.float32
+    assert rows.shape == (3, 2)
     assert not rows[1].view(np.uint32).any()
 
 
@@ -97,7 +98,8 @@ def test_a_one_ulp_difference_passes_but_a_dropped_token_fails(gate, data, model
     guard = SimpleNamespace(check=lambda *_a: None)
     other = np.nextafter(cpu, np.full_like(cpu, np.inf))
     result = gate.audit(enc, texts, cpu, other, guard)
-    assert not result["bit_equal"] and 0 < result["max_error_over_bound"] < 1
+    assert not result["bit_equal"]
+    assert 0 < result["max_error_over_bound"] < 1
     with pytest.raises(AssertionError, match="exceeds the contract"):
         gate.audit(enc, texts, cpu, np.zeros_like(cpu), guard)
 
@@ -105,7 +107,8 @@ def test_a_one_ulp_difference_passes_but_a_dropped_token_fails(gate, data, model
 def test_bound_includes_long_sum_rounding_and_absolute_flush_term(gate):
     k, dim, m = 1024, 256, 2.0
     bound, exact = gate.acceptance(k, dim, m, None)
-    assert not exact and bound > 1e-5 * m
+    assert not exact
+    assert bound > 1e-5 * m
     assert bound == (1e-5 + 2 * (k * 2**-24 / (1 - k * 2**-24))) * m + 2**-125 * k * dim**0.5
     flush, _ = gate.acceptance(1, 256, 0, None)
     assert flush == 2**-121
@@ -130,10 +133,15 @@ def test_launch_observation_is_untimed_and_restores_after_error(gate, monkeypatc
         return "launched"
 
     monkeypatch.setattr(_kernels, "launch", original)
-    with pytest.raises(ValueError, match="stop"), gate.launches() as seen:
-        assert _kernels.launch() == "launched"
-        assert seen == [1]
-        raise ValueError("stop")
+
+    def fail():
+        with gate.launches() as seen:
+            assert _kernels.launch() == "launched"
+            assert seen == [1]
+            raise ValueError("stop")
+
+    with pytest.raises(ValueError, match="stop"):
+        fail()
     assert _kernels.launch is original
 
 

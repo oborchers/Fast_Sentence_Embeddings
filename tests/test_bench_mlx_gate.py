@@ -78,7 +78,9 @@ def test_idle_receipt_cannot_loosen_the_fixed_formula(modules, receipt):
 def test_load_equality_nan_pause_and_lost_lock_fail_closed(modules, tmp_path, monkeypatch):
     guard = _guard(modules, tmp_path, monkeypatch)
     for load in (4.0, float("inf")):
-        with pytest.raises((guard_error := modules.mlx_gate_safety.Stop), match="strictly below"):
+        with pytest.raises(
+            (guard_error := modules.mlx_gate_safety.StopError), match="strictly below"
+        ):
             guard.check("load", sample=load)
     (tmp_path / "pause-local.marker").touch()
     with pytest.raises(guard_error, match="pause-local"):
@@ -101,7 +103,7 @@ def test_a_stale_lock_is_never_overwritten(modules, tmp_path):
 def test_budget_survives_crashes_and_cannot_settle_twice(modules, tmp_path):
     safety = modules.mlx_gate_safety
     budget = safety.Budget(tmp_path, 1700)
-    with pytest.raises(safety.Stop, match="shared 1800"):
+    with pytest.raises(safety.StopError, match="shared 1800"):
         safety.Budget(tmp_path, 101)
     assert safety.charged([{"id": "lost", "kind": "reserve", "seconds": 1700}]) == 1700
     budget.settle()
@@ -122,6 +124,7 @@ def test_middle_side_breach_keeps_raw_pass_and_discards_entire_round(
     output = np.ones((1, 2), np.float32)
 
     def encode(_texts, *, backend, workers):
+        assert backend == "cpu"
         if workers == 10:
             monkeypatch.setattr(os, "getloadavg", lambda: (4.0, 1, 1))
         return output
@@ -135,11 +138,12 @@ def test_middle_side_breach_keeps_raw_pass_and_discards_entire_round(
         {"first": ("cpu", 1), "middle": ("cpu", 10), "last": ("cpu", 14)},
         1,
     )
-    with pytest.raises(modules.mlx_gate_safety.Stop, match="strictly below"):
+    with pytest.raises(modules.mlx_gate_safety.StopError, match="strictly below"):
         runner.paired(3)
     kept, discarded = runs.journal_pairs(guard.journal)
     events = [json.loads(s) for s in guard.journal.read_text().splitlines()]
-    assert kept == [] and len(discarded) == 1
+    assert kept == []
+    assert len(discarded) == 1
     assert list(discarded[0]["completed_sides"]) == ["first"]
     assert [(e["name"], e["load_after"]) for e in events if e["event"] == "pass"] == [
         ("first", 1),

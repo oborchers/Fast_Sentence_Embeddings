@@ -35,7 +35,7 @@ from mlx_gate_runs import Runner, journal_pairs, sides, summary
 from mlx_gate_safety import (
     Budget,
     Guard,
-    Stop,
+    StopError,
     acquire,
     append,
     git,
@@ -225,7 +225,7 @@ def execute(args, cells: list[Cell]) -> int:
         Path(os.environ.get(k, "")).resolve() != scratch
         for k in ("TMPDIR", "GIT_CEILING_DIRECTORIES")
     ):
-        raise Stop("TMPDIR and GIT_CEILING_DIRECTORIES must point to scratch")
+        raise StopError("TMPDIR and GIT_CEILING_DIRECTORIES must point to scratch")
     idle = read(args.idle)
     limit = threshold(idle)
     commit, branch = git(REPO, "rev-parse", "HEAD"), git(REPO, "branch", "--show-current")
@@ -290,9 +290,9 @@ def children(args, cells, config, folder) -> int:
             with (target / "worker.log").open("x", encoding="utf-8") as log:
                 code = run_job(job_command(args, target), log, max(0.01, min(600, remaining)))
             if code:
-                raise Stop(f"cell failed ({code}); inspect {target}")
+                raise StopError(f"cell failed ({code}); inspect {target}")
             postprocess(args, target, config["deadline"])
-        except (Stop, subprocess.TimeoutExpired) as error:
+        except (StopError, subprocess.TimeoutExpired) as error:
             write(
                 folder / "coverage.json",
                 {
@@ -369,7 +369,7 @@ def postprocess(args, target: Path, deadline: float) -> None:
     for i, command in enumerate(commands):
         with (target / f"profile-summary-{i}.log").open("x", encoding="utf-8") as log:
             if run_job(command, log, max(0.01, deadline - time.monotonic())):
-                raise Stop("profile postprocessing failed")
+                raise StopError("profile postprocessing failed")
 
 
 def run_job(command, log, timeout: float) -> int:

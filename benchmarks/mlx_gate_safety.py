@@ -17,7 +17,7 @@ from pathlib import Path
 from mlx_gate_data import BASE
 
 
-class Stop(RuntimeError):
+class StopError(RuntimeError):
     """An operational stop, preserved in the raw journal, never a successful measurement."""
 
 
@@ -58,7 +58,7 @@ def identity(repo: Path, commit: str) -> dict:
     from fse._cpus import usable_cpus
 
     if git(repo, "rev-parse", "HEAD") != commit or git(repo, "status", "--porcelain"):
-        raise Stop("checkout changed or contains uncommitted files")
+        raise StopError("checkout changed or contains uncommitted files")
     subprocess.run(
         ["git", "-C", str(repo), "merge-base", "--is-ancestor", BASE, commit], check=True
     )
@@ -67,7 +67,7 @@ def identity(repo: Path, commit: str) -> dict:
         "native": str(Path(_native.__file__).resolve()),
     }
     if any(not Path(p).is_relative_to(repo / "src") for p in files.values()):
-        raise Stop("imports do not come from this checkout")
+        raise StopError("imports do not come from this checkout")
     from fse._container import checksum
 
     hardware = {}
@@ -141,12 +141,12 @@ class Guard:
 
     def check(self, label: str, *, sample: float | None = None) -> dict:
         if (self.scratch / "pause-local.marker").exists():
-            raise Stop("pause-local.marker is present")
+            raise StopError("pause-local.marker is present")
         if read(self.scratch / "bench.lock" / "owner.json") != self.lock:
-            raise Stop("measurement lock owner changed")
+            raise StopError("measurement lock owner changed")
         os.kill(self.lock["pid"], 0)
         if time.monotonic() >= self.deadline:
-            raise Stop("measurement budget exhausted")
+            raise StopError("measurement budget exhausted")
         value = os.getloadavg()[0] if sample is None else sample
         event = {
             "event": "guard",
@@ -157,13 +157,13 @@ class Guard:
         }
         append(self.journal, event)
         if not math.isfinite(value) or value >= self.limit:
-            raise Stop(f"load {value} is not strictly below {self.limit}")
+            raise StopError(f"load {value} is not strictly below {self.limit}")
         return event
 
 
 def acquire(scratch: Path, commit: str, branch: str) -> dict:
     if (scratch / "pause-local.marker").exists():
-        raise Stop("pause-local.marker is present")
+        raise StopError("pause-local.marker is present")
     folder = scratch / "bench.lock"
     folder.mkdir()  # atomic, never break a pre-existing lock
     lock = {
@@ -190,7 +190,7 @@ class Budget:
             else []
         )
         if charged(events) + seconds > 1800:
-            raise Stop("reservation exceeds the shared 1800-second budget")
+            raise StopError("reservation exceeds the shared 1800-second budget")
         self.token, self.seconds, self.start = uuid.uuid4().hex, seconds, time.monotonic()
         append(self.path, {"id": self.token, "kind": "reserve", "seconds": seconds, "base": BASE})
 
