@@ -25,7 +25,7 @@ def test_string_labels_survive_predictions_and_persistence(tmp_path, standalone,
 @pytest.mark.parametrize("label", ["\ud800", "a\udfff", "\ud800\udc00"])
 def test_classifier_refuses_labels_without_utf8_at_construction(label):
     encoder = fse.Encoder.from_arrays(np.ones((1, 1), dtype=np.float32), words=["a"])
-    with pytest.raises(ValueError, match="label.*UTF-8"):
+    with pytest.raises(ValueError, match=r"label.*UTF-8"):
         fse.Classifier.from_arrays(
             encoder, np.ones((1, 1), dtype=np.float32), labels=[label, "valid"]
         )

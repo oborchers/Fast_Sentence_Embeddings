@@ -131,6 +131,7 @@ def _label(value: Any) -> int | str:
             raise ValueError(f"the label {value} is beyond int64")
         return value
     if isinstance(value, str):
+        value = str(value)
         try:
             value.encode("utf-8")
         except UnicodeEncodeError as error:
