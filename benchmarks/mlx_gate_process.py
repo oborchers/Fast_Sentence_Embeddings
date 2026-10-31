@@ -15,7 +15,7 @@ import signal
 import subprocess
 import sys
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 
 POLL_SECONDS = 0.25
@@ -96,18 +96,12 @@ def _owner_present(fd: int, timeout: float) -> bool:
 
 
 def _kill_group(child) -> None:
-    try:
+    with suppress(ProcessLookupError):
         os.killpg(child.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-    try:
+    with suppress(subprocess.TimeoutExpired):
         child.wait(timeout=TERM_GRACE)
-    except subprocess.TimeoutExpired:
-        pass
-    try:
+    with suppress(ProcessLookupError):
         os.killpg(child.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
     child.wait(timeout=CLEANUP_SECONDS)
 
 
