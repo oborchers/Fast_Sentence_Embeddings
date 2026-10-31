@@ -53,6 +53,8 @@ _DIGITS = frozenset("0123456789")
 
 def simple_lower(text: str) -> str:
     """Step 1: the simple lowercase mapping of every code point."""
+    if type(text) is str:
+        return text.translate(SIMPLE_LOWERCASE)
     return "".join(chr(SIMPLE_LOWERCASE.get(ord(ch), ord(ch))) for ch in text)
 
 
@@ -118,21 +120,26 @@ def tokenize_fse_words(text: str) -> list[str]:
     for start, end in _runs(_token_chars(s)):
         for part in _parts(s[start:end].strip(".:")):
             part = part.strip(".:'")
-            if any(ch in _ALNUM for ch in part):
-                out.extend(piece for piece in part.split("-") if piece)
+            if not _ALNUM.isdisjoint(part):
+                if "-" in part:
+                    out.extend(filter(None, part.split("-")))
+                else:
+                    out.append(part)
     return out
 
 
 def _runs(t: list[bool]) -> Iterator[tuple[int, int]]:
     """Step 4: the maximal runs of token chars, as (start, end)."""
     start = -1
-    for i in range(len(t) + 1):
-        if i < len(t) and t[i]:
+    for i, is_token in enumerate(t):
+        if is_token:
             if start < 0:
                 start = i
         elif start >= 0:
             yield start, i
             start = -1
+    if start >= 0:
+        yield start, len(t)
 
 
 def tokenize_external(text: str) -> list[str]:
