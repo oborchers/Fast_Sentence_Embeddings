@@ -1,7 +1,10 @@
 """Writing an NpyContainer artifact in place, as the ShardSink of fse._store does."""
 
+import ctypes
 import errno
 import os
+import sys
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -104,7 +107,20 @@ def test_headers_survive_short_writes_and_no_progress_raises(tmp_path, monkeypat
         inplace.create(tmp_path / "other.npy", np.float32, (2, 3))
 
 
-def test_publishing_never_replaces_a_directory(tmp_path):
+@pytest.mark.parametrize("libc_api", ["native", "syscall"])
+def test_publishing_never_replaces_a_directory(tmp_path, monkeypatch, libc_api):
+    if libc_api == "syscall":
+        if (
+            sys.platform != "linux"
+            or os.uname().machine not in ("x86_64", "aarch64")
+            or ctypes.sizeof(ctypes.c_void_p) != 8
+        ):
+            pytest.skip("the direct renameat2 syscall needs 64-bit Linux x86_64 or aarch64")
+        # Exercise musl's missing wrapper on glibc too, with the actual kernel syscall.
+        libc = ctypes.CDLL(None, use_errno=True)
+        monkeypatch.setattr(
+            inplace.ctypes, "CDLL", lambda *_args, **_kwargs: SimpleNamespace(syscall=libc.syscall)
+        )
     for name in ("a", "b", "c"):
         (tmp_path / name).mkdir()
     (tmp_path / "a" / "x").write_bytes(b"1")
@@ -147,4 +163,36 @@ def test_a_failed_rename_publishes_nothing(tmp_path, monkeypatch):
         inplace.publish_directory(tmp_path / "a", tmp_path / "b")
     assert not isinstance(raised.value, PublishedNotDurableError)
     assert (tmp_path / "a").exists()
+    assert not (tmp_path / "b").exists()
+
+
+def test_an_unknown_linux_syscall_architecture_fails_without_renaming(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        inplace.os, "uname", lambda: SimpleNamespace(machine="unknown"), raising=False
+    )
+    with pytest.raises(OSError, match="no supported exclusive rename syscall"):
+        inplace._rename_linux(SimpleNamespace(), tmp_path / "a", tmp_path / "b")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows uses MoveFileExW")
+@pytest.mark.parametrize("error", [errno.ENOSYS, errno.EINVAL])
+def test_a_linux_syscall_error_is_reported(tmp_path, monkeypatch, error):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "data").write_bytes(b"kept")
+
+    def unavailable(*_args):
+        ctypes.set_errno(error)
+        return -1
+
+    monkeypatch.setattr(inplace.sys, "platform", "linux")
+    monkeypatch.setattr(
+        inplace.os, "uname", lambda: SimpleNamespace(machine="x86_64"), raising=False
+    )
+    monkeypatch.setattr(
+        inplace.ctypes, "CDLL", lambda *_args, **_kwargs: SimpleNamespace(syscall=unavailable)
+    )
+    with pytest.raises(OSError, match=rf"\[Errno {error}\]") as raised:
+        inplace._rename_exclusive(tmp_path / "a", tmp_path / "b")
+    assert raised.value.errno == error
+    assert (tmp_path / "a" / "data").read_bytes() == b"kept"
     assert not (tmp_path / "b").exists()
