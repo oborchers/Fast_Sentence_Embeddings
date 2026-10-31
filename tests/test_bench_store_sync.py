@@ -180,3 +180,22 @@ def test_larger_full_shards_are_reported_as_simpler_answer(bench):
     assert "full with larger shards" in result["simpler_answer"]
     result = bench.decision([{"name": "C3", "kept": rounds, "correctness_failures": ["bad"]}])
     assert result["outcome"] == "not decided"
+
+
+def test_timeout_removes_the_killed_child_store(bench, tmp_path, monkeypatch):
+    import subprocess
+    import time
+
+    def interrupted_child(cmd, **_options):
+        root = Path(cmd[cmd.index("--tmp") + 1])
+        store = root / "left-by-killed-child"
+        store.mkdir()
+        (store / "vectors.npy").write_bytes(b"partial store")
+        raise SystemExit("timeout") from subprocess.TimeoutExpired("child", 1)
+
+    monkeypatch.setattr(bench.harness, "run_child", interrupted_child)
+    monkeypatch.setattr(bench.harness, "load", lambda: 3)
+    args = bench.parser().parse_args(["cells", "--tmp", str(tmp_path)])
+    result = bench.run_cell(args, bench.plan()[0], time.monotonic() + 10)
+    assert result["incomplete_run"]["reason"] == "shared budget expired during child"
+    assert list(tmp_path.iterdir()) == []

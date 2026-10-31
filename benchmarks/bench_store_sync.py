@@ -286,13 +286,13 @@ def valid_round(round_, sides, limit):
     )
 
 
-def child_command(args, cell, side):
+def child_command(args, cell, side, tmp):
     cmd = [
         sys.executable,
         __file__,
         "child",
         "--tmp",
-        args.tmp,
+        tmp,
         "--side",
         side,
         "--workers",
@@ -336,6 +336,13 @@ def run_cell(args, cell, deadline):
     }
 
 
+def run_child_in_directory(args, cell, side, deadline):
+    # The parent owns this directory so a killed child cannot leave a partial store.
+    with tempfile.TemporaryDirectory(dir=args.tmp) as tmp:
+        cmd = child_command(args, cell, side, tmp)
+        return harness.run_child(cmd, timeout=max(0.001, deadline - time.monotonic()))
+
+
 def run_round(args, cell, sides, attempt, deadline):
     round_ = {}
     for side in harness.order(sides, attempt):
@@ -346,9 +353,8 @@ def run_round(args, cell, sides, attempt, deadline):
             or (Path(args.tmp) / "pause-local.marker").exists()
         ):
             break
-        cmd = child_command(args, cell, side)
         try:
-            result = harness.run_child(cmd, timeout=max(0.001, deadline - time.monotonic()))
+            result = run_child_in_directory(args, cell, side, deadline)
         except SystemExit as error:
             if not isinstance(error.__cause__, subprocess.TimeoutExpired):
                 raise
