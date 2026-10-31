@@ -146,7 +146,7 @@ def test_the_line_of_a_yaml_error(tmp_path):
     _raises(
         tmp_path,
         "license: 2020-13-01",
-        r"invalid timestamp value: month must be in 1\.\.12 \(line 2\)",
+        r"invalid timestamp value: month must be in 1\.\.12.* \(line 2\)",
     )
 
 
