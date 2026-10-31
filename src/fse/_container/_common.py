@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The format primitives every container shares (ARCHITECTURE.md, "Artifacts").
+"""The format primitives every container shares (docs/architecture/formats.md, "Artifacts").
 
 Dtype codes, names and limits, the integrity keys, the fingerprint and checksums, strict
 JSON, the checks of a write and the safe opening of regular files.
@@ -81,7 +81,7 @@ class PublishedNotDurableError(OSError):
 
 
 class TensorContainer(Protocol):
-    """Writes and opens named tensors with metadata; see ARCHITECTURE.md, "Artifacts"."""
+    """Writes and opens named tensors with metadata; see docs/architecture/formats.md, "Artifacts"."""
 
     name: str
     version: int
@@ -124,7 +124,7 @@ def fingerprint(
     """The fingerprint of tensors given as ``name -> (code, shape, checksum)`` and metadata.
 
     The metadata without ``fse.created_by``, ``fse.fingerprint`` and the checksum keys;
-    the tensors sorted by name (ARCHITECTURE.md, "Identities").
+    the tensors sorted by name (docs/architecture/persistence.md, "Identities").
     """
     content = {
         k: v

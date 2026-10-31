@@ -8,7 +8,7 @@
 
 The keys of the file and its size limit, JSON objects with exactly their keys, the added
 tokens matched on the raw text, the post-processors that change no id without special
-tokens, and the plain truncation (ARCHITECTURE.md, "Model2Vec models").
+tokens, and the plain truncation (docs/architecture/hub.md, "Model2Vec models and from_pretrained").
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 """The conformance suite: every backend gives the bits of fse._reference.
 
-ARCHITECTURE.md, "Backends": a backend is done when it passes this suite. Every case runs
+docs/architecture/backends.md, "Backends": a backend is done when it passes this suite. Every case runs
 for every backend in BACKENDS (the pooled rows of a device backend, mlx, are compared
 under the bound of its tolerance contract in tests/test_conformance_device.py instead);
 a backend that cannot run a case skips it and names the capability. PR 4 adds the CPU

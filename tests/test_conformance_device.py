@@ -1,6 +1,6 @@
 """The conformance suite of a device backend (mlx) under its tolerance contract.
 
-ARCHITECTURE.md, "Tolerance contract of device backends": every case of the bit-identical
+docs/architecture/backends.md, "Tolerance contract of device backends": every case of the bit-identical
 suite, and cases with steps, within the bound of support.bound, on the GPU (a launch and
 no host fallback, except for the encoders with subnormal inputs, which the backend refuses
 at prepare), with the same bits on every run, task split, device group, worker count,

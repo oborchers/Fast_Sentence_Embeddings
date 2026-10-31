@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The layout of a store of sentence vectors (ARCHITECTURE.md, "sentence_vectors 1").
+"""The layout of a store of sentence vectors (docs/architecture/store.md, "sentence_vectors 1").
 
 A store is a directory: ``store.json``, written once when the store is created and
 never changed, names the encoder, the storage dtype and the dimension; the rows are

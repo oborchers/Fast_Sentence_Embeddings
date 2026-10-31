@@ -1,4 +1,4 @@
-"""The reference of stages 1 and 2: tokenizers and the lookup of tokens (ARCHITECTURE.md).
+"""The reference of stages 1 and 2: tokenizers and the lookup of tokens (docs/architecture/tokenizers.md, "Tokenizers").
 
 Plain Python that follows the specification step by step and defines the tokens and
 batches the native text sources must give byte for byte. It uses neither ``str.lower``

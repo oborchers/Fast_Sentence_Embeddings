@@ -1,4 +1,4 @@
-"""File sources: the lines of a local text file as sentences (ARCHITECTURE.md, "Tokenizers").
+"""File sources: the lines of a local text file as sentences (docs/architecture/tokenizers.md, "Tokenizers").
 
 A ``FileSource`` memory-maps the file and scans and encodes it like the sources of
 ``fse._text``; it checks that the file does not change while it is read.

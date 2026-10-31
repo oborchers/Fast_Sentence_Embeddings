@@ -6,7 +6,7 @@
 
 """``fse.StaticModel``: the API of ``model2vec.StaticModel`` on fse's engine.
 
-ARCHITECTURE.md, "model2vec compatibility". A ``StaticModel`` is a thin wrapper around fse
+docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)". A ``StaticModel`` is a thin wrapper around fse
 ``Encoder`` objects of one table: the encoder of its own ``max_length`` and ``normalize``
 (``encoder``), and, when ``encode`` is given other values per call, the encoders of those
 (``fse._static_model._variants``). It adds no arithmetic: its rows are those of the

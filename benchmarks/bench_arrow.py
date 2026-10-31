@@ -5,7 +5,7 @@
 # Licensed under GNU General Public License v3.0
 
 """Encoding Arrow string columns against the same texts as a Python list (the gate of
-Arrow input, ARCHITECTURE.md "Text sources").
+Arrow input, docs/architecture/text.md, "Text sources").
 
 The same sentences, from the WikiText lines (``wiki``) or cut to at most 12 bytes
 (``short``, all of them inline views), are encoded by one encoder (``fse_words@1``, a

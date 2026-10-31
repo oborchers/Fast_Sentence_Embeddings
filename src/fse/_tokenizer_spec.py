@@ -6,7 +6,7 @@
 
 """A tokenizer with its parameters, as an encoder hands it to the text lookup.
 
-ARCHITECTURE.md, "wordpiece@1" and "encoder 1". ``fse_words@1`` and ``external`` have no
+docs/architecture/tokenizers.md, "wordpiece@1" and docs/architecture/formats.md, "encoder 1". ``fse_words@1`` and ``external`` have no
 parameters; ``wordpiece@1`` has a ``WordPieceConfig`` (its added tokens, unknown id,
 continuation prefix, word limit and the flags of its normalizer), a rule for its unknown
 id (``drop`` or ``keep``) and an optional length rule (``max_tokens``, ``max_chars``). Both
@@ -64,7 +64,7 @@ def _added_tokens(value: object) -> tuple[tuple[int, str], ...]:
 
 @dataclass(frozen=True)
 class WordPieceConfig:
-    """The parameters of ``wordpiece@1`` (ARCHITECTURE.md, "wordpiece@1")."""
+    """The parameters of ``wordpiece@1`` (docs/architecture/tokenizers.md, "wordpiece@1")."""
 
     identifier: ClassVar[str] = Tokenizer.WORDPIECE.id
 

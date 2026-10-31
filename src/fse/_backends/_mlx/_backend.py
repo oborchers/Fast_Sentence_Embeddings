@@ -15,7 +15,7 @@ the cpu backend, with the bits of the cpu operation on the same input: stage 5, 
 inverse norms and the scores. The host is injected (``get_backend``) so
 that this package imports neither the cpu backend nor ``fse._native``.
 
-The rows keep the tolerance contract of device backends (ARCHITECTURE.md, "MLX"). An
+The rows keep the tolerance contract of device backends (docs/architecture/backends.md, "MLX"). An
 encoder runs on the host for this backend when its rows are wider than 65,536 values
 (``dim``) or when its factors or row values are or may be subnormal
 (``subnormal_input``). The GPU flushes the subnormal products and partial sums that

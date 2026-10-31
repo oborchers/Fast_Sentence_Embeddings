@@ -1,5 +1,5 @@
 """The precompiled charsmap of unigram@1: the search of spm_precompiled 0.1.4 and the
-checks of a blob (ARCHITECTURE.md, "unigram@1")."""
+checks of a blob (docs/architecture/tokenizers.md, "unigram@1")."""
 
 import random
 import struct

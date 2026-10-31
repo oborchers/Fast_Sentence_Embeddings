@@ -19,7 +19,7 @@ from fse._reference_text import (
 
 DATA = Path(__file__).parent / "test_data" / "v2"
 
-# The examples of ARCHITECTURE.md, "Tokenizers".
+# The examples of docs/architecture/tokenizers.md, "Tokenizers".
 EXAMPLES = [
     ("I don't know.", ["i", "do", "not", "know"]),
     ("Can't, won't", ["ca", "not", "wo", "not"]),

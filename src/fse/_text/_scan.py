@@ -6,7 +6,7 @@
 
 """Chunks and scans of the sources whose sentences are one UTF-8 buffer (``_Buffered``):
 ``scan`` validates and counts the sentences in threads without the GIL and cuts them into
-chunks, ``encode`` turns one chunk into a Batch (ARCHITECTURE.md, "Text sources")."""
+chunks, ``encode`` turns one chunk into a Batch (docs/architecture/text.md, "Text sources")."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ _CHUNK_MAX_BYTES = 1 << 20
 # Tasks per worker of a source below TASKS_PER_WORKER * workers * _CHUNK_MAX_BYTES: a task
 # takes the GIL back at about ten points, which costs about 19 us at one worker but 0.2
 # to 0.34 ms of CPU with 10 threads, so fewer and larger tasks are faster; two per worker
-# leave room to balance cores of different speed (ARCHITECTURE.md, "Runtime", Tasks).
+# leave room to balance cores of different speed (docs/architecture/runtime.md, "Runtime", Tasks).
 TASKS_PER_WORKER = 2
 # About this many bytes per scan task, so a failed scan stops after bounded work.
 _SCAN_RANGE_MAX_BYTES = 1 << 26
@@ -150,7 +150,7 @@ class _Buffered:
     _data: Any
     _offsets: ndarray | None
     # True only for a buffer that the native join wrote from exact str (``_verify``): it
-    # is valid UTF-8 by construction and is not scanned again (ARCHITECTURE.md, "Text
+    # is valid UTF-8 by construction and is not scanned again (docs/architecture/text.md, "Text
     # sources"). Everything else (bytes of a caller, of a str subclass's own encode, of a
     # file or a producer) is scanned.
     _verified = False
@@ -235,7 +235,7 @@ class _Buffered:
         """As ``scan``, but the first invalid sentence ends the chunks instead of raising:
         the chunks of the sentences before it and its error (or None). The runtime encodes
         those sentences first, so an earlier row that fails later in its pipeline is
-        reported before it (ARCHITECTURE.md, "Runtime", Errors). The error names its row
+        reported before it (docs/architecture/runtime.md, "Runtime", Errors). The error names its row
         from ``first_row``, the row of the run of this source's first sentence."""
         self._check_open()
         total = self.nbytes

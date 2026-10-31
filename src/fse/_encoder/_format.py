@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The format rules of encoder 1 (ARCHITECTURE.md, "encoder 1").
+"""The format rules of encoder 1 (docs/architecture/formats.md, "encoder 1").
 
 An encoder is a finished model in one file: its table (the tensors and keys of
 word_vectors 1), the tokenizer (with its parameters for ``wordpiece@1``), the aggregation,

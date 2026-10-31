@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The token ids of texts under a length rule (ARCHITECTURE.md, "model2vec compatibility").
+"""The token ids of texts under a length rule (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)").
 
 ``tokenize``, ``encode_as_sequence`` and the tokenizer facade of ``StaticModel`` need the
 ids a text is pooled from, which ``Encoder`` never hands out. They come from the lookup of

@@ -6,7 +6,7 @@
 
 """sentence-transformers models of one StaticEmbedding as the parts of an encoder.
 
-ARCHITECTURE.md, "sentence-transformers models". The rules are those of
+docs/architecture/hub.md, "sentence-transformers models". The rules are those of
 sentence-transformers 6.2.0 (``StaticEmbedding``, ``SentenceTransformer.encode``):
 ``modules.json`` lists exactly one StaticEmbedding; its folder holds ``model.safetensors``
 (one float32 tensor, ``embedding.weight`` or model2vec's ``embeddings``) and a BERT

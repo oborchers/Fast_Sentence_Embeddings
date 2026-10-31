@@ -6,7 +6,7 @@
 
 """Where ``Encoder.from_pretrained`` finds a model, and what kind it is.
 
-ARCHITECTURE.md, "from_pretrained". A local ``.safetensors`` file is an fse encoder; a
+docs/architecture/hub.md, "Model2Vec models and from_pretrained". A local ``.safetensors`` file is an fse encoder; a
 local folder or a Hub repository holds a model that says what it is: a ``config.json``
 with ``"model_type": "fse"`` names the file of an fse encoder; a Model2Vec model has
 ``config.json``, ``model.safetensors`` and ``tokenizer.json`` (as model2vec finds it, with

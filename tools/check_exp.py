@@ -2,7 +2,7 @@
 
     uv run python tools/check_exp.py [--chunk-bits 24]
 
-exp@1 (ARCHITECTURE.md, "Numerical contract") takes x <= 0; below -104 it is +0.0. The
+exp@1 (docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)") takes x <= 0; below -104 it is +0.0. The
 sweep runs the kernel (``fse._native.exp1``, bit-identical to ``fse._reference_head.exp``
 by tests/test_native_head.py) on every float32 from -0.0 down to -104, compares it with
 numpy's float64 exp, and prints the largest error in float32 ulps of

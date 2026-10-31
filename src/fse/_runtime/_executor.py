@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The executor of train and infer (ARCHITECTURE.md, "Runtime").
+"""The executor of train and infer (docs/architecture/runtime.md, "Runtime").
 
 ``run`` takes tasks from an iterator in the calling thread, runs ``work`` on each in a
 worker thread (or inline) and commits the results in the calling thread in task order,

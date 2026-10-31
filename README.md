@@ -62,7 +62,7 @@ encoder.save("potion-base-8M.safetensors")  # an fse encoder, loaded without the
 multilingual = fse.Encoder.from_pretrained("minishlab/potion-multilingual-128M")  # unigram@1
 ```
 
-fse gives the token ids of the model's tokenizer (Hugging Face tokenizers 0.23.3) and the vectors of model2vec 0.10.0 within float32 rounding (not bit for bit: the sums run in another order). Like model2vec, it reads the first 512 tokens of the first 512 times the median token length characters of a text; `from_pretrained(..., truncate=False)` reads texts whole, and `max_length=` sets another token limit. Only float32 models are read, and a row whose sum of squares underflows or overflows float32 raises where model2vec returns a row that is not of unit length. Files of the Hub are checked against the commit they come from (ARCHITECTURE.md, "Model2Vec models and from_pretrained"); the model's license applies to its use.
+fse gives the token ids of the model's tokenizer (Hugging Face tokenizers 0.23.3) and the vectors of model2vec 0.10.0 within float32 rounding (not bit for bit: the sums run in another order). Like model2vec, it reads the first 512 tokens of the first 512 times the median token length characters of a text; `from_pretrained(..., truncate=False)` reads texts whole, and `max_length=` sets another token limit. Only float32 models are read, and a row whose sum of squares underflows or overflows float32 raises where model2vec returns a row that is not of unit length. Files of the Hub are checked against the commit they come from (docs/architecture/hub.md, "Model2Vec models and from_pretrained"); the model's license applies to its use.
 
 ### Switch from model2vec
 
@@ -156,7 +156,7 @@ Which call to use when:
 
 - `encode` returns float32 rows by default; `dtype="float16"` gives float16 rows and `dtype="int8"` a `fse.QuantizedRows` (int8 codes and one scale per row).
 - `store.search` returns a `fse.SearchResult` with the `ids` (positions in the store) and the cosine `scores`, best first. Its default `mode="auto"` takes the exact arithmetic of fse for up to 8 queries at once and BLAS above, whose bits depend on how many queries are asked together; `mode="exact"` gives the same results for every batch.
-- Texts are tokenized by `fse_words@1` by default: lowercase, split at whitespace and punctuation, contractions expanded (ARCHITECTURE.md, "Tokenizers"). Models converted by `from_pretrained` keep their own subword tokenizer: `wordpiece@1` (POTION, the static models of sentence-transformers) or `unigram@1` (potion-multilingual-128M), with the ids of Hugging Face tokenizers 0.23.3.
+- Texts are tokenized by `fse_words@1` by default: lowercase, split at whitespace and punctuation, contractions expanded (docs/architecture/tokenizers.md, "Tokenizers"). Models converted by `from_pretrained` keep their own subword tokenizer: `wordpiece@1` (POTION, the static models of sentence-transformers) or `unigram@1` (potion-multilingual-128M), with the ids of Hugging Face tokenizers 0.23.3.
 - FastText word vectors keep their ngram rows: an unknown word adds the rows of its first `max_ngrams` ngrams (default 40) with the weight `oov_weight` (default 1).
 
 ### Classify and score text
@@ -206,9 +206,9 @@ encoder = fse.Encoder.from_pretrained("minishlab/potion-base-8M")
 fse.disable_logging()
 ```
 
-An application with its own logging attaches its handler to the logger `fse` instead; every record carries the attribute `fse_event` and its fields as `fse_<name>` (ARCHITECTURE.md, "Logging", lists them), and none holds a path, a text, a token of the Hub or a repository id. Downloads of the Hub show the progress bars of huggingface_hub (`HF_HUB_DISABLE_PROGRESS_BARS=1` hides them).
+An application with its own logging attaches its handler to the logger `fse` instead; every record carries the attribute `fse_event` and its fields as `fse_<name>` (docs/architecture/logging.md, "Logging", lists them), and none holds a path, a text, a token of the Hub or a repository id. Downloads of the Hub show the progress bars of huggingface_hub (`HF_HUB_DISABLE_PROGRESS_BARS=1` hides them).
 
-ARCHITECTURE.md describes the design and the numerical contract, CHANGELOG.md every change against 1.1.0.
+ARCHITECTURE.md indexes docs/architecture/, which describes the design and the numerical contract, CHANGELOG.md every change against 1.1.0.
 
 Results
 ------------

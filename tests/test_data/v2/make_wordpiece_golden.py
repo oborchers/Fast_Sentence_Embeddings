@@ -32,7 +32,7 @@ TOKENS = [
     "##\u1144", "##\u11a8", "\u1100", "##\u116e", "##\u03c2", "##\U0001e949", "##\U00011446",
 ]  # fmt: skip
 TOKENS = list(dict.fromkeys(TOKENS))
-# Each exercises a rule of ARCHITECTURE.md, "wordpiece@1".
+# Each exercises a rule of docs/architecture/tokenizers.md, "wordpiece@1".
 TEXTS = [
     "Hello, world! The new world.",
     "un[MASK]able [MASK] x[MASK]y [UNK] [CLS] [cls] [MASK",

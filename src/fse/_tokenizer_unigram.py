@@ -6,7 +6,7 @@
 
 """The parameters of unigram@1, as a tokenizer.json gives them.
 
-ARCHITECTURE.md, "unigram@1". ``UnigramConfig`` holds the added tokens, the unknown id,
+docs/architecture/tokenizers.md, "unigram@1". ``UnigramConfig`` holds the added tokens, the unknown id,
 the normalizer steps, the Metaspace values and ``byte_fallback`` (the JSON parameters),
 and the data beyond them: the float64 score of every piece and the charsmap of a
 ``precompiled`` step, as immutable bytes, so the config stays hashable and a pipeline
@@ -112,7 +112,7 @@ def step_of(value: dict[str, Any]) -> tuple[tuple[str, Any], ...]:
 
 @dataclass(frozen=True)
 class UnigramConfig:
-    """The parameters of ``unigram@1`` (ARCHITECTURE.md, "unigram@1") and its data."""
+    """The parameters of ``unigram@1`` (docs/architecture/tokenizers.md, "unigram@1") and its data."""
 
     identifier: ClassVar[str] = UNIGRAM
 

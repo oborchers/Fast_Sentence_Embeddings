@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""Where the runtime puts finished rows (ARCHITECTURE.md, "Runtime"; PR 6 adds more).
+"""Where the runtime puts finished rows (docs/architecture/runtime.md, "Runtime"; PR 6 adds more).
 
 The runtime calls both methods in the calling thread: ``target`` reserves the rows of a
 task before the task is submitted, ``commit`` hands them back once they are finished, in

@@ -5,7 +5,7 @@
 # Licensed under GNU General Public License v3.0
 
 """Conservative per-row error bounds of the mlx backend and the checks they drive
-(ARCHITECTURE.md, "Tolerance contract of device backends" and "MLX").
+(docs/architecture/backends.md, "Tolerance contract of device backends" and "MLX").
 
 The kernel gives per row ``M = sum |f| ||x||`` over its nonzero factors, an upper bound
 of every partial sum of every value (``|x_i| <= ||x||``) and, divided by n, of m (the

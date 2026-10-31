@@ -1,5 +1,5 @@
 # Included by _native.pyx: Arrow string columns (utf8, large_utf8, utf8_view) as text
-# sources, read in place without the GIL (ARCHITECTURE.md, "Text sources").
+# sources, read in place without the GIL (docs/architecture/text.md, "Text sources").
 #
 # An ArrowColumn takes the arrays of an Arrow C stream or of one C array out of their
 # PyCapsules (moved: the capsule's release is set to NULL), checks every field it can

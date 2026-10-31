@@ -383,8 +383,7 @@ def test_an_fse_head_on_the_hub_and_a_config_that_names_another_file(fake, tmp_p
 
 def test_a_cached_file_at_a_commit_is_served_without_a_request(fake, monkeypatch):
     """The Hub counts requests to config.json; a cached file at a commit hash is returned
-    by huggingface_hub without one, so a cached load is not counted (ARCHITECTURE.md,
-    "Hub folders")."""
+    by huggingface_hub without one, so a cached load is not counted (docs/architecture/hub.md, "Hub folders")."""
     _load(fake)  # the first load downloads config.json into the cache
     import huggingface_hub
     import huggingface_hub.file_download as download

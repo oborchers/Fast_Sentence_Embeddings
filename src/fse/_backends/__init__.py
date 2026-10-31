@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The backends of the runtime behind one contract (ARCHITECTURE.md, "Backends").
+"""The backends of the runtime behind one contract (docs/architecture/backends.md, "Backends").
 
 A fixed set chosen by name, without a registry: ``cpu`` (the native kernel), ``numpy``
 (the reference) and ``mlx`` (the GPU of Apple silicon, ``pip install "fse[mlx]"``; the

@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The Metal source of the pooling kernel of the mlx backend (ARCHITECTURE.md, "MLX").
+"""The Metal source of the pooling kernel of the mlx backend (docs/architecture/backends.md, "MLX").
 
 ``weighted_mean@1`` in the order of the cpu backend: one thread per ``VEC`` values of a
 row (four when the dimension is a multiple of four, else one), ``acc = fma(f, row, acc)``

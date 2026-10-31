@@ -10,7 +10,7 @@
 immutable bytes, within a size limit, and raises if it changes meanwhile, so the bytes a
 caller checks are the bytes it parses. ``foreign_tensors`` parses a safetensors file of
 another writer from such bytes with the structural checks of safetensors 1
-(ARCHITECTURE.md): a header of at most 16 MiB within the file, a JSON object without
+(docs/architecture/formats.md, "safetensors 1"): a header of at most 16 MiB within the file, a JSON object without
 duplicate keys or NaN, exactly dtype, shape and data offsets per tensor, the dtypes of the
 format only, offsets that fit the shape, tensors aligned to their type and covering the
 data without gaps up to the end of the file. What other writers lack is not required:

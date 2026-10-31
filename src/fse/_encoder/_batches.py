@@ -5,7 +5,7 @@
 # Licensed under GNU General Public License v3.0
 
 """Encoding into a sink and in batches: what ``Encoder.encode(sink=)`` and
-``Encoder.encode_batches`` run (ARCHITECTURE.md, "Runtime").
+``Encoder.encode_batches`` run (docs/architecture/runtime.md, "Runtime").
 
 A stream that never ends is encoded batch by batch, each batch a finite list (as a
 consumer of a queue polls them), so the rows of a batch are finished when the next one

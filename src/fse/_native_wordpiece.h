@@ -1,4 +1,4 @@
-/* wordpiece@1 (ARCHITECTURE.md, "wordpiece@1"): the added tokens, the normalization and
+/* wordpiece@1 (docs/architecture/tokenizers.md, "wordpiece@1"): the added tokens, the normalization and
    the pre-tokenization of one sentence; _native_wordpiece.pxi holds the greedy match on
    the VocabTable and the trie of _native_wordpiece_trie.h, and the sentence around them.
 

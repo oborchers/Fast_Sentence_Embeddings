@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""An encoder as an artifact and back (ARCHITECTURE.md, "encoder 1").
+"""An encoder as an artifact and back (docs/architecture/formats.md, "encoder 1").
 
 The tensors, metadata and expected checksums of an encoder, the parts of an encoder
 artifact that was opened, the content of an encoder converted from another library, and

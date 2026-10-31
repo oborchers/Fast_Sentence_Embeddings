@@ -6,7 +6,7 @@
 
 """A repository of the Hugging Face Hub at one commit, its files checked against it.
 
-ARCHITECTURE.md, "from_pretrained". huggingface-hub, a dependency of fse, is imported only
+docs/architecture/hub.md, "Model2Vec models and from_pretrained". huggingface-hub, a dependency of fse, is imported only
 here, on first use, so ``import fse`` and local models never load it. ``revision`` (a branch, tag or commit; None is the default
 branch) is resolved to its commit once, and every file comes from that commit. The
 commit pins every file: an LFS file by its ``lfs.sha256``, any other by its git blob

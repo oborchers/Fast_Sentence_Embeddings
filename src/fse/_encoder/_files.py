@@ -6,7 +6,7 @@
 
 """What the readers of models of other libraries share.
 
-ARCHITECTURE.md, "Model2Vec models and from_pretrained" and "sentence-transformers
+docs/architecture/hub.md, "Model2Vec models and from_pretrained" and "sentence-transformers
 models": the files of a model (``Files``), each read once into bytes that are checked and
 then parsed; strict JSON configs; the float32 table of one tensor, whose header is checked
 before its data are read; the parts of the encoder a reader gives (``Converted``); and the

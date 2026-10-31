@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""Text sources: sentences of text to batches, stages 1 and 2 (ARCHITECTURE.md, "Tokenizers").
+"""Text sources: sentences of text to batches, stages 1 and 2 (docs/architecture/tokenizers.md, "Tokenizers").
 
 A source holds its sentences as one UTF-8 buffer: strings in memory with their offsets
 (``StringSource``, ``TokenListSource``), or the lines of a memory-mapped file

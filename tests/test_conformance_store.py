@@ -1,5 +1,4 @@
-"""Stage 5 of every backend against the reference, bit for bit (ARCHITECTURE.md, "Numerical
-contract", storage): float16 and int8 codes and the int8 scales of finished rows."""
+"""Stage 5 of every backend against the reference, bit for bit (docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)", storage): float16 and int8 codes and the int8 scales of finished rows."""
 
 import numpy as np
 import pytest

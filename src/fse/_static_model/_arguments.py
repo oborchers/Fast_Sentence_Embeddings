@@ -5,7 +5,7 @@
 # Licensed under GNU General Public License v3.0
 
 """The arguments of ``StaticModel.encode`` and ``from_pretrained`` that change no row, and
-the refusal of the ones that would (ARCHITECTURE.md, "model2vec compatibility").
+the refusal of the ones that would (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)").
 
 model2vec ignores every keyword it does not know (``**kwargs``), and several it knows
 change nothing about the rows. fse accepts a closed list of names, each with its neutral

@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The one hash of the artifacts: xxh3-128 (ARCHITECTURE.md, "Identities").
+"""The one hash of the artifacts: xxh3-128 (docs/architecture/persistence.md, "Identities").
 
 Every checksum and fingerprint is ``xxh3-128:`` and the 32 lowercase hex digits of XXH3
 128 with seed 0, in the canonical big-endian form, of bytes fed in order. This module only

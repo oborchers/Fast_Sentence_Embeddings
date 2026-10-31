@@ -1,6 +1,6 @@
 """Shared parts of the conformance suites: the case record, the backends, the comparison.
 
-ARCHITECTURE.md, "Backends": a backend is done when it passes the conformance suites.
+docs/architecture/backends.md, "Backends": a backend is done when it passes the conformance suites.
 The kernels run directly (Reference, Native) and every backend of fse._backends runs
 through its contract (Contract): cpu, numpy and mlx, later CUDA, by appending to BACKENDS.
 The mlx backend is made on first use; its cases skip where it cannot run (not Apple
