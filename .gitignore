@@ -84,6 +84,8 @@ test_emb*
 #####################
 .venv/
 .venv-quality/
+.venv-compare/
+benchmarks/compare_rust/target/
 src/fse/_version.py
 src/fse/_native.c
 *.egg-info/

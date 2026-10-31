@@ -1,5 +1,11 @@
-# Complete Python 3.13 quality stack plus the CPU comparison counterparts.
--r quality/requirements.lock.txt
+# Separate Python 3.13 CPU environment. FastEmbed requires huggingface-hub <2.
+# Keep this separate from the resolved MTEB environment.
+numpy==2.5.4
+tokenizers==0.23.3
+model2vec==0.10.0
+pyarrow==26.0.0
+scikit-learn==1.9.1
+scipy==1.18.1
 fastembed==0.9.1
 faiss-cpu==1.15.1
 hnswlib==0.8.0
