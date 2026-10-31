@@ -188,3 +188,53 @@ def test_an_invalid_line_across_line_blocks(monkeypatch, tmp_path, block, bad):
     ]
     if scan.chunks:
         assert scan.chunks[-1].end == starts[bad]  # the chunks end where the bad line starts
+
+
+def _sentences(n=2000):
+    return [f"sentence {i} " * (1 + i % 7) for i in range(n)]
+
+
+@pytest.mark.parametrize("kind", ["strings", "file", "arrow"])
+def test_split_tail_cuts_the_last_chunks_in_halves(tmp_path, kind):
+    from support.runtime import assert_chunks_tile, source
+
+    src = source(kind, _sentences(), tmp_path)
+    scan = src.scan(chunk_bytes=8000)
+    lines = None if kind != "file" else bytes(src._data)
+    assert len(scan.chunks) > 8
+    for rounds in (0, 1, 2, 3):
+        chunks = src.split_tail(scan.chunks, 4, rounds, 1)
+        assert_chunks_tile(chunks, scan.sentences, lines=lines)
+        assert chunks[: len(scan.chunks) - 4] == scan.chunks[:-4]  # only the tail changes
+    assert src.split_tail(scan.chunks, 4, 0, 1) == scan.chunks
+    one = src.split_tail(scan.chunks, 4, 1, 1)
+    assert len(one) == len(scan.chunks) + 4
+    assert one[:-8] == scan.chunks[:-4]
+    # Each of the last four chunks gives two parts of about equal rows.
+    for whole, (a, b) in zip(
+        scan.chunks[-4:], zip(one[-8::2], one[-7::2], strict=True), strict=True
+    ):
+        assert a.n_sentences + b.n_sentences == whole.n_sentences
+        assert abs(a.n_sentences - b.n_sentences) <= 1
+    assert len(src.split_tail(scan.chunks, 4, 2, 1)) == len(scan.chunks) + 8
+    # The result depends only on the arguments.
+    assert src.split_tail(scan.chunks, 4, 2, 1) == src.split_tail(scan.chunks, 4, 2, 1)
+
+
+def test_split_tail_keeps_small_chunks_and_single_sentences_whole():
+    src = StringSource(_sentences(400))
+    scan = src.scan(chunk_bytes=8000)
+    sizes = sorted(src._span_bytes(c) for c in scan.chunks)
+    assert src.split_tail(scan.chunks, 4, 2, sizes[-1]) == scan.chunks  # no part reaches it
+    assert len(src.split_tail(scan.chunks, 4, 1, sizes[0] // 2)) == 2 * len(scan.chunks)
+    one = StringSource(["a long sentence " * 200]).scan()
+    assert StringSource(["a long sentence " * 200]).split_tail(one.chunks, 8, 3, 1) == one.chunks
+
+
+def test_split_tail_of_fewer_chunks_than_workers_splits_all_of_them():
+    src = StringSource(_sentences(300))
+    scan = src.scan(chunk_bytes=1 << 20)
+    assert len(scan.chunks) == 1
+    parts = src.split_tail(scan.chunks, 8, 2, 1)
+    assert len(parts) == 4  # halved, then each half halved
+    assert sum(p.n_sentences for p in parts) == 300

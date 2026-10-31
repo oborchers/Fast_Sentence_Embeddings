@@ -12,6 +12,31 @@ from support.arrow_c import Producer
 F32 = np.float32
 
 
+def small_tasks(monkeypatch, chunk_min=512, tail_min=256):
+    """Make the automatic plan (``chunk_bytes=None``) cut small sources into many tasks and
+    split their tail: nothing runs inline, and the minimum sizes are bytes of a test."""
+    from fse import _text
+    from fse._runtime import _tasks
+
+    monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
+    monkeypatch.setattr(_text._scan, "_CHUNK_MIN_BYTES", chunk_min)
+    monkeypatch.setattr(_tasks, "TAIL_MIN_BYTES", tail_min)
+
+
+def assert_chunks_tile(chunks, rows, *, lines=None):
+    """``chunks`` hold the rows 0 to ``rows - 1`` once each, in order, none empty; with
+    ``lines`` (the bytes of a file) each ends after a newline."""
+    next_row, next_start = 0, chunks[0].start
+    for chunk in chunks:
+        assert chunk.n_sentences > 0
+        assert chunk.first_row == next_row
+        assert chunk.start == next_start
+        next_row, next_start = next_row + chunk.n_sentences, chunk.end
+        if lines is not None:
+            assert lines[chunk.end - 1] == 10
+    assert next_row == rows
+
+
 def words(n=200):
     return [f"w{i}" for i in range(n)]
 
