@@ -89,8 +89,12 @@ class ShardSink:
             create_store(self.path, info)
         read_store(self.path).check(info, self.path)
         checked = snapshot(self.path, info, verify=False)
-        refuse_unsynced(self.path, checked.shards)
-        self.first_row = sum(shard.rows for shard, _ in checked.shards)
+        try:
+            refuse_unsynced(self.path, checked.shards)
+            self.first_row = sum(shard.rows for shard, _ in checked.shards)
+        finally:
+            checked.shards.clear()  # a sink keeps no mappings, also on refusal
+
         self._info = info
         self.dim, self.dtype, self.encoder_fingerprint = info.dim, dtype, info.encoder
         self.shard_rows = shard_rows or default_shard_rows(info.dim, dtype)

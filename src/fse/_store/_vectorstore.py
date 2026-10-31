@@ -35,7 +35,7 @@ from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
 from . import _search
 from ._layout import Shard, StoreInfo, read_store
-from ._recovery import check_values, snapshot
+from ._recovery import check_values, clear_exception_frames, snapshot
 
 F32 = np.float32
 
@@ -248,6 +248,14 @@ class _Use:
 
 @validate_arguments
 def _open(cls: Any, path: Any, *, encoder: Any = None, backend: str = "cpu") -> Any:
+    try:
+        return _opened(cls, path, encoder=encoder, backend=backend)
+    except BaseException as error:
+        clear_exception_frames(error)
+        raise
+
+
+def _opened(cls: Any, path: Any, *, encoder: Any, backend: str) -> Any:
     if backend not in BACKEND_NAMES:
         raise ValueError(f"backend must be one of {list(BACKEND_NAMES)}, not {backend!r}")
     path = Path(path)

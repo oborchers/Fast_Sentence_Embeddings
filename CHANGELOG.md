@@ -11,6 +11,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 ### Changed
 
 - Store format version 1 accepts the optional shard tag `fse.durability=none`. `VectorStore.open` verifies every tagged tensor on every open, using the checksums from the same mapped artifact. Readers and sinks reject gaps and overlapping orphan shards for every store, and a full-durability sink refuses to append behind tagged rows. Store identity files remain immutable. `store.opened` gains `unsynced_shards`, `verified_bytes` and `verify_seconds`.
+- Failed store opens release their file mappings even if the caller retains the exception and traceback. Store value checks use bounded blocks instead of shard-sized temporary arrays.
 - Torn `.npy` headers reported by numpy as `tokenize.TokenError` now raise `CorruptArtifactError`, with shard and repair guidance when a store opens them.
 
 - fse 2.0 uses the MIT license. The 1.x branch and existing releases remain GPL-3.0. Model and dataset licenses apply separately. FastText hashing is derived directly from the MIT fastText source with unchanged buckets; shipped text fixtures now contain original synthetic sentences instead of STS Benchmark sentences and reviews of unknown provenance.

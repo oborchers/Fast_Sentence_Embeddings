@@ -242,7 +242,10 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
     """The shard of the store ``path`` that starts at ``first_row``, mapped and checked
     against the store: its metadata, tensors and shapes."""
     name = shard_name(first_row)
-    tensors, metadata = NpyContainer().open(path / name, mmap=True)
+    directory = path / name
+    if not directory.is_dir() or directory.is_symlink():
+        raise CorruptArtifactError(f"{directory} is not a regular shard directory")
+    tensors, metadata = NpyContainer().open(directory, mmap=True)
     file = path / name / "manifest.json"
     shard_info, unsynced = _shard_info(metadata, info, file)
     try:
