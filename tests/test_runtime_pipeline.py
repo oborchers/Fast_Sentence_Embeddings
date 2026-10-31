@@ -82,12 +82,11 @@ def test_the_backend_is_checked_before_any_input(monkeypatch):
     class NoSteps(NumpyBackend):
         def capabilities(self):
             return Capabilities(
-                frozenset({"float32"}),
-                frozenset({Aggregation.WEIGHTED_MEAN}),
-                frozenset(),
-                False,
-                True,
-                64,
+                word_dtypes=frozenset({"float32"}),
+                aggregations=frozenset({Aggregation.WEIGHTED_MEAN}),
+                steps=frozenset(),
+                fasttext=False,
+                max_dim=64,
             )
 
         def prepare(self, pool, steps):
