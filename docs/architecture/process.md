@@ -114,7 +114,8 @@ src/fse/
       _native_text.pxi       #   the tokenizers and the text lookup,
       _native_wordpiece.pxi  #   wordpiece@1: its state, the greedy match, a sentence
       _native_unigram.pxi    #   unigram@1: its state and its checks,
-      _native_unigram_steps.pxi # the normalizer steps, the candidates, the lattice, a sentence
+      _native_unigram_normalize.pxi # normalizer passes and Metaspace,
+      _native_unigram_steps.pxi # the candidates, the lattice, a sentence
       _native_arrow.pxi      #   Arrow string columns: the C structs, their checks and errors,
       _native_arrow_column.pxi #  the ArrowColumn: chunks taken over, scanned, encoded and released
       _native_text.h         # the native tokenizers fse_words@1 and external
