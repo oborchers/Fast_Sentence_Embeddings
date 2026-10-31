@@ -303,6 +303,9 @@ Built by [Dr. Oliver Borchers](https://www.drborchers.com). For questions that d
 
 Copyright (C) 2019 to 2026 Oliver Borchers, licensed under the [MIT License](LICENSE).
 
+fse 2.0 uses the MIT license. The `1.x` branch and existing 1.x releases remain GPL-3.0.
+Model licenses apply separately: GloVe uses PDDL, word2vec uses Apache-2.0, fastText vectors use CC BY-SA 3.0, and POTION uses MIT. The licenses of paranmt and paragram are unknown. The third-party STS Benchmark data in `evaluation/` keeps the terms in `evaluation/LICENSE.txt`.
+
 Citation
 -------------
 
@@ -316,6 +319,3 @@ If you found this software useful, please cite it in your publication.
 		journal = {GitHub Repository},
 		howpublished = {\url{https://github.com/oborchers/Fast_Sentence_Embeddings}},
 	}
-
-fse 2.0 uses the MIT license. The `1.x` branch and existing 1.x releases remain GPL-3.0.
-Model licenses apply separately: GloVe uses PDDL, word2vec uses Apache-2.0, fastText vectors use CC BY-SA 3.0, and POTION uses MIT. The licenses of paranmt and paragram are unknown. The third-party STS Benchmark data in `evaluation/` keeps the terms in `evaluation/LICENSE.txt`.

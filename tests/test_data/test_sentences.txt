@@ -3,7 +3,7 @@ The gardener carries a compass past the blue gate. gardener1_0 Zürich
 The otter carries a compass past the blue gate. otter2_0 sailor2_1 mañana
 The sailor carries a compass past the blue gate. sailor3_0 painter3_1 pilot3_2 中国
 The painter carries a compass past the blue gate. painter4_0 pilot4_1 weaver4_2 baker4_3 Αθήνα
-The pilot carries a compass past the blue gate. pilot5_0 weaver5_1 baker5_2 astronomer5_3 diver5_4 e\u0301
+The pilot carries a compass past the blue gate. pilot5_0 weaver5_1 baker5_2 astronomer5_3 diver5_4 é
 The weaver carries a compass past the blue gate. weaver6_0 baker6_1 astronomer6_2 diver6_3 robot6_4 gardener6_5 😀
 The baker carries a compass past the blue gate. baker7_0 astronomer7_1 diver7_2 robot7_3 gardener7_4 otter7_5 sailor7_6 can't
 The astronomer carries a compass past the blue gate. astronomer8_0 diver8_1 robot8_2 gardener8_3 otter8_4 sailor8_5 painter8_6 pilot8_7 well-known
@@ -13,7 +13,7 @@ The gardener carries a basket past the blue gate. gardener11_0 otter11_1 sailor1
 The otter carries a basket past the blue gate. otter12_0 sailor12_1 painter12_2 pilot12_3 weaver12_4 baker12_5 astronomer12_6 diver12_7 robot12_8 gardener12_9 otter12_10 sailor12_11 mañana
 The sailor carries a basket past the blue gate. sailor13_0 painter13_1 pilot13_2 weaver13_3 baker13_4 astronomer13_5 diver13_6 robot13_7 gardener13_8 otter13_9 sailor13_10 painter13_11 pilot13_12 中国
 The painter carries a basket past the blue gate. painter14_0 pilot14_1 weaver14_2 baker14_3 astronomer14_4 diver14_5 robot14_6 gardener14_7 otter14_8 sailor14_9 painter14_10 pilot14_11 weaver14_12 baker14_13 Αθήνα
-The pilot carries a basket past the blue gate. pilot15_0 weaver15_1 baker15_2 astronomer15_3 diver15_4 robot15_5 gardener15_6 otter15_7 sailor15_8 painter15_9 pilot15_10 weaver15_11 baker15_12 astronomer15_13 diver15_14 e\u0301
+The pilot carries a basket past the blue gate. pilot15_0 weaver15_1 baker15_2 astronomer15_3 diver15_4 robot15_5 gardener15_6 otter15_7 sailor15_8 painter15_9 pilot15_10 weaver15_11 baker15_12 astronomer15_13 diver15_14 é
 The weaver carries a basket past the blue gate. 😀
 The baker carries a basket past the blue gate. baker17_0 can't
 The astronomer carries a basket past the blue gate. astronomer18_0 diver18_1 well-known
@@ -23,7 +23,7 @@ The gardener carries a ladder past the blue gate. gardener21_0 otter21_1 sailor2
 The otter carries a ladder past the blue gate. otter22_0 sailor22_1 painter22_2 pilot22_3 weaver22_4 baker22_5 mañana
 The sailor carries a ladder past the blue gate. sailor23_0 painter23_1 pilot23_2 weaver23_3 baker23_4 astronomer23_5 diver23_6 中国
 The painter carries a ladder past the blue gate. painter24_0 pilot24_1 weaver24_2 baker24_3 astronomer24_4 diver24_5 robot24_6 gardener24_7 Αθήνα
-The pilot carries a ladder past the blue gate. pilot25_0 weaver25_1 baker25_2 astronomer25_3 diver25_4 robot25_5 gardener25_6 otter25_7 sailor25_8 e\u0301
+The pilot carries a ladder past the blue gate. pilot25_0 weaver25_1 baker25_2 astronomer25_3 diver25_4 robot25_5 gardener25_6 otter25_7 sailor25_8 é
 The weaver carries a ladder past the blue gate. weaver26_0 baker26_1 astronomer26_2 diver26_3 robot26_4 gardener26_5 otter26_6 sailor26_7 painter26_8 pilot26_9 😀
 The baker carries a ladder past the blue gate. baker27_0 astronomer27_1 diver27_2 robot27_3 gardener27_4 otter27_5 sailor27_6 painter27_7 pilot27_8 weaver27_9 baker27_10 can't
 The astronomer carries a ladder past the blue gate. astronomer28_0 diver28_1 robot28_2 gardener28_3 otter28_4 sailor28_5 painter28_6 pilot28_7 weaver28_8 baker28_9 astronomer28_10 diver28_11 well-known
@@ -33,7 +33,7 @@ The gardener carries a lantern past the blue gate. gardener31_0 otter31_1 sailor
 The otter carries a lantern past the blue gate. mañana
 The sailor carries a lantern past the blue gate. sailor33_0 中国
 The painter carries a lantern past the blue gate. painter34_0 pilot34_1 Αθήνα
-The pilot carries a lantern past the blue gate. pilot35_0 weaver35_1 baker35_2 e\u0301
+The pilot carries a lantern past the blue gate. pilot35_0 weaver35_1 baker35_2 é
 The weaver carries a lantern past the blue gate. weaver36_0 baker36_1 astronomer36_2 diver36_3 😀
 The baker carries a lantern past the blue gate. baker37_0 astronomer37_1 diver37_2 robot37_3 gardener37_4 can't
 The astronomer carries a lantern past the blue gate. astronomer38_0 diver38_1 robot38_2 gardener38_3 otter38_4 sailor38_5 well-known
@@ -43,7 +43,7 @@ The gardener carries a wheel past the blue gate. gardener41_0 otter41_1 sailor41
 The otter carries a wheel past the blue gate. otter42_0 sailor42_1 painter42_2 pilot42_3 weaver42_4 baker42_5 astronomer42_6 diver42_7 robot42_8 gardener42_9 mañana
 The sailor carries a wheel past the blue gate. sailor43_0 painter43_1 pilot43_2 weaver43_3 baker43_4 astronomer43_5 diver43_6 robot43_7 gardener43_8 otter43_9 sailor43_10 中国
 The painter carries a wheel past the blue gate. painter44_0 pilot44_1 weaver44_2 baker44_3 astronomer44_4 diver44_5 robot44_6 gardener44_7 otter44_8 sailor44_9 painter44_10 pilot44_11 Αθήνα
-The pilot carries a wheel past the blue gate. pilot45_0 weaver45_1 baker45_2 astronomer45_3 diver45_4 robot45_5 gardener45_6 otter45_7 sailor45_8 painter45_9 pilot45_10 weaver45_11 baker45_12 e\u0301
+The pilot carries a wheel past the blue gate. pilot45_0 weaver45_1 baker45_2 astronomer45_3 diver45_4 robot45_5 gardener45_6 otter45_7 sailor45_8 painter45_9 pilot45_10 weaver45_11 baker45_12 é
 The weaver carries a wheel past the blue gate. weaver46_0 baker46_1 astronomer46_2 diver46_3 robot46_4 gardener46_5 otter46_6 sailor46_7 painter46_8 pilot46_9 weaver46_10 baker46_11 astronomer46_12 diver46_13 😀
 The baker carries a wheel past the blue gate. baker47_0 astronomer47_1 diver47_2 robot47_3 gardener47_4 otter47_5 sailor47_6 painter47_7 pilot47_8 weaver47_9 baker47_10 astronomer47_11 diver47_12 robot47_13 gardener47_14 can't
 The astronomer carries a wheel past the blue gate. well-known
@@ -53,7 +53,7 @@ The gardener carries a ribbon past the blue gate. gardener51_0 otter51_1 sailor5
 The otter carries a ribbon past the blue gate. otter52_0 sailor52_1 painter52_2 pilot52_3 mañana
 The sailor carries a ribbon past the blue gate. sailor53_0 painter53_1 pilot53_2 weaver53_3 baker53_4 中国
 The painter carries a ribbon past the blue gate. painter54_0 pilot54_1 weaver54_2 baker54_3 astronomer54_4 diver54_5 Αθήνα
-The pilot carries a ribbon past the blue gate. pilot55_0 weaver55_1 baker55_2 astronomer55_3 diver55_4 robot55_5 gardener55_6 e\u0301
+The pilot carries a ribbon past the blue gate. pilot55_0 weaver55_1 baker55_2 astronomer55_3 diver55_4 robot55_5 gardener55_6 é
 The weaver carries a ribbon past the blue gate. weaver56_0 baker56_1 astronomer56_2 diver56_3 robot56_4 gardener56_5 otter56_6 sailor56_7 😀
 The baker carries a ribbon past the blue gate. baker57_0 astronomer57_1 diver57_2 robot57_3 gardener57_4 otter57_5 sailor57_6 painter57_7 pilot57_8 can't
 The astronomer carries a ribbon past the blue gate. astronomer58_0 diver58_1 robot58_2 gardener58_3 otter58_4 sailor58_5 painter58_6 pilot58_7 weaver58_8 baker58_9 well-known
@@ -63,7 +63,7 @@ The gardener carries a telescope past the blue gate. gardener61_0 otter61_1 sail
 The otter carries a telescope past the blue gate. otter62_0 sailor62_1 painter62_2 pilot62_3 weaver62_4 baker62_5 astronomer62_6 diver62_7 robot62_8 gardener62_9 otter62_10 sailor62_11 painter62_12 pilot62_13 mañana
 The sailor carries a telescope past the blue gate. sailor63_0 painter63_1 pilot63_2 weaver63_3 baker63_4 astronomer63_5 diver63_6 robot63_7 gardener63_8 otter63_9 sailor63_10 painter63_11 pilot63_12 weaver63_13 baker63_14 中国
 The painter carries a telescope past the blue gate. Αθήνα
-The pilot carries a telescope past the blue gate. pilot65_0 e\u0301
+The pilot carries a telescope past the blue gate. pilot65_0 é
 The weaver carries a telescope past the blue gate. weaver66_0 baker66_1 😀
 The baker carries a telescope past the blue gate. baker67_0 astronomer67_1 diver67_2 can't
 The astronomer carries a telescope past the blue gate. astronomer68_0 diver68_1 robot68_2 gardener68_3 well-known
@@ -73,7 +73,7 @@ The gardener carries a puzzle past the blue gate. gardener71_0 otter71_1 sailor7
 The otter carries a puzzle past the blue gate. otter72_0 sailor72_1 painter72_2 pilot72_3 weaver72_4 baker72_5 astronomer72_6 diver72_7 mañana
 The sailor carries a puzzle past the blue gate. sailor73_0 painter73_1 pilot73_2 weaver73_3 baker73_4 astronomer73_5 diver73_6 robot73_7 gardener73_8 中国
 The painter carries a puzzle past the blue gate. painter74_0 pilot74_1 weaver74_2 baker74_3 astronomer74_4 diver74_5 robot74_6 gardener74_7 otter74_8 sailor74_9 Αθήνα
-The pilot carries a puzzle past the blue gate. pilot75_0 weaver75_1 baker75_2 astronomer75_3 diver75_4 robot75_5 gardener75_6 otter75_7 sailor75_8 painter75_9 pilot75_10 e\u0301
+The pilot carries a puzzle past the blue gate. pilot75_0 weaver75_1 baker75_2 astronomer75_3 diver75_4 robot75_5 gardener75_6 otter75_7 sailor75_8 painter75_9 pilot75_10 é
 The weaver carries a puzzle past the blue gate. weaver76_0 baker76_1 astronomer76_2 diver76_3 robot76_4 gardener76_5 otter76_6 sailor76_7 painter76_8 pilot76_9 weaver76_10 baker76_11 😀
 The baker carries a puzzle past the blue gate. baker77_0 astronomer77_1 diver77_2 robot77_3 gardener77_4 otter77_5 sailor77_6 painter77_7 pilot77_8 weaver77_9 baker77_10 astronomer77_11 diver77_12 can't
 The astronomer carries a puzzle past the blue gate. astronomer78_0 diver78_1 robot78_2 gardener78_3 otter78_4 sailor78_5 painter78_6 pilot78_7 weaver78_8 baker78_9 astronomer78_10 diver78_11 robot78_12 gardener78_13 well-known
@@ -83,7 +83,7 @@ The gardener carries a notebook past the blue gate. gardener81_0 Zürich
 The otter carries a notebook past the blue gate. otter82_0 sailor82_1 mañana
 The sailor carries a notebook past the blue gate. sailor83_0 painter83_1 pilot83_2 中国
 The painter carries a notebook past the blue gate. painter84_0 pilot84_1 weaver84_2 baker84_3 Αθήνα
-The pilot carries a notebook past the blue gate. pilot85_0 weaver85_1 baker85_2 astronomer85_3 diver85_4 e\u0301
+The pilot carries a notebook past the blue gate. pilot85_0 weaver85_1 baker85_2 astronomer85_3 diver85_4 é
 The weaver carries a notebook past the blue gate. weaver86_0 baker86_1 astronomer86_2 diver86_3 robot86_4 gardener86_5 😀
 The baker carries a notebook past the blue gate. baker87_0 astronomer87_1 diver87_2 robot87_3 gardener87_4 otter87_5 sailor87_6 can't
 The astronomer carries a notebook past the blue gate. astronomer88_0 diver88_1 robot88_2 gardener88_3 otter88_4 sailor88_5 painter88_6 pilot88_7 well-known
@@ -93,7 +93,7 @@ The gardener carries a kite past the blue gate. gardener91_0 otter91_1 sailor91_
 The otter carries a kite past the blue gate. otter92_0 sailor92_1 painter92_2 pilot92_3 weaver92_4 baker92_5 astronomer92_6 diver92_7 robot92_8 gardener92_9 otter92_10 sailor92_11 mañana
 The sailor carries a kite past the blue gate. sailor93_0 painter93_1 pilot93_2 weaver93_3 baker93_4 astronomer93_5 diver93_6 robot93_7 gardener93_8 otter93_9 sailor93_10 painter93_11 pilot93_12 中国
 The painter carries a kite past the blue gate. painter94_0 pilot94_1 weaver94_2 baker94_3 astronomer94_4 diver94_5 robot94_6 gardener94_7 otter94_8 sailor94_9 painter94_10 pilot94_11 weaver94_12 baker94_13 Αθήνα
-The pilot carries a kite past the blue gate. pilot95_0 weaver95_1 baker95_2 astronomer95_3 diver95_4 robot95_5 gardener95_6 otter95_7 sailor95_8 painter95_9 pilot95_10 weaver95_11 baker95_12 astronomer95_13 diver95_14 e\u0301
+The pilot carries a kite past the blue gate. pilot95_0 weaver95_1 baker95_2 astronomer95_3 diver95_4 robot95_5 gardener95_6 otter95_7 sailor95_8 painter95_9 pilot95_10 weaver95_11 baker95_12 astronomer95_13 diver95_14 é
 The weaver carries a kite past the blue gate. 😀
 The baker carries a kite past the blue gate. baker97_0 can't
 The astronomer carries a kite past the blue gate. astronomer98_0 diver98_1 well-known
