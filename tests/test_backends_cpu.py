@@ -126,27 +126,3 @@ def test_both_step_lists_are_the_reference(dtype, fasttext):
         backend.rows(batch, prepared, out)
         want = _reference.postprocess(rows, steps, 5) if steps else rows
         assert out.view(np.uint32).tolist() == want.view(np.uint32).tolist(), steps
-
-
-@pytest.mark.parametrize("steps", [(), (Normalize(),)])
-def test_steps_alone_give_the_bits_of_rows(steps):
-    """What a device backend runs on the host after it pooled: the bits of rows, in place."""
-    backend, pool = CpuBackend(), _pool()
-    prepared = backend.prepare(pool, steps)
-    want = np.empty((3, prepared.output_dim), F32)
-    backend.rows(_batch(), prepared, want)
-    pooled = _reference.pool_weighted_mean(_batch(), pool.vectors, pool.weights)
-    backend.steps(pooled, prepared, 5)
-    assert pooled.tobytes() == want.tobytes()
-
-
-def test_steps_check_their_arrays():
-    backend = CpuBackend()
-    prepared = backend.prepare(_pool(), (Normalize(),))
-    frozen = np.ones((3, 4), F32)
-    frozen.setflags(write=False)
-    for bad in (np.ones((3, 5), F32), np.ones((3, 4)), np.ones((4, 3), F32).T, frozen, [[1.0]]):
-        with pytest.raises(ValueError, match="writable C-contiguous float32 array of 4 values"):
-            backend.steps(bad, prepared, 0)
-    with pytest.raises(TypeError, match="prepared by the cpu backend"):
-        backend.steps(np.ones((3, 4), F32), Prepared("numpy", _pool(), (), 4, None), 0)

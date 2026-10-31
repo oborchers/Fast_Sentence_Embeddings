@@ -7,10 +7,6 @@ Guardrails), for tools/check_guardrails.py, which loads this file beside it:
 - that only ``hash-importers`` import a hash library (``hash-modules``) and only
   ``log-importers`` the logging modules (``log-modules``: logging, warnings), in Python
   and Cython sources;
-- that the modules the MLX device thread runs (``log-free``) do not import ``fse._log``;
-- that the device library of every device backend (``device-libraries``: backend name to
-  its top-level modules) is imported, by an import statement or ``importlib``, only by
-  that backend's ``src/fse/_backends/_<name>/_load.py``.
 """
 
 from __future__ import annotations
@@ -160,76 +156,10 @@ def exclusive_import_errors(root: Path, cfg: dict, kind: str) -> list[str]:
     return errors
 
 
-def log_free_errors(root: Path, cfg: dict) -> list[str]:
-    """Modules of ``log-free`` (what the MLX device thread runs) that import fse._log."""
-    errors = []
-    for rel in cfg.get("log-free", []):
-        if not (root / rel).is_file():
-            errors.append(f"{rel} of log-free is no file; remove it or name its parts")
-            continue
-        names = _source_imports(root, root / rel) or []
-        if any(n == "fse._log" or n.startswith("fse._log.") for n in names):
-            errors.append(f"{rel} imports fse._log; the MLX device thread never logs")
-    return errors
-
-
-def _module_argument(node: ast.Call) -> str | None:
-    """The literal module name of an import call, positional or ``name=``."""
-    values = [*node.args[:1], *(k.value for k in node.keywords if k.arg == "name")]
-    literal = [v.value for v in values if isinstance(v, ast.Constant)]
-    return literal[0] if literal and isinstance(literal[0], str) else None
-
-
-def _import_functions(tree: ast.AST) -> set[str]:
-    """``__import__``, ``import_module`` and the names it is imported under."""
-    names = {"__import__", "import_module"}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "importlib":
-            names |= {a.asname or a.name for a in node.names if a.name == "import_module"}
-    return names
-
-
-def dynamic_imports(tree: ast.AST) -> list[str]:
-    """The modules imported by a call with a literal name (positional or ``name=``):
-    ``x.import_module`` (importlib under any alias), ``import_module`` imported under any
-    name, and ``__import__``."""
-    functions = _import_functions(tree)
-    calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
-    names = [
-        _module_argument(c)
-        for c in calls
-        if getattr(c.func, "attr", None) == "import_module"
-        or getattr(c.func, "id", None) in functions
-    ]
-    return [name for name in names if name is not None]
-
-
-def device_import_errors(root: Path, cfg: dict) -> list[str]:
-    """Modules of fse other than a device backend's ``_load`` that import its library."""
-    libraries = {
-        module: (backend, f"src/fse/_backends/_{backend}/_load.py")
-        for backend, modules in cfg.get("device-libraries", {}).items()
-        for module in modules
-    }
-    errors = []
-    for path in sorted((root / "src" / "fse").rglob("*.py")):
-        rel = path.relative_to(root).as_posix()
-        module = ".".join(path.relative_to(root / "src").with_suffix("").parts)
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        names = [*imported_modules(tree, module), *dynamic_imports(tree)]
-        for top in sorted({n.split(".")[0] for n in names} & set(libraries)):
-            backend, loader = libraries[top]
-            if rel != loader:
-                errors.append(f"{rel} imports {top}; only {loader} may (the {backend} backend)")
-    return errors
-
-
 def import_errors(root: Path, cfg: dict) -> list[str]:
     """Every error of the import rules of this module."""
     return [
         *native_import_errors(root, cfg),
         *exclusive_import_errors(root, cfg, "hash"),
         *exclusive_import_errors(root, cfg, "log"),
-        *log_free_errors(root, cfg),
-        *device_import_errors(root, cfg),
     ]

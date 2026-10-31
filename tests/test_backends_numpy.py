@@ -48,7 +48,6 @@ def test_prepare_checks_input_and_capabilities():
     with pytest.raises(ValueError, match="weights"):
         NumpyBackend().prepare(PoolInput(np.ones((3, 2), F32), np.ones(2, F32)), ())
     caps = NumpyBackend().capabilities()
-    assert caps.concurrent
     assert caps.fasttext
     assert {"float32", "float16", "int8"} == caps.word_dtypes
     assert issubclass(UnsupportedByBackendError, ValueError)

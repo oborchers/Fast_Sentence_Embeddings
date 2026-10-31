@@ -43,8 +43,6 @@ _CAPABILITIES = Capabilities(
     aggregations=frozenset({Aggregation.WEIGHTED_MEAN}),
     steps=frozenset(Op),
     fasttext=True,
-    concurrent=True,
-    heads=True,
     max_dim=1 << 30,
 )
 

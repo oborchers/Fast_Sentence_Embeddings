@@ -1,5 +1,7 @@
 # PR 9 research: MLX backend (`fse[mlx]`), Metal kernels, bit-exact contract
 
+Historical note (31.10.2026): MLX was removed from fse. These research findings describe the earlier investigation.
+
 Looked at: MLX 0.32.4 (PyPI, uploaded 2026-10-14) and MLX `main` at commit 7d2d94a (2026-10-28, cloned and read); Metal Shading Language Specification 4.1 (document date 2026-06-04); Apple Developer Forums thread 844598 (Sep 2026).
 Experiments were run on this machine: Apple M1 Pro (`applegpu_g13s`), macOS 27.0.1, MLX 0.32.4, Python 3.13, numpy. Scripts: `(a local scratch file, not kept)` to `t7.py` (not part of the repository). Everything marked "measured" was measured there on this one machine; M2 to M5 are unverified.
 

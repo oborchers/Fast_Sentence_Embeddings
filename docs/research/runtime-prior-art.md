@@ -1,5 +1,7 @@
 # Runtime state of the art: parallel encoding with static embeddings
 
+Historical note (31.10.2026): MLX was removed from fse. These research findings describe the earlier investigation.
+
 Research date: 2026-10-28. All code claims come from the source at the commit given in each permalink, read directly. "Unverified" marks anything I did not confirm in a primary source.
 
 Commits read: model2vec `dc1ff382f279`, sentence-transformers `145ef47d5a4b` (latest release v6.2.0, 2026-10-21), tokenizers `d9a5e8af4b58` (main = 1.0 line; latest tags v1.0.0-rc.3 2026-10-19 and stable v0.23.3 2026-10-09), fastText `1142dc4c4ecb` (repository archived, last push 2024-03-22), WordLlama `ee2b5302451d`, Polars `f78c80cb96b8`, Arrow `fc390cd3442b`, spaCy `7ff14d4da848`, gensim `37f90ec121eb`, joblib `878c9e05995b`, loky `d749ac8bdafc`, CPython `e35424611f81`.

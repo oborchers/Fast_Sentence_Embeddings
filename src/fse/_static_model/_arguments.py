@@ -104,10 +104,7 @@ def encode_arguments(
             "torch.from_numpy where a tensor is needed"
         )
     if not (device is None or (isinstance(device, str) and device == "cpu")):
-        raise ValueError(
-            f"device={device!r}: encode runs on the CPU (use device=None or 'cpu'; "
-            "backend='mlx' of fse.Encoder.encode uses the GPU of Apple silicon)"
-        )
+        raise ValueError(f"device={device!r}: encode runs on the CPU (use device=None or 'cpu')")
     return None if parallel else 1
 
 

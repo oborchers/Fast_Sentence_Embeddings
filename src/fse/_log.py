@@ -34,10 +34,7 @@ LOGGER_NAMES = ("fse", "fse.artifact", "fse.hub", "fse.backend", "fse.runtime", 
 
 #: Every event of fse: its logger and level (the table in docs/architecture/logging.md, "Logging").
 EVENTS: dict[str, tuple[str, int]] = {
-    "backend.fallback": ("fse.backend", WARNING),
-    "backend.fallbacks": ("fse.backend", DEBUG),
     "backend.selected": ("fse.backend", DEBUG),
-    "backend.canary": ("fse.backend", DEBUG),
     "artifact.loaded": ("fse.artifact", INFO),
     "artifact.saved": ("fse.artifact", INFO),
     "artifact.verified": ("fse.artifact", INFO),

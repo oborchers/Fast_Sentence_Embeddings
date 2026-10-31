@@ -20,7 +20,6 @@ from __future__ import annotations
 import dataclasses
 import threading
 import time
-from contextlib import AbstractContextManager, nullcontext
 from typing import Any, cast
 
 import numpy as np
@@ -94,20 +93,13 @@ class Pipeline:
         self.vocabulary = vocabulary  # shared with the pipelines of a head on this encoder
         self.output_dim = self.prepared.output_dim
         self.task_rows = max(1, min(MAX_CHUNK_ROWS, TASK_ROW_BYTES // (4 * self.output_dim)))
-        # One call at a time on a backend that is not concurrent; encoding stays parallel.
-        concurrent = self.backend.capabilities().concurrent
-        self._device_rows = self.backend.capabilities().device_rows
         # Stages 1 to 4 of a task in one call of the backend, where it has one.
         self._text_rows = self.backend.capabilities().text_rows
-        self._serial: AbstractContextManager[Any] = (
-            nullcontext() if concurrent else threading.Lock()
-        )
 
     def _row_bytes(self, dtype: str, inverse: bool = False) -> int:
         """The bytes one row of a task takes at most: its target until its commit (with
         its inverse norm if the sink wants them), while it runs the float32 rows before
-        storage (a float16 or int8 target), STEP_ROW_BYTES per value with normalize, and on
-        a device backend its pooled rows, flags and bounds."""
+        storage (a float16 or int8 target), and STEP_ROW_BYTES per value with normalize."""
         out = self.output_dim
         target = (
             np.dtype(_codes.STORAGE_TYPES[dtype]).itemsize * out
@@ -116,9 +108,7 @@ class Pipeline:
         )  # the vector in the target and the backend's result
         scratch = 0 if dtype == "float32" else 4 * out
         steps = STEP_ROW_BYTES * out if self.prepared.steps else 0
-        # A device backend's pooled rows, flags (one word per 32 values) and two bounds.
-        device = 4 * out + 4 * -(-out // 32) + 8 if self._device_rows else 0
-        return target + scratch + steps + device
+        return target + scratch + steps
 
     def infer(
         self,
@@ -211,7 +201,7 @@ class Pipeline:
         )
 
     def _done(self, rows: int, tasks: int, seconds: float) -> None:
-        """The records of a finished run: its summary and the device's fallbacks so far."""
+        """The summary record of a finished run."""
         _log.emit(
             "runtime.done",
             "fse runtime: %d rows in %d tasks in %.3f s",
@@ -223,18 +213,6 @@ class Pipeline:
             seconds=seconds,
             rows_per_second=rows / seconds if seconds > 0 else None,
         )
-        counts = getattr(self.backend, "fallbacks", None)
-        if counts is not None and _log.enabled("backend.fallbacks"):
-            found = {k: v for k, v in counts(self.prepared).items() if v}
-            if found:
-                _log.emit(
-                    "backend.fallbacks",
-                    "fse %s backend: tasks of this encoder on the CPU so far: %s",
-                    self.backend.name,
-                    found,
-                    backend=self.backend.name,
-                    counts=found,
-                )
 
     def plan_tasks(
         self,
@@ -292,8 +270,7 @@ class Pipeline:
         def run(text: object, first: int, last: int, n: int, row: int, after: Any) -> None:
             text_rows(text, (first, last, n, base + row), after, lookup, workspace, prepared, rows)
 
-        with self._serial:
-            encode_with(task.chunk, run)
+        encode_with(task.chunk, run)
         return rows
 
     def batch(self, local: threading.local, task: Task, base: int) -> Batch:
@@ -319,19 +296,17 @@ class Pipeline:
         are float32, else in the scratch of the worker."""
         codes = target[0]
         rows = codes if codes.dtype == np.float32 else _scratch(local, len(codes), self.output_dim)
-        with self._serial:
-            self.backend.rows(batch, self.prepared, rows)
+        self.backend.rows(batch, self.prepared, rows)
         return rows
 
     def stored(self, rows: ndarray, target: tuple, first: int) -> None:
         """Stage 5 of the ``rows`` of ``pooled``: their codes and inverse norms in ``target``
         (a head runs its stage 4b between both, so its errors come before these)."""
         codes, scales, norms = target
-        with self._serial:
-            if rows is not codes:
-                self.backend.store(rows, codes, scales, first)
-            if norms is not None:
-                norms[...] = self.backend.inverse_norms(codes, first)
+        if rows is not codes:
+            self.backend.store(rows, codes, scales, first)
+        if norms is not None:
+            norms[...] = self.backend.inverse_norms(codes, first)
 
 
 def _workspace(local: threading.local) -> Any:

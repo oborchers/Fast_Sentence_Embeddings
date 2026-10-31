@@ -17,7 +17,6 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-import numpy as np
 from numpy import ndarray
 
 from fse import _native
@@ -45,8 +44,6 @@ _CAPABILITIES = Capabilities(
     aggregations=frozenset({Aggregation.WEIGHTED_MEAN}),
     steps=frozenset(Op),
     fasttext=True,
-    concurrent=True,
-    heads=True,
     max_dim=_native.MAX_DIM,
     text_rows=True,
 )
@@ -127,27 +124,6 @@ class CpuBackend:
             after_encode,
             isa=state.isa,
         )
-
-    def steps(self, rows: ndarray, prepared: Prepared, first_row: int) -> None:
-        """Stage 4 alone: the step of ``prepared`` (normalize, if any) in place on rows a
-        device has pooled (finite, as pooling gives them; rows ``first_row`` on). The
-        device backends run it on the host with this; the bits are those of ``rows``."""
-        check_prepared(prepared, self.name)
-        state = prepared.state
-        assert isinstance(state, _State)
-        if (
-            not isinstance(rows, ndarray)
-            or rows.dtype != np.float32
-            or rows.ndim != 2
-            or rows.shape[1] != prepared.output_dim
-            or not rows.flags.c_contiguous
-            or not rows.flags.writeable
-        ):
-            raise ValueError(
-                "rows must be a writable C-contiguous float32 array of "
-                f"{prepared.output_dim} values per row"
-            )
-        _native.postprocess_pooled(rows, prepared.steps, first_row, isa=state.isa)
 
     def score(
         self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float

@@ -1,5 +1,7 @@
 # Tricks of vector databases and search libraries for fse's exact search, scoring and writing
 
+Historical note (31.10.2026): MLX was removed from fse. These research findings describe the earlier investigation.
+
 Date: 2026-10-28. Scope: what fse (store of float32/float16/int8 rows, bit-exact "exact" kernel, BLAS mode, floor-based top-k, three-thread writer) could adopt without becoming an ANN database.
 
 Method and honesty notes. I read docs/architecture/store.md, "sentence_vectors 1", `_store/_search.py`, `_shard.py` and `_native_kernel_search.h`, then fetched primary docs/source (list at the end). Statements tagged **[verified]** come from a page I fetched this session. **[memory]** is my background knowledge, not re-checked. **[derived]** is my own reasoning or arithmetic, not a published result. **[unverified]** is a claim from a secondary source or a search snippet. No benchmark was run. Where the fetch tool summarised a page, numbers are as reported by that summary and worth a second look before they go into a PR description.

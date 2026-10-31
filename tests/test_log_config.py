@@ -46,12 +46,12 @@ def test_with_nothing_configured_a_warning_reaches_stderr():
     code = (
         "import fse\n"
         "from fse import _log\n"
-        "_log.emit('backend.fallback', 'fse mlx backend: %s', 'slower', backend='mlx')\n"
+        "_log.emit('runtime.arrow_copied', 'fse runtime: %s', 'slower', source='ArrowSource')\n"
         "_log.emit('store.opened', 'fse store: opened')\n"
     )
     done = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True)
     assert done.returncode == 0, done.stderr
-    assert done.stderr == "fse mlx backend: slower\n"  # INFO stays silent
+    assert done.stderr == "fse runtime: slower\n"  # INFO stays silent
 
 
 @pytest.mark.parametrize(
@@ -59,14 +59,14 @@ def test_with_nothing_configured_a_warning_reaches_stderr():
     [
         "class Drop(logging.Filter):\n    def filter(self, record): return False\n"
         "h = logging.NullHandler(); h.addFilter(Drop()); logging.getLogger('fse').addHandler(h)",
-        "logging.getLogger('fse.backend').setLevel(logging.ERROR)",
+        "logging.getLogger('fse.runtime').setLevel(logging.ERROR)",
         "logging.disable(logging.WARNING)",
     ],
     ids=["filtering-handler", "child-level", "disable"],
 )
 def test_last_resort_stays_silent(setup):
     code = f"import logging\nimport fse\nfrom fse import _log\n{setup}\n"
-    code += "_log.emit('backend.fallback', 'fse mlx backend: slower', backend='mlx')\n"
+    code += "_log.emit('runtime.arrow_copied', 'fse runtime: slower', source='ArrowSource')\n"
     done = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True)
     assert done.returncode == 0, done.stderr
     assert done.stderr == ""
@@ -76,25 +76,23 @@ def test_last_resort_prints_without_propagation_and_handler():
     # CPython's callHandlers counts handlers, not the loggers it passed: none found.
     code = "import logging\nimport fse\nfrom fse import _log\n"
     code += "logging.getLogger('fse').propagate = False\n"
-    code += "_log.emit('backend.fallback', 'fse mlx backend: slower', backend='mlx')\n"
+    code += "_log.emit('runtime.arrow_copied', 'fse runtime: slower', source='ArrowSource')\n"
     done = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True)
-    assert done.stderr == "fse mlx backend: slower\n"
+    assert done.stderr == "fse runtime: slower\n"
 
 
-def _fallback(message="fse mlx backend: slower"):
-    _log.emit("backend.fallback", message, backend="mlx", reason="dim")
+def _warning(message="fse runtime: slower"):
+    _log.emit("runtime.arrow_copied", message, source="ArrowSource", reason="copy")
 
 
 def test_enable_logging_prints_one_line_per_record(stderr):
     fse.enable_logging()
-    _fallback()
+    _warning()
     _log.emit("store.opened", "fse store: opened", rows=3)
     _log.emit("store.search", "fse store: search")  # DEBUG, below INFO
     lines = stderr.getvalue().splitlines()
     assert len(lines) == 2
-    assert re.fullmatch(
-        r"\d\d:\d\d:\d\d\.\d{3} WARN  fse\.backend  fse mlx backend: slower", lines[0]
-    )
+    assert re.fullmatch(r"\d\d:\d\d:\d\d\.\d{3} WARN  fse\.runtime  fse runtime: slower", lines[0])
     assert re.fullmatch(r"\d\d:\d\d:\d\d\.\d{3} INFO  fse\.store    fse store: opened", lines[1])
     assert TOP.level == logging.INFO
     assert TOP.propagate is False
@@ -102,11 +100,13 @@ def test_enable_logging_prints_one_line_per_record(stderr):
 
 def test_at_debug_lines_carry_the_fields_and_threads_their_names(stderr):
     fse.enable_logging("DEBUG")
-    thread = threading.Thread(target=_fallback, name="fse-worker_3")
+    thread = threading.Thread(target=_warning, name="fse-worker_3")
     thread.start()
     thread.join()
     line = stderr.getvalue().strip()
-    assert line.endswith(" [fse-worker_3] event=backend.fallback backend=mlx reason=dim"), line
+    assert line.endswith(
+        " [fse-worker_3] event=runtime.arrow_copied source=ArrowSource reason=copy"
+    ), line
 
 
 def test_colours_only_on_a_terminal_and_never_with_no_color(stderr, monkeypatch):
@@ -115,10 +115,10 @@ def test_colours_only_on_a_terminal_and_never_with_no_color(stderr, monkeypatch)
     monkeypatch.setattr(sys, "stderr", terminal)
     monkeypatch.delenv("NO_COLOR", raising=False)
     fse.enable_logging()
-    _fallback()
+    _warning()
     assert "\033[33mWARN \033[0m" in terminal.getvalue()
     monkeypatch.setenv("NO_COLOR", "1")
-    _fallback()
+    _warning()
     assert terminal.getvalue().splitlines()[1].split()[1] == "WARN"
     assert stderr.getvalue() == ""
 
@@ -131,12 +131,12 @@ def test_a_root_handler_prints_nothing_twice_and_child_levels_stay(stderr):
     store.setLevel(logging.ERROR)
     try:
         fse.enable_logging()
-        _fallback()
+        _warning()
         _log.emit("store.opened", "fse store: opened")  # below the level of fse.store
         assert len(stderr.getvalue().splitlines()) == 1
         assert root.getvalue() == ""
         fse.disable_logging()
-        _fallback("after")
+        _warning("after")
         assert root.getvalue() == "after\n"
         assert store.level == logging.ERROR
     finally:
@@ -192,7 +192,7 @@ def test_the_stream_is_the_stderr_of_each_call(stderr, monkeypatch):
     later = io.StringIO()
     monkeypatch.setattr(sys, "stderr", later)
     fse.enable_logging()
-    _fallback()
+    _warning()
     assert stderr.getvalue() == ""
     assert "slower" in later.getvalue()
 
@@ -213,14 +213,14 @@ def test_concurrent_records_while_it_attaches_and_detaches(stderr):
     def emitting(worker):
         n = 0
         while not stop.is_set() and n < 3000:  # pytest's own root handlers keep each
-            _fallback(f"fse mlx backend: record {worker}-{n} end")
+            _warning(f"fse runtime: record {worker}-{n} end")
             n += 1
 
     def toggling():
         try:
             for i in range(1000):
                 fse.enable_logging()
-                _fallback(f"fse mlx backend: record 99-{i} end")  # one while attached
+                _warning(f"fse runtime: record 99-{i} end")  # one while attached
                 fse.disable_logging()
         except BaseException as error:
             errors.append(error)
@@ -267,8 +267,8 @@ def test_a_broken_stream_is_reported_once(stderr, monkeypatch):
     monkeypatch.setattr(sys, "stderr", Broken())
     fse.enable_logging()
     for _ in range(3):
-        _fallback()
+        _warning()
     err = report.getvalue()
-    assert err.count("logging the event backend.fallback failed with OSError") == 1
+    assert err.count("logging the event runtime.arrow_copied failed with OSError") == 1
     assert "Traceback" not in err
     assert stderr.getvalue() == ""

@@ -1,13 +1,12 @@
 """Linear heads in the runtime: HeadSpec, the fold, make_head and HeadPipeline.infer."""
 
-import dataclasses
 import threading
 
 import numpy as np
 import pytest
 
 from fse import _reference_head as ref
-from fse._backends import UnsupportedByBackendError, get_backend
+from fse._backends import get_backend
 from fse._contract import Link, Normalize
 from fse._runtime import MemorySink, Pipeline
 from fse._runtime._head import HeadPipeline, HeadSpec, _buffer, fold, make_head
@@ -265,20 +264,6 @@ def test_infer_checks_its_arguments_before_reading():
         with pytest.raises(error, match=match):
             pipeline.infer(StreamSource(stream()), **kwargs)
     assert read == []
-
-
-def test_heads_need_a_backend_that_runs_them(monkeypatch):
-    spec = _spec()
-    head = _head(spec)
-    own = _own(spec)
-    caps = own.backend.capabilities()
-    monkeypatch.setattr(
-        type(own.backend), "capabilities", lambda _self: dataclasses.replace(caps, heads=False)
-    )
-    with pytest.raises(UnsupportedByBackendError, match="cpu backend cannot run linear heads"):
-        make_head(spec, head, "cpu", own=own)
-    with pytest.raises(UnsupportedByBackendError, match="cpu backend cannot run linear heads"):
-        make_head(spec, HeadSpec(head.weight, head.bias, True, None), "cpu", own=own)
 
 
 def test_make_head_shares_the_pipeline_of_the_encoder_where_it_can():

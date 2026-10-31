@@ -141,6 +141,7 @@ def test_a_static_model_is_made_by_from_pretrained_only(model):
         ({"convert_to_numpy": False}, ValueError, "convert_to_numpy=False"),
         ({"convert_to_tensor": True}, ValueError, "convert_to_tensor=True"),
         ({"device": "cuda"}, ValueError, "device='cuda'"),
+        ({"device": "mlx"}, ValueError, "device='mlx'"),
         ({"device": 0}, ValueError, "device=0"),
         ({"show_progress_bar": 1}, TypeError, "show_progress_bar must be a bool"),
         ({"use_multiprocessing": None}, TypeError, "use_multiprocessing must be a bool"),

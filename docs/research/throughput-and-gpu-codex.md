@@ -1,5 +1,7 @@
 **PR 6b ist der richtige nächste Schritt.** Langfristig würde ich die Ausführungsgrenze auf „ein Task erzeugt gespeicherte Zeilen“ erweitern, mit einem direkt ausführbaren CPU-Pfad und einer asynchronen GPU-Pipeline. Vollständige Textfusion und ein nativer Executor sollten danach gegen diese Basis antreten.
 
+Historical note (31.10.2026): MLX was removed from fse. These research findings describe the earlier investigation.
+
 Gelesen: Architektur, die genannten Implementierungen und MLX-Notizen, Stand `dc97085`. Keine Dateien geändert, keine Tests oder Benchmarks ausgeführt. Die folgenden Effekte sind begründete Erwartungen, keine neuen Messwerte. Kurze Codeangaben beziehen sich auf `src/fse/`.
 
 Die bisherigen Zahlen beweisen noch keinen dominanten Engpass. Insbesondere lassen sich 42 M GPU-Tokens/s nicht direkt mit CPU-Zeilen/s vergleichen: Satzlänge, bekannte Wörter, FastText-Beiträge und Nachverarbeitung unterscheiden sich. Der GPU-Prototyp zeigt Machbarkeit, noch keinen Vorteil gegenüber dem vollständigen CPU-Pfad.

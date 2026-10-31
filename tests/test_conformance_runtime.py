@@ -14,11 +14,7 @@ from fse import _native
 from fse._contract import Normalize
 from fse._runtime import EncodeSpec, Pipeline, _executor, _pipeline, _tasks
 from fse._text import StringSource
-from support.conformance import require_mlx
 from support.runtime import expected, source, texts, word_vectors
-
-# The mlx backend warns at the first fallback of an encoder, which these suites cause.
-pytestmark = pytest.mark.expected_log("backend.fallback")
 
 F32 = np.float32
 
@@ -46,12 +42,10 @@ def _expected(dtype, fasttext, steps, tokenizer, n):
 @pytest.mark.parametrize("fasttext", [False, True], ids=["plain", "fasttext"])
 @pytest.mark.parametrize("steps", list(STEPS))
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
-@pytest.mark.parametrize("backend", ["cpu", "numpy", "mlx"])
+@pytest.mark.parametrize("backend", ["cpu", "numpy"])
 def test_runtime_gives_the_reference_bits(
     tmp_path, monkeypatch, backend, dtype, steps, fasttext, kind, workers
 ):
-    if backend == "mlx":
-        require_mlx()
     tokenizer = "external" if kind in ("tokens", "arrow_external") else "fse_words@1"
     n = 120 if backend == "numpy" else 500
     sentences = texts(n)
@@ -79,12 +73,10 @@ def test_every_isa(isa):
     assert got.tobytes() == expected(spec, sentences).tobytes()
 
 
-@pytest.mark.parametrize("backend", ["cpu", "mlx"])
+@pytest.mark.parametrize("backend", ["cpu"])
 @pytest.mark.parametrize("env", [{"flush": True}, {"round_up": True}])
 def test_workers_ignore_their_floating_point_environment(monkeypatch, env, backend):
     """Worker threads that start with flush-to-zero or rounding up give the same bits."""
-    if backend == "mlx":
-        require_mlx()
     spec = _spec("float32", False, "normalize", "fse_words@1")
     sentences = texts(2000)
     want = expected(spec, sentences)
@@ -103,11 +95,9 @@ def test_workers_ignore_their_floating_point_environment(monkeypatch, env, backe
     assert got.tobytes() == want.tobytes()
 
 
-@pytest.mark.parametrize("backend", ["cpu", "mlx"])
+@pytest.mark.parametrize("backend", ["cpu"])
 def test_a_subnormal_oov_weight_survives_a_foreign_environment(backend):
     """oov_weight is converted by the kernel in its own environment, not by EncodeSpec."""
-    if backend == "mlx":
-        require_mlx()
     sentences = texts(300)
     wv = word_vectors("float32", True)
     weights = np.ones(len(wv), F32)

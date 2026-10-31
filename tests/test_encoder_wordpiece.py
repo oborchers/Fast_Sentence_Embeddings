@@ -166,16 +166,3 @@ def test_make_lookup_checks_the_tokenizer():
         make_lookup(wv, TokenizerSpec("wordpiece@1", other, "drop"))
     with pytest.raises(ValueError, match="needs its parameters"):
         make_lookup(wv, "wordpiece@1")
-
-
-def test_the_mlx_pipeline_gets_the_same_lookup():
-    from support.conformance import require_mlx
-
-    require_mlx()
-    encoder = _encoder("drop", 8, 30)
-    cpu, mlx = encoder._pipeline("cpu"), encoder._pipeline("mlx")
-    source = StringSource(TEXTS)
-    chunk = source.scan().chunks[0]
-    a = source.encode(chunk, cpu.lookup, new_workspace())
-    b = source.encode(chunk, mlx.lookup, new_workspace())
-    np.testing.assert_array_equal(a.tokens, b.tokens)

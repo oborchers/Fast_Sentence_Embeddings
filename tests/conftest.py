@@ -7,8 +7,7 @@ gensim is only needed by tests/test_gensim.py, which builds its own models.
 
 Every WARNING or higher record of fse that no ``expect_log`` expected fails the test in
 the phase it came in (setup, call or teardown; tests/support/logs.py), unless the test is
-marked ``expected_log(event, ...)`` for its event (the device fallbacks of the
-conformance suites).
+marked ``expected_log(event, ...)`` for its event.
 """
 
 from pathlib import Path

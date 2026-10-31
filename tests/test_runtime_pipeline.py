@@ -5,7 +5,7 @@ import pytest
 
 from fse._backends import NumpyBackend, UnsupportedByBackendError
 from fse._backends._base import Capabilities
-from fse._contract import Aggregation, Normalize, Op
+from fse._contract import Aggregation, Normalize
 from fse._runtime import ArrayRows, EncodeSpec, GrowingRows, Pipeline, _executor, _pipeline
 from fse._text import StringSource, TokenListSource, make_vocabulary
 from fse._text_file import FileSource
@@ -82,12 +82,11 @@ def test_the_backend_is_checked_before_any_input(monkeypatch):
     class NoSteps(NumpyBackend):
         def capabilities(self):
             return Capabilities(
-                frozenset({"float32"}),
-                frozenset({Aggregation.WEIGHTED_MEAN}),
-                frozenset(),
-                False,
-                True,
-                64,
+                word_dtypes=frozenset({"float32"}),
+                aggregations=frozenset({Aggregation.WEIGHTED_MEAN}),
+                steps=frozenset(),
+                fasttext=False,
+                max_dim=64,
             )
 
         def prepare(self, pool, steps):
@@ -99,33 +98,6 @@ def test_the_backend_is_checked_before_any_input(monkeypatch):
         UnsupportedByBackendError, match="fake backend cannot run the step normalize@1"
     ):
         Pipeline(_spec((Normalize(),)), "numpy")
-
-
-def test_a_backend_that_is_not_concurrent_runs_one_task_at_a_time(monkeypatch):
-    state = {"now": 0, "most": 0}
-    lock = threading.Lock()
-
-    class Serial(NumpyBackend):
-        def capabilities(self):
-            caps = super().capabilities()
-            return Capabilities(
-                caps.word_dtypes, caps.aggregations, frozenset(Op), True, False, 1 << 30
-            )
-
-        def rows(self, batch, prepared, out):
-            with lock:
-                state["now"] += 1
-                state["most"] = max(state["most"], state["now"])
-            super().rows(batch, prepared, out)
-            with lock:
-                state["now"] -= 1
-
-    monkeypatch.setattr(_pipeline, "get_backend", lambda _name, **_options: Serial())
-    pipeline = Pipeline(_spec(), "numpy")
-    sentences = texts(600)
-    got = pipeline.infer(StringSource(sentences), workers=4, chunk_bytes=512)
-    assert state["most"] == 1
-    assert got.tobytes() == expected(pipeline.spec, sentences).tobytes()
 
 
 def test_a_sink_takes_the_rows():

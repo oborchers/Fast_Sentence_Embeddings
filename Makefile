@@ -12,7 +12,7 @@ XDIST = -n $(PYTEST_N) --dist $(PYTEST_DIST)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env install init sync rebuild-ext format format-check lint lint-fix guardrails typecheck test test-network test-st test-mlx test-cov check build clean pre-commit profile-cpu profile-mem profile-rss
+.PHONY: help env install init sync rebuild-ext format format-check lint lint-fix guardrails typecheck test test-network test-st test-cov check build clean pre-commit profile-cpu profile-mem profile-rss
 
 ##@ Setup
 help: ## Show this help
@@ -94,9 +94,6 @@ test-network: ## Run the tests that download from the Hugging Face Hub
 
 test-st: ## Run the comparisons with sentence-transformers (group st), required to run
 	FSE_REQUIRE_ST=1 $(UV) run --group st pytest tests/test_encoder_sentence_transformers_parity.py tests/test_encoder_sentence_transformers.py -m "not network"
-
-test-mlx: ## Run the tests with the mlx backend required (Apple silicon with Metal)
-	FSE_REQUIRE_MLX=1 $(UV) run --group mlx pytest tests -m "not network" $(XDIST)
 
 test-cov: ## Run tests with coverage
 	$(UV) run pytest tests -m "not network" $(XDIST) --cov=$(PACKAGE) --cov-report=term-missing --cov-fail-under=0

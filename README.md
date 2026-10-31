@@ -37,8 +37,6 @@ Installation
 
 `fse.gensim` (converting gensim word vectors) needs the extra `fse[gensim]`.
 
-On Apple silicon with macOS 14 or newer, the extra `fse[mlx]` adds the backend `"mlx"`, which averages the word vectors on the GPU within a small tolerance of the CPU's rows (usually with their bits): `encoder.encode(texts, backend="mlx")`. For tiny inputs it is slower than the default `"cpu"`.
-
 Usage
 ------------
 
