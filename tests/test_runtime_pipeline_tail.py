@@ -5,9 +5,9 @@ import numpy as np
 import pytest
 
 from fse._contract import Normalize
-from fse._runtime import EncodeSpec, MemorySink, Pipeline, _tasks
+from fse._runtime import EncodeSpec, MemorySink, Pipeline
 from fse._tokenizer_spec import TokenizerSpec
-from support.runtime import expected, small_tasks, source, texts, word_vectors
+from support.runtime import expected, small_tasks, source, texts, whole_tail, word_vectors
 
 F32 = np.float32
 KINDS = ["strings", "tokens", "file", "stream", "arrow"]
@@ -45,7 +45,7 @@ def test_the_automatic_plan_gives_the_rows_of_the_reference(monkeypatch, tmp_pat
     count = len(tasks)
     assert sum(tasks) == 3000
     tasks.clear()
-    monkeypatch.setattr(_tasks, "TAIL_ROUNDS", 0)  # the same run with the whole chunks
+    whole_tail(monkeypatch)  # the same run with the whole chunks
     whole = Pipeline(spec).infer(source(kind, sentences, tmp_path / "again"), workers=workers)
     assert got.view(np.uint32).tobytes() == whole.view(np.uint32).tobytes()
     if workers > 1 and kind != "stream":
@@ -59,10 +59,10 @@ def test_the_automatic_plan_gives_the_rows_of_the_reference(monkeypatch, tmp_pat
 def test_a_compact_output_does_not_depend_on_the_tail(monkeypatch, tmp_path, dtype, workers):
     small_tasks(monkeypatch)
     spec, sentences, out = _spec("strings"), texts(3000), []
-    for rounds in (2, 0):
-        monkeypatch.setattr(_tasks, "TAIL_ROUNDS", rounds)
-        pipeline = Pipeline(spec)
-        stored = pipeline.infer(
+    for split in (True, False):
+        if not split:
+            whole_tail(monkeypatch)
+        stored = Pipeline(spec).infer(
             source("strings", sentences, tmp_path), workers=workers, dtype=dtype
         )
         out.append(stored)

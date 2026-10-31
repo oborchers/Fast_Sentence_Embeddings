@@ -12,15 +12,21 @@ from support.arrow_c import Producer
 F32 = np.float32
 
 
-def small_tasks(monkeypatch, chunk_min=512, tail_min=256):
+def small_tasks(monkeypatch, chunk_min=512):
     """Make the automatic plan (``chunk_bytes=None``) cut small sources into many tasks and
-    split their tail: nothing runs inline, and the minimum sizes are bytes of a test."""
+    split their tail: nothing runs inline, and the minimum chunk size is ``chunk_min``."""
     from fse import _text
     from fse._runtime import _tasks
 
     monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
     monkeypatch.setattr(_text._scan, "_CHUNK_MIN_BYTES", chunk_min)
-    monkeypatch.setattr(_tasks, "TAIL_MIN_BYTES", tail_min)
+
+
+def whole_tail(monkeypatch):
+    """The plan without the split of its tail (what the automatic plan was before it)."""
+    from fse import _text
+
+    monkeypatch.setattr(_text._scan._Buffered, "split_tail", lambda _self, chunks, _workers: chunks)
 
 
 def assert_chunks_tile(chunks, rows, *, lines=None):

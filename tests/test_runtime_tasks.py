@@ -4,7 +4,7 @@ from fse._runtime import _tasks
 from fse._runtime._tasks import plan
 from fse._stream import StreamSource
 from fse._text import StringSource, TokenListSource
-from support.runtime import assert_chunks_tile, small_tasks, source, texts
+from support.runtime import assert_chunks_tile, small_tasks, source, texts, whole_tail
 
 
 def test_one_task_per_chunk_in_order():
@@ -63,14 +63,13 @@ def _tasks_of(src, workers, chunk_bytes=None, rows=1 << 14):
 def test_the_automatic_plan_splits_only_the_tail(monkeypatch, tmp_path, kind, workers):
     small_tasks(monkeypatch)
     src = source(kind, texts(3000), tmp_path)
-    monkeypatch.setattr(_tasks, "TAIL_ROUNDS", 0)
-    whole = _tasks_of(src, workers)
-    monkeypatch.undo()
-    small_tasks(monkeypatch)
     split = _tasks_of(src, workers)
+    with monkeypatch.context() as m:
+        whole_tail(m)
+        whole = _tasks_of(src, workers)
     chunks = tuple(t.chunk for t in split)
     assert_chunks_tile(chunks, 3000, lines=bytes(src._data) if kind == "file" else None)
-    assert len(whole) < len(split) <= len(whole) + 2 * workers
+    assert len(whole) < len(split) <= len(whole) + workers
     assert tuple(t.chunk for t in split[: len(whole) - workers]) == tuple(
         t.chunk for t in whole[: len(whole) - workers]
     )
@@ -91,7 +90,7 @@ def test_explicit_chunk_bytes_one_worker_inline_and_streams_keep_their_cuts(monk
     assert tuple(t.chunk for t in _tasks_of(src, 8)) == src.scan(workers=1).chunks
     monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
     stream = lambda: StreamSource(iter(sentences), chunk_rows=700)  # noqa: E731
-    monkeypatch.setattr(_tasks, "TAIL_ROUNDS", 0)
-    whole = [t.chunk for t in _tasks_of(stream(), 8)]
-    monkeypatch.setattr(_tasks, "TAIL_ROUNDS", 2)
+    with monkeypatch.context() as m:
+        whole_tail(m)
+        whole = [t.chunk for t in _tasks_of(stream(), 8)]
     assert [t.chunk for t in _tasks_of(stream(), 8)] == whole

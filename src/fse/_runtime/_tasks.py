@@ -37,12 +37,6 @@ INLINE_MAX_BYTES = 1 << 16
 # window spans collections, so a stream keeps its smaller tasks.
 STREAM_TASKS_PER_COLLECTION = 8
 
-# The tail of a run with the default chunk size (``chunk_bytes=None``) is split: the last
-# ``workers`` chunks are halved, TAIL_ROUNDS times, none into a part under TAIL_MIN_BYTES
-# (DR-180: the workers that finish last would otherwise idle while the last, whole chunks run).
-TAIL_ROUNDS = 2
-TAIL_MIN_BYTES = 1 << 16
-
 SOURCES = (StringSource, FileSource, TokenListSource, StreamSource, ArrowSource)
 
 
@@ -105,7 +99,7 @@ def plan(
     )
     chunks = scan.chunks
     if chunk_bytes is None and not inline and workers > 1:  # the automatic plan only
-        chunks = source.split_tail(chunks, workers, TAIL_ROUNDS, TAIL_MIN_BYTES)
+        chunks = source.split_tail(chunks, workers)
     return Plan(_then(chunks, source, error), scan.sentences, inline)
 
 

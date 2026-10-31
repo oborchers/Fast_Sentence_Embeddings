@@ -165,8 +165,7 @@ def test_with_vectors_one_pooling_gives_both_where_the_flags_agree(
 @pytest.mark.parametrize("workers", [1, 4, 10])
 def test_the_split_tail_of_the_automatic_plan_changes_no_output(monkeypatch, workers):
     """Heads with their vectors, rows numbered from a later first row, chunk_bytes=None."""
-    from fse._runtime import _tasks
-    from support.runtime import small_tasks
+    from support.runtime import small_tasks, whole_tail
 
     small_tasks(monkeypatch)
     spec = _spec(normalize=True)
@@ -174,8 +173,9 @@ def test_the_split_tail_of_the_automatic_plan_changes_no_output(monkeypatch, wor
     pipeline = make_head(spec, head, "cpu", own=_own(spec), with_vectors=True)
     sentences = texts(1500)
     runs = []
-    for rounds in (2, 0):
-        monkeypatch.setattr(_tasks, "TAIL_ROUNDS", rounds)
+    for split in (True, False):
+        if not split:
+            whole_tail(monkeypatch)
         out, vec = MemorySink(3), MemorySink(spec.output_dim)
         out.next_row = vec.next_row = 700
         pipeline.infer(
