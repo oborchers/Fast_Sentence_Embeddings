@@ -1,0 +1,76 @@
+{
+  "root": "/Users/oliver.borchers/Desktop/Code/fse-m4-scratch/dr147-wall-probe-v1-69fa89f446e8",
+  "commit": "9a4b9f0a2411294ca8cc2ad43a4d6e208fda4248",
+  "status": "failed overhead gate, no retry",
+  "backend": "cpu",
+  "mlx": "unstarted",
+  "rounds_retained": 1,
+  "timed_passes": 20,
+  "all_timed_bits_equal": true,
+  "fallback_events": {},
+  "load_range": [
+    4.17041015625,
+    4.17041015625
+  ],
+  "overhead": {
+    "ratios": {
+      "A2/A1": {
+        "values": [
+          0.9188231166490062
+        ],
+        "median": 0.9188231166490062,
+        "min": 0.9188231166490062,
+        "max": 0.9188231166490062
+      },
+      "M1/A1": {
+        "values": [
+          0.9906356244810837
+        ],
+        "median": 0.9906356244810837,
+        "min": 0.9906356244810837,
+        "max": 0.9906356244810837
+      },
+      "M2/A2": {
+        "values": [
+          1.109003613433869
+        ],
+        "median": 1.109003613433869,
+        "min": 1.109003613433869,
+        "max": 1.109003613433869
+      }
+    },
+    "aggregate_marked_over_plain": 1.047315807024959,
+    "valid": false,
+    "gate": "all retained M1/A1,M2/A2 and aggregate in[0.90,1.10]; A/A reported only"
+  },
+  "coverage_representative": false,
+  "accepted_wall_percentages": null,
+  "observed_ratio_is_not_causal_timer_overhead": true,
+  "active_seconds": 2.9078980419981235,
+  "global_spent_s": 596.1948255419993,
+  "global_remaining_s": 1203.8051744580007,
+  "matrix_fixed_s": 523.0340705840008,
+  "profile_actual_s": 60.617446750000454,
+  "probe_reservation_s": 200,
+  "retryable_load": false,
+  "trace_location": "/Users/oliver.borchers/Desktop/Code/fse-m4-scratch/dr147-wall-probe-v1-69fa89f446e8/cpu/trace.json",
+  "scripts_preflight": "/Users/oliver.borchers/Desktop/Code/fse-m4-scratch/dr147-wall-probe-v1-preflight.json",
+  "scripts_and_raw_trace_scratch_only": true,
+  "ledger_events_for_probe": [
+    {
+      "id": "f7d7aab8be504982a24d66edabb67560",
+      "kind": "reserve",
+      "seconds": 200.0,
+      "base": "c754efd382f7b42504d140cabf5aab6e40ad51bb"
+    },
+    {
+      "id": "f7d7aab8be504982a24d66edabb67560",
+      "kind": "settle",
+      "seconds": 2.9078980419981235,
+      "overrun": false
+    }
+  ],
+  "gating": "All retained M1/A1, M2/A2 and aggregate in[0.90,1.10]; A/A reported only",
+  "trace_code_or_raw_events_in_git": false,
+  "post_result_changes_or_retry": false
+}

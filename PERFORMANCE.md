@@ -1,6 +1,6 @@
 # Performance: how close fse comes to the hardware limit
 
-This document says how fast fse can be on a given machine, why, and how close it comes. It holds a small model of the limits (a roofline model), the assumptions behind it, and measurements on an Apple M1 Pro. `benchmarks/roofline.py` computes the same numbers for any encoder, corpus and hardware profile.
+This document says how fast fse can be on a given machine, why, and how close it comes. It holds a small model of the limits (a roofline model), the assumptions behind it, and measurements on an Apple M1 Pro and an 8P+4E M4 Pro. `benchmarks/roofline.py` computes the same numbers for any encoder, corpus and hardware profile.
 
 ## In short
 
@@ -81,7 +81,7 @@ Not in the model: waits of the tasks (they show as the gap between their wall an
 | | | 77.3 GB/s (measured, random rows) | `roofline.py probe`, this machine |
 | `m4-pro-14` | 10 P + 4 E | 273 GB/s (spec) | Apple Newsroom, 30.10.2024 |
 
-The topology of the M1 Pro comes from `sysctl` (`hw.perflevel0.physicalcpu` 8, `hw.perflevel1.physicalcpu` 2, 12 MiB L2 per cluster of 4 performance cores). The M4 Pro is a spec profile and was not measured: `roofline.py show result.json --hardware m4-pro-14 --workers 14` gives its bounds with the stage times of the machine that measured them.
+The topology of the M1 Pro comes from `sysctl` (`hw.perflevel0.physicalcpu` 8, `hw.perflevel1.physicalcpu` 2, 12 MiB L2 per cluster of 4 performance cores). The `m4-pro-14` M4 Pro is an unmeasured specification profile, distinct from the measured 8P+4E machine below: `roofline.py show result.json --hardware m4-pro-14 --workers 14` gives its bounds with the stage times of the machine that measured them.
 
 ### The measured memory roofs
 
@@ -469,6 +469,111 @@ PR 136 (2.0: stages 1 to 4 of a task in one nogil section on the cpu backend, La
     uv run python benchmarks/runtime_timeline.py ablate all --model potion-base-8M --corpus massive --workers 8 --rss
 
 The models and corpora come from the local Hugging Face cache; nothing is downloaded. A new machine gets a profile in `benchmarks/roofline_hardware.toml` with the sources of its numbers and the read roofs that `probe` measures on it.
+
+## MLX matrix on the M4 Pro (31 October 2026)
+
+DR-147 (MLX-Gate entscheiden und auf dem M4 Pro nachmessen) measured all 60 requested real-model cells on an actual M4 Pro with 8 performance and 4 efficiency cores, 48 GiB, default 12 workers. CPU14 is oversubscribed. The m4-pro-14 roofline specification is not this machine, and actual-variant bandwidth is unverified. Work performed using Codex. Frozen base c754efd382f7b42504d140cabf5aab6e40ad51bb; 43 accepted cells retain measured driver d8a61a5, 17 retain 9fc6a93. Both have identical inference sources and native checksum, recorded in [compact evidence](benchmarks/evidence/dr147-m4/README.md).
+
+Each cell has three paired alternating rounds, best of three passes on full WikiText (5352 texts) or two on MASSIVE (151674 texts), with CPU1/10/14 and MLX default plus A/A controls. Actual CPU-default plus A/A is included in the two deciding float32 WikiText cells. All model/dataset revisions are pinned; public Encoder.quantize supplies float16/int8 tables. All output rows are float32. All 60 full comparisons were bit-identical; worker/restart/GPU checks passed with no fallback or accepted discard. These results concern table dtype, not comparison of quantization error against original float32 tables.
+
+Below are the float32 time ratios MLX/CPU10, median and range of three paired ratios. Values below 1 favor MLX. Full float16/int8 results, CPU1/14/default, all unrounded A/A controls and texts/s replay from [matrix.json](benchmarks/evidence/dr147-m4/matrix.json) using `python benchmarks/report_mlx_gate.py --json`, without MLX or measurements. L means all accepted pair observations below 3.89; E means all from 3.89 to strict 5.
+
+| Model/dim | Corpus | Raw ratio (range) | Normalized ratio (range) | Raw/norm load |
+|---|---|---|---|---|
+| static-retrieval-mrl-en-v1/1024 | wikitext | 0.989344 (0.962579 to 1.440726) | 1.457620 (0.826732 to 1.677063) | L/L |
+| static-retrieval-mrl-en-v1/1024 | massive | 1.800728 (1.742174 to 1.802737) | 2.699700 (2.601370 to 2.793482) | L/L |
+| static-retrieval-mrl-en-v1/512 | wikitext | 1.996510 (1.930977 to 2.033243) | 2.019273 (1.901230 to 2.027938) | L/L |
+| static-retrieval-mrl-en-v1/512 | massive | 1.846385 (1.810518 to 1.895829) | 2.489930 (2.341543 to 2.594380) | L/L |
+| static-retrieval-mrl-en-v1/256 | wikitext | 2.206636 (2.099671 to 2.314705) | 2.247844 (2.074070 to 2.285782) | L/L |
+| static-retrieval-mrl-en-v1/256 | massive | 1.802697 (1.723051 to 1.811691) | 2.307149 (2.226299 to 2.325002) | L/E |
+| potion-base-8M/256 | wikitext | 2.125816 (1.750080 to 2.169504) | 2.121527 (2.098611 to 2.210607) | L/L |
+| potion-base-8M/256 | massive | 1.695953 (1.656746 to 1.701466) | 2.093748 (2.029371 to 2.148079) | E/E |
+| potion-base-32M/512 | wikitext | 1.892005 (1.840041 to 1.957113) | 1.862794 (1.799634 to 1.892968) | L/L |
+| potion-base-32M/512 | massive | 1.731875 (1.692832 to 1.750620) | 2.464521 (2.408432 to 2.569616) | L/L |
+
+Only the raw MRL1024/WikiText float32 cell has median MLX time below CPU10 among all 60 cells. Its range crosses parity, so the near tie is not a robust speed advantage. Actual CPU-default comparisons are:
+
+| MRL1024/WikiText float32 | MLX/CPU-default median (range) | CPU-default / MLX median texts/s | MLX A/A range |
+|---|---|---|---|
+| raw | 1.183355 (1.088285 to 1.660089) | 708084.8 / 598370.5 | 0.975194 to 1.088690 |
+| norm | 1.710866 (0.915435 to 1.882586) | 658326.2 / 400109.7 | 0.544806 to 1.844942 |
+
+Normal baseline: the predeclared median of all eleven fixed uptime 1-minute readings is 2.39, giving min(2.39+1.5,5)=3.89. All raw timestamped values are retained in evidence. Oliver then explicitly authorized strict limit 5 and load-only automatic retries, received by coordinator at 2026-10-31T13:40:11+01:00. This is a decision-backed override, not a fabricated baseline. Previous stops retain their original limits. Defender remained active and unchanged.
+
+Actual pair guards classify 150 accepted pairs/50 cells as low, 30 pairs/10 cells as elevated-only, no mixed/unknown. Accepted load range: 2.09033203125 to 4.6435546875. No accepted cell spans regimes, so within-cell load/spread dependence is not identifiable. Separate same-cell exploratory partial-pair comparisons show wider higher-load ranges in two tiny comparisons, but lack full historical restart/acceptance and share attempt/order confounds. A third n=1 group cannot establish spread. Cross-cell mixtures do not support load or Defender causality. Every valid higher-load cell is retained; partial or discarded rounds never supply acceptance.
+
+### Completed deciding-cell profiles
+
+All six requested make targets completed on profile commit 937860e99f1f6c373bb04d7fd2f8a5272e4cb29f: raw MRL1024/full WikiText/float32, CPU12 and MLX default12. Samply guards were CPU 2.6650390625 to 3.01171875 and MLX 2.7822265625 to 2.8505859375, strictly below 5. Memory/RSS-only limit 20 was explicit but never needed: every six-profile guard stayed below 5 (maximum 4.9619140625). All first/last bits matched accepted references; no fallback. Fresh guarded scratch Make overrides avoided deletion and checked every recorder/summary. Actual profile_top, native memray temporal/stats and RSS outputs remain local.
+
+Offline mapping: sample Unix ms = meta.startTime + samples.time[i], contained exactly in [1000*encode_start,1000*encode_stop], no padding/rounding. Inclusive samples: CPU 30771, MLX 39125. Encode-only: CPU 28253, MLX 36706. The denominator below is non-null thread-stack samples summed over all threads in that scope, including waiting stacks. These are exclusive self sample shares, **not end-to-end wall percentages or summed thread-time fractions**. Loading/guard __open samples are excluded by filtering.
+
+| Function/proxy | CPU inclusive / encode-only sample % | MLX inclusive / encode-only sample % |
+|---|---|---|
+| fse_loop_f32_neon | 42.3808 / 46.0447 | not resolved |
+| host _wp_piece | 11.6993 / 12.7385 | 6.2696 / 6.6610 |
+| __psynch_cvwait | 32.7939 / 35.5290 | 63.8722 / 67.7437 |
+| __workq_kernreturn | 0.0130 / 0.0000 | 13.0888 / 13.6272 |
+| IOKit+0x1ecc0 | not resolved | 4.3834 / 4.6314 |
+| _platform_memmove | 0.3770 / 0.3752 | 0.5725 / 0.5530 |
+| FLOAT_absolute (bounds proxy only) | not resolved | 0.3425 / 0.3623 |
+
+All IOKit offsets together give 4.6341198% encode-only (1701 samples), versus the dominant symbol 4.6313954% (1700); one sample is IOKit+0x1ecbc. Neither measures GPU transfer wall cost. Copy samples occur on main and unlabelled native threads; worker/device roles and critical-path overlap are not recoverable from names alone.
+
+| Exact peak measure | CPU bytes | MLX bytes | Scope |
+|---|---:|---:|---|
+| Native memray peak | 1308904403 | 1318022310 | FileReader.metadata.peak_memory, whole traced process including loading/checks |
+| RSS target-tree sampled peak | 382844928 | 579715072 | tools/rss.py CSV maximum, separate recording |
+| MLX allocator peak in mem recording | not applicable | 137620176 | get_peak_memory since process start |
+
+These are different, overlapping scopes and must not be summed. Native cumulative allocation is not the peak and is not normalized per call. Instrumented record durations/call counts are not throughput comparisons.
+
+| Desired deciding-cell end-to-end wall share | Result | Method limit | Smallest additional probe, not run |
+|---|---|---|---|
+| GPU transfer | unmeasured/not identifiable, no wall % | IOKit stacks do not isolate shared-memory conversion, device transfer or overlap. | Correlate input-conversion spans and Metal command-buffer timestamps with call/group IDs. |
+| Critical-path copy, worker | unmeasured/not identifiable, no wall % | memmove samples have no reliable role/critical-path mapping. | Tag worker _use/np.copyto spans and native thread IDs; reconstruct overlap on the call DAG. |
+| Critical-path copy, device thread | unmeasured/not identifiable, no wall % | No isolated device-copy span or counterfactual was recorded. | Tag device finish/copy spans separately, correlated with worker leases and group IDs. |
+| Group-boundary wait | unmeasured/not identifiable, no wall % | cvwait combines multiple conditions and overlapping workers. | Timestamp group evaluation start/finish and boundary waits, with group/call IDs. |
+| Queue wait | unmeasured/not identifiable, no wall % | Queue enqueue/take timestamps were not recorded. | Timestamp enqueue/take/done per job and correlate with the critical path. |
+| Host WordPiece | unmeasured/not identifiable, no wall % | Parallel leaf sample shares are not exclusive wall duration. | Tag per-task WordPiece spans and overlap within each encode window. |
+| Token/bucket checks | unmeasured/not identifiable, no wall % | No isolated check span or resolved exclusive symbol. | Tag host validation spans without removing safety checks. |
+| _bounds | unmeasured/not identifiable, no wall % | FLOAT_absolute is a native proxy, not the complete Python bounds function. | Tag bounds subcalls on each worker and preserve overlap/critical-path correlation. |
+| memmove | unmeasured/not identifiable, no wall % | Generic sampled copies include unrelated movement; role/overlap unknown. | Tag call-site copy spans and worker/device roles; do not sum overlapping thread times. |
+| Fixed per-call costs | unmeasured/not identifiable, no wall % | A single workload provides no fixed-cost intercept. | Use a separately authorized small batch-size probe with unchanged outputs and validated overhead. |
+
+The desired denominator is end-to-end encode wall time. Samples do not partition that critical path: overlapping worker times cannot be added, and cvwait cannot be split into queue/group/GPU causes. Unresolved costs are not zero. Any proposed instrumentation needs separate authorization and an unchanged-output probe validated within10% of base before ablation. The later CPU attempt below failed that gate; no ablation ran.
+
+Compared with the M1 "Device thread, measured" table in docs/architecture/backends.md, the reported lease/copy ablation was on MRL1024/MASSIVE at 8 workers: moving copy to the device thread cost 1.179 (1.141 to 1.289), while WikiText was 1.007 (0.977 to 1.078). Its base profile reported 37% cvwait, 11 to 12% WordPiece and 8.8% memmove samples. Our M4 profile is WikiText at 12 workers with encode-window filtering, not a matching workload/scope. The M1 mechanism finding does not supply M4 wall shares or justify removing the lease; group-boundary benefit remains unproved here.
+
+The small-dimension explanation is limited to the observed WikiText trend: MRL float32 raw MLX/CPU10 rises from 0.9893 at 1024 to 2.2066 at 256. Retained host WordPiece and waiting samples are compatible with less useful GPU work relative to host work as rows shrink, but this is inference, not a measured per-cause decomposition. It is not universal: MASSIVE raw is 1.8007 at 1024 and 1.8027 at 256; normalized is 2.6997 versus 2.3071. Larger dimensions do not consistently rescue MLX across corpora.
+
+Recommendation for Oliver: retain CPU as default and MLX as opt-in; the measured near tie does not justify a default change, while host work/waits remain visible. This is a recommendation, not a policy decision or runtime change. MLX policy remains undecided and PR remains Draft by explicit instruction.
+
+At the historical six-profile stage cutoff, recording/startup/model-loading/postprocess charge was 60.617446750000454 seconds, reservation 360, no retries. Combined root charge at that historical phase cutoff was 593.2869275000012/1800, matrix fixed 523.0340705840008/900. One own terminal lock was verified and Finder-released; immediate/delayed checks found no duplicates. Raw profiles/windows/symbols/traces/CSV and wrapper sources are preserved under dr147-profiles-3101e4a7fdd8 in task scratch. Compact profiles.json and profile_offline.py replay the existing evidence without a new recording. No additional measurement or ablation occurred in that stage; the later failed probe follows below.
+
+### Failed timestamp-probe validity gate (no accepted wall shares)
+
+A separately authorized scratch-only timestamp probe ran on frozen 9a4b9f0a2411294ca8cc2ad43a4d6e208fda4248, CPU default12, raw MRL1024/full WikiText. The fixed plan used three ABBA/BAAB rounds of five encodes per A1/M1/M2/A2 side, restored original methods/queue on plain sides, and required every retained M1/A1, M2/A2 and aggregate marked/plain ratio in[0.90,1.10]. A2/A1 was noise/control only. The first complete round failed, so later rounds and MLX were not started. No retry, hook adaptation, timer-cost subtraction or inconvenient-ratio discard followed.
+
+| Retained metric (n=1) | Ratio, median, minimum and maximum | Role/result |
+|---|---:|---|
+| Plain A2/A1 | 0.9188231166490062 | A/A noise, not independently gated |
+| Marked M1/plain A1 | 0.9906356244810837 | inside predeclared band |
+| Marked M2/plain A2 | 1.109003613433869 | outside 1.10, mandatory failure |
+| Aggregate sum(marked)/sum(plain) | 1.047315807024959 | inside band, does not rescue paired miss |
+
+Each metric has one retained value, so min=median=max and no spread is established. These are observed ratios, **not a measured causal timer overhead of 10.90%**. The plain A/A difference demonstrates noise/control variation; it neither establishes the cause of the miss nor excuses it. Coverage is non-representative and supplies **no accepted wall percentages**. Raw CPU spans are failed exploratory data only, preserved locally; MLX tracing is unstarted. The existing 60-cell matrix and six-profile sample/memory evidence remain unchanged. All 20 timed outputs were fully bit-equal to the accepted CPU reference, with empty fallback deltas. Every recorded probe guard was 4.17041015625 (<5), so this was a non-load overhead-validity stop.
+
+Probe actual 2.9078980419981235 seconds from reservation 200. Current root global 596.1948255419993/1800, remaining 1203.8051744580007. Matrix remains 523.0340705840008; six-profile stage remains 60.617446750000454. Own terminal PID78757/token79df4a1d473747088168cb90f00867d4 was reverified against invocation and Finder-released; immediate/delayed checks found no duplicates. All tracing scripts, raw timestamps and complete failed trace stay scratch-only at dr147-wall-probe-v1-69fa89f446e8. Only compact non-tracing results are committed in wall-probe.json. No more measurement is authorized in this handoff.
+
+### MASSIVE interpretation and structural output volume
+
+| MRL1024 float32 complete output | Texts/output rows | Logical output bytes |
+|---|---:|---:|
+| WikiText | 5352 | 21921792 |
+| MASSIVE | 151674 | 621256704 |
+
+MASSIVE has 28.34 times the output rows/bytes and shorter texts. This is 5352 or 151674 times 1024 times 4 bytes, not measured physical GPU transfer traffic or simultaneous residency. In the M4 matrix, raw MLX/CPU10 is 1.8007 at 1024 and 1.8027 at 256; normalized is 2.6997 versus 2.3071. Higher dimensions therefore do not consistently rescue MLX. The M1 MASSIVE copy/lease ablation motivates investigating copy handling, but it was a different machine/workload/worker count. No M4 MASSIVE timestamp trace ran. WikiText sample shares or failed-probe spans are not transferred to MASSIVE, and no causal M4 MASSIVE copy bottleneck is established.
 
 ## Sources
 
