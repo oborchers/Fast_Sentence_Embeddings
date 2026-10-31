@@ -1,10 +1,13 @@
 """Shared-machine timing must fail closed and leave other owners alone."""
 
 import importlib
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="local POSIX comparison runner")
 
 
 @pytest.fixture
