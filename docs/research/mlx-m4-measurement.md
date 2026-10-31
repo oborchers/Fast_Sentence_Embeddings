@@ -93,6 +93,15 @@ Reservations are charged before execution and settled to actual elapsed time.
 A killed parent consumes its full reservation. Do not reset or replace the ledger.
 Pilot, loading, warmup, parity, retries, restarts and profiles all consume this budget.
 Each child is additionally limited to ten minutes. A timeout ends its process group.
+An independent stdlib-only supervisor watches the owner's private pipe and deadline.
+Owner SIGTERM takes a controlled cleanup path. Even owner SIGKILL closes that pipe,
+so the supervisor terminates the job group and remaining descendants independently
+of a blocked encoder or its GIL. The supervisor waits at most 0.25 seconds per
+completion check and allows 0.25 seconds for SIGTERM before SIGKILL. Cleanup/reaping
+has bounded waits. Each supervised job incurs process startup, an idle monitor and
+up to four completion checks per second. This unavoidable activity can affect
+timings indirectly. Supervision is identical for paired/A/A sides and runs outside
+the encode timer; all its wall time is charged to the shared budget.
 Coverage files retain completed and unmeasured cells. Raw journals also survive a
 hard timeout. Inspect them before reporting incomplete evidence or retrying.
 

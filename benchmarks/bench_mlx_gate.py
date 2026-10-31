@@ -20,7 +20,6 @@ import argparse
 import json
 import os
 import resource
-import signal
 import subprocess
 import sys
 import time
@@ -31,6 +30,7 @@ from pathlib import Path
 import numpy as np
 from mlx_gate_data import Cell, corpus, describe, encoder, matrix
 from mlx_gate_parity import audit, counts, delta, equal, launches
+from mlx_gate_process import run_job
 from mlx_gate_runs import Runner, journal_pairs, sides, summary
 from mlx_gate_safety import (
     Budget,
@@ -384,19 +384,6 @@ def postprocess(args, target: Path, deadline: float) -> None:
         with (target / f"profile-summary-{i}.log").open("x", encoding="utf-8") as log:
             if run_job(command, log, max(0.01, deadline - time.monotonic())):
                 raise StopError("profile postprocessing failed")
-
-
-def run_job(command, log, timeout: float) -> int:
-    """A timeout or interrupt ends our whole child process group, including restart checks."""
-    with subprocess.Popen(
-        command, stdout=log, stderr=subprocess.STDOUT, start_new_session=True
-    ) as child:
-        try:
-            return child.wait(timeout=timeout)
-        except BaseException:
-            os.killpg(child.pid, signal.SIGKILL)
-            child.wait()
-            raise
 
 
 def main(argv=None) -> int:
