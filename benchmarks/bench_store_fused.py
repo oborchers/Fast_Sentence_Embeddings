@@ -276,6 +276,8 @@ def cells(args) -> list[dict]:
         plan.append({"name": "1.33 GB sentences SIF float32", "length": True})
     out = []
     for cell in plan:
+        if args.only and not any(word in cell["name"] for word in args.only):
+            continue
 
         def run_one(side, cell=cell):
             cmd = _length_cmd(args, side) if cell.get("length") else _store_cmd(args, cell, side)
@@ -309,6 +311,7 @@ def main(argv=None):
     parser.add_argument("--max-load", type=float, default=5.0)
     parser.add_argument("--budget", type=float, default=240.0, help="seconds per cell")
     parser.add_argument("--skip-length", action="store_true")
+    parser.add_argument("--only", nargs="+", help="cells whose name has one of these words")
     parser.add_argument("--json")
     args = parser.parse_args(argv)
     if args.mode == "child":
