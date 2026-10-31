@@ -21,7 +21,6 @@ from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
-
 from bench_model2vec import contender, texts
 
 

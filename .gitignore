@@ -83,6 +83,7 @@ test_emb*
 # Build and tooling #
 #####################
 .venv/
+.venv-quality/
 src/fse/_version.py
 src/fse/_native.c
 *.egg-info/

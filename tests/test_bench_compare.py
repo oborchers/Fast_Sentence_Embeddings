@@ -25,7 +25,7 @@ def test_reservation_preserves_existing_owner(bench, tmp_path):
 
 def test_reservation_releases_after_failure(bench, tmp_path):
     lock = tmp_path / "bench.lock"
-    with pytest.raises(ValueError), bench.reservation(lock):
+    with pytest.raises(ValueError, match="child failed"), bench.reservation(lock):
         raise ValueError("child failed")
     assert not lock.exists()
 
