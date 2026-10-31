@@ -1,0 +1,2882 @@
+{
+ "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+ "python": "3.13.16 (main, Oct  9 2026, 15:11:24) [Clang 22.1.3 ]",
+ "cells": [
+  {
+   "model": "potion-base-8M",
+   "corpus": "wikitext",
+   "size": "full",
+   "workers": 4,
+   "summary": {
+    "valid_pairs": 3,
+    "ratios": {
+     "control": [
+      0.9709519486291542,
+      0.990698040471857,
+      1.033469470662511
+     ],
+     "reuse": [
+      0.9482497881434045,
+      0.9734598402998937,
+      0.975511423863957
+     ]
+    },
+    "eligible": true,
+    "rss_ratio": 0.9326255341880342,
+    "rss_ok": true,
+    "median_ms": {
+     "base": 7.932959008030593,
+     "control": 7.860625046305358,
+     "reuse": 7.703165989369154
+    },
+    "peak_mib": {
+     "base": 234.0,
+     "control": 219.015625,
+     "reuse": 218.234375
+    },
+    "gain": false,
+    "beyond_noise": false,
+    "regression_beyond_noise": false,
+    "noise_bounds": [
+     0.9676144563408775,
+     1.033469470662511
+    ]
+   },
+   "kept": [
+    {
+     "base": {
+      "seconds_per_call": [
+       0.008616916020400822,
+       0.008270832942798734,
+       0.00804424996022135,
+       0.007978375069797039,
+       0.008095792029052973,
+       0.007733916980214417,
+       0.008201166056096554
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 245366784,
+      "load_average": 3.47607421875,
+      "load_after": 3.59765625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.008178208023309708,
+       0.00798087497241795,
+       0.007860459038056433,
+       0.007860625046305358,
+       0.007822707993909717,
+       0.007896041963249445,
+       0.007819916005246341
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 228147200,
+      "load_average": 3.59765625,
+      "load_after": 3.59765625
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.00782466703094542,
+       0.0076871669152751565,
+       0.007620415999554098,
+       0.007559000048786402,
+       0.007578499964438379,
+       0.007676833076402545,
+       0.007722040987573564
+      ],
+      "startup_seconds": 0.00033404200803488493,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 223412224,
+      "load_average": 3.59765625,
+      "load_after": 3.59765625
+     }
+    },
+    {
+     "reuse": {
+      "seconds_per_call": [
+       0.007892417022958398,
+       0.007641625008545816,
+       0.007589709013700485,
+       0.007642709068022668,
+       0.007963999989442527,
+       0.0077752500073984265,
+       0.007722417009063065
+      ],
+      "startup_seconds": 0.00033816706854850054,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 228835328,
+      "load_average": 3.59765625,
+      "load_after": 3.59765625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.008139375015161932,
+       0.007859166944399476,
+       0.007802083040587604,
+       0.007845709100365639,
+       0.007857374963350594,
+       0.008002417045645416,
+       0.008290541009046137
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 227328000,
+      "load_average": 3.59765625,
+      "load_after": 3.59765625
+     },
+     "base": {
+      "seconds_per_call": [
+       0.008012332953512669,
+       0.007977499975822866,
+       0.007853082963265479,
+       0.008078541955910623,
+       0.007932959008030593,
+       0.007924332981929183,
+       0.0077369160717353225
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 223723520,
+      "load_average": 3.59765625,
+      "load_after": 3.54931640625
+     }
+    },
+    {
+     "base": {
+      "seconds_per_call": [
+       0.007977249915711582,
+       0.007859791978262365,
+       0.007966333068907261,
+       0.007896541035734117,
+       0.00774312496650964,
+       0.007704875082708895,
+       0.007914957939647138
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 226918400,
+      "load_average": 3.54931640625,
+      "load_after": 3.54931640625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.008160834084264934,
+       0.007758541963994503,
+       0.007815416087396443,
+       0.0090123750269413,
+       0.009312374982982874,
+       0.008255833992734551,
+       0.008129540947265923
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 229654528,
+      "load_average": 3.54931640625,
+      "load_after": 3.54931640625
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.007908457890152931,
+       0.007646667072549462,
+       0.007695334032177925,
+       0.0077587919076904655,
+       0.007723374990746379,
+       0.007531375042162836,
+       0.007703165989369154
+      ],
+      "startup_seconds": 0.0003618750488385558,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 227426304,
+      "load_average": 3.54931640625,
+      "load_after": 3.54931640625
+     }
+    }
+   ],
+   "discarded": []
+  },
+  {
+   "model": "potion-base-8M",
+   "corpus": "wikitext",
+   "size": "full",
+   "workers": 10,
+   "summary": {
+    "valid_pairs": 3,
+    "ratios": {
+     "control": [
+      1.0061575886171954,
+      0.8179678769772983,
+      0.9784773405837524
+     ],
+     "reuse": [
+      0.9049621671655582,
+      0.7675537813538653,
+      0.878151407143229
+     ]
+    },
+    "eligible": true,
+    "rss_ratio": 1.0039602534562213,
+    "rss_ok": true,
+    "median_ms": {
+     "base": 5.99754205904901,
+     "control": 5.809207912534475,
+     "reuse": 5.266749998554587
+    },
+    "peak_mib": {
+     "base": 217.0,
+     "control": 217.359375,
+     "reuse": 217.859375
+    },
+    "gain": true,
+    "beyond_noise": false,
+    "regression_beyond_noise": false,
+    "noise_bounds": [
+     0.8179678769772983,
+     1.2225418969940232
+    ]
+   },
+   "kept": [
+    {
+     "base": {
+      "seconds_per_call": [
+       0.006283125025220215,
+       0.0060356250032782555,
+       0.005634625093080103,
+       0.005609625019133091,
+       0.005496750003658235,
+       0.006439417018555105,
+       0.005765249952673912
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 227065856,
+      "load_average": 3.54931640625,
+      "load_after": 3.54931640625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.006191374966874719,
+       0.006649332935921848,
+       0.00579204095993191,
+       0.005800749990157783,
+       0.00559133302886039,
+       0.0060457909712567925,
+       0.005638916976749897
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 227917824,
+      "load_average": 3.54931640625,
+      "load_after": 3.54931640625
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.005601625074632466,
+       0.005230000009760261,
+       0.0052173330914229155,
+       0.005300707998685539,
+       0.00514083297457546,
+       0.005199666018597782,
+       0.005185583024285734
+      ],
+      "startup_seconds": 0.000656625023111701,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 225017856,
+      "load_average": 3.54931640625,
+      "load_after": 3.54931640625
+     }
+    },
+    {
+     "reuse": {
+      "seconds_per_call": [
+       0.005708375014364719,
+       0.005357832997106016,
+       0.005557207972742617,
+       0.005475124926306307,
+       0.005282375030219555,
+       0.005242249928414822,
+       0.00545116700232029
+      ],
+      "startup_seconds": 0.0006896250415593386,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 228442112,
+      "load_average": 3.54931640625,
+      "load_after": 3.54931640625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.005866708001121879,
+       0.005602624965831637,
+       0.005639208946377039,
+       0.0059289580676704645,
+       0.005810666945762932,
+       0.005681500071659684,
+       0.005809207912534475
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 225574912,
+      "load_average": 3.54931640625,
+      "load_after": 4.3857421875
+     },
+     "base": {
+      "seconds_per_call": [
+       0.006768291932530701,
+       0.007630959036760032,
+       0.007824874948710203,
+       0.007532667019404471,
+       0.0071020000614225864,
+       0.006071042036637664,
+       0.006752415909431875
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 227131392,
+      "load_average": 4.3857421875,
+      "load_after": 4.3857421875
+     }
+    },
+    {
+     "base": {
+      "seconds_per_call": [
+       0.006633165990933776,
+       0.00654483400285244,
+       0.006458666059188545,
+       0.00599754205904901,
+       0.005676417029462755,
+       0.005721000023186207,
+       0.005570415989495814
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 227540992,
+      "load_average": 4.3857421875,
+      "load_after": 4.3857421875
+     },
+     "control": {
+      "seconds_per_call": [
+       0.005795915960334241,
+       0.005596167058683932,
+       0.00590183399617672,
+       0.0058684590039774776,
+       0.005937542067840695,
+       0.006369124981574714,
+       0.005631415988318622
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 226050048,
+      "load_average": 4.3857421875,
+      "load_after": 4.3857421875
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.00530608301050961,
+       0.00512141699437052,
+       0.005266749998554587,
+       0.005178374936804175,
+       0.005199874984100461,
+       0.005627542035654187,
+       0.005493000033311546
+      ],
+      "startup_seconds": 0.0005850419402122498,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       5352,
+       5352
+      ],
+      "bytes_per_call": [
+       2431904,
+       2431904
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 228179968,
+      "load_average": 4.3857421875,
+      "load_after": 4.3857421875
+     }
+    }
+   ],
+   "discarded": []
+  },
+  {
+   "model": "potion-base-8M",
+   "corpus": "wikitext",
+   "size": "short",
+   "workers": 4,
+   "summary": {
+    "valid_pairs": 3,
+    "ratios": {
+     "control": [
+      1.0744846611953458,
+      1.0054646852240852,
+      1.0827564705289614
+     ],
+     "reuse": [
+      0.9108293350909574,
+      0.8998145467814097,
+      0.8218191411206451
+     ]
+    },
+    "eligible": true,
+    "rss_ratio": 1.023273592117557,
+    "rss_ok": true,
+    "median_ms": {
+     "base": 1.052208011969924,
+     "control": 1.1005409760400653,
+     "reuse": 0.9467920754104853
+    },
+    "peak_mib": {
+     "base": 183.953125,
+     "control": 184.625,
+     "reuse": 188.234375
+    },
+    "gain": true,
+    "beyond_noise": true,
+    "regression_beyond_noise": false,
+    "noise_bounds": [
+     0.9235687130195286,
+     1.0827564705289614
+    ]
+   },
+   "kept": [
+    {
+     "base": {
+      "seconds_per_call": [
+       0.0011560419807210565,
+       0.0010242500575259328,
+       0.0010241249110549688,
+       0.0009943329496309161,
+       0.0010125000262632966,
+       0.0010488330153748393,
+       0.0010492498986423016
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 191037440,
+      "load_average": 3.41162109375,
+      "load_after": 3.41162109375
+     },
+     "control": {
+      "seconds_per_call": [
+       0.0011317909229546785,
+       0.00117891700938344,
+       0.0010936670005321503,
+       0.0010649170726537704,
+       0.0011005409760400653,
+       0.0013187499716877937,
+       0.0010247499449178576
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 192397312,
+      "load_average": 3.41162109375,
+      "load_after": 3.41162109375
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.0009833329822868109,
+       0.0008984589949250221,
+       0.0008892499608919024,
+       0.0010469169355928898,
+       0.0010161660611629486,
+       0.0009329169988632202,
+       0.0008819589857012033
+      ],
+      "startup_seconds": 0.0004547080025076866,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 193560576,
+      "load_average": 3.41162109375,
+      "load_after": 3.41162109375
+     }
+    },
+    {
+     "reuse": {
+      "seconds_per_call": [
+       0.0009654999012127519,
+       0.0009467920754104853,
+       0.0009134579449892044,
+       0.0008786669932305813,
+       0.000920457998290658,
+       0.0009675829205662012,
+       0.0010632919147610664
+      ],
+      "startup_seconds": 0.0003768749302253127,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 197378048,
+      "load_average": 3.41162109375,
+      "load_after": 3.41162109375
+     },
+     "control": {
+      "seconds_per_call": [
+       0.0011204160982742906,
+       0.0010832080151885748,
+       0.0010347500210627913,
+       0.0010998330544680357,
+       0.0010579579975456,
+       0.0010323749156668782,
+       0.0010100000072270632
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 193593344,
+      "load_average": 3.41162109375,
+      "load_after": 3.37841796875
+     },
+     "base": {
+      "seconds_per_call": [
+       0.001118374988436699,
+       0.0010509589919820428,
+       0.0010204579448327422,
+       0.0011056670919060707,
+       0.001052208011969924,
+       0.0010279580019414425,
+       0.0010578749934211373
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 192888832,
+      "load_average": 3.37841796875,
+      "load_after": 3.37841796875
+     }
+    },
+    {
+     "base": {
+      "seconds_per_call": [
+       0.0011632080422714353,
+       0.0010968330316245556,
+       0.0012038330314680934,
+       0.0011006660060957074,
+       0.0013550000730901957,
+       0.0013176669599488378,
+       0.001224457984790206
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 192708608,
+      "load_average": 3.37841796875,
+      "load_after": 3.37841796875
+     },
+     "control": {
+      "seconds_per_call": [
+       0.0013684999430552125,
+       0.001303458004258573,
+       0.0013184580020606518,
+       0.0012720830272883177,
+       0.0013264999724924564,
+       0.0012286249548196793,
+       0.0012300830567255616
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 191791104,
+      "load_average": 3.37841796875,
+      "load_after": 3.37841796875
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.000992374960333109,
+       0.0011043749982491136,
+       0.000989333027973771,
+       0.0009802909335121512,
+       0.0009260840015485883,
+       0.0010965829715132713,
+       0.0009478339925408363
+      ],
+      "startup_seconds": 0.00043179199565202,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 195035136,
+      "load_average": 3.37841796875,
+      "load_after": 3.37841796875
+     }
+    }
+   ],
+   "discarded": []
+  },
+  {
+   "model": "potion-base-8M",
+   "corpus": "wikitext",
+   "size": "short",
+   "workers": 10,
+   "summary": {
+    "valid_pairs": 3,
+    "ratios": {
+     "control": [
+      1.0329386527193147,
+      1.0192703257957278,
+      1.0312589563094057
+     ],
+     "reuse": [
+      0.8890350078024164,
+      0.8734525424122441,
+      0.8812745478376629
+     ]
+    },
+    "eligible": true,
+    "rss_ratio": 0.9877693651718114,
+    "rss_ok": true,
+    "median_ms": {
+     "base": 1.0890000266954303,
+     "control": 1.1230410309508443,
+     "reuse": 0.9597080061212182
+    },
+    "peak_mib": {
+     "base": 187.796875,
+     "control": 185.15625,
+     "reuse": 185.5
+    },
+    "gain": true,
+    "beyond_noise": true,
+    "regression_beyond_noise": false,
+    "noise_bounds": [
+     0.968111704763298,
+     1.0329386527193147
+    ]
+   },
+   "kept": [
+    {
+     "base": {
+      "seconds_per_call": [
+       0.0011581250000745058,
+       0.0010453748982399702,
+       0.0010701670544221997,
+       0.001064874930307269,
+       0.001023916993290186,
+       0.0010755839757621288,
+       0.001105083036236465
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 195264512,
+      "load_average": 3.37841796875,
+      "load_after": 3.37841796875
+     },
+     "control": {
+      "seconds_per_call": [
+       0.001121415989473462,
+       0.0010943750385195017,
+       0.0010588340228423476,
+       0.0011054169153794646,
+       0.0011899159289896488,
+       0.001112625002861023,
+       0.0010587089927867055
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 194150400,
+      "load_average": 3.37841796875,
+      "load_after": 3.37841796875
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.0009572081035003066,
+       0.0009514159755781293,
+       0.0009043749887496233,
+       0.0010184579296037555,
+       0.0009402499999850988,
+       0.0008907499723136425,
+       0.001045833108946681
+      ],
+      "startup_seconds": 0.0005732090212404728,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 194510848,
+      "load_average": 3.37841796875,
+      "load_after": 3.37841796875
+     }
+    },
+    {
+     "reuse": {
+      "seconds_per_call": [
+       0.0010494160233065486,
+       0.0010672910138964653,
+       0.0010138340294361115,
+       0.0009598750621080399,
+       0.0009763749549165368,
+       0.0009454999817535281,
+       0.0009295840281993151
+      ],
+      "startup_seconds": 0.0006055410485714674,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 191774720,
+      "load_average": 3.37841796875,
+      "load_after": 3.34765625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.0012833339860662818,
+       0.0011393750319257379,
+       0.00114883400965482,
+       0.0011950409971177578,
+       0.0010780419688671827,
+       0.001036166911944747,
+       0.0010951249860227108
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 193003520,
+      "load_average": 3.34765625,
+      "load_after": 3.34765625
+     },
+     "base": {
+      "seconds_per_call": [
+       0.0011397909838706255,
+       0.0011779170017689466,
+       0.001227749977260828,
+       0.0011178340064361691,
+       0.0011051250621676445,
+       0.0011158749694004655,
+       0.0010610000463202596
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 193347584,
+      "load_average": 3.34765625,
+      "load_after": 3.34765625
+     }
+    },
+    {
+     "base": {
+      "seconds_per_call": [
+       0.0011873330222442746,
+       0.0011095409281551838,
+       0.001175625016912818,
+       0.0010874579893425107,
+       0.0010890000266954303,
+       0.0010114581091329455,
+       0.0010542500531300902
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 196919296,
+      "load_average": 3.34765625,
+      "load_after": 3.34765625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.0011230410309508443,
+       0.0011197919957339764,
+       0.001264458056539297,
+       0.0011106249876320362,
+       0.001151458011008799,
+       0.0010464160004630685,
+       0.0011351249413564801
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 190595072,
+      "load_average": 3.34765625,
+      "load_after": 3.34765625
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.0010410830145701766,
+       0.001074334024451673,
+       0.0009654170135036111,
+       0.0009597080061212182,
+       0.0009254580363631248,
+       0.0008841670351102948,
+       0.0008548330515623093
+      ],
+      "startup_seconds": 0.0007067499682307243,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       500,
+       500
+      ],
+      "bytes_per_call": [
+       194901,
+       194901
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 193871872,
+      "load_average": 3.34765625,
+      "load_after": 3.34765625
+     }
+    }
+   ],
+   "discarded": []
+  },
+  {
+   "model": "potion-base-8M",
+   "corpus": "wikitext",
+   "size": "many",
+   "workers": 4,
+   "summary": {
+    "valid_pairs": 3,
+    "ratios": {
+     "control": [
+      1.0051573465121402,
+      1.0246566286702534,
+      1.0076777632747957
+     ],
+     "reuse": [
+      0.8439227243490435,
+      0.8207062974858633,
+      0.822052654689043
+     ]
+    },
+    "eligible": true,
+    "rss_ratio": 0.9946817350839289,
+    "rss_ok": true,
+    "median_ms": {
+     "base": 0.6209437499055639,
+     "control": 0.6257112090243027,
+     "reuse": 0.510448458022438
+    },
+    "peak_mib": {
+     "base": 188.03125,
+     "control": 186.859375,
+     "reuse": 187.03125
+    },
+    "gain": true,
+    "beyond_noise": true,
+    "regression_beyond_noise": false,
+    "noise_bounds": [
+     0.9759366913946075,
+     1.0246566286702534
+    ]
+   },
+   "kept": [
+    {
+     "base": {
+      "seconds_per_call": [
+       0.0006211930830031633
+      ],
+      "startup_seconds": 0.0,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 196722688,
+      "load_average": 3.34765625,
+      "load_after": 3.34765625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.0006243967909831553
+      ],
+      "startup_seconds": 0.0,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 195936256,
+      "load_average": 3.34765625,
+      "load_after": 3.3193359375
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.0005242389589548111
+      ],
+      "startup_seconds": 0.00037837494164705276,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 193921024,
+      "load_average": 3.3193359375,
+      "load_after": 3.3193359375
+     }
+    },
+    {
+     "reuse": {
+      "seconds_per_call": [
+       0.0005068371250526979
+      ],
+      "startup_seconds": 0.00038241699803620577,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 193003520,
+      "load_average": 3.3193359375,
+      "load_after": 3.3193359375
+     },
+     "control": {
+      "seconds_per_call": [
+       0.0006327891249675304
+      ],
+      "startup_seconds": 0.0,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 193822720,
+      "load_average": 3.3193359375,
+      "load_after": 3.3193359375
+     },
+     "base": {
+      "seconds_per_call": [
+       0.0006175621249713003
+      ],
+      "startup_seconds": 0.0,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 197165056,
+      "load_average": 3.3193359375,
+      "load_after": 4.25439453125
+     }
+    },
+    {
+     "base": {
+      "seconds_per_call": [
+       0.0006209437499055639
+      ],
+      "startup_seconds": 0.0,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 197033984,
+      "load_average": 4.25439453125,
+      "load_after": 4.25439453125
+     },
+     "control": {
+      "seconds_per_call": [
+       0.0006257112090243027
+      ],
+      "startup_seconds": 0.0,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 194805760,
+      "load_average": 4.25439453125,
+      "load_after": 4.25439453125
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.0005104484580224379
+      ],
+      "startup_seconds": 0.00042766693513840437,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 196116480,
+      "load_average": 4.25439453125,
+      "load_after": 4.25439453125
+     }
+    }
+   ],
+   "discarded": []
+  },
+  {
+   "model": "potion-base-8M",
+   "corpus": "wikitext",
+   "size": "many",
+   "workers": 10,
+   "summary": {
+    "valid_pairs": 3,
+    "ratios": {
+     "control": [
+      1.033174317699292,
+      1.0120463361272314,
+      0.9830221238926558
+     ],
+     "reuse": [
+      0.8036488692109861,
+      0.8196194664070963,
+      0.8031199366913618
+     ]
+    },
+    "eligible": true,
+    "rss_ratio": 1.012134906686752,
+    "rss_ok": true,
+    "median_ms": {
+     "base": 0.6250543330097571,
+     "control": 0.6237459999974817,
+     "reuse": 0.5051491670310497
+    },
+    "peak_mib": {
+     "base": 186.703125,
+     "control": 187.921875,
+     "reuse": 188.96875
+    },
+    "gain": true,
+    "beyond_noise": true,
+    "regression_beyond_noise": false,
+    "noise_bounds": [
+     0.9678908804342274,
+     1.033174317699292
+    ]
+   },
+   "kept": [
+    {
+     "base": {
+      "seconds_per_call": [
+       0.0006250543330097571
+      ],
+      "startup_seconds": 0.0,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 195772416,
+      "load_average": 4.25439453125,
+      "load_after": 4.07373046875
+     },
+     "control": {
+      "seconds_per_call": [
+       0.0006457900840323419
+      ],
+      "startup_seconds": 0.0,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 194428928,
+      "load_average": 4.07373046875,
+      "load_after": 4.07373046875
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.0005023242079187184
+      ],
+      "startup_seconds": 0.0008062500273808837,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 198148096,
+      "load_average": 4.07373046875,
+      "load_after": 4.07373046875
+     }
+    },
+    {
+     "reuse": {
+      "seconds_per_call": [
+       0.0005051491670310497
+      ],
+      "startup_seconds": 0.0006950410315766931,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 194871296,
+      "load_average": 4.07373046875,
+      "load_after": 4.07373046875
+     },
+     "control": {
+      "seconds_per_call": [
+       0.0006237459999974817
+      ],
+      "startup_seconds": 0.0,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 197050368,
+      "load_average": 4.07373046875,
+      "load_after": 4.0673828125
+     },
+     "base": {
+      "seconds_per_call": [
+       0.0006163215830456466
+      ],
+      "startup_seconds": 0.0,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 195100672,
+      "load_average": 4.0673828125,
+      "load_after": 4.0673828125
+     }
+    },
+    {
+     "base": {
+      "seconds_per_call": [
+       0.0006318639579694718
+      ],
+      "startup_seconds": 0.0,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 195313664,
+      "load_average": 4.0673828125,
+      "load_after": 4.0673828125
+     },
+     "control": {
+      "seconds_per_call": [
+       0.00062113624997437
+      ],
+      "startup_seconds": 0.0,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 193429504,
+      "load_average": 4.0673828125,
+      "load_after": 4.0673828125
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.0005074625419219955
+      ],
+      "startup_seconds": 0.0008328750263899565,
+      "calls": 1000,
+      "requests_inline": 0,
+      "requests": 1000,
+      "texts_per_call": [
+       76,
+       260
+      ],
+      "bytes_per_call": [
+       65537,
+       67315
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 194625536,
+      "load_average": 4.0673828125,
+      "load_after": 3.9013671875
+     }
+    }
+   ],
+   "discarded": []
+  },
+  {
+   "model": "potion-base-8M",
+   "corpus": "massive",
+   "size": "full",
+   "workers": 4,
+   "summary": {
+    "valid_pairs": 2,
+    "ratios": {
+     "control": [
+      0.9970462442526623,
+      0.9935859150198296
+     ],
+     "reuse": [
+      0.9968262489905008,
+      0.992604656049705
+     ]
+    },
+    "eligible": false,
+    "rss_ratio": 0.9986644172641642,
+    "rss_ok": true,
+    "median_ms": {
+     "base": 46.42495856387541,
+     "control": 46.207458013668656,
+     "reuse": 46.17956298170611
+    },
+    "peak_mib": {
+     "base": 889.125,
+     "control": 889.859375,
+     "reuse": 887.9375
+    },
+    "gain": false,
+    "beyond_noise": false,
+    "regression_beyond_noise": false,
+    "noise_bounds": [
+     0.9935859150198296,
+     1.0064554910483432
+    ]
+   },
+   "kept": [
+    {
+     "base": {
+      "seconds_per_call": [
+       0.046396209043450654,
+       0.046451875008642673,
+       0.04747108288574964,
+       0.04581370891537517,
+       0.04639266699086875,
+       0.04590987495612353,
+       0.0464053750038147
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 932315136,
+      "load_average": 3.9013671875,
+      "load_after": 3.9013671875
+     },
+     "control": {
+      "seconds_per_call": [
+       0.04643866594415158,
+       0.0460479169851169,
+       0.04625916597433388,
+       0.04658166703302413,
+       0.0471031250199303,
+       0.046159750083461404,
+       0.04607795807532966
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 933085184,
+      "load_average": 3.9013671875,
+      "load_after": 3.9013671875
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.04624895902816206,
+       0.045898000011220574,
+       0.0460313749499619,
+       0.04625700006727129,
+       0.04648549994453788,
+       0.046798915951512754,
+       0.04585008299909532
+      ],
+      "startup_seconds": 0.00048387504648417234,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 931069952,
+      "load_average": 3.9013671875,
+      "load_after": 3.9013671875
+     }
+    },
+    {
+     "reuse": {
+      "seconds_per_call": [
+       0.046528207953087986,
+       0.04569683305453509,
+       0.04581920790951699,
+       0.0462654170114547,
+       0.04698270803783089,
+       0.04611016693525016,
+       0.04566758300643414
+      ],
+      "startup_seconds": 0.0004004170186817646,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 929873920,
+      "load_average": 3.9013671875,
+      "load_after": 3.9013671875
+     },
+     "control": {
+      "seconds_per_call": [
+       0.04627654189243913,
+       0.045960582909174263,
+       0.047989208018407226,
+       0.04615916695911437,
+       0.04588883405085653,
+       0.04605191701557487,
+       0.04615575005300343
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 931332096,
+      "load_average": 3.9013671875,
+      "load_after": 4.1494140625
+     },
+     "base": {
+      "seconds_per_call": [
+       0.046158708981238306,
+       0.046528790961019695,
+       0.046670875046402216,
+       0.04645370808430016,
+       0.04644887498579919,
+       0.046577040920965374,
+       0.045894374954514205
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 931889152,
+      "load_average": 4.1494140625,
+      "load_after": 4.1494140625
+     }
+    }
+   ],
+   "discarded": [
+    {
+     "base": {
+      "seconds_per_call": [
+       0.046560749993659556,
+       0.045927332947030663,
+       0.04628733405843377,
+       0.04723979206755757,
+       0.047250375035218894,
+       0.04618154198396951,
+       0.045906333019956946
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 933396480,
+      "load_average": 4.1494140625,
+      "load_after": 4.1494140625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.04638908302877098,
+       0.04611558292526752,
+       0.04619641706813127,
+       0.046309250057674944,
+       0.04719716694671661,
+       0.04703270795289427,
+       0.04952037497423589
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 940654592,
+      "load_average": 4.1494140625,
+      "load_after": 4.1494140625
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.04638895904645324,
+       0.045725374948233366,
+       0.0465974579565227,
+       0.045783417066559196,
+       0.04622212494723499,
+       0.04658670898061246,
+       0.046710124937817454
+      ],
+      "startup_seconds": 0.0006371249910444021,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 936574976,
+      "load_average": 4.1494140625,
+      "load_after": 5.25830078125
+     }
+    },
+    {
+     "base": {
+      "seconds_per_call": [
+       0.046891125035472214,
+       0.04593379201833159,
+       0.04600137495435774,
+       0.04607145790942013,
+       0.04605920799076557,
+       0.04570295789744705,
+       0.04726570809725672
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 929873920,
+      "load_average": 5.25830078125,
+      "load_after": 5.25830078125
+     },
+     "control": {
+      "seconds_per_call": [
+       0.04601749998982996,
+       0.04640029196161777,
+       0.04661212500650436,
+       0.04679295897949487,
+       0.04782333306502551,
+       0.045871583046391606,
+       0.046484500053338706
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 935608320,
+      "load_average": 5.25830078125,
+      "load_after": 5.25830078125
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.046340583940036595,
+       0.04706558398902416,
+       0.04587295791134238,
+       0.046162832994014025,
+       0.04637866700068116,
+       0.04643904196564108,
+       0.04594683297909796
+      ],
+      "startup_seconds": 0.00038487499114125967,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 935559168,
+      "load_average": 5.25830078125,
+      "load_after": 5.25830078125
+     }
+    },
+    {
+     "base": {
+      "seconds_per_call": [
+       0.04722162499092519,
+       0.04594245902262628,
+       0.04597170907072723,
+       0.04654629109427333,
+       0.04665083403233439,
+       0.04683662496972829,
+       0.047351624933071434
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 932216832,
+      "load_average": 5.25830078125,
+      "load_after": 5.25830078125
+     },
+     "control": {
+      "seconds_per_call": [
+       0.046424166997894645,
+       0.04589162499178201,
+       0.045992541941814125,
+       0.04644854099024087,
+       0.047100374940782785,
+       0.04596708295866847,
+       0.04589737509377301
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 935903232,
+      "load_average": 5.25830078125,
+      "load_after": 5.4775390625
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.04565279104281217,
+       0.045727833989076316,
+       0.046067249961197376,
+       0.04585733299609274,
+       0.04560991597827524,
+       0.0455212079687044,
+       0.045908208936452866
+      ],
+      "startup_seconds": 0.0003820410929620266,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 935641088,
+      "load_average": 5.4775390625,
+      "load_after": 5.4775390625
+     }
+    }
+   ]
+  },
+  {
+   "model": "potion-base-8M",
+   "corpus": "massive",
+   "size": "full",
+   "workers": 10,
+   "summary": {
+    "valid_pairs": 0,
+    "ratios": {
+     "control": [],
+     "reuse": []
+    }
+   },
+   "kept": [],
+   "discarded": [
+    {
+     "base": {
+      "seconds_per_call": [
+       0.027285124990157783,
+       0.03352758300025016,
+       0.029958708095364273,
+       0.02601779205724597,
+       0.0279747920576483,
+       0.026429084013216197,
+       0.03144612500909716
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 933183488,
+      "load_average": 5.4775390625,
+      "load_after": 5.4775390625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.025379457976669073,
+       0.02459279098547995,
+       0.025969458045437932,
+       0.025503958924673498,
+       0.026377375004813075,
+       0.02598966599907726,
+       0.027997500030323863
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 933642240,
+      "load_average": 5.4775390625,
+      "load_after": 5.4775390625
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.029415791970677674,
+       0.026348624960519373,
+       0.02550929202698171,
+       0.025373667012900114,
+       0.02602829202078283,
+       0.027696375036612153,
+       0.025726167019456625
+      ],
+      "startup_seconds": 0.0009960419265553355,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 939524096,
+      "load_average": 5.4775390625,
+      "load_after": 5.4775390625
+     }
+    },
+    {
+     "reuse": {
+      "seconds_per_call": [
+       0.033828584011644125,
+       0.04193670803215355,
+       0.041308708023279905,
+       0.03536008403170854,
+       0.026451250072568655,
+       0.02865537500474602,
+       0.026085541932843626
+      ],
+      "startup_seconds": 0.0007481250213459134,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 941768704,
+      "load_average": 5.4775390625,
+      "load_after": 6.80029296875
+     },
+     "control": {
+      "seconds_per_call": [
+       0.02574887510854751,
+       0.025131875067017972,
+       0.026418458088301122,
+       0.02853554196190089,
+       0.030429915990680456,
+       0.026064208010211587,
+       0.02973016700707376
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 940818432,
+      "load_average": 6.80029296875,
+      "load_after": 6.80029296875
+     },
+     "base": {
+      "seconds_per_call": [
+       0.027386666042730212,
+       0.029486624989658594,
+       0.03182804200332612,
+       0.027238541981205344,
+       0.02730241697281599,
+       0.02699425001628697,
+       0.029270165949128568
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 934821888,
+      "load_average": 6.80029296875,
+      "load_after": 6.80029296875
+     }
+    },
+    {
+     "base": {
+      "seconds_per_call": [
+       0.025836250046268106,
+       0.026197582948952913,
+       0.02641854202374816,
+       0.027625499991700053,
+       0.02730358298867941,
+       0.025367499911226332,
+       0.027740708086639643
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 930447360,
+      "load_average": 6.80029296875,
+      "load_after": 6.80029296875
+     },
+     "control": {
+      "seconds_per_call": [
+       0.026499208062887192,
+       0.030871374998241663,
+       0.026494249934330583,
+       0.025806416990235448,
+       0.024922832963056862,
+       0.025252041989006102,
+       0.0264425000641495
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 936050688,
+      "load_average": 6.80029296875,
+      "load_after": 6.80029296875
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.026802917011082172,
+       0.02942899998743087,
+       0.023807000019587576,
+       0.025812792009674013,
+       0.028392332955263555,
+       0.025073666940443218,
+       0.027578374953009188
+      ],
+      "startup_seconds": 0.0007526250556111336,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 934641664,
+      "load_average": 6.80029296875,
+      "load_after": 6.80029296875
+     }
+    },
+    {
+     "base": {
+      "seconds_per_call": [
+       0.026738292071968317,
+       0.02723358292132616,
+       0.026813707896508276,
+       0.02526829205453396,
+       0.026902041980065405,
+       0.025543374940752983,
+       0.027529000071808696
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 934510592,
+      "load_average": 6.80029296875,
+      "load_after": 6.41552734375
+     },
+     "control": {
+      "seconds_per_call": [
+       0.026475292048417032,
+       0.024120124988257885,
+       0.026682208059355617,
+       0.025152332964353263,
+       0.02592275000642985,
+       0.02647758391685784,
+       0.026663958909921348
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 936984576,
+      "load_average": 6.41552734375,
+      "load_after": 6.41552734375
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.026202165987342596,
+       0.028317624935880303,
+       0.02799199998844415,
+       0.03238879097625613,
+       0.026582167018204927,
+       0.025242083007469773,
+       0.025898416992276907
+      ],
+      "startup_seconds": 0.000700291944667697,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 938033152,
+      "load_average": 6.41552734375,
+      "load_after": 6.41552734375
+     }
+    },
+    {
+     "reuse": {
+      "seconds_per_call": [
+       0.026225917041301727,
+       0.024623499950394034,
+       0.027891709003597498,
+       0.031972749973647296,
+       0.026402499992400408,
+       0.026899500051513314,
+       0.025099000078625977
+      ],
+      "startup_seconds": 0.0006400829879567027,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 934756352,
+      "load_average": 6.41552734375,
+      "load_after": 6.41552734375
+     },
+     "control": {
+      "seconds_per_call": [
+       0.026399833033792675,
+       0.025208416976965964,
+       0.024752166937105358,
+       0.025932208984158933,
+       0.02454454207327217,
+       0.025397790945135057,
+       0.025983624975197017
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 937426944,
+      "load_average": 6.41552734375,
+      "load_after": 6.41552734375
+     },
+     "base": {
+      "seconds_per_call": [
+       0.029429499991238117,
+       0.027532999985851347,
+       0.025892916950397193,
+       0.024937417008914053,
+       0.028479041997343302,
+       0.024387832963839173,
+       0.027200749958865345
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 933412864,
+      "load_average": 6.41552734375,
+      "load_after": 6.1416015625
+     }
+    },
+    {
+     "base": {
+      "seconds_per_call": [
+       0.024539916892535985,
+       0.027585792005993426,
+       0.027114041964523494,
+       0.02697891602292657,
+       0.02576541597954929,
+       0.02644354198127985,
+       0.02685112494509667
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 934985728,
+      "load_average": 6.1416015625,
+      "load_after": 6.1416015625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.025563124916516244,
+       0.024046042002737522,
+       0.025271999998949468,
+       0.0273663749685511,
+       0.02462858392391354,
+       0.025475083966739476,
+       0.02547841693740338
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 932937728,
+      "load_average": 6.1416015625,
+      "load_after": 6.1416015625
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.02968712500296533,
+       0.024236708995886147,
+       0.02574241696856916,
+       0.02536787500139326,
+       0.02858416608069092,
+       0.027593750040978193,
+       0.03084174997638911
+      ],
+      "startup_seconds": 0.0008036670042201877,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 933855232,
+      "load_average": 6.1416015625,
+      "load_after": 6.1416015625
+     }
+    },
+    {
+     "base": {
+      "seconds_per_call": [
+       0.025796375004574656,
+       0.025608666008338332,
+       0.024958542082458735,
+       0.024721416062675416,
+       0.02866454201284796,
+       0.025998208089731634,
+       0.027998667093925178
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 936214528,
+      "load_average": 6.1416015625,
+      "load_after": 6.1416015625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.02872354199644178,
+       0.02480804198421538,
+       0.025016458006575704,
+       0.0283881250070408,
+       0.028229582938365638,
+       0.027289249934256077,
+       0.02616729203145951
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 936591360,
+      "load_average": 6.1416015625,
+      "load_after": 6.1416015625
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.023626792011782527,
+       0.025581125053577125,
+       0.029461709083989263,
+       0.028375916997902095,
+       0.026608249987475574,
+       0.02669091592542827,
+       0.02533025003504008
+      ],
+      "startup_seconds": 0.0006769170286133885,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 936132608,
+      "load_average": 6.1416015625,
+      "load_after": 5.9697265625
+     }
+    },
+    {
+     "reuse": {
+      "seconds_per_call": [
+       0.025282916030846536,
+       0.026837082928977907,
+       0.02629166597034782,
+       0.02509608305990696,
+       0.026058999937959015,
+       0.028231499949470162,
+       0.024779499974101782
+      ],
+      "startup_seconds": 0.0007762080058455467,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 935657472,
+      "load_average": 5.9697265625,
+      "load_after": 5.9697265625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.02638387493789196,
+       0.02391899994108826,
+       0.02563875005580485,
+       0.026498124934732914,
+       0.02706537500489503,
+       0.025753292022272944,
+       0.0264035000000149
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 933216256,
+      "load_average": 5.9697265625,
+      "load_after": 5.9697265625
+     },
+     "base": {
+      "seconds_per_call": [
+       0.025169834028929472,
+       0.024827499990351498,
+       0.026354540954343975,
+       0.02504362491890788,
+       0.025510375038720667,
+       0.027682124986313283,
+       0.024988582939840853
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 937689088,
+      "load_average": 5.9697265625,
+      "load_after": 5.9697265625
+     }
+    },
+    {
+     "base": {
+      "seconds_per_call": [
+       0.028816542006097734,
+       0.024996375082992017,
+       0.028901708079501987,
+       0.02530387497972697,
+       0.027155417017638683,
+       0.02706004201900214,
+       0.027752374997362494
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 934395904,
+      "load_average": 5.9697265625,
+      "load_after": 5.9697265625
+     },
+     "control": {
+      "seconds_per_call": [
+       0.02561191702261567,
+       0.024976084008812904,
+       0.02573412493802607,
+       0.02721254201605916,
+       0.025714916992001235,
+       0.024861250072717667,
+       0.027699667029082775
+      ],
+      "startup_seconds": 0.0,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 933789696,
+      "load_average": 5.9697265625,
+      "load_after": 5.7314453125
+     },
+     "reuse": {
+      "seconds_per_call": [
+       0.02567679202184081,
+       0.02405624999664724,
+       0.024492292082868516,
+       0.027601165929809213,
+       0.028657374903559685,
+       0.030012708040885627,
+       0.024777833023108542
+      ],
+      "startup_seconds": 0.0008256660075858235,
+      "calls": 7,
+      "requests_inline": 0,
+      "requests": 1,
+      "texts_per_call": [
+       151674,
+       151674
+      ],
+      "bytes_per_call": [
+       8346866,
+       8346866
+      ],
+      "inline_max_bytes": 65536,
+      "peak_rss_bytes": 933249024,
+      "load_average": 5.7314453125,
+      "load_after": 5.7314453125
+     }
+    }
+   ]
+  }
+ ],
+ "matrix_start_utc": "2026-10-31T07:03:26Z",
+ "matrix_elapsed_seconds": 73.68978412495926,
+ "source_commit": "140e9e2d8",
+ "timed_implementation_commit": "d97f5010a7a965b09e0d9805b3a2bb5a8308f334",
+ "status": "partial, measurement paused for the shared quiet window"
+}

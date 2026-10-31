@@ -308,6 +308,31 @@ One worker does not change (the plan is the same by construction); 4 workers gai
 
 **Profile** (potion-base-8M, MASSIVE, 8 workers, 12 s, all threads; samples, no timings; the load was 3.9 at the start): `_wp_piece` 28.7 and 29.4 % (base, branch), `fse_loop_f32_neon` 20.6 and 20.9 %, `__psynch_cvwait` 14.8 and 13.3 %, `fse_normalize_body` 9.0 and 9.4 %, `_append_str` 6.0 and 5.9 %. Memory (`make profile-mem`, memray, native): peak 431.9 and 431.6 MB, the allocation sites the same (`_sinks.py:116`, the result rows: 42.1 and 44.9 GB over the whole run, because the branch made 6.6 % more passes in the same 8 s under memray, which is no timing). `make profile-rss` (8 workers, 8 s): peak 366 MiB against 368 MiB (+0.5 %).
 
+## A pool reused across calls
+
+Part of DR-180 (Leerlauf der Worker am Laufende messen und verringern). This experiment changes only the benchmark process. The production rule "No thread outlives a call" remains in force. Reuse measures startup avoidance, shutdown avoidance and retained thread state together, not startup alone.
+
+Initial measurements on the same M1 Pro, Python 3.13.16, source base `140e9e2`, pinned model snapshots from `roofline.py`. `bench_pool.py` runs base, a second base (A/A control) and reuse in fresh child processes, alternating their order. Each cell needs three valid pairs, with load strictly below 5 before and after every side. The calls include construction of `StringSource` and `Pipeline.infer`, without tracing. Seven individual calls per side for full and short corpora, one block of 1000 calls for the server workload. Ratios use the median time per call of each side within each pair. Peak RSS includes loading the model and corpus, outside the timing. Raw kept and discarded rounds: [thread_pool_20261031.json](benchmarks/baseline/thread_pool_20261031.json).
+
+Rule fixed in the draft PR before timing: a gain requires median reuse/base at most 0.97. It is beyond noise only if every ratio is below min(1, minimum A/A, reciprocal maximum A/A) from the same cell. A regression is beyond noise only if every ratio exceeds the symmetric upper bound. Peak RSS may rise by at most 5 %. This classifies evidence for the maintainer, without implementing a persistent pool.
+
+**Partial series:** the rows below have three valid pairs. The remaining cells and profiles are pending a quiet window. Two valid pairs of potion MASSIVE at 4 workers are preserved in the raw data but excluded from decisions.
+
+| potion-base-8M, WikiText | workers | base / reuse ms | reuse/base median (range) | A/A range | gain / beyond noise | peak RSS base/control/reuse MiB | load range |
+|---|---:|---|---|---|---|---|---|
+| full corpus | 4 | 7.933 / 7.703 | 0.973 (0.948 to 0.976) | 0.971 to 1.033 | no / no | 234.0/219.0/218.2 | 3.48 to 3.60 |
+| full corpus | 10 | 5.998 / 5.267 | 0.878 (0.768 to 0.905) | 0.818 to 1.006 | yes / no | 217.0/217.4/217.9 | 3.55 to 4.39 |
+| first 500 texts | 4 | 1.052 / 0.947 | 0.900 (0.822 to 0.911) | 1.005 to 1.083 | yes / yes | 184.0/184.6/188.2 | 3.38 to 3.41 |
+| first 500 texts | 10 | 1.089 / 0.960 | 0.881 (0.873 to 0.889) | 1.019 to 1.033 | yes / yes | 187.8/185.2/185.5 | 3.35 to 3.38 |
+| 1000 calls, each >64 KiB | 4 | 0.621 / 0.510 | 0.822 (0.821 to 0.844) | 1.005 to 1.025 | yes / yes | 188.0/186.9/187.0 | 3.32 to 4.25 |
+| 1000 calls, each >64 KiB | 10 | 0.625 / 0.505 | 0.804 (0.803 to 0.820) | 0.983 to 1.033 | yes / yes | 186.7/187.9/189.0 | 3.90 to 4.25 |
+
+The full WikiText pilot has no gain beyond noise at either 4 or 10 workers. Both short and server workloads do, with peak RSS within 5 %. Eight workers are omitted where these endpoint conclusions agree, as requested to keep the full experiment within about 30 minutes. The short prefixes use the tail split already on the base. The 16 KiB minimum-chunk combination remains a follow-up.
+
+Server requests accumulate consecutive whole texts until their UTF-8 bytes first exceed the normal 65,536-byte inline threshold. The runner records actual byte and row ranges. A separate 32-text workload below the threshold is an inline control and cannot demonstrate pool reuse.
+
+A production pool would require an owner and lifetime policy, explicit close or atexit behavior, fork safety, cleanup after KeyboardInterrupt, concurrent and nested-call behavior, and the existing GIL-budget tests without weaker limits. The benchmark patch is global, sequential and limited to this experiment.
+
 ## int8 tables at 1024 dimensions
 
 Earlier measurements found no gain from int8 tables at 256 and 300 dimensions. At 1024 dimensions `roofline.py compare` ran static-retrieval-mrl-en-v1 with its table as float32 and as int8 (`WordVectors.quantize("int8")`) in one process, 5 paired rounds of alternating order, the best of 5 passes each, no round discarded. `Encoder` does not yet accept int8 tables for `wordpiece@1`, so both run the encoder's spec on a `Pipeline` of their own (`roofline_dtype.SpecEncoder`); the vectors of int8 differ from float32 by the quantization, which is not judged here.
