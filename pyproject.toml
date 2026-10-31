@@ -266,7 +266,7 @@ exclude_lines = [
 
 [tool.cibuildwheel]
 build = "cp311-* cp312-* cp313-* cp314-* cp315-*"
-skip = "*-musllinux_* *-win32 *_i686"
+skip = "*-win32 *_i686"
 build-frontend = "build[uv]"
 test-groups = ["test"]
 # Double quotes, because the Windows shell does not understand single quotes.
@@ -275,6 +275,26 @@ test-command = 'pytest {project}/tests -m "not network" -p no:cacheprovider -n a
 [tool.cibuildwheel.linux]
 # The Linux tests run in a container; CI makes them require the NEON or AVX2 kernel.
 environment-pass = ["CI"]
+
+# Exact image digests from cibuildwheel v4.3.4, dated 2026.10.21-1.
+# https://github.com/pypa/cibuildwheel/blob/v4.3.4/cibuildwheel/resources/pinned_docker_images.cfg
+manylinux-x86_64-image = "quay.io/pypa/manylinux_2_28_x86_64@sha256:b74a5b6f1705ecff17be8bd792589bef9b3b039766d12205720ecd2a9e919192"
+manylinux-aarch64-image = "quay.io/pypa/manylinux_2_28_aarch64@sha256:0333f44c4eb759ec8f47b27bc9dc27b1c929932a267cf13ce0cff1a4b758cccb"
+musllinux-x86_64-image = "quay.io/pypa/musllinux_1_2_x86_64@sha256:767e9118e48b4b8de84d3262ba95a3bc5f6679a09247f0bf9e283445608f37c1"
+musllinux-aarch64-image = "quay.io/pypa/musllinux_1_2_aarch64@sha256:0a7b18a1fce3dcfb1a6dd2ac99f077b78fb0f3cec8a2fed65bb999823c6a8fa0"
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux_*"
+# gensim and scikit-learn have no musllinux wheels. Keep the Arrow producers and
+# Model2Vec parity tests; missing optional adapters skip through pytest.importorskip.
+test-groups = []
+test-requires = [
+    "pytest>=8.0.0", "pytest-xdist>=3.6.1", "safetensors>=0.4.0",
+    "tokenizers==0.23.3", "model2vec==0.10.0", "pyarrow==26.0.0",
+    "pandas==3.1.0", "polars==2.1.0", "datasets==5.1.0",
+]
+# Fail rather than compile a missing dependency wheel during release verification.
+test-environment = { UV_ONLY_BINARY = ":all:" }
 
 # --- Guardrails (tools/check_guardrails.py; AGENTS.md, Guardrails) ---
 

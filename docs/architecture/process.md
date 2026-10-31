@@ -149,6 +149,37 @@ Scope: outside the former "2.0 design" section.
 
 The extension is compiled from `_native.pyx`, the `.pxi` parts it includes (one translation unit, so `cdef inline` functions inline across parts) and the headers in `_native_src/` at build time with Cython 3 against numpy 2 headers; generated C is never committed. Wheels built this way also run with numpy 1.x. `make rebuild-ext` rebuilds it in the development environment after edits to `.pyx`, `.pxi`, `.pxd` or `.h` files.
 
+## Wheel verification
+
+CI uses cibuildwheel 4.3.4, pinned by commit in `.github/workflows/ci.yml`. It selects
+CPython 3.11 to 3.15, without free-threaded variants. Tags and `workflow_dispatch`
+build and test all 35 wheels: manylinux 2.28 and musllinux 1.2 on x86_64 and aarch64,
+macOS arm64 and x86_64, and Windows x86_64. Linux images are pinned by digest to
+[cibuildwheel's 2026.10.21-1 images](https://github.com/pypa/cibuildwheel/blob/v4.3.4/cibuildwheel/resources/pinned_docker_images.cfg).
+A manual run on a branch verifies the release matrix without publishing. Publication
+requires a tag push and approval in the release environment. PRs keep the four
+existing runner jobs, without musllinux or macOS Intel, and test only CPython 3.15.
+The path filter still omits wheels when an unrelated file changes.
+
+[cibuildwheel's selectors](https://cibuildwheel.pypa.io/en/stable/options/#build-skip)
+include musllinux for both architectures. [Version 4.2.0](https://cibuildwheel.pypa.io/en/stable/changelog/#v420)
+enabled CPython 3.15 by default at its ABI-stable release candidate. Version 4.3.1
+uses the final release. No prerelease option is needed with our pin.
+For beta interpreters, `enable = ["cpython-prerelease"]` opts in, but their ABI may
+change. [The option's documentation](https://cibuildwheel.pypa.io/en/stable/options/#enable)
+says to upload such wheels to PyPI only for package prereleases. We recommend keeping
+that option off and publishing wheels built against stable CPython releases.
+
+musllinux runs the offline suite with Arrow producers, tokenizers and Model2Vec.
+gensim and scikit-learn lack musllinux wheels, so their optional adapter tests skip.
+MLX requires Apple silicon and Metal and is tested separately by `test-mlx`.
+On every platform, gensim tests skip on Python 3.14 and newer. The wheel logs show
+the test summary for each interpreter, and artifacts retain the built filenames.
+
+The minimum-dependency job uses numpy 1.26.4. Its Arrow producer tests skip because
+pyarrow 26 requires numpy 2. This is a coverage gap in that job, not in the latest
+or wheel jobs, which exercise the Arrow producers with numpy 2.
+
 # Tests
 
 Scope: outside the former "2.0 design" section.

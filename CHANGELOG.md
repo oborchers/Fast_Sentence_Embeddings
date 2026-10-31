@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Added
 
+- musllinux 1.2 wheels for x86_64 and aarch64 on CPython 3.11 to 3.15. Release and manual CI runs build and test the full wheel matrix, including macOS Intel.
+
 - A benchmark-only comparison of per-call and reused thread pools, with paired A/A controls, short and server workloads, separate startup time and process RSS. Production thread lifetimes are unchanged.
 - `fse.WordVectors`: word vectors saved as one `.safetensors` file with checksums and a fingerprint, without pickle, memory-mappable, stored as float32, float16 or int8 and read as float32, with FastText ngrams. Loading int8 vectors needs no float32 copy, and other safetensors readers can open the files.
 - `fse.gensim.from_gensim` converts gensim `KeyedVectors`, `Word2Vec` and `FastText` into `WordVectors`.
