@@ -34,6 +34,12 @@ of three passes. Runtime uses 200,000 synthetic sentences at dimension 300 and
 one round. GB/s counts logical bytes, not measured DRAM traffic. The runtime
 peaks at 16 workers in this sample. A WordPiece WikiText trace is 44.68% busy
 at 16 workers and 26.58% at 32, with ramp-up the largest idle cause.
+`usable_cpus()` reports 32 and counts logical affinity CPUs, not physical cores.
+The affinity IDs form 16 pairs separated by 96, consistent with SMT siblings;
+no sibling map was captured. Runtime falls 7.22% without normalization and
+16.01% with it at 32 versus 16 workers. Evaluate a topology-aware default with
+controlled affinity and sustained workloads before changing the default;
+SMT and pool/scheduling costs were not isolated.
 
 Native one-worker profiles attribute 46.17% inclusive active samples to
 WordPiece's sentence tokenizer and 43.00% to AVX2 pooling. Unigram's token-piece

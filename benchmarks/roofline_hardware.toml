@@ -66,3 +66,9 @@ name = "random rows"
 gb_per_s = 188.23389431855193
 kind = "measured"
 source = "roofline_probe.probe (the probe of roofline.py), random pooling reader, 1 GiB float32 table, dim 1024, 32 workers, 262144 tokens per worker; 31.10.2026, source 4d92d61cb8b9351ac13d54feaa86ee711c08c13f, RunPod run 2; logical GB/s, fastest of three passes; load 8.91"
+
+[["runpod-epyc-9655p".bandwidth]]
+name = "spec"
+gb_per_s = 614
+kind = "spec"
+source = "AMD EPYC 9655P product specifications, retrieved 31.10.2026: Per Socket Mem BW 614 GB/s, 12 DDR5 channels, up to 6400 MT/s; https://www.amd.com/en/products/processors/server/epyc/9005-series/amd-epyc-9655p.html ; host specification only, pod memory population/speed and bandwidth entitlement were not measured"

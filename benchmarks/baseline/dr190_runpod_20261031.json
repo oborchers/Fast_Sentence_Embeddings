@@ -1589,5 +1589,82 @@
         }
       }
     }
-  ]
+  ],
+  "worker_default_followup": {
+    "observed_usable_cpus": 32,
+    "evidence": "Run-2 runtime headers report 32 usable CPUs; _cpus.usable_cpus counts logical affinity CPUs limited by quotas/overrides",
+    "host_threads_per_core": 2,
+    "affinity_pairs_offset_96": [
+      [
+        4,
+        100
+      ],
+      [
+        13,
+        109
+      ],
+      [
+        19,
+        115
+      ],
+      [
+        22,
+        118
+      ],
+      [
+        23,
+        119
+      ],
+      [
+        25,
+        121
+      ],
+      [
+        46,
+        142
+      ],
+      [
+        53,
+        149
+      ],
+      [
+        57,
+        153
+      ],
+      [
+        63,
+        159
+      ],
+      [
+        69,
+        165
+      ],
+      [
+        72,
+        168
+      ],
+      [
+        79,
+        175
+      ],
+      [
+        89,
+        185
+      ],
+      [
+        90,
+        186
+      ],
+      [
+        94,
+        190
+      ]
+    ],
+    "physical_sibling_mapping": "not captured; 16 physical cores with both SMT siblings is a hypothesis",
+    "runtime_32_vs_16_decline_pct": {
+      "unnormalized": 7.22,
+      "normalized": 16.01
+    },
+    "recommendation": "Evaluate topology-aware defaults with controlled sibling affinity, sustained/short workloads, quotas and overrides before changing production default."
+  }
 }
