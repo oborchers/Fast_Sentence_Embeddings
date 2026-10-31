@@ -3,6 +3,7 @@ rule and the checks of benchmarks/bench_mlx_ablate.py and the cancellation scena
 benchmarks/bench_mlx_cancel.py, on a fake MLX (no GPU needed)."""
 
 import importlib
+import signal
 import sys
 import threading
 from pathlib import Path
@@ -182,25 +183,31 @@ def test_the_checks_count_rows_and_fallbacks_that_differ(ablate):
     assert ablate.fallback_differences(runs, checked, 6) == 2  # 6 encodes: 6 are base's
 
 
-def _main_thread_only():
+@pytest.fixture
+def sigint():
+    """The main thread, with Python's own SIGINT handler (a worker of pytest-xdist may have
+    another) and restored afterwards; a SIGINT is delivered to the main thread only."""
     if threading.current_thread() is not threading.main_thread():
         pytest.skip("a SIGINT is delivered to the main thread only")
+    before = signal.signal(signal.SIGINT, signal.default_int_handler)
+    yield
+    signal.signal(signal.SIGINT, before)
 
 
+@pytest.mark.usefixtures("sigint")
 @pytest.mark.parametrize("name", ["base", "copy", "single", "both"])
 def test_a_sigint_in_the_queue_launches_nothing_and_leaves_no_thread(variants, cancel, name):
-    _main_thread_only()
     device = Device(lambda: FakeMx())
     with variants.patched(name):
         run = cancel.one_queue(device, lambda _mx: np.ones(4, np.float32))
     assert run["outcome"] == "interrupted"
-    assert (run["touched"], run["queued"]) == ([], 0)
+    assert (run["touched"], run["queued"]) == ([], 0), run
     assert cancel.threads_left() == 0
 
 
+@pytest.mark.usefixtures("sigint")
 @pytest.mark.parametrize("name", ["base", "copy", "single", "both"])
 def test_a_sigint_during_the_write_leaves_no_write_after_the_return(variants, cancel, name):
-    _main_thread_only()
     device = Device(lambda: FakeMx())
     with variants.patched(name):
         run = cancel.one_write(device, lambda _mx: np.ones((cancel.CHUNKS, 8), np.float32))

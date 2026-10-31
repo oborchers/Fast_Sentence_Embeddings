@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import signal
 import threading
 import time
@@ -55,7 +54,7 @@ def threads_left(timeout: float = 2.0) -> int:
 
 
 def sigint_when(ready: Callable[[], object], delay: float = 0.0) -> dict:
-    """A thread that sends SIGINT to this process once ``ready()``, ``delay`` seconds
+    """A thread that sends SIGINT to the main thread once ``ready()``, ``delay`` seconds
     later; its dict gets the time of the signal (``at``)."""
     sent: dict = {}
 
@@ -65,7 +64,9 @@ def sigint_when(ready: Callable[[], object], delay: float = 0.0) -> dict:
             time.sleep(0.0005)
         time.sleep(delay)
         sent["at"] = time.perf_counter()
-        os.kill(os.getpid(), signal.SIGINT)
+        # To the main thread itself: a signal sent to the process may reach another thread
+        # on Linux, which leaves the main thread blocked in its wait.
+        signal.pthread_kill(threading.main_thread().ident, signal.SIGINT)
 
     thread = threading.Thread(target=send, name="sigint")
     sent["thread"] = thread

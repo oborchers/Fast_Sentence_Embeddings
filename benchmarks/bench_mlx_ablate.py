@@ -52,7 +52,9 @@ COMPARISONS = (
     ("both", "base"),
     ("base2", "base"),
 )
-TARGET_S = 1.0  # a run encodes for about this long
+TARGET_S = 0.5  # a run encodes for about this long
+SETTLE_MARGIN = 0.8  # a round starts below max-load minus this: its own threads add to the load
+SETTLE_S = 90.0  # a round waits at most this long for the load to fall
 MIN_PAIRS = 3  # valid pairs a cell needs to decide anything
 SIMPLIFY = 1.02  # removing the mechanism costs at most this median wall-time ratio ...
 KEEP = 1.03  # ... and the mechanism pays if removing it is this slow in every valid pair
@@ -73,6 +75,14 @@ def verdict(ratios: list[float], noise: list[float]) -> str:
     if median(ratios) <= SIMPLIFY and median(ratios) <= max(noise):
         return "free"
     return "unclear"
+
+
+def wait_for_load(limit: float) -> None:
+    """Sleep until the load average is below ``limit`` (the eight workers of a round raise
+    the one-minute average themselves), at most SETTLE_S seconds."""
+    deadline = time.monotonic() + SETTLE_S
+    while load() >= limit and time.monotonic() < deadline:
+        time.sleep(2)
 
 
 def cell_encoder(args) -> tuple[Any, list[str]]:
@@ -163,10 +173,18 @@ def run_time(args) -> dict:
     reps = max(1, math.ceil(TARGET_S / first))
     for name in NAMES:  # one warm pass of each side at the size of a run
         timed(args, enc, texts, reps, ref, name)
+    calls = [0]
+
+    def settle(_name: str) -> None:  # before the first side of each round
+        calls[0] += 1
+        if (calls[0] - 1) % len(NAMES) == 0:
+            wait_for_load(args.max_load - SETTLE_MARGIN)
+
     done = rounds(
         NAMES,
         lambda name: timed(args, enc, texts, reps, ref, name),
         args.rounds,
+        warm=settle,
         max_load=args.max_load,
         budget_s=args.budget,
     )
