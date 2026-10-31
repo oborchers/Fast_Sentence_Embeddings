@@ -45,7 +45,8 @@ def fuzz() -> list[str]:
         for _ in range(30_000)
     ]
     out += [
-        rng.choice(["a", "ab", "zz", "é", "一", "\u0561"]) * rng.randint(100, 400) for _ in range(2_000)
+        rng.choice(["a", "ab", "zz", "é", "一", "\u0561"]) * rng.randint(100, 400)
+        for _ in range(2_000)
     ]
     return out
 
@@ -108,9 +109,10 @@ def worker(argv: list[str]) -> None:
     print(json.dumps({**meta, **result}))
 
 
-def main() -> None:
-    if len(sys.argv) > 1 and sys.argv[1] == "_worker":
-        worker(sys.argv[2:])
+def main(argv=None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "_worker":
+        worker(argv[1:])
         return
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-python", type=Path, required=True)
@@ -120,7 +122,7 @@ def main() -> None:
     parser.add_argument(
         "worker", nargs="+", help="ids, load [corpus], or kind threads corpus repeats"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     interpreters = {"base": str(args.base_python), "branch": sys.executable}
 
     def one(side):
@@ -128,6 +130,12 @@ def main() -> None:
         return run_child(command)
 
     paired = rounds(list(interpreters), one, args.rounds, max_load=5, budget_s=args.budget_s)
+    # The shared harness checks the outside of a pair. This gate also checks the
+    # boundary between its two workers, and requires load strictly below five.
+    for pair in list(paired.kept):
+        if any(max(run.before, run.after) >= 5 for run in pair.values()):
+            paired.kept.remove(pair)
+            paired.discarded.append(pair)
     result = {
         "kept": [{n: r.record() for n, r in pair.items()} for pair in paired.kept],
         "discarded": [{n: r.record() for n, r in pair.items()} for pair in paired.discarded],

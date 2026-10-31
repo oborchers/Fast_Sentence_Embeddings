@@ -26,6 +26,12 @@ and the model is read from the local Hugging Face cache; nothing is downloaded.
     uv run --with pyarrow python benchmarks/bench_unigram.py --rounds 3
     uv run --with pyarrow python benchmarks/bench_unigram.py _child fse 1 massive 3
 
+Paired base/branch measurements, load and id workers live in bench_unigram_compare:
+
+    uv run python benchmarks/bench_unigram.py load massive
+    uv run python benchmarks/bench_unigram.py ids
+    uv run python benchmarks/bench_unigram.py --base-python PATH --output paired.json fse 1 massive 2
+
 The second form runs one contender (fse, hf, enc or m2v, the threads, the corpus, repeats)
 and prints its seconds per pass, for ``make profile-cpu RUN=...``. Keep a run to a few
 minutes (AGENTS.md); the script warns about a high load.
@@ -190,6 +196,13 @@ def main(argv=None) -> None:
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] == "_child":
         return child(argv[1], int(argv[2]), argv[3], int(argv[4]))
+    if argv and (argv[0] in ("load", "ids") or "--base-python" in argv):
+        from bench_unigram_compare import main as compare_main
+        from bench_unigram_compare import worker
+
+        if argv[0] in ("load", "ids"):
+            return worker(argv)
+        return compare_main(argv)
     from fse._cpus import usable_cpus
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
