@@ -489,7 +489,7 @@ These are different, overlapping scopes and must not be summed. Native cumulativ
 | memmove | unmeasured/not identifiable, no wall % | Generic sampled copies include unrelated movement; role/overlap unknown. | Tag call-site copy spans and worker/device roles; do not sum overlapping thread times. |
 | Fixed per-call costs | unmeasured/not identifiable, no wall % | A single workload provides no fixed-cost intercept. | Use a separately authorized small batch-size probe with unchanged outputs and validated overhead. |
 
-The desired denominator is end-to-end encode wall time. Samples do not partition that critical path: overlapping worker times cannot be added, and cvwait cannot be split into queue/group/GPU causes. Unresolved costs are not zero. Any proposed instrumentation needs separate authorization and an unchanged-output probe validated within10% of base before ablation; none was run.
+The desired denominator is end-to-end encode wall time. Samples do not partition that critical path: overlapping worker times cannot be added, and cvwait cannot be split into queue/group/GPU causes. Unresolved costs are not zero. Any proposed instrumentation needs separate authorization and an unchanged-output probe validated within10% of base before ablation. The later CPU attempt below failed that gate; no ablation ran.
 
 Compared with the M1 "Device thread, measured" table in docs/architecture/backends.md, the reported lease/copy ablation was on MRL1024/MASSIVE at 8 workers: moving copy to the device thread cost 1.179 (1.141 to 1.289), while WikiText was 1.007 (0.977 to 1.078). Its base profile reported 37% cvwait, 11 to 12% WordPiece and 8.8% memmove samples. Our M4 profile is WikiText at 12 workers with encode-window filtering, not a matching workload/scope. The M1 mechanism finding does not supply M4 wall shares or justify removing the lease; group-boundary benefit remains unproved here.
 
@@ -498,6 +498,30 @@ The small-dimension explanation is limited to the observed WikiText trend: MRL f
 Recommendation for Oliver: retain CPU as default and MLX as opt-in; the measured near tie does not justify a default change, while host work/waits remain visible. This is a recommendation, not a policy decision or runtime change. MLX policy remains undecided and PR remains Draft by explicit instruction.
 
 Whole six-profile recording/startup/model-loading/postprocess charge 60.617446750000454 seconds, reservation 360, no retries. Global 593.2869275000012/1800, matrix fixed 523.0340705840008/900. One own terminal lock was verified and Finder-released; immediate/delayed checks found no duplicates. Raw profiles/windows/symbols/traces/CSV and wrapper sources are preserved under dr147-profiles-3101e4a7fdd8 in task scratch. Compact profiles.json and profile_offline.py replay the existing evidence without a new recording. No extra measurement or ablation.
+
+### Failed timestamp-probe validity gate (no accepted wall shares)
+
+A separately authorized scratch-only timestamp probe ran on frozen 9a4b9f0a2411294ca8cc2ad43a4d6e208fda4248, CPU default12, raw MRL1024/full WikiText. The fixed plan used three ABBA/BAAB rounds of five encodes per A1/M1/M2/A2 side, restored original methods/queue on plain sides, and required every retained M1/A1, M2/A2 and aggregate marked/plain ratio in[0.90,1.10]. A2/A1 was noise/control only. The first complete round failed, so later rounds and MLX were not started. No retry, hook adaptation, timer-cost subtraction or inconvenient-ratio discard followed.
+
+| Retained metric (n=1) | Ratio, median, minimum and maximum | Role/result |
+|---|---:|---|
+| Plain A2/A1 | 0.9188231166490062 | A/A noise, not independently gated |
+| Marked M1/plain A1 | 0.9906356244810837 | inside predeclared band |
+| Marked M2/plain A2 | 1.109003613433869 | outside 1.10, mandatory failure |
+| Aggregate sum(marked)/sum(plain) | 1.047315807024959 | inside band, does not rescue paired miss |
+
+Each metric has one retained value, so min=median=max and no spread is established. These are observed ratios, **not a measured causal timer overhead of 10.90%**. The plain A/A difference demonstrates noise/control variation; it neither establishes the cause of the miss nor excuses it. Coverage is non-representative and supplies **no accepted wall percentages**. Raw CPU spans are failed exploratory data only, preserved locally; MLX tracing is unstarted. The existing 60-cell matrix and six-profile sample/memory evidence remain unchanged. All 20 timed outputs were fully bit-equal to the accepted CPU reference, with empty fallback deltas. Every recorded probe guard was 4.17041015625 (<5), so this was a non-load overhead-validity stop.
+
+Probe actual 2.9078980419981235 seconds from reservation 200. Current root global 596.1948255419993/1800, remaining 1203.8051744580007. Matrix remains 523.0340705840008; six-profile stage remains 60.617446750000454. Own terminal PID78757/token79df4a1d473747088168cb90f00867d4 was reverified against invocation and Finder-released; immediate/delayed checks found no duplicates. All tracing scripts, raw timestamps and complete failed trace stay scratch-only at dr147-wall-probe-v1-69fa89f446e8. Only compact non-tracing results are committed in wall-probe.json. No more measurement is authorized in this handoff.
+
+### MASSIVE interpretation and structural output volume
+
+| MRL1024 float32 complete output | Texts/output rows | Logical output bytes |
+|---|---:|---:|
+| WikiText | 5352 | 21921792 |
+| MASSIVE | 151674 | 621256704 |
+
+MASSIVE has 28.34 times the output rows/bytes and shorter texts. This is 5352 or 151674 times 1024 times 4 bytes, not measured physical GPU transfer traffic or simultaneous residency. In the M4 matrix, raw MLX/CPU10 is 1.8007 at 1024 and 1.8027 at 256; normalized is 2.6997 versus 2.3071. Higher dimensions therefore do not consistently rescue MLX. The M1 MASSIVE copy/lease ablation motivates investigating copy handling, but it was a different machine/workload/worker count. No M4 MASSIVE timestamp trace ran. WikiText sample shares or failed-probe spans are not transferred to MASSIVE, and no causal M4 MASSIVE copy bottleneck is established.
 
 ## Sources
 

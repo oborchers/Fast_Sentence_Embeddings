@@ -179,3 +179,5 @@ Primary sources: [MLX evaluation](https://ml-explore.github.io/mlx/build/html/us
 [Hub revisions](https://huggingface.co/docs/huggingface_hub/guides/download).
 
 Completed profile provenance, guarded scratch target overrides, phase/sample mapping and exact peaks are in `benchmarks/evidence/dr147-m4/profiles.json`. The read-only `profile_offline.py` reproduces inclusive versus encode-only sample shares from local raw traces. These are not wall percentages. Memory/RSS-only limit20 exceptions were explicit but every observed profile guard stayed below5. Ordinary timing policy and idle data were unchanged. No ablation or policy change followed.
+
+The later scratch timestamp probe failed its predeclared per-pair overhead gate on the first CPU round (M2/A2 1.109003613433869 >1.10), despite aggregate1.047315807024959. No MLX run/retry/adaptation. A/A noise is not a causal timer-overhead estimate. No span coverage is accepted from it. Only compact non-tracing results are in `benchmarks/evidence/dr147-m4/wall-probe.json`; all tracing code/raw events remain scratch-only.
