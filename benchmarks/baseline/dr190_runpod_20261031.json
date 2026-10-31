@@ -6,10 +6,12 @@
   "limitations": [
     "different CPU models and host loads; not same-host repeatability",
     "single samples; no A/A store decision",
-    "two run-2 profile reductions unavailable after post-write ECHILD",
     "f16/i8 input pooling unmeasured",
     "active-thread samples are not wall time",
-    "32 logical-CPU affinity; physical sibling map unrecorded"
+    "32 logical-CPU affinity; physical sibling map unrecorded",
+    "run-3 multiworker tables come from EPYC 9B45 at host load 395.07 to 405.86, not the primary run-2 host",
+    "large unresolved self sample entries in run-3 WordPiece (35.77%) and store (32.25%); no hotspot identity inferred",
+    "run-2 lost tables replaced only in coverage, not timing, by separate run-3 profiles"
   ],
   "synthetic_tokens": {
     "source": "benchmarks/bench_runtime.py corpus(200000,100000,seed=0), numeric generator replay only, no timing run",
@@ -1586,6 +1588,453 @@
           "status": "failed",
           "result": null,
           "diagnostic": "py-spy> Sampling process 99 times a second for 240 seconds. Press Control-C to exit.\n\n\npy-spy> Stopped sampling because process exited\npy-spy> Wrote speedscope file to '/results/profile-store-synthetic-16.json'. Samples: 16887 Errors: 16\npy-spy> Visit https://www.speedscope.app/ to view\nError: No child process (os error 10)\nTraceback (most recent call last):\n  File \"/dr190-work.py\", line 200, in <module>\n    elif cmd == 'profile': profile(rest[0], int(rest[1]), rest[2])\n                           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/dr190-work.py\", line 189, in profile\n    subprocess.run(['/w/.venv/bin/py-spy', 'record', '--native', '--rate', '99', '--format', 'speedscope', '--duration', '240', '--output', path, '--', sys.executable, __file__, 'target', kind, str(workers), corpus], check=True, stdout=sys.stderr, stderr=sys.stderr, timeout=270)\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.13/subprocess.py\", line 578, in run\n    raise CalledProcessError(retcode, process.args,\n                             output=stdout, stderr=stderr)\nsubprocess.CalledProcessError: Command '['/w/.venv/bin/py-spy', 'record', '--native', '--rate', '99', '--format', 'speedscope', '--duration', '240', '--output', '/results/profile-store-synthetic-16.json', '--', '/w/.venv/bin/python', '/dr190-work.py', 'target', 'store', '16', 'synthetic']' returned non-zero exit status 1.\n"
+        }
+      }
+    },
+    {
+      "run": 3,
+      "scope": "profile-only follow-up",
+      "source_sha": "4d92d61cb8b9351ac13d54feaa86ee711c08c13f",
+      "log_sha256": "6634198f162dced0c908ce3d6c6bdd1a1b7d4ad5b1ad9442b1f642f2e96f6cf3",
+      "cpu": "AMD EPYC 9B45 128-Core Processor",
+      "host_physical_cores": 128,
+      "host_logical_cpus": 256,
+      "allowed_logical_cpus": 32,
+      "memory_limit_bytes": 64000000000,
+      "filesystem": "overlay, 30 GiB",
+      "load_min": 395.07,
+      "load_max": 405.86,
+      "elapsed_including_setup": 160.54067373275757,
+      "profiles": {
+        "profile-potion-base-8M-wikitext-32": {
+          "status": "ok",
+          "result": {
+            "sample_weight": 210.68686868687453,
+            "denominator": "active thread samples across all threads; not wall time",
+            "scope": "end to end: loading and warm-up included, followed by 48 seconds of repeated warmed workload",
+            "functions": [
+              {
+                "name": "0x79b47155872e",
+                "self_pct": 35.765653466295866,
+                "total_pct": 35.765653466295866
+              },
+              {
+                "name": "_native__vocab_lookup",
+                "self_pct": 12.618659507143484,
+                "total_pct": 14.157637357368818
+              },
+              {
+                "name": "_mm256_fmadd_ps",
+                "self_pct": 10.096845335123152,
+                "total_pct": 10.096845335123152
+              },
+              {
+                "name": "fse_prefetch_row",
+                "self_pct": 6.045641959919393,
+                "total_pct": 6.045641959919393
+              },
+              {
+                "name": "fse_loop_f32_avx2",
+                "self_pct": 5.604564195991883,
+                "total_pct": 28.444721449803385
+              },
+              {
+                "name": "fse_fma_f32_avx2",
+                "self_pct": 5.374436666986226,
+                "total_pct": 16.434941029820635
+              },
+              {
+                "name": "fse_trie_longest",
+                "self_pct": 4.923770256016813,
+                "total_pct": 4.923770256016813
+              },
+              {
+                "name": "fse_wp_next_word_ascii",
+                "self_pct": 1.4430913798062637,
+                "total_pct": 2.751941701025921
+              },
+              {
+                "name": "fse_finite_row",
+                "self_pct": 1.3567935564291458,
+                "total_pct": 1.3567935564291458
+              },
+              {
+                "name": "_mm256_storeu_ps",
+                "self_pct": 1.1889922331958616,
+                "total_pct": 1.1889922331958616
+              },
+              {
+                "name": "_native__mix",
+                "self_pct": 0.7383258222264641,
+                "total_pct": 0.7383258222264641
+              },
+              {
+                "name": "_native__wp_word_trie",
+                "self_pct": 0.7143542046217086,
+                "total_pct": 19.795761818007428
+              },
+              {
+                "name": "fse_wp_char_cut_ascii",
+                "self_pct": 0.7143542046217086,
+                "total_pct": 0.733531498705513
+              },
+              {
+                "name": "_native__code_at",
+                "self_pct": 0.6616166458912466,
+                "total_pct": 0.6616166458912466
+              },
+              {
+                "name": "_native__hash_word",
+                "self_pct": 0.623262057723638,
+                "total_pct": 1.5389778502252836
+              },
+              {
+                "name": "fse_wp_normalize_ascii",
+                "self_pct": 0.5657301754722248,
+                "total_pct": 1.0739284686930377
+              },
+              {
+                "name": "_native__count",
+                "self_pct": 0.5321699108255672,
+                "total_pct": 0.5321699108255672
+              },
+              {
+                "name": "fse_wp_bytes_below",
+                "self_pct": 0.5081982932208117,
+                "total_pct": 0.5081982932208117
+              },
+              {
+                "name": "_native__append_str",
+                "self_pct": 0.5034039696998607,
+                "total_pct": 2.0951193786556064
+              },
+              {
+                "name": "_native__wordpiece_sentence",
+                "self_pct": 0.465049381532252,
+                "total_pct": 25.52018410202315
+              },
+              {
+                "name": "fse_wp_not_alnum8",
+                "self_pct": 0.43628344040654576,
+                "total_pct": 0.43628344040654576
+              },
+              {
+                "name": "_native__wp_piece",
+                "self_pct": 0.4123118228017905,
+                "total_pct": 24.038738134049236
+              },
+              {
+                "name": "fse_wp_class_at",
+                "self_pct": 0.37395723463418223,
+                "total_pct": 0.3883402051970354
+              },
+              {
+                "name": "fse_finish_row",
+                "self_pct": 0.3212196759037208,
+                "total_pct": 0.3212196759037208
+              },
+              {
+                "name": "fse_wp_unprintable8",
+                "self_pct": 0.28765941125706357,
+                "total_pct": 0.28765941125706357
+              },
+              {
+                "name": "thread_run",
+                "self_pct": 0.0,
+                "total_pct": 94.61118036245085
+              },
+              {
+                "name": "clone",
+                "self_pct": 0.0,
+                "total_pct": 94.61118036245085
+              },
+              {
+                "name": "0x79b4715508bb",
+                "self_pct": 0.0,
+                "total_pct": 94.61118036245085
+              },
+              {
+                "name": "run",
+                "self_pct": 0.18697861731709145,
+                "total_pct": 94.45296768625947
+              },
+              {
+                "name": "_bootstrap_inner",
+                "self_pct": 0.014382970562853183,
+                "total_pct": 92.67906798350752
+              },
+              {
+                "name": "_bootstrap",
+                "self_pct": 0.0,
+                "total_pct": 92.67906798350752
+              },
+              {
+                "name": "_worker",
+                "self_pct": 0.13424105858662977,
+                "total_pct": 92.63591907181898
+              },
+              {
+                "name": "_work",
+                "self_pct": 0.03835458816760849,
+                "total_pct": 69.72864128871414
+              },
+              {
+                "name": "work",
+                "self_pct": 0.05273755873046167,
+                "total_pct": 69.70466967110939
+              },
+              {
+                "name": "earliest",
+                "self_pct": 0.014382970562853183,
+                "total_pct": 69.56083996548085
+              },
+              {
+                "name": "rows",
+                "self_pct": 0.1150637645028255,
+                "total_pct": 69.52727970083419
+              },
+              {
+                "name": "pooled_task",
+                "self_pct": 0.11026944098187443,
+                "total_pct": 69.29715217182853
+              },
+              {
+                "name": "encode_with",
+                "self_pct": 0.04314891168855955,
+                "total_pct": 69.1533224662
+              },
+              {
+                "name": "text_rows",
+                "self_pct": 0.07670917633521698,
+                "total_pct": 69.02387573113432
+              },
+              {
+                "name": "pool_text",
+                "self_pct": 0.009588647041902123,
+                "total_pct": 68.9471665547991
+              }
+            ],
+            "recorder_exit": 0,
+            "recovered_echild": false,
+            "recorder_samples": 20858,
+            "recorder_errors": 228,
+            "recorder_diagnostic": "py-spy> Sampling process 99 times a second for 240 seconds. Press Control-C to exit.\n\nDR190_TARGET_DONE\n\npy-spy> Stopped sampling because process exited\npy-spy> Wrote speedscope file to '/results/profile-potion-base-8M-wikitext-32.json'. Samples: 20858 Errors: 228\npy-spy> Visit https://www.speedscope.app/ to view\n"
+          }
+        },
+        "profile-store-synthetic-16": {
+          "status": "ok",
+          "result": {
+            "sample_weight": 130.87878787879146,
+            "denominator": "active thread samples across all threads; not wall time",
+            "scope": "end to end: loading and warm-up included, followed by 48 seconds of repeated warmed workload",
+            "functions": [
+              {
+                "name": "0x7a16c128972e",
+                "self_pct": 32.24511846878128,
+                "total_pct": 32.24511846878128
+              },
+              {
+                "name": "_native__vocab_lookup",
+                "self_pct": 7.069537701628364,
+                "total_pct": 8.736590260090972
+              },
+              {
+                "name": "fse_inverse_norms_body",
+                "self_pct": 5.796094775024982,
+                "total_pct": 5.796094775024982
+              },
+              {
+                "name": "fse_loop_f32_avx2",
+                "self_pct": 4.90854364436202,
+                "total_pct": 27.907694682410973
+              },
+              {
+                "name": "_mm256_fmadd_ps",
+                "self_pct": 4.893107972524403,
+                "total_pct": 4.893107972524403
+              },
+              {
+                "name": "fse_fma_f32_avx2",
+                "self_pct": 4.113606544724757,
+                "total_pct": 10.84355946592566
+              },
+              {
+                "name": "fse_tokenize_external",
+                "self_pct": 3.912942810835739,
+                "total_pct": 4.468626996989942
+              },
+              {
+                "name": "fse_prefetch_row",
+                "self_pct": 1.7828200972446833,
+                "total_pct": 1.7828200972446833
+              },
+              {
+                "name": "fse_finish_row",
+                "self_pct": 1.5590028555992501,
+                "total_pct": 1.5590028555992501
+              },
+              {
+                "name": "_mm256_storeu_ps",
+                "self_pct": 1.381492629466662,
+                "total_pct": 1.381492629466662
+              },
+              {
+                "name": "0x7a16c136b107",
+                "self_pct": 1.3197499421161967,
+                "total_pct": 1.3197499421161967
+              },
+              {
+                "name": "brk",
+                "self_pct": 1.3043142702785802,
+                "total_pct": 1.3043142702785802
+              },
+              {
+                "name": "0x7a16c136b115",
+                "self_pct": 1.296596434359772,
+                "total_pct": 1.296596434359772
+              },
+              {
+                "name": "0x7a16c136b10e",
+                "self_pct": 1.2502894188469227,
+                "total_pct": 1.2502894188469227
+              },
+              {
+                "name": "0x7a16c136b100",
+                "self_pct": 1.0959327004707586,
+                "total_pct": 1.0959327004707586
+              },
+              {
+                "name": "TextLookup__sentence",
+                "self_pct": 0.9647294898510191,
+                "total_pct": 14.332021301227043
+              },
+              {
+                "name": "_mm_add_epi64",
+                "self_pct": 0.7640657559620059,
+                "total_pct": 0.7640657559620059
+              },
+              {
+                "name": "_mm_loadu_si128",
+                "self_pct": 0.6714517249363083,
+                "total_pct": 0.6714517249363083
+              },
+              {
+                "name": "__init__",
+                "self_pct": 0.6097090375858435,
+                "total_pct": 4.175349232075224
+              },
+              {
+                "name": "0x7a16c136b0c9",
+                "self_pct": 0.5788376939106109,
+                "total_pct": 0.5788376939106109
+              },
+              {
+                "name": "_native__load_partial",
+                "self_pct": 0.5711198579918029,
+                "total_pct": 0.5711198579918029
+              },
+              {
+                "name": "unlinkat",
+                "self_pct": 0.5634020220729947,
+                "total_pct": 0.5634020220729947
+              },
+              {
+                "name": "fse_emit",
+                "self_pct": 0.5556841861541866,
+                "total_pct": 0.5556841861541866
+              },
+              {
+                "name": "_native__mix",
+                "self_pct": 0.5479663502353785,
+                "total_pct": 0.5479663502353785
+              },
+              {
+                "name": "_native__hash_word",
+                "self_pct": 0.5479663502353785,
+                "total_pct": 1.6670525584625628
+              },
+              {
+                "name": "run",
+                "self_pct": 0.0694605232692734,
+                "total_pct": 91.19394921663965
+              },
+              {
+                "name": "clone",
+                "self_pct": 0.030871343675232622,
+                "total_pct": 90.56108667129736
+              },
+              {
+                "name": "0x7a16c12818bb",
+                "self_pct": 0.0,
+                "total_pct": 90.53021532762213
+              },
+              {
+                "name": "thread_run",
+                "self_pct": 0.0540248514316571,
+                "total_pct": 90.53021532762213
+              },
+              {
+                "name": "_bootstrap",
+                "self_pct": 0.007717835918808156,
+                "total_pct": 90.34498726557072
+              },
+              {
+                "name": "_bootstrap_inner",
+                "self_pct": 0.015435671837616311,
+                "total_pct": 90.33726942965191
+              },
+              {
+                "name": "_worker",
+                "self_pct": 0.04630701551284894,
+                "total_pct": 62.73057034807436
+              },
+              {
+                "name": "_work",
+                "self_pct": 0.0,
+                "total_pct": 54.22551516554753
+              },
+              {
+                "name": "work",
+                "self_pct": 0.023153507756424465,
+                "total_pct": 54.22551516554753
+              },
+              {
+                "name": "rows",
+                "self_pct": 0.030871343675232622,
+                "total_pct": 54.15605464227826
+              },
+              {
+                "name": "earliest",
+                "self_pct": 0.0,
+                "total_pct": 54.15605464227826
+              },
+              {
+                "name": "pooled_task",
+                "self_pct": 0.04630701551284894,
+                "total_pct": 45.89025237323449
+              },
+              {
+                "name": "encode_with",
+                "self_pct": 0.023153507756424465,
+                "total_pct": 45.83622752180283
+              },
+              {
+                "name": "text_rows",
+                "self_pct": 0.030871343675232622,
+                "total_pct": 45.76676699853355
+              },
+              {
+                "name": "pool_text",
+                "self_pct": 0.015435671837616311,
+                "total_pct": 45.73589565485832
+              }
+            ],
+            "recorder_exit": 1,
+            "recovered_echild": true,
+            "recorder_samples": 12957,
+            "recorder_errors": 27,
+            "recorder_diagnostic": "py-spy> Sampling process 99 times a second for 240 seconds. Press Control-C to exit.\n\nDR190_TARGET_DONE\n\npy-spy> Stopped sampling because process exited\npy-spy> Wrote speedscope file to '/results/profile-store-synthetic-16.json'. Samples: 12957 Errors: 27\npy-spy> Visit https://www.speedscope.app/ to view\nError: No child process (os error 10)\n"
+          }
         }
       }
     }

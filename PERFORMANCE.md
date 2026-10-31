@@ -51,9 +51,13 @@ comparison or float16/int8 input-pooling measurement was made.
 Full/none store pairs verified with matching data digests. File/directory sync
 p50 was 0.042/0.047 ms. A second observation, on EPYC 9B45 at host load above
 1000, gave 55.58/63.41 ms; it measures host/storage variation, not same-host
-repeatability or a Linux-wide cost. Two multiworker profiles wrote samples but
-their recorder exited with `No child process (os error 10)` before table
-reduction; their function shares remain unavailable. The
+repeatability or a Linux-wide cost. Two run-2 multiworker recordings could not
+be reduced after a post-write `No child process (os error 10)` recorder exit.
+A separate profile-only EPYC 9B45 run at host load 395 to 406 supplied those
+tables: WordPiece at 32 workers has 25.52% tokenizer and 28.44% pooling inclusive
+samples; store at 16 workers has 27.91% pooling. Unresolved symbols account for
+at least 35.77% and 32.25% self samples respectively, so their hotspot identities
+remain unknown. These shares cannot be applied to run-2 wall timings. The
 [evidence summary](benchmarks/baseline/dr190_runpod_20261031.json) preserves both
 hosts, results, profile failures and limitations. No paired optimization gain
 is claimed.
