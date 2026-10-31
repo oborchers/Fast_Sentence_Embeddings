@@ -2,6 +2,7 @@
 
 Written once and checked in; the tests compare the reference and the native tokenizer
 with it, so a change of either is noticed. Never regenerate it for a released identifier.
+The original synthetic corpus replaces separately licensed prose before the 2.0 release.
 
     uv run python tests/test_data/v2/make_fse_words_golden.py
 """
@@ -13,7 +14,6 @@ from fse._reference_text import tokenize_fse_words
 from fse._unicode import UNICODE_VERSION
 
 HERE = Path(__file__).parent
-ROOT = HERE.parent.parent.parent
 
 # Sentences that exercise every rule, the lowercase table and UTF-8 lengths.
 EXTRA = [
@@ -32,48 +32,39 @@ EXTRA = [
 
 
 def main() -> None:
-    # Original templates, not excerpts from a corpus. Pair all subjects, actions and
-    # settings, then vary punctuation, contractions, numbers and Unicode boundaries.
+    # Original templates and unique labels exercise a vocabulary at least as large
+    # as the former STS corpus, including known and unknown halves in lookup tests.
     subjects = [
-        "The quiet gardener",
-        "Our small robot",
-        "A curious otter",
+        "Our robot",
+        "A sailor",
+        "The otter",
         "My neighbour",
-        "Three tired sailors",
-        "An amber kite",
-        "The station clock",
+        "The pilot",
+        "A weaver",
+        "The clock",
     ]
     actions = ["inspects", "carries", "paints", "measures", "repairs", "finds", "circles"]
-    objects = [
-        "a blue ladder",
-        "the wooden box",
-        "seven paper stars",
-        "a silver wheel",
-        "the empty basket",
-        "a tiny compass",
-        "some folded maps",
-        "a glass bead",
-    ]
     endings = [
-        "near the café.",
+        "near café.",
         "at 10:30, isn't it?",
         "in room 3.14; we'll return.",
-        "by the well-known tree!",
+        "by a well-known tree!",
         "in Zürich, 中国 and Αθήνα.",
-        "under sign_7... wait--don't move?",
+        "under sign_7... don't move?",
         "beside e\u0301 and 😀.",
     ]
-    texts = list(EXTRA)
+    texts = [*EXTRA, "Quiet morning."]
+    # 31 tokens and more than 215 UTF-8 bytes, the former corpus' upper bounds.
+    texts.append("The cartographer inspects " + " ".join(f"instrument{i}" for i in range(28)))
     texts.extend(
-        f"{subject} {action} {obj} {ending}"
-        for subject in subjects
-        for action in actions
-        for obj in objects
-        for ending in endings
+        f"{subjects[i % 7]} {actions[(i // 7) % 7]} crate{i} for team{i} {endings[(i // 49) % 7]}"
+        for i in range(2756)
     )
     cases = [[text, tokenize_fse_words(text)] for text in texts]
     payload = {"tokenizer": "fse_words@1", "unicode": UNICODE_VERSION, "cases": cases}
-    (HERE / "fse_words.json").write_text(json.dumps(payload, ensure_ascii=True, indent=0) + "\n")
+    (HERE / "fse_words.json").write_text(
+        json.dumps(payload, ensure_ascii=True, indent=0) + "\n"
+    )
     print(f"{len(cases)} cases")
 
 
