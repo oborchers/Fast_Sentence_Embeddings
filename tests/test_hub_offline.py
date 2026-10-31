@@ -105,16 +105,112 @@ def test_no_ref_or_snapshot_raises_file_not_found(fake, revision):
         _files(fake, revision)
 
 
-def test_a_cache_filled_by_fse_alone_has_no_ref_and_loads_by_commit(fake):
-    """fse downloads at the commit it resolved, which leaves no refs/main (as before this
-    change): a revision name needs a ref, the commit hash does not."""
-    fake.refs = False
+def _ref(fake, name="main"):
+    return (fake.folder() / "refs").joinpath(*name.split("/"))
+
+
+def test_a_cache_filled_by_fse_alone_loads_offline_without_a_revision(fake):
+    """DR-184: fse downloads at the commit it resolved, which huggingface_hub records as
+    no ref; fse records refs/main itself, so the usual flow (online once, offline later,
+    no revision) works."""
     online = _load(fake)
-    assert not (fake.folder() / "refs").exists()
+    assert _ref(fake).read_text() == COMMIT
+    offline = _load(fake, local_files_only=True)
+    assert offline.fingerprint == online.fingerprint
+    assert _load(fake, revision="main", local_files_only=True).fingerprint == online.fingerprint
+
+
+@pytest.mark.parametrize("revision", ["dev", "v1", "refs/pr/1"])
+def test_a_named_revision_leaves_its_ref(fake, revision):
+    online = _load(fake, revision=revision)
+    assert _ref(fake, revision).read_text() == COMMIT
+    assert not _ref(fake).exists()  # main was not asked for
+    assert _files(fake, revision).revision == COMMIT
+    assert _load(fake, revision=revision, local_files_only=True).fingerprint == online.fingerprint
     with pytest.raises(FileNotFoundError, match="no ref 'main'"):
         _load(fake, local_files_only=True)
-    offline = _load(fake, revision=COMMIT, local_files_only=True)
-    assert offline.fingerprint == online.fingerprint
+
+
+def test_a_commit_hash_leaves_no_ref(fake):
+    online = _load(fake, revision=COMMIT)
+    assert not (fake.folder() / "refs").exists()
+    assert _load(fake, revision=COMMIT, local_files_only=True).fingerprint == online.fingerprint
+    with pytest.raises(FileNotFoundError, match="no ref 'main'"):
+        _load(fake, local_files_only=True)
+
+
+def test_an_offline_load_writes_no_ref(fake):
+    _load(fake, revision=COMMIT)
+    _load(fake, revision=COMMIT, local_files_only=True)
+    assert not (fake.folder() / "refs").exists()
+
+
+def test_a_ref_that_moved_follows_what_fse_resolved(fake):
+    """A new commit on main: the next online load records it, and the offline load without
+    a revision gives that snapshot."""
+    _load(fake)
+    new = "d" * 40
+    fake.commit = new
+    _load(fake)
+    assert _ref(fake).read_text() == new
+    assert _files(fake).revision == new
+    assert (fake.folder() / "snapshots" / COMMIT).is_dir()  # the old one stays
+
+
+def test_a_ref_of_the_commit_is_not_written_again(fake, monkeypatch):
+    _load(fake)
+    calls = []
+    real = os.replace
+    monkeypatch.setattr(os, "replace", lambda *a: (calls.append(a), real(*a))[1])
+    _load(fake)
+    assert calls == []
+
+
+def test_a_revision_name_that_fills_a_file_name_is_recorded(fake):
+    name = "b" * 240
+    _load(fake, revision=name)
+    assert _ref(fake, name).read_text() == COMMIT
+
+
+def test_no_temporary_file_stays_in_refs(fake):
+    _load(fake, revision="refs/pr/1")
+    _load(fake)
+    names = sorted(p.name for p in (fake.folder() / "refs").rglob("*") if p.is_file())
+    assert names == ["1", "main"]
+
+
+def test_writers_that_meet_at_the_ref_leave_one_whole_commit(fake):
+    """Several processes load the same model, one of them with a newer commit: the ref is
+    always replaced whole (a reader never sees half of it) and no temporary file stays."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    commits = ["a" * 40, "b" * 40, COMMIT, "d" * 40]
+    storage = fake.folder()
+    storage.mkdir(parents=True)
+    seen = []
+
+    def write(commit):
+        for _ in range(25):
+            hub.write_ref(storage, "main", commit)
+            seen.append(_ref(fake).read_text())
+
+    with ThreadPoolExecutor(4) as pool:
+        for future in [pool.submit(write, c) for c in commits]:
+            future.result()
+    assert set(seen) <= set(commits)
+    assert _ref(fake).read_text() in commits
+    assert [p.name for p in (storage / "refs").iterdir()] == ["main"]
+
+
+def test_a_ref_that_is_a_link_is_not_written_through(fake, tmp_path):
+    _load(fake, revision=COMMIT)
+    refs = fake.folder() / "refs"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    refs.symlink_to(elsewhere, target_is_directory=True)
+    with pytest.raises(CorruptArtifactError, match="is a link"):
+        _load(fake)
+    assert list(elsewhere.iterdir()) == []
 
 
 def test_an_empty_cache_raises_file_not_found(fake):

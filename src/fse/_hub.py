@@ -27,6 +27,7 @@ from __future__ import annotations
 import os
 import re
 import stat
+import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -63,6 +64,7 @@ class HubFiles:
         self.source = repo
         self._options = {"cache_dir": cache_dir, "token": token}
         self._offline = local_files_only
+        self._ref: str | None = None  # the name to record as refs/<name> once a file is checked
         if local_files_only:
             snapshot = cached_snapshot(self.hub, repo, revision, cache_dir)
             self.revision = snapshot.name
@@ -70,19 +72,7 @@ class HubFiles:
             self._sizes: dict[str, int | None] = {}
             self._names = files_below(snapshot)
         else:
-            info = self.hub.HfApi().model_info(
-                repo, revision=revision, files_metadata=True, token=token
-            )
-            self.revision = info.sha
-            self._pins = {
-                s.rfilename: (getattr(s.lfs, "sha256", None) if s.lfs else None, s.blob_id)
-                for s in info.siblings
-            }
-            # The size of an LFS file, which the commit records too.
-            self._sizes = {
-                s.rfilename: getattr(s.lfs, "size", None) if s.lfs else None for s in info.siblings
-            }
-            self._names = set(self._pins)
+            self._resolve(repo, revision, token)
         # The commit, never the repository id or revision name (a private repository's
         # name may be confidential).
         _log.emit(
@@ -96,6 +86,24 @@ class HubFiles:
             files=len(self._names),
         )
 
+    def _resolve(self, repo: str, revision, token) -> None:
+        """Online: ``revision`` to its commit and the files with their pins."""
+        name = _revision_name(revision)
+        self._ref = None if _COMMIT.fullmatch(name) else name
+        info = self.hub.HfApi().model_info(
+            repo, revision=revision, files_metadata=True, token=token
+        )
+        self.revision = info.sha
+        self._pins = {
+            s.rfilename: (getattr(s.lfs, "sha256", None) if s.lfs else None, s.blob_id)
+            for s in info.siblings
+        }
+        # The size of an LFS file, which the commit records too.
+        self._sizes = {
+            s.rfilename: getattr(s.lfs, "size", None) if s.lfs else None for s in info.siblings
+        }
+        self._names = set(self._pins)
+
     def _download(self, name: str, revision: str | None) -> Path:
         path = self.hub.hf_hub_download(
             self.source,
@@ -105,6 +113,18 @@ class HubFiles:
             **self._options,
         )
         return Path(path)
+
+    def _record_ref(self, path: Path, name: str) -> None:
+        """``refs/<revision>`` = the commit this load resolved, once a file of it is checked
+        (DR-184). ``hf_hub_download`` writes the ref only for a revision given by name, and
+        fse downloads at the commit it resolved, so without this a later load with
+        ``local_files_only`` and no revision finds no ``refs/main``. Never written offline
+        or for a commit hash."""
+        storage = Path(os.path.normpath(snapshot_of(path, name).parent.parent))
+        if self._ref is None or self.revision is None:
+            raise AssertionError("no ref to record")  # callers check; also narrows the types
+        write_ref(storage, self._ref, self.revision)
+        self._ref = None  # once per load
 
     def has(self, name: str) -> bool:
         return name in self._names
@@ -134,6 +154,8 @@ class HubFiles:
             pin = _check_name(name, etag, data, lfs)
         else:
             pin = _check_pin(name, self._pins[name], data, lfs, self.revision)
+            if self._ref is not None:
+                self._record_ref(path, name)
         _log.emit(
             "hub.file",
             "fse hub: took a checked file of %d bytes at commit %s",
@@ -159,6 +181,43 @@ def _sized(name: str, expected: int | None, inspect: Any) -> Any:
     return check
 
 
+def _revision_name(revision: str | None) -> str:
+    """``revision`` (None is ``main``) when it can be a name below ``refs/``, else a
+    ``ValueError``."""
+    revision = "main" if revision is None else revision
+    parts = revision.split("/")
+    if not revision or any(p in ("", ".", "..") for p in parts) or "\\" in revision:
+        raise ValueError(f"{revision!r} is no revision name of the Hugging Face cache")
+    return revision
+
+
+def write_ref(storage: Path, revision: str, commit: str) -> None:
+    """The file ``refs/<revision>`` of the cached repository ``storage`` holds ``commit``,
+    written as huggingface_hub does (``_cache_commit_hash_for_specific_revision``, which
+    has no public API and cannot pin a commit): the same layout, untouched when it holds
+    the commit already (a read-only cache), else a temporary file renamed over it, so a
+    reader never sees half a ref. A link or other kind of entry on the way raises, as for
+    the reader; two writers leave the commit of the later rename."""
+    parts = ["refs", *revision.split("/")]
+    for i in range(1, len(parts)):
+        folder = storage.joinpath(*parts[:i])
+        if not os.path.lexists(folder):
+            folder.mkdir(exist_ok=True)
+        _plain_dirs(folder)
+    ref = storage.joinpath(*parts)
+    if os.path.lexists(ref):
+        if not stat.S_ISREG(os.lstat(ref).st_mode):
+            raise CorruptArtifactError(
+                f"{ref} is a link or the wrong kind of entry; fse follows no link in the cache"
+            )
+        if ref.read_text(encoding="ascii", errors="replace") == commit:
+            return
+    tmp = ref.with_name(f"{uuid.uuid4().hex}.tmp")  # short: the name of a ref may fill a file name
+    with open(tmp, "x", encoding="ascii") as handle:  # exclusive: no other writer, no link
+        handle.write(commit)
+    os.replace(tmp, ref)
+
+
 def cached_snapshot(hub: Any, repo: str, revision: str | None, cache_dir) -> Path:
     """The cached snapshot folder ``<cache>/models--<namespace>--<name>/snapshots/<commit>``
     of ``revision`` (None is ``main``), resolved from the documented layout of the cache:
@@ -169,10 +228,7 @@ def cached_snapshot(hub: Any, repo: str, revision: str | None, cache_dir) -> Pat
     the files below the snapshot that the model needs, each checked by its blob name.
     A missing repository, ref or snapshot raises ``FileNotFoundError``, as
     ``snapshot_download(local_files_only=True)`` does (``LocalEntryNotFoundError``)."""
-    revision = "main" if revision is None else revision
-    parts = revision.split("/")
-    if not revision or any(p in ("", ".", "..") for p in parts) or "\\" in revision:
-        raise ValueError(f"{revision!r} is no revision name of the Hugging Face cache")
+    revision = _revision_name(revision)
     # As huggingface_hub does: ~ is expanded and the folder resolved (it may be a link).
     base = (
         Path(hub.constants.HF_HUB_CACHE if cache_dir is None else cache_dir).expanduser().resolve()
