@@ -83,6 +83,8 @@ def cell(model: str, corpus: str, size: str, calls: int):
         repo, revision=commit, cache_dir=constants.HF_HUB_CACHE, local_files_only=True
     )
     pipeline = enc._pipeline("cpu")
+    if model == "static-retrieval-mrl-en-v1" and pipeline.output_dim != 1024:
+        raise RuntimeError("the MRL cell requires 1024 output dimensions")
     sentences = texts(corpus)
     if size == "short":
         sentences = sentences[: 500 if corpus == "wikitext" else 5000]
@@ -95,7 +97,10 @@ def child(args) -> dict:
     pipeline, requests = cell(args.models[0], args.corpora[0], args.sizes[0], args.calls)
     result = measure(pipeline, requests, args.workers[0], args.side, args.passes)
     scale = 1 if sys.platform == "darwin" else 1024
-    return result | {"peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * scale}
+    return result | {
+        "output_dim": pipeline.output_dim,
+        "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * scale,
+    }
 
 
 def profile(args) -> None:
