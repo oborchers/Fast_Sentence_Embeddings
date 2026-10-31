@@ -88,7 +88,7 @@ def test_noise_is_symmetric_and_needs_three_pairs(bench):
     assert bench.evidence(pairs(n=2), "none", 0.5)["passes"] is None
     mismatched = pairs()
     mismatched[1]["aa"]["digest"] = "bad"
-    assert not bench.evidence(mismatched, "none", 0.9)["passes"]
+    assert bench.evidence(mismatched, "none", 0.9)["passes"] is None
 
 
 @pytest.mark.parametrize(
@@ -105,25 +105,32 @@ def test_decision(bench, bulk, stream, outcome):
 
 
 def test_every_run_load_is_filtered(bench):
-    round_ = {s: {"before": 3, "after": 3} for s in bench.SIDES}
+    round_ = {s: {"before": 3, "after": 3, "digest": "same"} for s in bench.SIDES}
     assert bench.valid_round(round_, bench.SIDES, 5)
+    round_["none"]["digest"] = "wrong"
+    assert not bench.valid_round(round_, bench.SIDES, 5)
+    round_["none"]["digest"] = "same"
     round_["none"]["after"] = 5
     assert not bench.valid_round(round_, bench.SIDES, 5)
     assert not bench.valid_round({}, bench.SIDES, 5)
 
 
-def test_stream_seals_each_batch_and_digest_ignores_partition(bench, tmp_path):
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+def test_stream_seals_each_batch_and_digest_ignores_partition(bench, tmp_path, dtype):
     from types import SimpleNamespace
 
     import fse
 
     encoder = fse.Encoder.from_word_vectors(word_vectors(), tokenizer="external")
     args = SimpleNamespace(
-        dtype="float32", side="none", shard_rows=20, batch=4, tmp=str(tmp_path), workers=1
+        dtype=dtype, side="none", shard_rows=20, batch=4, tmp=str(tmp_path), workers=1
     )
-    streaming = bench.measure(args, encoder, ["a b"] * 8)
+    sentences = [f"w{i}" for i in range(8)]
+    streaming = bench.measure(args, encoder, sentences)
     args.batch = 0
-    bulk = bench.measure(args, encoder, ["a b"] * 8)
+    bulk = bench.measure(args, encoder, sentences)
+    changed = bench.measure(args, encoder, sentences[::-1])
+    assert changed["digest"] != bulk["digest"]
     assert streaming["shards"] == 2
     assert bulk["shards"] == 1
     assert streaming["digest"] == bulk["digest"]
@@ -139,3 +146,37 @@ def test_failed_ablation_restores_all_patches(bench):
     with pytest.raises(RuntimeError, match="failure"), bench.run.ablation("none"):
         raise RuntimeError("failure")
     assert original == (_shard.sync_data, _npy._sync_directory)
+
+
+def test_budget_timeout_preserves_completed_pairs(bench, tmp_path, monkeypatch):
+    import subprocess
+    import time
+
+    calls = []
+
+    def child_result(_cmd, **_kwargs):
+        calls.append(1)
+        if len(calls) == 25:
+            raise SystemExit("timeout") from subprocess.TimeoutExpired("child", 1)
+        return {"seconds": 1, "digest": "same"}
+
+    monkeypatch.setattr(bench.harness, "run_child", child_result)
+    monkeypatch.setattr(bench.harness, "load", lambda: 3)
+    args = bench.parser().parse_args(["cells", "--tmp", str(tmp_path), "--pairs", "4"])
+    cell = next(c for c in bench.plan() if c["name"] == "C2-default")
+    result = bench.run_cell(args, cell, time.monotonic() + 60)
+    assert len(result["kept"]) == 3
+    assert result["discarded"] == [{}]
+    assert result["incomplete_run"]["reason"] == "shared budget expired during child"
+
+
+def test_larger_full_shards_are_reported_as_simpler_answer(bench):
+    rounds = pairs()
+    for round_ in rounds:
+        round_["single"] = {"seconds": 0.8, "digest": "same"}
+        round_["large4"] = {"seconds": 1, "digest": "same"}
+    result = bench.decision([{"name": "C3", "kept": rounds}])
+    assert result["larger_shards"]["C3/single"]["passes"]
+    assert "full with larger shards" in result["simpler_answer"]
+    result = bench.decision([{"name": "C3", "kept": rounds, "correctness_failures": ["bad"]}])
+    assert result["outcome"] == "not decided"

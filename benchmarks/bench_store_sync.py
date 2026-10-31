@@ -16,6 +16,7 @@ import json
 import os
 import platform
 import statistics
+import subprocess
 import sys
 import tempfile
 import time
@@ -30,7 +31,7 @@ SIDES = ("full", "fsync", "none", "deferred", "flush_model", "aa")
 
 def evidence(rounds, side, threshold):
     """Symmetric A/A rule, with a minimum of three complete valid pairs."""
-    if len(rounds) < 3:
+    if len(rounds) < 3 or any(side not in r for r in rounds):
         return {"pairs": len(rounds), "passes": None}
     noise = [r["aa"]["seconds"] / r["full"]["seconds"] for r in rounds]
     ratios = [r[side]["seconds"] / r["full"]["seconds"] for r in rounds]
@@ -43,7 +44,9 @@ def evidence(rounds, side, threshold):
         "noise_lower": bound,
         "median": statistics.median(ratios),
         "equal": same,
-        "passes": same and statistics.median(ratios) <= threshold and max(ratios) < bound,
+        "passes": (statistics.median(ratios) <= threshold and max(ratios) < bound)
+        if same
+        else None,
     }
 
 
@@ -52,7 +55,9 @@ def decision(cells):
     by_name = {c["name"]: c["kept"] for c in cells}
     bulk = [evidence(by_name.get(n, []), "flush_model", 0.9) for n in ("C2-default", "C3")]
     stream = evidence(by_name.get("C1-10000", []), "none", 0.5)
-    if any(b["passes"] for b in bulk):
+    if any(c.get("correctness_failures") for c in cells):
+        outcome = "not decided"
+    elif any(b["passes"] for b in bulk):
         outcome = "tiers in 2.0"
     elif any(b["passes"] is None for b in bulk) or stream["passes"] is None:
         outcome = "not decided"
@@ -60,7 +65,21 @@ def decision(cells):
         outcome = "full + none in 2.0, flush in 2.1"
     else:
         outcome = "2.1"
-    return {"outcome": outcome, "bulk": bulk, "stream": stream}
+    larger = {
+        f"{name}/{side}": evidence(by_name.get(name, []), side, 0.9)
+        for name in ("C2-default", "C3")
+        for side in ("large4", "single")
+    }
+    simpler = [name for name, result in larger.items() if result["passes"]]
+    return {
+        "outcome": outcome,
+        "bulk": bulk,
+        "stream": stream,
+        "larger_shards": larger,
+        "simpler_answer": ("full with larger shards reaches the bulk gain: " + ", ".join(simpler))
+        if simpler
+        else "no qualifying larger-shard evidence",
+    }
 
 
 def plan():
@@ -124,7 +143,12 @@ def encode(args, encoder, texts, sink):
     return batches
 
 
-def measure(args, encoder, texts):
+def line_count(path):
+    with path.open() as file:
+        return sum(1 for _ in file)
+
+
+def measure(args, encoder, texts, *, verify=True):
     import fse
     from fse._store._sink import default_shard_rows
 
@@ -137,7 +161,7 @@ def measure(args, encoder, texts):
     if args.side == "large4":
         rows = 4 * default_shard_rows(encoder.output_dim, args.dtype)
     if args.side == "single":
-        rows = sum(1 for _ in texts.open()) if isinstance(texts, Path) else len(texts)
+        rows = len(texts) if not isinstance(texts, Path) else line_count(texts)
     trace = run.Trace()
     with tempfile.TemporaryDirectory(dir=args.tmp) as tmp, trace.recording():
         path = Path(tmp) / "store"
@@ -164,7 +188,9 @@ def measure(args, encoder, texts):
             end = time.perf_counter()
         syncs = trace.snapshot()
         peak = store_bench._peak()
-        checked = run.checked(path)  # verification and digests outside write timer
+        checked = (
+            run.checked(path) if verify else {}
+        )  #  # verification and digests outside write timer
     last = trace.events["last_commit"]
     close = trace.events["close_end"]
     publish_tail = sum(max(0, b - max(a, last)) for a, b in trace.publications)
@@ -189,7 +215,9 @@ def measure(args, encoder, texts):
 def child(args):
     encoder, texts = prepare(args)
     if args.length:
-        measure(args, encoder, texts)  # same-side warm-up, cleaned up before timed store
+        measure(
+            args, encoder, texts, verify=False
+        )  # same-side warm-up, cleaned up before timed store
     return measure(args, encoder, texts)
 
 
@@ -246,9 +274,17 @@ def probe(args):
     }
 
 
+def matching_digests(round_):
+    if "full" not in round_:
+        return True
+    return all(r["digest"] == round_["full"]["digest"] for r in round_.values())
+
+
 def valid_round(round_, sides, limit):
-    return set(round_) == set(sides) and all(
-        r["before"] < limit and r["after"] < limit for r in round_.values()
+    return (
+        set(round_) == set(sides)
+        and matching_digests(round_)
+        and all(r["before"] < limit and r["after"] < limit for r in round_.values())
     )
 
 
@@ -279,27 +315,49 @@ def run_cell(args, cell, deadline):
         sides += ["large4", "single"]
     if cell.get("length"):
         sides += ["pend1g", "pend1g_n"]
-    kept, discarded = [], []
+    kept, discarded, failures = [], [], []
+    incomplete = None
     attempt = 0
     while len(kept) < args.pairs and time.monotonic() < deadline:
-        round_ = {}
-        for side in harness.order(sides, attempt):
-            before = harness.load()
-            if (
-                before >= args.max_load
-                or time.monotonic() >= deadline
-                or (Path(args.tmp) / "pause-local.marker").exists()
-            ):
-                break
-            cmd = child_command(args, cell, side)
-            result = harness.run_child(cmd, timeout=max(1, deadline - time.monotonic()))
-            round_[side] = result | {"before": before, "after": harness.load()}
-            print(json.dumps({"cell": cell["name"], "side": side, **round_[side]}), flush=True)
+        round_, incomplete = run_round(args, cell, sides, attempt, deadline)
         (kept if valid_round(round_, sides, args.max_load) else discarded).append(round_)
+        if not matching_digests(round_):
+            failures.append("side digest differs from full")
+            break
+        if incomplete:
+            break
         if not round_:
             time.sleep(min(10, max(0, deadline - time.monotonic())))
         attempt += 1
-    return {"name": cell["name"], "kept": kept, "discarded": discarded}
+    return {
+        "name": cell["name"],
+        "kept": kept,
+        "discarded": discarded,
+        "correctness_failures": failures,
+        "incomplete_run": incomplete,
+    }
+
+
+def run_round(args, cell, sides, attempt, deadline):
+    round_ = {}
+    for side in harness.order(sides, attempt):
+        before = harness.load()
+        if (
+            before >= args.max_load
+            or time.monotonic() >= deadline
+            or (Path(args.tmp) / "pause-local.marker").exists()
+        ):
+            break
+        cmd = child_command(args, cell, side)
+        try:
+            result = harness.run_child(cmd, timeout=max(0.001, deadline - time.monotonic()))
+        except SystemExit as error:
+            if not isinstance(error.__cause__, subprocess.TimeoutExpired):
+                raise
+            return round_, {"side": side, "reason": "shared budget expired during child"}
+        round_[side] = result | {"before": before, "after": harness.load()}
+        print(json.dumps({"cell": cell["name"], "side": side, **round_[side]}), flush=True)
+    return round_, None
 
 
 def parser():
