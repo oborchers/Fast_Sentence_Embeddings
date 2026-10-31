@@ -230,8 +230,8 @@ def test_search_layouts_preserve_ids_ties_and_score_bits(layout, k):
 
 
 @pytest.mark.parametrize("layout", ["C", "F", "strided", "reversed"])
-def test_best_excludes_nan_scores_in_every_layout(layout):
-    # Backends reject non-finite cosines. At this internal boundary NaNs fail the mask.
+def test_best_excludes_nan_scores_without_partitioning(layout):
+    # Backends require finite cosines. Without partitioning, NaNs fail the initial mask.
     scores = _score_layout(F32([[np.nan, 1], [1, np.nan], [0, 0], [np.nan, np.nan]]), layout)
     queries, values, ids = _search.best(scores, 10, 4, np.full(2, _search.LOWEST, np.int32))
     assert queries.tolist() == [0, 0, 1, 1]
