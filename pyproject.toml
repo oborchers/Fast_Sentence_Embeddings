@@ -66,7 +66,11 @@ Changelog = "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/C
 where = ["src"]
 
 [tool.setuptools.package-data]
-"fse" = ["py.typed", "*.pyx", "*.pxi", "*.pxd", "*.h", "*.pyi"]
+"fse" = [
+    "py.typed", "*.pyx", "*.pxi", "*.pxd", "*.h", "*.pyi",
+    "_native_src/*.pxi", "_native_src/*.h",
+    "_native_src/*/*.pxi", "_native_src/*/*.h",
+]
 
 [tool.setuptools_scm]
 version_file = "src/fse/_version.py"
@@ -146,6 +150,8 @@ cache-keys = [
     { file = "src/fse/*.pxi" },
     { file = "src/fse/*.pxd" },
     { file = "src/fse/*.h" },
+    { file = "src/fse/_native_src/**/*.pxi" },
+    { file = "src/fse/_native_src/**/*.h" },
     { git = { commit = true, tags = true } },
 ]
 
@@ -280,11 +286,11 @@ max-cognitive-complexity = 15
 # tools/make_grapheme_tables.py are the source.
 generated = [
     "src/fse/_unicode.py",
-    "src/fse/_native_unicode.h",
+    "src/fse/_native_src/tables/_native_unicode.h",
     "src/fse/_unicode_bert.py",
-    "src/fse/_native_unicode_bert.h",
+    "src/fse/_native_src/tables/_native_unicode_bert.h",
     "src/fse/_unicode_graphemes.py",
-    "src/fse/_native_unicode_graphemes.h",
+    "src/fse/_native_src/tables/_native_unicode_graphemes.h",
 ]
 # The only modules that import the extension fse._native (import-linter cannot see it):
 # the package _text for stages 1 and 2, the cpu backend for the kernels of stages 2 to 4.

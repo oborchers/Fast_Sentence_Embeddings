@@ -168,7 +168,9 @@ _DEF = re.compile(r"^(\s*)(?:c?p?def|cdef)\b.*?\b(\w+)\(")
 
 def source(part: str) -> str:
     """The Cython source of a part of fse._native, as shipped with the package."""
-    return (Path(fse.__file__).parent / part).read_text()
+    matches = [p for p in _native_parts() if p.name == part]
+    assert len(matches) == 1, (part, matches)
+    return matches[0].read_text()
 
 
 def _functions(text: str):
@@ -303,5 +305,14 @@ def checked_without_gil(fused: str, others: list[str]) -> list[str]:
 
 def native_sources() -> list[str]:
     """Every part of fse._native but the fused one."""
+    return [p.read_text() for p in _native_parts() if p.name != FUSED]
+
+
+def _native_parts() -> list[Path]:
+    """Find every shipped part and verify it against the extension's include list."""
     folder = Path(fse.__file__).parent
-    return [p.read_text() for p in sorted(folder.glob("_native*.pxi")) if p.name != FUSED]
+    includes = re.findall(r'^include "([^"]+\.pxi)"', (folder / "_native.pyx").read_text(), re.M)
+    parts = sorted(folder.rglob("_native*.pxi"))
+    assert includes, "the extension includes no Cython parts"
+    assert {p.relative_to(folder).as_posix() for p in parts} == set(includes)
+    return parts

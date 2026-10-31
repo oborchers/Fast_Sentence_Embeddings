@@ -112,7 +112,7 @@ jobs:
             # The backend and its tests, the backend registry, the device conformance
             # tests with their helpers, and everything native (the kernels it mirrors).
             flag mlx '^src/fse/_backends/(_mlx/|__init__\.py$)|^tests/test_backends_mlx|^tests/test_conformance_device|^tests/support/(fake_mlx|conformance)\.py$|^src/fse/_native|^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|\.(pyx|pxd|pxi|h)$'
-            flag sdist '^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|^src/fse/[^/]*\.(pyx|pxd|pxi|h)$'
+            flag sdist '^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|^src/fse/(_native_src/.*|[^/]*)\.(pyx|pxd|pxi|h)$'
           } >> "$GITHUB_OUTPUT"
           # Linux on 3.13, plus the minimum versions when the pins change. No macOS entry:
           # test-mlx runs the whole suite (pytest tests -m "not network", Python 3.13, group

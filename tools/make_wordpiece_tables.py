@@ -7,7 +7,7 @@ tokenizer identifier. The script reads five UCD files (each pinned by its sha256
 two files, which are checked in and never edited by hand:
 
 - ``src/fse/_unicode_bert.py``: the data for the reference, as the UCD states it;
-- ``src/fse/_native_unicode_bert.h``: the same composed per code point for the native
+- ``src/fse/_native_src/tables/_native_unicode_bert.h``: the same composed per code point for the native
   tokenizer (steps 3.1 to 3.5 of one code point, with its combining class), in two stages.
 
 The header is computed from the data of the Python file alone, so the tests regenerate it
@@ -29,7 +29,7 @@ from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent.parent
 PYTHON_OUT = ROOT / "src" / "fse" / "_unicode_bert.py"
-HEADER_OUT = ROOT / "src" / "fse" / "_native_unicode_bert.h"
+HEADER_OUT = ROOT / "src" / "fse" / "_native_src" / "tables" / "_native_unicode_bert.h"
 VERSIONS = {"categories": "8.0.0", "normalization": "9.0.0", "case": "17.0.0"}
 # The files, the Unicode version they come from, and their sha256.
 UCD = {

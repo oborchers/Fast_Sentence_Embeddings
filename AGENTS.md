@@ -4,7 +4,7 @@ Guidance for coding agents working in this repository.
 
 ## Project
 
-fse (Fast Sentence Embeddings) computes sentence vectors from word vectors, with a native kernel in `src/fse/_native_kernel.h` and `src/fse/_native.pyx`. master is the development branch of fse 2.0, a rewrite planned by the maintainer (docs/architecture/overview.md, "Principle and stages"): an inference engine for finished static embeddings, which trains nothing; the 1.x API was removed from master and is in maintenance mode on the branch `1.x`. No feature work on request.
+fse (Fast Sentence Embeddings) computes sentence vectors from word vectors, with a native kernel in `src/fse/_native_src/kernel/_native_kernel.h` and `src/fse/_native.pyx`. master is the development branch of fse 2.0, a rewrite planned by the maintainer (docs/architecture/overview.md, "Principle and stages"): an inference engine for finished static embeddings, which trains nothing; the 1.x API was removed from master and is in maintenance mode on the branch `1.x`. No feature work on request.
 
 - Python 3.11 to 3.15. gensim is optional (extra `fse[gensim]`) and does not build on 3.14 and newer yet (piskvorky/gensim#3640); there the tests of `fse.gensim` are skipped.
 - Build backend is setuptools (pyproject.toml for metadata, setup.py only for the extension). Version comes from git tags (`v1.2.3`) via setuptools-scm.

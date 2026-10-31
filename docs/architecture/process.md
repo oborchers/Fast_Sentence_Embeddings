@@ -85,44 +85,49 @@ src/fse/
     _regressor.py        #   fse.Regressor
   _validation.py         # validate_arguments: strict pydantic checks of entry points
   _native.pyx            # the extension: directives, imports and its parts, in order
-  _native_hash.pxi       # its parts: FastText ngram hashing and chunk limits,
-  _native_buffer.pxi     #   growable buffers,
-  _native_vocab.pxi      #   word hashing and the vocabulary table,
-  _native_scan.pxi       #   UTF-8 classes and the scan of sentence spans,
-  _native_lists.pxi      #   strings and token lists joined into one UTF-8 buffer,
-  _native_kernel.pxi     #   the kernel wrappers, ISA dispatch and FP environment,
-  _native_steps.pxi      #   dot16, normalize@1 and score,
-  _native_store.pxi      #   storage of finished rows (quantize_rows@1),
-  _native_search.pxi     #   inverse norms, cosines and scores of many vectors,
-  _native_text.pxi       #   the tokenizers and the text lookup,
-  _native_wordpiece.pxi  #   wordpiece@1: its state, the greedy match, a sentence
-  _native_unigram.pxi    #   unigram@1: its state and its checks,
-  _native_unigram_steps.pxi # the normalizer steps, the candidates, the lattice, a sentence
-  _native_head.pxi       #   the logits, exp@1, the links and the labels of linear heads
-  _native_arrow.pxi      #   Arrow string columns: the C structs, their checks and errors,
-  _native_arrow_column.pxi #  the ArrowColumn: chunks taken over, scanned, encoded and released
-  _native_task.pxi       #   pool_text: stages 1 to 4 of a task in one section without the GIL
   _native.pxd, .pyi      # shared C types of the extension, and its type stubs
-  _native_kernel.h       # the C kernel: its contract, ISA detection and dispatch, and
-  _native_kernel_base.h  #   build checks, macros and shared types,
-  _native_kernel_mean.h  #   the weighted mean loops per ISA and dtype,
-  _native_kernel_tiles.h #   the register-blocked weighted mean loop (NEON float32),
-  _native_kernel_steps.h #   FP environment, dot16, normalize@1 and score,
-  _native_kernel_store.h #   the storage of rows per ISA,
-  _native_kernel_search.h #  inverse norms, cosines and scores,
-  _native_kernel_head.h  #   the bias of folded logits, exp@1, the links and the labels
-  _native_text.h         # the native tokenizers fse_words@1 and external
-  _native_unicode.h      # generated: the simple lowercase table for the native code
+  _native_src/          # native sources, no Python package
+    _native_buffer.pxi     #   growable buffers,
+    _native_task.pxi       #   pool_text: stages 1 to 4 of a task in one section without the GIL
+    _native_threads.h     # thread-local storage and thread identifiers
+    kernel/
+      _native_kernel.pxi     #   the kernel wrappers, ISA dispatch and FP environment,
+      _native_steps.pxi      #   dot16, normalize@1 and score,
+      _native_store.pxi      #   storage of finished rows (quantize_rows@1),
+      _native_search.pxi     #   inverse norms, cosines and scores of many vectors,
+      _native_head.pxi       #   the logits, exp@1, the links and the labels of linear heads
+      _native_kernel.h       # the C kernel: its contract, ISA detection and dispatch, and
+      _native_kernel_base.h  #   build checks, macros and shared types,
+      _native_kernel_mean.h  #   the weighted mean loops per ISA and dtype,
+      _native_kernel_tiles.h #   the register-blocked weighted mean loop (NEON float32),
+      _native_kernel_steps.h #   FP environment, dot16, normalize@1 and score,
+      _native_kernel_store.h #   the storage of rows per ISA,
+      _native_kernel_search.h #  inverse norms, cosines and scores,
+      _native_kernel_head.h  #   the bias of folded logits, exp@1, the links and the labels
+    text/
+      _native_hash.pxi       # its parts: FastText ngram hashing and chunk limits,
+      _native_vocab.pxi      #   word hashing and the vocabulary table,
+      _native_scan.pxi       #   UTF-8 classes and the scan of sentence spans,
+      _native_lists.pxi      #   strings and token lists joined into one UTF-8 buffer,
+      _native_text.pxi       #   the tokenizers and the text lookup,
+      _native_wordpiece.pxi  #   wordpiece@1: its state, the greedy match, a sentence
+      _native_unigram.pxi    #   unigram@1: its state and its checks,
+      _native_unigram_steps.pxi # the normalizer steps, the candidates, the lattice, a sentence
+      _native_arrow.pxi      #   Arrow string columns: the C structs, their checks and errors,
+      _native_arrow_column.pxi #  the ArrowColumn: chunks taken over, scanned, encoded and released
+      _native_text.h         # the native tokenizers fse_words@1 and external
+      _native_added.h        # the scan for added tokens, UTF-8 validation and the character cut
+      _native_wordpiece.h    # wordpiece@1: normalization and pre-tokenization
+      _native_unigram.h      # unigram@1: graphemes, the charsmap search, the float64 Viterbi
+      _native_wordpiece_trie.h # the byte trie of a vocabulary for the greedy match of wordpiece@1
+      _native_arrow.h        # the Arrow C Data and C Stream structs, and one row of utf8, large_utf8 or utf8_view
+    tables/
+      _native_unicode.h      # generated: the simple lowercase table for the native code
+      _native_unicode_bert.h # generated: the composed normalization table of wordpiece@1
+      _native_unicode_graphemes.h # generated: the same, one byte per code point, for the native code
   _unicode.py            # generated: the same table for the reference
-  _native_added.h        # the scan for added tokens, UTF-8 validation and the character cut
-  _native_wordpiece.h    # wordpiece@1: normalization and pre-tokenization
-  _native_unigram.h      # unigram@1: graphemes, the charsmap search, the float64 Viterbi
-  _native_wordpiece_trie.h # the byte trie of a vocabulary for the greedy match of wordpiece@1
-  _native_arrow.h        # the Arrow C Data and C Stream structs, and one row of utf8, large_utf8 or utf8_view
-  _native_unicode_bert.h # generated: the composed normalization table of wordpiece@1
   _unicode_bert.py       # generated: the Unicode data of wordpiece@1 for the reference
   _unicode_graphemes.py  # generated: the grapheme data of unigram@1 (Unicode 17.0.0) for the reference
-  _native_unicode_graphemes.h # generated: the same, one byte per code point, for the native code
   _charsmap.py           # the precompiled charsmap of SentencePiece normalizers: its checks and search
   _reference_text.py     # the reference of stages 1 and 2: tokenizers and lookup
   _reference_wordpiece.py # the reference of wordpiece@1
@@ -142,7 +147,7 @@ src/fse/
 
 Scope: outside the former "2.0 design" section.
 
-The extension is compiled from `_native.pyx`, the `.pxi` parts it includes (one translation unit, so `cdef inline` functions inline across parts) and the `_native*.h` headers at build time with Cython 3 against numpy 2 headers; generated C is never committed. Wheels built this way also run with numpy 1.x. `make rebuild-ext` rebuilds it in the development environment after edits to `.pyx`, `.pxi`, `.pxd` or `.h` files.
+The extension is compiled from `_native.pyx`, the `.pxi` parts it includes (one translation unit, so `cdef inline` functions inline across parts) and the headers in `_native_src/` at build time with Cython 3 against numpy 2 headers; generated C is never committed. Wheels built this way also run with numpy 1.x. `make rebuild-ext` rebuilds it in the development environment after edits to `.pyx`, `.pxi`, `.pxd` or `.h` files.
 
 # Tests
 

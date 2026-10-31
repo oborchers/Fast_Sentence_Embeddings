@@ -61,7 +61,7 @@ def test_white_space_is_the_25_code_points_of_oniguruma_and_rust():
 def test_the_generated_file_comes_from_its_data():
     gen = _generator()
     assert gen.python_source(_data()) == (ROOT / "src/fse/_unicode_graphemes.py").read_text()
-    header = (ROOT / "src/fse/_native_unicode_graphemes.h").read_text()
+    header = (ROOT / "src/fse/_native_src/tables/_native_unicode_graphemes.h").read_text()
     assert gen.header_source(_data()) == header
     assert gen.VERSION == ucd.VERSION
     assert set(gen.BREAK_VALUES) == set(ucd.BREAKS)
