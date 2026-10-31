@@ -25,13 +25,14 @@ Old saved models must be rebuilt for 2.0.
 
 ## Quick start
 
-You need Python 3.11 to 3.15, [uv](https://docs.astral.sh/uv/), Git, Make and a C compiler.
+You need standard CPython 3.11 to 3.15, [uv](https://docs.astral.sh/uv/), Git, Make and a C compiler.
+Free-threaded Python builds are unsupported.
 2.0 is not on PyPI yet. Install from the development branch:
 
 ```sh
 git clone --branch master https://github.com/oborchers/Fast_Sentence_Embeddings.git
 cd Fast_Sentence_Embeddings
-make install
+UV_PYTHON=3.13 make install
 ```
 
 Load a finished model from the Hugging Face Hub and encode two texts:

@@ -16,10 +16,12 @@ You can return with the missing evidence.
 
 ## Set up and check
 
-You need Python 3.11 to 3.15, [uv](https://docs.astral.sh/uv/), Make and a C compiler.
+You need standard CPython 3.11 to 3.15, [uv](https://docs.astral.sh/uv/), Make and a C compiler.
+
+Free-threaded Python builds are unsupported.
 
 ```sh
-make init
+UV_PYTHON=3.13 make init
 make check PYTEST_N=4
 ```
 
