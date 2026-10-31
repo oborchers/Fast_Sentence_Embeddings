@@ -23,20 +23,26 @@ def texts(corpus: str) -> list[str]:
     repo, revision = DATASETS[corpus]
     hub = Path(os.environ.get("HF_HUB_CACHE", Path.home() / ".cache/huggingface/hub"))
     folder = hub / ("datasets--" + repo.replace("/", "--")) / "snapshots" / revision
-    if corpus == "wikitext":
-        import pyarrow.parquet as pq
+    return _wikitext(folder) if corpus == "wikitext" else _massive(folder)
 
-        rows = []
-        for split in ("validation", "test"):
-            files = sorted((folder / "wikitext-103-raw-v1").glob(f"{split}-*"))
-            if not files:
-                raise FileNotFoundError(f"missing pinned {corpus} {revision} {split}")
-            for path in files:
-                rows.extend(pq.read_table(path).column("text").to_pylist())
-        return [row for row in rows if row.strip()]
+
+def _wikitext(folder: Path) -> list[str]:
+    import pyarrow.parquet as pq
+
+    rows = []
+    for split in ("validation", "test"):
+        files = sorted((folder / "wikitext-103-raw-v1").glob(f"{split}-*"))
+        if not files:
+            raise FileNotFoundError(f"missing pinned WikiText split {split} in {folder}")
+        for path in files:
+            rows.extend(pq.read_table(path).column("text").to_pylist())
+    return [row for row in rows if row.strip()]
+
+
+def _massive(folder: Path) -> list[str]:
     files = sorted((folder / "test").glob("*.json.gz"))
     if not files:
-        raise FileNotFoundError(f"missing pinned {corpus} {revision} test")
+        raise FileNotFoundError(f"missing pinned MASSIVE test in {folder}")
     rows = []
     for path in files:
         with gzip.open(path, "rt", encoding="utf-8") as stream:
