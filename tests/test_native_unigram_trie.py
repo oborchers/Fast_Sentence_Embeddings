@@ -8,6 +8,7 @@ import pytest
 
 from fse import _native
 from fse import _reference_unigram as ref
+from fse._contract import OOV_TOKEN
 
 
 def _arguments(tokens, scores=None):
@@ -217,3 +218,17 @@ def test_raw_constructors_keep_the_first_id_for_duplicates(tokens, sorted_keys):
     root, ids = _native._trie_constructed_ids(data, offsets, _sorted=sorted_keys)
     assert root == first.get(b"")
     assert ids == [first[token] for token in tokens]
+
+
+@pytest.mark.skipif(np.iinfo(np.intp).max <= OOV_TOKEN, reason="requires 64-bit array shapes")
+@pytest.mark.parametrize("sorted_keys", [False, True])
+def test_raw_constructors_reject_reserved_ids_before_copying_offsets(sorted_keys, monkeypatch):
+    # A broadcast view occupies one int64, not the tens of GB its shape describes.
+    offsets = np.broadcast_to(np.array(0, np.int64), (OOV_TOKEN + 1,))
+
+    def refuse_copy(*_args, **_kwargs):
+        raise AssertionError("the count must be checked before copying any arrays")
+
+    monkeypatch.setattr(np, "ascontiguousarray", refuse_copy)
+    with pytest.raises(ValueError, match="holds fewer than"):
+        _native._trie_constructed_ids(np.empty(0, np.uint8), offsets, _sorted=sorted_keys)

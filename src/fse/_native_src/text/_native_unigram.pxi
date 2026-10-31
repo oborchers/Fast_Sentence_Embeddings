@@ -357,6 +357,9 @@ def _trie_constructed_ids(vocab_bytes, vocab_offsets, *, _sorted=False):
     """Root and exact ids of raw keys, below VocabTable's uniqueness check; for tests."""
     if not isinstance(_sorted, bool):
         raise TypeError("_sorted must be a bool")
+    if (isinstance(vocab_offsets, np.ndarray) and vocab_offsets.ndim == 1
+            and len(vocab_offsets) > OOV_TOKEN):
+        raise ValueError(f"a raw trie holds fewer than {OOV_TOKEN} keys")
     data, offsets = _vocab_arrays(vocab_bytes, vocab_offsets)
     cdef const unsigned char[::1] d = data if len(data) else np.zeros(1, np.uint8)
     cdef const np.int64_t[::1] o = offsets
