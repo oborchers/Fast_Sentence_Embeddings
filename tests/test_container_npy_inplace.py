@@ -187,7 +187,7 @@ def test_a_linux_syscall_error_is_reported(tmp_path, monkeypatch, error):
     monkeypatch.setattr(
         inplace.ctypes, "CDLL", lambda *_args, **_kwargs: SimpleNamespace(syscall=unavailable)
     )
-    with pytest.raises(OSError) as raised:
+    with pytest.raises(OSError, match=rf"\[Errno {error}\]") as raised:
         inplace._rename_exclusive(tmp_path / "a", tmp_path / "b")
     assert raised.value.errno == error
     assert (tmp_path / "a" / "data").read_bytes() == b"kept"
