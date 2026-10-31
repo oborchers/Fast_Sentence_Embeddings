@@ -91,7 +91,7 @@ Models are read with the rules of model2vec 0.10.0 (its folder layouts, its conf
 | `encode([])` raises in numpy | gives a matrix of shape `(0, dim)` |
 | `encode_as_sequence` of a text without tokens is a float64 `(0, dim)` array | float32 `(0, dim)`; the other rows are model2vec's bit for bit |
 | `tokenizer` is a `tokenizers.Tokenizer` | a read-only facade: `encode` and `encode_batch` give `.ids` (unknown id kept, cut at `max_length`), `get_vocab`, `get_vocab_size`, `token_to_id`, `id_to_token`; no offsets, no `.tokens`, and `add_special_tokens` must be `False` |
-| `save_pretrained`, `push_to_hub` | not yet provided |
+| `save_pretrained`, `push_to_hub` | write or upload an fse folder, read by fse; model2vec cannot load it |
 
 Checks of the type (`isinstance(model, model2vec.StaticModel)`) or of its name in other libraries need a change there.
 
