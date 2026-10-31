@@ -186,6 +186,45 @@ def test_the_file_is_strict_json_of_a_limited_size(monkeypatch):
 
 
 def test_parse_takes_parsed_json():
-    pieces, config = parse_unigram(_document(), PATH)
+    value = _document()
+    before = copy.deepcopy(value)
+    pieces, config = parse_unigram(value, PATH)
+    assert value == before
     assert len(pieces) == len(VOCAB)
     assert config.normalizer[0] == step_of({"type": "precompiled"})
+
+
+@pytest.mark.parametrize("generic", [False, True])
+def test_byte_readers_release_owned_vocab_rows_before_config_construction(generic, monkeypatch):
+    import gc
+    import weakref
+
+    from fse import _tokenizer_json as json_reader
+    from fse import _tokenizer_json_unigram as unigram_reader
+
+    class Rows(list):
+        pass
+
+    observed = {}
+
+    def parsed(_data, _path):
+        value = _document()
+        rows = Rows(value["model"]["vocab"])
+        observed["rows"] = weakref.ref(rows)
+        value["model"]["vocab"] = rows
+        return value
+
+    original = unigram_reader.UnigramConfig
+
+    def config(*args, **kwargs):
+        gc.collect()
+        assert observed["rows"]() is None
+        return original(*args, **kwargs)
+
+    reader = json_reader if generic else unigram_reader
+    monkeypatch.setattr(reader, "strict_json", parsed)
+    monkeypatch.setattr(unigram_reader, "UnigramConfig", config)
+    function = reader.tokenizer_of if generic else reader.unigram_of
+    pieces, result = function(b"owned JSON", PATH)
+    assert pieces == [piece for piece, _ in VOCAB]
+    assert result.scores_array().tolist() == [score for _, score in VOCAB]

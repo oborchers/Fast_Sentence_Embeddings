@@ -54,7 +54,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
-- Loading `unigram@1` checks its charsmap once per configuration and creates the reference search list lazily. Native lookups still receive independent arrays, with unchanged token ids and persisted data.
+- Loading `unigram@1` checks its charsmap once, creates the reference search list lazily, and avoids repeated JSON and vocabulary work. Native buffers stay independent. Strict input validation, token ids and persisted data stay unchanged.
 - The native `unigram@1` normalizer combines independent consecutive single-byte Replace steps into one pass and caches single-byte ASCII charsmap matches, with unchanged normalization and token ids.
 - The native `unigram@1` finds candidates with the vocabulary double-array trie, built at load, instead of repeated hashes and a Python set of proper prefixes. Its construction sorts binary keys and reuses their common prefixes to avoid repeated sibling searches on large vocabularies. Candidate order, float64 scores and token ids are unchanged. Nothing new is persisted.
 

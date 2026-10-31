@@ -35,7 +35,7 @@ from fse._tokenizer_json_common import (
     post_processor,
     truncation,
 )
-from fse._tokenizer_json_unigram import parse_unigram
+from fse._tokenizer_json_unigram import _parse_unigram
 from fse._tokenizer_spec import WordPieceConfig
 from fse._tokenizer_unigram import UnigramConfig
 
@@ -59,7 +59,7 @@ def tokenizer_of(data: bytes, path: Path) -> tuple[list[str], WordPieceConfig | 
     value = strict_json(data, path)
     model = value.get("model") if isinstance(value, dict) else None
     if isinstance(model, dict) and model.get("type") == "Unigram":
-        return parse_unigram(value, path)
+        return _parse_unigram(value, path, owned=True)
     return parse_tokenizer(value, path)
 
 

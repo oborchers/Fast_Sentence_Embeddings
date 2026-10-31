@@ -49,6 +49,8 @@ DTYPE_CODES = {
 
 
 TENSOR_NAME = re.compile(r"[a-z0-9_]+(\.[a-z0-9_]+)*")
+# Strict UTF-8 decoding excludes literal surrogates; only a JSON escape can add one.
+_SURROGATE_ESCAPE = re.compile(rb"\\u[dD][89a-fA-F]")
 
 
 # Names safetensors reserves in its header; never names of tensors.
@@ -266,7 +268,8 @@ def _strict_json(raw: bytes, file: Path) -> Any:
         # ValueError covers json.JSONDecodeError and integers beyond Python's digit limit,
         # RecursionError a nesting too deep for the parser.
         raise CorruptArtifactError(f"{file} is not valid JSON: {err}") from err
-    _check_strings(value, file)
+    if _SURROGATE_ESCAPE.search(raw) is not None:
+        _check_strings(value, file)
     return value
 
 

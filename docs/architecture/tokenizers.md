@@ -165,6 +165,11 @@ normalizer rules nor persisted parameters.
 Every `native_arguments()` call still returns an independent writable uint32 array.
 The reference search creates its Python list of units on first `find` only. The
 complete depth-first check stays unchanged, including shared-subtree and cycle rules.
+The JSON readers reuse one piece-to-id index for uniqueness and added-token checks.
+Byte readers release their own extracted vocabulary rows before constructing the config;
+`parse_unigram` preserves caller-owned parsed JSON. Strict JSON scans every decoded
+string when the raw bytes contain a possible surrogate escape. Otherwise strict UTF-8
+decoding and JSON parsing already exclude lone surrogates.
 
 | Input (potion-multilingual-128M) | `unigram@1` |
 |---|---|
