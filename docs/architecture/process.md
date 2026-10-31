@@ -70,6 +70,7 @@ src/fse/
     _arguments.py        #   the arguments that change no row, and the refusals
   _store/                # stores of sentence vectors (sentence_vectors 1):
     _layout.py           #   store.json, shard names and metadata, the shards in order,
+    _recovery.py         #   checked snapshots, mapped checksums and gap detection,
     _shard.py            #   one shard being written and published,
     _sink.py             #   ShardSink,
     _search.py           #   search and score by blocks, the top-k merge,
@@ -162,7 +163,7 @@ explicitly. Linux images are pinned by digest to
 A manual run on a branch verifies the release matrix without publishing. Publication
 requires a tag push and approval in the release environment. PRs keep the four
 existing runner jobs, without musllinux or macOS Intel, and test only CPython 3.15.
-The path filter still omits wheels when an unrelated file changes.
+The path filter still omits wheels when an unrelated file changes. Store/container source changes and their tests trigger the wheel jobs so the store suite also runs on real Windows.
 
 [cibuildwheel's selectors](https://cibuildwheel.pypa.io/en/stable/options/#build-skip)
 include musllinux for both architectures. [Version 4.2.0](https://cibuildwheel.pypa.io/en/stable/changelog/#v420)
@@ -223,7 +224,7 @@ The modules form layers, and a module imports only from layers below it. The imp
 12. `_contract`, `_cpus`, `_unicode`, `_unicode_bert`
 13. `_log` (the records of fse, which every module may emit)
 
-Inside a package, an import contract keeps its parts apart: `_npy` and `_safetensors` share only `_common`, which sits on `_hash`, each backend shares only `_base`, the runtime's pipeline sits on its tasks, sinks, spec and executor, in the encoder the encoder sits on `_pretrained` and `_persist` (an encoder as an artifact and back), `_pretrained` on `_folder` (Hugging Face folders), that on `_card` (their model card), that on the readers `_model2vec` and `_sentence_transformers`, those on `_files`, that on its batches and format and those on its inputs, in the containers the in-place writer `_npy_inplace` sits on `_npy` and the reader of foreign files `_foreign` on `_safetensors`, in the store the sink and the vector store sit on the shard writer and the search, those on the layout, the runtime's head sits on its pipeline, and in the heads the classes sit on the model, that on its runs, those on the scikit-learn reader, the format and the outputs, and those on the content.
+Inside a package, an import contract keeps its parts apart: `_npy` and `_safetensors` share only `_common`, which sits on `_hash`, each backend shares only `_base`, the runtime's pipeline sits on its tasks, sinks, spec and executor, in the encoder the encoder sits on `_pretrained` and `_persist` (an encoder as an artifact and back), `_pretrained` on `_folder` (Hugging Face folders), that on `_card` (their model card), that on the readers `_model2vec` and `_sentence_transformers`, those on `_files`, that on its batches and format and those on its inputs, in the containers the in-place writer `_npy_inplace` sits on `_npy` and the reader of foreign files `_foreign` on `_safetensors`, in the store the sink and the vector store sit on the shard writer, the search and recovery, those on the layout, the runtime's head sits on its pipeline, and in the heads the classes sit on the model, that on its runs, those on the scikit-learn reader, the format and the outputs, and those on the content.
 
 The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` (stages 1 and 2) and the cpu backend `_backends._cpu` (the kernels) import it and that it imports only `_contract` from fse. It also checks (in `tools/guardrails_imports.py`) that only `_container._hash` imports a hash library (hashlib or xxhash), that only `_log` and `_log_config` import `logging` or `warnings` and the modules the MLX device thread runs do not import `_log`, and that the library of each device backend (`device-libraries` in `[tool.fse.guardrails]`: mlx, later CUDA's) is imported, by an import statement or `importlib`, only by that backend's `_backends._<name>._load`; `get_backend` imports that backend's package only when it makes the backend, so that `import fse` and the other backends never load it. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list, with the device libraries, to the extension. Inside the mlx backend the backend sits on the device thread, that on the kernels, those on the Metal source and the loader.
 
