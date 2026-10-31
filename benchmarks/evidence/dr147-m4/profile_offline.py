@@ -102,9 +102,8 @@ for backend in ("cpu", "mlx"):
     windows = worker["call_windows_unix_seconds"]
     starts = [a * 1000 for a, b in windows]
     ends = [b * 1000 for a, b in windows]
-    assert all(a <= b for a, b in zip(starts, ends)) and all(
-        b <= a for b, a in zip(ends, starts[1:])
-    )
+    assert all(a <= b for a, b in zip(starts, ends, strict=True))
+    assert all(b <= a for b, a in zip(ends[:-1], starts[1:], strict=True))
     filtered = []
     for thread in p["threads"]:
         table = thread["samples"]
@@ -158,7 +157,8 @@ for d in ROOT.iterdir():
     events = [json.loads(line) for line in (d / "guards.jsonl").read_text().splitlines()]
     loads = [e["load"] for e in events if e["event"] == "guard"]
     worker = read(d / "worker-result.json")
-    assert worker["first_last_bits_match_accepted_reference"] and not worker["fallback_events"]
+    assert worker["first_last_bits_match_accepted_reference"]
+    assert not worker["fallback_events"]
     assert max(loads) < job["profile_guard_policy"]["max_load"]
     result["guards"][d.name] = {
         "min": min(loads),
