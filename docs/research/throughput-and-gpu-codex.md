@@ -23,7 +23,7 @@ Beim reinen Normalize-Pfad entfallen damit zwei vollständige float32-Kopien, lo
 
 **Eine zusätzliche, eigenständige Optimierung betrifft die Store-Normen.**
 
-[`_native_kernel_search.h:28`](src/fse/_native_kernel_search.h:28) summiert Quadrate mit einer einzigen float64-Abhängigkeitskette. Fusion beseitigt den erneuten Datenzugriff, aber nicht diese Latenzkette.
+[`_native_kernel_search.h:28`](src/fse/_native_src/kernel/_native_kernel_search.h:28) summiert Quadrate mit einer einzigen float64-Abhängigkeitskette. Fusion beseitigt den erneuten Datenzugriff, aber nicht diese Latenzkette.
 
 - **float32/float16:** Zwei bis vier Zeilen verschachtelt bearbeiten. Jede Zeile behält ihre Summationsreihenfolge, während unabhängige Ketten parallel laufen können. Aufwand mittel, Risiko Registerdruck und schlechtere Lokalität; bitidentisch möglich.
 - **int8:** Quadrate ganzzahlig reduzieren. Für gültige Codes und `MAX_DIM = 2**30` gilt `Σ code² ≤ 127² × 2**30 < 2**44`. Alle Zwischensummen sind auch in float64 exakt. Eine ausreichend breite Integer-Reduktion kann deshalb dieselbe Summe liefern; danach unverändert float64-`sqrt`, Division und float32-Rundung. Aufwand klein bis mittel, Hauptgefahr sind überlaufende SIMD-Teilsummen.
@@ -59,7 +59,7 @@ Ein **nativer Executor** wäre erst die nächste Stufe: C-Taskqueue, Workerzusta
 
 **Textfusion sollte in zwei Varianten erprobt werden.**
 
-[`_native_text.pxi:193`](src/fse/_native_text.pxi:193) materialisiert zunächst Token-Spannen und danach IDs. `_native_kernel_mean.h:212` konsumiert die IDs.
+[`_native_text.pxi:193`](src/fse/_native_src/text/_native_text.pxi:193) materialisiert zunächst Token-Spannen und danach IDs. `_native_kernel_mean.h:212` konsumiert die IDs.
 
 1. **Direkte Fusion:** Sobald ein endgültiges Token feststeht, Lookup und Akkumulation ausführen. Keine satz- oder taskweite ID-Materialisierung. Das spart Speicherverkehr und Dispatch, verkettet aber Tokenisierung, Hashlookup und Vektorgather stärker.
 2. **Kleine native Zwischenpuffer:** Einige Tokens oder Sätze voraus auflösen, Vektoren vorladen und danach poolen. Das spart weiterhin Python-Batches und große Zwischenarrays, erhält aber Memory-Level-Parallelismus.

@@ -35,8 +35,17 @@ extensions = [
         "fse._native",
         sources=["src/fse/_native.pyx"],
         # The headers and the .pxi parts the .pyx includes: a change to any rebuilds it.
-        depends=sorted(glob("src/fse/_native*.h") + glob("src/fse/_native*.pxi")),
-        include_dirs=[numpy.get_include(), "src/fse"],
+        depends=sorted(
+            glob("src/fse/_native_src/**/*.h", recursive=True)
+            + glob("src/fse/_native_src/**/*.pxi", recursive=True)
+        ),
+        include_dirs=[
+            numpy.get_include(),
+            "src/fse/_native_src",
+            "src/fse/_native_src/kernel",
+            "src/fse/_native_src/text",
+            "src/fse/_native_src/tables",
+        ],
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
     )
 ]

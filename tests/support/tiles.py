@@ -1,4 +1,4 @@
-"""The cases and the numpy model of the tiled weighted mean (src/fse/_native_kernel_tiles.h).
+"""The cases and the numpy model of the tiled weighted mean (src/fse/_native_src/kernel/_native_kernel_tiles.h).
 
 The kernel cuts the terms of a sentence (one row and factor per contribution) into tiles
 of at most K terms and keeps the accumulators of a block of the dimension in registers

@@ -38,7 +38,7 @@ def test_both_generated_files_hold_the_same_table():
     """Generating both files from the Python table reproduces them byte for byte."""
     gen = _generator()
     assert gen.python_source(SIMPLE_LOWERCASE) == (ROOT / "src/fse/_unicode.py").read_text()
-    assert gen.header_source(SIMPLE_LOWERCASE) == (ROOT / "src/fse/_native_unicode.h").read_text()
+    assert gen.header_source(SIMPLE_LOWERCASE) == (ROOT / "src/fse/_native_src/tables/_native_unicode.h").read_text()
 
 
 @pytest.mark.skipif(

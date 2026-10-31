@@ -5,7 +5,7 @@ grapheme clusters of UAX #29 in Unicode 17.0.0, the version of unicode-segmentat
 which Hugging Face tokenizers 0.23.3 uses for its Precompiled normalizer, and White_Space
 of 17.0.0. Changing them needs a new tokenizer identifier. The script reads four UCD files
 (each pinned by its sha256) and writes ``src/fse/_unicode_graphemes.py`` and, computed from
-its data alone, ``src/fse/_native_unicode_graphemes.h``, the same as one byte per code point
+its data alone, ``src/fse/_native_src/tables/_native_unicode_graphemes.h``, the same as one byte per code point
 for the native tokenizer; both are checked in and never edited by hand. It also pins ``GraphemeBreakTest-17.0.0.txt``, the cases of
 UAX #29 that ``tests/test_data`` holds. Download the files from
 https://www.unicode.org/Public/17.0.0/ucd/ (the first two from ``auxiliary/`` and
@@ -26,7 +26,7 @@ from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent.parent
 PYTHON_OUT = ROOT / "src" / "fse" / "_unicode_graphemes.py"
-HEADER_OUT = ROOT / "src" / "fse" / "_native_unicode_graphemes.h"
+HEADER_OUT = ROOT / "src" / "fse" / "_native_src" / "tables" / "_native_unicode_graphemes.h"
 VERSION = "17.0.0"
 # The files, the Unicode version they come from, and their sha256.
 UCD = {

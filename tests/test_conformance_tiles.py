@@ -1,6 +1,6 @@
 """The conformance suite of the tiled weighted mean: block and tile edges, bit for bit.
 
-The register-blocked loop (src/fse/_native_kernel_tiles.h) keeps the accumulators of a
+The register-blocked loop (src/fse/_native_src/kernel/_native_kernel_tiles.h) keeps the accumulators of a
 block of the dimension in registers over a tile of terms. The cases of
 tests/support/tiles.py put witnesses into every block, sub-block and the tail and across
 the tile boundaries of every K up to 64; every CPU kernel must give the bits of
