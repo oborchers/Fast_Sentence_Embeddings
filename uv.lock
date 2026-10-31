@@ -918,7 +918,7 @@ provides-extras = ["gensim", "mlx"]
 
 [package.metadata.requires-dev]
 all = [
-    { name = "cibuildwheel", specifier = ">=3.0.0" },
+    { name = "cibuildwheel", specifier = "==4.3.4" },
     { name = "complexipy", specifier = ">=8.3,<9" },
     { name = "coverage", extras = ["toml"], specifier = ">=7.0.0" },
     { name = "datasets", marker = "python_full_version < '3.16'", specifier = "==5.1.0" },
@@ -943,7 +943,7 @@ all = [
     { name = "vulture", specifier = ">=2.14" },
 ]
 dev = [
-    { name = "cibuildwheel", specifier = ">=3.0.0" },
+    { name = "cibuildwheel", specifier = "==4.3.4" },
     { name = "memray", marker = "sys_platform != 'win32'", specifier = ">=1.17" },
     { name = "pre-commit", specifier = ">=3.0.0" },
     { name = "py-spy", specifier = ">=0.4.0" },
