@@ -171,9 +171,13 @@ def test_an_unknown_linux_syscall_architecture_fails_without_renaming(tmp_path, 
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows uses MoveFileExW")
-def test_a_linux_syscall_error_is_reported(tmp_path, monkeypatch):
+@pytest.mark.parametrize("error", [errno.ENOSYS, errno.EINVAL])
+def test_a_linux_syscall_error_is_reported(tmp_path, monkeypatch, error):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "data").write_bytes(b"kept")
+
     def unavailable(*_args):
-        ctypes.set_errno(errno.ENOSYS)
+        ctypes.set_errno(error)
         return -1
 
     monkeypatch.setattr(inplace.sys, "platform", "linux")
@@ -185,4 +189,6 @@ def test_a_linux_syscall_error_is_reported(tmp_path, monkeypatch):
     )
     with pytest.raises(OSError) as raised:
         inplace._rename_exclusive(tmp_path / "a", tmp_path / "b")
-    assert raised.value.errno == errno.ENOSYS
+    assert raised.value.errno == error
+    assert (tmp_path / "a" / "data").read_bytes() == b"kept"
+    assert not (tmp_path / "b").exists()

@@ -175,10 +175,20 @@ def _rename_linux(libc: ctypes.CDLL, tmp: Path, path: Path) -> int:
         return int(libc.renameat2(*args))
     # Linux UAPI: arch/x86/entry/syscalls/syscall_64.tbl (316),
     # include/uapi/asm-generic/unistd.h (276, used by aarch64).
+    # https://github.com/torvalds/linux/blob/v6.17/arch/x86/entry/syscalls/syscall_64.tbl
+    # https://github.com/torvalds/linux/blob/v6.17/include/uapi/asm-generic/unistd.h
     number = {"x86_64": 316, "aarch64": 276}.get(os.uname().machine)
     if number is None or ctypes.sizeof(ctypes.c_void_p) != 8:
         raise OSError("this Linux architecture has no supported exclusive rename syscall")
     call = libc.syscall
+    call.argtypes = (
+        ctypes.c_long,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    )
     call.restype = ctypes.c_long
     return int(call(ctypes.c_long(number), *args))
 
