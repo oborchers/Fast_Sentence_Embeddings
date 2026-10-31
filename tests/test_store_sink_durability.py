@@ -47,3 +47,31 @@ def test_publication_counts_tags_and_store_identity(tmp_path, dtype, durability)
         encoder.encode(texts(3), sink=appended)
     assert appended.published_rows == 3
     assert appended.durable_rows == (3 if durability == "full" else 0)
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+def test_none_appends_after_a_full_prefix_without_rewriting_or_promoting_it(tmp_path, dtype):
+    encoder = finished()
+    path = tmp_path / "store"
+    with fse.ShardSink(path, encoder, dtype=dtype, shard_rows=4) as full:
+        encoder.encode(texts(4), sink=full)
+    identity = (path / "store.json").read_bytes()
+    first_manifest = path / shard_name(0) / "manifest.json"
+    first_bytes = first_manifest.read_bytes()
+    with fse.ShardSink(path, encoder, dtype=dtype, shard_rows=4, durability="none") as none:
+        assert none.first_row == 4
+        encoder.encode(texts(6), sink=none)
+    assert (none.published_rows, none.durable_rows) == (6, 0)
+    assert (full.published_rows, full.durable_rows) == (4, 4)
+    assert (path / "store.json").read_bytes() == identity
+    assert first_manifest.read_bytes() == first_bytes
+    with fse.VectorStore.open(path) as store:
+        assert len(store) == 10
+        assert [(s.first_row, s.unsynced) for s, _ in store._shards] == [
+            (0, False),
+            (4, True),
+            (8, True),
+        ]
+        store.verify()
+    with pytest.raises(ValueError, match="from row 4"):
+        fse.ShardSink(path, encoder, dtype=dtype)

@@ -152,7 +152,7 @@ Which call to use when:
 | encode a stream (a generator, a queue) | `encoder.encode(iterator)`: it is read once |
 | encode a stream batch by batch and confirm what is safe | `for batch in encoder.encode_batches(polls, sink=sink)`, confirming up to `batch.durable_rows` |
 | write the vectors to disk | `with fse.ShardSink("store", encoder, dtype="int8") as sink: encoder.encode(texts, sink=sink)` |
-| publish rows without durability confirmation | `ShardSink("store", encoder, durability="none")`, track `sink.published_rows`; tagged rows are verified on every open |
+| publish rows without durability confirmation | `fse.ShardSink("store", encoder, durability="none")`, track `sink.published_rows`; tagged rows are verified on every open |
 | repair a damaged tail, with no active readers or writers | `kept_rows = fse.repair_store("store")` |
 | search them | `with fse.VectorStore.open("store") as store: result = store.search(encoder.encode(["query"]), k=10)` |
 
