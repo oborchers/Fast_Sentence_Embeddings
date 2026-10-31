@@ -119,7 +119,7 @@ src/fse/
       _native_added.h        # the scan for added tokens, UTF-8 validation and the character cut
       _native_wordpiece.h    # wordpiece@1: normalization and pre-tokenization
       _native_unigram.h      # unigram@1: graphemes, the charsmap search, the float64 Viterbi
-      _native_wordpiece_trie.h # the byte trie of a vocabulary for the greedy match of wordpiece@1
+      _native_wordpiece_trie.h # the shared vocabulary byte trie of wordpiece@1 and unigram@1
       _native_arrow.h        # the Arrow C Data and C Stream structs, and one row of utf8, large_utf8 or utf8_view
     tables/
       _native_unicode.h      # generated: the simple lowercase table for the native code

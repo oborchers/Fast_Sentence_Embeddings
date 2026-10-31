@@ -1,6 +1,6 @@
 /* unigram@1 (docs/architecture/tokenizers.md, "unigram@1"): the graphemes, the charsmap search and the
    float64 Viterbi; _native_unigram.pxi holds the state, the normalizer steps, the lookups
-   of the candidates and the sentence around them. Correct first, not fast.
+   of the candidates and the sentence around them.
 
    The Viterbi is the only arithmetic of the tokenizer. It is binary64 without extended
    precision (checked below), runs in the floating-point environment of the kernels
@@ -18,6 +18,7 @@
 #include "_native_added.h"
 #include "_native_kernel_steps.h"
 #include "_native_text.h"
+#include "_native_wordpiece_trie.h"
 #include "_native_unicode_graphemes.h"
 
 #if !defined(FLT_EVAL_METHOD) || FLT_EVAL_METHOD != 0 || DBL_MANT_DIG != 53
@@ -129,6 +130,30 @@ typedef struct {
     double score;
     uint32_t id;
 } fse_uni_cand;
+
+/* All vocabulary prefixes of q[start:m], shortest first, at UTF-8 boundaries only.
+   The caller reserves min(m-start, max_piece_bytes)+1 candidates, including the unk
+   slot. A regular terminal with unk_id still counts as a single-code-point match. */
+static inline int64_t fse_uni_candidates(const fse_trie *t, const uint8_t *q, int64_t m,
+                                          int64_t start, int64_t first_size,
+                                          const double *scores, fse_uni_cand *out,
+                                          int *single) {
+    int64_t node = 0, count = 0;
+    *single = 0;
+    for (int64_t i = start; i < m; i++) {
+        int64_t next = (int64_t)t->base[node] + q[i];
+        if (next < 0 || next >= t->size || t->check[next] != node) break;
+        node = next;
+        uint32_t id = t->value[node];
+        if (id != FSE_TRIE_NONE && (i + 1 == m || (q[i + 1] & 0xC0) != 0x80)) {
+            out[count].end = i + 1;
+            out[count].id = id;
+            out[count++].score = scores[id];
+            if (i + 1 - start == first_size) *single = 1;
+        }
+    }
+    return count;
+}
 
 /* The lowest score minus K_UNK_PENALTY (n >= 1). */
 FSE_NOINLINE static double fse_uni_unk_score_body(const double *scores, int64_t n) {
