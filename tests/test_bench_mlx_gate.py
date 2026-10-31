@@ -76,6 +76,103 @@ def test_idle_receipt_cannot_loosen_the_fixed_formula(modules, receipt):
         modules.mlx_gate_safety.threshold(receipt)
 
 
+@pytest.mark.parametrize(("baseline", "limit"), [(0, 1.5), (2.39, 3.89), (4, 5)])
+def test_normal_idle_formula_is_unchanged(modules, baseline, limit):
+    assert modules.mlx_gate_safety.threshold(
+        {"valid": True, "baseline": baseline, "max_load": limit}
+    ) == limit
+
+
+@pytest.fixture
+def override_receipt():
+    return {
+        "valid": True,
+        "baseline": 2.39,
+        "max_load": 5,
+        "threshold_override": {
+            "policy": "dr147-oliver-limit-5@1",
+            "authorized_by": "Oliver",
+            "decided_at": "2026-10-31T13:40:11+01:00",
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("policy", "unknown"),
+        ("authorized_by", "coordinator"),
+        ("decided_at", None),
+        ("decided_at", "not a timestamp"),
+        ("decided_at", "2026-10-31T13:40:11"),
+    ],
+)
+def test_threshold_override_requires_exact_policy_actor_and_aware_timestamp(
+    modules, override_receipt, field, value
+):
+    override_receipt["threshold_override"][field] = value
+    with pytest.raises(ValueError, match="threshold override"):
+        modules.mlx_gate_safety.threshold(override_receipt)
+
+
+@pytest.mark.parametrize(
+    "decision", [None, {}, {"policy": "dr147-oliver-limit-5@1"}, {"extra": True}]
+)
+def test_incomplete_threshold_override_is_not_silently_ignored(
+    modules, override_receipt, decision
+):
+    override_receipt["threshold_override"] = decision
+    with pytest.raises(ValueError, match="threshold override"):
+        modules.mlx_gate_safety.threshold(override_receipt)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("valid", False),
+        ("baseline", True),
+        ("baseline", float("nan")),
+        ("baseline", 3.5),
+        ("baseline", -1),
+        ("max_load", 5.1),
+        ("max_load", 4.9),
+        ("max_load", float("inf")),
+    ],
+)
+def test_override_cannot_change_real_baseline_limit_or_idle_validity(
+    modules, override_receipt, field, value
+):
+    override_receipt[field] = value
+    with pytest.raises(ValueError, match="idle receipt|threshold override"):
+        modules.mlx_gate_safety.threshold(override_receipt)
+
+
+def test_override_receipt_survives_job_json_and_keeps_worker_limit_strict(
+    modules, override_receipt, tmp_path, monkeypatch
+):
+    original = json.dumps(override_receipt)
+    guard = _guard(modules, tmp_path, monkeypatch)
+    config = json.loads(
+        json.dumps(
+            {
+                "folder": str(tmp_path),
+                "scratch": str(tmp_path),
+                "lock": guard.lock,
+                "deadline": guard.deadline,
+                "idle": override_receipt,
+            }
+        )
+    )
+    worker_guard = modules.bench_mlx_gate.guard_of(config)
+    assert modules.mlx_gate_safety.threshold(override_receipt) == worker_guard.limit == 5
+    assert worker_guard.check("authorized higher-load pass", sample=4.5)["load"] == 4.5
+    with pytest.raises(modules.mlx_gate_safety.StopError, match="strictly below 5"):
+        worker_guard.check("limit equality", sample=5)
+    assert config["idle"] == override_receipt
+    assert json.dumps(override_receipt) == original
+    assert override_receipt["baseline"] == 2.39
+
+
 def test_load_equality_nan_pause_and_lost_lock_fail_closed(modules, tmp_path, monkeypatch):
     guard = _guard(modules, tmp_path, monkeypatch)
     for load in (4.0, float("inf")):

@@ -11,6 +11,7 @@ import sys
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from importlib.metadata import version
 from pathlib import Path
 
@@ -43,9 +44,41 @@ def threshold(receipt: dict) -> float:
     limit = receipt["max_load"]
     if not all(type(v) in (int, float) and math.isfinite(v) for v in (baseline, limit)):
         raise ValueError("idle receipt requires finite numeric baseline and threshold")
-    if receipt["valid"] is not True or baseline < 0 or limit != min(baseline + 1.5, 5.0):
+    if receipt["valid"] is not True or baseline < 0:
+        raise ValueError("idle receipt is invalid")
+    if "threshold_override" in receipt:
+        return _decision_threshold(receipt)
+    if limit != min(baseline + 1.5, 5.0):
         raise ValueError("idle receipt is invalid or has the wrong threshold formula")
     return limit
+
+
+def _decision_threshold(receipt: dict) -> float:
+    """Accept only Oliver's explicit DR-147 limit-5 decision, preserving real idle data."""
+    decision = receipt["threshold_override"]
+    if not isinstance(decision, dict) or decision.keys() != {
+        "policy",
+        "authorized_by",
+        "decided_at",
+    }:
+        raise ValueError("threshold override requires exactly policy, authorized_by and decided_at")
+    if (
+        decision["policy"] != "dr147-oliver-limit-5@1"
+        or decision["authorized_by"] != "Oliver"
+        or receipt["baseline"] != 2.39
+        or receipt["max_load"] != 5
+    ):
+        raise ValueError("threshold override does not match Oliver's DR-147 limit-5 decision")
+    stamp = decision["decided_at"]
+    if not isinstance(stamp, str):
+        raise ValueError("threshold override requires a timestamp with timezone")
+    try:
+        decided = datetime.fromisoformat(stamp)
+    except ValueError as error:
+        raise ValueError("threshold override requires a timestamp with timezone") from error
+    if decided.utcoffset() is None:
+        raise ValueError("threshold override requires a timestamp with timezone")
+    return receipt["max_load"]
 
 
 def git(repo: Path, *args: str) -> str:

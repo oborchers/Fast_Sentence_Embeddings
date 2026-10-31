@@ -20,10 +20,37 @@ unmeasured best-CPU or 14-core-hardware claim.
 
 The coordinator must inspect the committed driver before authorizing the pilot.
 A valid idle receipt is required separately. The first preparation receipt is
-invalid and remains discarded evidence. The valid second baseline is 2.59716796875;
-the strict load threshold is 4.09716796875, calculated as
+invalid and remains discarded evidence. The historical second baseline was
+2.59716796875, with strict threshold 4.09716796875. The later Option B baseline
+is 2.39, with formula threshold 3.89. Formula-based receipts normally require
 `min(idle baseline + 1.5, 5)`. Keep Defender and other services active and unchanged.
 No other tests, builds, downloads, measurements or profiles may run concurrently.
+
+Oliver subsequently authorized a strict limit of 5 for the remaining MASSIVE
+measurements. This is a recorded decision, not a different idle observation.
+A decision-backed `--idle` receipt retains `valid: true`, `baseline: 2.39`, sets
+`max_load: 5` and adds exactly:
+
+```json
+{
+  "threshold_override": {
+    "policy": "dr147-oliver-limit-5@1",
+    "authorized_by": "Oliver",
+    "decided_at": "<actual decision timestamp with timezone>"
+  }
+}
+```
+
+The coordinator supplies the timestamped receipt. Other policies, actors, missing
+or naive timestamps, altered baselines and other override limits are refused.
+Without this decision, the normal formula is unchanged. The complete receipt is
+retained in invocation, job and manifest evidence and used by parent/worker guards.
+Limit equality still stops a run. This policy changes only threshold validation;
+the driver still stops on a guard failure. A separately authorized coordinator
+continuation governs load-only retries and remaining-cell selection within the
+same matrix/global caps. Record every pair's load, distinguish all readings below
+3.89 from any readings at least 3.89 and strictly below 5, and compare paired
+spread descriptively without implying causality. Historical stops remain stopped.
 
 Use the task scratch directory for every transient artifact. On this installation:
 

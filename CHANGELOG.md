@@ -7,7 +7,7 @@ All notable changes to this project are documented in this file. The format is b
 fse 2.0 is in development on master; it changes the API and the file format (see docs/architecture/overview.md, "Principle and stages"). Entries collect here until the release.
 
 - Architecture documentation is split by topic under `docs/architecture/`; `ARCHITECTURE.md` indexes it and preserves the former section links.
-- A reproducible real-model MLX gate driver records paired runs, A/A controls, immutable inputs, parity and execution guards for the M4 Pro measurement.
+- A reproducible real-model MLX gate driver records paired runs, A/A controls, immutable inputs, parity and execution guards for the M4 Pro measurement. A narrow timestamped Oliver decision can authorize its strict load limit of 5 while retaining the measured idle baseline of 2.39; other receipts keep the original threshold formula.
 
 ### Changed
 
