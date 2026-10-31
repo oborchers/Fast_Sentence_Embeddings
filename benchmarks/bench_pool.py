@@ -9,7 +9,8 @@
 Run under the shared bench lock. Each side of each alternating round is a fresh
 child, including model/corpus loading in peak RSS but excluding it from timing.
 Only cached models/data are read. No source changes and no tracing in timed calls.
-The inline threshold stays enabled, including for the 32-text server requests.
+Server requests first exceed the 64 KiB inline threshold in whole texts. One
+32-text workload can be run separately with --sizes inline as a control.
 
     uv run python benchmarks/bench_pool.py measure --json results.json
     uv run python benchmarks/bench_pool.py profile --side reuse --seconds 12
@@ -32,7 +33,7 @@ import sys
 import time
 from pathlib import Path
 
-from bench_harness import Rounds, rounds, run_child
+from bench_harness import Rounds, load, order, rounds, run_child
 from bench_pool_run import batches, injected, measure
 
 MODELS = ("potion-base-8M", "static-retrieval-mrl-en-v1")
@@ -175,8 +176,10 @@ def run_cell(args, model: str, corpus: str, size: str, workers: int) -> dict:
         )
 
     done = Rounds(list(SIDES))
-    for _ in range(3):
-        part = rounds(SIDES, one, args.rounds - len(done.kept), attempts=1)
+    for attempt in range(3 * args.rounds):
+        if load() >= args.max_load:
+            break
+        part = rounds(order(SIDES, attempt), one, 1, attempts=1, alternate=False)
         for round_ in part.kept:
             (done.kept if valid_round(round_, args.max_load) else done.discarded).append(round_)
         if len(done.kept) == args.rounds:

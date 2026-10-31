@@ -134,3 +134,33 @@ def test_server_requests_cross_inline_threshold_without_splitting_text(runner):
         assert total - len(request[-1].encode("utf-8")) <= 65536
     with pytest.raises(ValueError, match="nonempty"):
         runner.server_requests([""], 2)
+
+
+def test_child_rounds_alternate_and_stop_before_a_high_load(bench, monkeypatch):
+    sides = []
+
+    def child_result(argv, **_options):
+        sides.append(argv[argv.index("--side") + 1])
+        return {"seconds_per_call": [1.0], "peak_rss_bytes": 2**20}
+
+    monkeypatch.setattr(bench, "run_child", child_result)
+    monkeypatch.setattr(bench, "load", lambda: 3.0)
+    args = bench.parser().parse_args(["measure"])
+    result = bench.run_cell(args, "potion-base-8M", "wikitext", "short", 4)
+    assert result["summary"]["valid_pairs"] == 3
+    assert sides == [
+        "base",
+        "control",
+        "reuse",
+        "reuse",
+        "control",
+        "base",
+        "base",
+        "control",
+        "reuse",
+    ]
+    sides.clear()
+    monkeypatch.setattr(bench, "load", lambda: 5.0)
+    result = bench.run_cell(args, "potion-base-8M", "wikitext", "short", 4)
+    assert result["summary"]["valid_pairs"] == 0
+    assert sides == []
