@@ -156,9 +156,9 @@ Use those rules when comparing outputs.
 
 ## Recipes and development
 
-TODO(DR-153): Add the recipe link at `recipes/README.md` when the notebooks arrive.
-The planned recipes cover offline model preparation, including SIF and uSIF.
-fse runs the finished table after those steps.
+The [recipe notebooks](recipes/README.md) cover offline model preparation, including SIF and uSIF,
+and practical workflows for files, streams, linear heads and integrations.
+fse runs the finished table after model preparation.
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing a change.
 It covers AI assistance, reproducible measurements and the review evidence we need.
