@@ -134,6 +134,9 @@ def test_an_explicit_commit_is_read_and_the_pin_of_other_bytes_is_refused(fake, 
     _load(fake)
     encoder = _load(fake, revision=COMMIT, local_files_only=offline)
     assert encoder._content.source == Source("model2vec", "acme/tiny", COMMIT)
+    asked = len(fake.asked)
+    _load(fake, revision="main", local_files_only=offline)
+    assert len(fake.asked) == asked + (not offline)  # a branch is resolved once
     if not offline:
         fake.pins["model.safetensors"] = (
             "0" * 40,
@@ -141,6 +144,3 @@ def test_an_explicit_commit_is_read_and_the_pin_of_other_bytes_is_refused(fake, 
         )
         with pytest.raises(CorruptArtifactError, match="the commit pins"):
             _load(fake, revision=COMMIT)
-    asked = len(fake.asked)
-    _load(fake, revision="main", local_files_only=offline)
-    assert len(fake.asked) == asked + (not offline)  # a branch is resolved once
