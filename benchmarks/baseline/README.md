@@ -1,5 +1,7 @@
 # Baseline: fse 1.1.0
 
+Model terms apply separately from fse: the licenses of paranmt and paragram are unknown. GloVe uses PDDL, word2vec uses Apache-2.0, fastText vectors use CC BY-SA 3.0, and POTION uses MIT.
+
 The values fse 2.0 is compared with, measured with fse 1.1.0 from PyPI, never with the repository. The 2.0 numerics differ from 1.x by design (no EPS, fused multiply-add instead of `saxpy`, no BLAS in the removal of components); the release of 2.0 measures the same tables again.
 
 Machine: Apple M1 Pro (8 performance and 2 efficiency cores, 16 GB), macOS 27, Python 3.12, numpy 2.5.4, scipy 1.18.1, gensim 4.4.0. Other sessions ran on the machine. The result files record the load average before each measurement (for the lifecycle benchmark before each timed phase, not before the warm searches and `infer` calls): 3.1 to 11.0 for the training throughput, 3.3 to 7.6 for the lifecycle, 3.8 for the numerics, 4.2 to 17.1 for STS and 3.6 to 30.3 for MTEB. Throughput and latency were measured under that load and are no measure of an idle machine; quality values do not depend on it.
