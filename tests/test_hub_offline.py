@@ -192,7 +192,7 @@ def test_writers_that_meet_at_the_ref_leave_one_whole_commit(fake):
     def write(commit):
         for _ in range(25):
             hub.write_ref(storage, "main", commit)
-            seen.append(_ref(fake).read_text())
+            seen.append(hub.ref_text(_ref(fake)))
 
     with ThreadPoolExecutor(4) as pool:
         for future in [pool.submit(write, c) for c in commits]:
@@ -314,3 +314,78 @@ def test_a_cache_folder_with_a_tilde_is_expanded(fake, tmp_path, monkeypatch):
         "acme/tiny", revision=COMMIT, token=None, cache_dir="~/hf-cache", local_files_only=True
     )
     assert files.revision == COMMIT
+
+
+def test_a_rename_refused_for_a_moment_is_tried_again(fake, monkeypatch):
+    """Windows refuses a rename over a ref another process renames over or reads at that
+    moment; the writer tries again, and leaves no temporary file."""
+    storage = fake.folder()
+    storage.mkdir(parents=True)
+    real = os.replace
+    refusals = iter([PermissionError(13, "in use"), PermissionError(13, "in use")])
+
+    def replace(src, dst):
+        error = next(refusals, None)
+        if error is not None:
+            raise error
+        real(src, dst)
+
+    monkeypatch.setattr(hub.os, "replace", replace)
+    monkeypatch.setattr(hub, "_REPLACE_WAIT", 0)
+    hub.write_ref(storage, "main", COMMIT)
+    assert _ref(fake).read_text() == COMMIT
+    assert [p.name for p in (storage / "refs").iterdir()] == ["main"]
+
+
+def test_a_rename_refused_for_good_raises_and_leaves_no_temporary_file(fake, monkeypatch):
+    storage = fake.folder()
+    storage.mkdir(parents=True)
+
+    def replace(*_):
+        raise PermissionError(13, "in use")
+
+    monkeypatch.setattr(hub.os, "replace", replace)
+    monkeypatch.setattr(hub, "_REPLACE_WAIT", 0)
+    with pytest.raises(PermissionError):
+        hub.write_ref(storage, "main", COMMIT)
+    assert list((storage / "refs").iterdir()) == []
+
+
+def test_a_read_refused_for_a_moment_is_tried_again(fake, monkeypatch):
+    storage = fake.folder()
+    storage.mkdir(parents=True)
+    hub.write_ref(storage, "main", COMMIT)
+    real = type(_ref(fake)).read_text
+    refusals = iter([PermissionError(13, "in use")])
+
+    def read_text(self, *args, **kwargs):
+        error = next(refusals, None)
+        if error is not None:
+            raise error
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(type(_ref(fake)), "read_text", read_text)
+    monkeypatch.setattr(hub, "_REPLACE_WAIT", 0)
+    assert hub.ref_text(_ref(fake)) == COMMIT
+
+
+def test_the_default_cache_is_found_in_a_fresh_process(tmp_path):
+    """huggingface_hub 2 loads its constants lazily: a process that imported nothing else
+    still finds the default cache (HF_HUB_CACHE) offline."""
+    import subprocess
+    import sys
+
+    storage = tmp_path / "models--acme--tiny"
+    (storage / "snapshots" / COMMIT).mkdir(parents=True)
+    (storage / "refs").mkdir()
+    (storage / "refs" / "main").write_text(COMMIT, encoding="ascii")
+    code = (
+        "import fse._hub as hub; "
+        "print(hub.cached_snapshot(hub._library(), 'acme/tiny', None, None).name)"
+    )
+    env = {**os.environ, "HF_HUB_CACHE": str(tmp_path), "HF_HUB_OFFLINE": "1"}
+    out = subprocess.run(
+        [sys.executable, "-c", code], env=env, capture_output=True, text=True, check=False
+    )
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == COMMIT
