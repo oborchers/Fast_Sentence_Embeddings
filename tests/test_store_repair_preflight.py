@@ -60,7 +60,7 @@ def test_operational_read_errors_propagate_without_mutation(tmp_path, monkeypatc
 
     with monkeypatch.context() as patch, captured() as records:
         patch.setattr(builtins, "open", fail)
-        with pytest.raises(OSError) as raised:
+        with pytest.raises(OSError, match="injected operational read failure") as raised:
             fse.repair_store(path)
     assert raised.value is error
     assert contents(path) == before
