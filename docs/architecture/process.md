@@ -171,7 +171,8 @@ says to upload such wheels to PyPI only for package prereleases. We recommend ke
 that option off and publishing wheels built against stable CPython releases.
 
 musllinux runs the offline suite with Arrow producers, tokenizers and Model2Vec.
-gensim and scikit-learn lack musllinux wheels, so their optional adapter tests skip.
+gensim and scikit-learn lack musllinux wheels. The musllinux test command excludes
+`test_gensim.py`; scikit-learn adapter tests skip through `pytest.importorskip`.
 MLX requires Apple silicon and Metal and is tested separately by `test-mlx`.
 On every platform, gensim tests skip on Python 3.14 and newer. The wheel logs show
 the test summary for each interpreter, and artifacts retain the built filenames.

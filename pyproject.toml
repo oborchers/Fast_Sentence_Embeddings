@@ -286,15 +286,16 @@ musllinux-aarch64-image = "quay.io/pypa/musllinux_1_2_aarch64@sha256:0a7b18a1fce
 [[tool.cibuildwheel.overrides]]
 select = "*-musllinux_*"
 # gensim and scikit-learn have no musllinux wheels. Keep the Arrow producers and
-# Model2Vec parity tests; missing optional adapters skip through pytest.importorskip.
+# Model2Vec parity tests. Exclude gensim explicitly; sklearn uses importorskip.
 test-groups = []
 test-requires = [
     "pytest>=8.0.0", "pytest-xdist>=3.6.1", "safetensors>=0.4.0",
     "tokenizers==0.23.3", "model2vec==0.10.0", "pyarrow==26.0.0",
     "pandas==3.1.0", "polars==2.1.0", "datasets==5.1.0",
 ]
+test-command = 'pytest {project}/tests -m "not network" -p no:cacheprovider -n auto --ignore={project}/tests/test_gensim.py'
 # Fail rather than compile a missing dependency wheel during release verification.
-test-environment = { UV_ONLY_BINARY = ":all:" }
+environment = { UV_ONLY_BINARY = ":all:" }
 
 # --- Guardrails (tools/check_guardrails.py; AGENTS.md, Guardrails) ---
 
