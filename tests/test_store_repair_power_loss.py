@@ -12,7 +12,7 @@ from fse._store import _recovery, _repair
 from fse._store._layout import shard_name
 from support.durability import PowerLoss, materialize
 from support.repair import after_crash, contents, damaged_store
-from support.store import append_rows
+from support.store import append_rows, make_store
 
 POSIX = pytest.mark.skipif(os.name == "nt", reason="the POSIX persistence models")
 
@@ -215,3 +215,27 @@ def test_rerun_without_append_finishes_pending_syncs_before_later_power_loss(
             shutil.rmtree(image)
         count += 1
     assert count >= 1
+
+
+def test_completed_rerun_syncs_every_existing_quarantine_then_the_store(tmp_path, monkeypatch):
+    path = tmp_path / "store"
+    make_store(path, sizes=(4,))
+    groups = [path / f".broken-{n:016x}" for n in (1, 2)]
+    for group in groups:
+        group.mkdir()
+        (group / "preserved").write_bytes(b"quarantine contents")
+    (path / ".broken-other").mkdir()
+    (path / ".broken-0000000000000003").write_bytes(b"not a directory")
+    before = contents(path)
+    calls = []
+
+    def sync(directory, *, full=True):
+        assert full
+        calls.append(directory)
+
+    monkeypatch.setattr(_repair, "_sync_directory", sync)
+    assert fse.repair_store(path) == 4  # no remaining moves, no append
+    assert len(calls) == 3
+    assert set(calls[:-1]) == set(groups)
+    assert calls[-1] == path
+    assert contents(path) == before
