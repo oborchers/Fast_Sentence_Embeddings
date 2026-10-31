@@ -53,25 +53,41 @@ def threads_left(timeout: float = 2.0) -> int:
         time.sleep(0.005)
 
 
-def sigint_when(ready: Callable[[], object], delay: float = 0.0) -> dict:
-    """A thread that sends SIGINT to the main thread once ``ready()``, ``delay`` seconds
-    later; its dict gets the time of the signal (``at``)."""
-    sent: dict = {}
+class Sigint:
+    """A thread that sends SIGINT to the main thread once ``ready()`` is true and ``delay``
+    seconds later, once, unless ``stop`` came first. It sends nothing if ``ready()`` does
+    not become true within 10 s (``at`` stays None). The signal goes to the main thread
+    itself: one sent to the process may reach another thread on Linux, which leaves the
+    main thread blocked in its wait."""
 
-    def send() -> None:
+    def __init__(self, ready: Callable[[], object], delay: float = 0.0):
+        self.at: float | None = None  # when it was sent
+        self._ready, self._delay = ready, delay
+        self._lock = threading.Lock()
+        self._stopped = False
+        self._thread = threading.Thread(target=self._send, name="sigint")
+        self._thread.start()
+
+    def _send(self) -> None:
         deadline = time.monotonic() + 10
-        while not ready() and time.monotonic() < deadline:
+        while not self._ready() and time.monotonic() < deadline:
             time.sleep(0.0005)
-        time.sleep(delay)
-        sent["at"] = time.perf_counter()
-        # To the main thread itself: a signal sent to the process may reach another thread
-        # on Linux, which leaves the main thread blocked in its wait.
-        signal.pthread_kill(threading.main_thread().ident, signal.SIGINT)
+        if not self._ready():
+            return
+        time.sleep(self._delay)
+        with self._lock:
+            if self._stopped:
+                return
+            self.at = time.perf_counter()
+            signal.pthread_kill(threading.main_thread().ident, signal.SIGINT)
 
-    thread = threading.Thread(target=send, name="sigint")
-    sent["thread"] = thread
-    thread.start()
-    return sent
+    def stop(self) -> None:
+        """Send nothing from now on. A signal sent just before arrives while this sleeps,
+        so the caller keeps the call in a ``try`` for it."""
+        with self._lock:
+            self._stopped = True
+        time.sleep(0.002)
+        self._thread.join()
 
 
 def payload(mx: Any) -> Any:
@@ -91,19 +107,21 @@ def one_write(device: Any, make: Callable[[Any], Any]) -> dict:
             chunks[0] = i + 1
             time.sleep(0.002)  # a write that takes long enough to be hit
 
-    sent = sigint_when(entered.is_set, 0.005)
+    sent = Sigint(entered.is_set, 0.005)
+    outcome, returned, at_return = "completed", 0.0, 0
     try:
-        device.run(lambda mx, _s: (make(mx),), lambda a: np.asarray(a[0]), CHUNKS, write)
-        outcome = "completed"
-    except KeyboardInterrupt:
-        outcome = "interrupted"
-    returned = time.perf_counter()
-    at_return = chunks[0]
+        try:
+            device.run(lambda mx, _s: (make(mx),), lambda a: np.asarray(a[0]), CHUNKS, write)
+        except KeyboardInterrupt:
+            outcome = "interrupted"
+        returned, at_return = time.perf_counter(), chunks[0]
+        sent.stop()
+    except KeyboardInterrupt:  # sent just before the call ended: not a cancellation of it
+        outcome = "late"
     time.sleep(SETTLE_S)
-    sent["thread"].join()
     return {
-        "outcome": outcome,
-        "seconds": returned - sent["at"],
+        "outcome": outcome if sent.at is not None else "not_ready",
+        "seconds": None if sent.at is None else returned - sent.at,
         "chunks_at_return": at_return,
         "chunks_after_return": chunks[0] - at_return,
     }
@@ -123,25 +141,27 @@ def one_queue(device: Any, make: Callable[[Any], Any]) -> dict:
     )
     blocker.start()
     busy.wait(10)
-    sent = sigint_when(lambda: len(device._queue) == 1, 0.01)
+    sent = Sigint(lambda: len(device._queue) == 1, 0.01)
+    outcome, returned, queued = "completed", 0.0, -1
     try:
-        device.run(
-            lambda mx, _s: touched.append("launch") or (make(mx),),
-            lambda a: np.asarray(a[0]),
-            1,
-            lambda _view: touched.append("use"),
-        )
-        outcome = "completed"
-    except KeyboardInterrupt:
-        outcome = "interrupted"
-    returned = time.perf_counter()
-    queued = len(device._queue)
+        try:
+            device.run(
+                lambda mx, _s: touched.append("launch") or (make(mx),),
+                lambda a: np.asarray(a[0]),
+                1,
+                lambda _view: touched.append("use"),
+            )
+        except KeyboardInterrupt:
+            outcome = "interrupted"
+        returned, queued = time.perf_counter(), len(device._queue)
+        sent.stop()
+    except KeyboardInterrupt:  # sent just before the call ended: not a cancellation of it
+        outcome = "late"
     gate.set()
     blocker.join(10)
-    sent["thread"].join()
     return {
-        "outcome": outcome,
-        "seconds": returned - sent["at"],
+        "outcome": outcome if sent.at is not None else "not_ready",
+        "seconds": None if sent.at is None else returned - sent.at,
         "touched": touched,
         "queued": queued,
     }
@@ -161,12 +181,13 @@ def plain_copy_ms() -> float:
 
 def summary(runs: list[dict], keys: tuple[str, ...]) -> dict:
     """Per run the checks, over all: medians and maxima of seconds, sums of the counts."""
-    ms = [r["seconds"] * 1e3 for r in runs]
+    ms = [r["seconds"] * 1e3 for r in runs if r["seconds"] is not None] or [float("nan")]
     out: dict = {
         "runs": len(runs),
         "interrupted": sum(r["outcome"] == "interrupted" for r in runs),
         "ms_median": round(median(ms), 3),
         "ms_max": round(max(ms), 3),
+        "outcomes": sorted({r["outcome"] for r in runs}),
     }
     for key in keys:
         values = [r[key] for r in runs]

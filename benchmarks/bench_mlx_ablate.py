@@ -52,6 +52,7 @@ COMPARISONS = (
     ("both", "base"),
     ("base2", "base"),
 )
+CHECKS = 3  # encodes per side in the untimed check
 TARGET_S = 0.5  # a run encodes for about this long
 SETTLE_MARGIN = 0.8  # a round starts below max-load minus this: its own threads add to the load
 SETTLE_S = 90.0  # a round waits at most this long for the load to fall
@@ -128,18 +129,22 @@ def differing(rows: np.ndarray, ref: np.ndarray) -> int:
 
 
 def check(enc: Any, texts: list[str], workers: int) -> dict:
-    """Untimed: two encodes per side. Per side the rows differing from base's, and the
-    fallback counts per encode (``fallbacks_equal``: base's counts)."""
+    """Untimed: three encodes per side, each compared with base's first. Per side the rows
+    differing (summed over the encodes), and the fallback counts per 3 encodes."""
     out: dict = {}
     ref = None
     for name in NAMES:
+        differ, delta = 0, {}
         with patched(name):
-            rows, _s, delta = encode(enc, texts, workers, 2)
-        ref = rows if ref is None else ref
-        out[name] = {"rows_differing": differing(rows, ref), "fallbacks_per_2_encodes": delta}
+            for _ in range(CHECKS):
+                rows, _s, got = encode(enc, texts, workers, 1)
+                ref = rows if ref is None else ref
+                differ += differing(rows, ref)
+                delta = {k: delta.get(k, 0) + got.get(k, 0) for k in got | delta}
+        out[name] = {"rows_differing": differ, "fallbacks_per_checks": delta}
     for name in NAMES:
         out[name]["fallbacks_equal"] = (
-            out[name]["fallbacks_per_2_encodes"] == out["base"]["fallbacks_per_2_encodes"]
+            out[name]["fallbacks_per_checks"] == out["base"]["fallbacks_per_checks"]
         )
     return out | {"_ref": ref}
 
@@ -190,7 +195,17 @@ def run_time(args) -> dict:
     )
     pairs = {f"{a}/{b}": stats(done, a, b) for a, b in COMPARISONS}
     noise = pairs["base2/base"]["ratios"]
-    verdicts = {k: verdict(v["ratios"], noise) for k, v in pairs.items() if k != "base2/base"}
+    differs = {n: sum(r["rows_differing"] for r in done.results(n)) for n in NAMES}
+    fallback = {n: fallback_differences(done.results(n), checked, reps) for n in NAMES}
+    unequal = {n for n in NAMES if differs[n] or fallback[n] or checked[n]["rows_differing"]}
+    unequal |= {n for n in NAMES if not checked[n]["fallbacks_equal"]}
+    verdicts = {
+        k: "invalid: bits or fallbacks differ"
+        if unequal & set(k.split("/"))
+        else verdict(v["ratios"], noise)
+        for k, v in pairs.items()
+        if k != "base2/base"
+    }
     seconds = {n: [round(r["seconds"], 5) for r in done.results(n)] for n in NAMES}
     return {
         "cell": cell_name(args),
@@ -202,12 +217,8 @@ def run_time(args) -> dict:
         "loads": [(round(b, 2), round(a, 2)) for b, a in done.loads],
         "discarded_loads": [(round(b, 2), round(a, 2)) for b, a in map(_pair, done.discarded)],
         "check": checked,
-        "rows_differing_in_runs": {
-            n: sum(r["rows_differing"] for r in done.results(n)) for n in NAMES
-        },
-        "fallbacks_differ_in_runs": {
-            n: fallback_differences(done.results(n), checked, reps) for n in NAMES
-        },
+        "rows_differing_in_runs": differs,
+        "fallbacks_differ_in_runs": fallback,
         "seconds_per_encode": seconds,
         "ratios": pairs,
         "verdicts": verdicts,
@@ -216,12 +227,13 @@ def run_time(args) -> dict:
 
 def fallback_differences(runs: list[dict], checked: dict, reps: int) -> int:
     """The runs whose fallback counts per encode are not base's (counts of ``reps`` encodes
-    against those of the two checked ones, both in whole numbers)."""
-    base = checked["base"]["fallbacks_per_2_encodes"]
+    against those of the checked ones, both in whole numbers)."""
+    base = checked["base"]["fallbacks_per_checks"]
     return sum(
         1
         for r in runs
-        if {k: v * 2 for k, v in r["fallbacks"].items()} != {k: v * reps for k, v in base.items()}
+        if {k: v * CHECKS for k, v in r["fallbacks"].items()}
+        != {k: v * reps for k, v in base.items()}
     )
 
 
@@ -290,9 +302,12 @@ def lines(result: dict) -> list[str]:
         shown = result["verdicts"].get(key, "A/A")
         out.append(f"  {key:<14} median {r['median']}  range {r['min']}..{r['max']}  {shown}")
     differ = result["rows_differing_in_runs"]
-    out.append(f"  rows differing from base per side (all runs): {differ}")
+    out.append(f"  rows differing from base per side (all runs, last encode of each): {differ}")
     out.append(
-        f"  fallbacks per encode, base: {result['check']['base']['fallbacks_per_2_encodes']}"
+        f"  runs whose fallback counts differ from base's, per side: {result['fallbacks_differ_in_runs']}"
+    )
+    out.append(
+        f"  fallbacks per {CHECKS} encodes, base: {result['check']['base']['fallbacks_per_checks']}"
     )
     return out
 

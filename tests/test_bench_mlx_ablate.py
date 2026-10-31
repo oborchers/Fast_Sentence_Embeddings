@@ -178,7 +178,7 @@ def test_the_checks_count_rows_and_fallbacks_that_differ(ablate):
     assert ablate.differing(ref, ref) == 0
     assert ablate.differing(other, ref) == 1
     assert ablate.diff({"limit": 5, "dim": 1}, {"limit": 2, "dim": 1}) == {"limit": 3}
-    checked = {"base": {"fallbacks_per_2_encodes": {"limit": 2}}}
+    checked = {"base": {"fallbacks_per_checks": {"limit": 3}}}  # 1 per encode, 3 encodes
     runs = [{"fallbacks": {"limit": 6}}, {"fallbacks": {"limit": 5}}, {"fallbacks": {}}]
     assert ablate.fallback_differences(runs, checked, 6) == 2  # 6 encodes: 6 are base's
 
@@ -218,3 +218,10 @@ def test_a_sigint_during_the_write_leaves_no_write_after_the_return(variants, ca
     if name in ("copy", "both"):  # the device thread finishes the write the caller waits for
         assert run["chunks_at_return"] == cancel.CHUNKS
     assert cancel.threads_left() == 0
+
+
+def test_a_stopped_sigint_sends_nothing(cancel, sigint):
+    assert sigint is signal.default_int_handler
+    sent = cancel.Sigint(lambda: True, 0.05)
+    sent.stop()
+    assert sent.at is None
