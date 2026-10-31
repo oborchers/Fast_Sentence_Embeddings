@@ -8,6 +8,7 @@ import pytest
 from fse import ShardSink, UnsupportedArtifactError, VectorStore
 from fse._container import CorruptArtifactError
 from fse._store._layout import open_shard, shard_name
+from support.logs import captured
 from support.store import ENCODER, add_shard, make_store, tag_shard
 
 
@@ -173,3 +174,14 @@ def test_full_append_to_an_untagged_store_keeps_store_json(tmp_path):
     with VectorStore.open(path) as store:
         assert len(store) == 5
     assert (path / "store.json").read_bytes() == raw
+
+
+def test_opened_record_counts_only_the_tagged_tensor_bytes(tmp_path):
+    path = tmp_path / "store"
+    info = make_store(path, dtype="int8", tagged=(4, 8))
+    with captured() as records, VectorStore.open(path) as store:
+        assert len(store) == 10
+    (record,) = [r for r in records if r.fse_event == "store.opened"]
+    assert record.fse_unsynced_shards == 2
+    assert record.fse_verified_bytes == 6 * (info.dim + 2 * np.dtype(np.float32).itemsize)
+    assert record.fse_verify_seconds >= 0
