@@ -278,5 +278,3 @@ cdef int _uni_normalize(UnigramState st, const unsigned char *p, Py_ssize_t n, W
         return -1
     out[0] = b
     return 0
-
-
