@@ -133,7 +133,8 @@ def test_native_parts_do_not_build_or_share_the_lazy_search_list():
     first, _, _ = charsmap.parts()
     second, _, _ = charsmap.parts()
     assert charsmap._python_units is None
-    assert first.dtype == np.uint32 and first.flags.writeable
+    assert first.dtype == np.uint32
+    assert first.flags.writeable
     assert not np.shares_memory(first, second)
     first.fill(0)
     np.testing.assert_array_equal(charsmap.parts()[0], second)
