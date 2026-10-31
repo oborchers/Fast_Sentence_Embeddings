@@ -211,7 +211,7 @@ def write_ref(storage: Path, revision: str, commit: str) -> None:
             raise CorruptArtifactError(
                 f"{ref} is a link or the wrong kind of entry; fse follows no link in the cache"
             )
-        if ref.read_text(encoding="ascii", errors="replace") == commit:
+        if ref_text(ref) == commit:
             return
     tmp = ref.with_name(f"{uuid.uuid4().hex}.tmp")  # short: the name of a ref may fill a file name
     with open(tmp, "x", encoding="ascii") as handle:  # exclusive: no other writer, no link
@@ -224,22 +224,32 @@ def write_ref(storage: Path, revision: str, commit: str) -> None:
 
 
 # Windows refuses to rename over a file another process is renaming over or reading at that
-# moment (PermissionError, WinError 5); the other writer's rename takes milliseconds.
+# moment, and to open one that is being renamed over (PermissionError, WinError 5); the other writer's rename takes milliseconds.
 _REPLACE_TRIES = 50
 _REPLACE_WAIT = 0.01
+
+
+def ref_text(ref: Path) -> str:
+    """The text of ``ref``, read again while Windows refuses it for another process's
+    rename over it at that moment; the last refusal is raised."""
+    for _ in range(_REPLACE_TRIES - 1):
+        try:
+            return ref.read_text(encoding="ascii", errors="replace")
+        except PermissionError:
+            time.sleep(_REPLACE_WAIT)
+    return ref.read_text(encoding="ascii", errors="replace")
 
 
 def _replace(tmp: Path, ref: Path) -> None:
     """``os.replace(tmp, ref)``, tried again while another process holds ``ref`` for its own
     rename or a read; the last refusal is raised."""
-    for attempt in range(_REPLACE_TRIES):
+    for _ in range(_REPLACE_TRIES - 1):
         try:
             os.replace(tmp, ref)
             return
         except PermissionError:
-            if attempt == _REPLACE_TRIES - 1:
-                raise
             time.sleep(_REPLACE_WAIT)
+    os.replace(tmp, ref)
 
 
 def cached_snapshot(hub: Any, repo: str, revision: str | None, cache_dir) -> Path:
@@ -289,7 +299,7 @@ def _read_ref(storage: Path, revision: str, repo: str) -> str:
             raise CorruptArtifactError(
                 f"{ref} is a link or the wrong kind of entry; fse follows no link in the cache"
             )
-    commit = ref.read_text(encoding="ascii", errors="replace").strip()
+    commit = ref_text(ref).strip()
     if not _COMMIT.fullmatch(commit):
         raise CorruptArtifactError(f"{ref} holds {commit[:60]!r}, no commit hash")
     return commit

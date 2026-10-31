@@ -192,7 +192,7 @@ def test_writers_that_meet_at_the_ref_leave_one_whole_commit(fake):
     def write(commit):
         for _ in range(25):
             hub.write_ref(storage, "main", commit)
-            seen.append(_ref(fake).read_text())
+            seen.append(hub.ref_text(_ref(fake)))
 
     with ThreadPoolExecutor(4) as pool:
         for future in [pool.submit(write, c) for c in commits]:
@@ -349,3 +349,21 @@ def test_a_rename_refused_for_good_raises_and_leaves_no_temporary_file(fake, mon
     with pytest.raises(PermissionError):
         hub.write_ref(storage, "main", COMMIT)
     assert list((storage / "refs").iterdir()) == []
+
+
+def test_a_read_refused_for_a_moment_is_tried_again(fake, monkeypatch):
+    storage = fake.folder()
+    storage.mkdir(parents=True)
+    hub.write_ref(storage, "main", COMMIT)
+    real = type(_ref(fake)).read_text
+    refusals = iter([PermissionError(13, "in use")])
+
+    def read_text(self, *args, **kwargs):
+        error = next(refusals, None)
+        if error is not None:
+            raise error
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(type(_ref(fake)), "read_text", read_text)
+    monkeypatch.setattr(hub, "_REPLACE_WAIT", 0)
+    assert hub.ref_text(_ref(fake)) == COMMIT
