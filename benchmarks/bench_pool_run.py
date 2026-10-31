@@ -78,29 +78,32 @@ def measure(pipeline: Any, requests: list[list[str]], workers: int, side: str, p
     from fse._runtime._tasks import INLINE_MAX_BYTES
     from fse._text import StringSource
 
+    import numpy as np
+
     byte_sizes = [StringSource(r).nbytes for r in requests]
     inline = sum(n <= INLINE_MAX_BYTES for n in byte_sizes)
     reuse = Reuse()
     startup = 0.0
-    if side == "reuse":
-        start = time.perf_counter()
-        reuse.get(workers)
-        startup = time.perf_counter() - start
-    expected = call(pipeline, requests[0], workers).tobytes()
     try:
+        if side == "reuse":
+            start = time.perf_counter()
+            reuse.get(workers)
+            startup = time.perf_counter() - start
+        expected = call(pipeline, requests[0], workers)
         with injected(reuse) if side == "reuse" else nullcontext():
             got = call(pipeline, requests[0], workers)
-            if got.tobytes() != expected:
+            if not np.array_equal(got.view(np.uint32), expected.view(np.uint32)):
                 raise RuntimeError("pool variant changed output bits")
+            del expected, got
             times = []
             for _ in range(passes):
                 start = time.perf_counter()
                 for request in requests:
                     got = call(pipeline, request, workers)
                 times.append((time.perf_counter() - start) / len(requests))
-            # Every timed batch ends on this request. Check outside the clock.
-            last = got.tobytes()
-        if last != call(pipeline, requests[-1], workers).tobytes():
+        # Every timed batch ends on this request. Check outside the clock.
+        expected = call(pipeline, requests[-1], workers)
+        if not np.array_equal(got.view(np.uint32), expected.view(np.uint32)):
             raise RuntimeError("last timed call changed output bits")
     finally:
         reuse.close()
