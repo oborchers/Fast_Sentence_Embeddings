@@ -13,7 +13,7 @@ from support.durability import PowerLoss, materialize
 from support.encoder import finished
 
 POSIX = pytest.mark.skipif(os.name == "nt", reason="the POSIX persistence models")
-ENCODER = finished()
+ENCODER = finished(dim=4)
 
 
 def _record(root, monkeypatch, platform, dtype, *, broken=False):
@@ -34,9 +34,7 @@ def _record(root, monkeypatch, platform, dtype, *, broken=False):
             # belongs to the preceding trace, with no scheduling-dependent crash points.
             for first, count in ((0, 4), (4, 4), (8, 2)):
                 target = sink.target(first, count)
-                target[0][...] = np.arange(first * 4 + 1, (first + count) * 4 + 1).reshape(
-                    count, 4
-                )
+                target[0][...] = np.arange(first * 4 + 1, (first + count) * 4 + 1).reshape(count, 4)
                 if dtype == "int8":
                     target[1][...] = 0.5
                 target[-1][...] = 0.25
@@ -76,15 +74,19 @@ def test_full_writer_survives_every_admitted_power_loss(tmp_path, monkeypatch, p
 
 @POSIX
 def test_model_detects_missing_full_sync_before_shard_rename(tmp_path, monkeypatch):
-    trace, expected = _record(
-        tmp_path / "store", monkeypatch, "darwin", "float32", broken=True
-    )
-    # An actual unsafe tree must reach the real reader, rather than merely showing
-    # that the syscall recorder noticed the removed sync.
-    for state, confirmed in trace.states():
+    trace, expected = _record(tmp_path / "store", monkeypatch, "darwin", "float32", broken=True)
+    # Require silent wrong rows, not just a missing manifest or an open error.
+    from fse import CorruptArtifactError
+
+    for state, _ in trace.states():
+        root = tmp_path / "crash"
+        materialize(root, state)
         try:
-            _assert_prefix(tmp_path / "crash", state, confirmed, expected)
-        except (ValueError, AssertionError):
-            break
-    else:
-        pytest.fail("the darwin model missed the removed full sync")
+            with VectorStore.open(root) as store:
+                if store.get_vectors().tobytes() != expected[: len(store)].tobytes():
+                    return
+        except CorruptArtifactError:
+            pass  # This state is detected by structural checks, try another one.
+        finally:
+            shutil.rmtree(root)
+    pytest.fail("the darwin model missed silently damaged rows after the persisted rename")
