@@ -367,3 +367,25 @@ def test_a_read_refused_for_a_moment_is_tried_again(fake, monkeypatch):
     monkeypatch.setattr(type(_ref(fake)), "read_text", read_text)
     monkeypatch.setattr(hub, "_REPLACE_WAIT", 0)
     assert hub.ref_text(_ref(fake)) == COMMIT
+
+
+def test_the_default_cache_is_found_in_a_fresh_process(tmp_path):
+    """huggingface_hub 2 loads its constants lazily: a process that imported nothing else
+    still finds the default cache (HF_HUB_CACHE) offline."""
+    import subprocess
+    import sys
+
+    storage = tmp_path / "models--acme--tiny"
+    (storage / "snapshots" / COMMIT).mkdir(parents=True)
+    (storage / "refs").mkdir()
+    (storage / "refs" / "main").write_text(COMMIT, encoding="ascii")
+    code = (
+        "import fse._hub as hub; "
+        "print(hub.cached_snapshot(hub._library(), 'acme/tiny', None, None).name)"
+    )
+    env = {**os.environ, "HF_HUB_CACHE": str(tmp_path), "HF_HUB_OFFLINE": "1"}
+    out = subprocess.run(
+        [sys.executable, "-c", code], env=env, capture_output=True, text=True, check=False
+    )
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == COMMIT

@@ -44,7 +44,9 @@ _COMMIT = _SHA1  # a commit hash is a git sha1
 def _library():
     """huggingface_hub, or an ImportError that names its cause."""
     try:
-        import huggingface_hub  # noqa: PLC0415 - only on first use, so `import fse` stays fast
+        # The submodule too: huggingface_hub 2 loads it lazily, and cached_snapshot reads
+        # huggingface_hub.constants (the default cache) without importing anything else.
+        import huggingface_hub.constants  # noqa: PLC0415 - only on first use, so `import fse` stays fast
     except ImportError as error:
         raise ImportError(
             f"huggingface-hub is a dependency of fse but cannot be imported: {error}"
