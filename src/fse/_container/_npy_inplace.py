@@ -25,7 +25,6 @@ a second one of the store (``publish_directory``). Elsewhere every step is an fs
 from __future__ import annotations
 
 import ctypes
-import ctypes.util
 import io
 import os
 import sys
@@ -145,16 +144,13 @@ def _rename_exclusive(tmp: Path, path: Path) -> None:
     if os.name == "nt":  # pragma: no cover - tested on the Windows runners of CI
         _move_no_replace(tmp, path)
         return
-    libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+    libc = ctypes.CDLL(None, use_errno=True)
     if sys.platform == "darwin":
         result = libc.renamex_np(
             os.fsencode(tmp), os.fsencode(path), ctypes.c_uint(0x4)
         )  # RENAME_EXCL
-    elif hasattr(libc, "renameat2"):
-        at_cwd = ctypes.c_int(-100)
-        result = libc.renameat2(
-            at_cwd, os.fsencode(tmp), at_cwd, os.fsencode(path), ctypes.c_uint(1)
-        )  # RENAME_NOREPLACE
+    elif sys.platform == "linux":
+        result = _rename_linux(libc, tmp, path)
     else:  # pragma: no cover - a system without an exclusive rename
         raise OSError(
             f"this system cannot rename {tmp} without replacing; the store needs Linux, macOS or Windows"
@@ -164,6 +160,27 @@ def _rename_exclusive(tmp: Path, path: Path) -> None:
         if error in (17, 39, 66):  # EEXIST, ENOTEMPTY (Linux), ENOTEMPTY (macOS)
             raise FileExistsError(f"{path} exists; it is never replaced")
         raise OSError(error, os.strerror(error), str(path))
+
+
+def _rename_linux(libc: ctypes.CDLL, tmp: Path, path: Path) -> int:
+    """musl has syscall but no renameat2 wrapper; both use RENAME_NOREPLACE."""
+    args = (
+        ctypes.c_int(-100),
+        os.fsencode(tmp),
+        ctypes.c_int(-100),
+        os.fsencode(path),
+        ctypes.c_uint(1),
+    )
+    if hasattr(libc, "renameat2"):
+        return int(libc.renameat2(*args))
+    # Linux UAPI: arch/x86/entry/syscalls/syscall_64.tbl (316),
+    # include/uapi/asm-generic/unistd.h (276, used by aarch64).
+    number = {"x86_64": 316, "aarch64": 276}.get(os.uname().machine)
+    if number is None or ctypes.sizeof(ctypes.c_void_p) != 8:
+        raise OSError("this Linux architecture has no supported exclusive rename syscall")
+    call = libc.syscall
+    call.restype = ctypes.c_long
+    return int(call(ctypes.c_long(number), *args))
 
 
 def _move_no_replace(tmp: Path, path: Path) -> None:  # pragma: no cover - Windows only

@@ -10,6 +10,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Added
 
+- Atomic artifact publication works on musl Linux through the kernel's exclusive rename, including where libc has no `renameat2` wrapper. Existing directories are never replaced.
 - musllinux 1.2 wheels for x86_64 and aarch64 on CPython 3.11 to 3.15. Release and manual CI runs build and test the full wheel matrix, including macOS Intel.
 
 - A benchmark-only comparison of per-call and reused thread pools, with paired A/A controls, short and server workloads, separate startup time and process RSS. Production thread lifetimes are unchanged.

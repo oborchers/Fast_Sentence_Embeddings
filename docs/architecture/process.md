@@ -154,7 +154,10 @@ The extension is compiled from `_native.pyx`, the `.pxi` parts it includes (one 
 CI uses cibuildwheel 4.3.4, pinned by commit in `.github/workflows/ci.yml`. It selects
 CPython 3.11 to 3.15, without free-threaded variants. Tags and `workflow_dispatch`
 build and test all 35 wheels: manylinux 2.28 and musllinux 1.2 on x86_64 and aarch64,
-macOS arm64 and x86_64, and Windows x86_64. Linux images are pinned by digest to
+macOS arm64 and x86_64, and Windows x86_64. On musl Linux, atomic artifact publication calls the Linux `renameat2` syscall
+with `RENAME_NOREPLACE` when libc has no wrapper. It never falls back to a rename
+that could overwrite an existing directory. Unsupported syscall architectures fail
+explicitly. Linux images are pinned by digest to
 [cibuildwheel's 2026.10.21-1 images](https://github.com/pypa/cibuildwheel/blob/v4.3.4/cibuildwheel/resources/pinned_docker_images.cfg).
 A manual run on a branch verifies the release matrix without publishing. Publication
 requires a tag push and approval in the release environment. PRs keep the four
