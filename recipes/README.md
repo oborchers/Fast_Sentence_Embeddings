@@ -46,6 +46,8 @@ Only acknowledge the durable prefix. A source checkpoint can lag vector publicat
 The file examples keep their store on a supported local filesystem. Polling network inputs does not extend the store's durability guarantee to SMB/NFS.
 
 The folder listener requires contiguous, monotonically numbered final filenames. Producers close temporary files before renaming them.
+Both file recipes reject records larger than 64 KiB before encoding. The folder notebook uses one-row shards only to expose durability boundaries.
+For a daemon, retain one sink and one streaming run, group rows into larger shards and rotate stores at a fixed row budget.
 A production ingestion manifest is needed for arbitrary names, changed files or multiple rows per file.
 
 ## Recorded quality checks
