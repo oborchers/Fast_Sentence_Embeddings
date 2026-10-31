@@ -183,3 +183,21 @@ def test_generic_hook_handles_short_suffixes_at_word_boundaries(length):
     tokens = [b"<unk>", *[b"a" * n for n in range(1, 18)]]
     data = b"a" * length
     assert _state(tokens, _generic=True)._candidates(data) == _state(tokens)._candidates(data)
+
+
+def test_empty_and_prefix_keys_keep_their_original_ids():
+    pieces = ["z", "abc", "", "a", "ab", "\x00", "é"]
+    tokens = [piece.encode() for piece in pieces]
+    scores = [-float(i + 1) for i in range(len(pieces))]
+    fast, generic = _state(tokens, scores), _state(tokens, scores, _generic=True)
+    model = ref.Model(pieces, scores, 0)
+    texts = ["", "abc\x00éz", "zz", "aabc"]
+    for text in texts:
+        want = _bits(_reference_candidates(model, text))
+        assert _bits(fast._candidates(text.encode())) == want
+        assert _bits(generic._candidates(text.encode())) == want
+    want_ids = [
+        ref.encode_ids(t, model, added={}, normalizer=(), replacement="_", drop_unknown=False)
+        for t in texts
+    ]
+    assert _ids(fast, texts) == _ids(generic, texts) == want_ids
