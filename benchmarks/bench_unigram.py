@@ -192,17 +192,26 @@ def _round(contenders, corpus: str, k: int) -> dict:
     return out
 
 
+def _extended(argv) -> bool:
+    """Dispatch the paired and directly executable workers without extending the contenders."""
+    if not argv or (argv[0] not in ("load", "ids") and "--base-python" not in argv):
+        return False
+    from bench_unigram_compare import main as compare_main
+    from bench_unigram_compare import worker
+
+    if argv[0] in ("load", "ids"):
+        worker(argv)
+    else:
+        compare_main(argv)
+    return True
+
+
 def main(argv=None) -> None:
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] == "_child":
         return child(argv[1], int(argv[2]), argv[3], int(argv[4]))
-    if argv and (argv[0] in ("load", "ids") or "--base-python" in argv):
-        from bench_unigram_compare import main as compare_main
-        from bench_unigram_compare import worker
-
-        if argv[0] in ("load", "ids"):
-            return worker(argv)
-        return compare_main(argv)
+    if _extended(argv):
+        return None
     from fse._cpus import usable_cpus
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
