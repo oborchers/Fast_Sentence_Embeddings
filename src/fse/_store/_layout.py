@@ -308,13 +308,10 @@ def _check_quantization(metadata: dict, info: StoreInfo, file: Path) -> None:
     rule = metadata.get("fse.quantization")
     if info.dtype == "float32" or rule == QUANTIZATION:
         return
-    if not (isinstance(rule, str) and rule.startswith("quantize_rows@")):
-        try:
-            parse_id(rule)
-        except ValueError as error:
-            raise CorruptArtifactError(
-                f"{file}: fse.quantization must be {QUANTIZATION}"
-            ) from error
+    try:
+        parse_id(rule)
+    except ValueError as error:
+        raise CorruptArtifactError(f"{file}: fse.quantization must be {QUANTIZATION}") from error
     raise UnsupportedArtifactError(f"{file} is stored by {rule}; this fse reads {QUANTIZATION}")
 
 

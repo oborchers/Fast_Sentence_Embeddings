@@ -159,3 +159,14 @@ def test_an_unsupported_orphan_is_preserved_before_mutation(tmp_path):
     with pytest.raises(fse.UnsupportedArtifactError):
         fse.repair_store(path)
     assert tree(path) == before
+
+
+@pytest.mark.parametrize(
+    "rule", ["absmax", "quantize_rows@0", "quantize_rows@01", "quantize_rows@x"]
+)
+def test_malformed_quantization_is_damage_not_a_future_format(tmp_path, rule):
+    path = tmp_path / "store"
+    make_store(path, dtype="int8", sizes=(4, 4))
+    change_metadata(path / shard_name(4), {"fse.quantization": rule})
+    assert fse.repair_store(path) == 4
+    assert append_rows(path) == 4

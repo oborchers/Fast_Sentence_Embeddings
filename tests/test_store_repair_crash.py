@@ -2,8 +2,6 @@
 
 import subprocess
 import sys
-from pathlib import Path
-
 import pytest
 
 from support.repair import after_crash, damaged_store
