@@ -3,6 +3,7 @@
 import builtins
 import errno
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -61,6 +62,30 @@ def test_operational_read_errors_propagate_without_mutation(tmp_path, monkeypatc
     with monkeypatch.context() as patch, captured() as records:
         patch.setattr(builtins, "open", fail)
         with pytest.raises(OSError, match="injected operational read failure") as raised:
+            fse.repair_store(path)
+    assert raised.value is error
+    assert contents(path) == before
+    assert not any(r.fse_event == "store.repaired" for r in records)
+
+
+@pytest.mark.parametrize("code", [errno.EACCES, errno.EIO, errno.EMFILE])
+def test_manifest_stat_errors_propagate_without_mutation(tmp_path, monkeypatch, code):
+    path = tmp_path / "store"
+    make_store(path, sizes=(4, 4, 4))
+    (path / shard_name(4) / "manifest.json").unlink()
+    target = path / shard_name(8) / "manifest.json"
+    before = contents(path)
+    real = os.lstat
+    error = OSError(code, "injected manifest stat failure")
+
+    def fail(file, *args, **kwargs):
+        if Path(file) == target:
+            raise error
+        return real(file, *args, **kwargs)
+
+    with monkeypatch.context() as patch, captured() as records:
+        patch.setattr(os, "lstat", fail)
+        with pytest.raises(OSError, match="injected manifest stat failure") as raised:
             fse.repair_store(path)
     assert raised.value is error
     assert contents(path) == before
