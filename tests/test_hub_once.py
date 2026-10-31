@@ -69,7 +69,8 @@ def test_each_file_is_hashed_once_with_the_algorithm_of_its_pin(fake, constructe
         _load(fake)  # fills the cache
         constructed.clear()
     pins = _pins_read(lambda: _load(fake, local_files_only=offline))
-    assert pins and set(pins) == {SHA256, GIT}
+    assert pins
+    assert set(pins) == {SHA256, GIT}
     assert constructed.count("sha256") == pins.count(SHA256)
     assert constructed.count("sha1") == pins.count(GIT)
     assert len(constructed) == len(pins)  # one constructor per file
@@ -110,7 +111,7 @@ def test_a_file_is_refused_before_it_is_hashed(fake, constructed):
     constructed.clear()
     with pytest.raises(CorruptArtifactError, match="no LFS file of the cache"):
         _files(fake, offline=True).read("config.json", lfs=True)  # a git file by its name
-    with pytest.raises(CorruptArtifactError, match="no LFS file with an lfs.sha256"):
+    with pytest.raises(CorruptArtifactError, match=r"no LFS file with an lfs\.sha256"):
         _files(fake).read("config.json", lfs=True)
     assert constructed == []
     fake.pins["config.json"] = (None, None)  # no blob id: the message names the digest
@@ -119,7 +120,7 @@ def test_a_file_is_refused_before_it_is_hashed(fake, constructed):
     assert constructed == ["sha1"]
 
 
-def test_a_local_folder_is_not_hashed(fake, constructed, tmp_path):
+def test_a_local_folder_is_not_hashed(fake, constructed):
     assert Encoder.from_pretrained(fake.model).fingerprint
     snapshot = fake.folder() / "snapshots"
     _load(fake)
