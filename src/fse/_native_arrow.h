@@ -1,4 +1,4 @@
-/* Arrow string columns as text sources (ARCHITECTURE.md, "Text sources").
+/* Arrow string columns as text sources (docs/architecture/text.md, "Text sources").
 
    The structs of the Arrow C Data Interface and the C Stream Interface, as the
    specification asks consumers to copy them (https://arrow.apache.org/docs/format/

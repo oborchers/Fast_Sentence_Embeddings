@@ -5,7 +5,7 @@
 # Licensed under GNU General Public License v3.0
 
 """One shard being written: rows reserved for the workers, committed in order, then
-published whole (ARCHITECTURE.md, "sentence_vectors 1").
+published whole (docs/architecture/store.md, "sentence_vectors 1").
 
 A shard is written in a temporary directory ``.shard-<first row>.writing-<hex>`` of the
 store. The worker of a task writes its rows into a buffer of the task (the window of the
@@ -166,7 +166,8 @@ class ShardWriter:
         metadata = shard_metadata(self.info, self.first_row, rows, self.created_by)
         manifest_tmp = self.tmp / f".manifest.json.writing-{secrets.token_hex(4)}"
         # Two full syncs on macOS: the directory before the rename makes the files and
-        # the manifest durable, the store after it the rename (ARCHITECTURE.md, "Writing").
+        # the manifest durable, the store after it the rename (docs/architecture/store.md,
+        # "sentence_vectors 1").
         write_manifest(self.tmp, entries, metadata, manifest_tmp, sync_data, staged=True)
         publish_directory(self.tmp, self.store / shard_name(self.first_row))
         # A long stream keeps no arrays of published shards.

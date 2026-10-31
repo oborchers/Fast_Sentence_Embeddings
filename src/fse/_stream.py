@@ -9,7 +9,7 @@
 The runtime reads the iterator in the calling thread, a collection of at most
 ``chunk_rows`` sentences or about ``chunk_bytes`` bytes at a time, and only when its
 window of tasks has room: a slow sink slows the source, and memory stays bounded by one
-collection and the window (ARCHITECTURE.md, "Runtime"). The workers keep encoding the
+collection and the window (docs/architecture/runtime.md, "Runtime"). The workers keep encoding the
 tasks taken before. Row numbers count from the first sentence of the stream.
 """
 

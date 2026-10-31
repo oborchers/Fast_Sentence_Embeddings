@@ -39,7 +39,7 @@ Ranked proposals (details in section 5):
 
 - Search (`src/fse/_store/_search.py:76-120`, `_tasks` at 247-253): row blocks of 4096 to 65 536 rows (`_TASK_SCORES = 1 << 20` scores per task), query slices of 256; for each row block the tasks of all query slices are consecutive, run by at most `workers` threads with a window of `2 * workers` tasks (`_run`, 256-272); every task starts with the **floors merged so far** (`candidates.floor[qb]`, line 227-228). Blocks are slices of memory-mapped npy files (`_layout.py:216`, `NpyContainer().open(..., mmap=True)`); nothing prefetches, advises or aligns, so each worker faults its own pages in.
 - Write path: `_shard.py:110-150`: positional `pwrite` from a commit thread, xxh3 of the vectors in row order, `shrink`, `sync_file` (F_FULLFSYNC on macOS), small tensors each synced, manifest synced, exclusive directory rename, parent directory sync (`_container/_common.py:320-332`, `_npy_inplace.py:104-118`).
-- Contract: int8 cosine is `dot16(codes, q) * inv_norm`, scale cancels (ARCHITECTURE.md, "Reading stored rows").
+- Contract: int8 cosine is `dot16(codes, q) * inv_norm`, scale cancels (docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)").
 
 ## 3. Milvus and knowhere
 
@@ -167,7 +167,7 @@ No bound violation occurred (the bound is valid by construction). **These are no
 
 Probabilistic alternatives (RaBitQ, 1 bit/dim with a random rotation, error bound holding with high probability, arXiv 2405.12497) give tight bounds at 1 bit but are **not worst-case**; using them would make the mode approximate under fse's rules (never fail silently, bit-identical contract). That is proposal E, and it needs the maintainer's decision: "exact" and "fast on a 300 GB store" cannot both hold with a RAM sidecar below ~4 bit per dimension on this evidence.
 
-fse files for D/E: new derived tensors per shard (names versioned, e.g. a hypothetical `sketch` with `fse.sketch=...@1`; ARCHITECTURE.md forbids reusing persistence names and `_layout.py` demands exactly the known tensors, so a new tensor means a new store/shard format revision), written in `_store/_shard.py:finish` next to `inv_norms`/`scales`; a kernel for the sketch score in `_native_kernel_search.h` and `_native_search.pxi`; the two-stage driver in `_search.py`; conformance tests in `tests/test_conformance*.py` (bit-exactness of the final scores plus a randomized test that no true top-k row is pruned). Effort L (tens of hours incl. the numerical argument and tests).
+fse files for D/E: new derived tensors per shard (names versioned, e.g. a hypothetical `sketch` with `fse.sketch=...@1`; docs/architecture/persistence.md, "Persistence names replace class paths" forbids reusing persistence names and `_layout.py` demands exactly the known tensors, so a new tensor means a new store/shard format revision), written in `_store/_shard.py:finish` next to `inv_norms`/`scales`; a kernel for the sketch score in `_native_kernel_search.h` and `_native_search.pxi`; the two-stage driver in `_search.py`; conformance tests in `tests/test_conformance*.py` (bit-exactness of the final scores plus a randomized test that no true top-k row is pruned). Effort L (tens of hours incl. the numerical argument and tests).
 
 ### 5.5 Exact pruning by clustering (F) [derived; doubtful]
 
@@ -218,4 +218,4 @@ Papers and docs (fetched or searched this session):
 - PipeANN, OSDI 2025: https://www.usenix.org/conference/osdi25/presentation/guo (via search summary; unverified details)
 - Milvus mmap doc: https://milvus.io/docs/mmap.md ; IVF_SQ8 doc: https://milvus.io/docs/ivf-sq8.md
 - Linux man pages: https://man7.org/linux/man-pages/man2/madvise.2.html , https://man7.org/linux/man-pages/man2/posix_fadvise.2.html
-- fse files read: `ARCHITECTURE.md` ("sentence_vectors 1", numerical contract), `src/fse/_store/{_search.py, _shard.py, _layout.py, _vectorstore.py}`, `src/fse/_container/{_common.py, _npy_inplace.py}`; earlier survey `scratchpad/research/vector-db-tricks.md`; toy script `scratchpad/toy_bound.py`.
+- fse files read: docs/architecture/store.md, "sentence_vectors 1" and docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)", `src/fse/_store/{_search.py, _shard.py, _layout.py, _vectorstore.py}`, `src/fse/_container/{_common.py, _npy_inplace.py}`; earlier survey `scratchpad/research/vector-db-tricks.md`; toy script `scratchpad/toy_bound.py`.

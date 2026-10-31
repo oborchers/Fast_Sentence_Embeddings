@@ -1,7 +1,7 @@
 # Included by _native.pyx: The tokenizers and the text lookup.
 
 # ---------------------------------------------------------------------------------------
-# Tokenizers (ARCHITECTURE.md, "Tokenizers"), as in fse._reference_text.
+# Tokenizers (docs/architecture/tokenizers.md, "Tokenizers"), as in fse._reference_text.
 # ---------------------------------------------------------------------------------------
 
 cdef extern from "_native_text.h":

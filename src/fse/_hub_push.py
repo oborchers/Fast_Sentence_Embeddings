@@ -6,7 +6,7 @@
 
 """A model folder pushed to the Hugging Face Hub in exactly one commit, checked after it.
 
-ARCHITECTURE.md, "Hub folders". The repository is read at one commit; every file of the
+docs/architecture/hub.md, "Hub folders". The repository is read at one commit; every file of the
 folder is compared with the file of the same name there by its digest (``lfs.sha256`` of
 an LFS file, else the git blob id): an equal one is left as it is, a different one is
 refused unless ``replace``. License files already there (LICENSE, NOTICE, COPYING) that

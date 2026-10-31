@@ -1,5 +1,4 @@
-"""The bound of the tolerance contract of device backends (ARCHITECTURE.md, "Tolerance
-contract of device backends"), computed from a conformance case, independently of the
+"""The bound of the tolerance contract of device backends (docs/architecture/backends.md, "Tolerance contract of device backends"), computed from a conformance case, independently of the
 backend's own bounds.
 
 After pooling, per row ``||g - c|| <= (TAU + 2 gamma_K) m + DELTA K sqrt(d)``: g the

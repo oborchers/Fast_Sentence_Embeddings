@@ -12,7 +12,7 @@ later row that overflows in pooling would hide an earlier row that cannot be
 normalized. After a task failed, ``earliest`` runs it again on shorter prefixes, by
 bisection, until it has the shortest prefix that fails. Every row is a pure function of
 its sentence, so that prefix fails exactly at its last row, in the first stage that row
-fails in, and its error is the one the run reports (ARCHITECTURE.md, "Runtime",
+fails in, and its error is the one the run reports (docs/architecture/runtime.md, "Runtime",
 Errors). This costs nothing until a task fails, and then about log2 of its rows runs.
 """
 

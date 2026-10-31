@@ -6,7 +6,7 @@
 
 """The runtime of encoding: tasks, the executor, sinks and the pipeline.
 
-ARCHITECTURE.md, "Runtime". Private: PR 5's Encoder builds an EncodeSpec and calls a
+docs/architecture/runtime.md, "Runtime". Private: PR 5's Encoder builds an EncodeSpec and calls a
 Pipeline; the public entry points come with it.
 """
 

@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The read-only tokenizer of a ``StaticModel`` (ARCHITECTURE.md, "model2vec compatibility").
+"""The read-only tokenizer of a ``StaticModel`` (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)").
 
 ``model2vec.StaticModel.tokenizer`` is a ``tokenizers.Tokenizer`` with truncation at the
 model's ``max_length`` and padding off. This facade offers what that object does for the

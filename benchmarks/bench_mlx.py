@@ -9,7 +9,7 @@
 The same texts (Zipf tokens of a 400k vocabulary, 300 dims, 8M tokens) for both backends
 in one process, five rounds alternating the order; the median of each and their ratio
 (the gate is mlx / cpu <= 0.77 at 8 workers). It also prints, for the mlx rows, the
-largest ratio ``||g - c|| / bound`` of the tolerance contract (ARCHITECTURE.md, "MLX"),
+largest ratio ``||g - c|| / bound`` of the tolerance contract (docs/architecture/backends.md, "MLX"),
 whether the rows are bit-equal to the cpu's, the tasks the mlx backend computed on the
 host by reason, and the load average.
 

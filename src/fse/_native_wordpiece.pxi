@@ -1,7 +1,8 @@
 # Included by _native.pyx: wordpiece@1, its state, the greedy match and one sentence.
 
 # ---------------------------------------------------------------------------------------
-# wordpiece@1 (ARCHITECTURE.md, "wordpiece@1"), as in fse._reference_wordpiece: the fast
+# wordpiece@1 (docs/architecture/tokenizers.md, "wordpiece@1"), as in fse._reference_wordpiece:
+# the fast
 # paths, and the generic path of the plain rules for the tests (WordPieceState._generic).
 # ---------------------------------------------------------------------------------------
 

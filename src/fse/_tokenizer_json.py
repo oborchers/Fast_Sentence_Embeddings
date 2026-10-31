@@ -6,7 +6,7 @@
 
 """A BERT ``tokenizer.json`` of Hugging Face tokenizers as the parameters of wordpiece@1.
 
-ARCHITECTURE.md, "Model2Vec models". Only what wordpiece@1 reproduces is accepted, and
+docs/architecture/hub.md, "Model2Vec models and from_pretrained". Only what wordpiece@1 reproduces is accepted, and
 everything else is refused by name: a WordPiece model with a vocabulary of dense ids, a
 BertNormalizer, a BertPreTokenizer, added tokens matched on the raw text (``normalized``,
 ``lstrip``, ``rstrip`` and ``single_word`` false) that are tokens of the vocabulary with

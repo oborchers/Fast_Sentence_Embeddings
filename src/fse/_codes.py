@@ -6,7 +6,7 @@
 
 """Storage formats of 2.0 rows (stage 5): float32, float16 and int8 with a scale per row.
 
-The arithmetic is the one of ARCHITECTURE.md, "Numerical contract", and equals
+The arithmetic is the one of docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)", and equals
 ``fse._reference.quantize_rows`` and ``dequantize`` bit for bit; here it runs in blocks
 of rows, so only one block of temporaries exists, also for memory-mapped targets.
 Only numpy is imported, so the module can be copied into another project.

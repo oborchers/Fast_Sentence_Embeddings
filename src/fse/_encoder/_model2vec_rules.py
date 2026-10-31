@@ -4,8 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""A model read under the rules of model2vec 0.10.0 itself (ARCHITECTURE.md, "model2vec
-compatibility").
+"""A model read under the rules of model2vec 0.10.0 itself (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)").
 
 ``Encoder.from_pretrained`` reads a sentence-transformers repository with the rules of
 sentence-transformers. ``model2vec.StaticModel.from_pretrained`` reads the same repository

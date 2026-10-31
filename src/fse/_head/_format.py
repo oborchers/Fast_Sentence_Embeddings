@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The format rules of linear_head 1 (ARCHITECTURE.md, "linear_head 1").
+"""The format rules of linear_head 1 (docs/architecture/formats.md, "linear_head 1").
 
 A head file is an encoder file (its tensors and keys, unchanged) with ``fse.kind`` and
 ``fse.format_version`` of the head, the ``fse.head.*`` keys, ``fse.encoder_fingerprint``

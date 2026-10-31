@@ -1,4 +1,4 @@
-/* The weighted mean kernel of fse 2.0 (ARCHITECTURE.md, "Numerical contract").
+/* The weighted mean kernel of fse 2.0 (docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)").
 
    Author: Oliver Borchers. Licensed under GNU General Public License v3.0.
 

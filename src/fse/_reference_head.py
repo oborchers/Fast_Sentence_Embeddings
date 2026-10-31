@@ -6,7 +6,7 @@
 
 """The numpy reference of linear heads: ``linear@1``, ``exp@1`` and the links.
 
-ARCHITECTURE.md, "Numerical contract", defines every rule here; this module computes
+docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)", defines every rule here; this module computes
 them bit for bit in plain numpy, as ``fse._reference`` does for the encoder, and is the
 oracle of every CPU backend. A head ``z = A x + b`` (k rows of A, k biases) either folds
 into the table (``fold``: every word and ngram row becomes ``score(row, a_j, 0)``, the

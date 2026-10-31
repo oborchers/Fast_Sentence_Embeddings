@@ -6,7 +6,7 @@
 
 """``fse.enable_logging`` and ``fse.disable_logging``: fse's records on stderr, on request.
 
-fse configures no logging by itself (ARCHITECTURE.md, "Logging"). These two functions are
+fse configures no logging by itself (docs/architecture/logging.md, "Logging"). These two functions are
 the one exception: a handler owned by fse, created once and reused, on the logger "fse".
 They never touch the root logger, the handlers of the application or the levels of the
 loggers below "fse", and they restore only values nobody changed since.

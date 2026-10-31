@@ -6,7 +6,7 @@
 
 """The precompiled charsmap of a SentencePiece normalizer, as tokenizers reads it.
 
-ARCHITECTURE.md, "unigram@1". The blob of spm_precompiled 0.1.4: a little-endian u32
+docs/architecture/tokenizers.md, "unigram@1". The blob of spm_precompiled 0.1.4: a little-endian u32
 ``size``, ``size / 4`` little-endian u32 units of a darts-clone double array, then the
 values, UTF-8 strings each ended by NUL. ``find`` searches the array with the bytes of a
 key and gives the value of the shortest key that is a prefix of them. The blob is checked

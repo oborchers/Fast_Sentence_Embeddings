@@ -12,7 +12,7 @@ prepares one head pipeline on first use: the folded table for a head on raw mean
 folds into the rows, b is added after pooling), the full mean for a head on normalized
 means or when the vectors are asked for. It is saved complete (encoder and head) or
 standalone (the folded table and b; only for heads on raw means), as one
-``.safetensors`` file (ARCHITECTURE.md, "linear_head 1").
+``.safetensors`` file (docs/architecture/formats.md, "linear_head 1").
 """
 
 from __future__ import annotations
@@ -360,7 +360,7 @@ class LinearModel:
         complete or ``standalone``), a ``README.md`` model card of that file with the
         license its encoder records (or ``license`` if it records none) and
         ``extra_files`` (name to local text file, such as LICENSE). ``from_pretrained``
-        reads it. ARCHITECTURE.md, "Hub folders"."""
+        reads it. docs/architecture/hub.md, "Hub folders"."""
 
         def write(file: Path) -> None:
             self.save(file, standalone=standalone)

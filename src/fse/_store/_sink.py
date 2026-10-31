@@ -101,7 +101,8 @@ class ShardSink:
         self._created_by = _created_by()
         # Hashing (in order), writing and publishing (syncs, a rename) in three threads, so
         # the flush of one shard does not stop the hashing and writing of the next. One
-        # thread writes: more gained nothing measurable (ARCHITECTURE.md, "Writing").
+        # thread writes: more gained nothing measurable (docs/architecture/store.md,
+        # "sentence_vectors 1").
         self._hash = WriterThread("fse-shard-hash")
         self._io = WriterThread("fse-shard-write")
         self._publisher = WriterThread("fse-shard-publish")

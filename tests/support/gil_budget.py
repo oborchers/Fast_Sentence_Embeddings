@@ -1,6 +1,6 @@
 """The guard of GIL hand-overs per task (tests/test_runtime_gil.py).
 
-No API of CPython counts acquisitions of the GIL (ARCHITECTURE.md, "Runtime", Tasks), so
+No API of CPython counts acquisitions of the GIL (docs/architecture/runtime.md, "Runtime", Tasks), so
 the guard counts the two ways the worker side of a task gives it up and takes it back:
 
 - fse's own sections without the GIL, which every task-path entry point of fse._native

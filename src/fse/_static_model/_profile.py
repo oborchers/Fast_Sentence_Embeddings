@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The fse encoders a ``StaticModel`` can be (ARCHITECTURE.md, "model2vec compatibility").
+"""The fse encoders a ``StaticModel`` can be (docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)").
 
 A ``StaticModel`` encodes the way model2vec does: it pools the float32 rows of the token ids
 with the unknown id dropped, cuts a text to ``max_length`` tokens of its first

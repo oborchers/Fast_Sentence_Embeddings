@@ -1,4 +1,4 @@
-"""The events of fse at their call sites (ARCHITECTURE.md, "Logging"): artifacts, the Hub
+"""The events of fse at their call sites (docs/architecture/logging.md, "Logging"): artifacts, the Hub
 and the cleanup of temporary files."""
 
 import errno

@@ -7,7 +7,7 @@
 """Arrow string columns as a source: any object that exports one through the PyCapsule
 interface (``__arrow_c_stream__`` or ``__arrow_c_array__``), such as a pyarrow Array or
 ChunkedArray, a pandas 3 Series or a Polars Series, read in place by ``_native`` without
-the GIL (ARCHITECTURE.md, "Text sources").
+the GIL (docs/architecture/text.md, "Text sources").
 
 The whole column is taken over when the source is made, in the calling thread, so its
 rows are known and every row is checked by the scan before the first one is encoded.

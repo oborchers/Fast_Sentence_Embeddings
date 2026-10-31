@@ -1,4 +1,4 @@
-"""The reference of wordpiece@1 (ARCHITECTURE.md, "wordpiece@1").
+"""The reference of wordpiece@1 (docs/architecture/tokenizers.md, "wordpiece@1").
 
 Plain Python on code points that follows the specification step by step and defines the
 ids the native tokenizer must give. It uses the Unicode data of ``fse._unicode_bert`` as the

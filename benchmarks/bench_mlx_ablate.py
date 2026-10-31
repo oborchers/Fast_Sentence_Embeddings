@@ -7,7 +7,7 @@
 """Measure the two scheduling mechanisms of the MLX device thread (DR-178 PR 4, DR-147):
 the lease (the caller copies the rows while the device thread lends the MLX arrays) and
 the two groups in flight, each removed alone and both together (bench_mlx_variants.py),
-on the cells of ARCHITECTURE.md, "Device thread". Apple silicon with Metal only.
+on the cells of docs/architecture/backends.md, "MLX". Apple silicon with Metal only.
 
     uv run --group mlx --with pyarrow python benchmarks/bench_mlx_ablate.py time \\
         --model static-retrieval-mrl-en-v1 --dim 1024 --corpus wikitext --workers 8

@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The tokenizer part of encoder 1 (ARCHITECTURE.md, "encoder 1"): the keys of a tokenizer
+"""The tokenizer part of encoder 1 (docs/architecture/formats.md, "encoder 1"): the keys of a tokenizer
 with parameters, written from and parsed into a TokenizerSpec, and the table it needs.
 Moved from fse._encoder._format, which uses it.
 """

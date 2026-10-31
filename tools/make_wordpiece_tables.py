@@ -1,6 +1,6 @@
 """Generate the Unicode tables of wordpiece@1 from the Unicode Character Database.
 
-The tables are part of the tokenizer contract (ARCHITECTURE.md, "wordpiece@1"): their
+The tables are part of the tokenizer contract (docs/architecture/tokenizers.md, "wordpiece@1"): their
 Unicode versions are fixed (those of Hugging Face tokenizers 0.23.3: categories of 8.0.0,
 normalization of 9.0.0, case and White_Space of 17.0.0), and changing them needs a new
 tokenizer identifier. The script reads five UCD files (each pinned by its sha256) and writes
@@ -397,7 +397,7 @@ def header_source(data) -> str:
    fse_bert_entry(cp) holds the flags below and, above FSE_BERT_SHIFT, the offset of the
    items of cp in fse_bert_pool: a count, then the items (class << 24 | code point, or
    FSE_BERT_BARRIER for a removed mark of class 0). They are steps 3.1 and 3.3 to 3.5 of
-   the code point alone (ARCHITECTURE.md, "wordpiece@1"); CJK and Hangul are flags. The
+   the code point alone (docs/architecture/tokenizers.md, "wordpiece@1"); CJK and Hangul are flags. The
    generator checks that a code point grows to at most 3 times its UTF-8 bytes and that
    only items of class 0 come from a multi-code-point lowercase. */
 #ifndef FSE_NATIVE_UNICODE_BERT_H

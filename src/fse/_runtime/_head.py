@@ -5,7 +5,7 @@
 # Licensed under GNU General Public License v3.0
 
 """Linear heads in the runtime: a head ``z = A x + b`` on the rows of an encoder, in the
-worker of every task (ARCHITECTURE.md, "Runtime"; the rule ``linear@1``).
+worker of every task (docs/architecture/runtime.md, "Runtime"; the rule ``linear@1``).
 
 A head reads the rows of one pipeline (its *reader*): for a head on raw means the
 pipeline of the folded table (every word and ngram row times A, k columns, made once

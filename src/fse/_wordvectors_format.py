@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # Licensed under GNU General Public License v3.0
 
-"""The format rules of word_vectors 1 (ARCHITECTURE.md, "word_vectors 1").
+"""The format rules of word_vectors 1 (docs/architecture/formats.md, "word_vectors 1").
 
 Its keys and tensors, the checks of structure (on every open) and of values (on verify
 and every write), the vocabulary encoding and the FastText parameters. fse._wordvectors

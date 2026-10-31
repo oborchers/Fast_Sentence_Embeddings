@@ -1,6 +1,6 @@
 """Generate the simple lowercase table of fse_words@1 from the Unicode Character Database.
 
-The table is part of the tokenizer contract (ARCHITECTURE.md, "Tokenizers"): its Unicode
+The table is part of the tokenizer contract (docs/architecture/tokenizers.md, "Tokenizers"): its Unicode
 version is fixed, and changing it needs a new tokenizer identifier. The script reads
 ``UnicodeData.txt`` of that version (pinned by its sha256) and writes two files, which are
 checked in and never edited by hand:
