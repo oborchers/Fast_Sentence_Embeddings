@@ -19,7 +19,7 @@ Binding for every 2.0 module (formerly under "2.0 design").
 
 Binding for every 2.0 module (formerly under "2.0 design").
 
-Saved 2.0 artifacts contain no Python class paths. Their persistence API is the set of strings above: `fse.kind` values, identifiers, dtype codes, tensor and metadata names. From the first 2.0 release on, these are never renamed or reused with another meaning; before it, names that are no longer needed are removed, not reserved, and artifacts of a pre-release that hold them are refused (maintainer decision of 29.10.2026). The public Python API is `fse.__all__`; private modules (with a leading underscore) may move freely.
+Saved 2.0 artifacts contain no Python class paths. Their persistence API is the set of strings in [Artifacts](formats.md#artifacts) and [Identifiers and versions](#identifiers-and-versions): `fse.kind` values, identifiers, dtype codes, tensor and metadata names. From the first 2.0 release on, these are never renamed or reused with another meaning; before it, names that are no longer needed are removed, not reserved, and artifacts of a pre-release that hold them are refused (maintainer decision of 29.10.2026). The public Python API is `fse.__all__`; private modules (with a leading underscore) may move freely.
 
 ## Migration
 
