@@ -159,5 +159,5 @@ def test_written_by_sentence_transformers_and_refused(tmp_path):
     linear = Dense(st.DIM, 4, activation_function=nn.Identity())
     with pytest.raises(UnsupportedArtifactError, match="Dense module"):
         Encoder.from_pretrained(save("dense", linear))
-    with pytest.raises(UnsupportedArtifactError, match="no static embedding model"):
+    with pytest.raises(UnsupportedArtifactError, match="Dense module"):
         Encoder.from_pretrained(save("tanh", Dense(st.DIM, 4, activation_function=nn.Tanh())))

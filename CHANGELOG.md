@@ -51,6 +51,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 - The only dependencies are numpy, pydantic, xxhash (`xxhash>=3.2.0`) and huggingface-hub (`huggingface-hub>=1.0`, imported only when a model of the Hub is loaded, so `import fse` stays as fast as without it). scipy, smart_open, wordfreq, psutil and threadpoolctl are no longer needed.
 - The scan of a file, a string collection or an Arrow column, which validates the UTF-8 and cuts the chunks, no longer counts the tokens and empty sentences it never used; it returns only the sentences, chunks and the first invalid sentence. No result, error message or chunk changes.
 - The MLX backend no longer computes an error bound after `normalize@1` that nothing read; the check that sends rows to the CPU is unchanged.
+- A sentence-transformers model with a Dense module after its StaticEmbedding is refused as "the model has a Dense module" whatever its activation or config, without reading the folder or `config.json` of the module (a Dense module with an activation, or without a config, said "no static embedding model" before). A Dense module with a broken `config.json` or an invalid `path` raises `UnsupportedArtifactError`, not `CorruptArtifactError`, and one file fewer is fetched from the Hub.
 
 ### Removed
 
