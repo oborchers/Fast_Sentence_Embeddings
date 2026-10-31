@@ -30,6 +30,7 @@ from fse._container import CorruptArtifactError
 
 _STR = "tag:yaml.org,2002:str"
 _NULL = "tag:yaml.org,2002:null"
+_MAP = "tag:yaml.org,2002:map"
 _MERGE = "tag:yaml.org,2002:merge"
 _SEQ = "tag:yaml.org,2002:seq"
 _KINDS = ((MappingNode, "mapping"), (SequenceNode, "list"), (ScalarNode, "scalar"))
@@ -38,12 +39,12 @@ _KINDS = ((MappingNode, "mapping"), (SequenceNode, "list"), (ScalarNode, "scalar
 def front_matter_text(text: str) -> str | None:
     """The lines between the first two lines ``---`` of a card, or None for a card
     without a closed front matter."""
-    lines = text.splitlines()
+    lines = text.splitlines(keepends=True)  # the text itself, not a rejoined one
     if not lines or lines[0].rstrip() != "---":
         return None
     for k, line in enumerate(lines[1:], start=1):
         if line.rstrip() in ("---", "..."):
-            return "\n".join(lines[1:k])
+            return "".join(lines[1:k])
     return None
 
 
@@ -62,9 +63,14 @@ def front_matter(data: bytes, path: Path, keys: tuple[str, ...]) -> dict[str, An
         root = loader.get_single_node()
         if root is None or (isinstance(root, ScalarNode) and root.tag == _NULL):
             return found
-        if not isinstance(root, MappingNode):
+        if not isinstance(root, MappingNode) or root.tag != _MAP:
             raise CorruptArtifactError(
                 f"{path}: the front matter must be a YAML mapping, not {_kind(root)}"
+                + (
+                    ""
+                    if root.tag == _MAP or not isinstance(root, MappingNode)
+                    else f" tagged {root.tag}"
+                )
             )
         for key in keys:
             node = _value_node(root, key, path)

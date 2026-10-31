@@ -31,10 +31,10 @@ def _raises(tmp_path, front, match=None, keys=KEYS):
 @pytest.mark.parametrize(
     ("text", "want"),
     [
-        ("---\na: b\n---\nbody", "a: b"),
-        ("---\na: b\n...\nbody", "a: b"),
-        ("---   \na: b\n---  \n", "a: b"),
-        ("---\r\na: b\r\n---\r\n", "a: b"),
+        ("---\na: b\n---\nbody", "a: b\n"),
+        ("---\na: b\n...\nbody", "a: b\n"),
+        ("---   \na: b\n---  \n", "a: b\n"),
+        ("---\r\na: b\r\n---\r\n", "a: b\r\n"),
         ("---\n---\n", ""),
         ("---\na: b\n", None),  # not closed: no front matter
         ("a: b\n---\n", None),
@@ -82,6 +82,23 @@ def test_a_front_matter_of_another_form_than_a_mapping_raises(tmp_path):
     _raises(tmp_path, "- mit", "must be a YAML mapping, not list")
     _raises(tmp_path, "mit", "must be a YAML mapping, not scalar")
     _raises(tmp_path, "[a, b]", "must be a YAML mapping, not list")
+
+
+@pytest.mark.parametrize(
+    "tagged", ["!!set {license: mit}", "!!str {license: mit}", "!!omap {license: mit}"]
+)
+def test_a_root_of_another_tag_than_a_mapping_raises(tmp_path, tagged):
+    _raises(tmp_path, tagged, "must be a YAML mapping")
+
+
+@pytest.mark.parametrize("char", ["\x0b", "\x0c", "\x1c", "\x85", "\u2028"])
+def test_a_line_separator_is_not_turned_into_a_line_end(tmp_path, char):
+    """str.splitlines splits at more than YAML's line ends; the text is kept as it is."""
+    front = f"license: mit{char}"
+    if char in ("\x85", "\u2028"):  # YAML line breaks as well
+        assert _read(tmp_path, front)["license"] == "mit"
+    else:
+        _raises(tmp_path, front, "cannot read as YAML")
 
 
 @pytest.mark.parametrize("merge", ["<<: {a: b}", "<<: [{a: b}]", "x: &x {a: b}\n<<: *x"])
