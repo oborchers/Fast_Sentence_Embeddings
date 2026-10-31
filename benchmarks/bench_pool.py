@@ -122,14 +122,19 @@ def summary(done: Rounds) -> dict:
         return out
     aa, reuse = ratios["control"], ratios["reuse"]
     low, high = min(1.0, min(aa), 1 / max(aa)), max(1.0, max(aa), 1 / min(aa))
+    eligible = len(done.kept) >= 3
+    peaks = {n: max(r["peak_rss_bytes"] for r in done.results(n)) / 2**20 for n in SIDES}
     return out | {
+        "eligible": eligible,
+        "rss_ratio": peaks["reuse"] / peaks["base"],
+        "rss_ok": peaks["reuse"] <= 1.05 * peaks["base"],
         "median_ms": {
             n: 1000 * statistics.median([value(r) for r in done.results(n)]) for n in SIDES
         },
         "peak_mib": {n: max(r["peak_rss_bytes"] for r in done.results(n)) / 2**20 for n in SIDES},
-        "gain": statistics.median(reuse) <= 0.97,
-        "beyond_noise": max(reuse) < low,
-        "regression_beyond_noise": min(reuse) > high,
+        "gain": eligible and statistics.median(reuse) <= 0.97,
+        "beyond_noise": eligible and max(reuse) < low,
+        "regression_beyond_noise": eligible and min(reuse) > high,
         "noise_bounds": [low, high],
     }
 

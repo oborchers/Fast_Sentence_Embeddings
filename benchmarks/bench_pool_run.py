@@ -53,6 +53,10 @@ def measure(pipeline: Any, requests: list[list[str]], workers: int, side: str, p
     Startup is the wall time to create and rendezvous all idle workers, not the
     per-call ramp nor an attribution of reuse's total gain to startup alone.
     """
+    from fse._runtime._tasks import INLINE_MAX_BYTES
+    from fse._text import StringSource
+
+    inline = sum(StringSource(r).nbytes <= INLINE_MAX_BYTES for r in requests)
     reuse = Reuse()
     startup = 0.0
     if side == "reuse":
@@ -77,4 +81,11 @@ def measure(pipeline: Any, requests: list[list[str]], workers: int, side: str, p
             raise RuntimeError("last timed call changed output bits")
     finally:
         reuse.close()
-    return {"seconds_per_call": times, "startup_seconds": startup, "calls": passes * len(requests)}
+    return {
+        "seconds_per_call": times,
+        "startup_seconds": startup,
+        "calls": passes * len(requests),
+        "requests_inline": inline,
+        "requests": len(requests),
+        "texts_per_call": [min(map(len, requests)), max(map(len, requests))],
+    }
