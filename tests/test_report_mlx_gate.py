@@ -45,9 +45,18 @@ def test_replay_uses_pass_minima_then_paired_ratios_and_keeps_load_groups(report
 
 
 @pytest.mark.parametrize(
-    "change", ["load", "observations", "side", "duration", "round", "restart", "fallback"]
+    ("change", "message"),
+    [
+        ("load", "missing or invalid accepted load observations"),
+        ("observations", "missing or invalid accepted load observations"),
+        ("side", "missing or unexpected paired/A/A side"),
+        ("duration", "invalid pass count or duration"),
+        ("round", "three distinct paired rounds"),
+        ("restart", "incomplete correctness, restart or GPU evidence"),
+        ("fallback", "incomplete correctness, restart or GPU evidence"),
+    ],
 )
-def test_replay_refuses_incomplete_or_invalid_acceptance(report, cell, change):
+def test_replay_refuses_incomplete_or_invalid_acceptance(report, cell, change, message):
     if change == "load":
         cell["pairs"][0]["load"] = [4, 5]
     elif change == "observations":
@@ -62,7 +71,7 @@ def test_replay_refuses_incomplete_or_invalid_acceptance(report, cell, change):
         cell["restart"] = False
     else:
         cell["parity"]["observed_run_fallback_events"] = {"unexpected": 1}
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=message):
         report.summarize_cell(cell, 5, 10)
 
 
