@@ -50,7 +50,7 @@ def pair():
 
 
 @pytest.mark.parametrize(
-    "field,value",
+    ("field", "value"),
     [
         ("complete", False),
         ("runtime_attributed", False),
@@ -63,7 +63,7 @@ def pair():
 def test_unqualified_measurements_fail(field, value):
     sample = row()
     sample[field] = value
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="complete|variation|identity|rounds|finite"):
         PANEL["measured"](sample)
 
 
@@ -95,10 +95,10 @@ def test_speedup_preserves_round_pairing():
 def test_compact_table_requires_ten_workers_and_all_precisions():
     rows = [row(dtype=dtype, workers=10) for dtype in PANEL["DTYPES"]]
     assert "| int8 | 200 |" in PANEL["table"](rows)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="all three"):
         PANEL["table"](rows[:2])
     rows[-1]["context"]["workers"] = 1
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="same comparison context"):
         PANEL["table"](rows)
 
 
@@ -124,7 +124,7 @@ def test_empty_data_publishes_nothing_and_invalid_pair_writes_nothing(tmp_path):
     bad["output_checked"] = False
     data["comparisons"] = [bad]
     data["comparison_caption"] = "test caption"
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Output"):
         PANEL["publish"](data, tmp_path, palette)
     assert list(tmp_path.iterdir()) == []
 
