@@ -42,7 +42,7 @@ With fewer output scores than vector values, the folded table has shorter rows.
 
 A complete fse classifier already prepares this folded path where legal. Saving standalone preserves the folded table.
 It is not a separate faster prediction algorithm and is not plotted as a speedup.
-Sources: `src/fse/_runtime/_head.py` (`prepare`, `fold`, `HeadPipeline`) and `src/fse/_head/_model.py` (`save`, `_standalone_artifact`).
+Sources: `src/fse/_runtime/_head.py` (`make_head`, `fold`, `HeadPipeline`) and `src/fse/_head/_model.py` (`save`, `_standalone_artifact`).
 
 No controlled classifier rates are published yet. The next panel will use committed DR-151 classifier records,
 with the exact trained head, normalization, dataset, machine, date and worker count from each row.

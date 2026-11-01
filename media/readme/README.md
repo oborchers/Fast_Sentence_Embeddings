@@ -37,7 +37,7 @@ The shorter-score-list explanation is conditional on fewer scores than input vec
 The standalone file stores that same folded table. It is not plotted as a separate faster algorithm.
 No controlled classification rates are published yet, so this figure has no rate, multiplier or timing bars.
 
-Architecture sources: `src/fse/_runtime/_head.py` (`prepare`, `fold`, `HeadPipeline`),
+Architecture sources: `src/fse/_runtime/_head.py` (`make_head`, `fold`, `HeadPipeline`),
 `src/fse/_head/_model.py` (`save`, `_standalone_artifact`), and `docs/architecture/overview.md` (stage4b and finished tables).
 The next measured panel will use committed classifier rows from DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen),
 with exact head, normalization, dataset, machine, workers, date and a symmetric A/A upper band at most1.10.
