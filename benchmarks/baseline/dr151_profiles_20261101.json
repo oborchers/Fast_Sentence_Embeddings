@@ -20,7 +20,10 @@
       "valid": true,
       "use": "instrumented CPU/memory diagnostic, never throughput evidence",
       "commit": "0de9c3ddc66722581722a5ed732a78cb19b6fe19",
-      "raw_directory": "benchmarks/baseline/results/dr151-profiles/cpu-fse"
+      "raw_directory": "benchmarks/baseline/results/dr151-profiles/cpu-fse",
+      "runtime_identity_status": "historical fse observation without executed-runtime content hash",
+      "final_runtime_attribution_valid": false,
+      "valid_field_scope": "original execution and endpoint-load checks only; runtime attribution is separate"
     },
     {
       "event": "profile_finished",
@@ -42,7 +45,10 @@
       "valid": true,
       "use": "instrumented CPU/memory diagnostic, never throughput evidence",
       "commit": "0de9c3ddc66722581722a5ed732a78cb19b6fe19",
-      "raw_directory": "benchmarks/baseline/results/dr151-profiles/mem-fse"
+      "raw_directory": "benchmarks/baseline/results/dr151-profiles/mem-fse",
+      "runtime_identity_status": "historical fse observation without executed-runtime content hash",
+      "final_runtime_attribution_valid": false,
+      "valid_field_scope": "original execution and endpoint-load checks only; runtime attribution is separate"
     },
     {
       "event": "profile_finished",
@@ -65,7 +71,10 @@
       "use": "instrumented CPU/memory diagnostic, never throughput evidence",
       "commit": "0de9c3ddc66722581722a5ed732a78cb19b6fe19",
       "raw_directory": "benchmarks/baseline/results/dr151-profiles/rss-fse",
-      "peak_process_tree_rss_bytes": 231424000
+      "peak_process_tree_rss_bytes": 231424000,
+      "runtime_identity_status": "historical fse observation without executed-runtime content hash",
+      "final_runtime_attribution_valid": false,
+      "valid_field_scope": "original execution and endpoint-load checks only; runtime attribution is separate"
     },
     {
       "event": "profile_finished",
@@ -87,7 +96,11 @@
       "valid": true,
       "use": "instrumented CPU/memory diagnostic, never throughput evidence",
       "commit": "0de9c3ddc66722581722a5ed732a78cb19b6fe19",
-      "raw_directory": "benchmarks/baseline/results/dr151-profiles/cpu-model2vec"
+      "raw_directory": "benchmarks/baseline/results/dr151-profiles/cpu-model2vec",
+      "runtime_identity_status": "counterpart own code identity not captured; recorded fse path/hash cannot identify this backend",
+      "final_runtime_attribution_valid": false,
+      "required_action": "re-measure with backend-specific runtime identity",
+      "valid_field_scope": "original execution and endpoint-load checks only; runtime attribution is separate"
     }
   ],
   "scope": "instrumented end-to-end diagnostics, never throughput or cost estimates"

@@ -25,7 +25,10 @@
       "raw": "benchmarks/baseline/results/dr151-profiles-current/window5-cpu-fse",
       "measured_child_commit": "6e7fc5e6454f41614bb0fe99f1141801ddab2251",
       "runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
-      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py"
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+      "runtime_identity_status": "fse runtime captured",
+      "final_runtime_attribution_valid": true,
+      "valid_field_scope": "original execution and endpoint-load checks only; runtime attribution is separate"
     },
     {
       "event": "profile_finished",
@@ -50,7 +53,10 @@
       "raw": "benchmarks/baseline/results/dr151-profiles-current/window5-mem-fse",
       "measured_child_commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c",
       "runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
-      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py"
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+      "runtime_identity_status": "fse runtime captured",
+      "final_runtime_attribution_valid": true,
+      "valid_field_scope": "original execution and endpoint-load checks only; runtime attribution is separate"
     },
     {
       "event": "profile_finished",
@@ -76,7 +82,10 @@
       "measured_child_commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c",
       "runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
       "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
-      "process_tree_peak_rss_bytes": 219332608
+      "process_tree_peak_rss_bytes": 219332608,
+      "runtime_identity_status": "fse runtime captured",
+      "final_runtime_attribution_valid": true,
+      "valid_field_scope": "original execution and endpoint-load checks only; runtime attribution is separate"
     },
     {
       "event": "profile_finished",
@@ -101,7 +110,11 @@
       "raw": "benchmarks/baseline/results/dr151-profiles-current/window5-cpu-model2vec",
       "measured_child_commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c",
       "runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
-      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py"
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+      "runtime_identity_status": "counterpart own code identity not captured; recorded fse path/hash cannot identify this backend",
+      "final_runtime_attribution_valid": false,
+      "required_action": "re-measure with backend-specific runtime identity",
+      "valid_field_scope": "original execution and endpoint-load checks only; runtime attribution is separate"
     }
   ],
   "note": "Instrumented diagnostics, never throughput or cost evidence. Reject any endpoint load at least5. Child commit is the measured source; outer orchestration commit is retained separately."
