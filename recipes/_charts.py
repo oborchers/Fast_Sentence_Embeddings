@@ -79,8 +79,86 @@ STORIES = {
 }
 
 
+def transport_diagram(theme):
+    colors = PALETTES[theme]
+    fig, ax = plt.subplots(figsize=(12, 3.5), facecolor=colors["bg"])
+    ax.set(xlim=(0, 12), ylim=(0, 3.5))
+    ax.axis("off")
+    ax.text(
+        0.4,
+        3.1,
+        "TWO SEPARATE COSTS: ENCODING AND TRANSPORT",
+        color=colors["accent"],
+        fontsize=11,
+        weight="bold",
+    )
+    nodes = [
+        (0.4, 1.3, "Text in your app", "Already in memory"),
+        (4.4, 2.1, "Encode locally", "Direct function call"),
+        (4.4, 0.5, "Request HTTP", "Separate measurement"),
+        (8.4, 2.1, "Vector in memory", "No transfer needed"),
+        (8.4, 0.5, "Fixed JSON vector", "No encoding on server"),
+    ]
+    for x, y, label, detail in nodes:
+        ax.add_patch(
+            FancyBboxPatch(
+                (x, y),
+                2.8,
+                0.6,
+                boxstyle="round,pad=0.12",
+                facecolor=colors["card"],
+                edgecolor=colors["accent"],
+            )
+        )
+        ax.text(
+            x + 1.4,
+            y + 0.3,
+            label,
+            ha="center",
+            va="center",
+            color=colors["text"],
+            fontsize=11,
+            weight="bold",
+        )
+        ax.text(x + 1.4, y - 0.35, detail, ha="center", color=colors["muted"], fontsize=10)
+    for start, end in [
+        ((3.4, 1.7), (4.2, 2.4)),
+        ((3.4, 1.5), (4.2, 0.8)),
+        ((7.4, 2.4), (8.2, 2.4)),
+        ((7.4, 0.8), (8.2, 0.8)),
+    ]:
+        ax.add_patch(
+            FancyArrowPatch(
+                start,
+                end,
+                arrowstyle="-|>",
+                mutation_scale=14,
+                color=colors["accent"],
+                linewidth=1.5,
+            )
+        )
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    path = MEDIA / f"07-local-compute-and-http-{theme}.svg"
+    fig.savefig(path, facecolor=fig.get_facecolor())
+    plt.close(fig)
+    if theme == "light":
+        adaptive_svg(path, MEDIA / "07-local-compute-and-http.svg")
+
+
+def recipe_icon(name):
+    colors = PALETTES["light"]
+    number = name[:2]
+    source = MEDIA / f"{name}-icon.svg"
+    source.write_text(f'''<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+<defs></defs><rect x="2" y="2" width="60" height="60" rx="14" fill="{colors["highlight"].lower()}"/>
+<text x="32" y="42" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="bold" fill="{colors["accent"].lower()}">{number}</text></svg>''')
+    adaptive_svg(source, source)
+
+
 def diagram(name, theme):
     """Draw a self-contained flow readable on either GitHub background."""
+    if name == "07-local-compute-and-http":
+        return transport_diagram(theme)
     colors = PALETTES[theme]
     caption, labels, details = STORIES[name]
     with plt.rc_context({"font.family": "DejaVu Sans", "svg.fonttype": "none"}):
@@ -188,5 +266,6 @@ def speed_chart(results):
 
 if __name__ == "__main__":
     for story in STORIES:
+        recipe_icon(story)
         for variant in PALETTES:
             diagram(story, variant)
