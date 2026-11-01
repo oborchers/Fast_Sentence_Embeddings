@@ -3,8 +3,8 @@
   "evidence_commit": "ae79c80c5736706a1e39df2f69a18e5801ae82d3",
   "archive_files": 456,
   "archive_bytes": 67499492,
-  "removed_master_copies": 367,
-  "removed_master_canonical_bytes": 60624803,
+  "removed_master_copies": 359,
+  "removed_master_canonical_bytes": 60326446,
   "archive_verified_by_size_and_sha256": true,
   "csv_worktree_byte_variants_preserved": 2,
   "review_checkouts_removed": 3,
@@ -13,5 +13,17 @@
   "duplicate_profile_bytes_removed": 2706246,
   "duplicate_profile_files_removed": 5,
   "shared_caches_deleted": false,
-  "note": "Results and reports are preserved on the pushed orphan evidence branch. Allocated file sizes are not an isolated measurement of physical APFS free-space gain."
+  "note": "Results and reports are preserved on the pushed orphan evidence branch. Allocated file sizes are not an isolated measurement of physical APFS free-space gain.",
+  "temporarily_removed_master_copies": 367,
+  "historical_1_1_baselines_restored_unchanged": 8,
+  "historical_1_1_baselines_retained_on_master": [
+    "benchmarks/baseline/results/lifecycle-1.1.0-m1pro-sif-float32.json",
+    "benchmarks/baseline/results/lifecycle-1.1.0-m1pro-sif-int8.json",
+    "benchmarks/baseline/results/mteb-1.1.0.jsonl",
+    "benchmarks/baseline/results/neighbors-1.1.0.npz",
+    "benchmarks/baseline/results/numerics-1.1.0.json",
+    "benchmarks/baseline/results/sts-1.1.0.csv",
+    "benchmarks/baseline/results/train-1.1.0-m1pro.json",
+    "benchmarks/baseline/results/train-dtypes-1.1.0-m1pro.json"
+  ]
 }

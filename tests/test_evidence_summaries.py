@@ -76,4 +76,14 @@ def test_raw_results_are_not_tracked_on_the_code_branch():
     )
     if done.returncode:
         pytest.skip("Git metadata unavailable in this source distribution")
-    assert not done.stdout.strip(), "Raw evidence belongs on benchmark-evidence-2.0"
+    expected = {
+        "lifecycle-1.1.0-m1pro-sif-float32.json",
+        "lifecycle-1.1.0-m1pro-sif-int8.json",
+        "mteb-1.1.0.jsonl",
+        "neighbors-1.1.0.npz",
+        "numerics-1.1.0.json",
+        "sts-1.1.0.csv",
+        "train-1.1.0-m1pro.json",
+        "train-dtypes-1.1.0-m1pro.json",
+    }
+    assert {Path(name).name for name in done.stdout.splitlines()} == expected
