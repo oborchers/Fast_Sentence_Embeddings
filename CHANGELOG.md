@@ -12,6 +12,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 - `MemorySink` accepts positive numpy integer dimensions, matching the public integer validation contract. Booleans, floats and nonpositive dimensions remain errors.
 
+- Classifier predictions preserve trailing NUL characters in string labels, using an object array when needed. Labels without a valid UTF-8 representation raise at construction.
+
 - Removed the MLX backend before 2.0 because its maintenance cost brought no useful benefit. CPU and numpy remain available.
 
 - `ShardSink` accepts `durability="full"` (default) or `"none"`. The latter skips shard syncs and tags every published shard, including on Windows; store creation stays fully synced. `published_rows` counts visible rows under both policies, while `durable_rows` stays zero under "none". A final full-publication sync failure counts as published but not durable. Sink logs include the new counts and policy; `dropped_rows` counts committed rows that were not published.
