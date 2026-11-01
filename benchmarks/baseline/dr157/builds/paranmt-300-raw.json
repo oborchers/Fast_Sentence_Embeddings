@@ -1,0 +1,29 @@
+{
+  "repo": "fse/paranmt-300-raw",
+  "method": "raw",
+  "dtype": "float32",
+  "source": "fse/paranmt-300",
+  "revision": "a08e15771891207a22f840a3091a00a1657d888b",
+  "fingerprint": "xxh3-128:f870e4619c3e5dd082be1809d1fb7786",
+  "float32_fingerprint": "xxh3-128:f870e4619c3e5dd082be1809d1fb7786",
+  "float32_table_fingerprint": "xxh3-128:d0457b3eb8b4213d26d2056fa52cf0cf",
+  "files": {
+    "README.md": {
+      "bytes": 3133,
+      "xxh3": "xxh3-128:a11f5dc6b6481689ed107d4baa474014"
+    },
+    "config.json": {
+      "bytes": 199,
+      "xxh3": "xxh3-128:acb102c30c679aa47089087f6788a447"
+    },
+    "model.safetensors": {
+      "bytes": 93858331,
+      "xxh3": "xxh3-128:0319fa9e4e0e33533a70c3d18192ee32"
+    },
+    ".gitattributes": {
+      "bytes": 50,
+      "xxh3": "xxh3-128:e9698ced04172f96a3a59e08cf7c3cb3"
+    }
+  },
+  "card_recipe": "fse-classic-card@1"
+}

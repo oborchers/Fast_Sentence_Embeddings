@@ -1,0 +1,29 @@
+{
+  "repo": "fse/word2vec-google-news-300-raw-float16",
+  "method": "raw",
+  "dtype": "float16",
+  "source": "fse/word2vec-google-news-300",
+  "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
+  "fingerprint": "xxh3-128:4fbe512db126cfe88b7daa8ef5440a7c",
+  "float32_fingerprint": "xxh3-128:64e4ef70aca1f497f7173a33764825dd",
+  "float32_table_fingerprint": "xxh3-128:82ba9ce3dc01894279dccda982d3ae83",
+  "files": {
+    "README.md": {
+      "bytes": 3335,
+      "xxh3": "xxh3-128:80de6a56658ebd2ec2885f1f62f0e4b8"
+    },
+    "config.json": {
+      "bytes": 199,
+      "xxh3": "xxh3-128:60d572479313aa9937f6c0c69087e298"
+    },
+    "model.safetensors": {
+      "bytes": 1865259670,
+      "xxh3": "xxh3-128:1b122a7153310d7e4df7ebe75f5abc7f"
+    },
+    ".gitattributes": {
+      "bytes": 50,
+      "xxh3": "xxh3-128:e9698ced04172f96a3a59e08cf7c3cb3"
+    }
+  },
+  "card_recipe": "fse-classic-card@1"
+}

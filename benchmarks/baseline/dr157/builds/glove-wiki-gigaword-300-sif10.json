@@ -1,0 +1,33 @@
+{
+  "repo": "fse/glove-wiki-gigaword-300-sif10",
+  "method": "sif10",
+  "dtype": "float32",
+  "source": "fse/glove-wiki-gigaword-300",
+  "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
+  "fingerprint": "xxh3-128:74dd7999a3a145152105dcbb1b6dba53",
+  "float32_fingerprint": "xxh3-128:74dd7999a3a145152105dcbb1b6dba53",
+  "float32_table_fingerprint": "xxh3-128:a528d399d7e9d11cf5ebec5f45e668d7",
+  "files": {
+    "README.md": {
+      "bytes": 4350,
+      "xxh3": "xxh3-128:559767d4945191554f64244ddc8cd2e9"
+    },
+    "config.json": {
+      "bytes": 199,
+      "xxh3": "xxh3-128:f778743a38e4da3c43bfb1dd7798c171"
+    },
+    "model.safetensors": {
+      "bytes": 486157506,
+      "xxh3": "xxh3-128:145490ab6dba7a338ba3a7d487cb9077"
+    },
+    "preparation.json": {
+      "bytes": 1309,
+      "xxh3": "xxh3-128:30b4dea1197c438b70dab9be2e76a49d"
+    },
+    ".gitattributes": {
+      "bytes": 50,
+      "xxh3": "xxh3-128:e9698ced04172f96a3a59e08cf7c3cb3"
+    }
+  },
+  "card_recipe": "fse-classic-card@1"
+}

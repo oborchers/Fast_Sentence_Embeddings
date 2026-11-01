@@ -1,0 +1,33 @@
+{
+  "repo": "fse/word2vec-google-news-300-sif10",
+  "method": "sif10",
+  "dtype": "float32",
+  "source": "fse/word2vec-google-news-300",
+  "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
+  "fingerprint": "xxh3-128:d56902a9d7d77240e264aa99f4d2cf00",
+  "float32_fingerprint": "xxh3-128:d56902a9d7d77240e264aa99f4d2cf00",
+  "float32_table_fingerprint": "xxh3-128:d978a501f78756a2f85d6e72fb7835d8",
+  "files": {
+    "README.md": {
+      "bytes": 4476,
+      "xxh3": "xxh3-128:6084bac49d03a1d1336baaf78772b285"
+    },
+    "config.json": {
+      "bytes": 199,
+      "xxh3": "xxh3-128:1d2a75c6cfc35fa937edc0154d43e71c"
+    },
+    "model.safetensors": {
+      "bytes": 3665259542,
+      "xxh3": "xxh3-128:c07efc677ece6489996cc6ed2367698f"
+    },
+    "preparation.json": {
+      "bytes": 1310,
+      "xxh3": "xxh3-128:a2e7541542bc4c4f5b081849f11bd185"
+    },
+    ".gitattributes": {
+      "bytes": 50,
+      "xxh3": "xxh3-128:e9698ced04172f96a3a59e08cf7c3cb3"
+    }
+  },
+  "card_recipe": "fse-classic-card@1"
+}

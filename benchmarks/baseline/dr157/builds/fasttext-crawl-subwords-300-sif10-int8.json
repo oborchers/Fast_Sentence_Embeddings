@@ -1,0 +1,33 @@
+{
+  "repo": "fse/fasttext-crawl-subwords-300-sif10-int8",
+  "method": "sif10",
+  "dtype": "int8",
+  "source": "fse/fasttext-crawl-subwords-300",
+  "revision": "552b66a16850576275f894ed738f9e953b45a594",
+  "fingerprint": "xxh3-128:075213b2d66190094fb9dc35b84e2f35",
+  "float32_fingerprint": "xxh3-128:a5ef569a2957cb24870f87d52432f56f",
+  "float32_table_fingerprint": "xxh3-128:1f07655fb868118fcf327209bf91e562",
+  "files": {
+    "README.md": {
+      "bytes": 5007,
+      "xxh3": "xxh3-128:53f09ef47c1e1263218651e47ae9cc2c"
+    },
+    "config.json": {
+      "bytes": 199,
+      "xxh3": "xxh3-128:115130800a0f05d155bf30502f8e454e"
+    },
+    "model.safetensors": {
+      "bytes": 1247846930,
+      "xxh3": "xxh3-128:25f2cf2e3af3ca464d27d7396b525c9d"
+    },
+    "preparation.json": {
+      "bytes": 1313,
+      "xxh3": "xxh3-128:44ab19c45de2431ff8e302712e4bba4e"
+    },
+    ".gitattributes": {
+      "bytes": 50,
+      "xxh3": "xxh3-128:e9698ced04172f96a3a59e08cf7c3cb3"
+    }
+  },
+  "card_recipe": "fse-classic-card@1"
+}

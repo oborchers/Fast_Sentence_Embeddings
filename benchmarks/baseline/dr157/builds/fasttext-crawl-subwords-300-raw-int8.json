@@ -1,0 +1,29 @@
+{
+  "repo": "fse/fasttext-crawl-subwords-300-raw-int8",
+  "method": "raw",
+  "dtype": "int8",
+  "source": "fse/fasttext-crawl-subwords-300",
+  "revision": "552b66a16850576275f894ed738f9e953b45a594",
+  "fingerprint": "xxh3-128:f67baa976b632633617f4958856214b8",
+  "float32_fingerprint": "xxh3-128:4d9f5f4df07caebb5960acdaf7fddaa6",
+  "float32_table_fingerprint": "xxh3-128:a7775dd2c0333965666defe0d670ea8e",
+  "files": {
+    "README.md": {
+      "bytes": 3514,
+      "xxh3": "xxh3-128:db45ee49859736c3837dbf371e2cb6ac"
+    },
+    "config.json": {
+      "bytes": 199,
+      "xxh3": "xxh3-128:ceefe9f5a9c8deb4bed39233639ea158"
+    },
+    "model.safetensors": {
+      "bytes": 1247846930,
+      "xxh3": "xxh3-128:b75e7fcf134dd82cb551abb3c0faeb70"
+    },
+    ".gitattributes": {
+      "bytes": 50,
+      "xxh3": "xxh3-128:e9698ced04172f96a3a59e08cf7c3cb3"
+    }
+  },
+  "card_recipe": "fse-classic-card@1"
+}

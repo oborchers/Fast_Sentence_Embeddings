@@ -1,0 +1,33 @@
+{
+  "repo": "fse/word2vec-google-news-300-sif10-int8",
+  "method": "sif10",
+  "dtype": "int8",
+  "source": "fse/word2vec-google-news-300",
+  "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
+  "fingerprint": "xxh3-128:06ce76785b6c401587536055650438bd",
+  "float32_fingerprint": "xxh3-128:d56902a9d7d77240e264aa99f4d2cf00",
+  "float32_table_fingerprint": "xxh3-128:d978a501f78756a2f85d6e72fb7835d8",
+  "files": {
+    "README.md": {
+      "bytes": 4851,
+      "xxh3": "xxh3-128:4d4b4f79b1c0df3a0eaa4d0e2127a99a"
+    },
+    "config.json": {
+      "bytes": 199,
+      "xxh3": "xxh3-128:2df4b1a30819c5ae0565700d59d4082d"
+    },
+    "model.safetensors": {
+      "bytes": 977259798,
+      "xxh3": "xxh3-128:16e02c9c2cf1abc36521e481bcc874d6"
+    },
+    "preparation.json": {
+      "bytes": 1310,
+      "xxh3": "xxh3-128:a2e7541542bc4c4f5b081849f11bd185"
+    },
+    ".gitattributes": {
+      "bytes": 50,
+      "xxh3": "xxh3-128:e9698ced04172f96a3a59e08cf7c3cb3"
+    }
+  },
+  "card_recipe": "fse-classic-card@1"
+}

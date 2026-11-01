@@ -9,7 +9,9 @@
       "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
       "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
       "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
-    }
+    },
+    "preprocessing_recipe": "fse_1x_nltk@1",
+    "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
   },
   "task": "NanoSciFactRetrieval",
   "dataset": {
@@ -18,5 +20,7 @@
   },
   "main_score": 0.427,
   "main_score_name": "ndcg_at_10",
-  "mteb_version": "2.26.25"
+  "mteb_version": "2.26.25",
+  "mteb_adapter_recipe": "fse_classic_mteb@1",
+  "mteb_adapter_code_xxh3": "xxh3-128:de637c683cc2b680cde763f251552849"
 }
