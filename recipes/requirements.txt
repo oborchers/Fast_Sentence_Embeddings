@@ -23,3 +23,8 @@ matplotlib==3.11.2
 model2vec[train]==0.10.0
 torch==2.15.0
 fasttext==0.9.3
+# Framework baselines for the publication-dependent sections of recipe 06.
+# Install the three fse adapter packages separately as explained in the notebook.
+langchain-core==1.7.3
+llama-index-core==0.14.25
+haystack-ai==3.4.1
