@@ -9,10 +9,10 @@ Ten fse workers encoded **909,270 texts/s**. Model2vec with tokenizer parallelis
 These are the middle measured rates. A tokenizer divides text into words and word pieces.
 Tables stored 32-bit numbers (`float32`). Both libraries used the model's default text limits and normalization,
 which scales vectors to unit length. The models were already loaded.
-See [the method, ranges and raw results](docs/benchmarks/readme-wikitext-20261101/README.md).
+See [the method, ranges and raw results](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/README.md).
 Results apply to this model and input.
 
-![An engine turns pages of text into lists of numbers.](media/readme-engine.jpg)
+![An engine turns pages of text into lists of numbers.](https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/233b6d3c0aaee459792938317895790a8bdd862b/media/readme-engine.jpg)
 
 fse turns text into vectors, lists of numbers you can compare, search or classify.
 It runs finished **static embeddings**: each token, a word or word piece, has a fixed vector.
@@ -63,7 +63,7 @@ Use `revision=` to pin a Hub commit for reproducible work.
 
 Static embeddings give a token the same vector in every sentence.
 They cannot model context the way a transformer does. Test quality on your own task before choosing speed.
-The [numerical contract](docs/architecture/numerical-contract.md) defines fse's exact arithmetic.
+The [numerical contract](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/numerical-contract.md) defines fse's exact arithmetic.
 Converted models can differ from their original library within float32 rounding.
 Quantized models can lose quality. Bit identity does not mean equal quality between models or storage types.
 
@@ -72,7 +72,7 @@ Quantized models can lose quality. Bit identity does not mean equal quality betw
 For a local application, start by running fse in the process that already has the text.
 This avoids moving text and vectors through a service. Measure that transfer cost before adding a service.
 
-One [notebook measurement](recipes/07-local-compute-and-http.ipynb), dated 1 November 2026,
+One [notebook measurement](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/07-local-compute-and-http.ipynb), dated 1 November 2026,
 used an Apple M1 Pro, macOS 27.0.1, Python 3.13.16 and one worker with the full GloVe-300 table.
 Median means the middle measured time. A microsecond is one millionth of a second.
 HTTP is the protocol websites use to transfer data. JSON is a text format for data.
@@ -127,19 +127,20 @@ A smaller table does not always run faster. On an Apple M1 Pro, measurements dat
 found int8 tables at dimension 1024 ran 1.20 to 1.34 times as fast on WikiText,
 and 0.98 to 1.10 times as fast on MASSIVE, compared with float32.
 Those runs used a benchmark pipeline, not the current public `Encoder.quantize` API.
-See [PERFORMANCE.md](PERFORMANCE.md#int8-tables-at-1024-dimensions) for workload details and limits.
-See [the format rules](docs/architecture/formats.md#encoder-1) for rounding and rejected values.
+See [PERFORMANCE.md](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/PERFORMANCE.md#int8-tables-at-1024-dimensions) for workload details and limits.
+See [the format rules](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/formats.md#encoder-1) for rounding and rejected values.
 
 TODO(DR-151): Add measured file size, peak memory, speed and task scores for each model and dtype,
 including quality change from that model's float32 result. Name the dataset, metric, revision and date.
 
 ## Benchmarks
 
-The first row uses the [preserved WikiText measurements](docs/benchmarks/readme-wikitext-20261101/README.md)
+The first row uses the [preserved WikiText measurements](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/README.md)
 from 1 November 2026: Apple M1 Pro, macOS 27.0.1, Python 3.13.16,
 NumPy 2.5.4, tokenizers 0.23.3 and model2vec 0.10.0.
 Model2vec uses its one-worker mode or its automatic mode.
-This input is below its 10,000-text batch-pool threshold, so automatic mode enables parallel tokenization without a batch-worker pool.
+The runner enables parallel tokenization for the automatic-mode call.
+This input is below the 10,000-text batch-pool threshold, so no batch-worker pool runs.
 The model revision is `bf8b056651a2c21b8d2565580b8569da283cab23`.
 The 5,352 nonblank texts come from the pinned WikiText validation and test splits.
 
@@ -167,7 +168,7 @@ Name machine, OS, Python, NumPy, library versions, model revisions, worker count
 | GloVe-300 | pending | pending | source and counterpart: pending |
 | word2vec-300 | pending | pending | source and counterpart: pending |
 
-The same float32 POTION-8M model also has a [one-worker MASSIVE sample](docs/benchmarks/readme-wikitext-20261101/dr151-model2vec-massive-1.jsonl).
+The same float32 POTION-8M model also has a [one-worker MASSIVE sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/dr151-model2vec-massive-1.jsonl).
 Across 151,674 test texts, fse processed 878,260 texts/s (861,892 to 903,738),
 and model2vec processed 57,001 (56,620 to 57,191), with the same three-round method.
 This is a separate input sample. It does not fill the pending model or dtype cells.
@@ -182,40 +183,40 @@ They do not measure these 2.0 models.
   `StaticModel.save_pretrained` and `StaticModel.push_to_hub` export fse model folders.
   Reload them with `fse.StaticModel.from_pretrained`. Model2Vec 0.10.0 cannot read these folders.
   Publishing requires a recorded model license.
-  See the [supported calls and differences](docs/architecture/hub.md#model2vec-compatibility-fsestaticmodel).
+  See the [supported calls and differences](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/hub.md#model2vec-compatibility-fsestaticmodel).
 - **sentence-transformers:** `Encoder.from_pretrained` reads supported models containing one StaticEmbedding module.
-  It does not run arbitrary transformer pipelines. See [conversion limits](docs/architecture/hub.md#sentence-transformers-models).
+  It does not run arbitrary transformer pipelines. See [conversion limits](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/hub.md#sentence-transformers-models).
 - **Hugging Face Hub:** load with `from_pretrained`, save a local folder with `save_pretrained`, or publish with `push_to_hub`.
-  Publishing needs your credentials and a model license. See [Hub folders](docs/architecture/hub.md#hub-folders).
+  Publishing needs your credentials and a model license. See [Hub folders](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/hub.md#hub-folders).
 - **gensim:** convert `KeyedVectors`, `Word2Vec` or `FastText` with `fse.gensim.from_gensim`.
-  This adapter needs the optional `fse[gensim]` extra. See [word vectors](docs/architecture/formats.md#word_vectors-1).
+  This adapter needs the optional `fse[gensim]` extra. See [word vectors](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/formats.md#word_vectors-1).
 - **Tables and streams:** encode lists, text file paths, iterators and Arrow string columns.
   Arrow lets table libraries share a column without copying its text into Python strings.
-  See [text inputs](docs/architecture/text.md).
+  See [text inputs](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/text.md).
 - **scikit-learn:** import supported fitted linear heads with `Classifier.from_sklearn` or `Regressor.from_sklearn`.
-  fse runs the head and does not fit it. See [linear heads](docs/architecture/formats.md#linear_head-1).
+  fse runs the head and does not fit it. See [linear heads](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/formats.md#linear_head-1).
 - **Files:** models use safetensors. Vector stores use NumPy `.npy` shards.
-  See [formats](docs/architecture/formats.md) and [disk stores](docs/architecture/store.md).
+  See [formats](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/formats.md) and [disk stores](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/store.md).
 
 Model2Vec conversion defaults to its token and character limits. Sentence-transformers conversion follows that model's tokenizer rules.
-The [Hub reader documentation](docs/architecture/hub.md) records the tested library versions and differences.
+The [Hub reader documentation](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/hub.md) records the tested library versions and differences.
 Use those rules when comparing outputs.
 
 ## Recipes and development
 
-The [recipe notebooks](recipes/README.md) cover offline model preparation, including SIF and uSIF,
+The [recipe notebooks](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) cover offline model preparation, including SIF and uSIF,
 and practical workflows for files, streams, linear heads and integrations.
 fse runs the finished table after model preparation.
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing a change.
+Read [CONTRIBUTING.md](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/CONTRIBUTING.md) before proposing a change.
 It covers AI assistance, reproducible measurements and the review evidence we need.
-[ARCHITECTURE.md](ARCHITECTURE.md) defines the contracts.
-[CHANGELOG.md](CHANGELOG.md) records changes. Report vulnerabilities through [SECURITY.md](SECURITY.md).
+[ARCHITECTURE.md](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/ARCHITECTURE.md) defines the contracts.
+[CHANGELOG.md](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/CHANGELOG.md) records changes. Report vulnerabilities through [SECURITY.md](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/SECURITY.md).
 
 ## License and citation
 
-fse 2.0 uses the [MIT License](LICENSE). The `1.x` branch and existing 1.x releases remain GPL-3.0.
-Model and dataset licenses apply separately. See [NOTICE](NOTICE) for third-party notices.
+fse 2.0 uses the [MIT License](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/LICENSE). The `1.x` branch and existing 1.x releases remain GPL-3.0.
+Model and dataset licenses apply separately. See [NOTICE](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/NOTICE) for third-party notices.
 
 Built by [Dr. Oliver Borchers](https://www.drborchers.com).
 If you use fse in research, cite the repository:
