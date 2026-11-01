@@ -76,7 +76,7 @@ and 0.9840 (0.9302 to 1.0281). This variation limits small speed conclusions.
 - [Unrounded calculated summary](summary.json)
 - [Producing runner](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/c0ee537cc0515a7ecbfd4b20eec3bfc227b57a22/benchmarks/bench_compare.py)
 - [Backend calls](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/c0ee537cc0515a7ecbfd4b20eec3bfc227b57a22/benchmarks/compare_backends.py)
-- [Model preparation](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/c0ee537cc0515a7ecbfd4b20eec3bfc227b57a22/quality/prepare_models.py)
+- [Model preparation](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/c0ee537cc0515a7ecbfd4b20eec3bfc227b57a22/benchmarks/quality/prepare_word_models.py)
 
 From the producing checkout, with its environment and pinned corpus/models
 already prepared, run on a quiet machine:
