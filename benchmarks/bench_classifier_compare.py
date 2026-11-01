@@ -37,20 +37,26 @@ from compare_search import timed
 from compare_wait import ready_operation
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "quality"))
-from prepare_fineweb import digest, load_pages, split, REVISION as FINEWEB_REVISION  # isort: skip
+from prepare_fineweb import digest, load_pages, split, metrics, REVISION as FINEWEB_REVISION  # isort: skip
 from prepare_setfit import SOURCES, dataset  # isort: skip
 
 
 def evaluation_sets(args):
     if args.suite == "fineweb":
         pages, scores = load_pages(args.cache, download=False)
-        _, _, evaluation, _ = split(pages, scores)
+        _, _, evaluation, labels = split(pages, scores)
+        args.evaluation_labels = {"fineweb": labels}
         return [("fineweb", evaluation)]
     specifications = json.loads(SOURCES.read_text())["datasets"]
-    return [
-        (spec["dataset"].removeprefix("SetFit/"), dataset(spec, args.cache, download=False)[2])
-        for spec in specifications
-    ]
+    result, args.evaluation_labels = [], {}
+    for spec in specifications:
+        name = spec["dataset"].removeprefix("SetFit/")
+        if getattr(args, "datasets", None) and name not in args.datasets:
+            continue
+        _, _, rows, labels = dataset(spec, args.cache, download=False)
+        result.append((name, rows))
+        args.evaluation_labels[name] = labels
+    return result
 
 
 def predictor(args, name):
@@ -60,6 +66,8 @@ def predictor(args, name):
 
     folder = args.classifiers if args.suite == "fineweb" else args.classifiers / name
     stem = args.model.rsplit("/", maxsplit=1)[-1]
+    if args.kind == "model2vec-classifier":
+        return native_pipeline_predictor(args, folder, stem)
     if args.kind == "fse":
         if args.suite == "fineweb":
             model = Classifier.load(folder / f"{stem}-{args.table_dtype}.safetensors")
@@ -115,6 +123,17 @@ def predictor(args, name):
     return predict, [folder / "fasttext.bin"]
 
 
+def native_pipeline_predictor(args, folder, stem):
+    from native_classifier import checked_pipeline
+
+    exported = folder / f"{stem}-model2vec-pipeline"
+    model, _ = checked_pipeline(exported)
+    return (
+        lambda rows: model.predict(rows, use_multiprocessing=args.workers > 1),
+        [path for path in exported.rglob("*") if path.is_file()],
+    )
+
+
 def fse_files(args, folder, stem):
     if args.suite == "fineweb":
         return [folder / f"{stem}-{args.table_dtype}.safetensors"]
@@ -133,10 +152,24 @@ def parallelism(args):
         )
     if args.kind == "fasttext":
         result["inference_parallelism"] = "single caller, native batch predict API"
+    if args.kind == "model2vec-classifier":
+        result.update(
+            tokenizer_parallelism="library controlled, exact thread count unmeasured",
+            parallel_batch_pool="enabled above the library's 10000-text threshold",
+        )
     return result
 
 
 def preparation_info(args, name, rows):
+    if args.kind == "model2vec-classifier":
+        from native_classifier import checked_pipeline
+
+        folder = args.classifiers if args.suite == "fineweb" else args.classifiers / name
+        stem = args.model.rsplit("/", maxsplit=1)[-1]
+        _, record = checked_pipeline(folder / f"{stem}-model2vec-pipeline")
+        if record["evaluation_digest"] != digest(rows):
+            raise ValueError("native classifier evaluation inputs differ from training record")
+        return record
     if args.suite == "fineweb":
         folder, revision = args.classifiers, FINEWEB_REVISION
     else:
@@ -180,6 +213,8 @@ def measure(args, sets):
             if not np.array_equal(predicted, expected):
                 raise ValueError("classifier predictions changed between repeated calls")
             times.append(duration)
+        if artifact_identities(paths, preparation) != identities:
+            raise ValueError("classifier artifacts changed during prediction")
         records.append(
             {
                 "dataset": name,
@@ -191,6 +226,9 @@ def measure(args, sets):
                 "first_predict_s": first_s,
                 "warm_seconds": times,
                 "prediction_digest": output_digest,
+                "quality": metrics(args.evaluation_labels[name], expected)
+                if hasattr(args, "evaluation_labels")
+                else None,
                 "artifacts": {str(path): path.stat().st_size for path in paths},
             }
         )
@@ -207,10 +245,11 @@ def child(args):
     os.environ["RAYON_NUM_THREADS"] = str(args.workers)
     sets = evaluation_sets(args)
     manifest = (args.classifiers / "manifest.json") if args.suite == "fineweb" else SOURCES
-    provenance = identity(args.kind)
+    backend = "model2vec" if args.kind == "model2vec-classifier" else args.kind
+    provenance = identity(backend)
     with threadpool_limits(limits=args.workers):
         records = measure(args, sets)
-        verify_backend_identity(args.kind, provenance)
+        verify_backend_identity(backend, provenance)
         passes = np.sum([row["warm_seconds"] for row in records], axis=0)
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         record = {
@@ -222,6 +261,7 @@ def child(args):
             "corpus": args.suite,
             "texts": sum(len(rows) for _, rows in sets),
             "input_digest": digest([row["input_digest"] for row in records]),
+            "output_digest": digest([row["prediction_digest"] for row in records]),
             "table_dtype": (
                 args.table_dtype
                 if args.kind == "fse"
@@ -230,7 +270,7 @@ def child(args):
             "output_dtype": "labels",
             "threads": args.workers,
             **parallelism(args),
-            "native_multiprocessing": False,
+            "native_multiprocessing": args.kind == "model2vec-classifier" and args.workers > 1,
             "timed_passes": args.passes,
             "load_s": sum(row["model_setup_s"] for row in records),
             "first_predict_s": sum(row["first_predict_s"] for row in records),
@@ -374,11 +414,18 @@ def run(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["run", "child"])
-    parser.add_argument("--kind", choices=["fse", "model2vec", "tfidf", "fasttext"], default="fse")
     parser.add_argument(
-        "--against", choices=["model2vec", "tfidf", "fasttext"], default="model2vec"
+        "--kind",
+        choices=["fse", "model2vec", "model2vec-classifier", "tfidf", "fasttext"],
+        default="fse",
+    )
+    parser.add_argument(
+        "--against",
+        choices=["model2vec", "model2vec-classifier", "tfidf", "fasttext"],
+        default="model2vec",
     )
     parser.add_argument("--suite", choices=["setfit", "fineweb"], required=True)
+    parser.add_argument("--datasets", nargs="+")
     parser.add_argument("--classifiers", type=Path, required=True)
     parser.add_argument("--cache", type=Path, required=True)
     parser.add_argument(
@@ -387,7 +434,7 @@ def main():
         default="minishlab/potion-base-8M",
     )
     parser.add_argument("--models", type=Path, default=Path.home() / ".cache/fse-quality/models")
-    parser.add_argument("--workers", type=int, choices=[1, 10], default=1)
+    parser.add_argument("--workers", type=int, choices=[1, 10, 32], default=1)
     parser.add_argument("--table-dtype", choices=["float32", "float16", "int8"], default="float32")
     parser.add_argument("--passes", type=int, default=3)
     parser.add_argument("--budget-s", type=float, default=600)

@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 from bench_model2vec import _snapshot, contender
 from compare_artifacts import checked_encoder
-from compare_models import MODELS, artifact_name
+from compare_models import MODELS, artifact_path
 
 
 def pinned_snapshot(repo: str) -> Path:
@@ -75,7 +75,7 @@ def fse_contender(threads: int, repo: str, dtype: str, folder: Path | None):
     from fse import Encoder
 
     if folder is not None:
-        path = folder / artifact_name(repo, dtype)
+        path = artifact_path(folder, repo, dtype)
         encoder = Encoder.load(path)
         source = "finished fse artifact"
     elif dtype == "float32":
@@ -90,6 +90,10 @@ def fse_contender(threads: int, repo: str, dtype: str, folder: Path | None):
     provenance = checked_encoder(encoder, folder, repo, dtype) if folder is not None else None
 
     def encode(batch):
+        if encoder.tokenizer == "external":
+            from quality.classic_corpus import tokenize
+
+            batch = [tokenize(text) for text in batch]
         return encoder.encode(batch, workers=threads)
 
     encode.table_dtype = encoder.word_vectors.dtype

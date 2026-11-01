@@ -52,10 +52,10 @@ def validate_preparation(folder: Path, revision: str, evaluation_digest: str) ->
 
 
 def checked_encoder(encoder, models: Path, repo: str, dtype: str) -> dict:
-    from compare_models import MODELS, artifact_name
+    from compare_models import MODELS, artifact_path
     from quality.artifact_manifest import verified_source
 
-    source = verified_source(models / artifact_name(repo, dtype), encoder)
+    source = verified_source(artifact_path(models, repo, dtype), encoder)
     if (
         source["source_model"] != repo
         or source["source_revision"] != MODELS[repo]

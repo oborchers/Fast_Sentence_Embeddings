@@ -92,6 +92,9 @@ def verified_source(path: Path, encoder) -> dict:
         "float32_parent_fingerprint": entry["float32_parent_fingerprint"],
         "artifact_file_bytes": entry["file_bytes"],
         "provenance_verification": entry["provenance_verification"],
+        "fit_provenance": entry["preparation_record"].get("fit"),
+        "offline_recipe": entry["preparation_record"].get("recipe"),
+        "timing_proxy": entry["preparation_record"].get("timing_proxy", False),
     }
 
 

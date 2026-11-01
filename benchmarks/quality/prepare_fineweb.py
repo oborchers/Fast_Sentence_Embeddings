@@ -30,6 +30,7 @@ from compare_artifacts import (
 
 from compare_models import MODELS, artifact_name  # isort: skip
 from quality_coordination import task_reservation  # isort: skip
+from classification_training import fitted as training_fit  # isort: skip
 
 REPO = "HuggingFaceFW/fineweb-edu-llama3-annotations"
 REVISION = "72df4c92fb1b48beceb16016e8f695ec40a6c3a5"
@@ -110,8 +111,12 @@ def potion(args, data, provenance: dict, repo: str) -> None:
     train, y_train, evaluation, y_eval = data
     encoder = Encoder.load(args.models / artifact_name(repo, "float32"))
     training_source = checked_encoder(encoder, args.models, repo, "float32")
-    fitted = LogisticRegression(max_iter=1000, random_state=0).fit(
-        encoder.encode(train, workers=2), y_train.astype(np.int64)
+    fitted, training = training_fit(
+        args,
+        lambda: LogisticRegression(max_iter=1000, random_state=0).fit(
+            encoder.encode(train, workers=2), y_train.astype(np.int64)
+        ),
+        "sklearn LogisticRegression and frozen fse encoder, includes train encoding",
     )
     stem = repo.rsplit("/", maxsplit=1)[-1]
     joblib.dump(fitted, args.output / f"{stem}-fse-sklearn.joblib")
@@ -142,6 +147,7 @@ def potion(args, data, provenance: dict, repo: str) -> None:
                 "encoder_fingerprint": enc.fingerprint,
                 "file_bytes": path.stat().st_size,
                 "prediction_disagreement_vs_float32": float(np.mean(predicted != reference)),
+                **training,
             },
         )
     native(args, data, provenance, repo)
@@ -158,8 +164,12 @@ def native(args, data, provenance: dict, repo: str) -> None:
     folder = cached_snapshot(repo, MODELS[repo])
     model = StaticModel.from_pretrained(folder)
     source = native_encoder_identity(repo, Path(folder))
-    fitted = LogisticRegression(max_iter=1000, random_state=0).fit(
-        model.encode(train, use_multiprocessing=False), y_train.astype(np.int64)
+    fitted, training = training_fit(
+        args,
+        lambda: LogisticRegression(max_iter=1000, random_state=0).fit(
+            model.encode(train, use_multiprocessing=False), y_train.astype(np.int64)
+        ),
+        "sklearn LogisticRegression and frozen model2vec encoder, includes train encoding",
     )
     predicted = fitted.predict(model.encode(evaluation, use_multiprocessing=False))
     joblib.dump(
@@ -178,6 +188,7 @@ def native(args, data, provenance: dict, repo: str) -> None:
             "table_dtype": "float32",
             "head": fitted.get_params(),
             "native_multiprocessing": False,
+            **training,
         },
     )
 
@@ -202,7 +213,11 @@ def fasttext(args, data, provenance: dict) -> None:
             thread=2,
             verbose=0,
         )
-        model = fasttext.train_supervised(str(path), **parameters)
+        model, training = training_fit(
+            args,
+            lambda: fasttext.train_supervised(str(path), **parameters),
+            "fastText supervised training, learned embeddings",
+        )
         predicted = np.array(
             [int(labels[0].removeprefix("__label__")) for labels in model.predict(evaluation)[0]]
         )
@@ -218,6 +233,7 @@ def fasttext(args, data, provenance: dict) -> None:
                 "parameters": parameters,
                 "training_determinism": "parallel fastText training is not bit deterministic",
                 "file_bytes": saved.stat().st_size,
+                **training,
             },
         )
     finally:
@@ -235,6 +251,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--coordination", type=Path, required=True)
     parser.add_argument("--results", type=Path, required=True)
+    parser.add_argument("--pod-training-times", action="store_true")
     args = parser.parse_args()
     if os.getpriority(os.PRIO_PROCESS, 0) < 10:
         raise RuntimeError("run with nice -n 10")

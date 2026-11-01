@@ -50,6 +50,9 @@ def reservation(lock: Path):
 
 def child(args) -> None:
     sentences = texts(args.corpus)
+    original_digest = corpus_identity(args.corpus, sentences)["input_digest"]
+    if getattr(args, "canonical_newlines", False):
+        sentences = [row.replace("\r", " ").replace("\n", " ") for row in sentences]
     if args.warmup_texts is not None and args.warmup_texts > len(sentences):
         raise ValueError("warmup-texts exceeds the complete corpus size")
     provenance = identity(args.kind)
@@ -70,6 +73,11 @@ def child(args) -> None:
     if provenance["commit"] != measured_commit:
         raise RuntimeError("source commit changed during the measured operation")
     provenance.update(corpus_identity(args.corpus, sentences))
+    if getattr(args, "canonical_newlines", False):
+        provenance.update(
+            original_input_digest=original_digest,
+            preprocessing="CR and LF replaced individually with spaces, no stripping, no dropped rows",
+        )
     if args.vectors_out is not None:
         np.save(args.vectors_out, vectors)
     record.update(
@@ -289,6 +297,7 @@ def main() -> None:
     parser.add_argument("--fse-models", type=Path)
     parser.add_argument("--other-python", type=Path)
     parser.add_argument("--vectors-out", type=Path)
+    parser.add_argument("--canonical-newlines", action="store_true")
     parser.add_argument("--lock", type=Path)
     parser.add_argument("--results", type=Path)
     args = parser.parse_args()

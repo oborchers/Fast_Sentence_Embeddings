@@ -138,12 +138,13 @@ class FseEncoder(AbsEncoder):
     workers = 2
     batch_tasks = 8
     coordination: Path | None = None
+    mmap = False
 
     def __init__(self, model_name: str, revision: str | None = None, **kwargs: Any) -> None:
         import fse
 
         path = self.folder / f"{model_name.removeprefix('fse/')}.safetensors"
-        self.model = fse.Encoder.load(path)
+        self.model = fse.Encoder.load(path, mmap=True) if self.mmap else fse.Encoder.load(path)
         self.provenance = verified_source(path, self.model)
         logger.info("loaded %s from %s", self.model, path)
 

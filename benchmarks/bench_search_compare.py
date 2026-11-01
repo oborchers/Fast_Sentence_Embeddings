@@ -297,7 +297,7 @@ def main() -> None:
     parser.add_argument("--kind", choices=["fse", "faiss", "hnswlib"], default="fse")
     parser.add_argument("--encoder-start", choices=["saved", "source"], default="saved")
     parser.add_argument("--against", choices=["faiss", "hnswlib"], default="faiss")
-    parser.add_argument("--workers", type=int, choices=[1, 10], default=1)
+    parser.add_argument("--workers", type=int, choices=[1, 10, 32], default=1)
     parser.add_argument("--batch", type=int, choices=[1, 64], default=64)
     parser.add_argument("--passes", type=int, default=3)
     parser.add_argument("--budget-s", type=float, default=600)

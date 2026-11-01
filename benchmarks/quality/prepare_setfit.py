@@ -33,6 +33,7 @@ from compare_artifacts import (
 from compare_models import MODELS, artifact_name  # isort: skip
 from quality_coordination import task_reservation  # isort: skip
 from prepare_fineweb import digest, metrics  # isort: skip
+from classification_training import fitted as training_fit  # isort: skip
 
 SOURCES = Path(__file__).resolve().parents[1] / "baseline/dr151_setfit_sources_20261101.json"
 
@@ -106,7 +107,11 @@ def heads(args, data, provenance, repo, output):
     train, y_train, evaluation, y_eval = data
     encoder = Encoder.load(args.models / artifact_name(repo, "float32"))
     training_source = checked_encoder(encoder, args.models, repo, "float32")
-    fitted = fit(encoder.encode(train, workers=2), y_train)
+    fitted, training = training_fit(
+        args,
+        lambda: fit(encoder.encode(train, workers=2), y_train),
+        "sklearn LogisticRegressionCV and frozen fse encoder, includes train encoding",
+    )
     stem = repo.rsplit("/", maxsplit=1)[-1]
     joblib.dump(fitted, output / f"{stem}-fse-sklearn.joblib")
     record_head_encoder(output, f"{stem}-fse-sklearn.joblib", training_source)
@@ -133,12 +138,17 @@ def heads(args, data, provenance, repo, output):
             encoder_fingerprint=enc.fingerprint,
             head_training_table_dtype="float32",
             prediction_disagreement_vs_float32=float(np.mean(predicted != reference)),
+            **training,
         )
     provenance = {**provenance, **backend_identity("model2vec")}
     native_folder = cached_snapshot(repo, MODELS[repo])
     native = StaticModel.from_pretrained(native_folder)
     source = native_encoder_identity(repo, native_folder)
-    fitted = fit(native.encode(train, use_multiprocessing=False), y_train)
+    fitted, training = training_fit(
+        args,
+        lambda: fit(native.encode(train, use_multiprocessing=False), y_train),
+        "sklearn LogisticRegressionCV and frozen model2vec encoder, includes train encoding",
+    )
     predicted = fitted.predict(native.encode(evaluation, use_multiprocessing=False))
     joblib.dump(fitted, output / f"{stem}-model2vec-sklearn.joblib")
     record_head_encoder(output, f"{stem}-model2vec-sklearn.joblib", source)
@@ -154,6 +164,7 @@ def heads(args, data, provenance, repo, output):
         head=fitted.get_params(),
         selected_C=fitted.C_.tolist(),
         native_multiprocessing=False,
+        **training,
     )
 
 
@@ -226,6 +237,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--coordination", type=Path, required=True)
     parser.add_argument("--results", type=Path, required=True)
+    parser.add_argument("--pod-training-times", action="store_true")
     args = parser.parse_args()
     if os.getpriority(os.PRIO_PROCESS, 0) < 10:
         raise RuntimeError("run with nice -n 10")

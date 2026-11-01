@@ -35,7 +35,10 @@ def test_int8_table_does_not_request_int8_outputs(backends, monkeypatch, tmp_pat
     artifact = tmp_path / "potion-base-8M-int8.safetensors"
     artifact.write_bytes(b"fixture")
     fake = SimpleNamespace(
-        word_vectors=SimpleNamespace(dtype="int8"), fingerprint="test", encode=encode
+        word_vectors=SimpleNamespace(dtype="int8"),
+        fingerprint="test",
+        encode=encode,
+        tokenizer="fse_words@1",
     )
     monkeypatch.setattr(fse, "Encoder", SimpleNamespace(load=lambda _path: fake))
     monkeypatch.setattr(backends, "checked_encoder", lambda *_: {"source_model": "fixture"})

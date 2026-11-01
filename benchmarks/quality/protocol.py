@@ -91,6 +91,11 @@ def source_identity(name: str) -> dict:
     if not name.startswith("fse/"):
         repo = name.removeprefix("model2vec/")
         return {"source_model": repo, "source_revision": MODELS[repo]}
+    from classic_sources import source_identity as classic_identity
+
+    classic = classic_identity(name)
+    if classic is not None:
+        return classic
     stem = name.removeprefix("fse/")
     for repo, revision in MODELS.items():
         for dtype in ("float32", "float16", "int8"):
