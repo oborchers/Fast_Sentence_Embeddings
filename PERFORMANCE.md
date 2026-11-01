@@ -603,3 +603,21 @@ reports every initial and precision-matrix cell, including incomplete attempts.
 The largest complete matrix band reaches 1.9543, so the endpoint load gate alone
 did not ensure repeatability tonight. A/A is reported separately from the primary
 fse-a medians. This label does not relax the load gate or discard any record.
+
+
+### First completed non-deferred quality configuration (01.11.2026)
+
+POTION-8M float32 completed all 40 non-deferred English tasks and all 13 NanoBEIR
+tasks using unmodified MTEB 2.26.25. Its unweighted mean over the 40 English task
+main scores is **53.9527 points**. This excludes the explicitly deferred
+MindSmallReranking task and is not a complete 41-task MTEB mean. Its full
+13-task NanoBEIR mean is **43.8485 points**. Other model/precision results remain
+pending, so these numbers establish no quality ranking.
+
+The run used two CPU workers at nice 10, source commit `265e70d`, and encoder
+fingerprint `xxh3-128:7aed2ca9bf7f9073ffa6778672a7575f`, matching the pinned
+POTION-8M artifact in the bound source manifest. Source revisions, dataset
+metadata, package versions and every task main score are retained in the
+[raw quality journal](benchmarks/baseline/results/dr151-quality-primary.jsonl)
+and [coverage summary](benchmarks/baseline/dr151_quality_primary_20261101.json).
+Quality-run encode times are not used for speed or cost claims.
