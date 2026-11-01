@@ -80,3 +80,14 @@ All 46,743 held-out pages were evaluated with label score >=3, from the pinned F
 | minishlab/potion-base-32M fine-tuned Model2Vec MLP | 0.937980 | 0.790157 |
 
 POTION retains its pretrained input limits, while fastText reads the full page. The frozen encoders use separately fitted linear heads. The fine-tuned MLP changes embeddings and uses its 512-unit hidden head, trained with PyTorch and exported to NumPy. This is a task-quality comparison with different model architectures and input limits. Training durations are reported separately in raw records as different tool chains, not as paired inference speedups. No FineWeb inference series passes the required A/A gate on this pod.
+
+
+## Loading and RSS measurement boundaries
+
+The audit retains per-arm load-time ranges, peak RSS and artifact bytes. These are descriptive fields from the encoding operations. Passing the encoding A/A gate does not separately establish stable loading latency.
+
+Python `load_s` times contender construction inside `python_measure`, after corpus loading and runtime provenance collection. It is not process startup or network download time. Backend imports and constructor work are inside that timer where they have not already occurred. fse's common provenance collector has already imported fse. Rust's timer wraps `StaticModel::from_pretrained` inside the native worker, excluding its process launch and JSON corpus parsing. These boundaries do not support a matched cold-start speedup claim.
+
+Python peak RSS is the encoder interpreter process high-water mark. Rust peak RSS uses the Python parent's `RUSAGE_CHILDREN`, labelled native Rust process; it excludes that Python parent's own memory. Do not treat these as equal-scope total application memory, sum them as simultaneous peaks, or infer that the Rust controller consumes no memory. Artifact bytes are the finished fse artifact versus the counterpart's safetensors weights, not complete installed library or deployment footprints. Full lifecycle and consistent process-tree memory comparisons remain open.
+
+Source boundaries are pinned at [bench_compare.py](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/97b741887dc0bd4730131aa60a7b5242fef8d5ef/benchmarks/bench_compare.py), [Rust launcher](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/97b741887dc0bd4730131aa60a7b5242fef8d5ef/benchmarks/compare_rust_worker.py) and [native worker](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/97b741887dc0bd4730131aa60a7b5242fef8d5ef/benchmarks/compare_rust/src/main.rs). These qualifications do not invalidate the separately bounded encode timings.
