@@ -17,7 +17,9 @@
 <a href="https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"></a>
 </p>
 
-**Fast Sentence Embeddings turns text into vectors for search, clustering and classification.**
+**Compute nearly 1 million text embeddings per second.**
+
+Fast Sentence Embeddings turns text into vectors for search, clustering and classification.
 It runs ready-made static models on your CPU. No GPU needed.
 Use your Model2Vec model, a supported static Sentence Transformers model, or existing word vectors.
 Bring a trained linear classifier to label text in the same application.
@@ -26,35 +28,18 @@ Bring a trained linear classifier to label text in the same application.
 
 ## Speed first
 
-**918,299 texts per second. On an Apple M1 Pro.**
-POTION-8M, float32, 10 workers, WikiText, 1 November 2026.
-This measures encoding with the model already loaded. Text length and model choice change the result.
+**Compute nearly 1 million text embeddings per second.**
+
+918,299 texts/s with the model already loaded.
+
+Apple M1 Pro, POTION-8M float32, 10 workers, WikiText, 1 November 2026.
 
 <picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/e490e589a446844ee234f8800a6bdc1dba09c169/media/readme/throughput-dark.png">
-<img alt="POTION-8M on WikiText: float32, one worker, 222,701 texts/s; int8, one worker, 214,848; float32, ten workers, 918,299; float16, ten workers, 946,796. Three-round medians on Apple M1 Pro, 1 November 2026. Bars compare fse settings, not libraries." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/e490e589a446844ee234f8800a6bdc1dba09c169/media/readme/throughput-light.png">
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/dbfbf2e28465cad2371d7848f16058bbb8061a51/media/readme/throughput-dark.png">
+<img alt="POTION-8M on WikiText: float32, one worker, 222,701 texts/s; int8, one worker, 214,848; float32, ten workers, 918,299; float16, ten workers, 946,796. Apple M1 Pro, 1 November 2026." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/dbfbf2e28465cad2371d7848f16058bbb8061a51/media/readme/throughput-light.png">
 </picture>
 
-Each setting uses all 5,352 nonblank WikiText validation and test texts, with three paired rounds.
-Float16 and int8 reduce model storage. These are separate measurements, not a promise of equal quality or a dtype speedup.
-
-Only the one-worker int8 run passed the timing-variation check. Its ten-worker result needs re-measurement.
-A new library speed comparison and classification benchmark are pending.
-The float32-series Model2Vec controls still need re-measurement before a final library comparison.
-[Measurement details and full model tables](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/b45c0051c043c40bbf1d63a16ad5beff5309685a/docs/benchmarks/readme-evidence.md) retain ranges, quality scores and pending comparisons.
-
-### Classification speed
-
-We will compare complete text-to-label pipelines, including folding.
-
-| Linear classifier | fse, texts/s | Reference pipeline, texts/s | fse speedup |
-|---|---:|---|---:|
-| On normalized vectors | pending | Model2Vec encoding + the same linear head: pending | pending |
-| Folded into raw word-vector averages | pending | fse encoding + the same explicit linear head: pending | pending |
-
-TODO(DR-151): Fill this table and its speed chart from committed classification benchmarks.
-Each row must use the same encoder, classifier weights, texts and settings.
-The chart will show these measured rates and speedups.
+[How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/dbfbf2e28465cad2371d7848f16058bbb8061a51/docs/benchmarks/readme-evidence.md)
 
 ## Get started
 
@@ -125,7 +110,7 @@ The model must be trained on this encoder's vectors.
 from sklearn.linear_model import LogisticRegression
 from fse import Classifier, Encoder
 
-encoder = Encoder.from_pretrained("minishlab/potion-base-8M")
+encoder = Encoder.from_pretrained("minishlab/potion-base-8M", normalize=False)
 texts = ["I cannot log in", "My password is lost", "Send me a quote", "What does it cost?"]
 head = LogisticRegression().fit(encoder.encode(texts), ["support", "support", "sales", "sales"])
 classifier = Classifier.from_sklearn(encoder, head)
@@ -133,18 +118,32 @@ labels = classifier.predict(["I need a new password"])
 classifier.save("router.safetensors")
 ```
 
-Install `scikit-learn` for this training example. The four texts illustrate the API; train on representative data for real use.
-Later, load the saved classifier with `Classifier.load("router.safetensors")` and predict without scikit-learn.
-For large datasets, pass batches instead of building one huge list.
-The recipe below covers training, classification, regression and saving the finished model.
+Install `scikit-learn` for this example. Train on real labeled data for your application.
+Load the saved model with `Classifier.load("router.safetensors")` and predict without scikit-learn.
 
-The classification recipe compares fse's linear head with Model2Vec 0.10.0's fine-tuned MLP, a small neural network.
-In this recipe, Model2Vec also updates its word vectors during training.
+The [classification recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/02-linear-heads.ipynb) compares this with Model2Vec's own classifier, TF-IDF and fastText.
 
-Its [default head](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/train/classifier.py) has one hidden layer of 512 units with ReLU, which clips negative values to zero.
-Training uses PyTorch. This recipe also evaluates the trained PyTorch model.
-The exported [prediction head](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/inference/mlp.py) runs in NumPy, with softmax or sigmoid for probabilities.
-This compares different trained models, not just two inference engines.
+### Why folding works
+
+A sentence vector averages the vectors of its words or word pieces.
+A linear head multiplies that average by weights W and adds a bias b.
+Multiplying and averaging can swap order:
+
+`W · mean(v) + b = mean(W · v) + b`
+
+fse computes W · v once for each word and stores the scores.
+A four-label classifier can then keep 4 scores per word instead of 256 values.
+Prediction looks up those scores, averages them and adds the bias.
+There is no full sentence vector or head matrix multiplication per text.
+
+The [folding recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/08-folded-classifier.ipynb) found identical AG News labels, with probability differences up to about 0.000003 from rounding.
+The complete POTION-8M file uses 29.2 MiB, compared with 0.86 MiB for the standalone file.
+
+POTION-8M, AG News, Apple M1 Pro, 1 November 2026.
+
+This works for label-only predictions with linear heads trained on plain averages, including logistic regression and scikit-learn's `LinearSVC`.
+fse runs linear heads trained on normalized vectors explicitly, because normalization prevents this fold.
+Neural heads with hidden layers cannot use this fold, and fse does not run them.
 
 <picture>
 <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/71b69be83efdd8adbf071ada302be8bf1db68b24/media/readme/vectors-and-labels-dark.png">
@@ -190,8 +189,6 @@ fse runs finished models; it does not train or distill them.
 | **Sentence Transformers** | Run or train contextual transformers, or use its static models and broader model ecosystem. |
 | **gensim / Doc2Vec** | Train document vectors or word-vector models in gensim. |
 
-This compares workflows, not measured speed or quality rankings.
-
 ## Why is fse so fast?
 
 **We build and tune the whole path, from reading text to writing results.**
@@ -223,7 +220,7 @@ Load these models directly from their publishers. We do not publish copies of th
 | [static-retrieval-mrl-en-v1](https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1) | English search with adjustable vector size | 119.7 MiB |
 | [static-similarity-mrl-multilingual-v1](https://huggingface.co/sentence-transformers/static-similarity-mrl-multilingual-v1) | Similarity across languages | 415.1 MiB |
 
-These are models to evaluate, not a quality ranking. Sizes cover complete saved fse files, not process memory.
+Saved float32 fse files, Apple M1 Pro, 1 November 2026.
 Start with float32. Try float16 or int8 when memory matters, then check quality again.
 
 ```python
@@ -242,12 +239,10 @@ These Hub models are **planned, not yet available**:
 
 `raw` keeps the original word vectors. SIF-10 weights words and removes ten common directions from their vectors.
 That preparation uses WikiText-103 and happens before saving. Encoding then uses the finished table, without an extra SIF step.
-SIF-10 keeps the same table shape as raw. We have no published file sizes for these new Hub variants yet.
+SIF-10 keeps the same table shape as raw.
 
 For each planned model, float32 uses the ID above. Float16 and int8 variants add `-float16` or `-int8`.
 FastText Hub models are still under consideration.
-
-TODO(DR-151): Add MTEB quality comparisons for the classic raw and SIF-10 models when measured.
 
 You can already use your own GloVe, word2vec or FastText word vectors through the optional `fse[gensim]` adapter.
 For SIF and uSIF preparation, use [the SIF and uSIF recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/01-sif-usif.ipynb).
