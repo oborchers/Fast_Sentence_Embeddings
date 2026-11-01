@@ -46,6 +46,25 @@ class TestQualityAdapters(unittest.TestCase):
         assert out.shape == (3, 2)
         assert calls == [(["a", "b", "c"], {"use_multiprocessing": False})]
 
+    def test_external_adapter_removes_empty_tokens_without_dropping_texts(self):
+        adapter = object.__new__(self.runner.FseEncoder)
+        calls = []
+
+        def encode(tokens, **_kwargs):
+            calls.append(tokens)
+            return np.zeros((len(tokens), 2), np.float32)
+
+        adapter.model = SimpleNamespace(tokenizer="external", encode=encode)
+        with patch.object(self.runner, "tokenize", side_effect=[["a", "", "b"], [""]]):
+            result = adapter.encode(
+                [{"text": ["a---b", "--"]}],
+                task_metadata=None,
+                hf_split="test",
+                hf_subset="default",
+            )
+        assert calls == [[["a", "b"], []]]
+        assert result.shape == (2, 2)
+
     def test_authorized_deferral_keeps_every_other_task(self):
         def task(name):
             return SimpleNamespace(

@@ -6,6 +6,11 @@ import json
 import math
 from pathlib import Path
 
+if __package__:
+    from .classic_sources import source_identity as classic_identity
+else:
+    from classic_sources import source_identity as classic_identity
+
 
 def files_digest(root: Path, paths: list[Path]) -> str:
     from fse._container._hash import Hasher
@@ -91,8 +96,6 @@ def source_identity(name: str) -> dict:
     if not name.startswith("fse/"):
         repo = name.removeprefix("model2vec/")
         return {"source_model": repo, "source_revision": MODELS[repo]}
-    from classic_sources import source_identity as classic_identity
-
     classic = classic_identity(name)
     if classic is not None:
         return classic

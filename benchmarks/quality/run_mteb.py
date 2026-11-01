@@ -146,6 +146,7 @@ class FseEncoder(AbsEncoder):
         path = self.folder / f"{model_name.removeprefix('fse/')}.safetensors"
         self.model = fse.Encoder.load(path, mmap=True) if self.mmap else fse.Encoder.load(path)
         self.provenance = verified_source(path, self.model)
+        self.provenance["artifact_load_mode"] = "mmap" if self.mmap else "copy"
         logger.info("loaded %s from %s", self.model, path)
 
     def encode(
@@ -160,7 +161,9 @@ class FseEncoder(AbsEncoder):
     ) -> np.ndarray:
         texts = [text for batch in inputs for text in batch["text"]]
         if self.model.tokenizer == "external":
-            texts = [tokenize(text) for text in texts]
+            # The recipe removes empty legacy split tokens at the 2.0 boundary.
+            # Keep every sentence, including sentences with no remaining tokens.
+            texts = [[token for token in tokenize(text) if token] for text in texts]
         return self.model.encode(texts, workers=self.workers)
 
 
@@ -434,6 +437,9 @@ def main() -> None:
     )
     run_parser.add_argument("--resume", action="store_true", help="reuse matching completed tasks")
     run_parser.add_argument("--workers", type=int, default=2)
+    run_parser.add_argument(
+        "--mmap-models", action="store_true", help="map finished tables read-only"
+    )
     run_parser.add_argument("--batch-tasks", type=int, default=8)
     run_parser.add_argument("--coordination", type=Path, help="shared scratchpad lock directory")
     summary = sub.add_parser("summarize")
@@ -451,6 +457,7 @@ def main() -> None:
     os.environ["RAYON_NUM_THREADS"] = str(args.workers)
     FseEncoder.batch_tasks = args.batch_tasks
     FseEncoder.workers = args.workers
+    FseEncoder.mmap = args.mmap_models
     FseEncoder.coordination = args.coordination
     FseEncoder.folder = args.fse_models
     ours = fse_models(args.fse_models) if {"fse", "all"} & set(args.models) else []

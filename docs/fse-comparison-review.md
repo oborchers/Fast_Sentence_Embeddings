@@ -61,3 +61,9 @@ Native early-stopping records describe Model2Vec 0.10.0's 10,000-row validation 
 Regression tests cover package imports, between-round drift and an undersized probe.
 The full gate before these corrections passed 9,224 tests with 524 skips.
 The corrected source still requires its own focused and full validation receipts.
+
+The follow-up independent review at `3b9cd4f` reported no findings.
+That checkpoint also passed the full gate: 9,227 tests, 524 skips, pytest 237.46 seconds.
+A subsequent adapter check retains every sentence while removing empty legacy split tokens, as the recipe requires.
+The pinned quality environment passes all eleven adapter tests, including that regression.
+Read-only table mapping is now an explicit quality option and is recorded in result provenance.
