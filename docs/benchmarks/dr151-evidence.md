@@ -12,6 +12,7 @@ The later archive commit 106998c5043080cf9fb68eb0d947ba979ac82736 adds the indep
 
 | Study | Compact master source | Full evidence |
 | --- | --- | --- |
+| DR157 Hub preparation | [Transfer verification](../../benchmarks/baseline/dr157_evidence_verification_20261101.json) | Manifest paths `benchmarks/baseline/results/dr157-20261101/`, including the original transfer manifest |
 | Initial local comparison | [Four-cell summary](../../benchmarks/baseline/dr151_summary_20261101.json) | Manifest paths `benchmarks/baseline/results/dr151-model2vec-*` |
 | Local model/dtype matrix | [54-cell summary](../../benchmarks/baseline/dr151_matrix_summary_20261101.json) | Original rich matrix summary and every journal |
 | Pod 2 | [Coverage and selected cells](../../benchmarks/baseline/dr151_pod2_audit_20261101.json) | Full 303-cell audit, quality records and journals |

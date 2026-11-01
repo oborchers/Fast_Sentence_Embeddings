@@ -1,0 +1,19 @@
+{
+  "format": "fse-evidence-transfer-receipt-v1",
+  "task": "DR-157 (Ausgew\u00e4hlte Modelle auf den Hugging Face Hub laden)",
+  "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+  "evidence_commit": "dac448a925fb3a6c63570be9f3d637b0d948bb53",
+  "evidence_commit_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/commit/dac448a925fb3a6c63570be9f3d637b0d948bb53",
+  "archive_root": "benchmarks/baseline/results/dr157-20261101",
+  "raw_entries": 145,
+  "raw_entry_bytes": 416098,
+  "transfer_manifest_bytes": 60841,
+  "transfer_manifest_sha256": "c57cece8ce8f37053c2f166cb3fe0b6d4bf1b3d8c7783c3684616a112a9beaf2",
+  "archived_files_including_transfer_manifest": 146,
+  "archived_bytes_including_transfer_manifest": 476939,
+  "tracked_source_commit_matches": 144,
+  "ignored_owner_log_matches": 1,
+  "published_blob_size_and_sha256_matches": 146,
+  "publication_manifest_sha256": "ac85cae41b05788bc278d68fd3231489de1615c7c15b8b79229844c3d0dabe69",
+  "verification": "Each input size and SHA256 checked before archival; tracked bytes also compared with the specified source commit. Each archived blob read back and rechecked after normal push. No DR157 source writes, deletions, branch changes or Hub writes."
+}

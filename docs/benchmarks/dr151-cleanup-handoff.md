@@ -18,4 +18,6 @@ Each summary includes the raw size, SHA256 and pinned evidence URL. The global m
 
 Pod 5 belongs to dr151-quality, which has its own branch. Supply quality pins or scripts when asked. Receive its results through a PR or handoff. dr151-compare remains the only writer of its branch and benchmark-evidence-2.0. No further paid run is authorized here.
 
-The current archive tip is 106998c5043080cf9fb68eb0d947ba979ac82736, adding the master-study review and exact prompt. Its 479 payload files total 68,100,563 bytes. Review findings and their fixes are recorded in the existing-study migration receipt.
+The master-study review snapshot is 106998c5043080cf9fb68eb0d947ba979ac82736, adding the master-study review and exact prompt. Its 479 payload files total 68,100,563 bytes. Review findings and their fixes are recorded in the existing-study migration receipt.
+
+The current archive tip is dac448a925fb3a6c63570be9f3d637b0d948bb53. It adds the 146 verified DR157 transfer files, including the immutable transfer manifest, under `benchmarks/baseline/results/dr157-20261101/`. Its 625 manifest-listed payload files total 68,577,502 bytes. Transfer receipt: `benchmarks/baseline/dr157_evidence_verification_20261101.json`. DR157 source files and its publication manifest remain under that owner’s control.

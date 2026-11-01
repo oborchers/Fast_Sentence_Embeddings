@@ -2944,6 +2944,1174 @@
       "source_commit": "894d3bb1afd76769fd090a5677e12eaa71287732"
     },
     {
+      "path": "benchmarks/baseline/results/dr157-20261101/README-before-cleanup.md",
+      "size_bytes": 3082,
+      "sha256": "cb285b7b69f9b2311edc4f0d2a9b56ad36c16fe57adace1369897f6699a706af",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "dcb90b43aa3c0efc3b0ea473ed9de2fcbf3143f9",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-execution.json",
+      "size_bytes": 613,
+      "sha256": "572cdc8c983fdd68647a4c3c15a5804b2fff874c35899e436b5c5c86fafda30b",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "dff62635c37f05852e59febfa747fe58eec75968",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-fit.json",
+      "size_bytes": 1313,
+      "sha256": "d896b0f6a82af161b01d3b7afe5a17b02fc8c7f4370f3bdfb32a18871b6c07b1",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "1db2b73b7434a967ed61946d2de7bc19b33afa55",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-raw-float16.json",
+      "size_bytes": 908,
+      "sha256": "a1e7f3e64ef4d3bd765b33f1092136c9f4fdff471d93326e33c06fff87ed4205",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "4589320a453772bb643e792df8e33b2fde6e9c16",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-raw-int8.json",
+      "size_bytes": 902,
+      "sha256": "b6f979fd05ca7c228d04b9f7ed8551ca747f6d7d316a48c0000d53cb2c24620e",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "6be904ebc4ec941b6be3ec9384b1f81545498c8d",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-raw.json",
+      "size_bytes": 900,
+      "sha256": "57151612b4220255a388edf76ac2c2625ed6db3c8f650882ad9e007ce39e2600",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "579237523cdff99d2873c7dfd42c0091b045f987",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-sif10-float16.json",
+      "size_bytes": 1024,
+      "sha256": "4767638e8b91d72a54813e3b8cc5194497228b466d4c233235348a76241bebbd",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "9216cd713e2a6beaed5bce04f862aedcb4895db6",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-sif10-int8.json",
+      "size_bytes": 1018,
+      "sha256": "4e1015569e88326ff3651d497f6d8990394d1835d3f26d609e00282fa2b0afb1",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "f199412bbeecc39410389d82ab836fc170c40758",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-sif10.json",
+      "size_bytes": 1016,
+      "sha256": "1358995a1b801a4d229d5da6677ce99c512a177310e5bd070267a076313a143d",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "a63021307da62cb673abeae5e06bc43015ccaee2",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-verification.json",
+      "size_bytes": 9963,
+      "sha256": "7e5976ccca6faf908ce8c573f2ae07b56e1a0cdaa9e910ba1509f9ea0dc1edf4",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "96266fe0292524e9c92b481fbdbcadc4eb4520f0",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-execution.json",
+      "size_bytes": 635,
+      "sha256": "f46e79f172e046a616b558ad5875f6fea65caeaa5ea4b9416abd04dcdfa05427",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "5a523be4115c6202f1ecfef158b692f3ae32034d",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-fit.json",
+      "size_bytes": 1309,
+      "sha256": "78a147b191fe1acaa9843f74f2a135159e4e00667c49d71fa432109032577d41",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "b42a93a35b618ba106e7d4757534a2b7ff3f06ab",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-raw-float16.json",
+      "size_bytes": 929,
+      "sha256": "873ec1c92709df3da63e7e686daae95f15ec08c1e26327310b41f1ce9fe9a397",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "016fb8afe06db1664e9aead57fc8121fce15c672",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-raw-int8.json",
+      "size_bytes": 923,
+      "sha256": "bfb51484af0f60494651ad10f73d4531ef09b06a9e576c0ec3cac81f5371b5be",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "b88da07165a1f1d4f445e4ac0d6a618239a8eb99",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-raw.json",
+      "size_bytes": 921,
+      "sha256": "c3f561051c7bfaea5ce30c8a5c9dd6364be705f9ddf3cb19194b57d97a99634b",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "dc7af651a5117ee4c7ae72d7493443ca84732bae",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-sif10-float16.json",
+      "size_bytes": 1015,
+      "sha256": "eacd231d8fffaf946368e7e6378ef4f18dca81d14593cda98f0684e7dfb07dc5",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "517254a966e4c0e7f2e3c3ee4584cfe41ecc6901",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-sif10-int8.json",
+      "size_bytes": 1009,
+      "sha256": "d1a7b8fa81461be892121da1eef67c051b3ba895fc4986517bef485072912b42",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "51c3bfadf9174899ca5c8f79418333ed81595023",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-sif10.json",
+      "size_bytes": 1007,
+      "sha256": "559d6b367db87659625c9d1652ecce2ed315e978b8868782b0f3c66476c76bd9",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "183013e10aaa9898a6ad4140746d4168d26eca7d",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-verification.json",
+      "size_bytes": 9934,
+      "sha256": "5ac518f90468de8af03d391eac10b7bc0a5829dff90830d010847e0a422c9107",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "cee936287e50a0529a3832459f56de0a6aaa3154",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-execution.json",
+      "size_bytes": 595,
+      "sha256": "ef21dff2fed4234580dc511ec213bbee9d184df7c1caad322699334c63b26c7a",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "65fed9ebc19aaa650f9288d8ec8f87cf5749f2a3",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-fit.json",
+      "size_bytes": 1304,
+      "sha256": "32d6a5318457e4306ab36da80d1513716a51da35bc9b06ce31eda8084d62840a",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "6407087d1946af87c692540a621cfbfd4fda183b",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-raw-float16.json",
+      "size_bytes": 890,
+      "sha256": "6dc86ffac1ee952fcb7ef7e8a5df112e96ea766ce546b65a1a756a3825a5d57b",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "043e5b580b44ee6e2a1c2575cd16ae53605a8c7d",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-raw-int8.json",
+      "size_bytes": 883,
+      "sha256": "624cb030e751537d5a02a1b77d2858561df03cd44b90f4116f6c54b687c73135",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "8f47abd14297652ec89b1f1e7ebba2f3d1e2cb1a",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-raw.json",
+      "size_bytes": 882,
+      "sha256": "6578f995ad954c237d143084a603db4cd096cce75c372c810e9aec3cc0777765",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "009c7bbe56ea5b6f6ff304d3567881d55571b293",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-sif10-float16.json",
+      "size_bytes": 1006,
+      "sha256": "09d58cbbbe1fd6268cf6efcba7de06bf9727d02bcbf4b68a20ea7d17e284b65a",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "e23afe959f33b48d00e54c5be09ba5a345247fae",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-sif10-int8.json",
+      "size_bytes": 999,
+      "sha256": "86a68fb7c12053d4e466c66c842e1bec235e233fc2a0c0a6a5c8c1a53f5d4c94",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "53240389066ea78c1645f95b10f3fc1de9d3d9be",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-sif10.json",
+      "size_bytes": 998,
+      "sha256": "4d6b9430a5ded884e04226147ffd352b050ad720fd71ecb6e1847e7d5d83d35c",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "a28f02cb7f10e49b2fbe0fdf371353fcf8913784",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-verification.json",
+      "size_bytes": 9874,
+      "sha256": "4ae79f6d5a0219894865e1442341cc133acac49e2e3386cd8e8e99f077bf080e",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "711236ee46fb6823b8d749494b182d5a8f2bb1a7",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-execution.json",
+      "size_bytes": 581,
+      "sha256": "a075fdb638cca2dcf0a44e83316311d97ec7c82ae79b75071e12eb0756de939b",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "b30f8e814c831751fbc19e25abd713d2122445ba",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-fit.json",
+      "size_bytes": 1297,
+      "sha256": "41b50c857c412e5a3fbafd0fef0ecb58bd292f622614c567536775c2fb381cb3",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "48367ac0e75cfcaf7e569ffdf16808e19496d1b6",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-raw-float16.json",
+      "size_bytes": 874,
+      "sha256": "c35fac4ff5c12ab01b1b6a54df42d0f9742bba81ca60bea85c3f330e357f3267",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "d7bd34177a1ef7192e3d1908c766cce192bca6d0",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-raw-int8.json",
+      "size_bytes": 868,
+      "sha256": "6b3ee82f2fe27b43254549112409a94dc66ceffc15d93ba6c0de5d4bc3d77129",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "c74ad307af6011682f8d8c08596f733074142658",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-raw.json",
+      "size_bytes": 866,
+      "sha256": "3121d796fa8f95b640b096ff66be682c50f78830b2be33b1b2dfab3d2047d35c",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "a0e93c8b38bf26980b5846a31a514df555e262e5",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-sif10-float16.json",
+      "size_bytes": 990,
+      "sha256": "fc843a331d87b50e4699e96b1f6079f5ec9ecdf4aa855b9b87587b3600820e0d",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "249e77644d156d76dbeb4a8a4ad4eef79dc1bee6",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-sif10-int8.json",
+      "size_bytes": 984,
+      "sha256": "275b1504a2634ae5d8034e11687fe32c04e79fa47c9a69dd51db84807c102b84",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "0dce886b1d7430161cdd75af0bfa7b1bd2a3b195",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-sif10.json",
+      "size_bytes": 982,
+      "sha256": "14b3e7f9e51199f8a77525348340e2c056c7bfa384c425912a342b479939c974",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "2150c20f56f585c3095ce2d343ec42c0122ac0e9",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-verification.json",
+      "size_bytes": 9828,
+      "sha256": "f9efab1c8d888c479a0acf4f7b6284f55ec341c248242619d578caa16ebb093f",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "9fea808084416a6e775837ffebc2b2893556a791",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-execution.json",
+      "size_bytes": 607,
+      "sha256": "935b545f77eedfc8d815e2f8f396dcab0dc8dcbb0805ad08fa510aa6537e4ae3",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "a7fbe4b6e8fd59a08c36bdb94f4b180fe842b78d",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-fit.json",
+      "size_bytes": 1310,
+      "sha256": "04194ecec92009b39f4cc2fda10c8c6eec2f0cce312830035ba78e254c4a653c",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "ea9c8a647b68bb1027e7fa1ad5ff6bdb3fadaf77",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-raw-float16.json",
+      "size_bytes": 902,
+      "sha256": "df013623cf7b8f94f3c21615a28147371e6f747b4eefddcd9700f1770a56fa33",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "be65791f9649ff595ee1f8ffc452b470a3801046",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-raw-int8.json",
+      "size_bytes": 895,
+      "sha256": "72c94c8f90d8d7068a120ce3f2a74c975308dd23d74778591ef8e5b11efa95a5",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "3b8a50695a1babd16117b69db9844eb557a9d5e1",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-raw.json",
+      "size_bytes": 894,
+      "sha256": "04e80470cf85317967f851d5177e44190a62d9d556998df06dbe4daee85073ff",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "c4de33b78aa580686daa32887c9686ddcf1940e7",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-sif10-float16.json",
+      "size_bytes": 1018,
+      "sha256": "ced3c025539d665a6eca4a07da9be4a495b90ce2e6eaff181e6b9fcd796a06f7",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "61ded8ceaa88b138758a6db628446fde5c831dc2",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-sif10-int8.json",
+      "size_bytes": 1011,
+      "sha256": "9e1430969b2ef6e13e26c4e5459e2e186cca73d3148b0a5468d55761e7fcfa67",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "a2dce7d4bdb75ab2d63085250a79ffd704160713",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-sif10.json",
+      "size_bytes": 1010,
+      "sha256": "b7423107ec8b2c2d7d2055f69ac22d6572e7e2c3b1ce19ac2923c7522f3523fc",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "6b7961d1fe91eef05eb7504f9e3fca32f069f2cf",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-verification.json",
+      "size_bytes": 9890,
+      "sha256": "05d19f8ce517d3ed7f5ece7b107244be1e0184daa127a6fc3d287c0b688d11f4",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "b22e83bcf572b5aee35e776ce2d20deebf6d926d",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/candidate-audit.txt",
+      "size_bytes": 2186,
+      "sha256": "bb3335da1e86d61a6121631df2171acfddf231024bc2700fbbbbdd81580b741f",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "762cc6a5eaa09c495d3622a63c9fe5bcc01c582b",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/cleanup.json",
+      "size_bytes": 8863,
+      "sha256": "82da6834ec6f68eccd8ba7f60374071f6afdac0e774268ef75fa11e7a47b0748",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "22416d7958a359b60f24df2b9a3fc34974da4378",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/audit.json",
+      "size_bytes": 464,
+      "sha256": "5dbaee7cb530875ba550c5ddb4b743cdaf52b605c70c24e8512e0780aa4e2d86",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "dac3a4df8a5e0889fe80db167522f379e9553d80",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/fineweb-sample.json",
+      "size_bytes": 929,
+      "sha256": "c2fdd100e29047516c387eaa67fe9c62ab393ef5e771bc242c0a87bf63291b4a",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "506a5e30ff2a871133f371b1a6dce75fc9d3f789",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoArguAnaRetrieval.json",
+      "size_bytes": 1011,
+      "sha256": "93ab5b10b5e9c1421cc9cabaa39d416d9b5d436a99aa3f396502d5b4821c11b4",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "2908eb086b80da7d408c28d7e86b98ea9a5aad2d",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoClimateFeverRetrieval.json",
+      "size_bytes": 1021,
+      "sha256": "468bb0c22fe37bed52512d74f049e7640a99cf625c874c236407435cb9996c4d",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "35c2d02e0bd5fba1f0b870bb4550b2e89f8f3227",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoDBPediaRetrieval.json",
+      "size_bytes": 1011,
+      "sha256": "52d6941fe4df9a603dc0e8abb17aa922bcb0c962d5dc62f20f75794487adbd1c",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "c14cbb05c3531b365879721de0892b909224512a",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoFEVERRetrieval.json",
+      "size_bytes": 1007,
+      "sha256": "b81f8ae5f1cefc26483166d3651f19887f6d8b1827bf559fb1c0d3d43a0e4923",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "7878ab163459c83e431a80c5186ee01822bc1d0f",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoFiQA2018Retrieval.json",
+      "size_bytes": 1013,
+      "sha256": "28348e5e100c34f39c71b394f9914e8871cca450bb9d18f10a5da52241932a81",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "50e1086aacf8389d79bf2f6cff5de822048273ec",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoHotpotQARetrieval.json",
+      "size_bytes": 1013,
+      "sha256": "38b61ed39183e373b097cdb1820a1607ac9dde262a1996a62e199084e81518d1",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "893d6a358ea030fb41b42992549d4d90693db97b",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoMSMARCORetrieval.json",
+      "size_bytes": 1011,
+      "sha256": "0b8aeda3ba75e87f6ab914c8a4a77e20064681663bb9edb7c97dad95ed0dce64",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "e81b4d2979891839f7d56f07df3c6a6664552238",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoNFCorpusRetrieval.json",
+      "size_bytes": 1013,
+      "sha256": "360372046e8a038485ff89c847f0a80796497bb4a59a1891931340d75b9dee5f",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "f76d1d69ae1f35f64a759953c11f539fb9ad4c4d",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoNQRetrieval.json",
+      "size_bytes": 1001,
+      "sha256": "b3cb5957014f09b7b8f9c4588c6213b97a54c571f14675dfea1f28ab9dc5f6e2",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "3d3b3a2c509ac0a0320c9de4fdfabb2cbd08ecae",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoQuoraRetrieval.json",
+      "size_bytes": 1007,
+      "sha256": "55db0ee75c2cfba66aeee9148b7c20dc9c5f8ab7c337371c213e0a2d6c4e57e3",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "16abce3f5f7933a1ad262edf4d87b8205946b281",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoSCIDOCSRetrieval.json",
+      "size_bytes": 1008,
+      "sha256": "2589083ba4079c49c16e7e4c1078c3c66b340abe9745ae0fbdaa72650037fe42",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "d363ba4e19e29d7523101d3fb2dcf5bc33aff133",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoSciFactRetrieval.json",
+      "size_bytes": 1011,
+      "sha256": "80bb4dbb29fcd5365b8002b72391bf86e77d881cb14faf99ea025416141cc13b",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "5ac016bffd88ca9285db560cd1c8b4c8f9fa089e",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoTouche2020Retrieval.json",
+      "size_bytes": 1017,
+      "sha256": "e4bdfcba6c3fd407748cd79a26ae96838eb8c6d0768916849e809a7a560656c6",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "35551eac3ef5cb2e667e6096ce6845c5e3150222",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-fit.json",
+      "size_bytes": 1234,
+      "sha256": "745f2a8990f9f869e332104d0e1a12e817bfa7daac20af1a99ebdcfb83ab238b",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "d80795d44dec2e92ebb371a3c6e494f3252bb207",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-sts.json",
+      "size_bytes": 1491,
+      "sha256": "fa95febff59322d84a6ad82eae582c6ca730de2c6247595ce80da525498a1a97",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "21f83c7fdab3d70206033a194a4fbd4afab3720b",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-wordfreq.safetensors.header.json",
+      "size_bytes": 1076,
+      "sha256": "6c1d8ff1ce5d2035decfe1fef5262a2ad4eeb5a33feb0a62951d167205b970e6",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "58193ca5842d36bbb07e0c64c6ae7095a62d77a7",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoArguAnaRetrieval.json",
+      "size_bytes": 1012,
+      "sha256": "0e3fcc8450f66ed16c6cda1ea3745ec60b1b18bc0cf1339e6ff2e524897ee3fe",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "a61b29f31f0b12284b4d4704690775e0e7aa24e6",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoClimateFeverRetrieval.json",
+      "size_bytes": 1022,
+      "sha256": "b8b2e55c009ed508dd98182c4b2a02551d679537af7df55627dc4cc7577ae9d0",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "4198e50cf78bd7ab1aa84e2995cd3ce45ad30095",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoDBPediaRetrieval.json",
+      "size_bytes": 1012,
+      "sha256": "da4762caa2f031030cecf3344a298bd8b6c04b1f6ae5d64fd41a2ac50d9e1d01",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "1626beddb85e4ba6e8d47b852e9b9be64f5d0d3a",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoFEVERRetrieval.json",
+      "size_bytes": 1008,
+      "sha256": "69a609f4a4b4f12b795d16188b63fa65f30e7f32ed980011bcf806f7930ec013",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "2fae95c5516b84154e0feb4daf5718b0829b266c",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoFiQA2018Retrieval.json",
+      "size_bytes": 1014,
+      "sha256": "fc216c0e94701b7764fcf6e7d21c9ed7bbd5c9d35afa40967a1eb07c869e4f45",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "1a74bc47d8c49dbd103c7495f31505a7fb95c60f",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoHotpotQARetrieval.json",
+      "size_bytes": 1014,
+      "sha256": "d6aa743ae520a9defa1ab1874156ba10a6e1d1133ef2e67937e90f19529866e8",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "ac1a422edeb8a6c72b54065e5d00e9c40f40d249",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoMSMARCORetrieval.json",
+      "size_bytes": 1012,
+      "sha256": "f20fdf9f19e2f4e160aae3c78e8c67b80ac8e3b8a451772c8213011e400bb6c2",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "e33a658e6b3b40085789a51a441a2405a978e7a1",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoNFCorpusRetrieval.json",
+      "size_bytes": 1014,
+      "sha256": "c4e083a865d335411625c33a091173ad9987b48a26150ff7ec818535a0be8c59",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "bee82fbfa8ef129b1a42c85f76555e23051dd35a",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoNQRetrieval.json",
+      "size_bytes": 1002,
+      "sha256": "783588e6f881f14b0da29b4e8c47537934a8fccb542b0f20e853d1cadf202a14",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "7fb5e47f01a4dcdd932fa10dcca291ee14e42d05",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoQuoraRetrieval.json",
+      "size_bytes": 1008,
+      "sha256": "5110f21f691fed8898ee7b3c8781530bb465d9e9ea1240b044e9583460dea583",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "5a2f3adc73a8fb1791ce0be1ea361ca9647e09ef",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoSCIDOCSRetrieval.json",
+      "size_bytes": 1012,
+      "sha256": "dcdcdd3057115adaf1bc3879506122584a717cb08b2709a0d8e1b1effa81e527",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "14073c9603124435fa94f15f25bad9cc168ece46",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoSciFactRetrieval.json",
+      "size_bytes": 1010,
+      "sha256": "28c1cf91a8d78b3204483de46e7bce6e2b814b1a146c3d5a685ee26990dfbb55",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "9381097c022af0bad59086e32f95c8845f66e8fb",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoTouche2020Retrieval.json",
+      "size_bytes": 1018,
+      "sha256": "ea140d03653ba36ad7393781a6a8a99d53621d2c78f926e9ebbb47429c0bc47b",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "31bc5e1eb2197dbf06c3e9dc0d05b370920c1c80",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-fit.json",
+      "size_bytes": 1209,
+      "sha256": "f45f0dc15567d342abf2e5867b3211b509797c3eaff865172f0abfb83bc0ff76",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "f0224055de4653860217124d78f1c3e01e555861",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-sts.json",
+      "size_bytes": 1490,
+      "sha256": "fc02ef99614951962072e2fb34d57dd00ab0cf28ca2789e82b89704288a7444a",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "3f21eb69eeb23c1070ac1d643712840f942f4bb4",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-wordfreq.safetensors.header.json",
+      "size_bytes": 1076,
+      "sha256": "e063ce4ca9d0ab2d5c99003341f61eb0241529a96c361e9e50de9dfd94ba3ed6",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "58bf072ee63dbe8dd06f762a47403271ef588bbf",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/identity-extension.json",
+      "size_bytes": 443,
+      "sha256": "9c56e47d255befb2cf778b62e18a33b1671b5111baed1a9cada1cb7875a23d14",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "212ebdf7193a7bce8ec93b6d81781fe52aac6427",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/selection.json",
+      "size_bytes": 5086,
+      "sha256": "6e54ee100456aa1524a8582a8c466c7f4f3fd78820eb737e01995efcb32c2b17",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "be6f5d2ad8d2fa63d1a9e03ec9d35f42a946a99e",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/execution-logs/build-fasttext-crawl-subwords-300.txt",
+      "size_bytes": 972,
+      "sha256": "2ddb3925bb91ab5577b7409f980b28d6696b5c4199701b26cdc10d16bee1140c",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "a12ed2ce9b957ffe93c218489b85355bc9fa781b",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/execution-logs/build-glove-wiki-gigaword-300.txt",
+      "size_bytes": 476,
+      "sha256": "16d81d7519512e8cb438c424c83b8e45f0e4af3560c356ea14c6317eacb2c428",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "ca96d92c2270f558d61b7dc96bcc5f9ff8db7097",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/execution-logs/build-paragram-300-sl999.txt",
+      "size_bytes": 917,
+      "sha256": "8f89511b64784bed7eb1786744957e9f02404b26f3c7e3cde6c428b660907fbd",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "c1f5faa3e390cdad065ce540569c6411fe3653ba",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/execution-logs/build-paranmt-300.txt",
+      "size_bytes": 875,
+      "sha256": "00097e75811ef95c1bb5ee90e41486445940aab4c97b6c37580034520a3388b6",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "446bb135b028d78b1d279983bf8e7735b7fd0dd6",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/execution-logs/build-word2vec-google-news-300.txt",
+      "size_bytes": 954,
+      "sha256": "820a9bf005a3c07981237e5931ba93075dbb5dc3a9d0ad63b5d8b8e3c25d15f7",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "3bf0ed3b975b824638b799ef14d1b50267d56c31",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/execution-logs/public-cards.txt",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/execution-logs/public-freeze.txt",
+      "size_bytes": 60,
+      "sha256": "2438e91921fb58f9ef14c46dcdb8c469113e829497af0902864513d6a55758fc",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "9e70e26083760aaf683a64b49d276111769acccf",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/execution-logs/verify-fasttext-crawl-subwords-300.txt",
+      "size_bytes": 8507,
+      "sha256": "42d8a18ec6d8a8b4d56714bae275a54773a4b94e48ab103d03fc9db15086ce21",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "d669721047ad57816b47659d6ee0dbd377e1463f",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/execution-logs/verify-glove-wiki-gigaword-300.txt",
+      "size_bytes": 8482,
+      "sha256": "3f3b2f9f7cd4d3e4609490d961ab62eb384336df83690ad6fa7392cddb57cdb8",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "1d4e6632ab394123f682125a87c27c85dd72dce8",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/execution-logs/verify-paragram-300-sl999.txt",
+      "size_bytes": 8427,
+      "sha256": "f72576538fbe336899af97b01d907c9ebdbd50e7d483027ecbeb87d3d408bdb6",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "d8ab159ba885126226cd4fbceaf5c8fc106f6042",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/execution-logs/verify-paranmt-300.txt",
+      "size_bytes": 8388,
+      "sha256": "d8b26ad62e6c7653fcca29a2e867bb65b47eedbe41f17b9259d2edca254b6fe8",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "b17e48619d368310791a593ad508daa54d93a38a",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/execution-logs/verify-word2vec-google-news-300.txt",
+      "size_bytes": 8437,
+      "sha256": "e47c73290f142a35ea155d1251bf3130a396e3f6c9a135d877a12527e28d2f36",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "37bfca0b67cf09ddb9b6e6624de598b22dbdcfdb",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/focused-54b70b2.txt",
+      "size_bytes": 99,
+      "sha256": "762f712e2427cd663d621e88f293cf9dbb52ad48e47106c0d329afba748fa4c7",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "e00fd185890aa632966a290090f8bcc82e9ee459",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/focused-tests-9d4f56a.txt",
+      "size_bytes": 99,
+      "sha256": "c09f3fa1f978f826bbe4b9fa68de3112cd1d11d57b9284f3802a7dc3f9d9887d",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "3feb14f72aa5c016b7d8e023a81f33c7286beaa3",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/make-check-2f4c1a8-interrupted.txt",
+      "size_bytes": 8164,
+      "sha256": "703cec8d712e7b9c7d43e996a83af0d0506950489a87d9e63939d4b01799d570",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "813638d82d8482157977f2ffcc0bc5943affea06",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/make-check-41a5229.txt",
+      "size_bytes": 14930,
+      "sha256": "30ff67c5e64c2abc46ca03f20769d53ada4f6eb8a6e1d81d1c6bc3e5c5fc7789",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "c7409ddfb6ee1afada68e83602fc97331425c31f",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/make-check-4d0bc04.txt",
+      "size_bytes": 15184,
+      "sha256": "8fe49a7b0912c37824b9d24a525f41abf6c08bf5a0d1138656149f1733fa24de",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "01c4431ddeb7b87fc07eef68c103f523a5894b19",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/make-check-6e31282.txt",
+      "size_bytes": 14850,
+      "sha256": "625ca4478b1a637e3a92e8a67f605a24e5fccf1749c732090f88f5206bc9d250",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "4c7c68148ad83d473e1db9a55c8ad02f757d8e00",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/make-check-73176a9.txt",
+      "size_bytes": 15184,
+      "sha256": "7419bf9b0a54c8b3af917d47ea51456eea18358aa684717a22c9737b01aa9eb3",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "84e88e1b946d0ef4e8fd68305341307106cc7caf",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/make-check-da79a11.txt",
+      "size_bytes": 15184,
+      "sha256": "d717a3ea4cc9c0326560ef21a3b259d587961f4366955b13047006b96e488e0d",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "be167007e15e22b0ad012f301617013f0d7820bb",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/make-check-dacdb78.txt",
+      "size_bytes": 15184,
+      "sha256": "cb3b17917cccf5c66c5150306ed9894203dac4c44917169a50788d37e7b74532",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "4eff7acfbd615d6a411cb98430ca18ef22790184",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/make-check-e72f708.txt",
+      "size_bytes": 15184,
+      "sha256": "f14a4e0a66f83771234bd066990cd93af2d51ce0c7311beda16072e57202b837",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "9ff67603c47b899dab805cf492f9760e4755910d",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/make-check-initial.log",
+      "size_bytes": 14850,
+      "sha256": "d9310970f8c7a2a55b93f42511c8e26268e4f19cab6442bbf9bb3a06d7e9c230",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "7d5d0376350a3a6228d0b42a7952f8922d234702",
+      "source_kind": "DR157 owner manifest, independently byte-verified; owner-provided ignored log"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/make-check-initial.txt",
+      "size_bytes": 14850,
+      "sha256": "d9310970f8c7a2a55b93f42511c8e26268e4f19cab6442bbf9bb3a06d7e9c230",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "7d5d0376350a3a6228d0b42a7952f8922d234702",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/release-focused-4d0bc04.txt",
+      "size_bytes": 98,
+      "sha256": "f2f1d7366684bf31557092a677250f0de631376728df0b77f1805d0cb36564e6",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "2baf40d88b4e661082e46e11fe265751f145516a",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/release-focused-e72f708.txt",
+      "size_bytes": 99,
+      "sha256": "f3f7061485317c8097569aa25a95afeb83b27ccd6cde7a82f927b97125bba72a",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "013cb996ad5f03983015f9b0eb9542c0918c9041",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/report-full.md",
+      "size_bytes": 23813,
+      "sha256": "37f0695c392d8951934d437e2c425b6b51c8d72cb1ea59503b7311efe5c78869",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "c76faf0f8e1b8b1eb4b75253d70e829b410b39bc",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/reviews/initial-code-review.md",
+      "size_bytes": 7713,
+      "sha256": "6a1bbe4d2b1bd25e6baae2254534b758fbea1d51373715bb0b2ef6faaea94e45",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "15dde83035425f6338a3a8577dad6c3381d4c492",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/reviews/resolution.md",
+      "size_bytes": 2209,
+      "sha256": "c9724fb73fd1149273e066dc3230c0ebceb7f60cab0b4bc9cec8e62b49ebfc43",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "a3daa7820ad376c8eb32a1ea8f193f18430d445c",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/reviews/review-2f4c1a8.md",
+      "size_bytes": 1556,
+      "sha256": "3fd8d835bbfee2aa512c1874c323b7f87bf74e9c1275c892e4fa1c1309fe64cb",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "c8795a98510c2dc9806a2aa9c37c8b7ed1f2baf1",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/reviews/review-4d0bc04.md",
+      "size_bytes": 4431,
+      "sha256": "e7fe3c4e65575575c0843c525ac56bdf8e7ad5183e43c501ba66906263912efc",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "71b07ebc0135876b51a5fc1f3d253b14cb1faf6e",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/reviews/review-73176a9.md",
+      "size_bytes": 2679,
+      "sha256": "290ed5052ac1b20bd29a6e39cc836511293ed7e9c8cfda639a9c8c2b47222f24",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "a22e8f081e485fd70d6d592360262813d9fc00ca",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/reviews/review-da79a11.md",
+      "size_bytes": 311,
+      "sha256": "9ef4070c6d0f314f6a689a5daaf186b45ea21ec83e4d4c3d1b3a25be0112a49a",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "ceb2c7b0cadb46dbf6bb3c805a76b6b628a4cc66",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/reviews/review-dacdb78.md",
+      "size_bytes": 6571,
+      "sha256": "5df362d444021708e89f500db0be7e82b486fb49bcaac5b7a31f4abd9b7ff104",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "ae5fa1b0fed38f41bace447698d4ed6a8760172c",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/reviews/review-e72f708.md",
+      "size_bytes": 813,
+      "sha256": "9d13ca65718b3f651e7e193238ffe02a57770e79bf7bfc0b459022bc00eba7b9",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "ec0e2938304fdbbc495ee81f520fa41a451521c6",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/reviews/review-f320afa.md",
+      "size_bytes": 8441,
+      "sha256": "5e04b2469666a3327724a77860080cc173429389712242413fc6210181367ea9",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "baf926497bba010a96d626c86ad85e700c09c66e",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-float16/README.md",
+      "size_bytes": 1452,
+      "sha256": "f16212a4cfc9357b76f569275313121c61a5c8e8913c48875cdc7003f3e79820",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "dcf3c15e025e31b61defbab2b4b171b477993f4d",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-float16/README.original.txt",
+      "size_bytes": 1446,
+      "sha256": "ae6f2f3f0f60f2324b3a2d02299bb7cdcb3157083c94e5526b508adf51e096b3",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "3eb838a8abe7c6693a5c4ac7422f4fb0c842eb94",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-float16/build.json",
+      "size_bytes": 723,
+      "sha256": "ca795e0f09a64997358532ffead52315b01fba1fd52986e58eec11356adef0a1",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "e80066a605e488c6b6e6f105288436875aa42992",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-float16/config.json",
+      "size_bytes": 199,
+      "sha256": "754d7ce5a517fd48eded3f5b7119bb25d8eae393c436bc88174040384acfbc95",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "79351fe9426838ac27bcb1522bb20b2a077532fd",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-int8/README.md",
+      "size_bytes": 1476,
+      "sha256": "7f2261f6c3f9b5e22297c39faa8da15af44b0615d20dff76ccfd649b9365c022",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "160aec5c9f94dee07e0fdd38bbfffdac448cc023",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-int8/README.original.txt",
+      "size_bytes": 1470,
+      "sha256": "9e6b41171d8e863fdd1e1f86a796b1d3de1577ee68e2f3a22cb17a95098891d2",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "43f1bd9ed546ea470611cd3a62b5eaf79728027b",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-int8/build.json",
+      "size_bytes": 717,
+      "sha256": "0bc0ccb235fc817e5f8bd0ba2f207b4d8155ab8c18130a3e6da45dcd6cd54d4d",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "0e99d93ee3b1f1c807333fe16690c07e6a63add9",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-int8/config.json",
+      "size_bytes": 199,
+      "sha256": "490b3f078955264608fafe6d61b18340e3188e90b923c91fcf26e5eaa748b0db",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "78eb26c28157fbc699db17ed736830d4be0a85cd",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw/README.md",
+      "size_bytes": 1094,
+      "sha256": "9f94d0677a0981e68270dfe2dc926d0c6acd809ec42339b98e2dd4b678ef9d21",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "788d0e71562717a49657cb5b8d7fbe633a09e926",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw/README.original.txt",
+      "size_bytes": 1094,
+      "sha256": "9f94d0677a0981e68270dfe2dc926d0c6acd809ec42339b98e2dd4b678ef9d21",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "788d0e71562717a49657cb5b8d7fbe633a09e926",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw/build.json",
+      "size_bytes": 715,
+      "sha256": "7e2aa6b3692e94ec21022fa305be81988004f6b9aaaf55b81a36e6e92d537c4b",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "fecd20b6f932dad4b9c1836875399abdf5b6d653",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw/config.json",
+      "size_bytes": 199,
+      "sha256": "d4116112964cd7393429cd30bc11fa87c164c9a4c4cf5b2a227793f7e4559557",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "2123d65a8efa792cac2b8b3d1608aedec7b0bfd7",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-float16/README.md",
+      "size_bytes": 1456,
+      "sha256": "d6d7dfe697334805ec2d061d528d72adfb6f4a1c7c1a8aaf3958a9d2dbc9b23a",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "d41400fd29947f170311275dcffa46bfe279a6d2",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-float16/README.original.txt",
+      "size_bytes": 1450,
+      "sha256": "61488fbbe643220ab063b5d9704215a2370010fca3966f1e1cbc3120fdc96142",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "710d69f2759c6873fd7dff9d7e052f3ae73e30f9",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-float16/build.json",
+      "size_bytes": 727,
+      "sha256": "aef9d2db53cf17a1d2735767c386361d5db21330b0f1176b1a113a58ef5ebc78",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "38413b2bc00f824d061fa987a511b7743a042c02",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-float16/config.json",
+      "size_bytes": 199,
+      "sha256": "3c7ba48054bb040febf1253ff7c53167e47f042c0ac8cb23f63e84cde42b779d",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "953d397284d3e51ba7cdce7969e451035f0773f2",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-int8/README.md",
+      "size_bytes": 1480,
+      "sha256": "762005c7dd1b4b23c57227703298249818075db02673b18a2e68531b7e62372d",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "bdd4c5bb5c2bc3dace53a3bf772f46fcb58b4b51",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-int8/README.original.txt",
+      "size_bytes": 1474,
+      "sha256": "0bcb8b561dd6a759f899c8adca0e4c3e23ff8e277c34434ca9458c3b6802202a",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "ef8c6470c8697ae20a49539151193a68e4970155",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-int8/build.json",
+      "size_bytes": 721,
+      "sha256": "7a17621fbf4eb700c6f673186a35980c740c3c15193dac0bb8e616ce55a3b795",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "5dae139ad30d3074d54182d113fd29375fb334c2",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-int8/config.json",
+      "size_bytes": 199,
+      "sha256": "2ba5ad4d629e39037220b093c808aedddaba0b772d593bf9edf55af8ba4ce90c",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "e63c8370d09cba31d14932626361c434cdd7206f",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10/README.md",
+      "size_bytes": 1104,
+      "sha256": "d561f176ede1a825c8592ab7d5de7d27acd483277ebb6ba0980630b3c43658a2",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "fc5f82b139e3f5f36ab00b8d6facd92f0a5e9c5c",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10/README.original.txt",
+      "size_bytes": 1098,
+      "sha256": "196a977f2f7a47ebfb77bbf1c4ad9346e61c64d20946b63e1a4dd3027cbc5960",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "72e2e681878881f88f8438b9ecef2e3adb0a8263",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10/build.json",
+      "size_bytes": 719,
+      "sha256": "8f2a621d0fccc3878d4369238816090f9740c1ed016b5416be0da9c47e89b8e9",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "36004c9b22cab400cb112f2ae1f241bbddcc181a",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10/config.json",
+      "size_bytes": 199,
+      "sha256": "435d9f34afff5f92d2fc8038bc79693b612e578fdb6aa32d88c248c476ad2470",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "a53bddf0a45c2b1d70e24f46b557fec2c361995c",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/verification.json",
+      "size_bytes": 2989,
+      "sha256": "fec221bc1a3b7de3a1e6a4087a36972c3d577ad3fe951611a3e415b04054467e",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "4c10b396acf27f14986fcbabbbfeb4f15b5fa564",
+      "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/transfer-manifest.json",
+      "size_bytes": 60841,
+      "sha256": "c57cece8ce8f37053c2f166cb3fe0b6d4bf1b3d8c7783c3684616a112a9beaf2",
+      "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+      "git_blob": "222d50fb71b3eb29909388184d5fcf898c2ee3e4",
+      "source_kind": "Owner-provided immutable archive transfer manifest"
+    },
+    {
       "path": "benchmarks/baseline/results/lifecycle-1.1.0-m1pro-sif-float32.json",
       "size_bytes": 2879,
       "sha256": "3c95209cb9e729bdc8caa79a985f48249801d7b1ab3df60d7ac3f9a3c81a1351",
@@ -3381,9 +4549,9 @@
     }
   ],
   "evidence_branch": "benchmark-evidence-2.0",
-  "evidence_commit": "106998c5043080cf9fb68eb0d947ba979ac82736",
-  "evidence_commit_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/commit/106998c5043080cf9fb68eb0d947ba979ac82736",
-  "verified_files": 479,
-  "total_size_bytes": 68100563,
+  "evidence_commit": "dac448a925fb3a6c63570be9f3d637b0d948bb53",
+  "evidence_commit_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/commit/dac448a925fb3a6c63570be9f3d637b0d948bb53",
+  "verified_files": 625,
+  "total_size_bytes": 68577502,
   "verification": "Existing immutable evidence blobs unchanged; appended pod files read back and checked by size and SHA256. Canonical and CRLF variants remain preserved."
 }
