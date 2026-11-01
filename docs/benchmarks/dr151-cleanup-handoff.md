@@ -4,7 +4,7 @@ The first Pod 4 was deleted after a rejected quiet probe. All nine expected file
 
 After a verified durable copy, dr151-compare checks completeness within 15 minutes and names any missing files. The coordinator no longer waits for the check before deletion. Then secure Pod 4 raw results on benchmark-evidence-2.0 with a compact code-branch summary and manifest. No worker controls pod lifecycle.
 
-The current evidence archive is ae79c80c5736706a1e39df2f69a18e5801ae82d3. It contains 456 verified files, including all original README transfer files. The receipt pinned to 04e5cbeb1af5d36a45384906d91457d423829680 remains valid. Two CRLF working-copy CSV representations are preserved separately without modifying the canonical Git evidence. All eight original 1.1 baselines remain on master and also have archival copies. Their temporary removal was corrected without changing their Git bytes.
+The current evidence archive is b734a9b78829988b52788be3e3707ac6a68c5c10. It contains 465 verified files, including all original README transfer files. The receipt pinned to 04e5cbeb1af5d36a45384906d91457d423829680 remains valid. Two CRLF working-copy CSV representations are preserved separately without modifying the canonical Git evidence. All eight original 1.1 baselines remain on master and also have archival copies. Their temporary removal was corrected without changing their Git bytes.
 
 ## Approved addition, only after Pod 4 is collected
 

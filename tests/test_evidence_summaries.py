@@ -36,8 +36,10 @@ def test_matrix_keeps_rates_spreads_and_runtime_configuration(original):
     assert len(compact["cells"]) == len(old["cells"])
     for source, encoded in zip(old["cells"], compact["cells"], strict=True):
         cell = dict(zip(compact["cell_columns"], encoded, strict=True))
-        for key in cell.keys() - {"backends"}:
+        for key in cell.keys() - {"backends", "identity_status_id", "paired_speed_ratio_status_id"}:
             assert cell[key] == source.get(key)
+        for field in ("identity_status", "paired_speed_ratio_status"):
+            assert compact["attribution_labels"][cell[field + "_id"]] == source.get(field)
         for label, encoded_arm in cell["backends"].items():
             arm = dict(zip(compact["backend_columns"], encoded_arm, strict=True))
             expected = source["backends"][label]
@@ -66,7 +68,7 @@ def test_small_pod3_summaries_preserve_original_bytes(original, folder, name):
     )
 
 
-def test_raw_results_are_not_tracked_on_the_code_branch():
+def test_only_historical_1_1_results_are_tracked_on_the_code_branch():
     done = subprocess.run(
         ["git", "ls-files", "benchmarks/baseline/results"],
         cwd=ROOT,
