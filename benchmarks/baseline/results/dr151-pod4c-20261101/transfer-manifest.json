@@ -1,0 +1,134 @@
+{
+  "pod": "fse-dr151-pod4c",
+  "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+  "returncode": 124,
+  "tar_sha256": "64d53ce0bf2d769b80700697e8f17c5da3d6cf26eaf02df5f91f545742614dc3",
+  "files": [
+    {
+      "path": "bootstrap-invocation.json",
+      "bytes": 5911,
+      "sha256": "361a31770bcec89743813150f4846949480915081ae6c566a286c7a1504421a3"
+    },
+    {
+      "path": "bootstrap.log",
+      "bytes": 210699,
+      "sha256": "d82ff4bb736bc0400d275b1fe7fcea1439d8c23732f23f06fdc45d50e1b7834f"
+    },
+    {
+      "path": "cache-ownership.json",
+      "bytes": 105,
+      "sha256": "85aaec726235655d9c7c0137d32bcafd7ab2760db5be12136eae2ca2b04cb754"
+    },
+    {
+      "path": "disk-preflight.json",
+      "bytes": 45,
+      "sha256": "91db890003b24c466c54b0be254acaf1907b82990046792e26e6525c0ccbf5bf"
+    },
+    {
+      "path": "pod4-plan.json",
+      "bytes": 50,
+      "sha256": "334fcc8b01bc4fa20fdd3e3aef5188a2749ddc6c2c37aafc08d278b0210c8f31"
+    },
+    {
+      "path": "probe-complete.json",
+      "bytes": 42,
+      "sha256": "649a07feaf91901e68af3910c9989f2b3c317fe40f82e509469329304f89cce3"
+    },
+    {
+      "path": "readme-panels/calibration-decisions.jsonl",
+      "bytes": 1278,
+      "sha256": "8936e07b153c6594a83c786bd61fe1eadcf52159830fd9e08d48c8b65ca3513b"
+    },
+    {
+      "path": "readme-panels/calibration.jsonl",
+      "bytes": 175375,
+      "sha256": "1856a7cb6c6f80ebe22513d03f74836a537f80423d3c400675c3acbdb21e10c4"
+    },
+    {
+      "path": "readme-panels/input-identities/passages-250000-seed0.identity.json",
+      "bytes": 1971,
+      "sha256": "319783eb915bbb5a217d6e9fd65b31ab71aeccfb21b28872d5559241a81242f6"
+    },
+    {
+      "path": "readme-panels/input-identities/passages-350000-seed0.identity.json",
+      "bytes": 1987,
+      "sha256": "f3e0f25c851f8f6d1e86860aad4f6746c59e859f22f6d473d1d446fcd15f10fe"
+    },
+    {
+      "path": "readme-panels/input-identities/passages-370000-seed0.identity.json",
+      "bytes": 1996,
+      "sha256": "6cda572da291267ac726982bb27bc18eb72afbd95c01dbb91764cc38fc0c6ec6"
+    },
+    {
+      "path": "readme-panels/input-identities/passages-390000-seed0.identity.json",
+      "bytes": 1995,
+      "sha256": "60c3c3008e79fbbf25ff268d9acbfee3349ba47befe24480a9bbe47ff1043e81"
+    },
+    {
+      "path": "readme-panels/input-identities/passages-4370000-seed0.identity.json",
+      "bytes": 1999,
+      "sha256": "4f456a38c056d864f389e322c500717e713d23f44b9cfb35d01081c0fc63841a"
+    },
+    {
+      "path": "readme-panels/input-identities/passages-4620000-seed0.identity.json",
+      "bytes": 2000,
+      "sha256": "45b36149e022ca2d21e698c693ca281960aeec70e48b0dddaccbc0f4b83a1fdf"
+    },
+    {
+      "path": "readme-panels/invocations.jsonl",
+      "bytes": 444176,
+      "sha256": "ba0e6ed28cb18eb48debc5721c9a58c216e7433cef91c26ecab35f81fcea8a2b"
+    },
+    {
+      "path": "readme-panels/output-checks.jsonl",
+      "bytes": 115395,
+      "sha256": "da6509bd9c6550708a38baae4d3974d584cb4f56440d96689277c6b4c366e1ae"
+    },
+    {
+      "path": "readme-panels/plan.json",
+      "bytes": 1880,
+      "sha256": "476b6145a2d1df7991e55e0402a2d177b5535a90f10633786cd982eb04165f18"
+    },
+    {
+      "path": "readme-panels/probe.json",
+      "bytes": 6495,
+      "sha256": "c7060e017a0c6aab11475a73531feb6b4d8d1a67bc3cdee812f367ba6745ac4b"
+    },
+    {
+      "path": "readme-panels/probe/invocations.jsonl",
+      "bytes": 46044,
+      "sha256": "b771283c0bcfa6d8a770685f866ca553678b97f3576a38c1397432821e094c29"
+    },
+    {
+      "path": "readme-panels/probe/speed-results.jsonl",
+      "bytes": 122927,
+      "sha256": "da0ae1682f0f509ad79abfc4c2881212293e31e1253e6903021eeef03f93857f"
+    },
+    {
+      "path": "readme-panels/speed-results.jsonl",
+      "bytes": 1161416,
+      "sha256": "b6d25108f22f1cf3e6bd757e6071f5b3341a63efefa1e8ceb8cb65d7f6a67b03"
+    },
+    {
+      "path": "readme-panels/summary.json",
+      "bytes": 329921,
+      "sha256": "fb648398b440a7d33e0c562e475342da319d15b40486dc2eb86619f3f3c27120"
+    }
+  ],
+  "verification": "22 extracted files byte-identical to the coordinator SHA256-verified tar. All JSON/JSONL parsed. Every completed cell rebuilt from raw operations and correctness receipts, retaining noisy and missing cells. Classification did not start.",
+  "planned_cells": 21,
+  "completed_cells": 11,
+  "eligible_cells": 8,
+  "uncompleted_cells": [
+    "encode/minishlab/potion-base-8M/float32/wikitext/1/fastembed",
+    "encode/sentence-transformers/static-retrieval-mrl-en-v1/float32/wikitext/1/st",
+    "encode/minishlab/potion-base-8M/float32/wikitext/16/model2vec",
+    "encode/minishlab/potion-base-8M/float32/wikitext/16/rust",
+    "encode/minishlab/potion-base-8M/float32/wikitext/16/fastembed",
+    "encode/sentence-transformers/static-retrieval-mrl-en-v1/float32/wikitext/16/st",
+    "encode/minishlab/potion-base-8M/float32/wikitext/32/model2vec",
+    "encode/minishlab/potion-base-8M/float32/wikitext/32/rust",
+    "encode/minishlab/potion-base-8M/float32/wikitext/32/fastembed",
+    "encode/sentence-transformers/static-retrieval-mrl-en-v1/float32/wikitext/32/st"
+  ]
+}

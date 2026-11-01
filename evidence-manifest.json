@@ -2615,6 +2615,198 @@
       "source_kind": "coordinator-verified pod transfer"
     },
     {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/bootstrap-invocation.json",
+      "size_bytes": 5911,
+      "sha256": "361a31770bcec89743813150f4846949480915081ae6c566a286c7a1504421a3",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "34d7b8160f09195c173bfad09886017c60efd223",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/bootstrap.log",
+      "size_bytes": 210699,
+      "sha256": "d82ff4bb736bc0400d275b1fe7fcea1439d8c23732f23f06fdc45d50e1b7834f",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "afc5ce1c17fd9f200c5a3d2fbb70388b1e154c5f",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/cache-ownership.json",
+      "size_bytes": 105,
+      "sha256": "85aaec726235655d9c7c0137d32bcafd7ab2760db5be12136eae2ca2b04cb754",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "03d63a88d72d5b2efe9d91ec26375b8c7e24a1a3",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/disk-preflight.json",
+      "size_bytes": 45,
+      "sha256": "91db890003b24c466c54b0be254acaf1907b82990046792e26e6525c0ccbf5bf",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "fa3ce866e7b39e88a487b20a1a0eae139570a0ec",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/pod4-plan.json",
+      "size_bytes": 50,
+      "sha256": "334fcc8b01bc4fa20fdd3e3aef5188a2749ddc6c2c37aafc08d278b0210c8f31",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "ebd1b1fcd11a5511b4289600e3bb203672dbf017",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/probe-complete.json",
+      "size_bytes": 42,
+      "sha256": "649a07feaf91901e68af3910c9989f2b3c317fe40f82e509469329304f89cce3",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "6743045ad2590f4e18b42ff152a833c08335913f",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/calibration-decisions.jsonl",
+      "size_bytes": 1278,
+      "sha256": "8936e07b153c6594a83c786bd61fe1eadcf52159830fd9e08d48c8b65ca3513b",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "ae7bf948fe3eaae4428bf43992819c71f893b733",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/calibration.jsonl",
+      "size_bytes": 175375,
+      "sha256": "1856a7cb6c6f80ebe22513d03f74836a537f80423d3c400675c3acbdb21e10c4",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "5d502d350bba01b287927a24539c96c16999f0b0",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/input-identities/passages-250000-seed0.identity.json",
+      "size_bytes": 1971,
+      "sha256": "319783eb915bbb5a217d6e9fd65b31ab71aeccfb21b28872d5559241a81242f6",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "bda1c6c116c55568ea4ab68ed2e0a97a7d91cd91",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/input-identities/passages-350000-seed0.identity.json",
+      "size_bytes": 1987,
+      "sha256": "f3e0f25c851f8f6d1e86860aad4f6746c59e859f22f6d473d1d446fcd15f10fe",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "09d785757d2492d00a9c89cd39d54f343c7224c9",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/input-identities/passages-370000-seed0.identity.json",
+      "size_bytes": 1996,
+      "sha256": "6cda572da291267ac726982bb27bc18eb72afbd95c01dbb91764cc38fc0c6ec6",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "3a9d94aabb9e1a98b94bf641a9d429ec45726243",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/input-identities/passages-390000-seed0.identity.json",
+      "size_bytes": 1995,
+      "sha256": "60c3c3008e79fbbf25ff268d9acbfee3349ba47befe24480a9bbe47ff1043e81",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "7012ba89f51e584c2286b1bf4e83e210b2974cb1",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/input-identities/passages-4370000-seed0.identity.json",
+      "size_bytes": 1999,
+      "sha256": "4f456a38c056d864f389e322c500717e713d23f44b9cfb35d01081c0fc63841a",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "b8e43804231dfcd3c88119f10e1a7a2a103619ea",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/input-identities/passages-4620000-seed0.identity.json",
+      "size_bytes": 2000,
+      "sha256": "45b36149e022ca2d21e698c693ca281960aeec70e48b0dddaccbc0f4b83a1fdf",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "ee8ddec12bcaeaf52bc3d659cbabe1b385e12267",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/invocations.jsonl",
+      "size_bytes": 444176,
+      "sha256": "ba0e6ed28cb18eb48debc5721c9a58c216e7433cef91c26ecab35f81fcea8a2b",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "026287ccd2571ded49adef59903fcd2b74e01682",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/output-checks.jsonl",
+      "size_bytes": 115395,
+      "sha256": "da6509bd9c6550708a38baae4d3974d584cb4f56440d96689277c6b4c366e1ae",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "7186557d4b8e329432e73592ca940e55529119a8",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/plan.json",
+      "size_bytes": 1880,
+      "sha256": "476b6145a2d1df7991e55e0402a2d177b5535a90f10633786cd982eb04165f18",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "709a23aa905c966a0bd47764cefb997891ddff26",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/probe.json",
+      "size_bytes": 6495,
+      "sha256": "c7060e017a0c6aab11475a73531feb6b4d8d1a67bc3cdee812f367ba6745ac4b",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "b81bf70bd2558a1139e8060ce67475546efe3a8f",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/probe/invocations.jsonl",
+      "size_bytes": 46044,
+      "sha256": "b771283c0bcfa6d8a770685f866ca553678b97f3576a38c1397432821e094c29",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "15b970832ba0cf4d0d442c5b3be4507feecf0422",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/probe/speed-results.jsonl",
+      "size_bytes": 122927,
+      "sha256": "da0ae1682f0f509ad79abfc4c2881212293e31e1253e6903021eeef03f93857f",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "fc3953b58e5de95566acb5e3e6db6cdcaa3dcb61",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/speed-results.jsonl",
+      "size_bytes": 1161416,
+      "sha256": "b6d25108f22f1cf3e6bd757e6071f5b3341a63efefa1e8ceb8cb65d7f6a67b03",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "bfe69e6830fc7ebd621cd78535d732202c4b79b9",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/summary.json",
+      "size_bytes": 329921,
+      "sha256": "fb648398b440a7d33e0c562e475342da319d15b40486dc2eb86619f3f3c27120",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "b6e280b24be2c11747c59718b29a3376f7f4856e",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/remote-sha256.txt",
+      "size_bytes": 213,
+      "sha256": "5d920321f86dd37c309cd38df93ff57a84f40e85ddb5ce63b6a9582cb347093b",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "6149871cb5e937be65781f371834c1f05ac51cf0",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/transfer-manifest.json",
+      "size_bytes": 5108,
+      "sha256": "553161cf4044b43599e435a949ebc75d231b48fd89f6de4b692a5b1155f47876",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "ad204d585b80228f6830728af58a55d4d0a049e8",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
       "path": "benchmarks/baseline/results/dr151-pod5-20261101/SIF-10-fasttext-crawl-subwords-300-fit.npz",
       "size_bytes": 8012520,
       "sha256": "ddcbb34ef48877d9ebd3bb8a9073cfe23ad8172261c61493e1a3bf236e5696f7",
