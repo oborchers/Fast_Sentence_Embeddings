@@ -171,9 +171,14 @@ def test_after_a_failed_write_the_sink_takes_no_more_rows(tmp_path, monkeypatch)
 
 
 def test_close_raises_a_write_error_nothing_raised_before(tmp_path, monkeypatch):
+    import threading
+
     from fse._store import _shard
 
+    release = threading.Event()
+
     def full(*_args):
+        assert release.wait(10)
         raise OSError(28, "No space left on device")
 
     monkeypatch.setattr(_shard, "write_at", full)
@@ -181,10 +186,14 @@ def test_close_raises_a_write_error_nothing_raised_before(tmp_path, monkeypatch)
     target = sink.target(0, 3)
     target[0][...] = 0
     target[1][...] = 0
-    sink.commit(0, target)  # handed to the writer threads; their error comes later
-    with pytest.raises(OSError, match="No space left"):
-        sink.close()
-    sink.close()  # closed: no second error
+    try:
+        sink.commit(0, target)  # handed to both threads before the write fails
+        release.set()
+        with pytest.raises(OSError, match="No space left"):
+            sink.close()
+    finally:
+        release.set()
+        sink.close()  # closed: no second error
     assert sink.durable_rows == 0
     assert not [p for p in (tmp_path / "s").iterdir() if p.name.startswith(".")]
 
