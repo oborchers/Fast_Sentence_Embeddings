@@ -55,7 +55,14 @@ def measure(options, repo, dtype, workers, against):
     }
     if against:
         commands[against] = encode_command(options, repo, "float32", "wikitext", workers, against)
-    done = series(commands, workers, options.output, options.deadline, identifier)
+    done = series(
+        commands,
+        workers,
+        options.output,
+        options.deadline,
+        identifier,
+        abort_on_timeout=getattr(options, "abort_on_timeout", False),
+    )
     raw = [
         json.loads(line)
         for line in (options.output / "speed-results.jsonl").read_text().splitlines()

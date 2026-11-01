@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -48,4 +49,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (TimeoutError, subprocess.TimeoutExpired) as error:
+        print(f"stage timeout: {error}", file=sys.stderr, flush=True)
+        raise SystemExit(124) from error

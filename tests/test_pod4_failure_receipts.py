@@ -110,7 +110,7 @@ def test_completed_series_cannot_hide_ineligible_classifier(modules, monkeypatch
     classify = modules["pod4_classify"]
     summary = modules["pod_folded_summary"]
     monkeypatch.setattr(classify, "calibrate", lambda *_args: (tmp_path / "input.json", {}))
-    monkeypatch.setattr(classify, "series", lambda *_args: {"complete": True})
+    monkeypatch.setattr(classify, "series", lambda *_args, **_kwargs: {"complete": True})
     monkeypatch.setattr(summary, "publish_summary", lambda *_args: {"cells": []})
     args = SimpleNamespace(output=tmp_path, deadline=100)
     with pytest.raises(RuntimeError, match="short, failed or noisy"):
@@ -188,4 +188,27 @@ def test_workload_supervisor_returns_status_and_enforces_deadline(modules, tmp_p
     assert (
         run([sys.executable, "-c", "import signal; signal.pause()"], tmp_path / "timeout.log", 0.1)
         == 124
+    )
+
+
+def test_child_timeout_aborts_before_other_paired_work(modules, monkeypatch, tmp_path):
+    import subprocess
+
+    pairs = modules["pod_pairs"]
+    monkeypatch.setattr(pairs.sys, "platform", "linux")
+    monkeypatch.setattr(pairs, "environment", lambda: {})
+
+    def expired(*_args):
+        raise subprocess.TimeoutExpired("child", 1)
+
+    monkeypatch.setattr(pairs, "round_observation", expired)
+    with pytest.raises(subprocess.TimeoutExpired):
+        pairs.series({"fse-a": []}, 1, tmp_path, float("inf"), "cell", abort_on_timeout=True)
+    rows = [
+        json.loads(line) for line in (tmp_path / "speed-results.jsonl").read_text().splitlines()
+    ]
+    assert rows[-1]["complete"] is False
+    script = modules["make_fixup_pod"].script("a" * 40)
+    assert script.index('if [ "$readme_status" -ge 124 ]') < script.index(
+        "run_stage folded-classification"
     )

@@ -133,6 +133,7 @@ def options_for(args):
         cache=args.cache,
         inputs=args.output / "pipeline-inputs",
         deadline=args.deadline,
+        abort_on_timeout=True,
     )
 
 
@@ -153,6 +154,7 @@ def probe(args):
         min(options.deadline, time.monotonic() + 180),
         "pod4/long-call-host-probe",
         minimum_seconds=120,
+        abort_on_timeout=True,
     )
     result["passed"] = result["complete"] and check_durations(folder, "pod4/long-call-host-probe")
     (options.output / "probe.json").write_text(json.dumps(result, indent=2) + "\n")
@@ -207,6 +209,8 @@ def run_cases(options, source, counts, plan):
             completed.append(result)
             if not result["eligible"]:
                 failed.append(identifier)
+        except (TimeoutError, subprocess.TimeoutExpired):
+            raise
         except Exception as error:
             failed.append(identifier)
             append(

@@ -124,7 +124,14 @@ def timed(args, folder, texts, labels, suite, name):
         for label, references in pairs.items():
             cell = f"folded/{suite}/{name}/{workers}/{label}"
             expected.append(cell)
-            done = series({**base, **references}, workers, args.output, args.deadline, cell)
+            done = series(
+                {**base, **references},
+                workers,
+                args.output,
+                args.deadline,
+                cell,
+                abort_on_timeout=True,
+            )
             if not done["complete"]:
                 failed.append(cell)
     from pod_folded_summary import publish_summary
@@ -192,6 +199,8 @@ def run(args):
                 raise TimeoutError("classification stage deadline reached")
             try:
                 dataset(args, suite, name, data, provenance)
+            except (TimeoutError, subprocess.TimeoutExpired):
+                raise
             except Exception as error:
                 failed.append(suite + "/" + name)
                 append(

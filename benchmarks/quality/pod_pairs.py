@@ -116,7 +116,7 @@ def round_observation(commands, ordered, workers, deadline, output, context, har
     return good, band
 
 
-def series(commands, workers, output, deadline, cell, *, minimum_seconds=0):
+def series(commands, workers, output, deadline, cell, *, minimum_seconds=0, abort_on_timeout=False):
     if sys.platform != "linux":
         raise RuntimeError("pod timing policy is restricted to Linux")
     hardware = environment()
@@ -150,6 +150,8 @@ def series(commands, workers, output, deadline, cell, *, minimum_seconds=0):
                     "reason": repr(error),
                 },
             )
+            if abort_on_timeout and isinstance(error, (TimeoutError, subprocess.TimeoutExpired)):
+                raise
             break
         if valid >= 3 and time.monotonic() - start >= minimum_seconds:
             break

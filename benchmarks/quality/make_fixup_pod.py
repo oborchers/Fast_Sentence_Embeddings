@@ -39,6 +39,7 @@ else
   readme_status=124
 fi
 if [ "$readme_status" -eq 75 ]; then exit 75; fi
+if [ "$readme_status" -ge 124 ]; then exit "$readme_status"; fi
 if [ ! -f /dr151-results/readme-panels/plan.json ] || [ ! -f /dr151-results/readme-panels/speed-results.jsonl ]; then exit 1; fi
 run_stage folded-classification /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod4.py classifications --cache /dr151-cache --output /dr151-results --deadline-epoch "$DR151_DEADLINE"
 classification_status=$?
