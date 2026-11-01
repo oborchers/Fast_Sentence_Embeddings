@@ -1,6 +1,7 @@
 """Real local release-runtime checks, including actual FastText subword tensors."""
 
 import importlib
+import json
 from pathlib import Path
 
 import numpy as np
@@ -66,4 +67,16 @@ def test_real_runtime_rejects_each_independent_mismatch(runtime_case, failure):
     else:
         entry["probe"]["vectors_xxh3"] = "xxh3-128:" + "0" * 32
     with pytest.raises(ValueError, match=r"metadata differs|does not reproduce"):
+        release.check_runtime(entry)
+
+
+def test_real_runtime_reads_and_validates_folded_component_receipt(runtime_case):
+    release, entry = runtime_case
+    preparation = Path(entry["local_folder"]) / "preparation.json"
+    preparation.write_text(json.dumps({"components": 10}))
+    entry["method"] = "sif10"
+    entry["metadata"]["sif_components"] = 10
+    release.check_runtime(entry)
+    preparation.write_text(json.dumps({"components": 9}))
+    with pytest.raises(ValueError, match="declare ten folded components"):
         release.check_runtime(entry)
