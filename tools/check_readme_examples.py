@@ -23,14 +23,75 @@ from fse import Classifier, Encoder, StaticModel
 ROOT = Path(__file__).resolve().parents[1]
 
 
+PYTHON_TAGS = {"python", "python3", "py"}
+
+
+def fence(line):
+    # CommonMark 0.31.2, section 4.5: matching fence characters and minimum length.
+    match = re.fullmatch(r"( {0,3})(`{3,}|~{3,})([^\r\n]*)", line.rstrip("\r\n"))
+    if match is None:
+        return None
+    indent, marker, info = match.groups()
+    if marker[0] == "`" and "`" in info:
+        return None
+    return len(indent), marker, info.strip()
+
+
+def opening(line, heading, number):
+    value = fence(line)
+    if value is None:
+        if re.search(r"(?:`{3,}|~{3,})[ \t]*(?:python3?|py)(?:[ \t]|$)", line):
+            raise ValueError(
+                f"Unsupported nested Python fence at line {number}; use a top-level fence"
+            )
+        return None
+    indent, marker, info = value
+    language = info.split()[0] if info else ""
+    return {
+        "indent": indent,
+        "marker": marker,
+        "python": language in PYTHON_TAGS,
+        "heading": heading,
+        "line": number + 1,
+        "code": [],
+    }
+
+
+def closing(line, block):
+    value = fence(line)
+    return (
+        value is not None
+        and value[1][0] == block["marker"][0]
+        and len(value[1]) >= len(block["marker"])
+        and not value[2]
+    )
+
+
+def append_line(block, line):
+    # Strip only the fence's Markdown indentation, preserving code and blank lines.
+    spaces = len(line) - len(line.lstrip(" "))
+    block["code"].append(line[min(block["indent"], spaces) :])
+
+
 def snippets(readme):
-    """Extract every Python fence in order, retaining its source line and heading."""
-    text = readme.read_text()
-    found = []
-    for match in re.finditer(r"^```(?:python|py)\s*\n(.*?)^```\s*$", text, re.M | re.S):
-        headings = re.findall(r"^#{1,6} (.+)$", text[: match.start()], re.M)
-        line = text[: match.start(1)].count("\n") + 1
-        found.append((headings[-1] if headings else "README", line, match.group(1)))
+    """Read top-level Python fences; reject unsupported nesting instead of skipping it.
+
+    https://spec.commonmark.org/0.31.2/#fenced-code-blocks
+    """
+    found, block, heading = [], None, "README"
+    for number, line in enumerate(readme.read_text().splitlines(keepends=True), 1):
+        if block is None:
+            match = re.match(r"^#{1,6} (.+)", line)
+            heading = match.group(1) if match else heading
+            block = opening(line, heading, number)
+        elif closing(line, block):
+            if block["python"]:
+                found.append((block["heading"], block["line"], "".join(block["code"])))
+            block = None
+        else:
+            append_line(block, line)
+    if block is not None and block["python"]:
+        raise ValueError("Unclosed Python fence")
     if not found:
         raise ValueError("README contains no Python examples")
     return found
@@ -84,7 +145,7 @@ print(json.dumps(model.predict(['I need a new password'], workers=1).tolist()))
     result = subprocess.run(
         [sys.executable, "-c", code, str(path.resolve())],
         check=True,
-        capture_output=True,
+        stdout=subprocess.PIPE,
         text=True,
     )
     if json.loads(result.stdout) != expected:
