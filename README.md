@@ -172,7 +172,7 @@ Every text had a nonzero vector. The audit excludes each text from its own neigh
 For equal scores, the earlier text in the input comes first. All outputs are float32.
 These results measure neighborhood stability on this input. Classification and retrieval task scores remain pending.
 
-TODO(DR-151): Add all peak-memory, speed and task-score comparisons.
+TODO(DR-151): Add the remaining peak-memory and speed comparisons, plus all task-score comparisons.
 Include quality change from each model's float32 result. Name the dataset, metric, revision and date.
 
 ## Benchmarks
@@ -207,8 +207,27 @@ Name machine, OS, Python, NumPy, library versions, model revisions, worker count
 | potion-multilingual-128M | pending | pending | model2vec: pending |
 | static-retrieval-mrl-en-v1 | pending | pending | sentence-transformers: pending |
 | static-similarity-mrl-multilingual-v1 | pending | pending | sentence-transformers: pending |
-| GloVe-300 | pending | pending | source and counterpart: pending |
-| word2vec-300 | pending | pending | source and counterpart: pending |
+| GloVe-300 | 212,783 (203,964 to 219,669) / pending / pending | 828,045 (708,401 to 901,244) / pending / pending | equal-model counterpart: pending |
+| word2vec-300 | pending / pending / 212,606 (211,846 to 213,981) | pending / pending / 924,000 (886,643 to 932,838) | equal-model counterpart: pending |
+
+The classic-model cells use [four completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/32df21e5be535048a86045619610446a9cd707bb/docs/benchmarks/readme-classic-timings-20261101/README.md)
+from the same date, machine and WikiText input. Each has three paired rounds,
+with one warm timed call per child after a full-corpus warmup.
+Their Model2Vec control uses POTION-8M, a different model. It does not fill an equal-model counterpart cell.
+No library speed ratio follows from those pairs. All load endpoints were below 5.
+The source reports A/A variation separately, including a time-ratio range of 0.7850 to 1.1500 for ten-worker GloVe.
+
+The largest process memory peaks among each series' three primary fse runs were:
+
+| Classic model and table | 1 worker, MiB | 10 workers, MiB |
+|---|---:|---:|
+| GloVe-300, float32 | 661.3 | 662.0 |
+| word2vec-300, int8 | 1,552.5 | 1,552.7 |
+
+These peaks include imports, model and corpus loading, warmup, encoding and outputs.
+They measure process memory, not saved-file size or memory added by one call.
+The linked raw records and summary retain exact byte counts and separate control-process peaks.
+Other model, dtype and task-quality results remain pending.
 
 The same float32 POTION-8M model also has a [one-worker MASSIVE sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/dr151-model2vec-massive-1.jsonl).
 Across 151,674 test texts, fse processed 878,260 texts/s (861,892 to 903,738),
