@@ -149,6 +149,23 @@ One MiB is 1,048,576 bytes. Each model keeps its original number of values per v
 Use these sizes to plan disk storage. Measure peak memory, speed and quality for your workload.
 The source records exact byte counts, model revisions and the environment that prepared the files.
 
+### First neighborhood stability check
+
+An [audit of POTION-8M](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/771fc882e1813ec9b57faa9d04435ef2cd850262/benchmarks/baseline/results/dr151-numerics.jsonl)
+used all 5,352 nonblank WikiText validation and test texts on 1 November 2026, on an Apple M1 Pro.
+It found the ten most similar other vectors for every text, using cosine similarity.
+It then measured how many of those neighbors each candidate retained, compared with fse's float32 table.
+
+| Candidate | Mean share of the original top ten retained |
+|---|---:|
+| model2vec 0.10.0, float32 | 100.000% |
+| fse, float16 table | 99.994% |
+| fse, int8 table | 99.634% |
+
+Every text had a nonzero vector. The audit excludes each text from its own neighbor list.
+Ties keep the smaller document ID first. All outputs are float32.
+These results measure neighborhood stability on this input. Classification and retrieval task scores remain pending.
+
 TODO(DR-151): Add the remaining classic-model file sizes and all peak-memory, speed and task-score comparisons.
 Include quality change from each model's float32 result. Name the dataset, metric, revision and date.
 
