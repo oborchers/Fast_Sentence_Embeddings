@@ -22,13 +22,14 @@ from pathlib import Path
 
 import numpy as np
 from bench_compare import append, reservation
+from compare_artifacts import file_digest, validate_preparation
 from compare_inputs import identity
 from compare_models import MODELS, artifact_name
 from compare_parallelism import settings
 from compare_search import timed
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "quality"))
-from prepare_fineweb import digest, load_pages, split  # isort: skip
+from prepare_fineweb import digest, load_pages, split, REVISION as FINEWEB_REVISION  # isort: skip
 from prepare_setfit import SOURCES, dataset  # isort: skip
 
 
@@ -114,12 +115,40 @@ def parallelism(args):
     return result
 
 
+def preparation_info(args, name, rows):
+    if args.suite == "fineweb":
+        folder, revision = args.classifiers, FINEWEB_REVISION
+    else:
+        specification = next(
+            item
+            for item in json.loads(SOURCES.read_text())["datasets"]
+            if item["dataset"] == "SetFit/" + name
+        )
+        folder, revision = args.classifiers / name, specification["revision"]
+    return validate_preparation(folder, revision, digest(rows))
+
+
+def artifact_identities(paths, preparation):
+    result = {}
+    for path in paths:
+        observed = {"file_bytes": path.stat().st_size, "checksum": file_digest(path)}
+        expected = preparation.get("artifacts", {}).get(path.name)
+        if expected is None and path.suffix in (".joblib", ".bin"):
+            raise ValueError(f"{path.name}: fitted artifact missing from preparation manifest")
+        if expected is not None and observed != expected:
+            raise ValueError(f"{path.name}: fitted artifact differs from preparation manifest")
+        result[str(path)] = observed
+    return result
+
+
 def measure(args, sets):
     from fse._container._hash import checksum
 
     records = []
     for name, rows in sets:
+        preparation = preparation_info(args, name, rows)
         seconds, (predict, paths) = timed(lambda n=name: predictor(args, n))
+        identities = artifact_identities(paths, preparation)
         first_s, expected = timed(lambda p=predict, r=rows: p(r))
         output_digest = checksum(np.ascontiguousarray(expected))
         times = []
@@ -131,6 +160,8 @@ def measure(args, sets):
         records.append(
             {
                 "dataset": name,
+                "preparation_manifest": preparation,
+                "artifact_identities": identities,
                 "texts": len(rows),
                 "input_digest": digest(rows),
                 "model_setup_s": seconds,

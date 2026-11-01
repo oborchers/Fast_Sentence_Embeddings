@@ -59,6 +59,9 @@ def task_deltas(rows: dict, baseline: dict) -> list[dict]:
             and row.get("source_revision")
             and row.get("source_revision") == other.get("source_revision")
         )
+        matches = matches and row.get("float32_parent_fingerprint") == other.get(
+            "encoder_fingerprint"
+        )
         result.append(
             {
                 "task": name,
@@ -110,13 +113,16 @@ def summarize(rows: list[dict], selected_setup: str, artifacts: dict) -> dict:
                 if row.get("model") == name and row.get("status") == "deferred"
             }
         )
+        artifact = artifacts.get(name.removeprefix("fse/") + ".safetensors")
+        if artifact and artifact.get("encoder_fingerprint") != source.get("encoder_fingerprint"):
+            raise ValueError(f"{name}: artifact manifest differs from the measured fingerprint")
         result.append(
             {
                 "model": name,
                 "source_model": source.get("source_model"),
                 "source_revision": source.get("source_revision"),
                 "encoder_fingerprint": source.get("encoder_fingerprint"),
-                "artifact": artifacts.get(name.removeprefix("fse/") + ".safetensors"),
+                "artifact": artifact,
                 "english_completed": len(eng & measured.keys()),
                 "english_required": len(eng),
                 "nanobeir_completed": len(nano & measured.keys()),

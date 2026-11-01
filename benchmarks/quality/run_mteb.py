@@ -50,6 +50,7 @@ from typing import Any
 
 import mteb
 import numpy as np
+from artifact_manifest import verified_source
 from model2vec_adapter import NativeModel2VecEncoder
 from mteb.cache import ResultCache
 from mteb.models.abs_encoder import AbsEncoder
@@ -136,6 +137,7 @@ class FseEncoder(AbsEncoder):
 
         path = self.folder / f"{model_name.removeprefix('fse/')}.safetensors"
         self.model = fse.Encoder.load(path)
+        self.provenance = verified_source(path, self.model)
         logger.info("loaded %s from %s", self.model, path)
 
     def encode(
@@ -299,7 +301,7 @@ def run(
                                 {
                                     **environment,
                                     "model": name,
-                                    **source_identity(name),
+                                    **getattr(model, "provenance", source_identity(name)),
                                     "loader": f"{type(model).__module__}.{type(model).__name__}",
                                     "workers": FseEncoder.workers,
                                     "device": "cpu",

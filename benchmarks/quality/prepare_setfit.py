@@ -21,6 +21,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from compare_inputs import identity  # isort: skip
+from compare_artifacts import seal_preparation  # isort: skip
 from compare_models import MODELS, artifact_name  # isort: skip
 from quality_coordination import task_reservation  # isort: skip
 from prepare_fineweb import digest, metrics  # isort: skip
@@ -192,6 +193,7 @@ def prepare(args, specification):
         for repo in ("minishlab/potion-base-8M", "minishlab/potion-base-32M"):
             heads(args, data, provenance, repo, output)
         tfidf(args, data, provenance, output)
+        seal_preparation(output)
 
 
 def main():

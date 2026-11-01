@@ -19,6 +19,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from compare_inputs import identity  # isort: skip
+from compare_artifacts import seal_preparation  # isort: skip
 from compare_models import MODELS, artifact_name  # isort: skip
 from quality_coordination import task_reservation  # isort: skip
 
@@ -246,6 +247,7 @@ def main() -> None:
             potion(args, data, provenance, repo)
     with task_reservation(args.coordination), threadpool_limits(limits=2):
         fasttext(args, data, provenance)
+        seal_preparation(args.output)
 
 
 if __name__ == "__main__":

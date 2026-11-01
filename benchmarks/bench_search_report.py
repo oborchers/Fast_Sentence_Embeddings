@@ -46,12 +46,47 @@ def backend(records):
     }
 
 
+def require_compatible(records):
+    common = (
+        "commit",
+        "runtime_fingerprint",
+        "versions",
+        "machine",
+        "python",
+        "threads",
+        "query_batch",
+        "k",
+        "encoder_start",
+        "model",
+        "revision",
+        "encoder_fingerprint",
+        "shape",
+        "table_dtype",
+        "input_digest",
+        "vector_digest",
+        "durability",
+    )
+    baseline = records[0]
+    if any(
+        any(key not in row or row[key] != baseline.get(key) for key in common) for row in records
+    ):
+        raise ValueError("search series contains incompatible source/runtime/settings identities")
+    for label in {row["label"] for row in records}:
+        same = [row for row in records if row["label"] == label]
+        if any(
+            row["kind"] != same[0]["kind"] or row["index_settings"] != same[0]["index_settings"]
+            for row in same
+        ):
+            raise ValueError("search series changed backend settings")
+
+
 def summarize(path):
     rows = [json.loads(line) for line in path.read_text().splitlines()]
     pairs = completed_rounds(rows)
     if not pairs:
         return {"raw": str(path), "status": "incomplete", **aa_summary(incomplete_aa(rows))}
     records = [row for pair in pairs for row in pair.values()]
+    require_compatible(records)
     if len({row["vector_digest"] for row in records}) != 1:
         raise ValueError("complete search series changed its vector matrix")
     first = pairs[0]["fse-a"]

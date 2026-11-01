@@ -23,6 +23,7 @@ from pathlib import Path
 
 import numpy as np
 from bench_compare import append, reservation
+from compare_artifacts import runtime_identity
 from compare_inputs import corpus_identity, identity, texts
 from compare_models import MODELS, artifact_name
 from compare_search import (
@@ -45,7 +46,11 @@ def child(args) -> None:
     from fse._container._hash import checksum
 
     sentences = texts("wikitext")
-    provenance = {**identity(), **corpus_identity("wikitext", sentences)}
+    provenance = {
+        **identity(),
+        **corpus_identity("wikitext", sentences),
+        "runtime_fingerprint": runtime_identity(),
+    }
     with threadpool_limits(limits=args.workers), tempfile.TemporaryDirectory(dir=args.tmp) as temp:
         load_s, encoder = timed(lambda: load_encoder(args, Encoder))
         encode_s, vectors = timed(lambda: encoder.encode(sentences, workers=args.workers))

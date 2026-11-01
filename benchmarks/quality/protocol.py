@@ -27,7 +27,13 @@ def measurement_identity(tasks: list) -> dict:
     folder = Path(__file__).resolve().parent
     method = [
         folder / name
-        for name in ("run_mteb.py", "model2vec_adapter.py", "resume.py", "protocol.py")
+        for name in (
+            "run_mteb.py",
+            "model2vec_adapter.py",
+            "resume.py",
+            "protocol.py",
+            "artifact_manifest.py",
+        )
     ]
     runtime = Path(fse.__file__).resolve().parent
     code = [*runtime.rglob("*.py"), *runtime.glob("_native*.so"), *runtime.glob("_native*.pyd")]

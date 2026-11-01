@@ -34,6 +34,18 @@ def test_measure_retains_every_dataset_and_prediction_pass(benchmark, monkeypatc
 
         return predict, [path]
 
+    monkeypatch.setattr(
+        benchmark,
+        "preparation_info",
+        lambda *_: {
+            "artifacts": {
+                path.name: {
+                    "file_bytes": path.stat().st_size,
+                    "checksum": benchmark.file_digest(path),
+                }
+            }
+        },
+    )
     monkeypatch.setattr(benchmark, "predictor", predictor)
     monkeypatch.setattr(benchmark, "timed", lambda function: (1.0, function()))
     records = benchmark.measure(
@@ -46,6 +58,7 @@ def test_measure_retains_every_dataset_and_prediction_pass(benchmark, monkeypatc
 
 def test_prediction_changes_are_an_error(benchmark, monkeypatch):
     counter = iter(range(10))
+    monkeypatch.setattr(benchmark, "preparation_info", lambda *_: {})
     monkeypatch.setattr(
         benchmark, "predictor", lambda *_: (lambda _: np.array([next(counter)]), [])
     )
