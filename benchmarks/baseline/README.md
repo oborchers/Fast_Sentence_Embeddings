@@ -1,6 +1,8 @@
 # Baseline: fse 1.1.0
 
-Model terms apply separately from fse: the licenses of paranmt and paragram are unknown. GloVe uses PDDL, word2vec uses Apache-2.0, fastText vectors use CC BY-SA 3.0, and POTION uses MIT.
+Model terms apply separately from fse. Google News word2vec **vectors have no stated licence**. Apache-2.0 covers the word2vec **code**, and the project carries a research-only disclaimer ("released for research purposes only"). See the [original word2vec project](https://code.google.com/archive/p/word2vec/). Do not attribute the code licence to the vector files.
+
+[GloVe vectors](https://github.com/stanfordnlp/GloVe) use PDDL. [FastText crawl vectors](https://fasttext.cc/docs/en/crawl-vectors.html) use CC BY-SA 3.0. No licence is stated for the paranmt-300 and paragram vector releases used here. POTION uses MIT. Recording these benchmark results does not assert redistribution rights for any model.
 
 The values fse 2.0 is compared with, measured with fse 1.1.0 from PyPI, never with the repository. The 2.0 numerics differ from 1.x by design (no EPS, fused multiply-add instead of `saxpy`, no BLAS in the removal of components); the release of 2.0 measures the same tables again.
 
