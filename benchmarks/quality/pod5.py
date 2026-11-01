@@ -66,10 +66,17 @@ def invoke(name, command, cache, output):
     require_space(cache)
     print(f"stage_start {name}", flush=True)
     started = time.time()
+    before = memory_snapshot()
     command = ["/usr/bin/time", "-v", "-o", str(output / f"{name}.rss.txt"), *command]
     (output / "active-stage.json").write_text(
         json.dumps(
-            {"stage": name, "command": command, "started_epoch": started, "returncode": None}
+            {
+                "stage": name,
+                "command": command,
+                "started_epoch": started,
+                "returncode": None,
+                "memory_before": before,
+            }
         )
         + "\n"
     )
@@ -80,6 +87,7 @@ def invoke(name, command, cache, output):
         "command": command,
         "returncode": returncode,
         "seconds": time.time() - started,
+        "memory_before": before,
         "memory_after": memory_snapshot(),
         "status": "completed" if returncode == 0 else "failed",
     }

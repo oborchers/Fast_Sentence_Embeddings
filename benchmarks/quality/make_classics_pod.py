@@ -12,7 +12,7 @@ from make_folded_pod import script as template
 from make_pod_scripts import bootstrap, install_quality
 from pod_shell import ssh_first
 
-FINALIZER = """import hashlib, json, sys
+FINALIZER = """import hashlib, json, shutil, sys
 from pathlib import Path
 root = Path('/dr151-results')
 status = int(sys.argv[2])

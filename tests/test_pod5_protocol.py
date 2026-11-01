@@ -81,9 +81,15 @@ def test_shell_and_finalizer_keep_failure_evidence(tmp_path):
     assert "shutdown" not in shell
     # Execute only the stdlib finalizer, against a temporary evidence directory.
     finalizer = generator.FINALIZER.replace("Path('/dr151-results')", "Path(sys.argv[1])")
+    model_cache = tmp_path / "models"
+    model_cache.mkdir()
+    (model_cache / "example-fit.npz").write_bytes(b"fitted state")
+    finalizer = finalizer.replace("Path('/dr151-cache/models')", "Path(sys.argv[1]) / 'models'")
     (tmp_path / "partial.jsonl").write_text('{"task":"x"}\n')
     subprocess.run([sys.executable, "-c", finalizer, str(tmp_path), "124"], check=True)
     receipt = json.loads((tmp_path / "transfer-manifest.json").read_text())
+    assert (tmp_path / "example-fit.npz").read_bytes() == b"fitted state"
+    assert isinstance(json.loads((tmp_path / "container-memory.json").read_text()), dict)
     assert receipt["complete"] is False
     assert receipt["returncode"] == 124
     assert any(
