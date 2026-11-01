@@ -67,7 +67,7 @@ REQUIRED = (
 )
 
 
-def signature(row: dict) -> str:
+def validate_record_identity(row: dict) -> None:
     if row.get("comparison_identity_version", 0) >= 2 and any(key not in row for key in REQUIRED):
         raise ValueError("timing record lacks required executed-runtime/configuration identity")
     if row.get("comparison_identity_version", 0) >= 3:
@@ -77,6 +77,10 @@ def signature(row: dict) -> str:
             raise ValueError("counterpart row has the wrong executing backend identity")
         if not row.get("runtime_package_version"):
             raise ValueError("backend runtime package version is missing")
+
+
+def signature(row: dict) -> str:
+    validate_record_identity(row)
     values = {key: row[key] for key in FIELDS if key in row}
     if "warm_seconds" in row:
         values["observed_pass_count"] = len(row["warm_seconds"])
@@ -125,3 +129,15 @@ def identity_status(pairs: list[dict]) -> str:
             "fse runtime captured; counterpart runtime misattributed to fse, re-measure counterpart"
         )
     return "backend-specific executed runtime and configuration captured"
+
+
+def backend_attribution(row: dict) -> str:
+    version = row.get("comparison_identity_version", 0)
+    if version < 2:
+        return "historical runtime identity not captured"
+    if row.get("kind") == "fse":
+        return "fse runtime captured"
+    if version < 3:
+        return "counterpart identity incorrectly points to fse; re-measure"
+    validate_record_identity(row)
+    return "own backend runtime captured"

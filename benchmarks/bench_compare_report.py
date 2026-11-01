@@ -7,7 +7,12 @@ import json
 import statistics
 from pathlib import Path
 
-from compare_compatibility import identity_status, require_compatible, signature
+from compare_compatibility import (
+    backend_attribution,
+    identity_status,
+    require_compatible,
+    signature,
+)
 
 
 def completed_rounds(rows: list[dict]) -> list[dict[str, dict]]:
@@ -63,6 +68,11 @@ def backend_summary(records: list[dict], hourly_price: float) -> dict:
     rates = [row["texts"] / row["p50_s"] for row in records]
     return {
         "model": records[0]["model"],
+        "runtime_identity_status": backend_attribution(records[0]),
+        "runtime_package": records[0].get("runtime_package"),
+        "runtime_package_version": records[0].get("runtime_package_version"),
+        "recorded_package_location": records[0].get("package_location"),
+        "recorded_runtime_fingerprint": records[0].get("runtime_fingerprint"),
         "revision": records[0]["revision"],
         "table_dtype": records[0]["table_dtype"],
         "output_dtype": records[0]["output_dtype"],
@@ -167,6 +177,9 @@ def summarize(path: Path, hourly_price: float) -> dict:
         "raw": str(path),
         "status": "complete",
         "identity_status": identity_status(pairs),
+        "paired_speed_ratio_status": "runtime-attributed comparison"
+        if identity_status(pairs) == "backend-specific executed runtime and configuration captured"
+        else "provisional counterpart attribution, re-measure before final ratio claims",
         "diagnostic_aa_configurations": diagnostic_aa(rows),
         "valid_pairs": len(pairs),
         "corpus": pairs[0]["fse-a"]["corpus"],
