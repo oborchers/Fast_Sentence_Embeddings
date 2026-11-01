@@ -57,6 +57,12 @@ def records():
                     "texts": 100,
                     "p50_s": seconds,
                     "quality": {"accuracy": 0.9},
+                    "linear_head_runtime": {
+                        "runtime_package": "scikit-learn",
+                        "runtime_package_version": "test",
+                        "package_location": "/installed/sklearn",
+                        "runtime_fingerprint": "sklearn-hash",
+                    },
                     "peak_rss_bytes": 500,
                     "folded_model_file_bytes": 100,
                     "encoder_plus_head_file_bytes": 1000,
@@ -127,4 +133,24 @@ def test_missing_counterpart_operations_cannot_supply_three_pairs(summary):
 def test_noisy_completion_record_cannot_be_overridden(summary):
     rows = records()
     rows[0]["aa_max_ratio"] = 1.2
+    assert not summary.summarize(rows)["cells"][0]["eligible"]
+
+
+def test_aa_controls_must_execute_the_same_fse_code(summary):
+    rows = records()
+    for row in rows:
+        if row.get("label") == "fse-b":
+            row["runtime_fingerprint"] = "other-fse-build"
+    assert not summary.summarize(rows)["cells"][0]["eligible"]
+
+
+@pytest.mark.parametrize("change", ["missing", "different"])
+def test_same_head_comparator_requires_stable_sklearn_identity(summary, change):
+    rows = records()
+    for row in rows:
+        if row.get("kind") == "model2vec-linear" and row["round"] == 2:
+            if change == "missing":
+                row.pop("linear_head_runtime")
+            else:
+                row["linear_head_runtime"]["runtime_fingerprint"] = "changed-sklearn"
     assert not summary.summarize(rows)["cells"][0]["eligible"]

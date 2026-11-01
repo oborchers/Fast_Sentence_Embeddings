@@ -84,3 +84,11 @@ def test_cleanup_rejects_reused_or_mismatched_cache(modules, tmp_path):
     (output / "cache-ownership.json").write_text(json.dumps({**owner, "owner_token": "b" * 32}))
     with pytest.raises(ValueError, match="ownership does not match"):
         modules.verify_owned_cache(cache, output)
+
+
+@pytest.mark.usefixtures("modules")
+def test_legacy_generator_delegates_to_revised_mind_script():
+    original = importlib.import_module("make_pod_scripts")
+    revised = importlib.import_module("make_mind_pod")
+    assert original.script("a" * 40, 1) == revised.script("a" * 40)
+    assert "if ! /usr/local/bin/python - <<'DR151_CACHE_OWNER'" in revised.script("a" * 40)

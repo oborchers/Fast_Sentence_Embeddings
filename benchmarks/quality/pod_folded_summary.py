@@ -26,10 +26,21 @@ def runtime_eligible(row):
     return row.get("runtime_package") == expected and all(runtime(row).values())
 
 
+def head_runtime_stable(rows):
+    if rows[0]["kind"] != "model2vec-linear":
+        return True
+    heads = [row.get("linear_head_runtime") or {} for row in rows]
+    valid = all(
+        head.get("runtime_package") == "scikit-learn" and all(runtime(head).values())
+        for head in heads
+    )
+    return valid and len({json.dumps(runtime(head), sort_keys=True) for head in heads}) == 1
+
+
 def arm(rows):
     first = rows[0]
     stable = len({json.dumps(runtime(row), sort_keys=True) for row in rows}) == 1
-    stable = stable and all(runtime_eligible(row) for row in rows)
+    stable = stable and all(runtime_eligible(row) for row in rows) and head_runtime_stable(rows)
     return {
         "runtime": runtime(first),
         "runtime_stable": stable,
@@ -37,6 +48,7 @@ def arm(rows):
         "head": first["head"],
         "normalization": first["normalization"],
         "linear_head_runtime": first.get("linear_head_runtime"),
+        "linear_head_runtime_stable": head_runtime_stable(rows),
         "texts_per_second": spread([row["texts"] / row["p50_s"] for row in rows]),
         "seconds": spread([row["p50_s"] for row in rows]),
         "accuracy": [row["quality"] for row in rows],
@@ -109,8 +121,11 @@ def summarize_cell(identifier, completed, operations, rounds):
     labels = sorted({row["label"] for row in rows})
     arms = {label: arm([row for row in rows if row["label"] == label]) for label in labels}
     first = rows[0]
-    controls = [row for row in rows if row["label"] in ("fse-a", "fse-b")]
-    stable_controls = len({row["output_digest"] for row in controls}) == 1
+    controls = [row for row in operations if row["label"] in ("fse-a", "fse-b")]
+    stable_controls = (
+        len({row["output_digest"] for row in controls}) == 1
+        and len({json.dumps(runtime(row), sort_keys=True) for row in controls}) == 1
+    )
     ratios = paired_speedups(rows, accepted, labels)
     eligible = (
         completed["complete"]

@@ -35,13 +35,18 @@ if ! /usr/bin/mkdir /dr151-cache; then
   /usr/bin/sleep infinity
   exit 1
 fi
-/usr/local/bin/python - <<'DR151_CACHE_OWNER'
+if ! /usr/local/bin/python - <<'DR151_CACHE_OWNER'
 import json, uuid
 from pathlib import Path
 record = {{"cache":"/dr151-cache","created_exclusively":True,"owner_token":uuid.uuid4().hex}}
 for path in ('/dr151-cache/.dr151-owner.json', '/dr151-results/cache-ownership.json'):
     with Path(path).open('x') as stream: json.dump(record, stream)
 DR151_CACHE_OWNER
+then
+  printf 'ERROR: cannot establish exclusive cache ownership.\\nALL_DONE\\n' >&2
+  /usr/bin/sleep infinity
+  exit 1
+fi
 /usr/bin/cat > /dr151-finalize.py <<'DR151_FINALIZER'
 {(HERE / "pod_finalize.py").read_text()}DR151_FINALIZER
 /usr/bin/cat > /dr151-work.sh <<'DR151_WORK'

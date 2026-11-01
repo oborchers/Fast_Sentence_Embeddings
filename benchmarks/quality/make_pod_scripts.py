@@ -67,14 +67,12 @@ done
 
 
 def script(commit, pod):
-    limit = 10800 if pod == 1 else 14400
-    work = bootstrap(commit)
     if pod == 1:
-        work += install_quality()
-        for stage in ("prepare", "evaluate"):
-            work += f"/usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_mind.py {stage} --models /dr151-results/models --cache /dr151-cache --output /dr151-results --workers 16\n"
-    else:
-        work += speed_stages()
+        from make_mind_pod import script as mind_script
+
+        return mind_script(commit)
+    limit = 14400
+    work = bootstrap(commit) + speed_stages()
     return f"""#!/usr/bin/env bash
 # Image python:3.13, cpu3c, 32 vCPU, 64 GB RAM, 60 GB disk. Never launches a pod.
 set -uo pipefail
