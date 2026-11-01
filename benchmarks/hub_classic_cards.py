@@ -29,8 +29,8 @@ TERMS = {
         "The Apache-2.0 license of their implementation is separate from the vector terms."
     ),
     "word2vec-google-news-300": (
-        "The Google News vectors were 'released for research purposes only', according to "
-        "the [original word2vec project](https://code.google.com/archive/p/word2vec/). "
+        "The [original word2vec project](https://code.google.com/archive/p/word2vec/) "
+        "states that the project is 'released for research purposes only'. "
         "The card therefore uses `license: other`. Apache-2.0 covers the word2vec code, "
         "not these pretrained vectors. No broader permission is asserted here."
     ),
@@ -97,6 +97,13 @@ def fit_text(fit):
         "STS-B Spearman and NanoBEIR macro nDCG@10, each scaled to 0-100. Those "
         "benchmarks guided corpus selection, so their scores are not untouched "
         "holdout estimates. `preparation.json` records the full fit receipt.",
+        "",
+        "Frequency-data attribution: [wordfreq](https://github.com/rspeer/wordfreq) "
+        "by Robyn Speer. Its code is Apache-2.0; its frequency data includes "
+        "CC BY-SA 4.0 material and source-specific credits in "
+        "[NOTICE.md](https://github.com/rspeer/wordfreq/blob/master/NOTICE.md). "
+        "Preparation transforms these frequencies into weights and folds them into "
+        "the table. The source-vector license field does not waive those data terms.",
         "",
     ]
 
