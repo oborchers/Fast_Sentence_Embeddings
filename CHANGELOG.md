@@ -12,6 +12,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 - `MemorySink` accepts positive numpy integer dimensions, matching the public integer validation contract. Booleans, floats and nonpositive dimensions remain errors.
 
+- The README documents the existing `StaticModel` export methods. The runtime error contract distinguishes eager collection validation from row ordering during a run.
+
 - Classifier predictions preserve trailing NUL characters in string labels, using an object array when needed. Labels without a valid UTF-8 representation raise at construction.
 
 - Removed the MLX backend before 2.0 because its maintenance cost brought no useful benefit. CPU and numpy remain available.
@@ -27,6 +29,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 - fse 2.0 uses the MIT license. The 1.x branch and existing releases remain GPL-3.0. Model and dataset licenses apply separately. FastText hashing is derived directly from the MIT fastText source with unchanged buckets; shipped text fixtures now contain original synthetic sentences instead of STS Benchmark sentences and reviews of unknown provenance.
 
 ### Added
+
+- Local recipe notebooks for offline SIF/uSIF tables, linear heads, resumable file and queue jobs, folder polling and application integrations, with a localhost overhead measurement. Recipe dependencies remain separate from fse.
 
 - A measured RunPod EPYC 9655P roofline profile and Linux x86 performance observations, with shared-host, CPU-affinity and profiling limitations.
 
