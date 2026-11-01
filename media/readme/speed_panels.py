@@ -80,10 +80,14 @@ def validate_calls(rounds):
         if set(observations) != {"fse-a", "fse-b"}:
             raise ValueError("Call durations require both fse-a and fse-b")
         for calls in observations.values():
-            if set(calls) != {"first", "warm"} or not calls["warm"]:
-                raise ValueError("Call durations require first and warm calls")
-            if any(positive(value) < 2 for value in [calls["first"], *calls["warm"]]):
-                raise ValueError("Every recorded fse call must last at least 2 seconds")
+            validate_backend_calls(calls)
+
+
+def validate_backend_calls(calls):
+    if set(calls) != {"first", "warm"} or not calls["warm"]:
+        raise ValueError("Call durations require first and warm calls")
+    if any(positive(value) < 2 for value in [calls["first"], *calls["warm"]]):
+        raise ValueError("Every recorded fse call must last at least 2 seconds")
 
 
 def same(rows, keys):
