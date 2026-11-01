@@ -171,6 +171,7 @@ def vector_license(name: str) -> str:
 
 
 def fse_meta(name: str) -> ModelMeta:
+    encoder = FseEncoder(name).model
     return ModelMeta(
         loader=FseEncoder,
         name=name,
@@ -179,8 +180,8 @@ def fse_meta(name: str) -> ModelMeta:
         languages=["eng-Latn"],
         n_parameters=None,
         memory_usage_mb=None,
-        max_tokens=np.inf,
-        embed_dim=FseEncoder(name).model.output_dim,
+        max_tokens=encoder._content.tokenizer.max_tokens or np.inf,
+        embed_dim=encoder.output_dim,
         license=vector_license(name),
         open_weights=True,
         public_training_code="https://github.com/oborchers/Fast_Sentence_Embeddings",
@@ -295,6 +296,9 @@ def run(
                                         getattr(model, "model", None), "fingerprint", None
                                     ),
                                     "revision": meta.revision,
+                                    "encoder_description": str(
+                                        getattr(model, "model", type(model).__name__)
+                                    ),
                                     "benchmark": benchmark_of[task],
                                     "task": task,
                                     "type": mteb.get_task(task).metadata.type,

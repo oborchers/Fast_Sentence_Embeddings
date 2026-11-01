@@ -58,6 +58,8 @@ def predictor(args, name):
             encoder = Encoder.load(args.models / artifact_name(args.model, args.table_dtype))
             head = joblib.load(folder / f"{stem}-fse-sklearn.joblib")
             model = Classifier.from_sklearn(encoder, head)
+        if model.encoder.word_vectors.dtype != args.table_dtype:
+            raise ValueError("classifier table dtype differs from the requested dtype")
         return lambda rows: model.predict(rows, workers=args.workers), fse_files(args, folder, stem)
     if args.kind == "model2vec":
         from huggingface_hub import snapshot_download
@@ -163,7 +165,11 @@ def child(args):
             "corpus": args.suite,
             "texts": sum(len(rows) for _, rows in sets),
             "input_digest": digest([row["input_digest"] for row in records]),
-            "table_dtype": args.table_dtype if args.kind == "fse" else "float32",
+            "table_dtype": (
+                args.table_dtype
+                if args.kind == "fse"
+                else (None if args.kind == "tfidf" else "float32")
+            ),
             "output_dtype": "labels",
             "threads": args.workers,
             **parallelism(args),

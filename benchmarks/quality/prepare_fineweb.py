@@ -144,7 +144,9 @@ def native(args, data, provenance: dict, repo: str) -> None:
         model.encode(train, use_multiprocessing=False), y_train.astype(np.int64)
     )
     predicted = fitted.predict(model.encode(evaluation, use_multiprocessing=False))
-    joblib.dump(fitted, args.output / f"{repo.rsplit('/', maxsplit=1)[-1]}-model2vec-sklearn.joblib")
+    joblib.dump(
+        fitted, args.output / f"{repo.rsplit('/', maxsplit=1)[-1]}-model2vec-sklearn.joblib"
+    )
     record(
         args,
         {
