@@ -58,7 +58,7 @@ vectors = encoder.encode(["the cat sleeps", "a dog runs"])
 
 A vector is a list of numbers that represents a text. Here you get a NumPy array with one row per text.
 The first load downloads the model. Its license applies separately.
-For complete applications, explore the nine [recipes](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) below.
+For complete applications, explore the eight [recipes](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) below.
 
 ### Already using Model2Vec?
 
@@ -138,7 +138,7 @@ This compares different trained models, not just two inference engines.
 
 ## Recipes: from a model to a working application
 
-These nine recipes show the full workflow, including preparation, execution and checks.
+These eight recipes show the full workflow, including preparation, execution and checks.
 Start with the job you want to do:
 
 | Use case | Recipe |
@@ -151,7 +151,6 @@ Start with the job you want to do:
 | Folder listener | [Pick up completed files and add each one to your search store.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/05-folder-listener.ipynb) |
 | Integrations | [Use one local encoder with your search, topic, and table libraries.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/06-integrations.ipynb) |
 | Local compute and HTTP | [See when a local HTTP request costs more than encoding the text.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/07-local-compute-and-http.ipynb) |
-| Folded classifier | [Fold a trained classifier into word vectors, then save a smaller model for your app.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/08-folded-classifier.ipynb) |
 
 The [recipe index](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) has setup instructions and recorded results.
 The queue recipe uses a fake queue and local Qdrant. The folder recipe polls for completed files.

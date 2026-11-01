@@ -26,6 +26,18 @@ Export each SVG to PNG with librsvg, for example:
 rsvg-convert media/readme/throughput-light.svg -o media/readme/throughput-light.png
 ```
 
-Repeat for the dark throughput chart and both vectors-and-labels variants.
+Repeat for the dark throughput chart, both vectors-and-labels variants and both classification-folding variants.
 The SVGs request Geist with an Arial/sans-serif fallback. PNG exports use installed fallback fonts when Geist is unavailable.
 Light and dark exports were inspected visually at full size.
+
+`classification-folding-*.svg` and PNG exports explain fse's linear classification path.
+They show a preparation step followed by repeated text prediction. The bias is added after averaging, not folded into each word.
+This applies to heads trained on raw, unnormalized averages when only class outputs are requested.
+The shorter-score-list explanation is conditional on fewer scores than input vector values.
+The standalone file stores that same folded table. It is not plotted as a separate faster algorithm.
+No controlled classification rates are published yet, so this figure has no rate, multiplier or timing bars.
+
+Architecture sources: `src/fse/_runtime/_head.py` (`prepare`, `fold`, `HeadPipeline`),
+`src/fse/_head/_model.py` (`save`, `_standalone_artifact`), and `docs/architecture/overview.md` (stage4b and finished tables).
+The next measured panel will use committed classifier rows from DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen),
+with exact head, normalization, dataset, machine, workers, date and a symmetric A/A upper band at most1.10.
