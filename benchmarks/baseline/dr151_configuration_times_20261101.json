@@ -141,6 +141,33 @@
       "nice_field_meaning": "initial process-priority probe, not executed evaluation priority",
       "measured_child_start_commit": "d180d828d9023cbab8f079ac5615f67b882585ea",
       "commit_field_meaning": "parent observed HEAD at job end"
+    },
+    {
+      "name": "t1-04-fse_static-similarity-mrl-multilingual-v1-float32",
+      "model": "fse/static-similarity-mrl-multilingual-v1-float32",
+      "started_utc": "2026-11-01T06:40:28.284781+00:00",
+      "ended_utc": "2026-11-01T06:58:03.980146+00:00",
+      "wall_seconds": 1055.6963443750283,
+      "returncode": 0,
+      "state_seconds_approximate_5s": {
+        "own_heavy": 565.1251721249428,
+        "timing_or_manual_pause": 0.0,
+        "foreign_heavy": 0.0,
+        "other_setup_cooldown_or_wait": 490.56549645902123
+      },
+      "batch_tasks": 16,
+      "workers": 2,
+      "nice": 0,
+      "nice_requested_adjustment": 10,
+      "includes": "imports, load, full evaluation, lock waits and cooldowns",
+      "excluded_from_speed_claims": true,
+      "commit": "7da44a00ccb2b4f6e70afc496e11f30679a4162f",
+      "nice_probe_immediately_after_Popen": 0,
+      "actual_nice": 10,
+      "actual_nice_evidence": "process_nice=10 in all 54 executed runtime records",
+      "nice_field_meaning": "initial pre-exec probe, not evaluation priority",
+      "measured_child_start_commit": "e748c0d3589a7c22b25ff5a835ec49b51314f513",
+      "commit_field_meaning": "parent observed HEAD at job end"
     }
   ],
   "note": "Full invocation wall time includes setup, evaluation, waits and cooldowns. Failed metadata jobs are retained and count as incomplete. Original scratch records remain unchanged. Priority correction applies to this old queue only."

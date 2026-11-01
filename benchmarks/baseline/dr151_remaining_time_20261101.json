@@ -1,20 +1,21 @@
 {
-  "completed_unique": 5,
-  "pending_unique": 30,
-  "remaining_static": 29,
+  "completed_unique": 6,
+  "pending_unique": 29,
+  "remaining_static": 28,
   "remaining_contextual": 1,
   "observed_static_invocation_seconds": [
     1462.740465,
     3064.1069151250413,
     1102.8503631660715,
     2120.387390666059,
-    1042.3446226669475
+    1042.3446226669475,
+    1055.6963443750283
   ],
-  "median_seconds": 1462.740465,
-  "uniform_remaining_static_hours": 11.783187079166668,
+  "median_seconds": 1282.7954140830357,
+  "uniform_remaining_static_hours": 9.977297665090278,
   "endpoint_scenario_hours": [
-    8.396665015928189,
-    24.683083482951723
+    8.107124842965147,
+    23.831942673194764
   ],
   "extra_unmeasured": [
     "MiniLM",

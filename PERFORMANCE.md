@@ -833,3 +833,17 @@ because unused repository exports or evaluation files were absent. The harness
 now requests its pinned inference files. The existing required-file cache was
 verified for all seven Hub models. Model revisions and complete input sets are
 unchanged. This changes no MTEB package or loader.
+
+
+Static-similarity-mrl-multilingual-v1 float32 also completed all 53 non-deferred
+tasks. The English40 mean is 51.4292 points, not a full English41 mean. The
+complete NanoBEIR13 mean is 43.5178 points. MIND alone is deferred.
+The invocation took 17.59 minutes including setup and waits,
+with actual process priority 10 throughout its runtime records.
+[Raw records](benchmarks/baseline/results/dr151-quality-staticsim-float32.jsonl)
+and [coverage summary](benchmarks/baseline/dr151_quality_staticsim_20261101.json).
+Six unique configurations are complete. Twenty-eight static configurations
+plus MiniLM remain. The uniform static scenario is now 9.98 hours,
+with endpoints 8.11 and 23.83 hours.
+MiniLM, classifiers, search and required same-method confirmations are additional.
+These checkpoints use separate method cohorts and establish no controlled ranking.
