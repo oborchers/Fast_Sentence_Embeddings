@@ -2615,6 +2615,198 @@
       "source_kind": "coordinator-verified pod transfer"
     },
     {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/bootstrap-invocation.json",
+      "size_bytes": 5911,
+      "sha256": "361a31770bcec89743813150f4846949480915081ae6c566a286c7a1504421a3",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "34d7b8160f09195c173bfad09886017c60efd223",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/bootstrap.log",
+      "size_bytes": 210699,
+      "sha256": "d82ff4bb736bc0400d275b1fe7fcea1439d8c23732f23f06fdc45d50e1b7834f",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "afc5ce1c17fd9f200c5a3d2fbb70388b1e154c5f",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/cache-ownership.json",
+      "size_bytes": 105,
+      "sha256": "85aaec726235655d9c7c0137d32bcafd7ab2760db5be12136eae2ca2b04cb754",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "03d63a88d72d5b2efe9d91ec26375b8c7e24a1a3",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/disk-preflight.json",
+      "size_bytes": 45,
+      "sha256": "91db890003b24c466c54b0be254acaf1907b82990046792e26e6525c0ccbf5bf",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "fa3ce866e7b39e88a487b20a1a0eae139570a0ec",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/pod4-plan.json",
+      "size_bytes": 50,
+      "sha256": "334fcc8b01bc4fa20fdd3e3aef5188a2749ddc6c2c37aafc08d278b0210c8f31",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "ebd1b1fcd11a5511b4289600e3bb203672dbf017",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/probe-complete.json",
+      "size_bytes": 42,
+      "sha256": "649a07feaf91901e68af3910c9989f2b3c317fe40f82e509469329304f89cce3",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "6743045ad2590f4e18b42ff152a833c08335913f",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/calibration-decisions.jsonl",
+      "size_bytes": 1278,
+      "sha256": "8936e07b153c6594a83c786bd61fe1eadcf52159830fd9e08d48c8b65ca3513b",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "ae7bf948fe3eaae4428bf43992819c71f893b733",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/calibration.jsonl",
+      "size_bytes": 175375,
+      "sha256": "1856a7cb6c6f80ebe22513d03f74836a537f80423d3c400675c3acbdb21e10c4",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "5d502d350bba01b287927a24539c96c16999f0b0",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/input-identities/passages-250000-seed0.identity.json",
+      "size_bytes": 1971,
+      "sha256": "319783eb915bbb5a217d6e9fd65b31ab71aeccfb21b28872d5559241a81242f6",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "bda1c6c116c55568ea4ab68ed2e0a97a7d91cd91",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/input-identities/passages-350000-seed0.identity.json",
+      "size_bytes": 1987,
+      "sha256": "f3e0f25c851f8f6d1e86860aad4f6746c59e859f22f6d473d1d446fcd15f10fe",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "09d785757d2492d00a9c89cd39d54f343c7224c9",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/input-identities/passages-370000-seed0.identity.json",
+      "size_bytes": 1996,
+      "sha256": "6cda572da291267ac726982bb27bc18eb72afbd95c01dbb91764cc38fc0c6ec6",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "3a9d94aabb9e1a98b94bf641a9d429ec45726243",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/input-identities/passages-390000-seed0.identity.json",
+      "size_bytes": 1995,
+      "sha256": "60c3c3008e79fbbf25ff268d9acbfee3349ba47befe24480a9bbe47ff1043e81",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "7012ba89f51e584c2286b1bf4e83e210b2974cb1",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/input-identities/passages-4370000-seed0.identity.json",
+      "size_bytes": 1999,
+      "sha256": "4f456a38c056d864f389e322c500717e713d23f44b9cfb35d01081c0fc63841a",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "b8e43804231dfcd3c88119f10e1a7a2a103619ea",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/input-identities/passages-4620000-seed0.identity.json",
+      "size_bytes": 2000,
+      "sha256": "45b36149e022ca2d21e698c693ca281960aeec70e48b0dddaccbc0f4b83a1fdf",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "ee8ddec12bcaeaf52bc3d659cbabe1b385e12267",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/invocations.jsonl",
+      "size_bytes": 444176,
+      "sha256": "ba0e6ed28cb18eb48debc5721c9a58c216e7433cef91c26ecab35f81fcea8a2b",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "026287ccd2571ded49adef59903fcd2b74e01682",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/output-checks.jsonl",
+      "size_bytes": 115395,
+      "sha256": "da6509bd9c6550708a38baae4d3974d584cb4f56440d96689277c6b4c366e1ae",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "7186557d4b8e329432e73592ca940e55529119a8",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/plan.json",
+      "size_bytes": 1880,
+      "sha256": "476b6145a2d1df7991e55e0402a2d177b5535a90f10633786cd982eb04165f18",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "709a23aa905c966a0bd47764cefb997891ddff26",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/probe.json",
+      "size_bytes": 6495,
+      "sha256": "c7060e017a0c6aab11475a73531feb6b4d8d1a67bc3cdee812f367ba6745ac4b",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "b81bf70bd2558a1139e8060ce67475546efe3a8f",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/probe/invocations.jsonl",
+      "size_bytes": 46044,
+      "sha256": "b771283c0bcfa6d8a770685f866ca553678b97f3576a38c1397432821e094c29",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "15b970832ba0cf4d0d442c5b3be4507feecf0422",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/probe/speed-results.jsonl",
+      "size_bytes": 122927,
+      "sha256": "da0ae1682f0f509ad79abfc4c2881212293e31e1253e6903021eeef03f93857f",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "fc3953b58e5de95566acb5e3e6db6cdcaa3dcb61",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/speed-results.jsonl",
+      "size_bytes": 1161416,
+      "sha256": "b6d25108f22f1cf3e6bd757e6071f5b3341a63efefa1e8ceb8cb65d7f6a67b03",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "bfe69e6830fc7ebd621cd78535d732202c4b79b9",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/readme-panels/summary.json",
+      "size_bytes": 329921,
+      "sha256": "fb648398b440a7d33e0c562e475342da319d15b40486dc2eb86619f3f3c27120",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "b6e280b24be2c11747c59718b29a3376f7f4856e",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/remote-sha256.txt",
+      "size_bytes": 213,
+      "sha256": "5d920321f86dd37c309cd38df93ff57a84f40e85ddb5ce63b6a9582cb347093b",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "6149871cb5e937be65781f371834c1f05ac51cf0",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4c-20261101/transfer-manifest.json",
+      "size_bytes": 5108,
+      "sha256": "553161cf4044b43599e435a949ebc75d231b48fd89f6de4b692a5b1155f47876",
+      "source_commit": "8174d0e89354930c54523517e811fac16ab93a58",
+      "git_blob": "ad204d585b80228f6830728af58a55d4d0a049e8",
+      "source_kind": "Coordinator tar verified; independent extracted-file byte comparison and structured audit"
+    },
+    {
       "path": "benchmarks/baseline/results/dr151-pod5-20261101/SIF-10-fasttext-crawl-subwords-300-fit.npz",
       "size_bytes": 8012520,
       "sha256": "ddcbb34ef48877d9ebd3bb8a9073cfe23ad8172261c61493e1a3bf236e5696f7",
@@ -5649,6 +5841,166 @@
       "source_commit": "894d3bb1afd76769fd090a5677e12eaa71287732"
     },
     {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/PERFORMANCE.md",
+      "size_bytes": 96936,
+      "sha256": "09dad9029ab0b6b8fed4b32567a5bdde6391241c7c800f5991e15d2d9c33475f",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "d3c9d0fb8717b2f54c6724d293356efdf99756fe",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/README.md",
+      "size_bytes": 9994,
+      "sha256": "7d5d90f2bc91707363f895f692988ee4c5ec5629225fdffac625e43cc1ab86ff",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "365c101d851eef0d8e184deae592cb2705774c35",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/dr151_configuration_times_20261101.json",
+      "size_bytes": 7866,
+      "sha256": "849a6d6de479ec22c96b7e6606a0bb0974cd13857e058c9cc0e6add3ab8badef",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "449ed7195649de7f16d5a0fb2b685117c5e3ea5e",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/dr151_matrix_summary_20261101.json",
+      "size_bytes": 48697,
+      "sha256": "12d8ce0105b4036650df54d4375631979c7845529bcb3bd42bf7e6a5cf382bce",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "1c69b4b98f606982c2e2340d3a971266ed5f91f2",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/dr151_pod2_audit_20261101.json",
+      "size_bytes": 28545,
+      "sha256": "de8330fdb57a3284c734c5d1343732c068a7c829d354f84443f8c09d361b2ff7",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "5c3f96b73a16943613d662b84332c1cd375e0768",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/dr151_pod3_large_write_20261101.json",
+      "size_bytes": 47297,
+      "sha256": "5a1f5de5907c6a1e3b5e39b4878bfc942b70022b0e6a1e92e8b53dce3f88cfd7",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "b08d673986947e27c41d24548c68278bafda2e98",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/dr151_pod3_panels_20261101.json",
+      "size_bytes": 39206,
+      "sha256": "3aa1ccf6e04fadab8b0ebc79ded544441b1c67da48a98fdddbe75233fea23a0a",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "b30a2b3246cb425360a77ccc618541f77c6d959e",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/dr151_summary_20261101.json",
+      "size_bytes": 43228,
+      "sha256": "cc84477b0040c75d701471db8524e0185f13fe7c2ece59f4b0c6e22e93d661ed",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "218b328b78d4312c5dcdede962db47680cbc848f",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/store_none_20261031.json",
+      "size_bytes": 4206,
+      "sha256": "ca95baf4876d12d854724740aefd28ca020bd778c58024e2c0d48851af4249b8",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "6d47536804322c56c6bb7e410e2f5eb062ba1170",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/store_sync_20261031.json",
+      "size_bytes": 47937,
+      "sha256": "9e1e3eade435609015b89d4864128c47e20d8f254a7fb70f0f474772b4c84689",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "b543a0d0c41829563de8e940035ac55b63d53ff6",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/thread_pool_20261031.json",
+      "size_bytes": 19540,
+      "sha256": "94f6936b377d27d3059733ab509af43ee52819a29045618826a887c329c5e26a",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "0500f9e95b44981e30434705a294c325214a5bbb",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/thread_pool_profiles_20261031.json",
+      "size_bytes": 2037,
+      "sha256": "ffd722bd38ffd83fd01a8553d6bec1e21775fd1d968c92b9972d3baa160a1adb",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "e49fe8b6f2fbdde9b7c8d9bd65afbc272f5d2baa",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/roofline_hardware.toml",
+      "size_bytes": 4680,
+      "sha256": "9c95fa188ed39c83659c1d5f4fd895214bbc68f665a9d58f685088010daefd69",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "e6374a934e23bde3232196a0eec662a4fb50b697",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/benchmarks/dr151-evidence.md",
+      "size_bytes": 8193,
+      "sha256": "317b4e302983c990d8a57e5a85365b4756291eaeee5077fb57e6227e7112e1d1",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "118c3a50d280ceec7fd38997068089911c718b7f",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/benchmarks/dr151-profiles.md",
+      "size_bytes": 1714,
+      "sha256": "50f44f8bd93416366969ca5cf696da0bcb0f2449422ce3b74cf91b5fbef4489e",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "6667d7d702d715c4d7ee0aa516bce19ae01d77bb",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/fse-comparison-aa.md",
+      "size_bytes": 18595,
+      "sha256": "9aca6e0b01be5eefeacac6318349e13331ec1c470c1fc0ebb9d82c68b9a3491e",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "f7209ced24ca964ea12b1ed2f608dee7ff22633d",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/fse-comparison-pods.md",
+      "size_bytes": 18138,
+      "sha256": "1425630becd06f7e856a5a9a35ea58be77440f6d0d1538342fb515522060872f",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "8ed857492ba3eec22854d5f25c171338ac377583",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/fse-comparison.md",
+      "size_bytes": 27079,
+      "sha256": "586eefaf46f9605ab321868586557779eb55583f73cc503a18889809c76c1484",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "c211b1b4b3f8749abfbf5eedd926c6b31a16e761",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/fse-pod2-results.md",
+      "size_bytes": 11001,
+      "sha256": "ecdafba8a2196d3455f955b80670c426016e2f0ba14bf92eea56455431d52a5e",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "5b6a5f8641836d6cfd053f4e9af29b738fb445f6",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/fse-pod3-results.md",
+      "size_bytes": 3495,
+      "sha256": "2a6b1118800f0d5ecfcb3167fa242357fdb922889f1eb52fe32296588a930a32",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "e5cca07e517d081a6cb2bc5c532419982191e2d5",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
       "path": "benchmarks/baseline/results/dr151_mind_loader_20261101.sample.txt",
       "size_bytes": 211933,
       "sha256": "df1f152f1f3cb594d5e12be97e8e0ac12a92590786b68c26b04fe9c1612dff30",
@@ -6552,6 +6904,342 @@
       "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
     },
     {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/fasttext-crawl-subwords-300-raw-float16.md",
+      "size_bytes": 3294,
+      "sha256": "c9c244ab23f2122de2905ef638ef800c3759224beb2540c4d59d9af458397ef9",
+      "source_commit": null,
+      "git_blob": "18acbbcfa93b3a2874846d260966634af484276c",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/fasttext-crawl-subwords-300-raw-int8.md",
+      "size_bytes": 3318,
+      "sha256": "047414fc7d61821f60ac9e7b7ed1e4f88e062157d014af68f5c7149d0115c365",
+      "source_commit": null,
+      "git_blob": "a34edd501987f9b7c64cd972d0e1282565a1bb62",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/fasttext-crawl-subwords-300-raw.md",
+      "size_bytes": 2942,
+      "sha256": "6a52680cab414d45c1525dd0e74643811c30c24ce5843f1ead60aa0adc25dabe",
+      "source_commit": null,
+      "git_blob": "4617605e2f6bbaa13801cca5766733dfa075e6eb",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/fasttext-crawl-subwords-300-sif10-float16.md",
+      "size_bytes": 4787,
+      "sha256": "1288ba001ce8a803f23b7a62aa9c87f981478a28f71dd8384fab01e8a16b3bd6",
+      "source_commit": null,
+      "git_blob": "d5e711e3e8401cddec13980455214080a43bb4dc",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/fasttext-crawl-subwords-300-sif10-int8.md",
+      "size_bytes": 4811,
+      "sha256": "e4ded6853bf8e149e40afabd96fde90930496e1fda1f382ce713141b18f5fcd1",
+      "source_commit": null,
+      "git_blob": "f64c7176e18355c273f57071e5eba87ee8d33ff2",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/fasttext-crawl-subwords-300-sif10.md",
+      "size_bytes": 4435,
+      "sha256": "cb9d063dbac59950701bf5660c8bbc313ca48e84a2e48d285e21ea59cf2db892",
+      "source_commit": null,
+      "git_blob": "8865ae8a251a1520f7efdd87536eb3b170754b05",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/glove-wiki-gigaword-300-raw-float16.md",
+      "size_bytes": 3013,
+      "sha256": "25e07ed242e00e27bf8cb667064c959d78c38d890173dd934ec8e78866ba86f3",
+      "source_commit": null,
+      "git_blob": "422e294c7aaa4156b31a74537900fc71876d2252",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/glove-wiki-gigaword-300-raw-int8.md",
+      "size_bytes": 3037,
+      "sha256": "52470f27055505d473ed44ee97e3bcdac1b2717463a81565014e44ca1b407629",
+      "source_commit": null,
+      "git_blob": "2d92d4f3fab10f613cf0baaca88ed8937bddbc3b",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/glove-wiki-gigaword-300-raw.md",
+      "size_bytes": 2661,
+      "sha256": "b67c39759a8b4683fd3f694b7f061cc538d0f814cd80ff0ba1de16467154ec8a",
+      "source_commit": null,
+      "git_blob": "2349e7fff0a71084a60db88f7ba394bfda14014d",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/glove-wiki-gigaword-300-sif10-float16.md",
+      "size_bytes": 4506,
+      "sha256": "15fab1db6a5a301779c510485b1acb78c49620ce0286eb49ee624a772f6114cb",
+      "source_commit": null,
+      "git_blob": "9373a4a498761ffc97d89830db03ed4bbde0f2bb",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/glove-wiki-gigaword-300-sif10-int8.md",
+      "size_bytes": 4530,
+      "sha256": "d0826eefc45e5a1f886a53b1fcf3d2214c51e8f36af9b29c8cb0854c1a9fa4a2",
+      "source_commit": null,
+      "git_blob": "35997962f500127021bbc585e3b81155be06ec60",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/glove-wiki-gigaword-300-sif10.md",
+      "size_bytes": 4154,
+      "sha256": "8da1e10193735fd7896c84070938ad723ed4ecb19629bb371ba9d0cde6cff37d",
+      "source_commit": null,
+      "git_blob": "10c276f05f19094eb303efb2f801f0929727f9da",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/paragram-300-sl999-raw-float16.md",
+      "size_bytes": 3138,
+      "sha256": "a7443c3e03d90fea2124734022d42f66d4748929e1121ac8a29c215c112bd162",
+      "source_commit": null,
+      "git_blob": "0e690bc5e4550f0b5e08b2fe0143240361049014",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/paragram-300-sl999-raw-int8.md",
+      "size_bytes": 3161,
+      "sha256": "003670e6aab9a031a122dd9748068ccf80090b2f3e7b2037c77b2eb4183cc55a",
+      "source_commit": null,
+      "git_blob": "e3254e63e128f9de5a54873e3f5d6fff0b04a099",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/paragram-300-sl999-raw.md",
+      "size_bytes": 2786,
+      "sha256": "a2bb679b905f22671a9a705345d5a00329b9469d8d8f2a76df8fc5762fb029ba",
+      "source_commit": null,
+      "git_blob": "0195d31690a8c6e83d95abb6617ebfeb4d3d876e",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/paragram-300-sl999-sif10-float16.md",
+      "size_bytes": 4631,
+      "sha256": "3703ec1ea369a9e245594e52634dae7f83cc237bc4ce15515fb2761938d884a0",
+      "source_commit": null,
+      "git_blob": "24310dfe012aebdca7fcf7a93d52e165068e2633",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/paragram-300-sl999-sif10-int8.md",
+      "size_bytes": 4654,
+      "sha256": "26be3491839f7acb665d8f5dd23d8a0e808c5c732b46a9bce491395a8c55cbb1",
+      "source_commit": null,
+      "git_blob": "9ec7463c982197a9b566cd725d3a396a26f8fb25",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/paragram-300-sl999-sif10.md",
+      "size_bytes": 4279,
+      "sha256": "0be67f5faee45ab3485f7e4be5334297116c19f2c21fce27221f371345c56ab8",
+      "source_commit": null,
+      "git_blob": "7609692660a33a5055054ce867a99538e9210b20",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/paranmt-300-raw-float16.md",
+      "size_bytes": 3289,
+      "sha256": "b7193b3751959d198583c4ae915b0a45bf0cad3791ef9ed154e855dc129be459",
+      "source_commit": null,
+      "git_blob": "eb20dbc24e87316458640006c048be9695576686",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/paranmt-300-raw-int8.md",
+      "size_bytes": 3313,
+      "sha256": "499cd9ca653b2aac92fd1fb15b2d089fc7eeb593db862c6ceb899f68e11bd073",
+      "source_commit": null,
+      "git_blob": "96debe37ece2af508e7229112712dcbb8f4f9dad",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/paranmt-300-raw.md",
+      "size_bytes": 2937,
+      "sha256": "aaf6a168160454c538f269e62cd0f8a893a7f0b038ed093cd5cc91a6dc8d7e0c",
+      "source_commit": null,
+      "git_blob": "3e4c20bd7a1dc8d2c5bc6943b9be3e3eb584e74b",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/paranmt-300-sif10-float16.md",
+      "size_bytes": 4782,
+      "sha256": "65f43a420af1daff015da6146a846a30eb56d17c749a9a0e46965d7e35c437ef",
+      "source_commit": null,
+      "git_blob": "83d6f22dace4fb7e6a0c5d59e2e85d3b5a813a36",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/paranmt-300-sif10-int8.md",
+      "size_bytes": 4806,
+      "sha256": "5e90fde448f29d53f41334bc5bf6a0cbc9a036ddaea2ebabd22c5fa48ef82927",
+      "source_commit": null,
+      "git_blob": "b74c15fa527e44d8a687d6314ff03b681b6a64e8",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/paranmt-300-sif10.md",
+      "size_bytes": 4430,
+      "sha256": "3c2ab8eeffadf2a121c662a047600ca92a49491e3859e1597076fba489f2be1e",
+      "source_commit": null,
+      "git_blob": "3e8619f32bd2b0e0cd2d85ecf5cd4b21a298d1d5",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/word2vec-google-news-300-raw-float16.md",
+      "size_bytes": 3139,
+      "sha256": "134fe1500f4d1374de18bb22cb1d26bb00e3fd0d9841d013270f70e75de148a5",
+      "source_commit": null,
+      "git_blob": "feeefa17ea026936f1ff528d4d3c1ba6bfc90c1f",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/word2vec-google-news-300-raw-int8.md",
+      "size_bytes": 3162,
+      "sha256": "c993332482f112b2ffba7e49c91576875b3e1bb970c17f81c8b3a5132a18b62e",
+      "source_commit": null,
+      "git_blob": "19e3de4d7140fe11d560e2138cd6756b21f9fd82",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/word2vec-google-news-300-raw.md",
+      "size_bytes": 2787,
+      "sha256": "c218ae04fb3e9a4d4529c274700cc8e7c377c28fa7b42f3871dfba472476f050",
+      "source_commit": null,
+      "git_blob": "6de7ddab19b7af5caaa2e5c5dd3b8fdba57f6d44",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/word2vec-google-news-300-sif10-float16.md",
+      "size_bytes": 4632,
+      "sha256": "1c2bd88a417a34e4d093dc6409bbaa5b06bc1de9b6d7e9b51a2ebde4610a536b",
+      "source_commit": null,
+      "git_blob": "fe335ec3b7005b3462eb3cc69da2dadb69596ed7",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/word2vec-google-news-300-sif10-int8.md",
+      "size_bytes": 4655,
+      "sha256": "aae2823df9284607f7c6b3e60e83bad5d503f783fa71ae528a541640d6fcbe5e",
+      "source_commit": null,
+      "git_blob": "eae55921890ed2239c7b48c5abc7ba45d91c7ce7",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/cards/word2vec-google-news-300-sif10.md",
+      "size_bytes": 4280,
+      "sha256": "a7d665dff0bde4ff927383bdb4bc0cdf844d22a0252789324ec9c56a0cfb4902",
+      "source_commit": null,
+      "git_blob": "3a0bca75372c0e34e183dda6a20e5fc62c04ca5e",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/independent-card-manifest-audit.json",
+      "size_bytes": 8490,
+      "sha256": "494ba5f572d4ac5370ce03e501d5592d5caaae0cb9580c5ba7843d93f695a1b6",
+      "source_commit": null,
+      "git_blob": "184eb0b8907108d69cfa11ff53fa5be088e8e758",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/model-header-audit.json",
+      "size_bytes": 8803,
+      "sha256": "e12d56db43ec7919ae07e10dccdcc83fed92328ce1299a9a1eace922fa99e889",
+      "source_commit": null,
+      "git_blob": "e92eab79fc00ae731304908a5d9582e9cace2f25",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/paranmt-300-sif10.diff",
+      "size_bytes": 549,
+      "sha256": "6525ee509e42ec9290b2e1318604a4751a2031f5bce1ccd4daf07eef80194358",
+      "source_commit": null,
+      "git_blob": "3b50a0fd8ab432d81632b9308fb2f02510f37f2f",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/preparation-receipt.json",
+      "size_bytes": 352,
+      "sha256": "2e365afdf17740421f808b0a08391e73f40d557af20ebbe5d7e5ce1334a38f47",
+      "source_commit": null,
+      "git_blob": "8005f0b84a5405187f102e3b90e7e242627b0f47",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/publication-inventory.md",
+      "size_bytes": 19177,
+      "sha256": "9c970b6c767082b34bd716fce077aed0032ab90f6f110648c3b3463b5986a15d",
+      "source_commit": null,
+      "git_blob": "1621b8826920f38507fe72c9ac254e95c9a6490a",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/publication-now/publication-manifest.json",
+      "size_bytes": 176555,
+      "sha256": "b569e35ee442263a3b73fb3d5f8ec89cf36488816bb36af3426e5caef116a436",
+      "source_commit": null,
+      "git_blob": "0e4f077c45f8acc885dd150cf7b6d034076118f2",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/scripts/check_publication_names.py",
+      "size_bytes": 1509,
+      "sha256": "21812ca9045f82526ad77e3c0c6f102f8233fc77b939f47412457ba84c747ca1",
+      "source_commit": null,
+      "git_blob": "5e9d6ad4bc10562ac6d975b60bdc1adfc33b8c49",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/scripts/finish_publication_now.py",
+      "size_bytes": 5351,
+      "sha256": "bf2a5f135f8ac80a28a7be5a07bddd3917e5aabb045553750c6063cc1e86220c",
+      "source_commit": null,
+      "git_blob": "c77df0864057fafc013db31c766cf01a6571cba4",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/scripts/job_support.py",
+      "size_bytes": 1043,
+      "sha256": "cf032b7575ac55f6a816daa387119aa937fc68506a040980f71a11b132b7ad63",
+      "source_commit": null,
+      "git_blob": "f77e28035317fba576164f1cc8959b02d7a72b3b",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/scripts/prepare_publication_now.py",
+      "size_bytes": 4725,
+      "sha256": "a05a25503c02f541f36e7489ddda68c8ac104d25348a94eb1595da7f74620961",
+      "source_commit": null,
+      "git_blob": "70459a601ec60d739c1d23eaa9a336ce25f59ad9",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/scripts/publish_hub_now.py",
+      "size_bytes": 7030,
+      "sha256": "37bdea9f63471c9dc8edf5c7a82e2fd9d0e143c34ccd03771b327ab6d556c386",
+      "source_commit": null,
+      "git_blob": "1b653e8aae016f7f6472faeaf12802a0a4f0e3f2",
+      "source_kind": "Owner-verified publication snapshot; no Git source commit asserted; scripts archived as data only"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/publication-preparation/transfer-manifest.json",
+      "size_bytes": 8273,
+      "sha256": "77506c283e3e655b5a68fdf11f7374c349f0f5732dcdd032ce9fae2dce8c514e",
+      "source_commit": null,
+      "git_blob": "dac696b184ecf535bfb1b00c0b7d1c4a8640d64f",
+      "source_kind": "Immutable publication snapshot transfer manifest"
+    },
+    {
       "path": "benchmarks/baseline/results/dr157-20261101/release-focused-4d0bc04.txt",
       "size_bytes": 98,
       "sha256": "f2f1d7366684bf31557092a677250f0de631376728df0b77f1805d0cb36564e6",
@@ -7293,9 +7981,9 @@
     }
   ],
   "evidence_branch": "benchmark-evidence-2.0",
-  "evidence_commit": "9603956da9878c63cff969eb59ee2e02ad136679",
-  "evidence_commit_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/commit/9603956da9878c63cff969eb59ee2e02ad136679",
-  "verified_files": 968,
-  "total_size_bytes": 98867640,
+  "evidence_commit": "e87ea3851833257f5eac561eed853a260581d3ce",
+  "evidence_commit_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/commit/e87ea3851833257f5eac561eed853a260581d3ce",
+  "verified_files": 1054,
+  "total_size_bytes": 102351258,
   "verification": "Existing immutable evidence blobs unchanged; appended pod files read back and checked by size and SHA256. Canonical and CRLF variants remain preserved."
 }

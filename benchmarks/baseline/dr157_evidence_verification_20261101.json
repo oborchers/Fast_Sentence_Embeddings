@@ -28,5 +28,17 @@
     "archived_files": 4,
     "archived_bytes": 17305,
     "verification": "Every size and SHA256 checked from source and read back from the published Git blobs. The original archive pin and owner source paths remain unchanged."
+  },
+  "publication_preparation": {
+    "evidence_commit": "e87ea3851833257f5eac561eed853a260581d3ce",
+    "root": "benchmarks/baseline/results/dr157-20261101/publication-preparation",
+    "payload_files": 41,
+    "payload_bytes": 347933,
+    "transfer_manifest_bytes": 8273,
+    "total_files": 42,
+    "total_bytes": 356206,
+    "transfer_manifest_sha256": "77506c283e3e655b5a68fdf11f7374c349f0f5732dcdd032ce9fae2dce8c514e",
+    "publication_manifest_sha256": "b569e35ee442263a3b73fb3d5f8ec89cf36488816bb36af3426e5caef116a436",
+    "verification": "All source and published Git-blob sizes/SHA256 independently checked. Operational scripts were archived as bytes only, never executed. No source snapshot changes or Hub writes."
   }
 }
