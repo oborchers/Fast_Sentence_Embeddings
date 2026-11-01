@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Prepare standalone LangChain, LlamaIndex and Haystack integration packages under `integrations/`, with isolated dependencies and offline tests.
+
 fse 2.0 is in development on master; it changes the API and the file format (see docs/architecture/overview.md, "Principle and stages"). Entries collect here until the release.
 
 - Architecture documentation is split by topic under `docs/architecture/`; `ARCHITECTURE.md` indexes it and preserves the former section links.

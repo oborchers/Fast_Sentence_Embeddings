@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "langchain-fse"
+version = "0.1.0.dev0"
+description = "fse embeddings for langchain-core"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = ["fse>=2.0.0.dev0", "langchain-core>=1.7.3"]
+
+[project.urls]
+Repository = "https://github.com/oborchers/Fast_Sentence_Embeddings"
+
+[project.optional-dependencies]
+test = ["pytest>=8", "pytest-asyncio>=0.24", "numpy>=1.26.4", "langchain-tests==1.1.9"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["network: downloads a model from the Hugging Face Hub"]
