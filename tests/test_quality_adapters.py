@@ -63,6 +63,26 @@ class TestQualityAdapters(unittest.TestCase):
         assert record["main_score"] is None
         assert record["reason"] == "deferred: needs more than 16 GiB RAM on the M1"
 
+    def test_precision_report_treats_python_version_formats_consistently(self):
+        report = importlib.import_module("report_precision")
+        assert report.setup({"python": "3.13.16"}) == report.setup(
+            {"python": "3.13.16 (build details)"}
+        )
+
+    def test_precision_delta_needs_matching_known_source_revisions(self):
+        report = importlib.import_module("report_precision")
+        left = {
+            "task_metadata": {"main_score": "accuracy"},
+            "main_score": 0.5,
+            "benchmark": "test",
+            "source_revision": "new",
+        }
+        right = {**left, "main_score": 0.4, "source_revision": "old"}
+        assert (
+            report.task_deltas({"task": left}, {"task": right})[0]["delta_vs_float32_points"]
+            is None
+        )
+
     def test_batch_yields_lock_when_timing_marker_appears(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)

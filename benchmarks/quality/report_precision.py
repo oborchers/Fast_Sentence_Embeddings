@@ -27,7 +27,9 @@ def setup(row: dict) -> str:
         "machine",
         "python",
     )
-    return json.dumps({key: row.get(key) for key in fields}, sort_keys=True)
+    values = {key: row.get(key) for key in fields}
+    values["python"] = (values["python"] or "").split(" ", maxsplit=1)[0]
+    return json.dumps(values, sort_keys=True)
 
 
 def mean_complete(rows: dict, tasks: set[str]):
@@ -52,7 +54,11 @@ def task_deltas(rows: dict, baseline: dict) -> list[dict]:
     for name, row in sorted(rows.items()):
         other = baseline.get(name)
         matches = other and row["task_metadata"] == other["task_metadata"]
-        matches = matches and row.get("source_revision") == other.get("source_revision")
+        matches = (
+            matches
+            and row.get("source_revision")
+            and row.get("source_revision") == other.get("source_revision")
+        )
         result.append(
             {
                 "task": name,
@@ -74,7 +80,11 @@ def summarize(rows: list[dict], selected_setup: str, artifacts: dict) -> dict:
         for benchmark in ("MTEB(eng, v2)", "NanoBEIR")
         for task in mteb.get_benchmark(benchmark).tasks
     ]
-    selected = [row for row in rows if setup(row) == selected_setup]
+    selected = [
+        {**row, "python": (row.get("python") or "").split(" ", maxsplit=1)[0]}
+        for row in rows
+        if setup(row) == selected_setup
+    ]
     groups = compatible_results(selected, tasks)
     models = {}
     for key, group in groups.items():
