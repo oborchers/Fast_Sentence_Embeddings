@@ -65,13 +65,18 @@ def test_source_terms_fit_metadata_and_quantized_relation(modules, tmp_path, nam
         "source": f"fse/{name}",
         "repo": repo,
         "method": "sif10",
-        "files": {"model.safetensors": {"bytes": (folder / "model.safetensors").stat().st_size}},
+        "files": {
+            p.name: {"bytes": p.stat().st_size, "xxh3": prepare.digest(p)} for p in folder.iterdir()
+        },
     }
     rows = [
         dict(
             repo=repo if method == "sif10" and stored == dtype else f"fixture/{method}-{stored}",
             method=method,
             dtype=stored,
+            fingerprint=encoder.fingerprint,
+            model_xxh3=prepare.digest(folder / "model.safetensors"),
+            state_xxh3=receipt["state_xxh3"],
             pearson=50.0,
             difference_float32_points=0.0,
             recall_at_10=1.0,
