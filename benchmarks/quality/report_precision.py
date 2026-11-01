@@ -74,6 +74,17 @@ def task_deltas(rows: dict, baseline: dict) -> list[dict]:
     return result
 
 
+def model_records(selected, tasks):
+    groups = compatible_results(selected, tasks)
+    models = {}
+    for key, group in groups.items():
+        name = json.loads(key)["model"]
+        if name in models:
+            raise ValueError(f"multiple incompatible artifact/revision configurations for {name}")
+        models[name] = {row["task"]: row for row in group}
+    return models
+
+
 def summarize(rows: list[dict], selected_setup: str, artifacts: dict) -> dict:
     tasks = [
         task
@@ -85,13 +96,7 @@ def summarize(rows: list[dict], selected_setup: str, artifacts: dict) -> dict:
         for row in rows
         if setup(row) == selected_setup
     ]
-    groups = compatible_results(selected, tasks)
-    models = {}
-    for key, group in groups.items():
-        name = json.loads(key)["model"]
-        if name in models:
-            raise ValueError(f"multiple incompatible artifact/revision configurations for {name}")
-        models[name] = {row["task"]: row for row in group}
+    models = model_records(selected, tasks)
     eng = {task.metadata.name for task in mteb.get_benchmark("MTEB(eng, v2)").tasks}
     nano = {task.metadata.name for task in mteb.get_benchmark("NanoBEIR").tasks}
     result = []
