@@ -1,0 +1,8 @@
+Fetching 5 files:   0%|          | 0/5 [00:00<?, ?it/s]Fetching 5 files: 100%|██████████| 5/5 [00:00<00:00, 1088.07it/s]
+{"built": "fse/fasttext-crawl-subwords-300-raw", "fingerprint": "xxh3-128:4d9f5f4df07caebb5960acdaf7fddaa6"}
+{"built": "fse/fasttext-crawl-subwords-300-raw-float16", "fingerprint": "xxh3-128:eb03270f4c886d64cfe8629540cde77e"}
+{"built": "fse/fasttext-crawl-subwords-300-raw-int8", "fingerprint": "xxh3-128:f67baa976b632633617f4958856214b8"}
+Fetching 5 files:   0%|          | 0/5 [00:00<?, ?it/s]Fetching 5 files: 100%|██████████| 5/5 [00:00<00:00, 1701.13it/s]
+{"built": "fse/fasttext-crawl-subwords-300-sif10", "fingerprint": "xxh3-128:a5ef569a2957cb24870f87d52432f56f"}
+{"built": "fse/fasttext-crawl-subwords-300-sif10-float16", "fingerprint": "xxh3-128:46fe26f184731f35ffba3f9ef7373e7d"}
+{"built": "fse/fasttext-crawl-subwords-300-sif10-int8", "fingerprint": "xxh3-128:075213b2d66190094fb9dc35b84e2f35"}

@@ -1,0 +1,33 @@
+{
+  "repo": "fse/paranmt-300-sif10-float16",
+  "method": "sif10",
+  "dtype": "float16",
+  "source": "fse/paranmt-300",
+  "revision": "a08e15771891207a22f840a3091a00a1657d888b",
+  "fingerprint": "xxh3-128:3145e0e4282adfa085f0ed3a6581076e",
+  "float32_fingerprint": "xxh3-128:4d2fb5d81b9888d2eb7bb8e69ee9c7f6",
+  "float32_table_fingerprint": "xxh3-128:ba010b29772aca247c55cf0cf3df65cf",
+  "files": {
+    "README.md": {
+      "bytes": 4978,
+      "xxh3": "xxh3-128:db3d8803baa3140eb84b66e669dba16f"
+    },
+    "config.json": {
+      "bytes": 199,
+      "xxh3": "xxh3-128:c3f27eebe8a9d0b04f638766b9b17030"
+    },
+    "model.safetensors": {
+      "bytes": 47523995,
+      "xxh3": "xxh3-128:70d942077d66829154b1bdffe8979d2f"
+    },
+    "preparation.json": {
+      "bytes": 1297,
+      "xxh3": "xxh3-128:f295852da0b67b7054692b136bb19cf6"
+    },
+    ".gitattributes": {
+      "bytes": 50,
+      "xxh3": "xxh3-128:e9698ced04172f96a3a59e08cf7c3cb3"
+    }
+  },
+  "card_recipe": "fse-classic-card@1"
+}

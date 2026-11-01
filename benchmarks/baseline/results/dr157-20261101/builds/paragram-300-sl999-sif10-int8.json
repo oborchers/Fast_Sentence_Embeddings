@@ -1,0 +1,33 @@
+{
+  "repo": "fse/paragram-300-sl999-sif10-int8",
+  "method": "sif10",
+  "dtype": "int8",
+  "source": "fse/paragram-300-sl999",
+  "revision": "c99818c1470d5c4e454eb9d59dfce2b179dba455",
+  "fingerprint": "xxh3-128:37fbc7e840861300414e76ec0964f409",
+  "float32_fingerprint": "xxh3-128:c6c96fd66f29e85fa6fefdf30661badd",
+  "float32_table_fingerprint": "xxh3-128:03b92a656496cada609ac05d18d4c722",
+  "files": {
+    "README.md": {
+      "bytes": 4850,
+      "xxh3": "xxh3-128:ef4c1a073a8d662108c2369cf7d6d66a"
+    },
+    "config.json": {
+      "bytes": 199,
+      "xxh3": "xxh3-128:a8b451aaa30830e912bc8c8024a9570e"
+    },
+    "model.safetensors": {
+      "bytes": 545590639,
+      "xxh3": "xxh3-128:847515c7c6828600cdbaa35b6812d2b2"
+    },
+    "preparation.json": {
+      "bytes": 1304,
+      "xxh3": "xxh3-128:2ba43155e1fe186ed574506214d40909"
+    },
+    ".gitattributes": {
+      "bytes": 50,
+      "xxh3": "xxh3-128:e9698ced04172f96a3a59e08cf7c3cb3"
+    }
+  },
+  "card_recipe": "fse-classic-card@1"
+}

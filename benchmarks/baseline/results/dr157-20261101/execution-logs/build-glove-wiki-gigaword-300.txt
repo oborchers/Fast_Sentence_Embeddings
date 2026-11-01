@@ -1,0 +1,4 @@
+Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 988.45it/s]
+{"built": "fse/glove-wiki-gigaword-300-sif10", "fingerprint": "xxh3-128:74dd7999a3a145152105dcbb1b6dba53"}
+{"built": "fse/glove-wiki-gigaword-300-sif10-float16", "fingerprint": "xxh3-128:f12d7470c438888448cc3bfab9582692"}
+{"built": "fse/glove-wiki-gigaword-300-sif10-int8", "fingerprint": "xxh3-128:071d69611357292c3a937a8ee8ce3d1f"}

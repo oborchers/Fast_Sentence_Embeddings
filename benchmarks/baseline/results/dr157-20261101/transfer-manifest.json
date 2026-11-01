@@ -1,0 +1,1327 @@
+{
+  "task": "DR-157 (Ausgew\u00e4hlte Modelle auf den Hugging Face Hub laden)",
+  "source_root": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub",
+  "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+  "archive_branch": "benchmark-evidence-2.0",
+  "archive_root": "benchmarks/baseline/results/dr157-20261101",
+  "publication_manifest_sha256": "ac85cae41b05788bc278d68fd3231489de1615c7c15b8b79229844c3d0dabe69",
+  "manifest_paths_into_removed_files": [],
+  "before": {
+    "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+    "merge_base": "81e64c0d5f92ea6270522f0d97a009979fc678d3",
+    "pr_added_lines": 22964,
+    "pr_deleted_lines": 0,
+    "pr_changed_files": 212,
+    "dr157_tracked_files": 179,
+    "dr157_tracked_bytes": 723998,
+    "dr157_tracked_lines": 19117,
+    "changed_head_blob_bytes": 951508
+  },
+  "entries": [
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/fasttext-crawl-subwords-300-execution.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-execution.json",
+      "bytes": 613,
+      "sha256": "572cdc8c983fdd68647a4c3c15a5804b2fff874c35899e436b5c5c86fafda30b",
+      "lines": 23,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/fasttext-crawl-subwords-300-fit.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-fit.json",
+      "bytes": 1313,
+      "sha256": "d896b0f6a82af161b01d3b7afe5a17b02fc8c7f4370f3bdfb32a18871b6c07b1",
+      "lines": 30,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/fasttext-crawl-subwords-300-raw-float16.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-raw-float16.json",
+      "bytes": 908,
+      "sha256": "a1e7f3e64ef4d3bd765b33f1092136c9f4fdff471d93326e33c06fff87ed4205",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/fasttext-crawl-subwords-300-raw-int8.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-raw-int8.json",
+      "bytes": 902,
+      "sha256": "b6f979fd05ca7c228d04b9f7ed8551ca747f6d7d316a48c0000d53cb2c24620e",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/fasttext-crawl-subwords-300-raw.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-raw.json",
+      "bytes": 900,
+      "sha256": "57151612b4220255a388edf76ac2c2625ed6db3c8f650882ad9e007ce39e2600",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/fasttext-crawl-subwords-300-sif10-float16.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-sif10-float16.json",
+      "bytes": 1024,
+      "sha256": "4767638e8b91d72a54813e3b8cc5194497228b466d4c233235348a76241bebbd",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/fasttext-crawl-subwords-300-sif10-int8.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-sif10-int8.json",
+      "bytes": 1018,
+      "sha256": "4e1015569e88326ff3651d497f6d8990394d1835d3f26d609e00282fa2b0afb1",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/fasttext-crawl-subwords-300-sif10.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-sif10.json",
+      "bytes": 1016,
+      "sha256": "1358995a1b801a4d229d5da6677ce99c512a177310e5bd070267a076313a143d",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/fasttext-crawl-subwords-300-verification.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/fasttext-crawl-subwords-300-verification.json",
+      "bytes": 9963,
+      "sha256": "7e5976ccca6faf908ce8c573f2ae07b56e1a0cdaa9e910ba1509f9ea0dc1edf4",
+      "lines": 218,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/glove-wiki-gigaword-300-execution.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-execution.json",
+      "bytes": 635,
+      "sha256": "f46e79f172e046a616b558ad5875f6fea65caeaa5ea4b9416abd04dcdfa05427",
+      "lines": 25,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/glove-wiki-gigaword-300-fit.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-fit.json",
+      "bytes": 1309,
+      "sha256": "78a147b191fe1acaa9843f74f2a135159e4e00667c49d71fa432109032577d41",
+      "lines": 30,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/glove-wiki-gigaword-300-raw-float16.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-raw-float16.json",
+      "bytes": 929,
+      "sha256": "873ec1c92709df3da63e7e686daae95f15ec08c1e26327310b41f1ce9fe9a397",
+      "lines": 30,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/glove-wiki-gigaword-300-raw-int8.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-raw-int8.json",
+      "bytes": 923,
+      "sha256": "bfb51484af0f60494651ad10f73d4531ef09b06a9e576c0ec3cac81f5371b5be",
+      "lines": 30,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/glove-wiki-gigaword-300-raw.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-raw.json",
+      "bytes": 921,
+      "sha256": "c3f561051c7bfaea5ce30c8a5c9dd6364be705f9ddf3cb19194b57d97a99634b",
+      "lines": 30,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/glove-wiki-gigaword-300-sif10-float16.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-sif10-float16.json",
+      "bytes": 1015,
+      "sha256": "eacd231d8fffaf946368e7e6378ef4f18dca81d14593cda98f0684e7dfb07dc5",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/glove-wiki-gigaword-300-sif10-int8.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-sif10-int8.json",
+      "bytes": 1009,
+      "sha256": "d1a7b8fa81461be892121da1eef67c051b3ba895fc4986517bef485072912b42",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/glove-wiki-gigaword-300-sif10.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-sif10.json",
+      "bytes": 1007,
+      "sha256": "559d6b367db87659625c9d1652ecce2ed315e978b8868782b0f3c66476c76bd9",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/glove-wiki-gigaword-300-verification.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/glove-wiki-gigaword-300-verification.json",
+      "bytes": 9934,
+      "sha256": "5ac518f90468de8af03d391eac10b7bc0a5829dff90830d010847e0a422c9107",
+      "lines": 218,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paragram-300-sl999-execution.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-execution.json",
+      "bytes": 595,
+      "sha256": "ef21dff2fed4234580dc511ec213bbee9d184df7c1caad322699334c63b26c7a",
+      "lines": 23,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paragram-300-sl999-fit.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-fit.json",
+      "bytes": 1304,
+      "sha256": "32d6a5318457e4306ab36da80d1513716a51da35bc9b06ce31eda8084d62840a",
+      "lines": 30,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paragram-300-sl999-raw-float16.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-raw-float16.json",
+      "bytes": 890,
+      "sha256": "6dc86ffac1ee952fcb7ef7e8a5df112e96ea766ce546b65a1a756a3825a5d57b",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paragram-300-sl999-raw-int8.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-raw-int8.json",
+      "bytes": 883,
+      "sha256": "624cb030e751537d5a02a1b77d2858561df03cd44b90f4116f6c54b687c73135",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paragram-300-sl999-raw.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-raw.json",
+      "bytes": 882,
+      "sha256": "6578f995ad954c237d143084a603db4cd096cce75c372c810e9aec3cc0777765",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paragram-300-sl999-sif10-float16.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-sif10-float16.json",
+      "bytes": 1006,
+      "sha256": "09d58cbbbe1fd6268cf6efcba7de06bf9727d02bcbf4b68a20ea7d17e284b65a",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paragram-300-sl999-sif10-int8.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-sif10-int8.json",
+      "bytes": 999,
+      "sha256": "86a68fb7c12053d4e466c66c842e1bec235e233fc2a0c0a6a5c8c1a53f5d4c94",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paragram-300-sl999-sif10.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-sif10.json",
+      "bytes": 998,
+      "sha256": "4d6b9430a5ded884e04226147ffd352b050ad720fd71ecb6e1847e7d5d83d35c",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paragram-300-sl999-verification.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paragram-300-sl999-verification.json",
+      "bytes": 9874,
+      "sha256": "4ae79f6d5a0219894865e1442341cc133acac49e2e3386cd8e8e99f077bf080e",
+      "lines": 218,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paranmt-300-execution.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-execution.json",
+      "bytes": 581,
+      "sha256": "a075fdb638cca2dcf0a44e83316311d97ec7c82ae79b75071e12eb0756de939b",
+      "lines": 23,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paranmt-300-fit.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-fit.json",
+      "bytes": 1297,
+      "sha256": "41b50c857c412e5a3fbafd0fef0ecb58bd292f622614c567536775c2fb381cb3",
+      "lines": 30,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paranmt-300-raw-float16.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-raw-float16.json",
+      "bytes": 874,
+      "sha256": "c35fac4ff5c12ab01b1b6a54df42d0f9742bba81ca60bea85c3f330e357f3267",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paranmt-300-raw-int8.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-raw-int8.json",
+      "bytes": 868,
+      "sha256": "6b3ee82f2fe27b43254549112409a94dc66ceffc15d93ba6c0de5d4bc3d77129",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paranmt-300-raw.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-raw.json",
+      "bytes": 866,
+      "sha256": "3121d796fa8f95b640b096ff66be682c50f78830b2be33b1b2dfab3d2047d35c",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paranmt-300-sif10-float16.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-sif10-float16.json",
+      "bytes": 990,
+      "sha256": "fc843a331d87b50e4699e96b1f6079f5ec9ecdf4aa855b9b87587b3600820e0d",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paranmt-300-sif10-int8.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-sif10-int8.json",
+      "bytes": 984,
+      "sha256": "275b1504a2634ae5d8034e11687fe32c04e79fa47c9a69dd51db84807c102b84",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paranmt-300-sif10.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-sif10.json",
+      "bytes": 982,
+      "sha256": "14b3e7f9e51199f8a77525348340e2c056c7bfa384c425912a342b479939c974",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/paranmt-300-verification.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/paranmt-300-verification.json",
+      "bytes": 9828,
+      "sha256": "f9efab1c8d888c479a0acf4f7b6284f55ec341c248242619d578caa16ebb093f",
+      "lines": 218,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/word2vec-google-news-300-execution.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-execution.json",
+      "bytes": 607,
+      "sha256": "935b545f77eedfc8d815e2f8f396dcab0dc8dcbb0805ad08fa510aa6537e4ae3",
+      "lines": 23,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/word2vec-google-news-300-fit.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-fit.json",
+      "bytes": 1310,
+      "sha256": "04194ecec92009b39f4cc2fda10c8c6eec2f0cce312830035ba78e254c4a653c",
+      "lines": 30,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/word2vec-google-news-300-raw-float16.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-raw-float16.json",
+      "bytes": 902,
+      "sha256": "df013623cf7b8f94f3c21615a28147371e6f747b4eefddcd9700f1770a56fa33",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/word2vec-google-news-300-raw-int8.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-raw-int8.json",
+      "bytes": 895,
+      "sha256": "72c94c8f90d8d7068a120ce3f2a74c975308dd23d74778591ef8e5b11efa95a5",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/word2vec-google-news-300-raw.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-raw.json",
+      "bytes": 894,
+      "sha256": "04e80470cf85317967f851d5177e44190a62d9d556998df06dbe4daee85073ff",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/word2vec-google-news-300-sif10-float16.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-sif10-float16.json",
+      "bytes": 1018,
+      "sha256": "ced3c025539d665a6eca4a07da9be4a495b90ce2e6eaff181e6b9fcd796a06f7",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/word2vec-google-news-300-sif10-int8.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-sif10-int8.json",
+      "bytes": 1011,
+      "sha256": "9e1430969b2ef6e13e26c4e5459e2e186cca73d3148b0a5468d55761e7fcfa67",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/word2vec-google-news-300-sif10.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-sif10.json",
+      "bytes": 1010,
+      "sha256": "b7423107ec8b2c2d7d2055f69ac22d6572e7e2c3b1ce19ac2923c7522f3523fc",
+      "lines": 33,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/builds/word2vec-google-news-300-verification.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/builds/word2vec-google-news-300-verification.json",
+      "bytes": 9890,
+      "sha256": "05d19f8ce517d3ed7f5ece7b107244be1e0184daa127a6fc3d287c0b688d11f4",
+      "lines": 218,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/candidate-audit.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/candidate-audit.txt",
+      "bytes": 2186,
+      "sha256": "bb3335da1e86d61a6121631df2171acfddf231024bc2700fbbbbdd81580b741f",
+      "lines": 5,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/cleanup.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/cleanup.json",
+      "bytes": 8863,
+      "sha256": "82da6834ec6f68eccd8ba7f60374071f6afdac0e774268ef75fa11e7a47b0748",
+      "lines": 211,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/audit.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/audit.json",
+      "bytes": 464,
+      "sha256": "5dbaee7cb530875ba550c5ddb4b743cdaf52b605c70c24e8512e0780aa4e2d86",
+      "lines": 8,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/fineweb-sample.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/fineweb-sample.json",
+      "bytes": 929,
+      "sha256": "c2fdd100e29047516c387eaa67fe9c62ab393ef5e771bc242c0a87bf63291b4a",
+      "lines": 21,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-NanoArguAnaRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoArguAnaRetrieval.json",
+      "bytes": 1011,
+      "sha256": "93ab5b10b5e9c1421cc9cabaa39d416d9b5d436a99aa3f396502d5b4821c11b4",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-NanoClimateFeverRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoClimateFeverRetrieval.json",
+      "bytes": 1021,
+      "sha256": "468bb0c22fe37bed52512d74f049e7640a99cf625c874c236407435cb9996c4d",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-NanoDBPediaRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoDBPediaRetrieval.json",
+      "bytes": 1011,
+      "sha256": "52d6941fe4df9a603dc0e8abb17aa922bcb0c962d5dc62f20f75794487adbd1c",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-NanoFEVERRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoFEVERRetrieval.json",
+      "bytes": 1007,
+      "sha256": "b81f8ae5f1cefc26483166d3651f19887f6d8b1827bf559fb1c0d3d43a0e4923",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-NanoFiQA2018Retrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoFiQA2018Retrieval.json",
+      "bytes": 1013,
+      "sha256": "28348e5e100c34f39c71b394f9914e8871cca450bb9d18f10a5da52241932a81",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-NanoHotpotQARetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoHotpotQARetrieval.json",
+      "bytes": 1013,
+      "sha256": "38b61ed39183e373b097cdb1820a1607ac9dde262a1996a62e199084e81518d1",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-NanoMSMARCORetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoMSMARCORetrieval.json",
+      "bytes": 1011,
+      "sha256": "0b8aeda3ba75e87f6ab914c8a4a77e20064681663bb9edb7c97dad95ed0dce64",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-NanoNFCorpusRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoNFCorpusRetrieval.json",
+      "bytes": 1013,
+      "sha256": "360372046e8a038485ff89c847f0a80796497bb4a59a1891931340d75b9dee5f",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-NanoNQRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoNQRetrieval.json",
+      "bytes": 1001,
+      "sha256": "b3cb5957014f09b7b8f9c4588c6213b97a54c571f14675dfea1f28ab9dc5f6e2",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-NanoQuoraRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoQuoraRetrieval.json",
+      "bytes": 1007,
+      "sha256": "55db0ee75c2cfba66aeee9148b7c20dc9c5f8ab7c337371c213e0a2d6c4e57e3",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-NanoSCIDOCSRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoSCIDOCSRetrieval.json",
+      "bytes": 1008,
+      "sha256": "2589083ba4079c49c16e7e4c1078c3c66b340abe9745ae0fbdaa72650037fe42",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-NanoSciFactRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoSciFactRetrieval.json",
+      "bytes": 1011,
+      "sha256": "80bb4dbb29fcd5365b8002b72391bf86e77d881cb14faf99ea025416141cc13b",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-NanoTouche2020Retrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-NanoTouche2020Retrieval.json",
+      "bytes": 1017,
+      "sha256": "e4bdfcba6c3fd407748cd79a26ae96838eb8c6d0768916849e809a7a560656c6",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-fit.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-fit.json",
+      "bytes": 1234,
+      "sha256": "745f2a8990f9f869e332104d0e1a12e817bfa7daac20af1a99ebdcfb83ab238b",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-sts.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-sts.json",
+      "bytes": 1491,
+      "sha256": "fa95febff59322d84a6ad82eae582c6ca730de2c6247595ce80da525498a1a97",
+      "lines": 34,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-fineweb-wordfreq.safetensors.header.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-fineweb-wordfreq.safetensors.header.json",
+      "bytes": 1076,
+      "sha256": "6c1d8ff1ce5d2035decfe1fef5262a2ad4eeb5a33feb0a62951d167205b970e6",
+      "lines": 49,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-NanoArguAnaRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoArguAnaRetrieval.json",
+      "bytes": 1012,
+      "sha256": "0e3fcc8450f66ed16c6cda1ea3745ec60b1b18bc0cf1339e6ff2e524897ee3fe",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-NanoClimateFeverRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoClimateFeverRetrieval.json",
+      "bytes": 1022,
+      "sha256": "b8b2e55c009ed508dd98182c4b2a02551d679537af7df55627dc4cc7577ae9d0",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-NanoDBPediaRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoDBPediaRetrieval.json",
+      "bytes": 1012,
+      "sha256": "da4762caa2f031030cecf3344a298bd8b6c04b1f6ae5d64fd41a2ac50d9e1d01",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-NanoFEVERRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoFEVERRetrieval.json",
+      "bytes": 1008,
+      "sha256": "69a609f4a4b4f12b795d16188b63fa65f30e7f32ed980011bcf806f7930ec013",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-NanoFiQA2018Retrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoFiQA2018Retrieval.json",
+      "bytes": 1014,
+      "sha256": "fc216c0e94701b7764fcf6e7d21c9ed7bbd5c9d35afa40967a1eb07c869e4f45",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-NanoHotpotQARetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoHotpotQARetrieval.json",
+      "bytes": 1014,
+      "sha256": "d6aa743ae520a9defa1ab1874156ba10a6e1d1133ef2e67937e90f19529866e8",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-NanoMSMARCORetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoMSMARCORetrieval.json",
+      "bytes": 1012,
+      "sha256": "f20fdf9f19e2f4e160aae3c78e8c67b80ac8e3b8a451772c8213011e400bb6c2",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-NanoNFCorpusRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoNFCorpusRetrieval.json",
+      "bytes": 1014,
+      "sha256": "c4e083a865d335411625c33a091173ad9987b48a26150ff7ec818535a0be8c59",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-NanoNQRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoNQRetrieval.json",
+      "bytes": 1002,
+      "sha256": "783588e6f881f14b0da29b4e8c47537934a8fccb542b0f20e853d1cadf202a14",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-NanoQuoraRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoQuoraRetrieval.json",
+      "bytes": 1008,
+      "sha256": "5110f21f691fed8898ee7b3c8781530bb465d9e9ea1240b044e9583460dea583",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-NanoSCIDOCSRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoSCIDOCSRetrieval.json",
+      "bytes": 1012,
+      "sha256": "dcdcdd3057115adaf1bc3879506122584a717cb08b2709a0d8e1b1effa81e527",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-NanoSciFactRetrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoSciFactRetrieval.json",
+      "bytes": 1010,
+      "sha256": "28c1cf91a8d78b3204483de46e7bce6e2b814b1a146c3d5a685ee26990dfbb55",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-NanoTouche2020Retrieval.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-NanoTouche2020Retrieval.json",
+      "bytes": 1018,
+      "sha256": "ea140d03653ba36ad7393781a6a8a99d53621d2c78f926e9ebbb47429c0bc47b",
+      "lines": 26,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-fit.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-fit.json",
+      "bytes": 1209,
+      "sha256": "f45f0dc15567d342abf2e5867b3211b509797c3eaff865172f0abfb83bc0ff76",
+      "lines": 29,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-sts.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-sts.json",
+      "bytes": 1490,
+      "sha256": "fc02ef99614951962072e2fb34d57dd00ab0cf28ca2789e82b89704288a7444a",
+      "lines": 34,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/glove-wikitext-wordfreq.safetensors.header.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/glove-wikitext-wordfreq.safetensors.header.json",
+      "bytes": 1076,
+      "sha256": "e063ce4ca9d0ab2d5c99003341f61eb0241529a96c361e9e50de9dfd94ba3ed6",
+      "lines": 49,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/identity-extension.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/identity-extension.json",
+      "bytes": 443,
+      "sha256": "9c56e47d255befb2cf778b62e18a33b1671b5111baed1a9cada1cb7875a23d14",
+      "lines": 11,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/corpus-comparison/selection.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/corpus-comparison/selection.json",
+      "bytes": 5086,
+      "sha256": "6e54ee100456aa1524a8582a8c466c7f4f3fd78820eb737e01995efcb32c2b17",
+      "lines": 109,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/execution-logs/build-fasttext-crawl-subwords-300.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/execution-logs/build-fasttext-crawl-subwords-300.txt",
+      "bytes": 972,
+      "sha256": "2ddb3925bb91ab5577b7409f980b28d6696b5c4199701b26cdc10d16bee1140c",
+      "lines": 12,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/execution-logs/build-glove-wiki-gigaword-300.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/execution-logs/build-glove-wiki-gigaword-300.txt",
+      "bytes": 476,
+      "sha256": "16d81d7519512e8cb438c424c83b8e45f0e4af3560c356ea14c6317eacb2c428",
+      "lines": 6,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/execution-logs/build-paragram-300-sl999.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/execution-logs/build-paragram-300-sl999.txt",
+      "bytes": 917,
+      "sha256": "8f89511b64784bed7eb1786744957e9f02404b26f3c7e3cde6c428b660907fbd",
+      "lines": 12,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/execution-logs/build-paranmt-300.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/execution-logs/build-paranmt-300.txt",
+      "bytes": 875,
+      "sha256": "00097e75811ef95c1bb5ee90e41486445940aab4c97b6c37580034520a3388b6",
+      "lines": 12,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/execution-logs/build-word2vec-google-news-300.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/execution-logs/build-word2vec-google-news-300.txt",
+      "bytes": 954,
+      "sha256": "820a9bf005a3c07981237e5931ba93075dbb5dc3a9d0ad63b5d8b8e3c25d15f7",
+      "lines": 12,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/execution-logs/public-cards.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/execution-logs/public-cards.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/execution-logs/public-freeze.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/execution-logs/public-freeze.txt",
+      "bytes": 60,
+      "sha256": "2438e91921fb58f9ef14c46dcdb8c469113e829497af0902864513d6a55758fc",
+      "lines": 1,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/execution-logs/verify-fasttext-crawl-subwords-300.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/execution-logs/verify-fasttext-crawl-subwords-300.txt",
+      "bytes": 8507,
+      "sha256": "42d8a18ec6d8a8b4d56714bae275a54773a4b94e48ab103d03fc9db15086ce21",
+      "lines": 10,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/execution-logs/verify-glove-wiki-gigaword-300.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/execution-logs/verify-glove-wiki-gigaword-300.txt",
+      "bytes": 8482,
+      "sha256": "3f3b2f9f7cd4d3e4609490d961ab62eb384336df83690ad6fa7392cddb57cdb8",
+      "lines": 10,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/execution-logs/verify-paragram-300-sl999.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/execution-logs/verify-paragram-300-sl999.txt",
+      "bytes": 8427,
+      "sha256": "f72576538fbe336899af97b01d907c9ebdbd50e7d483027ecbeb87d3d408bdb6",
+      "lines": 10,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/execution-logs/verify-paranmt-300.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/execution-logs/verify-paranmt-300.txt",
+      "bytes": 8388,
+      "sha256": "d8b26ad62e6c7653fcca29a2e867bb65b47eedbe41f17b9259d2edca254b6fe8",
+      "lines": 10,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/execution-logs/verify-word2vec-google-news-300.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/execution-logs/verify-word2vec-google-news-300.txt",
+      "bytes": 8437,
+      "sha256": "e47c73290f142a35ea155d1251bf3130a396e3f6c9a135d877a12527e28d2f36",
+      "lines": 10,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/focused-54b70b2.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/focused-54b70b2.txt",
+      "bytes": 99,
+      "sha256": "762f712e2427cd663d621e88f293cf9dbb52ad48e47106c0d329afba748fa4c7",
+      "lines": 2,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/focused-tests-9d4f56a.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/focused-tests-9d4f56a.txt",
+      "bytes": 99,
+      "sha256": "c09f3fa1f978f826bbe4b9fa68de3112cd1d11d57b9284f3802a7dc3f9d9887d",
+      "lines": 2,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/make-check-2f4c1a8-interrupted.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/make-check-2f4c1a8-interrupted.txt",
+      "bytes": 8164,
+      "sha256": "703cec8d712e7b9c7d43e996a83af0d0506950489a87d9e63939d4b01799d570",
+      "lines": 129,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/make-check-41a5229.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/make-check-41a5229.txt",
+      "bytes": 14930,
+      "sha256": "30ff67c5e64c2abc46ca03f20769d53ada4f6eb8a6e1d81d1c6bc3e5c5fc7789",
+      "lines": 208,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/make-check-4d0bc04.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/make-check-4d0bc04.txt",
+      "bytes": 15184,
+      "sha256": "8fe49a7b0912c37824b9d24a525f41abf6c08bf5a0d1138656149f1733fa24de",
+      "lines": 212,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/make-check-6e31282.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/make-check-6e31282.txt",
+      "bytes": 14850,
+      "sha256": "625ca4478b1a637e3a92e8a67f605a24e5fccf1749c732090f88f5206bc9d250",
+      "lines": 207,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/make-check-73176a9.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/make-check-73176a9.txt",
+      "bytes": 15184,
+      "sha256": "7419bf9b0a54c8b3af917d47ea51456eea18358aa684717a22c9737b01aa9eb3",
+      "lines": 212,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/make-check-da79a11.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/make-check-da79a11.txt",
+      "bytes": 15184,
+      "sha256": "d717a3ea4cc9c0326560ef21a3b259d587961f4366955b13047006b96e488e0d",
+      "lines": 212,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/make-check-dacdb78.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/make-check-dacdb78.txt",
+      "bytes": 15184,
+      "sha256": "cb3b17917cccf5c66c5150306ed9894203dac4c44917169a50788d37e7b74532",
+      "lines": 212,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/make-check-e72f708.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/make-check-e72f708.txt",
+      "bytes": 15184,
+      "sha256": "f14a4e0a66f83771234bd066990cd93af2d51ce0c7311beda16072e57202b837",
+      "lines": 212,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/make-check-initial.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/make-check-initial.txt",
+      "bytes": 14850,
+      "sha256": "d9310970f8c7a2a55b93f42511c8e26268e4f19cab6442bbf9bb3a06d7e9c230",
+      "lines": 207,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/release-focused-4d0bc04.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/release-focused-4d0bc04.txt",
+      "bytes": 98,
+      "sha256": "f2f1d7366684bf31557092a677250f0de631376728df0b77f1805d0cb36564e6",
+      "lines": 2,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/release-focused-e72f708.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/release-focused-e72f708.txt",
+      "bytes": 99,
+      "sha256": "f3f7061485317c8097569aa25a95afeb83b27ccd6cde7a82f927b97125bba72a",
+      "lines": 2,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/reviews/initial-code-review.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/reviews/initial-code-review.md",
+      "bytes": 7713,
+      "sha256": "6a1bbe4d2b1bd25e6baae2254534b758fbea1d51373715bb0b2ef6faaea94e45",
+      "lines": 59,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/reviews/resolution.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/reviews/resolution.md",
+      "bytes": 2209,
+      "sha256": "c9724fb73fd1149273e066dc3230c0ebceb7f60cab0b4bc9cec8e62b49ebfc43",
+      "lines": 36,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/reviews/review-2f4c1a8.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/reviews/review-2f4c1a8.md",
+      "bytes": 1556,
+      "sha256": "3fd8d835bbfee2aa512c1874c323b7f87bf74e9c1275c892e4fa1c1309fe64cb",
+      "lines": 15,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/reviews/review-4d0bc04.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/reviews/review-4d0bc04.md",
+      "bytes": 4431,
+      "sha256": "e7fe3c4e65575575c0843c525ac56bdf8e7ad5183e43c501ba66906263912efc",
+      "lines": 25,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/reviews/review-73176a9.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/reviews/review-73176a9.md",
+      "bytes": 2679,
+      "sha256": "290ed5052ac1b20bd29a6e39cc836511293ed7e9c8cfda639a9c8c2b47222f24",
+      "lines": 30,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/reviews/review-da79a11.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/reviews/review-da79a11.md",
+      "bytes": 311,
+      "sha256": "9ef4070c6d0f314f6a689a5daaf186b45ea21ec83e4d4c3d1b3a25be0112a49a",
+      "lines": 5,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/reviews/review-dacdb78.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/reviews/review-dacdb78.md",
+      "bytes": 6571,
+      "sha256": "5df362d444021708e89f500db0be7e82b486fb49bcaac5b7a31f4abd9b7ff104",
+      "lines": 80,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/reviews/review-e72f708.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/reviews/review-e72f708.md",
+      "bytes": 813,
+      "sha256": "9d13ca65718b3f651e7e193238ffe02a57770e79bf7bfc0b459022bc00eba7b9",
+      "lines": 10,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/reviews/review-f320afa.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/reviews/review-f320afa.md",
+      "bytes": 8441,
+      "sha256": "5e04b2469666a3327724a77860080cc173429389712242413fc6210181367ea9",
+      "lines": 82,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-raw/README.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw/README.md",
+      "bytes": 1094,
+      "sha256": "9f94d0677a0981e68270dfe2dc926d0c6acd809ec42339b98e2dd4b678ef9d21",
+      "lines": 48,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-raw/README.original.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw/README.original.txt",
+      "bytes": 1094,
+      "sha256": "9f94d0677a0981e68270dfe2dc926d0c6acd809ec42339b98e2dd4b678ef9d21",
+      "lines": 48,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-raw/build.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw/build.json",
+      "bytes": 715,
+      "sha256": "7e2aa6b3692e94ec21022fa305be81988004f6b9aaaf55b81a36e6e92d537c4b",
+      "lines": 24,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-raw/config.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw/config.json",
+      "bytes": 199,
+      "sha256": "d4116112964cd7393429cd30bc11fa87c164c9a4c4cf5b2a227793f7e4559557",
+      "lines": 8,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-raw-float16/README.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-float16/README.md",
+      "bytes": 1452,
+      "sha256": "f16212a4cfc9357b76f569275313121c61a5c8e8913c48875cdc7003f3e79820",
+      "lines": 53,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-raw-float16/README.original.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-float16/README.original.txt",
+      "bytes": 1446,
+      "sha256": "ae6f2f3f0f60f2324b3a2d02299bb7cdcb3157083c94e5526b508adf51e096b3",
+      "lines": 51,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-raw-float16/build.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-float16/build.json",
+      "bytes": 723,
+      "sha256": "ca795e0f09a64997358532ffead52315b01fba1fd52986e58eec11356adef0a1",
+      "lines": 24,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-raw-float16/config.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-float16/config.json",
+      "bytes": 199,
+      "sha256": "754d7ce5a517fd48eded3f5b7119bb25d8eae393c436bc88174040384acfbc95",
+      "lines": 8,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-raw-int8/README.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-int8/README.md",
+      "bytes": 1476,
+      "sha256": "7f2261f6c3f9b5e22297c39faa8da15af44b0615d20dff76ccfd649b9365c022",
+      "lines": 54,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-raw-int8/README.original.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-int8/README.original.txt",
+      "bytes": 1470,
+      "sha256": "9e6b41171d8e863fdd1e1f86a796b1d3de1577ee68e2f3a22cb17a95098891d2",
+      "lines": 52,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-raw-int8/build.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-int8/build.json",
+      "bytes": 717,
+      "sha256": "0bc0ccb235fc817e5f8bd0ba2f207b4d8155ab8c18130a3e6da45dcd6cd54d4d",
+      "lines": 24,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-raw-int8/config.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-raw-int8/config.json",
+      "bytes": 199,
+      "sha256": "490b3f078955264608fafe6d61b18340e3188e90b923c91fcf26e5eaa748b0db",
+      "lines": 8,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-sif10/README.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10/README.md",
+      "bytes": 1104,
+      "sha256": "d561f176ede1a825c8592ab7d5de7d27acd483277ebb6ba0980630b3c43658a2",
+      "lines": 50,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-sif10/README.original.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10/README.original.txt",
+      "bytes": 1098,
+      "sha256": "196a977f2f7a47ebfb77bbf1c4ad9346e61c64d20946b63e1a4dd3027cbc5960",
+      "lines": 48,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-sif10/build.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10/build.json",
+      "bytes": 719,
+      "sha256": "8f2a621d0fccc3878d4369238816090f9740c1ed016b5416be0da9c47e89b8e9",
+      "lines": 24,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-sif10/config.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10/config.json",
+      "bytes": 199,
+      "sha256": "435d9f34afff5f92d2fc8038bc79693b612e578fdb6aa32d88c248c476ad2470",
+      "lines": 8,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-sif10-float16/README.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-float16/README.md",
+      "bytes": 1456,
+      "sha256": "d6d7dfe697334805ec2d061d528d72adfb6f4a1c7c1a8aaf3958a9d2dbc9b23a",
+      "lines": 53,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-sif10-float16/README.original.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-float16/README.original.txt",
+      "bytes": 1450,
+      "sha256": "61488fbbe643220ab063b5d9704215a2370010fca3966f1e1cbc3120fdc96142",
+      "lines": 51,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-sif10-float16/build.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-float16/build.json",
+      "bytes": 727,
+      "sha256": "aef9d2db53cf17a1d2735767c386361d5db21330b0f1176b1a113a58ef5ebc78",
+      "lines": 24,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-sif10-float16/config.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-float16/config.json",
+      "bytes": 199,
+      "sha256": "3c7ba48054bb040febf1253ff7c53167e47f042c0ac8cb23f63e84cde42b779d",
+      "lines": 8,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-sif10-int8/README.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-int8/README.md",
+      "bytes": 1480,
+      "sha256": "762005c7dd1b4b23c57227703298249818075db02673b18a2e68531b7e62372d",
+      "lines": 54,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-sif10-int8/README.original.txt",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-int8/README.original.txt",
+      "bytes": 1474,
+      "sha256": "0bcb8b561dd6a759f899c8adca0e4c3e23ff8e277c34434ca9458c3b6802202a",
+      "lines": 52,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-sif10-int8/build.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-int8/build.json",
+      "bytes": 721,
+      "sha256": "7a17621fbf4eb700c6f673186a35980c740c3c15193dac0bb8e616ce55a3b795",
+      "lines": 24,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/glove-wiki-gigaword-300-sif10-int8/config.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/glove-wiki-gigaword-300-sif10-int8/config.json",
+      "bytes": 199,
+      "sha256": "2ba5ad4d629e39037220b093c808aedddaba0b772d593bf9edf55af8ba4ce90c",
+      "lines": 8,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/superseded-prototype/verification.json",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/superseded-prototype/verification.json",
+      "bytes": 2989,
+      "sha256": "fec221bc1a3b7de3a1e6a4087a36972c3d577ad3fe951611a3e415b04054467e",
+      "lines": 92,
+      "tracked": true,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/make-check-initial.log",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/make-check-initial.log",
+      "bytes": 14850,
+      "sha256": "d9310970f8c7a2a55b93f42511c8e26268e4f19cab6442bbf9bb3a06d7e9c230",
+      "lines": 207,
+      "tracked": false,
+      "action": "remove_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/report.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/report-full.md",
+      "bytes": 23813,
+      "sha256": "37f0695c392d8951934d437e2c425b6b51c8d72cb1ea59503b7311efe5c78869",
+      "lines": 268,
+      "tracked": true,
+      "action": "compact_after_archive"
+    },
+    {
+      "source_path": "benchmarks/baseline/dr157/README.md",
+      "destination_path": "benchmarks/baseline/results/dr157-20261101/README-before-cleanup.md",
+      "bytes": 3082,
+      "sha256": "cb285b7b69f9b2311edc4f0d2a9b56ad36c16fe57adace1369897f6699a706af",
+      "lines": 39,
+      "tracked": true,
+      "action": "compact_after_archive"
+    }
+  ]
+}

@@ -1,0 +1,211 @@
+[
+  {
+    "target": "/private/tmp/dr157-review-702f3c0",
+    "kind": "completed review checkout",
+    "allocated_bytes_removed": 11354112,
+    "filesystem_free_before": 109867720704,
+    "filesystem_free_after": 109879439360,
+    "time": "2026-11-01T17:23:26"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/src/fse/_native.c",
+    "kind": "untracked generated Cython build output",
+    "allocated_bytes_removed": 6090752,
+    "filesystem_free_before": 109858263040,
+    "filesystem_free_after": 109864312832,
+    "time": "2026-11-01T17:23:38"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/glove-wiki-gigaword-300-sif10",
+    "kind": "superseded SIF temporary converted model",
+    "allocated_bytes_removed": 486166528,
+    "filesystem_free_before": 109632028672,
+    "filesystem_free_after": 110118182912,
+    "time": "2026-11-01T18:05:05"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/glove-wiki-gigaword-300-sif10-float16",
+    "kind": "superseded SIF temporary converted model",
+    "allocated_bytes_removed": 246169600,
+    "filesystem_free_before": 110141960192,
+    "filesystem_free_after": 110388121600,
+    "time": "2026-11-01T18:05:09"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/glove-wiki-gigaword-300-sif10-int8",
+    "kind": "superseded SIF temporary converted model",
+    "allocated_bytes_removed": 127766528,
+    "filesystem_free_before": 110387777536,
+    "filesystem_free_after": 110515548160,
+    "time": "2026-11-01T18:05:13"
+  },
+  {
+    "target": "/private/tmp/dr157-review-f320afa",
+    "kind": "completed second review checkout",
+    "allocated_bytes_removed": 11464704,
+    "filesystem_free_before": 110278819840,
+    "filesystem_free_after": 110279790592,
+    "time": "2026-11-01T18:19:28"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/comparison/fineweb-seed0-859346.txt",
+    "reason": "All five Hub source fits are complete; dr151-quality explicitly does not need this owned prepared input. Sample recipe, checksums, fitted states and all results retained.",
+    "allocated_bytes_removed": 174477312,
+    "free_before_bytes": 68481634304,
+    "free_after_bytes": 68656029696,
+    "confirmed_absent": true
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/review-dacdb78",
+    "kind": "completed independent review checkout dacdb78",
+    "allocated_bytes_removed": 11788288,
+    "filesystem_free_before": 68524548096,
+    "filesystem_free_after": 68553285632,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:22:19.058708"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/comparison/glove-wikitext-wordfreq.safetensors",
+    "kind": "completed temporary comparison table; committed header and full bitwise audit, fit arrays and results retained",
+    "allocated_bytes_removed": 486158336,
+    "filesystem_free_before": 68493824000,
+    "filesystem_free_after": 68979965952,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:23:24.836142"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/comparison/glove-fineweb-wordfreq.safetensors",
+    "kind": "completed temporary comparison table; committed header and full bitwise audit, fit arrays and results retained",
+    "allocated_bytes_removed": 486158336,
+    "filesystem_free_before": 69115973632,
+    "filesystem_free_after": 69602119680,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:23:38.917056"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/review-73176a9",
+    "kind": "completed independent review checkout 73176a9",
+    "allocated_bytes_removed": 12447744,
+    "filesystem_free_before": 70582218752,
+    "filesystem_free_after": 70611820544,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:27:01.803967"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/src/fse/_native.c",
+    "kind": "regenerated ignored Cython intermediate, compiled extension retained",
+    "allocated_bytes_removed": 0,
+    "logical_bytes_removed": 6086512,
+    "confirmed_absent": true,
+    "note": "Target removal succeeded, but the first cleanup-journal write failed with PermissionError outside the writable root. This authorized retry records the confirmed removal. Allocated-byte/free-space readings were not durably captured, so no allocated-space credit is claimed.",
+    "time": "2026-11-01T19:27:25.967679"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/review-2f4c1a8",
+    "kind": "completed independent review checkout 2f4c1a8",
+    "allocated_bytes_removed": 12480512,
+    "filesystem_free_before": 70584217600,
+    "filesystem_free_after": 70613925888,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:31:07.685229"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/review-da79a11",
+    "kind": "completed independent review checkout da79a11",
+    "allocated_bytes_removed": 12492800,
+    "filesystem_free_before": 70611779584,
+    "filesystem_free_after": 70624948224,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:31:55.505076"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.mypy_cache",
+    "kind": "owned type-check cache after final mypy gate passed",
+    "allocated_bytes_removed": 60825600,
+    "filesystem_free_before": 70471823360,
+    "filesystem_free_after": 70532530176,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:35:15.965170"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.ruff_cache",
+    "kind": "owned lint cache after final lint gate passed",
+    "allocated_bytes_removed": 86016,
+    "filesystem_free_before": 70533783552,
+    "filesystem_free_after": 70533857280,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:35:22.138020"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.pytest_cache",
+    "kind": "owned pytest cache after final make check passed; full test log retained",
+    "allocated_bytes_removed": 24576,
+    "filesystem_free_before": 70671765504,
+    "filesystem_free_after": 70671773696,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:37:10.385911"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/src/fse/_native.c",
+    "kind": "Cython intermediate regenerated during the final uv editable rebuild; full make check is terminal and compiled extension is retained",
+    "allocated_bytes_removed": 6086656,
+    "filesystem_free_before": 70675062784,
+    "filesystem_free_after": 70681124864,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:41:28.415323"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/review-4d0bc04",
+    "kind": "completed release card review checkout 4d0bc04",
+    "allocated_bytes_removed": 12656640,
+    "filesystem_free_before": 70553104384,
+    "filesystem_free_after": 70582804480,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:59:43.349268"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/review-e72f708",
+    "kind": "completed release runtime review checkout e72f708",
+    "allocated_bytes_removed": 12689408,
+    "filesystem_free_before": 70461485056,
+    "filesystem_free_after": 70473711616,
+    "confirmed_absent": true,
+    "time": "2026-11-01T20:02:35.747224"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/src/fse/_native.c",
+    "kind": "owned intermediate after terminal release follow-up make check",
+    "allocated_bytes_removed": 6086656,
+    "filesystem_free_before": 70470430720,
+    "filesystem_free_after": 70476500992,
+    "confirmed_absent": true,
+    "time": "2026-11-01T20:04:42.151048"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.mypy_cache",
+    "kind": "owned intermediate after terminal release follow-up make check",
+    "allocated_bytes_removed": 60825600,
+    "filesystem_free_before": 70476414976,
+    "filesystem_free_after": 70537232384,
+    "confirmed_absent": true,
+    "time": "2026-11-01T20:04:45.051175"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.ruff_cache",
+    "kind": "owned intermediate after terminal release follow-up make check",
+    "allocated_bytes_removed": 90112,
+    "filesystem_free_before": 70540038144,
+    "filesystem_free_after": 70540083200,
+    "confirmed_absent": true,
+    "time": "2026-11-01T20:04:49.834422"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.pytest_cache",
+    "kind": "owned intermediate after terminal release follow-up make check",
+    "allocated_bytes_removed": 16384,
+    "filesystem_free_before": 70520258560,
+    "filesystem_free_after": 70520254464,
+    "confirmed_absent": true,
+    "time": "2026-11-01T20:04:52.106301"
+  }
+]

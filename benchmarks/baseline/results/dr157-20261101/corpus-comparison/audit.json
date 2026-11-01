@@ -1,0 +1,8 @@
+{
+  "audited_with_commit": "6e31282",
+  "source_repo": "fse/glove-wiki-gigaword-300",
+  "source_revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
+  "scope": "all float32 table bits checked against original vectors with stored wordfreq weights and component folding; wordfreq weights compared bitwise",
+  "selection_status": "pending all 26 NanoBEIR task evaluations",
+  "models_and_corpus_inputs": "excluded from Git; retained under ~/fse-dr157/comparison"
+}

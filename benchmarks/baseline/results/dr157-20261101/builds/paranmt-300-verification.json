@@ -1,0 +1,218 @@
+{
+  "source": "paranmt-300",
+  "rows": [
+    {
+      "repo": "fse/paranmt-300-raw",
+      "fingerprint": "xxh3-128:f870e4619c3e5dd082be1809d1fb7786",
+      "model_xxh3": "xxh3-128:0319fa9e4e0e33533a70c3d18192ee32",
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "state_xxh3": null,
+      "method": "raw",
+      "dtype": "float32",
+      "pearson": 79.81643764355069,
+      "baseline_1x": 79.82,
+      "difference_1x_points": -0.003562356449307913,
+      "difference_float32_points": 0.0,
+      "recall_at_10": 1.0,
+      "default_tokenizer_pearson": 79.81643764355069,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/paranmt-300-raw-float16",
+      "fingerprint": "xxh3-128:26b7176aacbdf42b64c8e90791847319",
+      "model_xxh3": "xxh3-128:b305daf79082684560379d588a698891",
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "state_xxh3": null,
+      "method": "raw",
+      "dtype": "float16",
+      "pearson": 79.81645116329787,
+      "baseline_1x": 79.82,
+      "difference_1x_points": -0.003548836702123026,
+      "difference_float32_points": 1.351974718488691e-05,
+      "recall_at_10": 0.9998912255257433,
+      "default_tokenizer_pearson": 79.81645116329787,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/paranmt-300-raw-int8",
+      "fingerprint": "xxh3-128:e49c0b0f0d05fcebcb96a99c443d375d",
+      "model_xxh3": "xxh3-128:79980e25c364299b22db142a08ca4f1c",
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "state_xxh3": null,
+      "method": "raw",
+      "dtype": "int8",
+      "pearson": 79.81796933255849,
+      "baseline_1x": 79.82,
+      "difference_1x_points": -0.0020306674415024872,
+      "difference_float32_points": 0.0015316890078054257,
+      "recall_at_10": 0.9957215373459027,
+      "default_tokenizer_pearson": 79.81796933255849,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/paranmt-300-sif10",
+      "fingerprint": "xxh3-128:4d2fb5d81b9888d2eb7bb8e69ee9c7f6",
+      "model_xxh3": "xxh3-128:3ad3b972d0f07aba6ee8ab69c54def61",
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "state_xxh3": "xxh3-128:d0b6340e4ce8571e193a05e92c02d38c",
+      "method": "sif10",
+      "dtype": "float32",
+      "pearson": 78.11214840259207,
+      "baseline_1x": 76.74,
+      "difference_1x_points": 1.3721484025920745,
+      "difference_float32_points": 0.0,
+      "recall_at_10": 1.0,
+      "default_tokenizer_pearson": 78.11214840259207,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/paranmt-300-sif10-float16",
+      "fingerprint": "xxh3-128:3145e0e4282adfa085f0ed3a6581076e",
+      "model_xxh3": "xxh3-128:70d942077d66829154b1bdffe8979d2f",
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "state_xxh3": "xxh3-128:d0b6340e4ce8571e193a05e92c02d38c",
+      "method": "sif10",
+      "dtype": "float16",
+      "pearson": 78.11210508170556,
+      "baseline_1x": 76.74,
+      "difference_1x_points": 1.3721050817055698,
+      "difference_float32_points": -4.332088650471633e-05,
+      "recall_at_10": 0.9998549673676579,
+      "default_tokenizer_pearson": 78.11210508170556,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/paranmt-300-sif10-int8",
+      "fingerprint": "xxh3-128:da86203db14c76128eb2f9a8d4be97e6",
+      "model_xxh3": "xxh3-128:da4dd5ae1f7643431ca7eaddea89d6a8",
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "state_xxh3": "xxh3-128:d0b6340e4ce8571e193a05e92c02d38c",
+      "method": "sif10",
+      "dtype": "int8",
+      "pearson": 78.114579237493,
+      "baseline_1x": 76.74,
+      "difference_1x_points": 1.374579237493009,
+      "difference_float32_points": 0.002430834900934542,
+      "recall_at_10": 0.9967730239303841,
+      "default_tokenizer_pearson": 78.114579237493,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "pairs": 1379,
+      "source": "fse/paranmt-300",
+      "source_revision": "a08e15771891207a22f840a3091a00a1657d888b",
+      "method": "sif10-historical-test-fit",
+      "dtype": "float32",
+      "pearson": 76.73867392337196,
+      "baseline_1x": 76.74,
+      "fit_scope": "all 2,758 test sentences; diagnostic test-set fit, not shipped",
+      "frequencies": "wordfreq en best, int(freq * (2**31-1)), default int(1e-8 * domain)",
+      "difference_1x_points": -0.0013260766280325242
+    }
+  ]
+}

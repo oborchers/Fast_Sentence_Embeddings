@@ -1,0 +1,49 @@
+{
+  "__metadata__": {
+    "fse.aggregation": "weighted_mean@1",
+    "fse.checksum.vectors": "xxh3-128:802ef5d910cb2b85bd4ebe6d8b49f660",
+    "fse.checksum.vocab.bytes": "xxh3-128:b78937c84961ce965a17ed735ae3aa8f",
+    "fse.checksum.vocab.offsets": "xxh3-128:90383df12158b2960748f176b91f70d5",
+    "fse.created_by": "fse 1.1.1.dev917+g81e64c0",
+    "fse.dim": "300",
+    "fse.dtype": "float32",
+    "fse.fingerprint": "xxh3-128:515819f55077260e7ac082ff341e56dd",
+    "fse.format_version": "1",
+    "fse.kind": "encoder",
+    "fse.output_dim": "300",
+    "fse.steps": "[\"normalize@1\"]",
+    "fse.tokenizer": "external",
+    "fse.transform_version": "2"
+  },
+  "vectors": {
+    "data_offsets": [
+      3200008,
+      483200008
+    ],
+    "dtype": "F32",
+    "shape": [
+      400000,
+      300
+    ]
+  },
+  "vocab.bytes": {
+    "data_offsets": [
+      483200008,
+      486156482
+    ],
+    "dtype": "U8",
+    "shape": [
+      2956474
+    ]
+  },
+  "vocab.offsets": {
+    "data_offsets": [
+      0,
+      3200008
+    ],
+    "dtype": "I64",
+    "shape": [
+      400001
+    ]
+  }
+}

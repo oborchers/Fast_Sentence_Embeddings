@@ -1,0 +1,218 @@
+{
+  "source": "word2vec-google-news-300",
+  "rows": [
+    {
+      "repo": "fse/word2vec-google-news-300-raw",
+      "fingerprint": "xxh3-128:64e4ef70aca1f497f7173a33764825dd",
+      "model_xxh3": "xxh3-128:ae442c9ca4507fe07a04a13692163e89",
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "state_xxh3": null,
+      "method": "raw",
+      "dtype": "float32",
+      "pearson": 61.54132058978452,
+      "baseline_1x": 61.54,
+      "difference_1x_points": 0.0013205897845196546,
+      "difference_float32_points": 0.0,
+      "recall_at_10": 1.0,
+      "default_tokenizer_pearson": 61.54132058978452,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/word2vec-google-news-300-raw-float16",
+      "fingerprint": "xxh3-128:4fbe512db126cfe88b7daa8ef5440a7c",
+      "model_xxh3": "xxh3-128:1b122a7153310d7e4df7ebe75f5abc7f",
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "state_xxh3": null,
+      "method": "raw",
+      "dtype": "float16",
+      "pearson": 61.54132058978452,
+      "baseline_1x": 61.54,
+      "difference_1x_points": 0.0013205897845196546,
+      "difference_float32_points": 0.0,
+      "recall_at_10": 1.0,
+      "default_tokenizer_pearson": 61.54132058978452,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/word2vec-google-news-300-raw-int8",
+      "fingerprint": "xxh3-128:1535b380564e1ce4a7dbd553eaddec01",
+      "model_xxh3": "xxh3-128:cf74b56c5ca1a04e390732c3e01c7efa",
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "state_xxh3": null,
+      "method": "raw",
+      "dtype": "int8",
+      "pearson": 61.543943730317864,
+      "baseline_1x": 61.54,
+      "difference_1x_points": 0.003943730317864436,
+      "difference_float32_points": 0.002623140533344781,
+      "recall_at_10": 0.9964829586656998,
+      "default_tokenizer_pearson": 61.543943730317864,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/word2vec-google-news-300-sif10",
+      "fingerprint": "xxh3-128:d56902a9d7d77240e264aa99f4d2cf00",
+      "model_xxh3": "xxh3-128:c07efc677ece6489996cc6ed2367698f",
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "state_xxh3": "xxh3-128:ab1c7dd640d7f6d79bd8d8aba629466e",
+      "method": "sif10",
+      "dtype": "float32",
+      "pearson": 70.88641508602201,
+      "baseline_1x": 71.18,
+      "difference_1x_points": -0.2935849139779947,
+      "difference_float32_points": 0.0,
+      "recall_at_10": 1.0,
+      "default_tokenizer_pearson": 70.88641508602201,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/word2vec-google-news-300-sif10-float16",
+      "fingerprint": "xxh3-128:499b36600b36b4a6672d3ccab989b585",
+      "model_xxh3": "xxh3-128:9fd5a1048889c4490390064fab248771",
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "state_xxh3": "xxh3-128:ab1c7dd640d7f6d79bd8d8aba629466e",
+      "method": "sif10",
+      "dtype": "float16",
+      "pearson": 70.88629473729448,
+      "baseline_1x": 71.18,
+      "difference_1x_points": -0.29370526270552944,
+      "difference_float32_points": -0.00012034872753474701,
+      "recall_at_10": 1.0,
+      "default_tokenizer_pearson": 70.88629473729448,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/word2vec-google-news-300-sif10-int8",
+      "fingerprint": "xxh3-128:06ce76785b6c401587536055650438bd",
+      "model_xxh3": "xxh3-128:16e02c9c2cf1abc36521e481bcc874d6",
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "state_xxh3": "xxh3-128:ab1c7dd640d7f6d79bd8d8aba629466e",
+      "method": "sif10",
+      "dtype": "int8",
+      "pearson": 70.888736342504,
+      "baseline_1x": 71.18,
+      "difference_1x_points": -0.29126365749600325,
+      "difference_float32_points": 0.0023212564819914405,
+      "recall_at_10": 0.9970268310369834,
+      "default_tokenizer_pearson": 70.888736342504,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "benchmark": {
+        "fixture_commit": "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6",
+        "fixture_xxh3": "xxh3-128:139bba1402050737ae635ecf8498280b",
+        "cosine_code_xxh3": "xxh3-128:5a3fa3380df0f504d14a4896491e3d33",
+        "pearson_code_xxh3": "xxh3-128:9154ccedf07e70c184c9ee4398943e81",
+        "nltk_version": "3.10.4",
+        "punkt_tab_english": {
+          "abbrev_types.txt": "xxh3-128:0acdbf18bd21d71f604380094bf25402",
+          "collocations.tab": "xxh3-128:234e0b2209c617091029602a9025d12c",
+          "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
+          "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0"
+        },
+        "preprocessing_recipe": "fse_1x_nltk@1",
+        "preprocessing_code_xxh3": "xxh3-128:e7d052234037c417c1598ab6c7e26beb"
+      },
+      "pairs": 1379,
+      "source": "fse/word2vec-google-news-300",
+      "source_revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
+      "method": "sif10-historical-test-fit",
+      "dtype": "float32",
+      "pearson": 71.17538338506408,
+      "baseline_1x": 71.18,
+      "fit_scope": "all 2,758 test sentences; diagnostic test-set fit, not shipped",
+      "frequencies": "wordfreq en best, int(freq * (2**31-1)), default int(1e-8 * domain)",
+      "difference_1x_points": -0.004616614935926577
+    }
+  ]
+}
