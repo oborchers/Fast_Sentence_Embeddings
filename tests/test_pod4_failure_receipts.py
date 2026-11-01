@@ -70,3 +70,68 @@ def test_wrapper_requires_probe_and_exports_setup_failure(modules):
     assert '--failure "$export_status" export-failed' in script
     assert "--failure 1 cache-ownership" in script
     assert script.index("DR151_FINALIZER\n") < script.index("if ! /usr/bin/mkdir /dr151-cache")
+
+
+def test_unfolded_short_call_rejects_round(modules, monkeypatch, tmp_path):
+    from importlib import import_module
+
+    pairs = import_module("pod_pairs")
+    controls = dict(
+        first_predict_s=3,
+        warm_seconds=[3],
+        minimum_call_seconds=2,
+        input_digest="identical",
+        p50_s=3,
+        runtime_package="fse",
+    )
+    rows = {
+        "fse-a": {**controls, "label": "fse-a"},
+        "fse-b": {**controls, "label": "fse-b"},
+        "encode-matmul": {
+            **controls,
+            "label": "encode-matmul",
+            "kind": "encode-matmul",
+            "encoder_call_seconds": [1, 1],
+        },
+    }
+    monkeypatch.setattr(pairs, "operation", lambda command, label, *args: rows[label])
+    good, _ = pairs.round_observation(rows, list(rows), 1, 100, tmp_path, {}, {})
+    assert good is False
+
+
+def test_completed_series_cannot_hide_ineligible_classifier(modules, monkeypatch, tmp_path):
+    from importlib import import_module
+    from types import SimpleNamespace
+
+    classify = import_module("pod4_classify")
+    summary = import_module("pod_folded_summary")
+    monkeypatch.setattr(classify, "calibrate", lambda *args: (tmp_path / "input.json", {}))
+    monkeypatch.setattr(classify, "series", lambda *args: {"complete": True})
+    monkeypatch.setattr(summary, "publish_summary", lambda *args: {"cells": []})
+    args = SimpleNamespace(output=tmp_path, deadline=100)
+    with pytest.raises(RuntimeError, match="short, failed or noisy"):
+        classify.timed(args, tmp_path, ["text"], [0], "setfit", "test")
+
+
+def test_export_failure_mode_emits_decodable_failed_manifest(modules):
+    import base64
+    import gzip
+    import subprocess
+    import sys
+
+    path = Path(modules["pod_finalize"].__file__)
+    done = subprocess.run(
+        [sys.executable, str(path), "--failure", "124", "export-failed"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    payload = "".join(
+        line.split()[3]
+        for line in done.stdout.splitlines()
+        if line.startswith("DR190_DATA manifest ")
+    )
+    value = json.loads(gzip.decompress(base64.b64decode(payload)))
+    assert value["complete"] is False
+    assert value["returncode"] == 124
+    assert "ALL_DONE" not in done.stdout
