@@ -10,6 +10,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- Fix the README raw POTION classifier loader and execute its Python examples against real models in a dedicated network check.
 - Prepare a validated README speed-table renderer and light/dark library comparison layouts, selecting 32 cores only above the measured 1.20 threshold against 16. Keep unfinished measurements out of the public README.
 - Rewrite the README with restored branding, a short release-style introduction, measured CPU throughput, early usage examples, prominent recipes and light/dark brand-colored graphics. Keep detailed benchmark evidence in a companion guide. Clarify contribution evidence, AI disclosure and MIT agreement, add a PR checklist, and align package metadata with the unreleased 2.0 API.
 

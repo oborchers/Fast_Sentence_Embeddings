@@ -110,9 +110,9 @@ The model must be trained on this encoder's vectors.
 
 ```python
 from sklearn.linear_model import LogisticRegression
-from fse import Classifier, Encoder
+from fse import Classifier, StaticModel
 
-encoder = Encoder.from_pretrained("minishlab/potion-base-8M", normalize=False)
+encoder = StaticModel.from_pretrained("minishlab/potion-base-8M", normalize=False).encoder
 texts = ["I cannot log in", "My password is lost", "Send me a quote", "What does it cost?"]
 head = LogisticRegression().fit(encoder.encode(texts), ["support", "support", "sales", "sales"])
 classifier = Classifier.from_sklearn(encoder, head)
@@ -226,6 +226,8 @@ Saved float32 fse files, Apple M1 Pro, 1 November 2026.
 Start with float32. Try float16 or int8 when memory matters, then check quality again.
 
 ```python
+from fse import Encoder
+
 compact = Encoder.from_pretrained("minishlab/potion-base-8M").quantize("int8")
 compact.save("compact.safetensors")
 ```

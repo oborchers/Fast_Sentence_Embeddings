@@ -12,7 +12,7 @@ XDIST = -n $(PYTEST_N) --dist $(PYTEST_DIST)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env install init sync rebuild-ext format format-check lint lint-fix guardrails typecheck test test-network test-st test-cov check build clean pre-commit profile-cpu profile-mem profile-rss
+.PHONY: test-readme help env install init sync rebuild-ext format format-check lint lint-fix guardrails typecheck test test-network test-st test-cov check build clean pre-commit profile-cpu profile-mem profile-rss
 
 ##@ Setup
 help: ## Show this help
@@ -91,6 +91,9 @@ test: ## Run tests without network access
 
 test-network: ## Run the tests that download from the Hugging Face Hub
 	$(UV) run pytest tests -m network
+
+test-readme: ## Execute every README Python example with real Hub models
+	$(UV) run python tools/check_readme_examples.py
 
 test-st: ## Run the comparisons with sentence-transformers (group st), required to run
 	FSE_REQUIRE_ST=1 $(UV) run --group st pytest tests/test_encoder_sentence_transformers_parity.py tests/test_encoder_sentence_transformers.py -m "not network"
