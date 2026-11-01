@@ -103,6 +103,15 @@ def verify_linear_files(folder, manifest, phase):
             raise ValueError(f"fitted linear artifact changed {phase} inference")
 
 
+def input_admission(args):
+    if args.evaluation_record is None:
+        return None, None
+    from pod4_memory import classifier
+
+    description = json.loads(args.evaluation_record.read_text())
+    return description, classifier(args.folder, description, args.kind)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--folder", type=Path, required=True)
@@ -129,13 +138,7 @@ def main():
     from fse._container._hash import checksum
 
     manifest = json.loads((args.folder / "manifest.json").read_text())
-    description = json.loads(args.evaluation_record.read_text()) if args.evaluation_record else None
-    if description is not None:
-        from pod4_memory import classifier
-
-        admission = classifier(args.folder, description, args.kind)
-    else:
-        admission = None
+    description, admission = input_admission(args)
     rows, labels = evaluation(args.folder, manifest, description)
     verify_linear_files(args.folder, manifest, "before")
     backend = "model2vec" if args.kind in ("mlp", "model2vec-linear") else "fse"

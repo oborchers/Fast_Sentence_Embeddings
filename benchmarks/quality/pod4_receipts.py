@@ -18,6 +18,19 @@ def check_cells(expected, summary):
     return failures
 
 
+def long_calls(path):
+    operations = [json.loads(line) for line in path.read_text().splitlines()]
+    controls = [
+        row
+        for row in operations
+        if row.get("event") == "operation"
+        and (row.get("runtime_package") == "fse" or row.get("label") in ("fse-a", "fse-b"))
+    ]
+    return bool(controls) and all(
+        row.get("minimum_call_seconds") == 2 and qualifies(row) for row in controls
+    )
+
+
 def validate(root):
     failures = []
     studies = (
@@ -37,18 +50,7 @@ def validate(root):
             failures.extend(check_cells(expected, summary))
             if folder == "readme-panels" and summary.get("complete") is not True:
                 failures.append("incomplete README summary")
-            operations = [
-                json.loads(line) for line in (path / "speed-results.jsonl").read_text().splitlines()
-            ]
-            controls = [
-                row
-                for row in operations
-                if row.get("event") == "operation"
-                and (row.get("runtime_package") == "fse" or row.get("label") in ("fse-a", "fse-b"))
-            ]
-            if not controls or any(
-                row.get("minimum_call_seconds") != 2 or not qualifies(row) for row in controls
-            ):
+            if not long_calls(path / "speed-results.jsonl"):
                 failures.append(folder + ": missing or short actual fse calls")
         except (OSError, ValueError, KeyError, TypeError) as error:
             failures.append(folder + ": invalid or missing receipt: " + str(error))
