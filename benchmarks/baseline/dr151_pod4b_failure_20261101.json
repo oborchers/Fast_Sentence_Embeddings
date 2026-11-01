@@ -1,0 +1,23 @@
+{
+  "format": "pod4b-failure-summary-v1",
+  "runtime_source_pin": "e41060dab1b2a7780b52e80b31050e6ddc6f5b86",
+  "script_sha256": "afa684d314a39c2811e0df00b7bf28d6fc6210b9006f8ecc99c65647b882a09f",
+  "coordinator_tar_sha256": "53c80a23bbfd096d213ddf47c1e2c2fd1a5e90be1c3fee76b9a3edffd6a29089",
+  "files_checked": 10,
+  "bytes_checked": 367215,
+  "returncode": 1,
+  "probe_passed": true,
+  "probe_aa_max_ratio": 1.0668062084472236,
+  "calibration_records": 24,
+  "failed_calibration": {
+    "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+    "dtype": "float32",
+    "workers": 1,
+    "returncode": 1,
+    "scope": "input sizing only, not a published speed cell"
+  },
+  "failure": "Conservative memory-admission rejection before allocating the 2,210,000-row MRL encoding workload; no kernel OOM recorded",
+  "readme_measured_cells": 0,
+  "classification_stage_started": false,
+  "raw_directory": "benchmarks/baseline/results/dr151-pod4b-20261101"
+}

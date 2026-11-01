@@ -246,5 +246,13 @@
       "size_bytes": 3266,
       "sha256": "b37a141bc7a1fe56a117a6bd8919e33b3f1507d5878f0642e2833d1315053e5c"
     }
-  ]
+  ],
+  "independent_owner_confirmation": {
+    "worker": "dr154-readme",
+    "final_head": "219b498",
+    "all_48_files_byte_identical": true,
+    "no_shared_history_confirmed": true,
+    "retained_summary_numbers_unchanged": 698,
+    "source": "DR-154 coordination confirmation, 2026-11-01"
+  }
 }
