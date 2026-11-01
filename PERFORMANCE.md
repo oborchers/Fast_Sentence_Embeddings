@@ -654,6 +654,36 @@ and [remaining-time assumptions](benchmarks/baseline/dr151_remaining_time_202611
 retain the underlying observations.
 
 
+### Quality on tasks with longer inputs (partial, 01.11.2026)
+
+The document-task diagnostic joins full task scores to length statistics
+packaged with unmodified MTEB 2.26.25. It selects every measured task with a
+reported evaluation input stream averaging at least 1,000 characters.
+Nineteen tasks qualify for the POTION-32M checkpoint. No evaluation rows are
+sampled or removed, and no new aggregate score combines different metrics.
+Where subset statistics exist, the report uses mapped English subsets.
+
+Examples below use POTION-32M float32 from raw-source commit `7bb78dd`.
+Scores are the complete task main scores multiplied by 100.
+
+| Task | Upstream mean input characters | Main metric | Score (points) |
+|---|---:|---|---:|
+| ArguAna | 1,029.5 documents | nDCG@10 | 42.864 |
+| BiorxivClusteringP2P.v2 | 1,664.0 texts | V-measure | 35.1222 |
+| ImdbClassification | 1,293.8 texts | accuracy | 70.126 |
+| SCIDOCS | 1,204.4 documents | nDCG@10 | 13.587 |
+| SummEvalSummarization.v2 | 2,100.3 source texts | cosine Spearman | 24.7281 |
+| Touche2020Retrieval.v3 | 2,096.4 documents | nDCG@10 | 48.228 |
+
+These lengths are upstream descriptive metadata, not fresh measurements of
+this run's inputs. They can precede the pinned task revision. They do not
+measure model token lengths or truncation frequency. Scores use each model's
+native input limits. The report retains the actual encoder description and
+separate input streams. Other models remain pending, so this is no quality
+ranking or evidence of full-document context retention.
+[All 19 task breakouts and source-statistics digests](benchmarks/baseline/dr151_document_tasks_potion32_20261101.json).
+
+
 ### Comparison profiles (01.11.2026)
 
 POTION-8M float32 on all 5,352 WikiText rows has four accepted instrumented
