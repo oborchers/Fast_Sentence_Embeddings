@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- The additional comparison pod records worker scaling, large streamed write paths, and a final 100M-input int8 showcase with seeded repetition and explicit budget limits. Corpus-length counting records exact means and medians without timing.
+
 - Pod comparison scripts support SSH result collection, early MIND disk checks, and a paired folded-versus-explicit classifier comparison with the same linear head.
 
 - Comparison tooling prepares bounded Linux pod runs, offline SIF-10 classics, and Model2Vec's exported classifier with separate training and inference records.

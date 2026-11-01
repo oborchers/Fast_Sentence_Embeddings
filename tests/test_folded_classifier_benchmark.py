@@ -17,13 +17,13 @@ def preparation(monkeypatch):
 
 
 def test_folded_and_explicit_read_identical_float32_head(preparation, tmp_path):
-    from sklearn.linear_model import LogisticRegression
+    sklearn_linear = pytest.importorskip("sklearn.linear_model")
 
     import fse
 
     vectors = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0]], dtype=np.float32)
     encoder = fse.Encoder.from_arrays(vectors, words=["red", "blue", "green"], normalize=False)
-    fitted = LogisticRegression()
+    fitted = sklearn_linear.LogisticRegression()
     fitted.coef_ = np.array([[2, -1, 0.5]], dtype=np.float64)
     fitted.intercept_ = np.array([0.25], dtype=np.float64)
     fitted.classes_ = np.array([0, 1], dtype=np.int64)

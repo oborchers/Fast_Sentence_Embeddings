@@ -1,6 +1,7 @@
 """Pod scripts preserve SSH access, hard deadlines and full-data disk requirements."""
 
 import importlib
+import os
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,8 +17,9 @@ def modules(monkeypatch):
     return importlib.import_module("pod_storage")
 
 
+@pytest.mark.skipif(os.name == "nt", reason="pod shells require a POSIX host")
 @pytest.mark.usefixtures("modules")
-@pytest.mark.parametrize(("module", "limit"), [("make_mind_pod", 10800), ("make_folded_pod", 2700)])
+@pytest.mark.parametrize(("module", "limit"), [("make_mind_pod", 10800), ("make_folded_pod", 9000)])
 def test_pod_ssh_precedes_environment_and_is_inside_deadline(module, limit, tmp_path):
     script = importlib.import_module(module).script("a" * 40)
     outer = tmp_path / "pod.sh"
@@ -59,6 +61,7 @@ def test_disk_budget_fails_clearly_without_sampling(modules, monkeypatch, tmp_pa
         modules.require_free(tmp_path, 120, "before loading MIND")
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows symlinks can require privileges")
 def test_disk_inventory_does_not_double_count_hub_snapshot_symlinks(modules, tmp_path):
     (tmp_path / "blob").write_bytes(b"abc")
     (tmp_path / "snapshot-link").symlink_to(tmp_path / "blob")

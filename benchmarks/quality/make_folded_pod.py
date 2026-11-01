@@ -1,4 +1,4 @@
-"""Generate the additional 45-minute folded-classifier pod, never launching it."""
+"""Generate the bounded classifier, write-path, scaling and 100M showcase pod."""
 
 import argparse
 import hashlib
@@ -10,7 +10,7 @@ from make_pod_scripts import HERE, bootstrap
 from pod_shell import ssh_first
 
 
-def script(commit):
+def script(commit, *, limit=9000, export_reserve=60):
     work = (
         ssh_first()
         + bootstrap(commit)
@@ -21,14 +21,49 @@ def script(commit):
 /usr/local/bin/uv pip check --python /dr151-env/bin/python
 printf 'stage_end environment %s\\n' "$(/usr/bin/date -u +%FT%TZ)"
 /usr/bin/df -h /dr151-cache
-run_stage folded-classification /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_folded.py --cache /dr151-cache --output /dr151-results --deadline-epoch $DR151_DEADLINE
+set +e
+classification_deadline=$((DR151_DEADLINE - 6600))
+classification_seconds=$((classification_deadline - $(/usr/bin/date +%s)))
+if [ "$classification_seconds" -gt 0 ]; then
+  run_stage folded-classification /usr/bin/timeout --signal=TERM --kill-after=10 "$classification_seconds" /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_folded.py --stage classifications --cache /dr151-cache --output /dr151-results --deadline-epoch "$classification_deadline"
+  classification_status=$?
+else
+  classification_status=124
+fi
+/usr/bin/curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /dr151-rustup.sh
+/bin/bash /dr151-rustup.sh -y --profile minimal --default-toolchain 1.98.0
+/dr151-env/bin/python -c 'import sys; sys.path.insert(0,"benchmarks"); from compare_rust_build import build_worker; build_worker()'
+rust_status=$?
+large_deadline=$((DR151_DEADLINE - 2400))
+large_seconds=$((large_deadline - $(/usr/bin/date +%s)))
+if [ "$large_seconds" -gt 0 ]; then
+  run_stage large-write-paths /usr/bin/timeout --signal=TERM --kill-after=10 "$large_seconds" /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_folded.py --stage large --cache /dr151-cache --output /dr151-results --deadline-epoch "$large_deadline"
+  large_status=$?
+else
+  large_status=124
+fi
+scaling_deadline=$((DR151_DEADLINE - 2100))
+scaling_seconds=$((scaling_deadline - $(/usr/bin/date +%s)))
+if [ "$scaling_seconds" -gt 0 ]; then
+  run_stage worker-scaling /usr/bin/timeout --signal=TERM --kill-after=10 "$scaling_seconds" /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_folded.py --stage scaling --cache /dr151-cache --output /dr151-results --deadline-epoch "$scaling_deadline"
+  scaling_status=$?
+else
+  scaling_status=124
+fi
+run_stage showcase-100m /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_folded.py --stage showcase --cache /dr151-cache --output /dr151-results --deadline-epoch "$DR151_DEADLINE"
+showcase_status=$?
+if [ "$classification_status" -ne 0 ]; then exit "$classification_status"; fi
+if [ "$large_status" -ne 0 ]; then exit "$large_status"; fi
+if [ "$rust_status" -ne 0 ]; then exit "$rust_status"; fi
+if [ "$scaling_status" -ne 0 ]; then exit "$scaling_status"; fi
+exit "$showcase_status"
 """
     )
     return f"""#!/usr/bin/env bash
-# Additional Pod 3. python:3.13, cpu3c, 32 vCPU, 64 GB RAM, 20 GB disk.
+# Additional Pod 3. python:3.13, cpu3c, 32 vCPU, 64 GB RAM, 150 GB disk.
 set -uo pipefail
 started=$(/usr/bin/date +%s)
-export DR151_DEADLINE=$((started + 2700 - 60))
+export DR151_DEADLINE=$((started + {limit} - {export_reserve}))
 /usr/bin/mkdir -p /dr151-results
 if ! /usr/bin/mkdir /dr151-cache; then
   printf 'ERROR: /dr151-cache already exists; require a fresh exclusive pod cache.\\nALL_DONE\\n' >&2
@@ -59,7 +94,7 @@ import json, sys
 from pathlib import Path
 Path('/dr151-results/bootstrap-invocation.json').write_text(json.dumps({{"command":["/bin/bash","/dr151-work.sh"],"script":Path('/dr151-work.sh').read_text(),"returncode":int(sys.argv[1]),"pinned_commit":"{commit}"}}))
 DR151_INVOCATION
-finalize_seconds=$((started + 2700 - 5 - $(/usr/bin/date +%s)))
+finalize_seconds=$((started + {limit} - 5 - $(/usr/bin/date +%s)))
 if [ "$finalize_seconds" -lt 1 ]; then finalize_seconds=1; fi
 /usr/bin/timeout --signal=TERM --kill-after=2 "$finalize_seconds" /usr/local/bin/python /dr151-finalize.py /dr151-results "$status"
 printf 'ALL_DONE\\n'

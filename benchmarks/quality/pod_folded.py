@@ -104,6 +104,11 @@ def workload(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--stage",
+        choices=["classifications", "large", "scaling", "showcase"],
+        default="classifications",
+    )
     parser.add_argument("--cache", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--deadline-epoch", type=float, required=True)
@@ -117,6 +122,21 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     args.hardware = {**environment(), "affinity_original": allowed}
     args.deadline = time.monotonic() + args.deadline_epoch - time.time()
+    if args.stage == "scaling":
+        from pod_scaling import run
+
+        run(args)
+        return
+    if args.stage == "large":
+        from pod_large import run
+
+        run(args)
+        return
+    if args.stage == "showcase":
+        from pod_showcase import run
+
+        run(args)
+        return
     workload(args)
     export_jsonl("folded-speed-final", args.output / "speed-results.jsonl")
     export_jsonl("folded-quality-final", args.output / "classification-quality.jsonl")
