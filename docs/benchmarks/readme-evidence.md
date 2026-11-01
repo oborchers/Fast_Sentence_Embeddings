@@ -447,7 +447,10 @@ Display “More than 16 cores adds little here.” when the ratio falls below 1.
 This is an editorial threshold for these workloads, not a general CPU-scaling claim.
 
 The generator reads immutable source references and ordered rates from audited `selection_rows` at 1, 16 and 32.
-It compares 16 and 32 directly and requires dtype/reference measurements at the chosen setting.
+It compares 16 and 32 directly on one shared input per model and requires dtype/reference measurements at the chosen setting.
+Dtype cells retain that shared input. Each library bar instead uses its own calibrated paired workload,
+with identical input digest/count in both libraries. Counts and digests may differ between bars.
+The figure caption names the input size for every bar, and each ratio retains round pairing.
 POTION-8M drives its dtype table. MRL library bars require MRL's own decision cells.
 `core-selection-evidence.md` records medians, the exact ratio, immutable sources and series IDs.
 No six-point curve, interpolation or scaling graphic is required. Missing decision cells fail publication.

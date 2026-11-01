@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- Label each planned README library bar with its own paired input size, while retaining shared inputs for precision tables and core selection.
+
 - Retain earlier Pod 2 normalized-classifier results in the evidence guide, with their short-call protocol and separately fitted-head limits.
 
 - Slim the planned RunPod README panels to the 1/16/32 dtype and library grid, retaining direct 32-versus-16 selection and individual fse-call duration checks.

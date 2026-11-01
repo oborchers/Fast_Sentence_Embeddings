@@ -343,3 +343,44 @@ def test_reference_calls_do_not_receive_the_fse_duration_gate(calls):
 def test_dropped_worker_points_cannot_enter_library_bars(workers):
     with pytest.raises(ValueError, match="measured panel setting"):
         PANEL["comparison"](pair(workers))
+
+
+def test_library_bars_accept_separate_paired_inputs_and_name_each_size(tmp_path):
+    palette = json.loads((ROOT / "media/readme/palette.json").read_text())
+    pairs = [pair(1), pair(16)]
+    for sample, count in zip(pairs, (1_234_567, 2_345_678), strict=True):
+        for arm in ("fse", "reference"):
+            sample[arm]["context"].update(texts=count, input_digest=f"paired-input-{count}")
+    data = {
+        "format": "readme-speed-panels-v1",
+        "selection_rows": decision_rows(1100),
+        "table": [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in (1, 16, 32)],
+        "comparisons": pairs,
+        "table_caption": "test fixture",
+        "comparison_caption": "test fixture",
+    }
+    PANEL["publish"](data, tmp_path, palette)
+    for theme in ("light", "dark"):
+        drawing = (tmp_path / f"library-speedups-{theme}.svg").read_text()
+        assert "Each bar uses its own paired input." in drawing
+        assert "Both libraries in that pair embed the same texts." in drawing
+        assert "Model2Vec (one core): 1,234,567 texts" in drawing
+        assert "Model2Vec (16 cores): 2,345,678 texts" in drawing
+        assert "1,234,567 texts in this pair" in drawing
+        assert "2,345,678 texts in this pair" in drawing
+        assert "10.00 times as fast as Model2Vec" in drawing
+
+
+@pytest.mark.parametrize("key", ["input_digest", "texts"])
+def test_precision_table_cannot_change_the_selection_input(key):
+    rows = [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in (1, 16)]
+    rows[-1]["context"][key] = "different"
+    with pytest.raises(ValueError, match="same comparison context"):
+        PANEL["selected_rows"](rows, decision_rows(1100), {"test/model": (1, 16)})
+
+
+def test_library_pair_cannot_use_different_input_counts():
+    sample = pair()
+    sample["reference"]["context"]["texts"] += 1
+    with pytest.raises(ValueError, match="same comparison context"):
+        PANEL["comparison"](sample)

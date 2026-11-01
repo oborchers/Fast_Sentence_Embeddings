@@ -58,7 +58,10 @@ All three table rows keep one core. Choose 16 or 32 directly from that model's a
 The Pod grid remains 1/16/32. Every first and warm fse call must last at least two seconds.
 The separate 10M write stage is dropped; the 100M showcase covers writing.
 Each selected library needs the exact same-model pair at the selected setting.
-Each library bar has a separately paired fse baseline for that same model and output.
+Each library bar has its own calibrated paired input and fse baseline for that same model and output.
+Both arms must match input digest/count. Different bars may have different inputs.
+The figure caption lists each bar's input size, also shown beside the bar.
+Dtype cells and the 16/32 decision keep one shared input per model.
 MiniLM is excluded from this same-model renderer.
 
 Generate explicitly unmeasured layout previews:

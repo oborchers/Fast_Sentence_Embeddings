@@ -6,6 +6,7 @@ import json
 import math
 import re
 import statistics
+import textwrap
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -35,7 +36,7 @@ CONTEXT = (
     "normalize",
     "tokenizer_rule",
 )
-COHORT = ("input_digest", "texts", "corpus", "machine", "date", "output_dtype")
+FIGURE_CONTEXT = ("corpus", "machine", "date", "output_dtype")
 
 
 def positive(value):
@@ -129,18 +130,21 @@ def selections(rows):
     }
 
 
-def selected_rows(rows, selection_rows, selected):
+def selected_rows(rows, selection_rows, selected, *, paired_workloads=False):
     if not rows:
         return []
     models = {r["context"]["model"] for r in rows}
     if not models <= selected.keys():
         raise ValueError("Committed selection rows are required for every displayed model")
     relevant = [r for r in rows if r["context"]["workers"] in selected[r["context"]["model"]]]
+    excluded = {"workers", "table_dtype"}
+    if paired_workloads:
+        excluded.update({"input_digest", "texts"})
     for row in relevant:
         baseline = next(
             r for r in selection_rows if r["context"]["model"] == row["context"]["model"]
         )
-        same([row, baseline], [key for key in CONTEXT if key not in {"workers", "table_dtype"}])
+        same([row, baseline], [key for key in CONTEXT if key not in excluded])
         same_runtime([row, baseline])
     return relevant
 
@@ -238,7 +242,7 @@ def label(x, y, value, colors, size=18, weight=400):
 def entries(rows, preview):
     if preview:
         return [
-            (w, name, "same model in both libraries", None)
+            (w, name, "same model in both libraries", None, None)
             for w in (1, 0)
             for name in BACKENDS.values()
         ]
@@ -247,6 +251,7 @@ def entries(rows, preview):
             p["fse"]["context"]["workers"],
             BACKENDS[p["reference"]["backend"]],
             p["fse"]["context"]["model"].split("/")[-1],
+            p["fse"]["context"]["texts"],
             comparison(p),
         )
         for p in rows
@@ -254,8 +259,13 @@ def entries(rows, preview):
 
 
 def bar(entry, y, scale, colors):
-    _, name, model, value = entry
-    parts = [label(40, y, name, colors, 21, 700), label(40, y + 28, model, colors, 15)]
+    _, name, model, texts, value = entry
+    size = "Input size from paired result" if texts is None else f"{texts:,} texts in this pair"
+    parts = [
+        label(40, y, name, colors, 21, 700),
+        label(40, y + 28, model, colors, 15),
+        label(40, y + 50, size, colors, 15),
+    ]
     if value is None:
         parts.extend(
             [
@@ -274,20 +284,34 @@ def bar(entry, y, scale, colors):
     return parts
 
 
+def caption_lines(rows, caption, *, preview=False):
+    explanation = (
+        "Each bar uses its own paired input. Both libraries in that pair embed the same texts."
+    )
+    sizes = "Input sizes appear beside each bar."
+    if not preview:
+        sizes = "; ".join(
+            f"{BACKENDS[p['reference']['backend']]} ({core_label(p['fse']['context']['workers']).lower()}): {p['fse']['context']['texts']:,} texts"
+            for p in rows
+        )
+    return textwrap.wrap(f"{caption} {explanation} {sizes}", width=110)
+
+
 def svg(rows, caption, colors, *, preview=False, notes=()):
     content = entries(rows, preview)
-    scale = max([1, *(entry[3] for entry in content if entry[3] is not None)])
+    captions = caption_lines(rows, caption, preview=preview)
+    scale = max([1, *(entry[4] for entry in content if entry[4] is not None)])
     groups = sorted({entry[0] for entry in content}, key=lambda w: (w != 1, w))
-    height = 150 + 40 * len(groups) + 90 * len(content) + 28 * len(notes)
+    height = 150 + 40 * len(groups) + 90 * len(content) + 28 * len(notes) + 22 * len(captions)
     title = "fse vs other libraries"
     parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="{height}" viewBox="0 0 1100 {height}" role="img" aria-labelledby="title desc"><title id="title">{title}</title><desc id="desc">{html.escape(caption)}</desc><rect width="1100" height="{height}" rx="12" fill="{colors["bg"]}"/><g font-family="Geist, Arial, sans-serif">',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="{height}" viewBox="0 0 1100 {height}" role="img" aria-labelledby="title desc"><title id="title">{title}</title><desc id="desc">{html.escape(" ".join(captions))}</desc><rect width="1100" height="{height}" rx="12" fill="{colors["bg"]}"/><g font-family="Geist, Arial, sans-serif">',
         label(40, 52, title, colors, 30, 700),
     ]
     subtitle = (
         "Layout preview. No measurements."
         if preview
-        else "Each bar compares the same model in both libraries."
+        else "Each bar is a separate same-model, same-input comparison."
     )
     parts.append(label(40, 84, subtitle, colors))
     y = 125
@@ -297,9 +321,14 @@ def svg(rows, caption, colors, *, preview=False, notes=()):
         for entry in (item for item in content if item[0] == worker):
             parts.extend(bar(entry, y, scale, colors))
             y += 90
-    for index, note in enumerate(notes):
-        parts.append(label(40, height - 55 - 28 * (len(notes) - index - 1), note, colors, 15))
-    parts.extend([label(40, height - 25, caption, colors, 15), "</g></svg>"])
+    y += 5
+    for note in notes:
+        parts.append(label(40, y, note, colors, 15))
+        y += 28
+    for line in captions:
+        parts.append(label(40, y, line, colors, 15))
+        y += 22
+    parts.append("</g></svg>")
     return "\n".join(parts) + "\n"
 
 
@@ -360,13 +389,13 @@ def panel_files(data, palette):
 
 
 def select_pairs(pairs, selection_rows, selected):
-    selected_rows([p["fse"] for p in pairs], selection_rows, selected)
+    selected_rows([p["fse"] for p in pairs], selection_rows, selected, paired_workloads=True)
     chosen = [
         p for p in pairs if p["fse"]["context"]["workers"] in selected[p["fse"]["context"]["model"]]
     ]
     paired_core_settings(chosen, selected, pairs)
     if chosen:
-        same([p["fse"] for p in chosen], COHORT)
+        same([p["fse"] for p in chosen], FIGURE_CONTEXT)
         same_runtime([p["fse"] for p in chosen])
     return chosen
 

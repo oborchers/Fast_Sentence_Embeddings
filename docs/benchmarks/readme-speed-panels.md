@@ -32,7 +32,7 @@ one Pod machine and date, and float32 vector output. Preserve the cohort's exact
 Collect all nine cells during the same Pod run, without a follow-up Pod round.
 After core selection the renderer uses only workers=1 and workers=K, keeping the other observations in evidence.
 No one-core-only or 32-worker int8 cell can fill a missing K-worker cell.
-All selected cells must share one machine/runtime and context with the selection rows.
+All selected dtype cells must share one input digest/count, machine/runtime and context with the selection rows for their model.
 K is always 16 or 32. The 1/16/32 grid therefore contains all possible selected cells; no second Pod run or per-model follow-up request is needed.
 
 Planned public layout:
@@ -68,13 +68,18 @@ The Sentence Transformers numerator must run that same MRL model.
 Never compare POTION-8M fse with the MRL reference and label it a library speedup.
 Keep model names visible under every bar; each bar is a same-model comparison despite different static models across rows.
 The generator permits a library only when all of its selected core settings are accepted.
-The figure shares one machine, date, complete input digest and output dtype, with each pair sharing its own worker budget.
+The figure shares one machine, date, source corpus and output dtype. Each bar has its own paired workload, calibrated separately.
+Within a pair, fse and the library must share the exact input digest/count, model, output settings and worker budget.
+Different bars may use different counts and digests. Never describe them as one shared input.
+The common input for the dtype table and 16/32 selection remains separate and unchanged.
 A requested thread limit is not proof of observed tokenizer threads. Preserve exact library settings in the evidence.
 If output semantics differ, correct or omit that pair before publication.
 
 A bar uses the median of three paired fse/reference rate ratios in round order, equivalent to reference-time/fse-time for equal input counts.
 Do not divide two independent medians. All selected groups share the same scale and zero origin.
-Public labels say “N times as fast as Library”. One caption names machine, input, output and date; group headings give core settings.
+Public labels say “N times as fast as Library”. The caption names machine, source corpus, output and date.
+It states that each bar is its own paired comparison and lists the exact input size for each library/core bar.
+The renderer derives these counts from the paired rows and also prints them beside each bar. Group headings give core settings.
 MiniLM is absent from this same-model renderer. If shown later, it needs a clearly separate “Different model” group and both model names.
 
 ## Remaining Pod 4 scope
@@ -111,7 +116,9 @@ Extract actual durations, not the configured `minimum_call_seconds` threshold. T
 A pair contains `fse`, `reference` and `output_checked: true`, added only after verifying output semantics.
 Both rows name the same combined paired journal and series. Preserve original records in the evidence snapshot.
 `table_caption` and `comparison_caption` contain one-line public captions copied from verified context.
-The renderer derives selected core settings from `selection_rows`, verifies matching machine/runtime/model/input/output context,
+The renderer derives core settings from `selection_rows` using the shared input for each model.
+Dtype cells must match that input. Library bars may have their own inputs, but both arms of each bar must match exactly.
+All displayed cells still require the selection model, runtime, machine, corpus and output context. It then
 and filters out other settings before rendering. It rejects missing chosen rows, mixed contexts, noisy/unattributed rows
 and stale unselected output files before writing.
 It never silently retains withdrawn claims or deletes files.
