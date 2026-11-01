@@ -33,6 +33,7 @@ from _speed_pipeline import (
     measure_child,
     prepare_head,
     prepare_models,
+    setup,
     stream_child,
 )
 
@@ -440,11 +441,15 @@ def main():
     mode.add_argument("--describe", action="store_true")
     mode.add_argument("--child-job", type=Path)
     mode.add_argument("--run", action="store_true")
+    mode.add_argument("--setup", type=Path)
     parser.add_argument("--results", type=Path, default=Path("/speed-results"))
     parser.add_argument("--work", type=Path, default=Path("/speed-work"))
     parser.add_argument("--reference-python", default="/speed-reference/bin/python")
     parser.add_argument("--allocated-at", type=float, default=time.time())
     args = parser.parse_args()
+    if args.setup:
+        setup(args.setup, document(args.input))
+        return 0
     if args.child_job:
         job = document(args.child_job)
         stream_child(job) if job["kind"] == "stream" else measure_child(job)

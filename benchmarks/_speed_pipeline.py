@@ -13,6 +13,84 @@ from pathlib import Path
 from _speed_cells import atomic, configure, package_identity, sha256
 
 
+def command(*arguments):
+    subprocess.run([str(value) for value in arguments], check=True)
+
+
+def setup(root, contract):
+    """Install the two frozen CPU environments without starting measurement."""
+    root.mkdir(parents=True, exist_ok=False)
+    here = Path(__file__).resolve().parent
+    tools, source = root / "tools", root / "fse-source"
+    tools.mkdir()
+    command("apt-get", "update")
+    command(
+        "apt-get",
+        "install",
+        "-y",
+        "build-essential",
+        "pkg-config",
+        "libssl-dev",
+        "curl",
+        "git",
+        "ca-certificates",
+    )
+    command(sys.executable, "-m", "pip", "install", "--prefix", tools, "uv==0.13.0")
+    uv = tools / "bin/uv"
+    for name, lock in (("main", "speed-main.lock.txt"), ("reference", "speed-reference.lock.txt")):
+        destination = root / name
+        command(uv, "venv", "--python", sys.executable, destination)
+        command(
+            uv,
+            "pip",
+            "install",
+            "--python",
+            destination / "bin/python",
+            "--no-deps",
+            "-r",
+            here / lock,
+            "--extra-index-url",
+            "https://download.pytorch.org/whl/cpu",
+        )
+    command("git", "clone", "https://github.com/oborchers/Fast_Sentence_Embeddings.git", source)
+    command("git", "-C", source, "checkout", "--detach", contract["fse_revision"])
+    command(
+        uv,
+        "pip",
+        "install",
+        "--python",
+        root / "main/bin/python",
+        "--no-deps",
+        "--no-build-isolation",
+        source,
+    )
+    installer = tools / "rustup-init"
+    command(
+        "curl",
+        "--fail",
+        "--location",
+        "--output",
+        installer,
+        "https://static.rust-lang.org/rustup/archive/1.28.2/x86_64-unknown-linux-gnu/rustup-init",
+    )
+    installer.chmod(0o700)
+    command(
+        installer, "-y", "--no-modify-path", "--profile", "minimal", "--default-toolchain", "1.98.0"
+    )
+    atomic(
+        root / "setup.json",
+        dict(
+            rustup_installer_sha256=sha256(installer),
+            locks={
+                name: sha256(here / name)
+                for name in ("speed-main.lock.txt", "speed-reference.lock.txt", "speed-rust.lock")
+            },
+            fse_revision=contract["fse_revision"],
+            python=sys.version,
+        ),
+    )
+
+
 def encoder(job):
     kind, workers = job["backend"], job["workers"]
     if kind == "fse":
