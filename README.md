@@ -39,7 +39,7 @@ The chart uses all 5,352 nonblank WikiText validation and test texts, in three p
 Float16 uses less space for the model. This is a separate measurement, not a promise of equal quality.
 A new library speed comparison and classification benchmark are pending.
 The current Model2Vec control rates need re-measurement before a final comparison.
-[Measurement details and full model tables](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/71b69be83efdd8adbf071ada302be8bf1db68b24/docs/benchmarks/readme-evidence.md) retain ranges, quality scores and pending comparisons.
+[Measurement details and full model tables](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/2d85d281a5b6ba5e942bb8df691aa694ebb10f6f/docs/benchmarks/readme-evidence.md) retain ranges, quality scores and pending comparisons.
 
 ### Classification: fold work into the model
 
