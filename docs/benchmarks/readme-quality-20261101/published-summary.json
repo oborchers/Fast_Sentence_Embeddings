@@ -1,0 +1,565 @@
+{
+  "setup": {
+    "device": "cpu",
+    "machine": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "method_fingerprint": "xxh3-128:7fe0b281fc9a9bc7b53313a3300fdf41",
+    "python": "3.13.16",
+    "runtime_fingerprint": "xxh3-128:3f93e3744d1eda78ee3c5636604ab1cc",
+    "suite_fingerprint": "xxh3-128:3382243b7faea5e5c71ba0a52f2bf4a4",
+    "versions": {
+      "Jinja2": "3.1.6",
+      "MarkupSafe": "3.0.4",
+      "PyYAML": "6.0.3",
+      "Pygments": "2.21.0",
+      "aiohappyeyeballs": "2.7.1",
+      "aiohttp": "3.14.5",
+      "aiosignal": "1.4.0",
+      "annotated-doc": "0.0.5",
+      "annotated-types": "0.8.0",
+      "anyio": "4.15.1",
+      "attrs": "26.1.0",
+      "certifi": "2026.10.23",
+      "charset-normalizer": "3.5.2",
+      "click": "8.5.0",
+      "cloudpickle": "3.1.2",
+      "datasets": "5.1.0",
+      "defusedxml": "0.7.1",
+      "dill": "0.4.1",
+      "filelock": "4.2.6",
+      "frozenlist": "1.8.0",
+      "fse": "1.1.1.dev889+g3e59c2177",
+      "fsspec": "2026.7.0",
+      "h11": "0.16.0",
+      "hf-xet": "1.8.0",
+      "httpcore2": "2.16.0",
+      "httpx2": "2.16.0",
+      "huggingface_hub": "2.4.0",
+      "idna": "3.20",
+      "joblib": "1.6.0",
+      "markdown-it-py": "4.2.0",
+      "mdurl": "0.1.2",
+      "model2vec": "0.10.0",
+      "mpmath": "1.3.0",
+      "mteb": "2.26.25",
+      "multidict": "7.2.1",
+      "multiprocess": "0.70.19",
+      "narwhals": "2.28.0",
+      "networkx": "3.7",
+      "nltk": "3.10.4",
+      "numpy": "2.5.4",
+      "packaging": "26.3",
+      "pandas": "3.1.0",
+      "polars": "2.1.0",
+      "polars-runtime-32": "2.1.0",
+      "propcache": "0.5.4",
+      "pyarrow": "26.0.0",
+      "pydantic": "2.14.2",
+      "pydantic_core": "2.50.2",
+      "python-dateutil": "3.0.0",
+      "pytrec_eval-terrier": "0.5.11",
+      "regex": "2026.9.29",
+      "requests": "2.34.2",
+      "rich": "15.0.0",
+      "safetensors": "0.8.0",
+      "scikit-learn": "1.9.1",
+      "scipy": "1.18.1",
+      "sentence-transformers": "6.2.0",
+      "setuptools": "84.2.1",
+      "shellingham": "1.5.4",
+      "six": "1.17.0",
+      "sympy": "1.14.0",
+      "threadpoolctl": "3.7.0",
+      "tokenizers": "0.23.3",
+      "torch": "2.15.0",
+      "tqdm": "4.70.1",
+      "transformers": "5.22.1",
+      "truststore": "0.10.5",
+      "typer": "0.27.3",
+      "typing-inspection": "0.4.4",
+      "typing_extensions": "4.16.0",
+      "tzdata": "2026.6",
+      "urllib3": "2.8.0",
+      "xxhash": "4.0.2",
+      "yarl": "1.25.1"
+    },
+    "workers": 2
+  },
+  "models": [
+    {
+      "model": "fse/potion-base-8M-float32",
+      "source_model": "minishlab/potion-base-8M",
+      "source_revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+      "encoder_fingerprint": "xxh3-128:7aed2ca9bf7f9073ffa6778672a7575f",
+      "artifact": {
+        "artifact": "potion-base-8M-float32.safetensors",
+        "source": "minishlab/potion-base-8M",
+        "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+        "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+        "table_dtype": "float32",
+        "table_rows": 29528,
+        "dim": 256,
+        "file_bytes": 30664410,
+        "vector_tensor_bytes": 30236672,
+        "encoder_fingerprint": "xxh3-128:7aed2ca9bf7f9073ffa6778672a7575f",
+        "float32_parent_fingerprint": "xxh3-128:7aed2ca9bf7f9073ffa6778672a7575f",
+        "embedded_source": {
+          "format": "model2vec",
+          "repo": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23"
+        },
+        "preparation_record": {
+          "source": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+          "fse": "1.1.1.dev853+g9a7e780f5",
+          "python": "3.13.16 (main, Oct  9 2026, 15:11:24) [Clang 22.1.3 ]",
+          "artifacts": [
+            "potion-base-8M-float32.safetensors",
+            "potion-base-8M-float16.safetensors",
+            "potion-base-8M-int8.safetensors"
+          ],
+          "output_dim": 256
+        },
+        "provenance_verification": "embedded source and preparation record"
+      },
+      "english_completed": 40,
+      "english_required": 41,
+      "nanobeir_completed": 13,
+      "nanobeir_required": 13,
+      "deferred": [
+        "MindSmallReranking"
+      ],
+      "english_full_41_mean": null,
+      "english_40_mean_mind_deferred": 0.5395270762114082,
+      "nanobeir_full_13_mean": 0.4384853846153846,
+      "tasks": [
+        {
+          "task": "AmazonCounterfactualClassification",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "accuracy",
+          "score": 0.7179104477611941,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "ArXivHierarchicalClusteringP2P",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "v_measure",
+          "score": 0.5498417015198644,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "ArXivHierarchicalClusteringS2S",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "v_measure",
+          "score": 0.49535551585064813,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "ArguAna",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "ndcg_at_10",
+          "score": 0.41961,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "AskUbuntuDupQuestions",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "map_at_1000",
+          "score": 0.54112,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "BIOSSES",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "cosine_spearman",
+          "score": 0.7585775256673795,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "Banking77Classification",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "accuracy",
+          "score": 0.7263636363636363,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "BiorxivClusteringP2P.v2",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "v_measure",
+          "score": 0.3322252565195763,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "CQADupstackGamingRetrieval",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "ndcg_at_10",
+          "score": 0.39235,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "CQADupstackUnixRetrieval",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "ndcg_at_10",
+          "score": 0.20062,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "ClimateFEVERHardNegatives",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "ndcg_at_10",
+          "score": 0.18724,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "FEVERHardNegatives",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "ndcg_at_10",
+          "score": 0.33514,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "FiQA2018",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "ndcg_at_10",
+          "score": 0.16619,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "HotpotQAHardNegatives",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "ndcg_at_10",
+          "score": 0.3904,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "ImdbClassification",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "accuracy",
+          "score": 0.7078,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "MTOPDomainClassification",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "accuracy",
+          "score": 0.8895576835385318,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "MassiveIntentClassification",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "accuracy",
+          "score": 0.6379287155346336,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "MassiveScenarioClassification",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "accuracy",
+          "score": 0.7030934767989241,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "MedrxivClusteringP2P.v2",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "v_measure",
+          "score": 0.3218055855237261,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "MedrxivClusteringS2S.v2",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "v_measure",
+          "score": 0.2845474288875212,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoArguAnaRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.34454,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoClimateFeverRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.26223,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoDBPediaRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.52042,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoFEVERRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.53058,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoFiQA2018Retrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.27958,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoHotpotQARetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.52547,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoMSMARCORetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.42012,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoNFCorpusRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.231,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoNQRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.33921,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoQuoraRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.93589,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoSCIDOCSRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.26083,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoSciFactRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.57738,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoTouche2020Retrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.47306,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "SCIDOCS",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "ndcg_at_10",
+          "score": 0.12387,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "SICK-R",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "cosine_spearman",
+          "score": 0.6467529269787308,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "STS12",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "cosine_spearman",
+          "score": 0.6224757986645237,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "STS13",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "cosine_spearman",
+          "score": 0.772760080817994,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "STS14",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "cosine_spearman",
+          "score": 0.7191409513134444,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "STS15",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "cosine_spearman",
+          "score": 0.7975345017876988,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "STS17",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "cosine_spearman",
+          "score": 0.8596709815630739,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "STS22.v2",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "cosine_spearman",
+          "score": 0.6308843115259646,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "STSBenchmark",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "cosine_spearman",
+          "score": 0.754051305973876,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "SprintDuplicateQuestions",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "max_ap",
+          "score": 0.9020131932554316,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "StackExchangeClustering.v2",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "v_measure",
+          "score": 0.5046462922075072,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "StackExchangeClusteringP2P.v2",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "v_measure",
+          "score": 0.37036072732788483,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "SummEvalSummarization.v2",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "cosine_spearman",
+          "score": 0.2509752264127082,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "TRECCOVID",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "ndcg_at_10",
+          "score": 0.45732,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "Touche2020Retrieval.v3",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "ndcg_at_10",
+          "score": 0.43816,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "ToxicConversationsClassification",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "accuracy",
+          "score": 0.690625,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "TweetSentimentExtractionClassification",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "accuracy",
+          "score": 0.5538766270514996,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "TwentyNewsgroupsClustering.v2",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "v_measure",
+          "score": 0.33175196134698115,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "TwitterSemEval2015",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "max_ap",
+          "score": 0.5751605463251787,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "TwitterURLCorpus",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "max_ap",
+          "score": 0.821375641938193,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        }
+      ]
+    }
+  ],
+  "score_units": "native MTEB score, deltas multiplied by 100 for points",
+  "warning": "40-task English means exclude explicitly deferred MIND and are not the full benchmark"
+}
