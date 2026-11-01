@@ -1,138 +1,102 @@
 {
-  "unique_quality_configurations": 35,
-  "completed_unique": 6,
-  "pending_unique": 29,
-  "mind": "deferred: needs more than 16 GiB RAM on the M1",
-  "pending": [
-    {
-      "tier": 2,
-      "model": "sentence-transformers/all-MiniLM-L6-v2"
-    },
-    {
-      "tier": 3,
-      "model": "fse/potion-base-8M-int8"
-    },
-    {
-      "tier": 3,
-      "model": "fse/potion-base-32M-int8"
-    },
-    {
-      "tier": 3,
-      "model": "fse/potion-retrieval-32M-int8"
-    },
-    {
-      "tier": 3,
-      "model": "fse/potion-multilingual-128M-int8"
-    },
-    {
-      "tier": 3,
-      "model": "fse/static-retrieval-mrl-en-v1-int8"
-    },
-    {
-      "tier": 3,
-      "model": "fse/static-similarity-mrl-multilingual-v1-int8"
-    },
-    {
-      "tier": 3,
-      "model": "fse/Average-glove-wiki-gigaword-300-int8"
-    },
-    {
-      "tier": 3,
-      "model": "fse/Average-word2vec-google-news-300-int8"
-    },
-    {
-      "tier": 4,
-      "model": "fse/potion-base-8M-float16"
-    },
-    {
-      "tier": 4,
-      "model": "fse/potion-base-32M-float16"
-    },
-    {
-      "tier": 4,
-      "model": "fse/potion-retrieval-32M-float16"
-    },
-    {
-      "tier": 4,
-      "model": "fse/potion-multilingual-128M-float16"
-    },
-    {
-      "tier": 4,
-      "model": "fse/static-retrieval-mrl-en-v1-float16"
-    },
-    {
-      "tier": 4,
-      "model": "fse/static-similarity-mrl-multilingual-v1-float16"
-    },
-    {
-      "tier": 4,
-      "model": "fse/Average-glove-wiki-gigaword-300-float16"
-    },
-    {
-      "tier": 4,
-      "model": "fse/Average-word2vec-google-news-300-float16"
-    },
-    {
-      "tier": 5,
-      "model": "fse/Average-glove-wiki-gigaword-300-float32"
-    },
-    {
-      "tier": 5,
-      "model": "fse/Average-word2vec-google-news-300-float32"
-    },
-    {
-      "tier": 6,
-      "model": "model2vec/minishlab/potion-base-8M"
-    },
-    {
-      "tier": 6,
-      "model": "model2vec/minishlab/potion-base-32M"
-    },
-    {
-      "tier": 6,
-      "model": "model2vec/minishlab/potion-retrieval-32M"
-    },
-    {
-      "tier": 6,
-      "model": "model2vec/minishlab/potion-multilingual-128M"
-    },
-    {
-      "tier": 6,
-      "model": "minishlab/potion-base-8M"
-    },
-    {
-      "tier": 6,
-      "model": "minishlab/potion-base-32M"
-    },
-    {
-      "tier": 6,
-      "model": "minishlab/potion-retrieval-32M"
-    },
-    {
-      "tier": 6,
-      "model": "minishlab/potion-multilingual-128M"
-    },
-    {
-      "tier": 6,
-      "model": "sentence-transformers/static-retrieval-mrl-en-v1"
-    },
-    {
-      "tier": 6,
-      "model": "sentence-transformers/static-similarity-mrl-multilingual-v1"
-    }
+  "scope_revision": "maintainer two-pod scope plus additional Pod3, 2026-11-01",
+  "snapshot_utc": "2026-11-01T12:11:48.734657+00:00",
+  "supersedes": "original 35-configuration priority plan; historical results remain unchanged",
+  "unique_model_dtype_configurations": 31,
+  "full_float32_configurations": [
+    "minishlab/potion-base-8M",
+    "minishlab/potion-base-32M",
+    "minishlab/potion-retrieval-32M",
+    "minishlab/potion-multilingual-128M",
+    "sentence-transformers/static-retrieval-mrl-en-v1",
+    "sentence-transformers/static-similarity-mrl-multilingual-v1",
+    "fse/paranmt-300",
+    "fse/glove-wiki-gigaword-300",
+    "fse/word2vec-google-news-300",
+    "fse/fasttext-crawl-subwords-300",
+    "sentence-transformers/all-MiniLM-L6-v2"
   ],
-  "after_priorities": [
-    "FineWeb full annotations",
-    "all 15 disclosed SetFit rows",
-    "six Hub float32 confirmations; strict resume skips configurations complete under the final method"
+  "local_full_scope": "unmodified mteb2.26.25 MTEB(eng,v2) excluding MIND plus all13NanoBEIR tasks",
+  "mind": "separate Pod1, all11float32 models, unmodified loader; no local MIND scores",
+  "completed_full_float32_models": [
+    "minishlab/potion-base-8M",
+    "minishlab/potion-base-32M",
+    "minishlab/potion-retrieval-32M",
+    "minishlab/potion-multilingual-128M",
+    "sentence-transformers/static-retrieval-mrl-en-v1",
+    "sentence-transformers/static-similarity-mrl-multilingual-v1"
   ],
-  "measured_baseline_wall_seconds": 1462.740465,
-  "baseline_scope": "full 53-task POTION-8M float32 invocation, includes imports, data preparation, shared-lock waits and 8-task-batch cooldowns; excludes the earlier interrupted MIND invocation",
-  "unmeasured_additions": [
-    "MiniLM runtime",
-    "classifiers",
-    "search/lifecycle",
-    "same-method float32 confirmations as needed"
+  "completed_models_cohort_warning": "separate recorded method/runtime cohorts; do not combine as a controlled ranking",
+  "local_pending_order": [
+    "finish all-MiniLM-L6-v2 float32",
+    "fit FastText SIF-10 first for disk usage",
+    "paranmt mean, GloVe SIF-10, word2vec SIF-10 fits/full float32",
+    "FastText SIF-10 full float32",
+    "remaining9float32 reduced references",
+    "all10int8 reduced plus recall",
+    "all10float16 reduced plus recall"
   ],
-  "estimate_limit": "See dr151_remaining_time_20261101.json for the current four-observation elapsed-rate scenario. No quiet-machine or cloud forecast."
+  "reduced_scope": "allSTS tasks plus all13NanoBEIR, with recall@k against matching float32; no sampling",
+  "reduced_dtypes": {
+    "int8": [
+      "minishlab/potion-base-8M",
+      "minishlab/potion-base-32M",
+      "minishlab/potion-retrieval-32M",
+      "minishlab/potion-multilingual-128M",
+      "sentence-transformers/static-retrieval-mrl-en-v1",
+      "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "fse/paranmt-300",
+      "fse/glove-wiki-gigaword-300",
+      "fse/word2vec-google-news-300",
+      "fse/fasttext-crawl-subwords-300"
+    ],
+    "float16": [
+      "minishlab/potion-base-8M",
+      "minishlab/potion-base-32M",
+      "minishlab/potion-retrieval-32M",
+      "minishlab/potion-multilingual-128M",
+      "sentence-transformers/static-retrieval-mrl-en-v1",
+      "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "fse/paranmt-300",
+      "fse/glove-wiki-gigaword-300",
+      "fse/word2vec-google-news-300",
+      "fse/fasttext-crawl-subwords-300"
+    ]
+  },
+  "reduced_float32_references_remaining": [
+    "minishlab/potion-base-32M",
+    "minishlab/potion-retrieval-32M",
+    "minishlab/potion-multilingual-128M",
+    "sentence-transformers/static-retrieval-mrl-en-v1",
+    "sentence-transformers/static-similarity-mrl-multilingual-v1",
+    "fse/paranmt-300",
+    "fse/glove-wiki-gigaword-300",
+    "fse/word2vec-google-news-300",
+    "fse/fasttext-crawl-subwords-300"
+  ],
+  "fit": {
+    "paranmt-300": "plain mean",
+    "classics": "SIF-10, WikiText103 train fit only, seed0, retained corpus/revision/artifact hashes"
+  },
+  "minilm_snapshot": {
+    "raw": "benchmarks/baseline/results/dr151-quality-minilm-float32.jsonl",
+    "summary": "benchmarks/baseline/dr151_quality_minilm_20261101.json",
+    "completed_tasks": 30,
+    "required_local_tasks": 53,
+    "journal_rows": 32,
+    "deferred_records": 2,
+    "sum_completed_task_wall_seconds": 7126.461670789635,
+    "complete_configuration_wall_seconds": null
+  },
+  "time_scenario": {
+    "is_eta": false,
+    "remaining_minilm_seconds_completed_task_average_proxy": 5463.620614272053,
+    "four_classics_seconds_hub_median_proxy": 5131.181656,
+    "remaining29reduced_seconds_p8_proxy": 13289.426465000026,
+    "sum_proxy_hours": 6.634507982020022,
+    "excluded": "classic fitting, numerical recall, setup, future fairness waits, task/model-size and tokenizer differences; MiniLM remaining tasks need not match completed average",
+    "previous_minilm_75min_estimate": "already exceeded by measured completed-task wall time"
+  },
+  "local_scheduling": "nice10, workers2, heavy.lock batches8,120-second cooldown; current boundary yields dr156-integrations then dr156-userdocs",
+  "speed_scope": "pods only, no local timing under rule10"
 }
