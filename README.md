@@ -157,7 +157,9 @@ Their recipe is an unweighted mean with `fse_words@1` tokens and normalized outp
 Use these sizes to plan disk storage. Measure peak memory, speed and quality for your workload.
 The source records exact byte counts, model revisions and the environment that prepared the files.
 
-### First task-quality sample
+### Task-quality samples
+
+**POTION-8M, float32**
 
 One [quality sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/e11d7b440e82f02516347145a186762f111ce27a/docs/benchmarks/readme-quality-20261101/README.md)
 measured POTION-8M with a float32 table and two fse workers on 1 November 2026.
@@ -174,7 +176,22 @@ The English row averages only 40 completed tasks. The coordinator deferred MindS
 It is **not the complete 41-task benchmark score**.
 English tasks use different metrics. NanoBEIR uses `ndcg_at_10`, a score for the first ten search results.
 The source records every task, metric, dataset revision and the exact saved model identity.
-Other models, table precisions and their quality changes from float32 remain pending. No quality ranking follows.
+Further model and dtype comparisons, including quality changes from float32, remain pending.
+
+**Later POTION-base-32M sample, float32**
+
+A [later sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ea08e59a528a216cb034b809d52ae8c7046de994/docs/benchmarks/readme-quality-potion32-20261101/README.md)
+used POTION-base-32M, two fse workers and the same Apple M1 Pro on 1 November 2026.
+The recorded evaluation code differs from the POTION-8M run above.
+A repeat of POTION-8M with matching evaluation code is queued. A controlled model ranking remains pending.
+
+| Task group | Coverage | Mean task score, points |
+|---|---|---:|
+| English MTEB(eng, v2), completed tasks only | 40 of 41, MIND deferred | 55.2573 |
+| NanoBEIR search tasks | All 13 of 13 | 46.1754 |
+
+This English mean also excludes deferred MIND. It is **not the complete 41-task benchmark score**.
+The source records the changed method and runtime identifiers, task metrics, revisions and bound model identity.
 
 ### First neighborhood stability check
 
