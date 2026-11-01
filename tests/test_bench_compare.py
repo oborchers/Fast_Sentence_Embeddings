@@ -2,6 +2,7 @@
 
 import importlib
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -58,6 +59,11 @@ def test_reservation_rechecks_load_after_acquisition(bench, tmp_path, monkeypatc
 def test_default_model2vec_keeps_tokenizer_parallelism(bench, monkeypatch, capsys):
     import json
 
+    monkeypatch.setitem(
+        sys.modules,
+        "threadpoolctl",
+        SimpleNamespace(threadpool_limits=lambda **_: nullcontext(), threadpool_info=lambda: []),
+    )
     monkeypatch.setattr(bench, "texts", lambda _: ["a short corpus"])
     monkeypatch.setattr(bench, "identity", lambda: {})
 

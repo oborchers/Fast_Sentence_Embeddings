@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import resource
 import subprocess
 import sys
 import time
@@ -85,6 +84,8 @@ def child(args) -> None:
 
 
 def python_measure(args, sentences):
+    import resource
+
     start = time.perf_counter()
     encode = contender(
         args.kind, args.threads, args.model, table_dtype=args.table_dtype, folder=args.fse_models

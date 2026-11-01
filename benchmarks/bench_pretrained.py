@@ -27,7 +27,6 @@ from __future__ import annotations
 import argparse
 import json
 import platform
-import resource
 import sys
 import time
 
@@ -46,6 +45,8 @@ COMMITS = {
 
 
 def child(model: str, truncate_dim: str) -> None:
+    import resource
+
     from fse import Encoder
 
     options = {} if truncate_dim == "none" else {"truncate_dim": int(truncate_dim)}

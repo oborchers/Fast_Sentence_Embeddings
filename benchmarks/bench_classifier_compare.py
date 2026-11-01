@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import resource
 import subprocess
 import sys
 import time
@@ -176,6 +175,8 @@ def measure(args, sets):
 
 
 def child(args):
+    import resource
+
     from threadpoolctl import threadpool_info, threadpool_limits
 
     os.environ["TOKENIZERS_PARALLELISM"] = "false" if args.workers == 1 else "true"

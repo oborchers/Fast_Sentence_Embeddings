@@ -14,6 +14,7 @@ def numerics(monkeypatch):
 
 
 def test_identical_vectors_have_full_recall(numerics):
+    pytest.importorskip("scipy")
     values = np.random.default_rng(0).normal(size=(131, 4))
     got = numerics.compare(values, values, k=5)
     assert got["recall_at_k"] == 1
@@ -28,6 +29,7 @@ def test_self_is_excluded_and_ties_use_smaller_id(numerics):
 
 
 def test_rotation_preserves_subspace_and_neighborhoods(numerics):
+    pytest.importorskip("scipy")
     values = np.random.default_rng(1).normal(size=(80, 3))
     rotation = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
     got = numerics.compare(values, values @ rotation, k=5)
@@ -37,6 +39,7 @@ def test_rotation_preserves_subspace_and_neighborhoods(numerics):
 
 
 def test_zero_disagreements_are_explicit(numerics):
+    pytest.importorskip("scipy")
     a = np.array([[1, 0], [0, 1], [0, 0]], dtype=np.float32)
     b = a.copy()
     b[2] = [1, 0]
