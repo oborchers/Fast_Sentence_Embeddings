@@ -20,6 +20,8 @@ The 1.x branch remains maintained. Entries collect here until the release.
 
 ### Changed
 
+- Recipe 06 adds LangChain, LlamaIndex and Haystack searches through the prepared fse packages, with publication-dependent installation instructions.
+
 - Recipes now guide end users through real POTION and public-dataset examples, with diagrams, a first fse 101 recipe, and a shared-split classification comparison.
 
 - `ShardSink` reports the first thread failure instead of a later failure caused by it, regardless of which thread the caller checks first.
