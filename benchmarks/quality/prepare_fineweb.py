@@ -241,8 +241,10 @@ def main() -> None:
             "nice": os.getpriority(os.PRIO_PROCESS, 0),
         }
         (args.output / "manifest.json").write_text(json.dumps(provenance, indent=2) + "\n")
-        for repo in ("minishlab/potion-base-8M", "minishlab/potion-base-32M"):
+    for repo in ("minishlab/potion-base-8M", "minishlab/potion-base-32M"):
+        with task_reservation(args.coordination), threadpool_limits(limits=2):
             potion(args, data, provenance, repo)
+    with task_reservation(args.coordination), threadpool_limits(limits=2):
         fasttext(args, data, provenance)
 
 
