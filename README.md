@@ -2,14 +2,16 @@
 
 **Our goal: be the fastest inference engine for static embeddings on the planet.**
 
-On 1 November 2026, an Apple M1 Pro encoded 5,352 WikiText texts with `potion-base-8M`.
-One fse worker (a processor thread) encoded **219,333 texts/s**.
-Model2vec 0.10.0 with tokenizer parallelism off encoded **8,906 texts/s**.
-Ten fse workers encoded **909,270 texts/s**. Model2vec with tokenizer parallelism on encoded **26,048 texts/s**.
-These are the middle measured rates. A tokenizer divides text into words and word pieces.
-Tables stored 32-bit numbers (`float32`). Both libraries used the model's default text limits and normalization,
-which scales vectors to unit length. The models were already loaded.
-See [the method, ranges and raw results](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/README.md).
+On 1 November 2026, an Apple M1 Pro encoded 151,674 MASSIVE test texts with `potion-base-8M`.
+One fse worker (a processor thread) encoded **878,260 texts/s**.
+Model2vec 0.10.0 with tokenizer parallelism off encoded **57,001 texts/s**.
+These are the middle rates from three valid paired rounds, with the models already loaded.
+An A/A check repeats the same fse configuration to measure timing variation.
+Its symmetric band was **0.9695 to 1.0315, within 10%**.
+This is an observed variation band, not a confidence interval.
+A tokenizer divides text into words and word pieces. Tables stored 32-bit numbers (`float32`).
+Both libraries used the model's default text limits and normalization, which scales vectors to unit length.
+See [the method, ranges, A/A audit and raw results](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/6699f9c180df960f1180f4405ce92be51fc368f8/docs/benchmarks/readme-wikitext-20261101/README.md).
 Results apply to this model and input.
 
 ![An engine turns pages of text into lists of numbers.](https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/233b6d3c0aaee459792938317895790a8bdd862b/media/readme-engine.jpg)
@@ -177,7 +179,7 @@ Include quality change from each model's float32 result. Name the dataset, metri
 
 ## Benchmarks
 
-The one-worker POTION-8M float32 cell uses the [preserved WikiText measurements](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/README.md)
+The one-worker POTION-8M float32 cell uses the [preserved WikiText measurements](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/6699f9c180df960f1180f4405ce92be51fc368f8/docs/benchmarks/readme-wikitext-20261101/README.md)
 from 1 November 2026: Apple M1 Pro, macOS 27.0.1, Python 3.13.16,
 NumPy 2.5.4, tokenizers 0.23.3 and model2vec 0.10.0.
 Model2vec tokenizer parallelism is off or on, as labeled.
@@ -192,8 +194,16 @@ The primary fse run and model2vec each contribute three child rates to their med
 The repeated fse runs remain separate A/A controls, matching the published comparison summary.
 Numbers in parentheses show the full range. All recorded load endpoints were below 5.
 The raw records include the input digest, dataset revision, source commit and A/A variation.
-The headline keeps the original published sample. The table below uses a later precision-matrix sample
-for ten-worker POTION-8M float32, with one timed call per child as described below.
+The headline uses the MASSIVE sample, whose A/A band is within 10%.
+The table below uses a later precision-matrix sample for ten-worker POTION-8M float32,
+with one timed call per child as described below.
+
+The [committed A/A audit](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/f7537d970e4d883b4bfcd61d991859a36cb6da19/docs/fse-comparison-aa.md)
+labels every complete comparison. For each repeated fse call, compare its time with the primary call.
+Let U be the largest ratio or reciprocal across rounds. The symmetric A/A band is 1/U to U.
+A band above 1.10 is **noisy, to be re-measured** in a quiet window.
+Only cells within 10% may supply headline rates. These empirical bands are not confidence intervals.
+Incomplete attempts supply no accepted speed, even when their diagnostic A/A band is small.
 
 TODO(DR-151): Fill the remaining pending cells with paired measurements and source links.
 Report sentences/s as median and range for one worker and all available cores.
@@ -203,7 +213,7 @@ Name machine, OS, Python, NumPy, library versions, model revisions, worker count
 
 | Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) | Counterpart, float32 (modes below) |
 |---|---|---|---|
-| potion-base-8M | 219,333 (199,745 to 221,304) / 206,438 (202,631 to 214,714) / pending | 914,709 (827,901 to 928,079) / pending / pending | model2vec tokenizer off: 8,906 (8,879 to 8,956); on: 25,074 (22,589 to 27,134) |
+| potion-base-8M | 219,333 (199,745 to 221,304) **noisy, to be re-measured** (A/A band 0.8998 to 1.1114) / 206,438 (202,631 to 214,714) **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) / pending | 914,709 (827,901 to 928,079) **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) / pending / pending | model2vec tokenizer off: 8,906 (8,879 to 8,956) **noisy, to be re-measured** (A/A band 0.8998 to 1.1114); on: 25,074 (22,589 to 27,134) **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) |
 | potion-base-32M | pending | pending | model2vec: pending |
 | potion-retrieval-32M | pending | pending | model2vec: pending |
 | potion-multilingual-128M | pending | pending | model2vec: pending |
@@ -214,17 +224,17 @@ The classic models have fse-only measurements:
 
 | Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) |
 |---|---|---|
-| GloVe-300 | 212,783 (203,964 to 219,669) / pending / 210,198 (197,759 to 212,257) | 828,045 (708,401 to 901,244) / pending / pending |
+| GloVe-300 | 212,783 (203,964 to 219,669) / pending / 210,198 (197,759 to 212,257) **noisy, to be re-measured** (A/A band 0.8730 to 1.1455) | 828,045 (708,401 to 901,244) **noisy, to be re-measured** (A/A band 0.7850 to 1.2739) / pending / pending |
 | word2vec-300 | pending / pending / 212,606 (211,846 to 213,981) | pending / pending / 924,000 (886,643 to 932,838) |
 
-The GloVe float32 and word2vec int8 cells use [four completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/74f2883fe74a1e1c188cbdffa22562f4e3d7b1d1/docs/benchmarks/readme-classic-timings-20261101/README.md)
+The GloVe float32 and word2vec int8 cells use [four completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/6699f9c180df960f1180f4405ce92be51fc368f8/docs/benchmarks/readme-classic-timings-20261101/README.md)
 from the same date, machine and WikiText input. Each has three paired rounds,
 with one warm timed call per child after a full-corpus warmup.
 All load endpoints were below 5.
 The source reports A/A variation separately, including a time-ratio range of 0.7850 to 1.1500 for ten-worker GloVe.
 
 The one-worker POTION-8M float16, GloVe int8 and ten-worker POTION-8M float32 cells use
-[three completed precision-matrix series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/cf5bc7a420c80d1e16b141b8968acec2d4ef8e65/docs/benchmarks/readme-matrix-20261101/README.md).
+[three completed precision-matrix series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/6699f9c180df960f1180f4405ce92be51fc368f8/docs/benchmarks/readme-matrix-20261101/README.md).
 They use the same machine, date and full WikiText input, with three paired rounds.
 Each child times one call after a full-corpus warmup. All load endpoints were below 5.
 The source records separate A/A controls. In one ten-worker POTION round, the repeated fse call
@@ -235,13 +245,14 @@ The largest process memory peaks among each series' three primary fse runs were:
 
 | Model and table | 1 worker, MiB | 10 workers, MiB |
 |---|---:|---:|
-| GloVe-300, float32 | 661.3 | 662.0 |
-| GloVe-300, int8 | 319.1 | pending |
+| GloVe-300, float32 | 661.3 | 662.0 **noisy, to be re-measured** (A/A band 0.7850 to 1.2739) |
+| GloVe-300, int8 | 319.1 **noisy, to be re-measured** (A/A band 0.8730 to 1.1455) | pending |
 | word2vec-300, int8 | 1,552.5 | 1,552.7 |
-| POTION-8M, float16 | 166.6 | pending |
-| POTION-8M, float32 | pending | 182.7 |
+| POTION-8M, float16 | 166.6 **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) | pending |
+| POTION-8M, float32 | pending | 182.7 **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) |
 
 These peaks include imports, model and corpus loading, warmup, encoding and outputs.
+Their A/A labels refer to timing variation, not memory variation.
 They measure process memory, not saved-file size or memory added by one call.
 The linked raw records and summary retain exact byte counts and separate control-process peaks.
 Other model, dtype and task-quality results remain pending.
@@ -252,18 +263,20 @@ The classic-model series also ran Model2Vec with POTION-8M on the same texts.
 POTION-8M produces 256 values per vector, rather than 300, and uses different text rules.
 These controls measure a different model. They do not establish an equal-model library speed ratio.
 Each cell shows the median and range of three control-process rates.
+Labels inherit the paired fse series' timing classification, not a separate Model2Vec A/A test.
 
 | Series containing the control | Model2Vec POTION-8M, tokenizer off, texts/s | Model2Vec POTION-8M, tokenizer on, texts/s |
 |---|---:|---:|
-| GloVe float32 series | 8,915 (8,896 to 8,935) | 24,694 (24,511 to 27,057) |
+| GloVe float32 series | 8,915 (8,896 to 8,935) | 24,694 (24,511 to 27,057) **noisy, to be re-measured** (A/A band 0.7850 to 1.2739) |
 | word2vec int8 series | 8,944 (8,927 to 8,951) | 27,280 (23,108 to 27,714) |
 
 The off/on controls accompanied the one/ten-worker fse series, respectively.
 No Model2Vec batch-worker pool ran. Its exact tokenizer thread count was not measured.
 
-The same float32 POTION-8M model also has a [one-worker MASSIVE sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/dr151-model2vec-massive-1.jsonl).
+The headline uses the [one-worker MASSIVE sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/dr151-model2vec-massive-1.jsonl).
 Across 151,674 test texts, fse processed 878,260 texts/s (861,892 to 903,738),
 and model2vec processed 57,001 (56,620 to 57,191), with the same three-round method.
+Its symmetric A/A band is 0.9695 to 1.0315, within 10%.
 This is a separate input sample. It does not fill the pending model or dtype cells.
 
 The old 1.x STS results belong to a different API and recipe.
