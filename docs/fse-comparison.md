@@ -202,4 +202,6 @@ The [Static Retrieval speed evaluation](https://huggingface.co/sentence-transfor
 
 GloVe-300 SIF-10 float32 completed all forty local English tasks with a mean of **49.7864 points**, excluding deferred MIND. [Complete English task summary](../benchmarks/baseline/dr151_quality_glove_20261101.json) and [raw records](../benchmarks/baseline/results/dr151-quality-glove-float32.jsonl) preserve all native task scores. NanoBEIR remains pending in this snapshot, so its mean and the full English41 mean are null. This is not a completed 53-task local configuration.
 
+The [document-task breakout](../benchmarks/baseline/dr151_document_tasks_glove_20261101.json) covers all thirteen qualifying tasks from this completed English snapshot. It retains full native task scores and packaged upstream length statistics, without sampling or a new mixed-metric aggregate. Additional NanoBEIR document tasks remain pending.
+
 The encoder fingerprint is `xxh3-128:17aa9ef7d19273be5e619bed5ef64d10`, matching the committed classic fit receipt. SIF-10 was fitted on the pinned WikiText-103 training corpus, never evaluation data. It uses the recorded legacy NLTK recipe tokenizer at fit and inference. These results do not isolate a SIF gain against raw GloVe, and the authors' different MTEB aggregate is not a matched comparison.
