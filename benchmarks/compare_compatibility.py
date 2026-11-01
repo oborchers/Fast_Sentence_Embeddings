@@ -15,6 +15,7 @@ FIELDS = (
     "versions",
     "threadpools",
     "machine",
+    "process_nice",
     "cpu",
     "python",
     "kind",

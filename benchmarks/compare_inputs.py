@@ -146,6 +146,7 @@ def identity(kind: str = "fse") -> dict:
         **backend_identity(kind),
         "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
         "machine": platform.platform(),
+        "process_nice": os.getpriority(os.PRIO_PROCESS, 0) if hasattr(os, "getpriority") else None,
         "cpu": cpu_name(),
         "python": sys.version,
         "versions": {dist.metadata["Name"]: dist.version for dist in distributions()},
