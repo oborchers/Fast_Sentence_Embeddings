@@ -7,7 +7,6 @@
     {
       "raw": "dr151-matrix-potion-base-8M-float16-w10.jsonl",
       "status": "complete",
-      "identity_status": "executed runtime and configuration captured",
       "diagnostic_aa_configurations": [
         {
           "configuration": {
@@ -365,7 +364,7 @@
       "load_min": 4.99658203125,
       "load_max": 4.99658203125,
       "series_id": "f2461c501618402e9ac1a5e67d6b047d",
-      "final_throughput_eligible": true,
+      "final_throughput_eligible": false,
       "executed_identities": {
         "fse-a": {
           "commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c",
@@ -641,12 +640,15 @@
           },
           "threadpools": []
         }
-      }
+      },
+      "owner_identity_status": "executed runtime and configuration captured",
+      "identity_status": "fse runtime captured; Model2Vec runtime not captured, counterpart requires re-measurement",
+      "fse_throughput_eligible": true,
+      "counterpart_throughput_eligible": false
     },
     {
       "raw": "dr151-matrix-potion-base-8M-float32-w1.jsonl",
       "status": "complete",
-      "identity_status": "executed runtime and configuration captured",
       "diagnostic_aa_configurations": [
         {
           "configuration": {
@@ -1004,7 +1006,7 @@
       "load_min": 4.30908203125,
       "load_max": 4.42333984375,
       "series_id": "41df3564f90647c293193928fa553d7d",
-      "final_throughput_eligible": true,
+      "final_throughput_eligible": false,
       "executed_identities": {
         "fse-a": {
           "commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c",
@@ -1280,12 +1282,15 @@
           },
           "threadpools": []
         }
-      }
+      },
+      "owner_identity_status": "executed runtime and configuration captured",
+      "identity_status": "fse runtime captured; Model2Vec runtime not captured, counterpart requires re-measurement",
+      "fse_throughput_eligible": true,
+      "counterpart_throughput_eligible": false
     },
     {
       "raw": "dr151-matrix-potion-base-8M-float32-w10.jsonl",
       "status": "complete",
-      "identity_status": "executed runtime and configuration captured",
       "diagnostic_aa_configurations": [
         {
           "configuration": {
@@ -1643,7 +1648,7 @@
       "load_min": 4.30908203125,
       "load_max": 4.70947265625,
       "series_id": "7ce9b3b1d5a34a578eb7e35d1546704e",
-      "final_throughput_eligible": true,
+      "final_throughput_eligible": false,
       "executed_identities": {
         "fse-a": {
           "commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c",
@@ -1919,7 +1924,11 @@
           },
           "threadpools": []
         }
-      }
+      },
+      "owner_identity_status": "executed runtime and configuration captured",
+      "identity_status": "fse runtime captured; Model2Vec runtime not captured, counterpart requires re-measurement",
+      "fse_throughput_eligible": true,
+      "counterpart_throughput_eligible": false
     }
   ]
 }
