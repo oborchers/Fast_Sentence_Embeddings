@@ -10,6 +10,29 @@ from bench_model2vec import _snapshot, contender
 from compare_models import MODELS, artifact_name
 
 
+def pinned_snapshot(repo: str) -> Path:
+    from huggingface_hub import snapshot_download
+
+    return Path(snapshot_download(repo, revision=MODELS[repo], local_files_only=True))
+
+
+def transformer_contender(threads: int, repo: str):
+    os.environ["TOKENIZERS_PARALLELISM"] = "false" if threads == 1 else "true"
+    import torch
+    from sentence_transformers import SentenceTransformer
+
+    torch.set_num_threads(threads)
+    model = SentenceTransformer(str(pinned_snapshot(repo)), device="cpu")
+    batch_size = 32 if repo.endswith("all-MiniLM-L6-v2") else 1024
+
+    def encode(batch):
+        return model.encode(batch, batch_size=batch_size)
+
+    encode.batch_size = batch_size
+    encode.torch_num_threads = torch.get_num_threads()
+    return encode
+
+
 def weights_bytes(folder: Path) -> int:
     files = list(folder.rglob("*.safetensors"))
     if not files:
@@ -21,9 +44,11 @@ def make_contender(kind: str, threads: int, repo: str, *, table_dtype="float32",
     if kind == "fse":
         return fse_contender(threads, repo, table_dtype, folder)
     if kind != "fastembed":
-        encode = contender(kind, threads, repo)
+        encode = (
+            transformer_contender(threads, repo) if kind == "st" else contender(kind, threads, repo)
+        )
         encode.table_dtype = "float32"
-        encode.file_bytes = weights_bytes(_snapshot(repo))
+        encode.file_bytes = weights_bytes(pinned_snapshot(repo))
         encode.load_source = "pinned Hub snapshot"
         return encode
     os.environ["RAYON_NUM_THREADS"] = str(threads)

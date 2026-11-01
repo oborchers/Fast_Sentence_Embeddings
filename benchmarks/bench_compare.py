@@ -48,6 +48,8 @@ def reservation(lock: Path):
 
 def child(args) -> None:
     sentences = texts(args.corpus)
+    if args.warmup_texts is not None and args.warmup_texts > len(sentences):
+        raise ValueError("warmup-texts exceeds the complete corpus size")
     provenance = identity()
     if args.kind == "rust":
         from compare_rust_worker import measure
@@ -91,15 +93,20 @@ def python_measure(args, sentences):
     if args.kind == "model2vec" and args.threads > 1:
         # Above its threshold model2vec disables tokenizer parallelism itself.
         os.environ["TOKENIZERS_PARALLELISM"] = "true"
+    warmup = sentences if args.warmup_texts is None else sentences[: args.warmup_texts]
+    start = time.perf_counter()
+    encode(warmup)
+    first = time.perf_counter() - start
     durations = []
-    for _ in range(args.passes + 1):
+    for _ in range(args.passes):
         start = time.perf_counter()
         out = encode(sentences)
         durations.append(time.perf_counter() - start)
     return {
         "load_s": load_s,
-        "first_encode_s": durations[0],
-        "warm_seconds": durations[1:],
+        "first_encode_s": first,
+        "first_encode_texts": len(warmup),
+        "warm_seconds": durations,
         "shape": out.shape,
         "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         * (1 if sys.platform == "darwin" else 1024),
@@ -110,6 +117,10 @@ def python_measure(args, sentences):
         "load_source": encode.load_source if hasattr(encode, "load_source") else None,
         "encoder_fingerprint": encode.encoder_fingerprint
         if hasattr(encode, "encoder_fingerprint")
+        else None,
+        "batch_size": encode.batch_size if hasattr(encode, "batch_size") else None,
+        "torch_num_threads": encode.torch_num_threads
+        if hasattr(encode, "torch_num_threads")
         else None,
     }, out
 
@@ -147,6 +158,8 @@ def operation(args, label: str, threads: int) -> dict:
     ]
     if kind == "fse" and args.fse_models is not None:
         command.extend(["--fse-models", str(args.fse_models)])
+    if args.warmup_texts is not None:
+        command.extend(["--warmup-texts", str(args.warmup_texts)])
     with reservation(args.lock):
         before = os.getloadavg()[0]
         done = subprocess.run(command, text=True, capture_output=True, check=False)
@@ -245,6 +258,7 @@ def main() -> None:
     parser.add_argument("--corpus", choices=("wikitext", "massive"), default="wikitext")
     parser.add_argument("--threads", type=int, default=1)
     parser.add_argument("--passes", type=int, default=5)
+    parser.add_argument("--warmup-texts", type=int)
     parser.add_argument("--rounds", type=int, default=3)
     parser.add_argument("--budget-s", type=float, default=600)
     parser.add_argument(
@@ -263,6 +277,10 @@ def main() -> None:
     args = parser.parse_args()
     if min(args.threads, args.passes, args.rounds) < 1:
         parser.error("threads, passes and rounds must be positive")
+    if args.warmup_texts is not None and args.warmup_texts < 1:
+        parser.error("warmup-texts must be positive")
+    if args.warmup_texts is not None and (args.kind == "rust" or args.against == "rust"):
+        parser.error("the Rust worker uses a full-corpus warmup")
     if args.mode == "run" and args.rounds < 3:
         parser.error("comparisons require at least three valid rounds")
     if args.mode == "run" and (args.lock is None or args.results is None):

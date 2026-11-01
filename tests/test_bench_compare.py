@@ -80,6 +80,7 @@ def test_default_model2vec_keeps_tokenizer_parallelism(bench, monkeypatch, capsy
         vectors_out=None,
         table_dtype="float32",
         fse_models=None,
+        warmup_texts=None,
     )
     bench.child(args)
     row = json.loads(capsys.readouterr().out)
@@ -119,3 +120,29 @@ def test_repeated_invocations_have_distinct_pair_identity(bench, tmp_path, monke
     complete = [row for row in rows if row["event"] == "series_complete"]
     assert len({row["series_id"] for row in complete}) == 2
     assert [row["valid_rounds"] for row in complete] == [3, 3]
+
+
+def test_short_warmup_still_times_the_complete_corpus(bench, monkeypatch):
+    calls = []
+
+    def contender(*_args, **_kwargs):
+        def encode(texts):
+            calls.append(list(texts))
+            return bench.np.zeros((len(texts), 2), dtype=bench.np.float32)
+
+        return encode
+
+    monkeypatch.setattr(bench, "contender", contender)
+    args = SimpleNamespace(
+        kind="fse",
+        threads=1,
+        model="minishlab/potion-base-8M",
+        table_dtype="float32",
+        fse_models=None,
+        passes=1,
+        warmup_texts=2,
+    )
+    record, vectors = bench.python_measure(args, ["a", "b", "c", "d"])
+    assert calls == [["a", "b"], ["a", "b", "c", "d"]]
+    assert record["first_encode_texts"] == 2
+    assert vectors.shape == (4, 2)
