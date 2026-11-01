@@ -72,3 +72,9 @@ Final executable source `97b7418` passed Rust compilation and the full gate (9,2
 Its eleven optional adapter tests also pass in the pinned quality environment.
 GitHub Actions run 41289369317 passed at that same source commit.
 The final pod preflight receipt records both script hashes, launch requirements and pending bare-pod execution.
+
+## Immutable extraction review
+
+The new README extraction helper received an independent read-only review at `a66af67`. Two verified defects concerned incomplete evidence. Missing reference operations could be misclassified as table/curve evidence. An earlier rejected round could supply the date for later accepted rounds. `bb6cff5` now requires both fse controls and the exact reference from the approved selector, binds the selector to checked model/dtype/workers, and derives context only from accepted rounds. `989d46f` includes the lint-clean regression stubs.
+
+The independent follow-up at `989d46f` reported no findings in the two named files. It ran no tests, network requests or cache walks. The caller's 56 focused tests pass, with Ruff, format and guardrails passing. The already-ready Pod 3 executable and hash are unchanged. This code review does not replace the pending audit of actual collected result journals.

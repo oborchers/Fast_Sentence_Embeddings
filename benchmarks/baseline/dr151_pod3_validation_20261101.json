@@ -42,5 +42,24 @@
       "result": "Rust/deadline/timing checks have no findings; P3 SetFit split label corrected with a regression test",
       "remaining_verified_defects": []
     }
-  ]
+  ],
+  "readme_extraction_followup": {
+    "reviewed_commit": "989d46fc67c9dd49a6df4592d5480b02da7d3158",
+    "review_scope": [
+      "benchmarks/quality/export_readme_panels.py",
+      "tests/test_export_readme_panels.py"
+    ],
+    "initial_findings": [
+      "missing reference arms could be relabelled table/scaling",
+      "context could come from a rejected early round"
+    ],
+    "verified_fixes": "exact approved selector and required arms; accepted-round context only",
+    "followup": "No findings",
+    "focused_tests_passed": 56,
+    "ruff": "passed",
+    "format": "passed",
+    "guardrails": "passed",
+    "pod_script_changed": false,
+    "actual_result_source_audit": "pending collection"
+  }
 }
