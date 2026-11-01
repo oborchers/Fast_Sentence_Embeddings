@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- A local Pod 5 audit verifies collected hashes, complete task coverage, historical fit provenance and stage receipts before reporting quality scores.
+
 - Pod 5 compares historical SIF-10 word2vec, FastText with OOV ngrams, and paragram using isolated MTEB tasks, disk checks, peak RAM records, and hashed result receipts.
 
 - The additional comparison pod records worker scaling, large streamed write paths, and a final 100M-input int8 showcase with seeded repetition and explicit budget limits. Corpus-length counting records exact means and medians without timing.
