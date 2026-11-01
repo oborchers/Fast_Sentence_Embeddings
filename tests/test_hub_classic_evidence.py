@@ -3,6 +3,7 @@
 import importlib
 import json
 import sys
+import types
 from pathlib import Path
 
 import numpy as np
@@ -128,8 +129,6 @@ def test_existing_comparison_evidence_is_refused_before_replacing_receipts(tmp_p
 def test_preprocessing_changes_invalidate_identity_even_with_identical_nltk_resources(
     evidence, monkeypatch, tmp_path
 ):
-    import types
-
     corpus = importlib.import_module("hub_classic_corpus")
     (tmp_path / "resource.txt").write_text("fixed tokenizer resource")
     pins = {"resource.txt": evidence.digest(tmp_path / "resource.txt")}

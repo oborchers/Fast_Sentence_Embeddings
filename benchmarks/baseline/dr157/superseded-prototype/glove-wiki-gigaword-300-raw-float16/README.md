@@ -34,7 +34,9 @@ pip install fse
 ```python
 import fse
 
-encoder = fse.Encoder.from_pretrained("/Users/oliverborchers/fse-dr157/glove-wiki-gigaword-300-raw-float16")
+encoder = fse.Encoder.from_pretrained(
+    "/Users/oliverborchers/fse-dr157/glove-wiki-gigaword-300-raw-float16"
+)
 vectors = encoder.encode(["A sentence."])
 ```
 
