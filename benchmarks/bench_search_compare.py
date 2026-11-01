@@ -23,7 +23,7 @@ from pathlib import Path
 
 import numpy as np
 from bench_compare import append, reservation
-from compare_artifacts import runtime_identity
+from compare_artifacts import checked_encoder, runtime_identity
 from compare_inputs import corpus_identity, identity, texts
 from compare_models import MODELS, artifact_name
 from compare_search import (
@@ -142,7 +142,9 @@ def child(args) -> None:
 def load_encoder(args, encoder_type):
     if args.encoder_start == "source":
         return encoder_type.from_pretrained(REPO, revision=MODELS[REPO], local_files_only=True)
-    return encoder_type.load(args.models / artifact_name(REPO, "float32"))
+    encoder = encoder_type.load(args.models / artifact_name(REPO, "float32"))
+    checked_encoder(encoder, args.models, REPO, "float32")
+    return encoder
 
 
 def settings(kind: str) -> dict:
