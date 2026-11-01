@@ -31,15 +31,17 @@ POTION-8M, float32, 10 workers, WikiText, 1 November 2026.
 This measures encoding with the model already loaded. Text length and model choice change the result.
 
 <picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/71b69be83efdd8adbf071ada302be8bf1db68b24/media/readme/throughput-dark.png">
-<img alt="POTION-8M on WikiText: float32, one worker, 222,701 texts/s; float32, ten workers, 918,299; float16, ten workers, 946,796. Three-round medians on Apple M1 Pro, 1 November 2026. Bars compare fse settings, not libraries." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/71b69be83efdd8adbf071ada302be8bf1db68b24/media/readme/throughput-light.png">
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/e490e589a446844ee234f8800a6bdc1dba09c169/media/readme/throughput-dark.png">
+<img alt="POTION-8M on WikiText: float32, one worker, 222,701 texts/s; int8, one worker, 214,848; float32, ten workers, 918,299; float16, ten workers, 946,796. Three-round medians on Apple M1 Pro, 1 November 2026. Bars compare fse settings, not libraries." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/e490e589a446844ee234f8800a6bdc1dba09c169/media/readme/throughput-light.png">
 </picture>
 
-The chart uses all 5,352 nonblank WikiText validation and test texts, in three paired rounds.
-Float16 uses less space for the model. This is a separate measurement, not a promise of equal quality.
+Each setting uses all 5,352 nonblank WikiText validation and test texts, with three paired rounds.
+Float16 and int8 reduce model storage. These are separate measurements, not a promise of equal quality or a dtype speedup.
+
+Only the one-worker int8 run passed the timing-variation check. Its ten-worker result needs re-measurement.
 A new library speed comparison and classification benchmark are pending.
-The current Model2Vec control rates need re-measurement before a final comparison.
-[Measurement details and full model tables](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/7389c01b375c6e2f0f5177f4b4594b8bad35bff7/docs/benchmarks/readme-evidence.md) retain ranges, quality scores and pending comparisons.
+The float32-series Model2Vec controls still need re-measurement before a final library comparison.
+[Measurement details and full model tables](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/b45c0051c043c40bbf1d63a16ad5beff5309685a/docs/benchmarks/readme-evidence.md) retain ranges, quality scores and pending comparisons.
 
 ### Classification speed
 
