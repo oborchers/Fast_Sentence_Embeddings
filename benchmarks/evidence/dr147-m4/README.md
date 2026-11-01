@@ -2,7 +2,7 @@
 
 DR-147 (MLX-Gate entscheiden und auf dem M4 Pro nachmessen), measured 31 October 2026 on an Apple M4 Pro using Codex.
 
-The 60-cell matrix and six requested representative profiles are complete. Per-cause end-to-end wall percentages remain unmeasured/not identifiable, explicitly tabulated in PERFORMANCE.md and the full report. MLX policy remains undecided; PR stays Draft by instruction. See profiles.json and profile_offline.py for sample shares and exact memory peaks.
+The maintainer ended MLX work on 1 November 2026 and reported its removal from master. This branch is an archive, not an integration proposal, and the PR remains Draft. See [CLOSEOUT.md](CLOSEOUT.md) and the checksummed [static experiment archive](experiments-manifest.json). The 60-cell matrix and six profiles are complete. Stages 1/2 completed; Stage 3 stopped incomplete at 16/16/3/0 blocks. Stages 4/5 were not run. Per-cause end-to-end wall percentages remain unmeasured/not identifiable.
 
 ## Replay without measurements
 
@@ -47,7 +47,7 @@ No accepted cell spans regimes. Accepted within-cell load/spread dependence is t
 
 Global actual charge: 532.6694807500007/1800 seconds, remaining 1267.3305192499993. Matrix actual: 523.0340705840008/900, remaining 376.9659294159992. Every reservation settled without overrun. Replay recomputes accounts from the original ledger. Remaining budget is not permission for new profiles or measurements.
 
-Against CPU10 only the raw MRL1024/WikiText float32 cell has median MLX time below CPU time: 0.989344, range 0.962579 to 1.440726. That near tie does not demonstrate a robust advantage. Its actual CPU-default comparison is 1.183355, range 1.088285 to 1.660089. Normalized MLX A/A varies from 0.544806 to 1.844942. No policy conclusion follows.
+Against CPU10 only the raw MRL1024/WikiText float32 cell has median MLX time below CPU time: 0.989344, range 0.962579 to 1.440726. That near tie does not demonstrate a robust advantage. Its actual CPU-default comparison is 1.183355, range 1.088285 to 1.660089. Normalized MLX A/A varies from 0.544806 to 1.844942. No policy decision had been made at that historical matrix cutoff; the final maintainer decision is recorded in CLOSEOUT.md.
 
 Selected configuration for the later separately authorized six profiles: MRL1024/WikiText/raw/float32, full 5352 texts, CPU actual default 12 versus MLX default (12 here). It is the closest median comparison to parity and has narrower MLX A/A spread than normalized. The later separately authorized six profiles are now complete; see profiles.json for actual functions/peaks and unresolved wall attribution. See PERFORMANCE.md and the local full report `/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-report.md`.
 
@@ -59,4 +59,4 @@ The earlier matrix accounting is its historical cutoff. The historical combined 
 
 ## Failed scratch-only timestamp probe
 
-See wall-probe.json and PERFORMANCE.md for the frozen9a4b9f0 CPU first-round failure. M2/A2=1.109003613433869 exceeded1.10 despite aggregate1.047315807024959 being inside the band. A/A0.9188231166490062 is reported as noise/control only, never as an excuse or a causal timer-cost estimate. All20 timed bits matched, no fallback, load4.17041015625. No later round, MLX trace, retry or adaptation. Coverage is non-representative and no wall percentages are accepted. Scripts/raw trace stay scratch-only, not Git. Current global596.1948255419993, matrix fixed523.0340705840008, six-profile60.617446750000454, failed probe2.9078980419981235. No further measurement or ablation is authorized. PR Draft and policy undecided.
+See wall-probe.json and PERFORMANCE.md for the frozen9a4b9f0 CPU first-round failure. M2/A2=1.109003613433869 exceeded1.10 despite aggregate1.047315807024959 being inside the band. A/A0.9188231166490062 is reported as noise/control only, never as an excuse or a causal timer-cost estimate. All20 timed bits matched, no fallback, load4.17041015625. No later round, MLX trace, retry or adaptation. Coverage is non-representative and no wall percentages are accepted. Scripts/raw trace stay scratch-only, not Git. At that historical failed-probe cutoff, global charge was 596.1948255419993, matrix fixed 523.0340705840008, six-profile 60.617446750000454, failed probe 2.9078980419981235. Later experiments are preserved in the static archive. Final termination charge is 1275.997860708987, Stage 3 is incomplete, no further work is authorized and the PR remains Draft.
