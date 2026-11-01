@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 from hub_classic_corpus import tokenize
+from hub_classic_evidence import digest, tokenizer_identity
 from hub_classic_sources import FIT_LINES
 
 REPO = "HuggingFaceFW/fineweb-edu-llama3-annotations"
@@ -46,7 +47,7 @@ def eligible_lines(text):
 def sampled_corpus(cache: Path, output: Path) -> Path:
     target = output / "fineweb-seed0-859346.txt"
     if target.exists():
-        return target
+        return checked_sample(target, output)
     total = sum(1 for _ in paragraphs(cache))
     if total < FIT_LINES:
         raise ValueError(f"FineWeb has only {total} eligible paragraphs")
@@ -73,6 +74,8 @@ def sampled_corpus(cache: Path, output: Path) -> Path:
                 "revision": REVISION,
                 "seed": 0,
                 "texts": FIT_LINES,
+                "tokenizer": tokenizer_identity(),
+                "corpus_xxh3": digest(target),
                 "eligible_paragraphs": total,
                 "sample": "default_rng(0).choice(total, 859346, replace=False), sorted source order",
                 "unit": "nonempty original text line with an ASCII letter or digit, excluding headings beginning =",
@@ -81,4 +84,21 @@ def sampled_corpus(cache: Path, output: Path) -> Path:
         )
         + "\n"
     )
+    return target
+
+
+def checked_sample(target, output):
+    manifest = json.loads((output / "fineweb-sample.json").read_text())
+    expected = {
+        "repo": REPO,
+        "revision": REVISION,
+        "seed": 0,
+        "texts": FIT_LINES,
+        "tokenizer": tokenizer_identity(),
+        "corpus_xxh3": digest(target),
+        "sample": "default_rng(0).choice(total, 859346, replace=False), sorted source order",
+        "unit": "nonempty original text line with an ASCII letter or digit, excluding headings beginning =",
+    }
+    if any(manifest.get(key) != value for key, value in expected.items()):
+        raise ValueError("cached FineWeb corpus does not match its pinned sample manifest")
     return target

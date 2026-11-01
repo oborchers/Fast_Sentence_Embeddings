@@ -13,15 +13,16 @@ import gc
 import json
 import shutil
 import tempfile
+from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
 from hub_classic_corpus import batches
+from hub_classic_evidence import digest
 from hub_classic_math import components, fold_table, gram_of_batches, wordfreq_weights
 from hub_classic_sources import DTYPES, FIT_LINES, SOURCES
 
 import fse
-from fse._container._hash import Hasher
 from fse._encoder._format import Source
 from fse.gensim import from_gensim
 
@@ -32,14 +33,6 @@ LICENSES = {
     "paragram-300-sl999": "unknown",
     "fasttext-crawl-subwords-300": "cc-by-sa-3.0",
 }
-
-
-def digest(path: Path) -> str:
-    hasher = Hasher()
-    with path.open("rb") as stream:
-        while block := stream.read(8 * 2**20):
-            hasher.update(block)
-    return hasher.checksum()
 
 
 def source_model(name: str):
@@ -79,6 +72,7 @@ def weighted_encoder(kv, weights, temporary: Path):
         ngrams=ngrams,
         tokenizer="external",
         normalize=False,
+        oov_weight=float(weights.max()) if params is not None else None,
     )
     del table
     path.unlink()
@@ -90,6 +84,8 @@ def fit_state(name, kv, selection, output, temporary):
     chosen = json.loads(selection.read_text())
     corpus = Path(chosen["corpus_path"])
     receipt = dict(chosen["fit"])
+    if version("wordfreq") != receipt["wordfreq_version"]:
+        raise ValueError("wordfreq version differs from the selected preparation recipe")
     if digest(corpus) != receipt["corpus_xxh3"]:
         raise ValueError("selected component-fit corpus hash mismatch")
     weights = wordfreq_weights(kv.index_to_key)
@@ -206,6 +202,7 @@ def prepare(name, output, selection):
             ngrams=arrays[1] if params is not None else None,
             tokenizer="fse_words@1",
             normalize=True,
+            oov_weight=float(weights.max()) if params is not None else None,
         )
         del arrays
         for path in paths:

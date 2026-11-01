@@ -4,3 +4,4 @@ scipy==1.18.1
 nltk==3.10.4
 wordfreq==3.1.1
 pyarrow==26.0.0
+mteb==2.26.25

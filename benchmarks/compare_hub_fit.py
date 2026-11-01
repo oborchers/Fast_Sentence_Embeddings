@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 from hub_classic_corpus import batches, fit_corpus
+from hub_classic_evidence import benchmark_identity, tokenizer_identity
 from hub_classic_fineweb import REVISION, sampled_corpus
 from hub_classic_math import components, gram_of_batches, wordfreq_weights
 from hub_classic_sources import FIT_LINES, FIT_REPO, FIT_REVISION
@@ -64,18 +65,38 @@ def export_candidate(encoder, basis, kind, words, output):
         del arrays
         for path in paths:
             path.unlink()
+    receipt_path = output / f"glove-{kind}-fit.json"
+    receipt = json.loads(receipt_path.read_text())
+    receipt.update({"candidate_fingerprint": model.fingerprint, "tokenizer": tokenizer_identity()})
+    receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
     labels, _, tokens = benchmark()
     rows = model.encode(tokens, workers=2)
     half = len(labels)
     similarities = (rows[:half] * rows[half:]).sum(axis=1)
     result = {
         "corpus": kind,
+        "encoder_fingerprint": model.fingerprint,
+        "state_xxh3": receipt["state_xxh3"],
+        "benchmark": benchmark_identity(),
+        "tokenizer": tokenizer_identity(),
         "pearson": score(labels, rows),
         "spearman": float(spearmanr(labels, similarities).statistic * 100),
         "pairs": half,
     }
     (output / f"glove-{kind}-sts.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result), flush=True)
+
+
+def preflight(output, kinds):
+    for kind in kinds:
+        names = [
+            f"glove-{kind}-wordfreq-fit.npz",
+            f"glove-{kind}-fit.json",
+            f"glove-{kind}-wordfreq.safetensors",
+            f"glove-{kind}-sts.json",
+        ]
+        if any((output / name).exists() for name in names):
+            raise FileExistsError(f"candidate output exists for {kind}; no evidence was replaced")
 
 
 def main():
@@ -85,11 +106,13 @@ def main():
     parser.add_argument("--cache", type=Path, default=Path.home() / ".cache/fse-quality")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
+    kinds = [args.corpus] if args.corpus else ["wikitext", "fineweb"]
+    preflight(args.output, kinds)
     kv = source_model("glove-wiki-gigaword-300")
     weights = wordfreq_weights(kv.index_to_key)
     with tempfile.TemporaryDirectory(prefix="weighted-", dir=args.output) as temp:
         encoder = weighted_encoder(kv, weights, Path(temp))
-        for kind in [args.corpus] if args.corpus else ["wikitext", "fineweb"]:
+        for kind in kinds:
             corpus = (
                 fit_corpus(args.cache)
                 if kind == "wikitext"

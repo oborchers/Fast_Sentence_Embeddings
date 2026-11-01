@@ -10,6 +10,7 @@ import argparse
 import json
 from pathlib import Path
 
+from hub_classic_evidence import validate_build
 from prepare_hub_classics import LICENSES, digest
 
 from fse._encoder import _card, _folder
@@ -141,6 +142,8 @@ def measured_text(record, result, rows):
 
 
 def render(folder, record, verification, fit):
+    result = next(r for r in verification["rows"] if r.get("repo") == record["repo"])
+    validate_build(folder, record, result, fit)
     metadata, shapes = _folder._header(folder / "model.safetensors")
     name = record["source"].split("/")[1]
     template = _card.card(
@@ -154,7 +157,6 @@ def render(folder, record, verification, fit):
     text = front_matter(template, name, fit)
     text = text.replace("pip install fse", 'pip install "fse>=2.0.0"')
     text = text.replace("## Usage\n", "## Usage\n\nThis model requires the fse 2.0 API.\n")
-    result = next(r for r in verification["rows"] if r.get("repo") == record["repo"])
     text += "\n" + "\n".join(measured_text(record, result, verification["rows"]))
     if fit is not None:
         text += "\n" + "\n".join(fit_text(fit))

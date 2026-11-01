@@ -5,11 +5,14 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from hub_classic_evidence import WIKI_CHECKSUM, digest, tokenizer_identity
 from hub_classic_sources import FIT_LINES, FIT_REPO, FIT_REVISION
 
 
 def tokenize(text: str) -> list[str]:
     from nltk import word_tokenize
+
+    tokenizer_identity()
 
     result = []
     for token in word_tokenize(text):
@@ -20,13 +23,12 @@ def tokenize(text: str) -> list[str]:
 
 
 def fit_corpus(cache: Path) -> Path:
-    import nltk
     import pyarrow.parquet as pq
     from huggingface_hub import snapshot_download
 
     target = cache / "wikitext-103-b08601e0.txt"
     if target.exists():
-        return target
+        return checked_wikitext(target)
     folder = Path(
         snapshot_download(
             FIT_REPO,
@@ -37,7 +39,6 @@ def fit_corpus(cache: Path) -> Path:
             token=False,
         )
     )
-    nltk.download("punkt_tab", quiet=True, raise_on_error=True)
     cache.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(".preparing")
     count = 0
@@ -51,6 +52,7 @@ def fit_corpus(cache: Path) -> Path:
                         count += 1
     if count != FIT_LINES:
         raise ValueError(f"fit corpus has {count} paragraphs, expected {FIT_LINES}")
+    checked_wikitext(temporary)
     temporary.rename(target)
     return target
 
@@ -65,3 +67,9 @@ def batches(path: Path, size: int = 16384):
                 batch = []
     if batch:
         yield batch
+
+
+def checked_wikitext(path):
+    if digest(path) != WIKI_CHECKSUM:
+        raise ValueError("WikiText tokenized corpus checksum mismatch")
+    return path

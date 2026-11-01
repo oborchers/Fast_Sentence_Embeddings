@@ -16,6 +16,12 @@ from pathlib import Path
 import mteb
 import numpy as np
 from hub_classic_corpus import tokenize
+from hub_classic_evidence import (
+    MTEB_VERSION,
+    benchmark_identity,
+    candidate_evidence,
+    validate_score,
+)
 from mteb.models.abs_encoder import AbsEncoder
 from mteb.models.model_meta import ModelMeta, ScoringFunction
 
@@ -42,6 +48,12 @@ class Candidate(AbsEncoder):
 
 
 def evaluate_task(kind, task, output):
+    target = output / f"glove-{kind}-{task.metadata.name}.json"
+    if target.exists():
+        raise FileExistsError(target)
+    evidence = candidate_evidence(output, kind)
+    if version("mteb") != MTEB_VERSION:
+        raise ValueError("MTEB version differs from the pinned evaluator")
     model = Candidate(output / f"glove-{kind}-wordfreq.safetensors", kind)
     result = mteb.evaluate(
         model,
@@ -54,7 +66,7 @@ def evaluate_task(kind, task, output):
     if len(result.task_results) != 1:
         raise ValueError("NanoBEIR task did not produce exactly one result")
     row = {
-        "corpus": kind,
+        **evidence,
         "task": task.metadata.name,
         "dataset": task.metadata.dataset,
         "main_score": result.task_results[0].get_score(),
@@ -62,9 +74,7 @@ def evaluate_task(kind, task, output):
         "encoder_fingerprint": model.model.fingerprint,
         "mteb_version": version("mteb"),
     }
-    (output / f"glove-{kind}-{task.metadata.name}.json").write_text(
-        json.dumps(row, indent=2) + "\n"
-    )
+    target.write_text(json.dumps(row, indent=2) + "\n")
     print(json.dumps(row), flush=True)
 
 
@@ -74,11 +84,23 @@ def select(output, cache):
         raise ValueError(f"expected 13 NanoBEIR tasks, got {len(tasks)}")
     scores = []
     for kind in ("wikitext", "fineweb"):
+        evidence = candidate_evidence(output, kind)
         sts = json.loads((output / f"glove-{kind}-sts.json").read_text())
-        nano = [
-            json.loads((output / f"glove-{kind}-{t.metadata.name}.json").read_text()) for t in tasks
-        ]
-        ndcg = float(np.mean([row["main_score"] for row in nano]) * 100)
+        expected = {**evidence, "benchmark": benchmark_identity(), "pairs": 1379}
+        validate_score(sts, expected, "pearson", -100, 100)
+        validate_score(sts, expected, "spearman", -100, 100)
+        nano = []
+        for task in tasks:
+            row = json.loads((output / f"glove-{kind}-{task.metadata.name}.json").read_text())
+            expected = {
+                **evidence,
+                "task": task.metadata.name,
+                "dataset": task.metadata.dataset,
+                "main_score_name": "ndcg_at_10",
+                "mteb_version": MTEB_VERSION,
+            }
+            nano.append(validate_score(row, expected, "main_score", 0, 1))
+        ndcg = float(np.mean(nano) * 100)
         scores.append(
             {
                 **sts,

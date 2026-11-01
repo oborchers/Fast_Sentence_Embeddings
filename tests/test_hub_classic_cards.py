@@ -56,7 +56,12 @@ def test_source_terms_fit_metadata_and_quantized_relation(modules, tmp_path, nam
     folder = tmp_path / "model"
     encoder.save_pretrained(folder)
     repo = f"fse/{name}-sif10" + ("" if dtype == "float32" else f"-{dtype}")
+    state = tmp_path / f"{name}-fit.npz"
+    state.write_bytes(b"fixture fitted state")
+    receipt = fit_receipt()
+    receipt["state_xxh3"] = prepare.digest(state)
     record = {
+        "fingerprint": encoder.fingerprint,
         "source": f"fse/{name}",
         "repo": repo,
         "method": "sif10",
@@ -75,7 +80,7 @@ def test_source_terms_fit_metadata_and_quantized_relation(modules, tmp_path, nam
         for method in ("raw", "sif10")
         for stored in ("float32", "float16", "int8")
     ]
-    text = cards.render(folder, record, {"rows": rows}, fit_receipt())
+    text = cards.render(folder, record, {"rows": rows}, receipt)
     (tmp_path / "README.md").write_text(text)
     metadata = hub.metadata_load(tmp_path / "README.md")
     assert metadata["license"] == prepare.LICENSES[name]
@@ -89,7 +94,7 @@ def test_source_terms_fit_metadata_and_quantized_relation(modules, tmp_path, nam
         "word-embeddings",
         cards.SOURCE_TAGS[name],
     } <= set(metadata["tags"])
-    assert fit_receipt()["state_xxh3"] in text
+    assert receipt["state_xxh3"] in text
     assert "wordfreq version: 3.1.1" in text
     assert "never on the evaluation texts" in text
     assert "untouched holdout" in text

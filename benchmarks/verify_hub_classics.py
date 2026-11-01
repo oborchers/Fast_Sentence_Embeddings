@@ -13,16 +13,15 @@ import argparse
 import dataclasses
 import gc
 import json
-import subprocess
 import tempfile
 from pathlib import Path
 
 import numpy as np
 from hub_classic_corpus import tokenize
+from hub_classic_evidence import benchmark_bytes, benchmark_identity, digest
 from hub_classic_math import components, gram_of_batches, remove, wordfreq_weights
 from hub_classic_sources import DTYPES, SOURCES
 from prepare_hub_classics import source_model, weighted_encoder
-from scipy.stats import pearsonr
 
 import fse
 from fse._tokenizer_spec import TokenizerSpec
@@ -37,7 +36,7 @@ BASELINES = {
 
 
 def benchmark():
-    raw = subprocess.check_output(["git", "show", "origin/1.x:evaluation/sts-test.csv"])
+    raw = benchmark_bytes()
     lines = [line.split("\t") for line in raw.decode().splitlines()]
     if len(lines) != 1379:
         raise ValueError(f"expected 1,379 STS-B pairs, got {len(lines)}")
@@ -52,6 +51,8 @@ def normalized(rows):
 
 
 def score(labels, rows):
+    from scipy.stats import pearsonr
+
     rows = normalized(rows)
     half = len(labels)
     similarities = (rows[:half] * rows[half:]).sum(axis=1)
@@ -116,6 +117,10 @@ def verify(name, output):
             records.append(
                 {
                     "repo": f"fse/{path.name}",
+                    "fingerprint": encoder.fingerprint,
+                    "model_xxh3": digest(path / "model.safetensors"),
+                    "benchmark": benchmark_identity(),
+                    "state_xxh3": digest(output / f"{name}-fit.npz") if method == "sif10" else None,
                     "method": method,
                     "dtype": dtype,
                     "pearson": pearson,

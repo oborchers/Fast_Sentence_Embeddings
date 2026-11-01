@@ -47,6 +47,7 @@ def test_wordfreq_weights_match_the_historical_float32_frequency_arithmetic(modu
 
 
 def test_folded_table_removes_the_same_directions_as_sentence_projection(modules):
+    pytest.importorskip("scipy")
     math, _, _ = modules
     rng = np.random.default_rng(0)
     table = rng.normal(size=(37, 12)).astype(np.float32)
@@ -84,3 +85,35 @@ def test_retrieval_excludes_self_and_has_stable_tie_order(modules):
     np.testing.assert_array_equal(actual[14], np.arange(10))
     assert verify.recall(actual, actual) == 1.0
     assert all(index not in neighbors for index, neighbors in enumerate(actual))
+
+
+def test_fasttext_sif_weights_unknown_words_like_the_largest_known_weight(modules, tmp_path):
+    gensim = pytest.importorskip("gensim")
+    _, prepare, _ = modules
+    kv = gensim.models.FastText(
+        sentences=[["known", "word"]],
+        vector_size=3,
+        min_count=1,
+        workers=1,
+        epochs=1,
+        bucket=32,
+        min_n=2,
+        max_n=3,
+    ).wv
+    weights = np.linspace(0.2, 0.7, len(kv), dtype=np.float32)
+    actual = prepare.weighted_encoder(kv, weights, tmp_path)
+    source = prepare.from_gensim(kv)
+    expected = fse.Encoder.from_arrays(
+        source.stored_vectors * weights[:, None],
+        words=kv.index_to_key,
+        fasttext=source.fasttext,
+        ngrams=source.stored_ngrams,
+        oov_weight=float(weights.max()),
+        tokenizer="external",
+        normalize=False,
+    )
+    assert actual._content.oov_weight == weights.max()
+    tokens = [["unseen"], [kv.index_to_key[0], "unseen"]]
+    np.testing.assert_array_equal(
+        actual.encode(tokens).view(np.uint32), expected.encode(tokens).view(np.uint32)
+    )
