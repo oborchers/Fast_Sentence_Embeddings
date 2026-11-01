@@ -11,6 +11,7 @@ from artifact_manifest import header
 from compare_models import artifact_path
 from compare_parallelism import child_environment
 from compare_runtime import expected_package
+from pod_duration import qualifies
 from pod_speed import encode_command
 
 RTOL = 2e-5
@@ -98,6 +99,11 @@ def run_vectors(options, repo, dtype, workers, kind, path):
     if completed.returncode:
         raise RuntimeError(f"output check failed ({kind}): {completed.stderr[-3000:]}")
     row = json.loads(completed.stdout.strip().splitlines()[-1])
+    if kind == "fse" and not qualifies(row):
+        from pod_pairs import append
+
+        append(options.output / "output-check-failures.jsonl", row)
+        raise ValueError("output correctness call violates minimum duration")
     if row.get("runtime_package") != expected_package(kind):
         raise ValueError("output check carries the wrong backend identity")
     return row, np.load(path, mmap_mode="r" if getattr(options, "input_file", None) else None)

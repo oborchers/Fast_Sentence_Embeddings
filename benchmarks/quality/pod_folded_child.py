@@ -183,6 +183,7 @@ def main():
         "load_s": load_s,
         "first_predict_s": first,
         "warm_seconds": seconds,
+        "timed_passes": args.passes,
         "p50_s": float(np.median(seconds)),
         "p95_s": float(np.percentile(seconds, 95)),
         "texts_per_second": len(rows) / float(np.median(seconds)),

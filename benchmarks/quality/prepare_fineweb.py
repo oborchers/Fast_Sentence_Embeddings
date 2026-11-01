@@ -48,7 +48,7 @@ def digest(rows: list[str]) -> str:
     return hasher.checksum()
 
 
-def load_pages(cache: Path, *, download: bool) -> tuple[list[str], np.ndarray]:
+def load_pages(cache: Path, *, download: bool, admission=None) -> tuple[list[str], np.ndarray]:
     import pyarrow.parquet as pq
     from huggingface_hub import snapshot_download
 
@@ -66,6 +66,15 @@ def load_pages(cache: Path, *, download: bool) -> tuple[list[str], np.ndarray]:
     pages, scores = [], []
     for number in range(8):
         file = folder / f"data/train-{number:05d}-of-00008.parquet"
+        if admission is not None:
+            metadata = pq.ParquetFile(file).metadata
+            size = sum(
+                metadata.row_group(group).total_byte_size
+                for group in range(metadata.num_row_groups)
+            )
+            admission(
+                size * 10 + metadata.num_rows * 512, "FineWeb shard decoding and normalized copies"
+            )
         table = pq.read_table(file, columns=["text", "score"]).to_pydict()
         pages.extend(" ".join(text.split()) for text in table["text"])
         scores.extend(table["score"])

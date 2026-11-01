@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 from make_folded_pod import script as base_script
+from pod4_shell import safe_export
 
 LIMIT = 8400
 DISK_GB = 100
@@ -20,7 +21,9 @@ def script(commit):
     stages = """if [ "$rust_status" -ne 0 ]; then exit "$rust_status"; fi
 probe_deadline=$(( $(/usr/bin/date +%s) + 900 ))
 if [ "$probe_deadline" -gt "$DR151_DEADLINE" ]; then probe_deadline=$DR151_DEADLINE; fi
-run_stage quiet-probe /usr/bin/timeout --signal=TERM --kill-after=10 900 /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod4.py probe --cache /dr151-cache --output /dr151-results --deadline-epoch "$probe_deadline"
+probe_seconds=$((probe_deadline - $(/usr/bin/date +%s) - 20))
+if [ "$probe_seconds" -le 0 ]; then exit 124; fi
+run_stage quiet-probe /usr/bin/timeout --signal=TERM --kill-after=10 "$probe_seconds" /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod4.py probe --cache /dr151-cache --output /dr151-results --deadline-epoch "$probe_deadline"
 probe_status=$?
 if [ "$probe_status" -ne 0 ]; then exit "$probe_status"; fi
 /dr151-env/bin/python -c 'import json; assert json.load(open("/dr151-results/readme-panels/probe.json")).get("passed") is True'
@@ -36,6 +39,7 @@ else
   readme_status=124
 fi
 if [ "$readme_status" -eq 75 ]; then exit 75; fi
+if [ ! -f /dr151-results/readme-panels/plan.json ] || [ ! -f /dr151-results/readme-panels/speed-results.jsonl ]; then exit 1; fi
 run_stage folded-classification /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod4.py classifications --cache /dr151-cache --output /dr151-results --deadline-epoch "$DR151_DEADLINE"
 classification_status=$?
 if [ "$readme_status" -ne 0 ]; then exit "$readme_status"; fi
@@ -43,49 +47,18 @@ exit "$classification_status"
 """
     value = value[:start] + stages + value[end:]
     value = value.replace(
+        "run_stage rust-setup /usr/bin/timeout --signal=TERM --kill-after=10 600",
+        'rust_seconds=$((DR151_DEADLINE - $(/usr/bin/date +%s) - 20))\nif [ "$rust_seconds" -gt 600 ]; then rust_seconds=600; fi\nif [ "$rust_seconds" -le 0 ]; then exit 124; fi\nrun_stage rust-setup /usr/bin/timeout --signal=TERM --kill-after=10 "$rust_seconds"',
+    )
+    value = value.replace(
+        "/usr/bin/timeout --signal=TERM --kill-after=10",
+        "/usr/bin/timeout --foreground --signal=TERM --kill-after=10",
+    )
+    value = value.replace(
         "# Additional Pod 3.", "# Slim Pod 4 fix-up, never launched by this generator."
     )
     value = value.replace("150 GB disk", f"{DISK_GB} GB disk")
     return safe_export(value)
-
-
-def safe_export(value):
-    start = value.index("/usr/bin/cat > /dr151-finalize.py")
-    end = value.index("DR151_FINALIZER\n", start) + len("DR151_FINALIZER\n")
-    finalizer = value[start:end]
-    value = value[:start] + value[end:]
-    marker = "/usr/bin/mkdir -p /dr151-results\n"
-    setup = (
-        """/usr/bin/mkdir -p /dr151-results
-"""
-        + finalizer
-        + """/usr/local/bin/python - <<'DR151_PLAN'
-import json, shutil
-from pathlib import Path
-Path('/dr151-results/pod4-plan.json').write_text(json.dumps({'stages':['probe','readme','classifications']}))
-usage = shutil.disk_usage('/dr151-results')
-Path('/dr151-results/disk-preflight.json').write_text(json.dumps({'total':usage.total,'free':usage.free}))
-if usage.total < 100_000_000_000 or usage.free < 25 * 1024**3:
-    raise SystemExit('require 100 GB capacity and at least 25 GiB free')
-DR151_PLAN
-if [ "$?" -ne 0 ]; then
-  /usr/local/bin/python /dr151-finalize.py --failure 1 disk-preflight
-  printf 'ALL_DONE\\n'
-  /usr/bin/sleep infinity
-  exit 1
-fi
-"""
-    )
-    value = value.replace(marker, setup, 1)
-    value = value.replace(
-        "\\nALL_DONE\\n' >&2",
-        "\\n' >&2\n  /usr/local/bin/python /dr151-finalize.py --failure 1 cache-ownership\n  printf 'ALL_DONE\\n'",
-    )
-    value = value.replace(
-        ' /dr151-results "$status"\n',
-        ' /dr151-results "$status" --no-sentinel\nexport_status=$?\nif [ "$export_status" -ne 0 ]; then\n  /usr/local/bin/python /dr151-finalize.py --failure "$export_status" export-failed\nfi\n',
-    )
-    return value
 
 
 def main():

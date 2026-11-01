@@ -15,11 +15,11 @@ from prepare_setfit import SOURCES, dataset  # isort: skip
 from quality_coordination import task_reservation  # isort: skip
 
 
-def inputs(suite, cache, selected):
+def inputs(suite, cache, selected, *, admission=None):
     if suite == "fineweb":
         yield (
             "fineweb",
-            split(*load_pages(cache, download=True)),
+            split(*load_pages(cache, download=True, admission=admission)),
             {
                 "dataset": REPO,
                 "dataset_revision": REVISION,
@@ -39,7 +39,7 @@ def inputs(suite, cache, selected):
             continue
         yield (
             name,
-            dataset(spec, cache, download=True),
+            dataset(spec, cache, download=True, admission=admission),
             {
                 "dataset": spec["dataset"],
                 "dataset_revision": spec["revision"],

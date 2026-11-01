@@ -138,6 +138,7 @@ def options_for(args):
 
 def probe(args):
     options = options_for(args)
+    ensure_model(POTION, "float32", options)
     source = source_passages(args.cache)
     calibrate(options, source, [(POTION, "float32", 32)])
     folder = options.output / "probe"

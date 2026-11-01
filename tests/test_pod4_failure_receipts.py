@@ -16,6 +16,9 @@ def modules(monkeypatch):
         name: importlib.import_module(name)
         for name in (
             "pod_duration",
+            "pod_supervise",
+            "pod4_raw_receipts",
+            "pod4_readme",
             "pod4_memory",
             "pod4_receipts",
             "pod_finalize",
@@ -71,8 +74,8 @@ def test_wrapper_requires_probe_and_exports_setup_failure(modules):
     assert "timeout --signal=TERM --kill-after=10 900" in script
     assert script.index("quiet-probe") < script.index("run_stage readme-panels")
     assert '"$status" --no-sentinel' in script
-    assert '--failure "$export_status" export-failed' in script
-    assert "--failure 1 cache-ownership" in script
+    assert 'failure_manifest "$export_status" export-failed' in script
+    assert "failure_manifest 1 cache-ownership" in script
     assert script.index("DR151_FINALIZER\n") < script.index("if ! /usr/bin/mkdir /dr151-cache")
 
 
@@ -136,3 +139,53 @@ def test_export_failure_mode_emits_decodable_failed_manifest(modules):
     assert value["complete"] is False
     assert value["returncode"] == 124
     assert "ALL_DONE" not in done.stdout
+
+
+def test_nested_first_call_cannot_replace_a_missing_warm_call(modules):
+    assert not modules["pod_duration"].qualifies(
+        dict(
+            kind="encode-matmul",
+            minimum_call_seconds=2,
+            first_predict_s=3,
+            encoder_call_seconds=[3],
+            warm_seconds=[],
+        )
+    )
+
+
+def test_fresh_cache_prepares_model_before_input_statistics(modules, monkeypatch):
+    from types import SimpleNamespace
+
+    module = modules["pod4_readme"]
+    order = []
+    monkeypatch.setattr(module, "options_for", lambda *_: SimpleNamespace())
+    monkeypatch.setattr(module, "ensure_model", lambda *_: order.append("model"))
+
+    def stop(_cache):
+        order.append("source")
+        raise RuntimeError("stop before any work")
+
+    monkeypatch.setattr(module, "source_passages", stop)
+    with pytest.raises(RuntimeError, match="stop before any work"):
+        module.probe(SimpleNamespace(cache=None))
+    assert order == ["model", "source"]
+
+
+def test_missing_raw_cell_is_rejected_despite_eligible_summary(modules, tmp_path):
+    (tmp_path / "speed-results.jsonl").write_text(
+        json.dumps({"event": "operation", "cell": "expected", "label": "fse-a"}) + "\n"
+    )
+    (tmp_path / "output-checks.jsonl").write_text("")
+    result = modules["pod4_raw_receipts"].readme(tmp_path, ["expected"])
+    assert result["cells"] == [{"cell": "expected", "eligible": False}]
+
+
+def test_workload_supervisor_returns_status_and_enforces_deadline(modules, tmp_path):
+    import sys
+
+    run = modules["pod_supervise"].run
+    assert run([sys.executable, "-c", "raise SystemExit(7)"], tmp_path / "exit.log", 5) == 7
+    assert (
+        run([sys.executable, "-c", "import signal; signal.pause()"], tmp_path / "timeout.log", 0.1)
+        == 124
+    )

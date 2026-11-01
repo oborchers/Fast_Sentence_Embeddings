@@ -31,6 +31,28 @@ def long_calls(path):
     )
 
 
+def study(root, path, folder, plan_name, key, summary_name):
+    from pod4_raw_receipts import classification, readme
+
+    expected = json.loads((path / plan_name).read_text())[key]
+    summary = json.loads((path / summary_name).read_text())
+    failures = check_cells(expected, summary)
+    reconstructed = readme(path, expected) if folder == "readme-panels" else classification(path)
+    failures.extend(check_cells(expected, reconstructed))
+    receipt = (
+        root / "readme-complete.json"
+        if folder == "readme-panels"
+        else path / "classifications-complete.json"
+    )
+    if json.loads(receipt.read_text()).get("status") != "completed":
+        failures.append(folder + ": stage completion receipt failed")
+    if folder == "readme-panels" and summary.get("complete") is not True:
+        failures.append("incomplete README summary")
+    if not long_calls(path / "speed-results.jsonl"):
+        failures.append(folder + ": missing or short actual fse calls")
+    return failures
+
+
 def validate(root):
     failures = []
     studies = (
@@ -45,13 +67,7 @@ def validate(root):
     for folder, plan_name, key, summary_name in studies:
         path = root / folder
         try:
-            expected = json.loads((path / plan_name).read_text())[key]
-            summary = json.loads((path / summary_name).read_text())
-            failures.extend(check_cells(expected, summary))
-            if folder == "readme-panels" and summary.get("complete") is not True:
-                failures.append("incomplete README summary")
-            if not long_calls(path / "speed-results.jsonl"):
-                failures.append(folder + ": missing or short actual fse calls")
+            failures.extend(study(root, path, folder, plan_name, key, summary_name))
         except (OSError, ValueError, KeyError, TypeError) as error:
             failures.append(folder + ": invalid or missing receipt: " + str(error))
     try:

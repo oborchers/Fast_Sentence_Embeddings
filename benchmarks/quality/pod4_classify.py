@@ -138,6 +138,12 @@ def timed(args, folder, texts, labels, suite, name):
 
 
 def dataset(args, suite, name, data, provenance):
+    from pod4_memory import admit
+
+    training = len(data[0]) * 256 * 4 * 8 + len(data[2]) * 512 * 4 * 4 + 4 * 1024**3
+    admit(
+        training, "classifier fitting features, token indices, weights and evaluation intermediates"
+    )
     folder = args.output / (suite + "-" + name)
     manifest = folder / "manifest.json"
     record = (
@@ -178,8 +184,10 @@ def run(args):
         json.dumps({"expected_cells": expected}, indent=2) + "\n"
     )
     failed = []
+    from pod4_memory import admit
+
     for suite, selection in order:
-        for name, data, provenance in inputs(suite, args.cache / suite, selection):
+        for name, data, provenance in inputs(suite, args.cache / suite, selection, admission=admit):
             if time.monotonic() >= args.deadline:
                 raise TimeoutError("classification stage deadline reached")
             try:

@@ -38,7 +38,7 @@ from classification_training import fitted as training_fit  # isort: skip
 SOURCES = Path(__file__).resolve().parents[1] / "baseline/dr151_setfit_sources_20261101.json"
 
 
-def dataset(specification: dict, cache: Path, *, download: bool):
+def dataset(specification: dict, cache: Path, *, download: bool, admission=None):
     from huggingface_hub import snapshot_download
     from sklearn.model_selection import StratifiedShuffleSplit
 
@@ -53,6 +53,9 @@ def dataset(specification: dict, cache: Path, *, download: bool):
             max_workers=2,
         )
     )
+    if admission is not None:
+        size = sum((folder / f"{split}.jsonl").stat().st_size for split in ("train", "test"))
+        admission(size * 32, "SetFit decoded input and temporary JSON records")
     train, evaluation = (
         [
             json.loads(line)

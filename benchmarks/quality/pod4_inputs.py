@@ -33,7 +33,7 @@ def source_passages(cache):
 
     target = cache / "wikitext-train-passages.txt"
     if target.exists():
-        return target.read_text().splitlines()
+        return read_source(target)
     repo, revision = DATASETS["wikitext"]
     snapshot = Path(
         snapshot_download(
@@ -51,7 +51,16 @@ def source_passages(cache):
                     text = re.sub(r"\s+", " ", text).strip()
                     if text and not text.startswith("=") and len(text.split()) >= 5:
                         stream.write(text + "\n")
-    return target.read_text().splitlines()
+    return read_source(target)
+
+
+def read_source(target):
+    from pod4_memory import admit
+
+    size = target.stat().st_size
+    admit(size * 32, "complete source passage decoding and string headers")
+    with target.open(encoding="utf-8") as stream:
+        return [line.rstrip("\n") for line in stream]
 
 
 def sampled_lengths(source, indices):

@@ -8,6 +8,10 @@ def qualifies(row):
     if minimum == 0:
         return True
     values = [row.get("first_encode_s", row.get("first_predict_s")), *row.get("warm_seconds", [])]
+    if row.get("timed_passes", len(values) - 1) != len(values) - 1:
+        return False
+    if len(values) < 2:
+        return False
     nested = row.get("encoder_call_seconds")
     if row.get("kind") == "encode-matmul" and nested is None:
         return False
