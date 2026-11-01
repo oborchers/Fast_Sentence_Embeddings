@@ -62,3 +62,17 @@ def compatible_results(rows: list[dict], tasks: list) -> dict[str, list[dict]]:
         ):
             group[row["task"]] = row
     return {key: list(tasks.values()) for key, tasks in groups.items()}
+
+
+def source_identity(name: str) -> dict:
+    from compare_models import MODELS, artifact_name
+
+    if not name.startswith("fse/"):
+        repo = name.removeprefix("model2vec/")
+        return {"source_model": repo, "source_revision": MODELS[repo]}
+    stem = name.removeprefix("fse/")
+    for repo, revision in MODELS.items():
+        for dtype in ("float32", "float16", "int8"):
+            if artifact_name(repo, dtype).removesuffix(".safetensors") == stem:
+                return {"source_model": repo, "source_revision": revision, "table_dtype": dtype}
+    return {"source_model": None, "source_revision": None}

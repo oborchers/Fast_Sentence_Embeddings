@@ -54,7 +54,7 @@ from model2vec_adapter import NativeModel2VecEncoder
 from mteb.cache import ResultCache
 from mteb.models.abs_encoder import AbsEncoder
 from mteb.models.model_meta import ModelMeta, ScoringFunction
-from protocol import compatible_results, measurement_identity
+from protocol import compatible_results, measurement_identity, source_identity
 from resume import pending_tasks
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -299,6 +299,7 @@ def run(
                                 {
                                     **environment,
                                     "model": name,
+                                    **source_identity(name),
                                     "loader": f"{type(model).__module__}.{type(model).__name__}",
                                     "workers": FseEncoder.workers,
                                     "device": "cpu",
@@ -337,6 +338,7 @@ def defer_mind_task(tasks, environment, specification, results):
         row = {
             **environment,
             **specification,
+            **source_identity(specification["model"]),
             "task": task.metadata.name,
             "task_metadata": task.metadata.model_dump(mode="json"),
             "status": "deferred",
