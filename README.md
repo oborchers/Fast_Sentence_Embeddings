@@ -141,7 +141,7 @@ The complete POTION-8M file uses 29.2 MiB, compared with 0.86 MiB for the standa
 
 POTION-8M, AG News, Apple M1 Pro, 1 November 2026.
 
-This works for label-only predictions with linear heads trained on plain averages, including logistic regression and scikit-learn's `LinearSVC`.
+This works for classification heads trained on plain averages, including logistic regression and scikit-learn's `LinearSVC`, without requesting sentence vectors.
 fse runs linear heads trained on normalized vectors explicitly, because normalization prevents this fold.
 Neural heads with hidden layers cannot use this fold, and fse does not run them.
 
