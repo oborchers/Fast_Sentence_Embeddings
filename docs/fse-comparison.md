@@ -177,3 +177,22 @@ Document-task breakouts now also cover both completed MRL float32 cohorts and th
 
 
 Prepared classic artifacts and complete SIF-10 fit receipts are in `benchmarks/baseline/dr151_classic_fitted_artifacts_20261101.json`. FastText and GloVe use all 859,346 pinned WikiText-103 training paragraphs, seed 0, a=0.001 and ten uncentered components. Receipts preserve the tokenized corpus digest, fitted state hash, final encoder fingerprint, original Hub revision and exact gensim import path. ParaNMT uses plain mean with no fitted SIF state. FastText benchmark inclusion makes no release decision. Cross-platform fitted hashes await the MIND pod's own independently generated artifacts.
+
+
+## Cross-check against model authors
+
+The [machine-readable authors cross-check](../benchmarks/baseline/dr151_author_claims_crosscheck_20261101.json) records sources observed on 2026-11-01 and the local result identities. This adds no inference or timing run.
+
+| Model and evaluation | Author value, points | Measured value, points | Interpretation |
+|---|---:|---:|---|
+| Static Retrieval MRL, 1024 dimensions, NanoBEIR | 50.31 | 50.3072 | Aggregate agrees at the displayed two decimals; individual task scores differ slightly. |
+| POTION-8M, author MTEB versus local English40 | 51.08 | 53.9527 | Different task composition; no direct reproduction or fse quality gain claim. |
+| POTION-32M, author MTEB versus local English40 | 52.13 | 55.2573 | Different task composition. |
+| MiniLM, MinishLab's MTEB comparison versus local English40 | 55.93 | 59.8863 | Different task composition; author-column value is from MinishLab, not MiniLM's original authors. |
+| ParaNMT WORD, STS Benchmark | 79.2 Pearson | 79.0700 Spearman | Different correlation metrics; exact checkpoint/preprocessing equivalence is unverified. |
+
+The [Static Retrieval model card](https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1#matryoshka-evaluations) supplies all thirteen NanoBEIR task values. Our aggregate differs by about 0.00285 points. The maximum individual task difference is 0.094 points. Rounded aggregate agreement does not establish bitwise or exact per-task agreement. That model card was observed at main; the local model weights retain their pinned revision.
+
+The [pinned POTION-8M model card](https://huggingface.co/minishlab/potion-base-8M/blob/bf8b056651a2c21b8d2565580b8569da283cab23/README.md) contains the POTION and MiniLM author-table values. Its evaluation includes summarization, while our English40 mean uses the approved v2 task set without MIND. The [ParaNMT paper, Table9](https://www.cs.cmu.edu/~jwieting/wieting2017Millions.pdf) reports Pearson for its WORD model. Our MTEB main score uses Spearman, so numerical proximity is not replication.
+
+The [Static Retrieval speed evaluation](https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1#evaluation) reports a 397x CPU ratio against MPNet using GooAQ on an i7-13700K. Our corpus and hardware differ, and we did not run that MPNet comparison. We therefore do not claim to reproduce that ratio. Executing identical pretrained weights faster measures the library, not better model quality.
