@@ -89,6 +89,12 @@ def measure(predict, rows, passes=3):
     return expected, first, durations
 
 
+def verify_linear_files(folder, manifest, phase):
+    for name, expected in manifest["files"].items():
+        if file_digest(folder / name) != expected["checksum"]:
+            raise ValueError(f"fitted linear artifact changed {phase} inference")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--folder", type=Path, required=True)
@@ -117,9 +123,7 @@ def main():
     manifest = json.loads((args.folder / "manifest.json").read_text())
     description = json.loads(args.evaluation_record.read_text()) if args.evaluation_record else None
     rows, labels = evaluation(args.folder, manifest, description)
-    for name, expected in manifest["files"].items():
-        if file_digest(args.folder / name) != expected["checksum"]:
-            raise ValueError("fitted linear artifact changed before inference")
+    verify_linear_files(args.folder, manifest, "before")
     backend = "model2vec" if args.kind in ("mlp", "model2vec-linear") else "fse"
     runtime = identity(backend)
     head_runtime = backend_identity("tfidf") if args.kind == "model2vec-linear" else None
@@ -133,9 +137,7 @@ def main():
     verify_backend_identity(backend, runtime)
     if head_runtime is not None:
         verify_backend_identity("tfidf", head_runtime)
-    for name, expected in manifest["files"].items():
-        if file_digest(args.folder / name) != expected["checksum"]:
-            raise ValueError("fitted linear artifact changed during inference")
+    verify_linear_files(args.folder, manifest, "during")
     sizes = {name: row["bytes"] for name, row in manifest["files"].items()}
     row = {
         **runtime,

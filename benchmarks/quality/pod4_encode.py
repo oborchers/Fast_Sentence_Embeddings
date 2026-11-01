@@ -56,11 +56,7 @@ def arguments():
 
 
 def main():
-    import time
-
     from threadpoolctl import threadpool_info, threadpool_limits
-
-    from fse._container._hash import checksum
 
     args = arguments()
     if sys.platform != "linux":
@@ -104,6 +100,14 @@ def main():
     verify_backend_identity(args.kind, before)
     if args.vectors_out:
         np.save(args.vectors_out, vectors)
+    print(json.dumps(finish(args, source, before, vectors, record)))
+
+
+def finish(args, source, before, vectors, record):
+    import time
+
+    from fse._container._hash import checksum
+
     record.update(
         {
             **before,
@@ -128,7 +132,7 @@ def main():
             "timed_passes": args.passes,
         }
     )
-    print(json.dumps(record))
+    return record
 
 
 if __name__ == "__main__":

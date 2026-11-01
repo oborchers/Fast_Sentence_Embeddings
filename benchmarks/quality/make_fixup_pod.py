@@ -37,7 +37,7 @@ exit "$classification_status"
     value = value.replace(
         "# Additional Pod 3.", "# Slim Pod 4 fix-up, never launched by this generator."
     )
-    return value.replace("150 GB disk", "100 GB disk")
+    return value.replace("150 GB disk", f"{DISK_GB} GB disk")
 
 
 def main():
