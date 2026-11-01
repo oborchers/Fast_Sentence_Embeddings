@@ -151,6 +151,27 @@ class TestQualityAdapters(unittest.TestCase):
         right["fse_reference_runtime_fingerprint"] = "different-fse-reference"
         assert self.report.setup(left) != self.report.setup(right)
 
+    def test_all_selected_fse_model_metadata_passes_pinned_mteb_validation(self):
+        model = SimpleNamespace(
+            _content=SimpleNamespace(tokenizer=SimpleNamespace(max_tokens=512)), output_dim=256
+        )
+        names = [
+            "potion-base-8M",
+            "potion-base-32M",
+            "potion-retrieval-32M",
+            "potion-multilingual-128M",
+            "static-retrieval-mrl-en-v1",
+            "static-similarity-mrl-multilingual-v1",
+            "glove-wiki-gigaword-300",
+            "word2vec-google-news-300",
+        ]
+        with patch.object(self.runner, "FseEncoder", return_value=SimpleNamespace(model=model)):
+            for name in names:
+                for dtype in ("float32", "float16", "int8"):
+                    meta = self.runner.fse_meta(f"fse/{name}-{dtype}")
+                    assert meta.name == f"fse/{name}-{dtype}"
+        assert self.runner.vector_license("fse/unmapped-float32") == "not specified"
+
     def test_batch_yields_lock_when_timing_marker_appears(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)

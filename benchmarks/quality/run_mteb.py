@@ -165,14 +165,14 @@ def vector_license(name: str) -> str:
     including paranmt and paragram, have unknown terms, never an assumed license.
     """
     for source, license_id in (
-        ("glove-", "pddl"),
+        ("glove-", "https://opendatacommons.org/licenses/pddl/1-0/"),
         ("word2vec-google-news-", "apache-2.0"),
         ("fasttext-", "cc-by-sa-3.0"),
         ("potion-", "mit"),
     ):
         if source in name.lower():
             return license_id
-    return "unknown"
+    return "not specified"
 
 
 def fse_meta(name: str) -> ModelMeta:
