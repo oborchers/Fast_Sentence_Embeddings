@@ -263,9 +263,9 @@ def package_identity(name):
     files = {str(item): Path(distribution.locate_file(item)) for item in distribution.files}
     files.update({"loaded/" + str(p.relative_to(root)): p for p in root.rglob("*")})
     checked = 0
-    for name, path in sorted(files.items()):
+    for relative, path in sorted(files.items()):
         if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
-            digest.update(name.encode() + b"\0" + bytes.fromhex(sha256(path)))
+            digest.update(relative.encode() + b"\0" + bytes.fromhex(sha256(path)))
             checked += 1
     return {
         "package": name,

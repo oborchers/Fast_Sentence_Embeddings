@@ -33,7 +33,13 @@
   "machine": {
     "vcpu": 32,
     "ram_bytes": 64000000000,
-    "disk_gb": 150
+    "disk_gb": 150,
+    "image": "python:3.13@sha256:f23cf6c01ace0da9aa4d04fd078dba0fcce0c23cf3320329a38a2b6890761f9c",
+    "python_patch": "3.13.18",
+    "architecture": "amd64",
+    "os": "linux",
+    "config_digest": "sha256:e2e020974fc5950a42b67b579de668ee586880373a77d5af6306a430156bb605",
+    "source": "Docker official library/python registry manifest and configuration"
   },
   "billing": {
     "compute_usd_per_hour": 0.96,
@@ -394,5 +400,16 @@
       "texts": 0,
       "rounds": 30
     }
-  ]
+  ],
+  "quiet_cell": {
+    "id": "quiet",
+    "stage": "quiet",
+    "kind": "encode",
+    "workers": 1,
+    "texts": 1000000,
+    "model": "minishlab/potion-base-8M",
+    "dtype": "float32",
+    "rounds": 3,
+    "warm_passes": 3
+  }
 }

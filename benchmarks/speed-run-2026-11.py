@@ -41,6 +41,9 @@ def prepare(args, contract, ledger):
         work / "owner.json",
         dict(script=records.sha256(Path(__file__)), results=str(args.results.resolve())),
     )
+    setup_record = Path(sys.executable).parents[2] / "setup.json"
+    if setup_record.exists():
+        shutil.copyfile(setup_record, args.results / "setup.json")
     models = {}
     for repo in contract["models"]:
         prepared = attempt(
@@ -290,17 +293,7 @@ def heartbeat(ledger, stop):
 
 def quiet(context):
     ledger = context["ledger"]
-    cell = dict(
-        id="quiet",
-        stage="quiet",
-        kind="encode",
-        workers=1,
-        texts=1_000_000,
-        model="minishlab/potion-base-8M",
-        dtype="float32",
-        rounds=3,
-        warm_passes=3,
-    )
+    cell = dict(ledger.contract["quiet_cell"])
     ledger.current, ledger.stage = cell["id"], cell["stage"]
     started = time.monotonic()
     result = encode_cell(context, cell)
@@ -422,6 +415,8 @@ def validate_host(args):
         raise RuntimeError("The full measurement requires Linux and Python 3.13")
     if args.allocated_at is None:
         raise ValueError("--allocated-at must be the machine allocation Unix timestamp")
+    if sys.version.split()[0] != records.document(args.input)["machine"]["python_patch"]:
+        raise RuntimeError("Python patch version differs from the pinned image")
 
 
 def run(args):
@@ -430,6 +425,10 @@ def run(args):
     args.results.mkdir(parents=True, exist_ok=False)
     ledger = records.Ledger(args.results, contract, args.allocated_at)
     records.metadata(args.results, contract)
+    environment = records.document(args.results / "environment.json")
+    cpuinfo = Path("/proc/cpuinfo")
+    environment["cpuinfo"] = cpuinfo.read_text() if cpuinfo.exists() else None
+    records.atomic(args.results / "environment.json", environment)
     stop = threading.Event()
     watcher = threading.Thread(target=heartbeat, args=(ledger, stop), daemon=True)
     watcher.start()

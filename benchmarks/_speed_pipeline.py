@@ -37,6 +37,7 @@ def setup(root, contract, allocated_at):
             "--python",
             destination / "bin/python",
             "--no-deps",
+            "--require-hashes",
             "-r",
             here / lock,
             "--extra-index-url",
@@ -71,6 +72,8 @@ def setup(root, contract, allocated_at):
             },
             fse_revision=contract["fse_revision"],
             python=sys.version,
+            base_image=contract["machine"]["image"],
+            system_compiler=subprocess.check_output(["cc", "--version"], text=True).splitlines()[0],
         ),
     )
 
