@@ -103,7 +103,7 @@ For each of the three package directories, the following checks apply:
 | `pyproject.toml` | Build backend, namespace discovery, name/version, stable fse requirement, framework minimum, test extras, strict warnings and socket markers reviewed. |
 | `.gitignore` | Only local environments, build outputs and caches are ignored. Sources, tests and examples remain tracked. |
 | `MANIFEST.in` | Includes changelog, complete tests and examples in sdist. |
-| `README.md` | All code snippets and options reviewed against the current implementation. Removed stale layout-decision and prerelease-dependency wording. |
+| `README.md` | All code snippets and options reviewed against the current implementation. Removed stale layout-decision and prerelease-dependency wording. Corrected the shared loader example so POTION keeps its saved normalization rule. |
 | `LICENSE` | Complete MIT grant present in every package. |
 | `CHANGELOG.md` | Unpublished 0.1.0 plan, stable fse dependency, CI/release preparation and retrieval coverage recorded. |
 | `examples/retrieval.py` | Full indexing and retrieval app, real POTION model, three distinct documents and asserted matching top result. No LLM or service API key needed. |
