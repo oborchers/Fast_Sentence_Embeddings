@@ -70,3 +70,20 @@ Mean and uSIF round to the published values. SIF differs by 0.0508 points. This 
 SST-5 uses 8,544 training and 2,210 test sentences. The GloVe head gives five-class accuracy 0.4118.
 Its test labels agree with scikit-learn on all 2,210 rows. The ordinal regression MAE is 0.8967 label units,
 against 1.1411 for the training-mean constant. These figures describe this example, not a tuned sentiment model.
+
+## Recorded local overhead
+
+The timing notebook ran on the same Apple M1 Pro and date, with a one-minute load average of 4.7114 before and after timing.
+It used the full 400,000-row GloVe-300 table and one worker. The warm batch contained 1,000 STS-B sentences repeated ten times.
+
+| Measurement | Median or measured size |
+|---|---:|
+| Compute per sentence in a 10,000-sentence batch, five repetitions | 0.736 µs |
+| One-sentence encode call, 100 repetitions | 52.3 µs |
+| Local stdlib HTTP keepalive request with a fixed JSON vector response, 100 repetitions | 178.8 µs |
+| One 300-dimensional vector, little-endian float32 | 1,200 bytes |
+| The same vector, compact UTF-8 JSON | 6,320 bytes |
+
+The HTTP measurement excludes embedding compute and JSON parsing. The batch figure amortizes Python overhead across repeated inputs.
+The local request alone exceeded a single encode call in this setup. This supports running fse where the text already is.
+It does not establish the cost of other networks, services, concurrency levels or batched requests.
