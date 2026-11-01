@@ -75,6 +75,16 @@ def setup(root, contract, allocated_at):
     )
 
 
+def paired_source(context, source):
+    from fse import StaticModel
+
+    model = StaticModel.from_pretrained(context["models"]["minishlab/potion-base-8M"]["snapshot"])
+    if model.max_length != 512:
+        raise ValueError("shared FastEmbed pair requires the pinned 512-token rule")
+    limit = model.max_length * model.median_token_length
+    return [text[:limit] for text in source], limit
+
+
 def encoder(job):
     kind, workers = job["backend"], job["workers"]
     if kind == "fse":
@@ -371,7 +381,8 @@ def prepare_models(root, contract):
                 "*/config.json",
             ],
         )
-        normal = StaticModel.from_pretrained(snapshot, normalize=True).encoder
+        maximum = None if repo.startswith("sentence-transformers/") else 512
+        normal = StaticModel.from_pretrained(snapshot, normalize=True, max_length=maximum).encoder
         item = dict(snapshot=snapshot, revision=revision, artifacts={})
         for dtype in ("float32", "float16", "int8"):
             destination = root / (repo.split("/")[-1] + "-" + dtype + ".safetensors")

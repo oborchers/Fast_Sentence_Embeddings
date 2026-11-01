@@ -81,16 +81,26 @@ def input_file(context, cell):
         if context["head"] is None:
             raise ValueError("classification preparation failed")
         source = context["head"][0]
-    key = (cell["kind"] == "classify", repeated, cell["texts"])
+    paired = (
+        cell["model"] == "minishlab/potion-base-8M"
+        and cell["kind"] == "encode"
+        and cell["stage"] in ("libraries", "sizing")
+    )
+    if paired:
+        if "paired_source" not in context:
+            context["paired_source"] = engines.paired_source(context, source)
+        source, limit = context["paired_source"]
+    key = (cell["kind"] == "classify", repeated, paired, cell["texts"])
     if key not in context["inputs"]:
         token_cache = context.setdefault("token_lengths", {})
-        if key[:2] not in token_cache:
+        if key[:-1] not in token_cache:
             snapshot = context["models"]["minishlab/potion-base-8M"]["snapshot"]
-            token_cache[key[:2]] = records.token_lengths(snapshot, source)
+            token_cache[key[:-1]] = records.token_lengths(snapshot, source)
         path = context["work"] / ("input-" + "-".join(map(str, key)) + ".txt")
         identity = records.write_input(
-            path, source, cell["texts"], 0, repeated=repeated, token_counts=token_cache[key[:2]]
+            path, source, cell["texts"], 0, repeated=repeated, token_counts=token_cache[key[:-1]]
         )
+        identity["common_character_limit"] = limit if paired else None
         context["inputs"][key] = (path, identity)
         records.append(
             context["ledger"].root / "input-identities.jsonl", dict(file=path.name, **identity)
@@ -321,7 +331,9 @@ def sizing_job(context, repo, workers, backend, name, kind="encode"):
     ledger.current, ledger.stage = name, "sizing"
     record = launch(context, cell, job, folder)
     remove_output(context, Path(job["vectors_file"]), record)
-    return 50_000 / min(record["first_seconds"], *record["warm_seconds"])
+    rate = 50_000 / min(record["first_seconds"], *record["warm_seconds"])
+    context.setdefault("sizing_rates", {})[(repo, workers, backend, kind)] = rate
+    return rate
 
 
 def apply_sizing(context, cell, rate, number):
@@ -344,6 +356,15 @@ def apply_sizing(context, cell, rate, number):
     seconds_per_round = 2 * requested / rate
     if reference_rate:
         seconds_per_round += requested / reference_rate
+    if cell["kind"] == "classify":
+        encoder_rates = [
+            context["sizing_rates"].get((cell["model"], cell["workers"], arm, "encode"))
+            for arm in ("fse", "model2vec")
+        ]
+        if not all(encoder_rates):
+            cell["preparation_error"] = "classifier cost requires both observed encoder rates"
+            return
+        seconds_per_round += sum(requested / observed for observed in encoder_rates)
     cell["estimated_seconds"] = max(
         estimate(context["contract"], cell), cell["rounds"] * calls * seconds_per_round
     )
@@ -357,7 +378,8 @@ def apply_sizing(context, cell, rate, number):
 
 def size_once(context):
     contract, rates = context["contract"], {}
-    for number, cell in enumerate(contract["cells"]):
+    ordered = sorted(enumerate(contract["cells"]), key=lambda item: item[1]["kind"] == "classify")
+    for number, cell in ordered:
         if cell["stage"] not in ("libraries", "classification"):
             continue
         key = (cell["model"], cell["workers"], cell["kind"])
@@ -438,18 +460,6 @@ def run(args):
     return ledger.done()
 
 
-def describe(contract):
-    return {
-        "variant": contract["variant"],
-        "planned_cells": len(contract["cells"]),
-        "planning_minutes": sum(s["budget_minutes"] for s in contract["stages"]),
-        "hard_deadline": False,
-        "cells": contract["cells"],
-        "machine": contract["machine"],
-        "python": sys.version.split()[0],
-    }
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=INPUT)
@@ -476,7 +486,12 @@ def main():
         return 0
     if args.run:
         return run(args)
-    print(json.dumps(describe(records.document(args.input)), indent=2))
+    contract = records.document(args.input)
+    print(
+        json.dumps(
+            dict(contract, planned_cells=len(contract["cells"]), hard_deadline=False), indent=2
+        )
+    )
     return 0
 
 
