@@ -1,0 +1,547 @@
+{
+  "corpus": "wikitext",
+  "rounds": 3,
+  "cases": [
+    {
+      "model": "fse/word2vec-google-news-300",
+      "table_dtype": "float32",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "word2vec-google-news-300-float32-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "fse/word2vec-google-news-300",
+      "table_dtype": "float32",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "word2vec-google-news-300-float32-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "fse/word2vec-google-news-300",
+      "table_dtype": "float16",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "word2vec-google-news-300-float16-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "fse/word2vec-google-news-300",
+      "table_dtype": "float16",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "word2vec-google-news-300-float16-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "fse/word2vec-google-news-300",
+      "table_dtype": "int8",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "word2vec-google-news-300-int8-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "fse/word2vec-google-news-300",
+      "table_dtype": "int8",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "word2vec-google-news-300-int8-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "fse/glove-wiki-gigaword-300",
+      "table_dtype": "float32",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "glove-wiki-gigaword-300-float32-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "fse/glove-wiki-gigaword-300",
+      "table_dtype": "float32",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "glove-wiki-gigaword-300-float32-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "fse/glove-wiki-gigaword-300",
+      "table_dtype": "float16",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "glove-wiki-gigaword-300-float16-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "fse/glove-wiki-gigaword-300",
+      "table_dtype": "float16",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "glove-wiki-gigaword-300-float16-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "fse/glove-wiki-gigaword-300",
+      "table_dtype": "int8",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "glove-wiki-gigaword-300-int8-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "fse/glove-wiki-gigaword-300",
+      "table_dtype": "int8",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "glove-wiki-gigaword-300-int8-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "table_dtype": "float32",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "potion-base-8M-float32-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "table_dtype": "float32",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "potion-base-8M-float32-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "table_dtype": "float16",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "potion-base-8M-float16-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "table_dtype": "float16",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "potion-base-8M-float16-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "table_dtype": "int8",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "potion-base-8M-int8-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "table_dtype": "int8",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "potion-base-8M-int8-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-32M",
+      "table_dtype": "float32",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-32M",
+      "tag": "potion-base-32M-float32-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-32M",
+      "table_dtype": "float32",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-32M",
+      "tag": "potion-base-32M-float32-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-32M",
+      "table_dtype": "float16",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-32M",
+      "tag": "potion-base-32M-float16-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-32M",
+      "table_dtype": "float16",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-32M",
+      "tag": "potion-base-32M-float16-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-32M",
+      "table_dtype": "int8",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-32M",
+      "tag": "potion-base-32M-int8-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-32M",
+      "table_dtype": "int8",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-base-32M",
+      "tag": "potion-base-32M-int8-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-retrieval-32M",
+      "table_dtype": "float32",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-retrieval-32M",
+      "tag": "potion-retrieval-32M-float32-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-retrieval-32M",
+      "table_dtype": "float32",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-retrieval-32M",
+      "tag": "potion-retrieval-32M-float32-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-retrieval-32M",
+      "table_dtype": "float16",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-retrieval-32M",
+      "tag": "potion-retrieval-32M-float16-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-retrieval-32M",
+      "table_dtype": "float16",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-retrieval-32M",
+      "tag": "potion-retrieval-32M-float16-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-retrieval-32M",
+      "table_dtype": "int8",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-retrieval-32M",
+      "tag": "potion-retrieval-32M-int8-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-retrieval-32M",
+      "table_dtype": "int8",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-retrieval-32M",
+      "tag": "potion-retrieval-32M-int8-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-multilingual-128M",
+      "table_dtype": "float32",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-multilingual-128M",
+      "tag": "potion-multilingual-128M-float32-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-multilingual-128M",
+      "table_dtype": "float32",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-multilingual-128M",
+      "tag": "potion-multilingual-128M-float32-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-multilingual-128M",
+      "table_dtype": "float16",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-multilingual-128M",
+      "tag": "potion-multilingual-128M-float16-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-multilingual-128M",
+      "table_dtype": "float16",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-multilingual-128M",
+      "tag": "potion-multilingual-128M-float16-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-multilingual-128M",
+      "table_dtype": "int8",
+      "workers": 1,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-multilingual-128M",
+      "tag": "potion-multilingual-128M-int8-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-multilingual-128M",
+      "table_dtype": "int8",
+      "workers": 10,
+      "against": "model2vec",
+      "other_model": "minishlab/potion-multilingual-128M",
+      "tag": "potion-multilingual-128M-int8-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "table_dtype": "float32",
+      "workers": 1,
+      "against": "st",
+      "other_model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "tag": "static-retrieval-mrl-en-v1-float32-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "table_dtype": "float32",
+      "workers": 10,
+      "against": "st",
+      "other_model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "tag": "static-retrieval-mrl-en-v1-float32-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "table_dtype": "float16",
+      "workers": 1,
+      "against": "st",
+      "other_model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "tag": "static-retrieval-mrl-en-v1-float16-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "table_dtype": "float16",
+      "workers": 10,
+      "against": "st",
+      "other_model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "tag": "static-retrieval-mrl-en-v1-float16-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "table_dtype": "int8",
+      "workers": 1,
+      "against": "st",
+      "other_model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "tag": "static-retrieval-mrl-en-v1-int8-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "table_dtype": "int8",
+      "workers": 10,
+      "against": "st",
+      "other_model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "tag": "static-retrieval-mrl-en-v1-int8-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "table_dtype": "float32",
+      "workers": 1,
+      "against": "st",
+      "other_model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "tag": "static-similarity-mrl-multilingual-v1-float32-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "table_dtype": "float32",
+      "workers": 10,
+      "against": "st",
+      "other_model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "tag": "static-similarity-mrl-multilingual-v1-float32-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "table_dtype": "float16",
+      "workers": 1,
+      "against": "st",
+      "other_model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "tag": "static-similarity-mrl-multilingual-v1-float16-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "table_dtype": "float16",
+      "workers": 10,
+      "against": "st",
+      "other_model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "tag": "static-similarity-mrl-multilingual-v1-float16-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "table_dtype": "int8",
+      "workers": 1,
+      "against": "st",
+      "other_model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "tag": "static-similarity-mrl-multilingual-v1-int8-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "table_dtype": "int8",
+      "workers": 10,
+      "against": "st",
+      "other_model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "tag": "static-similarity-mrl-multilingual-v1-int8-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "table_dtype": "float32",
+      "workers": 1,
+      "against": "rust",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "rust-float32-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "table_dtype": "float32",
+      "workers": 10,
+      "against": "rust",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "rust-float32-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "table_dtype": "float32",
+      "workers": 1,
+      "against": "fastembed",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "fastembed-float32-w1",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "table_dtype": "float32",
+      "workers": 10,
+      "against": "fastembed",
+      "other_model": "minishlab/potion-base-8M",
+      "tag": "fastembed-float32-w10",
+      "passes": 1,
+      "warmup_texts": null
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "table_dtype": "float32",
+      "workers": 1,
+      "against": "st",
+      "other_model": "sentence-transformers/all-MiniLM-L6-v2",
+      "tag": "minilm-float32-w1",
+      "passes": 1,
+      "warmup_texts": 64
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "table_dtype": "float32",
+      "workers": 10,
+      "against": "st",
+      "other_model": "sentence-transformers/all-MiniLM-L6-v2",
+      "tag": "minilm-float32-w10",
+      "passes": 1,
+      "warmup_texts": 64
+    }
+  ],
+  "note": "48 table/worker cells plus six named counterpart cells. Each timed pass uses all 5352 texts. MiniLM cells use 64 texts only for untimed warmup. Legacy word models use POTION-8M as the same-text counterpart, with different output dimensions and model quality."
+}
