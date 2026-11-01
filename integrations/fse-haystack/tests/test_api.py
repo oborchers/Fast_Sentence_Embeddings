@@ -44,14 +44,15 @@ def test_pipeline_and_serialization(encoder, monkeypatch):
 async def test_async_off_loop(encoder, monkeypatch):
     threads = []
     loop_thread = get_ident()
-    sync = FseTextEmbedder.run
+    model = FseTextEmbedder(encoder=encoder)
+    sync = model.run
 
-    def record(self, text):
+    def record(text):
         threads.append(get_ident())
-        return sync(self, text)
+        return sync(text)
 
-    monkeypatch.setattr(FseTextEmbedder, "run", record)
-    result = await FseTextEmbedder(encoder=encoder).run_async("hello")
+    monkeypatch.setattr(model, "run", record)
+    result = await model.run_async("hello")
     assert result["embedding"] == encoder.encode(["hello"]).tolist()[0]
     assert threads[0] != loop_thread
     docs = [Document(content="hello")]
