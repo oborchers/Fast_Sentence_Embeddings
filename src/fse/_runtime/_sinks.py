@@ -247,6 +247,6 @@ class MemorySink(GrowingRows):
     ``durable_rows``."""
 
     def __init__(self, dim: int, dtype: str = "float32"):
-        if isinstance(dim, bool) or not isinstance(dim, int) or dim < 1:
+        if isinstance(dim, bool) or not isinstance(dim, int | np.integer) or dim < 1:
             raise ValueError(f"dim must be a positive int, not {dim!r}")
-        super().__init__(dim, dtype)
+        super().__init__(int(dim), dtype)
