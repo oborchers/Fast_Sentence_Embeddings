@@ -26,6 +26,7 @@ from _speed_cells import (
     sha256,
     startup_job,
     summarize,
+    token_lengths,
     write_input,
 )
 from _speed_pipeline import (
@@ -109,8 +110,14 @@ def input_file(context, cell):
         source = context["head"][0]
     key = (cell["kind"] == "classify", repeated, cell["texts"])
     if key not in context["inputs"]:
+        token_cache = context.setdefault("token_lengths", {})
+        if key[:2] not in token_cache:
+            snapshot = context["models"]["minishlab/potion-base-8M"]["snapshot"]
+            token_cache[key[:2]] = token_lengths(snapshot, source)
         path = context["work"] / ("input-" + "-".join(map(str, key)) + ".txt")
-        identity = write_input(path, source, cell["texts"], 0, repeated=repeated)
+        identity = write_input(
+            path, source, cell["texts"], 0, repeated=repeated, token_counts=token_cache[key[:2]]
+        )
         context["inputs"][key] = (path, identity)
         append(context["ledger"].root / "input-identities.jsonl", dict(file=path.name, **identity))
     return context["inputs"][key]
@@ -186,6 +193,9 @@ def launch(context, cell, job, folder):
         },
         input_identity=input_file(context, cell)[1],
     )
+    tokens = record["input_identity"]["tokens_total"]
+    record["mean_tokens"] = tokens / cell["texts"]
+    record["warm_tokens_per_second"] = [tokens / value for value in record["warm_seconds"]]
     append(root / "operations.jsonl", dict(cell_id=cell["id"], **record))
     return record
 
@@ -401,6 +411,10 @@ def scheduled_cell(context, cell, ledger, deadline, interrupted, contract):
 
 
 def run(args):
+    if sys.platform != "linux" or sys.version_info[:2] != (3, 13):
+        raise RuntimeError("The full measurement requires Linux and Python 3.13")
+    if args.allocated_at is None:
+        raise ValueError("--allocated-at must be the machine allocation Unix timestamp")
     contract = document(args.input)
     args.results.mkdir(parents=True, exist_ok=False)
     ledger = Ledger(args.results, contract, args.allocated_at)
@@ -449,10 +463,10 @@ def main():
     mode.add_argument("--child-job", type=Path)
     mode.add_argument("--run", action="store_true")
     mode.add_argument("--setup", type=Path)
-    parser.add_argument("--results", type=Path, default=Path("/speed-results"))
+    parser.add_argument("--results", type=Path, default=Path("/dr151-results"))
     parser.add_argument("--work", type=Path, default=Path("/speed-work"))
-    parser.add_argument("--reference-python", default="/speed-reference/bin/python")
-    parser.add_argument("--allocated-at", type=float, default=time.time())
+    parser.add_argument("--reference-python", default="/speed-env/reference/bin/python")
+    parser.add_argument("--allocated-at", type=float)
     args = parser.parse_args()
     if args.setup:
         setup(args.setup, document(args.input))

@@ -91,6 +91,7 @@ def arm_summary(cell, operations, label):
         "seconds": spread(seconds),
         "texts_per_second": spread([cell["texts"] / v for v in seconds]),
         "ordered_seconds": seconds,
+        "peak_rss_bytes": max(r["peak_rss_bytes"] for r in rows),
         "identity": rows[0]["identity"],
     }
 
@@ -185,6 +186,7 @@ class Ledger:
             "stage": cell["stage"],
             "kind": cell["kind"],
             "status": status,
+            "completed_at_unix": time.time(),
             "duration_seconds": time.monotonic() - started,
             **extra,
         }
@@ -402,7 +404,20 @@ def corpus_sources(contract, cache):
     return paragraphs, sentences
 
 
-def write_input(path, source, count, seed, repeated=False):
+def token_lengths(snapshot, source):
+    import numpy as np
+
+    from fse import StaticModel
+
+    tokenizer = StaticModel.from_pretrained(snapshot, normalize=False).tokenizer
+    counts = np.empty(len(source), dtype=np.int64)
+    for start in range(0, len(source), 2048):
+        batch = tokenizer.encode_batch(source[start : start + 2048], add_special_tokens=False)
+        counts[start : start + len(batch)] = [len(item.ids) for item in batch]
+    return counts
+
+
+def write_input(path, source, count, seed, repeated=False, token_counts=None):
     import numpy as np
 
     if path.exists() or path.with_suffix(".json").exists() or not source or count < 1:
@@ -441,6 +456,10 @@ def write_input(path, source, count, seed, repeated=False):
         input_digest=digest.hexdigest(),
         words_total=words,
         characters_total=characters,
+        mean_words=words / count,
+        mean_characters=characters / count,
+        tokens_total=int(np.dot(weights, token_counts)) if token_counts is not None else None,
+        token_definition="POTION-8M tokenizer ids, including unknown ids, excluding special tokens",
         sampling="repeated source positions, shuffled"
         if repeated
         else "sampled source positions with replacement, shuffled",
