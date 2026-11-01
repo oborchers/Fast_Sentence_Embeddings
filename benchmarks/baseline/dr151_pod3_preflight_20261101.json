@@ -1,6 +1,6 @@
 {
-  "source_commit": "37e0d2311f41c3f3da637827898d50b4aa89a6bf",
-  "script_sha256": "bcf661abe7c32310dfd2979ab2be6e67dc1abb01d6a71fc212b45f45664eb564",
+  "source_commit": "3ca670db94ae8924bf6e4c59fc9d4b03b364c633",
+  "script_sha256": "8a9680de94a4a4d114f0cef991a9073a25f0b7f2048ff15abb5655f5a4608ca4",
   "script_path": "/private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad/dr151-pod3.sh",
   "image": "python:3.13",
   "cpu_type": "cpu3c",
@@ -10,10 +10,11 @@
   "workload_limit_seconds": 9000,
   "required_termination_from_creation_seconds": 9300,
   "stages": [
-    "classification",
     "Rust setup",
+    "fresh README panels and both curves",
+    "classification",
     "10M write matrix",
-    "worker scaling",
+    "curve export",
     "100M showcase"
   ],
   "seed": 0,
@@ -35,5 +36,21 @@
   },
   "validation": "benchmarks/baseline/dr151_pod3_validation_20261101.json",
   "actual_pod_execution": "pending coordinator launch",
-  "runpod_called": false
+  "runpod_called": false,
+  "graphic_workers": [
+    1,
+    16,
+    32
+  ],
+  "curve_workers": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "graphic_series_count": 30,
+  "focused_checks_passed": 45,
+  "independent_review": "No findings"
 }

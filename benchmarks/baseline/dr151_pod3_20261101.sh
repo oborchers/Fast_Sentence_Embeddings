@@ -145,8 +145,8 @@ export DEBIAN_FRONTEND=noninteractive
 /usr/bin/apt-get update
 /usr/bin/apt-get install -y --no-install-recommends build-essential git curl procps util-linux ca-certificates
 /usr/bin/git clone --branch dr151-compare --no-checkout https://github.com/oborchers/Fast_Sentence_Embeddings.git /dr151-repo
-/usr/bin/git -C /dr151-repo checkout --detach 37e0d2311f41c3f3da637827898d50b4aa89a6bf
-test "$(/usr/bin/git -C /dr151-repo rev-parse HEAD)" = 37e0d2311f41c3f3da637827898d50b4aa89a6bf
+/usr/bin/git -C /dr151-repo checkout --detach 3ca670db94ae8924bf6e4c59fc9d4b03b364c633
+test "$(/usr/bin/git -C /dr151-repo rev-parse HEAD)" = 3ca670db94ae8924bf6e4c59fc9d4b03b364c633
 cd /dr151-repo
 export SOURCE_DATE_EPOCH=$(/usr/bin/git show -s --format=%ct HEAD)
 /usr/local/bin/python -m pip install --no-cache-dir uv==0.13.0
@@ -154,20 +154,12 @@ export SOURCE_DATE_EPOCH=$(/usr/bin/git show -s --format=%ct HEAD)
 /usr/local/bin/uv pip install --python /dr151-env/bin/python setuptools==84.2.1 setuptools-scm==8.2.0 Cython==3.1.0 numpy==2.5.4
 export TQDM_DISABLE=1
 /usr/local/bin/uv pip install --python /dr151-env/bin/python --index-url https://download.pytorch.org/whl/cpu torch==2.15.0+cpu
-/usr/local/bin/uv pip install --python /dr151-env/bin/python -r benchmarks/quality/pod-classifier-requirements.lock.txt
+/usr/local/bin/uv pip install --python /dr151-env/bin/python -r benchmarks/quality/pod3-requirements.lock.txt
 /usr/local/bin/uv pip install --python /dr151-env/bin/python --no-build-isolation -e .
 /usr/local/bin/uv pip check --python /dr151-env/bin/python
 printf 'stage_end environment %s\n' "$(/usr/bin/date -u +%FT%TZ)"
 /usr/bin/df -h /dr151-cache
 set +e
-classification_deadline=$((DR151_DEADLINE - 6600))
-classification_seconds=$((classification_deadline - $(/usr/bin/date +%s)))
-if [ "$classification_seconds" -gt 0 ]; then
-  run_stage folded-classification /usr/bin/timeout --signal=TERM --kill-after=10 "$classification_seconds" /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_folded.py --stage classifications --cache /dr151-cache --output /dr151-results --deadline-epoch "$classification_deadline"
-  classification_status=$?
-else
-  classification_status=124
-fi
 /usr/bin/cat > /dr151-rust-setup.sh <<'DR151_RUST'
 set -euxo pipefail
 /usr/bin/curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /dr151-rustup.sh
@@ -176,6 +168,23 @@ set -euxo pipefail
 DR151_RUST
 run_stage rust-setup /usr/bin/timeout --signal=TERM --kill-after=10 600 /bin/bash /dr151-rust-setup.sh
 rust_status=$?
+readme_deadline=$(( $(/usr/bin/date +%s) + 1200 ))
+if [ "$readme_deadline" -gt "$((DR151_DEADLINE - 6600))" ]; then readme_deadline=$((DR151_DEADLINE - 6600)); fi
+readme_seconds=$((readme_deadline - $(/usr/bin/date +%s)))
+if [ "$readme_seconds" -gt 0 ]; then
+  run_stage readme-panels /usr/bin/timeout --signal=TERM --kill-after=10 "$readme_seconds" /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_folded.py --stage readme --cache /dr151-cache --output /dr151-results --deadline-epoch "$readme_deadline"
+  readme_status=$?
+else
+  readme_status=124
+fi
+classification_deadline=$((DR151_DEADLINE - 6600))
+classification_seconds=$((classification_deadline - $(/usr/bin/date +%s)))
+if [ "$classification_seconds" -gt 0 ]; then
+  run_stage folded-classification /usr/bin/timeout --signal=TERM --kill-after=10 "$classification_seconds" /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_folded.py --stage classifications --cache /dr151-cache --output /dr151-results --deadline-epoch "$classification_deadline"
+  classification_status=$?
+else
+  classification_status=124
+fi
 large_deadline=$((DR151_DEADLINE - 2400))
 large_seconds=$((large_deadline - $(/usr/bin/date +%s)))
 if [ "$large_seconds" -gt 0 ]; then
@@ -194,6 +203,7 @@ else
 fi
 run_stage showcase-100m /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_folded.py --stage showcase --cache /dr151-cache --output /dr151-results --deadline-epoch "$DR151_DEADLINE"
 showcase_status=$?
+if [ "$readme_status" -ne 0 ]; then exit "$readme_status"; fi
 if [ "$classification_status" -ne 0 ]; then exit "$classification_status"; fi
 if [ "$large_status" -ne 0 ]; then exit "$large_status"; fi
 if [ "$rust_status" -ne 0 ]; then exit "$rust_status"; fi
@@ -206,7 +216,7 @@ status=${PIPESTATUS[0]}
 /usr/local/bin/python - "$status" <<'DR151_INVOCATION'
 import json, sys
 from pathlib import Path
-Path('/dr151-results/bootstrap-invocation.json').write_text(json.dumps({"command":["/bin/bash","/dr151-work.sh"],"script":Path('/dr151-work.sh').read_text(),"returncode":int(sys.argv[1]),"pinned_commit":"37e0d2311f41c3f3da637827898d50b4aa89a6bf"}))
+Path('/dr151-results/bootstrap-invocation.json').write_text(json.dumps({"command":["/bin/bash","/dr151-work.sh"],"script":Path('/dr151-work.sh').read_text(),"returncode":int(sys.argv[1]),"pinned_commit":"3ca670db94ae8924bf6e4c59fc9d4b03b364c633"}))
 DR151_INVOCATION
 finalize_seconds=$((started + 9000 - 5 - $(/usr/bin/date +%s)))
 if [ "$finalize_seconds" -lt 1 ]; then finalize_seconds=1; fi
