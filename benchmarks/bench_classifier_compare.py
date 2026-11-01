@@ -32,6 +32,7 @@ from compare_inputs import identity
 from compare_models import MODELS, artifact_name
 from compare_parallelism import settings
 from compare_search import timed
+from compare_wait import ready_operation
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "quality"))
 from prepare_fineweb import digest, load_pages, split, REVISION as FINEWEB_REVISION  # isort: skip
@@ -305,13 +306,14 @@ def operation(args, label):
 
 def run(args):
     series, valid = uuid.uuid4().hex, 0
+    deadline = time.monotonic() + args.budget_s
     order = ["fse-a", "fse-b", args.against]
     for attempt in range(6):
         records = []
         try:
             for label in order:
                 row = {
-                    **operation(args, label),
+                    **ready_operation(args.lock, deadline, lambda: operation(args, label)),
                     "event": "operation",
                     "series_id": series,
                     "round": attempt,
@@ -379,6 +381,7 @@ def main():
     parser.add_argument("--workers", type=int, choices=[1, 10], default=1)
     parser.add_argument("--table-dtype", choices=["float32", "float16", "int8"], default="float32")
     parser.add_argument("--passes", type=int, default=3)
+    parser.add_argument("--budget-s", type=float, default=600)
     parser.add_argument("--lock", type=Path)
     parser.add_argument("--results", type=Path)
     args = parser.parse_args()

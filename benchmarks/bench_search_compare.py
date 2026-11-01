@@ -35,6 +35,7 @@ from compare_search import (
     search_all,
     timed,
 )
+from compare_wait import ready_operation
 
 REPO = "minishlab/potion-base-8M"
 
@@ -218,13 +219,14 @@ def operation(args, label: str) -> dict:
 
 def run(args) -> None:
     series, valid = uuid.uuid4().hex, 0
+    deadline = time.monotonic() + args.budget_s
     order = ["fse-a", "fse-b", args.against]
     for attempt in range(6):
         records = []
         try:
             for label in order:
                 row = {
-                    **operation(args, label),
+                    **ready_operation(args.lock, deadline, lambda: operation(args, label)),
                     "event": "operation",
                     "series_id": series,
                     "round": attempt,
@@ -282,6 +284,7 @@ def main() -> None:
     parser.add_argument("--workers", type=int, choices=[1, 10], default=1)
     parser.add_argument("--batch", type=int, choices=[1, 64], default=64)
     parser.add_argument("--passes", type=int, default=3)
+    parser.add_argument("--budget-s", type=float, default=600)
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument("--models", type=Path, default=Path.home() / ".cache/fse-quality/models")
     parser.add_argument("--tmp", type=Path, required=True)

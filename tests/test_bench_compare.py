@@ -118,7 +118,12 @@ def test_repeated_invocations_have_distinct_pair_identity(bench, tmp_path, monke
 
     monkeypatch.setattr(bench, "operation", lambda *_a: {"valid": True, "input_digest": "same"})
     args = SimpleNamespace(
-        results=tmp_path / "runs.jsonl", against="model2vec", threads=1, budget_s=10, rounds=3
+        results=tmp_path / "runs.jsonl",
+        lock=tmp_path / "bench.lock",
+        against="model2vec",
+        threads=1,
+        budget_s=10,
+        rounds=3,
     )
     bench.run(args)
     bench.run(args)
@@ -152,3 +157,29 @@ def test_short_warmup_still_times_the_complete_corpus(bench, monkeypatch):
     assert calls == [["a", "b"], ["a", "b", "c", "d"]]
     assert record["first_encode_texts"] == 2
     assert vectors.shape == (4, 2)
+
+
+def test_quiet_budget_expiry_persists_an_incomplete_series(bench, monkeypatch, tmp_path):
+    import json
+
+    now = [0.0]
+    monkeypatch.setattr(bench.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(bench.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds))
+    monkeypatch.setattr(bench.os, "getloadavg", lambda: (5, 1, 1))
+    monkeypatch.setattr(bench, "operation", lambda *_: pytest.fail("timed at high load"))
+    args = SimpleNamespace(
+        results=tmp_path / "runs.jsonl",
+        lock=tmp_path / "bench.lock",
+        against="model2vec",
+        threads=1,
+        budget_s=20,
+        rounds=3,
+    )
+    with pytest.raises(RuntimeError, match="only 0 valid rounds"):
+        bench.run(args)
+    rows = [json.loads(line) for line in args.results.read_text().splitlines()]
+    assert rows[0]["event"] == "round_complete"
+    assert rows[0]["complete"] is False
+    assert rows[-1]["event"] == "series_complete"
+    assert rows[-1]["valid_rounds"] == 0
+    assert rows[-1]["required_rounds"] == 3

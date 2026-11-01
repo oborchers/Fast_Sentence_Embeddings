@@ -23,6 +23,7 @@ from compare_backends import make_contender as contender
 from compare_inputs import corpus_identity, identity, texts
 from compare_models import MODELS
 from compare_parallelism import settings
+from compare_wait import TimingBudgetExpired, TimingDeferred, ready_operation
 
 
 @contextmanager
@@ -30,14 +31,14 @@ def reservation(lock: Path):
     """Reserve one operation, never changing another owner's lock."""
     marker = lock.parent / "pause-local.marker"
     if marker.exists() or os.getloadavg()[0] >= 5:
-        raise RuntimeError("timing deferred: paused or load >= 5")
+        raise TimingDeferred("timing deferred: paused or load >= 5")
     lock.mkdir()
     owner = lock / "owner"
     identity = f"dr151-compare pid={os.getpid()}"
     try:
         owner.write_text(identity, encoding="utf-8")
         if marker.exists() or os.getloadavg()[0] >= 5:
-            raise RuntimeError("timing deferred after reservation")
+            raise TimingDeferred("timing deferred after reservation")
         yield
     finally:
         if owner.exists() and owner.read_text(encoding="utf-8") == identity:
@@ -184,7 +185,7 @@ def append(path: Path, row: dict) -> None:
         stream.write(json.dumps(row) + "\n")
 
 
-def one_round(args, ordered, series: str, attempt: int) -> bool:
+def one_round(args, ordered, series: str, attempt: int, deadline: float | None = None) -> bool:
     rows = []
     context = {"series_id": series, "round": attempt}
     try:
@@ -193,7 +194,9 @@ def one_round(args, ordered, series: str, attempt: int) -> bool:
                 **context,
                 "event": "operation",
                 "operation_index": index,
-                **operation(args, label, threads),
+                **ready_operation(
+                    getattr(args, "lock", None), deadline, lambda: operation(args, label, threads)
+                ),
             }
             rows.append(row)
             append(args.results, row)
@@ -238,7 +241,10 @@ def run(args) -> None:
         if time.monotonic() >= deadline:
             break
         ordered = sides[attempt % len(sides) :] + sides[: attempt % len(sides)]
-        kept += one_round(args, ordered, series, attempt)
+        try:
+            kept += one_round(args, ordered, series, attempt, deadline)
+        except TimingBudgetExpired:
+            break
         if kept == args.rounds:
             break
     append(
