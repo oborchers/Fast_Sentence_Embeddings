@@ -52,10 +52,12 @@ with exact head, normalization, dataset, machine, workers, date and a symmetric 
 `speed_panels.py` renders the next compact table and light/dark same-model speedup bars.
 The accepted-data file starts empty. No unfinished table, fake multiplier or new figure appears in the main README.
 See `docs/benchmarks/readme-speed-panels.md` for exact required DR-151 row selectors and the audit/extraction contract.
-All three table rows keep one core. The other setting is selected from committed valid scaling rows for that model.
-32 is shown only at an unrounded median gain of at least 1.20 over 16; otherwise use 16, regardless of faster smaller settings.
-Smaller settings remain in the scaling curve; `core-selection-evidence.md` records when they beat 16.
-Each selected library needs the exact same-model pair at the selected setting. The old Mac ten-worker headline is a separate machine-specific observation.
+All three table rows keep one core. Choose 16 or 32 directly from that model's accepted float32 cells.
+32 is shown only at an unrounded median gain of at least 1.20 over 16; otherwise use 16.
+`core-selection-evidence.md` records the decision and sources. No scaling curve is collected or rendered.
+The Pod grid remains 1/16/32. Every first and warm fse call must last at least two seconds.
+The separate 10M write stage is dropped; the 100M showcase covers writing.
+Each selected library needs the exact same-model pair at the selected setting.
 Each library bar has a separately paired fse baseline for that same model and output.
 MiniLM is excluded from this same-model renderer.
 

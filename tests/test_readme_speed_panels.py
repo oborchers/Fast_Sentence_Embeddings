@@ -40,6 +40,7 @@ def row(backend="fse", dtype="float32", workers=1):
             "tokenizer_rule": "test-rule",
         },
         "texts_per_second": [100, 200, 300],
+        "call_seconds": [2, 3, 4],
     }
 
 
@@ -120,7 +121,7 @@ def test_empty_data_publishes_nothing_and_invalid_pair_writes_nothing(tmp_path):
     PANEL["publish"](data, tmp_path, palette)
     assert list(tmp_path.iterdir()) == []
     data["table"] = [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in (1, 32)]
-    data["scaling"] = curve()
+    data["selection_rows"] = decision_rows()
     data["table_caption"] = "test caption"
     bad = copy.deepcopy(pair())
     bad["output_checked"] = False
@@ -171,18 +172,16 @@ def test_library_panels_require_both_machine_core_settings():
     with pytest.raises(ValueError, match="every selected core setting"):
         PANEL["paired_core_settings"]([pair()], {"test/model": (1, 32)})
     PANEL["paired_core_settings"]([pair(), pair(32)], {"test/model": (1, 32)})
-    with pytest.raises(ValueError, match="measured scaling setting"):
+    with pytest.raises(ValueError, match="measured panel setting"):
         PANEL["comparison"](pair(10))
 
 
-def curve(rate32=1300):
+def decision_rows(rate32=1300):
     rows = []
-    for worker, rate in zip(
-        PANEL["SCALING_WORKERS"], (100, 180, 300, 600, 1000, rate32), strict=True
-    ):
+    for worker, rate in zip(PANEL["PANEL_WORKERS"], (100, 1000, rate32), strict=True):
         sample = row(workers=worker)
         sample["texts_per_second"] = [rate, rate, rate]
-        sample["source"]["series_id"] = f"scaling-{worker}"
+        sample["source"]["series_id"] = f"selection_rows-{worker}"
         rows.append(sample)
     return rows
 
@@ -191,37 +190,34 @@ def curve(rate32=1300):
     ("rate32", "chosen"), [(1200, (1, 32)), (1199.999, (1, 16)), (900, (1, 16))]
 )
 def test_32_core_threshold_is_inclusive_and_unrounded(rate32, chosen):
-    assert PANEL["select_cores"](curve(rate32)) == chosen
+    assert PANEL["select_cores"](decision_rows(rate32)) == chosen
 
 
-def test_fallback_stays_16_even_when_smaller_settings_are_faster():
-    points = curve(1100)
-    points[3]["texts_per_second"] = [1500] * 3
-    assert PANEL["select_cores"](points) == (1, 16)
-    points[3]["texts_per_second"] = [1000] * 3
-    assert PANEL["select_cores"](points) == (1, 16)
+def test_selection_uses_only_one_16_and_32_without_a_curve():
+    points = decision_rows(1100)
+    assert [r["context"]["workers"] for r in points] == [1, 16, 32]
     points[0]["texts_per_second"] = [2000] * 3
     assert PANEL["select_cores"](points) == (1, 16)
 
 
-def test_scaling_selection_requires_complete_valid_coherent_points():
-    with pytest.raises(ValueError, match="scaling points"):
-        PANEL["select_cores"](curve()[:-1])
-    points = curve()
+def test_selection_rows_selection_requires_complete_valid_coherent_points():
+    with pytest.raises(ValueError, match="cells at 1, 16 and 32"):
+        PANEL["select_cores"](decision_rows()[:-1])
+    points = decision_rows()
     points[-1]["aa_upper"] = 1.11
     with pytest.raises(ValueError, match="variation"):
         PANEL["select_cores"](points)
-    points = curve()
+    points = decision_rows()
     points[-1]["context"]["input_digest"] = "another-input"
     with pytest.raises(ValueError, match="same comparison context"):
         PANEL["select_cores"](points)
 
 
-def test_publish_selects_from_scaling_and_never_substitutes_32(tmp_path):
+def test_publish_selects_from_selection_rows_and_never_substitutes_32(tmp_path):
     palette = json.loads((ROOT / "media/readme/palette.json").read_text())
     data = {
         "format": "readme-speed-panels-v1",
-        "scaling": curve(1100),
+        "selection_rows": decision_rows(1100),
         "table": [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in (1, 16, 32)],
         "comparisons": [pair(w) for w in (1, 16, 32)],
         "table_caption": "test fixture",
@@ -239,11 +235,11 @@ def test_publish_selects_from_scaling_and_never_substitutes_32(tmp_path):
         PANEL["publish"](data, tmp_path, palette)
 
 
-def test_scaling_is_required_for_every_library_model(tmp_path):
+def test_selection_rows_is_required_for_every_library_model(tmp_path):
     palette = json.loads((ROOT / "media/readme/palette.json").read_text())
     data = {
         "format": "readme-speed-panels-v1",
-        "scaling": [],
+        "selection_rows": [],
         "table": [],
         "comparisons": [pair(), pair(32)],
     }
@@ -252,13 +248,12 @@ def test_scaling_is_required_for_every_library_model(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
-def test_one_16_32_grid_uses_16_and_reports_a_faster_8_core_setting(tmp_path):
+def test_one_16_32_grid_records_direct_decision_sources(tmp_path):
     palette = json.loads((ROOT / "media/readme/palette.json").read_text())
-    points = curve(1100)
-    points[3]["texts_per_second"] = [1500] * 3
+    points = decision_rows(1100)
     data = {
         "format": "readme-speed-panels-v1",
-        "scaling": points,
+        "selection_rows": points,
         "table": [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in (1, 16, 32)],
         "comparisons": [pair(w) for w in (1, 16, 32)],
         "table_caption": "test fixture",
@@ -269,8 +264,8 @@ def test_one_16_32_grid_uses_16_and_reports_a_faster_8_core_setting(tmp_path):
     assert "16 cores" in text
     assert "All 32 cores" not in text
     evidence = (tmp_path / "core-selection-evidence.md").read_text()
-    assert "8-worker median" in evidence
-    assert "README still uses 16" in evidence
+    assert "Unrounded 32/16 ratio:" in evidence
+    assert "8-worker" not in evidence
     assert "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/" in evidence
 
 
@@ -278,7 +273,7 @@ def test_completely_filtered_precision_table_fails_before_writing(tmp_path):
     palette = json.loads((ROOT / "media/readme/palette.json").read_text())
     data = {
         "format": "readme-speed-panels-v1",
-        "scaling": curve(1100),
+        "selection_rows": decision_rows(1100),
         "table": [row(dtype=dtype, workers=32) for dtype in PANEL["DTYPES"]],
         "comparisons": [],
         "table_caption": "test fixture",
@@ -297,7 +292,7 @@ def test_completely_filtered_library_cannot_disappear(tmp_path, include_complete
     pairs = [pair(), pair(16), rust] if include_complete_library else [rust]
     data = {
         "format": "readme-speed-panels-v1",
-        "scaling": curve(1100),
+        "selection_rows": decision_rows(1100),
         "table": [],
         "comparisons": pairs,
         "comparison_caption": "test fixture",
@@ -305,3 +300,11 @@ def test_completely_filtered_library_cannot_disappear(tmp_path, include_complete
     with pytest.raises(ValueError, match="every selected core setting"):
         PANEL["publish"](data, tmp_path, palette)
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("calls", [[], [2, 2], [2, 1.999, 3], [2, float("nan"), 3]])
+def test_short_individual_calls_cannot_hide_behind_a_median(calls):
+    sample = row()
+    sample["call_seconds"] = calls
+    with pytest.raises(ValueError, match="2 seconds|finite"):
+        PANEL["measured"](sample)

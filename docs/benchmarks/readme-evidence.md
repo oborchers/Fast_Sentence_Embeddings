@@ -9,7 +9,7 @@ The [committed showcase snapshot](readme-showcase-20261101/README.md) backs the 
 The primary run processed 100,000,000 rows at 2,832,638.70 texts/s, from input read through int8 ShardSink close, on 32 vCPU AMD EPYC 7713.
 It uses repeated and shuffled WikiText-103 passages, averaging 28.73027215 POTION tokens, and a float32 model table with int8 output storage.
 The one-primary-plus-one-repeat showcase exception and its 4.53% A/A spread are documented in that snapshot, with exact raw files and output size.
-It is separate from pure encoding on the Mac and does not fill missing library, scaling or folded-classifier comparisons.
+It is separate from pure encoding on the Mac and does not fill missing library or folded-classifier comparisons.
 
 ## Pending library comparison
 
@@ -385,9 +385,9 @@ Do not display an empty classification table in the main README while those valu
 
 TODO(DR-151): Add MTEB quality comparisons for classic raw and SIF-10 models when measured.
 
-TODO(DR-151): Add the Pod worker-scaling series at 1, 2, 4, 8, 16 and 32 workers.
-Use one fixed model, dtype, input corpus and machine. Plan a small chart/table with actual measured points only, not interpolated values.
-The main README gets no empty scaling rows. Source metadata and acceptance checks stay in this guide.
+Pod 4 omits the worker-scaling curve and the 10M write-path stage. The 100M showcase covers writing.
+The remaining encoding grid uses 1, 16 and 32 workers for each dtype and library pair.
+Keep the corrected folded-classification comparison and large inputs. Every first and warm fse call must last at least two seconds.
 
 The folding explanation in the main README uses the executed recipe 08 result at source 32ff539e19044b69c48d9891b2cb16ddd17e10cc.
 The explicit and folded paths agree on all 2,000 AG News labels; maximum probability difference 3.069639205932617e-06.
@@ -409,16 +409,15 @@ The [counting method](https://github.com/oborchers/Fast_Sentence_Embeddings/blob
 
 ## Selecting the public core settings
 
-Keep one core. For each model, show 32 only if its accepted float32 scaling median is at least 1.20 times its accepted 16-worker median.
-Use unrounded medians of the three primary fse-a observations, each with its own valid paired fse-a/fse-b series.
-Otherwise show 16, even if 2, 4 or 8 have a higher measured rate. One core remains visible in every panel. Display “More than 16 cores adds little here.” when the 32/16 ratio falls below 1.20.
-This is an explicit editorial threshold for these workloads, not a general CPU-scaling claim.
+Keep one core. For each model, show 32 only if its accepted float32 primary median is at least 1.20 times its accepted 16-worker median.
+Use unrounded medians from three accepted rotating rounds. Otherwise show 16.
+Display “More than 16 cores adds little here.” when the ratio falls below 1.20.
+This is an editorial threshold for these workloads, not a general CPU-scaling claim.
 
-The generator reads immutable source references and ordered rates from the audited `scaling` extraction.
-It requires complete coherent curves at 1, 2, 4, 8, 16 and 32 for each displayed model, with all existing validity checks.
-It selects the core setting automatically and requires dtype/reference measurements at that exact setting.
-POTION-8M's curve drives its dtype table. MRL library bars require MRL's own curve.
-The renderer also writes `core-selection-evidence.md`, with all six medians, immutable source references and series IDs.
-If a smaller setting beats 16, its generated note explicitly records that fact and explains the fixed 16-core fallback.
-Include that note here alongside the final measurements. The 1/16/32 grid covers every possible panel choice.
+The generator reads immutable source references and ordered rates from audited `selection_rows` at 1, 16 and 32.
+It compares 16 and 32 directly and requires dtype/reference measurements at the chosen setting.
+POTION-8M drives its dtype table. MRL library bars require MRL's own decision cells.
+`core-selection-evidence.md` records medians, the exact ratio, immutable sources and series IDs.
+No six-point curve, interpolation or scaling graphic is required. Missing decision cells fail publication.
+The `call_seconds` extraction includes every first and warm fse-a/fse-b call from accepted rounds, each at least two seconds.
 See the [row plan](readme-speed-panels.md). Missing data stays out of the public README.

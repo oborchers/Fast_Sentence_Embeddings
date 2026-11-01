@@ -10,7 +10,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 DTYPES = ("float32", "float16", "int8")
-SCALING_WORKERS = (1, 2, 4, 8, 16, 32)
+PANEL_WORKERS = (1, 16, 32)
 MIN_32_GAIN = 1.20
 LOW_GAIN_NOTE = "More than 16 cores adds little here."
 BACKENDS = {
@@ -65,6 +65,10 @@ def measured(row):
         raise ValueError("Incomplete model, input, output or machine context")
     if not row["runtime_fingerprint"] or not row["backend"]:
         raise ValueError("Executing backend identity is required")
+    if row["backend"] == "fse":
+        calls = row.get("call_seconds", [])
+        if len(calls) < 3 or any(positive(value) < 2 for value in calls):
+            raise ValueError("Every recorded fse call must last at least 2 seconds")
     rates = row["texts_per_second"]
     if len(rates) != 3:
         raise ValueError("Three accepted primary rounds are required")
@@ -91,14 +95,14 @@ def core_label(worker):
 
 
 def select_cores(rows):
-    """Choose from complete committed fse-a scaling cells, never interpolate."""
+    """Choose directly from committed fse-a cells at 1, 16 and 32 cores."""
     points = {r["context"]["workers"]: r for r in rows}
-    if set(points) != set(SCALING_WORKERS) or len(rows) != len(points):
-        raise ValueError("Selection needs accepted scaling points at 1, 2, 4, 8, 16 and 32")
+    if set(points) != set(PANEL_WORKERS) or len(rows) != len(points):
+        raise ValueError("Selection needs accepted cells at 1, 16 and 32")
     same(rows, [key for key in CONTEXT if key != "workers"])
     same_runtime(rows)
     if any(r["backend"] != "fse" or r["context"]["table_dtype"] != "float32" for r in rows):
-        raise ValueError("Selection uses fse float32 scaling rows")
+        raise ValueError("Selection uses fse float32 rows")
     medians = {worker: measured(row) for worker, row in points.items()}
     return (1, 32) if medians[32] / medians[16] >= MIN_32_GAIN else (1, 16)
 
@@ -110,17 +114,19 @@ def selections(rows):
     }
 
 
-def selected_rows(rows, scaling, selected):
+def selected_rows(rows, selection_rows, selected):
     if not rows:
         return []
     models = {r["context"]["model"] for r in rows}
     if not models <= selected.keys():
-        raise ValueError("Committed scaling rows are required for every displayed model")
+        raise ValueError("Committed selection rows are required for every displayed model")
     relevant = [r for r in rows if r["context"]["workers"] in selected[r["context"]["model"]]]
     for row in relevant:
-        curve = next(r for r in scaling if r["context"]["model"] == row["context"]["model"])
-        same([row, curve], [key for key in CONTEXT if key not in {"workers", "table_dtype"}])
-        same_runtime([row, curve])
+        baseline = next(
+            r for r in selection_rows if r["context"]["model"] == row["context"]["model"]
+        )
+        same([row, baseline], [key for key in CONTEXT if key not in {"workers", "table_dtype"}])
+        same_runtime([row, baseline])
     return relevant
 
 
@@ -140,18 +146,13 @@ def selection_audit(rows, selected):
         "",
     ]
     for model, workers in sorted(selected.items()):
-        curve = [r for r in rows if r["context"]["model"] == model]
-        medians = {r["context"]["workers"]: measured(r) for r in curve}
-        best_small = max((2, 4, 8), key=lambda w: (medians[w], -w))
+        decision_rows = [r for r in rows if r["context"]["model"] == model]
+        medians = {r["context"]["workers"]: measured(r) for r in decision_rows}
         lines.append(f"## {model}")
         lines.append(
             f"Selected settings: {workers}. Unrounded 32/16 ratio: {medians[32] / medians[16]:.17g}."
         )
-        if medians[best_small] > medians[16]:
-            lines.append(
-                f"The {best_small}-worker median ({medians[best_small]:.17g} texts/s) exceeds the 16-worker median ({medians[16]:.17g}). The README still uses 16 as its fallback, per maintainer decision. Smaller settings belong in the scaling curve only."
-            )
-        lines.extend(audit_sources(curve))
+        lines.extend(audit_sources(decision_rows))
         lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -202,8 +203,8 @@ def comparison(pair):
     if left["backend"] != "fse" or right["backend"] not in BACKENDS:
         raise ValueError("Expected fse and a named reference library")
     same([left, right], CONTEXT)
-    if left["context"]["workers"] not in SCALING_WORKERS:
-        raise ValueError("Pod comparisons must use a measured scaling setting")
+    if left["context"]["workers"] not in PANEL_WORKERS:
+        raise ValueError("Pod comparisons must use a measured panel setting")
     if left["source"] != right["source"]:
         raise ValueError("Each bar needs its own matched paired series")
     if pair["output_checked"] is not True:
@@ -315,12 +316,12 @@ def check_stale(output, files):
 
 
 def panel_files(data, palette):
-    selected = selections(data.get("scaling", []))
-    table_rows = selected_rows(data["table"], data.get("scaling", []), selected)
+    selected = selections(data.get("selection_rows", []))
+    table_rows = selected_rows(data["table"], data.get("selection_rows", []), selected)
     if data["table"] and not table_rows:
         raise ValueError("Missing selected precision rows")
     files = (
-        {"core-selection-evidence.md": selection_audit(data["scaling"], selected)}
+        {"core-selection-evidence.md": selection_audit(data["selection_rows"], selected)}
         if selected
         else {}
     )
@@ -330,7 +331,7 @@ def panel_files(data, palette):
         files["speed-table.md"] = (
             table(table_rows, selected[model]) + "\n\n" + data["table_caption"] + "\n" + note + "\n"
         )
-    pairs = select_pairs(data["comparisons"], data.get("scaling", []), selected)
+    pairs = select_pairs(data["comparisons"], data.get("selection_rows", []), selected)
     if pairs:
         for theme in ("light", "dark"):
             colors = {key: value["value"] for key, value in palette[theme].items()}
@@ -343,8 +344,8 @@ def panel_files(data, palette):
     return files
 
 
-def select_pairs(pairs, scaling, selected):
-    selected_rows([p["fse"] for p in pairs], scaling, selected)
+def select_pairs(pairs, selection_rows, selected):
+    selected_rows([p["fse"] for p in pairs], selection_rows, selected)
     chosen = [
         p for p in pairs if p["fse"]["context"]["workers"] in selected[p["fse"]["context"]["model"]]
     ]
