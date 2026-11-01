@@ -1,0 +1,9 @@
+{
+  "file": "publication-manifest.json",
+  "sha256": "ac85cae41b05788bc278d68fd3231489de1615c7c15b8b79229844c3d0dabe69",
+  "bytes": 175786,
+  "repositories": 30,
+  "payload_files": 135,
+  "approval_status": "Option B: content, repository list and licenses approved; upload waits for release 2.0.0 and release cards",
+  "hub_writes_performed": false
+}

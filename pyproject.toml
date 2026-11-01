@@ -476,6 +476,7 @@ ignore_names = [
     "normalizer",        # attributes of a Hugging Face tokenizer, read by tokenizers
     "pre_tokenizer",
     "post_processor",
+    "mteb_model_meta",   # metadata read by mteb.evaluate on encoder wrappers
     "hf_split",          # arguments of the MTEB encoder interface
     "hf_subset",
     "prompt_type",
