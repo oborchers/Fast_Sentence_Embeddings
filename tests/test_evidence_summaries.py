@@ -1,5 +1,6 @@
 """Moving evidence preserves every measured value retained by compact summaries."""
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -119,9 +120,17 @@ def test_existing_master_studies_preserve_retained_values(original, stem):
     raw = compact.pop("raw_evidence")
     manifest = json.loads((BASE / "dr151_evidence_manifest_20261101.json").read_text())
     entry = next(row for row in manifest["files"] if row["path"] == raw["path"])
-    assert raw["size_bytes"] == entry["size_bytes"] == len(original(name))
-    assert raw["sha256"] == entry["sha256"]
-    assert raw["url"].endswith(raw["commit"] + "/" + raw["path"])
+    archived = original(name)
+    assert raw["commit"] == manifest["evidence_commit"]
+    assert raw["path"] == "benchmarks/baseline/" + name
+    assert raw["size_bytes"] == entry["size_bytes"] == len(archived)
+    assert raw["sha256"] == entry["sha256"] == hashlib.sha256(archived).hexdigest()
+    assert raw["url"] == (
+        "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/"
+        + manifest["evidence_commit"]
+        + "/benchmarks/baseline/"
+        + name
+    )
     if stem == "store_sync":
         for cell, old in zip(compact["cells"], source["cells"], strict=True):
             assert cell.pop("discarded_count") == len(old["discarded"])

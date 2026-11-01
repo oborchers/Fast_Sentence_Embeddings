@@ -424,7 +424,7 @@ Prestarting all workers to a barrier, outside timing, costs 4 workers: 0.378 ms 
 
 The corrected matrix took 325.7 active seconds including child startup and loading. Load pauses are separate. 9 rounds crossed the load limit and are retained as discarded data. The initial series was replaced in full after removing retained byte copies used for bit checks, which inflated RSS. It is not combined with this series.
 
-**Timeline and profiles, deciding cell:** potion-base-8M, first 5000 MASSIVE texts, 10 workers, both variants. Three paired traced rounds of three calls at load 4.63, no discarded round. Every pass has an exact disjoint idle split; columns below are separate medians. [Compact timeline and profile summary](benchmarks/baseline/thread_pool_profiles_20261031.json) ([full archived evidence](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/e8b338363def0f43a9460ea94a66cd2b96e8bb52/benchmarks/baseline/thread_pool_profiles_20261031.json)).
+**Timeline and profiles, deciding cell:** potion-base-8M, first 5000 MASSIVE texts, 10 workers, both variants. Three paired traced rounds of three calls at load 4.63, no discarded round. Every pass has an exact disjoint idle split; columns below are separate medians. [Compact profile summary](benchmarks/baseline/thread_pool_profiles_20261031.json) ([full archived evidence](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/e8b338363def0f43a9460ea94a66cd2b96e8bb52/benchmarks/baseline/thread_pool_profiles_20261031.json)).
 
 | variant | traced wall ms | idle share | tail share | ramp share | after last task ms |
 |---|---:|---:|---:|---:|---:|
