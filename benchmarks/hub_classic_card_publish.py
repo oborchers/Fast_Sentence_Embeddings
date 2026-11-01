@@ -40,7 +40,7 @@ def _write_json(path, value):
         temporary.unlink()
 
 
-def publish_card(folder, record_path, cards, text, fit):
+def publish_card(folder, record_path, cards, text, fit, attributes=None):
     journal = journal_path(folder)
     if journal.exists():
         raise FileExistsError("recover the existing card transaction first")
@@ -50,6 +50,8 @@ def publish_card(folder, record_path, cards, text, fit):
         (stage / "README.md").write_text(text)
         if fit is not None:
             (stage / "preparation.json").write_text(json.dumps(fit, indent=2) + "\n")
+        if attributes is not None:
+            (stage / ".gitattributes").write_bytes(attributes)
         after = dict(before, files=dict(before["files"]), card_recipe=CARD_RECIPE)
         for path in stage.iterdir():
             after["files"][path.name] = _spec(path)
@@ -91,7 +93,7 @@ def _check_existing(path, allowed):
 
 def _check_model(folder, transaction, stage):
     before, after = transaction["before"], transaction["after"]
-    managed = {"README.md", "preparation.json"}
+    managed = {"README.md", "preparation.json", ".gitattributes"}
     for name, spec in before["files"].items():
         if name not in managed and _spec(folder / name) != spec:
             raise ValueError("model changed during card transaction")
@@ -134,7 +136,7 @@ def recover_card(folder, record_path, cards):
     cards.mkdir(parents=True, exist_ok=True)
     preview = cards / f"{folder.name}.md"
     _check_existing(preview, [before["files"]["README.md"], after["files"]["README.md"]])
-    for name in ("README.md", "preparation.json"):
+    for name in ("README.md", "preparation.json", ".gitattributes"):
         if (stage / name).exists():
             _replace(stage / name, folder / name, stage.name)
     _replace(stage / "README.md", preview, stage.name)

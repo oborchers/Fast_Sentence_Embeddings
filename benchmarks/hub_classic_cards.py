@@ -13,7 +13,7 @@ from pathlib import Path
 from hub_classic_card_publish import publish_card, recover_pending
 from hub_classic_delivery import CARD_RECIPE, validated_source
 from hub_classic_evidence import validate_build
-from hub_classic_sources import SOURCES
+from hub_classic_sources import ATTRIBUTES, FSE_API_REVISION, SOURCES
 from hub_classic_verification import verification_rows
 from prepare_hub_classics import LICENSES
 
@@ -161,8 +161,14 @@ def render(folder, record, verification, fit):
         location=record["repo"],
     ).decode()
     text = front_matter(template, name, fit)
-    text = text.replace("pip install fse", 'pip install "fse>=2.0.0"')
-    text = text.replace("## Usage\n", "## Usage\n\nThis model requires the fse 2.0 API.\n")
+    text = text.replace(
+        "pip install fse",
+        f'pip install "git+https://github.com/oborchers/Fast_Sentence_Embeddings.git@{FSE_API_REVISION}"',
+    )
+    text = text.replace(
+        "## Usage\n",
+        "## Usage\n\nThis model requires the fse 2.0 API, currently in development. The install command pins its source.\n",
+    )
     text += f"\n<!-- {CARD_RECIPE} -->\n"
     text += "\n" + "\n".join(measured_text(record, result, verification["rows"]))
     if fit is not None:
@@ -185,7 +191,14 @@ def main():
             folder = args.models / record["repo"].split("/")[1]
             current_fit = fit if record["method"] == "sif10" else None
             text = render(folder, record, verification, current_fit)
-            publish_card(folder, args.models / f"{folder.name}.json", args.cards, text, current_fit)
+            publish_card(
+                folder,
+                args.models / f"{folder.name}.json",
+                args.cards,
+                text,
+                current_fit,
+                ATTRIBUTES,
+            )
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
-- Add offline preparation and STS-B verification tools for classic word-vector Hub folders. No models are uploaded.
+- Add offline preparation and STS-B verification tools for classic word-vector Hub folders, exact PUBLIC publication inventories, and isolated read-only post-upload checks. No models are uploaded.
 
 - Prepare LangChain, LlamaIndex and Haystack integration packages under `integrations/`, with isolated package CI, real-model retrieval examples and independent approval-gated release workflows. The planned 0.1.0 packages require fse 2.0.0.
 
