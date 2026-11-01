@@ -2615,6 +2615,2718 @@
       "source_kind": "coordinator-verified pod transfer"
     },
     {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/SIF-10-fasttext-crawl-subwords-300-fit.npz",
+      "size_bytes": 8012520,
+      "sha256": "ddcbb34ef48877d9ebd3bb8a9073cfe23ad8172261c61493e1a3bf236e5696f7",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "9e603cdf64461f98a8fd0bc6a1edd9e9bb1a4ad6",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/SIF-10-paragram-300-sl999-fit.npz",
+      "size_bytes": 6827544,
+      "sha256": "844265ec935aa04e2ceeb932ee76fc5f5635483f5e4ae919ff32e3acc13228ae",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "24556e460a5d9468e0db8dc2650f2a8e93d20f28",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/SIF-10-word2vec-google-news-300-fit.npz",
+      "size_bytes": 12012520,
+      "sha256": "97714cf224304579c28e84d228721dfa1381492cdfdc5dd35dabbdecef68fc96",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8cdb7287f6b88a5f73ffe3abfddf8363972b5e36",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/active-stage.json",
+      "size_bytes": 1093,
+      "sha256": "8e2b066940caef3f8a678ea74ef325e735e340f62d55c59df01331aea4db59ae",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "bb914c95e11a4dd82371b8890fb45358107f04f1",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/artifact-identities.json",
+      "size_bytes": 15405,
+      "sha256": "6e7b6a8fada8fc19274c896fe2ee28c7724b1ba252b3bb60cafd8fc246e96157",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b4dd49c46f207384e3d81306bbccc99c0e606194",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/bootstrap-invocation.json",
+      "size_bytes": 6202,
+      "sha256": "d22091761d940d28bcf442f9ec7aa85525a314868e78072e739345d7d33d1e88",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "fb5d9400901ed8c6dc839b25286122d35377a854",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/bootstrap.log",
+      "size_bytes": 2064436,
+      "sha256": "74a4549a4e4c3e76c2e3bb9388f651fe6ab6ec9f8da14f08682f2cf4ae04407f",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7301393e56280fcb6bc607ada839238de8b12c01",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/cache-cleanup.jsonl",
+      "size_bytes": 1316,
+      "sha256": "512261f56e25183b099eef98ddc55ca469969dfd87df7fd1b23c10dc3cfea5e9",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "791547e7ce6b917d6e34ea3a222d3c71a7420bc2",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/cache-ownership.json",
+      "size_bytes": 105,
+      "sha256": "9801fd6b34c7c71170a6991ea96c50e3e27d27d6eeba48fdf9e9f267a20ba71b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "dbfdda866faf2616531a0eca18c1df1ea8a08499",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/complete.json",
+      "size_bytes": 161,
+      "sha256": "7a787e1739aed9556e572709343bd11d2812f05f0ff3865c25ccd84a9c6b92c3",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "af8be0d60fe19eb0515817be7d9b51a8dd3b42d9",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/container-memory.json",
+      "size_bytes": 258,
+      "sha256": "6cb6e800b0add0db4a56263310909158d802b6cd0e9c06b8151f3eda840ccefb",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "70875ece4184a5c2144a9b413ceb00e5caf250a8",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-AmazonCounterfactualClassification.jsonl",
+      "size_bytes": 6217,
+      "sha256": "087ba4b1245e5f628ba9e0ea04eab4e7cead1ec6c605fe195d174bcefbfa3928",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "da95aa4d542431a6dcfb569fc940a2bdea1ef4a8",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-AmazonCounterfactualClassification.rss.txt",
+      "size_bytes": 1050,
+      "sha256": "ae73bdb9b467929d4fa7db1df159100307690bb51692575d5af280954f838d88",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8793975bbd79cf0f061c03fd279898b860bee07d",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-ArXivHierarchicalClusteringP2P.jsonl",
+      "size_bytes": 5229,
+      "sha256": "362a3428db4e56297baaf0890eb5e2c92e48ed135c0d4f9b1144fd72e4da5929",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "6b019849f7b0e6006fac288b2aaecf9d84855581",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-ArXivHierarchicalClusteringP2P.rss.txt",
+      "size_bytes": 1043,
+      "sha256": "c7ac750f8a8811be1a9009b1db6e0ce3e101b6a5f6f7802a369e328a6fc0def1",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8ce53b2029d4d63495849dc4bffb09a1d9937c0f",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-ArXivHierarchicalClusteringS2S.jsonl",
+      "size_bytes": 5221,
+      "sha256": "0ba0f6d752e6d2533565080df5443d91a2e89d56f3fef3cddcb66a8f815ae302",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "ad372cf911da4437a4a0712a5552b5cc36342906",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-ArXivHierarchicalClusteringS2S.rss.txt",
+      "size_bytes": 1042,
+      "sha256": "cde648405e89014814bf47a6b0a8bb9304267b3cecd0de51025592d8996714a3",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c2ac236b755295301a8bf6fb44c34da512ac661e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-ArguAna.jsonl",
+      "size_bytes": 5435,
+      "sha256": "556ff5eb67bda4733fb30c8b1d295dafbe68e9e29872cbaca9e1313f614c5729",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b8e5957f80f914698a8b85e1b624820ae4ef1a75",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-ArguAna.rss.txt",
+      "size_bytes": 1000,
+      "sha256": "33d9d1b20ca92c491cb92f95b4fcb9908747e23c6eb7a9a8977f154d49c6b47e",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "3bace6cdf25f096b7f0156c297923ade1ffa807d",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-AskUbuntuDupQuestions.jsonl",
+      "size_bytes": 5623,
+      "sha256": "608a8e40adeb28fd22879fa46239c8c6c80829c977ed12eaf1671883a8bff5b5",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7d5613b53a83c4b5053c117ecdca2248368d42a3",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-AskUbuntuDupQuestions.rss.txt",
+      "size_bytes": 1025,
+      "sha256": "40745f3d39f204f6f5368366271c8731df69b7ee5138fd5e54c01b06ac66eeac",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b97f8d10777caf654ef687272236969c02c03b4d",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-BIOSSES.jsonl",
+      "size_bytes": 5705,
+      "sha256": "b6b40d8ad61ceda0c5b9a52d742ef25d500633f5a3d568543346d539e740529b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "5a5b660c12d08eb53e016fdf7501abbbf013260c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-BIOSSES.rss.txt",
+      "size_bytes": 993,
+      "sha256": "5167865fcc53c15a4f090292ba25a8a227fc0395995fb0867953811f407abbdc",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e649cf3f414f167da6693759cb06ac4fa5232d22",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-Banking77Classification.jsonl",
+      "size_bytes": 6010,
+      "sha256": "685c7287127a4312084be33657b8f53f38a5e4b0773a1b73d91be13eca2da368",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "94411601d327263ea30cde4a6f071b650e796140",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-Banking77Classification.rss.txt",
+      "size_bytes": 1027,
+      "sha256": "2eb55acc4f0add3bb6db7ec7348469468a0af7b4cee0705ca95a5616ac95e5b9",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "cbe62617be4330762fbf19cf2daae902e3340455",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-BiorxivClusteringP2P.v2.jsonl",
+      "size_bytes": 5288,
+      "sha256": "de30d11580083bb9e46900ad9e45adbbcd6bc11a2fad52d47bf0e755103fa94a",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "9fd1e6cdedfb551dc7d06485b4ef826a83975482",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-BiorxivClusteringP2P.v2.rss.txt",
+      "size_bytes": 1028,
+      "sha256": "581bb04e075621ebcb9d2d40f65c7189c4e09d003e05c3f642bfb52379a1e1a0",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "461cb78cfa73f62f2765b03d42437b87dfac8063",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-CQADupstackGamingRetrieval.jsonl",
+      "size_bytes": 5844,
+      "sha256": "62f9a20381404b02f8e1b9dd042c46b95380275bee8a59a9a17bf59457acf3ac",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7db54d42b8b6545f2c4c724df0866ac66b8b805f",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-CQADupstackGamingRetrieval.rss.txt",
+      "size_bytes": 1038,
+      "sha256": "ab44681e3b6f065951549ddd1db67f515e9f0034b6a5bf33d47aae89c3919c36",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "85b650e51e029ca5f18e38b4570bcbbb981106b0",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-CQADupstackUnixRetrieval.jsonl",
+      "size_bytes": 5854,
+      "sha256": "7787c655fa98a8403a8647b9d0e500a5c1ea1be0edddbea5f8927bd24f9fe748",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c50f353d810944c586c864743a01fb086699d52f",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-CQADupstackUnixRetrieval.rss.txt",
+      "size_bytes": 1034,
+      "sha256": "963cb50a43ae16a5bfbe92ff0dc40bcf9c86b39d9cf37aec1f5ee4484c98fb5a",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "903f9065ed6d8721d40649cd447c381f640064dc",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-ClimateFEVERHardNegatives.jsonl",
+      "size_bytes": 5814,
+      "sha256": "7fad0562a9f375a9dd9cad7a6fb99d1011bd87216a9e2695c825541358bcf57c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8b082d5347588300c3abbfe98c883e5d12914b14",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-ClimateFEVERHardNegatives.rss.txt",
+      "size_bytes": 1036,
+      "sha256": "1b08ac3054fa56c0a6ff6c49236d165a1d6875db0507d87889e820afc7c2f9b4",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8f457bdf18dc090dfe362af6ee33b2ff721d10c9",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-FEVERHardNegatives.jsonl",
+      "size_bytes": 6194,
+      "sha256": "63265a5a3c405132aaa70fad8a237b41179d6ca378ade57ed1ef6163e393731b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "a47ed0632a1457cfb2de853e9ff8a1bbdf2497ad",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-FEVERHardNegatives.rss.txt",
+      "size_bytes": 1023,
+      "sha256": "73835424618651659faf8c5fe6a7810c72d39c51881eba12ebc664cc91aae22e",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7ac72dbd5dc8e645ce5785382c465174b54d734c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-FiQA2018.jsonl",
+      "size_bytes": 5703,
+      "sha256": "cc023b20b33d39fe95c49de27385f9b252e4ed5f9ee715afa0938edf4c218970",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "68bbf52bb185732bc4369a88469c06d8e934b3e8",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-FiQA2018.rss.txt",
+      "size_bytes": 1001,
+      "sha256": "0c6dce02aaec668d704d9466e0bc79f441c28724c7c1cad3fbff6b54ec2d974e",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "4f1dc8d54e7f45fc18d93e5e59f0abe96c83d901",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-HotpotQAHardNegatives.jsonl",
+      "size_bytes": 6209,
+      "sha256": "c8f5b98a7bf385735f362903f3cb711606de4de1f57e628b872307893fe3643a",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7ea996d34132e1efc6e587ec22cdece02c274e2a",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-HotpotQAHardNegatives.rss.txt",
+      "size_bytes": 1028,
+      "sha256": "6c55e9d1aa1533f9128e2040e8c9546bed4f561500676391148bc6f876239007",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "1d3fe743f3654ce1f4e039e71378ce695e762539",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-ImdbClassification.jsonl",
+      "size_bytes": 5836,
+      "sha256": "e3b4eb9b484d6e7cab40931524a376d0056cabafb0dfaabbc271a82e3a2b6b4c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "50867aac2710679a38087d8c57b2942268d42c02",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-ImdbClassification.rss.txt",
+      "size_bytes": 1021,
+      "sha256": "fe94aa32cb172e19f0cf93d650ba81a06d427fdf4d9eef6f4693edff55148594",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "9ac6d9defa96101824e5b409a26d56bc0d26b53e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-MTOPDomainClassification.jsonl",
+      "size_bytes": 6063,
+      "sha256": "f74a0ab387005b5960c5d16f7e20fae090bd61954bd32383003cd9644b177832",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "68cc13a67b3f4e14e341c4f7be4af3746fc26c2c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-MTOPDomainClassification.rss.txt",
+      "size_bytes": 1031,
+      "sha256": "22a452212d207cc4fdc212c27318afa259fd3f29b3b98221cebe5b9e3ec5998d",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "58a223e0813877b103326c03652fe2d8322dd021",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-MassiveIntentClassification.jsonl",
+      "size_bytes": 6867,
+      "sha256": "826b8890a5539ba435907a53630a8de1bb65a5a118587da66ed4068b26ae192b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "be9e80cf98616dbac88d0037d7a86fa2362b5528",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-MassiveIntentClassification.rss.txt",
+      "size_bytes": 1040,
+      "sha256": "ace0c33d88ca516a223cc80902eeff36ef9540923cd37341835373426d96aa7c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "961a6410ef82f2be6f6e267c650438d2ef2be10b",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-MassiveScenarioClassification.jsonl",
+      "size_bytes": 6869,
+      "sha256": "e6aaeb268ab4effaac6703ae6b5e97c13d197d30eb6a614ceabb6a390f9b9a39",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "6fdc2c72e776c4fd19bf2400aa00c1c053f367b4",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-MassiveScenarioClassification.rss.txt",
+      "size_bytes": 1044,
+      "sha256": "d34b9cee3360e27c6db3aa6b60e4e14b7fc72db4443228d669fb3ba108386579",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e01152dec7bc9a85bd25dcacefc4949b193983ce",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-MedrxivClusteringP2P.v2.jsonl",
+      "size_bytes": 5302,
+      "sha256": "fe1a596251beff3db5fe42a761f0484938e07a11d78cecba60cf549d16a77090",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "95375b011800bf639511cb4c448675b9566a5248",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-MedrxivClusteringP2P.v2.rss.txt",
+      "size_bytes": 1028,
+      "sha256": "8259316d9341967af20beba448f3117e7380a844e9b3415bf0f1b6d99f7c54b6",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c523843a2695b03d0742a20d261c5e79f65d91c0",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-MedrxivClusteringS2S.v2.jsonl",
+      "size_bytes": 5280,
+      "sha256": "d8a5b1b6cb7c0f036b0185b2b17e8a54eb07a2c572aa114bd834afbe0c3527f2",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "5f291347a8b27d16e9b591e2d411cb7f39f88f1a",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-MedrxivClusteringS2S.v2.rss.txt",
+      "size_bytes": 1025,
+      "sha256": "3570722bfe54351c6c2a59e8f44745096e7c3293ecbd3200254c8a324ae4f71b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "cf65e387023fe998ba2b446be3bcff89853b4827",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoArguAnaRetrieval.jsonl",
+      "size_bytes": 5492,
+      "sha256": "ac2506c888cc879cfa4003e8cb01e251605df5998f915b9387605364639bfec6",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "124945f6d2e4f40ddd49be202a1832caf7ab6dbc",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoArguAnaRetrieval.rss.txt",
+      "size_bytes": 1024,
+      "sha256": "2d42af3b0fe695e4ad94ce14607c5846ccfee68426883cb902864243bc7a5d17",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d1234279a4639d677c658a5113860c041b2f8923",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoClimateFeverRetrieval.jsonl",
+      "size_bytes": 5712,
+      "sha256": "fb4beb26fdf228893db3bbdc4be7eaf3f824ec5630c41c3e20daf5d8d7ce9cab",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0fafc315c5d9a49bd288dd81aef56fdf9622a7b0",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoClimateFeverRetrieval.rss.txt",
+      "size_bytes": 1034,
+      "sha256": "7f57a4d4bd9cb935d658b113dd40949d6d2180540b54d1bf7ae71e199187f0fd",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "225c79e287b4c4da3dfc1ee1e941c0a8e71cfd53",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoDBPediaRetrieval.jsonl",
+      "size_bytes": 5520,
+      "sha256": "a49a409dee010cd280951b81e6a2348f3130f31761b189bae145bf98ea062564",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "90dd7836a1044962aff274aed4a899ee589f11c1",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoDBPediaRetrieval.rss.txt",
+      "size_bytes": 1023,
+      "sha256": "0011ba4fcc342d84b2247f5c350c850cd4a5fe7ebac290107c40b9d866ebcaa1",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e50f8c0ca3f4984973f053e500b7144e79f101c6",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoFEVERRetrieval.jsonl",
+      "size_bytes": 6121,
+      "sha256": "5162943d1b4dbaebdc9e436d72c79bc3d03d73cca2ca9b25739c9361e8e16002",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "a14828f91443684028faae1dde6e66fe860d1408",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoFEVERRetrieval.rss.txt",
+      "size_bytes": 1020,
+      "sha256": "9baf0d4fd723742a68175182ccc1d75be3efad59a5cf062994efc26415d96cc0",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "947a39931b241e145940ac0412e82d36fdc52025",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoFiQA2018Retrieval.jsonl",
+      "size_bytes": 5792,
+      "sha256": "59e529ce2206165f3a292194c8ad6180ed0f05ab24c9d7cf67892b4403d79d26",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7bd7ae387c6c2ce80bfac26d77bc1db8eee409b7",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoFiQA2018Retrieval.rss.txt",
+      "size_bytes": 1026,
+      "sha256": "0f4f6a495036b55224d1ad6cf07399cc4d28b8fb2dc4f799d38dfe8d1d081eb1",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0a2c8eb864cb0e4092d6fedf648fdcede1f80e96",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoHotpotQARetrieval.jsonl",
+      "size_bytes": 6167,
+      "sha256": "ca44f3d48438d9ee2c90dc07ed570d3d3142d56e0c0d2abcf4711610ed292830",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "9aab713389feb6713bfacea3381f6a600168c2cc",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoHotpotQARetrieval.rss.txt",
+      "size_bytes": 1025,
+      "sha256": "9b1587bad179bccaea1d7d9f5ebbe322567dd0e9d678196bc856432b582627ad",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "9fa943262f079a0744c2fb3acab9690a243f7672",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoMSMARCORetrieval.jsonl",
+      "size_bytes": 5805,
+      "sha256": "b4d1a197c62649ef92a70d3d589c8ef00340f421d43fcd538544a00323dfe678",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e2c8d6c54e705e740dc17979e3a207fda7f11df2",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoMSMARCORetrieval.rss.txt",
+      "size_bytes": 1023,
+      "sha256": "ce36ca6799f465a8d6d29a86d1a414466a4dbcd5d015d34c5de7b19b204ad55d",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8414e4e08da6327457a23a0e73e88b71f1b362a8",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoNFCorpusRetrieval.jsonl",
+      "size_bytes": 5794,
+      "sha256": "d490d5299e1aaf2cc50f271b5f9d323ac84a1b2f7463b46f9d10c825ed538d7b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "164119d0689564232a8b4b78531ff448730bef70",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoNFCorpusRetrieval.rss.txt",
+      "size_bytes": 1026,
+      "sha256": "362bc490c94373d8257e2a2632045f3ea32287d70e1fa80de403509fb76d3bc9",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b677535afd02472ff5fe58ad9754b63f26ccf120",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoNQRetrieval.jsonl",
+      "size_bytes": 5919,
+      "sha256": "8e2487e2459e5080c94703bb21b296cfc4410a4509e728f2635fca6d1aad30e3",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8529293496af3f2eb54a982fc7a0eedd301efe2c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoNQRetrieval.rss.txt",
+      "size_bytes": 1013,
+      "sha256": "56b1c88c6fec31628e018f2e7ffadc1cded4a42ad5bcb43dfa307978e6730c31",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c7e337654795fc57ae00601e2f451f1183c6aa94",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoQuoraRetrieval.jsonl",
+      "size_bytes": 5685,
+      "sha256": "8e825b9691840225506c62370a6fea1a61eb6daf9e4371ed0b44c8bb901667f9",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "86b04995cde4e3a2567361c5c4ae5b2ad882e0ac",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoQuoraRetrieval.rss.txt",
+      "size_bytes": 1019,
+      "sha256": "6b3fc6236d11fc95e52e0958dfc0979cf9193bde56994a6d9128aef22a64ce22",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0a8fd1ec0769ad92d92094ee7e219dee5d916d02",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoSCIDOCSRetrieval.jsonl",
+      "size_bytes": 5650,
+      "sha256": "daa8f89ca2f75a307e95bc6b894ef3c5acb1d22858988b0120ef1639de3460d6",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e30ce04b3ced1ee5ee605158709d635b4962869c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoSCIDOCSRetrieval.rss.txt",
+      "size_bytes": 1023,
+      "sha256": "c5649c39f59bafff80424421c137e9359f27f096e2ce5d15d709d564bb669b4c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c7399c9abdc1ab12e9fbddab380f870d181a439c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoSciFactRetrieval.jsonl",
+      "size_bytes": 5622,
+      "sha256": "baf230d8367faa2f1ece8d50d54d8cc67af6dde2e8ee5666ef687c7721146dd1",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b511c3587235f5787ab11340f8953848b8033278",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoSciFactRetrieval.rss.txt",
+      "size_bytes": 1024,
+      "sha256": "471e4c3a9463baded61807ce127e57da78d6ae410b8bbcf204f4f286c8a1cb9d",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "6f6105aa4a0df6a09fdca9a91211e1f3d45e2541",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoTouche2020Retrieval.jsonl",
+      "size_bytes": 5752,
+      "sha256": "6bade217033805c80f705037801afb5cecb4aee24b4487e34c39e1739435e961",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b6e2a6c81fb215dccebf9d3fa6fe2a82c88698fe",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-NanoTouche2020Retrieval.rss.txt",
+      "size_bytes": 1030,
+      "sha256": "47ff4a118ce4fe3b29246348f65175206e8efd358fe5a8de1200c11579ef8c03",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "600e2953a517d206114ef7a50c96f918eec5dd7c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-SCIDOCS.jsonl",
+      "size_bytes": 5589,
+      "sha256": "fba5f0910bb0631c2de767954cf6205e969ec613996ed19b41d7a3c94c4e0acd",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "a888cc9794e7e15249fcf3240e466568d7c64a68",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-SCIDOCS.rss.txt",
+      "size_bytes": 1002,
+      "sha256": "eeb11cdd9d77cdf3b2bdb828743b753d8fb1e4910363a45d02c8020af756af52",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "08dc3c22549b25ad5fafed15695bc72058ea86db",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-SICK-R.jsonl",
+      "size_bytes": 5951,
+      "sha256": "79f7036188f140f8c63e8ae609f0328a60f4fb67aa30408c068db32558ccae97",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b365e316422bc6f4959ca734ac68a79bb7c29c2d",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-SICK-R.rss.txt",
+      "size_bytes": 992,
+      "sha256": "bb16fe59541d11470361925feff04022014503e65d2d2fcff33f4eb316d9470f",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "3d05f0b8c90a421b3b86847e01d0a13bf03bdcea",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STS12.jsonl",
+      "size_bytes": 5752,
+      "sha256": "ff6d4020e65cbd7938d5cbeb498381f2e4cca4fa1ec5fe46b2ae0d0ef2c1ff6a",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "9d16608bb2d3f9e90182b4248197cdb9bab9f975",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STS12.rss.txt",
+      "size_bytes": 990,
+      "sha256": "ef476fab9e327562e5273d490cfdaac4836b05a6188311f14b0c89f54bddd679",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "2d228edab2fb5c854d15ddff03a4ee4bdb906dc3",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STS13.jsonl",
+      "size_bytes": 5758,
+      "sha256": "f4fb5008c7a26632281098cb76876eb91d62140866690c20af7fe9004e0a4f8c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "61589381272d8fa43d58b3d6004cc5e9af0bee56",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STS13.rss.txt",
+      "size_bytes": 989,
+      "sha256": "2c409c0bf19e80756083b0f096d2599277de3ec58d6255df4ea771d95e1827de",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "837631727b951629fe965c969029b5a96dfd8e69",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STS14.jsonl",
+      "size_bytes": 5781,
+      "sha256": "a9b5379d633b515403d4abacce17127e2db4962bf8afd972f8b80fdd2de5fb99",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7602377c110a2245b31494c1ab668936968952df",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STS14.rss.txt",
+      "size_bytes": 990,
+      "sha256": "8235b1fcb7a0db408940ffe0f95979b326fe0c6dab593e20ff95ae965e3914e7",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d6233515a58fe561398e20945815b6c777eed992",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STS15.jsonl",
+      "size_bytes": 5684,
+      "sha256": "03632b1ed7d058cef12bff24abf384cb027f644f9a7351d3e1aba40bf60878e4",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "4580094a877995e01bb4988077a7f4fa5cecd44c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STS15.rss.txt",
+      "size_bytes": 990,
+      "sha256": "4d3e1f5e83d38ecc1f12ffc792c4586535fae9325a3cd3e2350ec2f41690c409",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "07ad154e9aa07e56f06f62660484a306a4874b2c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STS17.jsonl",
+      "size_bytes": 6236,
+      "sha256": "da8b8aa555a2fef175ede303055f69a96079534d53d20abb8f98b20df3cc7aae",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e7ee98132971de7134afc8187d15ce158dd8bec0",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STS17.rss.txt",
+      "size_bytes": 991,
+      "sha256": "28101530ae6506c704767f7b3bbe2f8f6dd69475214c87d14dbc338975363cb3",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "af3e93b248d9174a97b3788f66cb3e75aff227f3",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STS22.v2.jsonl",
+      "size_bytes": 6559,
+      "sha256": "d270239d9a5f35ab859ee637168e5f4658d49403256d947f4d7484a3240673fa",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8e3556848894d2e16359072bcaa9602cb6954d10",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STS22.v2.rss.txt",
+      "size_bytes": 1000,
+      "sha256": "3c818f8fa0ccd18d65f065c98e3c29c9a2fc625cb135fb97b705a4e05701bb2e",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0a5c3e5afdbb4e3ef489de896604e31216225647",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STSBenchmark.jsonl",
+      "size_bytes": 5922,
+      "sha256": "91a9cf4e92d005d2937de7501cead4f786f0ef54b8033e07880c87808197db66",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d999a75c674d91303bd8242c5f6ed0c7191089c0",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-STSBenchmark.rss.txt",
+      "size_bytes": 1004,
+      "sha256": "eac492953fff88bb01d89768b8c8dca3b675226117ebd5fb39901979c1d64e43",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "09cd24b7ebe74975f078daa0552c8f53e9628448",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-SprintDuplicateQuestions.jsonl",
+      "size_bytes": 5934,
+      "sha256": "73ceedff73da5b4c00c9b9bff0e5c6bdf986c8b90b3093fbcfed0de65dca07e6",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "81c6f89695aa5471d1a8c0303dc449b1da878fcb",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-SprintDuplicateQuestions.rss.txt",
+      "size_bytes": 1029,
+      "sha256": "b25ab628fb18cd52bb62e97eb97a9b2eb00a7316cfc2153023327671e060ccf0",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d516bbcce0dad15b55bace3bc954a041b103fb86",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-StackExchangeClustering.v2.jsonl",
+      "size_bytes": 5712,
+      "sha256": "481bd0bdc5203d72b0a0b7b5358c182081dbf318ccf5354bf779d1d977ebf28b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "35b48898dda57df7017faec59b944e1c4e2710b5",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-StackExchangeClustering.v2.rss.txt",
+      "size_bytes": 1033,
+      "sha256": "7b6ece3de3b77ab3f332773d269d2face57f6bf94ef29c7dd507c6068227ebb3",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "655be77323bfdf3140bc9425f943e15f5dce1ce4",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-StackExchangeClusteringP2P.v2.jsonl",
+      "size_bytes": 5712,
+      "sha256": "7d2efde1515687b531f3a4124cc3e93f607b4ef931dbba6f6faf6f0d01a28b5c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "3e6cbd5c6b18924dfcf9d2e1c0c4d4b4f1d67cec",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-StackExchangeClusteringP2P.v2.rss.txt",
+      "size_bytes": 1039,
+      "sha256": "c35fd275e16dd470ae6035996d55b1e788fa0fb9590ee409e9ef9cffa6772664",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "2726ef1f9b5517bf8c41537133929b6d53249ee2",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-SummEvalSummarization.v2.jsonl",
+      "size_bytes": 5558,
+      "sha256": "555356e54cf58f4da363a99e32abf40e70b6b12b88043e59b02191e50b5b4df9",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "073dd31aa60cc75890e3f1926025abbfd707f344",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-SummEvalSummarization.v2.rss.txt",
+      "size_bytes": 1028,
+      "sha256": "8bc09946378d6671edc32a7eaa9aeecf5fb2be7009f00c2535af3d9f8516d0e3",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "115adef0a6c524ff06e6f7b03d1b77faca91ebb4",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-TRECCOVID.jsonl",
+      "size_bytes": 5687,
+      "sha256": "9d28c92ae9b8530d03bf0eb3e0b46bf4ca1f5fc47e89c317646fd24a584f9988",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "3b8f0ae75350bffbb9a7d4d0ec4b47f7fc5b22ea",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-TRECCOVID.rss.txt",
+      "size_bytes": 1004,
+      "sha256": "abe181cdd01fc27d8b76451ab0825c44b57706c1274d6f6796d480609b37c78d",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "14bfcf8a568cdbe934d1e65586bcf95d1f2fcba7",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-Touche2020Retrieval.v3.jsonl",
+      "size_bytes": 5696,
+      "sha256": "709043413812f6d526423621ededecb67bb2f0e3260cb4152c2de8e745458293",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "9c015f0a4b590254f3da31b8794a1544ac279195",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-Touche2020Retrieval.v3.rss.txt",
+      "size_bytes": 1033,
+      "sha256": "0e347acd370fb3943f2cd3d39e99a9d78b02e7708690d0029c517b68718e9900",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "475ebfa4f23367ca4bf35cddb7fcb28d428cbc1b",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-ToxicConversationsClassification.jsonl",
+      "size_bytes": 5773,
+      "sha256": "e5ec4d52b43e4956c5b0982a4312c90405c69acb2437a807e7416e6bb0905447",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7d4bbb37187e46b5e19ee1ac0d2461bb10616625",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-ToxicConversationsClassification.rss.txt",
+      "size_bytes": 1048,
+      "sha256": "941d96927b0e2f72f862ffe0655c913df6a78ca5f0dff3fa497ed511194299f6",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b63b0692b4cf4d7347cd347ad93c0daf7874f876",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-TweetSentimentExtractionClassification.jsonl",
+      "size_bytes": 5548,
+      "sha256": "90092dcd384e9e9a054a66ae1c5b2007ed64a33344cab7ee6e7a80a9e25019e5",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "44932b878ad2eea98f07f9bd3892c7aa697408f4",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-TweetSentimentExtractionClassification.rss.txt",
+      "size_bytes": 1059,
+      "sha256": "011c237f7b7ed831f3faf8b09a8521360d2f3ce3205107b74c0e7a5ad74ef5e0",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8d5bf470d9573a25017844d0bd94a35d96d13757",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-TwentyNewsgroupsClustering.v2.jsonl",
+      "size_bytes": 5779,
+      "sha256": "1780207667485288ead3c1028a5661d7c6fd7e3039b1dc9d8e8ea13b7d42009e",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "923f69996dfa127c4d5aaa5747a8ccedf408a0df",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-TwentyNewsgroupsClustering.v2.rss.txt",
+      "size_bytes": 1038,
+      "sha256": "468a7b1f32d53f5944a22d9c18f9b15e837e1b7973029bc11d4044c896088577",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "abd6f36b1b0f62c0299b0a02c72d0591e5e1b2f7",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-TwitterSemEval2015.jsonl",
+      "size_bytes": 5864,
+      "sha256": "731af30f875ac2e3bed4a524b2d8efae165632810ede9fd412d978c1a4ddfc87",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "511d5770e53c02c376a089624036833df750724c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-TwitterSemEval2015.rss.txt",
+      "size_bytes": 1017,
+      "sha256": "358baf62b4c5256ee8197cc5fd60c0f02a82ef457e2838ad83ae70b3048bbe95",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "31b344d19f536686f86ec1b547174e2cb43aa0bd",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-TwitterURLCorpus.jsonl",
+      "size_bytes": 5784,
+      "sha256": "6e19920abf08ba0d154eaaaaf43903a76c4511bdea5db26384bd31f334c96e5b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "51762d9969863a5215f54fe4e293cc5f773c3128",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-TwitterURLCorpus.rss.txt",
+      "size_bytes": 1015,
+      "sha256": "67be2be70c141759bdea77a4f78b08dba14e23a8e3b4baf106c447e8c300e3c6",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0b734ca261a4ebac4129a65ffac37ee1a4f9790e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/fasttext-crawl-subwords-300-excluded.json",
+      "size_bytes": 371,
+      "sha256": "828bcd9d328ea1aacd085d9d2f532ba43e71d52e62d5d51182d72b3790c26a37",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "30b50ae87d6c2e6c1c4bf1b2f568533a7a1c23cd",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/invocations.jsonl",
+      "size_bytes": 177499,
+      "sha256": "000d75aef90a758b70c6f2f55f2a031052c09ba53bf807fe73a24bda90ab22d8",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "69ed14e2a7d2d7970ed732bddd84a19ff480e969",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-AmazonCounterfactualClassification.jsonl",
+      "size_bytes": 6122,
+      "sha256": "67f7d496ad0ddb936ad786a7d205da48682a009e61c06969cad5896ee3de9af0",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "730a5edf44d3477574a22062e6eb82ae3acdf8da",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-AmazonCounterfactualClassification.rss.txt",
+      "size_bytes": 1033,
+      "sha256": "d3a7de899ec39f559256c5b5eeeb06905911e3f22475be0def645e72d2863bff",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c62c4bfe48ca89cdab5b5b60fb2823157d25d1cf",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-ArXivHierarchicalClusteringP2P.jsonl",
+      "size_bytes": 5133,
+      "sha256": "881722074ded2fecf85f12718928afe94b6063ac9472ed2e4c64777a48e7edbb",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c5729b15b0e81912fd25abf46703be7b23c7510e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-ArXivHierarchicalClusteringP2P.rss.txt",
+      "size_bytes": 1026,
+      "sha256": "c3fa090c66255fe21810ba0fa4211c66b133b45b24f65a8136326342cb48aec4",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7edd3ce915a1f828cd874144c949d67fdc91e0fa",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-ArXivHierarchicalClusteringS2S.jsonl",
+      "size_bytes": 5126,
+      "sha256": "095ef87500ddd9ad2a33dcd7da3625ef3c1062a78325db3f456b8e50e8dbf729",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e63a5c2ceac050531fa6f809eff6b48b5352876a",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-ArXivHierarchicalClusteringS2S.rss.txt",
+      "size_bytes": 1024,
+      "sha256": "d84316a1cca7e44aa7ff18566dbba7b6a8b7d5b390c8d2a05581f1ad1f0a93c7",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e3ab6f7ce36a6bd1a08a57f98b81ca8871965519",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-ArguAna.jsonl",
+      "size_bytes": 5340,
+      "sha256": "e49785f85700f0eca1a054fc64db4d8507312fdd6c4b0735da381fffac9adb8b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "21962dfd84ec01b25a0d13d52cd8fffc874218ed",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-ArguAna.rss.txt",
+      "size_bytes": 982,
+      "sha256": "f07544bf3d70612d5332f4779b90f9d3574819595c7758a95057fc880cdf980a",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0b45a03c4bee5a9fc60ca615ebb4614916b0b4ac",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-AskUbuntuDupQuestions.jsonl",
+      "size_bytes": 5529,
+      "sha256": "1f8bcaaf4d99328db66e1da7b98316209fb45d8f70d750a804c9162b05671847",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "440198b3829ca7ccb64f923d73afcf28205b514b",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-AskUbuntuDupQuestions.rss.txt",
+      "size_bytes": 1007,
+      "sha256": "e6f303a30d468864c76ee4e0ead1127258b1b53287baee8a0bcddc989bde0fb2",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "1e29c86b38475f721ca2affa7097d91049e59e49",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-BIOSSES.jsonl",
+      "size_bytes": 5609,
+      "sha256": "fa0d1250104e1e1cd02ab73724de8b81e450ea54a75907fcf7fd5c81d251a701",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d0510fec2b194f584e3cba3ec9947255f98f2e79",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-BIOSSES.rss.txt",
+      "size_bytes": 975,
+      "sha256": "1c0600c6bcf1ac5ed0a626064e3b38873f70c43abf815a72bafe285f43fcb52f",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0a00f31bd383bae1f8646e8c173e4cdce28c6593",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-Banking77Classification.jsonl",
+      "size_bytes": 5918,
+      "sha256": "f525c0c67cfa4173243c06b6e586eed3594338a5e13bbb42858f978ff6362445",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "4167361f213c5b4f23f41532c15b9a10ef7da01e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-Banking77Classification.rss.txt",
+      "size_bytes": 1009,
+      "sha256": "7a248a759a1a650df0751c1892dfe4ca59b6eb635e34cf52367b1d125b25e211",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "a9ec6189d6a9e9e3d3669fa54951b1f8e8730e31",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-BiorxivClusteringP2P.v2.jsonl",
+      "size_bytes": 5196,
+      "sha256": "080fd9acd73f5a2e13d4d54c8ced29de1b4c574a95ee92bc808bf3d02678e00f",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "fc1f9e4af04a34f88a6fef4c44c199787c2b5c50",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-BiorxivClusteringP2P.v2.rss.txt",
+      "size_bytes": 1009,
+      "sha256": "4b4439cf94a6450b1cf7035ca48e96cd87e5765bbea31dae78c6e6a3c3fa0ddf",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "f70fe053bc924c93e14a6517310800c24c204e9d",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-CQADupstackGamingRetrieval.jsonl",
+      "size_bytes": 5750,
+      "sha256": "f0ae5409b50489d5685f9445ae5cc25d49609c9a74a17a12efefd0a0e1f8eb97",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "37578563066b073c4e5efc7809e30f5cc0c071e6",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-CQADupstackGamingRetrieval.rss.txt",
+      "size_bytes": 1021,
+      "sha256": "eb52a521d9f89bedb38dea72e9afe1714f4303f49926cca92bc481be0a08111e",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "884695cc079a278603a4b7265e50a47d9e3379b1",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-CQADupstackUnixRetrieval.jsonl",
+      "size_bytes": 5758,
+      "sha256": "6df727e00aa054d83ff9b045f5d7166cf398be1f45b8cc6fea851e535d2d0325",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "24c20a3348ec974b8d18e258faed8f2bb2bf6980",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-CQADupstackUnixRetrieval.rss.txt",
+      "size_bytes": 1016,
+      "sha256": "eb19c82854196e6f0ab7609ca18b558b0561cf250800d59f6ad4ecf99d27fd87",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "815183e5b4e17b3b760feab37ff793683be1a6ac",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-ClimateFEVERHardNegatives.jsonl",
+      "size_bytes": 5716,
+      "sha256": "e8d9516fa25a617ef2779d49b72adc1a8eab1ce52fcdec67c3b5a63ad0ec5959",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "6e8be1cdecc32453042725abc126cf29000529fc",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-ClimateFEVERHardNegatives.rss.txt",
+      "size_bytes": 1019,
+      "sha256": "e49ddeb4076e46c0aa883a205683495d401ac957841429b67f457be0f2013a67",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "89d768b7d9d20c2a45fd9de534115b455b0c29ac",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-FEVERHardNegatives.jsonl",
+      "size_bytes": 6103,
+      "sha256": "00cc65830fc2def7c7edf0067598ad37144e5fa9cdbd3453db9097c17533e9d6",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "68c50238d53ccb0a58c68ee72f6bf79546c4c8a9",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-FEVERHardNegatives.rss.txt",
+      "size_bytes": 1005,
+      "sha256": "567a6c6c2a270d693419b9113cef281be4126af35e9c57fb8c2fae3090b98f4d",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "6bb02f6befc29f682845dcaf286f0fb396f6562c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-FiQA2018.jsonl",
+      "size_bytes": 5607,
+      "sha256": "d4015111596a6aceb08452b7606489e5cc532df484ea9bef2fad2766e40437cd",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0b89e74fc0015625ca06219e2e73dace52fa3401",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-FiQA2018.rss.txt",
+      "size_bytes": 983,
+      "sha256": "dc814e9bf756791d909c3c201dc9cb3e353445099a813683b798bb405480c727",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "de8c31cef2034eae1401406cf14a9c883af72d4e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-HotpotQAHardNegatives.jsonl",
+      "size_bytes": 6114,
+      "sha256": "f21663e4e45866ec2f748737a33f14350332251fe73a2db79556d02d84765bbe",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "cb51930fcb5f68c2f143afb017f9da8311554528",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-HotpotQAHardNegatives.rss.txt",
+      "size_bytes": 1011,
+      "sha256": "34ece638cb2d4b429cab3feff8b6e9f78c1b8024de645f101f8aedb915ba279c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7f6a8f928eaf3858bc6bc8b15d99811b3bae87e9",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-ImdbClassification.jsonl",
+      "size_bytes": 5755,
+      "sha256": "4582786172da3adf98f0ced6234e4dbe1eddf85b14a8505212f8cbf7096d05d7",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "5532b6539bc6cc37e49f2c7be1ecadbaf725ce5c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-ImdbClassification.rss.txt",
+      "size_bytes": 1003,
+      "sha256": "523cba2354a5ff2db888a5eceeb16e70463dbd5bd5e36ea525b4f7d2e0345958",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "805392a37264139ec9bdf8352e81c990505bbd18",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-MTOPDomainClassification.jsonl",
+      "size_bytes": 5969,
+      "sha256": "cfe5db41dd7ee1a641186a03b3043f3691b0fd0ee785d6018e61973a76c8f44d",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0c3fb384150b60f6a3cfc77a63ab1e20de570306",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-MTOPDomainClassification.rss.txt",
+      "size_bytes": 1012,
+      "sha256": "ef6e2cd8993c338932d40efca7bd59d5c65e0c3f64777c2430d12d3e898bc7aa",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "192937a6c02a9216eb3c005a48012fd9714918e9",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-MassiveIntentClassification.jsonl",
+      "size_bytes": 6772,
+      "sha256": "3d5816d173752ca620e8d241a38024bd779094843d1a23bb7e54215dd19e7941",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "9fd6e396283ce45f49307f8d67c7d448e0d83174",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-MassiveIntentClassification.rss.txt",
+      "size_bytes": 1021,
+      "sha256": "fd7da9e2e76d3fd3b4d8ad8f05e29f24c2ff52f91469c6ae11359b1a0e0b0d95",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "61a98def9ea5877cecd6dae640372b021b19a85e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-MassiveScenarioClassification.jsonl",
+      "size_bytes": 6779,
+      "sha256": "489db0233e703218dae529e9a0b013de9f0312a9d5681fca74fa3d93a2765219",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "95a8573de365ccd8ddfe260da13dbc56345508e2",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-MassiveScenarioClassification.rss.txt",
+      "size_bytes": 1025,
+      "sha256": "9afb3cb0418078cf437c4f4f06d312753af1b156a359109c064a175b886a160e",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "cce7ade2cf0312735095563f04d683422cc68a6f",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-MedrxivClusteringP2P.v2.jsonl",
+      "size_bytes": 5206,
+      "sha256": "a784c97a4b3480758b14424b3a97b2ff08789d053b8590dbb401623bca56d986",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "74bb4d9e24abb20907619433a54ce7c66e0ac5b4",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-MedrxivClusteringP2P.v2.rss.txt",
+      "size_bytes": 1009,
+      "sha256": "6471c91e843905beccd141e259665e0bac49dbb513defef3af90f7920598c93d",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c9914a95864e1d2b7c66056fb7ccf3002fb47f8d",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-MedrxivClusteringS2S.v2.jsonl",
+      "size_bytes": 5185,
+      "sha256": "bcff26cc9676afdaa4e3deb486e316edcbb0887ae4e020c2c3de780dc976b2c8",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d0d0732cd423d71327c6800d820e8fc89248edb8",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-MedrxivClusteringS2S.v2.rss.txt",
+      "size_bytes": 1009,
+      "sha256": "4f77c817fd29ef1a648c84a04f960e3641730e99e86146fb9c3c68eab3423602",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0d44b3102b5acf6157b68dcc4219aedf34f8e907",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoArguAnaRetrieval.jsonl",
+      "size_bytes": 5397,
+      "sha256": "32a35cc9e482536f7301945699a54b091907339c1b125dec5c3ee08d73bfdabf",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d8c49b60f0ea94362f1e64391aaa9a13aff93cb2",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoArguAnaRetrieval.rss.txt",
+      "size_bytes": 1006,
+      "sha256": "353c6aa28c98273e0def23f9fb4d70a57085c1c8e78de2df60a7f46a96615d0d",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "a605901986af776b6f741e894742cc2a5dfa6d4c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoClimateFeverRetrieval.jsonl",
+      "size_bytes": 5619,
+      "sha256": "ad0a1e452c2a61a43b71ed796da98d23a03030455a1f14473af772dd0958b49d",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c3942b00ebf31a04c002b2fdd5901c9337655ce0",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoClimateFeverRetrieval.rss.txt",
+      "size_bytes": 1016,
+      "sha256": "92c19e2e868e2d8677fb97b8528dc6aec12855f5e4f2fe149dd67292a1d76325",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "fdb060e42cf4d170816625d8b18e5417c621f0f9",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoDBPediaRetrieval.jsonl",
+      "size_bytes": 5426,
+      "sha256": "e5cb428dbf6b6d36a3ea436e2e5d630eded0bc42c79d674988054ee759e03541",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "a559747ab7fcc68d2d3f22f64f17b1ef530e3541",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoDBPediaRetrieval.rss.txt",
+      "size_bytes": 1005,
+      "sha256": "58e67f1aa2dabbe5fed9eb069dc3e62e7ff907c0e4556846b292aa1ff9c9d3d8",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "a029a44110f95dc0342dc1c90fabf8b37a4d316d",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoFEVERRetrieval.jsonl",
+      "size_bytes": 6025,
+      "sha256": "67dba57c1d9dc74617c973ac1e5fc9935ffb3b614bbcca83691e79a87668374a",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "54e5d2e1c6c1234e30c6de647bf458d71bb33583",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoFEVERRetrieval.rss.txt",
+      "size_bytes": 1002,
+      "sha256": "c18980651904ff4e04f9f21a97e3a9e438053e971a93f6a5dfdb031c39971fb9",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c6c3b7d6c6393ca58611520a77f83c0d9f907787",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoFiQA2018Retrieval.jsonl",
+      "size_bytes": 5700,
+      "sha256": "4c30855d7d2c45c9239e72f119994bbe3a0db3845e71caef81308d9f46046987",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "21226967343d362e3133882e8ae9a3721000368d",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoFiQA2018Retrieval.rss.txt",
+      "size_bytes": 1008,
+      "sha256": "a3210467591414fc3d3e9c775067c4ba39e91447fc7ade3c2d9bfbd35dbeeeb5",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "72c8bd2b59765aaeae272592deca4191df253b89",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoHotpotQARetrieval.jsonl",
+      "size_bytes": 6071,
+      "sha256": "47a6414b9b2aeddab17d12daef5cbc1762278e75927c14700efde4aa383d7e02",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "06073da5fec8e83ccaa6bd8dd772566958df8c93",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoHotpotQARetrieval.rss.txt",
+      "size_bytes": 1007,
+      "sha256": "1fe5f69c1cbddd83d0aa9d3d76fce27a7e4eb413360d05777bd5996c49de374e",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "6a2f5cbe77ed88a9b28e75612ec49859fcc34e60",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoMSMARCORetrieval.jsonl",
+      "size_bytes": 5709,
+      "sha256": "69260a895f1ed6ffa7b6dc4f169752f1606c55328d5855ff78503d57eb8e3887",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "5887f155fde1dcf966f053f76ca01cb51c0a975d",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoMSMARCORetrieval.rss.txt",
+      "size_bytes": 1005,
+      "sha256": "ddd3e438398fa0f60b5e1ba8a5d81ba134121f3306a156eced3c64b8b80d29f2",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "eb0a66018f0a53b5f51e9ff5148d4181c0d7193b",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoNFCorpusRetrieval.jsonl",
+      "size_bytes": 5700,
+      "sha256": "0c1914d0b21145663be673912484910acc5cb88da691b3add12d2d3c47b300c5",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c19902df954c933d9495a295dab9a8fd6be3c2c1",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoNFCorpusRetrieval.rss.txt",
+      "size_bytes": 1008,
+      "sha256": "de13552d2b1fc3c1d0e470cff1d638d627028842e1d1f6cfcda658486be6fb23",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "520c7a55f9a03d24cc10f26c412dc57c8d571f45",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoNQRetrieval.jsonl",
+      "size_bytes": 5825,
+      "sha256": "d6d5e5afceab4d106e624d27a10931659002e96e640528a026050fdf26f3a131",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8a3eb522b3de09ac0bf0ea597cb457705bc65efe",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoNQRetrieval.rss.txt",
+      "size_bytes": 995,
+      "sha256": "e74099612d06231ad46aaac340db17f3e15e4b3e98ff8fc06ce5d7996526fa85",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d265e10742d23b0ab9167cf5144685837b64eed2",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoQuoraRetrieval.jsonl",
+      "size_bytes": 5590,
+      "sha256": "93150cfc11bfbb4ae02d8656ea28957d4adb88b9374a11326aca48f3001c975b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7b913002225fb2ed19ce55e89b545fd5546c0059",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoQuoraRetrieval.rss.txt",
+      "size_bytes": 1001,
+      "sha256": "22b445736d597c6cb23efe860ccd22928f627c371b5370863c0aec31877dda10",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "4b69a4770fc8a4d718a1bbc43c46361385c62ff3",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoSCIDOCSRetrieval.jsonl",
+      "size_bytes": 5556,
+      "sha256": "9bd94839b18b206816f1a4dbfd8362210470bb834e16164ad42b443c03e8ab4d",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "262df72176f4c82c21e26e0e0d08def08d7b6840",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoSCIDOCSRetrieval.rss.txt",
+      "size_bytes": 1004,
+      "sha256": "2a42f79abd09904e4380363f037e0a86eb12ce9154d6e8568ab67b52605d9a65",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "995104ae5ae7b4075e80e1f2b832118024676421",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoSciFactRetrieval.jsonl",
+      "size_bytes": 5527,
+      "sha256": "bc0d73c23ec240e2a51f59a3473abfcbfa25a9d06c48a7afadb8f9793fa443fa",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "2e1b110da03505ab654329f73304ba1268dd5d01",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoSciFactRetrieval.rss.txt",
+      "size_bytes": 1005,
+      "sha256": "cd7f74ca4d0a8482357fd282bbab435f915ec8c1e25c4ff0a6bad5c2f361d0d9",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "3a20acf7159e8d053dd5c19ce0292b4870ff9fa3",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoTouche2020Retrieval.jsonl",
+      "size_bytes": 5660,
+      "sha256": "4d61c7a69ec54a774166412673f385076b36f91cd2c9e9b6ecb3cf34c4b70a9b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8c9a81f53baf74f9ef394da47e5d9a7d44fe3aed",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-NanoTouche2020Retrieval.rss.txt",
+      "size_bytes": 1012,
+      "sha256": "3df6d5cecdda33902bf0b1ccb443f31133f9693c6c1e3df581970cc1fcf11cb6",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "497dfd52e91b1d7af6708fe7680a1095f60bf344",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-SCIDOCS.jsonl",
+      "size_bytes": 5492,
+      "sha256": "1ff9fda7dcf7420da5d055bd4c6d02d53634e60ea8560dc98cb3d5705408391a",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "a4ce9148e9a51a1636b8ee394e362b9a5a53c1b7",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-SCIDOCS.rss.txt",
+      "size_bytes": 983,
+      "sha256": "71ae57ed3904aabf83d4fa6f21080f87df31142af0bec7ab49797af1da40276d",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "55a6cb6f163911cdc98d78ab2665fe0a96c9ad01",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-SICK-R.jsonl",
+      "size_bytes": 5857,
+      "sha256": "6757ad2f69a1295e1842aa16196a9fcab69de395fc39f6d7dd4955faf4053c24",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d31ff5ca0b9b0dee28fcf724fff0bf12a332dfb6",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-SICK-R.rss.txt",
+      "size_bytes": 973,
+      "sha256": "6d54a6487ed6dc30a83c5879a75c1000d39258c664e1817b9d7f4d5eb4995305",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d03f055eff0f0a64e539ae09a2aff775d0fcc18b",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STS12.jsonl",
+      "size_bytes": 5655,
+      "sha256": "0c4486b3cdf39f892a05da61c20c5baca1f0f07bb5e6fe2c4aad674aaa6811f8",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "bda7d729cf3c9ad1cb09268f570e029695078086",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STS12.rss.txt",
+      "size_bytes": 971,
+      "sha256": "ce40e9c3f1c81d768d8e6d94e5ce27674644a5c337d44a5b768732f2c1df1948",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "f1ea03ce8e3330f405dcb58a2df79198b0f837cc",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STS13.jsonl",
+      "size_bytes": 5665,
+      "sha256": "747bac9d1fd93cb97c7a2532b89e675aebe1e8d21b70a5550eb85f7f11d27d2c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e784bbb56a9c37e26182f6c3f6b36df6db8a3dba",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STS13.rss.txt",
+      "size_bytes": 971,
+      "sha256": "98cde10bbf7f19dc329022c04373add1844d52bd09da6d38e36da19f16713d22",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "088d88ed4ed1fe14b17f601bfde6779de618568c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STS14.jsonl",
+      "size_bytes": 5681,
+      "sha256": "65659ae0f1531c21dda55e63d1616f9fc20b534e963f5ae92e0eb858d74fa353",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "5fd24f363b5c9bdbbb4dfa367b6f716b40f15458",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STS14.rss.txt",
+      "size_bytes": 971,
+      "sha256": "c163a5c5cf5b966fb4e387d099b01c018f6d9a6dedcc055c17519c045b06688f",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "9ccf8957edb46769527b2a114183a15e7983b0c0",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STS15.jsonl",
+      "size_bytes": 5585,
+      "sha256": "4848b111806a86feb39317c31bf44c5883311b9fc0aaff0799e3fbffeea38f96",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "17aaf826d20aa61eec1afb48812f04d2ce296411",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STS15.rss.txt",
+      "size_bytes": 970,
+      "sha256": "8f3606532a9e26449f60f54c4d35e5ce9076abdcc0d6d82cd89d3d8d1b1055f6",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "fa63d299d161e56ebe32f7033ff2d58b2844c6f7",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STS17.jsonl",
+      "size_bytes": 6140,
+      "sha256": "a2b43536b9805b2e9b63c7e0354f8fb52303aaa62a16ca92e41f0896a3374a7f",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "57cfea640a7bd80d8fe803637a95547e3ea4d889",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STS17.rss.txt",
+      "size_bytes": 973,
+      "sha256": "f97057c5a4db02004be73bae91aebe912b809a2b3b4a22499f128f8c91b54653",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c65744f01aaa0f8669999cb7ef7b59bad72f3f2c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STS22.v2.jsonl",
+      "size_bytes": 6467,
+      "sha256": "1b5fe99eadc5c3e69da09e0862b1f5a8c34c53bdba370799ad60a324b8c4a3a9",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b79dafa91ad27bf494ba72e3a409611e9ac3eb8f",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STS22.v2.rss.txt",
+      "size_bytes": 982,
+      "sha256": "634d21a0fcea8fbc69078b09bdede6c08b406b3fc76ca9f60cf320c7c3b2586a",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b676c19091b74f8e2f24f80e2f68a7e03202067d",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STSBenchmark.jsonl",
+      "size_bytes": 5826,
+      "sha256": "1ba906af6191276bbcb81e0f97df67da6766ed58a56fb51af09798cfe239964a",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b2760178976a1190a97597726866699e38db75b4",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-STSBenchmark.rss.txt",
+      "size_bytes": 984,
+      "sha256": "5baa4b2a90a6f7d8ad57102eacd10aa03451f61173e39caffb6b1896eeaad19a",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c421929e0e6825de3ea61077814e7e6c197ff366",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-SprintDuplicateQuestions.jsonl",
+      "size_bytes": 5839,
+      "sha256": "bc5a7658e653660e34cbd6d86061337f64b4702dcc17967cf9efa9ed1ed46c58",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "3742ccbfe166244a2ce8dcc224ddc05900099427",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-SprintDuplicateQuestions.rss.txt",
+      "size_bytes": 1011,
+      "sha256": "8a09013e2974174d5d50356fd73265c1a14812573715ba8caa17b1491e7ad04d",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "cdf7241ec5ef5b5efefae7a35c49f553f7570ab2",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-StackExchangeClustering.v2.jsonl",
+      "size_bytes": 5617,
+      "sha256": "2e145f265c75eee6f024b1ad325e39dfbf55a9d752e3b2c24511ed7405fa9fee",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b64621c1241d5c3a5bb14795b8a63f104a335f17",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-StackExchangeClustering.v2.rss.txt",
+      "size_bytes": 1018,
+      "sha256": "921c98bb3f6e5c1f97fbdb7802fa99de5625a0e6771d81ee35274fb015d7ec37",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "fc1ebc23a033c8f47b82532361465f7bce7fff94",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-StackExchangeClusteringP2P.v2.jsonl",
+      "size_bytes": 5618,
+      "sha256": "a2573d4acd3f7e64e039a956c5ffebba23c1bbc779517f3eb23d54f0d66de7a1",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "47ffa6e797abf41713aeabdc2d10f98b02c9b550",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-StackExchangeClusteringP2P.v2.rss.txt",
+      "size_bytes": 1022,
+      "sha256": "c409cf78afb228458320c5adb162db3e1f2a2a383cd366af8ae70ccae599e6e4",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7a5525731533802453cc69d456f9ac31f4f31432",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-SummEvalSummarization.v2.jsonl",
+      "size_bytes": 5464,
+      "sha256": "e93700df1249b2aa55a0651d008e45f806613c4ad883ffc7b5fe41c6dc1ecd7b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e74b765dd8c3ef754fc65d4904f3a9f170e5f4ff",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-SummEvalSummarization.v2.rss.txt",
+      "size_bytes": 1010,
+      "sha256": "fc6fb9155cba03dff3775308eeb57419e3cc12823f6778358d4cdf1527b771a1",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "cf176a357d79f703ad72006575ef61f308842233",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-TRECCOVID.jsonl",
+      "size_bytes": 5593,
+      "sha256": "38c85e281432a74e5b3f913223866049054dc88ac1f3986c8e0eb71e67f106ec",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "3daca8f0e60e2297bea59a950dc44770afb7ac73",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-TRECCOVID.rss.txt",
+      "size_bytes": 986,
+      "sha256": "4ed81e774623a99bf86f71adef742a53b0806057abdc9317f4468538f941b811",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "81075b685f1e43f701d7e33c6a9cacdbe8a319b4",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-Touche2020Retrieval.v3.jsonl",
+      "size_bytes": 5601,
+      "sha256": "bad753be1cb842524a74c6c47e5323e0d0c17a45204945d5882136316d894371",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "5e95703d41c256722e5d2ab4ce3b8f3f63bf3282",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-Touche2020Retrieval.v3.rss.txt",
+      "size_bytes": 1015,
+      "sha256": "827c7d2fc78baf99d1bf4a83250889c3758dd7281bf5325b7c389bc0c57af1da",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "24254acf63d1fcd0e39b4370ecb433b7d63e689e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-ToxicConversationsClassification.jsonl",
+      "size_bytes": 5684,
+      "sha256": "82148fe585f98da5898414cbb4ae82d28707a4464324319a6c8d1c14d4bd5d0f",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c08fb25a66701a83deaf3369bb16121e54f9a1cd",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-ToxicConversationsClassification.rss.txt",
+      "size_bytes": 1030,
+      "sha256": "d90d9202bbb739ee857fbb79f76dc018f5cae2ef3bb45ca009d707793a2b0f8c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8cbed59ce58806c2d5cd58256a9fc9e18f0471c4",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-TweetSentimentExtractionClassification.jsonl",
+      "size_bytes": 5457,
+      "sha256": "5d76dd4b72d323e1e80c7fa9c662fedaed1ce3151a29a1596d32b8f94ec687e5",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "264ba099fe28b416fec4d5eba200b04aed734768",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-TweetSentimentExtractionClassification.rss.txt",
+      "size_bytes": 1041,
+      "sha256": "184afc9b543be75e908fcfab1e0b792507c095baed9b36904ef34d88cc577d79",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "bb60ef7218e4c5eca8955118390c8bb0f3dfe3a5",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-TwentyNewsgroupsClustering.v2.jsonl",
+      "size_bytes": 5686,
+      "sha256": "89032f28d3229bb06b335bf0eeaf1c3e8d935e14072cd52f2dd83a2832148c47",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "58fa4602ec4080f786ccc8e353c8f4a327fab30b",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-TwentyNewsgroupsClustering.v2.rss.txt",
+      "size_bytes": 1020,
+      "sha256": "e955fb792f79b21d98bdeade5ac8336cff66420b44378014aea28a9ffae747b4",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "f8333c8161c252056ac7444755c0dd94753da962",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-TwitterSemEval2015.jsonl",
+      "size_bytes": 5768,
+      "sha256": "8a07399afe57947e330c7632d3cca855132fab4beefa37c11429d6d21520dcc3",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "61b46a4ad24e7d3f0b3e2d10a8301dd33effd8ab",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-TwitterSemEval2015.rss.txt",
+      "size_bytes": 998,
+      "sha256": "ded1b1bb3a95f751e48f946690aa30f2631a1a9ee180e8c00c4beb99fe99822c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "4a631b395018ac9b1ea3e6405910ad4e768dcfaa",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-TwitterURLCorpus.jsonl",
+      "size_bytes": 5689,
+      "sha256": "13a5473abd47444a930c00c6d7e021cebca3543b0eefb63702ddbeb992e55384",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "79b94082352d358239754f965c332949d937bee7",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-TwitterURLCorpus.rss.txt",
+      "size_bytes": 996,
+      "sha256": "39881959f37be5b772d47ba9d086a481bfcef984a64baa70a233383464486230",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0790e91534e9bfae2432844c28e1ebb613effbfd",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/paragram-300-sl999-excluded.json",
+      "size_bytes": 353,
+      "sha256": "1a6fcc40055cab73364b2ba986234131c50431c7fae04b5afe656b8b90fc809b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "da566e81c3dd73fa054e48e2bbf723ce34d2867a",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/plan.json",
+      "size_bytes": 1760,
+      "sha256": "5707529ef5401646e20bc4457ab8c656d7b41a62a97948ad2f4302546d4d5d60",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "68c359cf8e95f314e711b2788934e57a3a1dee67",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/prepare-fasttext-crawl-subwords-300.rss.txt",
+      "size_bytes": 893,
+      "sha256": "638f2efa193cd7731cef37bb75b2d3fb759bf28a8c58828e5a21cf451b06cf8c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "1d890b5d7d2eac9ebd792c31cb8fe6a72ac3841a",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/prepare-paragram-300-sl999.rss.txt",
+      "size_bytes": 883,
+      "sha256": "63d1907a784c032550d4c2d0fe5a69d6e19b6024256134b8153ea473a9732247",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "1c957df039e1c1cbe1147c8a3596ff4fc2b135d4",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/prepare-word2vec-google-news-300.rss.txt",
+      "size_bytes": 900,
+      "sha256": "869eae7c02fc8d3febf133f0db0100156addc03f1c5d98853b6d7d2b731a0a05",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b734229bba91e5f2e5f62c98f2bd75cb555dda9d",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/sources.jsonl",
+      "size_bytes": 10365,
+      "sha256": "d5e636fd35cb951857cc3eb2f5a7b94cf1fd59fce89f4747b42cac416bf2ca30",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "910208601e6c88d788418403f3c7ddbfc3fe798e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/transfer-manifest.json",
+      "size_bytes": 62224,
+      "sha256": "917b1ae1f5a012ea0f4cc376ca04ecb394f17033a0f14a78cb6df15abb108243",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "60a4f8a6c5772f38ccb0a953b4177ca5599d5a3a",
+      "source_kind": "Pod5 remote/local verified immutable transfer manifest"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-AmazonCounterfactualClassification.jsonl",
+      "size_bytes": 6133,
+      "sha256": "8f42528e21cfe07dedc45eddeb4578609a3a9174d1d8eea4e0c5b97d000e5d67",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "76560bcc796e543381f4ec24fa2c68694da5e9f1",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-AmazonCounterfactualClassification.rss.txt",
+      "size_bytes": 1045,
+      "sha256": "9fbf71677fdc0bb32da59f404fe7748b865d9c00a15fa7bc17fe26ed0b44831c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "10c0a6362d93518ff3a09c0485094cda2439a22c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-ArXivHierarchicalClusteringP2P.jsonl",
+      "size_bytes": 5144,
+      "sha256": "1d1c4491de984657783848c0fe3fd5d897d9b3ccbbb8be6f74f828ef72668713",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "a4a7642e1a7ab009bce568f68e1e3d173b6ce66f",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-ArXivHierarchicalClusteringP2P.rss.txt",
+      "size_bytes": 1043,
+      "sha256": "973f7beaa739b071662a4fccfeb8eaa588a564a7d2c057282786b3cad6fcc939",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d6c286afe53dc4d70e6c5188b71fccb203477622",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-ArXivHierarchicalClusteringS2S.jsonl",
+      "size_bytes": 5136,
+      "sha256": "0b9130a12cc6800d86cfae39f05fb2ea5c14181f484ed35ac4464fe0e9ddb5fc",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b25a5929c7359165acc6990d4ff5acd8f9cb277a",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-ArXivHierarchicalClusteringS2S.rss.txt",
+      "size_bytes": 1040,
+      "sha256": "bc0885783ba4bb990930570c966802d039fac3317343b967a84a2823db8eb767",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "cb4b7227adf189cea83669c5e30106b716bfecbf",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-ArguAna.jsonl",
+      "size_bytes": 5352,
+      "sha256": "50903124ff1144a1cbedc3a71e7273b662858ebfaf6eab313f0d99db52ad11e8",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c72a6bbc40c201aa835c9732a0ece43edccbf303",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-ArguAna.rss.txt",
+      "size_bytes": 1004,
+      "sha256": "240ede53337d92405305bd6aa208c239726f81772a7f1fb4d1c12d9aab8425ee",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "45ba005027bc71fc01ab7fd201a64a0e85c0fabf",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-AskUbuntuDupQuestions.jsonl",
+      "size_bytes": 5540,
+      "sha256": "ce35155591e25c625527b5bac80ccfe609c83b95f12a6cdd462a017673009107",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "f9647e32e9927a3c68899ffa049139c7adb077f0",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-AskUbuntuDupQuestions.rss.txt",
+      "size_bytes": 1024,
+      "sha256": "ee1e146218a9cbcfeb3e62a42469c200b6f315e61d686bf549e3fb88e11d1971",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "ab78af8b5e10220b8696dea555098ce512765064",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-BIOSSES.jsonl",
+      "size_bytes": 5623,
+      "sha256": "327deb12dc9ab3c301bcc8f9d75e7878be578c328131446312e860133ee401e0",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "4f394091584eed962a16d8ec1bcc98e36d2caa5a",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-BIOSSES.rss.txt",
+      "size_bytes": 990,
+      "sha256": "d0c6023d80d66a29a4f00377cd0bbaa6915e949892ab4b6e4cce4b71a618b785",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0b8df1ad3578bfeaaa4355285c2614fe4fd77cda",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-Banking77Classification.jsonl",
+      "size_bytes": 5930,
+      "sha256": "0fa9f6f96acc62965240bf1f9047cde75b67431be33a585fdb52968e67171c77",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "993dbca4e3ff730b7decb05219e3dad219b5fb9e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-Banking77Classification.rss.txt",
+      "size_bytes": 1025,
+      "sha256": "a4856867acdf67dc3aa346ed27e27e05cce8f08fb856384d08952cc7ea0648b8",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7efbbaf6e10016fb4e7ba237611592d4d3846dbf",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-BiorxivClusteringP2P.v2.jsonl",
+      "size_bytes": 5209,
+      "sha256": "eb402cecbcf47ffd693d117d2ad7d39a858a0eebb597477fac200399f6a517c3",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "a88ed69b8c6b3832d99a63afb238e651f9ce8590",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-BiorxivClusteringP2P.v2.rss.txt",
+      "size_bytes": 1027,
+      "sha256": "1c25970e643bbff7fe466fc9c357f441629ca93c3eb3217449064156ee7b133b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "dc7801663685a904b85661612358f7db7d1fc3ea",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-CQADupstackGamingRetrieval.jsonl",
+      "size_bytes": 5762,
+      "sha256": "ab5b34827f2ba77e34b7fbbc07c9c86c866a3b81acd660b2416bb9a4311dd956",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "45266784dc33fa7068d708695a96b4988f3c324e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-CQADupstackGamingRetrieval.rss.txt",
+      "size_bytes": 1037,
+      "sha256": "bd7ece224c63c5271998ec71ff8ed107aa7b42bcd949dccd653d498c88f69e54",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "2867845c369a683b3cff648509020e1f59863574",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-CQADupstackUnixRetrieval.jsonl",
+      "size_bytes": 5767,
+      "sha256": "285eccde7bae18b24bce620a1d0096659a5b4e06affdd713fb926124b0c2c55c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "4e893aeb7897fc89f0073baea7753e70814006d7",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-CQADupstackUnixRetrieval.rss.txt",
+      "size_bytes": 1033,
+      "sha256": "5cec34b42f089d566d12a6167a015d503ea5eff9539c940dc91adddd73e0f43a",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7f693730a56a982377e187c0ad1d0963a0e4c1ed",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-ClimateFEVERHardNegatives.jsonl",
+      "size_bytes": 5733,
+      "sha256": "94ede7d987150d3dccd5cd6d18212680646ad2cc756457a5d34cf1c646ede131",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "3b7244cf73fa1575ce60187e932dfb44ca0ba3fd",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-ClimateFEVERHardNegatives.rss.txt",
+      "size_bytes": 1034,
+      "sha256": "463b40cc3037b46e9fc82162f514a390bf23051f6ecf45fe51460b09585e38bc",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "fa598dc53f80ed629ace532df0db04f0df8f9059",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-FEVERHardNegatives.jsonl",
+      "size_bytes": 6115,
+      "sha256": "3c299fae662a3568e08603da7eb36cfbda65d68878b6599f1fd6068985c76414",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "2c5e7d26076b48a61453882446a236be0e840212",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-FEVERHardNegatives.rss.txt",
+      "size_bytes": 1022,
+      "sha256": "13a424476eef4423e570c3a435da1340d10ef4f464efe9858a722d4f8f7f6874",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "146891470f2df675212c8a37430fec8c7a1999dd",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-FiQA2018.jsonl",
+      "size_bytes": 5621,
+      "sha256": "f7a7f2c96746849696ba603cb4783351e08a534f1ad20806053c0715901d8ee3",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "bcffefa0f2ae1a2fe07663502957eec9da84b831",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-FiQA2018.rss.txt",
+      "size_bytes": 1000,
+      "sha256": "118ac4d9244bbf9e10a98316bbadff0d4ce150f65e40851a29713606752aa95f",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d741274c34ea6bd12b73cbb369c718ce50b0fcf5",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-HotpotQAHardNegatives.jsonl",
+      "size_bytes": 6127,
+      "sha256": "d5cb25e42c30e303bad7d323b6776a6581b3e8722462af770cde14bf10e40ee5",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "b99028291e224caea3f1a0cc348924ace95d003e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-HotpotQAHardNegatives.rss.txt",
+      "size_bytes": 1027,
+      "sha256": "f176c12fa3927d92af9b6b08b0991a1f0d2fea9810480e2a73f498f796fe9464",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "2fb12e705e9605755ebfa1a98e6cbfffc72402d8",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-ImdbClassification.jsonl",
+      "size_bytes": 5768,
+      "sha256": "0aabb350a3d574e5c062162510f33c3f73deb745c86fd89c93ddcbaf7cfe53ed",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8d0f8b044bafae375122915a0d21fc1380c1498f",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-ImdbClassification.rss.txt",
+      "size_bytes": 1018,
+      "sha256": "06ce733299be02bef226e821f85ae75b4ef4777d37b9d4b54be084a403a6e0a8",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "81374625162047cf0e5d8e8bce6d709065f008c0",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-MTOPDomainClassification.jsonl",
+      "size_bytes": 5981,
+      "sha256": "8f37acda8565010ff24dfaf532079e625eb83d9aa073e7b74430100f1d38b477",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "2505ccfb9eefab3da3fb9b32d7ef1b6d1f20a694",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-MTOPDomainClassification.rss.txt",
+      "size_bytes": 1025,
+      "sha256": "5f628ff205fca9ef2e1ff768d05257540b12395fa7427fc4e3a78d6b1076fa73",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7de4a0e5ba4a45145924c3b5d0099a78fe253ba4",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-MassiveIntentClassification.jsonl",
+      "size_bytes": 6784,
+      "sha256": "35ebf8cad4750666626d5b26fbb9f38a6a283df0db94199c4d98f209b319afff",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "22bb36bdbfa6a1eecac710983d2e9ea689a850ef",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-MassiveIntentClassification.rss.txt",
+      "size_bytes": 1037,
+      "sha256": "3c006a1cb780e7dd33bf4135819a0c0e0f069106b4754d91c9f1d4e4c9924b28",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "6ea6591f4d9fdc9fd4b342609c0a98c468cecd3a",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-MassiveScenarioClassification.jsonl",
+      "size_bytes": 6791,
+      "sha256": "dcf794c8053b1c91754778e4a480b293dcfed23b3ea157d9c97442bec41ed65e",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "de8aa29bb15acbf4badca4a0eaf3c678b2d55b39",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-MassiveScenarioClassification.rss.txt",
+      "size_bytes": 1041,
+      "sha256": "c0009ae51a934b7ed6662cb0b2fc7b7942b08faf88866a6e09dc3fb8522fd33b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0b76a07423a2b67bb3c9bbf5ff9884a427ffc0cd",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-MedrxivClusteringP2P.v2.jsonl",
+      "size_bytes": 5219,
+      "sha256": "af910fab3863ae1df70b2e09165c0469e44d15833f67b57c434c246f7cc829d8",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "95e42e9405d842c1891a2371acdb3a8c47c74584",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-MedrxivClusteringP2P.v2.rss.txt",
+      "size_bytes": 1026,
+      "sha256": "1de179a14a856f6ad2c2a4845ed93941b44683a1468fc814831122a386afa0d5",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "3ac80d3e5fa9eef681a1936e624cd53ca01b1925",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-MedrxivClusteringS2S.v2.jsonl",
+      "size_bytes": 5190,
+      "sha256": "50b861e4b65eacf203b1300c427061b58447e1ecc01beeed41064c7f4829fd6b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "fc563fb814a5ac272bac1c3c9c3b318539c0a220",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-MedrxivClusteringS2S.v2.rss.txt",
+      "size_bytes": 1022,
+      "sha256": "d43e35a4ac6144dbadf6c0428e5fd533f2eac3b5519e8ddb15dad86640b36287",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "02f29d092eb26bbd92498a51a48fc7fa4d5fcd60",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoArguAnaRetrieval.jsonl",
+      "size_bytes": 5411,
+      "sha256": "28ab89f846bab9158809e3ee1e0be0c51cc4a2db73eecac8c225848364feda31",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "ac2ffb17608e4897c50f7496d6b455792b2d02cf",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoArguAnaRetrieval.rss.txt",
+      "size_bytes": 1020,
+      "sha256": "f66f796afbaae4940b5fd333b682b108c8567dfd27aa064a453f64c18f93c397",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7899b7ead1549436fed7b15958f70c2b4e5e1cef",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoClimateFeverRetrieval.jsonl",
+      "size_bytes": 5633,
+      "sha256": "e5472745faff004677aa4b4cc08a29af25478a4ca9b58401917ad7f166511b29",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c398cb77b32235fcd155d250f86b9e68586609ab",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoClimateFeverRetrieval.rss.txt",
+      "size_bytes": 1030,
+      "sha256": "9f8f0bc42025a96501f12df6d4cabf2d404899efdd727e3f2d56ece0b77a2aec",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0fc203d572f9cb32347fa487ca0fe1be023064f5",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoDBPediaRetrieval.jsonl",
+      "size_bytes": 5437,
+      "sha256": "dab9abc19d8596721b83121ef62dd569ceba11463e42dfe2416e70b08fbdc571",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "40513c994d27bc10b6c8742c958191c0de6cab19",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoDBPediaRetrieval.rss.txt",
+      "size_bytes": 1019,
+      "sha256": "2518679bbe6eec16a3e01dc6e2b889587c9661c2fe8d67fd81cfd8dbdadc2c21",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "caa30fcaf24e1b465ce4d005b2f779b50a2306a0",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoFEVERRetrieval.jsonl",
+      "size_bytes": 6039,
+      "sha256": "a60602979b6a706fb00bc4b45af25a06b1475b4b1936b65e1160d7dd06435359",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "16866e65e51f3ec1c7df44e8c6dfad089dc3c5dd",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoFEVERRetrieval.rss.txt",
+      "size_bytes": 1017,
+      "sha256": "502b13dafa2cbde6f605b6151a59e14f816d70935b9cea1fc7cdaf80ee1d61d0",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "609a5637fcff421a58fd0d487e2546dec065bf2c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoFiQA2018Retrieval.jsonl",
+      "size_bytes": 5713,
+      "sha256": "bb0d1fae1937a402b0719429124e3972488e4308f54ede3da48edea88b26a99c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "3aed50b144af1eff8485436a8f842508f28cbe9e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoFiQA2018Retrieval.rss.txt",
+      "size_bytes": 1022,
+      "sha256": "67d13670ea367289b8351fd430ba44029903b48f16dd10c9a4568351ca5c0758",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "fd85d9857c919134927d97aa0fb0bb41a1c71391",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoHotpotQARetrieval.jsonl",
+      "size_bytes": 6085,
+      "sha256": "6e39cb3636198b7f035b86cca78f04bf34ebf1c93944cd87f9b1310b238e7986",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7d72f324f7ed61db2924efed0e30f687a17e906a",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoHotpotQARetrieval.rss.txt",
+      "size_bytes": 1021,
+      "sha256": "6514e6c88339ce145e36264b3064555d620144f5360937a31deeec7547e8c514",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c64ebf99eeaf24a42f5779e78b98be17ea194d3e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoMSMARCORetrieval.jsonl",
+      "size_bytes": 5724,
+      "sha256": "5a91bdbcf9aa13f25a9aaaeff62cc05216ec126ecc6abb599a5ddfb09cf8b510",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c8d1824a6068313da9a4a5149957c11f545bb478",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoMSMARCORetrieval.rss.txt",
+      "size_bytes": 1019,
+      "sha256": "a9e1688456929a6351b065f0db99dd4b8abca995bdd3425cfa523f6bceb64b66",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d645469937f20ae7eb7557b7ef31fef7b9a6ebbc",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoNFCorpusRetrieval.jsonl",
+      "size_bytes": 5712,
+      "sha256": "d2858eef8cf53b0c3a8d9ade5c92e3e247bf32e80cdf1f9e417ef8fc71603d17",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "969194ab5cbe1a2b53b6d7073ed32ad1c60e96ce",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoNFCorpusRetrieval.rss.txt",
+      "size_bytes": 1022,
+      "sha256": "6367684d9aeb50c6e4f6422d65e34b9c8f6829584f38745fc9e467e7f1063b25",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "9b59c346b3605319a11172e6a4bc095f1148673c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoNQRetrieval.jsonl",
+      "size_bytes": 5839,
+      "sha256": "2c3b3f04e01f4337f6afb50267aaae87292f81177c423b2f89d4f12025579be6",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "515ffd5b8b2b08a9d062f24349b969ed8cc0f8aa",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoNQRetrieval.rss.txt",
+      "size_bytes": 1009,
+      "sha256": "bb328307c13f1ca94e78e64f247daa046c5194241e2409d903b0b79c95fdb531",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "c761ca651cdbcc2baaacf8935db8565cc8882316",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoQuoraRetrieval.jsonl",
+      "size_bytes": 5603,
+      "sha256": "1685f892b3ebe3c68a3bfb47feb5bb86cd0326e66801349fa9a00cb635930152",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0aa01814fbb212b3162489cb271839c0359c3b32",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoQuoraRetrieval.rss.txt",
+      "size_bytes": 1014,
+      "sha256": "5c8ebfb6d3f0d911aefaf45ffa9b76f36ced80f4d14029d97850927c8c951f6e",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "26163392cdac3cbd91516f7eee5f2d5c815b16cc",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoSCIDOCSRetrieval.jsonl",
+      "size_bytes": 5569,
+      "sha256": "83cd7b616df049d383bd1d87db214c2809efa069db6cc8b428d0b625d5302f48",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "ccc942d342f2396157c2fa0c8cd28cbf287455b7",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoSCIDOCSRetrieval.rss.txt",
+      "size_bytes": 1019,
+      "sha256": "bf609956d7d568a0e93732f26e72a45808f5de6b7b055b6a2c32244b035d34ac",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "092a7e38fcb1c47a908010e9953f53c370066412",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoSciFactRetrieval.jsonl",
+      "size_bytes": 5540,
+      "sha256": "c8a657c6b65b78b0eec68e2b03655ec6b546a92f9d32d59cd17c9a63a227da43",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "db9e8be1ccd4417121cd1ef98084583fe41d1bfc",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoSciFactRetrieval.rss.txt",
+      "size_bytes": 1020,
+      "sha256": "88170f72afddfd92d9fdf7c07bdea56b40e3314131bf01645779c1f805000003",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "f05251f725a80dab574d7aa993b815c96e178f53",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoTouche2020Retrieval.jsonl",
+      "size_bytes": 5672,
+      "sha256": "71b6410d854cfda6f79df429201d0765b617f67a8a1f60f37149698038cab6c5",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "9dcc40807ccb567388b5877c4088cc5c0b67cb37",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-NanoTouche2020Retrieval.rss.txt",
+      "size_bytes": 1027,
+      "sha256": "be4cb71418797366e4285ca465a4247b907dd8e86e828aabda6e99b99afb0029",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "fcf4f1b575f88a8d910e60416b098fd1027a263b",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-SCIDOCS.jsonl",
+      "size_bytes": 5509,
+      "sha256": "c911fb5846ec87192e3079b0daaa19716b429dde23e951859a085a653b87df04",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "7b511dd2aba88b279e6922baa20e0b23769512c2",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-SCIDOCS.rss.txt",
+      "size_bytes": 998,
+      "sha256": "b69a5e672f527e00127d2a43eb0a28b1fb9d7300c5ff08d43a948dc40531b1ff",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "03dabd71869a4cfd8271d0d17e9fba675845a2bc",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-SICK-R.jsonl",
+      "size_bytes": 5870,
+      "sha256": "c08a54d6fd6468cc13eff43d0d543c2da472189178be4b48249ebc1955198b29",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "ced6e3a890b90f51c30f18369f8cc15042134c90",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-SICK-R.rss.txt",
+      "size_bytes": 988,
+      "sha256": "f79b6ef6297793789a54cb0c6058d89f23d8be50fb9fb708ea5f042181c2f4eb",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "2cf1792efc677766d56450abc3fa08595cf4d2c9",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STS12.jsonl",
+      "size_bytes": 5670,
+      "sha256": "4a71dc39fe682a9d5f8b31be77c7e449452072714e19bdd3c6db19eede88b4cd",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "a97192b7617cd6ad15014c867db9c5a3a8da9ba3",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STS12.rss.txt",
+      "size_bytes": 985,
+      "sha256": "9104cdccc8dad13ac310e14a3b1fa459b42eeb9e6d2a1411280f061dc8542c1e",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e251225d7123e95a6f0a15b8150c98cb8589305e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STS13.jsonl",
+      "size_bytes": 5679,
+      "sha256": "f4b6e264babc7dcffce3b25dcc9f19ba46f9583c9706bf5c3e94c2c08ff8b60d",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "267f374ab567a3498a00b3da6cb49d460c1366ec",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STS13.rss.txt",
+      "size_bytes": 985,
+      "sha256": "e969e2841d27ea8b23c3ed64b49572c57657db363a48d63aca84e98d9abdd380",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "f23517e2de39184f01e659c1f6215bce3819eeb5",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STS14.jsonl",
+      "size_bytes": 5699,
+      "sha256": "62a557134fb0545a274a4f80f58841fa66b33d06029e41190500b0d4cf9239f8",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "1a7c9f5c98e639c3fdd77ba9f17c68646d5d586e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STS14.rss.txt",
+      "size_bytes": 986,
+      "sha256": "f18ad18032f1da01a7cb68cfabbd5d86a35d947d191ee7678f059ae5f9ac16b4",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d62d4788d20b40928e7a655afc1e0849c37c334f",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STS15.jsonl",
+      "size_bytes": 5602,
+      "sha256": "5c2bcd9de21f78c981b90414dc3caeb740a5be49d1fd14f78d5b8912bd1c88d0",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d98102d9b7951ea4794b6880cf58899c9d95332d",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STS15.rss.txt",
+      "size_bytes": 986,
+      "sha256": "7e277ec5e757f729b57d0cabe986d7d322cd7c651982f22e2a115bbf682b1026",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "83cbd9cc213180e527080fc19bfbd0ea38fe74d2",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STS17.jsonl",
+      "size_bytes": 6150,
+      "sha256": "c1d2efca8915442357848d92a069d6d98ec80464194ce48b849a050d7d1def07",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "cbe6cfa945b94106c582b3d45fc98b1ad8fdf401",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STS17.rss.txt",
+      "size_bytes": 988,
+      "sha256": "4d7104932527bb0306a25fe3641f8959c3f3043ea7b99a06a4e8726bff9cd271",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "14dc74b81fc837eb925d147c1f48c731788bbcc0",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STS22.v2.jsonl",
+      "size_bytes": 6480,
+      "sha256": "622858a006022154313717221495d135141abcebbe89f9dba792f2644f6e1bf3",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "06deeb876cb3ab23c2c043b8304cc16aab4c9d42",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STS22.v2.rss.txt",
+      "size_bytes": 997,
+      "sha256": "c8a3559bf299e96d89cb2160aeffd8bfcf280bdf95ecca470815a3dadad4202f",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "fbe5a32fc7a07aeb4020f2f057788082e6d4463a",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STSBenchmark.jsonl",
+      "size_bytes": 5841,
+      "sha256": "7d64fd965052ee6f1f014a3837144b359bbb08f665bd729c11278f6460a74c39",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "ca2b23ada302cdd9758b8fca9742e79ad1db0864",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-STSBenchmark.rss.txt",
+      "size_bytes": 1000,
+      "sha256": "0645ee55cebafed90376d64d080c0472ebe9ccf1d2d2f2b3968c760dc351cad4",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "ae0144dc03bae28ae9b4eeaa46a9927754be5839",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-SprintDuplicateQuestions.jsonl",
+      "size_bytes": 5846,
+      "sha256": "2c3feb5455f0bd6b26b05b4db1b71ef1120433d25ddc73ef50e3087f04b9b33b",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "bc2e32a7563045cba0bbb691e0261b1a08b3ba8a",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-SprintDuplicateQuestions.rss.txt",
+      "size_bytes": 1027,
+      "sha256": "07d77e4009b8f25fc8fe1066a780c2edb6a3b3353a5586897bf82b8a07b2d66a",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "81c315c1d856ad8829329849ad2134547b531288",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-StackExchangeClustering.v2.jsonl",
+      "size_bytes": 5632,
+      "sha256": "907afd5a928a20738f6fa609468473d19402d1d728a21731c774d25442d3dc92",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "8695e1b06a05c877b58ae63d2ede0991616b612b",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-StackExchangeClustering.v2.rss.txt",
+      "size_bytes": 1032,
+      "sha256": "b7a4cdb1835d0b30da1f1fdd5b4ac43cd473b54a34e291797a75b13b4466228c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "3c20109f8efbd19e67aa18cd112c542e6facdb22",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-StackExchangeClusteringP2P.v2.jsonl",
+      "size_bytes": 5631,
+      "sha256": "7d70d7251c096a2d2ca12d3e394ea7ab0a4e62b7113f804629e5d79ae42b9ade",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "45b270556a663971dc6990be86fc37a097a4665f",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-StackExchangeClusteringP2P.v2.rss.txt",
+      "size_bytes": 1038,
+      "sha256": "ad7d739fe653245f89424e8eef08ca336b33c72eaa9eac2337748637144b63a9",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "d329b146f83c8605381123bf981f5867cc24bc56",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-SummEvalSummarization.v2.jsonl",
+      "size_bytes": 5479,
+      "sha256": "60c0262c27f1826442d7f45fa6553d0da352d0a81b8863435e0b4cc22b5b4dc7",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "706f91958d9a6230506f39c4e0921e374925e0db",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-SummEvalSummarization.v2.rss.txt",
+      "size_bytes": 1023,
+      "sha256": "9a417542d4cbce763a415c21552d4ae7fcb68ba65eceb8988c9934f3114e7024",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "eb0d541369b2146e6f47fde72c10032136499d2c",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-TRECCOVID.jsonl",
+      "size_bytes": 5606,
+      "sha256": "58b20188acf35e123d09eb7832cad69d24e64e8bcfb27e60d8f0826381a921e9",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "478990548e7aedb8e9b327821d97a89db5ea5784",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-TRECCOVID.rss.txt",
+      "size_bytes": 1003,
+      "sha256": "5238de42534ff56001c35bc9be578f4ed021f01f4c469992412243d000b95930",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "03e957046ea5f0ba201c6a73ecad0c070998d34e",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-Touche2020Retrieval.v3.jsonl",
+      "size_bytes": 5616,
+      "sha256": "eb85f4cd1e07ae3315ceea06b957ea5cd66c87c2eda310819f826a2320e2a68c",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "cc842198b2ab7726f6274b8ed152a4185ccd0d12",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-Touche2020Retrieval.v3.rss.txt",
+      "size_bytes": 1033,
+      "sha256": "1457e41470d7301e2efb1bd2e9859dc9ca315527904c7d25d1c65ac6c63dd3a8",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "0ae0eade6560522779c71d98deec04820ac6c78d",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-ToxicConversationsClassification.jsonl",
+      "size_bytes": 5693,
+      "sha256": "3981a12ee840a6b4a4f18cf8dfa7597d3a8af71aba230fe22b084e64a9f9f263",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e35670bb84143ca99b44ef3f02714a959648c84a",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-ToxicConversationsClassification.rss.txt",
+      "size_bytes": 1046,
+      "sha256": "d53a745b4cec4fdcfcfd578beba9841ac4198a73fac7e78cbb96a81232627023",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "eb250e6f70ac5b1b18bdd8add71a333da7c4b3ce",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-TweetSentimentExtractionClassification.jsonl",
+      "size_bytes": 5467,
+      "sha256": "f8637eae4c018a432172e42ab861f67d2b75f0493c8aab37a955cd505b28a104",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "2910973ec6467fce5c242d9d84f974e97d9b5e83",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-TweetSentimentExtractionClassification.rss.txt",
+      "size_bytes": 1054,
+      "sha256": "2c484dd9d629c557f39f5fc6d33c8fa3c0d92f4ceb8fc26bf637624e865152de",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "6dea7d6ed8456e7ef6965cfef2db38b8b586255a",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-TwentyNewsgroupsClustering.v2.jsonl",
+      "size_bytes": 5695,
+      "sha256": "5c50c785489094286498f80fae647cb089b9935f9706a9f05ff8dc2f312f8da9",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "72f855797f1f20ff75de0a6a4f74fbbfb9ffbc64",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-TwentyNewsgroupsClustering.v2.rss.txt",
+      "size_bytes": 1034,
+      "sha256": "1fdda9e826b23c33ad9458bd8cbc9a07aa9a3202dad9ab250f7198f991ec3003",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "6d06343bf740c181a2e143e073f18e8ebd19f0a2",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-TwitterSemEval2015.jsonl",
+      "size_bytes": 5780,
+      "sha256": "248a02fe16b8e276a04c01f5808652463ba8d01fb47c2c5ca2c0bad2456d7dce",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "fcc72ab71be113f0743328328ea239e9d2d261f3",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-TwitterSemEval2015.rss.txt",
+      "size_bytes": 1013,
+      "sha256": "0aaea04a2359a6779b4cb39059e7c27baede138cdbe229044a83f15315e699f6",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e2df2b439ee92a96e35ec790e2f438c296ae0fed",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-TwitterURLCorpus.jsonl",
+      "size_bytes": 5702,
+      "sha256": "c6f37f0ba1d97237e5ab832fe594ebf523c3c9dd0c7ff7be319d7db6c12b8a60",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "5125c6f2cfcc45460efda14ddf08ac344a87a8b2",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-TwitterURLCorpus.rss.txt",
+      "size_bytes": 1011,
+      "sha256": "afffe4c4884a97b75407646bbe3649c01f556d4cbcc58139e270011160974aff",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "94bdfe6129d84a07264b1c883ac7ccafce2ec637",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod5-20261101/word2vec-google-news-300-excluded.json",
+      "size_bytes": 365,
+      "sha256": "434b3f6f26b1065c4decf046f8e8951e6a8328353d66c7a9d0c209b12b1e9fd5",
+      "source_commit": "b0bdc3d08544fdecfadeffc8ca5dae303ffd898d",
+      "git_blob": "e4d0515f0b0001b9b2021394a2ac895aa32602eb",
+      "source_kind": "Pod5 remote/local transfer manifest; independently size/SHA256 verified"
+    },
+    {
       "path": "benchmarks/baseline/results/dr151-profiles-current/window5-cpu-fse/cpu.json",
       "size_bytes": 526429,
       "sha256": "83ada0220bdf3a21454554212fef44020113e11df354a25de4db928a259f94dc",
@@ -4549,9 +7261,9 @@
     }
   ],
   "evidence_branch": "benchmark-evidence-2.0",
-  "evidence_commit": "dac448a925fb3a6c63570be9f3d637b0d948bb53",
-  "evidence_commit_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/commit/dac448a925fb3a6c63570be9f3d637b0d948bb53",
-  "verified_files": 625,
-  "total_size_bytes": 68577502,
+  "evidence_commit": "660309c4c88930254288495a0bb025fe428870f7",
+  "evidence_commit_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/commit/660309c4c88930254288495a0bb025fe428870f7",
+  "verified_files": 964,
+  "total_size_bytes": 98850335,
   "verification": "Existing immutable evidence blobs unchanged; appended pod files read back and checked by size and SHA256. Canonical and CRLF variants remain preserved."
 }

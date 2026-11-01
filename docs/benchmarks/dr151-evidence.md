@@ -16,6 +16,7 @@ The later archive commit 106998c5043080cf9fb68eb0d947ba979ac82736 adds the indep
 | Initial local comparison | [Four-cell summary](../../benchmarks/baseline/dr151_summary_20261101.json) | Manifest paths `benchmarks/baseline/results/dr151-model2vec-*` |
 | Local model/dtype matrix | [54-cell summary](../../benchmarks/baseline/dr151_matrix_summary_20261101.json) | Original rich matrix summary and every journal |
 | Pod 2 | [Coverage and selected cells](../../benchmarks/baseline/dr151_pod2_audit_20261101.json) | Full 303-cell audit, quality records and journals |
+| Pod 5 classic quality raw files | [Independent transfer verification](../../benchmarks/baseline/dr151_pod5_evidence_verification_20261101.json) | Manifest paths `benchmarks/baseline/results/dr151-pod5-20261101/`, including all three fit NPZ and original transfer manifest. Final reviewed quality summary is delivered separately. |
 | Pod 3 panels | [All 30 cells, including noisy cells](../../benchmarks/baseline/dr151_pod3_panels_20261101.json) | Full correctness, runtime and paired observations |
 | Pod 3 10M write paths | [Original small summary](../../benchmarks/baseline/dr151_pod3_large_write_20261101.json) | Complete write-path journal and invocations |
 | Pod 3 100M showcase | [Original small summary](../../benchmarks/baseline/dr151_pod3_showcase_20261101.json) | Input identity, both operations, bootstrap and invocations |
