@@ -147,7 +147,7 @@ def test_context_date_comes_from_accepted_rounds(exporter, monkeypatch):
     monkeypatch.setattr(
         exporter,
         "summarize",
-        lambda *args: dict(
+        lambda *_args: dict(
             eligible=True, arms=arms, verified_aa_ratio=1.0, accepted_rounds=[1, 2, 3]
         ),
     )
