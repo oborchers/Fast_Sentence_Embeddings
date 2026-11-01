@@ -29,7 +29,9 @@ def basis(release, monkeypatch, tmp_path):
     for name in sources.SOURCES:
         parent = tmp_path / name
         parent.mkdir()
-        models, records, verification, fit, _ = delivery_fixture(monkeypatch, parent, name)
+        models, records, verification, fit, _ = delivery_fixture(
+            monkeypatch, parent, name, fasttext=name.startswith("fasttext")
+        )
         for record in records:
             folder = models / record["repo"].split("/")[1]
             current_fit = fit if record["method"] == "sif10" else None

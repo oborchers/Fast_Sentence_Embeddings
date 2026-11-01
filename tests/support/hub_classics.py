@@ -8,7 +8,7 @@ import numpy as np
 import fse
 
 
-def delivery_fixture(monkeypatch, tmp_path, name="glove-wiki-gigaword-300"):
+def delivery_fixture(monkeypatch, tmp_path, name="glove-wiki-gigaword-300", *, fasttext=False):
     prepare = importlib.import_module("prepare_hub_classics")
     checks = importlib.import_module("hub_classic_verification")
     benchmark = {"fixture": "synthetic graph test"}
@@ -16,9 +16,15 @@ def delivery_fixture(monkeypatch, tmp_path, name="glove-wiki-gigaword-300"):
     models = tmp_path / "models"
     models.mkdir()
     records = []
+    extra = {}
+    if fasttext:
+        extra = {
+            "fasttext": fse.FastTextParams(3, 5, 7),
+            "ngrams": np.random.default_rng(0).normal(size=(7, 3)).astype(np.float32),
+        }
     for method, scale in (("raw", 1.0), ("sif10", 0.8)):
         encoder = fse.Encoder.from_arrays(
-            np.eye(3, dtype=np.float32) * scale, words=["a", "b", "c"]
+            np.eye(3, dtype=np.float32) * scale, words=["a", "b", "c"], **extra
         )
         records.extend(prepare.write_variants(encoder, name, method, models))
     state = models / f"{name}-fit.npz"

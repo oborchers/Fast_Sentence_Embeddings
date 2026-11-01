@@ -1,12 +1,13 @@
 # Public Hub readback protocol
 
-This worker has performed no Hub writes. Oliver must approve the exact cards,
-repository names, licenses and complete file inventory in the immutable publication
-manifest before the coordinator creates any PUBLIC repo. There is no private stage.
-Oliver approved the content, repository list and licenses of all 30 repos under Option B. FastText has no remaining separate hold. Upload waits for release 2.0.0 and regenerated release cards.
+This worker has performed no Hub writes. Oliver approved content, repository names
+and licenses of all 30 repos under Option B, including FastText. Upload waits until
+release 2.0.0 and regenerated cards. Every repo is PUBLIC from creation.
+Run `RELEASE_CARDS.md` after the release and upload the resulting release payload.
+The manifest and local card paths below must then reference that new output.
+The explicit Option B decision supplies authorization; a manifest flag does not
+supply or revoke it. Changes beyond that approved scope require review.
 
-Run `RELEASE_CARDS.md` after release v2.0.0. Upload the resulting release payload.
-The manifest and local card paths below must then reference that new release output.
 After the approved uploads finish, the coordinator supplies a JSON receipt:
 
 ```json
@@ -54,4 +55,5 @@ No failure triggers Hub deletion, overwrite or repair.
 
 Commit `evidence.json`, `report.md`, per-repo JSON and logs to this evidence folder.
 Report the complete per-repo table and the evidence commit to fse-main. Actual
-post-upload checks remain pending until approval and completed upload receipts exist.
+post-upload checks remain pending until release 2.0.0, release cards and completed
+upload receipts exist.
