@@ -93,7 +93,8 @@ After moving the folder to its own repository, replace `-e '../..'` with an
 available fse 2.0 build. The declared requirement is `fse>=2.0.0.dev0`.
 The network test downloads `minishlab/potion-base-8M`. Offline tests build a tiny
 local encoder with `Encoder.from_arrays` and compare vectors with fse directly.
-No model upload or paid service is needed.
+Tests disable Python network sockets by default and enable them for the marked
+network test. No model upload or paid service is needed.
 
 ## AI assistance
 

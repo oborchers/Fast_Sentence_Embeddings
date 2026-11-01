@@ -92,9 +92,10 @@ def test_local_artifact(encoder, tmp_path):
     )
     model.warm_up()
     assert model.run("hello")["embedding"] == encoder.encode(["hello"]).tolist()[0]
-    clone = FseTextEmbedder.from_dict(model.to_dict())
-    clone.warm_up()
-    assert clone.run("hello") == model.run("hello")
+    pipeline = Pipeline()
+    pipeline.add_component("embed", model)
+    clone = Pipeline.loads(pipeline.dumps())
+    assert clone.run({"embed": {"text": "hello"}})["embed"] == model.run("hello")
 
 
 async def test_cold_async_pipeline_loads_off_loop(encoder, monkeypatch):
