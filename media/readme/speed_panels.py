@@ -66,13 +66,24 @@ def measured(row):
     if not row["runtime_fingerprint"] or not row["backend"]:
         raise ValueError("Executing backend identity is required")
     if row["backend"] == "fse":
-        calls = row.get("call_seconds", [])
-        if len(calls) < 3 or any(positive(value) < 2 for value in calls):
-            raise ValueError("Every recorded fse call must last at least 2 seconds")
+        validate_calls(row.get("call_seconds", []))
     rates = row["texts_per_second"]
     if len(rates) != 3:
         raise ValueError("Three accepted primary rounds are required")
     return statistics.median(positive(value) for value in rates)
+
+
+def validate_calls(rounds):
+    if len(rounds) != 3:
+        raise ValueError("Call durations need three complete fse-a/fse-b rounds")
+    for observations in rounds:
+        if set(observations) != {"fse-a", "fse-b"}:
+            raise ValueError("Call durations require both fse-a and fse-b")
+        for calls in observations.values():
+            if set(calls) != {"first", "warm"} or not calls["warm"]:
+                raise ValueError("Call durations require first and warm calls")
+            if any(positive(value) < 2 for value in [calls["first"], *calls["warm"]]):
+                raise ValueError("Every recorded fse call must last at least 2 seconds")
 
 
 def same(rows, keys):

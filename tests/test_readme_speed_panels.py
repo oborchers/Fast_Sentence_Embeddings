@@ -40,7 +40,10 @@ def row(backend="fse", dtype="float32", workers=1):
             "tokenizer_rule": "test-rule",
         },
         "texts_per_second": [100, 200, 300],
-        "call_seconds": [2, 3, 4],
+        "call_seconds": [
+            {backend: {"first": 2, "warm": [2, 3, 4]} for backend in ("fse-a", "fse-b")}
+            for _ in range(3)
+        ],
     }
 
 
@@ -302,12 +305,38 @@ def test_completely_filtered_library_cannot_disappear(tmp_path, include_complete
     assert list(tmp_path.iterdir()) == []
 
 
-@pytest.mark.parametrize("calls", [[], [2, 2], [2, 1.999, 3], [2, float("nan"), 3]])
-def test_short_individual_calls_cannot_hide_behind_a_median(calls):
+@pytest.mark.parametrize("duration", [1.999, float("nan")])
+def test_short_individual_calls_cannot_hide_behind_a_median(duration):
     sample = row()
-    sample["call_seconds"] = calls
+    sample["call_seconds"][1]["fse-b"]["warm"][0] = duration
     with pytest.raises(ValueError, match=r"2 seconds|finite"):
         PANEL["measured"](sample)
+
+
+@pytest.mark.parametrize("part", ["round", "backend", "first", "warm"])
+def test_duration_extraction_requires_complete_calls(part):
+    sample = row()
+    rounds = sample["call_seconds"]
+    if part == "round":
+        rounds.pop()
+    elif part == "backend":
+        del rounds[0]["fse-b"]
+    elif part == "first":
+        del rounds[0]["fse-a"]["first"]
+    else:
+        rounds[0]["fse-b"]["warm"] = []
+    with pytest.raises(ValueError, match="Call durations"):
+        PANEL["measured"](sample)
+
+
+@pytest.mark.parametrize("calls", [None, [0.1]])
+def test_reference_calls_do_not_receive_the_fse_duration_gate(calls):
+    sample = row("model2vec")
+    if calls is None:
+        del sample["call_seconds"]
+    else:
+        sample["call_seconds"] = calls
+    assert PANEL["measured"](sample) == 200
 
 
 @pytest.mark.parametrize("workers", [2, 4, 8])

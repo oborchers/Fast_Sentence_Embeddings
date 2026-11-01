@@ -43,7 +43,7 @@ The maintainer authorized **one primary timed run plus one A/A repeat** for this
 The repeat took 33.771484442055225 seconds. The symmetric A/A band is 0.9566241365383857 to 1.0453426396061603, a **4.534263960616025%** spread.
 This is within the 10% band. Use the primary rate, not a pooled two-run median or the faster repeat.
 It is not a three-pair matrix cell, a library speedup, or evidence for a 32/16 scaling decision.
-The separate one-core/16-core/32-core panels still require their own accepted paired cells and scaling curves.
+The separate one-core/16-core/32-core panels still require their own accepted paired cells and direct 1/16/32 selection cells.
 
 The independent metadata check recomputed texts/duration, token totals/rows and the A/A ratio, verified both output row counts/digests, and checked the table/output dtype distinction.
 No new inference, model loading or local timing was performed for that check.

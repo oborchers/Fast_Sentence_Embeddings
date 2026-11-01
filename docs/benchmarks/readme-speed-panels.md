@@ -103,7 +103,9 @@ Reference rows must identify their own package or Rust binary, not fse's fingerp
 The format is `readme-speed-panels-v1`, with committed `selection_rows` rows, `table` rows and `comparisons` pairs.
 Rows contain `complete`, `runtime_attributed`, `aa_upper`, `backend`, `runtime_fingerprint`,
 `source` (`commit`, `path`, `series_id`), `context`, and three ordered `texts_per_second` values.
-For fse, `call_seconds` contains every first and warm call from both fse-a and fse-b across the accepted rounds.
+For fse, `call_seconds` is a list of three rounds. Each round has `fse-a` and `fse-b`,
+each containing `first` (seconds) and `warm` (all recorded warm-call seconds).
+Include every call from the accepted source operations. Missing rounds, backends or first/warm calls fail validation.
 Extract actual durations, not the configured `minimum_call_seconds` threshold. The renderer rejects any call below two seconds.
 `CONTEXT` in the renderer lists the required model/input/output fields. `parent_artifact` identifies original weights, not quantized bytes.
 A pair contains `fse`, `reference` and `output_checked: true`, added only after verifying output semantics.
