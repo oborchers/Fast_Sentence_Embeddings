@@ -10,7 +10,7 @@ import re
 import subprocess
 from pathlib import Path, PurePosixPath
 
-from pod_readme import POTION, STATIC_ST
+from pod_readme import POTION, STATIC_ST, case_id, cases
 from pod_readme_summary import summarize
 
 CURVE = (1, 2, 4, 8, 16, 32)
@@ -82,15 +82,33 @@ def panel_row(summary, label, source, details):
     }
 
 
+def series_contract(done, operations, labels, checks):
+    specs = {case_id(*spec): spec for spec in cases()}
+    if done["cell"] not in specs:
+        raise ValueError("series selector is outside the approved README grid")
+    repo, dtype, workers, against = specs[done["cell"]]
+    expected = {"fse-a": "fse", "fse-b": "fse"}
+    if against:
+        expected[against] = against
+    if set(labels) != set(expected) or any(r["kind"] != expected[r["label"]] for r in operations):
+        raise ValueError("series requires both fse controls and its exact reference backend")
+    checked = checks[done["cell"]]
+    if (checked["model"], checked["table_dtype"], checked["workers"]) != (repo, dtype, workers):
+        raise ValueError("output checks differ from the exact approved series selector")
+    return checked
+
+
 def extract_series(done, raw, checks, commit, journal):
     operations = [r for r in raw if r.get("event") == "operation"]
     rounds = [r for r in raw if r.get("event") == "round_complete"]
     labels = list(dict.fromkeys(r["label"] for r in operations))
-    checked = checks[done["cell"]]
+    checked = series_contract(done, operations, labels, checks)
     summary = summarize(done, operations, rounds, labels, checked)
     if not summary["eligible"]:
         raise ValueError("strict source summary rejects this series")
-    controls = [r for r in operations if r["kind"] == "fse"]
+    controls = [
+        r for r in operations if r["kind"] == "fse" and r["round"] in summary["accepted_rounds"]
+    ]
     details = context(controls, checked)
     source = {"commit": commit, "path": journal, "series_id": done["series_id"]}
     primary = panel_row(summary, "fse-a", source, details)

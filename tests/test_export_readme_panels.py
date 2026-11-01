@@ -98,3 +98,64 @@ def test_output_preserves_paired_source_and_round_order(exporter):
     assert result["source"] == source
     assert result["aa_upper"] == 1.02
     assert result["context"]["parent_artifact"] == "parent"
+
+
+@pytest.mark.parametrize("labels", [("fse-a",), ("fse-b",), ("fse-a", "model2vec")])
+def test_extraction_requires_both_controls_even_if_journal_claims_complete(exporter, labels):
+    cell = exporter.case_id(exporter.POTION, "float32", 1, None)
+    done = dict(cell=cell, series_id="series", complete=True)
+    raw = [
+        dict(event="operation", label=label, kind="fse" if label.startswith("fse") else label)
+        for label in labels
+    ]
+    with pytest.raises(ValueError, match="both fse controls"):
+        exporter.extract_series(done, raw, {}, "a" * 40, "benchmarks/baseline/raw.jsonl")
+
+
+def test_extraction_rejects_missing_reference_arm(exporter):
+    cell = exporter.case_id(exporter.POTION, "float32", 1, "model2vec")
+    raw = [dict(event="operation", label=label, kind="fse") for label in ("fse-a", "fse-b")]
+    with pytest.raises(ValueError, match="exact reference backend"):
+        exporter.extract_series(dict(cell=cell), raw, {}, "a" * 40, "benchmarks/baseline/raw.jsonl")
+
+
+def test_context_date_comes_from_accepted_rounds(exporter, monkeypatch):
+    base, checked = source_fixture(exporter)
+    cell = exporter.case_id(exporter.POTION, "int8", 16, None)
+    checked.update(model=exporter.POTION, table_dtype="int8", workers=16)
+    raw = [
+        dict(
+            base,
+            event="operation",
+            label=label,
+            kind="fse",
+            round=number,
+            time_utc="2026-11-01T23:59:59Z" if number == 0 else "2026-11-02T00:01:00Z",
+        )
+        for number in range(4)
+        for label in ("fse-a", "fse-b")
+    ]
+    arms = {
+        label: dict(
+            runtime_stable=True,
+            backend="fse",
+            runtime=dict(runtime_fingerprint="code"),
+            ordered_texts_per_second=[1.0, 2.0, 3.0],
+        )
+        for label in ("fse-a", "fse-b")
+    }
+    monkeypatch.setattr(
+        exporter,
+        "summarize",
+        lambda *args: dict(
+            eligible=True, arms=arms, verified_aa_ratio=1.0, accepted_rounds=[1, 2, 3]
+        ),
+    )
+    _, primary, _ = exporter.extract_series(
+        dict(cell=cell, series_id="series"),
+        raw,
+        {cell: checked},
+        "a" * 40,
+        "benchmarks/baseline/raw.jsonl",
+    )
+    assert primary["context"]["date"] == "2026-11-02"
