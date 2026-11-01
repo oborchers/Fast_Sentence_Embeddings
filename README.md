@@ -207,15 +207,17 @@ Name machine, OS, Python, NumPy, library versions, model revisions, worker count
 | potion-multilingual-128M | pending | pending | model2vec: pending |
 | static-retrieval-mrl-en-v1 | pending | pending | sentence-transformers: pending |
 | static-similarity-mrl-multilingual-v1 | pending | pending | sentence-transformers: pending |
-| GloVe-300 | 212,783 (203,964 to 219,669) / pending / pending | 828,045 (708,401 to 901,244) / pending / pending | different model, model2vec POTION-8M tokenizer off: 8,915 (8,896 to 8,935); on: 24,694 (24,511 to 27,057) |
-| word2vec-300 | pending / pending / 212,606 (211,846 to 213,981) | pending / pending / 924,000 (886,643 to 932,838) | different model, model2vec POTION-8M tokenizer off: 8,944 (8,927 to 8,951); on: 27,280 (23,108 to 27,714) |
+The classic models have fse-only measurements:
+
+| Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) |
+|---|---|---|
+| GloVe-300 | 212,783 (203,964 to 219,669) / pending / pending | 828,045 (708,401 to 901,244) / pending / pending |
+| word2vec-300 | pending / pending / 212,606 (211,846 to 213,981) | pending / pending / 924,000 (886,643 to 932,838) |
 
 The classic-model cells use [four completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/74f2883fe74a1e1c188cbdffa22562f4e3d7b1d1/docs/benchmarks/readme-classic-timings-20261101/README.md)
 from the same date, machine and WikiText input. Each has three paired rounds,
 with one warm timed call per child after a full-corpus warmup.
-Their paired Model2Vec control uses POTION-8M, a different model, as labeled in the counterpart column.
-It produces 256 values per vector, rather than 300, and uses different text rules.
-No library speed ratio follows from those pairs. All load endpoints were below 5.
+All load endpoints were below 5.
 The source reports A/A variation separately, including a time-ratio range of 0.7850 to 1.1500 for ten-worker GloVe.
 
 The largest process memory peaks among each series' three primary fse runs were:
@@ -229,6 +231,21 @@ These peaks include imports, model and corpus loading, warmup, encoding and outp
 They measure process memory, not saved-file size or memory added by one call.
 The linked raw records and summary retain exact byte counts and separate control-process peaks.
 Other model, dtype and task-quality results remain pending.
+
+**Reference controls**
+
+The classic-model series also ran Model2Vec with POTION-8M on the same texts.
+POTION-8M produces 256 values per vector, rather than 300, and uses different text rules.
+These controls measure a different model. They do not establish an equal-model library speed ratio.
+Each cell shows the median and range of three control-process rates.
+
+| Series containing the control | Model2Vec POTION-8M, tokenizer off, texts/s | Model2Vec POTION-8M, tokenizer on, texts/s |
+|---|---:|---:|
+| GloVe float32 series | 8,915 (8,896 to 8,935) | 24,694 (24,511 to 27,057) |
+| word2vec int8 series | 8,944 (8,927 to 8,951) | 27,280 (23,108 to 27,714) |
+
+The off/on controls accompanied the one/ten-worker fse series, respectively.
+No Model2Vec batch-worker pool ran. Its exact tokenizer thread count was not measured.
 
 The same float32 POTION-8M model also has a [one-worker MASSIVE sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/dr151-model2vec-massive-1.jsonl).
 Across 151,674 test texts, fse processed 878,260 texts/s (861,892 to 903,738),
