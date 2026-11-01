@@ -45,7 +45,7 @@ Pod 2 did not retain full encode arrays for a new cross-library numerical output
 
 ## Classifier configuration and eligible example
 
-Pod 2's fse heads run on **normalized vectors**. They are not raw-mean folded heads. Both recorded POTION float32 parent fingerprints match retained artifact headers containing `normalize@1`. The pinned `Classifier.from_sklearn` defaults to the encoder setting. The audit records this source/parent proof. Pod 3 remains necessary for folded raw means versus explicit encoding plus the same head.
+Pod 2's fse heads run on **normalized vectors**. They are not raw-mean folded heads. Both recorded POTION float32 parent fingerprints match retained artifact headers containing `normalize@1`. The pinned `Classifier.from_sklearn` defaults to the encoder setting. The [source/parent proof](../benchmarks/baseline/dr151_pod2_normalization_evidence_20261101.json) records these retained headers and their exact match to transferred Pod 2 manifest entries. Pod 3 remains necessary for folded raw means versus explicit encoding plus the same head.
 
 The frozen Model2Vec plus sklearn row uses its independently fitted linear head. It is not the same coefficient array as fse's head. The separate Model2Vec classifier fine-tunes embeddings and trains an MLP with PyTorch, by default one 512-unit ReLU hidden layer. Its exported inference pipeline runs in plain NumPy in model2vec 0.10.0 (`model2vec/inference/mlp.py`). This is a different trained model from fse's frozen encoder and linear head. Training times stay separate from inference.
 
