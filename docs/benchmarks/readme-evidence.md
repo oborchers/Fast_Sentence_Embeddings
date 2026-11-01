@@ -35,7 +35,13 @@ No classifier rate is inferred from those rows. New controlled classifier throug
 
 ## Folding and the pending classification speed panel
 
-The README figure shows preparation of per-word scores for a linear head trained on raw, unnormalized averages.
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/1f76884072537cb70a757f02d3e2e37cfa0b4ba4/media/readme/classification-folding-dark.png">
+<img alt="A trained linear head prepares a word-score table once. For new texts, fse looks up word scores, averages them, adds the bias and returns labels. This applies to raw, unnormalized averages and class-only outputs. Classification speed measurements are pending." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/1f76884072537cb70a757f02d3e2e37cfa0b4ba4/media/readme/classification-folding-light.png">
+</picture>
+
+
+This explanatory figure shows preparation of per-word scores for a linear head trained on raw, unnormalized averages.
 fse combines the head weights with word vectors once, then averages word scores and adds the bias for each text.
 This path is used when only class outputs are requested. Normalized heads and requests for full vectors use the full-vector path.
 With fewer output scores than vector values, the folded table has shorter rows.
@@ -44,8 +50,13 @@ A complete fse classifier already prepares this folded path where legal. Saving 
 It is not a separate faster prediction algorithm and is not plotted as a speedup.
 Sources: `src/fse/_runtime/_head.py` (`make_head`, `fold`, `HeadPipeline`) and `src/fse/_head/_model.py` (`save`, `_standalone_artifact`).
 
-No controlled classifier rates are published yet. The next panel will use committed DR-151 classifier records,
+The main README now reserves a measured classification table and chart instead of using this explanation as its speed panel.
+No controlled classifier rates are published yet. The measured panel will use committed DR-151 classifier records,
 with the exact trained head, normalization, dataset, machine, date and worker count from each row.
+The normalized-linear comparison and raw-mean folded comparison stay separate.
+Speedup is the matched reference time divided by fse time for the same input, equivalently their throughput ratio.
+A separately fine-tuned Model2Vec MLP is a different trained model, so it does not fill a same-head engine comparison.
+Its default512-unitReLU head and PyTorch/NumPy paths are documented above.
 Only complete series with executed-backend attribution and a symmetric A/A upper band at most1.10 qualify.
 Encoder-only throughput and retained recipe accuracy rows do not fill this measurement.
 

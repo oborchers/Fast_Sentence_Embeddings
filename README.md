@@ -41,19 +41,18 @@ A new library speed comparison and classification benchmark are pending.
 The current Model2Vec control rates need re-measurement before a final comparison.
 [Measurement details and full model tables](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/2d85d281a5b6ba5e942bb8df691aa694ebb10f6f/docs/benchmarks/readme-evidence.md) retain ranges, quality scores and pending comparisons.
 
-### Classification: fold work into the model
+### Classification speed
 
-Folding prepares class scores for each word before prediction.
-With fewer scores than vector values, each word contributes a shorter list of numbers.
+We will compare complete text-to-label pipelines, including folding.
 
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/1f76884072537cb70a757f02d3e2e37cfa0b4ba4/media/readme/classification-folding-dark.png">
-<img alt="A trained linear head prepares a word-score table once. For new texts, fse looks up word scores, averages them, adds the bias and returns labels. This applies to raw, unnormalized averages and class-only outputs. Classification speed measurements are pending." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/1f76884072537cb70a757f02d3e2e37cfa0b4ba4/media/readme/classification-folding-light.png">
-</picture>
+| Linear classifier | fse, texts/s | Reference pipeline, texts/s | fse speedup |
+|---|---:|---|---:|
+| On normalized vectors | pending | Model2Vec encoding + the same linear head: pending | pending |
+| Folded into raw word-vector averages | pending | fse encoding + the same explicit linear head: pending | pending |
 
-This requires a linear classifier trained on raw, unnormalized word-vector averages.
-fse already uses this path for eligible class-only predictions. A standalone save keeps the same folded table.
-Controlled classification speed results are pending. This diagram shows the processing path, not a measured speedup.
+TODO(DR-151): Fill this table and its speed chart from committed classification benchmarks.
+Each row must use the same encoder, classifier weights, texts and settings.
+The chart will show these measured rates and speedups.
 
 ## Get started
 
