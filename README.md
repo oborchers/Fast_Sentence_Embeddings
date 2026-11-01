@@ -188,7 +188,7 @@ Further model and dtype comparisons, including quality changes from float32, rem
 
 **Later POTION-base-32M sample, float32**
 
-A [later sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/97f19344fdcc76f151227b523992b11c58372811/docs/benchmarks/readme-quality-potion32-20261101/README.md)
+A [later sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ba96e9a663062c86edb1e8eb8aa75774ccf04bb1/docs/benchmarks/readme-quality-potion32-20261101/README.md)
 used POTION-base-32M, two fse workers and the same Apple M1 Pro on 1 November 2026.
 The recorded evaluation code differs from the POTION-8M run above.
 Confirmations of POTION-8M and POTION-base-32M with matching evaluation code are queued after the recording fix.
@@ -201,6 +201,22 @@ A controlled model ranking remains pending.
 
 This English mean also excludes deferred MIND. It is **not the complete 41-task benchmark score**.
 The source records each task's metric and dataset revision, the saved model, and the code identifiers.
+
+**POTION-retrieval-32M, float32, with fixed runtime recording**
+
+A [separate quality sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ba96e9a663062c86edb1e8eb8aa75774ccf04bb1/docs/benchmarks/readme-quality-retrieval32-20261101/README.md)
+measured POTION-retrieval-32M with two fse workers on the Apple M1 Pro on 1 November 2026.
+It records the loaded code's identity after the recording fix.
+Its evaluation code differs from the earlier P8/P32 checkpoints, which still await matching-code confirmations.
+A controlled model ranking remains pending.
+
+| Task group | Coverage | Mean task score, points |
+|---|---|---:|
+| English MTEB(eng, v2), completed tasks only | 40 of 41, MIND deferred | 54.5098 |
+| NanoBEIR search tasks | All 13 of 13 | 50.3872 |
+
+The English mean excludes MIND and is **not the complete 41-task benchmark score**.
+These are task-quality scores. Setup, suspension and shared-job waits do not provide a model compute-time measurement.
 
 ### First neighborhood stability check
 
