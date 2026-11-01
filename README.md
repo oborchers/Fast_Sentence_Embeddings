@@ -210,7 +210,7 @@ Name machine, OS, Python, NumPy, library versions, model revisions, worker count
 | GloVe-300 | 212,783 (203,964 to 219,669) / pending / pending | 828,045 (708,401 to 901,244) / pending / pending | different model, model2vec POTION-8M tokenizer off: 8,915 (8,896 to 8,935); on: 24,694 (24,511 to 27,057) |
 | word2vec-300 | pending / pending / 212,606 (211,846 to 213,981) | pending / pending / 924,000 (886,643 to 932,838) | different model, model2vec POTION-8M tokenizer off: 8,944 (8,927 to 8,951); on: 27,280 (23,108 to 27,714) |
 
-The classic-model cells use [four completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/32df21e5be535048a86045619610446a9cd707bb/docs/benchmarks/readme-classic-timings-20261101/README.md)
+The classic-model cells use [four completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/74f2883fe74a1e1c188cbdffa22562f4e3d7b1d1/docs/benchmarks/readme-classic-timings-20261101/README.md)
 from the same date, machine and WikiText input. Each has three paired rounds,
 with one warm timed call per child after a full-corpus warmup.
 Their paired Model2Vec control uses POTION-8M, a different model, as labeled in the counterpart column.
