@@ -194,9 +194,13 @@ class Encoder:
         is loaded (``mmap`` as for ``load``); a Model2Vec model is converted, with its
         length rule unless ``truncate=False`` (``max_length`` sets another token limit,
         None none, as in model2vec); a sentence-transformers model of one StaticEmbedding
-        is converted with the rules of its encode, its first ``truncate_dim`` dimensions
-        (``"model"``: the model's, None: all) and, with ``normalize=True``, fse's own
-        ``normalize@1`` after the cut. docs/architecture/hub.md, "Model2Vec models and from_pretrained"."""
+        is converted with the rules of its encode and its first ``truncate_dim`` dimensions
+        (``"model"``: the model's, None: all).
+
+        ``normalize`` works for every model: ``"model"`` keeps its rule, False drops a final
+        ``normalize@1`` (the table is unchanged, so a linear head folds into it), True ends
+        the steps with fse's own. The fingerprint is that of the encoder as loaded.
+        docs/architecture/hub.md, "Model2Vec models and from_pretrained"."""
         files = _pretrained.files(
             repo_or_path,
             revision=revision,
@@ -220,7 +224,7 @@ class Encoder:
                 assert found.path is not None
                 encoder = cls.load(found.path, mmap=mmap)
             _pretrained.check_loaded(found, encoder._fingerprint, "encoder")
-            return encoder
+            return _persist.with_normalize(encoder, normalize)
         model = found.converted
         return cls._converted(
             model.word_vectors,

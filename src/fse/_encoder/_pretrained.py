@@ -129,7 +129,7 @@ def find(
     """The model in ``files``: an fse encoder, or the parts of a Model2Vec or a
     sentence-transformers model."""
     rules = {"truncate": truncate, "max_length": max_length}
-    st_rules = {"truncate_dim": truncate_dim, "normalize": normalize}
+    st_rules = {"truncate_dim": truncate_dim}
     if isinstance(files, Path):  # a local encoder file
         _model_rules(rules | st_rules)
         return Found(path=files)
@@ -142,9 +142,12 @@ def find(
         raise ValueError("mmap is for fse encoders; a converted model is converted in memory")
     if config is not None and _is_model2vec(files, kind):
         _model_rules(st_rules)
-        return _found(files, "model2vec", read_model2vec(files, config, **rules))
+        model = read_model2vec(files, config, **rules, normalize=normalize)
+        return _found(files, "model2vec", model)
     if files.has("modules.json"):
-        model = read_sentence_transformers(files, kind=kind, **rules, **st_rules)
+        model = read_sentence_transformers(
+            files, kind=kind, **rules, **st_rules, normalize=normalize
+        )
         return _found(files, "sentence-transformers", model)
     raise _refusal(files, kind)
 
@@ -170,7 +173,7 @@ def _found(files: Files | LocalFiles, kind: str, model: Converted) -> Found:
 
 
 _DEFAULTS = {"truncate": True, "max_length": MODEL_RULE}
-_DEFAULTS |= {"truncate_dim": MODEL_RULE, "normalize": MODEL_RULE}
+_DEFAULTS |= {"truncate_dim": MODEL_RULE}
 
 
 def _model_rules(given: dict[str, Any]) -> None:
@@ -180,7 +183,7 @@ def _model_rules(given: dict[str, Any]) -> None:
         raise ValueError(
             f"{' and '.join(changed)}: this model holds its own rules (truncate and "
             "max_length are for Model2Vec and sentence-transformers models, truncate_dim "
-            "and normalize for sentence-transformers models)"
+            "for sentence-transformers models; normalize works for every model)"
         )
 
 
