@@ -105,6 +105,7 @@ class WriterThread:
         self.check(report)
         with self._state:
             while self._accepting and self._full(nbytes):
+                self.check(report)
                 self._state.wait(_POLL)
             self.check(report)
             if not self._accepting or self._abandoned:

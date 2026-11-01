@@ -163,6 +163,46 @@ def test_a_failure_while_submit_waits_is_reported(monkeypatch):
         writer.stop()
 
 
+def test_a_waiting_producer_reports_another_threads_failure(monkeypatch):
+    monkeypatch.setattr(_writer, "MAX_PENDING_BYTES", 1)
+    failure = WriterFailure()
+    writer, other = WriterThread(failure=failure), WriterThread(failure=failure)
+    release = threading.Event()
+    root = OSError("hash failed")
+    errors = []
+    reached = blocked_in_wait(writer._state, "producer")
+
+    def write():
+        assert release.wait(TIMEOUT)
+
+    def fail():
+        raise root
+
+    def submit():
+        try:
+            writer.submit(lambda: None, nbytes=1)
+        except BaseException as error:
+            errors.append(error)
+
+    producer = threading.Thread(target=submit, name="producer")
+    try:
+        writer.submit(write, nbytes=1)
+        producer.start()
+        assert arrived(reached, writer._state)
+        other.submit(fail)
+        other.settle()
+        producer.join(TIMEOUT)
+        assert not producer.is_alive()
+        assert errors == [root]
+        assert not writer.failed
+        assert not release.is_set()
+    finally:
+        release.set()
+        producer.join(TIMEOUT)
+        writer.stop()
+        other.stop()
+
+
 def _joined(thread: threading.Thread) -> None:
     thread.join(TIMEOUT)
     assert not thread.is_alive(), f"{thread.name} did not end within {TIMEOUT} s"
