@@ -88,7 +88,10 @@
         0.9470861213845604,
         1.055870186903472
       ],
-      "noise_status": "within 10% A/A band"
+      "noise_status": "within 10% A/A band",
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "final_throughput_eligible": false,
+      "remeasurement_reason": "requires re-measurement for runtime attribution"
     },
     {
       "raw": "dr151-matrix-glove-wiki-gigaword-300-float32-w10.jsonl",
@@ -175,7 +178,10 @@
         0.7850111276557089,
         1.2738672927940726
       ],
-      "noise_status": "noisy, re-measure in a quiet window"
+      "noise_status": "noisy, re-measure in a quiet window",
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "final_throughput_eligible": false,
+      "remeasurement_reason": "requires re-measurement for runtime attribution"
     },
     {
       "raw": "dr151-matrix-word2vec-google-news-300-int8-w1.jsonl",
@@ -262,7 +268,10 @@
         0.935156587289777,
         1.0693396310217402
       ],
-      "noise_status": "within 10% A/A band"
+      "noise_status": "within 10% A/A band",
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "final_throughput_eligible": false,
+      "remeasurement_reason": "requires re-measurement for runtime attribution"
     },
     {
       "raw": "dr151-matrix-word2vec-google-news-300-int8-w10.jsonl",
@@ -349,8 +358,12 @@
         0.930178675652364,
         1.0750622715562341
       ],
-      "noise_status": "within 10% A/A band"
+      "noise_status": "within 10% A/A band",
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "final_throughput_eligible": false,
+      "remeasurement_reason": "requires re-measurement for runtime attribution"
     }
   ],
-  "aa_audit_source_commit": "f7537d970e4d883b4bfcd61d991859a36cb6da19"
+  "aa_audit_source_commit": "f7537d970e4d883b4bfcd61d991859a36cb6da19",
+  "runtime_attribution_review_commit": "4e888dc18aadc3b5bf6da5b7db7afaa5d0e4b944"
 }

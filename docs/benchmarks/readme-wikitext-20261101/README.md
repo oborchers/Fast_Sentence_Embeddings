@@ -1,5 +1,11 @@
 # Static-encoder samples for the fse README
 
+
+**Historical observations, to be re-measured for runtime attribution.**
+The speed records lack executed-package paths and content fingerprints.
+A/A repeatability and model fingerprints do not identify the code that ran.
+None of these rates is a final current-runtime throughput result.
+
 These are unchanged raw snapshots from DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen).
 The comparison worker produced them on 1 November 2026. The snapshots preserve their original completion and rejection records.
 Canonical source: commit 3265b35, benchmarks/baseline/dr151_summary_20261101.json and its raw files.
@@ -63,6 +69,8 @@ A/A repeats the same fse configuration to measure timing variation. For each
 round, divide fse-b time by fse-a time. Let U be the largest ratio or reciprocal.
 The symmetric band is 1/U to U. It is an empirical diagnostic, not a confidence
 interval. A band above 1.10 is noisy and must be re-measured before headlining.
+A band within 10% is insufficient without executed-runtime identity. New final
+rates must record package location/content identity and keep each series compatible.
 Incomplete attempts provide no accepted speed, regardless of diagnostic bands.
 Reference controls inherit their paired series label, not a separate Model2Vec A/A test.
 
@@ -73,3 +81,5 @@ Reference controls inherit their paired series label, not a separate Model2Vec A
 | dr151-model2vec-massive-1 | 0.9695 to 1.0315 | within 10% A/A band |
 
 [Committed owner audit](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/f7537d970e4d883b4bfcd61d991859a36cb6da19/docs/fse-comparison-aa.md).
+
+[Runtime identity policy and mixed-series rejection](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/4e888dc18aadc3b5bf6da5b7db7afaa5d0e4b944/benchmarks/compare_compatibility.py).

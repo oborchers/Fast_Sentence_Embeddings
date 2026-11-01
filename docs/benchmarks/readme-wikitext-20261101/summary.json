@@ -33,7 +33,10 @@
         0.8997916594008921,
         1.1113683812826511
       ],
-      "noise_status": "noisy, re-measure in a quiet window"
+      "noise_status": "noisy, re-measure in a quiet window",
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "final_throughput_eligible": false,
+      "remeasurement_reason": "requires re-measurement for runtime attribution"
     },
     {
       "corpus": "wikitext",
@@ -66,7 +69,10 @@
         0.8648901164085697,
         1.1562162418417614
       ],
-      "noise_status": "noisy, re-measure in a quiet window"
+      "noise_status": "noisy, re-measure in a quiet window",
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "final_throughput_eligible": false,
+      "remeasurement_reason": "requires re-measurement for runtime attribution"
     },
     {
       "corpus": "massive",
@@ -99,8 +105,12 @@
         0.96948184549016,
         1.0314788303172508
       ],
-      "noise_status": "within 10% A/A band"
+      "noise_status": "within 10% A/A band",
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "final_throughput_eligible": false,
+      "remeasurement_reason": "requires re-measurement for runtime attribution"
     }
   ],
-  "aa_audit_source_commit": "f7537d970e4d883b4bfcd61d991859a36cb6da19"
+  "aa_audit_source_commit": "f7537d970e4d883b4bfcd61d991859a36cb6da19",
+  "runtime_attribution_review_commit": "4e888dc18aadc3b5bf6da5b7db7afaa5d0e4b944"
 }

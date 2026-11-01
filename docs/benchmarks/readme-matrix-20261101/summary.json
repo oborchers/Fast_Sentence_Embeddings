@@ -88,7 +88,10 @@
         0.8729813797544949,
         1.145499804682233
       ],
-      "noise_status": "noisy, re-measure in a quiet window"
+      "noise_status": "noisy, re-measure in a quiet window",
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "final_throughput_eligible": false,
+      "remeasurement_reason": "requires re-measurement for runtime attribution"
     },
     {
       "raw": "dr151-matrix-potion-base-8M-float16-w1.jsonl",
@@ -175,7 +178,10 @@
         0.8899244183346614,
         1.123690933069716
       ],
-      "noise_status": "noisy, re-measure in a quiet window"
+      "noise_status": "noisy, re-measure in a quiet window",
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "final_throughput_eligible": false,
+      "remeasurement_reason": "requires re-measurement for runtime attribution"
     },
     {
       "raw": "dr151-matrix-potion-base-8M-float32-w10.jsonl",
@@ -262,9 +268,13 @@
         0.511689539867418,
         1.9543100299824505
       ],
-      "noise_status": "noisy, re-measure in a quiet window"
+      "noise_status": "noisy, re-measure in a quiet window",
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "final_throughput_eligible": false,
+      "remeasurement_reason": "requires re-measurement for runtime attribution"
     }
   ],
   "published_raw_source_commit": "d20b9bcde4e74818c9ee0258cb03e7b7020583b5",
-  "aa_audit_source_commit": "f7537d970e4d883b4bfcd61d991859a36cb6da19"
+  "aa_audit_source_commit": "f7537d970e4d883b4bfcd61d991859a36cb6da19",
+  "runtime_attribution_review_commit": "4e888dc18aadc3b5bf6da5b7db7afaa5d0e4b944"
 }

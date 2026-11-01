@@ -1,5 +1,11 @@
 # Additional WikiText matrix cells, 1 November 2026
 
+
+**Historical observations, to be re-measured for runtime attribution.**
+The speed records lack executed-package paths and content fingerprints.
+A/A repeatability and model fingerprints do not identify the code that ran.
+None of these rates is a final current-runtime throughput result.
+
 These three completed series come from DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen).
 The journals are byte-identical snapshots from the comparison worktree after completion.
 The producing source commit is c0ee537cc0515a7ecbfd4b20eec3bfc227b57a22.
@@ -32,9 +38,9 @@ inferred across these separate series. Task-quality scores remain pending.
 
 | fse model and table | fse workers | Texts/s, median (range) | Process peak, MiB |
 |---|---:|---:|---:|
-| GloVe-300, int8 | 1 | 210,198 (197,759 to 212,257) **noisy, to be re-measured** (A/A band 0.8730 to 1.1455) | 319.1 **noisy, to be re-measured** (A/A band 0.8730 to 1.1455) |
-| POTION-8M, float16 | 1 | 206,438 (202,631 to 214,714) **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) | 166.6 **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) |
-| POTION-8M, float32 | 10 | 914,709 (827,901 to 928,079) **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) | 182.7 **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) |
+| GloVe-300, int8 | 1 | 210,198 (197,759 to 212,257) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8730 to 1.1455) | 319.1 **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8730 to 1.1455) |
+| POTION-8M, float16 | 1 | 206,438 (202,631 to 214,714) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) | 166.6 **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) |
+| POTION-8M, float32 | 10 | 914,709 (827,901 to 928,079) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) | 182.7 **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) |
 
 A/A labels attached to memory peaks describe timing variation, not memory variation.
 
@@ -104,6 +110,8 @@ A/A repeats the same fse configuration to measure timing variation. For each
 round, divide fse-b time by fse-a time. Let U be the largest ratio or reciprocal.
 The symmetric band is 1/U to U. It is an empirical diagnostic, not a confidence
 interval. A band above 1.10 is noisy and must be re-measured before headlining.
+A band within 10% is insufficient without executed-runtime identity. New final
+rates must record package location/content identity and keep each series compatible.
 Incomplete attempts provide no accepted speed, regardless of diagnostic bands.
 Reference controls inherit their paired series label, not a separate Model2Vec A/A test.
 
@@ -114,3 +122,5 @@ Reference controls inherit their paired series label, not a separate Model2Vec A
 | dr151-matrix-potion-base-8M-float32-w10 | 0.5117 to 1.9543 | **noisy, to be re-measured** |
 
 [Committed owner audit](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/f7537d970e4d883b4bfcd61d991859a36cb6da19/docs/fse-comparison-aa.md).
+
+[Runtime identity policy and mixed-series rejection](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/4e888dc18aadc3b5bf6da5b7db7afaa5d0e4b944/benchmarks/compare_compatibility.py).

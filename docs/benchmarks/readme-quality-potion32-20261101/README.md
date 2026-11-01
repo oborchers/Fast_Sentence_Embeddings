@@ -42,8 +42,8 @@ Runtime fingerprint: xxh3-128:e0f772e2be1bfde21414ce3f403b0e21.
 Suite fingerprint: xxh3-128:3382243b7faea5e5c71ba0a52f2bf4a4.
 
 Task names and metadata match the earlier POTION-8M sample. However, its
-recorded method and runtime fingerprints differ. A POTION-8M confirmation
-with the matching method is queued. These means do not establish a controlled
+recorded method and runtime fingerprints differ. POTION-8M and POTION-base-32M confirmations
+with a matching method after the recording fix are queued. These means do not establish a controlled
 ranking against that earlier sample. No cross-model difference, quantized
 quality delta or library-quality equality is claimed.
 
