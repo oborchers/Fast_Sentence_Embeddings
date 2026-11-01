@@ -175,7 +175,8 @@
       "noise_status": "within 10% A/A band",
       "aa_scope": "complete valid paired series",
       "load_min": 4.30078125,
-      "load_max": 4.4365234375
+      "load_max": 4.4365234375,
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-glove-wiki-gigaword-300-float32-w10.jsonl",
@@ -284,7 +285,8 @@
       "noise_status": "noisy, re-measure in a quiet window",
       "aa_scope": "complete valid paired series",
       "load_min": 4.4365234375,
-      "load_max": 4.9619140625
+      "load_max": 4.9619140625,
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-glove-wiki-gigaword-300-int8-w1.jsonl",
@@ -393,7 +395,8 @@
       "noise_status": "noisy, re-measure in a quiet window",
       "aa_scope": "complete valid paired series",
       "load_min": 4.3681640625,
-      "load_max": 4.65869140625
+      "load_max": 4.65869140625,
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-glove-wiki-gigaword-300-int8-w10.jsonl",
@@ -590,7 +593,8 @@
       "noise_status": "noisy, re-measure in a quiet window",
       "aa_scope": "complete valid paired series",
       "load_min": 4.302734375,
-      "load_max": 4.7587890625
+      "load_max": 4.7587890625,
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-8M-float16-w10.jsonl",
@@ -731,7 +735,8 @@
       "noise_status": "noisy, re-measure in a quiet window",
       "aa_scope": "complete valid paired series",
       "load_min": 4.302734375,
-      "load_max": 4.32958984375
+      "load_max": 4.32958984375,
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-8M-int8-w1.jsonl",
@@ -1156,7 +1161,8 @@
       "noise_status": "within 10% A/A band",
       "aa_scope": "complete valid paired series",
       "load_min": 4.22265625,
-      "load_max": 4.52490234375
+      "load_max": 4.52490234375,
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-word2vec-google-news-300-int8-w10.jsonl",
@@ -1265,7 +1271,9 @@
       "noise_status": "within 10% A/A band",
       "aa_scope": "complete valid paired series",
       "load_min": 4.36328125,
-      "load_max": 4.482421875
+      "load_max": 4.482421875,
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure"
     }
-  ]
+  ],
+  "runtime_attribution": "Historical observations: these raw records lack executed-runtime content fingerprints. Retain all numbers and A/A labels, but re-measure before final current-runtime throughput claims."
 }

@@ -19,5 +19,5 @@ It found no further issue with numerical recall, MIND coverage, profile claims,
 the tariff scenario or the qualified elapsed-time scenario.
 Static inspection found no remaining optional-import portability defect.
 This is not execution verification or a completed-results review.
-Regression checks and the final full gate remain required after these corrections.
+After the corrections, 60 focused regression tests and seven pinned MTEB adapter tests pass. Ruff and guardrails pass. The new full check is running at `4e888dc` under the heavy lock with `PYTEST_N=4`. A final complete-results gate remains required.
 All missing measurements and the final claims review remain open.

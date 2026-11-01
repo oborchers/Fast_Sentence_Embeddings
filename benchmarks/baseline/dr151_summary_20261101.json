@@ -125,7 +125,8 @@
       "noise_status": "within 10% A/A band",
       "aa_scope": "complete valid paired series",
       "load_min": 3.900390625,
-      "load_max": 4.35498046875
+      "load_max": 4.35498046875,
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-model2vec-massive-10.jsonl",
@@ -250,7 +251,8 @@
       "noise_status": "noisy, re-measure in a quiet window",
       "aa_scope": "complete valid paired series",
       "load_min": 4.60888671875,
-      "load_max": 4.98876953125
+      "load_max": 4.98876953125,
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-model2vec-wikitext-10.jsonl",
@@ -359,7 +361,9 @@
       "noise_status": "noisy, re-measure in a quiet window",
       "aa_scope": "complete valid paired series",
       "load_min": 4.35498046875,
-      "load_max": 4.60888671875
+      "load_max": 4.60888671875,
+      "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure"
     }
-  ]
+  ],
+  "runtime_attribution": "Historical observations: these raw records lack executed-runtime content fingerprints. Retain all numbers and A/A labels, but re-measure before final current-runtime throughput claims."
 }
