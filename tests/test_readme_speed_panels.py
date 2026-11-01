@@ -43,10 +43,10 @@ def row(backend="fse", dtype="float32", workers=1):
     }
 
 
-def pair():
-    reference = row("model2vec")
+def pair(workers=1):
+    reference = row("model2vec", workers=workers)
     reference["texts_per_second"] = [10, 200, 30]
-    return {"fse": row(), "reference": reference, "output_checked": True}
+    return {"fse": row(workers=workers), "reference": reference, "output_checked": True}
 
 
 @pytest.mark.parametrize(
@@ -93,13 +93,13 @@ def test_speedup_preserves_round_pairing():
     assert PANEL["comparison"](pair()) == 10
 
 
-def test_compact_table_requires_ten_workers_and_all_precisions():
-    rows = [row(dtype=dtype, workers=10) for dtype in PANEL["DTYPES"]]
-    assert "| int8 | 200 |" in PANEL["table"](rows)
-    with pytest.raises(ValueError, match="all three"):
+def test_compact_table_requires_all_precisions_at_one_and_all_cores():
+    rows = [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in PANEL["WORKERS"]]
+    assert "| int8 | 200 | 200 |" in PANEL["table"](rows)
+    with pytest.raises(ValueError, match="all precisions"):
         PANEL["table"](rows[:2])
-    rows[-1]["context"]["workers"] = 1
-    with pytest.raises(ValueError, match="same comparison context"):
+    rows[-1]["context"]["workers"] = 10
+    with pytest.raises(ValueError, match="all precisions"):
         PANEL["table"](rows)
 
 
@@ -119,11 +119,13 @@ def test_empty_data_publishes_nothing_and_invalid_pair_writes_nothing(tmp_path):
     data = {"format": "readme-speed-panels-v1", "table": [], "comparisons": []}
     PANEL["publish"](data, tmp_path, palette)
     assert list(tmp_path.iterdir()) == []
-    data["table"] = [row(dtype=dtype, workers=10) for dtype in PANEL["DTYPES"]]
+    data["table"] = [
+        row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in PANEL["WORKERS"]
+    ]
     data["table_caption"] = "test caption"
     bad = copy.deepcopy(pair())
     bad["output_checked"] = False
-    data["comparisons"] = [bad]
+    data["comparisons"] = [bad, pair(32)]
     data["comparison_caption"] = "test caption"
     with pytest.raises(ValueError, match="Output"):
         PANEL["publish"](data, tmp_path, palette)
@@ -154,7 +156,15 @@ def test_withdrawn_data_cannot_leave_stale_outputs_silently(tmp_path, name):
 
 
 def test_table_rejects_a_different_executed_fse_runtime():
-    rows = [row(dtype=dtype, workers=10) for dtype in PANEL["DTYPES"]]
+    rows = [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in PANEL["WORKERS"]]
     rows[-1]["runtime_fingerprint"] = "other-runtime"
     with pytest.raises(ValueError, match="one executed runtime"):
         PANEL["table"](rows)
+
+
+def test_library_panels_require_both_machine_core_settings():
+    with pytest.raises(ValueError, match="one core and all 32 cores"):
+        PANEL["paired_core_settings"]([pair()])
+    PANEL["paired_core_settings"]([pair(), pair(32)])
+    with pytest.raises(ValueError, match="one core or all 32 cores"):
+        PANEL["comparison"](pair(10))

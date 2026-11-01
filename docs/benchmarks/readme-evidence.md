@@ -11,7 +11,7 @@ The later int8 series below record both backends correctly; their one-worker cel
 
 TODO(DR-151): Record the counterpart's loaded code identity and re-measure a same-model comparison with an A/A band within 10%.
 
-The [speed-panel delivery plan](readme-speed-panels.md) lists exact required cells for the three ten-worker precision rows and each same-model library bar. It contains no new timing results.
+The [speed-panel delivery plan](readme-speed-panels.md) lists exact required cells for the three precision rows at one core and all 32 cores and each same-model library bar. It contains no new timing results.
 
 ## Classifier comparisons: linear head versus fine-tuned MLP
 
@@ -363,7 +363,7 @@ Do not display an empty classification table in the main README while those valu
 
 TODO(DR-151): Add MTEB quality comparisons for classic raw and SIF-10 models when measured.
 
-TODO(DR-151): Add a worker-scaling series from 1 through 10, explicitly including 8 and 10.
+TODO(DR-151): Add the Pod worker-scaling series at 1, 2, 4, 8, 16 and 32 workers.
 Use one fixed model, dtype, input corpus and machine. Plan a small chart/table with actual measured points only, not interpolated values.
 The main README gets no empty scaling rows. Source metadata and acceptance checks stay in this guide.
 

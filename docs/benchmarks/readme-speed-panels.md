@@ -1,95 +1,98 @@
 # Required rows for the next README speed panels
 
-This is a delivery plan, not a benchmark result. The main README stays unchanged until accepted rows arrive.
-`media/readme/speed_panels.py` prepares the table and the light/dark library comparison layout.
-The empty `speed_panel_data.json` produces no publishable panel. Layout previews live under `media/readme/layout/` only.
+This is a delivery plan, not a benchmark result. Unfinished parts stay outside the main README.
+`media/readme/speed_panels.py` prepares the table and light/dark library bars.
+The empty `speed_panel_data.json` produces no publishable panel. Unmeasured previews live under `media/readme/layout/` only.
 
-## Compact table: three ten-worker cells
+## Machine settings
 
-Use one cohort for the whole table: POTION-8M, the same pinned model revision and float32 parent artifact,
-the same complete WikiText encoding input, one machine and date, and float32 vector output.
-Use the exact source digest and text rules from that cohort, including newline handling and tokenizer limits.
+Worker counts follow the machine, not the old Mac setting. The target Pod has 32 vCPU.
+Use workers=1 and workers=32, labelled **one core** and **all 32 cores** in the public captions and headings.
+Do not request or substitute a fixed ten-worker Pod setting.
+The existing 918,299 texts/s Mac headline at ten workers stays unchanged and names its Apple M1 Pro machine.
+Do not combine Mac and Pod cells in one table caption or library speedup.
 
-| Table cell | Required DR-151 row | Primary operations |
-|---|---|---|
-| fse float32 | encode/minishlab/potion-base-8M/float32/wikitext/10/table | fse-a, fse-b |
-| fse float16 | encode/minishlab/potion-base-8M/float16/wikitext/10/table | fse-a, fse-b |
-| fse int8 | encode/minishlab/potion-base-8M/int8/wikitext/10/table | fse-a, fse-b |
+## Compact table: six cells
 
-These are selectors following the Pod 2 `encode_cell` naming convention, not claims that those rows exist.
-The reviewed Pod 2 loops currently use 1 and 32 workers. **Add 10 for all three precisions.**
-Pod 3's float32-only scaling row at 10 workers does not provide the missing float16 or int8 rows.
+Use POTION-8M, one pinned model revision and float32 parent artifact, complete WikiText encoding input,
+one Pod machine and date, and float32 vector output. Preserve the cohort's exact digest, newline rules and tokenizer limits.
 
-Mac observations already accepted: float32 ten workers 918,299 texts/s and float16 ten workers 946,796 texts/s.
-The Mac int8 ten-worker observation is noisy (symmetric A/A upper 1.1169), so it cannot fill the third cell.
-A fresh Linux int8 cell cannot share the Mac caption. Prefer a complete three-precision Linux cohort and replace the whole table.
-The generator deliberately requires all three rows before it writes the compact table. It never substitutes int8 at one worker.
+| Public row | Required DR-151 selectors (each has fse-a and fse-b) |
+|---|---|
+| float32 | encode/minishlab/potion-base-8M/float32/wikitext/1/table and encode/minishlab/potion-base-8M/float32/wikitext/32/table |
+| float16 | encode/minishlab/potion-base-8M/float16/wikitext/1/table and encode/minishlab/potion-base-8M/float16/wikitext/32/table |
+| int8 | encode/minishlab/potion-base-8M/int8/wikitext/1/table and encode/minishlab/potion-base-8M/int8/wikitext/32/table |
+
+These are Pod 2 `encode_cell` selectors, not claims that results exist. Its dtype-table loops already schedule 1 and 32.
+Pod 3's float32 scaling series does not provide the float16 or int8 cells.
+The generator requires all six accepted cells on one coherent machine/runtime before emitting the complete table.
+No ten-worker or one-core-only int8 value can fill the all-32-cores column.
 
 Planned public layout:
 
-| fse table | Texts/s |
-|---|---:|
-| float32 | measured value |
-| float16 | measured value |
-| int8 | measured value |
+| fse table | One core, texts/s | All 32 cores, texts/s |
+|---|---:|---:|
+| float32 | measured value | measured value |
+| float16 | measured value | measured value |
+| int8 | measured value | measured value |
 
-One caption: machine, POTION-8M, 10 workers, WikiText, date. Average text: measured words.
+One caption: Pod machine (32 vCPU), POTION-8M, WikiText, date. Average text: measured words.
 The table sits below the existing throughput graphic and above the single “How we measured” link.
-No placeholder table is included in the main README.
+No placeholder table appears in the main README.
 
-## Library speedup bars: one worker, separate matched fse baselines
+## Library bars: two core settings per library
 
-Prefer one-worker pairs for all four bars. Do not reuse a Mac headline or an unrelated dtype baseline as the numerator.
-Each pair runs on the same pod, input, model revision, tokenizer rules and output settings.
-Use float32 tables and float32 vectors, with identical dimension and normalization within each pair.
+Use separate groups headed **One core** and **All 32 cores**. Each bar needs its own matched fse baseline.
+Use float32 tables and float32 vector output, with the same dimension and normalization within each pair.
 
-| Bar | Required paired DR-151 row | Operations | Model in both libraries |
+| Library | Required paired selectors, with W=1 and W=32 | Operations | Same model in both libraries |
 |---|---|---|---|
-| Model2Vec | encode/minishlab/potion-base-8M/float32/wikitext/1/model2vec | fse-a, fse-b, model2vec | minishlab/potion-base-8M |
-| model2vec-rs | encode/minishlab/potion-base-8M/float32/wikitext/1/rust | fse-a, fse-b, rust | minishlab/potion-base-8M |
-| FastEmbed | encode/minishlab/potion-base-8M/float32/wikitext/1/fastembed | fse-a, fse-b, fastembed | minishlab/potion-base-8M |
-| Sentence Transformers | encode/sentence-transformers/static-retrieval-mrl-en-v1/float32/wikitext/1/st | fse-a, fse-b, st | sentence-transformers/static-retrieval-mrl-en-v1 |
+| Model2Vec | encode/minishlab/potion-base-8M/float32/wikitext/W/model2vec | fse-a, fse-b, model2vec | minishlab/potion-base-8M |
+| model2vec-rs | encode/minishlab/potion-base-8M/float32/wikitext/W/rust | fse-a, fse-b, rust | minishlab/potion-base-8M |
+| FastEmbed | encode/minishlab/potion-base-8M/float32/wikitext/W/fastembed | fse-a, fse-b, fastembed | minishlab/potion-base-8M |
+| Sentence Transformers | encode/sentence-transformers/static-retrieval-mrl-en-v1/float32/wikitext/W/st | fse-a, fse-b, st | sentence-transformers/static-retrieval-mrl-en-v1 |
 
-The first three selectors are already scheduled by Pod 2's counterpart loop at one worker.
-The Sentence Transformers pair must use its compatible static model, with a fresh fse numerator for that same model.
-Keep model names visible under every bar. This makes the different static-model baselines clear.
-Do not compare POTION-8M fse directly with the MRL reference and call it a library speedup.
-All pairs must share the exact input digest, machine, worker budget, output dtype and date for this graphic.
-If one library changes output semantics (for example missing normalization), fix or omit that pair before publication.
+That means eight accepted paired series. Pod 2's counterpart loop already schedules the first three at both settings.
+**Add the Sentence Transformers static-model pair at both 1 and 32.** Its fse numerator must run that same MRL model.
+Never compare POTION-8M fse with the MRL reference and label it a library speedup.
+Keep model names visible under every bar; each bar is a same-model comparison despite different static models across rows.
+The generator permits a library only when both of its core settings are accepted.
+The figure shares one machine, date, complete input digest and output dtype, with each pair sharing its own worker budget.
+A requested thread limit is not proof of observed tokenizer threads. Preserve exact library settings in the evidence.
+If output semantics differ, correct or omit that pair before publication.
 
-A bar uses the median of the three paired fse/reference rate ratios, preserving round order.
-With equal input counts this is the median reference-time/fse-time ratio, not the ratio of two independent medians.
-The bars share a zero origin. The public label says “N times as fast as Library”.
-One caption names machine, input, output, worker budget and date; the model is named on each bar.
+A bar uses the median of three paired fse/reference rate ratios in round order, equivalent to reference-time/fse-time for equal input counts.
+Do not divide two independent medians. Both groups share the same scale and zero origin.
+Public labels say “N times as fast as Library”. One caption names machine, input, output and date; group headings give core settings.
+MiniLM is absent from this same-model renderer. If shown later, it needs a clearly separate “Different model” group and both model names.
 
-MiniLM is deliberately absent from this generator. It is a different model, not a same-model library comparison.
-If later requested, give that workload its own graphic/group explicitly labelled “Different model”, with both model names.
-Do not add it to this same-model data file or bypass the model-equality check.
+## Worker-scaling curve
+
+Required Pod settings: **1, 2, 4, 8, 16 and 32** workers, one fixed POTION-8M float32 model and input on the same Pod.
+Use accepted measured points only, with exact machine/date, digest, output settings, runtime identity and A/A in the evidence.
+There is no fixed ten-worker point on the Pod. No interpolation or empty rows in the README.
 
 ## Acceptance and extraction contract
 
-Only fill `speed_panel_data.json` after auditing the committed raw rows and strict summary against DR-151's current validity rules.
-The renderer does not replace that independent source audit. Keep full evidence here, not in the public README.
-
+Fill `speed_panel_data.json` only after auditing committed raw rows and strict summaries against DR-151's current rules.
+The renderer does not replace the independent source audit. Keep measurement-process details here, not in the public README.
 All fse baselines within a panel must share one executed-runtime fingerprint.
-Every cell needs three complete accepted rotating rounds, paired fse-a/fse-b, backend-specific executed-runtime identity,
-verified artifact lineage, and a symmetric A/A upper bound at most 1.10. Apply all other source protocol checks,
-including load rules for old Mac cells and the recorded host/probe rules for pod cells. Never transfer acceptance between machines.
-Record the publication commit, journal path, exact series identity and ordered primary rates from the same rounds.
-The reference runtime must identify its own library or Rust binary, not fse's package fingerprint.
-Require a checked common output contract before computing any library ratio.
+Each cell needs three complete accepted rotating rounds, paired fse-a/fse-b, backend-specific executed identity,
+verified artifact lineage, and symmetric A/A upper bound at most 1.10. Apply the source's other validity checks,
+including old Mac load rules or Pod host/probe rules. Acceptance never transfers between machines.
+Keep publication commit, journal path, exact series and ordered primary rates from the same three rounds.
+Reference rows must identify their own package or Rust binary, not fse's fingerprint. Check common output semantics first.
 
-The input format has `format: readme-speed-panels-v1`, `table` rows and `comparisons` pairs.
-Each row contains `complete`, `runtime_attributed`, `aa_upper`, `backend`, `runtime_fingerprint`,
-`source` (`commit`, `path`, `series_id`), `context` and three ordered `texts_per_second` values.
-The context keys are defined by `CONTEXT` in the renderer. `parent_artifact` identifies original weights, not quantized bytes.
-A comparison contains `fse`, `reference` and `output_checked: true`, added only after checking output semantics.
-Both rows name the same combined paired journal and series. Keep every source record in the evidence snapshot.
-`table_caption` and `comparison_caption` hold the one-line public captions, copied from the verified context.
-Missing, mixed-model, mixed-input, wrong-worker, noisy or unattributed data fails before any panel is written.
+The format is `readme-speed-panels-v1`, with `table` rows and `comparisons` pairs.
+Rows contain `complete`, `runtime_attributed`, `aa_upper`, `backend`, `runtime_fingerprint`,
+`source` (`commit`, `path`, `series_id`), `context`, and three ordered `texts_per_second` values.
+`CONTEXT` in the renderer lists the required model/input/output fields. `parent_artifact` identifies original weights, not quantized bytes.
+A pair contains `fse`, `reference` and `output_checked: true`, added only after verifying output semantics.
+Both rows name the same combined paired journal and series. Preserve original records in the evidence snapshot.
+`table_caption` and `comparison_caption` contain one-line public captions copied from verified context.
+The renderer rejects incomplete settings, mixed contexts, noisy/unattributed rows and stale unselected output files before writing.
+It never silently retains withdrawn claims or deletes files.
 
 Run `python media/readme/speed_panels.py --preview` for the explicitly unmeasured layout.
-Run `python media/readme/speed_panels.py` after audited data lands, then export SVGs with librsvg and inspect both themes.
-The main visual generator calls the same publish function. With empty data, it adds nothing to the README or final figures.
-
-Regeneration rejects pre-existing final panel files that no longer have selected data. Review those outputs explicitly before publishing again. It never silently retains withdrawn claims or deletes files.
+After accepted data arrives, run without `--preview`, export SVGs with librsvg and inspect both themes.
+The main visual generator calls the same publish function. Empty data adds nothing to the public README or final figures.

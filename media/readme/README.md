@@ -50,7 +50,8 @@ with exact head, normalization, dataset, machine, workers, date and a symmetric 
 `speed_panels.py` renders the next compact table and light/dark same-model speedup bars.
 The accepted-data file starts empty. No unfinished table, fake multiplier or new figure appears in the main README.
 See `docs/benchmarks/readme-speed-panels.md` for exact required DR-151 row selectors and the audit/extraction contract.
-All three table rows must be fse at 10 workers, on one machine and input. A one-worker int8 value is never substituted.
+All three table rows need both one core and all 32 cores on the same pod and input.
+Each selected library also needs both core settings. The old Mac ten-worker headline is a separate machine-specific observation.
 Each library bar has a separately paired fse baseline for that same model and output.
 MiniLM is excluded from this same-model renderer.
 
