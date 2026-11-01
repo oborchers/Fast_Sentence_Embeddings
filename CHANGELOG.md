@@ -4,7 +4,15 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
-fse 2.0 is in development on master; it changes the API and the file format (see docs/architecture/overview.md, "Principle and stages"). Entries collect here until the release.
+fse 2.0 is in development on master. It is an inference engine for finished static embedding models.
+It adds encoders for word tables, Model2Vec and supported sentence-transformers StaticEmbedding models,
+linear heads trained elsewhere, and saved vector stores with cosine search.
+It removes the 1.x training API (`Average`, `SIF`, `uSIF`), indexed input classes, and pickle model loading.
+Prepare weights and removed directions offline, then encode with a finished table.
+The API and saved file format change. See the [migration guide](docs/migrating-from-1x.md) before upgrading.
+The 1.x branch remains maintained. Entries collect here until the release.
+
+- Added a migration guide with executable 2.0 examples and a recorded comparison against 1.x.
 
 - Architecture documentation is split by topic under `docs/architecture/`; `ARCHITECTURE.md` indexes it and preserves the former section links.
 
