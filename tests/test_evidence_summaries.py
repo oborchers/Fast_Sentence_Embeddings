@@ -121,13 +121,23 @@ def test_existing_master_studies_preserve_retained_values(original, stem):
     manifest = json.loads((BASE / "dr151_evidence_manifest_20261101.json").read_text())
     entry = next(row for row in manifest["files"] if row["path"] == raw["path"])
     archived = original(name)
-    assert raw["commit"] == manifest["evidence_commit"]
+    assert len(raw["commit"]) == 40
+    assert all(character in "0123456789abcdef" for character in raw["commit"])
+    ancestry = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", raw["commit"], manifest["evidence_commit"]],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+    )
+    assert ancestry.returncode == 0
+    pinned = subprocess.check_output(["git", "show", raw["commit"] + ":" + raw["path"]], cwd=ROOT)
+    assert pinned == archived
     assert raw["path"] == "benchmarks/baseline/" + name
     assert raw["size_bytes"] == entry["size_bytes"] == len(archived)
     assert raw["sha256"] == entry["sha256"] == hashlib.sha256(archived).hexdigest()
     assert raw["url"] == (
         "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/"
-        + manifest["evidence_commit"]
+        + raw["commit"]
         + "/benchmarks/baseline/"
         + name
     )
