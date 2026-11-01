@@ -98,30 +98,32 @@ def test_comparator_description_exposes_fine_tuned_mlp(preparation):
 
 def test_native_model_rules_can_disable_normalization_for_folding(preparation, tmp_path):
     pytest.importorskip("model2vec")
-    from support.model2vec import save_model
-
     import fse
+    from support.model2vec import save_model
 
     tokens = ["[UNK]", "[PAD]", "[CLS]", "[SEP]", "[MASK]", "red", "blue"]
     table = np.arange(len(tokens) * 3, dtype=np.float32).reshape(len(tokens), 3)
     folder = save_model(tmp_path / "model", table=table, tokens=tokens, normalize=True)
     with pytest.raises(ValueError, match="own rules"):
         fse.Encoder.from_pretrained(folder, normalize=False)
-    encoder = preparation.raw_mean_encoder(folder, None)
+    encoder = preparation.raw_mean_encoder(folder, None, local_files_only=False)
     assert encoder.steps == ()
     np.testing.assert_array_equal(
         encoder.encode(["red blue"], workers=1), table[5:7].mean(axis=0, keepdims=True)
     )
 
 
+@pytest.mark.usefixtures("preparation")
 @pytest.mark.parametrize("fails", [False, True])
-def test_dataset_failure_cannot_report_success(preparation, monkeypatch, tmp_path, fails):
+def test_dataset_failure_cannot_report_success(monkeypatch, tmp_path, fails):
     import sys
 
     controller = importlib.import_module("pod_folded")
     monkeypatch.setitem(sys.modules, "torch", SimpleNamespace(set_num_threads=lambda _: None))
     monkeypatch.setitem(
-        sys.modules, "huggingface_hub", SimpleNamespace(snapshot_download=lambda *a, **k: None)
+        sys.modules,
+        "huggingface_hub",
+        SimpleNamespace(snapshot_download=lambda *_args, **_kwargs: None),
     )
     catalog = tmp_path / "sources.json"
     catalog.write_text('{"datasets": [{"dataset": "SetFit/ag_news"}, {"dataset": "SetFit/subj"}]}')

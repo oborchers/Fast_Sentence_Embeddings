@@ -80,11 +80,11 @@ def save_linear(encoder, fitted, folder):
     return model, loaded
 
 
-def raw_mean_encoder(repo, revision):
+def raw_mean_encoder(repo, revision, *, local_files_only=True):
     import fse
 
     encoder = fse.StaticModel.from_pretrained(
-        repo, revision=revision, normalize=False, local_files_only=True
+        repo, revision=revision, normalize=False, local_files_only=local_files_only
     ).encoder
     if encoder.steps or encoder.word_vectors.dtype != "float32":
         raise ValueError("raw-mean arm must have no normalization step and a float32 table")
