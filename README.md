@@ -145,6 +145,12 @@ One MiB is 1,048,576 bytes. Each model keeps its original number of values per v
 | potion-multilingual-128M | 256 | 502.1 | 257.8 | 137.5 |
 | static-retrieval-mrl-en-v1 | 1024 | 119.7 | 60.0 | 30.3 |
 | static-similarity-mrl-multilingual-v1 | 1024 | 415.1 | 208.3 | 105.3 |
+| GloVe-300 | 300 | 463.6 | 234.8 | 121.8 |
+| word2vec-300 | 300 | 3,495.5 | 1,778.9 | 932.0 |
+
+The [classic-model observations](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/6ddf24d91b446a170b1218d3df4884afe690d09d/docs/benchmarks/readme-classic-model-sizes-20261101.json)
+use full GloVe Wiki/Gigaword and Google News word2vec tables, with 400,000 and 3,000,000 rows respectively.
+Their recipe is an unweighted mean with `fse_words@1` tokens and normalized outputs.
 
 Use these sizes to plan disk storage. Measure peak memory, speed and quality for your workload.
 The source records exact byte counts, model revisions and the environment that prepared the files.
@@ -153,7 +159,7 @@ The source records exact byte counts, model revisions and the environment that p
 
 An [audit of POTION-8M](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/771fc882e1813ec9b57faa9d04435ef2cd850262/benchmarks/baseline/results/dr151-numerics.jsonl)
 used all 5,352 nonblank WikiText validation and test texts on 1 November 2026, on an Apple M1 Pro.
-It found the ten most similar other vectors for every text, using cosine similarity.
+It found the ten most similar other vectors for every text, using cosine similarity, which compares vector directions.
 It then measured how many of those neighbors each candidate retained, compared with fse's float32 table.
 
 | Candidate | Mean share of the original top ten retained |
@@ -163,10 +169,10 @@ It then measured how many of those neighbors each candidate retained, compared w
 | fse, int8 table | 99.634% |
 
 Every text had a nonzero vector. The audit excludes each text from its own neighbor list.
-Ties keep the smaller document ID first. All outputs are float32.
+For equal scores, the earlier text in the input comes first. All outputs are float32.
 These results measure neighborhood stability on this input. Classification and retrieval task scores remain pending.
 
-TODO(DR-151): Add the remaining classic-model file sizes and all peak-memory, speed and task-score comparisons.
+TODO(DR-151): Add all peak-memory, speed and task-score comparisons.
 Include quality change from each model's float32 result. Name the dataset, metric, revision and date.
 
 ## Benchmarks
