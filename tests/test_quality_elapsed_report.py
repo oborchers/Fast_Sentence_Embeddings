@@ -82,7 +82,17 @@ def test_nested_last_interval_does_not_shorten_calendar_span(elapsed):
 
 
 @pytest.mark.parametrize(
-    "command", [[], ["python", "--models", "other"], ["python", "--models", "model", "other"]]
+    "command",
+    [
+        [],
+        ["python", "--models", "other"],
+        ["python", "--models", "model", "other"],
+        ["python", "--models", "model", "--models", "other"],
+        ["python", "--models", "model", "--models=other"],
+        ["python", "--models=other", "--models", "model"],
+        ["python", "--models", "model", "--model", "other"],
+        ["python", "--models", "model", "--model=other"],
+    ],
 )
 def test_report_rejects_unbound_or_different_invocation_models(elapsed, command):
     rows = [

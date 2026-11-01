@@ -19,5 +19,13 @@
     }
   ],
   "quality_scores_changed": false,
-  "review_verdict": "Two warnings verified and addressed; follow-up review of changes remains open."
+  "review_verdict": "Initial two warnings addressed; follow-up duplicate-option defect verified and fixed. Published scores and elapsed totals remain unchanged.",
+  "followup": {
+    "reviewed_commit": "4f685224080452ee82b7bdce9e7f623c14554801",
+    "exit_code": 0,
+    "finding": "Repeated --models options could override the first option; committed invocations are unaffected.",
+    "verified": true,
+    "resolution": "Reject duplicate, abbreviated and equals-form model options; accept only one canonical --models selection. Regression cases added.",
+    "other_categories": "No findings on reduced POTION journal or POSIX portability markers."
+  }
 }

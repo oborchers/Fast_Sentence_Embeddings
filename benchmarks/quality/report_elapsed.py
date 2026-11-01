@@ -51,10 +51,14 @@ def checked_completed(quality):
 
 def validate_invocation_model(row, model):
     command = row.get("command", [])
-    try:
-        position = command.index("--models") + 1
-    except ValueError as exc:
-        raise ValueError("invocation must record its --models argument") from exc
+    options = [
+        value
+        for value in command
+        if value.startswith("--") and "--models".startswith(value.split("=", 1)[0])
+    ]
+    if options != ["--models"]:
+        raise ValueError("invocation requires exactly one canonical --models option")
+    position = command.index("--models") + 1
     if command[position : position + 1] != [model]:
         raise ValueError("invocation and quality models differ")
     if len(command) > position + 1 and not command[position + 1].startswith("--"):
