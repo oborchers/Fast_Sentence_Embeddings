@@ -96,7 +96,8 @@ def test_ingestion_cache_identity(encoder):
         FseEmbedding.from_dict(first.to_dict())
 
 
-def test_process_ingestion_keeps_options(encoder, tmp_path):
+def test_process_ingestion_keeps_options(encoder, tmp_path, monkeypatch):
+    monkeypatch.setattr("llama_index.core.ingestion.pipeline.multiprocessing.cpu_count", lambda: 2)
     path = tmp_path / "encoder.safetensors"
     encoder.save(path)
     model = FseEmbedding(
