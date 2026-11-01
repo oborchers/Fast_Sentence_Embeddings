@@ -1,0 +1,268 @@
+{
+  "artifacts": [
+    {
+      "artifact": "Average-glove-wiki-gigaword-300-float16.safetensors",
+      "source": "fse/glove-wiki-gigaword-300",
+      "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
+      "preparation_commit": "771fc882e1813ec9b57faa9d04435ef2cd850262",
+      "table_dtype": "float16",
+      "table_rows": 400000,
+      "dim": 300,
+      "file_bytes": 246157442,
+      "vector_tensor_bytes": 240000000
+    },
+    {
+      "artifact": "Average-glove-wiki-gigaword-300-float32.safetensors",
+      "source": "fse/glove-wiki-gigaword-300",
+      "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
+      "preparation_commit": "771fc882e1813ec9b57faa9d04435ef2cd850262",
+      "table_dtype": "float32",
+      "table_rows": 400000,
+      "dim": 300,
+      "file_bytes": 486157314,
+      "vector_tensor_bytes": 480000000
+    },
+    {
+      "artifact": "Average-glove-wiki-gigaword-300-int8.safetensors",
+      "source": "fse/glove-wiki-gigaword-300",
+      "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
+      "preparation_commit": "771fc882e1813ec9b57faa9d04435ef2cd850262",
+      "table_dtype": "int8",
+      "table_rows": 400000,
+      "dim": 300,
+      "file_bytes": 127757570,
+      "vector_tensor_bytes": 120000000
+    },
+    {
+      "artifact": "Average-word2vec-google-news-300-float16.safetensors",
+      "source": "fse/word2vec-google-news-300",
+      "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
+      "preparation_commit": "771fc882e1813ec9b57faa9d04435ef2cd850262",
+      "table_dtype": "float16",
+      "table_rows": 3000000,
+      "dim": 300,
+      "file_bytes": 1865259478,
+      "vector_tensor_bytes": 1800000000
+    },
+    {
+      "artifact": "Average-word2vec-google-news-300-float32.safetensors",
+      "source": "fse/word2vec-google-news-300",
+      "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
+      "preparation_commit": "771fc882e1813ec9b57faa9d04435ef2cd850262",
+      "table_dtype": "float32",
+      "table_rows": 3000000,
+      "dim": 300,
+      "file_bytes": 3665259350,
+      "vector_tensor_bytes": 3600000000
+    },
+    {
+      "artifact": "Average-word2vec-google-news-300-int8.safetensors",
+      "source": "fse/word2vec-google-news-300",
+      "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
+      "preparation_commit": "771fc882e1813ec9b57faa9d04435ef2cd850262",
+      "table_dtype": "int8",
+      "table_rows": 3000000,
+      "dim": 300,
+      "file_bytes": 977259606,
+      "vector_tensor_bytes": 900000000
+    },
+    {
+      "artifact": "potion-base-32M-float16.safetensors",
+      "source": "minishlab/potion-base-32M",
+      "revision": "1e5a03f8eeb2c98b928fbbd846f22f816360919f",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "float16",
+      "table_rows": 63091,
+      "dim": 512,
+      "file_bytes": 65540457,
+      "vector_tensor_bytes": 64605184
+    },
+    {
+      "artifact": "potion-base-32M-float32.safetensors",
+      "source": "minishlab/potion-base-32M",
+      "revision": "1e5a03f8eeb2c98b928fbbd846f22f816360919f",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "float32",
+      "table_rows": 63091,
+      "dim": 512,
+      "file_bytes": 130145513,
+      "vector_tensor_bytes": 129210368
+    },
+    {
+      "artifact": "potion-base-32M-int8.safetensors",
+      "source": "minishlab/potion-base-32M",
+      "revision": "1e5a03f8eeb2c98b928fbbd846f22f816360919f",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "int8",
+      "table_rows": 63091,
+      "dim": 512,
+      "file_bytes": 33490357,
+      "vector_tensor_bytes": 32302592
+    },
+    {
+      "artifact": "potion-base-8M-float16.safetensors",
+      "source": "minishlab/potion-base-8M",
+      "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "float16",
+      "table_rows": 29528,
+      "dim": 256,
+      "file_bytes": 15546202,
+      "vector_tensor_bytes": 15118336
+    },
+    {
+      "artifact": "potion-base-8M-float32.safetensors",
+      "source": "minishlab/potion-base-8M",
+      "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "float32",
+      "table_rows": 29528,
+      "dim": 256,
+      "file_bytes": 30664410,
+      "vector_tensor_bytes": 30236672
+    },
+    {
+      "artifact": "potion-base-8M-int8.safetensors",
+      "source": "minishlab/potion-base-8M",
+      "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "int8",
+      "table_rows": 29528,
+      "dim": 256,
+      "file_bytes": 8105274,
+      "vector_tensor_bytes": 7559168
+    },
+    {
+      "artifact": "potion-multilingual-128M-float16.safetensors",
+      "source": "minishlab/potion-multilingual-128M",
+      "revision": "73908c3438cf03b6a01bcb9611d62b23d0726f08",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "float16",
+      "table_rows": 500353,
+      "dim": 256,
+      "file_bytes": 270283217,
+      "vector_tensor_bytes": 256180736
+    },
+    {
+      "artifact": "potion-multilingual-128M-float32.safetensors",
+      "source": "minishlab/potion-multilingual-128M",
+      "revision": "73908c3438cf03b6a01bcb9611d62b23d0726f08",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "float32",
+      "table_rows": 500353,
+      "dim": 256,
+      "file_bytes": 526463889,
+      "vector_tensor_bytes": 512361472
+    },
+    {
+      "artifact": "potion-multilingual-128M-int8.safetensors",
+      "source": "minishlab/potion-multilingual-128M",
+      "revision": "73908c3438cf03b6a01bcb9611d62b23d0726f08",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "int8",
+      "table_rows": 500353,
+      "dim": 256,
+      "file_bytes": 144194389,
+      "vector_tensor_bytes": 128090368
+    },
+    {
+      "artifact": "potion-retrieval-32M-float16.safetensors",
+      "source": "minishlab/potion-retrieval-32M",
+      "revision": "6fc8051fab2a1e0ee76689cf08c853792ac285e7",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "float16",
+      "table_rows": 63091,
+      "dim": 512,
+      "file_bytes": 65540457,
+      "vector_tensor_bytes": 64605184
+    },
+    {
+      "artifact": "potion-retrieval-32M-float32.safetensors",
+      "source": "minishlab/potion-retrieval-32M",
+      "revision": "6fc8051fab2a1e0ee76689cf08c853792ac285e7",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "float32",
+      "table_rows": 63091,
+      "dim": 512,
+      "file_bytes": 130145513,
+      "vector_tensor_bytes": 129210368
+    },
+    {
+      "artifact": "potion-retrieval-32M-int8.safetensors",
+      "source": "minishlab/potion-retrieval-32M",
+      "revision": "6fc8051fab2a1e0ee76689cf08c853792ac285e7",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "int8",
+      "table_rows": 63091,
+      "dim": 512,
+      "file_bytes": 33490357,
+      "vector_tensor_bytes": 32302592
+    },
+    {
+      "artifact": "static-retrieval-mrl-en-v1-float16.safetensors",
+      "source": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "revision": "f60985c706f192d45d218078e49e5a8b6f15283a",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "float16",
+      "table_rows": 30522,
+      "dim": 1024,
+      "file_bytes": 62955698,
+      "vector_tensor_bytes": 62509056
+    },
+    {
+      "artifact": "static-retrieval-mrl-en-v1-float32.safetensors",
+      "source": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "revision": "f60985c706f192d45d218078e49e5a8b6f15283a",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "float32",
+      "table_rows": 30522,
+      "dim": 1024,
+      "file_bytes": 125464626,
+      "vector_tensor_bytes": 125018112
+    },
+    {
+      "artifact": "static-retrieval-mrl-en-v1-int8.safetensors",
+      "source": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "revision": "f60985c706f192d45d218078e49e5a8b6f15283a",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "int8",
+      "table_rows": 30522,
+      "dim": 1024,
+      "file_bytes": 31823386,
+      "vector_tensor_bytes": 31254528
+    },
+    {
+      "artifact": "static-similarity-mrl-multilingual-v1-float16.safetensors",
+      "source": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "revision": "b68f4122911bcffcd6e1f695f2d99cd6788972d8",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "float16",
+      "table_rows": 105879,
+      "dim": 1024,
+      "file_bytes": 218454716,
+      "vector_tensor_bytes": 216840192
+    },
+    {
+      "artifact": "static-similarity-mrl-multilingual-v1-float32.safetensors",
+      "source": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "revision": "b68f4122911bcffcd6e1f695f2d99cd6788972d8",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "float32",
+      "table_rows": 105879,
+      "dim": 1024,
+      "file_bytes": 435294780,
+      "vector_tensor_bytes": 433680384
+    },
+    {
+      "artifact": "static-similarity-mrl-multilingual-v1-int8.safetensors",
+      "source": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "revision": "b68f4122911bcffcd6e1f695f2d99cd6788972d8",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "table_dtype": "int8",
+      "table_rows": 105879,
+      "dim": 1024,
+      "file_bytes": 110458264,
+      "vector_tensor_bytes": 108420096
+    }
+  ]
+}
