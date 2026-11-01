@@ -27,18 +27,18 @@ Do not mix Mac and Pod cells in one table or speedup.
 Use POTION-8M, one pinned model revision and float32 parent artifact, complete WikiText encoding input,
 one Pod machine and date, and float32 vector output. Preserve the cohort's exact digest, newline rules and tokenizer limits.
 
-| Public row | Required DR-151 selectors (each has fse-a and fse-b) |
+| Public row | Required DR-151 selectors (fse-a and fse-b), W=1,16,32 |
 |---|---|
-| float32 | encode/minishlab/potion-base-8M/float32/wikitext/1/table and encode/minishlab/potion-base-8M/float32/wikitext/32/table |
-| float16 | encode/minishlab/potion-base-8M/float16/wikitext/1/table and encode/minishlab/potion-base-8M/float16/wikitext/32/table |
-| int8 | encode/minishlab/potion-base-8M/int8/wikitext/1/table and encode/minishlab/potion-base-8M/int8/wikitext/32/table |
+| float32 | encode/minishlab/potion-base-8M/float32/wikitext/W/table |
+| float16 | encode/minishlab/potion-base-8M/float16/wikitext/W/table |
+| int8 | encode/minishlab/potion-base-8M/int8/wikitext/W/table |
 
-These selectors describe the initially scheduled 1/32 cells, not claims that results exist.
-After the POTION-8M scaling curve chooses K, the table needs every dtype at workers=1 and workers=K.
-If K is below 32, request the missing float16/int8 rows specifically at K; do not measure all possible combinations by default.
-The complete float32 scaling curve can supply its eligible one/K float32 observations.
+Collect all nine cells during the same Pod run, not by a follow-up request after each curve.
+After scaling selection the renderer uses only workers=1 and workers=K, keeping the other observations in evidence.
 No one-core-only or 32-worker int8 cell can fill a missing K-worker cell.
 All selected cells must share one machine/runtime and context with the decision curve.
+If K is 2, 4 or 8, a 1/16/32-only grid is insufficient. Until that scheduling case is resolved,
+the renderer refuses missing selected cells and does not silently replace K with 16.
 
 Planned public layout:
 
@@ -58,16 +58,17 @@ Keep **One core**. Add only the setting selected by that model's own scaling cur
 Each bar needs its own matched fse baseline. The MRL model needs its own curve; POTION-8M scaling cannot justify its 32-core group.
 Use float32 tables and float32 vector output, with the same dimension and normalization within each pair.
 
-| Library | Required paired selectors, with W=1 and W=32 | Operations | Same model in both libraries |
+| Library | Required paired selectors, with W=1,16,32 | Operations | Same model in both libraries |
 |---|---|---|---|
 | Model2Vec | encode/minishlab/potion-base-8M/float32/wikitext/W/model2vec | fse-a, fse-b, model2vec | minishlab/potion-base-8M |
 | model2vec-rs | encode/minishlab/potion-base-8M/float32/wikitext/W/rust | fse-a, fse-b, rust | minishlab/potion-base-8M |
 | FastEmbed | encode/minishlab/potion-base-8M/float32/wikitext/W/fastembed | fse-a, fse-b, fastembed | minishlab/potion-base-8M |
 | Sentence Transformers | encode/sentence-transformers/static-retrieval-mrl-en-v1/float32/wikitext/W/st | fse-a, fse-b, st | sentence-transformers/static-retrieval-mrl-en-v1 |
 
-The initial schedule has eight paired series at 1/32. Add the Sentence Transformers static-model pairs and its fse scaling curve.
-After selection, each library needs one accepted pair at one core and at its model's chosen K (or only one core if K=1).
-If K<32, request only that extra paired setting before publishing. Never substitute the rejected 32-core observation.
+Collect all twelve paired series at workers 1, 16 and 32 in the same Pod run.
+Also collect both complete six-point model curves before the Pod ends. No separate Pod round or per-curve follow-up request is planned.
+The renderer filters the measured grid to one core and the selected K for each model.
+If K is below 16, the missing selected rows remain a publication blocker until that case is resolved.
 The Sentence Transformers numerator must run that same MRL model.
 Never compare POTION-8M fse with the MRL reference and label it a library speedup.
 Keep model names visible under every bar; each bar is a same-model comparison despite different static models across rows.

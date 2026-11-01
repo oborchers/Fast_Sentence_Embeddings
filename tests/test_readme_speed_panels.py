@@ -244,3 +244,19 @@ def test_scaling_is_required_for_every_library_model(tmp_path):
     with pytest.raises(ValueError, match="every displayed model"):
         PANEL["publish"](data, tmp_path, palette)
     assert list(tmp_path.iterdir()) == []
+
+
+def test_one_16_32_grid_does_not_silently_replace_an_8_core_winner(tmp_path):
+    palette = json.loads((ROOT / "media/readme/palette.json").read_text())
+    points = curve(1100)
+    points[3]["texts_per_second"] = [1500] * 3
+    data = {
+        "format": "readme-speed-panels-v1",
+        "scaling": points,
+        "table": [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in (1, 16, 32)],
+        "comparisons": [],
+        "table_caption": "test fixture",
+    }
+    with pytest.raises(ValueError, match="all precisions"):
+        PANEL["publish"](data, tmp_path, palette)
+    assert list(tmp_path.iterdir()) == []
