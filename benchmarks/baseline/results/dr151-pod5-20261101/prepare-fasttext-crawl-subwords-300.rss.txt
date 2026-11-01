@@ -1,0 +1,23 @@
+	Command being timed: "/dr151-env/bin/python benchmarks/quality/prepare_classics.py --name fasttext-crawl-subwords-300 --folder /dr151-cache/models --cache /dr151-cache --workers 2"
+	User time (seconds): 59.24
+	System time (seconds): 9.68
+	Percent of CPU this job got: 43%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:38.92
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 15973112
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 3
+	Minor (reclaiming a frame) page faults: 4209893
+	Voluntary context switches: 242497
+	Involuntary context switches: 828
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 37856896
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

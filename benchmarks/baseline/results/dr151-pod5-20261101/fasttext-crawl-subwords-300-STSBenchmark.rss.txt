@@ -1,0 +1,23 @@
+	Command being timed: "/dr151-env/bin/python benchmarks/quality/run_mteb.py run --models fse/SIF-10-fasttext-crawl-subwords-300-float32 --tasks STSBenchmark --results /dr151-results/fasttext-crawl-subwords-300-STSBenchmark.jsonl --fse-models /dr151-cache/models --mmap-models --workers 2 --batch-tasks 1"
+	User time (seconds): 6.95
+	System time (seconds): 0.83
+	Percent of CPU this job got: 87%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:08.95
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1066620
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 178890
+	Voluntary context switches: 157
+	Involuntary context switches: 127
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 88
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

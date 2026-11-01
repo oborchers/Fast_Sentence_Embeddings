@@ -1,0 +1,23 @@
+	Command being timed: "/dr151-env/bin/python benchmarks/quality/run_mteb.py run --models fse/SIF-10-paragram-300-sl999-float32 --tasks TRECCOVID --results /dr151-results/paragram-300-sl999-TRECCOVID.jsonl --fse-models /dr151-cache/models --mmap-models --workers 2 --batch-tasks 1"
+	User time (seconds): 152.92
+	System time (seconds): 66.85
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 3:41.68
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3429896
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 519215
+	Voluntary context switches: 1810
+	Involuntary context switches: 7281
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 112
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

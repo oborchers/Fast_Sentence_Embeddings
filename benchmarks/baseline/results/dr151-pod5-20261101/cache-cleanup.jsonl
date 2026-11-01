@@ -1,0 +1,8 @@
+{"path": "/dr151-cache/huggingface/hub/models--fse--word2vec-google-news-300", "reason": "owned intermediate no longer needed", "regular_file_bytes": 3782010376, "files": 4}
+{"path": "/dr151-cache/models/SIF-10-word2vec-google-news-300-float32.safetensors", "reason": "owned intermediate no longer needed", "regular_file_bytes": 3665259350}
+{"path": "/dr151-cache/huggingface/hub/models--fse--fasttext-crawl-subwords-300", "reason": "owned intermediate no longer needed", "regular_file_bytes": 7323937283, "files": 6}
+{"path": "/dr151-cache/models/SIF-10-fasttext-crawl-subwords-300-float32.safetensors", "reason": "owned intermediate no longer needed", "regular_file_bytes": 4831846354}
+{"path": "/dr151-cache/huggingface/hub/models--fse--paragram-300-sl999", "reason": "owned intermediate no longer needed", "regular_file_bytes": 2133367632, "files": 4}
+{"path": "/dr151-cache/wikitext-103-b08601e0.txt", "reason": "owned intermediate no longer needed", "regular_file_bytes": 497523659}
+{"path": "/dr151-cache/huggingface/hub/datasets--Salesforce--wikitext", "reason": "owned intermediate no longer needed", "regular_file_bytes": 314081411, "files": 3}
+{"path": "/dr151-cache/models/SIF-10-paragram-300-sl999-float32.safetensors", "reason": "owned intermediate no longer needed", "regular_file_bytes": 2072155567}

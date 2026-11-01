@@ -1,0 +1,23 @@
+	Command being timed: "/dr151-env/bin/python benchmarks/quality/run_mteb.py run --models fse/SIF-10-paragram-300-sl999-float32 --tasks NanoNQRetrieval --results /dr151-results/paragram-300-sl999-NanoNQRetrieval.jsonl --fse-models /dr151-cache/models --mmap-models --workers 2 --batch-tasks 1"
+	User time (seconds): 9.19
+	System time (seconds): 2.04
+	Percent of CPU this job got: 75%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:14.93
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1308612
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 165446
+	Voluntary context switches: 1075
+	Involuntary context switches: 5467
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 136
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

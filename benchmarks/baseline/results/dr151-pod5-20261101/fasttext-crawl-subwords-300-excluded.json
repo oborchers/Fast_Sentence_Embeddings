@@ -1,0 +1,11 @@
+{
+  "model": "fse/SIF-10-fasttext-crawl-subwords-300-float32",
+  "source_model": "fse/fasttext-crawl-subwords-300",
+  "source_revision": "552b66a16850576275f894ed738f9e953b45a594",
+  "task": "MindSmallReranking",
+  "status": "not computed",
+  "reason": "not computed: needs more memory",
+  "main_score": null,
+  "benchmark": "MTEB(eng, v2)",
+  "table_dtype": "float32"
+}
