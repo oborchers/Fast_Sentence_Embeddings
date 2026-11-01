@@ -1,6 +1,7 @@
 """LlamaIndex embeddings backed by fse."""
 
 from asyncio import to_thread
+from pathlib import Path
 
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.bridge.pydantic import Field, PrivateAttr
@@ -66,7 +67,11 @@ class FseEmbedding(BaseEmbedding):
 
     def to_dict(self, **kwargs) -> dict:
         data = super().to_dict(**kwargs)
-        data["load_kwargs"] = {k: v for k, v in self.load_kwargs.items() if k != "token"}
+        data["load_kwargs"] = {
+            k: str(v) if isinstance(v, Path) else v
+            for k, v in self.load_kwargs.items()
+            if k != "token"
+        }
         return data
 
     def __getstate__(self) -> dict:

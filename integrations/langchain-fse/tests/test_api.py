@@ -66,6 +66,7 @@ def test_validation_and_loading(encoder, monkeypatch):
 
 
 @pytest.mark.network
+@pytest.mark.enable_socket
 def test_potion():
     model = FseEmbeddings(workers=1)
     assert len(model.embed_query("hello world")) == 256

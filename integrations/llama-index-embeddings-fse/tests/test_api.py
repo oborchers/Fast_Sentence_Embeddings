@@ -60,6 +60,7 @@ def test_validation_and_loading(encoder, monkeypatch):
 
 
 @pytest.mark.network
+@pytest.mark.enable_socket
 def test_potion():
     model = FseEmbedding(workers=1)
     assert len(model.get_query_embedding("hello world")) == 256
@@ -103,14 +104,14 @@ def test_process_ingestion_keeps_options(encoder, tmp_path):
         dtype="float16",
         workers=1,
         embed_batch_size=1,
-        load_kwargs={"local_files_only": True},
+        load_kwargs={"local_files_only": True, "cache_dir": tmp_path},
     )
-    restored = FseEmbedding.from_dict(model.to_dict())
+    restored = FseEmbedding.from_json(model.to_json())
     assert restored.get_query_embedding("hello") == model.get_query_embedding("hello")
     clone = pickle.loads(pickle.dumps(model))
     assert clone.dtype == "float16"
     assert clone.workers == 1
-    assert clone.load_kwargs == {"local_files_only": True}
+    assert clone.load_kwargs == {"local_files_only": True, "cache_dir": tmp_path}
     assert clone.encoder_fingerprint == encoder.fingerprint
     pipeline = IngestionPipeline(transformations=[model])
     result = pipeline.run(nodes=[TextNode(text="hello"), TextNode(text="world")], num_workers=2)

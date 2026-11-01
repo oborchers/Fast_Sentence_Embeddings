@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pytest
 
@@ -10,3 +12,6 @@ def encoder():
         np.array([[1, 0, 2], [0, 2, 1]], dtype=np.float32),
         words=["hello", "world"],
     )
+
+
+os.environ["HAYSTACK_TELEMETRY_ENABLED"] = "false"

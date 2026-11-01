@@ -1,7 +1,7 @@
 from threading import get_ident
 
 import pytest
-from haystack import AsyncPipeline, Document, Pipeline
+from haystack import Document, Pipeline
 from haystack_integrations.components.embedders.fse import FseDocumentEmbedder, FseTextEmbedder
 
 from fse import Encoder
@@ -77,6 +77,7 @@ def test_validation(encoder):
 
 
 @pytest.mark.network
+@pytest.mark.enable_socket
 def test_potion():
     model = FseTextEmbedder(workers=1)
     model.warm_up()
@@ -86,7 +87,9 @@ def test_potion():
 def test_local_artifact(encoder, tmp_path):
     path = tmp_path / "encoder.safetensors"
     encoder.save(path)
-    model = FseTextEmbedder(model=str(path), load_kwargs={"local_files_only": True})
+    model = FseTextEmbedder(
+        model=str(path), load_kwargs={"local_files_only": True, "cache_dir": tmp_path}
+    )
     model.warm_up()
     assert model.run("hello")["embedding"] == encoder.encode(["hello"]).tolist()[0]
     clone = FseTextEmbedder.from_dict(model.to_dict())
@@ -103,7 +106,7 @@ async def test_cold_async_pipeline_loads_off_loop(encoder, monkeypatch):
         return encoder
 
     monkeypatch.setattr(Encoder, "from_pretrained", load)
-    pipeline = AsyncPipeline()
+    pipeline = Pipeline()
     pipeline.add_component("embed", FseTextEmbedder("local"))
     result = await pipeline.run_async({"embed": {"text": "hello"}})
     assert result["embed"]["embedding"] == encoder.encode(["hello"]).tolist()[0]

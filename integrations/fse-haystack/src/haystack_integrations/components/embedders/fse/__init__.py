@@ -2,6 +2,7 @@
 
 from asyncio import to_thread
 from dataclasses import replace
+from pathlib import Path
 
 from haystack import Document, component, default_from_dict, default_to_dict
 
@@ -67,7 +68,9 @@ class _FseEmbedder:
             dtype=self.dtype,
             workers=self.workers,
             batch_size=self.batch_size,
-            load_kwargs=self.load_kwargs,
+            load_kwargs={
+                k: str(v) if isinstance(v, Path) else v for k, v in self.load_kwargs.items()
+            },
         )
 
     @classmethod

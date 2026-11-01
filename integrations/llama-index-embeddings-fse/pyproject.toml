@@ -16,13 +16,14 @@ dependencies = ["fse>=2.0.0.dev0", "llama-index-core>=0.14.25"]
 Repository = "https://github.com/oborchers/Fast_Sentence_Embeddings"
 
 [project.optional-dependencies]
-test = ["pytest>=8", "pytest-asyncio>=0.24", "numpy>=1.26.4"]
+test = ["pytest>=8", "pytest-socket>=0.7", "pytest-asyncio>=0.24", "numpy>=1.26.4"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--disable-socket --allow-unix-socket"
 asyncio_mode = "auto"
 filterwarnings = ["error"]
 markers = ["network: downloads a model from the Hugging Face Hub"]
