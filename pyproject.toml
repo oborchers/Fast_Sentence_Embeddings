@@ -293,7 +293,7 @@ test-command = 'pytest {project}/tests -m "not network" -p no:cacheprovider -n a
 # --- Guardrails (tools/check_guardrails.py; AGENTS.md, Guardrails) ---
 
 [tool.fse.guardrails]
-paths = ["src", "tests", "tools", "benchmarks", "media", "setup.py"]
+paths = ["src", "tests", "tools", "benchmarks", "media", "recipes", "setup.py"]
 max-lines = 500
 max-cognitive-complexity = 15
 # Generated; their generators tools/make_unicode_tables.py, tools/make_wordpiece_tables.py and
