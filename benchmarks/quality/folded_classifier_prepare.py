@@ -80,10 +80,19 @@ def save_linear(encoder, fitted, folder):
     return model, loaded
 
 
+def raw_mean_encoder(repo, revision):
+    import fse
+
+    encoder = fse.StaticModel.from_pretrained(
+        repo, revision=revision, normalize=False, local_files_only=True
+    ).encoder
+    if encoder.steps or encoder.word_vectors.dtype != "float32":
+        raise ValueError("raw-mean arm must have no normalization step and a float32 table")
+    return encoder
+
+
 def prepare(suite, name, data, provenance, folder):
     from threadpoolctl import threadpool_limits
-
-    import fse
 
     folder.mkdir()
     train, labels, evaluation, truth = data
@@ -91,11 +100,7 @@ def prepare(suite, name, data, provenance, folder):
     runtime = identity("fse")
     snapshot = cached_snapshot(REPO, MODELS[REPO])
     source = native_encoder_identity(REPO, snapshot)
-    encoder = fse.Encoder.from_pretrained(
-        REPO, revision=MODELS[REPO], normalize=False, local_files_only=True
-    )
-    if encoder.steps or encoder.word_vectors.dtype != "float32":
-        raise ValueError("raw-mean arm must have no normalization step and a float32 table")
+    encoder = raw_mean_encoder(REPO, MODELS[REPO])
     with threadpool_limits(limits=2):
         start = time.monotonic()
         fitted = fitted_head(suite, encoder.encode(train, workers=2), labels)
@@ -122,7 +127,7 @@ def prepare(suite, name, data, provenance, folder):
         "train_digest": digest(train),
         "evaluation_rows": len(evaluation),
         "evaluation": write_evaluation(folder, evaluation, truth),
-        "training_feature_space": "raw unnormalized means, Encoder.from_pretrained(normalize=False)",
+        "training_feature_space": "raw unnormalized means, StaticModel.from_pretrained(normalize=False).encoder",
         "raw_encoder_fingerprint": encoder.fingerprint,
         "folded_classifier_fingerprint": folded.fingerprint,
         "linear_head": {

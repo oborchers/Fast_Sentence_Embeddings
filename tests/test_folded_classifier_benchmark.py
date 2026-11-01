@@ -94,3 +94,57 @@ def test_controller_retains_linear_and_mlp_cells_separately(preparation, monkeyp
 def test_comparator_description_exposes_fine_tuned_mlp(preparation):
     for text in ("fine-tuned", "512-unit ReLU", "PyTorch", "NumPy", "0.10.0"):
         assert text in preparation.MLP_DESCRIPTION
+
+
+def test_native_model_rules_can_disable_normalization_for_folding(preparation, tmp_path):
+    pytest.importorskip("model2vec")
+    from support.model2vec import save_model
+
+    import fse
+
+    tokens = ["[UNK]", "[PAD]", "[CLS]", "[SEP]", "[MASK]", "red", "blue"]
+    table = np.arange(len(tokens) * 3, dtype=np.float32).reshape(len(tokens), 3)
+    folder = save_model(tmp_path / "model", table=table, tokens=tokens, normalize=True)
+    with pytest.raises(ValueError, match="own rules"):
+        fse.Encoder.from_pretrained(folder, normalize=False)
+    encoder = preparation.raw_mean_encoder(folder, None)
+    assert encoder.steps == ()
+    np.testing.assert_array_equal(
+        encoder.encode(["red blue"], workers=1), table[5:7].mean(axis=0, keepdims=True)
+    )
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_dataset_failure_cannot_report_success(preparation, monkeypatch, tmp_path, fails):
+    import sys
+
+    controller = importlib.import_module("pod_folded")
+    monkeypatch.setitem(sys.modules, "torch", SimpleNamespace(set_num_threads=lambda _: None))
+    monkeypatch.setitem(
+        sys.modules, "huggingface_hub", SimpleNamespace(snapshot_download=lambda *a, **k: None)
+    )
+    catalog = tmp_path / "sources.json"
+    catalog.write_text('{"datasets": [{"dataset": "SetFit/ag_news"}, {"dataset": "SetFit/subj"}]}')
+    monkeypatch.setattr(controller, "SOURCES", catalog)
+    monkeypatch.setattr(
+        controller,
+        "inputs",
+        lambda suite, *_: iter([("fixture", (), {})]) if suite == "fineweb" else iter([]),
+    )
+    monkeypatch.setattr(controller.time, "monotonic", lambda: 0)
+
+    def prepare(*_):
+        if fails:
+            raise ValueError("fixture preparation failed")
+
+    monkeypatch.setattr(controller, "dataset", prepare)
+    args = SimpleNamespace(cache=tmp_path, output=tmp_path, deadline=100, hardware={})
+    if fails:
+        with pytest.raises(RuntimeError, match="fineweb/fixture"):
+            controller.workload(args)
+    else:
+        controller.workload(args)
+    import json
+
+    rows = [json.loads(line) for line in (tmp_path / "invocations.jsonl").read_text().splitlines()]
+    assert rows[-1]["status"] == ("failed" if fails else "completed")

@@ -46,6 +46,16 @@ def timed_dataset(args, folder, cell, *, mlp=False):
         publish_summary(args.output)
 
 
+def dataset(args, folder, suite, name, data, provenance):
+    record = prepare(suite, name, data, provenance, folder)
+    append(args.output / "classification-quality.jsonl", {**record, **args.hardware})
+    emit("prepared-" + suite + "-" + name.replace("/", "_"), record)
+    timed_dataset(args, folder, suite + "/" + name)
+    record = prepare_mlp(data, provenance, folder, record)
+    append(args.output / "classification-quality.jsonl", {**record, **args.hardware})
+    timed_dataset(args, folder, suite + "/" + name, mlp=True)
+
+
 def workload(args):
     import torch
     from huggingface_hub import snapshot_download
@@ -67,6 +77,7 @@ def workload(args):
         ("fineweb", None),
         ("setfit", [name for name in names if name not in ("subj", "ag_news")]),
     ]
+    failed = []
     for suite, selected in order:
         for name, data, provenance in inputs(suite, args.cache / suite, selected):
             if time.monotonic() >= args.deadline:
@@ -77,18 +88,13 @@ def workload(args):
                 {"dataset": name, "suite": suite, "status": "started", **args.hardware},
             )
             try:
-                record = prepare(suite, name, data, provenance, folder)
-                append(args.output / "classification-quality.jsonl", {**record, **args.hardware})
-                emit("prepared-" + suite + "-" + name.replace("/", "_"), record)
-                timed_dataset(args, folder, suite + "/" + name)
-                record = prepare_mlp(data, provenance, folder, record)
-                append(args.output / "classification-quality.jsonl", {**record, **args.hardware})
-                timed_dataset(args, folder, suite + "/" + name, mlp=True)
+                dataset(args, folder, suite, name, data, provenance)
                 append(
                     args.output / "invocations.jsonl",
                     {"dataset": name, "suite": suite, "status": "completed", **args.hardware},
                 )
             except Exception as error:
+                failed.append(suite + "/" + name)
                 append(
                     args.output / "invocations.jsonl",
                     {
@@ -100,6 +106,8 @@ def workload(args):
                     },
                 )
             del data
+    if failed:
+        raise RuntimeError("classification datasets failed: " + ", ".join(failed))
 
 
 def main():
