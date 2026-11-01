@@ -69,7 +69,7 @@ def test_potion():
 def test_local_artifact(encoder, tmp_path):
     path = tmp_path / "encoder.safetensors"
     encoder.save(path)
-    model = FseEmbedding(str(path), load_kwargs={"local_files_only": True})
+    model = FseEmbedding(str(path))
     assert (
         model.get_text_embedding_batch(["hello", "world"])
         == encoder.encode(["hello", "world"]).tolist()
@@ -104,14 +104,14 @@ def test_process_ingestion_keeps_options(encoder, tmp_path):
         dtype="float16",
         workers=1,
         embed_batch_size=1,
-        load_kwargs={"local_files_only": True, "cache_dir": tmp_path},
+        load_kwargs={"mmap": True},
     )
     restored = FseEmbedding.from_json(model.to_json())
     assert restored.get_query_embedding("hello") == model.get_query_embedding("hello")
     clone = pickle.loads(pickle.dumps(model))
     assert clone.dtype == "float16"
     assert clone.workers == 1
-    assert clone.load_kwargs == {"local_files_only": True, "cache_dir": tmp_path}
+    assert clone.load_kwargs == {"mmap": True}
     assert clone.encoder_fingerprint == encoder.fingerprint
     pipeline = IngestionPipeline(transformations=[model])
     result = pipeline.run(nodes=[TextNode(text="hello"), TextNode(text="world")], num_workers=2)
@@ -122,3 +122,17 @@ def test_process_ingestion_keeps_options(encoder, tmp_path):
     data["encoder_fingerprint"] = "different"
     with pytest.raises(ValueError, match="fingerprint"):
         FseEmbedding.from_dict(data)
+
+
+def test_hub_cache_path_json(encoder, monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(
+        Encoder, "from_pretrained", lambda *a, **kw: calls.append((a, kw)) or encoder
+    )
+    model = FseEmbedding("test/model", load_kwargs={"cache_dir": tmp_path})
+    restored = FseEmbedding.from_json(model.to_json())
+    assert restored.get_query_embedding("hello") == model.get_query_embedding("hello")
+    assert calls == [
+        (("test/model",), {"cache_dir": tmp_path}),
+        (("test/model",), {"cache_dir": str(tmp_path)}),
+    ]

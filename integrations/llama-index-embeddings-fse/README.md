@@ -50,7 +50,8 @@ The implementation follows the [official integration guide](https://github.com/r
 `{"normalize": False, "revision": "<commit>", "local_files_only": True}` selects
 normalization, a Hub revision and offline loading. The default normalization is
 `"model"`, which preserves the model's rule. A local fse artifact keeps its saved
-steps. See the [fse loader contract](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/hub.md).
+steps. Hub-only options (`revision`, `token`, `cache_dir`, `local_files_only`)
+are invalid for local paths. See the [fse loader contract](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/hub.md).
 Do not pass `load_kwargs` with `encoder=`. Configure that encoder before injection.
 Use the Hub credential store rather than putting tokens in application configuration.
 

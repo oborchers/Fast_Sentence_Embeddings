@@ -75,5 +75,5 @@ def test_potion():
 def test_local_artifact(encoder, tmp_path):
     path = tmp_path / "encoder.safetensors"
     encoder.save(path)
-    model = FseEmbeddings(str(path), load_kwargs={"local_files_only": True})
+    model = FseEmbeddings(str(path))
     assert model.embed_documents(["hello", "world"]) == encoder.encode(["hello", "world"]).tolist()

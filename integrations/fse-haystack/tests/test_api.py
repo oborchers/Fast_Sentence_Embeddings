@@ -24,19 +24,22 @@ def test_local_vectors(encoder, dtype):
     assert FseTextEmbedder(encoder=encoder, dtype=dtype).run("hello")["embedding"] == rows[-1]
 
 
-def test_pipeline_and_serialization(encoder, monkeypatch):
+def test_pipeline_and_serialization(encoder, monkeypatch, tmp_path):
     calls = []
     monkeypatch.setattr(
         Encoder, "from_pretrained", lambda *a, **kw: calls.append((a, kw)) or encoder
     )
     pipeline = Pipeline()
-    pipeline.add_component("embed", FseTextEmbedder("local", load_kwargs={"normalize": False}))
+    pipeline.add_component(
+        "embed",
+        FseTextEmbedder("test/model", load_kwargs={"normalize": False, "cache_dir": tmp_path}),
+    )
     restored = Pipeline.loads(pipeline.dumps())
     assert (
         restored.run({"embed": {"text": "hello"}})["embed"]["embedding"]
         == encoder.encode(["hello"]).tolist()[0]
     )
-    assert calls == [(("local",), {"normalize": False})]
+    assert calls == [(("test/model",), {"normalize": False, "cache_dir": str(tmp_path)})]
     restored.run({"embed": {"text": "world"}})
     assert len(calls) == 1
 
@@ -88,9 +91,7 @@ def test_potion():
 def test_local_artifact(encoder, tmp_path):
     path = tmp_path / "encoder.safetensors"
     encoder.save(path)
-    model = FseTextEmbedder(
-        model=str(path), load_kwargs={"local_files_only": True, "cache_dir": tmp_path}
-    )
+    model = FseTextEmbedder(model=str(path))
     model.warm_up()
     assert model.run("hello")["embedding"] == encoder.encode(["hello"]).tolist()[0]
     pipeline = Pipeline()
