@@ -81,5 +81,68 @@
     "filesystem_free_after": 69602119680,
     "confirmed_absent": true,
     "time": "2026-11-01T19:23:38.917056"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/review-73176a9",
+    "kind": "completed independent review checkout 73176a9",
+    "allocated_bytes_removed": 12447744,
+    "filesystem_free_before": 70582218752,
+    "filesystem_free_after": 70611820544,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:27:01.803967"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/src/fse/_native.c",
+    "kind": "regenerated ignored Cython intermediate, compiled extension retained",
+    "allocated_bytes_removed": 0,
+    "logical_bytes_removed": 6086512,
+    "confirmed_absent": true,
+    "note": "Target removal succeeded, but the first cleanup-journal write failed with PermissionError outside the writable root. This authorized retry records the confirmed removal. Allocated-byte/free-space readings were not durably captured, so no allocated-space credit is claimed.",
+    "time": "2026-11-01T19:27:25.967679"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/review-2f4c1a8",
+    "kind": "completed independent review checkout 2f4c1a8",
+    "allocated_bytes_removed": 12480512,
+    "filesystem_free_before": 70584217600,
+    "filesystem_free_after": 70613925888,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:31:07.685229"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/review-da79a11",
+    "kind": "completed independent review checkout da79a11",
+    "allocated_bytes_removed": 12492800,
+    "filesystem_free_before": 70611779584,
+    "filesystem_free_after": 70624948224,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:31:55.505076"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.mypy_cache",
+    "kind": "owned type-check cache after final mypy gate passed",
+    "allocated_bytes_removed": 60825600,
+    "filesystem_free_before": 70471823360,
+    "filesystem_free_after": 70532530176,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:35:15.965170"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.ruff_cache",
+    "kind": "owned lint cache after final lint gate passed",
+    "allocated_bytes_removed": 86016,
+    "filesystem_free_before": 70533783552,
+    "filesystem_free_after": 70533857280,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:35:22.138020"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.pytest_cache",
+    "kind": "owned pytest cache after final make check passed; full test log retained",
+    "allocated_bytes_removed": 24576,
+    "filesystem_free_before": 70671765504,
+    "filesystem_free_after": 70671773696,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:37:10.385911"
   }
 ]

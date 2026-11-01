@@ -1,0 +1,8 @@
+Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 975.65it/s]
+{"built": "fse/paranmt-300-raw", "fingerprint": "xxh3-128:f870e4619c3e5dd082be1809d1fb7786"}
+{"built": "fse/paranmt-300-raw-float16", "fingerprint": "xxh3-128:26b7176aacbdf42b64c8e90791847319"}
+{"built": "fse/paranmt-300-raw-int8", "fingerprint": "xxh3-128:e49c0b0f0d05fcebcb96a99c443d375d"}
+Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 4636.30it/s]
+{"built": "fse/paranmt-300-sif10", "fingerprint": "xxh3-128:4d2fb5d81b9888d2eb7bb8e69ee9c7f6"}
+{"built": "fse/paranmt-300-sif10-float16", "fingerprint": "xxh3-128:3145e0e4282adfa085f0ed3a6581076e"}
+{"built": "fse/paranmt-300-sif10-int8", "fingerprint": "xxh3-128:da86203db14c76128eb2f9a8d4be97e6"}

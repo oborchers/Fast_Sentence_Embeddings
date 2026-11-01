@@ -20,8 +20,8 @@ It excludes downloaded models, caches and corpus inputs.
   `/Users/oliverborchers/fse-dr157/cards`.
 - `superseded-prototype/`: small evidence from the retired initial GloVe prototype.
 - `cleanup.json`: targeted removal journal for this worker's own intermediates.
-- `reviews/`: completed independent read-only reviews. Final source/card review
-  and the final repository gate are recorded separately after completion.
+- `reviews/`: completed independent read-only reviews. All findings are resolved. Final review da79a11 reports Keine Befunde;
+  `reviews/resolution.md` records the fixes.
 - `POST_UPLOAD.md`: exact PUBLIC approval and fresh readback protocol.
 
 All published repositories must be PUBLIC from creation. Oliver's approval of
@@ -29,3 +29,5 @@ cards, repo names, licenses and every payload file is the final gate before any
 Hub write. FastText additionally awaits DR-146 (Über FastText in 2.0 entscheiden
 (12f)). No upload, Hub write, token use or pod lifecycle action occurred here.
 Actual fresh Hub readback remains pending until approval and completed uploads.
+
+`report.md` is the final local report. `make-check-da79a11.txt` records 9,167 passing tests and 514 skipped tests. The exact PUBLIC approval payload is `publication-manifest.json`, with its SHA256 in `publication-manifest-sha256.json`; `publication-inventory.md` lists all 135 files and actual sizes. Total: 39,426,324,698 bytes. No publication approval has been received.
