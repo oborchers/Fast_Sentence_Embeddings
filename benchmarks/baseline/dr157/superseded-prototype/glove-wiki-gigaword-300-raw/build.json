@@ -1,0 +1,23 @@
+{
+  "repo": "fse/glove-wiki-gigaword-300-raw",
+  "method": "raw",
+  "dtype": "float32",
+  "source": "fse/glove-wiki-gigaword-300",
+  "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
+  "fingerprint": "xxh3-128:4e3dee37a6fccb1d36ab6f9b5bc272c2",
+  "float32_fingerprint": "xxh3-128:4e3dee37a6fccb1d36ab6f9b5bc272c2",
+  "files": {
+    "README.md": {
+      "bytes": 1094,
+      "xxh3": "xxh3-128:e3a0cbd1facf9cb5fd3c0035954e4dd9"
+    },
+    "config.json": {
+      "bytes": 199,
+      "xxh3": "xxh3-128:70ab5280f221dbbfb2a8a9d43213eb03"
+    },
+    "model.safetensors": {
+      "bytes": 486157506,
+      "xxh3": "xxh3-128:d6eec35248772daeb28ef9c9cc8fa348"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "repo": "fse/glove-wiki-gigaword-300-sif10-int8",
+  "method": "sif10",
+  "dtype": "int8",
+  "source": "fse/glove-wiki-gigaword-300",
+  "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
+  "fingerprint": "xxh3-128:99aed226779a6e8bd839c8d163a1b229",
+  "float32_fingerprint": "xxh3-128:62bd0be39bfcd738d7e3cedc7a5b910c",
+  "files": {
+    "README.md": {
+      "bytes": 1474,
+      "xxh3": "xxh3-128:77701484b56b2044807ac70a08e0ab2d"
+    },
+    "config.json": {
+      "bytes": 199,
+      "xxh3": "xxh3-128:31bb6068735817e5e489e66554fd702d"
+    },
+    "model.safetensors": {
+      "bytes": 127757762,
+      "xxh3": "xxh3-128:760955462333a0aa6ce51cc5e0eba040"
+    }
+  }
+}

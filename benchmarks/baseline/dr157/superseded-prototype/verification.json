@@ -1,0 +1,92 @@
+{
+  "source": "glove-wiki-gigaword-300",
+  "rows": [
+    {
+      "repo": "fse/glove-wiki-gigaword-300-raw",
+      "method": "raw",
+      "dtype": "float32",
+      "pearson": 44.46410190577525,
+      "baseline_1x": 44.46,
+      "difference_1x_points": 0.004101905775250714,
+      "difference_float32_points": 0.0,
+      "recall_at_10": 1.0,
+      "default_tokenizer_pearson": 44.46410190577525,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/glove-wiki-gigaword-300-raw-float16",
+      "method": "raw",
+      "dtype": "float16",
+      "pearson": 44.463903703037744,
+      "baseline_1x": 44.46,
+      "difference_1x_points": 0.0039037030377429005,
+      "difference_float32_points": -0.00019820273750781325,
+      "recall_at_10": 0.9998187092095722,
+      "default_tokenizer_pearson": 44.463903703037744,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/glove-wiki-gigaword-300-raw-int8",
+      "method": "raw",
+      "dtype": "int8",
+      "pearson": 44.458610397507755,
+      "baseline_1x": 44.46,
+      "difference_1x_points": -0.001389602492245956,
+      "difference_float32_points": -0.00549150826749667,
+      "recall_at_10": 0.9938361131254533,
+      "default_tokenizer_pearson": 44.458610397507755,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/glove-wiki-gigaword-300-sif10",
+      "method": "sif10",
+      "dtype": "float32",
+      "pearson": 66.84401786369365,
+      "baseline_1x": 71.43,
+      "difference_1x_points": -4.585982136306356,
+      "difference_float32_points": 0.0,
+      "recall_at_10": 1.0,
+      "default_tokenizer_pearson": 66.84401786369365,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/glove-wiki-gigaword-300-sif10-float16",
+      "method": "sif10",
+      "dtype": "float16",
+      "pearson": 66.84401516286613,
+      "baseline_1x": 71.43,
+      "difference_1x_points": -4.5859848371338785,
+      "difference_float32_points": -2.700827522517102e-06,
+      "recall_at_10": 0.9998912255257433,
+      "default_tokenizer_pearson": 66.84401516286613,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "repo": "fse/glove-wiki-gigaword-300-sif10-int8",
+      "method": "sif10",
+      "dtype": "int8",
+      "pearson": 66.84630272203218,
+      "baseline_1x": 71.43,
+      "difference_1x_points": -4.583697277967829,
+      "difference_float32_points": 0.002284858338526874,
+      "recall_at_10": 0.9967367657722986,
+      "default_tokenizer_pearson": 66.84630272203218,
+      "pairs": 1379,
+      "retrieval_rows": 2758
+    },
+    {
+      "method": "sif10-historical-test-fit",
+      "dtype": "float32",
+      "pearson": 71.43245014304665,
+      "baseline_1x": 71.43,
+      "fit_scope": "all 2,758 test sentences; diagnostic test-set fit, not shipped",
+      "frequencies": "wordfreq en best, int(freq * (2**31-1)), default int(1e-8 * domain)",
+      "difference_1x_points": 0.0024501430466443708
+    }
+  ]
+}
