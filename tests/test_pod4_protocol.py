@@ -73,7 +73,7 @@ def test_slim_plan_has_only_required_settings_and_strict_wrapper(modules, tmp_pa
     assert "benchmarks/quality/pod4.py classifications" in script
     for removed in ("large-write-paths", "worker-scaling", "showcase-100m", "mind-evaluate"):
         assert removed not in script
-    assert 'if [ "$readme_status" -eq 75 ]; then exit 75; fi' in script
+    assert 'if [ "$probe_status" -ne 0 ]; then exit "$probe_status"; fi' in script
     import subprocess
 
     path = tmp_path / "pod4.sh"
@@ -90,6 +90,9 @@ def test_classifier_timing_repeats_the_whole_heldout_split(modules, monkeypatch,
     import shutil
 
     monkeypatch.setattr(shutil, "disk_usage", lambda _: SimpleNamespace(free=100 * 1024**3))
+    import pod4_memory
+
+    monkeypatch.setattr(pod4_memory, "budget", lambda: (64 * 1024**3, 0))
     (tmp_path / "pipeline-inputs").mkdir()
     receipt, record = module.expanded_input(tmp_path, ["first", "second"], [0, 1], 5)
     rows = [json.loads(line) for line in (tmp_path / record["file"]).read_text().splitlines()]

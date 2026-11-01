@@ -11,7 +11,11 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from bench_compare import python_measure  # isort: skip
-from compare_artifacts import file_digest  # isort: skip
+from artifact_manifest import header
+from compare_artifacts import file_digest
+from compare_models import artifact_path
+
+from pod4_memory import encoding  # isort: skip
 from compare_inputs import identity  # isort: skip
 from compare_models import MODELS  # isort: skip
 from compare_parallelism import settings  # isort: skip
@@ -70,6 +74,9 @@ def main():
     source = json.loads(args.input.with_suffix(".identity.json").read_text())
     if source["checksum"] != file_digest(args.input):
         raise ValueError("shared input differs from its recorded file digest")
+    artifact = artifact_path(args.models, args.model, args.table_dtype)
+    width = int(header(artifact)["fse.output_dim"])
+    admission = encoding(source["texts"], width, args.input.stat().st_size, artifact.stat().st_size)
     before = identity(args.kind)
     if args.kind == "rust":
         from compare_rust_worker import measure
@@ -100,6 +107,7 @@ def main():
     verify_backend_identity(args.kind, before)
     if args.vectors_out:
         np.save(args.vectors_out, vectors)
+    record["memory_admission"] = admission
     print(json.dumps(finish(args, source, before, vectors, record)))
 
 

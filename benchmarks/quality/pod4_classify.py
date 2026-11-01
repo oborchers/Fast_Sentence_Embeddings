@@ -34,6 +34,9 @@ def expanded_input(folder, texts, labels, requested):
     expected = count * (sum(len(text.encode("utf-8")) + 40 for text in texts) / len(texts))
     if shutil.disk_usage(folder).free < expected + 25 * 1024**3:
         raise OSError("timing repetitions would leave less than 25 GiB free")
+    from pod4_memory import admit
+
+    admit(count * 24, "classification repetition index workspace")
     indices = np.arange(count, dtype=np.int64) % len(texts)
     np.random.default_rng(0).shuffle(indices)
     with path.open("x", encoding="utf-8") as stream:
@@ -107,7 +110,7 @@ def calibrate(args, folder, texts, labels, workers):
 
 
 def timed(args, folder, texts, labels, suite, name):
-    failed = []
+    failed, expected = [], []
     for workers in (1, 32):
         receipt, _ = calibrate(args, folder, texts, labels, workers)
         base = {label: command(folder, workers, "folded", receipt) for label in ("fse-a", "fse-b")}
@@ -120,12 +123,16 @@ def timed(args, folder, texts, labels, suite, name):
         }
         for label, references in pairs.items():
             cell = f"folded/{suite}/{name}/{workers}/{label}"
+            expected.append(cell)
             done = series({**base, **references}, workers, args.output, args.deadline, cell)
             if not done["complete"]:
                 failed.append(cell)
     from pod_folded_summary import publish_summary
 
-    publish_summary(args.output)
+    result = publish_summary(args.output)
+    from pod4_receipts import check_cells
+
+    failed.extend(check_cells(expected, result))
     if failed:
         raise RuntimeError("classification has short, failed or noisy cells: " + ", ".join(failed))
 
@@ -161,6 +168,15 @@ def run(args):
     ]
     selected = ["ag_news", "subj", *[name for name in names if name not in ("ag_news", "subj")]]
     order = [("setfit", selected), ("fineweb", None)]
+    expected = [
+        f"folded/{suite}/{name}/{workers}/{label}"
+        for suite, name in [("setfit", name) for name in selected] + [("fineweb", "fineweb")]
+        for workers in (1, 32)
+        for label in ("same-linear-head", "mlp")
+    ]
+    (args.output / "classification-plan.json").write_text(
+        json.dumps({"expected_cells": expected}, indent=2) + "\n"
+    )
     failed = []
     for suite, selection in order:
         for name, data, provenance in inputs(suite, args.cache / suite, selection):
@@ -175,5 +191,9 @@ def run(args):
                     {"suite": suite, "dataset": name, "status": "failed", "error": repr(error)},
                 )
             del data
+    from pod4_receipts import check_cells
+    from pod_folded_summary import publish_summary
+
+    failed.extend(check_cells(expected, publish_summary(args.output)))
     if failed:
         raise RuntimeError("classification datasets failed: " + ", ".join(failed))

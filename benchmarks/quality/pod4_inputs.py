@@ -85,6 +85,9 @@ def write_input(folder, source, count, seed=SEED):
     expected = count * (sum(len(text.encode("utf-8")) + 1 for text in source) / len(source))
     if shutil.disk_usage(folder).free < expected + 25 * 1024**3:
         raise OSError("sampled input would leave less than 25 GiB free")
+    from pod4_memory import admit
+
+    admit(count * 24, "sample-index arrays and unique index workspace")
     indices = sampled_indices(len(source), count, seed)
     selected = np.unique(indices)
     distinct = len({source[int(index)] for index in selected})

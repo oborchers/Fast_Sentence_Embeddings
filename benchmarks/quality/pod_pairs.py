@@ -94,7 +94,11 @@ def round_observation(commands, ordered, workers, deadline, output, context, har
         rows.append(row)
     band = aa_band(rows)
     equal_inputs = len({row["input_digest"] for row in rows}) == 1
-    long_enough = all(qualifies(row) for row in rows if row["label"] in ("fse-a", "fse-b"))
+    long_enough = all(
+        qualifies(row)
+        for row in rows
+        if row["label"] in ("fse-a", "fse-b") or row.get("runtime_package") == "fse"
+    )
     good = band["aa_max_ratio"] <= 1.1 and equal_inputs and long_enough
     append(
         output / "speed-results.jsonl",

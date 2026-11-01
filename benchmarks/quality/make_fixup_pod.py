@@ -18,6 +18,14 @@ def script(commit):
     end_marker = 'exit "$showcase_status"\n'
     end = value.index(end_marker, start) + len(end_marker)
     stages = """if [ "$rust_status" -ne 0 ]; then exit "$rust_status"; fi
+probe_deadline=$(( $(/usr/bin/date +%s) + 900 ))
+if [ "$probe_deadline" -gt "$DR151_DEADLINE" ]; then probe_deadline=$DR151_DEADLINE; fi
+run_stage quiet-probe /usr/bin/timeout --signal=TERM --kill-after=10 900 /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod4.py probe --cache /dr151-cache --output /dr151-results --deadline-epoch "$probe_deadline"
+probe_status=$?
+if [ "$probe_status" -ne 0 ]; then exit "$probe_status"; fi
+/dr151-env/bin/python -c 'import json; assert json.load(open("/dr151-results/readme-panels/probe.json")).get("passed") is True'
+receipt_status=$?
+if [ "$receipt_status" -ne 0 ]; then exit "$receipt_status"; fi
 readme_deadline=$(( $(/usr/bin/date +%s) + 4200 ))
 if [ "$readme_deadline" -gt "$((DR151_DEADLINE - 3000))" ]; then readme_deadline=$((DR151_DEADLINE - 3000)); fi
 readme_seconds=$((readme_deadline - $(/usr/bin/date +%s)))
@@ -37,7 +45,47 @@ exit "$classification_status"
     value = value.replace(
         "# Additional Pod 3.", "# Slim Pod 4 fix-up, never launched by this generator."
     )
-    return value.replace("150 GB disk", f"{DISK_GB} GB disk")
+    value = value.replace("150 GB disk", f"{DISK_GB} GB disk")
+    return safe_export(value)
+
+
+def safe_export(value):
+    start = value.index("/usr/bin/cat > /dr151-finalize.py")
+    end = value.index("DR151_FINALIZER\n", start) + len("DR151_FINALIZER\n")
+    finalizer = value[start:end]
+    value = value[:start] + value[end:]
+    marker = "/usr/bin/mkdir -p /dr151-results\n"
+    setup = (
+        """/usr/bin/mkdir -p /dr151-results
+"""
+        + finalizer
+        + """/usr/local/bin/python - <<'DR151_PLAN'
+import json, shutil
+from pathlib import Path
+Path('/dr151-results/pod4-plan.json').write_text(json.dumps({'stages':['probe','readme','classifications']}))
+usage = shutil.disk_usage('/dr151-results')
+Path('/dr151-results/disk-preflight.json').write_text(json.dumps({'total':usage.total,'free':usage.free}))
+if usage.total < 100_000_000_000 or usage.free < 25 * 1024**3:
+    raise SystemExit('require 100 GB capacity and at least 25 GiB free')
+DR151_PLAN
+if [ "$?" -ne 0 ]; then
+  /usr/local/bin/python /dr151-finalize.py --failure 1 disk-preflight
+  printf 'ALL_DONE\\n'
+  /usr/bin/sleep infinity
+  exit 1
+fi
+"""
+    )
+    value = value.replace(marker, setup, 1)
+    value = value.replace(
+        "\\nALL_DONE\\n' >&2",
+        "\\n' >&2\n  /usr/local/bin/python /dr151-finalize.py --failure 1 cache-ownership\n  printf 'ALL_DONE\\n'",
+    )
+    value = value.replace(
+        ' /dr151-results "$status"\n',
+        ' /dr151-results "$status" --no-sentinel\nexport_status=$?\nif [ "$export_status" -ne 0 ]; then\n  /usr/local/bin/python /dr151-finalize.py --failure "$export_status" export-failed\nfi\n',
+    )
+    return value
 
 
 def main():

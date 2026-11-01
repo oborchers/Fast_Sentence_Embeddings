@@ -22,8 +22,11 @@ MLP_DESCRIPTION = (
 )
 
 
-def linear_predict(encoder, weight, bias, classes, rows, workers):
+def linear_predict(encoder, weight, bias, classes, rows, workers, *, encode_seconds=None):
+    start = time.perf_counter() if encode_seconds is not None else None
     vectors = encoder.encode(rows, workers=workers)
+    if encode_seconds is not None:
+        encode_seconds.append(time.perf_counter() - start)
     logits = vectors @ weight.T + bias
     indices = (logits[:, 0] > 0).astype(np.intp) if logits.shape[1] == 1 else logits.argmax(axis=1)
     return classes[indices]

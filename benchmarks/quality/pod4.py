@@ -13,7 +13,7 @@ from pod_artifacts import environment  # isort: skip
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("stage", choices=["readme", "classifications"])
+    parser.add_argument("stage", choices=["probe", "readme", "classifications"])
     parser.add_argument("--cache", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--deadline-epoch", type=float, required=True)
@@ -28,11 +28,11 @@ def main():
     args.cache.mkdir(parents=True, exist_ok=True)
     args.hardware = {**environment(), "affinity_original": allowed}
     args.deadline = time.monotonic() + args.deadline_epoch - time.time()
-    if args.stage == "readme":
-        from pod4_readme import QuietPodRequiredError, run
+    if args.stage in ("probe", "readme"):
+        from pod4_readme import QuietPodRequiredError, probe, run
 
         try:
-            run(args)
+            (probe if args.stage == "probe" else run)(args)
         except QuietPodRequiredError as error:
             print(str(error), file=sys.stderr, flush=True)
             raise SystemExit(75) from error
@@ -42,7 +42,7 @@ def main():
         args.output = args.output / "folded-classification"
         args.output.mkdir(exist_ok=True)
         run(args)
-    (args.output / "stage-complete.json").write_text(
+    (args.output / f"{args.stage}-complete.json").write_text(
         json.dumps({"stage": args.stage, "status": "completed"}) + "\n"
     )
 

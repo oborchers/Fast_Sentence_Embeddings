@@ -44,8 +44,16 @@ def failures(value):
     return result
 
 
-def final(root, returncode):
+def final(root, returncode, *, sentinel=True):
     steps, incomplete = [], []
+    if (root / "pod4-plan.json").exists():
+        try:
+            sys.path.insert(0, "/dr151-repo/benchmarks/quality")
+            from pod4_receipts import validate
+
+            incomplete.extend(validate(root))
+        except (ImportError, OSError, ValueError) as error:
+            incomplete.append({"reason": "cannot validate Pod4 receipts: " + str(error)})
     for index, path in enumerate(sorted(root.rglob("*"))):
         if not path.is_file() or path.suffix not in (".json", ".jsonl", ".log", ".txt"):
             continue
@@ -71,8 +79,20 @@ def final(root, returncode):
             "steps": steps,
         },
     )
-    print("ALL_DONE", flush=True)
+    if sentinel:
+        print("ALL_DONE", flush=True)
 
 
 if __name__ == "__main__":
-    final(Path(sys.argv[1]), int(sys.argv[2]))
+    if sys.argv[1] == "--failure":
+        emit(
+            "manifest",
+            {
+                "complete": False,
+                "returncode": int(sys.argv[2]),
+                "status": "export or setup failed",
+                "reason": sys.argv[3],
+            },
+        )
+    else:
+        final(Path(sys.argv[1]), int(sys.argv[2]), sentinel="--no-sentinel" not in sys.argv)

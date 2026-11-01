@@ -72,7 +72,15 @@ def predictor(kind, folder, workers):
         weight, bias, classes = data["weight"], data["bias"], data["classes"]
     if weight.dtype != np.float32 or bias.dtype != np.float32:
         raise ValueError("explicit matmul must use the exact float32 fse head")
-    return lambda rows: linear_predict(encoder, weight, bias, classes, rows, workers)
+    durations = []
+
+    def predict(rows):
+        return linear_predict(
+            encoder, weight, bias, classes, rows, workers, encode_seconds=durations
+        )
+
+    predict.encode_seconds = durations
+    return predict
 
 
 def measure(predict, rows, passes=3):
@@ -122,6 +130,12 @@ def main():
 
     manifest = json.loads((args.folder / "manifest.json").read_text())
     description = json.loads(args.evaluation_record.read_text()) if args.evaluation_record else None
+    if description is not None:
+        from pod4_memory import classifier
+
+        admission = classifier(args.folder, description, args.kind)
+    else:
+        admission = None
     rows, labels = evaluation(args.folder, manifest, description)
     verify_linear_files(args.folder, manifest, "before")
     backend = "model2vec" if args.kind in ("mlp", "model2vec-linear") else "fse"
@@ -154,6 +168,8 @@ def main():
         "requested_workers": args.workers,
         "effective_affinity": sorted(os.sched_getaffinity(0)),
         "minimum_call_seconds": args.minimum_seconds if backend == "fse" else 0,
+        "encoder_call_seconds": getattr(predict, "encode_seconds", None),
+        "memory_admission": admission,
         "inference_input": description or manifest["evaluation"],
         "original_heldout_quality": manifest["quality"],
         "quality_scope": "inference-only repetitions"

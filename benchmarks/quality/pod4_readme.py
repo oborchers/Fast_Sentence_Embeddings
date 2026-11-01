@@ -124,39 +124,52 @@ def check_durations(folder, identifier):
     )
 
 
-def run(args):
+def options_for(args):
     folder = args.output / "readme-panels"
-    folder.mkdir()
-    options = SimpleNamespace(
+    folder.mkdir(exist_ok=True)
+    return SimpleNamespace(
         models=folder / "models",
         output=folder,
         cache=args.cache,
         inputs=args.output / "pipeline-inputs",
         deadline=args.deadline,
     )
-    ensure_model(POTION, "float32", options)
+
+
+def probe(args):
+    options = options_for(args)
     source = source_passages(args.cache)
-    table = [
-        (POTION, dtype, workers) for workers in SETTINGS for dtype in ("float32", "float16", "int8")
-    ]
-    counts = {"table": calibrate(options, source, table)}
-    probe_folder = folder / "probe"
-    probe_folder.mkdir()
-    bind_input(options, source, counts["table"])
-    probe = series(
+    calibrate(options, source, [(POTION, "float32", 32)])
+    folder = options.output / "probe"
+    folder.mkdir()
+    result = series(
         {
             label: encode_command(options, POTION, "float32", "wikitext", 32, "fse")
             for label in ("fse-a", "fse-b")
         },
         32,
-        probe_folder,
-        options.deadline,
+        folder,
+        min(options.deadline, time.monotonic() + 180),
         "pod4/long-call-host-probe",
         minimum_seconds=120,
     )
-    (folder / "probe.json").write_text(json.dumps(probe, indent=2) + "\n")
-    if not probe["complete"]:
-        raise QuietPodRequiredError("long-call A/A probe failed; require a quiet pod")
+    result["passed"] = result["complete"] and check_durations(folder, "pod4/long-call-host-probe")
+    (options.output / "probe.json").write_text(json.dumps(result, indent=2) + "\n")
+    if not result["passed"]:
+        raise QuietPodRequiredError("bounded long-call A/A probe failed; require a quiet pod")
+
+
+def run(args):
+    options = options_for(args)
+    folder = options.output
+    receipt = json.loads((folder / "probe.json").read_text())
+    if receipt.get("passed") is not True:
+        raise QuietPodRequiredError("an explicit passing host probe is required")
+    source = source_passages(args.cache)
+    table = [
+        (POTION, dtype, workers) for workers in SETTINGS for dtype in ("float32", "float16", "int8")
+    ]
+    counts = {"table": calibrate(options, source, table)}
     counts[STATIC_ST] = calibrate(
         options, source, [(STATIC_ST, "float32", workers) for workers in SETTINGS]
     )

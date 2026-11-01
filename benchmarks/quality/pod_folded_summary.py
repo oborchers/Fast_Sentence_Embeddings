@@ -184,3 +184,4 @@ def publish_summary(folder: Path):
     result = summarize(rows)
     (folder / "classification-summary.json").write_text(json.dumps(result, indent=2) + "\n")
     emit("classification-summary-" + str(len(result["cells"])), result)
+    return result
