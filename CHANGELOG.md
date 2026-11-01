@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- Recipes now guide end users through real POTION and public-dataset examples, with diagrams, a first fse 101 recipe, and a shared-split classification comparison.
+
 - `ShardSink` reports the first thread failure instead of a later failure caused by it, regardless of which thread the caller checks first.
 
 - `MemorySink` accepts positive numpy integer dimensions, matching the public integer validation contract. Booleans, floats and nonpositive dimensions remain errors.
@@ -31,6 +33,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 - fse 2.0 uses the MIT license. The 1.x branch and existing releases remain GPL-3.0. Model and dataset licenses apply separately. FastText hashing is derived directly from the MIT fastText source with unchanged buckets; shipped text fixtures now contain original synthetic sentences instead of STS Benchmark sentences and reviews of unknown provenance.
 
 ### Added
+
+- A recipe for folding a trained linear classifier into word vectors, comparing quality and saved file sizes, and saving and reloading complete and standalone models.
 
 - Local recipe notebooks for offline SIF/uSIF tables, linear heads, resumable file and queue jobs, folder polling and application integrations, with a localhost overhead measurement. Recipe dependencies remain separate from fse.
 
