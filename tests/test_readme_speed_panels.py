@@ -63,7 +63,7 @@ def pair():
 def test_unqualified_measurements_fail(field, value):
     sample = row()
     sample[field] = value
-    with pytest.raises(ValueError, match="complete|variation|identity|rounds|finite"):
+    with pytest.raises(ValueError, match=r"complete|variation|identity|rounds|finite"):
         PANEL["measured"](sample)
 
 

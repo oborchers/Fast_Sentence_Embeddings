@@ -8,7 +8,6 @@ import re
 import statistics
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 DTYPES = ("float32", "float16", "int8")
 BACKENDS = {
