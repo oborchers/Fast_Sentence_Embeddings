@@ -6,6 +6,8 @@ The [complete manifest](../../benchmarks/baseline/dr151_evidence_manifest_202611
 
 The initial archive contains 454 files and 67,496,939 bytes, including all 48 README transfer files at their original paths. The ae79c80 snapshot additionally preserves two original CRLF worktree representations alongside their canonical LF Git files, for 456 files and 67,499,492 bytes at ae79c80. The subsequent b734a9b snapshot adds all nine files from the rejected Pod 4 probe, bringing the manifest to 465 files and 67,727,161 bytes. The e8b3383 snapshot additionally preserves the cleanup review and all ten Pod 4b files, for 477 manifest-listed payload files and 68,097,415 payload bytes. Including the archive README and internal manifest, the complete tree has 479 files and 68,270,533 bytes. No measured value changed. The README payload’s original source is `7164b12637370d8064346d18161d73eee27dcb84`. The [README transfer receipt](../../benchmarks/baseline/dr154_evidence_verification_20261101.json) preserves the complete list for independent verification. The eight historical 1.1 baseline result files also have an archival copy and remain on master, as required by the maintainer. Numerical conformance fixtures under `tests/test_data` remain in the code tree.
 
+The later archive commit 106998c5043080cf9fb68eb0d947ba979ac82736 adds the independent master-study compaction review and prompt. It has 479 manifest-listed payload files and 68,100,563 payload bytes. Earlier study links remain pinned to their verified snapshots.
+
 ## Study summaries
 
 | Study | Compact master source | Full evidence |

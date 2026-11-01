@@ -15,4 +15,6 @@ Later provenance reports add small text files beyond these pinned snapshots. Raw
 
 Fifteen focused evidence tests, Ruff and guardrails passed after the five-study change. A complete local make check, model run and timing run were not performed under the Mac resource restriction. Remote CI is separate and was still pending when checked.
 
-Three completed review checkouts were removed after checking their exact path, detached commit and clean state. Their reports remain preserved. The removed regular files totalled 31,992,348 logical bytes. The shared machine and APFS allocation prevent attributing a precise free-space delta. No shared cache, result or report was deleted.
+Four completed review checkouts were removed after checking their exact path, detached commit and clean state. Their reports remain preserved. The removed regular files totalled 42,445,697 logical bytes. The shared machine and APFS allocation prevent attributing a precise free-space delta. No shared cache, result or report was deleted.
+
+Independent review of bc1d79b verified unchanged numbers, original archive bytes and 1.1 baselines. Two P3 findings concerned a profile-link label and test provenance assertions. Both were fixed in 0737c3e, then all 15 focused tests, Ruff and guardrails passed. The exact review and prompt are archived at 106998c5043080cf9fb68eb0d947ba979ac82736 under `reviews/dr151-master-study-compaction-20261101/`.

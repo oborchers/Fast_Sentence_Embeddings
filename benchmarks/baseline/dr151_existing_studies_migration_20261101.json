@@ -50,5 +50,15 @@
     "guardrails": "passed",
     "diff_check": "passed"
   },
-  "review": "Independent CLI review in progress; report will be recorded separately."
+  "review": {
+    "reviewed_commit": "bc1d79b0aef6d88590629825d9bcdcae387f110d",
+    "report_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/106998c5043080cf9fb68eb0d947ba979ac82736/reviews/dr151-master-study-compaction-20261101/review.md",
+    "result": "Numeric values, provenance and 1.1 baselines independently verified unchanged. Two P3 findings confirmed and fixed.",
+    "fix_commit": "0737c3eda9df2f0d00f5782bd0c00e659bfd1c3b",
+    "fixes": [
+      "Rename the compact profile link because timeline data remains only in the archive.",
+      "Bind the provenance test to the exact manifest commit, expected path, complete URL and SHA256 of actual archived bytes."
+    ],
+    "post_fix_checks": "15 focused tests, Ruff, guardrails and diff check passed."
+  }
 }
