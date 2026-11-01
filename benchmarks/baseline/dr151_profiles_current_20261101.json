@@ -1,0 +1,108 @@
+{
+  "window_acquired_utc": "2026-11-01T04:33:53.997618+00:00",
+  "window_released_utc": "2026-11-01T04:52:48.447730+00:00",
+  "profiles": [
+    {
+      "event": "profile_finished",
+      "comparison_identity_version": 2,
+      "kind": "fse",
+      "profiler": "cpu",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "make",
+        "profile-cpu",
+        "PROFILE_DIR=/private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad/dr151-profile-1793507934-cpu-fse",
+        "RUN=benchmarks/bench_compare.py child --kind fse --threads 1 --model minishlab/potion-base-8M --corpus wikitext --passes 100 --fse-models /Users/oliverborchers/.cache/fse-quality/models"
+      ],
+      "returncode": 0,
+      "load_before": 4.47509765625,
+      "load_after": 5.31787109375,
+      "valid": false,
+      "use": "instrumented CPU/memory diagnostic, never throughput evidence",
+      "commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c",
+      "raw": "benchmarks/baseline/results/dr151-profiles-current/window5-cpu-fse",
+      "measured_child_commit": "6e7fc5e6454f41614bb0fe99f1141801ddab2251",
+      "runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py"
+    },
+    {
+      "event": "profile_finished",
+      "comparison_identity_version": 2,
+      "kind": "fse",
+      "profiler": "mem",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "make",
+        "profile-mem",
+        "PROFILE_DIR=/private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad/dr151-profile-1793508059-mem-fse",
+        "RUN=benchmarks/bench_compare.py child --kind fse --threads 1 --model minishlab/potion-base-8M --corpus wikitext --passes 30 --fse-models /Users/oliverborchers/.cache/fse-quality/models"
+      ],
+      "returncode": 0,
+      "load_before": 4.681640625,
+      "load_after": 6.33837890625,
+      "valid": false,
+      "use": "instrumented CPU/memory diagnostic, never throughput evidence",
+      "commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c",
+      "raw": "benchmarks/baseline/results/dr151-profiles-current/window5-mem-fse",
+      "measured_child_commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c",
+      "runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py"
+    },
+    {
+      "event": "profile_finished",
+      "comparison_identity_version": 2,
+      "kind": "fse",
+      "profiler": "rss",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "make",
+        "profile-rss",
+        "PROFILE_DIR=/private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad/dr151-profile-1793508365-rss-fse",
+        "RUN=benchmarks/bench_compare.py child --kind fse --threads 1 --model minishlab/potion-base-8M --corpus wikitext --passes 100 --fse-models /Users/oliverborchers/.cache/fse-quality/models"
+      ],
+      "returncode": 0,
+      "load_before": 3.89697265625,
+      "load_after": 3.90478515625,
+      "valid": true,
+      "use": "instrumented CPU/memory diagnostic, never throughput evidence",
+      "commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c",
+      "raw": "benchmarks/baseline/results/dr151-profiles-current/window5-rss-fse",
+      "measured_child_commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c",
+      "runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+      "process_tree_peak_rss_bytes": 219332608
+    },
+    {
+      "event": "profile_finished",
+      "comparison_identity_version": 2,
+      "kind": "model2vec",
+      "profiler": "cpu",
+      "command": [
+        "nice",
+        "-n",
+        "10",
+        "make",
+        "profile-cpu",
+        "PROFILE_DIR=/private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad/dr151-profile-1793508609-cpu-model2vec",
+        "RUN=benchmarks/bench_compare.py child --kind model2vec --threads 1 --model minishlab/potion-base-8M --corpus wikitext --passes 3"
+      ],
+      "returncode": 0,
+      "load_before": 4.3193359375,
+      "load_after": 4.37353515625,
+      "valid": true,
+      "use": "instrumented CPU/memory diagnostic, never throughput evidence",
+      "commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c",
+      "raw": "benchmarks/baseline/results/dr151-profiles-current/window5-cpu-model2vec",
+      "measured_child_commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c",
+      "runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py"
+    }
+  ],
+  "note": "Instrumented diagnostics, never throughput or cost evidence. Reject any endpoint load at least5. Child commit is the measured source; outer orchestration commit is retained separately."
+}
