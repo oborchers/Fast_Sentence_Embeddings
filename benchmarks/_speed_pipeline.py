@@ -11,11 +11,7 @@ import time
 from importlib.metadata import distributions
 from pathlib import Path
 
-from _speed_cells import atomic, configure, package_identity, sha256
-
-
-def command(*arguments):
-    subprocess.run([str(value) for value in arguments], check=True)
+from _speed_cells import atomic, command, configure, package_identity, sha256
 
 
 def setup(root, contract):
@@ -227,10 +223,10 @@ fn main()->Result<(),Box<dyn std::error::Error>> {
  let load=start.elapsed().as_secs_f64();
  let passes:usize=a[3].parse()?;let mut seconds=Vec::new();let mut hashes=Vec::new();
  for pass in 0..=passes {
-  let start=Instant::now();let output=if a.get(6).map(String::as_str)==Some("nested") {
-   model.encode(&texts).into_iter().flatten().collect::<Vec<f32>>()
-  } else {model.encode_flat(&texts)};
-  seconds.push(start.elapsed().as_secs_f64());
+  let start=Instant::now();let (output,elapsed)=if a.get(6).map(String::as_str)==Some("nested") {
+   let nested=model.encode(&texts);let elapsed=start.elapsed().as_secs_f64();(nested.into_iter().flatten().collect::<Vec<f32>>(),elapsed)
+  } else {let output=model.encode_flat(&texts);let elapsed=start.elapsed().as_secs_f64();(output,elapsed)};
+  seconds.push(elapsed);
   let mut digest=std::collections::hash_map::DefaultHasher::new();
   for value in &output {value.to_bits().hash(&mut digest);}hashes.push(digest.finish().to_string());
   if pass==0 {
@@ -485,8 +481,13 @@ def stream_child(job):
             identity=identity,
             df_before=disk_before,
             df_after=shutil.disk_usage(output.parent)._asdict(),
-            first_seconds=seconds,
-            warm_seconds=[seconds],
+            measurement_kind="streamed-single-call",
+            single_call_seconds=seconds,
+            vector_data_sha256=hashlib.sha256(
+                json.dumps(
+                    [r for r in files if r["path"].endswith(".npy")], sort_keys=True
+                ).encode()
+            ).hexdigest(),
             output_checked=True,
             rows=len(store),
             files=files,

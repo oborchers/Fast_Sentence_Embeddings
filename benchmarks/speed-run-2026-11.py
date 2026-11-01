@@ -22,6 +22,7 @@ from _speed_cells import (
     document,
     memory_admit,
     metadata,
+    observations,
     output_array,
     sha256,
     startup_job,
@@ -195,7 +196,7 @@ def launch(context, cell, job, folder):
     )
     tokens = record["input_identity"]["tokens_total"]
     record["mean_tokens"] = tokens / cell["texts"]
-    record["warm_tokens_per_second"] = [tokens / value for value in record["warm_seconds"]]
+    record["tokens_per_second"] = [tokens / value for value in observations(record)]
     append(root / "operations.jsonl", dict(cell_id=cell["id"], **record))
     return record
 
@@ -220,6 +221,8 @@ def stream_cell(context, cell):
             folder.mkdir()
             job = job_for(context, cell, label, number, folder)
             record = launch(context, cell, job, folder)
+            if operations and record["vector_data_sha256"] != operations[0]["vector_data_sha256"]:
+                raise ValueError("streamed A/A vector or quantization data differs")
             remove_output(context, Path(job["vectors_file"]), record)
             operations.append(record)
     return summarize(cell, operations)

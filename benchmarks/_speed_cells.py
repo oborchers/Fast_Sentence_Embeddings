@@ -14,6 +14,10 @@ import time
 from pathlib import Path
 
 
+def command(*arguments):
+    subprocess.run([str(value) for value in arguments], check=True)
+
+
 def document(path):
     return json.loads(path.read_text())
 
@@ -56,9 +60,17 @@ def spread(values):
     return {"median": statistics.median(values), "min": min(values), "max": max(values)}
 
 
+def observations(row):
+    if row.get("measurement_kind") == "streamed-single-call":
+        return [row["single_call_seconds"]]
+    return row["warm_seconds"]
+
+
 def valid_calls(row, minimum):
-    values = [row["first_seconds"], *row["warm_seconds"]]
-    if not row["warm_seconds"] or any(not math.isfinite(v) or v <= 0 for v in values):
+    values = (
+        [row["first_seconds"], *observations(row)] if "first_seconds" in row else observations(row)
+    )
+    if not observations(row) or any(not math.isfinite(v) or v <= 0 for v in values):
         raise ValueError("invalid call durations")
     if any(v < minimum for v in values):
         raise ValueError("actual fse call shorter than required")
@@ -74,7 +86,7 @@ def controls(operations, rounds, minimum):
         valid_calls(row, minimum)
     if len({json.dumps(row["identity"], sort_keys=True) for row in rows}) != 1:
         raise ValueError("fse controls identify different executing code")
-    medians = [statistics.median(row["warm_seconds"]) for row in rows]
+    medians = [statistics.median(observations(row)) for row in rows]
     upper = max(medians) / min(medians)
     return {"upper": upper, "lower": 1 / upper, "passed": upper <= 1.10}
 
@@ -86,13 +98,14 @@ def arm_summary(cell, operations, label):
     identities = {json.dumps(r["identity"], sort_keys=True) for r in rows}
     if len(identities) != 1 or not all(r["output_checked"] for r in rows):
         raise ValueError("runtime changed or output check failed")
-    seconds = [statistics.median(r["warm_seconds"]) for r in rows]
+    seconds = [statistics.median(observations(r)) for r in rows]
     return {
         "seconds": spread(seconds),
         "texts_per_second": spread([cell["texts"] / v for v in seconds]),
         "ordered_seconds": seconds,
         "peak_rss_bytes": max(r["peak_rss_bytes"] for r in rows),
         "identity": rows[0]["identity"],
+        "measurement_kind": rows[0].get("measurement_kind", "separate-first-and-warm"),
     }
 
 
@@ -103,24 +116,27 @@ def summarize(cell, operations):
     arms = {}
     for label in sorted(labels):
         arms[label] = arm_summary(cell, operations, label)
-    reference = cell.get("reference")
-    ratio = None
-    if reference:
-        ratio = spread(
+    references = (
+        ["unfolded", "model2vec-linear"] if cell["kind"] == "classify" else [cell.get("reference")]
+    )
+    ratios = {
+        ref: spread(
             [
                 b / a
                 for a, b in zip(
-                    arms["fse-a"]["ordered_seconds"],
-                    arms[reference]["ordered_seconds"],
-                    strict=True,
+                    arms["fse-a"]["ordered_seconds"], arms[ref]["ordered_seconds"], strict=True
                 )
             ]
         )
+        for ref in references
+        if ref
+    }
     return {
         "status": "valid" if check["passed"] else "invalid",
         "aa": check,
         "arms": arms,
-        "paired_speedup": ratio,
+        "paired_speedup": ratios.get(cell.get("reference")),
+        "paired_speedups": ratios,
     }
 
 
@@ -292,7 +308,11 @@ def check_output(reference, other, exact):
         a, b = reference[start : start + 4096], other[start : start + 4096]
         if not np.isfinite(a).all() or not np.isfinite(b).all():
             raise ValueError("nonfinite output")
-        equal = np.array_equal(a, b) if exact else np.allclose(a, b, rtol=3e-5, atol=3e-6)
+        equal = (
+            np.array_equal(a.view(np.uint8), b.view(np.uint8))
+            if exact
+            else np.allclose(a, b, rtol=3e-5, atol=3e-6)
+        )
         if not equal:
             raise ValueError("full output comparison failed")
         largest = max(largest, float(np.max(np.abs(a - b), initial=0)))
