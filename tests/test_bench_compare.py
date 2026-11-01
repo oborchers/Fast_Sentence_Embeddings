@@ -61,7 +61,7 @@ def test_default_model2vec_keeps_tokenizer_parallelism(bench, monkeypatch, capsy
     monkeypatch.setattr(bench, "texts", lambda _: ["a short corpus"])
     monkeypatch.setattr(bench, "identity", lambda: {})
 
-    def contender(*_args):
+    def contender(*_args, **_kwargs):
         monkeypatch.setenv("TOKENIZERS_PARALLELISM", "false")
 
         def encode(_texts):
@@ -78,6 +78,8 @@ def test_default_model2vec_keeps_tokenizer_parallelism(bench, monkeypatch, capsy
         model="minishlab/potion-base-8M",
         passes=2,
         vectors_out=None,
+        table_dtype="float32",
+        fse_models=None,
     )
     bench.child(args)
     row = json.loads(capsys.readouterr().out)

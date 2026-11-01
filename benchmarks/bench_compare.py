@@ -20,10 +20,9 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
-from bench_model2vec import _revision
-from bench_pretrained import COMMITS
 from compare_backends import make_contender as contender
 from compare_inputs import corpus_identity, identity, texts
+from compare_models import MODELS
 
 
 @contextmanager
@@ -71,7 +70,7 @@ def child(args) -> None:
             "kind": args.kind,
             "threads": args.threads,
             "model": args.model,
-            "revision": _revision(args.model),
+            "revision": MODELS[args.model],
             "corpus": args.corpus,
             "texts": len(sentences),
             "output_digest": checksum(np.ascontiguousarray(vectors)),
@@ -84,7 +83,9 @@ def child(args) -> None:
 
 def python_measure(args, sentences):
     start = time.perf_counter()
-    encode = contender(args.kind, args.threads, args.model)
+    encode = contender(
+        args.kind, args.threads, args.model, table_dtype=args.table_dtype, folder=args.fse_models
+    )
     load_s = time.perf_counter() - start
     if args.kind == "model2vec" and args.threads > 1:
         # Above its threshold model2vec disables tokenizer parallelism itself.
@@ -102,10 +103,19 @@ def python_measure(args, sentences):
         "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         * (1 if sys.platform == "darwin" else 1024),
         "rss_scope": "Python encoder process",
+        "table_dtype": encode.table_dtype if hasattr(encode, "table_dtype") else args.table_dtype,
+        "output_dtype": str(out.dtype),
+        "file_bytes": encode.file_bytes if hasattr(encode, "file_bytes") else None,
+        "load_source": encode.load_source if hasattr(encode, "load_source") else None,
+        "encoder_fingerprint": encode.encoder_fingerprint
+        if hasattr(encode, "encoder_fingerprint")
+        else None,
     }, out
 
 
 def operation(args, label: str, threads: int) -> dict:
+    if subprocess.run(["git", "diff", "--quiet", "HEAD"], check=False).returncode:
+        raise RuntimeError("timing deferred: tracked worktree changes are not committed")
     kind = "fse" if label.startswith("fse") else args.against
     command = [
         str(args.other_python) if kind != "fse" and args.other_python else sys.executable,
@@ -116,12 +126,16 @@ def operation(args, label: str, threads: int) -> dict:
         "--threads",
         str(threads),
         "--model",
-        args.model,
+        args.other_model if kind != "fse" and args.other_model else args.model,
+        "--table-dtype",
+        args.table_dtype if kind == "fse" else "float32",
         "--corpus",
         args.corpus,
         "--passes",
         str(args.passes),
     ]
+    if kind == "fse" and args.fse_models is not None:
+        command.extend(["--fse-models", str(args.fse_models)])
     with reservation(args.lock):
         before = os.getloadavg()[0]
         done = subprocess.run(command, text=True, capture_output=True, check=False)
@@ -216,7 +230,7 @@ def run(args) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("run", "child"))
-    parser.add_argument("--model", choices=sorted(COMMITS), default="minishlab/potion-base-8M")
+    parser.add_argument("--model", choices=sorted(MODELS), default="minishlab/potion-base-8M")
     parser.add_argument("--corpus", choices=("wikitext", "massive"), default="wikitext")
     parser.add_argument("--threads", type=int, default=1)
     parser.add_argument("--passes", type=int, default=5)
@@ -228,6 +242,9 @@ def main() -> None:
     parser.add_argument(
         "--kind", choices=("fse", "model2vec", "st", "rust", "fastembed"), default="fse"
     )
+    parser.add_argument("--other-model", choices=sorted(MODELS))
+    parser.add_argument("--table-dtype", choices=("float32", "float16", "int8"), default="float32")
+    parser.add_argument("--fse-models", type=Path)
     parser.add_argument("--other-python", type=Path)
     parser.add_argument("--vectors-out", type=Path)
     parser.add_argument("--lock", type=Path)

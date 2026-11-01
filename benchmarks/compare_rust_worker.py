@@ -44,5 +44,9 @@ def measure(args, sentences: list[str]) -> tuple[dict, np.ndarray]:
     )
     record["rust_source_revision"] = "19f58bef6ce145f2bc08de7016498f28d521feea"
     record["rss_scope"] = "native Rust process"
+    record["table_dtype"] = "float32"
+    record["output_dtype"] = str(vectors.dtype)
+    record["file_bytes"] = (_snapshot(args.model) / "model.safetensors").stat().st_size
+    record["load_source"] = "pinned Hub snapshot"
     record["rustc"] = subprocess.check_output(["rustc", "--version"], text=True).strip()
     return record, vectors

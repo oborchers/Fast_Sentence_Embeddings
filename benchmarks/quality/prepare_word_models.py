@@ -1,6 +1,6 @@
 """Prepare mean-pooling GloVe and word2vec quality models from pinned cached tables.
 
-No fitting occurs. The external tokenizer is the NLTK recipe in run_mteb.py.
+No fitting occurs. Raw text uses the native fse_words@1 tokenizer.
 Both quantized tables derive from the same float32 encoder without retraining.
 """
 
@@ -40,7 +40,7 @@ def prepare(folder: Path, coordination: Path) -> None:
         with task_reservation(coordination):
             kv = KeyedVectors.load(str(source), mmap="r")
             encoder = fse.Encoder.from_arrays(
-                kv.vectors, words=kv.index_to_key, tokenizer="external", normalize=True
+                kv.vectors, words=kv.index_to_key, tokenizer="fse_words@1", normalize=True
             )
             encoder.save(paths[0])
             for dtype, path in zip(("float16", "int8"), paths[1:], strict=True):
@@ -49,7 +49,7 @@ def prepare(folder: Path, coordination: Path) -> None:
                 **identity(),
                 "source": f"fse/{name}",
                 "revision": revision,
-                "recipe": "unweighted mean, external NLTK tokens, L2 normalization",
+                "recipe": "unweighted mean, fse_words@1 tokens, L2 normalization",
                 "artifacts": [path.name for path in paths],
                 "output_dim": encoder.output_dim,
             }
