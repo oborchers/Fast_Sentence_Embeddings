@@ -44,3 +44,20 @@ def test_zero_queries_are_visible_and_excluded_from_quality(search_module):
     assert found["recall_at_k"] == 1
     assert found["zero_queries_excluded_from_recall"] == 1
     assert found["query_rows"] == 2
+
+
+def test_fse_store_preserves_shared_vectors(search_module, tmp_path):
+    from fse import Encoder
+
+    matrix = np.eye(3, dtype=np.float32)
+    encoder = Encoder.from_arrays(matrix, words=["a", "b", "c"])
+    path = tmp_path / "index"
+    index = search_module.make_index("fse", matrix, encoder, path, 1)
+    search_module.save_index("fse", index, path)
+    index = search_module.open_index("fse", path, 3, 1)
+    try:
+        assert np.array_equal(index.get_vectors(), matrix)
+        ids = search_module.search("fse", index, matrix, 1, 1)
+        assert np.array_equal(ids, [[0], [1], [2]])
+    finally:
+        index.close()

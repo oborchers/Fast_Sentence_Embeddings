@@ -54,11 +54,13 @@ from model2vec_adapter import NativeModel2VecEncoder
 from mteb.cache import ResultCache
 from mteb.models.abs_encoder import AbsEncoder
 from mteb.models.model_meta import ModelMeta, ScoringFunction
+from resume import pending_tasks
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from quality_coordination import paused, task_reservation  # isort: skip
 from bench_pretrained import COMMITS  # isort: skip
 from compare_inputs import identity  # isort: skip
+from compare_models import MODELS  # isort: skip
 
 HERE = Path(__file__).resolve().parent
 RESULTS = HERE / "results.jsonl"  # the default of --results
@@ -232,7 +234,7 @@ def metadata(name: str) -> ModelMeta:
                 "loader": NativeModel2VecEncoder,
             }
         )
-    return mteb.get_model_meta(name)
+    return mteb.get_model_meta(name).model_copy(update={"revision": MODELS[name]})
 
 
 def task_batches(model, tasks, cache):
@@ -249,7 +251,9 @@ def task_batches(model, tasks, cache):
                 yield task, result
 
 
-def run(models: list[str], task_names: list[str] | None, results: Path = RESULTS) -> None:
+def run(
+    models: list[str], task_names: list[str] | None, results: Path = RESULTS, resume: bool = False
+) -> None:
     from nltk import download
 
     download("punkt_tab", quiet=True)
@@ -261,8 +265,19 @@ def run(models: list[str], task_names: list[str] | None, results: Path = RESULTS
         with task_reservation(FseEncoder.coordination):
             meta = metadata(name)
             model = meta.load_model(device="cpu")
+        specification = {
+            "model": name,
+            "revision": meta.revision,
+            "loader": f"{type(model).__module__}.{type(model).__name__}",
+            "encoder_fingerprint": getattr(getattr(model, "model", None), "fingerprint", None),
+            "workers": FseEncoder.workers,
+            "device": "cpu",
+            "versions": environment["versions"],
+        }
+        pending = pending_tasks(results, specification, tasks) if resume else tasks
+        logger.info("%s: %d pending tasks of %d", name, len(pending), len(tasks))
         timer = EncodeTimer(model)
-        with closing(task_batches(model, tasks, cache)) as batches:
+        with closing(task_batches(model, pending, cache)) as batches:
             for task_to_run, result in batches:
                 for task_result in result.task_results:
                     task = task_result.task_name
@@ -356,6 +371,7 @@ def main() -> None:
     run_parser.add_argument(
         "--fse-models", type=Path, default=FseEncoder.folder, help="the finished fse models"
     )
+    run_parser.add_argument("--resume", action="store_true", help="reuse matching completed tasks")
     run_parser.add_argument("--workers", type=int, default=2)
     run_parser.add_argument("--batch-tasks", type=int, default=8)
     run_parser.add_argument("--coordination", type=Path, help="shared scratchpad lock directory")
@@ -383,7 +399,7 @@ def main() -> None:
     from threadpoolctl import threadpool_limits
 
     with threadpool_limits(limits=args.workers):
-        run(models, tasks, args.results)
+        run(models, tasks, args.results, args.resume)
 
 
 if __name__ == "__main__":
