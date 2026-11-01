@@ -27,7 +27,7 @@ def arm(rows, checked):
     return {
         "backend": first["kind"],
         "runtime": runtime(first),
-        "runtime_stable": stable_code and attributed,
+        "runtime_stable": stable_code and attributed and runtime(first) == runtime(reference),
         "output_matches_check": correct_output,
         "ordered_rounds": [row["round"] for row in rows],
         "ordered_texts_per_second": [row["texts"] / row["p50_s"] for row in rows],

@@ -78,3 +78,75 @@ def test_deadline_keeps_showcase_last_and_mind_override(modules):
         script.index(stage) for stage in stages
     )
     assert "started + 10800 - 90" in modules[3].script("a" * 40, limit=10800, export_reserve=90)
+
+
+def evidence_fixture():
+    rows = []
+    for number in range(3):
+        for label, kind in (("fse-a", "fse"), ("fse-b", "fse"), ("st", "st")):
+            package = "fse" if kind == "fse" else "sentence-transformers"
+            rows.append(
+                dict(
+                    round=number,
+                    label=label,
+                    kind=kind,
+                    p50_s=1.0,
+                    runtime_package=package,
+                    runtime_package_version="1",
+                    package_location=package,
+                    runtime_fingerprint=package,
+                    output_digest=kind,
+                    texts=5352,
+                    file_bytes=1,
+                    peak_rss_bytes=1,
+                    model="static",
+                    revision="rev",
+                    input_digest="input",
+                    corpus="wikitext",
+                    machine="pod",
+                    commit="pin",
+                    requested_threads=16,
+                    output_dtype="float32",
+                    table_dtype="float32",
+                    shape=[5352, 2],
+                    time_utc="2026-11-01T12:00:00Z",
+                    encoder_fingerprint="encoder",
+                )
+            )
+    checked = dict(
+        passed=True,
+        model="static",
+        revision="rev",
+        input_digest="input",
+        workers=16,
+        output_dtype="float32",
+        table_dtype="float32",
+        shape=[5352, 2],
+        records={
+            kind: next(dict(row) for row in rows if row["kind"] == kind) for kind in ("fse", "st")
+        },
+    )
+    done = dict(complete=True, valid_rounds=3, aa_max_ratio=1.0, cell="test", series_id="series")
+    rounds = [dict(round=n, valid=True, complete=True) for n in range(3)]
+    return rows, checked, done, rounds
+
+
+def test_summary_rejects_false_backend_identity_and_wrong_worker_binding(modules):
+    summary = modules[2].summarize
+    rows, checked, done, rounds = evidence_fixture()
+    labels = ("fse-a", "fse-b", "st")
+    assert summary(done, rows, rounds, labels, checked)["eligible"]
+    checked["workers"] = 32
+    assert not summary(done, rows, rounds, labels, checked)["eligible"]
+    checked["workers"] = 16
+    rows[2]["runtime_package"] = "fse"
+    assert not summary(done, rows, rounds, labels, checked)["eligible"]
+
+
+def test_summary_retains_noisy_rows_but_rejects_publication(modules):
+    rows, checked, done, rounds = evidence_fixture()
+    rows[-2]["p50_s"] = 2.0
+    result = modules[2].summarize(done, rows, rounds, ("fse-a", "fse-b", "st"), checked)
+    assert not result["eligible"]
+    assert result["verified_aa_ratio"] == 2
+    assert result["arms"]["fse-b"]["seconds"]["max"] == 2
