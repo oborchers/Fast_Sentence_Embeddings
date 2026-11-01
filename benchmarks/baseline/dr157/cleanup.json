@@ -153,5 +153,59 @@
     "filesystem_free_after": 70681124864,
     "confirmed_absent": true,
     "time": "2026-11-01T19:41:28.415323"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/review-4d0bc04",
+    "kind": "completed release card review checkout 4d0bc04",
+    "allocated_bytes_removed": 12656640,
+    "filesystem_free_before": 70553104384,
+    "filesystem_free_after": 70582804480,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:59:43.349268"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/review-e72f708",
+    "kind": "completed release runtime review checkout e72f708",
+    "allocated_bytes_removed": 12689408,
+    "filesystem_free_before": 70461485056,
+    "filesystem_free_after": 70473711616,
+    "confirmed_absent": true,
+    "time": "2026-11-01T20:02:35.747224"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/src/fse/_native.c",
+    "kind": "owned intermediate after terminal release follow-up make check",
+    "allocated_bytes_removed": 6086656,
+    "filesystem_free_before": 70470430720,
+    "filesystem_free_after": 70476500992,
+    "confirmed_absent": true,
+    "time": "2026-11-01T20:04:42.151048"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.mypy_cache",
+    "kind": "owned intermediate after terminal release follow-up make check",
+    "allocated_bytes_removed": 60825600,
+    "filesystem_free_before": 70476414976,
+    "filesystem_free_after": 70537232384,
+    "confirmed_absent": true,
+    "time": "2026-11-01T20:04:45.051175"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.ruff_cache",
+    "kind": "owned intermediate after terminal release follow-up make check",
+    "allocated_bytes_removed": 90112,
+    "filesystem_free_before": 70540038144,
+    "filesystem_free_after": 70540083200,
+    "confirmed_absent": true,
+    "time": "2026-11-01T20:04:49.834422"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.pytest_cache",
+    "kind": "owned intermediate after terminal release follow-up make check",
+    "allocated_bytes_removed": 16384,
+    "filesystem_free_before": 70520258560,
+    "filesystem_free_after": 70520254464,
+    "confirmed_absent": true,
+    "time": "2026-11-01T20:04:52.106301"
   }
 ]

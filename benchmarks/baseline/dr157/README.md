@@ -30,3 +30,10 @@ Hub write. FastText is approved for 2.0; DR-146 (Über FastText in 2.0 entscheid
 Actual fresh Hub readback remains pending until approval and completed uploads.
 
 `report.md` is the final local report. `make-check-da79a11.txt` records 9,167 passing tests and 514 skipped tests. The exact PUBLIC approval payload is `publication-manifest.json`, with its SHA256 in `publication-manifest-sha256.json`; `publication-inventory.md` lists all 135 files and actual sizes. Total: 39,426,324,698 bytes. Content, repo list and licenses are approved under Option B. The final release-card payload is pending release 2.0.0.
+
+Option B is prepared in `RELEASE_CARDS.md`. The current basis manifest changes only
+six FastText hold fields; its SHA256 is
+`ac85cae41b05788bc278d68fd3231489de1615c7c15b8b79229844c3d0dabe69`.
+Source e72f708 passes 19 focused tests and the full gate (9,186 passed, 514 skipped).
+The final independent release-runtime review reports Keine Befunde. Production
+release rendering and public readback remain gated on release 2.0.0 and uploads.

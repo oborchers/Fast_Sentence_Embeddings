@@ -169,8 +169,15 @@ No timings, load-time comparisons or speed claims were made on this Mac.
 | `/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.mypy_cache` | 60825600 |
 | `/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.ruff_cache` | 86016 |
 | `/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.pytest_cache` | 24576 |
+| `/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/src/fse/_native.c` | 6086656 |
+| `/Users/oliverborchers/fse-dr157/review-4d0bc04` | 12656640 |
+| `/Users/oliverborchers/fse-dr157/review-e72f708` | 12689408 |
+| `/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/src/fse/_native.c` | 6086656 |
+| `/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.mypy_cache` | 60825600 |
+| `/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.ruff_cache` | 90112 |
+| `/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/.pytest_cache` | 16384 |
 
-Total allocated size removed: 2145951744 bytes. The journal also records observed filesystem free-space readings. Concurrent workers can affect those readings. Results, evidence, reports and shared caches were retained.
+Total allocated size removed: 2244403200 bytes. The journal also records observed filesystem free-space readings. Concurrent workers can affect those readings. Results, evidence, reports and shared caches were retained.
 
 Additional removal: the regenerated Cython intermediate had 6,086,512 logical bytes. Its first journal write failed with PermissionError after removal. The confirmed removal was recorded on retry, with zero allocated-byte credit because that reading was not secured. The compiled extension remains available.
 
@@ -209,7 +216,7 @@ Pearson tolerance is 0.001 points, with an additional bitwise CPU vector check.
 Failure measurements remain in durable evidence. Cache cleanup follows evidence
 publication, verifies ownership before deletion and records removed bytes.
 
-The actual Hub readback has **not run**. Approval and completed upload receipts are
+The actual Hub readback has **not run**. Release 2.0.0, regenerated release cards and completed upload receipts are
 required. The worker will commit the per-repo JSON table and report it to fse-main.
 Any failure is reported without Hub overwrite, deletion or repair writes.
 
@@ -229,6 +236,33 @@ The 30 models, exact cards, all sizes/hashes, licensing disclosures and fixed pr
 references are ready for Oliver's review. This is not publication authorization.
 The coordinator receives the report and manifest directly through Herdr.
 
-Done: local preparation, verification, review, PUBLIC approval inventory and read-only post-upload runner.
-Open: actual fresh Hub readback after approval and coordinator uploads, and regenerated release cards for 2.0.0.
-Needs from you: release 2.0.0, followed by the coordinator's complete uploaded-repository commit receipts.
+
+
+## Option B: release-card preparation
+
+Oliver approved content, repository list and licenses for all 30 repos, including
+FastText. DR-146 (Über FastText in 2.0 entscheiden (12f)) is Done. Only six
+publication_hold fields changed in the current basis manifest. Its SHA256 is
+`ac85cae41b05788bc278d68fd3231489de1615c7c15b8b79229844c3d0dabe69`.
+All current payload file specifications and model/card bytes are unchanged.
+
+`benchmarks/release_hub_classics.py` prepares the required new cards after the
+release. It checks installed fse 2.0.0, remote tag v2.0.0, the exact basis hash,
+all 30 original payloads, release API loading, metadata and frozen local probes.
+New exclusive payload views use hardlinks for non-README files. Only README Usage
+changes to `pip install fse` and the released 2.0.0 API requirement. The historical
+artifact writer remains accurate. New file hashes and transition receipts prove
+unchanged models. No production release rendering has occurred before the tag.
+
+Invocation and post-release handoff: `benchmarks/baseline/dr157/RELEASE_CARDS.md`.
+Actual release output SHA256 will be reported after the guarded step runs.
+
+Validation on source e72f708: 19 focused tests passed. Full make check passed with
+9,186 tests and 514 skipped tests in 223.58 seconds. Independent final runtime
+review: Keine Befunde. The earlier runtime test-coverage finding is resolved.
+Source 802b0a3 had fully green remote CI. The new follow-up source has green lint
+and integration checks; its core test job was still running at the last check.
+
+Done: all local builds, quality evidence, Option B basis manifest and tested release-card/post-upload tools.
+Open: release 2.0.0, actual release cards and public readback after coordinator uploads.
+Needs from you: nothing before release; afterwards the complete upload commit receipts.

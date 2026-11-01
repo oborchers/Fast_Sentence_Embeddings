@@ -23,3 +23,14 @@ reviewer. Repository gates ran separately. No model tensor, card or approval pay
 changed while the post-upload runner was hardened.
 
 Actual public Hub readback remains pending explicit approval and upload receipts.
+
+## Release-card follow-up
+
+The 4d0bc04 review confirms exact removal of six FastText hold fields, the new
+manifest SHA256, release/tag guards, exclusive hardlink views, unchanged model
+hashes and truthful card provenance. Its sole P2 finding was missing direct
+runtime test coverage. This is resolved by real local model loads, metadata and
+512-sentence probes for float32/float16/int8 with and without actual FastText
+subword tensors. Separate tests reject metadata, tolerance, bitwise and component
+count mismatches. The 30-repo structural test now uses real FastText tensors.
+The independent e72f708 review reports Keine Befunde.
