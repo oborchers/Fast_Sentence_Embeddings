@@ -28,6 +28,8 @@ def source_fixture(module):
         table_dtype="int8",
         output_dtype="float32",
         shape=[5352, 256],
+        first_encode_s=2.5,
+        warm_seconds=[2.4, 2.5, 2.6],
         artifact_provenance=dict(
             float32_parent_fingerprint="parent",
             provenance_verification="embedded source and preparation record",
@@ -159,3 +161,28 @@ def test_context_date_comes_from_accepted_rounds(exporter, monkeypatch):
         "benchmarks/baseline/raw.jsonl",
     )
     assert primary["context"]["date"] == "2026-11-02"
+
+
+def test_final_schema_preserves_all_actual_calls_and_rejects_short_calls(exporter):
+    rows = [
+        dict(round=n, label=label, first_encode_s=2.5, warm_seconds=[2.1, 2.2, 2.3])
+        for n in (0, 1, 2)
+        for label in ("fse-a", "fse-b")
+    ]
+    calls = exporter.call_seconds(rows, [0, 1, 2])
+    assert len(calls) == 3
+    assert calls[0]["fse-b"]["warm"] == [2.1, 2.2, 2.3]
+    rows[-1]["warm_seconds"] = [2.1, 1.99, 2.3]
+    with pytest.raises(ValueError, match="at least two seconds"):
+        exporter.call_seconds(rows, [0, 1, 2])
+
+
+def test_selection_rows_come_from_shared_table_or_static_pair(exporter):
+    result = dict(table=[], comparisons=[], selection_rows=[])
+    source = dict(commit="a" * 40, path="benchmarks/baseline/raw.jsonl", series_id="exact")
+    row = dict(
+        context=dict(model=exporter.POTION, workers=16, table_dtype="float32"), source=source
+    )
+    exporter.add_cell(result, {}, row, [])
+    assert result["selection_rows"] == [row]
+    assert result["table"] == [row]

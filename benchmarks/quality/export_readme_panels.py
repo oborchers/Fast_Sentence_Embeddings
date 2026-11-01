@@ -10,10 +10,12 @@ import re
 import subprocess
 from pathlib import Path, PurePosixPath
 
-from pod_readme import POTION, STATIC_ST, case_id, cases
+from pod4_readme import cases
+from pod_duration import qualifies
+from pod_readme import POTION, STATIC_ST, case_id
 from pod_readme_summary import summarize
 
-CURVE = (1, 2, 4, 8, 16, 32)
+SELECTION = (1, 16, 32)
 TOKENIZER_FIELDS = (
     "fse.tokenizer",
     "fse.tokenizer_config",
@@ -98,6 +100,24 @@ def series_contract(done, operations, labels, checks):
     return checked
 
 
+def call_seconds(controls, accepted):
+    result = []
+    for number in accepted:
+        rows = [row for row in controls if row["round"] == number]
+        if len(rows) != 2 or {row["label"] for row in rows} != {"fse-a", "fse-b"}:
+            raise ValueError("call durations require both controls in every accepted round")
+        observations = {}
+        for row in rows:
+            first, warm = row["first_encode_s"], row["warm_seconds"]
+            if not qualifies({**row, "minimum_call_seconds": 2}):
+                raise ValueError("every published fse call must last at least two seconds")
+            observations[row["label"]] = {"first": first, "warm": warm}
+        result.append(observations)
+    if len(result) != 3:
+        raise ValueError("call durations require exactly three accepted rounds")
+    return result
+
+
 def extract_series(done, raw, checks, commit, journal):
     operations = [r for r in raw if r.get("event") == "operation"]
     rounds = [r for r in raw if r.get("event") == "round_complete"]
@@ -112,6 +132,7 @@ def extract_series(done, raw, checks, commit, journal):
     details = context(controls, checked)
     source = {"commit": commit, "path": journal, "series_id": done["series_id"]}
     primary = panel_row(summary, "fse-a", source, details)
+    primary["call_seconds"] = call_seconds(controls, summary["accepted_rounds"])
     references = [label for label in labels if label not in ("fse-a", "fse-b")]
     if len(references) > 1:
         raise ValueError("one same-model reference is required per library series")
@@ -127,7 +148,7 @@ def document(raw, checked_rows, commit, journal):
         groups.setdefault(row.get("series_id"), []).append(row)
     result = {
         "format": "readme-speed-panels-v1",
-        "scaling": [],
+        "selection_rows": [],
         "table": [],
         "comparisons": [],
         "excluded": [],
@@ -156,15 +177,13 @@ def add_cell(result, summary, primary, references):
         result["comparisons"].append(
             {"fse": primary, "reference": reference, "output_checked": True}
         )
+        if details["model"] == STATIC_ST and details["workers"] in SELECTION:
+            result["selection_rows"].append(primary)
         return
-    if details["model"] == POTION and details["workers"] in (1, 16, 32):
+    if details["model"] == POTION and details["workers"] in SELECTION:
         result["table"].append(primary)
-    if (
-        details["model"] in (POTION, STATIC_ST)
-        and details["table_dtype"] == "float32"
-        and details["workers"] in CURVE
-    ):
-        result["scaling"].append(primary)
+        if details["table_dtype"] == "float32":
+            result["selection_rows"].append(primary)
 
 
 def main():
