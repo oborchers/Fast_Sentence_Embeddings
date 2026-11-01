@@ -6,6 +6,33 @@ from fse._runtime import ArrayRows, GrowingRows
 F32 = np.float32
 
 
+@pytest.mark.parametrize("integer", [int, np.int32, np.int64, np.uint64])
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+def test_memory_sink_accepts_numpy_integer_dimensions(integer, dtype):
+    import fse
+
+    encoder = fse.Encoder.from_arrays(np.array([[1, 2]], F32), words=["a"])
+    sink = fse.MemorySink(integer(2), dtype)
+    assert type(sink.dim) is int
+    encoder.encode(["a", "a a", ""], sink=sink, workers=1)
+    expected = encoder.encode(["a", "a a", ""], dtype=dtype, workers=1)
+    actual = sink.result()
+    if dtype == "int8":
+        assert actual.codes.tobytes() == expected.codes.tobytes()
+        assert actual.scales.tobytes() == expected.scales.tobytes()
+    else:
+        assert actual.shape == expected.shape
+        assert actual.tobytes() == expected.tobytes()
+
+
+@pytest.mark.parametrize("dim", [True, np.bool_(True), 2.0, "2", 0, -1, np.int64(0)])
+def test_memory_sink_refuses_invalid_dimensions(dim):
+    import fse
+
+    with pytest.raises(ValueError, match="dim must be a positive int"):
+        fse.MemorySink(dim)
+
+
 def test_array_rows_hand_out_views_and_check_commits():
     sink = ArrayRows(5, 2)
     a, b = sink.target(0, 2), sink.target(2, 3)
