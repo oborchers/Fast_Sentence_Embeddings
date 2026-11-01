@@ -10,6 +10,7 @@ from fse import Encoder
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 def test_public_api(encoder, dtype):
     model = FseEmbedding(encoder=encoder, dtype=dtype, workers=1, embed_batch_size=2)
+    assert model.class_name() == "FseEmbedding"
     texts = ["hello world", "", "unknown", "world", "hello"]
     expected = encoder.encode(texts, dtype=dtype, workers=1).tolist()
     assert model.get_text_embedding_batch(texts) == expected
@@ -64,4 +65,7 @@ def test_local_artifact(encoder, tmp_path):
     path = tmp_path / "encoder.safetensors"
     encoder.save(path)
     model = FseEmbedding(str(path), load_kwargs={"local_files_only": True})
-    assert model.get_text_embedding_batch(["hello", "world"]) == encoder.encode(["hello", "world"]).tolist()
+    assert (
+        model.get_text_embedding_batch(["hello", "world"])
+        == encoder.encode(["hello", "world"]).tolist()
+    )

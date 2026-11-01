@@ -6,6 +6,7 @@ from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.bridge.pydantic import PrivateAttr
 
 from fse import Encoder
+from fse._validation import validate_arguments
 
 
 class FseEmbedding(BaseEmbedding):
@@ -15,6 +16,7 @@ class FseEmbedding(BaseEmbedding):
     _dtype: str = PrivateAttr()
     _workers: int | None = PrivateAttr()
 
+    @validate_arguments
     def __init__(
         self,
         model_name: str = "minishlab/potion-base-8M",
@@ -40,6 +42,10 @@ class FseEmbedding(BaseEmbedding):
         )
         self._dtype = dtype
         self._workers = workers
+
+    @classmethod
+    def class_name(cls) -> str:
+        return "FseEmbedding"
 
     def _get_text_embeddings(self, texts: list[str]) -> list[list[float]]:
         return self._encoder.encode(texts, dtype=self._dtype, workers=self._workers).tolist()

@@ -5,6 +5,7 @@ from asyncio import to_thread
 from langchain_core.embeddings import Embeddings
 
 from fse import Encoder
+from fse._validation import validate_arguments
 
 
 class FseEmbeddings(Embeddings):
@@ -14,6 +15,7 @@ class FseEmbeddings(Embeddings):
     one fse call for the supplied batch. fse controls its internal scheduling.
     """
 
+    @validate_arguments
     def __init__(
         self,
         model: str = "minishlab/potion-base-8M",

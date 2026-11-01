@@ -6,9 +6,11 @@ from dataclasses import replace
 from haystack import Document, component, default_from_dict, default_to_dict
 
 from fse import Encoder
+from fse._validation import validate_arguments
 
 
 class _FseEmbedder:
+    @validate_arguments
     def __init__(
         self,
         model: str = "minishlab/potion-base-8M",
