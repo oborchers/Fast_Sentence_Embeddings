@@ -41,6 +41,20 @@ A new library speed comparison and classification benchmark are pending.
 The current Model2Vec control rates need re-measurement before a final comparison.
 [Measurement details and full model tables](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/71b69be83efdd8adbf071ada302be8bf1db68b24/docs/benchmarks/readme-evidence.md) retain ranges, quality scores and pending comparisons.
 
+### Classification: fold work into the model
+
+Folding prepares class scores for each word before prediction.
+With fewer scores than vector values, each word contributes a shorter list of numbers.
+
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/1f76884072537cb70a757f02d3e2e37cfa0b4ba4/media/readme/classification-folding-dark.png">
+<img alt="A trained linear head prepares a word-score table once. For new texts, fse looks up word scores, averages them, adds the bias and returns labels. This applies to raw, unnormalized averages and class-only outputs. Classification speed measurements are pending." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/1f76884072537cb70a757f02d3e2e37cfa0b4ba4/media/readme/classification-folding-light.png">
+</picture>
+
+This requires a linear classifier trained on raw, unnormalized word-vector averages.
+fse already uses this path for eligible class-only predictions. A standalone save keeps the same folded table.
+Controlled classification speed results are pending. This diagram shows the processing path, not a measured speedup.
+
 ## Get started
 
 ```sh

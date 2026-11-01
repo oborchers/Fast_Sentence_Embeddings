@@ -33,6 +33,22 @@ Speed comparisons must also name these heads and the encoder settings rather tha
 The Model2Vec encoding-only timing rows below use static sentence vectors. They do not run this classifier's MLP head.
 No classifier rate is inferred from those rows. New controlled classifier throughput remains pending.
 
+## Folding and the pending classification speed panel
+
+The README figure shows preparation of per-word scores for a linear head trained on raw, unnormalized averages.
+fse combines the head weights with word vectors once, then averages word scores and adds the bias for each text.
+This path is used when only class outputs are requested. Normalized heads and requests for full vectors use the full-vector path.
+With fewer output scores than vector values, the folded table has shorter rows.
+
+A complete fse classifier already prepares this folded path where legal. Saving standalone preserves the folded table.
+It is not a separate faster prediction algorithm and is not plotted as a speedup.
+Sources: `src/fse/_runtime/_head.py` (`prepare`, `fold`, `HeadPipeline`) and `src/fse/_head/_model.py` (`save`, `_standalone_artifact`).
+
+No controlled classifier rates are published yet. The next panel will use committed DR-151 classifier records,
+with the exact trained head, normalization, dataset, machine, date and worker count from each row.
+Only complete series with executed-backend attribution and a symmetric A/A upper band at most1.10 qualify.
+Encoder-only throughput and retained recipe accuracy rows do not fill this measurement.
+
 ### Keep compute close to your text
 
 For a local application, start by running fse in the process that already has the text.
