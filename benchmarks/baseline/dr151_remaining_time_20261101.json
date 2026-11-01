@@ -23,5 +23,7 @@
     "search/lifecycle",
     "same-method Hub float32 confirmations as needed"
   ],
-  "warning": "Elapsed-rate scenario includes different waits, batch sizes and priority holds. Not a quiet-machine or cloud forecast. Metadata failures are retained as incomplete configurations."
+  "warning": "Elapsed-rate scenario includes different waits, batch sizes and priority holds. Not a quiet-machine or cloud forecast. Metadata failures are retained as incomplete configurations.",
+  "status": "historical scenario for superseded original35-configuration scope",
+  "superseded_by": "dr151_quality_priority_plan_20261101.json, time_scenario"
 }
