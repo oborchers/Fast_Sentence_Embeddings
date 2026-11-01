@@ -80,7 +80,7 @@ def test_native_paths_stream_the_file_and_do_not_build_a_text_list(monkeypatch, 
     encoder.save(artifact)
     monkeypatch.setattr(paths, "artifact_path", lambda *_: artifact)
     monkeypatch.setattr(paths, "checked_encoder", lambda *_: {})
-    clocks = iter([1.0, 2.0])
+    clocks = iter([1.0, 2.0, 3.0])
     monkeypatch.setattr(paths, "time", SimpleNamespace(perf_counter=lambda: next(clocks)))
     args = SimpleNamespace(
         models=tmp_path,
@@ -92,7 +92,9 @@ def test_native_paths_stream_the_file_and_do_not_build_a_text_list(monkeypatch, 
         durability="none",
     )
     record, vectors = paths.fse_run(args, tmp_path / "store")
-    assert record["p50_s"] == 1.0  # Stub clock; no local benchmark was timed.
+    assert record["p50_s"] == (
+        2.0 if mode == "shard" else 1.0
+    )  # Stub clock; no local benchmark was timed.
     if mode == "shard":
         assert vectors is None
         assert record["published_rows"] == 2
@@ -136,3 +138,22 @@ def test_showcase_is_exactly_one_run_and_one_aa_repeat(monkeypatch, tmp_path):
         assert command[command.index("--storage-dtype") + 1] == "int8"
         assert command[command.index("--durability") + 1] == "none"
         assert command[command.index("--workers") + 1] == "32"
+
+
+@pytest.mark.usefixtures("modules")
+@pytest.mark.parametrize("workers", [1, 10, 32])
+def test_rust_parallelism_overrides_inherited_serial_setting(monkeypatch, workers):
+    import os
+
+    paths = importlib.import_module("large_write_paths")
+    observed = []
+    monkeypatch.setenv("TOKENIZERS_PARALLELISM", "false")
+    monkeypatch.setattr(
+        paths,
+        "rust_pipeline",
+        lambda *_: observed.append(
+            (os.environ["TOKENIZERS_PARALLELISM"], os.environ["RAYON_NUM_THREADS"])
+        ),
+    )
+    paths.run(SimpleNamespace(kind="rust", workers=workers), Path("unused"))
+    assert observed == [("true" if workers > 1 else "false", str(workers))]

@@ -30,9 +30,13 @@ if [ "$classification_seconds" -gt 0 ]; then
 else
   classification_status=124
 fi
+/usr/bin/cat > /dr151-rust-setup.sh <<'DR151_RUST'
+set -euxo pipefail
 /usr/bin/curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /dr151-rustup.sh
 /bin/bash /dr151-rustup.sh -y --profile minimal --default-toolchain 1.98.0
 /dr151-env/bin/python -c 'import sys; sys.path.insert(0,"benchmarks"); from compare_rust_build import build_worker; build_worker()'
+DR151_RUST
+run_stage rust-setup /usr/bin/timeout --signal=TERM --kill-after=10 600 /bin/bash /dr151-rust-setup.sh
 rust_status=$?
 large_deadline=$((DR151_DEADLINE - 2400))
 large_seconds=$((large_deadline - $(/usr/bin/date +%s)))

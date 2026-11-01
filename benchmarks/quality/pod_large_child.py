@@ -122,6 +122,13 @@ def main():
                 "kind": args.kind,
                 "benchmark": "large-end-to-end",
                 "requested_workers": args.workers,
+                "rust_parallelism": {
+                    "RAYON_NUM_THREADS": str(args.workers),
+                    "TOKENIZERS_PARALLELISM": "true" if args.workers > 1 else "false",
+                    "observed_thread_count": None,
+                }
+                if args.kind == "rust"
+                else None,
                 "fse_workers": args.workers if args.kind == "fse" else None,
                 "model": "minishlab/potion-base-8M",
                 "revision": MODELS["minishlab/potion-base-8M"],
