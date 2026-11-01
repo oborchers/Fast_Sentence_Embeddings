@@ -78,7 +78,17 @@
         "max": 1.040736470564603
       },
       "load_min": 4.30078125,
-      "load_max": 4.4365234375
+      "load_max": 4.4365234375,
+      "aa_ratio_b_over_a": {
+        "median": 1.0403690146506595,
+        "min": 0.9470861213845604,
+        "max": 1.040736470564603
+      },
+      "symmetric_aa_band": [
+        0.9470861213845604,
+        1.055870186903472
+      ],
+      "noise_status": "within 10% A/A band"
     },
     {
       "raw": "dr151-matrix-glove-wiki-gigaword-300-float32-w10.jsonl",
@@ -155,7 +165,17 @@
         "max": 1.1499594202627075
       },
       "load_min": 4.4365234375,
-      "load_max": 4.9619140625
+      "load_max": 4.9619140625,
+      "aa_ratio_b_over_a": {
+        "median": 1.028977730004172,
+        "min": 0.7850111276557088,
+        "max": 1.1499594202627075
+      },
+      "symmetric_aa_band": [
+        0.7850111276557089,
+        1.2738672927940726
+      ],
+      "noise_status": "noisy, re-measure in a quiet window"
     },
     {
       "raw": "dr151-matrix-word2vec-google-news-300-int8-w1.jsonl",
@@ -232,7 +252,17 @@
         "max": 1.0693396310217402
       },
       "load_min": 4.22265625,
-      "load_max": 4.52490234375
+      "load_max": 4.52490234375,
+      "aa_ratio_b_over_a": {
+        "median": 1.045784241352199,
+        "min": 0.9527235355047073,
+        "max": 1.0693396310217402
+      },
+      "symmetric_aa_band": [
+        0.935156587289777,
+        1.0693396310217402
+      ],
+      "noise_status": "within 10% A/A band"
     },
     {
       "raw": "dr151-matrix-word2vec-google-news-300-int8-w10.jsonl",
@@ -309,7 +339,18 @@
         "max": 1.0281345116496323
       },
       "load_min": 4.36328125,
-      "load_max": 4.482421875
+      "load_max": 4.482421875,
+      "aa_ratio_b_over_a": {
+        "median": 0.9840375041644317,
+        "min": 0.9301786756523641,
+        "max": 1.0281345116496323
+      },
+      "symmetric_aa_band": [
+        0.930178675652364,
+        1.0750622715562341
+      ],
+      "noise_status": "within 10% A/A band"
     }
-  ]
+  ],
+  "aa_audit_source_commit": "f7537d970e4d883b4bfcd61d991859a36cb6da19"
 }

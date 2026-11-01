@@ -23,7 +23,17 @@
           "min": 8878.995688402765,
           "max": 8956.32910975459
         }
-      }
+      },
+      "aa_ratio_b_over_a": {
+        "median": 1.014097640858914,
+        "min": 0.899791659400892,
+        "max": 1.0703980682768508
+      },
+      "symmetric_aa_band": [
+        0.8997916594008921,
+        1.1113683812826511
+      ],
+      "noise_status": "noisy, re-measure in a quiet window"
     },
     {
       "corpus": "wikitext",
@@ -46,7 +56,17 @@
           "min": 22894.228467619476,
           "max": 26880.4411808928
         }
-      }
+      },
+      "aa_ratio_b_over_a": {
+        "median": 1.0940570936534997,
+        "min": 0.9861656456665997,
+        "max": 1.1562162418417614
+      },
+      "symmetric_aa_band": [
+        0.8648901164085697,
+        1.1562162418417614
+      ],
+      "noise_status": "noisy, re-measure in a quiet window"
     },
     {
       "corpus": "massive",
@@ -69,7 +89,18 @@
           "min": 56620.404944128575,
           "max": 57191.22673182211
         }
-      }
+      },
+      "aa_ratio_b_over_a": {
+        "median": 1.0078433980376162,
+        "min": 1.002460828960753,
+        "max": 1.0314788303172508
+      },
+      "symmetric_aa_band": [
+        0.96948184549016,
+        1.0314788303172508
+      ],
+      "noise_status": "within 10% A/A band"
     }
-  ]
+  ],
+  "aa_audit_source_commit": "f7537d970e4d883b4bfcd61d991859a36cb6da19"
 }

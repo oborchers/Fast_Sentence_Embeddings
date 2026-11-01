@@ -32,9 +32,9 @@ inferred across these separate series. Task-quality scores remain pending.
 
 | fse model and table | fse workers | Texts/s, median (range) | Process peak, MiB |
 |---|---:|---:|---:|
-| GloVe-300, int8 | 1 | 210,198 (197,759 to 212,257) | 319.1 |
-| POTION-8M, float16 | 1 | 206,438 (202,631 to 214,714) | 166.6 |
-| POTION-8M, float32 | 10 | 914,709 (827,901 to 928,079) | 182.7 |
+| GloVe-300, int8 | 1 | 210,198 (197,759 to 212,257) **noisy, to be re-measured** (A/A band 0.8730 to 1.1455) | 319.1 **noisy, to be re-measured** (A/A band 0.8730 to 1.1455) |
+| POTION-8M, float16 | 1 | 206,438 (202,631 to 214,714) **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) | 166.6 **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) |
+| POTION-8M, float32 | 10 | 914,709 (827,901 to 928,079) **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) | 182.7 **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) |
 
 Process peak is the largest primary fse-a process ru_maxrss across three
 rounds, divided by 1,048,576. On macOS ru_maxrss is in bytes. It includes
@@ -94,3 +94,21 @@ and --threads 10.
 Default corpus and warmup are the full WikiText input. Follow the shared
 load, timing-window and pause rules. The raw records distinguish the source
 checkout commit from the editable installed distribution version.
+
+
+## A/A repeatability classification
+
+A/A repeats the same fse configuration to measure timing variation. For each
+round, divide fse-b time by fse-a time. Let U be the largest ratio or reciprocal.
+The symmetric band is 1/U to U. It is an empirical diagnostic, not a confidence
+interval. A band above 1.10 is noisy and must be re-measured before headlining.
+Incomplete attempts provide no accepted speed, regardless of diagnostic bands.
+Reference controls inherit their paired series label, not a separate Model2Vec A/A test.
+
+| Complete series | A/A band | Status |
+|---|---|---|
+| dr151-matrix-glove-wiki-gigaword-300-int8-w1 | 0.8730 to 1.1455 | **noisy, to be re-measured** |
+| dr151-matrix-potion-base-8M-float16-w1 | 0.8899 to 1.1237 | **noisy, to be re-measured** |
+| dr151-matrix-potion-base-8M-float32-w10 | 0.5117 to 1.9543 | **noisy, to be re-measured** |
+
+[Committed owner audit](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/f7537d970e4d883b4bfcd61d991859a36cb6da19/docs/fse-comparison-aa.md).

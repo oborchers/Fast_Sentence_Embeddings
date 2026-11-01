@@ -78,7 +78,17 @@
         "max": 0.9632618724825288
       },
       "load_min": 4.3681640625,
-      "load_max": 4.65869140625
+      "load_max": 4.65869140625,
+      "aa_ratio_b_over_a": {
+        "median": 0.9284231660006196,
+        "min": 0.8729813797544949,
+        "max": 0.9632618724825288
+      },
+      "symmetric_aa_band": [
+        0.8729813797544949,
+        1.145499804682233
+      ],
+      "noise_status": "noisy, re-measure in a quiet window"
     },
     {
       "raw": "dr151-matrix-potion-base-8M-float16-w1.jsonl",
@@ -155,7 +165,17 @@
         "max": 1.013365235193031
       },
       "load_min": 4.302734375,
-      "load_max": 4.7587890625
+      "load_max": 4.7587890625,
+      "aa_ratio_b_over_a": {
+        "median": 0.993128073901507,
+        "min": 0.8899244183346614,
+        "max": 1.013365235193031
+      },
+      "symmetric_aa_band": [
+        0.8899244183346614,
+        1.123690933069716
+      ],
+      "noise_status": "noisy, re-measure in a quiet window"
     },
     {
       "raw": "dr151-matrix-potion-base-8M-float32-w10.jsonl",
@@ -232,8 +252,19 @@
         "max": 1.9543100299824505
       },
       "load_min": 4.302734375,
-      "load_max": 4.32958984375
+      "load_max": 4.32958984375,
+      "aa_ratio_b_over_a": {
+        "median": 1.2596793412165566,
+        "min": 1.0566827300667463,
+        "max": 1.9543100299824505
+      },
+      "symmetric_aa_band": [
+        0.511689539867418,
+        1.9543100299824505
+      ],
+      "noise_status": "noisy, re-measure in a quiet window"
     }
   ],
-  "published_raw_source_commit": "d20b9bcde4e74818c9ee0258cb03e7b7020583b5"
+  "published_raw_source_commit": "d20b9bcde4e74818c9ee0258cb03e7b7020583b5",
+  "aa_audit_source_commit": "f7537d970e4d883b4bfcd61d991859a36cb6da19"
 }

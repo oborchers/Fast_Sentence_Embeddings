@@ -55,3 +55,21 @@ Repeat with --threads 10 for the other WikiText setting, and --corpus massive --
 Use an otherwise quiet machine and the shared benchmark reservation rules.
 The WikiText dataset configuration is wikitext-103-raw-v1.
 The producing runner is not part of this documentation branch; the permanent links above identify its exact source.
+
+
+## A/A repeatability classification
+
+A/A repeats the same fse configuration to measure timing variation. For each
+round, divide fse-b time by fse-a time. Let U be the largest ratio or reciprocal.
+The symmetric band is 1/U to U. It is an empirical diagnostic, not a confidence
+interval. A band above 1.10 is noisy and must be re-measured before headlining.
+Incomplete attempts provide no accepted speed, regardless of diagnostic bands.
+Reference controls inherit their paired series label, not a separate Model2Vec A/A test.
+
+| Complete series | A/A band | Status |
+|---|---|---|
+| dr151-model2vec-wikitext-1 | 0.8998 to 1.1114 | **noisy, to be re-measured** |
+| dr151-model2vec-wikitext-10 | 0.8649 to 1.1562 | **noisy, to be re-measured** |
+| dr151-model2vec-massive-1 | 0.9695 to 1.0315 | within 10% A/A band |
+
+[Committed owner audit](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/f7537d970e4d883b4bfcd61d991859a36cb6da19/docs/fse-comparison-aa.md).

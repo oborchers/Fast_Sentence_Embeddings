@@ -40,7 +40,7 @@ was not measured. fse itself uses one or ten workers as recorded.
 | Classic model and table | fse workers | Texts/s, median (range) | Process peak, MiB |
 |---|---:|---:|---:|
 | GloVe-300, float32 | 1 | 212,783 (203,964 to 219,669) | 661.3 |
-| GloVe-300, float32 | 10 | 828,045 (708,401 to 901,244) | 662.0 |
+| GloVe-300, float32 | 10 | 828,045 (708,401 to 901,244) **noisy, to be re-measured** (A/A band 0.7850 to 1.2739) | 662.0 **noisy, to be re-measured** (A/A band 0.7850 to 1.2739) |
 | word2vec-300, int8 | 1 | 212,606 (211,846 to 213,981) | 1,552.5 |
 | word2vec-300, int8 | 10 | 924,000 (886,643 to 932,838) | 1,552.7 |
 
@@ -48,7 +48,7 @@ The paired Model2Vec POTION-8M float32 controls, on the same texts:
 
 | Paired classic configuration | Tokenizer off, texts/s | Tokenizer on, texts/s |
 |---|---:|---:|
-| GloVe float32 | 8,915 (8,896 to 8,935) | 24,694 (24,511 to 27,057) |
+| GloVe float32 | 8,915 (8,896 to 8,935) | 24,694 (24,511 to 27,057) **noisy, to be re-measured** (A/A band 0.7850 to 1.2739) |
 | word2vec int8 | 8,944 (8,927 to 8,951) | 27,280 (23,108 to 27,714) |
 
 Each cell is the median and range of three control-process rates. Off and on
@@ -95,3 +95,22 @@ and --table-dtype int8. The default corpus is wikitext. The default warmup
 uses the full corpus. Honor the shared timing window, pause marker and load
 rules. The source checkout is recorded separately from the editable installed
 fse distribution version. All original records remain available above.
+
+
+## A/A repeatability classification
+
+A/A repeats the same fse configuration to measure timing variation. For each
+round, divide fse-b time by fse-a time. Let U be the largest ratio or reciprocal.
+The symmetric band is 1/U to U. It is an empirical diagnostic, not a confidence
+interval. A band above 1.10 is noisy and must be re-measured before headlining.
+Incomplete attempts provide no accepted speed, regardless of diagnostic bands.
+Reference controls inherit their paired series label, not a separate Model2Vec A/A test.
+
+| Complete series | A/A band | Status |
+|---|---|---|
+| dr151-matrix-glove-wiki-gigaword-300-float32-w1 | 0.9471 to 1.0559 | within 10% A/A band |
+| dr151-matrix-glove-wiki-gigaword-300-float32-w10 | 0.7850 to 1.2739 | **noisy, to be re-measured** |
+| dr151-matrix-word2vec-google-news-300-int8-w1 | 0.9352 to 1.0693 | within 10% A/A band |
+| dr151-matrix-word2vec-google-news-300-int8-w10 | 0.9302 to 1.0751 | within 10% A/A band |
+
+[Committed owner audit](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/f7537d970e4d883b4bfcd61d991859a36cb6da19/docs/fse-comparison-aa.md).
