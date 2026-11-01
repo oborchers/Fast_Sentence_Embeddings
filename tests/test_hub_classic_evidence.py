@@ -123,3 +123,29 @@ def test_existing_comparison_evidence_is_refused_before_replacing_receipts(tmp_p
     with pytest.raises(FileExistsError, match="no evidence was replaced"):
         compare.preflight(tmp_path, ["wikitext"])
     assert state.read_bytes() == b"existing fit"
+
+
+def test_preprocessing_changes_invalidate_identity_even_with_identical_nltk_resources(
+    evidence, monkeypatch, tmp_path
+):
+    import types
+
+    corpus = importlib.import_module("hub_classic_corpus")
+    (tmp_path / "resource.txt").write_text("fixed tokenizer resource")
+    pins = {"resource.txt": evidence.digest(tmp_path / "resource.txt")}
+    fake_nltk = types.SimpleNamespace(data=types.SimpleNamespace(find=lambda _name: str(tmp_path)))
+    with monkeypatch.context() as patch:
+        patch.setitem(sys.modules, "nltk", fake_nltk)
+        patch.setattr(evidence, "PUNKT", pins)
+        patch.setattr(evidence, "version", lambda _name: "fixture")
+        evidence.tokenizer_identity.cache_clear()
+        try:
+            before = evidence.tokenizer_identity()
+            patch.setattr(corpus, "tokenize", lambda _text: ["changed preprocessing"])
+            evidence.tokenizer_identity.cache_clear()
+            after = evidence.tokenizer_identity()
+            assert before["nltk_version"] == after["nltk_version"]
+            assert before["punkt_tab_english"] == after["punkt_tab_english"]
+            assert before["preprocessing_code_xxh3"] != after["preprocessing_code_xxh3"]
+        finally:
+            evidence.tokenizer_identity.cache_clear()
