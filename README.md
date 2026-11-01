@@ -47,6 +47,8 @@ Apple M1 Pro, POTION-8M float32, 10 workers, WikiText, 1 November 2026.
 pip install "fse>=2.0"
 ```
 
+Moving an existing application? Read the [migration guide from fse 1.x](docs/migrating-from-1x.md) before upgrading.
+
 Python 3.11 to 3.15. Load a model and make a vector for each text:
 
 ```python
