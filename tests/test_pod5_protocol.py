@@ -50,6 +50,7 @@ def test_zero_results_cannot_complete(pod, tmp_path):
 def test_child_failure_records_receipt_and_stops(pod, monkeypatch, tmp_path):
     monkeypatch.setattr(pod, "require_space", lambda _: None)
     monkeypatch.setenv("DR151_DEADLINE", "9999999999")
+    monkeypatch.setattr(pod, "memory_snapshot", lambda: {})
     monkeypatch.setattr(pod, "run_bounded", lambda *_a: 17)
     with pytest.raises(RuntimeError, match="exit 17"):
         pod.invoke("task", ["false"], tmp_path, tmp_path)
@@ -127,3 +128,57 @@ def test_timeout_reaps_child_group_and_reports_failure(pod, monkeypatch):
     monkeypatch.setattr(pod.os, "killpg", lambda pid, signum: signals.append((pid, signum)))
     assert pod.run_bounded(["child"], 1) == 124
     assert signals == [(123, pod.signal.SIGTERM), (123, pod.signal.SIGKILL)]
+
+
+@pytest.fixture
+def memory_tree(pod, tmp_path):
+    memory = importlib.import_module(pod.memory_snapshot.__module__)
+    root, proc = tmp_path / "cgroup", tmp_path / "proc"
+    root.mkdir()
+    (proc / "self").mkdir(parents=True)
+    (proc / "self/cgroup").write_text("0::/\n")
+    (proc / "self/mountinfo").write_text(f"1 0 0:1 /container {root} ro - cgroup2 cgroup rw\n")
+    for name, value in {
+        "memory.max": 64 * 2**30,
+        "memory.current": 2**30,
+        "memory.peak": 2 * 2**30,
+        "cgroup.procs": 42,
+    }.items():
+        (root / name).write_text(str(value) + "\n")
+    return memory, root, proc
+
+
+def test_memory_counters_bind_to_current_container(memory_tree):
+    memory, root, proc = memory_tree
+    state = memory.snapshot(root, proc, 42)
+    assert state["memory.max"] == 64 * 2**30
+    assert state["memory.peak"] == 2 * 2**30
+
+
+@pytest.mark.parametrize(
+    ("file", "value"), [("memory.max", "max"), ("cgroup.procs", "777"), ("memory.peak", "0")]
+)
+def test_unproven_memory_cannot_pass(memory_tree, file, value):
+    memory, root, proc = memory_tree
+    (root / file).write_text(value + "\n")
+    with pytest.raises(RuntimeError):
+        memory.snapshot(root, proc, 42)
+
+
+def test_nested_cgroup_cannot_ignore_ancestor_limits(memory_tree):
+    memory, root, proc = memory_tree
+    (proc / "self/cgroup").write_text("0::/nested\n")
+    with pytest.raises(RuntimeError, match="private cgroup"):
+        memory.snapshot(root, proc, 42)
+
+
+def test_missing_peak_counter_cannot_pass(memory_tree):
+    memory, root, proc = memory_tree
+    (root / "memory.peak").rename(root / "unavailable-counter")
+    with pytest.raises(FileNotFoundError):
+        memory.snapshot(root, proc, 42)
+
+
+def test_cleanup_refuses_cache_without_ownership(pod, tmp_path):
+    with pytest.raises(ValueError, match="exclusively created"):
+        pod.discard_cache(tmp_path / "intermediate", tmp_path, tmp_path)

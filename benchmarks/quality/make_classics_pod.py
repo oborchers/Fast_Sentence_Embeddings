@@ -12,7 +12,11 @@ from make_folded_pod import script as template
 from make_pod_scripts import bootstrap, install_quality
 from pod_shell import ssh_first
 
-FINALIZER = """import hashlib, json, shutil, sys
+MEMORY_SOURCE = Path(__file__).with_name("pod5_memory.py").read_text()
+
+FINALIZER = (
+    MEMORY_SOURCE
+    + """\nimport hashlib, json, shutil, sys
 from pathlib import Path
 root = Path('/dr151-results')
 status = int(sys.argv[2])
@@ -20,13 +24,11 @@ models = Path('/dr151-cache/models')
 for pattern in ('*.json', '*.jsonl', '*-fit.npz'):
     for path in models.glob(pattern):
         shutil.copy2(path, root / path.name)
-memory = {}
-for name in ('memory.current', 'memory.peak', 'memory.max',
-             'memory/memory.usage_in_bytes', 'memory/memory.max_usage_in_bytes',
-             'memory/memory.limit_in_bytes'):
-    path = Path('/sys/fs/cgroup') / name
-    if path.is_file():
-        memory[name] = path.read_text().strip()
+try:
+    memory = snapshot()
+except (OSError, RuntimeError) as error:
+    memory = {'error': str(error)}
+    status = status or 1
 (root / 'container-memory.json').write_text(json.dumps(memory, indent=2) + '\\n')
 files = []
 for path in sorted(root.rglob('*')):
@@ -43,6 +45,7 @@ complete = status == 0 and receipt.is_file() and json.loads(receipt.read_text())
     {'complete': complete, 'returncode': status, 'files': files}, indent=2) + '\\n')
 print('FINAL_STATUS ' + ('complete' if complete else 'partial or failed'), flush=True)
 """
+)
 
 
 def script(commit):
@@ -54,26 +57,14 @@ export NLTK_DATA=/dr151-cache/nltk
 import json, shutil
 from pathlib import Path
 free = shutil.disk_usage('/dr151-cache').free
-ram = int(next(line.split()[1] for line in Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemTotal:'))) * 1024
-limits = []
-for name in ('/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes'):
-    path = Path(name)
-    if path.is_file():
-        value = path.read_text().strip()
-        if value != 'max':
-            limits.append(int(value))
-ram = min([ram, *limits])
-current = Path('/sys/fs/cgroup/memory.current')
-if not current.is_file():
-    current = Path('/sys/fs/cgroup/memory/memory.usage_in_bytes')
-used = int(current.read_text()) if current.is_file() else 0
-if ram - used < 56 * 2**30:
-    raise SystemExit('Pod 5 needs at least 56 GiB cgroup headroom before setup')
-print(json.dumps({'free_bytes': free, 'effective_ram_bytes': ram, 'cgroup_limits': limits}), flush=True)
-if free < 150 * 2**30 or ram < 58 * 2**30:
-    raise SystemExit('Pod 5 requires 64 GB RAM and 200 GB disk, with 150 GiB initially free')
+if free < 150 * 2**30:
+    raise SystemExit('Pod 5 requires 200 GB disk, with 150 GiB initially free')
 DR151_PREFLIGHT
 """
+    storage = storage.replace(
+        "import json, shutil\nfrom pathlib import Path\n",
+        MEMORY_SOURCE + "\npreflight()\nimport shutil\n",
+    )
     work = ssh_first() + bootstrap(commit).replace(
         "set -euxo pipefail\n", "set -euxo pipefail\n" + storage, 1
     ).replace("--branch dr151-compare", "--branch dr151-quality")

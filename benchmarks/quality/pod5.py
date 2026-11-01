@@ -14,6 +14,8 @@ import time
 from contextlib import suppress
 from pathlib import Path
 
+from pod5_memory import snapshot as memory_snapshot
+
 SOURCES = ("word2vec-google-news-300", "fasttext-crawl-subwords-300", "paragram-300-sl999")
 REASON = "not computed: needs more memory"
 
@@ -27,22 +29,6 @@ def require_space(cache, gib=40):
         raise RuntimeError(
             f"Pod 5 needs {gib} GiB free before each stage; found {free / 2**30:.2f}"
         )
-
-
-def memory_snapshot():
-    record = {}
-    for name in (
-        "memory.current",
-        "memory.peak",
-        "memory.max",
-        "memory/memory.usage_in_bytes",
-        "memory/memory.max_usage_in_bytes",
-        "memory/memory.limit_in_bytes",
-    ):
-        path = Path("/sys/fs/cgroup") / name
-        if path.is_file():
-            record[name] = path.read_text().strip()
-    return record
 
 
 def run_bounded(command, seconds):
@@ -127,6 +113,31 @@ def task_plan():
     return [name for name in names if name != "MindSmallReranking"]
 
 
+def discard_cache(path, cache, output):
+    from pod_storage import tree_bytes, verify_owned_cache
+
+    verify_owned_cache(cache, output)
+    if path.is_symlink() or not path.resolve().is_relative_to(cache.resolve()):
+        raise ValueError("cache cleanup target escaped the exclusively owned pod cache")
+    if not path.exists():
+        return
+    record = {
+        "path": str(path),
+        "reason": "owned intermediate no longer needed",
+        **(tree_bytes(path) if path.is_dir() else {"regular_file_bytes": path.stat().st_size}),
+    }
+    print(json.dumps({"event": "cleanup_before", **record}), flush=True)
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+    if path.exists():
+        raise RuntimeError("owned cache cleanup failed")
+    with (output / "cache-cleanup.jsonl").open("a") as stream:
+        stream.write(json.dumps(record) + "\n")
+    print(json.dumps({"event": "cleanup_after", "path": str(path), "exists": False}), flush=True)
+
+
 def run(cache, output, workers):
     from classic_sources import ALL_SOURCES, stem
 
@@ -169,6 +180,10 @@ def run(cache, output, workers):
             shutil.copy2(path, output / path.name)
         for path in models.glob("*-fit.npz"):
             shutil.copy2(path, output / path.name)
+        discard_cache(cache / "huggingface/hub" / ("models--fse--" + source), cache, output)
+        if source == SOURCES[-1]:
+            discard_cache(cache / "wikitext-103-b08601e0.txt", cache, output)
+            discard_cache(cache / "huggingface/hub/datasets--Salesforce--wikitext", cache, output)
         model = f"fse/{stem(source)}-float32"
         deferred = {
             "model": model,
@@ -209,6 +224,7 @@ def run(cache, output, workers):
                 output,
             )
             verify_task(path, model, task)
+        discard_cache(models / f"{stem(source)}-float32.safetensors", cache, output)
     (output / "complete.json").write_text(
         json.dumps(
             {
