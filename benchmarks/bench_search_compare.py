@@ -19,6 +19,7 @@ import sys
 import tempfile
 import time
 import uuid
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -226,7 +227,7 @@ def run(args) -> None:
         try:
             for label in order:
                 row = {
-                    **ready_operation(args.lock, deadline, lambda: operation(args, label)),
+                    **ready_operation(args.lock, deadline, partial(operation, args, label)),
                     "event": "operation",
                     "series_id": series,
                     "round": attempt,

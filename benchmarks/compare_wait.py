@@ -8,11 +8,11 @@ import time
 from pathlib import Path
 
 
-class TimingDeferred(RuntimeError):
+class TimingDeferredError(RuntimeError):
     """The machine became busy before an operation started."""
 
 
-class TimingBudgetExpired(RuntimeError):
+class TimingBudgetExpiredError(RuntimeError):
     """The comparison exhausted its budget while waiting for a quiet machine."""
 
 
@@ -25,7 +25,9 @@ def wait_for_quiet(lock: Path | None, deadline: float) -> None:
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            raise TimingBudgetExpired("timing budget expired while waiting for strict load/locks")
+            raise TimingBudgetExpiredError(
+                "timing budget expired while waiting for strict load/locks"
+            )
         if not any(path.exists() for path in markers) and os.getloadavg()[0] < 5:
             return
         time.sleep(min(60, remaining))
@@ -37,7 +39,7 @@ def ready_operation(lock: Path | None, deadline: float | None, operation):
             wait_for_quiet(lock, deadline)
         try:
             return operation()
-        except (TimingDeferred, FileExistsError):
+        except (TimingDeferredError, FileExistsError):
             if deadline is None:
                 raise
             # A competing owner or load change can win the final reservation race.

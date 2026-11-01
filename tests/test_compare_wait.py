@@ -36,7 +36,7 @@ def test_operation_starts_only_after_load_is_strictly_below_five(waiting, monkey
 def test_budget_expiry_never_enters_an_operation(waiting, monkeypatch, tmp_path):
     module, _, sleeps = waiting
     monkeypatch.setattr(module.os, "getloadavg", lambda: (6, 1, 1))
-    with pytest.raises(module.TimingBudgetExpired):
+    with pytest.raises(module.TimingBudgetExpiredError):
         module.ready_operation(tmp_path / "bench.lock", 20, lambda: pytest.fail("started"))
     assert sleeps == [20]
 
@@ -46,7 +46,7 @@ def test_wait_never_removes_another_owners_lock(waiting, tmp_path):
     lock = tmp_path / "bench.lock"
     lock.mkdir()
     (lock / "owner").write_text("other worker")
-    with pytest.raises(module.TimingBudgetExpired):
+    with pytest.raises(module.TimingBudgetExpiredError):
         module.wait_for_quiet(lock, 10)
     assert (lock / "owner").read_text() == "other worker"
 
@@ -58,7 +58,7 @@ def test_lost_reservation_race_retries_outside_the_timed_operation(waiting, tmp_
     def operation():
         calls.append(1)
         if len(calls) == 1:
-            raise module.TimingDeferred("load rose before reservation")
+            raise module.TimingDeferredError("load rose before reservation")
         return {"timed_seconds": 1.0}
 
     assert module.ready_operation(tmp_path / "bench.lock", 120, operation) == {"timed_seconds": 1.0}
