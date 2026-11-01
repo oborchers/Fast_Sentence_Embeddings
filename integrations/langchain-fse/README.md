@@ -54,7 +54,7 @@ Integer embeddings are unsupported because this interface requires float vectors
 Every result converts a numpy array into Python float lists. This copies values
 and allocates Python objects, so it takes additional time and memory.
 It does not retain the array's compact float16 or float32 storage.
-Empty and unknown-only text follows fse's zero-vector behavior.
+Empty text and unknown tokens follow the loaded encoder's tokenizer rules.
 Async methods delegate encoding and list conversion to a thread.
 Loading is synchronous, so construct models before serving async requests.
 
