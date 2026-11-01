@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="626" viewBox="0 0 1100 626" role="img" aria-labelledby="title desc"><title id="title">fse throughput on WikiText</title><desc id="desc">POTION-8M: float32 one worker 222701 texts per second; int8 one worker 214848; float32 ten workers 918299; float16 ten workers 946796. Bars show medians, ticks show full ranges. Apple M1 Pro, 1 November 2026. This compares fse configurations, not libraries.</desc><rect width="1100" height="626" rx="12" fill="#0F0D0A"/><g font-family="Geist, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="598" viewBox="0 0 1100 598" role="img" aria-labelledby="title desc"><title id="title">fse throughput on WikiText</title><desc id="desc">POTION-8M: float32 one worker 222701 texts per second; int8 one worker 214848; float32 ten workers 918299; float16 ten workers 946796. Apple M1 Pro, 1 November 2026. Model already loaded.</desc><rect width="1100" height="598" rx="12" fill="#0F0D0A"/><g font-family="Geist, Arial, sans-serif">
 <text x="40" y="52" font-size="30" fill="#E8E4DF" font-weight="700" text-anchor="start">More text. Same CPU.</text>
-<text x="40" y="83" font-size="18" fill="#B0A9A0" font-weight="400" text-anchor="start">POTION-8M on WikiText  |  fse configurations, not a library speed comparison</text>
+<text x="40" y="83" font-size="18" fill="#B0A9A0" font-weight="400" text-anchor="start">POTION-8M on WikiText  |  texts per second</text>
 <path d="M315.0 116 V495" stroke="#2A2520"/>
 <text x="315.0" y="522" font-size="16" fill="#B0A9A0" font-weight="400" text-anchor="middle">0</text>
 <path d="M496.25 116 V495" stroke="#2A2520"/>
@@ -15,22 +15,17 @@
 <text x="40" y="179" font-size="18" fill="#B0A9A0" font-weight="400" text-anchor="start">1 worker</text>
 <text x="1040" y="134" font-size="22" fill="#E8E4DF" font-weight="700" text-anchor="end">222,701 texts/s</text>
 <rect x="315" y="140" width="161.4583" height="43" rx="4" fill="#5B9E7D"/>
-<path d="M466.654480574319 162 H481.27973617912494 M466.654480574319 153 V171 M481.27973617912494 153 V171" fill="none" stroke="#E8E4DF" stroke-width="2"/>
 <text x="40" y="250" font-size="22" fill="#E8E4DF" font-weight="700" text-anchor="start">int8</text>
 <text x="40" y="275" font-size="18" fill="#B0A9A0" font-weight="400" text-anchor="start">1 worker</text>
 <text x="1040" y="230" font-size="22" fill="#E8E4DF" font-weight="700" text-anchor="end">214,848 texts/s</text>
 <rect x="315" y="236" width="155.7646" height="43" rx="4" fill="#5B9E7D"/>
-<path d="M467.8500315495274 258 H479.46752134590156 M467.8500315495274 249 V267 M479.46752134590156 249 V267" fill="none" stroke="#E8E4DF" stroke-width="2"/>
 <text x="40" y="346" font-size="22" fill="#E8E4DF" font-weight="700" text-anchor="start">float32</text>
 <text x="40" y="371" font-size="18" fill="#B0A9A0" font-weight="400" text-anchor="start">10 workers</text>
 <text x="1040" y="326" font-size="22" fill="#E8E4DF" font-weight="700" text-anchor="end">918,299 texts/s</text>
 <rect x="315" y="332" width="665.7668" height="43" rx="4" fill="#5B9E7D"/>
-<path d="M935.6995198916619 354 H995.2842769062765 M935.6995198916619 345 V363 M995.2842769062765 345 V363" fill="none" stroke="#E8E4DF" stroke-width="2"/>
 <text x="40" y="442" font-size="22" fill="#E8E4DF" font-weight="700" text-anchor="start">float16</text>
 <text x="40" y="467" font-size="18" fill="#B0A9A0" font-weight="400" text-anchor="start">10 workers</text>
 <text x="1040" y="422" font-size="22" fill="#E8E4DF" font-weight="700" text-anchor="end">946,796 texts/s</text>
 <rect x="315" y="428" width="686.4270" height="43" rx="4" fill="#5B9E7D"/>
-<path d="M988.2805524733235 450 H1007.5527647759183 M988.2805524733235 441 V459 M1007.5527647759183 441 V459" fill="none" stroke="#E8E4DF" stroke-width="2"/>
-<text x="40" y="566" font-size="17" fill="#B0A9A0" font-weight="400" text-anchor="start">Apple M1 Pro  ·  1 November 2026  ·  5,352 nonblank validation/test texts</text>
-<text x="40" y="598" font-size="17" fill="#B0A9A0" font-weight="400" text-anchor="start">3 paired rounds per setting  ·  bars: medians  ·  ticks: full ranges  ·  models already loaded</text>
+<text x="40" y="566" font-size="17" fill="#B0A9A0" font-weight="400" text-anchor="start">Apple M1 Pro  ·  POTION-8M  ·  WikiText  ·  1 November 2026</text>
 </g></svg>

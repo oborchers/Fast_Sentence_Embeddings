@@ -29,14 +29,14 @@ def text(x, y, value, size=18, fill=None, weight=400, anchor="start"):
 for theme in ("light", "dark"):
     colors = {k: v["value"] for k, v in brand[theme].items()}
     parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="626" viewBox="0 0 1100 626" role="img" aria-labelledby="title desc"><title id="title">fse throughput on WikiText</title><desc id="desc">POTION-8M: float32 one worker 222701 texts per second; int8 one worker 214848; float32 ten workers 918299; float16 ten workers 946796. Bars show medians, ticks show full ranges. Apple M1 Pro, 1 November 2026. This compares fse configurations, not libraries.</desc><rect width="1100" height="626" rx="12" fill="{colors["bg"]}"/><g font-family="Geist, Arial, sans-serif">'
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="598" viewBox="0 0 1100 598" role="img" aria-labelledby="title desc"><title id="title">fse throughput on WikiText</title><desc id="desc">POTION-8M: float32 one worker 222701 texts per second; int8 one worker 214848; float32 ten workers 918299; float16 ten workers 946796. Apple M1 Pro, 1 November 2026. Model already loaded.</desc><rect width="1100" height="598" rx="12" fill="{colors["bg"]}"/><g font-family="Geist, Arial, sans-serif">'
     ]
     parts += [
         text(40, 52, "More text. Same CPU.", 30, weight=700),
         text(
             40,
             83,
-            "POTION-8M on WikiText  |  fse configurations, not a library speed comparison",
+            "POTION-8M on WikiText  |  texts per second",
             18,
             colors["text-secondary"],
         ),
@@ -59,8 +59,6 @@ for theme in ("light", "dark"):
         d = data[dtype, w]
         y = 140 + 96 * i
         end = x0 + width * d["median"] / 1000000
-        lo = x0 + width * d["min"] / 1000000
-        hi = x0 + width * d["max"] / 1000000
         parts += [
             text(40, y + 14, dtype, 22, weight=700),
             text(
@@ -72,20 +70,12 @@ for theme in ("light", "dark"):
             ),
             text(1040, y - 6, f"{d['median']:,.0f} texts/s", 22, weight=700, anchor="end"),
             f'<rect x="{x0}" y="{y}" width="{end - x0:.4f}" height="43" rx="4" fill="{colors["accent"]}"/>',
-            f'<path d="M{lo} {y + 22} H{hi} M{lo} {y + 13} V{y + 31} M{hi} {y + 13} V{y + 31}" fill="none" stroke="{colors["text"]}" stroke-width="2"/>',
         ]
     parts += [
         text(
             40,
             566,
-            "Apple M1 Pro  ·  1 November 2026  ·  5,352 nonblank validation/test texts",
-            17,
-            colors["text-secondary"],
-        ),
-        text(
-            40,
-            598,
-            "3 paired rounds per setting  ·  bars: medians  ·  ticks: full ranges  ·  models already loaded",
+            "Apple M1 Pro  ·  POTION-8M  ·  WikiText  ·  1 November 2026",
             17,
             colors["text-secondary"],
         ),

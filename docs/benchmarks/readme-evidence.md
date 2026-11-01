@@ -347,3 +347,30 @@ The old 1.x STS results belong to a different API and recipe.
 See the [1.x results](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/1.x/README.md#results).
 They do not measure these 2.0 models.
 
+
+## Work kept out of the main README
+
+The main README shows final values only and links here once with “How we measured”.
+It omits unfinished comparison rows and moves measurement-process wording here, including controls, A/A, ranges and noise labels.
+The full figures and source journals above retain their qualifications.
+
+TODO(DR-151): Fill the classification comparison table and chart from committed matched-pipeline records.
+Keep normalized-linear and raw-mean folded cases separate. Use the same model, weights, texts and settings per row.
+Show fse texts/s, matched reference texts/s and a paired speedup. Fine-tuned MLP results remain separate trained-model comparisons.
+Do not display an empty classification table in the main README while those values are unavailable.
+
+TODO(DR-151): Add MTEB quality comparisons for classic raw and SIF-10 models when measured.
+
+TODO(DR-151): Add a worker-scaling series from 1 through 10, explicitly including 8 and 10.
+Use one fixed model, dtype, input corpus and machine. Plan a small chart/table with actual measured points only, not interpolated values.
+The main README gets no empty scaling rows. Source metadata and acceptance checks stay in this guide.
+
+The folding explanation in the main README uses the executed recipe 08 result at source 32ff539e19044b69c48d9891b2cb16ddd17e10cc.
+The explicit and folded paths agree on all 2,000 AG News labels; maximum probability difference 3.069639205932617e-06.
+The complete file (30,668,970 bytes) rounds to 29.2 MiB; standalone (900,522 bytes) rounds to 0.86 MiB.
+These are final storage/accuracy observations, not a throughput speedup. Normalized heads run explicitly in fse; hidden-layer neural heads are unsupported.
+
+The maintainer selected the headline “Compute nearly 1 million text embeddings per second.”
+It refers to the final 918,299 texts/s float32 ten-worker cell, not a new measurement.
+Keep the model, machine and date beside the speed graphic. Add “Average text: N words” there once DR-151 commits text-length statistics.
+No text length or multi-million-text result is inferred from throughput.

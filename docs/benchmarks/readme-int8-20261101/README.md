@@ -36,7 +36,7 @@ The ten-worker upper band exceeds 1.10, so its rate is not used as a stable head
 The chart compares fse configurations only. It makes no dtype speedup, classifier-speed or library-ratio claim.
 
 The largest primary process peaks were 169,639,936 bytes (161.8 MiB) for one worker and
-168,886,272 bytes (161.1 MiB) for ten. These include loading, warmup and outputs, not just encoding allocations.
+168,886,272 bytes (161.1 MiB) for ten, **noisy, to be re-measured** (A/A band 0.8953 to 1.1169). These include loading, warmup and outputs, not just encoding allocations.
 The noisy timing label is about timing variation, not a separate measurement of memory variation.
 
 ## Executed identities

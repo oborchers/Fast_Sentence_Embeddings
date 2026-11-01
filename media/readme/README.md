@@ -9,7 +9,8 @@ The visuals use the brand's editorial explainer mode: warm surfaces, one green a
 Values come from `docs/benchmarks/readme-runtime-window5-20261101/summary.json`
 and `docs/benchmarks/readme-int8-20261101/summary.json`. The latter adds only its eligible one-worker int8 cell.
 Ten-worker int8 exceeds the 10% A/A band and is not plotted. All plotted fse rows have the same runtime content identity.
-Bars use exact fse-a medians with a common zero baseline. Whiskers show the full observed range.
+Bars use exact final fse-a medians with a common zero baseline.
+The user-facing chart omits measurement-process labels and range whiskers. Full ranges, A/A and source records stay in the evidence guide.
 The model, corpus, machine, date and measurement scope appear inside the image.
 No Model2Vec rate or inferred words-per-second count is plotted.
 
