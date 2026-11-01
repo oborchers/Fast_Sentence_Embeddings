@@ -7,7 +7,7 @@ from collections import deque
 import pytest
 
 from fse._store import _writer
-from fse._store._writer import WriterThread
+from fse._store._writer import WriterFailure, WriterThread
 from support.waiting import arrived, blocked_in_wait
 
 
@@ -85,6 +85,82 @@ def test_an_error_is_raised_once_and_then_named():
 
 
 TIMEOUT = 10  # seconds; every wait below fails the test when it runs out
+
+
+def test_shared_failure_keeps_the_first_error_and_finishes_other_threads_work():
+    failure = WriterFailure()
+    writer, other = WriterThread(failure=failure), WriterThread(failure=failure)
+    started, release = threading.Event(), threading.Event()
+    done = []
+    root = OSError("first failure")
+
+    def write():
+        started.set()
+        assert release.wait(TIMEOUT)
+        done.append(1)
+
+    def fail():
+        raise root
+
+    try:
+        writer.submit(write)
+        writer.submit(done.append, 2)
+        assert started.wait(TIMEOUT)
+        other.submit(fail)
+        other.settle()
+        assert other.failed
+        assert not writer.failed
+        failure.record(ValueError("later failure"))
+        with pytest.raises(OSError, match="first failure") as internal:
+            writer.check(report=False)
+        assert internal.value is root
+        assert not failure.reported
+        release.set()
+        with pytest.raises(OSError, match="first failure") as raised:
+            writer.drain()
+        assert raised.value is root
+        assert done == [1, 2]
+        with pytest.raises(RuntimeError, match="failed earlier") as repeated:
+            other.check()
+        assert repeated.value.__cause__ is root
+    finally:
+        release.set()
+        writer.stop()
+        other.stop()
+
+
+def test_a_failure_while_submit_waits_is_reported(monkeypatch):
+    monkeypatch.setattr(_writer, "MAX_PENDING_BYTES", 1)
+    writer = WriterThread()
+    release = threading.Event()
+    root = OSError("disk full")
+    errors = []
+    reached = blocked_in_wait(writer._state, "producer")
+
+    def fail():
+        assert release.wait(TIMEOUT)
+        raise root
+
+    def submit():
+        try:
+            writer.submit(lambda: None, nbytes=1)
+        except BaseException as error:
+            errors.append(error)
+
+    producer = threading.Thread(target=submit, name="producer")
+    try:
+        writer.submit(fail, nbytes=1)
+        producer.start()
+        assert arrived(reached, writer._state)
+        release.set()
+        producer.join(TIMEOUT)
+        assert not producer.is_alive()
+        assert errors == [root]
+        assert writer.reported
+    finally:
+        release.set()
+        producer.join(TIMEOUT)
+        writer.stop()
 
 
 def _joined(thread: threading.Thread) -> None:

@@ -33,7 +33,7 @@ from fse._validation import PositiveInt, validate_arguments
 from ._layout import StoreInfo, create_store, failed_cleanup, read_store
 from ._recovery import refuse_unsynced, snapshot
 from ._shard import ShardWriter
-from ._writer import WriterThread, deferred_interrupts
+from ._writer import WriterFailure, WriterThread, deferred_interrupts
 
 # Shards hold whole multiples of this many rows by default, and at most this many bytes
 # of vectors or rows.
@@ -114,9 +114,10 @@ class ShardSink:
         # the flush of one shard does not stop the hashing and writing of the next. One
         # thread writes: more gained nothing measurable (docs/architecture/store.md,
         # "sentence_vectors 1").
-        self._hash = WriterThread("fse-shard-hash")
-        self._io = WriterThread("fse-shard-write")
-        self._publisher = WriterThread("fse-shard-publish")
+        failure = WriterFailure()
+        self._hash = WriterThread("fse-shard-hash", failure=failure)
+        self._io = WriterThread("fse-shard-write", failure=failure)
+        self._publisher = WriterThread("fse-shard-publish", failure=failure)
         self._published = 0  # shards
         _log.emit(
             "store.sink_opened",
@@ -344,8 +345,7 @@ class ShardSink:
             thread.settle()
 
     def _raise_unreported(self) -> None:
-        """Raise the cause of a failure no call has raised yet: the writing thread first,
-        since the others wait for it and fail after it."""
+        """Raise the shared first failure unless a call already reported it."""
         threads = (self._io, self._hash, self._publisher)
         if not any(t.reported for t in threads):
             for thread in threads:
