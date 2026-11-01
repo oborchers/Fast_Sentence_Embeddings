@@ -1,0 +1,50 @@
+{
+  "model": "fse/potion-base-8M-float32",
+  "started_utc": "2026-11-01T02:24:11.486476+00:00",
+  "ended_utc": "2026-11-01T02:48:34.226941+00:00",
+  "wall_seconds": 1462.740465,
+  "completed_tasks": 53,
+  "deferred_tasks": [
+    "MindSmallReranking"
+  ],
+  "returncode": 0,
+  "batch_tasks": 8,
+  "workers": 2,
+  "nice": 10,
+  "includes": [
+    "imports",
+    "model loading",
+    "dataset preparation",
+    "evaluation",
+    "lock waits",
+    "fairness cooldowns"
+  ],
+  "excludes": [
+    "earlier interrupted MIND invocation",
+    "gap between the two quality invocations"
+  ],
+  "command": [
+    "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-quality/bin/python",
+    "benchmarks/quality/run_mteb.py",
+    "run",
+    "--models",
+    "fse/potion-base-8M-float32",
+    "--defer-mind",
+    "--resume",
+    "--coordination",
+    "/private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad",
+    "--results",
+    "/private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad/dr151-quality-ready.jsonl"
+  ],
+  "planning_only": {
+    "remaining_unique_quality_configurations": 34,
+    "remaining_static_configurations": 33,
+    "uniform_static_hours": 13.408454262500001,
+    "unmeasured_additions": [
+      "all-MiniLM-L6-v2",
+      "classifiers",
+      "possible same-method baseline confirmation"
+    ],
+    "caveat": "one static configuration is not a calibrated forecast for all dimensions, precisions or contextual encoding; future batches use16 tasks"
+  }
+}
