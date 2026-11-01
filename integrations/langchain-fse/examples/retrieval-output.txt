@@ -1,0 +1,4 @@
+Recorded 2026-11-01; Python 3.13; local fse checkout labelled 2.0.0
+langchain-core=1.7.3; model=minishlab/potion-base-8M
+documents=3; dimensions=256; top=Cats are small pets that purr and chase mice.
+cosine=0.796954; retrieval passed
