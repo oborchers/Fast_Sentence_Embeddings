@@ -1,0 +1,161 @@
+{
+  "date": "2026-11-01",
+  "producing_commit": "c0ee537cc0515a7ecbfd4b20eec3bfc227b57a22",
+  "primary": "fse-a",
+  "cells": [
+    {
+      "raw": "dr151-matrix-glove-wiki-gigaword-300-int8-w1.jsonl",
+      "series_id": "794e72e8981e4f04a6fd55203342978b",
+      "valid_rounds": 3,
+      "backends": {
+        "fse-a": {
+          "model": "fse/glove-wiki-gigaword-300",
+          "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
+          "table_dtype": "int8",
+          "output_dtype": "float32",
+          "fse_workers": 1,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            300
+          ],
+          "file_bytes": 127757570,
+          "texts_per_second": {
+            "median": 210197.64950934474,
+            "min": 197758.6467625327,
+            "max": 212256.7150682529
+          },
+          "peak_rss_bytes": 334577664
+        },
+        "fse-b": {
+          "model": "fse/glove-wiki-gigaword-300",
+          "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
+          "table_dtype": "int8",
+          "output_dtype": "float32",
+          "fse_workers": 1,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            300
+          ],
+          "file_bytes": 127757570,
+          "texts_per_second": {
+            "median": 226532.49124070388,
+            "min": 218214.43941056353,
+            "max": 228620.65795125932
+          },
+          "peak_rss_bytes": 332169216
+        },
+        "model2vec": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "fse_workers": null,
+          "tokenizer_parallelism": "off",
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": "disabled",
+          "shape": [
+            5352,
+            256
+          ],
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 8969.227365274146,
+            "min": 8954.88361547415,
+            "max": 8979.533680027893
+          },
+          "peak_rss_bytes": 231489536
+        }
+      },
+      "aa_time_ratio_b_over_a": {
+        "median": 0.9284231660006196,
+        "min": 0.8729813797544949,
+        "max": 0.9632618724825288
+      },
+      "load_min": 4.3681640625,
+      "load_max": 4.65869140625
+    },
+    {
+      "raw": "dr151-matrix-potion-base-8M-float16-w1.jsonl",
+      "series_id": "5259cc401bd74361967a1e7330d2e3d9",
+      "valid_rounds": 3,
+      "backends": {
+        "fse-a": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float16",
+          "output_dtype": "float32",
+          "fse_workers": 1,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            256
+          ],
+          "file_bytes": 15546202,
+          "texts_per_second": {
+            "median": 206438.01115053624,
+            "min": 202631.0078161156,
+            "max": 214713.7656745587
+          },
+          "peak_rss_bytes": 174702592
+        },
+        "fse-b": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float16",
+          "output_dtype": "float32",
+          "fse_workers": 1,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            256
+          ],
+          "file_bytes": 15546202,
+          "texts_per_second": {
+            "median": 216199.47247191888,
+            "min": 203715.30814476078,
+            "max": 227694.62624174784
+          },
+          "peak_rss_bytes": 175833088
+        },
+        "model2vec": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "fse_workers": null,
+          "tokenizer_parallelism": "off",
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": "disabled",
+          "shape": [
+            5352,
+            256
+          ],
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 8806.27007591536,
+            "min": 8700.423666710836,
+            "max": 8885.715327323565
+          },
+          "peak_rss_bytes": 229818368
+        }
+      },
+      "aa_time_ratio_b_over_a": {
+        "median": 0.993128073901507,
+        "min": 0.8899244183346614,
+        "max": 1.013365235193031
+      },
+      "load_min": 4.302734375,
+      "load_max": 4.7587890625
+    }
+  ]
+}
