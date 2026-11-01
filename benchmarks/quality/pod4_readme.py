@@ -15,6 +15,7 @@ from pod_duration import qualifies
 from pod_pairs import append, series
 from pod_readme import POTION, STATIC_ST, case_id, measure
 from pod_speed import encode_command, ensure_model
+from pod_timeouts import abort
 
 SETTINGS = (1, 16, 32)
 MINIMUM = 2.0
@@ -209,9 +210,8 @@ def run_cases(options, source, counts, plan):
             completed.append(result)
             if not result["eligible"]:
                 failed.append(identifier)
-        except (TimeoutError, subprocess.TimeoutExpired):
-            raise
         except Exception as error:
+            abort(error)
             failed.append(identifier)
             append(
                 folder / "invocations.jsonl",

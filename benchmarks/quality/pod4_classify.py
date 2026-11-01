@@ -14,6 +14,7 @@ from compare_parallelism import child_environment
 from folded_classifier_prepare import REPO, prepare, prepare_mlp
 from pod_artifacts import emit
 from pod_pairs import append, series
+from pod_timeouts import abort
 from prepare_fineweb import digest
 from prepare_native_classifier import inputs
 from prepare_setfit import SOURCES
@@ -199,9 +200,8 @@ def run(args):
                 raise TimeoutError("classification stage deadline reached")
             try:
                 dataset(args, suite, name, data, provenance)
-            except (TimeoutError, subprocess.TimeoutExpired):
-                raise
             except Exception as error:
+                abort(error)
                 failed.append(suite + "/" + name)
                 append(
                     args.output / "invocations.jsonl",

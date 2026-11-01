@@ -13,6 +13,7 @@ from pathlib import Path
 from compare_parallelism import child_environment
 from pod_artifacts import environment
 from pod_duration import qualifies
+from pod_timeouts import abort
 
 
 def append(path: Path, row: dict):
@@ -150,11 +151,18 @@ def series(commands, workers, output, deadline, cell, *, minimum_seconds=0, abor
                     "reason": repr(error),
                 },
             )
-            if abort_on_timeout and isinstance(error, (TimeoutError, subprocess.TimeoutExpired)):
-                raise
+            abort(error, abort_on_timeout)
             break
         if valid >= 3 and time.monotonic() - start >= minimum_seconds:
             break
+    return finish_series(
+        output, hardware, identifier, cell, valid, ratios, controls, failed, start, minimum_seconds
+    )
+
+
+def finish_series(
+    output, hardware, identifier, cell, valid, ratios, controls, failed, start, minimum_seconds
+):
     # Probe rejection uses every observed A/A round, including noisy rounds.
     elapsed = time.monotonic() - start
     control_ratio = max(controls) / min(controls) if controls else None
