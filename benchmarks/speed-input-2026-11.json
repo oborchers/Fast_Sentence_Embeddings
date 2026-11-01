@@ -47,7 +47,9 @@
     "month_hours": 720,
     "planning_balance_usd": 7.3,
     "planning_minutes": 345,
-    "kill_running_cells": false
+    "kill_running_cells": false,
+    "setup_stage_clock_env": "SPEED_SETUP_STARTED_AT",
+    "allocation_clock": "--allocated-at includes machine provisioning and bootstrap"
   },
   "stages": [
     {

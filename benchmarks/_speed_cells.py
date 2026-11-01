@@ -182,7 +182,8 @@ class Ledger:
         budget = next(
             s["budget_minutes"] * 60 for s in self.contract["stages"] if s["name"] == stage
         )
-        spent = self.elapsed() if stage == "setup" else 0
+        epoch = float(os.getenv("SPEED_SETUP_STARTED_AT", self.allocated_at))
+        spent = max(0, time.time() - epoch) if stage == "setup" else 0
         self.deadlines.setdefault(stage, time.monotonic() + budget - spent)
         horizon = self.contract["billing"]["planning_minutes"] * 60
         funds = self.contract["billing"]["planning_balance_usd"] * 3600 / self.hourly
@@ -262,17 +263,14 @@ def package_identity(name):
     root = Path(module.__file__).resolve().parent
     files = {str(item): Path(distribution.locate_file(item)) for item in distribution.files}
     files.update({"loaded/" + str(p.relative_to(root)): p for p in root.rglob("*")})
-    checked = 0
     for relative, path in sorted(files.items()):
         if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
             digest.update(relative.encode() + b"\0" + bytes.fromhex(sha256(path)))
-            checked += 1
     return {
         "package": name,
         "version": distribution.version,
         "path": module.__file__,
         "sha256": digest.hexdigest(),
-        "files": checked,
     }
 
 
