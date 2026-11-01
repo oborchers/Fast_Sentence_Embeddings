@@ -126,9 +126,7 @@ def publication_entry(models, record, fit, indices):
         "python_example": example,
         "python_example_sha256": sha256_bytes(example.encode()),
         "probe": local_probe(encoder, indices),
-        "publication_hold": "DR-146 (Über FastText in 2.0 entscheiden (12f))"
-        if name.startswith("fasttext")
-        else None,
+        "publication_hold": None,
     }
 
 

@@ -5,6 +5,8 @@ repository names, licenses and complete file inventory in the immutable publicat
 manifest before the coordinator creates any PUBLIC repo. There is no private stage.
 Oliver approved the content, repository list and licenses of all 30 repos under Option B. FastText has no remaining separate hold. Upload waits for release 2.0.0 and regenerated release cards.
 
+Run `RELEASE_CARDS.md` after release v2.0.0. Upload the resulting release payload.
+The manifest and local card paths below must then reference that new release output.
 After the approved uploads finish, the coordinator supplies a JSON receipt:
 
 ```json
