@@ -64,6 +64,14 @@ def spread(values):
     return {"median": statistics.median(values), "min": min(values), "max": max(values)}
 
 
+def valid_calls(row, minimum):
+    values = [row["first_seconds"], *row["warm_seconds"]]
+    if not row["warm_seconds"] or any(not math.isfinite(v) or v <= 0 for v in values):
+        raise ValueError("invalid call durations")
+    if any(v < minimum for v in values):
+        raise ValueError("actual fse call shorter than required")
+
+
 def controls(operations, rounds, minimum):
     expected = {(r, label) for r in range(rounds) for label in ("fse-a", "fse-b")}
     rows = [r for r in operations if r["label"] in ("fse-a", "fse-b")]
@@ -71,14 +79,26 @@ def controls(operations, rounds, minimum):
     if actual != expected or len(rows) != len(expected):
         raise ValueError("missing or duplicate controls")
     for row in rows:
-        values = [row["first_seconds"], *row["warm_seconds"]]
-        if not row["warm_seconds"] or any(not math.isfinite(v) or v <= 0 for v in values):
-            raise ValueError("invalid call durations")
-        if any(v < minimum for v in values):
-            raise ValueError("actual fse call shorter than required")
+        valid_calls(row, minimum)
     medians = [statistics.median(row["warm_seconds"]) for row in rows]
     upper = max(medians) / min(medians)
     return {"upper": upper, "lower": 1 / upper, "passed": upper <= 1.10}
+
+
+def arm_summary(cell, operations, label):
+    rows = sorted((r for r in operations if r["label"] == label), key=lambda r: r["round"])
+    if [r["round"] for r in rows] != list(range(cell["rounds"])):
+        raise ValueError("each arm must complete every round exactly once")
+    identities = {json.dumps(r["identity"], sort_keys=True) for r in rows}
+    if len(identities) != 1 or not all(r["output_checked"] for r in rows):
+        raise ValueError("runtime changed or output check failed")
+    seconds = [statistics.median(r["warm_seconds"]) for r in rows]
+    return {
+        "seconds": spread(seconds),
+        "texts_per_second": spread([cell["texts"] / v for v in seconds]),
+        "ordered_seconds": seconds,
+        "identity": rows[0]["identity"],
+    }
 
 
 def summarize(cell, operations):
@@ -87,19 +107,7 @@ def summarize(cell, operations):
     labels = {r["label"] for r in operations}
     arms = {}
     for label in sorted(labels):
-        rows = sorted((r for r in operations if r["label"] == label), key=lambda r: r["round"])
-        if [r["round"] for r in rows] != list(range(cell["rounds"])):
-            raise ValueError("each arm must complete every round exactly once")
-        identities = {json.dumps(r["identity"], sort_keys=True) for r in rows}
-        if len(identities) != 1 or not all(r["output_checked"] for r in rows):
-            raise ValueError("runtime changed or output check failed")
-        seconds = [statistics.median(r["warm_seconds"]) for r in rows]
-        arms[label] = {
-            "seconds": spread(seconds),
-            "texts_per_second": spread([cell["texts"] / v for v in seconds]),
-            "ordered_seconds": seconds,
-            "identity": rows[0]["identity"],
-        }
+        arms[label] = arm_summary(cell, operations, label)
     reference = cell.get("reference")
     ratio = None
     if reference:
