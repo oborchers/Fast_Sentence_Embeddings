@@ -3,8 +3,10 @@
 **Our goal: be the fastest inference engine for static embeddings on the planet.**
 
 On 1 November 2026, an Apple M1 Pro encoded 5,352 WikiText texts with `potion-base-8M`.
-With one worker (processor thread), the middle measured rate was **219,333 texts/s** for fse and **8,906** for model2vec 0.10.0.
-With all ten cores, the middle rates were **909,270** and **26,048 texts/s**.
+One fse worker (a processor thread) encoded **219,333 texts/s**.
+Model2vec 0.10.0 with tokenizer parallelism off encoded **8,906 texts/s**.
+Ten fse workers encoded **909,270 texts/s**. Model2vec with tokenizer parallelism on encoded **26,048 texts/s**.
+These are the middle measured rates. A tokenizer divides text into words and word pieces.
 Tables stored 32-bit numbers (`float32`). Both libraries used the model's default text limits and normalization,
 which scales vectors to unit length. The models were already loaded.
 See [the method, ranges and raw results](docs/benchmarks/readme-wikitext-20261101/README.md).
@@ -136,6 +138,8 @@ including quality change from that model's float32 result. Name the dataset, met
 The first row uses the [preserved WikiText measurements](docs/benchmarks/readme-wikitext-20261101/README.md)
 from 1 November 2026: Apple M1 Pro, macOS 27.0.1, Python 3.13.16,
 NumPy 2.5.4, tokenizers 0.23.3 and model2vec 0.10.0.
+Model2vec uses its one-worker mode or its automatic mode.
+This input is below its 10,000-text batch-pool threshold, so automatic mode enables parallel tokenization without a batch-worker pool.
 The model revision is `bf8b056651a2c21b8d2565580b8569da283cab23`.
 The 5,352 nonblank texts come from the pinned WikiText validation and test splits.
 
@@ -152,9 +156,9 @@ Each cell must identify float32 / float16 / int8 table results in that order.
 The counterpart must encode the same texts, with matching token limits and normalization.
 Name machine, OS, Python, NumPy, library versions, model revisions, worker counts, load and measurement date.
 
-| Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) | Counterpart, float32 (1 / 10 workers) |
+| Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) | Counterpart, float32 (modes below) |
 |---|---|---|---|
-| potion-base-8M | 219,333 (199,745 to 221,304) / pending / pending | 909,270 (830,368 to 944,311) / pending / pending | model2vec: 8,906 (8,879 to 8,956) / 26,048 (22,894 to 26,880) |
+| potion-base-8M | 219,333 (199,745 to 221,304) / pending / pending | 909,270 (830,368 to 944,311) / pending / pending | model2vec tokenizer off: 8,906 (8,879 to 8,956); on: 26,048 (22,894 to 26,880) |
 | potion-base-32M | pending | pending | model2vec: pending |
 | potion-retrieval-32M | pending | pending | model2vec: pending |
 | potion-multilingual-128M | pending | pending | model2vec: pending |
