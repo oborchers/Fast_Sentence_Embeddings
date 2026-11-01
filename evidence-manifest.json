@@ -6032,6 +6032,38 @@
       "source_kind": "DR157 owner manifest, independently byte-verified; tracked source commit"
     },
     {
+      "path": "benchmarks/baseline/results/dr157-20261101/cleanup-validation-0b1d500/footprint.json",
+      "size_bytes": 780,
+      "sha256": "e4b055aa5006a63964596abd32a91d73f4d816e21fed73f131330a671018749e",
+      "source_commit": "0b1d5000293c5b0a5c65a8464937d2482fd786cc",
+      "git_blob": "29c3f3ea8d4c9d10f86d8a0345bc73d823aa35c7",
+      "source_kind": "DR157 cleanup validation owner handoff; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/cleanup-validation-0b1d500/make-check.txt",
+      "size_bytes": 15184,
+      "sha256": "19e439780010dc9c41e13835aedc576ede8d20b99f86dd5257dd80d9ec87dbf1",
+      "source_commit": "0b1d5000293c5b0a5c65a8464937d2482fd786cc",
+      "git_blob": "191f40d2d8bf239136c4312a03e7ab1f1e26f15b",
+      "source_kind": "DR157 cleanup validation owner handoff; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/cleanup-validation-0b1d500/release-focused.txt",
+      "size_bytes": 99,
+      "sha256": "e05dbe8fe17870d2c2811ccce5e0fadc579f980fa963503a9448b41aea8f5952",
+      "source_commit": "0b1d5000293c5b0a5c65a8464937d2482fd786cc",
+      "git_blob": "0e4b4ff20a4de63db62279a55d06bd8232ac7889",
+      "source_kind": "DR157 cleanup validation owner handoff; independently size/SHA256 verified"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr157-20261101/cleanup-validation-0b1d500/transfer-manifest.json",
+      "size_bytes": 1242,
+      "sha256": "e6fb7d805f478f664fd50a8f7fcd5a2de6c2ee7112283e8ef1b9afa1f484a2f3",
+      "source_commit": "0b1d5000293c5b0a5c65a8464937d2482fd786cc",
+      "git_blob": "d295e4e87dac0bdf22ced21484e187a0e3b248e2",
+      "source_kind": "Immutable DR157 cleanup validation transfer manifest"
+    },
+    {
       "path": "benchmarks/baseline/results/dr157-20261101/cleanup.json",
       "size_bytes": 8863,
       "sha256": "82da6834ec6f68eccd8ba7f60374071f6afdac0e774268ef75fa11e7a47b0748",
