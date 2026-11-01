@@ -52,3 +52,20 @@ def test_token_order_paragraphs_and_words_cannot_be_aliased(corpus, tmp_path, ch
         corpus.verified_reference(historical, artifacts, path)
     with pytest.raises(ValueError, match="recorded GloVe hash"):
         corpus.verified_reference(historical, artifacts, other)
+
+
+def test_alias_matches_actual_consumers(corpus, tmp_path, monkeypatch):
+    readers = importlib.import_module("classic_corpus")
+    monkeypatch.setattr(readers, "FIT_LINES", 3)
+    historical = tmp_path / "old.txt"
+    canonical = tmp_path / "new.txt"
+    historical.write_text("one  two\n \t\nthree four \n")
+    canonical.write_text("one two\n\nthree four\n")
+    expected = [[["one", "two"], []], [["three", "four"]]]
+    assert list(readers.batches(historical, size=2)) == expected
+    assert list(readers.batches(canonical, size=2)) == expected
+    assert readers.frequencies(historical) == readers.frequencies(canonical)
+    assert (
+        corpus.corpus_hashes(historical)["consumed_tokens_xxh3"]
+        == corpus.corpus_hashes(canonical)["reference_raw_xxh3"]
+    )

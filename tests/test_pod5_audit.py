@@ -120,8 +120,41 @@ def test_noncomparable_or_invalid_row_is_rejected(audit, row_fixture, change):
         )
 
 
-def test_full_collection_requires_every_score(audit, row_fixture, tmp_path):
-    template, _, _, _ = row_fixture
+def alias_fixture(audit, template, historical, tmp_path, monkeypatch):
+    from fse._container._hash import Hasher
+
+    corpus_path = tmp_path / "historic-corpus.txt"
+    corpus_path.write_text("one  two\nthree four\n")
+    raw, canonical = Hasher(), Hasher()
+    raw.update(b"one  two\nthree four\n")
+    canonical.update(b"one two\nthree four\n")
+    template["fit_provenance"] = {
+        **template["fit_provenance"],
+        "paragraphs": 2,
+        "tokenized_corpus_xxh3": canonical.checksum(),
+    }
+    historical["models"][0]["artifact"]["preparation_record"]["fit"] = {
+        **template["fit_provenance"],
+        "tokenized_corpus_xxh3": raw.checksum(),
+    }
+    original_document = audit.document
+
+    def document(root, name):
+        if root == audit.BASELINE and name == "dr151_quality_glove_20261101.json":
+            return historical
+        return original_document(root, name)
+
+    monkeypatch.setattr(audit, "document", document)
+    monkeypatch.setattr(audit, "FIT_LINES", 2)
+    return corpus_path
+
+
+@pytest.mark.parametrize("alias", [False, True])
+def test_full_collection_requires_every_score(audit, row_fixture, tmp_path, monkeypatch, alias):
+    template, _, _, historical = row_fixture
+    corpus_path = (
+        alias_fixture(audit, template, historical, tmp_path, monkeypatch) if alias else None
+    )
     tasks, artifacts, invocations = audit.expected_tasks(), [], []
     for source in audit.SOURCES:
         name = f"SIF-10-{source}-float32.safetensors"
@@ -178,10 +211,15 @@ def test_full_collection_requires_every_score(audit, row_fixture, tmp_path):
     path = tmp_path / "transfer-manifest.json"
     path.write_text(json.dumps(receipt))
     expected = audit.digest(path)
-    result = audit.audit(tmp_path, expected)
+    result = audit.audit(tmp_path, expected, corpus_path)
     assert result["experiment_complete"] is True
     assert len(result["models"]) == 3
     assert all(model["english_full_41_mean"] is None for model in result["models"])
+    if alias:
+        historical["models"][0]["artifact"]["preparation_record"]["fit"]["a"] = 0.5
+        rejected = audit.audit(tmp_path, expected, corpus_path)
+        assert not rejected["experiment_complete"]
+        assert "fit differs" in rejected["errors"][0]
     missing = tmp_path / f"{audit.SOURCES[-1]}-STSBenchmark.jsonl"
     missing.rename(tmp_path / "withheld-score")
     result = audit.audit(tmp_path, expected)
