@@ -16,20 +16,12 @@ def script(commit, *, limit=9000, export_reserve=60):
         + bootstrap(commit)
         + """export TQDM_DISABLE=1
 /usr/local/bin/uv pip install --python /dr151-env/bin/python --index-url https://download.pytorch.org/whl/cpu torch==2.15.0+cpu
-/usr/local/bin/uv pip install --python /dr151-env/bin/python -r benchmarks/quality/pod-classifier-requirements.lock.txt
+/usr/local/bin/uv pip install --python /dr151-env/bin/python -r benchmarks/quality/pod3-requirements.lock.txt
 /usr/local/bin/uv pip install --python /dr151-env/bin/python --no-build-isolation -e .
 /usr/local/bin/uv pip check --python /dr151-env/bin/python
 printf 'stage_end environment %s\\n' "$(/usr/bin/date -u +%FT%TZ)"
 /usr/bin/df -h /dr151-cache
 set +e
-classification_deadline=$((DR151_DEADLINE - 6600))
-classification_seconds=$((classification_deadline - $(/usr/bin/date +%s)))
-if [ "$classification_seconds" -gt 0 ]; then
-  run_stage folded-classification /usr/bin/timeout --signal=TERM --kill-after=10 "$classification_seconds" /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_folded.py --stage classifications --cache /dr151-cache --output /dr151-results --deadline-epoch "$classification_deadline"
-  classification_status=$?
-else
-  classification_status=124
-fi
 /usr/bin/cat > /dr151-rust-setup.sh <<'DR151_RUST'
 set -euxo pipefail
 /usr/bin/curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /dr151-rustup.sh
@@ -38,6 +30,23 @@ set -euxo pipefail
 DR151_RUST
 run_stage rust-setup /usr/bin/timeout --signal=TERM --kill-after=10 600 /bin/bash /dr151-rust-setup.sh
 rust_status=$?
+readme_deadline=$(( $(/usr/bin/date +%s) + 1200 ))
+if [ "$readme_deadline" -gt "$((DR151_DEADLINE - 6600))" ]; then readme_deadline=$((DR151_DEADLINE - 6600)); fi
+readme_seconds=$((readme_deadline - $(/usr/bin/date +%s)))
+if [ "$readme_seconds" -gt 0 ]; then
+  run_stage readme-panels /usr/bin/timeout --signal=TERM --kill-after=10 "$readme_seconds" /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_folded.py --stage readme --cache /dr151-cache --output /dr151-results --deadline-epoch "$readme_deadline"
+  readme_status=$?
+else
+  readme_status=124
+fi
+classification_deadline=$((DR151_DEADLINE - 6600))
+classification_seconds=$((classification_deadline - $(/usr/bin/date +%s)))
+if [ "$classification_seconds" -gt 0 ]; then
+  run_stage folded-classification /usr/bin/timeout --signal=TERM --kill-after=10 "$classification_seconds" /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_folded.py --stage classifications --cache /dr151-cache --output /dr151-results --deadline-epoch "$classification_deadline"
+  classification_status=$?
+else
+  classification_status=124
+fi
 large_deadline=$((DR151_DEADLINE - 2400))
 large_seconds=$((large_deadline - $(/usr/bin/date +%s)))
 if [ "$large_seconds" -gt 0 ]; then
@@ -56,6 +65,7 @@ else
 fi
 run_stage showcase-100m /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod_folded.py --stage showcase --cache /dr151-cache --output /dr151-results --deadline-epoch "$DR151_DEADLINE"
 showcase_status=$?
+if [ "$readme_status" -ne 0 ]; then exit "$readme_status"; fi
 if [ "$classification_status" -ne 0 ]; then exit "$classification_status"; fi
 if [ "$large_status" -ne 0 ]; then exit "$large_status"; fi
 if [ "$rust_status" -ne 0 ]; then exit "$rust_status"; fi

@@ -94,7 +94,7 @@ def main():
     parser.add_argument(
         "--corpus", choices=["repeated-shuffled-10m", "repeated-shuffled-100m"], required=True
     )
-    parser.add_argument("--workers", type=int, choices=[1, 10, 32], required=True)
+    parser.add_argument("--workers", type=int, choices=[1, 32], required=True)
     parser.add_argument("--kind", choices=["fse", "rust"], default="fse")
     parser.add_argument("--mode", choices=["encode", "memory", "shard", "npy"], default="shard")
     parser.add_argument(

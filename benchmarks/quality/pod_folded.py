@@ -106,7 +106,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--stage",
-        choices=["classifications", "large", "scaling", "showcase"],
+        choices=["readme", "classifications", "large", "scaling", "showcase"],
         default="classifications",
     )
     parser.add_argument("--cache", type=Path, required=True)
@@ -122,6 +122,11 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     args.hardware = {**environment(), "affinity_original": allowed}
     args.deadline = time.monotonic() + args.deadline_epoch - time.time()
+    if args.stage == "readme":
+        from pod_readme import run
+
+        run(args)
+        return
     if args.stage == "scaling":
         from pod_scaling import run
 

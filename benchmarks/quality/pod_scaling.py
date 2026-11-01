@@ -4,16 +4,12 @@ from __future__ import annotations
 
 import json
 import math
-from types import SimpleNamespace
 
-from artifact_manifest import header
-from compare_models import artifact_path
-from pod_artifacts import emit, export_jsonl
+from pod_artifacts import emit
 from pod_folded_summary import complete_rounds, runtime, spread
-from pod_pairs import append, series
-from pod_speed import POTION, download_corpus, encode_command, ensure_model
+from pod_speed import POTION
 
-WORKERS = (1, 2, 4, 6, 8, 10, 16, 32, 3, 5, 7, 9)
+WORKERS = (1, 2, 4, 8, 16, 32)
 RESERVE_SECONDS = 300
 
 
@@ -115,43 +111,24 @@ def summarize_series(done, rows, stamps):
 
 
 def run(args):
-    import time
-
+    """Export both curves already measured with the stricter README output checks."""
     folder = args.output / "worker-scaling"
     folder.mkdir()
-    plan = {
-        "model": POTION,
-        "table_dtype": "float32",
-        "corpus": "wikitext",
-        "workers": WORKERS,
-        "scope": "encode only, same bench_compare.py child as the headline",
-        "rust": "not included: building Rust would consume the reserved final-stage budget",
-        "reserve_seconds": RESERVE_SECONDS,
+    source = args.output / "readme-panels" / "summary.json"
+    report = json.loads(source.read_text())
+    models = (POTION, "sentence-transformers/static-retrieval-mrl-en-v1")
+    wanted = {
+        f"encode/{repo}/float32/wikitext/{workers}/table" for repo in models for workers in WORKERS
     }
-    (folder / "plan.json").write_text(json.dumps(plan, indent=2) + "\n")
-    emit("worker-scaling-plan", plan)
-    print("stage_start worker-scaling", flush=True)
-    options = SimpleNamespace(
-        models=folder / "models", cache=args.cache, output=folder, deadline=args.deadline
-    )
-    download_corpus("wikitext")
-    ensure_model(POTION, "float32", options)
-    plan["encoder_header"] = header(artifact_path(options.models, POTION, "float32"))
-    (folder / "plan.json").write_text(json.dumps(plan, indent=2) + "\n")
-    for workers in WORKERS:
-        if time.monotonic() >= args.deadline:
-            raise TimeoutError("worker scaling reached the whole-pod deadline")
-        commands = {
-            label: encode_command(options, POTION, "float32", "wikitext", workers, "fse")
-            for label in ("fse-a", "fse-b")
-        }
-        started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        result = series(commands, workers, folder, args.deadline, f"worker-scaling/{workers}")
-        result["stage_start_utc"] = started
-        result["stage_end_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        append(folder / "stage-progress.jsonl", {"workers": workers, **result})
-        summary = {**summarize(folder), "encoder_header": plan["encoder_header"]}
-        (folder / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
-        emit("worker-scaling-summary-" + str(workers), summary)
-    print("stage_end worker-scaling", flush=True)
-    export_jsonl("worker-scaling-raw", folder / "speed-results.jsonl")
+    cells = [cell for cell in report["cells"] if cell["cell"] in wanted]
+    result = {
+        "format": "worker-scaling-v2",
+        "models": models,
+        "requested_workers": WORKERS,
+        "cells": cells,
+        "missing": sorted(wanted - {cell["cell"] for cell in cells}),
+        "source": str(source),
+        "note": "Reuses the exact paired README series, without a second timing run.",
+    }
+    (folder / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
+    emit("worker-scaling-summary", result)

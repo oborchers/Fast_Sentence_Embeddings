@@ -120,7 +120,7 @@ def run(args):
     (folder / "input-identities.json").write_text(json.dumps([source], indent=2) + "\n")
     emit("large-input-identity-10m", source)
     summaries = []
-    for workers in (10, 32, 1):
+    for workers in (32, 1):
         summary = timed_cell(args, folder, inputs, options.models, source, workers)
         summaries.append(summary)
         (folder / "summary.json").write_text(

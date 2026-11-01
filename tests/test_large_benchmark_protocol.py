@@ -51,7 +51,7 @@ def test_recipe_chunk_rule_keeps_source_order_and_minimum_words():
 @pytest.mark.usefixtures("modules")
 def test_matrix_retains_every_storage_dtype_and_durability():
     matrix = importlib.import_module("pod_large")
-    for workers in (10, 32):
+    for workers in (32,):
         commands = matrix.commands(["python"], workers)
         for dtype in ("float32", "float16", "int8"):
             for durability in ("none", "full"):
@@ -141,7 +141,7 @@ def test_showcase_is_exactly_one_run_and_one_aa_repeat(monkeypatch, tmp_path):
 
 
 @pytest.mark.usefixtures("modules")
-@pytest.mark.parametrize("workers", [1, 10, 32])
+@pytest.mark.parametrize("workers", [1, 32])
 def test_rust_parallelism_overrides_inherited_serial_setting(monkeypatch, workers):
     import os
 
