@@ -18,39 +18,52 @@ ATOL = 2e-6
 
 
 def norm_record(vectors, normalized):
-    norms = np.linalg.norm(vectors.astype(np.float64), axis=1)
-    nonzero = norms > 0
-    error = float(np.max(np.abs(norms[nonzero] - 1))) if nonzero.any() else 0.0
+    zero_rows, low, high, error = 0, float("inf"), 0.0, 0.0
+    for start in range(0, len(vectors), 8192):
+        norms = np.linalg.norm(vectors[start : start + 8192].astype(np.float64), axis=1)
+        nonzero = norms > 0
+        zero_rows += int((~nonzero).sum())
+        if nonzero.any():
+            low = min(low, float(norms[nonzero].min()))
+            high = max(high, float(norms[nonzero].max()))
+            error = max(error, float(np.max(np.abs(norms[nonzero] - 1))))
     if normalized and error > RTOL:
         raise ValueError("output does not follow the declared unit-normalization policy")
     return {
-        "zero_rows": int((~nonzero).sum()),
-        "nonzero_norm_min": float(norms[nonzero].min()) if nonzero.any() else None,
-        "nonzero_norm_max": float(norms[nonzero].max()) if nonzero.any() else None,
+        "zero_rows": zero_rows,
+        "nonzero_norm_min": low if low != float("inf") else None,
+        "nonzero_norm_max": high if high else None,
         "max_unit_norm_error": error,
     }
 
 
-def contract(arrays, normalized):
+def compare_blocks(first, vectors):
+    difference = 0.0
+    for start in range(0, len(first), 8192):
+        left, right = first[start : start + 8192], vectors[start : start + 8192]
+        if not np.isfinite(right).all():
+            raise ValueError("output shape/dtype/finite values differ within a same-model pair")
+        if not np.array_equal(np.any(left != 0, axis=1), np.any(right != 0, axis=1)):
+            raise ValueError("same-model pair disagrees on empty output rows")
+        if not np.allclose(left, right, rtol=RTOL, atol=ATOL):
+            raise ValueError("same-model pair differs beyond the disclosed float32 output bound")
+        difference = max(difference, float(np.max(np.abs(left.astype(np.float64) - right))))
+    return difference
+
+
+def contract(arrays, normalized, expected_texts=5352):
     first = arrays["fse"]
-    if first.ndim != 2 or first.shape[0] != 5352:
-        raise ValueError("README checks require all 5352 WikiText inputs")
+    if first.ndim != 2 or first.shape[0] != expected_texts:
+        raise ValueError(f"README checks require all {expected_texts} input rows")
     records = {}
     for label, vectors in arrays.items():
-        if (
-            vectors.dtype != np.float32
-            or vectors.shape != first.shape
-            or not np.isfinite(vectors).all()
-        ):
+        if vectors.dtype != np.float32 or vectors.shape != first.shape:
             raise ValueError("output shape/dtype/finite values differ within a same-model pair")
-        records[label] = norm_record(vectors, normalized)
-        if not np.array_equal(np.any(vectors != 0, axis=1), np.any(first != 0, axis=1)):
-            raise ValueError("same-model pair disagrees on empty output rows")
-        if not np.allclose(first, vectors, rtol=RTOL, atol=ATOL):
-            raise ValueError("same-model pair differs beyond the disclosed float32 output bound")
-        records[label]["max_absolute_difference_from_fse"] = float(
-            np.max(np.abs(first.astype(np.float64) - vectors))
-        )
+        difference = compare_blocks(first, vectors)
+        records[label] = {
+            **norm_record(vectors, normalized),
+            "max_absolute_difference_from_fse": difference,
+        }
     return {
         "passed": True,
         "shape": list(first.shape),
@@ -58,6 +71,7 @@ def contract(arrays, normalized):
         "normalize": normalized,
         "rtol": RTOL,
         "atol": ATOL,
+        "validation_block_rows": 8192,
         "arms": records,
     }
 
@@ -86,7 +100,7 @@ def run_vectors(options, repo, dtype, workers, kind, path):
     row = json.loads(completed.stdout.strip().splitlines()[-1])
     if row.get("runtime_package") != expected_package(kind):
         raise ValueError("output check carries the wrong backend identity")
-    return row, np.load(path)
+    return row, np.load(path, mmap_mode="r" if getattr(options, "input_file", None) else None)
 
 
 def check(options, repo, dtype, workers, against):
@@ -105,7 +119,8 @@ def check(options, repo, dtype, workers, against):
                 kind,
                 Path(temporary) / (kind + ".npy"),
             )
-        result = contract(arrays, normalized)
+        expected = options.input_record["texts"] if getattr(options, "input_file", None) else 5352
+        result = contract(arrays, normalized, expected)
         if result["shape"][1] != int(metadata["fse.output_dim"]):
             raise ValueError("output width differs from the bound encoder artifact")
     first = rows["fse"]

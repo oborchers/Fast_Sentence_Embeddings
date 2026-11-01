@@ -12,6 +12,7 @@ from pathlib import Path
 
 from compare_parallelism import child_environment
 from pod_artifacts import environment
+from pod_duration import qualifies
 
 
 def append(path: Path, row: dict):
@@ -93,7 +94,8 @@ def round_observation(commands, ordered, workers, deadline, output, context, har
         rows.append(row)
     band = aa_band(rows)
     equal_inputs = len({row["input_digest"] for row in rows}) == 1
-    good = band["aa_max_ratio"] <= 1.1 and equal_inputs
+    long_enough = all(qualifies(row) for row in rows if row["label"] in ("fse-a", "fse-b"))
+    good = band["aa_max_ratio"] <= 1.1 and equal_inputs and long_enough
     append(
         output / "speed-results.jsonl",
         {
@@ -104,6 +106,7 @@ def round_observation(commands, ordered, workers, deadline, output, context, har
             "valid": good,
             "complete": True,
             "equal_inputs": equal_inputs,
+            "minimum_call_duration_passed": long_enough,
         },
     )
     return good, band
