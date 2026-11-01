@@ -30,7 +30,7 @@ A valid cell requires at least three complete rotating rounds, stable input/pred
 | FAISS/hnswlib search | Not started | 0/8 | All eight cells. |
 | Float16 table matrix | Not started | 0/20 | All twenty cells. |
 
-All fifteen SetFit datasets reached inference for both POTION models and both worker settings. SetFit contributes 103 valid cells from 180 attempted cells. FineWeb contributes one valid cell, one unfinished cell and ten unstarted cells. All **176 classifier quality/preparation records** were produced, including full FineWeb evaluations. Training quality coverage does not imply inference timing coverage.
+All fifteen SetFit datasets reached inference for both POTION models and both worker settings. SetFit contributes 104 valid cells from 180 attempted cells. FineWeb contributes no valid timing cell: its completed series fails the global A/A band, its next series is unfinished, and ten series were not started. All **176 classifier quality/preparation records** were produced, including full FineWeb evaluations. Training quality coverage does not imply inference timing coverage.
 
 Pod 2 did not retain full encode arrays for a new cross-library numerical output audit. These counts describe the paired timing/runtime/input gates above. The fresh README encoding graphics still use Pod 3 and its explicit full-output checks, both scaling curves and selected core settings.
 
