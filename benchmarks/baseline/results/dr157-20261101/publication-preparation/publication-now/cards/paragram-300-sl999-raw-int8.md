@@ -1,0 +1,78 @@
+---
+library_name: "fse"
+license: "unknown"
+base_model: "fse/paragram-300-sl999"
+base_model_relation: "quantized"
+language:
+- "en"
+pipeline_tag: "feature-extraction"
+tags:
+- "fse"
+- "static-embeddings"
+- "sentence-embeddings"
+- "gensim"
+- "paragram"
+- "word-embeddings"
+---
+
+# fse/paragram-300-sl999-raw-int8
+
+A static embedding model for fse: the mean of the token rows of a text, normalized to unit length.
+
+## Model
+
+- rows (vocabulary): 1703756
+- dimensions of the table: 300 (int8)
+- table stored by `quantize_rows@1` from the float32 table `xxh3-128:dd257d40a3a5e7236ee9e82078a97134`
+- tokenizer: `fse_words@1`
+- steps per row: normalize@1
+- fingerprint: `xxh3-128:811484bfb3fb71ed12bcaeb4744d991b`
+
+## Usage
+
+This model requires fse 2.0 or later.
+
+```
+pip install "fse>=2.0"
+```
+
+```python
+import fse
+
+encoder = fse.Encoder.from_pretrained("fse/paragram-300-sl999-raw-int8")
+vectors = encoder.encode(["A sentence."])
+```
+
+## Source and license
+
+Converted from the gensim model fse/paragram-300-sl999 at revision `c99818c1470d5c4e454eb9d59dfce2b179dba455`.
+
+The vectors fse computes are those of the quantized table: on the cpu backend bit for bit as its reference computes them, not those of the model before quantization. How close they come to it is measured, not promised by this file.
+
+License: unknown. The license of the source model applies to its use.
+
+## About fse
+
+Made with [fse](https://github.com/oborchers/Fast_Sentence_Embeddings), fast sentence embeddings.
+
+<!-- fse-classic-card@1 -->
+
+## Choosing a method and storage format
+
+On the 1,379 STS-B test pairs, raw float32 scored 51.45857 Pearson x100 and SIF-10 float32 scored 74.43794. Use raw for a plain mean of the source vectors. Use SIF-10 to apply the fixed frequency weighting and training-corpus component removal measured here. Evaluate the choice on your own data.
+
+Use float32 to retain the prepared table without storage rounding. Use float16 or int8 when the measured size reduction and neighbour changes below meet your needs. fse computes all three in float32.
+
+| This model | Measured value |
+|---|---:|
+| Model file bytes | 545590639 |
+| STS-B Pearson x100 | 51.44729 |
+| Difference from same-method float32, points | -0.01128 |
+| Recall@10 against same-method float32 | 0.996193 |
+| Default tokenizer Pearson x100 | 51.44729 |
+
+The controlled STS-B comparison uses the 1.x notebook's NLTK preprocessing through an external-tokenizer view of this same table. The default-tokenizer row uses the saved `fse_words@1` tokenizer on raw text. Recall@10 compares each of the 2,758 STS-B sentence rows against all other rows, excludes self, and resolves equal similarities by row index. No load-time or speed claim is made.
+
+## Source terms and attribution
+
+The authors did not state a license for these vectors in the release materials we inspected. `license: unknown` does not grant permission. This conversion is kept for preservation. See [From Paraphrase Database to Compositional Paraphrase Model and Back](https://aclanthology.org/Q15-1025/). Rights holders can request removal through the [repository issues](https://github.com/oborchers/Fast_Sentence_Embeddings/issues).

@@ -1,0 +1,19 @@
+--- previous/README.md
++++ publication/README.md
+@@ -27,14 +27,13 @@
+ - tokenizer: `fse_words@1`
+ - steps per row: normalize@1
+ - fingerprint: `xxh3-128:4d2fb5d81b9888d2eb7bb8e69ee9c7f6`
+-- written by: fse 1.1.1.dev917+g81e64c0
+ 
+ ## Usage
+ 
+-This model requires the fse 2.0 API, currently in development. The install command pins its source.
++This model requires fse 2.0 or later.
+ 
+ ```
+-pip install "git+https://github.com/oborchers/Fast_Sentence_Embeddings.git@81e64c0d5f92ea6270522f0d97a009979fc678d3"
++pip install "fse>=2.0"
+ ```
+ 
+ ```python
