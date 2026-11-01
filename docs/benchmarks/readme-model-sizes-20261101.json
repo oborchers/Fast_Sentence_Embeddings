@@ -1,0 +1,286 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-11-01T00:35:39.539959+00:00",
+  "cpu": "Apple M1 Pro",
+  "os": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "observer_python": "3.15.0 (main, Oct  9 2026, 11:16:41) [Clang 21.0.0 (clang-2100.3.34.2)]",
+  "method": "Read sources.jsonl, Path.stat().st_size, and safetensors JSON headers only. Model tensor data was not read, loaded, copied or rewritten. Sizes include the complete saved fse file.",
+  "models": [
+    {
+      "source": "minishlab/potion-base-32M",
+      "source_revision": "1e5a03f8eeb2c98b928fbbd846f22f816360919f",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "preparation_fse_version": "1.1.1.dev853+g9a7e780f5",
+      "preparation_python": "3.13.16 (main, Oct  9 2026, 15:11:24) [Clang 22.1.3 ]",
+      "output_dim": 512,
+      "artifacts": {
+        "float32": {
+          "file": "potion-base-32M-float32.safetensors",
+          "bytes": 130145513,
+          "mtime_utc": "2026-10-31T23:48:41.057428+00:00",
+          "tensor_dtype": "F32",
+          "table_shape": [
+            63091,
+            512
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:99737b0f0d2dc7cfb4ee240faa2e278f"
+        },
+        "float16": {
+          "file": "potion-base-32M-float16.safetensors",
+          "bytes": 65540457,
+          "mtime_utc": "2026-10-31T23:48:41.163010+00:00",
+          "tensor_dtype": "F16",
+          "table_shape": [
+            63091,
+            512
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:ef979d162820020b2d2f288a58d20ea7"
+        },
+        "int8": {
+          "file": "potion-base-32M-int8.safetensors",
+          "bytes": 33490357,
+          "mtime_utc": "2026-10-31T23:48:41.283921+00:00",
+          "tensor_dtype": "I8",
+          "table_shape": [
+            63091,
+            512
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:2a1bac2ab26c393199c6669f4f97e349"
+        }
+      }
+    },
+    {
+      "source": "minishlab/potion-base-8M",
+      "source_revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "preparation_fse_version": "1.1.1.dev853+g9a7e780f5",
+      "preparation_python": "3.13.16 (main, Oct  9 2026, 15:11:24) [Clang 22.1.3 ]",
+      "output_dim": 256,
+      "artifacts": {
+        "float32": {
+          "file": "potion-base-8M-float32.safetensors",
+          "bytes": 30664410,
+          "mtime_utc": "2026-10-31T23:48:41.352821+00:00",
+          "tensor_dtype": "F32",
+          "table_shape": [
+            29528,
+            256
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:7aed2ca9bf7f9073ffa6778672a7575f"
+        },
+        "float16": {
+          "file": "potion-base-8M-float16.safetensors",
+          "bytes": 15546202,
+          "mtime_utc": "2026-10-31T23:48:41.389494+00:00",
+          "tensor_dtype": "F16",
+          "table_shape": [
+            29528,
+            256
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:4db2896287d99b8acaf7f6ce2960f8ab"
+        },
+        "int8": {
+          "file": "potion-base-8M-int8.safetensors",
+          "bytes": 8105274,
+          "mtime_utc": "2026-10-31T23:48:41.422573+00:00",
+          "tensor_dtype": "I8",
+          "table_shape": [
+            29528,
+            256
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:3fe23dd13d9ad6e8b7c3663acef9fe78"
+        }
+      }
+    },
+    {
+      "source": "minishlab/potion-multilingual-128M",
+      "source_revision": "73908c3438cf03b6a01bcb9611d62b23d0726f08",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "preparation_fse_version": "1.1.1.dev853+g9a7e780f5",
+      "preparation_python": "3.13.16 (main, Oct  9 2026, 15:11:24) [Clang 22.1.3 ]",
+      "output_dim": 256,
+      "artifacts": {
+        "float32": {
+          "file": "potion-multilingual-128M-float32.safetensors",
+          "bytes": 526463889,
+          "mtime_utc": "2026-10-31T23:48:43.223642+00:00",
+          "tensor_dtype": "F32",
+          "table_shape": [
+            500353,
+            256
+          ],
+          "tokenizer": "unigram@1",
+          "fingerprint": "xxh3-128:6bdec1ad83263940d62a9e6224f0a0d4"
+        },
+        "float16": {
+          "file": "potion-multilingual-128M-float16.safetensors",
+          "bytes": 270283217,
+          "mtime_utc": "2026-10-31T23:48:44.154371+00:00",
+          "tensor_dtype": "F16",
+          "table_shape": [
+            500353,
+            256
+          ],
+          "tokenizer": "unigram@1",
+          "fingerprint": "xxh3-128:567ed74a994c2dc7656ac6c351f4d592"
+        },
+        "int8": {
+          "file": "potion-multilingual-128M-int8.safetensors",
+          "bytes": 144194389,
+          "mtime_utc": "2026-10-31T23:48:44.599500+00:00",
+          "tensor_dtype": "I8",
+          "table_shape": [
+            500353,
+            256
+          ],
+          "tokenizer": "unigram@1",
+          "fingerprint": "xxh3-128:d548d315ac418c7c59ebad2407a022cb"
+        }
+      }
+    },
+    {
+      "source": "minishlab/potion-retrieval-32M",
+      "source_revision": "6fc8051fab2a1e0ee76689cf08c853792ac285e7",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "preparation_fse_version": "1.1.1.dev853+g9a7e780f5",
+      "preparation_python": "3.13.16 (main, Oct  9 2026, 15:11:24) [Clang 22.1.3 ]",
+      "output_dim": 512,
+      "artifacts": {
+        "float32": {
+          "file": "potion-retrieval-32M-float32.safetensors",
+          "bytes": 130145513,
+          "mtime_utc": "2026-10-31T23:48:44.917760+00:00",
+          "tensor_dtype": "F32",
+          "table_shape": [
+            63091,
+            512
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:6f78af26bab53a3d464e97d9189f5b20"
+        },
+        "float16": {
+          "file": "potion-retrieval-32M-float16.safetensors",
+          "bytes": 65540457,
+          "mtime_utc": "2026-10-31T23:48:45.156286+00:00",
+          "tensor_dtype": "F16",
+          "table_shape": [
+            63091,
+            512
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:7a9772ec516753c3bda8ea74ca935fcb"
+        },
+        "int8": {
+          "file": "potion-retrieval-32M-int8.safetensors",
+          "bytes": 33490357,
+          "mtime_utc": "2026-10-31T23:48:45.407681+00:00",
+          "tensor_dtype": "I8",
+          "table_shape": [
+            63091,
+            512
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:93454ee55c5a5879ade4b0c7dcf40e67"
+        }
+      }
+    },
+    {
+      "source": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "source_revision": "f60985c706f192d45d218078e49e5a8b6f15283a",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "preparation_fse_version": "1.1.1.dev853+g9a7e780f5",
+      "preparation_python": "3.13.16 (main, Oct  9 2026, 15:11:24) [Clang 22.1.3 ]",
+      "output_dim": 1024,
+      "artifacts": {
+        "float32": {
+          "file": "static-retrieval-mrl-en-v1-float32.safetensors",
+          "bytes": 125464626,
+          "mtime_utc": "2026-10-31T23:48:45.688446+00:00",
+          "tensor_dtype": "F32",
+          "table_shape": [
+            30522,
+            1024
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:6cb1abbcb0649e6362ff38e5ee29e0b4"
+        },
+        "float16": {
+          "file": "static-retrieval-mrl-en-v1-float16.safetensors",
+          "bytes": 62955698,
+          "mtime_utc": "2026-10-31T23:48:45.829538+00:00",
+          "tensor_dtype": "F16",
+          "table_shape": [
+            30522,
+            1024
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:3a7422f08b64a99f13f36cfe394bef2c"
+        },
+        "int8": {
+          "file": "static-retrieval-mrl-en-v1-int8.safetensors",
+          "bytes": 31823386,
+          "mtime_utc": "2026-10-31T23:48:45.946349+00:00",
+          "tensor_dtype": "I8",
+          "table_shape": [
+            30522,
+            1024
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:7a2ae91db8411757a4269905712b84a5"
+        }
+      }
+    },
+    {
+      "source": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "source_revision": "b68f4122911bcffcd6e1f695f2d99cd6788972d8",
+      "preparation_commit": "021b994a78d99604dad92ec9001171ee4996d32d",
+      "preparation_fse_version": "1.1.1.dev853+g9a7e780f5",
+      "preparation_python": "3.13.16 (main, Oct  9 2026, 15:11:24) [Clang 22.1.3 ]",
+      "output_dim": 1024,
+      "artifacts": {
+        "float32": {
+          "file": "static-similarity-mrl-multilingual-v1-float32.safetensors",
+          "bytes": 435294780,
+          "mtime_utc": "2026-10-31T23:48:46.718187+00:00",
+          "tensor_dtype": "F32",
+          "table_shape": [
+            105879,
+            1024
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:d0a49427e9aae947660d4a1e0c78846a"
+        },
+        "float16": {
+          "file": "static-similarity-mrl-multilingual-v1-float16.safetensors",
+          "bytes": 218454716,
+          "mtime_utc": "2026-10-31T23:48:47.162080+00:00",
+          "tensor_dtype": "F16",
+          "table_shape": [
+            105879,
+            1024
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:708f010130999210e04107b14ebb987e"
+        },
+        "int8": {
+          "file": "static-similarity-mrl-multilingual-v1-int8.safetensors",
+          "bytes": 110458264,
+          "mtime_utc": "2026-10-31T23:48:47.563398+00:00",
+          "tensor_dtype": "I8",
+          "table_shape": [
+            105879,
+            1024
+          ],
+          "tokenizer": "wordpiece@1",
+          "fingerprint": "xxh3-128:e42440a7a277b6a4b107cb7069c9ad69"
+        }
+      }
+    }
+  ]
+}
