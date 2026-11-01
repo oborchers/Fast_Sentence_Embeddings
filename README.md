@@ -57,7 +57,7 @@ vectors = encoder.encode(["the cat sleeps", "a dog runs"])
 
 A vector is a list of numbers that represents a text. Here you get a NumPy array with one row per text.
 The first load downloads the model. Its license applies separately.
-For complete applications, explore the seven [recipes](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) below.
+For complete applications, explore the eight [recipes](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) below.
 
 ### Already using Model2Vec?
 
@@ -129,11 +129,12 @@ The recipe below covers training, classification, regression and saving the fini
 
 ## Recipes: from a model to a working application
 
-These seven recipes show the full workflow, including preparation, execution and checks.
+These eight recipes show the full workflow, including preparation, execution and checks.
 Start with the job you want to do:
 
 | Use case | Recipe |
 |---|---|
+| Start here: fse 101 | [Turn sentences into vectors, find similar text, and save your results.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/00-fse-101.ipynb) |
 | Sentence search | [Make classic word vectors more useful for sentence search.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/01-sif-usif.ipynb) |
 | Text classification | [Train a text classifier, compare its accuracy, and save it for your app.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/02-linear-heads.ipynb) |
 | Files with resume | [Turn a text file into vectors and continue after an interruption.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/03-files-with-resume.ipynb) |
