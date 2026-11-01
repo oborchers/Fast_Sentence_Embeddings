@@ -5849,6 +5849,22 @@
       "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
     },
     {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/README.md",
+      "size_bytes": 9994,
+      "sha256": "7d5d90f2bc91707363f895f692988ee4c5ec5629225fdffac625e43cc1ab86ff",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "365c101d851eef0d8e184deae592cb2705774c35",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/dr151_configuration_times_20261101.json",
+      "size_bytes": 7866,
+      "sha256": "849a6d6de479ec22c96b7e6606a0bb0974cd13857e058c9cc0e6add3ab8badef",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "449ed7195649de7f16d5a0fb2b685117c5e3ea5e",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
       "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/dr151_matrix_summary_20261101.json",
       "size_bytes": 48697,
       "sha256": "12d8ce0105b4036650df54d4375631979c7845529bcb3bd42bf7e6a5cf382bce",
@@ -5889,12 +5905,60 @@
       "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
     },
     {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/store_none_20261031.json",
+      "size_bytes": 4206,
+      "sha256": "ca95baf4876d12d854724740aefd28ca020bd778c58024e2c0d48851af4249b8",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "6d47536804322c56c6bb7e410e2f5eb062ba1170",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/store_sync_20261031.json",
+      "size_bytes": 47937,
+      "sha256": "9e1e3eade435609015b89d4864128c47e20d8f254a7fb70f0f474772b4c84689",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "b543a0d0c41829563de8e940035ac55b63d53ff6",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/thread_pool_20261031.json",
+      "size_bytes": 19540,
+      "sha256": "94f6936b377d27d3059733ab509af43ee52819a29045618826a887c329c5e26a",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "0500f9e95b44981e30434705a294c325214a5bbb",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/thread_pool_profiles_20261031.json",
+      "size_bytes": 2037,
+      "sha256": "ffd722bd38ffd83fd01a8553d6bec1e21775fd1d968c92b9972d3baa160a1adb",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "e49fe8b6f2fbdde9b7c8d9bd65afbc272f5d2baa",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/roofline_hardware.toml",
+      "size_bytes": 4680,
+      "sha256": "9c95fa188ed39c83659c1d5f4fd895214bbc68f665a9d58f685088010daefd69",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "e6374a934e23bde3232196a0eec662a4fb50b697",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
+    },
+    {
       "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/benchmarks/dr151-evidence.md",
       "size_bytes": 8193,
       "sha256": "317b4e302983c990d8a57e5a85365b4756291eaeee5077fb57e6227e7112e1d1",
       "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
       "git_blob": "118c3a50d280ceec7fd38997068089911c718b7f",
       "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/benchmarks/dr151-profiles.md",
+      "size_bytes": 1714,
+      "sha256": "50f44f8bd93416366969ca5cf696da0bcb0f2449422ce3b74cf91b5fbef4489e",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "6667d7d702d715c4d7ee0aa516bce19ae01d77bb",
+      "source_kind": "WITHDRAWN M1 timing publication snapshot, not speed evidence"
     },
     {
       "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/fse-comparison-aa.md",
