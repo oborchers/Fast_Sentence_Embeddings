@@ -165,6 +165,15 @@ def svg(rows, caption, colors, *, preview=False):
     return "\n".join(parts) + "\n"
 
 
+def check_stale(output, files):
+    owned = {"speed-table.md", "library-speedups-light.svg", "library-speedups-dark.svg"}
+    stale = sorted(name for name in owned - files.keys() if (output / name).exists())
+    if stale:
+        raise ValueError(
+            f"Unselected panel files already exist: {stale}. Review these outputs before publishing."
+        )
+
+
 def publish(data, output, palette):
     if data["format"] != "readme-speed-panels-v1":
         raise ValueError("Unsupported speed-panel format")
@@ -179,12 +188,7 @@ def publish(data, output, palette):
         for theme in ("light", "dark"):
             colors = {key: value["value"] for key, value in palette[theme].items()}
             files[f"library-speedups-{theme}.svg"] = svg(pairs, data["comparison_caption"], colors)
-    owned = {"speed-table.md", "library-speedups-light.svg", "library-speedups-dark.svg"}
-    stale = sorted(name for name in owned - files.keys() if (output / name).exists())
-    if stale:
-        raise ValueError(
-            f"Unselected panel files already exist: {stale}. Review these outputs before publishing."
-        )
+    check_stale(output, files)
     # Validate every requested output before writing any file.
     for name, content in files.items():
         (output / name).write_text(content)
