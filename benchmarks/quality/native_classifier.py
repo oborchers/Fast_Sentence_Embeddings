@@ -67,6 +67,12 @@ def train(data, repo: str, output: Path, provenance: dict, *, timed_training=Fal
     train_rows, train_labels, test_rows, test_labels = data
     output.mkdir()  # Never mix a completed export with a partial training run.
     runtime = identity("model2vec")
+    method_files = [
+        Path(__file__),
+        Path(__file__).with_name("prepare_setfit.py"),
+        Path(__file__).with_name("prepare_fineweb.py"),
+    ]
+    method = {path.name: file_digest(path) for path in method_files}
     source = cached_snapshot(repo, MODELS[repo])
     base_identity = native_encoder_identity(repo, source)
     torch.manual_seed(0)
@@ -85,6 +91,8 @@ def train(data, repo: str, output: Path, provenance: dict, *, timed_training=Fal
     exported = StaticModelPipeline.from_pretrained(output)
     predicted = exported.predict(test_rows, use_multiprocessing=False)
     verify_backend_identity("model2vec", runtime)
+    if method != {path.name: file_digest(path) for path in method_files}:
+        raise ValueError("classifier training harness changed during training")
     record = {
         **provenance,
         **runtime,
@@ -106,7 +114,10 @@ def train(data, repo: str, output: Path, provenance: dict, *, timed_training=Fal
         "training_tool_chain": "torch, trainable embeddings and one hidden layer of 512 units",
         "training_comparison": "different tool chains: sklearn frozen encoder versus torch fine tuning",
         "fit": FIT,
-        "early_stopping_data": "seed-0 internal 10% split of training rows only",
+        "early_stopping_data": "seed-0 internal 0.1 fraction, capped at 10000 training rows by model2vec 0.10.0",
+        "early_stopping_rows": min(int(len(train_rows) * 0.1), 10000),
+        "torch_num_threads": torch.get_num_threads(),
+        "training_method_files": method,
         "inference_export": "StaticModelPipeline.save_pretrained, NumPy MLP and StaticModel",
         "export_files": artifact_files(output),
         "platform_check": "pending comparison with the other platform on the same dataset and protocol",

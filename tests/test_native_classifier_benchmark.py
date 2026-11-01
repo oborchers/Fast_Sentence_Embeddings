@@ -63,7 +63,9 @@ def test_training_sees_only_training_rows_and_evaluates_reload(native, monkeypat
     monkeypatch.setitem(
         sys.modules,
         "torch",
-        SimpleNamespace(manual_seed=lambda _: None, Tensor=type("Tensor", (), {})),
+        SimpleNamespace(
+            manual_seed=lambda _: None, Tensor=type("Tensor", (), {}), get_num_threads=lambda: 2
+        ),
     )
     monkeypatch.setitem(
         sys.modules, "model2vec.train", SimpleNamespace(StaticModelForClassification=Trainable)

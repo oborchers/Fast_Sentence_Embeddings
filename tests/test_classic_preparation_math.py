@@ -1,6 +1,8 @@
 """Offline SIF folding keeps the recipe's projection and unknown-token divisor."""
 
 import importlib
+import subprocess
+import sys
 from collections import Counter
 from pathlib import Path
 
@@ -35,3 +37,9 @@ def test_sif_uses_training_frequencies_only_and_requires_overlap(recipe):
     np.testing.assert_array_equal(weights, np.array([0.001 / 1.001, 1.0], dtype=np.float32))
     with pytest.raises(ValueError, match="no vocabulary overlap"):
         recipe.sif_weights(["absent"], Counter({"other": 1}))
+
+
+def test_tokenizer_imports_from_the_comparison_script_path():
+    root = Path(__file__).resolve().parents[1] / "benchmarks"
+    command = "import sys; sys.path.insert(0, sys.argv[1]); import quality.classic_corpus"
+    subprocess.run([sys.executable, "-c", command, str(root)], check=True, capture_output=True)

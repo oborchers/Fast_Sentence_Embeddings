@@ -49,3 +49,15 @@ environment failed because pytest is not installed; no dependency was added.
 Ruff check, format check and guardrails pass. The full local gate is queued
 under heavy.lock after window6. Final full-scope evidence and claims still
 require review when collection finishes.
+
+## Pod and native-classifier review, 2026-11-01
+
+An independent read-only gpt-6-astra review at high effort examined source `56c36c6`.
+All four findings were verified against executable imports or pinned Model2Vec source.
+The classic tokenizer now imports from the same package path as comparison children.
+Cell validity includes spread across all fse controls, alongside within-round A/A.
+POTION preparation precedes the probe, which requires at least 120 seconds of observations.
+Native early-stopping records describe Model2Vec 0.10.0's 10,000-row validation cap.
+Regression tests cover package imports, between-round drift and an undersized probe.
+The full gate before these corrections passed 9,224 tests with 524 skips.
+The corrected source still requires its own focused and full validation receipts.

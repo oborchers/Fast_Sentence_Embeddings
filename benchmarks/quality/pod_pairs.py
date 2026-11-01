@@ -29,10 +29,19 @@ def aa_band(rows):
         "aa_max_ratio": ratio,
         "symmetric_aa_band": [1 / ratio, ratio],
         "aa_spread_percent": (ratio - 1) * 100,
+        "control_seconds": times,
         "noise_label": "within 10% A/A band"
         if ratio <= 1.1
         else "noisy, re-measure in a quiet window",
     }
+
+
+def noise_label(ratio):
+    if ratio is None:
+        return "unavailable, incomplete"
+    if ratio > 1.1:
+        return "noisy, re-measure in a quiet window"
+    return "within 10% A/A band"
 
 
 def operation(command, label, workers, deadline, output, context, hardware):
@@ -97,7 +106,7 @@ def round_observation(commands, ordered, workers, deadline, output, context, har
             "equal_inputs": equal_inputs,
         },
     )
-    return good, band["aa_max_ratio"]
+    return good, band
 
 
 def series(commands, workers, output, deadline, cell, *, minimum_seconds=0):
@@ -106,7 +115,8 @@ def series(commands, workers, output, deadline, cell, *, minimum_seconds=0):
     hardware = environment()
     identifier = uuid.uuid4().hex
     start = time.monotonic()
-    valid, ratios = 0, []
+    valid, ratios, controls = 0, [], []
+    failed = False
     labels = list(commands)
     for attempt in range(1000 if minimum_seconds else 9):
         if time.monotonic() >= deadline:
@@ -114,12 +124,14 @@ def series(commands, workers, output, deadline, cell, *, minimum_seconds=0):
         ordered = labels[attempt % len(labels) :] + labels[: attempt % len(labels)]
         context = {"series_id": identifier, "cell": cell, "round": attempt}
         try:
-            good, ratio = round_observation(
+            good, band = round_observation(
                 commands, ordered, workers, deadline, output, context, hardware
             )
-            ratios.append(ratio)
+            ratios.append(band["aa_max_ratio"])
+            controls.extend(band["control_seconds"])
             valid += good
         except (RuntimeError, TimeoutError, subprocess.TimeoutExpired) as error:
+            failed = True
             append(
                 output / "speed-results.jsonl",
                 {
@@ -135,15 +147,29 @@ def series(commands, workers, output, deadline, cell, *, minimum_seconds=0):
         if valid >= 3 and time.monotonic() - start >= minimum_seconds:
             break
     # Probe rejection uses every observed A/A round, including noisy rounds.
+    elapsed = time.monotonic() - start
+    control_ratio = max(controls) / min(controls) if controls else None
     result = {
         "event": "series_complete",
         "series_id": identifier,
         "cell": cell,
         "valid_rounds": valid,
         "required_rounds": 3,
-        "complete": valid >= 3 and bool(ratios) and max(ratios) <= 1.1,
-        "aa_max_ratio": max(ratios) if ratios else None,
-        "seconds": time.monotonic() - start,
+        "complete": not failed
+        and valid >= 3
+        and bool(ratios)
+        and max(ratios) <= 1.1
+        and control_ratio <= 1.1
+        and elapsed >= minimum_seconds,
+        "aa_max_ratio": control_ratio,
+        "aa_within_round_max_ratio": max(ratios) if ratios else None,
+        "symmetric_aa_band": [1 / control_ratio, control_ratio] if controls else None,
+        "noise_label": noise_label(control_ratio),
+        "incomplete_round": failed,
+        "aa_control_max_ratio": control_ratio,
+        "aa_control_seconds_range": [min(controls), max(controls)] if controls else None,
+        "minimum_observation_seconds": minimum_seconds,
+        "seconds": elapsed,
         **hardware,
     }
     append(output / "speed-results.jsonl", result)

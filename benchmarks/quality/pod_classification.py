@@ -93,7 +93,9 @@ def run(args):
         pod_training_times=True,
     )
     # Each complete dataset produces its inference evidence before the next training job.
-    for spec in json.loads(SOURCES.read_text())["datasets"]:
+    specifications = json.loads(SOURCES.read_text())["datasets"]
+    specifications.sort(key=lambda spec: spec["dataset"] != "SetFit/subj")
+    for spec in specifications:
         name = spec["dataset"].removeprefix("SetFit/")
         settings.output, settings.cache = root / "setfit", args.cache / "setfit"
         settings.output.mkdir(exist_ok=True)

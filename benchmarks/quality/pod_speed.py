@@ -107,8 +107,10 @@ def download_corpus(name):
 
 def probe(args):
     download_corpus("massive")
-    args.deadline = min(args.deadline, time.monotonic() + 120)
-    result = encode_cell(args, POTION, "float32", "massive", 1, minimum=115)
+    ensure_model(POTION, "float32", args)
+    # Prepare outside the observation window, then finish the last rotating round.
+    args.deadline = min(args.deadline, time.monotonic() + 150)
+    result = encode_cell(args, POTION, "float32", "massive", 1, minimum=120)
     accepted = result["complete"] and result["aa_max_ratio"] <= 1.1
     emit("host-probe", {**result, "accepted": accepted, "host_load_rejects": False})
     (args.output / "probe.json").write_text(json.dumps({**result, "accepted": accepted}))

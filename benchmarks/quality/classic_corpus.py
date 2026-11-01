@@ -6,7 +6,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from classic_sources import FIT_LINES, FIT_REPO, FIT_REVISION
+from quality.classic_sources import FIT_LINES, FIT_REPO, FIT_REVISION
 
 
 def tokenize(text: str) -> list[str]:

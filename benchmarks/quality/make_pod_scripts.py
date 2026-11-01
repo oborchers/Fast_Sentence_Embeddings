@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import re
+import subprocess
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -107,6 +108,8 @@ def main():
     args = parser.parse_args()
     if not re.fullmatch("[0-9a-f]{40}", args.commit):
         parser.error("commit must be a full 40-character object ID")
+    if subprocess.run(["git", "cat-file", "-e", args.commit + "^{commit}"], check=False).returncode:
+        parser.error("commit is not present in this repository")
     args.output.mkdir(parents=True, exist_ok=True)
     for pod in (1, 2):
         path = args.output / f"dr151-pod{pod}.sh"

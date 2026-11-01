@@ -36,12 +36,13 @@ The three-hour limit can leave models unfinished. Partial artifacts remain expli
 Host load covers the shared physical host, so it is recorded without rejecting runs.
 This exception applies only to the Linux pod. Local timing remains prohibited by coordinator rule 10.
 The initial approximately two-minute probe uses POTION-8M float32, MASSIVE and one fse worker.
-It rejects the host if any observed symmetric A/A envelope exceeds `[1/1.1, 1.1]`.
+It rejects the host if either the within-round envelope or the spread across all controls exceeds 10%.
+Model preparation precedes at least 120 seconds of observations, with up to 30 seconds to finish the final round.
 Fewer than three valid rounds also rejects the host. Rejected probes stop before Rust and training setup.
 
 Each cell rotates fresh processes with fse A/A controls and requires three valid rounds.
 All observations remain in JSONL, including failed or noisy rounds.
-Any observed A/A envelope above 10% labels the entire cell incomplete.
+Any observed A/A envelope or all-control spread above 10% labels the entire cell incomplete.
 Primary fse summaries use `fse-a`; `fse-b` is a separate control.
 
 Run order:
@@ -86,7 +87,8 @@ The pipeline is saved and reloaded as `StaticModelPipeline` for inference.
 Each comparison uses the same POTION source and dataset splits as its frozen counterpart.
 Native training updates embeddings and a 512-unit hidden layer. Frozen LogReg updates only its linear head.
 Training durations are separate and explicitly label sklearn versus torch tool chains.
-Native early stopping uses a seed-0 internal 10% training split, never evaluation data.
+Native early stopping uses a seed-0 internal training split, a 0.1 fraction capped at 10,000 rows.
+This is 100 rows for SetFit and 10,000 for FineWeb. No evaluation row enters this split.
 Accuracy and macro-F1 are recorded alongside inference evidence at requested settings 1/32.
 The local `subj` accuracy checkpoint awaits comparison with the pod's matching dataset result.
 
