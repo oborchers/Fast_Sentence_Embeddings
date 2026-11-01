@@ -1,16 +1,16 @@
 # Finaler Tempo-Lauf bereit
 
-DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen). Der Koordinator startet, überwacht, sichert und löscht die Maschine. Dieser Auftrag startet keine Maschine selbst. Kein Merge und kein automatischer Wiederholungsversuch.
+DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen). Der Koordinator startet, überwacht, sichert und löscht die Maschine. Diese Übergabe ersetzt den fehlgeschlagenen ersten Start. Dieser Auftrag startet keine Maschine selbst. Kein Merge und kein automatischer Wiederholungsversuch.
 
 ## Festgeschriebener Stand
 
-Quell-Pin: `dca557f72376bfdd142c33a4376d613a06929012`. Alle sieben folgenden Dateien sind in diesem gepushten Commit enthalten. Der Übergabe-Commit darf später sein, solange diese Dateien bytegleich bleiben.
+Quell-Pin: `0c639113f80383fda461f3e776db38eee0efee71`. Alle sieben folgenden Dateien sind in diesem gepushten Commit enthalten. Der Übergabe-Commit darf später sein, solange diese Dateien bytegleich bleiben.
 
 | Datei unter benchmarks/ | Bytes | SHA256 |
 | --- | ---: | --- |
 | `speed-run-2026-11.py` | 19382 | `d3d9215f279aa1926a1c29d9246db333513cd60c1ae7542938b80c162c769ee1` |
 | `_speed_cells.py` | 18529 | `dc2fb1704b070cdc8c8598a8a31b48af3f69d81403ad70d38cf76bf6bf6b9bf9` |
-| `_speed_pipeline.py` | 19381 | `30042ec1667b9c180a366b49b8f4dfd5013bf81a49e7553fda8d3abcaf2351e4` |
+| `_speed_pipeline.py` | 19431 | `84de9036028065814211d929284f073f0476a2f4269617f92662ec6e81e8a54f` |
 | `speed-input-2026-11.json` | 10108 | `7a446913d180d4aeece6ac3c17eaac983dec7bc1f6c19407c71640cf50d8c7eb` |
 | `speed-main.lock.txt` | 173667 | `e7db4ba8b6afdf36d9eb0cd41499cb10ff01d3a4a3bacbd7a413d3e2c964f875` |
 | `speed-reference.lock.txt` | 98420 | `218d9855038b4ef6f3253c04c1f031350f4c52135fe16cbff35bf625e348f73d` |
@@ -29,7 +29,7 @@ Genau ein ausführbarer Python-Einstieg und zwei private Messmodule. Die drei Lo
 - Zusätzliches Env: `SPEED_ALLOCATED_AT`, tatsächliche Allokationszeit als Unix-Sekunden. Nicht erst den späteren Messbeginn einsetzen.
 - Weitere Env-Werte stehen ausdrücklich im Befehlsblock. Keinen externen Timeout ergänzen, der eine begonnene Zelle abschneidet.
 
-Der Shell-Block richtet zuerst SSH ein. Danach installiert der eine Python-Einstieg die gesperrten Umgebungen. Er beginnt anschließend denselben vollständigen Messlauf. Der Supervisor startet nichts erneut. Bei einem frühen Fehler erzeugt er einen Abschluss ohne erfundene Messwerte.
+Der Shell-Block richtet zuerst SSH ein. Danach installiert der eine Python-Einstieg die gesperrten Umgebungen. Er beginnt anschließend denselben vollständigen Messlauf. Der Supervisor startet nichts erneut und wartet nach jedem terminalen Abschluss mit `sleep infinity`, bis der Koordinator die Maschine löscht. Bei einem frühen Fehler erzeugt er einen Abschluss ohne erfundene Messwerte.
 
 ```bash
 set -euo pipefail
@@ -38,6 +38,8 @@ mkdir -p /speed-logs
 exec > >(tee -a /speed-logs/bootstrap.log) 2>&1
 finish() {
   export SPEED_EXIT_STATUS="$?"
+  set +e
+  trap - EXIT
   /usr/local/bin/python - <<'FAILURE_RECORD'
 import hashlib,json,os,pathlib,time
 p=pathlib.Path('/speed-results')
@@ -56,15 +58,27 @@ if not (p/'DONE').exists():
     write('manifest.json',dict(files=files))
     write('DONE',dict(exit_status=status,completed_at=time.time(),cells=rows,manifest_sha256=hashlib.sha256((p/'manifest.json').read_bytes()).hexdigest(),terminal_supervisor=True))
 FAILURE_RECORD
+  sleep infinity
 }
 trap finish EXIT
-/usr/bin/apt-get update
-/usr/bin/apt-get install -y openssh-server git
+mkdir -p /speed-state
+first_run=1
+if ! (set -o noclobber; printf '%s\n' '0c639113f80383fda461f3e776db38eee0efee71' > /speed-state/started); then
+  first_run=0
+fi
+if ! test -x /usr/sbin/sshd; then
+  /usr/bin/apt-get update
+  /usr/bin/apt-get install -y openssh-server git
+fi
 mkdir -p /run/sshd /root/.ssh
 chmod 700 /root/.ssh
 printf '%s\n' "$PUBLIC_KEY" > /root/.ssh/authorized_keys
 chmod 600 /root/.ssh/authorized_keys
 /usr/sbin/sshd
+if test "$first_run" = 0 || test -e /speed-source || test -e /speed-env || test -e /speed-work || test -e /speed-results; then
+  printf 'RESTART_DETECTED: SSH only; setup and measurement will not restart.\n'
+  exit 77
+fi
 : "${SPEED_ALLOCATED_AT:?Set the actual allocation Unix timestamp}"
 export PYTHONUNBUFFERED=1
 export UV_CACHE_DIR=/speed-cache/uv
@@ -74,7 +88,7 @@ export RUSTUP_HOME=/root/.rustup
 export CARGO_HOME=/root/.cargo
 export LC_ALL=C.UTF-8
 /usr/bin/git clone --single-branch --branch dr151-compare https://github.com/oborchers/Fast_Sentence_Embeddings.git /speed-source
-/usr/bin/git -C /speed-source checkout --detach dca557f72376bfdd142c33a4376d613a06929012
+/usr/bin/git -C /speed-source checkout --detach 0c639113f80383fda461f3e776db38eee0efee71
 export SPEED_SETUP_STARTED_AT="$(/usr/local/bin/python -c 'import time; print(time.time())')"
 printf 'allocation=%s setup_started=%s\n' "$SPEED_ALLOCATED_AT" "$SPEED_SETUP_STARTED_AT"
 /usr/local/bin/python /speed-source/benchmarks/speed-run-2026-11.py --setup /speed-env --allocated-at "$SPEED_ALLOCATED_AT"
@@ -86,7 +100,7 @@ wait "$measurement_pid"
 
 Die Allokationszeit zählt für Geld und Gesamthorizont, einschließlich Provisionierung. `SPEED_SETUP_STARTED_AT` begrenzt die eigentliche Einrichtung samt anschließender Vorbereitung. Langsames Image-Laden verbraucht deshalb Geld, aber nicht bereits das gesamte fünfminütige Einrichtungsfenster.
 
-Während der Einrichtung fehlen die drei Controller-Dateien zunächst. Das ist innerhalb der erwarteten drei Minuten normal. Das Bootstrap-Log liegt bereits unter `/speed-logs/bootstrap.log`. Ein vorzeitiger Prozessfehler erzeugt über den Supervisor die drei Wächterdateien. Beim Beginn des Controllers entsteht `progress.json` sofort. Die erste Ergebniszeile folgt nach der ersten vollständigen Zelle.
+Während der Einrichtung fehlen die drei Controller-Dateien zunächst. Das ist innerhalb der erwarteten drei Minuten normal. Das Bootstrap-Log liegt bereits unter `/speed-logs/bootstrap.log`. Ein vorzeitiger Prozessfehler erzeugt über den Supervisor die drei Wächterdateien. Danach wartet der Supervisor immer mit `sleep infinity`. Er beendet den Container nicht. Eine atomare Startmarke verhindert erneutes Klonen, Einrichten und Messen nach einem externen Neustart. Dabei startet nur SSH neu. Beim Beginn des Controllers entsteht `progress.json` sofort. Die erste Ergebniszeile folgt nach der ersten vollständigen Zelle.
 
 ## Abholung alle zwei Minuten
 
@@ -162,3 +176,21 @@ Lokale Nachweise, keine zusätzlichen Benchmark-Tests im Repository:
 - response: `/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.review/speed-implementation/review-response.md`, SHA256 `1d1af8821264dbfb20b0ff5ff4752421b489ef813f365d622ee85b699c89f6ee`.
 
 Die Quellprüfungen Ruff, Formatprüfung und Guardrails bestehen. Es wurden keine neuen Benchmark-Testdateien angelegt. Nach dem einen Lauf folgen Auswertung, Archivierung und das bereits genehmigte Aufräumen. Bestehende Qualitätswerte werden nicht verändert. Kein PR wird gemergt.
+
+## Ergänzung nach dem ersten Einrichtungsfehler
+
+Der erste bezahlte Start lieferte keine Messwerte und kostete nach Koordinatorangabe ungefähr 0,10 USD. Seine fehlerhafte Indexstrategie ist korrigiert. Installation und Lock-Auflösung nutzen jetzt beide `unsafe-best-match`. Alle Pakete bleiben versionsgebunden. `--require-hashes` prüft ihre festgelegten Artefakt-Bytes. Das CPU-Torch ist zusätzlich durch die lokale Version `+cpu` gebunden. Ein gleichnamiges Paket von einem anderen Index kann deshalb keine anderen Bytes einschleusen. Die vorhandenen Paketprüfungen prüfen beide Umgebungen und anschließend fse nochmals.
+
+Die komplette Einrichtung wurde jetzt tatsächlich im selben Image-Digest mit `--platform linux/amd64` unter Docker geprüft. Die lokale Prüfung hatte zwei CPUs und vier GiB RAM. Für die langsamere Emulation betrug nur ihr privates Setup-Zeitfenster 120 Minuten. Die Produktionsdatei behält fünf Minuten. Es wurde kein A/A- oder Zwei-Sekunden-Gate gelockert, weil keinerlei Messzelle aufgerufen wurde.
+
+Die Prüfung installierte beide Umgebungen, baute fse und den Rust-Worker, lud beide Modelle mit allen Tabellen-Datentypen, bereitete den vollständigen Korpus vor und rekonstruierte den linearen Kopf. Alle fünf Vorbereitungsbelege melden `complete`. Die Importe von fse, Model2Vec, FastEmbed, sentence-transformers und CPU-Torch bestanden. Die gesicherten Belege wurden vollständig gegen ihr Manifest geprüft.
+
+Zusätzlich wurde ein früher Bootstrap-Fehler absichtlich ausgelöst. Der Container blieb mit DONE und laufendem SSH erreichbar. Nach einem erzwungenen Neustart blieb DONE unverändert und die Clone-Anzahl bei eins. Der Neustart startete keine Einrichtung und keine Messung.
+
+Kein zusätzliches Review ist erforderlich: Seit dem geprüften Messcode änderte sich in Python ausschließlich die Indexstrategie innerhalb von `setup`. Die weiteren Änderungen betreffen den Bootstrap in dieser Übergabe. Die Messfunktionen sind bytegleich.
+
+Linux-Nachweis: `/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.review/speed-implementation/linux-setup-proof/complete-results/complete-setup.json`, SHA256 `5a167f0f10287b4259580554a3f9f116531c9a08c852a035a2e3b965a9d834d7`.
+
+Neustart-Nachweis: `/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.review/speed-implementation/linux-setup-proof/bootstrap-restart-proof.json`, SHA256 `aa27830726acde19a0d6ee3292f9c8dce04b602e5755fbeb57d1fb4c47918832`.
+
+Konsolidierte Prüfung: `/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.review/speed-implementation/final-verification-v2.json`. Diese lokalen Prüfprogramme und Rohbelege werden nicht als Werkzeugtests ins Repository aufgenommen.
