@@ -14,3 +14,19 @@ FIT_REVISION = "b08601e04326c79dfdd32d625aee71d232d685c3"
 FIT_LINES = 859_346
 
 DTYPES = ("float32", "float16", "int8")
+
+BASELINES = {
+    "glove-wiki-gigaword-300": (44.46, 71.43),
+    "word2vec-google-news-300": (61.54, 71.18),
+    "paranmt-300": (79.82, 76.74),
+    "paragram-300-sl999": (51.46, 74.29),
+    "fasttext-crawl-subwords-300": (48.53, 73.58),
+}
+
+LICENSES = {
+    "glove-wiki-gigaword-300": "pddl",
+    "word2vec-google-news-300": "other",
+    "paranmt-300": "unknown",
+    "paragram-300-sl999": "unknown",
+    "fasttext-crawl-subwords-300": "cc-by-sa-3.0",
+}

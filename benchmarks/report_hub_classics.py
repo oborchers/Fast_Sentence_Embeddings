@@ -4,37 +4,25 @@ from __future__ import annotations
 
 import argparse
 import json
-from itertools import product
 from pathlib import Path
 
-from hub_classic_sources import DTYPES, SOURCES
-from prepare_hub_classics import digest
+from hub_classic_delivery import validate_previews, validated_source
+from hub_classic_sources import SOURCES
 
 
 def load(path):
     return json.loads(path.read_text())
 
 
-def checked_record(models, stem):
-    record = load(models / f"{stem}.json")
-    folder = models / stem
-    if {p.name for p in folder.iterdir()} != set(record["files"]):
-        raise ValueError(f"file inventory mismatch: {folder}")
-    for file, spec in record["files"].items():
-        path = folder / file
-        if path.stat().st_size != spec["bytes"] or digest(path) != spec["xxh3"]:
-            raise ValueError(f"file size or checksum mismatch: {path}")
-    return record
-
-
-def inventory(models):
-    records = []
-    for name, method, dtype in product(SOURCES, ("raw", "sif10"), DTYPES):
-        suffix = "" if dtype == "float32" else f"-{dtype}"
-        records.append(checked_record(models, f"{name}-{method}{suffix}"))
+def inventory(models, selection_path):
+    records, verifications = [], {}
+    for name in SOURCES:
+        current, verification, _ = validated_source(models, name, selection_path, enriched=True)
+        records.extend(current)
+        verifications[name] = verification
     if len(records) != 30:
         raise ValueError("expected 30 finished folders")
-    return records
+    return records, verifications
 
 
 def comparison_text(selection):
@@ -64,7 +52,7 @@ def comparison_text(selection):
     return lines
 
 
-def verification_text(models):
+def verification_text(verifications):
     lines = [
         "## Comparison with fse 1.x",
         "",
@@ -78,7 +66,7 @@ def verification_text(models):
     ]
     explanations = []
     for name in SOURCES:
-        rows = load(models / f"{name}-verification.json")["rows"]
+        rows = verifications[name]["rows"]
         historical = next(r for r in rows if r["method"] == "sif10-historical-test-fit")
         for row in rows:
             change = row["difference_1x_points"]
@@ -88,15 +76,34 @@ def verification_text(models):
                 f"| {name} | {row['method']} | {row['dtype']} | {row['baseline_1x']:.2f} | {row['pearson']:.5f} | {change:+.5f} | {parent} | {recall} |"
             )
             if abs(change) > 0.5:
-                explanations.append(
-                    f"- {name}, {row['method']}, {row['dtype']}: {change:+.5f} points. Historical wordfreq/test-fit diagnostic: {historical['pearson']:.5f} against {historical['baseline_1x']:.2f}. The shipped model instead uses components from the selected separate training corpus. Folding components into word and ngram tables also changes rounding relative to post-pooling removal. See the per-source verification record for the default tokenizer score."
-                )
+                explanations.append(explain_difference(name, row, rows, historical))
+
     lines += ["", "### Differences above 0.5 points", "", *(explanations or ["None."]), ""]
     return lines
 
 
+def explain_difference(name, row, rows, historical):
+    prefix = (
+        f"- {name}, {row['method']}, {row['dtype']}: {row['difference_1x_points']:+.5f} points. "
+    )
+    if row["method"] != "sif10":
+        return prefix + "Unresolved historical reproduction gap. No attribution is established."
+    parent = next(r for r in rows if r["method"] == "sif10" and r["dtype"] == "float32")
+    historical_gap = historical["pearson"] - row["baseline_1x"]
+    training_gap = parent["pearson"] - historical["pearson"]
+    dtype_gap = row["pearson"] - parent["pearson"]
+    return prefix + (
+        f"The historical test-fit diagnostic is {historical['pearson']:.5f}, a {historical_gap:+.5f}-point "
+        f"gap from the published value. Moving to separate-training-corpus components plus a folded "
+        f"float32 table changes that diagnostic by {training_gap:+.5f} points. This dtype changes "
+        f"the prepared float32 score by {dtype_gap:+.5f} points. These observed terms sum to the "
+        "reported difference. No separate ablation isolates corpus choice from folding rounding."
+    )
+
+
 def write_report(models, comparison, output):
-    records = inventory(models)
+    records, verifications = inventory(models, comparison / "selection.json")
+    validate_previews(records, output.parent / "cards")
     selection = load(comparison / "selection.json")
     lines = [
         "# Classic word-vector preparation report",
@@ -108,7 +115,7 @@ def write_report(models, comparison, output):
         "(https://github.com/oborchers/Fast_Sentence_Embeddings/pull/201).",
         "",
         *comparison_text(selection),
-        *verification_text(models),
+        *verification_text(verifications),
         "## Built folders",
         "",
         "Checksums were recomputed over every file before this report was written. "
@@ -143,6 +150,7 @@ def write_report(models, comparison, output):
         "",
         "No timings, load-time comparisons or speed claims were made on this Mac.",
         "",
+        *cleanup_text(output.parent / "cleanup.json"),
         "## Delivery checks and open questions",
         "",
         "Repository gates and independent code/card review must be recorded here "
@@ -156,6 +164,28 @@ def write_report(models, comparison, output):
         "",
     ]
     output.write_text("\n".join(lines))
+
+
+def cleanup_text(path):
+    if not path.exists():
+        return ["## Cleanup", "", "No cleanup journal is present.", ""]
+    events = load(path)
+    lines = [
+        "## Cleanup",
+        "",
+        "| Removed owned intermediate | Allocated bytes removed |",
+        "|---|---:|",
+    ]
+    lines.extend(f"| `{row['target']}` | {row['allocated_bytes_removed']} |" for row in events)
+    total = sum(row["allocated_bytes_removed"] for row in events)
+    lines += [
+        "",
+        f"Total allocated size removed: {total} bytes. The journal also records observed "
+        "filesystem free-space readings. Concurrent workers can affect those readings. "
+        "Results, evidence, reports and shared caches were retained.",
+        "",
+    ]
+    return lines
 
 
 def main():

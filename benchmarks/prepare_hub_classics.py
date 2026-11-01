@@ -20,19 +20,11 @@ import numpy as np
 from hub_classic_corpus import batches
 from hub_classic_evidence import digest
 from hub_classic_math import components, fold_table, gram_of_batches, wordfreq_weights
-from hub_classic_sources import DTYPES, FIT_LINES, SOURCES
+from hub_classic_sources import DTYPES, FIT_LINES, LICENSES, SOURCES
 
 import fse
 from fse._encoder._format import Source
 from fse.gensim import from_gensim
-
-LICENSES = {
-    "glove-wiki-gigaword-300": "pddl",
-    "word2vec-google-news-300": "other",
-    "paranmt-300": "unknown",
-    "paragram-300-sl999": "unknown",
-    "fasttext-crawl-subwords-300": "cc-by-sa-3.0",
-}
 
 
 def source_model(name: str):
@@ -159,6 +151,7 @@ def write_variants(encoder, name, method, output):
             "revision": SOURCES[name],
             "fingerprint": loaded.fingerprint,
             "float32_fingerprint": encoder.fingerprint,
+            "float32_table_fingerprint": encoder.word_vectors.fingerprint,
             "files": {
                 p.name: {"bytes": p.stat().st_size, "xxh3": digest(p)}
                 for p in sorted(folder.iterdir())
@@ -174,20 +167,30 @@ def write_variants(encoder, name, method, output):
     return records
 
 
-def prepare(name, output, selection):
+def prepare(name, output, selection, methods=("raw", "sif10")):
+    if "sif10" in methods and selection is None:
+        raise ValueError("SIF preparation requires --selection")
+    if len(set(methods)) != len(methods):
+        raise ValueError("duplicate preparation methods")
     if shutil.disk_usage(output).free < 25 * 2**30:
         raise RuntimeError("less than 25 GiB free; build stopped")
     if any(
         (output / f"{name}-{method}{suffix}").exists()
-        for method in ("raw", "sif10")
+        for method in methods
         for suffix in ("", "-float16", "-int8")
     ):
         raise FileExistsError("source outputs already exist; never overwrite finished models")
-    kv = source_model(name)
-    encoder = fse.Encoder.from_word_vectors(from_gensim(kv), tokenizer="fse_words@1")
-    write_variants(encoder, name, "raw", output)
-    del encoder
-    gc.collect()
+    if "raw" in methods:
+        kv = source_model(name)
+        encoder = fse.Encoder.from_word_vectors(from_gensim(kv), tokenizer="fse_words@1")
+        write_variants(encoder, name, "raw", output)
+        del encoder, kv
+        gc.collect()
+    if "sif10" in methods:
+        prepare_sif(name, source_model(name), output, selection)
+
+
+def prepare_sif(name, kv, output, selection):
     with tempfile.TemporaryDirectory(prefix=f"{name}-fit-", dir=output) as temporary:
         directory = Path(temporary)
         state, receipt = fit_state(name, kv, selection, output, directory)
@@ -218,10 +221,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--name", choices=sorted(SOURCES), required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--selection", type=Path, required=True)
+    parser.add_argument("--selection", type=Path)
+    parser.add_argument("--methods", nargs="+", choices=["raw", "sif10"], default=["raw", "sif10"])
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
-    prepare(args.name, args.output, args.selection)
+    prepare(args.name, args.output, args.selection, args.methods)
 
 
 if __name__ == "__main__":

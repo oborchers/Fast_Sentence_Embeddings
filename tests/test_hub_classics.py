@@ -156,3 +156,14 @@ def test_each_source_fit_receipt_names_its_own_vectors_and_the_selection_candida
     assert "candidate_fingerprint" not in receipt
     assert receipt["state_xxh3"] == prepare.digest(state)
     assert receipt["selection_xxh3"] == prepare.digest(selection)
+
+
+def test_raw_only_preparation_needs_no_component_fit_or_selection(modules, monkeypatch, tmp_path):
+    _, prepare, _ = modules
+    kv = types.SimpleNamespace(index_to_key=["a", "b"])
+    monkeypatch.setattr(prepare, "source_model", lambda _name: kv)
+    vectors = fse.WordVectors.from_arrays(np.eye(2, dtype=np.float32), words=kv.index_to_key)
+    monkeypatch.setattr(prepare, "from_gensim", lambda _kv: vectors)
+    prepare.prepare("glove-wiki-gigaword-300", tmp_path, None, methods=("raw",))
+    assert len(list(tmp_path.glob("*/config.json"))) == 3
+    assert not list(tmp_path.glob("*-fit.npz"))

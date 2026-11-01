@@ -20,19 +20,12 @@ import numpy as np
 from hub_classic_corpus import tokenize
 from hub_classic_evidence import benchmark_bytes, benchmark_identity, digest
 from hub_classic_math import components, gram_of_batches, remove, wordfreq_weights
-from hub_classic_sources import DTYPES, SOURCES
+from hub_classic_metrics import neighbors, recall, score
+from hub_classic_sources import BASELINES, DTYPES, SOURCES
 from prepare_hub_classics import source_model, weighted_encoder
 
 import fse
 from fse._tokenizer_spec import TokenizerSpec
-
-BASELINES = {
-    "glove-wiki-gigaword-300": (44.46, 71.43),
-    "word2vec-google-news-300": (61.54, 71.18),
-    "paranmt-300": (79.82, 76.74),
-    "paragram-300-sl999": (51.46, 74.29),
-    "fasttext-crawl-subwords-300": (48.53, 73.58),
-}
 
 
 def benchmark():
@@ -43,37 +36,6 @@ def benchmark():
     labels = np.asarray([float(line[4]) for line in lines])
     texts = [line[5] for line in lines] + [line[6] for line in lines]
     return labels, texts, [tokenize(text) for text in texts]
-
-
-def normalized(rows):
-    norms = np.linalg.norm(rows, axis=1, keepdims=True)
-    return np.divide(rows, norms, out=np.zeros_like(rows), where=norms != 0)
-
-
-def score(labels, rows):
-    from scipy.stats import pearsonr
-
-    rows = normalized(rows)
-    half = len(labels)
-    similarities = (rows[:half] * rows[half:]).sum(axis=1)
-    return float(pearsonr(labels, similarities).statistic * 100)
-
-
-def neighbors(rows):
-    rows = normalized(rows)
-    result = []
-    for start in range(0, len(rows), 256):
-        sims = rows[start : start + 256] @ rows.T
-        sims[np.arange(len(sims)), start + np.arange(len(sims))] = -np.inf
-        # Stable sorting fixes ties by row id, including duplicate STS sentences.
-        result.append(np.argsort(-sims, axis=1, kind="stable")[:, :10])
-    return np.concatenate(result)
-
-
-def recall(reference, actual):
-    return float(
-        np.mean([len(set(a) & set(b)) / 10 for a, b in zip(reference, actual, strict=True)])
-    )
 
 
 def external_view(encoder):
@@ -89,6 +51,10 @@ def historical(name, tokens, labels, output):
         rows = encoder.encode(tokens, workers=2)
     basis = components(gram_of_batches([rows]))
     return {
+        "benchmark": benchmark_identity(),
+        "pairs": len(labels),
+        "source": f"fse/{name}",
+        "source_revision": SOURCES[name],
         "method": "sif10-historical-test-fit",
         "dtype": "float32",
         "pearson": score(labels, remove(rows, basis)),

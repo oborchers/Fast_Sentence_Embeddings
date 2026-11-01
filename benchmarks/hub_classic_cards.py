@@ -10,8 +10,12 @@ import argparse
 import json
 from pathlib import Path
 
+from hub_classic_card_publish import publish_card, recover_pending
+from hub_classic_delivery import CARD_RECIPE, validated_source
 from hub_classic_evidence import validate_build
-from prepare_hub_classics import LICENSES, digest
+from hub_classic_sources import SOURCES
+from hub_classic_verification import verification_rows
+from prepare_hub_classics import LICENSES
 
 from fse._encoder import _card, _folder
 
@@ -142,7 +146,9 @@ def measured_text(record, result, rows):
 
 
 def render(folder, record, verification, fit):
-    result = next(r for r in verification["rows"] if r.get("repo") == record["repo"])
+    name = record["source"].split("/")[1]
+    keyed = verification_rows(verification, name)
+    result = keyed[(record["method"], record["dtype"])]
     validate_build(folder, record, result, fit)
     metadata, shapes = _folder._header(folder / "model.safetensors")
     name = record["source"].split("/")[1]
@@ -157,6 +163,7 @@ def render(folder, record, verification, fit):
     text = front_matter(template, name, fit)
     text = text.replace("pip install fse", 'pip install "fse>=2.0.0"')
     text = text.replace("## Usage\n", "## Usage\n\nThis model requires the fse 2.0 API.\n")
+    text += f"\n<!-- {CARD_RECIPE} -->\n"
     text += "\n" + "\n".join(measured_text(record, result, verification["rows"]))
     if fit is not None:
         text += "\n" + "\n".join(fit_text(fit))
@@ -168,29 +175,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--models", type=Path, required=True)
     parser.add_argument("--cards", type=Path, required=True)
+    parser.add_argument("--selection", type=Path, required=True)
     args = parser.parse_args()
     args.cards.mkdir(parents=True, exist_ok=True)
-    for folder in sorted(
-        p for p in args.models.iterdir() if p.is_dir() and (p / "config.json").exists()
-    ):
-        record_path = args.models / f"{folder.name}.json"
-        record = json.loads(record_path.read_text())
-        name = record["source"].split("/")[1]
-        verification = json.loads((args.models / f"{name}-verification.json").read_text())
-        fit = (
-            json.loads((args.models / f"{name}-fit.json").read_text())
-            if record["method"] == "sif10"
-            else None
-        )
-        text = render(folder, record, verification, fit)
-        (folder / "README.md").write_text(text)
-        (args.cards / f"{folder.name}.md").write_text(text)
-        if fit is not None:
-            (folder / "preparation.json").write_text(json.dumps(fit, indent=2) + "\n")
-        record["files"] = {
-            p.name: {"bytes": p.stat().st_size, "xxh3": digest(p)} for p in sorted(folder.iterdir())
-        }
-        record_path.write_text(json.dumps(record, indent=2) + "\n")
+    recover_pending(args.models, args.cards)
+    for name in SOURCES:
+        records, verification, fit = validated_source(args.models, name, args.selection)
+        for record in records:
+            folder = args.models / record["repo"].split("/")[1]
+            current_fit = fit if record["method"] == "sif10" else None
+            text = render(folder, record, verification, current_fit)
+            publish_card(folder, args.models / f"{folder.name}.json", args.cards, text, current_fit)
 
 
 if __name__ == "__main__":

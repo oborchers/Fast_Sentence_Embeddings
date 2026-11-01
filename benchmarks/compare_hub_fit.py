@@ -13,8 +13,8 @@ from hub_classic_corpus import batches, fit_corpus
 from hub_classic_evidence import benchmark_identity, tokenizer_identity
 from hub_classic_fineweb import REVISION, sampled_corpus
 from hub_classic_math import components, gram_of_batches, wordfreq_weights
-from hub_classic_sources import FIT_LINES, FIT_REPO, FIT_REVISION
-from prepare_hub_classics import digest, fold_encoder, source_model, weighted_encoder
+from hub_classic_sources import FIT_LINES, FIT_REPO, FIT_REVISION, SOURCES
+from prepare_hub_classics import digest, fold_encoder, provenance, source_model, weighted_encoder
 from scipy.stats import spearmanr
 from verify_hub_classics import benchmark, score
 
@@ -23,6 +23,8 @@ import fse
 
 def fit_candidate(encoder, weights, corpus, kind, output):
     receipt = {
+        "source_repo": "fse/glove-wiki-gigaword-300",
+        "source_revision": SOURCES["glove-wiki-gigaword-300"],
         "corpus": FIT_REPO
         if kind == "wikitext"
         else "HuggingFaceFW/fineweb-edu-llama3-annotations",
@@ -61,6 +63,7 @@ def export_candidate(encoder, basis, kind, words, output):
     with tempfile.TemporaryDirectory(prefix="fold-", dir=output) as temp:
         paths, arrays, _ = fold_encoder(encoder, basis, Path(temp))
         model = fse.Encoder.from_arrays(arrays[0], words=words, tokenizer="external")
+        model = provenance(model, "glove-wiki-gigaword-300")
         model.save(output / f"glove-{kind}-wordfreq.safetensors")
         del arrays
         for path in paths:

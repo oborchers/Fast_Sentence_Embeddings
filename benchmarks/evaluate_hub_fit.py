@@ -20,6 +20,7 @@ from hub_classic_evidence import (
     MTEB_VERSION,
     benchmark_identity,
     candidate_evidence,
+    implementation_digest,
     validate_score,
 )
 from mteb.models.abs_encoder import AbsEncoder
@@ -47,6 +48,13 @@ class Candidate(AbsEncoder):
         return self.model.encode([tokenize(text) for text in texts], workers=2)
 
 
+def adapter_identity():
+    return {
+        "mteb_adapter_recipe": "fse_classic_mteb@1",
+        "mteb_adapter_code_xxh3": implementation_digest(Candidate.encode),
+    }
+
+
 def evaluate_task(kind, task, output):
     target = output / f"glove-{kind}-{task.metadata.name}.json"
     if target.exists():
@@ -67,6 +75,7 @@ def evaluate_task(kind, task, output):
         raise ValueError("NanoBEIR task did not produce exactly one result")
     row = {
         **evidence,
+        **adapter_identity(),
         "task": task.metadata.name,
         "dataset": task.metadata.dataset,
         "main_score": result.task_results[0].get_score(),
@@ -94,6 +103,7 @@ def select(output, cache):
             row = json.loads((output / f"glove-{kind}-{task.metadata.name}.json").read_text())
             expected = {
                 **evidence,
+                **adapter_identity(),
                 "task": task.metadata.name,
                 "dataset": task.metadata.dataset,
                 "main_score_name": "ndcg_at_10",

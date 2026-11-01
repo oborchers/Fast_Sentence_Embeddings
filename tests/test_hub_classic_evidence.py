@@ -56,6 +56,8 @@ def test_changed_fit_state_or_candidate_is_refused(evidence, monkeypatch, tmp_pa
         "state_xxh3": evidence.digest(state),
         "candidate_fingerprint": model.fingerprint,
         "tokenizer": {},
+        "source_repo": "fse/glove-wiki-gigaword-300",
+        "source_revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
     }
     (tmp_path / "glove-wikitext-fit.json").write_text(json.dumps(receipt))
     assert (
