@@ -135,3 +135,62 @@ def test_probe_rejects_invalid_vectors(modules, problem):
         rows[0, 0] = np.nan
     with pytest.raises(ValueError, match=r"shape|finite float32"):
         modules.publication.validate_vectors(rows, 512, 3)
+
+
+def test_literal_card_example_runs_public_loader_and_real_encoder(modules, monkeypatch, tmp_path):
+    import fse
+
+    encoder = fse.Encoder.from_arrays(np.eye(3, dtype=np.float32), words=["a", "sentence", "."])
+    calls = []
+
+    def public_load(repo):
+        calls.append(repo)
+        return encoder
+
+    monkeypatch.setattr(fse.Encoder, "from_pretrained", public_load)
+    code = 'import fse\nencoder = fse.Encoder.from_pretrained("fse/example")\nvectors = encoder.encode(["A sentence."])'
+    card = f"```python\n{code}\n```".encode()
+    (tmp_path / "README.md").write_bytes(card)
+    entry = {
+        "repo": "fse/example",
+        "python_example": code,
+        "python_example_sha256": modules.publication.sha256_bytes(code.encode()),
+        "files": {"README.md": {"sha256": modules.publication.sha256_bytes(card)}},
+        "metadata": {"dimension": 3},
+    }
+    assert modules.readback.execute_example(entry, tmp_path) is encoder
+    assert calls == ["fse/example"]
+    (tmp_path / "README.md").write_bytes(card + b"changed")
+    with pytest.raises(ValueError, match="card changed"):
+        modules.readback.execute_example(entry, tmp_path)
+
+
+def test_download_rejects_one_changed_payload_file(modules, monkeypatch, tmp_path):
+    import huggingface_hub
+
+    payload = tmp_path / "model.safetensors"
+    payload.write_bytes(b"abc")
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", lambda *_args, **_kw: payload)
+    entry = {
+        "repo": "fse/example",
+        "files": {
+            "model.safetensors": {"bytes": 3, "sha256": modules.publication.sha256_bytes(b"abc")}
+        },
+    }
+    _, actual = modules.readback.download_and_check(entry, "a" * 40, tmp_path)
+    assert actual == entry["files"]
+    payload.write_bytes(b"abd")
+    with pytest.raises(ValueError, match="differs from the approved build"):
+        modules.readback.download_and_check(entry, "a" * 40, tmp_path)
+
+
+def test_disk_guard_failure_becomes_durable_failed_row(modules, monkeypatch, tmp_path):
+    def unavailable(*_args):
+        raise RuntimeError("less than 25 GiB free")
+
+    monkeypatch.setattr(modules.runner, "run_one", unavailable)
+    args = SimpleNamespace(output=tmp_path)
+    row = modules.runner.checked_run({"repo": "fse/example"}, "a" * 40, args)
+    assert row["status"] == "failed"
+    assert row["error"]["type"] == "RuntimeError"
+    assert all(row[flag] is False for flag in modules.readback.FLAGS)
