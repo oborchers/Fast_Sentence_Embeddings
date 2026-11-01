@@ -102,6 +102,7 @@ This is an alternative workflow, not a loader for trained Doc2Vec models. Model 
 Route support requests, filter documents or classify a dataset.
 Train a supported linear model in scikit-learn, then let fse run it directly on text.
 The model must be trained on this encoder's vectors.
+Install `scikit-learn` first: `pip install scikit-learn`.
 
 ```python
 from sklearn.linear_model import LogisticRegression
@@ -115,7 +116,7 @@ labels = classifier.predict(["I need a new password"])
 classifier.save("router.safetensors")
 ```
 
-Install `scikit-learn` for this example. Train on real labeled data for your application.
+Train on real labeled data for your application.
 Load the saved model with `Classifier.load("router.safetensors")` and predict without scikit-learn.
 
 The [classification recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/02-linear-heads.ipynb) compares this with Model2Vec's own classifier, TF-IDF and fastText.
