@@ -44,6 +44,17 @@ was not measured. fse itself uses one or ten workers as recorded.
 | word2vec-300, int8 | 1 | 212,606 (211,846 to 213,981) | 1,552.5 |
 | word2vec-300, int8 | 10 | 924,000 (886,643 to 932,838) | 1,552.7 |
 
+The paired Model2Vec POTION-8M float32 controls, on the same texts:
+
+| Paired classic configuration | Tokenizer off, texts/s | Tokenizer on, texts/s |
+|---|---:|---:|
+| GloVe float32 | 8,915 (8,896 to 8,935) | 24,694 (24,511 to 27,057) |
+| word2vec int8 | 8,944 (8,927 to 8,951) | 27,280 (23,108 to 27,714) |
+
+Each cell is the median and range of three control-process rates. Off and on
+correspond to the one-worker and ten-worker fse series, respectively. These
+are different-model comparisons with the limitations stated above.
+
 Process peak is the largest resource.getrusage(RUSAGE_SELF).ru_maxrss among
 the three primary fse-a processes, divided by 1,048,576. On macOS this source
 reports bytes. It covers imports, corpus/model loading, warmup and measured

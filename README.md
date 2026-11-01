@@ -196,7 +196,7 @@ The raw records include the input digest, dataset revision, source commit and A/
 TODO(DR-151): Fill the remaining pending cells with paired measurements and source links.
 Report sentences/s as median and range for one worker and all available cores.
 Each cell must identify float32 / float16 / int8 table results in that order.
-The counterpart must encode the same texts, with matching token limits and normalization.
+The counterpart must encode the same texts. Record token limits, normalization and any model differences.
 Name machine, OS, Python, NumPy, library versions, model revisions, worker counts, load and measurement date.
 
 | Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) | Counterpart, float32 (modes below) |
@@ -207,13 +207,14 @@ Name machine, OS, Python, NumPy, library versions, model revisions, worker count
 | potion-multilingual-128M | pending | pending | model2vec: pending |
 | static-retrieval-mrl-en-v1 | pending | pending | sentence-transformers: pending |
 | static-similarity-mrl-multilingual-v1 | pending | pending | sentence-transformers: pending |
-| GloVe-300 | 212,783 (203,964 to 219,669) / pending / pending | 828,045 (708,401 to 901,244) / pending / pending | equal-model counterpart: pending |
-| word2vec-300 | pending / pending / 212,606 (211,846 to 213,981) | pending / pending / 924,000 (886,643 to 932,838) | equal-model counterpart: pending |
+| GloVe-300 | 212,783 (203,964 to 219,669) / pending / pending | 828,045 (708,401 to 901,244) / pending / pending | different model, model2vec POTION-8M tokenizer off: 8,915 (8,896 to 8,935); on: 24,694 (24,511 to 27,057) |
+| word2vec-300 | pending / pending / 212,606 (211,846 to 213,981) | pending / pending / 924,000 (886,643 to 932,838) | different model, model2vec POTION-8M tokenizer off: 8,944 (8,927 to 8,951); on: 27,280 (23,108 to 27,714) |
 
 The classic-model cells use [four completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/32df21e5be535048a86045619610446a9cd707bb/docs/benchmarks/readme-classic-timings-20261101/README.md)
 from the same date, machine and WikiText input. Each has three paired rounds,
 with one warm timed call per child after a full-corpus warmup.
-Their Model2Vec control uses POTION-8M, a different model. It does not fill an equal-model counterpart cell.
+Their paired Model2Vec control uses POTION-8M, a different model, as labeled in the counterpart column.
+It produces 256 values per vector, rather than 300, and uses different text rules.
 No library speed ratio follows from those pairs. All load endpoints were below 5.
 The source reports A/A variation separately, including a time-ratio range of 0.7850 to 1.1500 for ten-worker GloVe.
 
