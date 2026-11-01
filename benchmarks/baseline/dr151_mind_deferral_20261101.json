@@ -7,7 +7,7 @@
   "dataset_revision": "227478e3235572039f4f7661840e059f31ef6eb1",
   "test_qrel_rows": 97006943,
   "observed_physical_footprint": "15.4G (macOS sample output)",
-  "evidence": "profiles/dr151_mind_loader_20261101.sample.txt",
+  "evidence": "results/dr151_mind_loader_20261101.sample.txt",
   "loader_modified": false,
   "evaluator_modified": false,
   "sampling": false,
