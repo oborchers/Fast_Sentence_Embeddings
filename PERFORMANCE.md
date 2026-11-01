@@ -886,3 +886,8 @@ MiniLM-L6-v2 and plain-mean fse/paranmt-300 have completed all 40 local English 
 ParaNMT loads the pinned fse Hub KeyedVectors through `KeyedVectors.load(mmap='r')`, `fse.gensim.from_gensim` and the normal 2.0 Encoder path. Its recorded encoder uses `fse_words@1` and `normalize@1`; no SIF fit is applied. The [artifact receipt](benchmarks/baseline/dr151_classic_fitted_artifacts_20261101.json) binds its source revision and fingerprint. Other model cohorts retain their own setup identities and do not form a single controlled ranking.
 
 Raw quality `seconds` sums encode calls, not complete task evaluation. Earlier intermediate reports mislabelled that field as task elapsed; those duration scenarios are withdrawn. The [MiniLM elapsed report](benchmarks/baseline/dr151_quality_minilm_time_20261101.json) and [ParaNMT elapsed report](benchmarks/baseline/dr151_quality_paranmt_time_20261101.json) preserve invocation boundaries, overlapping retries, waits and calendar gaps explicitly. These completion-time diagnostics are not speed evidence.
+
+
+## GloVe SIF-10 partial local configuration
+
+The [GloVe SIF-10 float32 summary](benchmarks/baseline/dr151_quality_glove_20261101.json) now covers all forty non-deferred English tasks with a mean of 49.7864 points. MIND remains deferred; the official English41 mean is null. NanoBEIR is still pending in this raw snapshot, so the 53-task local configuration is incomplete and no NanoBEIR mean is reported. The committed fitted artifact receipt binds the seed-zero WikiText-103 training fit and encoder fingerprint. This does not establish a matched SIF improvement or CPU speed.

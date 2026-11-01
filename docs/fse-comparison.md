@@ -196,3 +196,10 @@ The [Static Retrieval model card](https://huggingface.co/sentence-transformers/s
 The [pinned POTION-8M model card](https://huggingface.co/minishlab/potion-base-8M/blob/bf8b056651a2c21b8d2565580b8569da283cab23/README.md) contains the POTION and MiniLM author-table values. Its evaluation includes summarization, while our English40 mean uses the approved v2 task set without MIND. The [ParaNMT paper, Table9](https://www.cs.cmu.edu/~jwieting/wieting2017Millions.pdf) reports Pearson for its WORD model. Our MTEB main score uses Spearman, so numerical proximity is not replication.
 
 The [Static Retrieval speed evaluation](https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1#evaluation) reports a 397x CPU ratio against MPNet using GooAQ on an i7-13700K. Our corpus and hardware differ, and we did not run that MPNet comparison. We therefore do not claim to reproduce that ratio. Executing identical pretrained weights faster measures the library, not better model quality.
+
+
+## GloVe SIF-10 English task coverage
+
+GloVe-300 SIF-10 float32 completed all forty local English tasks with a mean of **49.7864 points**, excluding deferred MIND. [Complete English task summary](../benchmarks/baseline/dr151_quality_glove_20261101.json) and [raw records](../benchmarks/baseline/results/dr151-quality-glove-float32.jsonl) preserve all native task scores. NanoBEIR remains pending in this snapshot, so its mean and the full English41 mean are null. This is not a completed 53-task local configuration.
+
+The encoder fingerprint is `xxh3-128:17aa9ef7d19273be5e619bed5ef64d10`, matching the committed classic fit receipt. SIF-10 was fitted on the pinned WikiText-103 training corpus, never evaluation data. It uses the recorded legacy NLTK recipe tokenizer at fit and inference. These results do not isolate a SIF gain against raw GloVe, and the authors' different MTEB aggregate is not a matched comparison.

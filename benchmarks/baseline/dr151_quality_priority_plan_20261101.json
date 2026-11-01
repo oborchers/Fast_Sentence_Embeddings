@@ -1,6 +1,6 @@
 {
   "scope_revision": "maintainer two-pod scope plus additional Pod3, 2026-11-01",
-  "snapshot_utc": "2026-11-01T13:57:47.785998+00:00",
+  "snapshot_utc": "2026-11-01T14:30:08.038972+00:00",
   "supersedes": "original 35-configuration priority plan; historical results remain unchanged",
   "unique_model_dtype_configurations": 31,
   "full_float32_configurations": [
@@ -116,5 +116,15 @@
     }
   },
   "local_scheduling": "nice10,workers2,heavy.lock batches8,cooldown120seconds. Both priority slots and README fairness are complete; queue resumed12:52UTC.",
-  "speed_scope": "pods only, no local timing under rule10"
+  "speed_scope": "pods only, no local timing under rule10",
+  "glove_snapshot": {
+    "raw": "benchmarks/baseline/results/dr151-quality-glove-float32.jsonl",
+    "summary": "benchmarks/baseline/dr151_quality_glove_20261101.json",
+    "english_completed": 40,
+    "english_40_mean_mind_deferred": 0.4978635579898691,
+    "nanobeir_completed": 0,
+    "nanobeir_mean": null,
+    "complete_local_configuration": false,
+    "status": "English40 complete; NanoBEIR pending in the existing live invocation. MIND deferred locally."
+  }
 }
