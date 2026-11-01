@@ -36,6 +36,8 @@ class FseEmbeddings(Embeddings):
         self.workers = workers
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        if not isinstance(texts, list):
+            raise TypeError("texts must be a list of strings")
         return self.encoder.encode(texts, dtype=self.dtype, workers=self.workers).tolist()
 
     def embed_query(self, text: str) -> list[float]:

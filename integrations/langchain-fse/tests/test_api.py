@@ -59,6 +59,8 @@ def test_validation_and_loading(encoder, monkeypatch):
         FseEmbeddings(encoder=encoder, dtype="int8")
     with pytest.raises(ValueError, match="load_kwargs"):
         FseEmbeddings(encoder=encoder, load_kwargs={"normalize": False})
+    with pytest.raises(TypeError, match="list of strings"):
+        FseEmbeddings(encoder=encoder).embed_documents("hello")
     with pytest.raises((TypeError, ValueError)):
         FseEmbeddings(encoder=encoder).embed_documents([3])
 
@@ -67,3 +69,10 @@ def test_validation_and_loading(encoder, monkeypatch):
 def test_potion():
     model = FseEmbeddings(workers=1)
     assert len(model.embed_query("hello world")) == 256
+
+
+def test_local_artifact(encoder, tmp_path):
+    path = tmp_path / "encoder.safetensors"
+    encoder.save(path)
+    model = FseEmbeddings(str(path), load_kwargs={"local_files_only": True})
+    assert model.embed_documents(["hello", "world"]) == encoder.encode(["hello", "world"]).tolist()

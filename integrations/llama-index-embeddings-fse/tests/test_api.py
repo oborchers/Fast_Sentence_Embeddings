@@ -58,3 +58,10 @@ def test_validation_and_loading(encoder, monkeypatch):
 def test_potion():
     model = FseEmbedding(workers=1)
     assert len(model.get_query_embedding("hello world")) == 256
+
+
+def test_local_artifact(encoder, tmp_path):
+    path = tmp_path / "encoder.safetensors"
+    encoder.save(path)
+    model = FseEmbedding(str(path), load_kwargs={"local_files_only": True})
+    assert model.get_text_embedding_batch(["hello", "world"]) == encoder.encode(["hello", "world"]).tolist()

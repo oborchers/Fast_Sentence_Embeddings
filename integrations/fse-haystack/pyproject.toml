@@ -24,4 +24,5 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+filterwarnings = ["error"]
 markers = ["network: downloads a model from the Hugging Face Hub"]

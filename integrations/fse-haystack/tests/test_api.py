@@ -81,3 +81,14 @@ def test_potion():
     model = FseTextEmbedder(workers=1)
     model.warm_up()
     assert len(model.run("hello world")["embedding"]) == 256
+
+
+def test_local_artifact(encoder, tmp_path):
+    path = tmp_path / "encoder.safetensors"
+    encoder.save(path)
+    model = FseTextEmbedder(model=str(path), load_kwargs={"local_files_only": True})
+    model.warm_up()
+    assert model.run("hello")["embedding"] == encoder.encode(["hello"]).tolist()[0]
+    clone = FseTextEmbedder.from_dict(model.to_dict())
+    clone.warm_up()
+    assert clone.run("hello") == model.run("hello")
