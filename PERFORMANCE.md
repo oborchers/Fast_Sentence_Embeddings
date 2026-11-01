@@ -58,8 +58,8 @@ tables: WordPiece at 32 workers has 25.52% tokenizer and 28.44% pooling inclusiv
 samples; store at 16 workers has 27.91% pooling. Unresolved symbols account for
 at least 35.77% and 32.25% self samples respectively, so their hotspot identities
 remain unknown. These shares cannot be applied to run-2 wall timings. The
-[evidence summary](benchmarks/baseline/dr190_runpod_20261031.json) preserves both
-hosts, results, profile failures and limitations. No paired optimization gain
+[evidence summary](benchmarks/baseline/dr190_runpod_20261031.json) ([full archived evidence](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/e8b338363def0f43a9460ea94a66cd2b96e8bb52/benchmarks/baseline/dr190_runpod_20261031.json)) preserves both
+hosts, results and limitations. The archive preserves profile records and failures. No paired optimization gain
 is claimed.
 
 ## The model in plain words
@@ -363,7 +363,7 @@ One worker does not change (the plan is the same by construction); 4 workers gai
 
 Part of DR-180 (Leerlauf der Worker am Laufende messen und verringern). This experiment changes only the benchmark process. The production rule "No thread outlives a call" remains in force ([docs/architecture/runtime.md](docs/architecture/runtime.md), "Runtime"). Reuse measures startup avoidance, shutdown avoidance and retained thread state together, not startup alone.
 
-Measured on the same M1 Pro (10 cores, 16 GiB), Python 3.13.16, source base `140e9e2`, with the model snapshots pinned in `roofline.py`. `bench_pool.py` runs base, a second base (A/A control) and reuse in fresh child processes, alternating their order. Every cell has three valid pairs, with load strictly below 5 before and after every side. Calls include `StringSource` construction and `Pipeline.infer`, without tracing. Full and short corpora use seven individual calls per side. The server cells time one block of 1000 sequential calls per side. Ratios compare each side's median time per call within each pair, then take the median over pairs. First warm and last timed outputs are checked against base with uint32 views, outside the clock. Warmup outputs are released before timing. Peak process RSS includes loading and bit checks as well as inference, and counts an old result still live while its replacement is built. It is not a steady-state footprint. [Raw kept and discarded rounds](benchmarks/baseline/thread_pool_20261031.json).
+Measured on the same M1 Pro (10 cores, 16 GiB), Python 3.13.16, source base `140e9e2`, with the model snapshots pinned in `roofline.py`. `bench_pool.py` runs base, a second base (A/A control) and reuse in fresh child processes, alternating their order. Every cell has three valid pairs, with load strictly below 5 before and after every side. Calls include `StringSource` construction and `Pipeline.infer`, without tracing. Full and short corpora use seven individual calls per side. The server cells time one block of 1000 sequential calls per side. Ratios compare each side's median time per call within each pair, then take the median over pairs. First warm and last timed outputs are checked against base with uint32 views, outside the clock. Warmup outputs are released before timing. Peak process RSS includes loading and bit checks as well as inference, and counts an old result still live while its replacement is built. It is not a steady-state footprint. [Compact cell summary](benchmarks/baseline/thread_pool_20261031.json) ([full archived evidence](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/e8b338363def0f43a9460ea94a66cd2b96e8bb52/benchmarks/baseline/thread_pool_20261031.json)).
 
 Rule fixed in the draft PR before timing: a gain requires median reuse/base at most 0.97. It is beyond noise only if every ratio is below min(1, minimum A/A, reciprocal maximum A/A) from the same cell. A regression is beyond noise only if every ratio exceeds the symmetric upper bound. Peak RSS may rise by at most 5 %. These classify evidence for the maintainer, without authorizing a lifetime change. In the tables, "gain/noise" means median gain of at least 3 % / beyond the observed noise, and RSS is base/control/reuse. Each range is over the three pairs.
 
@@ -424,7 +424,7 @@ Prestarting all workers to a barrier, outside timing, costs 4 workers: 0.378 ms 
 
 The corrected matrix took 325.7 active seconds including child startup and loading. Load pauses are separate. 9 rounds crossed the load limit and are retained as discarded data. The initial series was replaced in full after removing retained byte copies used for bit checks, which inflated RSS. It is not combined with this series.
 
-**Timeline and profiles, deciding cell:** potion-base-8M, first 5000 MASSIVE texts, 10 workers, both variants. Three paired traced rounds of three calls at load 4.63, no discarded round. Every pass has an exact disjoint idle split; columns below are separate medians. [Raw timeline and profile summaries](benchmarks/baseline/thread_pool_profiles_20261031.json).
+**Timeline and profiles, deciding cell:** potion-base-8M, first 5000 MASSIVE texts, 10 workers, both variants. Three paired traced rounds of three calls at load 4.63, no discarded round. Every pass has an exact disjoint idle split; columns below are separate medians. [Compact timeline and profile summary](benchmarks/baseline/thread_pool_profiles_20261031.json) ([full archived evidence](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/e8b338363def0f43a9460ea94a66cd2b96e8bb52/benchmarks/baseline/thread_pool_profiles_20261031.json)).
 
 | variant | traced wall ms | idle share | tail share | ramp share | after last task ms |
 |---|---:|---:|---:|---:|---:|
@@ -489,7 +489,7 @@ CPU, native-memory and RSS profiles use `make profile-cpu`, `make profile-mem` a
 
 CPU self samples: C1/full spends 18.3 percent in `__psynch_cvwait` and 5.2 in `__fcntl` (0 recorded write syncs under none). C2/full includes corpus preparation (`random_zipf` 6.5 percent), `XXH3_64bits_update` 4.0, `pwrite` 2.7 and `fse_loop_f32_neon` 2.0. C3/full shows `fse_loop_f32_neon` 17.7, `__psynch_cvwait` 16.3, `_platform_memmove` 15.3, `pwrite` 8.3 and hashing 5.0 percent. C3/pend1g_n shows pooling 41.5 percent. The populations include waits and verification, and these shares are not speedup measurements. Largest cumulative allocation sites include numpy memmaps, `NpyContainer.verify`, `ShardWriter.reserve` and model preparation (`_wordvectors_format._frozen`), with the synthetic corpus and table preparation prominent in C1/C2. Cumulative allocation totals are not simultaneous memory peaks.
 
-[Raw kept and discarded runs, sync counts, endpoints and profile metadata](benchmarks/baseline/store_sync_20261031.json). These measurements concern this local filesystem and do not test power loss, Windows, bare-metal Linux or network filesystems.
+[Compact timing and decision summary](benchmarks/baseline/store_sync_20261031.json) ([full archived evidence](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/e8b338363def0f43a9460ea94a66cd2b96e8bb52/benchmarks/baseline/store_sync_20261031.json)). These measurements concern this local filesystem and do not test power loss, Windows, bare-metal Linux or network filesystems.
 
 ### Implemented `durability="none"` (31.10.2026)
 
@@ -526,7 +526,7 @@ CPU, native-memory and RSS profiles cover C1 `none_impl` and C3 verified opens; 
 
 Runtime CPU self samples: `fse_loop_f32_neon` 18.8 percent, `__psynch_cvwait` 14.2, `fse_tokenize` 6.9 and `_platform_memmove` 6.1 (3,905 samples). C1 none: waits 43.2 percent, pooling 8.6, `pwrite` 4.6 and `fse_inverse_norms_body` 2.6 (5,397 samples). C3 reader: native `XXH3_64bits_update` symbol 70.4 percent, `FLOAT_isfinite` 11.8 and `__munmap` 3.1 (4,746 samples); artifact hashes remain xxh3-128. The single-thread reader CPU profile ended at load 5.405 and is used only for relative shares, under the permitted profile exception. Every timing remains below 5; memory/RSS profiles remain below 20. Cumulative allocation sites include the runtime reference and `MemorySink`, `ShardWriter.reserve`, corpus/table preparation, numpy memmaps and bounded `_recovery._vectors` checks. These totals are not simultaneous peaks.
 
-[Raw kept/discarded runs, both control series, correctness digests, byte counts and profile metadata](benchmarks/baseline/store_none_20261031.json). These are local warm-cache measurements, not physical power-loss tests or Windows performance measurements.
+[Compact control and decision summary](benchmarks/baseline/store_none_20261031.json) ([full archived evidence](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/e8b338363def0f43a9460ea94a66cd2b96e8bb52/benchmarks/baseline/store_none_20261031.json)). These are local warm-cache measurements, not physical power-loss tests or Windows performance measurements.
 
 ## int8 tables at 1024 dimensions
 

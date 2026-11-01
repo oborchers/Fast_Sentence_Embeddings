@@ -113,3 +113,5 @@ SIF-10 over glove-wiki-gigaword-300 on the 859,346 WikiText paragraphs, 10 worke
 ## Raw evidence storage
 
 Raw results and profile artifacts are stored on the separate orphan branch `benchmark-evidence-2.0`, never merged into master. [The evidence guide](../../docs/benchmarks/dr151-evidence.md) links compact study summaries, the complete SHA256 manifest and the restore command. The original 1.1 baseline files remain under `results/` on master. New 2.0 raw `results/` paths refer to the archive. Restore required inputs explicitly before running a historical script. Numerical test fixtures remain under `tests/test_data`.
+
+The existing 2.0 store-sync, store-none, thread-pool, thread-pool profile and DR190 RunPod JSON files now hold compact summaries. Each includes `raw_evidence` with the unchanged original file size, SHA256 and pinned archive URL. The complete manifest lists those originals. These summaries are documentation inputs, not the former raw schema.

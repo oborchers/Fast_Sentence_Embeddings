@@ -89,3 +89,49 @@ def test_only_historical_1_1_results_are_tracked_on_the_code_branch():
         "train-dtypes-1.1.0-m1pro.json",
     }
     assert {Path(name).name for name in done.stdout.splitlines()} == expected
+
+
+def assert_projection(actual, expected):
+    """Retained source fields must match exactly, including nested numbers."""
+    if isinstance(actual, dict):
+        for key, value in actual.items():
+            assert key in expected
+            assert_projection(value, expected[key])
+    elif isinstance(actual, list):
+        assert len(actual) == len(expected)
+        for value, source in zip(actual, expected, strict=True):
+            assert_projection(value, source)
+    else:
+        assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "stem",
+    ["store_sync", "store_none", "thread_pool", "thread_pool_profiles", "dr190_runpod"],
+)
+def test_existing_master_studies_preserve_retained_values(original, stem):
+    name = stem + "_20261031.json"
+    data = (BASE / name).read_bytes()
+    assert len(data) < 50_000
+    compact = json.loads(data)
+    source = json.loads(original(name))
+    assert compact.pop("format") == "archived-study-summary-v1"
+    raw = compact.pop("raw_evidence")
+    manifest = json.loads((BASE / "dr151_evidence_manifest_20261101.json").read_text())
+    entry = next(row for row in manifest["files"] if row["path"] == raw["path"])
+    assert raw["size_bytes"] == entry["size_bytes"] == len(original(name))
+    assert raw["sha256"] == entry["sha256"]
+    assert raw["url"].endswith(raw["commit"] + "/" + raw["path"])
+    if stem == "store_sync":
+        for cell, old in zip(compact["cells"], source["cells"], strict=True):
+            assert cell.pop("discarded_count") == len(old["discarded"])
+    elif stem == "store_none":
+        assert compact.pop("source_heads") == source["measurements"]["heads"]
+        assert compact.pop("measurement_complete") == source["measurements"]["complete"]
+    elif stem == "thread_pool_profiles":
+        for label, variant in compact["variants"].items():
+            hottest = variant.pop("hottest_recorded_functions")
+            assert hottest == dict(
+                list(source["variants"][label]["all_thread_functions"].items())[:3]
+            )
+    assert_projection(compact, source)

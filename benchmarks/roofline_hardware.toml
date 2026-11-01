@@ -52,7 +52,7 @@ notes = [
     "Observed shared-host pod configuration, not a specification or a stable machine-wide bandwidth guarantee; host load during the probe was 8.46 to 8.91.",
     "p_cores describes host topology. Per-core and Amdahl predictions are not calibrated for the pod cpuset or SMT placement; use the measured bandwidth references independently.",
     "One probe series, fastest of three measured passes after warm-up. A second pod used a different CPU (EPYC 9B45) at host load above 1000 and is only a host/load variation comparison.",
-    "Evidence and limitations: benchmarks/baseline/dr190_runpod_20261031.json and PERFORMANCE.md, RunPod Linux x86 observations.",
+    "Compact evidence and limitations (with pinned raw archive link): benchmarks/baseline/dr190_runpod_20261031.json and PERFORMANCE.md, RunPod Linux x86 observations.",
 ]
 
 [["runpod-epyc-9655p".bandwidth]]
