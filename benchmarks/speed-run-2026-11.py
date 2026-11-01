@@ -319,6 +319,36 @@ def sizing_job(context, repo, workers, backend, name, kind="encode"):
     return 50_000 / min(record["first_seconds"], *record["warm_seconds"])
 
 
+def apply_sizing(context, cell, rate, number):
+    step = 100_000 if cell["kind"] == "classify" else 50_000
+    requested = max(cell["texts"], int(3 * rate / step + 0.999999) * step)
+    cell["texts"] = requested
+    reference_rate = None
+    if cell.get("reference"):
+        reference_rate = attempt(
+            context["ledger"].root,
+            f"sizing-reference-{number}",
+            lambda c=cell, n=number: sizing_job(
+                context, c["model"], c["workers"], c["reference"], f"sizing-reference-{n}"
+            ),
+        )
+        if reference_rate is None:
+            cell["preparation_error"] = "required reference sizing failed"
+    calls = 1 + cell.get("warm_passes", 1)
+    seconds_per_round = 2 * requested / rate
+    if reference_rate:
+        seconds_per_round += requested / reference_rate
+    cell["estimated_seconds"] = max(
+        estimate(context["contract"], cell), cell["rounds"] * calls * seconds_per_round
+    )
+    cell["sizing"] = dict(
+        fse_texts_per_second=rate,
+        reference_texts_per_second=reference_rate,
+        target_fse_seconds=3,
+        search_iterations=0,
+    )
+
+
 def size_once(context):
     contract, rates = context["contract"], {}
     for number, cell in enumerate(contract["cells"]):
@@ -336,34 +366,30 @@ def size_once(context):
         if rates[key] is None:
             cell["preparation_error"] = "required one-shot sizing failed"
             continue
-        step = 100_000 if cell["kind"] == "classify" else 50_000
-        requested = max(cell["texts"], int(3 * rates[key] / step + 0.999999) * step)
-        cell["texts"] = requested
-        reference_rate = None
-        if cell.get("reference"):
-            reference_rate = attempt(
-                context["ledger"].root,
-                f"sizing-reference-{number}",
-                lambda c=cell, n=number: sizing_job(
-                    context, c["model"], c["workers"], c["reference"], f"sizing-reference-{n}"
-                ),
-            )
-            if reference_rate is None:
-                cell["preparation_error"] = "required reference sizing failed"
-        calls = 1 + cell.get("warm_passes", 1)
-        seconds_per_round = 2 * requested / rates[key]
-        if reference_rate:
-            seconds_per_round += requested / reference_rate
-        cell["estimated_seconds"] = max(
-            estimate(contract, cell), cell["rounds"] * calls * seconds_per_round
-        )
-        cell["sizing"] = dict(
-            fse_texts_per_second=rates[key],
-            reference_texts_per_second=reference_rate,
-            target_fse_seconds=3,
-            search_iterations=0,
-        )
+        apply_sizing(context, cell, rates[key], number)
     atomic(context["ledger"].root / "sized-input.json", contract)
+
+
+def scheduled_cell(context, cell, ledger, deadline, interrupted, contract):
+    started = time.monotonic()
+    allowed = (
+        not interrupted.is_set()
+        and started < deadline
+        and ledger.admit(ledger.estimate(cell, estimate(contract, cell)))
+    )
+    if not allowed:
+        ledger.result(
+            cell,
+            "not_started",
+            started,
+            reason="stage or soft total admission budget exhausted",
+        )
+        return
+    try:
+        result = execute_cell(context, cell)
+        ledger.result(cell, result.pop("status"), started, **result)
+    except Exception as error:
+        ledger.result(cell, "failed", started, reason=repr(error))
 
 
 def run(args):
@@ -388,25 +414,7 @@ def run(args):
                 s["budget_minutes"] * 60 for s in contract["stages"] if s["name"] == cell["stage"]
             )
             deadlines.setdefault(cell["stage"], time.monotonic() + budget)
-            started = time.monotonic()
-            allowed = (
-                not interrupted.is_set()
-                and started < deadlines[cell["stage"]]
-                and ledger.admit(ledger.estimate(cell, estimate(contract, cell)))
-            )
-            if not allowed:
-                ledger.result(
-                    cell,
-                    "not_started",
-                    started,
-                    reason="stage or soft total admission budget exhausted",
-                )
-                continue
-            try:
-                result = execute_cell(context, cell)
-                ledger.result(cell, result.pop("status"), started, **result)
-            except Exception as error:
-                ledger.result(cell, "failed", started, reason=repr(error))
+            scheduled_cell(context, cell, ledger, deadlines[cell["stage"]], interrupted, contract)
     except Exception as error:
         append(args.results / "fatal.jsonl", dict(error=repr(error)))
         finished = {row["cell_id"] for row in ledger.finished}
