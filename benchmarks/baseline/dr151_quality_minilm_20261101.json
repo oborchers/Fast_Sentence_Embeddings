@@ -101,17 +101,25 @@
       "source_revision": "8b3219a92973c328a8e22fadcfa821b5dc75636a",
       "encoder_fingerprint": null,
       "artifact": null,
-      "english_completed": 31,
+      "english_completed": 40,
       "english_required": 41,
-      "nanobeir_completed": 0,
+      "nanobeir_completed": 13,
       "nanobeir_required": 13,
       "deferred": [
         "MindSmallReranking"
       ],
       "english_full_41_mean": null,
-      "english_40_mean_mind_deferred": null,
-      "nanobeir_full_13_mean": null,
+      "english_40_mean_mind_deferred": 0.5988626554065044,
+      "nanobeir_full_13_mean": 0.5622138461538462,
       "tasks": [
+        {
+          "task": "AmazonCounterfactualClassification",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "accuracy",
+          "score": 0.6364179104477612,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
         {
           "task": "ArXivHierarchicalClusteringP2P",
           "benchmark": "MTEB(eng, v2)",
@@ -265,6 +273,110 @@
           "delta_vs_float32_points": null
         },
         {
+          "task": "NanoArguAnaRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.54867,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoClimateFeverRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.29575,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoDBPediaRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.55011,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoFEVERRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.79335,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoFiQA2018Retrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.47745,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoHotpotQARetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.59597,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoMSMARCORetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.55398,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoNFCorpusRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.33219,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoNQRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.59039,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoQuoraRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.93678,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoSCIDOCSRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.43281,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoSciFactRetrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.72653,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "NanoTouche2020Retrieval",
+          "benchmark": "NanoBEIR",
+          "metric": "ndcg_at_10",
+          "score": 0.4748,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
           "task": "SCIDOCS",
           "benchmark": "MTEB(eng, v2)",
           "metric": "ndcg_at_10",
@@ -313,6 +425,22 @@
           "delta_vs_float32_points": null
         },
         {
+          "task": "STS17",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "cosine_spearman",
+          "score": 0.8758779089494525,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "STS22.v2",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "cosine_spearman",
+          "score": 0.6771118263513062,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
           "task": "STSBenchmark",
           "benchmark": "MTEB(eng, v2)",
           "metric": "cosine_spearman",
@@ -345,6 +473,14 @@
           "delta_vs_float32_points": null
         },
         {
+          "task": "SummEvalSummarization.v2",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "cosine_spearman",
+          "score": 0.259711030822813,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
           "task": "TRECCOVID",
           "benchmark": "MTEB(eng, v2)",
           "metric": "ndcg_at_10",
@@ -357,6 +493,46 @@
           "benchmark": "MTEB(eng, v2)",
           "metric": "ndcg_at_10",
           "score": 0.49713,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "ToxicConversationsClassification",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "accuracy",
+          "score": 0.620947265625,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "TweetSentimentExtractionClassification",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "accuracy",
+          "score": 0.5404357668364459,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "TwentyNewsgroupsClustering.v2",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "v_measure",
+          "score": 0.4576333263671965,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "TwitterSemEval2015",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "max_ap",
+          "score": 0.678584306681352,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "TwitterURLCorpus",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "max_ap",
+          "score": 0.8470173186812869,
           "float32_score": null,
           "delta_vs_float32_points": null
         }

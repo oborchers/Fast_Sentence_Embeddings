@@ -1,0 +1,47 @@
+{
+  "job_name": "full-float32-paranmt-300",
+  "model": "fse/Average-paranmt-300-float32",
+  "completed_tasks": 53,
+  "expected_local_tasks": 53,
+  "task_count_matches": true,
+  "successful_finished_invocation": true,
+  "completed_encode_call_wall_seconds": 13.871850453899242,
+  "finished_invocation_union_wall_seconds": 1354.384341,
+  "calendar_span_seconds": 1354.384341,
+  "individual_invocations": [
+    {
+      "name": "full-float32-paranmt-300",
+      "command": [
+        "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-quality/bin/python",
+        "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/benchmarks/quality/run_mteb.py",
+        "run",
+        "--models",
+        "fse/Average-paranmt-300-float32",
+        "--fse-models",
+        "/Users/oliverborchers/.cache/fse-quality/models",
+        "--workers",
+        "2",
+        "--batch-tasks",
+        "8",
+        "--coordination",
+        "/private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad",
+        "--resume",
+        "--mmap-models",
+        "--results",
+        "/private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad/dr151-local-97b7418/full-float32-paranmt-300.jsonl",
+        "--defer-mind"
+      ],
+      "pinned_source_commit": "97b741887dc0bd4730131aa60a7b5242fef8d5ef",
+      "started_at": "2026-11-01T13:18:20.743385+00:00",
+      "nice": 10,
+      "status": "completed",
+      "speed_claim": false,
+      "returncode": 0,
+      "elapsed_quality_job_seconds": 1354.3843041670043,
+      "finished_at": "2026-11-01T13:40:55.127726+00:00"
+    }
+  ],
+  "scope": "Invocation wall time includes imports, loading, evaluation and waits/cooldowns inside the invocation. Overlapping intervals count once. Calendar span also includes gaps outside invocations.",
+  "encode_scope": "Raw quality seconds sum model.encode calls only; exclude other evaluation work, loading and fairness waits. Never interpret this field as full task duration.",
+  "not_cpu_speed_evidence": true
+}

@@ -862,7 +862,7 @@ Pod 3 also compares Python Model2Vec with the **same frozen sklearn linear head*
 
 The fresh Linux Pod 3 cohort supplies both README graphics on one machine. It includes POTION-8M float32/float16/int8 tables and all same-model references at 1, 16 and 32 workers. Native sentence-transformers StaticEmbedding uses static-retrieval-mrl-en-v1 with its own fse baseline. Both models have measured float32 curve points at 1, 2, 4, 8, 16 and 32. The renderer retains one core and selects 32 only if its unrounded primary median is at least 1.20 times the 16-worker median. Otherwise it selects 16. The lower intermediate settings remain curve-only. All rates remain pending actual controlled pod artifacts. The Mac headline remains a separate machine-specific result.
 
-The document-quality breakout now includes 19 complete tasks each for [static retrieval MRL](benchmarks/baseline/dr151_document_tasks_staticretr_20261101.json) and [static similarity MRL](benchmarks/baseline/dr151_document_tasks_staticsim_20261101.json), plus eleven currently completed [MiniLM document tasks](benchmarks/baseline/dr151_document_tasks_minilm_20261101.json). Each selected task has an upstream MTEB evaluation text stream averaging at least 1,000 characters. These are full task scores, without evaluation sampling, and preserve their native metrics. Length metadata is packaged MTEB descriptive evidence, not fresh input or truncation measurement. Model-specific limits and configuration cohorts remain explicit. No combined quality ranking or complete MiniLM score is claimed.
+The document-quality breakout now includes 19 complete tasks each for [static retrieval MRL](benchmarks/baseline/dr151_document_tasks_staticretr_20261101.json) and [static similarity MRL](benchmarks/baseline/dr151_document_tasks_staticsim_20261101.json), plus 19 completed [MiniLM document tasks](benchmarks/baseline/dr151_document_tasks_minilm_20261101.json). Each selected task has an upstream MTEB evaluation text stream averaging at least 1,000 characters. These are full task scores, without evaluation sampling, and preserve their native metrics. Length metadata is packaged MTEB descriptive evidence, not fresh input or truncation measurement. Model-specific limits and configuration cohorts remain explicit. No combined quality ranking or complete MiniLM score is claimed.
 
 
 ## Pod 2 result coverage
@@ -872,3 +872,17 @@ Pod 2 executed source `97b7418` on Linux x86 with an AMD EPYC 9655 host and 32 a
 The eligible Subjectivity/POTION-8M one-worker classifier comparisons include fse normalized linear inference at 731,485.29 texts/s versus frozen Model2Vec plus its separately fitted sklearn head at 28,788.67 texts/s (paired median 25.20098x, A/A upper 1.079353). The separate fine-tuned Model2Vec MLP runs exported NumPy inference at 28,298.73 texts/s against its own fse baseline 733,553.84 (paired median 25.86384x, A/A upper 1.090065). These models have accuracy 0.8880 for both frozen linear pipelines and 0.8900 for the fine-tuned MLP. All 2,000 held-out rows are used. Per-arm ranges, exact model/input/dataset identity, source series and package identities are in the audit. The fse head here is normalized and therefore **not folded into the raw table**. Pod 3 measures raw-mean folding separately. No 32-worker Subjectivity/POTION-8M cell passes A/A.
 
 All 67 Rust operations are unaffected by the later `ea17433` parallelism fix. Both executed Pod 2 worker paths already set Rayon and tokenizer parallelism correctly. Exact logical raw-line annotations and pinned-source proof remain in the [machine-readable audit](benchmarks/baseline/dr151_pod2_audit_20261101.json).
+
+
+## Complete local MiniLM and ParaNMT quality
+
+MiniLM-L6-v2 and plain-mean fse/paranmt-300 have completed all 40 local English tasks and all 13 NanoBEIR tasks with unmodified MTEB 2.26.25. MIND remains separately deferred, so these are not official full 41-task English scores. Their quality summaries share the same recorded setup. Native scores are multiplied by 100 in this table.
+
+| Model | English 40-task mean, MIND excluded | NanoBEIR 13-task mean | Source |
+|---|---:|---:|---|
+| all-MiniLM-L6-v2 | 59.8863 | 56.2214 | [Full task summary](benchmarks/baseline/dr151_quality_minilm_20261101.json) |
+| fse/paranmt-300, plain mean | 50.6940 | 39.3910 | [Full task summary](benchmarks/baseline/dr151_quality_paranmt_20261101.json) |
+
+ParaNMT loads the pinned fse Hub KeyedVectors through `KeyedVectors.load(mmap='r')`, `fse.gensim.from_gensim` and the normal 2.0 Encoder path. Its recorded encoder uses `fse_words@1` and `normalize@1`; no SIF fit is applied. The [artifact receipt](benchmarks/baseline/dr151_classic_fitted_artifacts_20261101.json) binds its source revision and fingerprint. Other model cohorts retain their own setup identities and do not form a single controlled ranking.
+
+Raw quality `seconds` sums encode calls, not complete task evaluation. Earlier intermediate reports mislabelled that field as task elapsed; those duration scenarios are withdrawn. The [MiniLM elapsed report](benchmarks/baseline/dr151_quality_minilm_time_20261101.json) and [ParaNMT elapsed report](benchmarks/baseline/dr151_quality_paranmt_time_20261101.json) preserve invocation boundaries, overlapping retries, waits and calendar gaps explicitly. These completion-time diagnostics are not speed evidence.

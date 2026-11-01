@@ -1,6 +1,6 @@
 {
   "scope_revision": "maintainer two-pod scope plus additional Pod3, 2026-11-01",
-  "snapshot_utc": "2026-11-01T12:41:02.585103+00:00",
+  "snapshot_utc": "2026-11-01T13:57:47.785998+00:00",
   "supersedes": "original 35-configuration priority plan; historical results remain unchanged",
   "unique_model_dtype_configurations": 31,
   "full_float32_configurations": [
@@ -24,14 +24,15 @@
     "minishlab/potion-retrieval-32M",
     "minishlab/potion-multilingual-128M",
     "sentence-transformers/static-retrieval-mrl-en-v1",
-    "sentence-transformers/static-similarity-mrl-multilingual-v1"
+    "sentence-transformers/static-similarity-mrl-multilingual-v1",
+    "sentence-transformers/all-MiniLM-L6-v2",
+    "fse/paranmt-300"
   ],
   "completed_models_cohort_warning": "separate recorded method/runtime cohorts; do not combine as a controlled ranking",
   "local_pending_order": [
-    "finish all-MiniLM-L6-v2 float32",
-    "fit FastText SIF-10 first for disk usage",
-    "paranmt mean, GloVe SIF-10, word2vec SIF-10 fits/full float32",
-    "FastText SIF-10 full float32",
+    "finish GloVe SIF-10 float32",
+    "fit and evaluate word2vec SIF-10 float32",
+    "evaluate already fitted FastText SIF-10 float32",
     "remaining9float32 reduced references",
     "all10int8 reduced plus recall",
     "all10float16 reduced plus recall"
@@ -81,22 +82,28 @@
   "minilm_snapshot": {
     "raw": "benchmarks/baseline/results/dr151-quality-minilm-float32.jsonl",
     "summary": "benchmarks/baseline/dr151_quality_minilm_20261101.json",
-    "completed_tasks": 31,
+    "completed_tasks": 53,
     "required_local_tasks": 53,
-    "journal_rows": 33,
+    "journal_rows": 55,
     "deferred_records": 2,
-    "sum_completed_task_wall_seconds": 10358.913145748433,
-    "complete_configuration_wall_seconds": null
+    "complete_configuration_wall_seconds": null,
+    "sum_completed_encode_call_wall_seconds": 10994.386028952547,
+    "finished_invocation_union_wall_seconds": 13449.887601,
+    "time_report": "benchmarks/baseline/dr151_quality_minilm_time_20261101.json",
+    "complete_configuration_wall_seconds_note": "No single cold complete invocation: prior completed tasks were resumed. Union of completed/failed invocation intervals is recorded separately, with overlapping retries counted once."
   },
   "time_scenario": {
     "is_eta": false,
-    "remaining_minilm_seconds_completed_task_average_proxy": 7351.486748595662,
-    "four_classics_seconds_hub_median_proxy": 5131.181656,
-    "remaining29reduced_seconds_p8_proxy": 13289.426465000026,
-    "sum_proxy_hours": 7.158915241554357,
-    "excluded": "classic fitting, numerical recall, setup, future fairness waits, task/model-size and tokenizer differences; MiniLM remaining tasks need not match completed average",
-    "previous_minilm_75min_estimate": "already exceeded by measured completed-task wall time"
+    "remaining_full_configurations": 3,
+    "remaining_full_proxy_seconds_each": 1354.384341,
+    "proxy_source": "ParaNMT successful complete53-task invocation, includes evaluation/loading/fairness waits",
+    "remaining_reduced_configurations": 29,
+    "remaining_reduced_proxy_seconds_each": 458.2560850000009,
+    "reduced_proxy_source": "POTION8M complete22-task reduced invocation",
+    "sum_proxy_hours": 4.820160968888896,
+    "excluded": "remaining word2vec fit, numerical recall, future fairness waits and model/task cost differences. Active partial full configurations are counted at full proxy cost.",
+    "supersedes": "Previous partial-task-average scenarios used encode-call seconds rather than task/evaluation elapsed and are withdrawn. Encoder totals are not whole-task duration."
   },
-  "local_scheduling": "nice10, workers2, batches8,120-second cooldown; paused without lock at completed task boundary12:38:29UTC; dr156 integrations running, then dr156-userdocs and normal fairness",
+  "local_scheduling": "nice10,workers2,heavy.lock batches8,cooldown120seconds. Both priority slots and README fairness are complete; queue resumed12:52UTC.",
   "speed_scope": "pods only, no local timing under rule10"
 }
