@@ -15,5 +15,18 @@
   "ignored_owner_log_matches": 1,
   "published_blob_size_and_sha256_matches": 146,
   "publication_manifest_sha256": "ac85cae41b05788bc278d68fd3231489de1615c7c15b8b79229844c3d0dabe69",
-  "verification": "Each input size and SHA256 checked before archival; tracked bytes also compared with the specified source commit. Each archived blob read back and rechecked after normal push. No DR157 source writes, deletions, branch changes or Hub writes."
+  "verification": "Each input size and SHA256 checked before archival; tracked bytes also compared with the specified source commit. Each archived blob read back and rechecked after normal push. No DR157 source writes, deletions, branch changes or Hub writes.",
+  "owner_independent_verification": "Owner independently checked all 146 original archived files byte-for-byte before cleanup commit 0b1d5000293c5b0a5c65a8464937d2482fd786cc.",
+  "cleanup_validation": {
+    "source_commit": "0b1d5000293c5b0a5c65a8464937d2482fd786cc",
+    "evidence_commit": "9603956da9878c63cff969eb59ee2e02ad136679",
+    "archive_root": "benchmarks/baseline/results/dr157-20261101/cleanup-validation-0b1d500",
+    "raw_files": 3,
+    "raw_bytes": 16063,
+    "transfer_manifest_bytes": 1242,
+    "transfer_manifest_sha256": "e6fb7d805f478f664fd50a8f7fcd5a2de6c2ee7112283e8ef1b9afa1f484a2f3",
+    "archived_files": 4,
+    "archived_bytes": 17305,
+    "verification": "Every size and SHA256 checked from source and read back from the published Git blobs. The original archive pin and owner source paths remain unchanged."
+  }
 }
