@@ -31,6 +31,7 @@ The raw artifact provenance binds the loaded table to its prepared identity.
 The source compatibility guard accepts the selected pairs, including threadpool settings.
 It does not check that the recorded package identity belongs to the backend being timed.
 The summary preserves the owner classification separately and marks counterpart/headline eligibility false.
+It omits tariff-derived cost fields. These local rates do not measure cloud hardware throughput or cost.
 Checkout and distribution versions are retained separately, rather than treating a version string as a content fingerprint.
 
 ## Method and results
