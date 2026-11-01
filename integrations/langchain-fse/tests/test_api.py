@@ -1,6 +1,7 @@
 import asyncio
 from threading import get_ident
 
+import numpy as np
 import pytest
 from langchain_fse import FseEmbeddings
 from langchain_tests.integration_tests.embeddings import EmbeddingsIntegrationTests
@@ -15,8 +16,6 @@ class TestStandardEmbeddings(EmbeddingsIntegrationTests):
 
     @property
     def embedding_model_params(self):
-        import numpy as np
-
         return {
             "encoder": Encoder.from_arrays(np.array([[1, 2]], dtype=np.float32), words=["hello"])
         }

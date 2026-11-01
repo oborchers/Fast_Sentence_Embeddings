@@ -46,7 +46,7 @@ def test_validation_and_loading(encoder, monkeypatch):
     assert calls == [(("local",), {"normalize": False})]
     with pytest.raises(ValueError, match="dtype"):
         FseEmbedding(encoder=encoder, dtype="int8")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="embed_batch_size"):
         FseEmbedding(encoder=encoder, embed_batch_size=0)
     with pytest.raises(ValueError, match="load_kwargs"):
         FseEmbedding(encoder=encoder, load_kwargs={"normalize": False})
