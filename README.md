@@ -209,22 +209,23 @@ It controls its own processing and storage path. External services and databases
 
 Use these English task scores to balance quality and size, then check the model on your own data.
 
-| Model | MTEB(eng, v2), 40 of 41 tasks[^quality] | Float32 file size or vocabulary × dimensions |
-|---|---:|---:|
-| all-MiniLM-L6-v2 (transformer reference, not run by fse) | 59.89 | 384 dimensions |
-| potion-base-32M | 55.26 | 124.1 MiB |
-| potion-retrieval-32M | 54.51 | 124.1 MiB |
-| potion-base-8M | 53.95 | 29.2 MiB |
-| static-retrieval-mrl-en-v1 | 51.89 | 119.7 MiB |
-| static-similarity-mrl-multilingual-v1 | 51.43 | 415.1 MiB |
-| FastText crawl-subwords-300 SIF-10 | 51.42 | 2,000,000 words × 300 |
-| paragram-300-sl999 SIF-10 | 50.98 | 1,703,756 words × 300 |
-| paranmt-300 | 50.69 | 89.5 MiB |
-| potion-multilingual-128M | 49.96 | 502.1 MiB |
-| GloVe 300 SIF-10 | 49.79 | 463.6 MiB |
-| word2vec-google-news-300 SIF-10 | 49.26 | 3,000,000 words × 300 |
+| Model | MTEB(eng, v2), 40 of 41 tasks[^quality] | Float32 file size | Ready-to-load on the Hub |
+|---|---:|---:|---|
+| all-MiniLM-L6-v2 (transformer reference, not run by fse) | 59.89 | n/a, transformer | [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) |
+| potion-base-32M | 55.26 | 124.1 MiB | [`minishlab/potion-base-32M`](https://huggingface.co/minishlab/potion-base-32M) |
+| potion-retrieval-32M | 54.51 | 124.1 MiB | [`minishlab/potion-retrieval-32M`](https://huggingface.co/minishlab/potion-retrieval-32M) |
+| potion-base-8M | 53.95 | 29.2 MiB | [`minishlab/potion-base-8M`](https://huggingface.co/minishlab/potion-base-8M) |
+| static-retrieval-mrl-en-v1 | 51.89 | 119.7 MiB | [`sentence-transformers/static-retrieval-mrl-en-v1`](https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1) |
+| static-similarity-mrl-multilingual-v1 | 51.43 | 415.1 MiB | [`sentence-transformers/static-similarity-mrl-multilingual-v1`](https://huggingface.co/sentence-transformers/static-similarity-mrl-multilingual-v1) |
+| FastText crawl-subwords-300 SIF-10 (WikiText fit, measured) | 51.42 | 4.50 GiB | Not yet available |
+| paragram-300-sl999 SIF-10 (WikiText fit, measured) | 50.98 | 1.93 GiB | Not yet available |
+| paranmt-300 | 50.69 | 89.5 MiB | Not yet available |
+| potion-multilingual-128M | 49.96 | 502.1 MiB | [`minishlab/potion-multilingual-128M`](https://huggingface.co/minishlab/potion-multilingual-128M) |
+| GloVe 300 SIF-10 (WikiText fit, measured) | 49.79 | 463.6 MiB | Not yet available |
+| word2vec-google-news-300 SIF-10 (WikiText fit, measured) | 49.26 | 3.41 GiB | Not yet available |
 
-[^quality]: Measured on 1 November 2026 with MTEB 2.26.25. Scores are the unweighted mean over 40 of 41 English tasks, multiplied by 100. MIND was not computed. SIF-10 here uses WikiText-103, not the Hub models' FineWeb preparation. FastText also stores subword vectors. [Results and model sizes](https://github.com/oborchers/Fast_Sentence_Embeddings/tree/dd44bc2f9561b3c31f14de9b5400229032aea696/benchmarks/baseline). [MiniLM dimensions](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/8b3219a92973c328a8e22fadcfa821b5dc75636a/config.json).
+[^quality]: Measured on 1 November 2026 with MTEB 2.26.25. Scores are the unweighted mean over 40 of 41 English tasks, multiplied by 100. MIND was not computed. The GloVe, FastText, paragram and word2vec SIF-10 scores use fits on 859,346 WikiText-103 training paragraphs, not the separate Hub preparation. Sizes describe the measured float32 artifacts. [Archived results and artifact metadata](https://github.com/oborchers/Fast_Sentence_Embeddings/tree/660309c4c88930254288495a0bb025fe428870f7/benchmarks/baseline).
+
 
 ### Available now
 
