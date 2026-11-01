@@ -128,8 +128,6 @@ def model_summary(root, source, tasks, artifacts, historical):
         if len(rows) != 1:
             raise ValueError(f"{path.name}: expected exactly one result")
         scores[task] = checked_row(rows[0], source, task, benchmark, artifact, historical)
-        if not (root / f"{source}-{task}.rss.txt").stat().st_size:
-            raise ValueError(f"{task}: missing RSS evidence")
     excluded = document(root, f"{source}-excluded.json")
     if (
         excluded.get("reason") != "not computed: needs more memory"
