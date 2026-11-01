@@ -1,374 +1,428 @@
-"""One CPU comparison, durable cell receipts and soft admission budgets.
-
-Only --describe is read-only. Workload execution requires the matching input
-contract, pre-created environments and explicit coordinator ownership.
-"""
+"""Single entry for the frozen CPU comparison; no automatic machine lifecycle."""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
-import math
-import os
-import platform
-import statistics
+import shutil
+import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
+
+from _speed_cells import (
+    Ledger,
+    append,
+    atomic,
+    check_output,
+    corpus_sources,
+    describe,
+    document,
+    memory_admit,
+    metadata,
+    output_array,
+    sha256,
+    startup_job,
+    summarize,
+    write_input,
+)
+from _speed_pipeline import (
+    build_rust,
+    measure_child,
+    prepare_head,
+    prepare_models,
+    stream_child,
+)
 
 HERE = Path(__file__).resolve().parent
 INPUT = HERE / "speed-input-2026-11.json"
 
 
-def document(path):
-    return json.loads(path.read_text())
-
-
-def sha256(path):
-    value = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(8 * 1024 * 1024), b""):
-            value.update(block)
-    return value.hexdigest()
-
-
-def atomic(path, value):
-    temporary = path.with_suffix(path.suffix + ".pending")
-    with temporary.open("x") as stream:
-        json.dump(value, stream, allow_nan=False, separators=(",", ":"))
-        stream.write("\n")
-        stream.flush()
-        os.fsync(stream.fileno())
-    os.replace(temporary, path)
-    descriptor = os.open(path.parent, os.O_RDONLY)
+def attempt(root, name, function):
+    started = time.monotonic()
     try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
-def append(path, value):
-    line = json.dumps(value, allow_nan=False, separators=(",", ":"))
-    with path.open("a") as stream:
-        stream.write(line + "\n")
-        stream.flush()
-        os.fsync(stream.fileno())
-    print(line, flush=True)
-
-
-def spread(values):
-    if not values or not all(math.isfinite(x) and x > 0 for x in values):
-        raise ValueError("positive finite observations required")
-    return {"median": statistics.median(values), "min": min(values), "max": max(values)}
-
-
-def valid_calls(row, minimum):
-    values = [row["first_seconds"], *row["warm_seconds"]]
-    if not row["warm_seconds"] or any(not math.isfinite(v) or v <= 0 for v in values):
-        raise ValueError("invalid call durations")
-    if any(v < minimum for v in values):
-        raise ValueError("actual fse call shorter than required")
-
-
-def controls(operations, rounds, minimum):
-    expected = {(r, label) for r in range(rounds) for label in ("fse-a", "fse-b")}
-    rows = [r for r in operations if r["label"] in ("fse-a", "fse-b")]
-    actual = {(r["round"], r["label"]) for r in rows}
-    if actual != expected or len(rows) != len(expected):
-        raise ValueError("missing or duplicate controls")
-    for row in rows:
-        valid_calls(row, minimum)
-    medians = [statistics.median(row["warm_seconds"]) for row in rows]
-    upper = max(medians) / min(medians)
-    return {"upper": upper, "lower": 1 / upper, "passed": upper <= 1.10}
-
-
-def arm_summary(cell, operations, label):
-    rows = sorted((r for r in operations if r["label"] == label), key=lambda r: r["round"])
-    if [r["round"] for r in rows] != list(range(cell["rounds"])):
-        raise ValueError("each arm must complete every round exactly once")
-    identities = {json.dumps(r["identity"], sort_keys=True) for r in rows}
-    if len(identities) != 1 or not all(r["output_checked"] for r in rows):
-        raise ValueError("runtime changed or output check failed")
-    seconds = [statistics.median(r["warm_seconds"]) for r in rows]
-    return {
-        "seconds": spread(seconds),
-        "texts_per_second": spread([cell["texts"] / v for v in seconds]),
-        "ordered_seconds": seconds,
-        "identity": rows[0]["identity"],
-    }
-
-
-def summarize(cell, operations):
-    minimum = 0 if cell.get("small_call_exception") else 2
-    check = controls(operations, cell["rounds"], minimum)
-    labels = {r["label"] for r in operations}
-    arms = {}
-    for label in sorted(labels):
-        arms[label] = arm_summary(cell, operations, label)
-    reference = cell.get("reference")
-    ratio = None
-    if reference:
-        ratio = spread(
-            [
-                b / a
-                for a, b in zip(
-                    arms["fse-a"]["ordered_seconds"],
-                    arms[reference]["ordered_seconds"],
-                    strict=True,
-                )
-            ]
+        value = function()
+        append(
+            root / "preparation.jsonl",
+            dict(stage=name, status="complete", seconds=time.monotonic() - started),
         )
-    return {
-        "status": "valid" if check["passed"] else "invalid",
-        "aa": check,
-        "arms": arms,
-        "paired_speedup": ratio,
-    }
-
-
-class Ledger:
-    """Reserve expected future work; never terminate a running cell."""
-
-    def __init__(self, root, contract, allocated_at):
-        self.root, self.contract, self.allocated_at = root, contract, allocated_at
-        self.finished = []
-        self.hourly = (
-            contract["billing"]["compute_usd_per_hour"]
-            + contract["machine"]["disk_gb"]
-            * contract["billing"]["disk_usd_per_gb_month"]
-            / contract["billing"]["month_hours"]
+        return value
+    except Exception as error:
+        append(
+            root / "preparation.jsonl",
+            dict(
+                stage=name, status="failed", seconds=time.monotonic() - started, error=repr(error)
+            ),
         )
-
-    def elapsed(self):
-        return max(0, time.time() - self.allocated_at)
-
-    def estimate(self, cell, fallback):
-        previous = [
-            r["duration_seconds"]
-            for r in self.finished
-            if r["kind"] == cell["kind"] and r["status"] not in ("not_started", "failed")
-        ]
-        return statistics.median(previous) if previous else fallback
-
-    def admit(self, seconds):
-        return (self.elapsed() + seconds + 600) * self.hourly / 3600 <= self.contract["billing"][
-            "planning_balance_usd"
-        ]
-
-    def progress(self, cell, stage):
-        remaining = [
-            r
-            for r in self.contract["cells"]
-            if r["id"] not in {v["cell_id"] for v in self.finished}
-        ]
-        seconds = sum(self.estimate(r, 600) for r in remaining)
-        atomic(
-            self.root / "progress.json",
-            {
-                "stage": stage,
-                "cell": cell,
-                "finished": len(self.finished),
-                "planned": len(self.contract["cells"]),
-                "elapsed_seconds": self.elapsed(),
-                "estimated_remaining_seconds": seconds,
-                "estimated_remaining_cost": seconds * self.hourly / 3600,
-            },
-        )
-
-    def child(self, command, cell):
-        process = subprocess.Popen(command)
-        while process.poll() is None:
-            self.progress(cell["id"], cell["stage"])
-            time.sleep(15)
-        if process.returncode:
-            raise RuntimeError(f"measurement child exited {process.returncode}")
-
-    def result(self, cell, status, started, **extra):
-        value = {
-            "run_id": self.contract["format"],
-            "cell_id": cell["id"],
-            "stage": cell["stage"],
-            "kind": cell["kind"],
-            "status": status,
-            "duration_seconds": time.monotonic() - started,
-            **extra,
-        }
-        append(self.root / "cells.jsonl", value)
-        self.finished.append(value)
-        self.progress(cell["id"], cell["stage"])
-
-    def done(self):
-        files = [
-            {"path": str(p.relative_to(self.root)), "bytes": p.stat().st_size, "sha256": sha256(p)}
-            for p in sorted(self.root.rglob("*"))
-            if p.is_file() and p.name not in ("manifest.json", "DONE")
-        ]
-        atomic(self.root / "manifest.json", {"files": files})
-        success = len(self.finished) == len(self.contract["cells"]) and all(
-            r["status"] == "valid" for r in self.finished
-        )
-        atomic(
-            self.root / "DONE",
-            {
-                "exit_status": 0 if success else 1,
-                "completed_at": time.time(),
-                "manifest_sha256": sha256(self.root / "manifest.json"),
-                "cells": len(self.finished),
-            },
-        )
-        return 0 if success else 1
+        return None
 
 
-def describe(contract):
-    return {
-        "variant": contract["variant"],
-        "planned_cells": len(contract["cells"]),
-        "planning_minutes": sum(s["budget_minutes"] for s in contract["stages"]),
-        "hard_deadline": False,
-        "cells": contract["cells"],
-        "machine": contract["machine"],
-        "python": platform.python_version(),
-    }
-
-
-def package_identity(name):
-    from importlib import import_module, metadata
-
-    module = import_module(name.replace("-", "_"))
-    distribution = metadata.distribution(name)
-    digest = hashlib.sha256()
-    files = []
-    for item in sorted(distribution.files or []):
-        path = Path(distribution.locate_file(item))
-        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
-            digest.update(str(item).encode())
-            digest.update(bytes.fromhex(sha256(path)))
-            files.append(str(item))
-    for path in sorted(Path(module.__file__).resolve().parent.rglob("*")):
-        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
-            digest.update(str(path.relative_to(Path(module.__file__).resolve().parent)).encode())
-            digest.update(bytes.fromhex(sha256(path)))
-    if not files:
-        raise ValueError("backend distribution has no verifiable installed files")
-    return {
-        "package": name,
-        "version": distribution.version,
-        "path": module.__file__,
-        "sha256": digest.hexdigest(),
-        "files": len(files),
-    }
-
-
-def encoder(job):
-    kind, workers = job["backend"], job["workers"]
-    if kind == "fse":
-        from fse import Encoder
-
-        model = Encoder.load(job["artifact"], mmap=True)
-        if model.word_vectors.dtype != job["dtype"]:
-            raise ValueError("finished table dtype differs from the requested cell")
-        return lambda texts: model.encode(texts, workers=workers)
-    if kind == "model2vec":
-        from model2vec import StaticModel
-
-        model = StaticModel.from_pretrained(job["snapshot"], normalize=True)
-        return lambda texts: model.encode(texts, use_multiprocessing=workers > 1)
-    if kind == "st":
-        import torch
-        from sentence_transformers import SentenceTransformer
-
-        torch.set_num_threads(workers)
-        model = SentenceTransformer(job["snapshot"], device="cpu", local_files_only=True)
-        return lambda texts: model.encode(
-            texts, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False
-        )
-    if kind == "fastembed":
-        import numpy as np
-        from fastembed import TextEmbedding
-
-        model = TextEmbedding(
-            model_name=job["model"], specific_model_path=job["snapshot"], local_files_only=True
-        )
-        return lambda texts: np.stack(list(model.embed(texts, parallel=None)))
-    raise ValueError(f"unsupported Python backend: {kind}")
-
-
-def configure(workers):
-    for name in (
-        "OMP_NUM_THREADS",
-        "OPENBLAS_NUM_THREADS",
-        "MKL_NUM_THREADS",
-        "BLIS_NUM_THREADS",
-        "NUMEXPR_NUM_THREADS",
-        "RAYON_NUM_THREADS",
-    ):
-        os.environ[name] = str(workers)
-    os.environ["TOKENIZERS_PARALLELISM"] = "true" if workers > 1 else "false"
-    if hasattr(os, "sched_getaffinity"):
-        cpus = sorted(os.sched_getaffinity(0))
-        if len(cpus) < workers:
-            raise ValueError("requested workers exceed available CPU affinity")
-        os.sched_setaffinity(0, cpus[:workers])
-
-
-def measure_child(job):
-    configure(job["workers"])
-    import resource
-
-    import numpy as np
-
-    package = {
-        "fse": "fse",
-        "model2vec": "model2vec",
-        "st": "sentence-transformers",
-        "fastembed": "fastembed",
-    }[job["backend"]]
-    identity = package_identity(package)
-    with Path(job["input_file"]).open() as stream:
-        texts = [line.rstrip("\n") for line in stream]
-    if len(texts) != job["texts"] or sha256(Path(job["input_file"])) != job["input_sha256"]:
-        raise ValueError("input row count or digest changed")
-    started = time.perf_counter()
-    encode = encoder(job)
-    load_seconds = time.perf_counter() - started
-    durations, outputs = [], []
-    for _ in range(1 + job.get("warm_passes", 1)):
-        started = time.perf_counter()
-        vectors = encode(texts)
-        durations.append(time.perf_counter() - started)
-        if vectors.dtype != np.float32 or vectors.ndim != 2 or len(vectors) != len(texts):
-            raise ValueError("backend must return the agreed dense float32 output")
-        digest = hashlib.sha256(memoryview(np.ascontiguousarray(vectors)).cast("B")).hexdigest()
-        outputs.append(digest)
-        if len(outputs) == 1:
-            mapped = np.lib.format.open_memmap(
-                job["vectors_file"], mode="w+", dtype="float32", shape=vectors.shape
-            )
-            for start in range(0, len(vectors), 4096):
-                mapped[start : start + 4096] = vectors[start : start + 4096]
-            mapped.flush()
-            del mapped
-        del vectors
-    if len(set(outputs)) != 1 or package_identity(package) != identity:
-        raise ValueError("output or executing backend changed between calls")
+def prepare(args, contract, ledger):
+    work = args.work
+    work.mkdir(parents=True, exist_ok=False)
     atomic(
-        Path(job["receipt"]),
-        {
-            "label": job["label"],
-            "round": job["round"],
-            "identity": identity,
-            "first_seconds": durations[0],
-            "warm_seconds": durations[1:],
-            "output_sha256": outputs[0],
-            "output_checked": False,
-            "load_seconds": load_seconds,
-            "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-            * (1 if sys.platform == "darwin" else 1024),
-        },
+        work / "owner.json",
+        dict(script=sha256(Path(__file__)), results=str(args.results.resolve())),
     )
+    models = {}
+    for repo in contract["models"]:
+        prepared = attempt(
+            args.results,
+            "model-" + repo.replace("/", "-"),
+            lambda name=repo: prepare_models(
+                work, {**contract, "models": {name: contract["models"][name]}}
+            ),
+        )
+        models.update(prepared or {})
+    sources = attempt(
+        args.results, "corpus", lambda: corpus_sources(contract, work / "datasets")
+    ) or ([], [])
+    rust = attempt(
+        args.results, "rust", lambda: build_rust(work / "native", HERE / "speed-rust.lock")
+    )
+    head = attempt(args.results, "head", lambda: prepare_head(work, contract, models))
+    return dict(
+        models=models,
+        paragraphs=sources[0],
+        sentences=sources[1],
+        rust=rust,
+        head=head,
+        inputs={},
+        work=work,
+        contract=contract,
+        reference_python=args.reference_python,
+        ledger=ledger,
+    )
+
+
+def input_file(context, cell):
+    source = context["paragraphs"]
+    repeated = cell["kind"] == "stream"
+    if repeated:
+        source = context["sentences"]
+    if cell["kind"] == "classify":
+        if context["head"] is None:
+            raise ValueError("classification preparation failed")
+        source = context["head"][0]
+    key = (cell["kind"] == "classify", repeated, cell["texts"])
+    if key not in context["inputs"]:
+        path = context["work"] / ("input-" + "-".join(map(str, key)) + ".txt")
+        identity = write_input(path, source, cell["texts"], 0, repeated=repeated)
+        context["inputs"][key] = (path, identity)
+        append(context["ledger"].root / "input-identities.jsonl", dict(file=path.name, **identity))
+    return context["inputs"][key]
+
+
+def labels(cell):
+    if cell["kind"] == "classify":
+        return ["fse-a", "fse-b", "unfolded", "model2vec-linear"]
+    return ["fse-a", "fse-b"] + ([cell["reference"]] if cell.get("reference") else [])
+
+
+def job_for(context, cell, label, number, folder):
+    path, identity = input_file(context, cell)
+    model = context["models"][cell["model"]]
+    backend = "fse" if label.startswith("fse-") else label
+    if cell["kind"] == "classify" and backend == "fse":
+        backend = "folded"
+    job = dict(
+        cell,
+        label=label,
+        round=number,
+        backend=backend,
+        input_file=str(path),
+        input_sha256=identity["sha256"],
+        snapshot=model["snapshot"],
+        artifact=model["artifacts"][cell["dtype"]],
+        vectors_file=str(folder / "vectors"),
+        receipt=str(folder / "receipt.json"),
+    )
+    if backend == "rust":
+        if not context["rust"]:
+            raise ValueError("native build failed")
+        job.update(context["rust"], rust_revision=context["rust"]["revision"])
+    if cell["kind"] == "classify":
+        job.update(context["head"][1])
+    return job
+
+
+def launch(context, cell, job, folder):
+    root = context["ledger"].root
+    filename = root / (cell["id"] + "-" + str(job["round"]) + "-" + job["label"] + ".job.json")
+    atomic(filename, job)
+    interpreter = context["reference_python"] if job["backend"] == "fastembed" else sys.executable
+    with (root / (filename.stem + ".log")).open("x") as stream:
+        process = subprocess.Popen(
+            [interpreter, str(Path(__file__).resolve()), "--child-job", str(filename)],
+            stdout=stream,
+            stderr=subprocess.STDOUT,
+        )
+        while process.poll() is None:
+            time.sleep(0.25)
+    if process.returncode:
+        raise RuntimeError(f"{job['backend']} exited {process.returncode}; see {filename.stem}.log")
+    record = document(folder / "receipt.json")
+    record.update(
+        input_sha256=job["input_sha256"],
+        model=job["model"],
+        revision=context["models"][job["model"]]["revision"],
+        adapter_sha256={
+            p.name: sha256(p)
+            for p in (
+                Path(__file__).resolve(),
+                HERE / "_speed_cells.py",
+                HERE / "_speed_pipeline.py",
+            )
+        },
+        input_identity=input_file(context, cell)[1],
+    )
+    append(root / "operations.jsonl", dict(cell_id=cell["id"], **record))
+    return record
+
+
+def remove_output(context, path, record):
+    if not path.resolve().is_relative_to(context["work"].resolve()) or path.is_symlink():
+        raise ValueError("output ownership changed")
+    if path.is_dir():
+        actual = {str(p.relative_to(path)) for p in path.rglob("*") if p.is_file()}
+        if actual != {r["path"] for r in record["files"]}:
+            raise ValueError("stream output inventory changed")
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+
+
+def stream_cell(context, cell):
+    operations = []
+    for number in range(cell["rounds"]):
+        for label in labels(cell):
+            folder = context["work"] / f"{cell['id']}-{number}-{label}"
+            folder.mkdir()
+            job = job_for(context, cell, label, number, folder)
+            record = launch(context, cell, job, folder)
+            remove_output(context, Path(job["vectors_file"]), record)
+            operations.append(record)
+    return summarize(cell, operations)
+
+
+def encode_cell(context, cell):
+
+    path, _ = input_file(context, cell)
+    dimension = 1024 if "static-retrieval" in cell["model"] else 256
+    memory_admit(cell["texts"], dimension, path.stat().st_size)
+    operations, reference, control = [], None, None
+    for number in range(cell["rounds"]):
+        order = labels(cell)
+        order = order[number % len(order) :] + order[: number % len(order)]
+        for label in order:
+            folder = context["work"] / f"{cell['id']}-{number}-{label}"
+            folder.mkdir()
+            job = job_for(context, cell, label, number, folder)
+            record = launch(context, cell, job, folder)
+            output = output_array(job["vectors_file"], record)
+            if reference is None:
+                if label != "fse-a":
+                    raise ValueError("first reference must be fse-a")
+                reference, control = output, (Path(job["vectors_file"]), record)
+            else:
+                difference = check_output(
+                    reference, output, label.startswith("fse-") or cell["kind"] == "classify"
+                )
+                append(
+                    context["ledger"].root / "checks.jsonl",
+                    dict(
+                        cell_id=cell["id"],
+                        label=label,
+                        round=number,
+                        max_abs_difference=difference,
+                        rows=len(output),
+                    ),
+                )
+                del output
+                remove_output(context, Path(job["vectors_file"]), record)
+            record["output_checked"] = True
+            operations.append(record)
+    del reference
+    remove_output(context, *control)
+    return summarize(cell, operations)
+
+
+def execute_cell(context, cell):
+    if cell.get("preparation_error"):
+        raise ValueError(cell["preparation_error"])
+    if cell["kind"] == "startup":
+        if not context["rust"]:
+            raise ValueError("native build failed")
+        path = context["ledger"].root / (cell["id"] + ".startup.json")
+        startup_job(dict(cell, binary=context["rust"]["binary"], receipt=str(path)))
+        return document(path)
+    return stream_cell(context, cell) if cell["kind"] == "stream" else encode_cell(context, cell)
+
+
+def estimate(contract, cell):
+    stage = next(r for r in contract["stages"] if r["name"] == cell["stage"])
+    count = sum(r["stage"] == cell["stage"] for r in contract["cells"])
+    return stage["estimate_minutes"] * 60 / count
+
+
+def heartbeat(ledger, stop):
+    while not stop.is_set():
+        ledger.progress(
+            getattr(ledger, "current", "preparation"), getattr(ledger, "stage", "setup")
+        )
+        stop.wait(15)
+
+
+def quiet(context):
+    ledger = context["ledger"]
+    cell = dict(
+        id="quiet",
+        stage="quiet",
+        kind="encode",
+        workers=1,
+        texts=1_000_000,
+        model="minishlab/potion-base-8M",
+        dtype="float32",
+        rounds=3,
+        warm_passes=3,
+    )
+    ledger.current, ledger.stage = cell["id"], cell["stage"]
+    started = time.monotonic()
+    result = encode_cell(context, cell)
+    result["observation_seconds"] = time.monotonic() - started
+    if result["observation_seconds"] < 120:
+        result.update(status="invalid", reason="observation window shorter than 120 seconds")
+    atomic(ledger.root / "quiet.json", result)
+    return result
+
+
+def sizing_job(context, repo, workers, backend, name, kind="encode"):
+    ledger = context["ledger"]
+    cell = dict(
+        id=name,
+        stage="sizing",
+        kind=kind,
+        workers=workers,
+        texts=50_000,
+        model=repo,
+        dtype="float32",
+        rounds=1,
+    )
+    folder = context["work"] / name
+    folder.mkdir()
+    job = job_for(context, cell, "fse-a" if backend in ("fse", "folded") else backend, 0, folder)
+    ledger.current, ledger.stage = name, "sizing"
+    record = launch(context, cell, job, folder)
+    remove_output(context, Path(job["vectors_file"]), record)
+    return 50_000 / min(record["first_seconds"], *record["warm_seconds"])
+
+
+def size_once(context):
+    contract, rates = context["contract"], {}
+    for number, cell in enumerate(contract["cells"]):
+        if cell["stage"] not in ("libraries", "classification"):
+            continue
+        key = (cell["model"], cell["workers"], cell["kind"])
+        if key not in rates:
+            rates[key] = attempt(
+                context["ledger"].root,
+                f"sizing-fse-{number}",
+                lambda c=cell, n=number: sizing_job(
+                    context, c["model"], c["workers"], "fse", f"sizing-fse-{n}", c["kind"]
+                ),
+            )
+        if rates[key] is None:
+            cell["preparation_error"] = "required one-shot sizing failed"
+            continue
+        step = 100_000 if cell["kind"] == "classify" else 50_000
+        requested = max(cell["texts"], int(3 * rates[key] / step + 0.999999) * step)
+        cell["texts"] = requested
+        reference_rate = None
+        if cell.get("reference"):
+            reference_rate = attempt(
+                context["ledger"].root,
+                f"sizing-reference-{number}",
+                lambda c=cell, n=number: sizing_job(
+                    context, c["model"], c["workers"], c["reference"], f"sizing-reference-{n}"
+                ),
+            )
+            if reference_rate is None:
+                cell["preparation_error"] = "required reference sizing failed"
+        calls = 1 + cell.get("warm_passes", 1)
+        seconds_per_round = 2 * requested / rates[key]
+        if reference_rate:
+            seconds_per_round += requested / reference_rate
+        cell["estimated_seconds"] = max(
+            estimate(contract, cell), cell["rounds"] * calls * seconds_per_round
+        )
+        cell["sizing"] = dict(
+            fse_texts_per_second=rates[key],
+            reference_texts_per_second=reference_rate,
+            target_fse_seconds=3,
+            search_iterations=0,
+        )
+    atomic(context["ledger"].root / "sized-input.json", contract)
+
+
+def run(args):
+    contract = document(args.input)
+    args.results.mkdir(parents=True, exist_ok=False)
+    ledger = Ledger(args.results, contract, args.allocated_at)
+    metadata(args.results, contract)
+    stop = threading.Event()
+    watcher = threading.Thread(target=heartbeat, args=(ledger, stop), daemon=True)
+    watcher.start()
+    interrupted = threading.Event()
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(signum, lambda *_: interrupted.set())
+    try:
+        context = prepare(args, contract, ledger)
+        attempt(args.results, "quiet", lambda: quiet(context))
+        attempt(args.results, "sizing", lambda: size_once(context))
+        deadlines = {}
+        for cell in contract["cells"]:
+            ledger.current, ledger.stage = cell["id"], cell["stage"]
+            budget = next(
+                s["budget_minutes"] * 60 for s in contract["stages"] if s["name"] == cell["stage"]
+            )
+            deadlines.setdefault(cell["stage"], time.monotonic() + budget)
+            started = time.monotonic()
+            allowed = (
+                not interrupted.is_set()
+                and started < deadlines[cell["stage"]]
+                and ledger.admit(ledger.estimate(cell, estimate(contract, cell)))
+            )
+            if not allowed:
+                ledger.result(
+                    cell,
+                    "not_started",
+                    started,
+                    reason="stage or soft total admission budget exhausted",
+                )
+                continue
+            try:
+                result = execute_cell(context, cell)
+                ledger.result(cell, result.pop("status"), started, **result)
+            except Exception as error:
+                ledger.result(cell, "failed", started, reason=repr(error))
+    except Exception as error:
+        append(args.results / "fatal.jsonl", dict(error=repr(error)))
+        finished = {row["cell_id"] for row in ledger.finished}
+        for cell in contract["cells"]:
+            if cell["id"] not in finished:
+                ledger.result(
+                    cell,
+                    "not_started",
+                    time.monotonic(),
+                    reason="run preparation failed: " + repr(error),
+                )
+    finally:
+        stop.set()
+        watcher.join()
+        ledger.progress("DONE", "collection")
+    return ledger.done()
 
 
 def main():
@@ -377,12 +431,21 @@ def main():
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--describe", action="store_true")
     mode.add_argument("--child-job", type=Path)
+    mode.add_argument("--run", action="store_true")
+    parser.add_argument("--results", type=Path, default=Path("/speed-results"))
+    parser.add_argument("--work", type=Path, default=Path("/speed-work"))
+    parser.add_argument("--reference-python", default="/speed-reference/bin/python")
+    parser.add_argument("--allocated-at", type=float, default=time.time())
     args = parser.parse_args()
     if args.child_job:
-        measure_child(document(args.child_job))
-    else:
-        print(json.dumps(describe(document(args.input)), indent=2))
+        job = document(args.child_job)
+        stream_child(job) if job["kind"] == "stream" else measure_child(job)
+        return 0
+    if args.run:
+        return run(args)
+    print(json.dumps(describe(document(args.input)), indent=2))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

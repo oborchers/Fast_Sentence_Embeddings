@@ -246,6 +246,7 @@ name = "fse-model2vec-rs-compare"
 version = "0.1.0"
 dependencies = [
  "model2vec-rs",
+ "rayon",
  "serde_json",
 ]
 
