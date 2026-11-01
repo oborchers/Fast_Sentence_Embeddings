@@ -1,7 +1,7 @@
 # Choosing fse and comparing alternatives
 
 This is the decision-table draft for DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen).
-Fresh measurements are still pending. This table describes capabilities, not a measured speed or quality ranking.
+Measurements are partial. This table describes capabilities, not a measured speed or quality ranking.
 
 | Need | Candidate | Reason |
 |---|---|---|
@@ -43,7 +43,7 @@ The native Rust worker pins [model2vec-rs source](https://github.com/MinishLab/m
 
 ## Still required
 
-Raw valid timing pairs, full quality results, both classifier targets, search and lifecycle comparisons, CPU and memory profiles, a sourced CPU-price estimate, and final review remain open. No new comparative speed, quality, memory or cost conclusion is established yet.
+Three initial speed cells and seven precision-matrix cells have complete paired evidence. Every cell reports its A/A spread, with noisy cells explicitly marked. POTION-8M and POTION-32M float32 each completed all 53 non-deferred quality tasks. Their method/runtime fingerprints differ, so these checkpoints establish no controlled model ranking. Four accepted profiles and a sourced tariff scenario are published in [PERFORMANCE.md](../PERFORMANCE.md). Missing or noisy speed cells, the remaining quality configurations, both classifier targets, search/lifecycle measurements and final review remain open.
 
 ### Common-vector local search protocol
 

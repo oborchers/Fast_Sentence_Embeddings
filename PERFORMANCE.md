@@ -623,6 +623,35 @@ and [coverage summary](benchmarks/baseline/dr151_quality_primary_20261101.json).
 Quality-run encode times are not used for speed or cost claims.
 
 
+### POTION-32M quality checkpoint (01.11.2026)
+
+POTION-32M float32 completed the same 40 non-deferred English tasks and all
+13 NanoBEIR tasks with unmodified MTEB 2.26.25. The English 40-task mean is
+**55.2573 points**, excluding MIND. The complete 13-task NanoBEIR mean is
+**46.1754 points**. The full 41-task English mean remains unavailable.
+
+The model revision is `1e5a03f8eeb2c98b928fbbd846f22f816360919f`, and the
+finished encoder fingerprint is `xxh3-128:99737b0f0d2dc7cfb4ee240faa2e278f`.
+The run began from source `0de9c3d`. Its method and runtime fingerprints differ
+from the first POTION-8M invocation because provenance checks and the installed
+extension changed between runs. These checkpoints therefore do not establish
+a controlled model ranking. A same-method POTION-8M confirmation remains queued.
+[Raw task records](benchmarks/baseline/results/dr151-quality-potion32-float32.jsonl)
+and the [complete coverage summary](benchmarks/baseline/dr151_quality_potion32_20261101.json)
+were first pushed in `7bb78dd`.
+
+The invocation took 3,064.107 seconds of elapsed wall time, including a manual
+priority suspension, shared waits, setup and cooldowns. This is not model
+computation time. The earlier POTION-8M invocation took 1,462.740 seconds with
+different batch sizes and waits. Applying those two elapsed rates uniformly
+to the 32 remaining static configurations gives a planning scenario of
+13.00 to 27.24 hours, plus MiniLM, classifiers and baseline confirmation.
+This range is not a calibrated quiet-machine or cloud forecast.
+[Invocation durations](benchmarks/baseline/dr151_configuration_times_20261101.json)
+and [remaining-time assumptions](benchmarks/baseline/dr151_remaining_time_20261101.json)
+retain the underlying observations.
+
+
 ### Comparison profiles (01.11.2026)
 
 POTION-8M float32 on all 5,352 WikiText rows has four accepted instrumented
