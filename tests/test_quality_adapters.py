@@ -45,6 +45,24 @@ class TestQualityAdapters(unittest.TestCase):
         assert out.shape == (3, 2)
         assert calls == [(["a", "b", "c"], {"use_multiprocessing": False})]
 
+    def test_authorized_deferral_keeps_every_other_task(self):
+        def task(name):
+            return SimpleNamespace(
+                metadata=SimpleNamespace(name=name, model_dump=lambda **_: {"name": name})
+            )
+
+        mind, other = task("MindSmallReranking"), task("STSBenchmark")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "results.jsonl"
+            remaining = self.runner.defer_mind_task([mind, other], {}, {"model": "fse/test"}, path)
+            import json
+
+            record = json.loads(path.read_text())
+        assert remaining == [other]
+        assert record["status"] == "deferred"
+        assert record["main_score"] is None
+        assert record["reason"] == "deferred: needs more than 16 GiB RAM on the M1"
+
     def test_batch_yields_lock_when_timing_marker_appears(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
