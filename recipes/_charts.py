@@ -76,7 +76,87 @@ STORIES = {
         ["Text in your app", "Encode locally", "Or request HTTP", "Vector bytes back"],
         ["Already in memory", "Direct function call", "Request and response", "JSON transfer cost"],
     ),
+    "08-folded-classifier": (
+        "ONE TRAINED HEAD, TWO WAYS TO PREDICT",
+        ["New text", "Average word scores", "Add the same bias", "Topic scores"],
+        ["Same tokenizer", "Four values per word", "After averaging", "Same linear head"],
+    ),
 }
+
+
+def folding_diagram(theme):
+    colors = PALETTES[theme]
+    fig, ax = plt.subplots(figsize=(12, 4), facecolor=colors["bg"])
+    ax.set(xlim=(0, 12), ylim=(0, 4))
+    ax.axis("off")
+    ax.text(
+        0.4,
+        3.65,
+        "ONE TRAINED HEAD, TWO WAYS TO PREDICT",
+        color=colors["accent"],
+        fontsize=11,
+        weight="bold",
+    )
+    ax.text(
+        0.4,
+        3.25,
+        "Preparation: multiply each word row by the trained head weights once.",
+        color=colors["muted"],
+        fontsize=10,
+    )
+    rows = [
+        (
+            2.1,
+            ["New text", "256-value mean", "Linear head + bias", "4 topic scores"],
+            ["Separate path", "Average word vectors", "Multiply after averaging", "Choose a label"],
+        ),
+        (
+            0.65,
+            ["New text", "4-value mean", "Add the same bias", "4 topic scores"],
+            ["Folded path", "Average prepared scores", "After averaging", "Choose a label"],
+        ),
+    ]
+    for y, labels, details in rows:
+        for i, (label, detail) in enumerate(zip(labels, details, strict=True)):
+            x = 0.35 + i * 3
+            ax.add_patch(
+                FancyBboxPatch(
+                    (x, y),
+                    2.3,
+                    0.65,
+                    boxstyle="round,pad=0.12",
+                    facecolor=colors["highlight"] if y < 1 else colors["card"],
+                    edgecolor=colors["accent"],
+                )
+            )
+            ax.text(
+                x + 1.15,
+                y + 0.33,
+                label,
+                ha="center",
+                va="center",
+                color=colors["text"],
+                fontsize=11,
+                weight="bold",
+            )
+            ax.text(x + 1.15, y - 0.35, detail, ha="center", color=colors["muted"], fontsize=10)
+            if i < 3:
+                ax.add_patch(
+                    FancyArrowPatch(
+                        (x + 2.5, y + 0.33),
+                        (x + 2.78, y + 0.33),
+                        arrowstyle="-|>",
+                        mutation_scale=14,
+                        color=colors["accent"],
+                        linewidth=1.5,
+                    )
+                )
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    path = MEDIA / f"08-folded-classifier-{theme}.svg"
+    fig.savefig(path, facecolor=fig.get_facecolor())
+    plt.close(fig)
+    if theme == "light":
+        adaptive_svg(path, MEDIA / "08-folded-classifier.svg")
 
 
 def transport_diagram(theme):
@@ -157,6 +237,8 @@ def recipe_icon(name):
 
 def diagram(name, theme):
     """Draw a self-contained flow readable on either GitHub background."""
+    if name == "08-folded-classifier":
+        return folding_diagram(theme)
     if name == "07-local-compute-and-http":
         return transport_diagram(theme)
     colors = PALETTES[theme]

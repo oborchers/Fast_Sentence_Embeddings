@@ -20,6 +20,7 @@ A vector is a list of numbers that represents a text.
 | <img src="media/05-folder-listener-icon.svg" width="46" alt="Recipe number"> | [**Folder listener**](05-folder-listener.ipynb). Pick up completed files and add each one to your search store. | 10 min |
 | <img src="media/06-integrations-icon.svg" width="46" alt="Recipe number"> | [**Integrations**](06-integrations.ipynb). Use one local encoder with your search, topic, and table libraries. | 15 min |
 | <img src="media/07-local-compute-and-http-icon.svg" width="46" alt="Recipe number"> | [**Local compute and HTTP**](07-local-compute-and-http.ipynb). See when a local HTTP request costs more than encoding the text. | 5 min |
+| <img src="media/08-folded-classifier-icon.svg" width="46" alt="Recipe number"> | [**Folded classifier**](08-folded-classifier.ipynb). Fold a trained classifier into word vectors, then save a smaller model for your app. | 15 min |
 
 *Estimates for reading, excluding installation, downloads, and execution.
 The first recipe includes a large-data speed demonstration, which needs additional disk space and execution time.
@@ -57,6 +58,7 @@ fastText 0.9.3 builds from source, which requires the C++ compiler.
 Those examples use articles from the published AG News test split.
 The SIF recipe also uses GloVe and the repository's STS Benchmark files.
 The classification recipe uses SST-5 and a fixed sample of AG News.
+The folding recipe uses the same AG News fit/test rows to compare one raw-mean linear head before and after folding.
 
 Model and dataset revisions are pinned in the recipes and [_helpers.py](_helpers.py).
 Read the [POTION model card](https://huggingface.co/minishlab/potion-base-8M), [GloVe model card](https://huggingface.co/fse/glove-wiki-gigaword-300), [SST-5 dataset card](https://huggingface.co/datasets/SetFit/sst5), and [AG News dataset card](https://huggingface.co/datasets/SetFit/ag_news) for their sources and terms.
@@ -88,6 +90,10 @@ The fse 101 speed demonstration is labeled **measured on a MacBook in everyday u
 It prints its machine, CPU, Python, commit, date, and load averages beside the result.
 The HTTP recipe retains its historical 1 November 2026 outputs and [machine provenance](run-environment.json).
 Use the [performance guide](../PERFORMANCE.md) for measurements, methods, and their limits.
+
+The [folding recipe](08-folded-classifier.ipynb) compares quality and saved file size before and after folding one linear head.
+It includes saving, loading, and exact prediction checks for both fse formats.
+No speedup is claimed until matching committed raw measurements exist.
 
 ## Adapt a recipe safely
 
