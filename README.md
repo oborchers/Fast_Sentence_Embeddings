@@ -35,7 +35,7 @@ This measures encoding with the model already loaded. Text length and model choi
 </picture>
 
 The chart uses all 5,352 nonblank WikiText validation and test texts, in three paired rounds.
-Float16 stores smaller numbers; it is a separate measurement, not a promise of equal quality.
+Float16 uses less space for the model. This is a separate measurement, not a promise of equal quality.
 A new library speed comparison and classification benchmark are pending.
 The current Model2Vec control rates need re-measurement before a final comparison.
 [Measurement details and full model tables](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/71b69be83efdd8adbf071ada302be8bf1db68b24/docs/benchmarks/readme-evidence.md) retain ranges, quality scores and pending comparisons.
@@ -114,7 +114,7 @@ texts = ["I cannot log in", "My password is lost", "Send me a quote", "What does
 head = LogisticRegression().fit(encoder.encode(texts), ["support", "support", "sales", "sales"])
 classifier = Classifier.from_sklearn(encoder, head)
 labels = classifier.predict(["I need a new password"])
-classifier.save("router.safetensors", standalone=True)
+classifier.save("router.safetensors")
 ```
 
 Install `scikit-learn` for this training example. The four texts illustrate the API; train on representative data for real use.
@@ -129,18 +129,18 @@ The recipe below covers training, classification, regression and saving the fini
 
 ## Recipes: from a model to a working application
 
-These seven notebooks show the full workflow, including preparation, execution and checks.
+These seven recipes show the full workflow, including preparation, execution and checks.
 Start with the job you want to do:
 
-| I want to... | Recipe |
+| Use case | Recipe |
 |---|---|
-| Improve classic word-vector averages, or try SIF and uSIF | [Prepare weighted embeddings](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/01-sif-usif.ipynb) |
-| Train a classifier or regressor and run it on text with fse | [Linear classification and regression](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/02-linear-heads.ipynb) |
-| Encode a large text file and resume after an interruption | [Files with resume](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/03-files-with-resume.ipynb) |
-| Process queue messages and write vectors to Qdrant | [Kafka and Qdrant](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/04-kafka-and-qdrant.ipynb) |
-| Pick up completed files from a local or shared folder | [Folder listener](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/05-folder-listener.ipynb) |
-| Use fse with search, clustering, RAG and table libraries | [DSPy, BERTopic, txtai, Chroma, LanceDB, Qdrant and Polars](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/06-integrations.ipynb) |
-| Measure local encoding and the cost of an HTTP request | [Local compute and HTTP](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/07-local-compute-and-http.ipynb) |
+| Sentence search | [Make classic word vectors more useful for sentence search.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/01-sif-usif.ipynb) |
+| Text classification | [Train a text classifier, compare its accuracy, and save it for your app.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/02-linear-heads.ipynb) |
+| Files with resume | [Turn a text file into vectors and continue after an interruption.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/03-files-with-resume.ipynb) |
+| Queues and Qdrant | [Turn queued news into searchable vectors and replay safely.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/04-kafka-and-qdrant.ipynb) |
+| Folder listener | [Pick up completed files and add each one to your search store.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/05-folder-listener.ipynb) |
+| Integrations | [Use one local encoder with your search, topic, and table libraries.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/06-integrations.ipynb) |
+| Local compute and HTTP | [See when a local HTTP request costs more than encoding the text.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/07-local-compute-and-http.ipynb) |
 
 The [recipe index](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) has setup instructions and recorded results.
 The queue recipe uses a fake queue and local Qdrant. The folder recipe polls for completed files.
