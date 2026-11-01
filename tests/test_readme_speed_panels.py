@@ -272,3 +272,36 @@ def test_one_16_32_grid_uses_16_and_reports_a_faster_8_core_setting(tmp_path):
     assert "8-worker median" in evidence
     assert "README still uses 16" in evidence
     assert "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/" in evidence
+
+
+def test_completely_filtered_precision_table_fails_before_writing(tmp_path):
+    palette = json.loads((ROOT / "media/readme/palette.json").read_text())
+    data = {
+        "format": "readme-speed-panels-v1",
+        "scaling": curve(1100),
+        "table": [row(dtype=dtype, workers=32) for dtype in PANEL["DTYPES"]],
+        "comparisons": [],
+        "table_caption": "test fixture",
+    }
+    with pytest.raises(ValueError, match="Missing selected precision"):
+        PANEL["publish"](data, tmp_path, palette)
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("include_complete_library", [False, True])
+def test_completely_filtered_library_cannot_disappear(tmp_path, include_complete_library):
+    palette = json.loads((ROOT / "media/readme/palette.json").read_text())
+    rust = pair(32)
+    rust["reference"]["backend"] = "rust"
+    rust["reference"]["runtime_fingerprint"] = "test-only-rust"
+    pairs = [pair(), pair(16), rust] if include_complete_library else [rust]
+    data = {
+        "format": "readme-speed-panels-v1",
+        "scaling": curve(1100),
+        "table": [],
+        "comparisons": pairs,
+        "comparison_caption": "test fixture",
+    }
+    with pytest.raises(ValueError, match="every selected core setting"):
+        PANEL["publish"](data, tmp_path, palette)
+    assert list(tmp_path.iterdir()) == []

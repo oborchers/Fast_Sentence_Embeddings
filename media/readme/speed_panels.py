@@ -287,8 +287,9 @@ def svg(rows, caption, colors, *, preview=False, notes=()):
     return "\n".join(parts) + "\n"
 
 
-def paired_core_settings(pairs, selected):
-    keys = {(p["reference"]["backend"], p["fse"]["context"]["model"]) for p in pairs}
+def paired_core_settings(pairs, selected, expected=None):
+    requested = pairs if expected is None else expected
+    keys = {(p["reference"]["backend"], p["fse"]["context"]["model"]) for p in requested}
     for backend, model in keys:
         workers = [
             p["fse"]["context"]["workers"]
@@ -316,6 +317,8 @@ def check_stale(output, files):
 def panel_files(data, palette):
     selected = selections(data.get("scaling", []))
     table_rows = selected_rows(data["table"], data.get("scaling", []), selected)
+    if data["table"] and not table_rows:
+        raise ValueError("Missing selected precision rows")
     files = (
         {"core-selection-evidence.md": selection_audit(data["scaling"], selected)}
         if selected
@@ -345,8 +348,8 @@ def select_pairs(pairs, scaling, selected):
     chosen = [
         p for p in pairs if p["fse"]["context"]["workers"] in selected[p["fse"]["context"]["model"]]
     ]
+    paired_core_settings(chosen, selected, pairs)
     if chosen:
-        paired_core_settings(chosen, selected)
         same([p["fse"] for p in chosen], COHORT)
         same_runtime([p["fse"] for p in chosen])
     return chosen
