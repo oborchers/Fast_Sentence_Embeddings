@@ -19,6 +19,7 @@ class TestQualityAdapters(unittest.TestCase):
         quality = Path(__file__).resolve().parents[1] / "benchmarks/quality"
         with patch.object(sys, "path", [str(quality), *sys.path]):
             self.runner = importlib.import_module("run_mteb")
+            self.report = importlib.import_module("report_precision")
 
     def test_native_loader_has_a_distinct_name_and_pinned_revision(self):
         name = "model2vec/minishlab/potion-base-8M"
@@ -64,13 +65,13 @@ class TestQualityAdapters(unittest.TestCase):
         assert record["reason"] == "deferred: needs more than 16 GiB RAM on the M1"
 
     def test_precision_report_treats_python_version_formats_consistently(self):
-        report = importlib.import_module("report_precision")
+        report = self.report
         assert report.setup({"python": "3.13.16"}) == report.setup(
             {"python": "3.13.16 (build details)"}
         )
 
     def test_precision_delta_needs_matching_known_source_revisions(self):
-        report = importlib.import_module("report_precision")
+        report = self.report
         left = {
             "task_metadata": {"main_score": "accuracy"},
             "main_score": 0.5,
