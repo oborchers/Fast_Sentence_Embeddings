@@ -31,7 +31,7 @@ LangChain requires standalone packages for new integrations.
 
 The supported minimum for this draft is `langchain-core==1.7.3`, the current stable
 release checked on 2026-11-01 from [PyPI](https://pypi.org/project/langchain-core/1.7.3/).
-This is the package's tested baseline, not a claim that older framework APIs cannot work.
+This is our tested minimum and makes no compatibility claim for older framework releases.
 The runtime dependency allows later versions. Recheck compatibility before publication.
 
 The implementation follows the [official integration guide](https://docs.langchain.com/oss/python/contributing/integrations-langchain).

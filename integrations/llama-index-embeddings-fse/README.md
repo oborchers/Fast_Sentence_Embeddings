@@ -39,7 +39,7 @@ LlamaIndex requires new integrations to live outside its monorepo.
 
 The supported minimum for this draft is `llama-index-core==0.14.25`, the current stable
 release checked on 2026-11-01 from [PyPI](https://pypi.org/project/llama-index-core/0.14.25/).
-This is the package's tested baseline, not a claim that older framework APIs cannot work.
+This is our tested minimum and makes no compatibility claim for older framework releases.
 The runtime dependency allows later versions. Recheck compatibility before publication.
 
 The implementation follows the [official integration guide](https://github.com/run-llama/llama_index/blob/main/CONTRIBUTING.md).

@@ -45,7 +45,7 @@ for a later listing. No listing is submitted in this preparation.
 
 The supported minimum for this draft is `haystack-ai==3.4.1`, the current stable
 release checked on 2026-11-01 from [PyPI](https://pypi.org/project/haystack-ai/3.4.1/).
-This is the package's tested baseline, not a claim that older framework APIs cannot work.
+This is our tested minimum and makes no compatibility claim for older framework releases.
 The runtime dependency allows later versions. Recheck compatibility before publication.
 
 The implementation follows the [official integration guide](https://docs.haystack.deepset.ai/docs/custom-components).
