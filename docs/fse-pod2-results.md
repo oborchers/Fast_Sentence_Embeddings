@@ -64,3 +64,19 @@ The fse and frozen Model2Vec linear models both have accuracy 0.8880 and macro-F
 The complete exported POTION-8M MLP Subjectivity evaluation matches the M1 result: accuracy 0.8900, macro-F1 0.889887 and an identical prediction digest for all 2,000 rows. Model/dataset revisions, training/evaluation text and label digests, fit settings and training method file hashes match. Training used two Torch threads on the M1 and sixteen on the pod. Fitted export files differ, so this does not claim bitwise tensor reproducibility across platforms or other datasets.
 
 [Platform check and exact source records](../benchmarks/baseline/dr151_classifier_platform_check_20261101.json).
+
+## FineWeb quality without a speed claim
+
+All 46,743 held-out pages were evaluated with label score >=3, from the pinned FineWeb-Edu annotation revision. The following float32 model rows and the fastText row come from the committed classification-quality journal. Quantized accuracy deltas remain in that same journal.
+
+| Trained model | Accuracy | Macro-F1 |
+|---|---:|---:|
+| minishlab/potion-base-8M frozen fse linear | 0.924887 | 0.710607 |
+| minishlab/potion-base-8M frozen Model2Vec + sklearn linear | 0.924866 | 0.710647 |
+| minishlab/potion-base-32M frozen fse linear | 0.927091 | 0.725128 |
+| minishlab/potion-base-32M frozen Model2Vec + sklearn linear | 0.927198 | 0.724808 |
+| fastText supervised, wordNgrams=2 | 0.934065 | 0.766207 |
+| minishlab/potion-base-8M fine-tuned Model2Vec MLP | 0.936140 | 0.770042 |
+| minishlab/potion-base-32M fine-tuned Model2Vec MLP | 0.937980 | 0.790157 |
+
+POTION retains its pretrained input limits, while fastText reads the full page. The frozen encoders use separately fitted linear heads. The fine-tuned MLP changes embeddings and uses its 512-unit hidden head, trained with PyTorch and exported to NumPy. This is a task-quality comparison with different model architectures and input limits. Training durations are reported separately in raw records as different tool chains, not as paired inference speedups. No FineWeb inference series passes the required A/A gate on this pod.
