@@ -10,7 +10,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 DTYPES = ("float32", "float16", "int8")
-WORKERS = (1, 32)
+SCALING_WORKERS = (1, 2, 4, 8, 16, 32)
+MIN_32_GAIN = 1.20
+LOW_GAIN_NOTE = "More than 16 cores adds little here."
 BACKENDS = {
     "model2vec": "Model2Vec",
     "rust": "model2vec-rs",
@@ -80,13 +82,68 @@ def same_runtime(rows):
         raise ValueError("The fse rows must share one executed runtime")
 
 
-def table(rows):
+def core_label(worker):
+    if worker == 0:
+        return "Selected core count"
+    if worker == 1:
+        return "One core"
+    return "All 32 cores" if worker == 32 else f"{worker} cores"
+
+
+def select_cores(rows):
+    """Choose from complete committed fse-a scaling cells, never interpolate."""
+    points = {r["context"]["workers"]: r for r in rows}
+    if set(points) != set(SCALING_WORKERS) or len(rows) != len(points):
+        raise ValueError("Selection needs accepted scaling points at 1, 2, 4, 8, 16 and 32")
+    same(rows, [key for key in CONTEXT if key != "workers"])
+    same_runtime(rows)
+    if any(r["backend"] != "fse" or r["context"]["table_dtype"] != "float32" for r in rows):
+        raise ValueError("Selection uses fse float32 scaling rows")
+    medians = {worker: measured(row) for worker, row in points.items()}
+    chosen = (
+        32
+        if medians[32] / medians[16] >= MIN_32_GAIN
+        else max((w for w in SCALING_WORKERS if w <= 16), key=lambda w: (medians[w], -w))
+    )
+    return tuple(sorted({1, chosen}))
+
+
+def selections(rows):
+    models = {r["context"]["model"] for r in rows}
+    return {
+        model: select_cores([r for r in rows if r["context"]["model"] == model]) for model in models
+    }
+
+
+def selected_rows(rows, scaling, selected):
+    if not rows:
+        return []
+    models = {r["context"]["model"] for r in rows}
+    if not models <= selected.keys():
+        raise ValueError("Committed scaling rows are required for every displayed model")
+    relevant = [r for r in rows if r["context"]["workers"] in selected[r["context"]["model"]]]
+    for row in relevant:
+        curve = next(r for r in scaling if r["context"]["model"] == row["context"]["model"])
+        same([row, curve], [key for key in CONTEXT if key not in {"workers", "table_dtype"}])
+        same_runtime([row, curve])
+    return relevant
+
+
+def selection_notes(selected):
+    return [
+        f"{model.split('/')[-1]}: {LOW_GAIN_NOTE}"
+        for model, workers in sorted(selected.items())
+        if 32 not in workers
+    ]
+
+
+def table(rows, workers):
     if not rows:
         return ""
-    expected = {(dtype, worker) for dtype in DTYPES for worker in WORKERS}
+    expected = {(dtype, worker) for dtype in DTYPES for worker in workers}
     actual = {(r["context"]["table_dtype"], r["context"]["workers"]) for r in rows}
     if actual != expected or len(rows) != len(expected):
-        raise ValueError("The compact table needs all precisions at one and all 32 cores")
+        raise ValueError("The compact table needs all precisions at the selected core settings")
     same(rows, [key for key in CONTEXT if key not in {"table_dtype", "workers"}])
     same_runtime(rows)
     values = {}
@@ -95,16 +152,13 @@ def table(rows):
         if row["backend"] != "fse":
             raise ValueError("The compact table is fse only")
         values[row["context"]["table_dtype"], row["context"]["workers"]] = rate
-    return "\n".join(
-        [
-            "| fse table | One core, texts/s | All 32 cores, texts/s |",
-            "|---|---:|---:|",
-            *[
-                f"| {dtype} | {values[dtype, 1]:,.0f} | {values[dtype, 32]:,.0f} |"
-                for dtype in DTYPES
-            ],
-        ]
-    )
+    heading = "| fse table | " + " | ".join(f"{core_label(w)}, texts/s" for w in workers) + " |"
+    separator = "|---|" + "---:|" * len(workers)
+    body = [
+        "| " + dtype + " | " + " | ".join(f"{values[dtype, w]:,.0f}" for w in workers) + " |"
+        for dtype in DTYPES
+    ]
+    return "\n".join([heading, separator, *body])
 
 
 def comparison(pair):
@@ -114,8 +168,8 @@ def comparison(pair):
     if left["backend"] != "fse" or right["backend"] not in BACKENDS:
         raise ValueError("Expected fse and a named reference library")
     same([left, right], CONTEXT)
-    if left["context"]["workers"] not in WORKERS:
-        raise ValueError("Pod comparisons use one core or all 32 cores")
+    if left["context"]["workers"] not in SCALING_WORKERS:
+        raise ValueError("Pod comparisons must use a measured scaling setting")
     if left["source"] != right["source"]:
         raise ValueError("Each bar needs its own matched paired series")
     if pair["output_checked"] is not True:
@@ -135,7 +189,7 @@ def entries(rows, preview):
     if preview:
         return [
             (w, name, "same model in both libraries", None)
-            for w in WORKERS
+            for w in (1, 0)
             for name in BACKENDS.values()
         ]
     return [
@@ -170,10 +224,11 @@ def bar(entry, y, scale, colors):
     return parts
 
 
-def svg(rows, caption, colors, *, preview=False):
+def svg(rows, caption, colors, *, preview=False, notes=()):
     content = entries(rows, preview)
     scale = max([1, *(entry[3] for entry in content if entry[3] is not None)])
-    height = 230 + 90 * len(content)
+    groups = sorted({entry[0] for entry in content}, key=lambda w: (w != 1, w))
+    height = 150 + 40 * len(groups) + 90 * len(content) + 28 * len(notes)
     title = "fse vs other libraries"
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="{height}" viewBox="0 0 1100 {height}" role="img" aria-labelledby="title desc"><title id="title">{title}</title><desc id="desc">{html.escape(caption)}</desc><rect width="1100" height="{height}" rx="12" fill="{colors["bg"]}"/><g font-family="Geist, Arial, sans-serif">',
@@ -186,17 +241,19 @@ def svg(rows, caption, colors, *, preview=False):
     )
     parts.append(label(40, 84, subtitle, colors))
     y = 125
-    for worker in WORKERS:
-        parts.append(label(40, y, "One core" if worker == 1 else "All 32 cores", colors, 21, 700))
+    for worker in groups:
+        parts.append(label(40, y, core_label(worker), colors, 21, 700))
         y += 40
         for entry in (item for item in content if item[0] == worker):
             parts.extend(bar(entry, y, scale, colors))
             y += 90
+    for index, note in enumerate(notes):
+        parts.append(label(40, height - 55 - 28 * (len(notes) - index - 1), note, colors, 15))
     parts.extend([label(40, height - 25, caption, colors, 15), "</g></svg>"])
     return "\n".join(parts) + "\n"
 
 
-def paired_core_settings(pairs):
+def paired_core_settings(pairs, selected):
     keys = {(p["reference"]["backend"], p["fse"]["context"]["model"]) for p in pairs}
     for backend, model in keys:
         workers = [
@@ -204,8 +261,8 @@ def paired_core_settings(pairs):
             for p in pairs
             if p["reference"]["backend"] == backend and p["fse"]["context"]["model"] == model
         ]
-        if sorted(workers) != list(WORKERS):
-            raise ValueError("Each library needs one accepted pair at one core and all 32 cores")
+        if sorted(workers) != list(selected[model]):
+            raise ValueError("Each library needs one accepted pair at every selected core setting")
 
 
 def check_stale(output, files):
@@ -217,21 +274,46 @@ def check_stale(output, files):
         )
 
 
+def panel_files(data, palette):
+    selected = selections(data.get("scaling", []))
+    table_rows = selected_rows(data["table"], data.get("scaling", []), selected)
+    files = {}
+    if table_rows:
+        model = table_rows[0]["context"]["model"]
+        note = "\n".join(selection_notes({model: selected[model]}))
+        files["speed-table.md"] = (
+            table(table_rows, selected[model]) + "\n\n" + data["table_caption"] + "\n" + note + "\n"
+        )
+    pairs = select_pairs(data["comparisons"], data.get("scaling", []), selected)
+    if pairs:
+        for theme in ("light", "dark"):
+            colors = {key: value["value"] for key, value in palette[theme].items()}
+            shown = {
+                p["fse"]["context"]["model"]: selected[p["fse"]["context"]["model"]] for p in pairs
+            }
+            files[f"library-speedups-{theme}.svg"] = svg(
+                pairs, data["comparison_caption"], colors, notes=selection_notes(shown)
+            )
+    return files
+
+
+def select_pairs(pairs, scaling, selected):
+    selected_rows([p["fse"] for p in pairs], scaling, selected)
+    chosen = [
+        p for p in pairs if p["fse"]["context"]["workers"] in selected[p["fse"]["context"]["model"]]
+    ]
+    if chosen:
+        paired_core_settings(chosen, selected)
+        same([p["fse"] for p in chosen], COHORT)
+        same_runtime([p["fse"] for p in chosen])
+    return chosen
+
+
 def publish(data, output, palette):
     if data["format"] != "readme-speed-panels-v1":
         raise ValueError("Unsupported speed-panel format")
-    files = {}
-    markdown = table(data["table"])
-    if markdown:
-        files["speed-table.md"] = markdown + "\n\n" + data["table_caption"] + "\n"
-    pairs = data["comparisons"]
-    if pairs:
-        paired_core_settings(pairs)
-        same([p["fse"] for p in pairs], COHORT)
-        same_runtime([p["fse"] for p in pairs])
-        for theme in ("light", "dark"):
-            colors = {key: value["value"] for key, value in palette[theme].items()}
-            files[f"library-speedups-{theme}.svg"] = svg(pairs, data["comparison_caption"], colors)
+    files = panel_files(data, palette)
+
     check_stale(output, files)
     # Validate every requested output before writing any file.
     for name, content in files.items():
@@ -251,7 +333,7 @@ def preview(output, palette):
             )
         )
     (output / "speed-table.md").write_text(
-        "Layout only, no measurements. Do not include this draft in README.\n\n| fse table | One core, texts/s | All 32 cores, texts/s |\n|---|---:|---:|\n| float32 | measured value | measured value |\n| float16 | measured value | measured value |\n| int8 | measured value | measured value |\n\nMachine (32 vCPU), model, date. Average text: measured words.\n"
+        "Layout only, no measurements. Do not include this draft in README.\n\n| fse table | One core, texts/s | Selected setting, texts/s |\n|---|---:|---:|\n| float32 | measured value | measured value |\n| float16 | measured value | measured value |\n| int8 | measured value | measured value |\n\nMachine (32 vCPU), model, date. Average text: measured words.\n"
     )
 
 

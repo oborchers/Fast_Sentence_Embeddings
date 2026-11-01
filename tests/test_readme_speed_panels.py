@@ -94,13 +94,13 @@ def test_speedup_preserves_round_pairing():
 
 
 def test_compact_table_requires_all_precisions_at_one_and_all_cores():
-    rows = [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in PANEL["WORKERS"]]
-    assert "| int8 | 200 | 200 |" in PANEL["table"](rows)
+    rows = [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in (1, 32)]
+    assert "| int8 | 200 | 200 |" in PANEL["table"](rows, (1, 32))
     with pytest.raises(ValueError, match="all precisions"):
-        PANEL["table"](rows[:2])
+        PANEL["table"](rows[:2], (1, 32))
     rows[-1]["context"]["workers"] = 10
     with pytest.raises(ValueError, match="all precisions"):
-        PANEL["table"](rows)
+        PANEL["table"](rows, (1, 32))
 
 
 def test_comparison_requires_same_series_and_checked_output():
@@ -119,9 +119,8 @@ def test_empty_data_publishes_nothing_and_invalid_pair_writes_nothing(tmp_path):
     data = {"format": "readme-speed-panels-v1", "table": [], "comparisons": []}
     PANEL["publish"](data, tmp_path, palette)
     assert list(tmp_path.iterdir()) == []
-    data["table"] = [
-        row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in PANEL["WORKERS"]
-    ]
+    data["table"] = [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in (1, 32)]
+    data["scaling"] = curve()
     data["table_caption"] = "test caption"
     bad = copy.deepcopy(pair())
     bad["output_checked"] = False
@@ -156,15 +155,91 @@ def test_withdrawn_data_cannot_leave_stale_outputs_silently(tmp_path, name):
 
 
 def test_table_rejects_a_different_executed_fse_runtime():
-    rows = [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in PANEL["WORKERS"]]
+    rows = [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in (1, 32)]
     rows[-1]["runtime_fingerprint"] = "other-runtime"
     with pytest.raises(ValueError, match="one executed runtime"):
-        PANEL["table"](rows)
+        PANEL["table"](rows, (1, 32))
 
 
 def test_library_panels_require_both_machine_core_settings():
-    with pytest.raises(ValueError, match="one core and all 32 cores"):
-        PANEL["paired_core_settings"]([pair()])
-    PANEL["paired_core_settings"]([pair(), pair(32)])
-    with pytest.raises(ValueError, match="one core or all 32 cores"):
+    with pytest.raises(ValueError, match="every selected core setting"):
+        PANEL["paired_core_settings"]([pair()], {"test/model": (1, 32)})
+    PANEL["paired_core_settings"]([pair(), pair(32)], {"test/model": (1, 32)})
+    with pytest.raises(ValueError, match="measured scaling setting"):
         PANEL["comparison"](pair(10))
+
+
+def curve(rate32=1300):
+    rows = []
+    for worker, rate in zip(
+        PANEL["SCALING_WORKERS"], (100, 180, 300, 600, 1000, rate32), strict=True
+    ):
+        sample = row(workers=worker)
+        sample["texts_per_second"] = [rate, rate, rate]
+        sample["source"]["series_id"] = f"scaling-{worker}"
+        rows.append(sample)
+    return rows
+
+
+@pytest.mark.parametrize(
+    ("rate32", "chosen"), [(1200, (1, 32)), (1199.999, (1, 16)), (900, (1, 16))]
+)
+def test_32_core_threshold_is_inclusive_and_unrounded(rate32, chosen):
+    assert PANEL["select_cores"](curve(rate32)) == chosen
+
+
+def test_fastest_valid_setting_up_to_16_wins_and_ties_use_fewer_cores():
+    points = curve(1100)
+    points[3]["texts_per_second"] = [1500] * 3
+    assert PANEL["select_cores"](points) == (1, 8)
+    points[3]["texts_per_second"] = [1000] * 3
+    assert PANEL["select_cores"](points) == (1, 8)
+    points[0]["texts_per_second"] = [2000] * 3
+    assert PANEL["select_cores"](points) == (1,)
+
+
+def test_scaling_selection_requires_complete_valid_coherent_points():
+    with pytest.raises(ValueError, match="scaling points"):
+        PANEL["select_cores"](curve()[:-1])
+    points = curve()
+    points[-1]["aa_upper"] = 1.11
+    with pytest.raises(ValueError, match="variation"):
+        PANEL["select_cores"](points)
+    points = curve()
+    points[-1]["context"]["input_digest"] = "another-input"
+    with pytest.raises(ValueError, match="same comparison context"):
+        PANEL["select_cores"](points)
+
+
+def test_publish_selects_from_scaling_and_never_substitutes_32(tmp_path):
+    palette = json.loads((ROOT / "media/readme/palette.json").read_text())
+    data = {
+        "format": "readme-speed-panels-v1",
+        "scaling": curve(1100),
+        "table": [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in (1, 16, 32)],
+        "comparisons": [pair(w) for w in (1, 16, 32)],
+        "table_caption": "test fixture",
+        "comparison_caption": "test fixture",
+    }
+    PANEL["publish"](data, tmp_path, palette)
+    for name in ("speed-table.md", "library-speedups-light.svg", "library-speedups-dark.svg"):
+        text = (tmp_path / name).read_text()
+        assert "All 32 cores" not in text
+        assert "16 cores" in text and "One core" in text
+        assert PANEL["LOW_GAIN_NOTE"] in text
+    data["table"] = [r for r in data["table"] if r["context"]["workers"] != 16]
+    with pytest.raises(ValueError, match="all precisions"):
+        PANEL["publish"](data, tmp_path, palette)
+
+
+def test_scaling_is_required_for_every_library_model(tmp_path):
+    palette = json.loads((ROOT / "media/readme/palette.json").read_text())
+    data = {
+        "format": "readme-speed-panels-v1",
+        "scaling": [],
+        "table": [],
+        "comparisons": [pair(), pair(32)],
+    }
+    with pytest.raises(ValueError, match="every displayed model"):
+        PANEL["publish"](data, tmp_path, palette)
+    assert list(tmp_path.iterdir()) == []

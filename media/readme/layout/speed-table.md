@@ -1,6 +1,6 @@
 Layout only, no measurements. Do not include this draft in README.
 
-| fse table | One core, texts/s | All 32 cores, texts/s |
+| fse table | One core, texts/s | Selected setting, texts/s |
 |---|---:|---:|
 | float32 | measured value | measured value |
 | float16 | measured value | measured value |

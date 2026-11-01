@@ -18,7 +18,7 @@
 <text x="40" y="463" font-size="15" font-weight="400" fill="#E8E4DF">same model in both libraries</text>
 <rect x="370" y="413" width="670" height="35" rx="4" fill="none" stroke="#5B9E7D" stroke-dasharray="6 5"/>
 <text x="385" y="435" font-size="18" font-weight="400" fill="#E8E4DF">measured speedup</text>
-<text x="40" y="525" font-size="21" font-weight="700" fill="#E8E4DF">All 32 cores</text>
+<text x="40" y="525" font-size="21" font-weight="700" fill="#E8E4DF">Selected core count</text>
 <text x="40" y="565" font-size="21" font-weight="700" fill="#E8E4DF">Model2Vec</text>
 <text x="40" y="593" font-size="15" font-weight="400" fill="#E8E4DF">same model in both libraries</text>
 <rect x="370" y="543" width="670" height="35" rx="4" fill="none" stroke="#5B9E7D" stroke-dasharray="6 5"/>

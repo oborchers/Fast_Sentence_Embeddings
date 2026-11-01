@@ -384,3 +384,17 @@ The [committed corpus-length record](https://github.com/oborchers/Fast_Sentence_
 Its input digest, xxh3-128:15151abfbf2f482115b1180347b4295e, matches the source journals for all four displayed configurations. Dataset revision b08601e04326c79dfdd32d625aee71d232d685c3 covers validation and test. Words count the original input, before the configured character/token limits; they are not tokenizer pieces. The source separately reports a mean of 95.60650224215247 consumed POTION tokens.
 
 The [counting method](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ea174334344c2fb0c97b9211af478d4acda77a40/benchmarks/quality/text_lengths.py) uses len(text.split()). This is metadata for the existing encoding sample, not a multi-million-text speed run, a words/s claim or a new classifier result.
+
+## Selecting the public core settings
+
+Keep one core. For each model, show 32 only if its accepted float32 scaling median is at least 1.20 times its accepted 16-worker median.
+Use unrounded medians of the three primary fse-a observations, each with its own valid paired fse-a/fse-b series.
+Otherwise choose the fastest accepted setting among 1, 2, 4, 8 and 16, resolving ties in favour of fewer cores.
+If one core wins, show it once. Display “More than 16 cores adds little here.” when the 32/16 ratio falls below 1.20.
+This is an explicit editorial threshold for these workloads, not a general CPU-scaling claim.
+
+The generator reads immutable source references and ordered rates from the audited `scaling` extraction.
+It requires complete coherent curves at 1, 2, 4, 8, 16 and 32 for each displayed model, with all existing validity checks.
+It selects the core setting automatically and requires dtype/reference measurements at that exact setting.
+POTION-8M's curve drives its dtype table. MRL library bars require MRL's own curve.
+See the [row plan](readme-speed-panels.md). Missing data stays out of the public README.
