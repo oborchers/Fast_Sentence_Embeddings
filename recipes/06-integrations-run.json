@@ -23,5 +23,6 @@
   },
   "installation_note": "The notebook pip commands are publication-dependent instructions in Markdown, not executed cells. For this run, fse and all three adapters were built from the parent dr156-integrations checkout, with SETUPTOOLS_SCM_PRETEND_VERSION_FOR_FSE=2.0.0. Framework versions came from recipes/requirements.txt. No PyPI adapter package was installed or published.",
   "models_and_data": "POTION and AG News revisions are pinned by recipes/_helpers.py.",
-  "notebook_sha256": "0090b6c20a349e6f3da8be2bd103d317d487ba322b4089808c943ac9b764ed5a"
+  "notebook_sha256": "0090b6c20a349e6f3da8be2bd103d317d487ba322b4089808c943ac9b764ed5a",
+  "validation_report": "06-integrations-validation.md"
 }
