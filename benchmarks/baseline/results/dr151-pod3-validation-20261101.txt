@@ -1,0 +1,327 @@
+counting_corpus wikitext encode
+counting_corpus wikitext pipeline
+counting_corpus massive encode
+counting_corpus massive pipeline
+counting_corpus fse 101 unique 2M train chunks
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00, 2105.05it/s]
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files:  50%|█████     | 1/2 [00:01<00:01,  1.73s/it]
+Fetching 2 files: 100%|██████████| 2/2 [00:01<00:00,  1.21it/s]
+Fetching 2 files: 100%|██████████| 2/2 [00:01<00:00,  1.04it/s]
+counting_corpus setfit/20_newsgroups evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+Fetching 2 files:  50%|█████     | 1/2 [00:00<00:00,  4.26it/s]
+Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00,  6.74it/s]
+counting_corpus setfit/ade_corpus_v2_classification evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files:  50%|█████     | 1/2 [00:01<00:01,  1.29s/it]
+Fetching 2 files: 100%|██████████| 2/2 [00:01<00:00,  1.07it/s]
+Fetching 2 files: 100%|██████████| 2/2 [00:01<00:00,  1.02it/s]
+counting_corpus setfit/ag_news evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files:  50%|█████     | 1/2 [00:01<00:01,  1.10s/it]
+Fetching 2 files: 100%|██████████| 2/2 [00:01<00:00,  1.81it/s]
+counting_corpus setfit/amazon_counterfactual_en evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files:  50%|█████     | 1/2 [00:00<00:00,  4.67it/s]
+Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00,  7.95it/s]
+counting_corpus setfit/bbc-news evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files:  50%|█████     | 1/2 [00:01<00:01,  1.14s/it]
+Fetching 2 files: 100%|██████████| 2/2 [00:01<00:00,  1.64it/s]
+counting_corpus setfit/emotion evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files:  50%|█████     | 1/2 [00:01<00:01,  1.28s/it]
+Fetching 2 files: 100%|██████████| 2/2 [00:03<00:00,  1.56s/it]
+Fetching 2 files: 100%|██████████| 2/2 [00:03<00:00,  1.52s/it]
+counting_corpus setfit/enron_spam evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files:  50%|█████     | 1/2 [00:00<00:00,  4.57it/s]
+Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00,  7.37it/s]
+counting_corpus setfit/hate_speech_offensive evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files:  50%|█████     | 1/2 [00:02<00:02,  2.20s/it]
+Fetching 2 files: 100%|██████████| 2/2 [00:03<00:00,  1.54s/it]
+Fetching 2 files: 100%|██████████| 2/2 [00:03<00:00,  1.64s/it]
+counting_corpus setfit/imdb evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files:  50%|█████     | 1/2 [00:00<00:00,  3.74it/s]
+Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00,  6.51it/s]
+counting_corpus setfit/amazon_massive_scenario_en-US evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files:  50%|█████     | 1/2 [00:00<00:00,  5.13it/s]
+Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00,  7.15it/s]
+counting_corpus setfit/SentEval-CR evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files:  50%|█████     | 1/2 [00:00<00:00,  5.51it/s]
+Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00, 10.59it/s]
+counting_corpus setfit/sst5 evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files:  50%|█████     | 1/2 [00:01<00:01,  1.24s/it]
+Fetching 2 files: 100%|██████████| 2/2 [00:02<00:00,  1.04it/s]
+Fetching 2 files: 100%|██████████| 2/2 [00:02<00:00,  1.00s/it]
+counting_corpus setfit/student-question-categories evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00, 2642.08it/s]
+counting_corpus setfit/subj evaluation
+
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
+Fetching 2 files:  50%|█████     | 1/2 [00:01<00:01,  1.30s/it]
+Fetching 2 files: 100%|██████████| 2/2 [00:01<00:00,  1.65it/s]
+Fetching 2 files: 100%|██████████| 2/2 [00:01<00:00,  1.41it/s]
+counting_corpus setfit/tweet_sentiment_extraction evaluation
+
+Fetching 8 files:   0%|          | 0/8 [00:00<?, ?it/s]
+Fetching 8 files:  12%|█▎        | 1/8 [00:16<01:55, 16.44s/it]
+Fetching 8 files:  25%|██▌       | 2/8 [00:16<00:41,  6.85s/it]
+Fetching 8 files:  38%|███▊      | 3/8 [00:32<00:55, 11.18s/it]
+Fetching 8 files:  50%|█████     | 4/8 [00:33<00:27,  6.98s/it]
+Fetching 8 files:  62%|██████▎   | 5/8 [00:45<00:25,  8.64s/it]
+Fetching 8 files:  75%|███████▌  | 6/8 [00:52<00:16,  8.34s/it]
+Fetching 8 files:  88%|████████▊ | 7/8 [01:04<00:09,  9.55s/it]
+Fetching 8 files: 100%|██████████| 8/8 [01:06<00:00,  7.11s/it]
+Fetching 8 files: 100%|██████████| 8/8 [01:06<00:00,  8.34s/it]
+counting_corpus fineweb/fineweb evaluation
+{"event": "count_complete", "started_at": "2026-11-01T10:31:37.645914+00:00", "source_commit": "bea07e985647a5a53484166fa9dc1d63f8c58c73", "nice": 10, "speed_run": false, "count_command": ["/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-quality/bin/python", "benchmarks/quality/corpus_lengths.py", "--cache", "/Users/oliverborchers/.cache/fse-quality", "--coordination", "/private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad", "--output", "benchmarks/baseline/dr151_corpus_lengths_20261101.json", "--guide", "docs/fse-corpus-lengths.md"], "count_returncode": 0}
+uv run ruff format --check src/fse tests tools benchmarks
+   Building fse @ file:///Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare
+      Built fse @ file:///Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare
+Uninstalled 1 package in 1ms
+Installed 1 package in 1ms
+471 files already formatted
+uv run ruff check src/fse tests tools benchmarks
+All checks passed!
+uv run lint-imports --no-cache
+
+╔══╗─────────▶╔╗ ╔╗      ╔╗◀───┐
+╚╣╠╝◀─────┐  ╔╝╚╗║║────▶╔╝╚╗   │
+ ║║   ╔══╦══╦╩╗╔╝║║  ╔╦═╩╗╔╝╔═╦══╗
+ ║║╔══╣╔╗║╔╗║╔╣║ ║║ ╔╬╣╔╗║║ ║│║╔═╝
+╔╣╠╣║║║╚╝║╚╝║║║╚╗║╚═╝║║║║║╚╗║═╣║
+╚══╩╩╩╣╔═╩══╩╝╚═╝╚═══╩╩╝╚╩═╩╩═╩╝
+  └──▶║║                    ▲ 
+      ╚╝────────────────────┘
+
+
+---------
+Contracts
+---------
+
+Analyzed 139 files, 778 dependencies.
+-------------------------------------
+
+Layers (docs/architecture/process.md, Layout): a module imports only from layers
+below it KEPT
+Containers: npy and safetensors share only _common, all of them hash with _hash;
+the foreign reader sits on safetensors KEPT
+Store: the sink and the vector store on shards, the shards on the layout KEPT
+Backends: each shares only _base with the others KEPT
+Heads: the classes on the model, that on its runs, the readers and formats on 
+the content KEPT
+Encoder: the encoder on its batches and format, those on its inputs KEPT
+Static model: the class on the loading, the encoders, the tokenizer and the 
+saving, those on the profile and the ids, those on the arguments KEPT
+Text: the sources and the lookup on the scan of one buffer KEPT
+Runtime: a head on pipelines, the pipeline on tasks, sinks and the executor KEPT
+Optional and 1.x packages and the Arrow producers stay out of fse; gensim only 
+in fse.gensim KEPT (1 ignored import)
+
+Contracts: 10 kept, 0 broken.
+uv run python tools/check_guardrails.py
+guardrails pass
+uv run vulture
+uv run deptry src
+Scanning 95 files...
+
+[1m[32mSuccess! No dependency issues found.[m
+uv run mypy
+Success: no issues found in 97 source files
+uv run pytest tests -m "not network" -n 4 --dist loadfile
+============================= test session starts ==============================
+platform darwin -- Python 3.13.16, pytest-9.1.1, pluggy-1.7.0
+rootdir: /Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare
+configfile: pyproject.toml
+plugins: cov-7.1.0, xdist-3.8.0, anyio-4.15.1, platformdirs-4.13.5
+created: 4/4 workers
+4 workers [9785 items]
+
+........................................................................ [  0%]
+........................................................................ [  1%]
+........................................................................ [  2%]
+........................................................................ [  2%]
+........................................................................ [  3%]
+........................................................................ [  4%]
+........................................................................ [  5%]
+........................................................................ [  5%]
+........................................................................ [  6%]
+........................................................................ [  7%]
+........................................................................ [  8%]
+........................................................................ [  8%]
+........................................................................ [  9%]
+........................................................................ [ 10%]
+........................................................................ [ 11%]
+........................................................................ [ 11%]
+........................................................................ [ 12%]
+........................................................................ [ 13%]
+........................................................................ [ 13%]
+........................................................................ [ 14%]
+........................................................................ [ 15%]
+........................................................................ [ 16%]
+........................................................................ [ 16%]
+....................................sss....sss...s.ss....s.ss........... [ 17%]
+............s..ss....................................................... [ 18%]
+................................................................s.s.s... [ 19%]
+.......................s.s.s........s.s.s......s.ss.......s.s.s......sss [ 19%]
+.......ss.s...sss....sss....sss...ss.s...sss....sss...sss.....sss....sss [ 20%]
+....sss...s.ss....sss...sss....ss.s......sss....sss...sss....sss....sss. [ 21%]
+..sss...sss...sss...sss....sss...sss...sss...s..ss...s.ss.....sss.....ss [ 22%]
+.s.......s.ss.....sss....sss.....sss....sss...ss.s...sss.....s.s.s...sss [ 22%]
+...sss....sss.....sss........s.ss....sss....sss...sss...sss...sss....sss [ 23%]
+...sss...sss...sss...sss....sss...sss....sss...sss...ss.s......sss.....s [ 24%]
+ss.....sss....sss....ss.s...sss...sss...sss.......ss.s...sss...sss...sss [ 25%]
+....sss...sss....sss...sss....sss...sss....sss...ss.s...sss....s.s.s.... [ 25%]
+....s.s..s........s.ss.........s.s.s.........s.s.s........s.s.s........s [ 26%]
+s.s.......ss.s.....s.ss......s.ss......s.ss......................sss.... [ 27%]
+............sss......sss...sss...sss...s.ss...sss...sss...sss...ss.s...s [ 27%]
+ss.....sss...sss...sss....sss...sss...sss...sss....sss...sss...sss...... [ 28%]
+sss.....sss...ss.s...sss....sss...sss...sss....sss...sss...sss...sss...s [ 29%]
+ss...sss...sss....sss...sss...sss....sss....ss.s...s.s.s...s.ss....sss.. [ 30%]
+...ss.s...sss....sss...s.ss....sss....sss...sss...sss...sss...sss...sss. [ 30%]
+..sss...sss......sss...sss...sss...sss.................................. [ 31%]
+........................................................................ [ 32%]
+........................................................................ [ 33%]
+........................................................................ [ 33%]
+........................................................................ [ 34%]
+........................................................................ [ 35%]
+........................................................................ [ 36%]
+........................................................................ [ 36%]
+........................................................................ [ 37%]
+........................................................................ [ 38%]
+........................................................................ [ 38%]
+........................................................................ [ 39%]
+........................................sss............................. [ 40%]
+........................................................................ [ 41%]
+........................................................................ [ 41%]
+........................................................................ [ 42%]
+...s.s.s..s....s.s..s..s....s..s.s..s....s..s.s..s...................... [ 43%]
+........................................................................ [ 44%]
+........................................................................ [ 44%]
+........................................................................ [ 45%]
+........................................................................ [ 46%]
+........................................................................ [ 47%]
+.............s.......................................................... [ 47%]
+........................................................................ [ 48%]
+........................................................................ [ 49%]
+........................................................................ [ 50%]
+........................................................................ [ 50%]
+........................................................................ [ 51%]
+........................................................................ [ 52%]
+........................................................................ [ 52%]
+........................................................................ [ 53%]
+........................................................................ [ 54%]
+.........................s.............................s................ [ 55%]
+......s......................s.......................................... [ 55%]
+........................................................................ [ 56%]
+........................................................................ [ 57%]
+........................................................................ [ 58%]
+........................................................................ [ 58%]
+........................................................................ [ 59%]
+........................................................................ [ 60%]
+........................................................................ [ 61%]
+........................................................................ [ 61%]
+........................................................................ [ 62%]
+........................................................................ [ 63%]
+.......................s................................................ [ 64%]
+........................................................................ [ 64%]
+..................................................s..................... [ 65%]
+........................................................................ [ 66%]
+........................................................................ [ 66%]
+........................................................................ [ 67%]
+........................................................................ [ 68%]
+........................................................................ [ 69%]
+........................................................................ [ 69%]
+........................................................................ [ 70%]
+........................................................................ [ 71%]
+........................................................................ [ 72%]
+........................................................................ [ 72%]
+........................................................................ [ 73%]
+........................................................................ [ 74%]
+........................................................................ [ 75%]
+........................................................................ [ 75%]
+........................................................................ [ 76%]
+........................................................................ [ 77%]
+........................................................................ [ 77%]
+........................................................................ [ 78%]
+........................................................................ [ 79%]
+........................................................................ [ 80%]
+........................................................................ [ 80%]
+........................................................................ [ 81%]
+........................................................................ [ 82%]
+........................................................................ [ 83%]
+........................................................................ [ 83%]
+........................................................................ [ 84%]
+........................................................................ [ 85%]
+..............................................s......................... [ 86%]
+........................................................................ [ 86%]
+........................................................................ [ 87%]
+........................................................................ [ 88%]
+........................................................................ [ 89%]
+........................................................................ [ 89%]
+........................................................................ [ 90%]
+........................................................................ [ 91%]
+s....................................................................... [ 91%]
+........................................................................ [ 92%]
+........................................................................ [ 93%]
+........................................................................ [ 94%]
+........................................................................ [ 94%]
+................................................sssssssssss............. [ 95%]
+........................................................................ [ 96%]
+........................................................................ [ 97%]
+........................................................................ [ 97%]
+........................................................................ [ 98%]
+........................................................................ [ 99%]
+.................................................................        [100%]
+=========================== short test summary info ============================
+SKIPPED [166] tests/support/conformance.py:188: contract-cpu-portable: accumulate is no contract operation
+SKIPPED [166] tests/support/conformance.py:188: contract-cpu-neon: accumulate is no contract operation
+SKIPPED [162] tests/support/conformance.py:188: contract-numpy: accumulate is no contract operation
+SKIPPED [5] tests/support/conformance.py:191: contract-cpu-portable: dot16 is no contract operation
+SKIPPED [5] tests/support/conformance.py:191: contract-cpu-neon: dot16 is no contract operation
+SKIPPED [1] tests/support/conformance.py:191: contract-numpy: dot16 is no contract operation
+SKIPPED [1] tests/test_native.py:239: CI runners have the expected ISA
+SKIPPED [1] tests/test_native_lists.py:327: legacy strings end with 3.11
+SKIPPED [3] tests/test_conformance_store.py:63: beyond the float16 range; see test_errors_name_the_row
+SKIPPED [1] tests/test_head_sklearn.py:149: The 'liblinear' solver does not support multiclass classification (n_classes >= 3). Either use another solver or wrap the estimator in a OneVsRestClassifier to keep applying a one-versus-rest scheme.
+SKIPPED [1] tests/test_head_sklearn.py:365: LogisticRegression.__init__() got an unexpected keyword argument 'multi_class'
+SKIPPED [1] tests/test_store_shard_sync.py:75: the Windows sequence
+SKIPPED [1] tests/test_container_npy_inplace.py:118: the direct renameat2 syscall needs 64-bit Linux x86_64 or aarch64
+SKIPPED [1] tests/test_quality_adapters.py:196: requires the pinned quality environment
+SKIPPED [1] tests/test_quality_adapters.py:68: requires the pinned quality environment
+SKIPPED [1] tests/test_quality_adapters.py:217: requires the pinned quality environment
+SKIPPED [1] tests/test_quality_adapters.py:189: requires the pinned quality environment
+SKIPPED [1] tests/test_quality_adapters.py:49: requires the pinned quality environment
+SKIPPED [1] tests/test_quality_adapters.py:31: requires the pinned quality environment
+SKIPPED [1] tests/test_quality_adapters.py:24: requires the pinned quality environment
+SKIPPED [1] tests/test_quality_adapters.py:128: requires the pinned quality environment
+SKIPPED [1] tests/test_quality_adapters.py:92: requires the pinned quality environment
+SKIPPED [1] tests/test_quality_adapters.py:106: requires the pinned quality environment
+SKIPPED [1] tests/test_quality_adapters.py:86: requires the pinned quality environment
+================ 9260 passed, 525 skipped in 225.90s (0:03:45) =================
+{"event": "slot_released", "started_at": "2026-11-01T10:31:37.645914+00:00", "source_commit": "bea07e985647a5a53484166fa9dc1d63f8c58c73", "nice": 10, "speed_run": false, "count_command": ["/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-quality/bin/python", "benchmarks/quality/corpus_lengths.py", "--cache", "/Users/oliverborchers/.cache/fse-quality", "--coordination", "/private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad", "--output", "benchmarks/baseline/dr151_corpus_lengths_20261101.json", "--guide", "docs/fse-corpus-lengths.md"], "count_returncode": 0, "gate_commit": "ea174334344c2fb0c97b9211af478d4acda77a40", "check_returncode": 0, "released_at": "2026-11-01T10:48:40.882423+00:00"}

@@ -1,0 +1,45 @@
+{
+  "records": [
+    {
+      "name": "t1-00-fse_potion-base-32M-float32",
+      "model": "fse/potion-base-32M-float32",
+      "started_utc": "2026-11-01T03:01:27.821181+00:00",
+      "ended_utc": "2026-11-01T03:52:31.927734+00:00",
+      "wall_seconds": 3064.1069151250413,
+      "returncode": 0,
+      "state_seconds_approximate_5s": {
+        "own_heavy": 545.5434902498964,
+        "timing_or_manual_pause": 656.0508586670039,
+        "foreign_heavy": 966.3450265009888,
+        "other_setup_cooldown_or_wait": 896.1605397900566
+      },
+      "batch_tasks": 16,
+      "workers": 2,
+      "nice": 10,
+      "includes": "imports, load, full evaluation, lock waits and cooldowns",
+      "excluded_from_speed_claims": true,
+      "commit": "41ea1ea10d8464b5a12442ad5da226c0e1153657"
+    },
+    {
+      "name": "t1-01-fse_potion-retrieval-32M-float32",
+      "model": "fse/potion-retrieval-32M-float32",
+      "started_utc": "2026-11-01T04:15:16.235483+00:00",
+      "ended_utc": "2026-11-01T04:33:39.085858+00:00",
+      "wall_seconds": 1102.8503631660715,
+      "returncode": 0,
+      "state_seconds_approximate_5s": {
+        "own_heavy": 507.1316550819902,
+        "timing_or_manual_pause": 85.09192100004293,
+        "foreign_heavy": 0.0,
+        "other_setup_cooldown_or_wait": 510.62189279298764
+      },
+      "batch_tasks": 16,
+      "workers": 2,
+      "nice": 10,
+      "includes": "imports, load, full evaluation, lock waits and cooldowns",
+      "excluded_from_speed_claims": true,
+      "commit": "af9e6533e4ba9bc939b565effb1ee3db38813979"
+    }
+  ],
+  "note": "wall time includes manual SIGSTOP priority hold, imports, datasets, evaluation, shared waits and cooldowns; approximate states do not identify SIGSTOP separately; no measured encoding throughput or cloud runtime claim"
+}

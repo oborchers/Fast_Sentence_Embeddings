@@ -1,0 +1,59 @@
+{
+  "texts": 100000000,
+  "input_digest": "xxh3-128:5d071437c7edcd5615e9ee1390558837",
+  "words": {
+    "total": 2557368296,
+    "mean": 25.57368296,
+    "median": 24.0
+  },
+  "characters": {
+    "total": 13514149994,
+    "mean": 135.14149994,
+    "median": 125.0
+  },
+  "potion_tokens": {
+    "total": 2873027215,
+    "mean": 28.73027215,
+    "median": 26.0
+  },
+  "file": "repeated-shuffled-100m.txt",
+  "file_bytes": 13639186350,
+  "checksum": "xxh3-128:6863351b64138b7ff04f6e858973e4b0",
+  "dataset": "Salesforce/wikitext",
+  "dataset_revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+  "split": "train",
+  "recipe_helper_commit": "aeae3bb36b9b56efa2bf502925049e0616242754",
+  "chunk_rule": "whitespace collapse; skip headings; split punctuation followed by whitespace; at least five words",
+  "qualifying_source_chunks": 3863020,
+  "distinct_source_texts": 3755995,
+  "input_label": "repeated and shuffled input",
+  "source_positions_repeated": true,
+  "seed": 0,
+  "shuffle": "numpy default_rng(seed).shuffle(arange(count) % source_chunk_count)",
+  "numpy_version": "2.5.4",
+  "repetition_factor": 25.88648259651775,
+  "repetition_factor_distinct_texts": 26.624103599711926,
+  "distinct_input_texts": 3755995,
+  "tokenizer": {
+    "runtime": {
+      "runtime_package": "model2vec",
+      "runtime_package_version": "0.10.0",
+      "package_location": "/dr151-env/lib/python3.13/site-packages/model2vec/__init__.py",
+      "runtime_fingerprint": "xxh3-128:4852905a78404abddd67f88f333e9f5d",
+      "runtime_fingerprint_scope": "installed distribution files and module tree, excluding Python caches",
+      "runtime_file_count": 47
+    },
+    "model": "minishlab/potion-base-8M",
+    "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+    "tokenizer_file_checksum": "xxh3-128:9ef319f1124b06507d87a1ce631cb8de",
+    "max_tokens": 512,
+    "character_cap": 3072,
+    "unknown_id_excluded": 1,
+    "tokens_definition": "tokens consumed after configured character/token truncation and unknown-token removal; no special tokens"
+  },
+  "statistics_method": "exact source-position multiplicities; shuffle preserves the length histograms",
+  "text_result_cache": "none in fse; native WordPiece has no sentence-result cache",
+  "rust_text_cache": "no sentence-result cache in pinned model.rs / fast_wordpiece.rs",
+  "rust_cache_audit_source": "https://github.com/MinishLab/model2vec-rs/blob/19f58bef6ce145f2bc08de7016498f28d521feea/src/model.rs",
+  "os_page_cache": "not cleared; input checksum verification warms filesystem caches before timing"
+}

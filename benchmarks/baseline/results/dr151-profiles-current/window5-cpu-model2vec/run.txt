@@ -1,0 +1,76 @@
+{"load_s": 0.31641679198946804, "first_encode_s": 0.661734541063197, "first_encode_texts": 5352, "warm_seconds": [0.6381984159816056, 0.6300562919350341, 0.6296660000225529], "shape": [5352, 256], "peak_rss_bytes": 241123328, "rss_scope": "Python encoder process", "table_dtype": "float32", "output_dtype": "float32", "file_bytes": 30236760, "load_source": "pinned Hub snapshot", "encoder_fingerprint": null, "artifact_provenance": null, "batch_size": null, "torch_num_threads": null, "threadpools": [], "comparison_identity_version": 2, "runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b", "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py", "commit": "2ef19caa4424c3aec3055d26816c772fa89ba01c", "machine": "macOS-27.0.1-arm64-arm-64bit-Mach-O", "cpu": "Apple M1 Pro", "python": "3.13.16 (main, Oct  9 2026, 15:11:24) [Clang 22.1.3 ]", "versions": {"shellingham": "1.5.4", "xxhash": "4.0.2", "filelock": "4.2.4", "ruff": "0.17.2", "scikit-learn": "1.9.1", "setuptools": "84.2.1", "cloudpickle": "3.1.2", "py-spy": "0.4.2", "huggingface_hub": "2.3.0", "click": "8.5.0", "packaging": "26.3", "gensim": "4.4.0", "narwhals": "2.28.0", "networkx": "3.7", "joblib": "1.6.0", "tokenizers": "0.23.3", "bracex": "3.2", "Pygments": "2.21.0", "cfgv": "3.5.0", "pyarrow": "26.0.0", "rich": "15.0.0", "certifi": "2026.10.23", "yarl": "1.25.1", "pytest-cov": "7.1.0", "vulture": "2.16", "smart_open": "8.0.4", "pre_commit": "4.7.0", "pandas": "3.1.0", "pytest-xdist": "3.8.0", "datasets": "5.1.0", "propcache": "0.5.4", "iniconfig": "2.3.1", "sentence-transformers": "6.2.0", "mdit-py-plugins": "0.6.1", "model2vec": "0.10.0", "grimp": "3.18", "build": "1.6.1", "numpy": "2.5.4", "aiohappyeyeballs": "2.7.1", "wrapt": "2.5.1", "sympy": "1.14.0", "fsspec": "2026.7.0", "pluggy": "1.7.0", "hf-xet": "1.7.0", "safetensors": "0.8.0", "transformers": "5.22.0", "tqdm": "4.70.1", "pytest": "9.1.1", "cibuildwheel": "4.3.4", "h11": "0.16.0", "pydantic_core": "2.50.1", "identify": "2.6.20", "humanize": "4.16.0", "mdurl": "0.1.2", "pyproject_hooks": "1.3.3", "virtualenv": "21.14.13", "mpmath": "1.3.0", "PyYAML": "6.0.3", "textual": "8.2.8", "httpcore2": "2.16.0", "nodeenv": "1.11.0", "python-discovery": "1.6.4", "truststore": "0.10.5", "mypy": "2.4.0", "fse": "1.1.1.dev913+g4e888dc18", "frozenlist": "1.8.0", "httpx2": "2.16.0", "aiosignal": "1.4.0", "typer": "0.27.3", "execnet": "2.1.2", "linkify-it-py": "2.2.0", "Jinja2": "3.1.6", "annotated-types": "0.8.0", "regex": "2026.9.29", "markdown-it-py": "4.2.0", "tzdata": "2026.6", "annotated-doc": "0.0.5", "tomli": "2.5.0", "threadpoolctl": "3.7.0", "typing-inspection": "0.4.4", "ast_serialize": "0.13.1", "bashlex": "0.18", "aiohttp": "3.14.5", "attrs": "26.1.0", "pathspec": "1.1.1", "multidict": "7.2.1", "librt": "0.16.0", "complexipy": "8.3.0", "typing_extensions": "4.16.0", "MarkupSafe": "3.0.4", "deptry": "0.25.1", "memray": "1.20.0", "pydantic": "2.14.1", "coverage": "7.17.0", "python-dateutil": "3.0.0", "torch": "2.15.0", "multiprocess": "0.70.19", "dependency-groups": "1.3.2", "polars": "2.1.0", "anyio": "4.15.1", "mypy_extensions": "1.1.0", "six": "1.17.0", "scipy": "1.18.1", "distlib": "0.4.4", "dill": "0.4.1", "requirements-parser": "0.13.1", "polars-runtime-32": "2.1.0", "platformdirs": "4.13.5", "idna": "3.20", "import-linter": "2.15"}, "dataset": "Salesforce/wikitext", "dataset_revision": "b08601e04326c79dfdd32d625aee71d232d685c3", "splits": ["validation", "test"], "input_digest": "xxh3-128:15151abfbf2f482115b1180347b4295e", "time_utc": "2026-11-01T04:50:14Z", "kind": "model2vec", "requested_threads": 1, "threads": null, "fse_workers": null, "tokenizer_thread_count": null, "tokenizer_threads_measured": false, "tokenizer_parallelism": "off", "parallel_batch_pool": "disabled", "model": "minishlab/potion-base-8M", "revision": "bf8b056651a2c21b8d2565580b8569da283cab23", "corpus": "wikitext", "texts": 5352, "timed_passes": 3, "output_digest": "xxh3-128:70acfbbf827d092b5f76fc336c9be3b2", "p50_s": 0.6300562919350341, "p95_s": 0.6373842035769485}
+Stopping profile.
+
+== all threads: 4037 samples
+     self  total  function
+    10.0%  10.0%  unicode_categories::table_binary_search
+     9.4%   9.4%  _platform_memmove
+     6.6%   6.8%  <alloc::vec::into_iter::IntoIter<(char, isize)> as core::iter::traits::iterator::Iterator>::fold::<(), core::i
+     4.5%   4.5%  read
+     3.2%  93.7%  _PyEval_EvalFrameDefault
+     1.9%  22.6%  <tokenizers::normalizers::bert::BertNormalizer as tokenizers::tokenizer::Normalizer>::normalize
+     1.7%   3.6%  <core::iter::adapters::map::Map<unicode_normalization_alignments::decompose::Decompositions<core::str::iter::C
+     1.6%   1.6%  __psynch_cvwait
+     1.6%   1.6%  __open
+     1.6%   1.6%  stat
+     1.4%   9.9%  <tokenizers::tokenizer::normalizer::NormalizedString>::transform_range::<core::ops::range::RangeFull, alloc::v
+     1.3%   1.8%  <unicode_normalization_alignments::decompose::Decompositions<core::str::iter::Chars> as core::iter::traits::it
+     1.3%   1.3%  FLOAT_add
+     1.1%   4.5%  <tokenizers::tokenizer::normalizer::NormalizedString>::slice::<core::ops::range::Range<usize>>
+     1.0%   1.0%  libsystem_malloc.dylib+0x3c9ac
+     0.9%   1.5%  <alloc::vec::Vec<char> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<char, core::str::iter::Chars>>
+     0.9%   1.5%  <core::iter::adapters::flatten::FlatMap<core::str::iter::CharIndices, alloc::vec::Vec<((usize, usize), bool)>,
+     0.9%   5.9%  tokenizers::pre_tokenizers::bert::is_bert_punc
+     0.8%   0.8%  libsystem_malloc.dylib+0x3aaa4
+     0.8%   3.8%  <tokenizers::models::wordpiece::WordPiece as tokenizers::tokenizer::Model>::tokenize
+     0.8%   0.8%  libdyld.dylib+0x7e4c
+     0.8%   0.8%  core::str::count::char_count_general_case
+     0.7%   0.9%  <alloc::vec::Vec<(char, isize)> as alloc::vec::spec_from_iter::SpecFromIter<(char, isize), core::iter::adapter
+     0.7%   0.7%  _platform_memcmp
+     0.6%   0.6%  __getdirentries64
+
+== thread python: 3834 samples
+     self  total  function
+    10.5%  10.5%  unicode_categories::table_binary_search
+     9.8%   9.8%  _platform_memmove
+     6.9%   7.1%  <alloc::vec::into_iter::IntoIter<(char, isize)> as core::iter::traits::iterator::Iterator>::fold::<(), core::i
+     4.7%   4.7%  read
+     3.3%  97.9%  _PyEval_EvalFrameDefault
+     2.0%  23.8%  <tokenizers::normalizers::bert::BertNormalizer as tokenizers::tokenizer::Normalizer>::normalize
+     1.8%   3.8%  <core::iter::adapters::map::Map<unicode_normalization_alignments::decompose::Decompositions<core::str::iter::C
+     1.6%   1.6%  stat
+     1.6%   1.6%  __open
+     1.5%  10.4%  <tokenizers::tokenizer::normalizer::NormalizedString>::transform_range::<core::ops::range::RangeFull, alloc::v
+     1.4%   1.9%  <unicode_normalization_alignments::decompose::Decompositions<core::str::iter::Chars> as core::iter::traits::it
+     1.4%   1.4%  FLOAT_add
+
+== thread main2: 48 samples
+     self  total  function
+     6.2%   6.2%  kevent
+     4.2%   4.2%  __getdirentries64
+     2.1%   2.1%  fun_a83880
+     2.1%  91.7%  fun_2bdec0
+     2.1%   2.1%  fun_1758288
+     2.1%   2.1%  fun_1ba7028
+     2.1%   2.1%  fun_bea924
+     2.1%   2.1%  fun_18010
+     2.1%   2.1%  fun_a88a58
+     2.1%   2.1%  fun_ab9b08
+     2.1%   2.1%  fun_1373314
+     2.1%   2.1%  fun_19083c
+
+== thread python: 28 samples
+     self  total  function
+    14.3%  14.3%  read
+    10.7%  17.9%  deduce_unreachable
+     7.1%   7.1%  type_new
+     7.1%   7.1%  fstat
+     7.1%   7.1%  _PyObject_Malloc
+     7.1%   7.1%  __open_nocancel
+     3.6%   3.6%  visit_reachable
+     3.6%   3.6%  __getdirentries64
+     3.6%   3.6%  method_vectorcall_O
+     3.6%   7.1%  PyDict_SetItem
+     3.6%  85.7%  _PyEval_EvalFrameDefault
+     3.6%   3.6%  stat
+the flame graph: samply load /private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad/dr151-profile-1793508609-cpu-model2vec/cpu.json

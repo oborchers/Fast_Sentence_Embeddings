@@ -1,0 +1,130 @@
+{
+  "scope_revision": "maintainer two-pod scope plus additional Pod3, 2026-11-01",
+  "snapshot_utc": "2026-11-01T14:30:08.038972+00:00",
+  "supersedes": "original 35-configuration priority plan; historical results remain unchanged",
+  "unique_model_dtype_configurations": 31,
+  "full_float32_configurations": [
+    "minishlab/potion-base-8M",
+    "minishlab/potion-base-32M",
+    "minishlab/potion-retrieval-32M",
+    "minishlab/potion-multilingual-128M",
+    "sentence-transformers/static-retrieval-mrl-en-v1",
+    "sentence-transformers/static-similarity-mrl-multilingual-v1",
+    "fse/paranmt-300",
+    "fse/glove-wiki-gigaword-300",
+    "fse/word2vec-google-news-300",
+    "fse/fasttext-crawl-subwords-300",
+    "sentence-transformers/all-MiniLM-L6-v2"
+  ],
+  "local_full_scope": "unmodified mteb2.26.25 MTEB(eng,v2) excluding MIND plus all13NanoBEIR tasks",
+  "mind": "separate Pod1, all11float32 models, unmodified loader; no local MIND scores",
+  "completed_full_float32_models": [
+    "minishlab/potion-base-8M",
+    "minishlab/potion-base-32M",
+    "minishlab/potion-retrieval-32M",
+    "minishlab/potion-multilingual-128M",
+    "sentence-transformers/static-retrieval-mrl-en-v1",
+    "sentence-transformers/static-similarity-mrl-multilingual-v1",
+    "sentence-transformers/all-MiniLM-L6-v2",
+    "fse/paranmt-300"
+  ],
+  "completed_models_cohort_warning": "separate recorded method/runtime cohorts; do not combine as a controlled ranking",
+  "local_pending_order": [
+    "finish GloVe SIF-10 float32",
+    "fit and evaluate word2vec SIF-10 float32",
+    "evaluate already fitted FastText SIF-10 float32",
+    "remaining9float32 reduced references",
+    "all10int8 reduced plus recall",
+    "all10float16 reduced plus recall"
+  ],
+  "reduced_scope": "allSTS tasks plus all13NanoBEIR, with recall@k against matching float32; no sampling",
+  "reduced_dtypes": {
+    "int8": [
+      "minishlab/potion-base-8M",
+      "minishlab/potion-base-32M",
+      "minishlab/potion-retrieval-32M",
+      "minishlab/potion-multilingual-128M",
+      "sentence-transformers/static-retrieval-mrl-en-v1",
+      "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "fse/paranmt-300",
+      "fse/glove-wiki-gigaword-300",
+      "fse/word2vec-google-news-300",
+      "fse/fasttext-crawl-subwords-300"
+    ],
+    "float16": [
+      "minishlab/potion-base-8M",
+      "minishlab/potion-base-32M",
+      "minishlab/potion-retrieval-32M",
+      "minishlab/potion-multilingual-128M",
+      "sentence-transformers/static-retrieval-mrl-en-v1",
+      "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "fse/paranmt-300",
+      "fse/glove-wiki-gigaword-300",
+      "fse/word2vec-google-news-300",
+      "fse/fasttext-crawl-subwords-300"
+    ]
+  },
+  "reduced_float32_references_remaining": [
+    "minishlab/potion-base-32M",
+    "minishlab/potion-retrieval-32M",
+    "minishlab/potion-multilingual-128M",
+    "sentence-transformers/static-retrieval-mrl-en-v1",
+    "sentence-transformers/static-similarity-mrl-multilingual-v1",
+    "fse/paranmt-300",
+    "fse/glove-wiki-gigaword-300",
+    "fse/word2vec-google-news-300",
+    "fse/fasttext-crawl-subwords-300"
+  ],
+  "fit": {
+    "paranmt-300": "plain mean",
+    "classics": "SIF-10, WikiText103 train fit only, seed0, retained corpus/revision/artifact hashes"
+  },
+  "minilm_snapshot": {
+    "raw": "benchmarks/baseline/results/dr151-quality-minilm-float32.jsonl",
+    "summary": "benchmarks/baseline/dr151_quality_minilm_20261101.json",
+    "completed_tasks": 53,
+    "required_local_tasks": 53,
+    "journal_rows": 55,
+    "deferred_records": 2,
+    "complete_configuration_wall_seconds": null,
+    "sum_completed_encode_call_wall_seconds": 10994.386028952547,
+    "finished_invocation_union_wall_seconds": 13449.887601,
+    "time_report": "benchmarks/baseline/dr151_quality_minilm_time_20261101.json",
+    "complete_configuration_wall_seconds_note": "No single cold complete invocation: prior completed tasks were resumed. Union of completed/failed invocation intervals is recorded separately, with overlapping retries counted once."
+  },
+  "time_scenario": {
+    "is_eta": false,
+    "remaining_full_configurations": 3,
+    "remaining_full_proxy_seconds_each": 1354.384341,
+    "proxy_source": "ParaNMT successful complete53-task invocation, includes evaluation/loading/fairness waits",
+    "remaining_reduced_configurations": 29,
+    "remaining_reduced_proxy_seconds_each": 458.2560850000009,
+    "reduced_proxy_source": "POTION8M resumed invocation; all22 requested task completion timestamps fall inside its recorded interval; no cold-run timing claim",
+    "sum_proxy_hours": 4.820160968888896,
+    "excluded": "remaining word2vec fit, numerical recall, future fairness waits and model/task cost differences. Active partial full configurations are counted at full proxy cost.",
+    "supersedes": "Previous partial-task-average scenarios used encode-call seconds rather than task/evaluation elapsed and are withdrawn. Encoder totals are not whole-task duration.",
+    "reduced_proxy_task_journal": "benchmarks/baseline/results/dr151-quality-potion8-reduced-float32.jsonl",
+    "reduced_proxy_coverage": {
+      "expected_tasks": 22,
+      "unique_completed_tasks": 22,
+      "completion_times_within_invocation": true,
+      "raw_time_timezone": "Europe/Berlin",
+      "invocation_start_utc": "2026-11-01T08:46:52.769330+00:00",
+      "invocation_end_utc": "2026-11-01T08:54:31.025755+00:00",
+      "resume_enabled": true,
+      "limitation": "Completion timestamps establish coverage during the interval; individual task start times are not recorded. This remains a scenario proxy, not an ETA or throughput measurement."
+    }
+  },
+  "local_scheduling": "nice10,workers2,heavy.lock batches8,cooldown120seconds. Both priority slots and README fairness are complete; queue resumed12:52UTC.",
+  "speed_scope": "pods only, no local timing under rule10",
+  "glove_snapshot": {
+    "raw": "benchmarks/baseline/results/dr151-quality-glove-float32.jsonl",
+    "summary": "benchmarks/baseline/dr151_quality_glove_20261101.json",
+    "english_completed": 40,
+    "english_40_mean_mind_deferred": 0.4978635579898691,
+    "nanobeir_completed": 0,
+    "nanobeir_mean": null,
+    "complete_local_configuration": false,
+    "status": "English40 complete; NanoBEIR pending in the existing live invocation. MIND deferred locally."
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "task": "MindSmallReranking",
+  "status": "deferred",
+  "reason": "deferred: needs more than 16 GiB RAM on the M1",
+  "mteb": "2.26.25",
+  "dataset": "mteb/MindSmallReranking",
+  "dataset_revision": "227478e3235572039f4f7661840e059f31ef6eb1",
+  "test_qrel_rows": 97006943,
+  "observed_physical_footprint": "15.4G (macOS sample output)",
+  "evidence": "results/dr151_mind_loader_20261101.sample.txt",
+  "loader_modified": false,
+  "evaluator_modified": false,
+  "sampling": false,
+  "completed_tasks_retained": 19,
+  "decision": "Coordinator explicitly deferred only MIND. Maintainer decides about a larger machine tomorrow.",
+  "remaining_required_coverage": "40/41 English tasks and 13/13 NanoBEIR tasks per model"
+}

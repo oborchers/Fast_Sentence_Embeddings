@@ -1,0 +1,65 @@
+{
+  "started_at": "2026-11-01T10:31:37.645914+00:00",
+  "source_commit": "bea07e985647a5a53484166fa9dc1d63f8c58c73",
+  "nice": 10,
+  "speed_run": false,
+  "count_command": [
+    "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-quality/bin/python",
+    "benchmarks/quality/corpus_lengths.py",
+    "--cache",
+    "/Users/oliverborchers/.cache/fse-quality",
+    "--coordination",
+    "/private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad",
+    "--output",
+    "benchmarks/baseline/dr151_corpus_lengths_20261101.json",
+    "--guide",
+    "docs/fse-corpus-lengths.md"
+  ],
+  "count_returncode": 0,
+  "gate_commit": "ea174334344c2fb0c97b9211af478d4acda77a40",
+  "check_returncode": 0,
+  "released_at": "2026-11-01T10:48:40.882423+00:00",
+  "full_check": {
+    "passed": 9260,
+    "skipped": 525,
+    "pytest_seconds": 225.9,
+    "workers": 4,
+    "source_commit": "ea174334344c2fb0c97b9211af478d4acda77a40"
+  },
+  "focused_final_checks": {
+    "passed": 34,
+    "scope": "pod shell/storage, folded classifier, matrix/scaling/showcase protocol, SetFit evaluation provenance; no local speed measurement"
+  },
+  "notes": "Full check covered unchanged fse core and pod code. Subsequent changes are provenance labels, output-scope metadata, test environment restoration and documentation; these receive focused checks again after push.",
+  "independent_reviews": [
+    {
+      "source": "bea07e985647a5a53484166fa9dc1d63f8c58c73",
+      "finding": "Rust TOKENIZERS_PARALLELISM inherited false",
+      "fixed_at": "ea174334344c2fb0c97b9211af478d4acda77a40"
+    },
+    {
+      "source": "ea174334344c2fb0c97b9211af478d4acda77a40",
+      "result": "Rust/deadline/timing checks have no findings; P3 SetFit split label corrected with a regression test",
+      "remaining_verified_defects": []
+    }
+  ],
+  "readme_extraction_followup": {
+    "reviewed_commit": "989d46fc67c9dd49a6df4592d5480b02da7d3158",
+    "review_scope": [
+      "benchmarks/quality/export_readme_panels.py",
+      "tests/test_export_readme_panels.py"
+    ],
+    "initial_findings": [
+      "missing reference arms could be relabelled table/scaling",
+      "context could come from a rejected early round"
+    ],
+    "verified_fixes": "exact approved selector and required arms; accepted-round context only",
+    "followup": "No findings",
+    "focused_tests_passed": 56,
+    "ruff": "passed",
+    "format": "passed",
+    "guardrails": "passed",
+    "pod_script_changed": false,
+    "actual_result_source_audit": "pending collection"
+  }
+}

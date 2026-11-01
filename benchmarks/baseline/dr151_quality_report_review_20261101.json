@@ -1,0 +1,31 @@
+{
+  "reviewed_commit": "ff18735d62bb38d3a4e981314dd8c7a177a5e0fc",
+  "review_scope": "b5127de..ff18735, local MiniLM/ParaNMT raw coverage, reports, elapsed helper and classic provenance",
+  "review_model": "gpt-6-astra",
+  "review_exit_code": 0,
+  "raw_review": "/private/tmp/dr151-quality-report-review.last.md",
+  "findings": [
+    {
+      "severity": "Warning",
+      "finding": "Elapsed report did not bind invocation --models to quality model",
+      "verified": true,
+      "resolution": "Validate every selected invocation model and reject missing/multiple/mismatched models; regression cases added."
+    },
+    {
+      "severity": "Warning",
+      "finding": "Reduced POTION8 proxy task journal absent",
+      "verified": true,
+      "resolution": "Retain all22 raw task records and verify exact requested coverage and completion timestamps within invocation. Preserve --resume and missing task-start limitation."
+    }
+  ],
+  "quality_scores_changed": false,
+  "review_verdict": "Initial two warnings addressed; follow-up duplicate-option defect verified and fixed. Published scores and elapsed totals remain unchanged.",
+  "followup": {
+    "reviewed_commit": "4f685224080452ee82b7bdce9e7f623c14554801",
+    "exit_code": 0,
+    "finding": "Repeated --models options could override the first option; committed invocations are unaffected.",
+    "verified": true,
+    "resolution": "Reject duplicate, abbreviated and equals-form model options; accept only one canonical --models selection. Regression cases added.",
+    "other_categories": "No findings on reduced POTION journal or POSIX portability markers."
+  }
+}

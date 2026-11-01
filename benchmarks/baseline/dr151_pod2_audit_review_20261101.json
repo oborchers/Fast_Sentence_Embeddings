@@ -1,0 +1,17 @@
+{
+  "reviewed_commit": "22069690002e6b9f3d22a84eab24bcf1f8812ada",
+  "raw_publication_commit": "2501a387d197d54e31b79bd57dcc350ac1503a07",
+  "reviewer": "independent Codex CLI gpt-6-astra, xhigh, read-only detached snapshot",
+  "checks": "Independent stdlib recomputation of raw eligibility, complete stage counts, selected paired rates and nested classifier stability; source audit of Rust flags and normalized classifier path",
+  "finding": "Prose attributed one valid cell to FineWeb instead of SetFit. All104valid classifier cells are SetFit; FineWeb0valid,1noisy,1unfinished,10notstarted.",
+  "verified_correction_commit": "d2bdaf98791a0943a044a95b73ec3f3e7b1c2b1a",
+  "other_results": "No other finding; stage totals, Subjectivity rates/ratios, Rust scope, normalization evidence and local/pod records agree.",
+  "not_done_by_reviewer": [
+    "tests",
+    "builds",
+    "model inference",
+    "package installs",
+    "network calls"
+  ],
+  "final_whole_goal_claims_review": "pending remaining quality and Pod1/3 results"
+}

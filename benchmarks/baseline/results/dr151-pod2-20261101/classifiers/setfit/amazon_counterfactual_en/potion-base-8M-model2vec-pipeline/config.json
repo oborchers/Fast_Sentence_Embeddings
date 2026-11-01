@@ -1,0 +1,13 @@
+{
+    "max_length": 512,
+    "normalize": true,
+    "head_config": {
+        "n_layers": 2,
+        "activation": "softmax",
+        "classes": [
+            0,
+            1
+        ]
+    },
+    "embedding_dtype": "float32"
+}

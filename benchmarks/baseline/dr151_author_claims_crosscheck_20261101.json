@@ -1,0 +1,132 @@
+{
+  "observed_utc": "2026-11-01T14:19:17.612104+00:00",
+  "scope": "Read-only authors-claims cross-check; no new benchmark or inference",
+  "local_source_commit": "3aa6f0081b448bd6b772f7410cadb74db6691d4a",
+  "static_retrieval": {
+    "author_source": "https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1#matryoshka-evaluations",
+    "author_source_revision": "main as observed; not an immutable model-card snapshot",
+    "model_revision": "f60985c706f192d45d218078e49e5a8b6f15283a",
+    "dimensions": 1024,
+    "metric": "NanoBEIR mean nDCG@10",
+    "author_reported_mean": 0.5031,
+    "measured_mean": 0.5030715384615384,
+    "delta_mean_points": -0.0028461538461588276,
+    "max_absolute_task_delta_points": 0.09399999999999964,
+    "task_comparison": [
+      {
+        "task": "NanoArguAnaRetrieval",
+        "author_rounded_ndcg_at_10": 0.4077,
+        "measured_ndcg_at_10": 0.40676,
+        "delta_points": -0.09399999999999964
+      },
+      {
+        "task": "NanoClimateFeverRetrieval",
+        "author_rounded_ndcg_at_10": 0.3308,
+        "measured_ndcg_at_10": 0.33085,
+        "delta_points": 0.004999999999999449
+      },
+      {
+        "task": "NanoDBPediaRetrieval",
+        "author_rounded_ndcg_at_10": 0.5681,
+        "measured_ndcg_at_10": 0.56814,
+        "delta_points": 0.003999999999992898
+      },
+      {
+        "task": "NanoFEVERRetrieval",
+        "author_rounded_ndcg_at_10": 0.6921,
+        "measured_ndcg_at_10": 0.69215,
+        "delta_points": 0.004999999999999449
+      },
+      {
+        "task": "NanoFiQA2018Retrieval",
+        "author_rounded_ndcg_at_10": 0.3651,
+        "measured_ndcg_at_10": 0.36511,
+        "delta_points": 0.001000000000001
+      },
+      {
+        "task": "NanoHotpotQARetrieval",
+        "author_rounded_ndcg_at_10": 0.6547,
+        "measured_ndcg_at_10": 0.65472,
+        "delta_points": 0.002000000000002
+      },
+      {
+        "task": "NanoMSMARCORetrieval",
+        "author_rounded_ndcg_at_10": 0.404,
+        "measured_ndcg_at_10": 0.40407,
+        "delta_points": 0.006999999999995898
+      },
+      {
+        "task": "NanoNFCorpusRetrieval",
+        "author_rounded_ndcg_at_10": 0.3241,
+        "measured_ndcg_at_10": 0.32419,
+        "delta_points": 0.008999999999997899
+      },
+      {
+        "task": "NanoNQRetrieval",
+        "author_rounded_ndcg_at_10": 0.4533,
+        "measured_ndcg_at_10": 0.45339,
+        "delta_points": 0.00900000000000345
+      },
+      {
+        "task": "NanoQuoraRetrieval",
+        "author_rounded_ndcg_at_10": 0.895,
+        "measured_ndcg_at_10": 0.89488,
+        "delta_points": -0.012000000000000899
+      },
+      {
+        "task": "NanoSCIDOCSRetrieval",
+        "author_rounded_ndcg_at_10": 0.2642,
+        "measured_ndcg_at_10": 0.26426,
+        "delta_points": 0.006000000000000449
+      },
+      {
+        "task": "NanoSciFactRetrieval",
+        "author_rounded_ndcg_at_10": 0.6111,
+        "measured_ndcg_at_10": 0.61115,
+        "delta_points": 0.004999999999999449
+      },
+      {
+        "task": "NanoTouche2020Retrieval",
+        "author_rounded_ndcg_at_10": 0.5702,
+        "measured_ndcg_at_10": 0.57026,
+        "delta_points": 0.005999999999994898
+      }
+    ],
+    "conclusion": "Aggregate agrees at two decimal points on the 0..100 scale; individual scores differ slightly, so this is not exact task-by-task reproduction."
+  },
+  "potion_and_minilm": {
+    "author_source": "https://huggingface.co/minishlab/potion-base-8M/blob/bf8b056651a2c21b8d2565580b8569da283cab23/README.md",
+    "author_mteb_means_points": {
+      "potion-base-8M": 51.08,
+      "potion-base-32M": 52.13,
+      "all-MiniLM-L6-v2": 55.93
+    },
+    "measured_english40_mind_excluded_points": {
+      "potion-base-8M": 53.9527,
+      "potion-base-32M": 55.2573,
+      "all-MiniLM-L6-v2": 59.8863
+    },
+    "directly_comparable": false,
+    "reason": "Author table includes a different task composition including summarization; exact evaluation version/task protocol is not established here. Current measurements use MTEB English v2 excluding MIND. MiniLM author-column numbers here are reported by MinishLab, not attributed to original MiniLM authors."
+  },
+  "paranmt": {
+    "author_source": "https://www.cs.cmu.edu/~jwieting/wieting2017Millions.pdf",
+    "author_table": 9,
+    "author_model": "WORD 300",
+    "author_metric": "Pearson correlation on STS Benchmark test, times100",
+    "author_value": 79.2,
+    "local_summary": "benchmarks/baseline/dr151_quality_paranmt_20261101.json",
+    "local_metric": "cosine_spearman",
+    "local_value": 79.06998853684524,
+    "directly_comparable": false,
+    "reason": "Pearson and Spearman differ. Exact checkpoint variant and tokenization equivalence have not been established against the paper."
+  },
+  "speed_claims": {
+    "static_retrieval_author_source": "https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1#evaluation",
+    "author_cpu_ratio_vs_mpnet": 397,
+    "author_hardware": "Intel i7-13700K",
+    "author_input": "GooAQ query texts",
+    "reproduced": false,
+    "reason": "Our WikiText/MASSIVE inputs and hardware differ. We have no matching MPNet speed run. Faster execution of the same weights measures the engine, not a quality improvement."
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "dataset": "SetFit/subj",
+  "model": "minishlab/potion-base-8M",
+  "model_revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+  "same_protocol_fields": [
+    "model",
+    "revision",
+    "dataset_revision",
+    "train_rows",
+    "evaluation_rows",
+    "train_digest",
+    "evaluation_digest",
+    "train_label_digest",
+    "evaluation_label_digest",
+    "fit",
+    "training_method_files"
+  ],
+  "prediction_digest_equal": true,
+  "local_accuracy": 0.89,
+  "pod_accuracy": 0.89,
+  "local_macro_f1": 0.8898872445384074,
+  "pod_macro_f1": 0.8898872445384074,
+  "accuracy_delta": 0.0,
+  "macro_f1_delta": 0.0,
+  "training_threads_local": 2,
+  "training_threads_pod": 16,
+  "export_files_bit_identical": false,
+  "local_runtime": {
+    "runtime_package": "model2vec",
+    "runtime_package_version": "0.10.0",
+    "runtime_fingerprint": "xxh3-128:4852905a78404abddd67f88f333e9f5d",
+    "machine": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python": "3.13.16 (main, Oct  9 2026, 15:11:24) [Clang 22.1.3 ]"
+  },
+  "pod_runtime": {
+    "runtime_package": "model2vec",
+    "runtime_package_version": "0.10.0",
+    "runtime_fingerprint": "xxh3-128:4852905a78404abddd67f88f333e9f5d",
+    "machine": "Linux-6.8.0-147-generic-x86_64-with-glibc2.41",
+    "python": "3.13.18 (main, Oct 28 2026, 04:36:08) [GCC 14.2.0]"
+  },
+  "local_source": "benchmarks/baseline/dr151_native_classifier_pinned_accuracy_20261101.jsonl",
+  "pod_source": "benchmarks/baseline/results/dr151-pod2-20261101/classification-quality.jsonl",
+  "pod_raw_commit": "2501a387d197d54e31b79bd57dcc350ac1503a07",
+  "limit": "One complete2000-row evaluation matches exactly. Training threads differ2vs16; this does not establish bitwise reproducibility for every dataset or fitted tensor."
+}

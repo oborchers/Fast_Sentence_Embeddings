@@ -1,0 +1,679 @@
+{
+  "setup": {
+    "device": "cpu",
+    "machine": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "method_fingerprint": "xxh3-128:b7cde152974d96e1f2b5baa0fe736d5c",
+    "python": "3.13.16",
+    "runtime_fingerprint": "xxh3-128:e0f772e2be1bfde21414ce3f403b0e21",
+    "suite_fingerprint": "xxh3-128:3382243b7faea5e5c71ba0a52f2bf4a4",
+    "versions": {
+      "Jinja2": "3.1.6",
+      "MarkupSafe": "3.0.4",
+      "PyYAML": "6.0.3",
+      "Pygments": "2.21.0",
+      "aiohappyeyeballs": "2.7.1",
+      "aiohttp": "3.14.5",
+      "aiosignal": "1.4.0",
+      "annotated-doc": "0.0.5",
+      "annotated-types": "0.8.0",
+      "anyio": "4.15.1",
+      "attrs": "26.1.0",
+      "certifi": "2026.10.23",
+      "charset-normalizer": "3.5.2",
+      "click": "8.5.0",
+      "cloudpickle": "3.1.2",
+      "datasets": "5.1.0",
+      "defusedxml": "0.7.1",
+      "dill": "0.4.1",
+      "filelock": "4.2.6",
+      "frozenlist": "1.8.0",
+      "fse": "1.1.1.dev904+g0de9c3ddc",
+      "fsspec": "2026.7.0",
+      "h11": "0.16.0",
+      "hf-xet": "1.8.0",
+      "httpcore2": "2.16.0",
+      "httpx2": "2.16.0",
+      "huggingface_hub": "2.4.0",
+      "idna": "3.20",
+      "joblib": "1.6.0",
+      "markdown-it-py": "4.2.0",
+      "mdurl": "0.1.2",
+      "model2vec": "0.10.0",
+      "mpmath": "1.3.0",
+      "mteb": "2.26.25",
+      "multidict": "7.2.1",
+      "multiprocess": "0.70.19",
+      "narwhals": "2.28.0",
+      "networkx": "3.7",
+      "nltk": "3.10.4",
+      "numpy": "2.5.4",
+      "packaging": "26.3",
+      "pandas": "3.1.0",
+      "polars": "2.1.0",
+      "polars-runtime-32": "2.1.0",
+      "propcache": "0.5.4",
+      "pyarrow": "26.0.0",
+      "pydantic": "2.14.2",
+      "pydantic_core": "2.50.2",
+      "python-dateutil": "3.0.0",
+      "pytrec_eval-terrier": "0.5.11",
+      "regex": "2026.9.29",
+      "requests": "2.34.2",
+      "rich": "15.0.0",
+      "safetensors": "0.8.0",
+      "scikit-learn": "1.9.1",
+      "scipy": "1.18.1",
+      "sentence-transformers": "6.2.0",
+      "setuptools": "84.2.1",
+      "shellingham": "1.5.4",
+      "six": "1.17.0",
+      "sympy": "1.14.0",
+      "threadpoolctl": "3.7.0",
+      "tokenizers": "0.23.3",
+      "torch": "2.15.0",
+      "tqdm": "4.70.1",
+      "transformers": "5.22.1",
+      "truststore": "0.10.5",
+      "typer": "0.27.3",
+      "typing-inspection": "0.4.4",
+      "typing_extensions": "4.16.0",
+      "tzdata": "2026.6",
+      "urllib3": "2.8.0",
+      "xxhash": "4.0.2",
+      "yarl": "1.25.1"
+    },
+    "workers": 2
+  },
+  "minimum_upstream_mean_characters": 1000,
+  "length_statistics_origin": "packaged MTEB statistics, not re-measured run inputs",
+  "selection": "every measured task with an upstream evaluation text stream meeting the threshold",
+  "limitations": [
+    "upstream aggregate statistics can precede the pinned task revision or cover additional subsets",
+    "where subset statistics exist, only mapped English subsets are used",
+    "these means do not measure truncation frequency or model-specific token lengths",
+    "scores use each complete task and each model's native input limits",
+    "this is a diagnostic breakout, not a new aggregate benchmark or a sampled evaluation"
+  ],
+  "encoder_descriptions": {
+    "fse/potion-base-32M-float32": "Encoder(63091 words, 512 dimensions, float32, wordpiece@1 (unknown ids dropped, the first 512 tokens of the first 3584 characters), normalize@1)"
+  },
+  "tasks": [
+    {
+      "task": "ArXivHierarchicalClusteringP2P",
+      "type": "Clustering",
+      "dataset": {
+        "path": "mteb/arxiv-clustering-p2p",
+        "revision": "0bbdb47bcbe3a90093699aefeed338a0f28a7ee8"
+      },
+      "length_metadata_file": "Clustering/ArXivHierarchicalClusteringP2P.json",
+      "length_metadata_digest": "xxh3-128:9188a4ba61114023c82ec78df42aa6a7",
+      "input_streams": [
+        {
+          "stream": "test/text_statistics",
+          "min_text_length": 103,
+          "average_text_length": 1008.439453125,
+          "max_text_length": 2103,
+          "total_text_length": 2065284,
+          "unique_texts": 2048
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "v_measure",
+          "score": 0.5673015884473223,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "ArguAna",
+      "type": "Retrieval",
+      "dataset": {
+        "path": "mteb/arguana",
+        "revision": "c22ab2a51041ffd869aaddef7af8d8215647e41a"
+      },
+      "length_metadata_file": "Retrieval/ArguAna.json",
+      "length_metadata_digest": "xxh3-128:c4448fbb3305dab0a6d85e528024a39f",
+      "input_streams": [
+        {
+          "stream": "test/documents_text_statistics",
+          "min_text_length": 2,
+          "average_text_length": 1029.5439243716855,
+          "max_text_length": 6673,
+          "total_text_length": 8930264,
+          "unique_texts": 8626
+        },
+        {
+          "stream": "test/queries_text_statistics",
+          "min_text_length": 251,
+          "average_text_length": 1192.7204836415362,
+          "max_text_length": 5500,
+          "total_text_length": 1676965,
+          "unique_texts": 1298
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "ndcg_at_10",
+          "score": 0.42864,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "BiorxivClusteringP2P.v2",
+      "type": "Clustering",
+      "dataset": {
+        "path": "mteb/biorxiv-clustering-p2p",
+        "revision": "f5dbc242e11dd8e24def4c4268607a49e02946dc"
+      },
+      "length_metadata_file": "Clustering/BiorxivClusteringP2P.v2.json",
+      "length_metadata_digest": "xxh3-128:19f234dee5b730622a8b879e3cac70ec",
+      "input_streams": [
+        {
+          "stream": "test/text_statistics",
+          "min_text_length": 139,
+          "average_text_length": 1663.9676315838399,
+          "max_text_length": 8912,
+          "total_text_length": 89499827,
+          "unique_texts": 53784
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "v_measure",
+          "score": 0.3512223582950698,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "CQADupstackUnixRetrieval",
+      "type": "Retrieval",
+      "dataset": {
+        "path": "mteb/cqadupstack-unix",
+        "revision": "6c6430d3a6d36f8d2a829195bc5dc94d7e063e53"
+      },
+      "length_metadata_file": "Retrieval/CQADupstackUnixRetrieval.json",
+      "length_metadata_digest": "xxh3-128:42cff05097f2d362fa3488af6d6fcd2e",
+      "input_streams": [
+        {
+          "stream": "test/documents_text_statistics",
+          "min_text_length": 56,
+          "average_text_length": 1005.8120172217298,
+          "max_text_length": 32623,
+          "total_text_length": 47657385,
+          "unique_texts": 47382
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "ndcg_at_10",
+          "score": 0.21052,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "ClimateFEVERHardNegatives",
+      "type": "Retrieval",
+      "dataset": {
+        "path": "mteb/ClimateFEVER_test_top_250_only_w_correct-v2",
+        "revision": "3a309e201f3c2c4b13bd4a367a8f37eee2ec1d21"
+      },
+      "length_metadata_file": "Retrieval/ClimateFEVERHardNegatives.json",
+      "length_metadata_digest": "xxh3-128:acf81c57ce08693dc3ed6b23efc9278d",
+      "input_streams": [
+        {
+          "stream": "test/documents_text_statistics",
+          "min_text_length": 1,
+          "average_text_length": 1246.3422262527417,
+          "max_text_length": 36320,
+          "total_text_length": 59096563,
+          "unique_texts": 47416
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "ndcg_at_10",
+          "score": 0.20925,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "ImdbClassification",
+      "type": "Classification",
+      "dataset": {
+        "path": "mteb/imdb",
+        "revision": "3d86128a09e091d6018b6d26cad27f2739fc2db7"
+      },
+      "length_metadata_file": "Classification/ImdbClassification.json",
+      "length_metadata_digest": "xxh3-128:fbd004b99e2060266514c64ea8d378e8",
+      "input_streams": [
+        {
+          "stream": "test/text_statistics",
+          "min_text_length": 32,
+          "average_text_length": 1293.7924,
+          "max_text_length": 12988,
+          "total_text_length": 32344810,
+          "unique_texts": 24801
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "accuracy",
+          "score": 0.70126,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "MedrxivClusteringP2P.v2",
+      "type": "Clustering",
+      "dataset": {
+        "path": "mteb/medrxiv-clustering-p2p",
+        "revision": "e7a26af6f3ae46b30dde8737f02c07b1505bcc73"
+      },
+      "length_metadata_file": "Clustering/MedrxivClusteringP2P.v2.json",
+      "length_metadata_digest": "xxh3-128:b520ded9de1785e0fd7a06103ceb5d49",
+      "input_streams": [
+        {
+          "stream": "test/text_statistics",
+          "min_text_length": 148,
+          "average_text_length": 1981.1980533333333,
+          "max_text_length": 38759,
+          "total_text_length": 74294927,
+          "unique_texts": 16265
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "v_measure",
+          "score": 0.3324636504929147,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "NanoArguAnaRetrieval",
+      "type": "Retrieval",
+      "dataset": {
+        "path": "mteb/NanoArguAnaRetrieval",
+        "revision": "63ac9f026e8f6b85dc0622f3d630ed7a1758e9ec"
+      },
+      "length_metadata_file": "Retrieval/NanoArguAnaRetrieval.json",
+      "length_metadata_digest": "xxh3-128:9669aa6791d98c043b952829a12ff120",
+      "input_streams": [
+        {
+          "stream": "train/documents_text_statistics",
+          "min_text_length": 70,
+          "average_text_length": 1011.7914718019257,
+          "max_text_length": 6673,
+          "total_text_length": 3677862,
+          "unique_texts": 3610
+        },
+        {
+          "stream": "train/queries_text_statistics",
+          "min_text_length": 504,
+          "average_text_length": 1201.78,
+          "max_text_length": 2164,
+          "total_text_length": 60089,
+          "unique_texts": 50
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "ndcg_at_10",
+          "score": 0.33258,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "NanoClimateFeverRetrieval",
+      "type": "Retrieval",
+      "dataset": {
+        "path": "mteb/NanoClimateFeverRetrieval",
+        "revision": "ccb5552bc17e87afe0f9479fb4346898213a71db"
+      },
+      "length_metadata_file": "Retrieval/NanoClimateFeverRetrieval.json",
+      "length_metadata_digest": "xxh3-128:60bd5fb52186cd8d730cc0e73966e226",
+      "input_streams": [
+        {
+          "stream": "train/documents_text_statistics",
+          "min_text_length": 33,
+          "average_text_length": 1619.531690140845,
+          "max_text_length": 6619,
+          "total_text_length": 5519364,
+          "unique_texts": 3408
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "ndcg_at_10",
+          "score": 0.2775,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "NanoFEVERRetrieval",
+      "type": "Retrieval",
+      "dataset": {
+        "path": "mteb/NanoFEVERRetrieval",
+        "revision": "a6490dfeed0f13c2a052e39c6ddaeb6086afd4a8"
+      },
+      "length_metadata_file": "Retrieval/NanoFEVERRetrieval.json",
+      "length_metadata_digest": "xxh3-128:902b84752fce1efbfd1e25ae0acc7826",
+      "input_streams": [
+        {
+          "stream": "train/documents_text_statistics",
+          "min_text_length": 25,
+          "average_text_length": 1228.7119695756605,
+          "max_text_length": 8491,
+          "total_text_length": 6138645,
+          "unique_texts": 4993
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "ndcg_at_10",
+          "score": 0.57253,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "NanoNFCorpusRetrieval",
+      "type": "Retrieval",
+      "dataset": {
+        "path": "mteb/NanoNFCorpusRetrieval",
+        "revision": "2eec9d63140fb9af7c75ad0fdbf6350aaf20e94e"
+      },
+      "length_metadata_file": "Retrieval/NanoNFCorpusRetrieval.json",
+      "length_metadata_digest": "xxh3-128:15224d90728282b44babdb3c255146d5",
+      "input_streams": [
+        {
+          "stream": "train/documents_text_statistics",
+          "min_text_length": 90,
+          "average_text_length": 1512.7301049779885,
+          "max_text_length": 9939,
+          "total_text_length": 4467092,
+          "unique_texts": 2920
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "ndcg_at_10",
+          "score": 0.27406,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "NanoSciFactRetrieval",
+      "type": "Retrieval",
+      "dataset": {
+        "path": "mteb/NanoSciFactRetrieval",
+        "revision": "8c5f7bbe90bb865f46c67710221afa7d9096251b"
+      },
+      "length_metadata_file": "Retrieval/NanoSciFactRetrieval.json",
+      "length_metadata_digest": "xxh3-128:c11ce58c05fd3189ef14de5c6f339389",
+      "input_streams": [
+        {
+          "stream": "train/documents_text_statistics",
+          "min_text_length": 260,
+          "average_text_length": 1431.2343268242548,
+          "max_text_length": 10000,
+          "total_text_length": 4177773,
+          "unique_texts": 2919
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "ndcg_at_10",
+          "score": 0.60302,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "NanoTouche2020Retrieval",
+      "type": "Retrieval",
+      "dataset": {
+        "path": "mteb/NanoTouche2020Retrieval",
+        "revision": "ff81c0caff8b6febe1495eae9f2ca3eddad074b8"
+      },
+      "length_metadata_file": "Retrieval/NanoTouche2020Retrieval.json",
+      "length_metadata_digest": "xxh3-128:c3b7814698a0febaad988ebe409ecca2",
+      "input_streams": [
+        {
+          "stream": "train/documents_text_statistics",
+          "min_text_length": 3,
+          "average_text_length": 2142.561531766754,
+          "max_text_length": 37100,
+          "total_text_length": 12309016,
+          "unique_texts": 5665
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "ndcg_at_10",
+          "score": 0.51341,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "SCIDOCS",
+      "type": "Retrieval",
+      "dataset": {
+        "path": "mteb/scidocs",
+        "revision": "f8c2fcf00f625baaa80f62ec5bd9e1fff3b8ae88"
+      },
+      "length_metadata_file": "Retrieval/SCIDOCS.json",
+      "length_metadata_digest": "xxh3-128:4dd2642359a56ebc2ca3d204e513ffd2",
+      "input_streams": [
+        {
+          "stream": "test/documents_text_statistics",
+          "min_text_length": 10,
+          "average_text_length": 1204.3525743461823,
+          "max_text_length": 10169,
+          "total_text_length": 30900074,
+          "unique_texts": 25656
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "ndcg_at_10",
+          "score": 0.13587,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "STS22.v2",
+      "type": "STS",
+      "dataset": {
+        "path": "mteb/sts22-crosslingual-sts",
+        "revision": "d31f33a128469b20e357535c39b82fb3c3f6f2bd"
+      },
+      "length_metadata_file": "STS/STS22.v2.json",
+      "length_metadata_digest": "xxh3-128:c5716c97cb44a19f6cf389ad74052398",
+      "input_streams": [
+        {
+          "stream": "test/hf_subset_descriptive_stats/en/text1_statistics",
+          "min_text_length": 93,
+          "average_text_length": 3152.5888324873094,
+          "max_text_length": 27173,
+          "total_text_length": 621060,
+          "unique_texts": 197
+        },
+        {
+          "stream": "test/hf_subset_descriptive_stats/en/text2_statistics",
+          "min_text_length": 69,
+          "average_text_length": 2468.4060913705584,
+          "max_text_length": 28987,
+          "total_text_length": 486276,
+          "unique_texts": 195
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "cosine_spearman",
+          "score": 0.642494091437646,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "StackExchangeClusteringP2P.v2",
+      "type": "Clustering",
+      "dataset": {
+        "path": "mteb/stackexchange-clustering-p2p",
+        "revision": "815ca46b2622cec33ccafc3735d572c266efdb44"
+      },
+      "length_metadata_file": "Clustering/StackExchangeClusteringP2P.v2.json",
+      "length_metadata_digest": "xxh3-128:0b92d5d39230e17104f7ee1057cfa206",
+      "input_streams": [
+        {
+          "stream": "test/text_statistics",
+          "min_text_length": 71,
+          "average_text_length": 1091.06013562218,
+          "max_text_length": 4225,
+          "total_text_length": 81735679,
+          "unique_texts": 38645
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "v_measure",
+          "score": 0.3704866538246686,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "SummEvalSummarization.v2",
+      "type": "Summarization",
+      "dataset": {
+        "path": "mteb/summeval",
+        "revision": "cda12ad7615edc362dbf25a00fdd61d3b1eaf93c"
+      },
+      "length_metadata_file": "Summarization/SummEvalSummarization.v2.json",
+      "length_metadata_digest": "xxh3-128:8d9c93a6a0349b4a8c84ad612624b4b2",
+      "input_streams": [
+        {
+          "stream": "test/text_statistics",
+          "min_text_length": 626,
+          "average_text_length": 2100.35,
+          "max_text_length": 3153,
+          "total_text_length": 210035,
+          "unique_texts": 100
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "cosine_spearman",
+          "score": 0.24728083760192143,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "TRECCOVID",
+      "type": "Retrieval",
+      "dataset": {
+        "path": "mteb/trec-covid",
+        "revision": "bb9466bac8153a0349341eb1b22e06409e78ef4e"
+      },
+      "length_metadata_file": "Retrieval/TRECCOVID.json",
+      "length_metadata_digest": "xxh3-128:de86bef7de6987eac067f604d3265b26",
+      "input_streams": [
+        {
+          "stream": "test/documents_text_statistics",
+          "min_text_length": 0,
+          "average_text_length": 1117.4974318866296,
+          "max_text_length": 122459,
+          "total_text_length": 191463070,
+          "unique_texts": 171332
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "ndcg_at_10",
+          "score": 0.41931,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    },
+    {
+      "task": "Touche2020Retrieval.v3",
+      "type": "Retrieval",
+      "dataset": {
+        "path": "mteb/webis-touche2020-v3",
+        "revision": "431886eaecc48f067a3975b70d0949ea2862463c"
+      },
+      "length_metadata_file": "Retrieval/Touche2020Retrieval.v3.json",
+      "length_metadata_digest": "xxh3-128:a970194a2f2e2b9f2c92afb18eca8c85",
+      "input_streams": [
+        {
+          "stream": "test/documents_text_statistics",
+          "min_text_length": 40,
+          "average_text_length": 2096.3809542623103,
+          "max_text_length": 105982,
+          "total_text_length": 636737980,
+          "unique_texts": 301580
+        }
+      ],
+      "scores": [
+        {
+          "model": "fse/potion-base-32M-float32",
+          "metric": "ndcg_at_10",
+          "score": 0.48228,
+          "delta_vs_float32_points": 0.0,
+          "status": "measured full task"
+        }
+      ]
+    }
+  ],
+  "missing_packaged_statistics": [],
+  "mteb_version": "2.26.25"
+}

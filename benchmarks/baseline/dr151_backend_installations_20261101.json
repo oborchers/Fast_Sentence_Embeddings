@@ -1,0 +1,111 @@
+{
+  "captured_utc": "2026-11-01T06:07:10.858036+00:00",
+  "recorder_commit": "0480d262da18fa3a9ffac81bbf5f64664a563251",
+  "scope": "Non-timed installation and before/after integrity smoke check. Does not validate historical speed records or replace remeasurement.",
+  "backends": [
+    {
+      "kind": "fse",
+      "python": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-quality/bin/python",
+      "runtime_package": "fse",
+      "runtime_package_version": "1.1.1.dev853+g9a7e780f5",
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+      "runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
+      "runtime_fingerprint_scope": "fse Python sources and native extension (existing scheme)"
+    },
+    {
+      "kind": "model2vec",
+      "python": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-quality/bin/python",
+      "runtime_package": "model2vec",
+      "runtime_package_version": "0.10.0",
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-quality/lib/python3.13/site-packages/model2vec/__init__.py",
+      "runtime_fingerprint": "xxh3-128:4852905a78404abddd67f88f333e9f5d",
+      "runtime_fingerprint_scope": "installed distribution files and module tree, excluding Python caches",
+      "runtime_file_count": 47
+    },
+    {
+      "kind": "st",
+      "python": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-quality/bin/python",
+      "runtime_package": "sentence-transformers",
+      "runtime_package_version": "6.2.0",
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-quality/lib/python3.13/site-packages/sentence_transformers/__init__.py",
+      "runtime_fingerprint": "xxh3-128:9a3182ec6ee2e11a464d42028ed85e17",
+      "runtime_fingerprint_scope": "installed distribution files and module tree, excluding Python caches",
+      "runtime_file_count": 226
+    },
+    {
+      "kind": "rust",
+      "python": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-quality/bin/python",
+      "runtime_package": "model2vec-rs",
+      "runtime_package_version": "0.4.0",
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/benchmarks/compare_rust/target/release/fse-model2vec-rs-compare",
+      "runtime_fingerprint": "xxh3-128:e3d72192e3a8d86f2924156da6ba4d7f",
+      "runtime_fingerprint_scope": "locked Rust worker binary, including linked backend code",
+      "runtime_file_count": 1,
+      "rust_worker_build": {
+        "inputs": {
+          "Cargo.toml": "xxh3-128:c6c6f12237e3bcdd01369e0900d6544d",
+          "Cargo.lock": "xxh3-128:3aaefff7ac5f0dd9c1e9afdd8cea243f",
+          "src/main.rs": "xxh3-128:238e6580cd1b4dfa7d4385de264adbca"
+        },
+        "binary_digest": "xxh3-128:e3d72192e3a8d86f2924156da6ba4d7f",
+        "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+        "command": [
+          "cargo",
+          "build",
+          "--release",
+          "--locked"
+        ]
+      }
+    },
+    {
+      "kind": "fastembed",
+      "python": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-compare/bin/python",
+      "runtime_package": "fastembed",
+      "runtime_package_version": "0.9.1",
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-compare/lib/python3.13/site-packages/fastembed/__init__.py",
+      "runtime_fingerprint": "xxh3-128:f0f4e161df00b3b8008e5fbac40d40e5",
+      "runtime_fingerprint_scope": "installed distribution files and module tree, excluding Python caches",
+      "runtime_file_count": 76
+    },
+    {
+      "kind": "faiss",
+      "python": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-compare/bin/python",
+      "runtime_package": "faiss-cpu",
+      "runtime_package_version": "1.15.1",
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-compare/lib/python3.13/site-packages/faiss/__init__.py",
+      "runtime_fingerprint": "xxh3-128:5cf2ab366c475f4bf9a5908443a4b37d",
+      "runtime_fingerprint_scope": "installed distribution files and module tree, excluding Python caches",
+      "runtime_file_count": 38
+    },
+    {
+      "kind": "hnswlib",
+      "python": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-compare/bin/python",
+      "runtime_package": "hnswlib",
+      "runtime_package_version": "0.8.0",
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-compare/lib/python3.13/site-packages/hnswlib.cpython-313-darwin.so",
+      "runtime_fingerprint": "xxh3-128:1fd5f64664f35d3792fd26424fcc5819",
+      "runtime_fingerprint_scope": "installed distribution files and module tree, excluding Python caches",
+      "runtime_file_count": 9
+    },
+    {
+      "kind": "fasttext",
+      "python": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-compare/bin/python",
+      "runtime_package": "fasttext-numpy2",
+      "runtime_package_version": "0.10.4",
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-compare/lib/python3.13/site-packages/fasttext/__init__.py",
+      "runtime_fingerprint": "xxh3-128:cee1dde994fa91651329bbc38d349787",
+      "runtime_fingerprint_scope": "installed distribution files and module tree, excluding Python caches",
+      "runtime_file_count": 16
+    },
+    {
+      "kind": "tfidf",
+      "python": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-compare/bin/python",
+      "runtime_package": "scikit-learn",
+      "runtime_package_version": "1.9.1",
+      "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-compare/lib/python3.13/site-packages/sklearn/__init__.py",
+      "runtime_fingerprint": "xxh3-128:a3f690202fbbee3845895b6dd8394dd9",
+      "runtime_fingerprint_scope": "installed distribution files and module tree, excluding Python caches",
+      "runtime_file_count": 1009
+    }
+  ]
+}

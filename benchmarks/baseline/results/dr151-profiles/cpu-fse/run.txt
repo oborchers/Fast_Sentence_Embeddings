@@ -1,0 +1,80 @@
+   Building fse @ file:///Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare
+      Built fse @ file:///Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare
+Uninstalled 1 package in 1ms
+Installed 1 package in 2ms
+{"load_s": 0.2999272500164807, "first_encode_s": 0.03999195899814367, "first_encode_texts": 5352, "warm_seconds": [0.02732654206920415, 0.02613316592760384, 0.02411145798396319, 0.024786250083707273, 0.026052832952700555, 0.02548716706223786, 0.02541041700169444, 0.024757207953371108, 0.028184750000946224, 0.025983207975514233, 0.026709584053605795, 0.026036124909296632, 0.024249749956652522, 0.025893458048813045, 0.025891375029459596, 0.02693187491968274, 0.025945874978788197, 0.02735108300112188, 0.02643212489783764, 0.02460495801642537, 0.02635041601024568, 0.026061874930746853, 0.02461495902389288, 0.02637908305041492, 0.025611500022932887, 0.025750000029802322, 0.026460624998435378, 0.025384000036865473, 0.024384124903008342, 0.024237292003817856, 0.026599333039484918, 0.026134999934583902, 0.027153540984727442, 0.02628429199103266, 0.02692229102831334, 0.026509292074479163, 0.02612199995201081, 0.025691541959531605, 0.024320040945895016, 0.025848541990853846, 0.025813582935370505, 0.025310082943178713, 0.024139125016517937, 0.02390870894305408, 0.024688499979674816, 0.026698250090703368, 0.026742208981886506, 0.027425333042629063, 0.027567957993596792, 0.02635066700167954, 0.02540220902301371, 0.02508562500588596, 0.026945209014229476, 0.026161166955716908, 0.025792791042476892, 0.025661458959802985, 0.02569999999832362, 0.026662792079150677, 0.02473925007507205, 0.026547249988652766, 0.026972583029419184, 0.025138000026345253, 0.02549108292441815, 0.025987416971474886, 0.025418207980692387, 0.02631629107054323, 0.024337999988347292, 0.024724500020965934, 0.026255707954987884, 0.026333792018704116, 0.026352582965046167, 0.025536749977618456, 0.02485037501901388, 0.025016959058120847, 0.025608125026337802, 0.02525187493301928, 0.024432625039480627, 0.025934083038009703, 0.02545008307788521, 0.02657029207330197, 0.024898708099499345, 0.02504170802421868, 0.02604495792184025, 0.02514841698575765, 0.024671999970450997, 0.024255249998532236, 0.024532790994271636, 0.02673925005365163, 0.02621433394961059, 0.025360750034451485, 0.024098250083625317, 0.024006124935112894, 0.025602457928471267, 0.024702833965420723, 0.025193292065523565, 0.02449483296368271, 0.025131791946478188, 0.026293333037756383, 0.026762124965898693, 0.025186083978042006], "shape": [5352, 256], "peak_rss_bytes": 198950912, "rss_scope": "Python encoder process", "table_dtype": "float32", "output_dtype": "float32", "file_bytes": 30664410, "load_source": "finished fse artifact", "encoder_fingerprint": "xxh3-128:7aed2ca9bf7f9073ffa6778672a7575f", "batch_size": null, "torch_num_threads": null, "threadpools": [], "commit": "0de9c3ddc66722581722a5ed732a78cb19b6fe19", "machine": "macOS-27.0.1-arm64-arm-64bit-Mach-O", "cpu": "Apple M1 Pro", "python": "3.13.16 (main, Oct  9 2026, 15:11:24) [Clang 22.1.3 ]", "versions": {"shellingham": "1.5.4", "xxhash": "4.0.2", "filelock": "4.2.4", "ruff": "0.17.2", "scikit-learn": "1.9.1", "setuptools": "84.2.1", "cloudpickle": "3.1.2", "py-spy": "0.4.2", "huggingface_hub": "2.3.0", "click": "8.5.0", "packaging": "26.3", "gensim": "4.4.0", "narwhals": "2.28.0", "networkx": "3.7", "joblib": "1.6.0", "tokenizers": "0.23.3", "bracex": "3.2", "Pygments": "2.21.0", "cfgv": "3.5.0", "pyarrow": "26.0.0", "rich": "15.0.0", "certifi": "2026.10.23", "yarl": "1.25.1", "pytest-cov": "7.1.0", "vulture": "2.16", "smart_open": "8.0.4", "pre_commit": "4.7.0", "pandas": "3.1.0", "pytest-xdist": "3.8.0", "datasets": "5.1.0", "propcache": "0.5.4", "iniconfig": "2.3.1", "sentence-transformers": "6.2.0", "mdit-py-plugins": "0.6.1", "model2vec": "0.10.0", "grimp": "3.18", "build": "1.6.1", "numpy": "2.5.4", "aiohappyeyeballs": "2.7.1", "wrapt": "2.5.1", "sympy": "1.14.0", "fsspec": "2026.7.0", "pluggy": "1.7.0", "hf-xet": "1.7.0", "safetensors": "0.8.0", "transformers": "5.22.0", "tqdm": "4.70.1", "pytest": "9.1.1", "cibuildwheel": "4.3.4", "h11": "0.16.0", "pydantic_core": "2.50.1", "identify": "2.6.20", "humanize": "4.16.0", "mdurl": "0.1.2", "pyproject_hooks": "1.3.3", "virtualenv": "21.14.13", "mpmath": "1.3.0", "PyYAML": "6.0.3", "textual": "8.2.8", "httpcore2": "2.16.0", "nodeenv": "1.11.0", "python-discovery": "1.6.4", "truststore": "0.10.5", "mypy": "2.4.0", "frozenlist": "1.8.0", "httpx2": "2.16.0", "aiosignal": "1.4.0", "typer": "0.27.3", "execnet": "2.1.2", "linkify-it-py": "2.2.0", "Jinja2": "3.1.6", "annotated-types": "0.8.0", "regex": "2026.9.29", "markdown-it-py": "4.2.0", "tzdata": "2026.6", "annotated-doc": "0.0.5", "tomli": "2.5.0", "threadpoolctl": "3.7.0", "typing-inspection": "0.4.4", "fse": "1.1.1.dev904+g0de9c3ddc", "ast_serialize": "0.13.1", "bashlex": "0.18", "aiohttp": "3.14.5", "attrs": "26.1.0", "pathspec": "1.1.1", "multidict": "7.2.1", "librt": "0.16.0", "complexipy": "8.3.0", "typing_extensions": "4.16.0", "MarkupSafe": "3.0.4", "deptry": "0.25.1", "memray": "1.20.0", "pydantic": "2.14.1", "coverage": "7.17.0", "python-dateutil": "3.0.0", "torch": "2.15.0", "multiprocess": "0.70.19", "dependency-groups": "1.3.2", "polars": "2.1.0", "anyio": "4.15.1", "mypy_extensions": "1.1.0", "six": "1.17.0", "scipy": "1.18.1", "distlib": "0.4.4", "dill": "0.4.1", "requirements-parser": "0.13.1", "polars-runtime-32": "2.1.0", "platformdirs": "4.13.5", "idna": "3.20", "import-linter": "2.15"}, "dataset": "Salesforce/wikitext", "dataset_revision": "b08601e04326c79dfdd32d625aee71d232d685c3", "splits": ["validation", "test"], "input_digest": "xxh3-128:15151abfbf2f482115b1180347b4295e", "time_utc": "2026-11-01T02:51:21Z", "kind": "fse", "requested_threads": 1, "threads": 1, "fse_workers": 1, "tokenizer_thread_count": null, "tokenizer_threads_measured": false, "model": "minishlab/potion-base-8M", "revision": "bf8b056651a2c21b8d2565580b8569da283cab23", "corpus": "wikitext", "texts": 5352, "output_digest": "xxh3-128:fe0f4d8303df8c11662a49618d5303aa", "p50_s": 0.02572500001406297, "p95_s": 0.02716219103895128}
+All tasks terminated.
+
+== all threads: 6612 samples
+     self  total  function
+    18.0%  18.0%  fse_loop_f32_neon
+    15.6%  15.7%  __pyx_f_3fse_7_native__wp_piece
+     5.1%   5.1%  __psynch_cvwait
+     3.8%  82.0%  _PyEval_EvalFrameDefault
+     3.6%   3.6%  read
+     2.0%   2.0%  __open
+     1.8%   1.8%  __unlinkat
+     1.8%   1.8%  kevent
+     1.6%   1.6%  stat
+     1.6%   2.0%  __pyx_f_3fse_7_native__append_str
+     1.6%   1.6%  libdyld.dylib+0x7e4c
+     1.3%   1.3%  lstat
+     1.2%   1.3%  fse_normalize_body
+     1.2%   1.2%  _platform_memmove
+     1.1%   1.1%  clonefileat
+     1.1%  17.0%  __pyx_f_3fse_7_native_10TextLookup__sentence
+     1.1%   1.4%  sre_ucs1_match
+     0.9%   0.9%  __fcntl
+     0.9%   0.9%  poll
+     0.9%   0.9%  __open_nocancel
+     0.9%   1.4%  _PyObject_Malloc
+     0.6%   2.9%  gc_collect_main
+     0.6%   0.6%  __rename
+     0.6%   2.0%  deduce_unreachable
+     0.6%   1.3%  _PyObject_Free
+
+== thread python: 3592 samples
+     self  total  function
+    33.1%  33.1%  fse_loop_f32_neon
+    28.7%  28.8%  __pyx_f_3fse_7_native__wp_piece
+     3.1%   3.1%  read
+     3.0%   3.6%  __pyx_f_3fse_7_native__append_str
+     2.3%  98.1%  _PyEval_EvalFrameDefault
+     2.2%   2.4%  fse_normalize_body
+     2.1%  31.2%  __pyx_f_3fse_7_native_10TextLookup__sentence
+     1.4%   1.4%  stat
+     1.3%   1.3%  __open
+     1.1%   1.1%  _platform_memmove
+     1.1%   1.1%  lstat
+     0.6%  36.1%  __pyx_f_3fse_7_native__pool_stages
+
+== thread python: 1308 samples
+     self  total  function
+     6.7%  96.0%  _PyEval_EvalFrameDefault
+     6.5%   6.5%  read
+     3.6%   3.6%  libdyld.dylib+0x7e4c
+     3.4%   3.4%  __open
+     3.0%   3.0%  __fcntl
+     2.5%   2.5%  stat
+     2.5%   3.0%  sre_ucs1_match
+     2.3%   4.9%  _PyPegen_expect_token
+     2.1%   3.3%  _PyObject_Malloc
+     1.8%   1.8%  poll
+     1.6%   1.6%  _platform_memmove
+     1.5%   2.1%  tok_get_normal_mode
+
+== thread python: 694 samples
+     self  total  function
+    11.8%  92.2%  _PyEval_EvalFrameDefault
+     5.9%   5.9%  libdyld.dylib+0x7e4c
+     5.0%   5.0%  poll
+     4.8%   4.8%  lstat
+     4.6%   6.3%  sre_ucs1_match
+     4.3%   4.3%  __open_nocancel
+     3.0%   3.0%  stat
+     2.9%   2.9%  read
+     2.7%   3.9%  _PyObject_Malloc
+     2.4%   2.4%  __open
+     2.2%   6.2%  deduce_unreachable
+     2.0%   9.2%  gc_collect_main
+the flame graph: samply load /private/tmp/claude-501/-Users-oliverborchers-Desktop-Code-nosync-Fast-Sentence-Embeddings/92594212-c3b7-4241-9bf5-4a2ced3b53cf/scratchpad/dr151-profile-1793501459-cpu-fse/cpu.json

@@ -1,0 +1,29 @@
+{
+  "completed_unique": 6,
+  "pending_unique": 29,
+  "remaining_static": 28,
+  "remaining_contextual": 1,
+  "observed_static_invocation_seconds": [
+    1462.740465,
+    3064.1069151250413,
+    1102.8503631660715,
+    2120.387390666059,
+    1042.3446226669475,
+    1055.6963443750283
+  ],
+  "median_seconds": 1282.7954140830357,
+  "uniform_remaining_static_hours": 9.977297665090278,
+  "endpoint_scenario_hours": [
+    8.107124842965147,
+    23.831942673194764
+  ],
+  "extra_unmeasured": [
+    "MiniLM",
+    "classifiers",
+    "search/lifecycle",
+    "same-method Hub float32 confirmations as needed"
+  ],
+  "warning": "Elapsed-rate scenario includes different waits, batch sizes and priority holds. Not a quiet-machine or cloud forecast. Metadata failures are retained as incomplete configurations.",
+  "status": "historical scenario for superseded original35-configuration scope",
+  "superseded_by": "dr151_quality_priority_plan_20261101.json, time_scenario"
+}

@@ -1,0 +1,14 @@
+{
+  "source_commit": "97b741887dc0bd4730131aa60a7b5242fef8d5ef",
+  "wheel": "/Users/oliverborchers/.cache/fse-quality/dr151-runtime-97b7418/fse-2.0.0.dev0-cp313-cp313-macosx_11_0_arm64.whl",
+  "sha256": "7bfdf3f1cb84d5f63e44c31ce1451dd8feb00adc4672dbd95a74e747f5b9e322",
+  "build_constraints": "setuptools==84.2.1\nsetuptools-scm==8.2.0\nCython==3.1.0\nnumpy==2.5.4\n",
+  "reason": "freeze executing fse code across later raw-result commits and worktree builds",
+  "executing_backend": {
+    "runtime_package": "fse",
+    "runtime_package_version": "2.0.0.dev0",
+    "package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/.venv-quality/lib/python3.13/site-packages/fse/__init__.py",
+    "runtime_fingerprint": "xxh3-128:25e729e8f139746ea35445eb99443f3d",
+    "runtime_fingerprint_scope": "fse Python sources and native extension (existing scheme)"
+  }
+}
