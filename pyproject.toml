@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77", "setuptools-scm>=8.4", "Cython>=3.1.0", "numpy>=2.0"]
+requires = ["setuptools>=77", "setuptools-scm>=9.0.0", "Cython>=3.1.0", "numpy>=2.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
