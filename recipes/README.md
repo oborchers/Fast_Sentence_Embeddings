@@ -53,6 +53,7 @@ A production ingestion manifest is needed for arbitrary names, changed files or 
 ## Recorded quality checks
 
 Executed on 2026-11-01 on Apple M1 Pro, macOS 27.0.1, Python 3.13.16, with the pinned recipe packages.
+[Hardware provenance](run-environment.json) records the CPU model queried on the same machine after execution.
 The STS-B comparison fits weights and components on train texts only. These are Pearson correlations times 100 on 1,379 test pairs.
 
 | Table | Mean | SIF-10 | uSIF-5 |
