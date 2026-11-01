@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="370" viewBox="0 0 1100 370" role="img" aria-labelledby="title desc"><title id="title">Run text vectors or a fitted classifier locally</title><desc id="desc">Texts enter fse. An encoder gives vectors for search and clustering. A classifier combines an encoder with a previously trained linear model and gives labels for routing or filtering. Training happens outside fse.</desc><rect width="1100" height="370" rx="12" fill="#0F0D0A"/><g font-family="Geist, Arial, sans-serif">
+<text x="40" y="53" font-size="30" fill="#E8E4DF" font-weight="700" text-anchor="start">One local call. Vectors or labels.</text>
+<rect x="40" y="134" width="230" height="100" rx="12" fill="#1C1916" stroke="#2A2520"/>
+<rect x="405" y="134" width="230" height="100" rx="12" fill="#1C1916" stroke="#2A2520"/>
+<rect x="810" y="90" width="250" height="80" rx="12" fill="#1C1916" stroke="#2A2520"/>
+<rect x="810" y="218" width="250" height="80" rx="12" fill="#1C1916" stroke="#2A2520"/>
+<text x="155" y="175" font-size="23" fill="#E8E4DF" font-weight="700" text-anchor="middle">Your texts</text>
+<text x="155" y="204" font-size="17" fill="#B0A9A0" font-weight="400" text-anchor="middle">files, batches, streams</text>
+<text x="520" y="175" font-size="30" fill="#5B9E7D" font-weight="700" text-anchor="middle">fse</text>
+<text x="520" y="204" font-size="17" fill="#B0A9A0" font-weight="400" text-anchor="middle">runs on your CPU</text>
+<text x="935" y="124" font-size="23" fill="#E8E4DF" font-weight="700" text-anchor="middle">Vectors</text>
+<text x="935" y="151" font-size="17" fill="#B0A9A0" font-weight="400" text-anchor="middle">search and clustering</text>
+<text x="935" y="251" font-size="23" fill="#E8E4DF" font-weight="700" text-anchor="middle">Labels</text>
+<text x="935" y="278" font-size="17" fill="#B0A9A0" font-weight="400" text-anchor="middle">routing and filtering</text>
+<path d="M285 184 H390" fill="none" stroke="#5B9E7D" stroke-width="3"/>
+<path d="M650 172 H715 V130 H795" fill="none" stroke="#5B9E7D" stroke-width="3"/>
+<path d="M650 198 H715 V258 H795" fill="none" stroke="#5B9E7D" stroke-width="3"/>
+<path d="M381 178 L390 184 L381 190" fill="none" stroke="#5B9E7D" stroke-width="3"/>
+<path d="M786 124 L795 130 L786 136" fill="none" stroke="#5B9E7D" stroke-width="3"/>
+<path d="M786 252 L795 258 L786 264" fill="none" stroke="#5B9E7D" stroke-width="3"/>
+<text x="40" y="340" font-size="18" fill="#B0A9A0" font-weight="400" text-anchor="start">For labels, import a linear model trained on your encoder&#x27;s vectors. fse runs it. Training happens elsewhere.</text>
+</g></svg>
