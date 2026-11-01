@@ -1,0 +1,79 @@
+{
+  "manifest_sha256": "917b1ae1f5a012ea0f4cc376ca04ecb394f17033a0f14a78cb6df15abb108243",
+  "container_memory": {
+    "memory.max": 64000000000,
+    "memory.current": 11537469440,
+    "memory.peak": 31395303424,
+    "cgroup_namespace": "private root",
+    "mount_root": "/",
+    "ancestor_scope": "namespace root limit; host ancestors require coordinator allocation verification"
+  },
+  "states": [
+    {
+      "path": "SIF-10-word2vec-google-news-300-fit.npz",
+      "state_xxh3": "xxh3-128:73688534a8134e145013cf96133f58f0",
+      "matches_provenance": true,
+      "arrays": {
+        "weights": {
+          "shape": [
+            3000000
+          ],
+          "dtype": "float32",
+          "all_finite": true
+        },
+        "components": {
+          "shape": [
+            10,
+            300
+          ],
+          "dtype": "float32",
+          "all_finite": true
+        }
+      }
+    },
+    {
+      "path": "SIF-10-fasttext-crawl-subwords-300-fit.npz",
+      "state_xxh3": "xxh3-128:7f27726f1015b530c3218f2602f93251",
+      "matches_provenance": true,
+      "arrays": {
+        "weights": {
+          "shape": [
+            2000000
+          ],
+          "dtype": "float32",
+          "all_finite": true
+        },
+        "components": {
+          "shape": [
+            10,
+            300
+          ],
+          "dtype": "float32",
+          "all_finite": true
+        }
+      }
+    },
+    {
+      "path": "SIF-10-paragram-300-sl999-fit.npz",
+      "state_xxh3": "xxh3-128:356e9ae05ac821dc56b47cc77dc5d8fd",
+      "matches_provenance": true,
+      "arrays": {
+        "weights": {
+          "shape": [
+            1703756
+          ],
+          "dtype": "float32",
+          "all_finite": true
+        },
+        "components": {
+          "shape": [
+            10,
+            300
+          ],
+          "dtype": "float32",
+          "all_finite": true
+        }
+      }
+    }
+  ]
+}
