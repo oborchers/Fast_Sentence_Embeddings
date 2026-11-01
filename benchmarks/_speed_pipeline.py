@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+from importlib.metadata import distributions
 from pathlib import Path
 
 from _speed_cells import atomic, configure, package_identity, sha256
@@ -65,6 +66,7 @@ def setup(root, contract):
         "--no-build-isolation",
         source,
     )
+    command(uv, "pip", "check", "--python", root / "main/bin/python")
     installer = tools / "rustup-init"
     command(
         "curl",
@@ -193,6 +195,7 @@ def measure_child(job):
             "label": job["label"],
             "round": job["round"],
             "identity": identity,
+            "versions": {d.metadata["Name"]: d.version for d in distributions()},
             "first_seconds": durations[0],
             "warm_seconds": durations[1:],
             "output_sha256": outputs[0],
