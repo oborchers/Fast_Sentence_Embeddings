@@ -16,8 +16,6 @@ from pod_timeouts import abort
 
 SETTINGS = (1, 16, 32)
 MINIMUM = 2.0
-TARGET = 2.5
-MAX_ROWS = 10_000_000
 
 
 class QuietPodRequiredError(RuntimeError):

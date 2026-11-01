@@ -6,19 +6,17 @@ from pathlib import Path
 from compare_artifacts import file_digest
 
 
-def release(options, path):
+def preserve_identity(options, path):
     path = Path(path)
-    if path in options.pinned_inputs:
-        return
     if path.parent.resolve() != options.inputs.resolve() or path.suffix != ".txt":
-        raise ValueError("refuse to remove a file outside the owned prepared input folder")
+        raise ValueError("refuse a file outside the owned prepared input folder")
     receipt = path.with_suffix(".identity.json")
     import json
 
     data = receipt.read_bytes()
     record = json.loads(data)
     if record["checksum"] != file_digest(path):
-        raise ValueError("prepared input changed before cleanup")
+        raise ValueError("prepared input changed before identity preservation")
     target = options.output / "input-identities" / receipt.name
     target.parent.mkdir(exist_ok=True)
     if target.exists():
@@ -27,8 +25,15 @@ def release(options, path):
     else:
         with target.open("xb") as stream:
             stream.write(data)
+
+
+def release(options, path):
+    path = Path(path)
+    if path in options.pinned_inputs:
+        return
+    preserve_identity(options, path)
     path.unlink()
-    receipt.unlink()
+    path.with_suffix(".identity.json").unlink()
     if options.input_file == path:
         options.input_file = None
 

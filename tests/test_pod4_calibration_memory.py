@@ -221,3 +221,51 @@ def test_child_memory_rejection_is_preserved_before_bounded_retry(modules, monke
     raw = json.loads((tmp_path / "calibration.jsonl").read_text())
     assert raw["returncode"] == 78
     assert raw["stdout"] == payload
+
+
+def test_feasible_short_margin_is_revalidated_when_growth_exhausts_memory(
+    modules, monkeypatch, tmp_path
+):
+    module = modules["pod4_calibration"]
+    options = SimpleNamespace(output=tmp_path, deadline=float("inf"), count=0)
+    seen = []
+    monkeypatch.setattr(
+        module, "bind_input", lambda options, _source, count: setattr(options, "count", count)
+    )
+    monkeypatch.setattr(module, "release_current", lambda _options: None)
+
+    def observe(options, *_spec):
+        seen.append(options.count)
+        if options.count > 250_000:
+            raise modules["pod4_memory"].MemoryAdmissionError(
+                {"limit": 64, "current": 20, "additional_budget": 60}
+            )
+        return 2.2
+
+    monkeypatch.setattr(module, "calibration", observe)
+    assert module.calibrate(options, [], [("model", "float32", 32)]) == 250_000
+    assert seen[-1] == 250_000
+    assert seen.count(250_000) == 2
+    decision = json.loads((tmp_path / "calibration-decisions.jsonl").read_text().splitlines()[-1])
+    assert decision["revalidated_fallback"] is True
+
+
+def test_binding_preserves_receipt_before_a_pinned_measurement_can_timeout(
+    modules, monkeypatch, tmp_path
+):
+    from compare_artifacts import file_digest
+
+    module = modules["pod4_calibration"]
+    folder = tmp_path / "inputs"
+    folder.mkdir()
+    path = folder / "passages-1-seed0.txt"
+    path.write_text("one two three four five\n")
+    data = json.dumps({"checksum": file_digest(path)}).encode()
+    path.with_suffix(".identity.json").write_bytes(data)
+    monkeypatch.setattr(module, "write_input", lambda *_args, **_kwargs: (path, json.loads(data)))
+    options = SimpleNamespace(inputs=folder, output=tmp_path, pinned_inputs={path})
+    module.bind_input(options, [], 1)
+    assert path.exists()
+    assert (
+        tmp_path / "input-identities" / path.with_suffix(".identity.json").name
+    ).read_bytes() == data

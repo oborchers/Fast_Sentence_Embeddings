@@ -8,7 +8,7 @@ import time
 from compare_parallelism import child_environment
 from pod4_inputs import write_input
 from pod4_memory import MemoryAdmissionError
-from pod4_storage import release_current
+from pod4_storage import preserve_identity, release_current
 from pod_pairs import append
 from pod_speed import encode_command, ensure_model
 
@@ -22,6 +22,7 @@ def bind_input(options, source, count):
         options.inputs, source, count, receipt_archive=options.output / "input-identities"
     )
     options.input_file, options.input_record = path, record
+    preserve_identity(options, path)
     return count
 
 
@@ -65,11 +66,13 @@ def calibration(options, repo, dtype, workers):
 def midpoint(low, high):
     count = ((low + high) // 20_000) * 10_000
     if not low < count < high:
-        raise MemoryError("no input size satisfies the unchanged duration and memory gates")
+        raise MemoryError(
+            "calibration bounds exhausted before finding another duration and memory candidate"
+        )
     return count
 
 
-def selected(options, count, seconds, constrained):
+def selected(options, count, seconds, constrained, *, fallback=False):
     append(
         options.output / "calibration-decisions.jsonl",
         {
@@ -78,6 +81,7 @@ def selected(options, count, seconds, constrained):
             "required_seconds": MINIMUM,
             "preferred_seconds": TARGET,
             "memory_constrained": constrained,
+            "revalidated_fallback": fallback,
             "scope": "sizing only; every measured call is independently rechecked",
         },
     )
@@ -109,18 +113,34 @@ def advance(count, low, high, seconds):
     return count, low, high, False
 
 
+def fallback(options, source, specifications, count, constrained):
+    if count is None:
+        raise MemoryError("bounded calibration found no feasible input")
+    release_current(options)
+    bind_input(options, source, count)
+    seconds = attempt(options, specifications)
+    if seconds is None or not math.isfinite(seconds) or seconds < MINIMUM:
+        raise MemoryError("feasible calibration fallback could not be revalidated")
+    return selected(options, count, seconds, constrained, fallback=True)
+
+
 def calibrate(options, source, specifications):
     if not specifications:
         raise ValueError("calibration requires at least one specification")
-    count, low, high = 250_000, 0, None
+    count, low, high, best = 250_000, 0, None, None
     for _ in range(12):
         if time.monotonic() >= options.deadline:
             raise TimeoutError("input calibration reached stage deadline")
         bind_input(options, source, count)
         seconds = attempt(options, specifications)
-        next_count, low, high, accepted = advance(count, low, high, seconds)
+        if seconds is not None and seconds >= MINIMUM:
+            best = count
+        try:
+            next_count, low, high, accepted = advance(count, low, high, seconds)
+        except MemoryError:
+            return fallback(options, source, specifications, best, high is not None)
         if accepted:
             return selected(options, count, seconds, high is not None)
         release_current(options)
         count = next_count
-    raise MemoryError("bounded calibration cannot satisfy both duration and memory gates")
+    return fallback(options, source, specifications, best, high is not None)
