@@ -1,4 +1,9 @@
 {
+  "speed_publication": {
+    "valid": false,
+    "decision": "Maintainer withdrawal, 1 November 2026. All Mac speed studies are invalid for publication. Historical acceptance fields do not override this decision.",
+    "scope": "Speed rates and ratios only; quality, accuracy and file-size observations are unaffected."
+  },
   "upstream_commit": "3265b35cdc102d9257144e11fd801ec91ad24adb",
   "method": "Three primary fse-a child rates; fse-b retained separately as the A/A control. Each child uses median warm-call time.",
   "cells": [

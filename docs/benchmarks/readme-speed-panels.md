@@ -119,10 +119,99 @@ Both rows name the same combined paired journal and series. Preserve original re
 The renderer derives core settings from `selection_rows` using the shared input for each model.
 Dtype cells must match that input. Library bars may have their own inputs, but both arms of each bar must match exactly.
 All displayed cells still require the selection model, runtime, machine, corpus and output context. It then
-filters out other settings before rendering. It rejects missing chosen rows, mixed contexts, noisy/unattributed rows
+filters out other settings before rendering. It rejects undeclared missing chosen rows, mixed contexts, noisy/unattributed rows
 and stale unselected output files before writing.
 It never silently retains withdrawn claims or deletes files.
 
 Run `python media/readme/speed_panels.py --preview` for the explicitly unmeasured layout.
 After accepted data arrives, run without `--preview`, export SVGs with librsvg and inspect both themes.
 The main visual generator calls the same publish function. Empty data adds nothing to the public README or final figures.
+
+## Pod 4c preparation, not yet published in the README
+
+The archive is [285cdfd3423f0d949ab25c1d30a64bbab6ab1a04](https://github.com/oborchers/Fast_Sentence_Embeddings/tree/285cdfd3423f0d949ab25c1d30a64bbab6ab1a04/benchmarks/baseline/results/dr151-pod4c-20261101).
+The archived summary, operations journal and full-input identity were compared byte for byte with the collected local files.
+Their SHA256 values are, respectively:
+
+- `readme-panels/summary.json`: `fb648398b440a7d33e0c562e475342da319d15b40486dc2eb86619f3f3c27120`
+- `readme-panels/speed-results.jsonl`: `b6d25108f22f1cf3e6bd757e6071f5b3341a63efefa1e8ceb8cb65d7f6a67b03`
+- `readme-panels/input-identities/passages-4620000-seed0.identity.json`: `45b36149e022ca2d21e698c693ca281960aeec70e48b0dddaccbc0f4b83a1fdf`
+
+The shared table input contains 4,620,000 sampled and shuffled WikiText-103 passages.
+Its digest is `xxh3-128:439a5ed8e8eaaddf5fc8150b7c5884c8`.
+Average input length is 119.0559961038961 whitespace words, or 133.74433333333334 consumed POTION tokens.
+Do not reuse the 100M showcase's 28.7-token length for this table.
+
+The float32 primary medians are 1,381,700.9238051528 texts/s at 16 workers and 1,493,666.2764333533 at 32.
+Their ratio is below 1.20, so the display settings are one core and 16 cores.
+Prepared layout, rounded to whole texts/s only for display:
+
+| fse table | One core, texts/s | 16 cores, texts/s |
+|---|---:|---:|
+| float32 | 144,717 | 1,381,701 |
+| float16 | 160,208 | 1,473,711 |
+| int8 | 164,485 | |
+
+AMD EPYC 9965, 32 vCPU RunPod, POTION-8M, WikiText-103, 1 November 2026. Average text: 119.1 words.
+
+The int8/16 cell is excluded (symmetric A/A upper bound 1.1213758192655927).
+The renderer accepts an explicit `table_omissions: [["int8", 16]]` declaration and leaves that cell empty.
+An undeclared missing cell still fails. A rejected row still fails. A 32-worker result never replaces a missing 16-worker result.
+All other selected cells retain the same strict context, runtime and duration checks.
+No production data is activated yet: the upstream extractor rejects the new provenance label
+`pinned source and offline preparation record` where it expects `embedded source and preparation record`.
+The verified header contains the repository/revision and parent fingerprint. This label mismatch must be resolved by the source owner,
+without rewriting identities or weakening the lineage checks. Await the compact audited extraction and publication clearance.
+The library panel and folded-classification section remain unchanged. No classification rate was measured.
+
+## Prepared quality panel: three historical classics
+
+[Pod 5 results](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/dd44bc2f9561b3c31f14de9b5400229032aea696/benchmarks/baseline/dr151_pod5_results_20261101.md)
+provide the following arithmetic task-score means, multiplied by 100:
+
+| Model | MTEB English, 40 of 41 tasks |
+|---|---:|
+| FastText crawl subwords 300, SIF-10 | 51.42 |
+| paragram 300 sl999, SIF-10 | 50.98 |
+| word2vec Google News 300, SIF-10 | 49.26 |
+
+The unrounded source means are 51.42144, 50.98332 and 49.26358 respectively.
+All three use float32 and the historical WikiText-103 frequency/component protocol.
+Their raw evidence is [archived at 660309c4c88930254288495a0bb025fe428870f7](https://github.com/oborchers/Fast_Sentence_Embeddings/tree/660309c4c88930254288495a0bb025fe428870f7/benchmarks/baseline/results/dr151-pod5-20261101).
+These are not scores for the Hub's wordfreq/FineWeb SIF-10 models.
+Do not combine historical POTION checkpoints with this panel as a controlled ranking without a cohort audit.
+MIND is not computed: MTEB 2.26.25 MindSmallReranking needs more memory than the 64 GB pod (two attempts, status 137 and earlier ENOSPC).
+Keep the headline and its Pod 3 EPYC 7713 caption unchanged.
+
+## Historical PERFORMANCE audit
+
+The final maintainer decision withdraws every M1 speed measurement, regardless of input size.
+The provenance status is independent of that decision. Missing raw files are not reconstructed from rounded prose.
+No new timing was run. Durations below are seconds unless marked otherwise.
+
+| PERFORMANCE section/table | Source | Texts per call or timed unit | Duration per call or timed unit | Provenance status | Decision |
+|---|---|---|---|---|---|
+| RunPod Linux x86 runtime columns | `benchmarks/baseline/dr190_runpod_20261031.json`, run 2, `runtime`; `synthetic_tokens.sentences` | 200,000 synthetic texts | 0.016802282072603703 to 0.15447962691541761, calculated as recorded count / exact recorded rate | Committed count and rates; duration derived, not an independent raw timer | Remains, large-input RunPod observation on EPYC 9655P, 32 assigned logical CPUs |
+| RunPod Linux x86 bandwidth columns | Same source, run 2 `roofline`; `benchmarks/roofline_probe.py` | No text input; 1 GiB table probe | Original summary records GB/s, not individual call seconds | Rate and probe configuration retained | Remains as a memory probe, not a text throughput claim |
+| RunPod sync costs | Same source, `runs[].sync_C0` | File/directory sync primitive, no text input | Recorded primitive p50 values, not embedding calls | Committed summary; two separately labelled hosts | Remains as filesystem latency, not a text throughput claim |
+| Hardware profiles, M1 measured bandwidth | `benchmarks/roofline_hardware.toml`; original probe recordings absent | No text input; 1 GiB probe | Not independently recoverable from surviving raw files | Herkunft nicht verifizierbar (Rohdaten verloren) | zurückgezogen: M1; vendor specifications remain separate |
+| Measured memory roofs | Original `roofline.py probe` recordings absent | No text input; 1 GiB probe reported in legacy prose | Not independently recoverable | Herkunft nicht verifizierbar (Rohdaten verloren) | zurückgezogen: M1 |
+| Measured on M1, WikiText table | Original `roofline.py measure` JSON absent | Legacy prose says 5,352; not raw-verifiable | Not independently recoverable | Herkunft nicht verifizierbar (Rohdaten verloren) | zurückgezogen: M1 |
+| Measured on M1, MASSIVE table | Same missing source | Legacy prose says 151,674; not raw-verifiable | Not independently recoverable | Herkunft nicht verifizierbar (Rohdaten verloren) | zurückgezogen: M1 |
+| One-worker stage table and timing-derived limits | Same missing source | Both legacy corpora above | Only ns/token remain in prose; no verified per-call timer | Herkunft nicht verifizierbar (Rohdaten verloren) | zurückgezogen: M1 |
+| Where workers idle: full and short tables, ablations | Original `runtime_timeline.py` recordings absent; commit `07be44b` contains scripts/prose only | Legacy prose reports 5,352 / 151,674 / short prefixes | Printed wall values remain historical prose, not raw verification | Herkunft nicht verifizierbar (Rohdaten verloren) | zurückgezogen: M1 |
+| Tail split: corpus and synthetic gate tables | Original recordings absent; commit `d33cc54` contains scripts/prose only | Legacy prose reports corpus counts above and 200,000 synthetic texts | Not independently recoverable | Herkunft nicht verifizierbar (Rohdaten verloren) | zurückgezogen: M1 |
+| Persistent-pool matrix, both model tables, full MASSIVE rows | `benchmarks/baseline/thread_pool_20261031.json`, `cells[].kept` | 151,674 | 0.023650499992072582 to 0.11612262506969273 across accepted base/control/reuse observations | Raw counts and seconds retained | zurückgezogen: M1 |
+| Persistent-pool matrix, WikiText/full rows | Same source | 5,352 | 0.005041375057771802 to 0.022281333920545876 | Raw counts and seconds retained | zurückgezogen: M1; also small input |
+| Persistent-pool matrix, short/server/inline rows | Same source | 32 / 500 / 5,000, or server ranges 76 to 260 and 452 to 2,417 | Individual/aggregate per-call values retained in `seconds_per_call`; not a single shared call size | Raw counts and seconds retained | zurückgezogen: M1; also small input |
+| Persistent-pool deciding timeline | `benchmarks/baseline/thread_pool_profiles_20261031.json`, `timeline.variants` | 5,000 | Median traced wall 0.0019655 / 0.001819917 | Raw summarized timeline retained | zurückgezogen: M1; also small input |
+| Store sync C1 | `benchmarks/baseline/store_sync_20261031.json`, `cells[].kept`; `benchmarks/bench_store_sync.py:encode` | One timed stream of 200,000 or 524,288; batches 1,000 / 10,000 / 65,536 | Complete timed stream: 0.10771750006824732 to 2.3293397499946877 across C1 observations | Raw whole-stream timer retained; batch size is not total timed input | zurückgezogen: M1 |
+| Store sync C2/C3 | Same source | 250,000 synthetic texts / real file input; legacy C3 row count checked separately in none study | Whole-operation seconds retained per side | Raw observations retained; no invented per-batch encode duration | zurückgezogen: M1 |
+| Store C0 primitive table | Same source, `C0` | No texts, dirty file/directory sync | Individual primitive summaries retained | Raw summary retained | zurückgezogen: M1 |
+| Implemented durability none: stream and runtime gate | `benchmarks/baseline/store_none_20261031.json`, `measurements.runs[].command/result` | C1: timed 200,000-text stream, batches of 10,000; runtime gate uses synthetic benchmark corpus | Whole-stream and runtime rate records retained, distinct from process `wall_seconds` | Command and result retained | zurückgezogen: M1 |
+| Implemented durability none: verified opens | Same source, `informative.reader/sink` | No text encoding; opens stored vectors or an empty sink | Retained reader/sink timers | Raw summary retained | zurückgezogen: M1 |
+| int8 1024 comparison and earlier task-fusion claims | Original `roofline.py compare/measure` JSON absent | Legacy WikiText / MASSIVE counts, not independently raw-verifiable | Not independently recoverable | Herkunft nicht verifizierbar (Rohdaten verloren) | zurückgezogen: M1 |
+| CPU shares, allocation/RSS tables, formulas, correctness checks | Corresponding study sources above | Not text-throughput measurements | Not applicable to speed publication | Retain their stated profiling/provenance limits | Remain as memory, correctness or explanatory material; no speed inference |
+
+The original M1 raw files were never committed and were lost during the scratchpad cleanup, as confirmed by fse-main.
+No source absence is presented as a measured failure. All M1 speed decisions above follow the maintainer's separate machine-wide withdrawal.

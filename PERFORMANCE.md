@@ -1,15 +1,17 @@
 # Performance: how close fse comes to the hardware limit
 
+**Publication status, 1 November 2026:** every Apple M1 Pro speed measurement in this document is **withdrawn: M1**, regardless of input size.
+This includes rates, speed ratios, measured bandwidth, latency and timing-derived efficiency claims.
+It does not withdraw quality, accuracy, file sizes or memory peaks. The large-input RunPod observations below remain separate.
+Original M1 roofline, runtime-timeline and tail-split raw files were lost, so their provenance is additionally unverifiable.
+The [per-section audit](docs/benchmarks/readme-speed-panels.md#historical-performance-audit) lists input sizes, durations, sources and decisions.
+
 This document says how fast fse can be on a given machine, why, and how close it comes. It holds a small model of the limits (a roofline model), the assumptions behind it, and measurements on an Apple M1 Pro. `benchmarks/roofline.py` computes the same numbers for any encoder, corpus and hardware profile.
 
 ## In short
 
-On an M1 Pro (8 performance and 2 efficiency cores), master of 30.10.2026 with PR 136:
-
-- **One worker** runs at 86 to 99 % of the per-core bound: almost all of its time is the work of the stages that more cores share.
-- **Eight workers** reach 69 to 97 % of the Amdahl bound and 44 to 78 % of the per-core bound. The gap has two measured parts: each task takes 2 to 11 % more CPU time than alone when all cores run, and the workers are busy only about 70 to 100 % of the parallel time (the last tasks of a call, and waits between tasks).
-- **The measurements show no memory bandwidth limit**, also not at 1024 dimensions. static-retrieval-mrl-en-v1 at 1024 dimensions reads 164 to 197 GB/s of table rows (logical bytes) with 8 or 10 workers. That is 82 to 99 % of Apple's 200 GB/s, but more than any reader of the probe got from memory (115.6 GB/s at most). This points to many rows coming from the caches; it is no proof, because the probe gives lower estimates and hardware counters were not read. What the measurements do show: pooling is the largest stage, 72 to 83 % of the time of one worker when timed on its own; that time includes its waits for memory, which these measurements do not separate from its arithmetic.
-- **int8 tables at 1024 dimensions** are 1.20 to 1.34 times as fast as float32 on WikiText and 0.98 to 1.10 times on MASSIVE, end to end.
+The former M1 summary has been withdrawn. It must not supply public speed claims.
+Only large-input RunPod measurements remain candidates for speed publication.
 
 ## RunPod Linux x86 observations
 
@@ -30,8 +32,9 @@ per-core/Amdahl predictions for pod affinity or SMT placement.
 | 32 | 235.47 | 188.23 | 11,043,664 | 9,546,759 |
 
 The probe uses a 1 GiB float32 table at dimension 1024, warm-up and the fastest
-of three passes. Runtime uses 200,000 synthetic sentences at dimension 300 and
-one round. GB/s counts logical bytes, not measured DRAM traffic. The runtime
+of three passes. Runtime uses 200,000 synthetic sentences per call at dimension 300 and
+one round. Dividing the recorded count by the exact recorded rate gives call durations of 0.01680 to 0.15448 seconds across these cells.
+These are large-input synthetic runtime observations, not end-to-end text-library comparisons. GB/s counts logical bytes, not measured DRAM traffic. The runtime
 peaks at 16 workers in this sample. A WordPiece WikiText trace is 44.68% busy
 at 16 workers and 26.58% at 32, with ramp-up the largest idle cause.
 `usable_cpus()` reports 32 and counts logical affinity CPUs, not physical cores.
@@ -136,6 +139,8 @@ The topology of the M1 Pro comes from `sysctl` (`hw.perflevel0.physicalcpu` 8, `
 
 ### The measured memory roofs
 
+**Speed status: withdrawn: M1.** All measured times, rates, speed ratios and timing-derived conclusions in this section are invalid for publication. Memory and correctness observations are unaffected.
+
 `roofline.py probe` reads a 1 GiB float32 table, far larger than any cache, in 1 to 10 threads (best of 5 passes, load 3.5 to 4.8):
 
 | threads | numpy sum, sequential | fse kernel, consecutive rows | fse kernel, random rows |
@@ -148,6 +153,8 @@ The topology of the M1 Pro comes from `sysctl` (`hw.perflevel0.physicalcpu` 8, `
 Two more runs gave at most 115.1 and 104.6 GB/s for the sum and 80.0 and 78.3 GB/s for random rows. The CPU cores read at most about 116 GB/s from memory in this test, well below Apple's 200 GB/s for the chip; whether the CPU cores alone can reach that figure this test does not show. fse's kernel reads about 77 to 80 GB/s when no row is reused. All are lower estimates: a better tuned reader may get more.
 
 ## Measured on an M1 Pro
+
+**Speed status: withdrawn: M1.** All measured times, rates, speed ratios and timing-derived conclusions in this section are invalid for publication. Memory and correctness observations are unaffected.
 
 Setup: master 7403a3e (with PR 136) merged into this branch, Python 3.13.16, macOS on an M1 Pro (10 cores, 16 GB). The encoders are loaded with `Encoder.from_pretrained` at the snapshots pinned in `benchmarks/roofline.py`, with their own normalize (POTION normalizes, static-retrieval-mrl-en-v1 does not). The corpora are those of `benchmarks/bench_wordpiece.py`: WikiText-103 validation and test (5,352 texts, 454 bytes and about 95 tokens each) and MASSIVE intent test (151,674 texts, 55 bytes and 13 to 15 tokens each). Per cell, one process: the stages at one worker (the fastest of 15 rounds), then `encode` at 1, 8 and 10 workers in 5 paired rounds of alternating order (the best of 5 passes each, the median of the rounds). Every cell ran under the shared benchmark lock at a load below 5, and rounds with a load of 5 or more before or after were discarded (none in the cells shown; one run of the potion-base-32M MASSIVE cell lost 14 of 15 rounds to the load and was run again). The machine was not quiet: other work kept the load at 2.2 to 4.9. Each cell ran twice; the tables give the range of both runs. "Rows read" counts the bytes of the table rows only; the shares of the memory roofs count all bytes per token of the formula (rows, weights, ids and the output rows).
 
@@ -233,6 +240,8 @@ Memory of the 1024-dimension WikiText run at 8 workers: peak RSS 362 MiB (`make 
 
 ## Where the workers idle
 
+**Speed status: withdrawn: M1.** All measured times, rates, speed ratios and timing-derived conclusions in this section are invalid for publication. Memory and correctness observations are unaffected.
+
 `benchmarks/runtime_timeline.py` observes the executor from the benchmark process only (nothing in `src`): the start and end of every task, and the time of the calling thread in the task iterator, in `reserve`, waiting for the oldest future and in `commit`. The idle area of a run, `N * (end of the last task - first submit) - the wall time of all tasks`, is split exactly (integer nanoseconds, the parts add up to the area) into the causes below. Every moment of an idle worker slot gets the first cause that holds:
 
 | cause | meaning |
@@ -317,6 +326,8 @@ potion-base-8M, WikiText, 8 workers, the deciding cell of the ramp and tail (`ma
 - **Head-of-line blocking, producer, sink** (0 to 1.5 %): PR D (a window counted in rows) and any change at the sink are not supported by the numbers and should not be built.
 
 ## The tail split (DR-180)
+
+**Speed status: withdrawn: M1.** All measured times, rates, speed ratios and timing-derived conclusions in this section are invalid for publication. Memory and correctness observations are unaffected.
 
 The automatic plan (`chunk_bytes=None`) cuts each of the last `workers` chunks into two parts of about equal rows (`_Buffered.split_tail`), in the calling thread before the tasks run, when both parts keep the minimum chunk size (64 KiB). An explicit `chunk_bytes`, one worker, inline runs and streams keep their cuts.
 
@@ -441,6 +452,8 @@ A production persistent pool would need a defined owner and lifetime, explicit c
 
 ## Store
 
+**Speed status: withdrawn: M1.** All measured times, rates, speed ratios and timing-derived conclusions in this section are invalid for publication. Memory and correctness observations are unaffected.
+
 ### Sync costs (31.10.2026)
 
 Benchmark-only ablations on an Apple M1 Pro (10 cores, 16 GiB), macOS 27.0.1, CPython 3.13.16, source `7ec7ba1`. `bench_store_sync.py` runs each side in a fresh process on a pre-initialised durable store. Store creation is counted separately. Write times include encoding, sink flush and close, plus the final sync point for `deferred` and `flush_model`. Verification and partition-independent tensor digests run outside timing. C3 warms the same side without verification before measuring. Process peak RSS includes preparation and warm-up, but excludes store verification.
@@ -530,6 +543,8 @@ Runtime CPU self samples: `fse_loop_f32_neon` 18.8 percent, `__psynch_cvwait` 14
 
 ## int8 tables at 1024 dimensions
 
+**Speed status: withdrawn: M1.** All measured times, rates, speed ratios and timing-derived conclusions in this section are invalid for publication. Memory and correctness observations are unaffected.
+
 Earlier measurements found no gain from int8 tables at 256 and 300 dimensions. At 1024 dimensions `roofline.py compare` ran static-retrieval-mrl-en-v1 with its table as float32 and as int8 (`WordVectors.quantize("int8")`) in one process, 5 paired rounds of alternating order, the best of 5 passes each, no round discarded. `Encoder` does not yet accept int8 tables for `wordpiece@1`, so both run the encoder's spec on a `Pipeline` of their own (`roofline_dtype.SpecEncoder`); the vectors of int8 differ from float32 by the quantization, which is not judged here.
 
 | corpus | workers | float32, M tokens/s | int8, M tokens/s | float32 time / int8 time, median (range) |
@@ -544,6 +559,8 @@ Earlier measurements found no gain from int8 tables at 256 and 300 dimensions. A
 A run before PR 136 gave the same picture (WikiText 1.24 to 1.28, MASSIVE 1.04 to 1.05). int8 reads a quarter of the row bytes. Its pooling at one worker is 4 to 8 % faster per token on MASSIVE (93 to 95 against 100 to 101 ns) and 37 % faster on WikiText (83 to 84 against 114 to 115 ns). The two dtypes run different loops on NEON (float32 rows of up to 1024 values in register tiles, int8 rows one at a time, docs/architecture/numerical-contract.md, "Native kernel"), so the difference is not only the bytes. The distinct rows of WikiText take 78 MiB as float32 and 19 MiB as int8, those of MASSIVE 40 and 10 MiB; that int8 gains most where float32 has the larger working set fits a cache effect, but these measurements do not separate it from the different loops. In practice int8 tables pay off at 1024 dimensions on corpora with many distinct rows, by about a quarter, and barely on short texts with few.
 
 ## What PR 136 changes
+
+**Speed status: withdrawn: M1.** All measured times, rates, speed ratios and timing-derived conclusions in this section are invalid for publication. Memory and correctness observations are unaffected.
 
 PR 136 (2.0: stages 1 to 4 of a task in one nogil section on the cpu backend, Laufzeit 2) runs the stages of a task in one native call, so a task takes the GIL back far fewer times. The cells were measured before it too (separate runs, not paired with these): at 10 workers on WikiText the tasks took 1.46 to 1.96 times the wall time of one worker against 1.18 to 1.36 times the CPU time; with it they take 1.20 to 1.24 against 1.15 to 1.21 times, and potion-base-8M rose from 71.8 to 73.5 to 91.7 to 91.8 M tokens/s. The gap between wall and CPU time is almost gone; what remains is the CPU time growth of a task when all cores run and the idle time of workers. The per-core and memory bounds do not change.
 

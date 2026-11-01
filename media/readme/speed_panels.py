@@ -191,12 +191,13 @@ def audit_sources(rows):
     return lines
 
 
-def table(rows, workers):
+def table(rows, workers, *, omitted=()):
     if not rows:
         return ""
     expected = {(dtype, worker) for dtype in DTYPES for worker in workers}
+    omitted = {tuple(cell) for cell in omitted}
     actual = {(r["context"]["table_dtype"], r["context"]["workers"]) for r in rows}
-    if actual != expected or len(rows) != len(expected):
+    if not omitted < expected or actual != expected - omitted or len(rows) != len(actual):
         raise ValueError("The compact table needs all precisions at the selected core settings")
     same(rows, [key for key in CONTEXT if key not in {"table_dtype", "workers"}])
     same_runtime(rows)
@@ -209,7 +210,11 @@ def table(rows, workers):
     heading = "| fse table | " + " | ".join(f"{core_label(w)}, texts/s" for w in workers) + " |"
     separator = "|---|" + "---:|" * len(workers)
     body = [
-        "| " + dtype + " | " + " | ".join(f"{values[dtype, w]:,.0f}" for w in workers) + " |"
+        "| "
+        + dtype
+        + " | "
+        + " | ".join(f"{values[dtype, w]:,.0f}" if (dtype, w) in values else "" for w in workers)
+        + " |"
         for dtype in DTYPES
     ]
     return "\n".join([heading, separator, *body])
@@ -373,7 +378,12 @@ def panel_files(data, palette):
         model = table_rows[0]["context"]["model"]
         note = "\n".join(selection_notes({model: selected[model]}))
         files["speed-table.md"] = (
-            table(table_rows, selected[model]) + "\n\n" + data["table_caption"] + "\n" + note + "\n"
+            table(table_rows, selected[model], omitted=data.get("table_omissions", []))
+            + "\n\n"
+            + data["table_caption"]
+            + "\n"
+            + note
+            + "\n"
         )
     pairs = select_pairs(data["comparisons"], data.get("selection_rows", []), selected)
     if pairs:

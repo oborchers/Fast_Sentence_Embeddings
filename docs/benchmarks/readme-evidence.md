@@ -19,15 +19,21 @@ It uses repeated and shuffled WikiText-103 passages, averaging 28.73027215 POTIO
 The one-primary-plus-one-repeat showcase exception and its 4.53% A/A spread are documented in that snapshot, with exact raw files and output size.
 It is separate from pure encoding on the Mac and does not fill missing library or folded-classifier comparisons.
 
-## Pending library comparison
+## Withdrawn short-call speed evidence
 
-The fse cells from timing window 5 have valid fse runtime attribution.
-Their Model2Vec controls still require re-measurement. Recorder fix02d387c applies to future measurements only.
-The later int8 series below record both backends correctly; their one-worker cell passes the timing-variation limit.
+**Invalid for speed publication:** the complete Mac matrix (5,352 texts per call), every Pod 2 speed cell
+(2,000 to 5,352 texts), and all 30 Pod 3 panel cells (5,352 texts).
+The later maintainer decision also withdraws **all Apple M1 Pro speed measurements, regardless of input size**.
+This decision overrides every earlier eligible label, runtime attribution and A/A acceptance.
+No speedup or rate from those studies may appear in README, PERFORMANCE, model cards or changelog claims.
+Their immutable archive records remain audit evidence, not publishable results.
+Quality, accuracy, neighborhood stability and saved-file observations remain separate and are not withdrawn.
 
-TODO(DR-151): Record the counterpart's loaded code identity and re-measure a same-model comparison with an A/A band within 10%.
-
-The [speed-panel delivery plan](readme-speed-panels.md) lists exact required cells for the three precision rows at one core plus the selected 16 or 32 cores, and each same-model library bar. It contains no new timing results.
+For the README, only the Pod 3 100M-text showcase and the Pod 4c large-input table remain speed sources.
+Other large-input RunPod observations in PERFORMANCE.md retain their own limited scope.
+Pod 4c publication still awaits the source owner's compact extraction and clearance.
+The [panel plan](readme-speed-panels.md) records its verified archive and selected settings.
+No valid library or folded-classification speed comparison is available.
 
 ## Classifier comparisons: linear head versus fine-tuned MLP
 
@@ -49,8 +55,8 @@ The recipe uses a fixed encoder and linear head for fse, while Model2Vec changes
 Accuracy differences here do not isolate the inference engine.
 Speed comparisons must also name these heads and the encoder settings rather than treating them as the same computation.
 
-The Model2Vec encoding-only timing rows below use static sentence vectors. They do not run this classifier's MLP head.
-No classifier rate is inferred from those rows. Pod 2 classifier evidence is recorded below. The corrected folded comparison remains pending.
+The withdrawn encoding-only records do not run the classifier MLP. No classifier rate may be inferred from them.
+Pod 2 accuracy remains recorded below. The corrected folded speed comparison remains pending.
 
 ## Folding and the pending classification speed panel
 
@@ -70,7 +76,7 @@ It is not a separate faster prediction algorithm and is not plotted as a speedup
 Sources: `src/fse/_runtime/_head.py` (`make_head`, `fold`, `HeadPipeline`) and `src/fse/_head/_model.py` (`save`, `_standalone_artifact`).
 
 The main README now reserves a measured classification table and chart instead of using this explanation as its speed panel.
-Pod 2 published normalized-head classifier rates under its original protocol, documented below. The final folded panel still needs committed DR-151 classifier records,
+Pod 2 normalized-head classifier rates are invalid for publication, regardless of their original protocol. The final folded panel still needs committed DR-151 classifier records,
 with the exact trained head, normalization, dataset, machine, date and worker count from each row.
 The normalized-linear comparison and raw-mean folded comparison stay separate.
 Speedup is the matched reference time divided by fse time for the same input, equivalently fse throughput divided by reference throughput.
@@ -79,59 +85,32 @@ Its default 512-unit ReLU head and PyTorch/NumPy paths are documented above.
 Only complete series with executed-backend attribution and a symmetric A/A upper band at most1.10 qualify.
 Encoder-only throughput and retained recipe accuracy rows do not fill this measurement.
 
-### Earlier Pod 2 classifier evidence (original short-call protocol)
+### Pod 2 accuracy only, speed withdrawn
 
-The [source-owner audit](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/d2f6b5b811c3fa0caf91a9aba5497a8ba58a3c3c/docs/fse-pod2-results.md) accepts 104 SetFit classifier cells under the Pod 2 protocol.
-These are historical observations, not final README speed-panel inputs. The current Pod 4 protocol requires individual fse calls of at least two seconds.
-The example below has fse calls around 0.003 seconds. Passing its original A/A gate does not satisfy the new duration gate.
+Every Pod 2 speed cell is invalid for publication because of its small per-call input.
+The prior rate/range table and paired speedup have been removed. Their A/A acceptance does not restore validity.
 
-This example uses POTION-8M float32, one worker, AMD EPYC 9655 (32 assigned vCPUs), Linux, 1 November 2026.
-The Subjectivity test split has 2,000 texts. Both models train on the same fixed selection of 1,000 texts.
-fse uses normalized vectors and an imported linear head, so this is **not folded inference**.
-Model2Vec uses frozen vectors plus its own independently fitted sklearn linear head, **not its fine-tuned MLP**.
-The coefficient arrays are different. This measures two trained pipelines, not the effect of swapping only their inference engines.
+The Subjectivity accuracy example uses POTION-8M float32 and a 2,000-text test split.
+Both models trained on the same fixed selection of 1,000 texts.
+fse uses normalized vectors and an imported linear head, so this is not folded inference.
+Model2Vec uses frozen vectors plus an independently fitted sklearn linear head, not its fine-tuned MLP.
+The coefficient arrays differ. Accuracy does not isolate the inference engine.
 
-| Trained pipeline | Median texts/s | Observed range, texts/s | Accuracy | Macro-F1 |
-|---|---:|---:|---:|---:|
-| fse, normalized vectors plus linear head (fse-a) | 731,485.29 | 720,636.84 to 764,876.27 | 0.8880 | 0.887696 |
-| Model2Vec, frozen vectors plus independently fitted sklearn linear head | 28,788.67 | 28,595.59 to 29,220.51 | 0.8880 | 0.887696 |
+| Trained pipeline | Accuracy | Macro-F1 |
+|---|---:|---:|
+| fse, normalized vectors plus linear head | 0.8880 | 0.887696 |
+| Model2Vec, frozen vectors plus independently fitted sklearn linear head | 0.8880 | 0.887696 |
 
-The median of the three paired rate ratios is 25.200976281597157. It is a pipeline ratio, not a same-head folding speedup.
-The symmetric A/A band is 0.9264813765346346 to 1.079352510830116.
-Each process records three warm calls; its per-round rate is 2,000 divided by their median duration.
-The table takes the median and range of the three fse-a or reference round rates, preserving fse-b separately.
-
-Exact source: [complete raw journal](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/benchmarks/baseline/results/dr151-pod2-20261101/speed-results.jsonl.gz),
-series `be8994521d4c496ba64b30b19dd39b2a`, cell `classification/setfit/subj/minishlab/potion-base-8M/1/model2vec`, rounds 0, 1 and 2.
-The journal contains nine operation records, three round records and a final series record for this cell.
-Executed source: `97b741887dc0bd4730131aa60a7b5242fef8d5ef`.
-fse runtime: `xxh3-128:d2dc5ced22cb83dc2df3f15624ad2e69`; Model2Vec runtime: `xxh3-128:4852905a78404abddd67f88f333e9f5d`.
-The [retained artifact-header proof](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/benchmarks/baseline/dr151_pod2_normalization_evidence_20261101.json) binds fse's encoder to `normalize@1`.
-No absent model weights were copied or rehashed. All 32-worker Subjectivity/POTION-8M cells fail the original A/A gate.
-The corrected raw-mean folded comparison remains a separate Pod 4 deliverable.
+[Archived journal](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/benchmarks/baseline/results/dr151-pod2-20261101/speed-results.jsonl.gz),
+series `be8994521d4c496ba64b30b19dd39b2a`, cell `classification/setfit/subj/minishlab/potion-base-8M/1/model2vec`.
+Its speed fields are withdrawn. Only the accuracy fields above are retained as results.
 
 ### Keep compute close to your text
 
 For a local application, start by running fse in the process that already has the text.
 This avoids moving text and vectors through a service. Measure that transfer cost before adding a service.
 
-One historical [notebook measurement](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/1631f057640c02591092314e922bec5df213bfdd/recipes/07-local-compute-and-http.ipynb), dated 1 November 2026,
-used an Apple M1 Pro, macOS 27.0.1, Python 3.13.16 and one worker with the full GloVe-300 table.
-Median means the middle measured time. A microsecond is one millionth of a second.
-HTTP is the protocol websites use to transfer data. JSON is a text format for data.
-
-| Work measured | Median time |
-|---|---:|
-| Encode a batch of 10,000 texts, per text | 0.736 microseconds **to be re-measured for runtime attribution** |
-| Encode one text in one call | 52.3 microseconds **to be re-measured for runtime attribution** |
-| Receive a fixed JSON vector over HTTP on the same computer, reusing one connection | 178.8 microseconds **to be re-measured for runtime attribution** |
-
-The notebook did not record executed-runtime content identifiers. All three timings need re-measurement for current-runtime attribution.
-The batch result uses five warm batches. Each batch repeats 1,000 texts from STS-B ten times.
-STS-B is a test set of sentence pairs. The other results use 100 calls each.
-The one-minute system load, a measure of running and waiting work, was 4.7114 before and after timing.
-The HTTP test excludes embedding compute and turning the received text back into numbers.
-Each row measures a different operation. A service that also encodes text needs its own test.
+The local-compute notebook explains transfer overhead. Its earlier timing values are not presented here as accepted speed evidence.
 One actual normalized vector used 1,200 bytes as 300 float32 values and 6,320 bytes as compact JSON text.
 JSON size depends on the values and formatting. Batching, concurrency and real networks change these costs.
 
@@ -167,12 +146,7 @@ rows = compact.encode(["the cat sleeps"])
 ```
 
 `encoder.quantize` changes the model table. `encoder.encode(..., dtype="int8")` changes the output storage instead.
-A smaller table does not always run faster. On an Apple M1 Pro, measurements dated 30 October 2026
-found int8 tables at dimension 1024 ran 1.20 to 1.34 times as fast on WikiText,
-and 0.98 to 1.10 times as fast on MASSIVE, compared with float32.
-Those runs used a benchmark pipeline, not the current public `Encoder.quantize` API.
-Treat these historical pipeline ratios as **to be re-measured for runtime attribution** before current-runtime claims.
-See [PERFORMANCE.md](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/PERFORMANCE.md#int8-tables-at-1024-dimensions) for workload details and limits.
+A smaller table does not always run faster. Earlier Mac pipeline speed ratios have been withdrawn.
 See [the format rules](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/formats.md#encoder-1) for rounding and rejected values.
 
 ### Hub SIF-10 tables and classic benchmark tables
@@ -292,145 +266,20 @@ These results measure neighborhood stability on this input. Further model and dt
 TODO(DR-151): Add the remaining peak-memory, speed and task-score comparisons.
 Include quality change from each model's float32 result. Name the dataset, metric, revision and date.
 
-## Earlier, smaller Mac measurements (5,352 texts per call)
+## Invalid Mac timing studies
 
-These earlier Apple M1 Pro encoding measurements use **5,352 texts per timed call**.
-They remain here for provenance, not in the public README. They are not the RunPod file-to-vector showcase or a direct comparison with its repeated 100 million short texts.
-The old laptop value is 918,299 texts/s for POTION-8M float32 at ten workers; the model was already loaded and no output-file writer is included.
-
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/04e5cbeb1af5d36a45384906d91457d423829680/media/readme/throughput-dark.png">
-<img alt="POTION-8M on WikiText: float32, one worker, 222,701 texts/s; int8, one worker, 214,848; float32, ten workers, 918,299; float16, ten workers, 946,796. Apple M1 Pro, 1 November 2026." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/04e5cbeb1af5d36a45384906d91457d423829680/media/readme/throughput-light.png">
-</picture>
-
-
-The POTION-8M float32 cells and ten-worker float16 cell use
-[WikiText measurements with fse runtime attribution](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-runtime-window5-20261101/README.md)
-from 1 November 2026: Apple M1 Pro, macOS 27.0.1, Python 3.13.16,
-NumPy 2.5.4, tokenizers 0.23.3 and model2vec 0.10.0.
-Both libraries use model revision `bf8b056651a2c21b8d2565580b8569da283cab23`.
-Each call receives all 5,352 nonblank texts from the pinned WikiText validation and test splits.
-Each of three paired rounds rotates fse-a, fse-b and Model2Vec in separate processes.
-Each process performs an excluded full-corpus warmup, then times one full-corpus call.
-Primary results use fse-a medians and full ranges. fse-b remains a separate A/A control.
-An A/A check repeats the same configuration to measure timing variation. A worker is a processor thread.
-A tokenizer divides text into words and word pieces. Model2Vec tokenizer parallelism is off or on, as labeled.
-Its exact thread count was not measured.
-No batch-worker pool runs because the input is below 10,000 texts.
-All recorded load endpoints were below 5. The source records fse code, model, input and settings identities.
-Model2Vec code identity is missing: its rows record fse's package path and fingerprint.
-Its displayed rates remain **to be re-measured for runtime attribution** before a final library comparison.
-
-The [committed A/A audit](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/f7537d970e4d883b4bfcd61d991859a36cb6da19/docs/fse-comparison-aa.md)
-labels every complete comparison. For each repeated fse call, compare its time with the primary call.
-Let U be the largest ratio or reciprocal across rounds. The symmetric A/A band is 1/U to U.
-A band above 1.10 is **noisy, to be re-measured** in a quiet window.
-Only re-measured cells with executed-runtime identity and A/A bands within 10% may supply final headline rates.
-Record loaded package paths and content fingerprints. Keep code, model, input and settings unchanged within each series.
-A checkout commit, package version or model fingerprint alone does not identify the code that ran.
-Other comparison rates below remain historical and carry visible runtime-attribution qualifiers.
-See the [executed-runtime audit](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/4e888dc18aadc3b5bf6da5b7db7afaa5d0e4b944/docs/fse-comparison-review.md).
-These empirical A/A bands are not confidence intervals.
-Incomplete attempts supply no accepted speed, even when their diagnostic A/A band is small.
-
-TODO(DR-151): Fill the remaining pending cells with paired measurements and source links.
-Report sentences/s as median and range for one worker and all available cores.
-Each cell must identify float32 / float16 / int8 table results in that order.
-The counterpart must encode the same texts. Record token limits, normalization and any model differences.
-Name machine, OS, Python, NumPy, library versions, model revisions, worker counts, load and measurement date.
-
-Model2vec labels below inherit the paired fse series' A/A band, not a separate Model2vec A/A test.
-In the POTION-8M row, the two counterpart values use the new one/ten-worker float32 series, respectively.
-The ten-worker float16 series has a separate float32 Model2Vec control, retained in its source.
-Do not pool those controls or infer a dtype speed ratio from these separate series.
-
-| Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) | Counterpart, float32 (modes below) |
-|---|---|---|---|
-| potion-base-8M | 222,701 (209,179 to 229,351), A/A 0.9707 to 1.0302 / 206,438 (202,631 to 214,714) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) / 214,848 (210,828 to 226,852), A/A 0.9722 to 1.0286 | 918,299 (856,137 to 938,323), A/A 0.9378 to 1.0664 / 946,796 (928,663 to 955,245), A/A 0.9180 to 1.0893 / 919,009 (918,772 to 952,730) **noisy, to be re-measured** (A/A band 0.8953 to 1.1169) | model2vec tokenizer off: 8,926 (8,861 to 8,971) **to be re-measured for runtime attribution**, A/A 0.9707 to 1.0302; on: 23,312 (20,426 to 27,554) **to be re-measured for runtime attribution**, A/A 0.9378 to 1.0664 |
-| potion-base-32M | pending | pending | model2vec: pending |
-| potion-retrieval-32M | pending | pending | model2vec: pending |
-| potion-multilingual-128M | pending | pending | model2vec: pending |
-| static-retrieval-mrl-en-v1 | pending | pending | sentence-transformers: pending |
-| static-similarity-mrl-multilingual-v1 | pending | pending | sentence-transformers: pending |
-
-The [POTION-8M int8 series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-int8-20261101/README.md) record backend-specific runtime identities.
-The one-worker cell is within the 10% A/A band and appears in the chart.
-The ten-worker cell exceeds that band and is visibly marked noisy. It is not a headline observation.
-Both use the same pinned model, input and fse runtime as the other chart settings, with one excluded warmup and one timed call per child.
-Their native controls use float32 and remain separate from the float32-series controls in the counterpart column.
-These records measure encoding, not classification or a paired dtype speedup.
-
-The classic models have fse-only measurements:
-
-| Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) |
-|---|---|---|
-| GloVe-300 | 212,783 (203,964 to 219,669) **to be re-measured for runtime attribution** / pending / 210,198 (197,759 to 212,257) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8730 to 1.1455) | 828,045 (708,401 to 901,244) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.7850 to 1.2739) / pending / pending |
-| word2vec-300 | pending / pending / 212,606 (211,846 to 213,981) **to be re-measured for runtime attribution** | pending / pending / 924,000 (886,643 to 932,838) **to be re-measured for runtime attribution** |
-
-The GloVe float32 and word2vec int8 cells use [four completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-classic-timings-20261101/README.md)
-from the same date, machine and WikiText input. Each has three paired rounds,
-with one warm timed call per child after a full-corpus warmup.
-All load endpoints were below 5.
-The source reports A/A variation separately, including a time-ratio range of 0.7850 to 1.1500 for ten-worker GloVe.
-
-The historical one-worker POTION-8M float16 and GloVe int8 cells come from
-[three completed precision-matrix series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-matrix-20261101/README.md).
-They use the same machine, date and full WikiText input, with three paired rounds.
-Each child times one call after a full-corpus warmup. All load endpoints were below 5.
-The source also preserves the superseded ten-worker POTION float32 series, whose A/A upper band was 1.9543.
-Its historical rates remain in the source, separate from the new series with fse runtime attribution.
-These series do not establish a dtype speed ratio or task quality.
-
-The largest process memory peaks among each series' three primary fse runs were:
-
-| Model and table | 1 worker, MiB | 10 workers, MiB |
-|---|---:|---:|
-| GloVe-300, float32 | 661.3 **to be re-measured for runtime attribution** | 662.0 **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.7850 to 1.2739) |
-| GloVe-300, int8 | 319.1 **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8730 to 1.1455) | pending |
-| word2vec-300, int8 | 1,552.5 **to be re-measured for runtime attribution** | 1,552.7 **to be re-measured for runtime attribution** |
-| POTION-8M, float16 | 166.6 **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) | 169.6 |
-| POTION-8M, float32 | 183.0 | 184.3 |
-| POTION-8M, int8 | 161.8 | 161.1 **noisy, to be re-measured** (A/A band 0.8953 to 1.1169) |
-
-These peaks include imports, model and corpus loading, warmup, encoding and outputs.
-Their A/A labels refer to timing variation, not memory variation.
-Runtime-attribution markers also apply to these historical process peaks.
-They measure process memory, not saved-file size or memory added by one call.
-The linked raw records and summary retain exact byte counts and separate control-process peaks.
-Other model, dtype and task-quality results remain pending.
-
-**Reference controls**
-
-The classic-model series also ran Model2Vec with POTION-8M on the same texts.
-POTION-8M produces 256 values per vector, rather than 300, and uses different text rules.
-These controls measure a different model. They do not establish an equal-model library speed ratio.
-Each cell shows the median and range of three control-process rates.
-Labels inherit the paired fse series' timing classification, not a separate Model2Vec A/A test.
-
-| Series containing the control | Model2Vec POTION-8M, tokenizer off, texts/s | Model2Vec POTION-8M, tokenizer on, texts/s |
-|---|---:|---:|
-| GloVe float32 series | 8,915 (8,896 to 8,935) **to be re-measured for runtime attribution** | 24,694 (24,511 to 27,057) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.7850 to 1.2739) |
-| word2vec int8 series | 8,944 (8,927 to 8,951) **to be re-measured for runtime attribution** | 27,280 (23,108 to 27,714) **to be re-measured for runtime attribution** |
-
-The off/on controls accompanied the one/ten-worker fse series, respectively.
-No Model2Vec batch-worker pool ran. Its exact tokenizer thread count was not measured.
-
-The historical [one-worker MASSIVE sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-wikitext-20261101/dr151-model2vec-massive-1.jsonl) records these historical rates.
-Across 151,674 test texts, fse processed 878,260 texts/s (861,892 to 903,738) **to be re-measured for runtime attribution**,
-and model2vec processed 57,001 (56,620 to 57,191) **to be re-measured for runtime attribution**, with the same three-round method.
-Its symmetric A/A band is 0.9695 to 1.0315, within 10%, but runtime attribution still requires re-measurement.
-This is a separate input sample. It does not fill the pending model or dtype cells.
-
-The old 1.x STS results belong to a different API and recipe.
-See the [1.x results](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/1.x/README.md#results).
-They do not measure these 2.0 models.
-
+All Mac speed studies are withdrawn from publication, including the former laptop headline, dtype rates,
+classic-model throughput and Model2Vec reference controls. Their tables and chart have been removed from this guide.
+The [archive manifest](readme-evidence-manifest.json) retains exact original records for audit.
+The five local timing summaries carry `speed_publication.valid: false`, overriding their historical acceptance fields.
+No archived eligible label permits reuse of these numbers as a claim.
+Quality and file-size sections above remain valid under their stated protocols.
 
 ## Work kept out of the main README
 
 The main README shows final values only and links here once with “How we measured”.
 It omits unfinished comparison rows and moves measurement-process wording here, including controls, A/A, ranges and noise labels.
-The full figures and source journals above retain their qualifications.
+Withdrawn speed figures are no longer embedded. Original journals remain archived and invalid for speed publication.
 
 TODO(DR-151): Fill the classification comparison table and chart from committed matched-pipeline records.
 Keep normalized-linear and raw-mean folded cases separate. Use the same model, weights, texts and settings per row.
@@ -486,11 +335,11 @@ Full journals, rich original summaries and study notes are linked through the fi
 
 | Study | Compact summary |
 |---|---|
-| Earlier WikiText and MASSIVE | [Summary](readme-wikitext-20261101/summary.json) |
-| Classic model timings | [Summary](readme-classic-timings-20261101/summary.json) |
-| Earlier precision matrix | [Summary](readme-matrix-20261101/summary.json) |
-| Runtime-attributed Mac window | [Summary](readme-runtime-window5-20261101/summary.json) |
-| Earlier int8 comparison | [Summary](readme-int8-20261101/summary.json) |
+| Earlier WikiText and MASSIVE (**speed invalid**) | [Summary](readme-wikitext-20261101/summary.json) |
+| Classic model timings (**speed invalid**) | [Summary](readme-classic-timings-20261101/summary.json) |
+| Earlier precision matrix (**speed invalid**) | [Summary](readme-matrix-20261101/summary.json) |
+| Runtime-attributed Mac window (**speed invalid**) | [Summary](readme-runtime-window5-20261101/summary.json) |
+| Earlier int8 comparison (**speed invalid**) | [Summary](readme-int8-20261101/summary.json) |
 | POTION-8M quality, English 40 of 41 tasks | [Summary](readme-quality-20261101/summary.json) |
 | POTION-32M quality, English 40 of 41 tasks | [Summary](readme-quality-potion32-20261101/summary.json) |
 | Retrieval-32M quality, English 40 of 41 tasks | [Summary](readme-quality-retrieval32-20261101/summary.json) |

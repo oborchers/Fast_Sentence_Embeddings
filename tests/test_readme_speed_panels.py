@@ -118,6 +118,27 @@ def test_comparison_requires_same_series_and_checked_output():
         PANEL["comparison"](sample)
 
 
+def test_explicit_omission_leaves_only_that_cell_empty():
+    rows = [
+        row(dtype=dtype, workers=w)
+        for dtype in PANEL["DTYPES"]
+        for w in (1, 16)
+        if (dtype, w) != ("int8", 16)
+    ]
+    rendered = PANEL["table"](rows, (1, 16), omitted=[("int8", 16)])
+    assert "| int8 | 200 |  |" in rendered
+    assert "| float32 | 200 | 200 |" in rendered
+    with pytest.raises(ValueError, match="all precisions"):
+        PANEL["table"](rows, (1, 16))
+    with pytest.raises(ValueError, match="all precisions"):
+        PANEL["table"]([*rows, row(dtype="int8", workers=32)], (1, 16), omitted=[("int8", 16)])
+    with pytest.raises(ValueError, match="all precisions"):
+        PANEL["table"](rows, (1, 16), omitted=[("int8", 32)])
+    rows[0]["aa_upper"] = 1.121
+    with pytest.raises(ValueError, match="variation"):
+        PANEL["table"](rows, (1, 16), omitted=[("int8", 16)])
+
+
 def test_empty_data_publishes_nothing_and_invalid_pair_writes_nothing(tmp_path):
     palette = json.loads((ROOT / "media/readme/palette.json").read_text())
     data = {"format": "readme-speed-panels-v1", "table": [], "comparisons": []}

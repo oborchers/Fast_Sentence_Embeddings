@@ -1,4 +1,9 @@
 {
+  "speed_publication": {
+    "valid": false,
+    "decision": "Maintainer withdrawal, 1 November 2026. All Mac speed studies are invalid for publication. Historical acceptance fields do not override this decision.",
+    "scope": "Speed rates and ratios only; quality, accuracy and file-size observations are unaffected."
+  },
   "date": "2026-11-01",
   "producing_commit": "c0ee537cc0515a7ecbfd4b20eec3bfc227b57a22",
   "primary": "fse-a",
