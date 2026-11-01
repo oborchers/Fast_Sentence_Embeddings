@@ -34,17 +34,6 @@ Bring a trained linear classifier to label text in the same application.
 
 100 million short texts (28.7 tokens on average) embedded and written to disk in 35 seconds, int8, 32 vCPU AMD EPYC 7713, RunPod, 1 November 2026.
 
-**On a laptop: 918,299 texts/s.**
-
-Encoding with the model already loaded.
-
-Apple M1 Pro, POTION-8M float32, 10 workers, WikiText, 1 November 2026. Average text: 85 words.
-
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/dbfbf2e28465cad2371d7848f16058bbb8061a51/media/readme/throughput-dark.png">
-<img alt="POTION-8M on WikiText: float32, one worker, 222,701 texts/s; int8, one worker, 214,848; float32, ten workers, 918,299; float16, ten workers, 946,796. Apple M1 Pro, 1 November 2026." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/dbfbf2e28465cad2371d7848f16058bbb8061a51/media/readme/throughput-light.png">
-</picture>
-
 [How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/9068096b78518d212be0435918418540d154aad9/docs/benchmarks/readme-evidence.md)
 
 ## Get started

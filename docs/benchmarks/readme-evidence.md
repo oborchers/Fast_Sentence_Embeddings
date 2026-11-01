@@ -238,7 +238,17 @@ These results measure neighborhood stability on this input. Further model and dt
 TODO(DR-151): Add the remaining peak-memory, speed and task-score comparisons.
 Include quality change from each model's float32 result. Name the dataset, metric, revision and date.
 
-## Benchmarks
+## Earlier, smaller Mac measurements (5,352 texts per call)
+
+These earlier Apple M1 Pro encoding measurements use **5,352 texts per timed call**.
+They remain here for provenance, not in the public README. They are not the RunPod file-to-vector showcase or a direct comparison with its repeated 100 million short texts.
+The old laptop value is 918,299 texts/s for POTION-8M float32 at ten workers; the model was already loaded and no output-file writer is included.
+
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/dbfbf2e28465cad2371d7848f16058bbb8061a51/media/readme/throughput-dark.png">
+<img alt="POTION-8M on WikiText: float32, one worker, 222,701 texts/s; int8, one worker, 214,848; float32, ten workers, 918,299; float16, ten workers, 946,796. Apple M1 Pro, 1 November 2026." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/dbfbf2e28465cad2371d7848f16058bbb8061a51/media/readme/throughput-light.png">
+</picture>
+
 
 The POTION-8M float32 cells and ten-worker float16 cell use
 [WikiText measurements with fse runtime attribution](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/57fa216d15ebc9eb98272d69fe2f5182259cd511/docs/benchmarks/readme-runtime-window5-20261101/README.md)
