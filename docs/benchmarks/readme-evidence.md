@@ -19,7 +19,7 @@ The later int8 series below record both backends correctly; their one-worker cel
 
 TODO(DR-151): Record the counterpart's loaded code identity and re-measure a same-model comparison with an A/A band within 10%.
 
-The [speed-panel delivery plan](readme-speed-panels.md) lists exact required cells for the three precision rows at one core and all 32 cores and each same-model library bar. It contains no new timing results.
+The [speed-panel delivery plan](readme-speed-panels.md) lists exact required cells for the three precision rows at one core plus the selected 16 or 32 cores, and each same-model library bar. It contains no new timing results.
 
 ## Classifier comparisons: linear head versus fine-tuned MLP
 
@@ -42,19 +42,19 @@ Accuracy differences here do not isolate the inference engine.
 Speed comparisons must also name these heads and the encoder settings rather than treating them as the same computation.
 
 The Model2Vec encoding-only timing rows below use static sentence vectors. They do not run this classifier's MLP head.
-No classifier rate is inferred from those rows. New controlled classifier throughput remains pending.
+No classifier rate is inferred from those rows. Pod 2 classifier evidence is recorded below. The corrected folded comparison remains pending.
 
 ## Folding and the pending classification speed panel
 
 <picture>
 <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/1f76884072537cb70a757f02d3e2e37cfa0b4ba4/media/readme/classification-folding-dark.png">
-<img alt="A trained linear head prepares a word-score table once. For new texts, fse looks up word scores, averages them, adds the bias and returns labels. This applies to raw, unnormalized averages and class-only outputs. Classification speed measurements are pending." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/1f76884072537cb70a757f02d3e2e37cfa0b4ba4/media/readme/classification-folding-light.png">
+<img alt="A trained linear head prepares a word-score table once. For new texts, fse looks up word scores, averages them, adds the bias and returns labels. This applies to raw, unnormalized averages when sentence vectors are not requested. The corrected folded speed comparison is pending." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/1f76884072537cb70a757f02d3e2e37cfa0b4ba4/media/readme/classification-folding-light.png">
 </picture>
 
 
 This explanatory figure shows preparation of per-word scores for a linear head trained on raw, unnormalized averages.
 fse combines the head weights with word vectors once, then averages word scores and adds the bias for each text.
-This path is used when only class outputs are requested. Normalized heads and requests for full vectors use the full-vector path.
+This path supports scores, labels and probabilities without requesting sentence vectors. Normalized heads and requests for full vectors use the full-vector path.
 With fewer output scores than vector values, the folded table has shorter rows.
 
 A complete fse classifier already prepares this folded path where legal. Saving standalone preserves the folded table.
@@ -62,7 +62,7 @@ It is not a separate faster prediction algorithm and is not plotted as a speedup
 Sources: `src/fse/_runtime/_head.py` (`make_head`, `fold`, `HeadPipeline`) and `src/fse/_head/_model.py` (`save`, `_standalone_artifact`).
 
 The main README now reserves a measured classification table and chart instead of using this explanation as its speed panel.
-No controlled classifier rates are published yet. The measured panel will use committed DR-151 classifier records,
+Pod 2 published normalized-head classifier rates under its original protocol, documented below. The final folded panel still needs committed DR-151 classifier records,
 with the exact trained head, normalization, dataset, machine, date and worker count from each row.
 The normalized-linear comparison and raw-mean folded comparison stay separate.
 Speedup is the matched reference time divided by fse time for the same input, equivalently fse throughput divided by reference throughput.
@@ -70,6 +70,37 @@ A separately fine-tuned Model2Vec MLP is a different trained model, so it does n
 Its default 512-unit ReLU head and PyTorch/NumPy paths are documented above.
 Only complete series with executed-backend attribution and a symmetric A/A upper band at most1.10 qualify.
 Encoder-only throughput and retained recipe accuracy rows do not fill this measurement.
+
+### Earlier Pod 2 classifier evidence (original short-call protocol)
+
+The [source-owner audit](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/d2f6b5b811c3fa0caf91a9aba5497a8ba58a3c3c/docs/fse-pod2-results.md) accepts 104 SetFit classifier cells under the Pod 2 protocol.
+These are historical observations, not final README speed-panel inputs. The current Pod 4 protocol requires individual fse calls of at least two seconds.
+The example below has fse calls around 0.003 seconds. Passing its original A/A gate does not satisfy the new duration gate.
+
+This example uses POTION-8M float32, one worker, AMD EPYC 9655 (32 assigned vCPUs), Linux, 1 November 2026.
+The Subjectivity test split has 2,000 texts. Both models train on the same fixed selection of 1,000 texts.
+fse uses normalized vectors and an imported linear head, so this is **not folded inference**.
+Model2Vec uses frozen vectors plus its own independently fitted sklearn linear head, **not its fine-tuned MLP**.
+The coefficient arrays are different. This measures two trained pipelines, not the effect of swapping only their inference engines.
+
+| Trained pipeline | Median texts/s | Observed range, texts/s | Accuracy | Macro-F1 |
+|---|---:|---:|---:|---:|
+| fse, normalized vectors plus linear head (fse-a) | 731,485.29 | 720,636.84 to 764,876.27 | 0.8880 | 0.887696 |
+| Model2Vec, frozen vectors plus independently fitted sklearn linear head | 28,788.67 | 28,595.59 to 29,220.51 | 0.8880 | 0.887696 |
+
+The median of the three paired rate ratios is 25.200976281597157. It is a pipeline ratio, not a same-head folding speedup.
+The symmetric A/A band is 0.9264813765346346 to 1.079352510830116.
+Each process records three warm calls; its per-round rate is 2,000 divided by their median duration.
+The table takes the median and range of the three fse-a or reference round rates, preserving fse-b separately.
+
+Exact source: [complete raw journal](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/2501a387d197d54e31b79bd57dcc350ac1503a07/benchmarks/baseline/results/dr151-pod2-20261101/speed-results.jsonl.gz),
+series `be8994521d4c496ba64b30b19dd39b2a`, cell `classification/setfit/subj/minishlab/potion-base-8M/1/model2vec`, rounds 0, 1 and 2.
+The journal contains nine operation records, three round records and a final series record for this cell.
+Executed source: `97b741887dc0bd4730131aa60a7b5242fef8d5ef`.
+fse runtime: `xxh3-128:d2dc5ced22cb83dc2df3f15624ad2e69`; Model2Vec runtime: `xxh3-128:4852905a78404abddd67f88f333e9f5d`.
+The [retained artifact-header proof](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/d2f6b5b811c3fa0caf91a9aba5497a8ba58a3c3c/benchmarks/baseline/dr151_pod2_normalization_evidence_20261101.json) binds fse's encoder to `normalize@1`.
+No absent model weights were copied or rehashed. All 32-worker Subjectivity/POTION-8M cells fail the original A/A gate.
+The corrected raw-mean folded comparison remains a separate Pod 4 deliverable.
 
 ### Keep compute close to your text
 
@@ -394,18 +425,19 @@ The explicit and folded paths agree on all 2,000 AG News labels; maximum probabi
 The complete file (30,668,970 bytes) rounds to 29.2 MiB; standalone (900,522 bytes) rounds to 0.86 MiB.
 These are final storage/accuracy observations, not a throughput speedup. Normalized heads run explicitly in fse; hidden-layer neural heads are unsupported.
 
-The maintainer selected the headline “Compute nearly 1 million text embeddings per second.”
-It refers to the final 918,299 texts/s float32 ten-worker cell, not a new measurement.
-Keep the model, machine and date beside the speed graphic. Add “Average text: N words” there once DR-151 commits text-length statistics.
-No text length or multi-million-text result is inferred from throughput.
+The earlier Mac headline was replaced by the RunPod showcase at the top of this guide.
+The README contains no Mac speed values. Its current caption uses the showcase's measured POTION-token count.
 
-## Average text length for the speed caption
+## Earlier Mac sample length
 
-The [committed corpus-length record](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ea174334344c2fb0c97b9211af478d4acda77a40/benchmarks/baseline/dr151_corpus_lengths_20261101.json) is complete and records no throughput. Its `wikitext encode` entry has 5,352 texts and 455,097 whitespace-separated words, an arithmetic mean of 85.03307174887892. The README caption rounds that to “Average text: 85 words.”
+The [committed corpus-length record](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ea174334344c2fb0c97b9211af478d4acda77a40/benchmarks/baseline/dr151_corpus_lengths_20261101.json) records no throughput.
+Its `wikitext encode` entry has 5,352 texts and 455,097 whitespace-separated words, averaging 85.03307174887892 words.
+This describes the earlier Mac sample only. It is not the RunPod showcase's input length.
 
-Its input digest, xxh3-128:15151abfbf2f482115b1180347b4295e, matches the source journals for all four displayed configurations. Dataset revision b08601e04326c79dfdd32d625aee71d232d685c3 covers validation and test. Words count the original input, before the configured character/token limits; they are not tokenizer pieces. The source separately reports a mean of 95.60650224215247 consumed POTION tokens.
-
-The [counting method](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ea174334344c2fb0c97b9211af478d4acda77a40/benchmarks/quality/text_lengths.py) uses len(text.split()). This is metadata for the existing encoding sample, not a multi-million-text speed run, a words/s claim or a new classifier result.
+Its input digest, `xxh3-128:15151abfbf2f482115b1180347b4295e`, matches the earlier Mac source journals.
+Dataset revision `b08601e04326c79dfdd32d625aee71d232d685c3` covers validation and test.
+The [counting method](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ea174334344c2fb0c97b9211af478d4acda77a40/benchmarks/quality/text_lengths.py) uses `len(text.split())` on original input before character/token limits.
+The separate consumed POTION-token mean is 95.60650224215247. Words and tokenizer pieces are different units.
 
 ## Selecting the public core settings
 

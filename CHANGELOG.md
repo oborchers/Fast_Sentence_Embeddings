@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- Retain earlier Pod 2 normalized-classifier results in the evidence guide, with their short-call protocol and separately fitted-head limits.
+
 - Slim the planned RunPod README panels to the 1/16/32 dtype and library grid, retaining direct 32-versus-16 selection and individual fse-call duration checks.
 
 - Lead with the measured 100 million text file-to-vector showcase and mark English MTEB quality as 40 of 41 tasks, with MIND not computed.
