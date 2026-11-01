@@ -113,7 +113,7 @@ def child(args) -> None:
             "file_bytes": sum(p.stat().st_size for p in files),
             "peak_rss_bytes": peak if sys.platform == "darwin" else peak * 1024,
             "rss_scope": "whole fresh child, including common encoder and numerical recall",
-            "durability": "file and parent directory fsync before reopen",
+            "durability": "file fsync plus parent F_FULLFSYNC on macOS, fsync on other POSIX",
             "cache": "warm input page cache, freshly built and reopened index",
             "threadpools": threadpool_info(),
             "index_settings": settings(args.kind),

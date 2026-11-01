@@ -25,11 +25,9 @@ def timed(function):
 def fsync_file(path: Path) -> None:
     with path.open("rb") as stream:
         os.fsync(stream.fileno())
-    descriptor = os.open(path.parent, os.O_RDONLY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
+    from fse._container._common import _sync_directory
+
+    _sync_directory(path.parent)
 
 
 def make_index(kind: str, matrix: np.ndarray, encoder, path: Path, workers: int):
@@ -53,19 +51,20 @@ def make_index(kind: str, matrix: np.ndarray, encoder, path: Path, workers: int)
 
 
 def fse_index(matrix: np.ndarray, encoder, path: Path):
-    from fse import ShardSink, VectorStore, _reference
+    from fse import ShardSink
+    from fse._backends import get_backend
 
     with ShardSink(path, encoder, dtype="float32", durability="full") as sink:
         target = sink.target(0, len(matrix))
         target[0][...] = matrix
-        target[1][...] = _reference.inverse_norms(matrix)
+        target[1][...] = get_backend("cpu").inverse_norms(matrix)
         sink.commit(0, target)
-    return VectorStore.open(path)
+    return None
 
 
 def save_index(kind: str, index, path: Path) -> None:
     if kind == "fse":
-        index.close()  # ShardSink already flushed and synced the complete store.
+        # ShardSink already flushed and synced the complete store.
         return
     if kind == "faiss":
         import faiss
@@ -133,7 +132,10 @@ def index_recall(matrix: np.ndarray, ids: np.ndarray, k: int) -> dict:
             threshold = scores[offset, expected[-1]]
             chosen = ids[row]
             strict += len(set(expected) & set(chosen))
-            equivalent += int(np.count_nonzero(scores[offset, chosen] >= threshold))
+            better = int(np.count_nonzero(scores[offset] > threshold))
+            better_hits = int(np.count_nonzero(scores[offset, chosen] > threshold))
+            boundary_hits = int(np.count_nonzero(scores[offset, chosen] == threshold))
+            equivalent += better_hits + min(boundary_hits, k - better)
             boundary_ties += int(np.count_nonzero(scores[offset] == threshold) > 1)
             count += 1
     return {

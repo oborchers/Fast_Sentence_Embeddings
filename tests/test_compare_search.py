@@ -61,3 +61,10 @@ def test_fse_store_preserves_shared_vectors(search_module, tmp_path):
         assert np.array_equal(ids, [[0], [1], [2]])
     finally:
         index.close()
+
+
+def test_boundary_matches_cannot_replace_a_strictly_better_neighbor(search_module):
+    matrix = np.array([[1, 0], [0, 1], [0, -1]], np.float32)
+    ids = np.array([[1, 2], [1, 0], [2, 0]])
+    found = search_module.index_recall(matrix, ids, 2)
+    assert found["boundary_equivalent_recall_at_k"] == 5 / 6

@@ -16,6 +16,14 @@ DATASETS = {
     "massive": ("mteb/amazon_massive_intent", "4672e20407010da34463acc759c162ca9734bca6"),
 }
 
+MASSIVE_COUNTS = {
+    f"{language}.json.gz": 2974
+    for language in (
+        "af am ar az bn cy da de el en es fa fi fr he hi hu hy id is it ja jv ka km kn ko "
+        "lv ml mn ms my nb nl pl pt ro ru sl sq sv sw ta te th tl tr ur vi zh-CN zh-TW"
+    ).split()
+}
+
 
 def texts(corpus: str) -> list[str]:
     repo, revision = DATASETS[corpus]
@@ -39,12 +47,15 @@ def _wikitext(folder: Path) -> list[str]:
 
 def _massive(folder: Path) -> list[str]:
     files = sorted((folder / "test").glob("*.json.gz"))
-    if not files:
-        raise FileNotFoundError(f"missing pinned MASSIVE test in {folder}")
+    if {path.name for path in files} != MASSIVE_COUNTS.keys():
+        raise FileNotFoundError(f"incomplete pinned MASSIVE test file set in {folder}")
     rows = []
     for path in files:
         with gzip.open(path, "rt", encoding="utf-8") as stream:
-            rows.extend(json.loads(line)["text"] for line in stream)
+            batch = [json.loads(line)["text"] for line in stream]
+        if len(batch) != MASSIVE_COUNTS[path.name]:
+            raise ValueError(f"unexpected row count in pinned MASSIVE file {path.name}")
+        rows.extend(batch)
     return rows
 
 

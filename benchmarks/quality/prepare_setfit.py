@@ -137,25 +137,32 @@ def heads(args, data, provenance, repo, output):
 def tfidf(args, data, provenance, output):
     import joblib
     from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import GridSearchCV
     from sklearn.pipeline import make_pipeline
 
     train, y_train, evaluation, y_eval = data
-    vectorizer = TfidfVectorizer()
-    features = vectorizer.fit_transform(train)
-    head = fit(features, y_train)
-    pipeline = make_pipeline(vectorizer, head)
+    search = GridSearchCV(
+        make_pipeline(TfidfVectorizer(), LogisticRegression(max_iter=1000, random_state=0)),
+        {"logisticregression__C": np.logspace(-4, 4, 10).tolist()},
+        cv=5,
+        n_jobs=1,
+    ).fit(train, y_train)
+    pipeline = search.best_estimator_
+    vectorizer = pipeline.named_steps["tfidfvectorizer"]
+    head = pipeline.named_steps["logisticregression"]
     predicted = pipeline.predict(evaluation)
     joblib.dump(pipeline, output / "tfidf-sklearn.joblib")
     save_result(
         args,
         provenance,
         "tfidf",
-        "TfidfVectorizer + LogisticRegressionCV",
+        "TfidfVectorizer + LogisticRegression, pipeline GridSearchCV",
         y_eval,
         predicted,
         vocabulary_rows=len(vectorizer.vocabulary_),
         head=head.get_params(),
-        selected_C=head.C_.tolist(),
+        selected_C=search.best_params_["logisticregression__C"],
         vectorizer="scikit-learn defaults",
     )
 
