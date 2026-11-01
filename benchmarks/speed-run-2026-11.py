@@ -274,7 +274,11 @@ def execute_cell(context, cell):
         if not context["rust"]:
             raise ValueError("native build failed")
         path = context["ledger"].root / (cell["id"] + ".startup.json")
-        startup_job(dict(cell, binary=context["rust"]["binary"], receipt=str(path)))
+        job = path.with_suffix(".job.json")
+        atomic(job, dict(cell, binary=context["rust"]["binary"], receipt=str(path)))
+        subprocess.run(
+            [sys.executable, str(Path(__file__).resolve()), "--child-job", str(job)], check=True
+        )
         return document(path)
     return stream_cell(context, cell) if cell["kind"] == "stream" else encode_cell(context, cell)
 
@@ -410,11 +414,15 @@ def scheduled_cell(context, cell, ledger, deadline, interrupted, contract):
         ledger.result(cell, "failed", started, reason=repr(error))
 
 
-def run(args):
+def validate_host(args):
     if sys.platform != "linux" or sys.version_info[:2] != (3, 13):
         raise RuntimeError("The full measurement requires Linux and Python 3.13")
     if args.allocated_at is None:
         raise ValueError("--allocated-at must be the machine allocation Unix timestamp")
+
+
+def run(args):
+    validate_host(args)
     contract = document(args.input)
     args.results.mkdir(parents=True, exist_ok=False)
     ledger = Ledger(args.results, contract, args.allocated_at)
@@ -473,7 +481,8 @@ def main():
         return 0
     if args.child_job:
         job = document(args.child_job)
-        stream_child(job) if job["kind"] == "stream" else measure_child(job)
+        function = {"stream": stream_child, "startup": startup_job}.get(job["kind"], measure_child)
+        function(job)
         return 0
     if args.run:
         return run(args)
