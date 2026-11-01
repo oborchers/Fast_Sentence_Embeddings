@@ -10,6 +10,27 @@ Their Model2Vec controls still require re-measurement. Recorder fix02d387c appli
 
 TODO(DR-151): Record the counterpart's loaded code identity and re-measure a same-model comparison with an A/A band within 10%.
 
+## Classifier comparisons: linear head versus fine-tuned MLP
+
+A head turns a text vector into scores or labels. The classification recipe compares these different training methods:
+
+| Method | Word vectors | Trained head | Training | Prediction |
+|---|---|---|---|---|
+| fse with an imported linear head | Fixed for head training | Linear | scikit-learn in the recipe | fse CPU backend |
+| Model2Vec 0.10.0 classifier | Fine-tuned during training | MLP, by default one hidden layer of 512 units with ReLU | PyTorch | Plain NumPy head |
+
+An MLP is a small neural network. ReLU clips negative hidden-layer values to zero.
+The Model2Vec head applies softmax or sigmoid when returning probabilities.
+Its [classification defaults](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/train/classifier.py), [trainable embeddings and head construction](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/train/base.py),
+and [NumPy inference implementation](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/inference/mlp.py) are pinned to the official 0.10.0 source.
+
+The recipe uses a fixed encoder and linear head for fse, while Model2Vec changes both the word vectors and head.
+Accuracy differences therefore compare trained models, not an accuracy gap caused by the inference engine.
+Speed comparisons must also name these heads and the encoder settings rather than treating them as the same computation.
+
+The Model2Vec encoding-only timing rows below use static sentence vectors. They do not run this classifier's MLP head.
+No classifier rate is inferred from those rows. New controlled classifier throughput remains pending.
+
 ### Keep compute close to your text
 
 For a local application, start by running fse in the process that already has the text.

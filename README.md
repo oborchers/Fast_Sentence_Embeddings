@@ -123,6 +123,13 @@ Later, load the saved classifier with `Classifier.load("router.safetensors")` an
 For large datasets, pass batches instead of building one huge list.
 The recipe below covers training, classification, regression and saving the finished model.
 
+The classification recipe compares fse's linear head with Model2Vec 0.10.0's fine-tuned MLP, a small neural network.
+Model2Vec also updates its word vectors during training.
+
+Its [default head](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/train/classifier.py) has one hidden layer of 512 units with ReLU, which clips negative values to zero.
+It trains with PyTorch. The [prediction head](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/inference/mlp.py) runs in NumPy, with softmax or sigmoid for probabilities.
+This compares different trained models, not just two inference engines.
+
 <picture>
 <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/71b69be83efdd8adbf071ada302be8bf1db68b24/media/readme/vectors-and-labels-dark.png">
 <img alt="Your texts enter fse on the CPU. An encoder gives vectors for search and clustering. Add a previously trained linear model to get labels for routing and filtering. Training happens outside fse." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/71b69be83efdd8adbf071ada302be8bf1db68b24/media/readme/vectors-and-labels-light.png">
