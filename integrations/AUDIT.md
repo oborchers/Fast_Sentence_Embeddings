@@ -20,8 +20,8 @@ All sources below were retrieved on 2026-11-01. Upstream main branches can chang
   Pydantic inheritance is a provider choice, not an `Embeddings` requirement.
   fse uses its own strict constructor validation and loader options.
 - [Standard embeddings tests](https://github.com/langchain-ai/langchain/blob/master/libs/standard-tests/langchain_tests/integration_tests/embeddings.py):
-  `EmbeddingsIntegrationTests` includes inherited initialization tests and sync/async
-  query/document checks. Our test class runs this suite using a local encoder.
+  `EmbeddingsIntegrationTests` checks sync/async query and document APIs.
+  The pinned 1.1.9 integration suite does not include the separate unit initialization tests. Our test class runs this suite using a local encoder.
 - [Publication guide](https://docs.langchain.com/oss/python/contributing/publish-langchain)
   and [contribution policy](https://docs.langchain.com/oss/python/contributing/overview#acceptable-uses-of-llms):
   use an independent PyPI package, `langchain-<provider>` naming, verified examples
