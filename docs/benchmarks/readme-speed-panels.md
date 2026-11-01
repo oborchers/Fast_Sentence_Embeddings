@@ -52,7 +52,7 @@ One caption: Pod machine (32 vCPU), POTION-8M, WikiText, date. Average text: mea
 The table sits below the existing throughput graphic and above the single “How we measured” link.
 No placeholder table appears in the main README.
 
-## Library bars: two core settings per library
+## Library bars: measured core settings per library
 
 Keep **One core**. Add only the setting selected by that model's own scaling curve, labelled **All 32 cores** or **K cores**.
 Each bar needs its own matched fse baseline. The MRL model needs its own curve; POTION-8M scaling cannot justify its 32-core group.

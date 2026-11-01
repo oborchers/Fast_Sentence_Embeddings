@@ -225,7 +225,8 @@ def test_publish_selects_from_scaling_and_never_substitutes_32(tmp_path):
     for name in ("speed-table.md", "library-speedups-light.svg", "library-speedups-dark.svg"):
         text = (tmp_path / name).read_text()
         assert "All 32 cores" not in text
-        assert "16 cores" in text and "One core" in text
+        assert "16 cores" in text
+        assert "One core" in text
         assert PANEL["LOW_GAIN_NOTE"] in text
     data["table"] = [r for r in data["table"] if r["context"]["workers"] != 16]
     with pytest.raises(ValueError, match="all precisions"):
