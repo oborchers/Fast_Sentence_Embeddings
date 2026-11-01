@@ -1,0 +1,315 @@
+{
+  "date": "2026-11-01",
+  "producing_commit": "c0ee537cc0515a7ecbfd4b20eec3bfc227b57a22",
+  "primary": "fse-a",
+  "cells": [
+    {
+      "raw": "dr151-matrix-glove-wiki-gigaword-300-float32-w1.jsonl",
+      "series_id": "babbea4d3f1c4b58a0c40e7a985ba3fc",
+      "valid_rounds": 3,
+      "backends": {
+        "fse-a": {
+          "model": "fse/glove-wiki-gigaword-300",
+          "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "fse_workers": 1,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            300
+          ],
+          "file_bytes": 486157314,
+          "texts_per_second": {
+            "median": 212783.44171150177,
+            "min": 203963.74102523722,
+            "max": 219669.11090483578
+          },
+          "peak_rss_bytes": 693387264
+        },
+        "fse-b": {
+          "model": "fse/glove-wiki-gigaword-300",
+          "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "fse_workers": 1,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            300
+          ],
+          "file_bytes": 486157314,
+          "texts_per_second": {
+            "median": 211070.83024165046,
+            "min": 204526.89258815662,
+            "max": 215359.23335784857
+          },
+          "peak_rss_bytes": 693485568
+        },
+        "model2vec": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "fse_workers": null,
+          "tokenizer_parallelism": "off",
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": "disabled",
+          "shape": [
+            5352,
+            256
+          ],
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 8914.99708175881,
+            "min": 8895.932794335318,
+            "max": 8935.34769509581
+          },
+          "peak_rss_bytes": 229457920
+        }
+      },
+      "aa_time_ratio_b_over_a": {
+        "median": 1.0403690146506595,
+        "min": 0.9470861213845604,
+        "max": 1.040736470564603
+      },
+      "load_min": 4.30078125,
+      "load_max": 4.4365234375
+    },
+    {
+      "raw": "dr151-matrix-glove-wiki-gigaword-300-float32-w10.jsonl",
+      "series_id": "fd718931a41f41c8958b4c0c58082ac9",
+      "valid_rounds": 3,
+      "backends": {
+        "fse-a": {
+          "model": "fse/glove-wiki-gigaword-300",
+          "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "fse_workers": 10,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            300
+          ],
+          "file_bytes": 486157314,
+          "texts_per_second": {
+            "median": 828045.1181906733,
+            "min": 708401.087465357,
+            "max": 901244.0567462299
+          },
+          "peak_rss_bytes": 694173696
+        },
+        "fse-b": {
+          "model": "fse/glove-wiki-gigaword-300",
+          "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "fse_workers": 10,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            300
+          ],
+          "file_bytes": 486157314,
+          "texts_per_second": {
+            "median": 875863.5201391343,
+            "min": 720064.6419345015,
+            "max": 902408.9755018714
+          },
+          "peak_rss_bytes": 694648832
+        },
+        "model2vec": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "fse_workers": null,
+          "tokenizer_parallelism": "on",
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": "disabled",
+          "shape": [
+            5352,
+            256
+          ],
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 24693.916546883527,
+            "min": 24510.975132951,
+            "max": 27056.830341942346
+          },
+          "peak_rss_bytes": 236797952
+        }
+      },
+      "aa_time_ratio_b_over_a": {
+        "median": 1.028977730004172,
+        "min": 0.7850111276557088,
+        "max": 1.1499594202627075
+      },
+      "load_min": 4.4365234375,
+      "load_max": 4.9619140625
+    },
+    {
+      "raw": "dr151-matrix-word2vec-google-news-300-int8-w1.jsonl",
+      "series_id": "b439f55ab6f948f499cd851f125d44a6",
+      "valid_rounds": 3,
+      "backends": {
+        "fse-a": {
+          "model": "fse/word2vec-google-news-300",
+          "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
+          "table_dtype": "int8",
+          "output_dtype": "float32",
+          "fse_workers": 1,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            300
+          ],
+          "file_bytes": 977259606,
+          "texts_per_second": {
+            "median": 212605.93495238313,
+            "min": 211846.08335370463,
+            "max": 213981.20997709123
+          },
+          "peak_rss_bytes": 1627897856
+        },
+        "fse-b": {
+          "model": "fse/word2vec-google-news-300",
+          "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
+          "table_dtype": "int8",
+          "output_dtype": "float32",
+          "fse_workers": 1,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            300
+          ],
+          "file_bytes": 977259606,
+          "texts_per_second": {
+            "median": 203298.0863026619,
+            "min": 200105.93806631386,
+            "max": 222358.4024734717
+          },
+          "peak_rss_bytes": 1628946432
+        },
+        "model2vec": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "fse_workers": null,
+          "tokenizer_parallelism": "off",
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": "disabled",
+          "shape": [
+            5352,
+            256
+          ],
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 8944.002228706484,
+            "min": 8926.87183182322,
+            "max": 8950.82190225351
+          },
+          "peak_rss_bytes": 230752256
+        }
+      },
+      "aa_time_ratio_b_over_a": {
+        "median": 1.045784241352199,
+        "min": 0.9527235355047073,
+        "max": 1.0693396310217402
+      },
+      "load_min": 4.22265625,
+      "load_max": 4.52490234375
+    },
+    {
+      "raw": "dr151-matrix-word2vec-google-news-300-int8-w10.jsonl",
+      "series_id": "705b3acf134344b6910637d3d7add16c",
+      "valid_rounds": 3,
+      "backends": {
+        "fse-a": {
+          "model": "fse/word2vec-google-news-300",
+          "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
+          "table_dtype": "int8",
+          "output_dtype": "float32",
+          "fse_workers": 10,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            300
+          ],
+          "file_bytes": 977259606,
+          "texts_per_second": {
+            "median": 923999.964312589,
+            "min": 886643.1918938177,
+            "max": 932837.6132243539
+          },
+          "peak_rss_bytes": 1628110848
+        },
+        "fse-b": {
+          "model": "fse/word2vec-google-news-300",
+          "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
+          "table_dtype": "int8",
+          "output_dtype": "float32",
+          "fse_workers": 10,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            300
+          ],
+          "file_bytes": 977259606,
+          "texts_per_second": {
+            "median": 938988.5653770667,
+            "min": 907310.8651198029,
+            "max": 953196.6439372377
+          },
+          "peak_rss_bytes": 1629913088
+        },
+        "model2vec": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "fse_workers": null,
+          "tokenizer_parallelism": "on",
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": "disabled",
+          "shape": [
+            5352,
+            256
+          ],
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 27280.355730143092,
+            "min": 23107.519513569845,
+            "max": 27713.96065698245
+          },
+          "peak_rss_bytes": 235929600
+        }
+      },
+      "aa_time_ratio_b_over_a": {
+        "median": 0.9840375041644317,
+        "min": 0.9301786756523641,
+        "max": 1.0281345116496323
+      },
+      "load_min": 4.36328125,
+      "load_max": 4.482421875
+    }
+  ]
+}
