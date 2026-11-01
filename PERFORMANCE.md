@@ -784,3 +784,14 @@ and installed-file content hash. Rust additionally binds its verified binary.
 Follow-up commits extend this identity to quality, classifiers and search.
 Existing fse measurements remain valid. Counterpart measurements require
 fresh runs with the corrected identity before final comparison claims.
+
+
+Long-input breakouts are also available for the other completed checkpoints:
+[POTION-8M](benchmarks/baseline/dr151_document_tasks_potion8_20261101.json),
+[POTION-retrieval-32M](benchmarks/baseline/dr151_document_tasks_retrieval32_20261101.json)
+and [POTION-multilingual-128M](benchmarks/baseline/dr151_document_tasks_multilingual128_20261101.json).
+Each retains 19 full-task scores and the corresponding packaged length
+statistics. Every score matches its raw completed task record. The same
+limitations apply: these statistics describe upstream text streams, not
+measured model token counts or truncation frequency. Separate method cohorts
+remain separate. MiniLM and other counterparts are pending.
