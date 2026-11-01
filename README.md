@@ -168,6 +168,22 @@ fse runs finished models; it does not train or distill them.
 
 This compares workflows, not measured speed or quality rankings.
 
+## Why is fse so fast?
+
+**We build and tune the whole path, from reading text to writing results.**
+That includes splitting text into tokens, finding their vectors, combining them and saving the output.
+The goal is to keep useful work together and avoid overhead between steps.
+
+| Design choice | What it does |
+|---|---|
+| Prepare once | Reuse a finished model's fixed word vectors for every text. |
+| Keep work together | The CPU fast path groups tokenization and vector calculation in compiled code. |
+| Share the work | CPU workers process batches in parallel. |
+| Control the output path | Files and streams can write to fse's vector store without collecting all results in memory. |
+
+This is why fse is an inference engine, not a training framework.
+It controls its own processing and storage path. External services and databases still have their own costs.
+
 ## Choose a model and memory budget
 
 | Start with... | For... | Saved float32 file |
