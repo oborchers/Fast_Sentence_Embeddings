@@ -131,6 +131,11 @@ def _label(value: Any) -> int | str:
             raise ValueError(f"the label {value} is beyond int64")
         return value
     if isinstance(value, str):
+        value = str(value)
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError as error:
+            raise ValueError("a label must have a valid UTF-8 representation") from error
         return str(value)
     raise TypeError(f"a label must be an int or a str, not {type(value).__name__}")
 
@@ -155,5 +160,7 @@ def link(name: Any, k: int) -> Link | None:
 def classes(values: tuple) -> ndarray:
     """The labels as numpy array: int64, or str."""
     if isinstance(values[0], str):
-        return np.array(values, dtype=np.str_)
+        # Fixed-width numpy strings discard terminal NULs when read as scalars.
+        dtype = object if any(value.endswith("\0") for value in values) else np.str_
+        return np.array(values, dtype=dtype)
     return np.array(values, dtype=np.int64)
