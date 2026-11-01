@@ -84,6 +84,9 @@ def fit_state(name, kv, selection, output, temporary):
     chosen = json.loads(selection.read_text())
     corpus = Path(chosen["corpus_path"])
     receipt = dict(chosen["fit"])
+    receipt["selection_candidate_fingerprint"] = receipt.pop("candidate_fingerprint")
+    receipt["source_repo"] = f"fse/{name}"
+    receipt["selection_xxh3"] = digest(selection)
     if version("wordfreq") != receipt["wordfreq_version"]:
         raise ValueError("wordfreq version differs from the selected preparation recipe")
     if digest(corpus) != receipt["corpus_xxh3"]:

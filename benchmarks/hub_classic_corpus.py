@@ -23,12 +23,12 @@ def tokenize(text: str) -> list[str]:
 
 
 def fit_corpus(cache: Path) -> Path:
-    import pyarrow.parquet as pq
-    from huggingface_hub import snapshot_download
-
     target = cache / "wikitext-103-b08601e0.txt"
     if target.exists():
         return checked_wikitext(target)
+    import pyarrow.parquet as pq
+    from huggingface_hub import snapshot_download
+
     folder = Path(
         snapshot_download(
             FIT_REPO,

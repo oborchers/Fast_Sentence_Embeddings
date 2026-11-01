@@ -2,6 +2,7 @@
 
 import importlib
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -67,7 +68,8 @@ def test_changed_fit_state_or_candidate_is_refused(evidence, monkeypatch, tmp_pa
 
 
 @pytest.mark.usefixtures("evidence")
-def test_changed_wikitext_cache_cannot_claim_the_pinned_revision(tmp_path):
+def test_changed_wikitext_cache_cannot_claim_the_pinned_revision(tmp_path, monkeypatch):
+    monkeypatch.setitem(sys.modules, "pyarrow", None)
     corpus = importlib.import_module("hub_classic_corpus")
     path = tmp_path / "wikitext-103-b08601e0.txt"
     path.write_text("changed corpus\n")

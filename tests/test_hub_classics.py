@@ -117,3 +117,42 @@ def test_fasttext_sif_weights_unknown_words_like_the_largest_known_weight(module
     np.testing.assert_array_equal(
         actual.encode(tokens).view(np.uint32), expected.encode(tokens).view(np.uint32)
     )
+
+
+def test_each_source_fit_receipt_names_its_own_vectors_and_the_selection_candidate(
+    modules, monkeypatch, tmp_path
+):
+    _, prepare, _ = modules
+    corpus = tmp_path / "corpus.txt"
+    corpus.write_text("a\n")
+    chosen = {
+        "corpus_path": str(corpus),
+        "fit": {
+            "candidate_fingerprint": "glove-candidate",
+            "source_repo": "fse/glove-wiki-gigaword-300",
+            "corpus_xxh3": prepare.digest(corpus),
+            "wordfreq_version": "fixture",
+        },
+    }
+    selection = tmp_path / "selection.json"
+    selection.write_text(json.dumps(chosen))
+    monkeypatch.setattr(prepare, "version", lambda _name: "fixture")
+    monkeypatch.setattr(prepare, "FIT_LINES", 1)
+    monkeypatch.setattr(
+        prepare, "wordfreq_weights", lambda words: np.ones(len(words), dtype=np.float32)
+    )
+    encoder = fse.Encoder.from_arrays(
+        np.eye(2, dtype=np.float32), words=["a", "b"], tokenizer="external", normalize=False
+    )
+    monkeypatch.setattr(prepare, "weighted_encoder", lambda _kv, _weights, _temporary: encoder)
+    monkeypatch.setattr(prepare, "components", lambda _gram: np.empty((0, 2), dtype=np.float32))
+    kv = types.SimpleNamespace(index_to_key=["a", "b"])
+    state, receipt = prepare.fit_state(
+        "word2vec-google-news-300", kv, selection, tmp_path, tmp_path
+    )
+    assert receipt["source_repo"] == "fse/word2vec-google-news-300"
+    assert receipt["source_revision"] == prepare.SOURCES["word2vec-google-news-300"]
+    assert receipt["selection_candidate_fingerprint"] == "glove-candidate"
+    assert "candidate_fingerprint" not in receipt
+    assert receipt["state_xxh3"] == prepare.digest(state)
+    assert receipt["selection_xxh3"] == prepare.digest(selection)
