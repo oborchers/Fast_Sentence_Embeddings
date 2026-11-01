@@ -269,3 +269,18 @@ def test_binding_preserves_receipt_before_a_pinned_measurement_can_timeout(
     assert (
         tmp_path / "input-identities" / path.with_suffix(".identity.json").name
     ).read_bytes() == data
+
+
+def test_preferred_margin_does_not_reject_a_feasible_maximum_input(modules, monkeypatch, tmp_path):
+    module = modules["pod4_calibration"]
+    options = SimpleNamespace(output=tmp_path, deadline=float("inf"), count=0)
+    monkeypatch.setattr(module, "MAX_ROWS", 250_000)
+    monkeypatch.setattr(
+        module, "bind_input", lambda options, _source, count: setattr(options, "count", count)
+    )
+    monkeypatch.setattr(module, "release_current", lambda _options: None)
+    monkeypatch.setattr(module, "calibration", lambda *_args: 2.2)
+    assert module.calibrate(options, [], [("model", "float32", 32)]) == 250_000
+    decision = json.loads((tmp_path / "calibration-decisions.jsonl").read_text().splitlines()[-1])
+    assert decision["revalidated_fallback"] is True
+    assert decision["memory_constrained"] is False
