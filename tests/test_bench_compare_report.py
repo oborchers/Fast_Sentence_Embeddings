@@ -74,3 +74,16 @@ def test_input_mismatch_cannot_form_a_pair(report):
     rows[0]["input_digest"] = "changed"
     with pytest.raises(ValueError, match="different inputs"):
         report.completed_rounds(rows)
+
+
+def test_large_aa_spread_labels_cell_without_dropping_it(report):
+    pair = {"fse-a": {"p50_s": 1.0}, "fse-b": {"p50_s": 1.9543}}
+    found = report.aa_summary([pair])
+    assert found["noise_status"] == "noisy, re-measure in a quiet window"
+    assert found["symmetric_aa_band"] == [1 / 1.9543, 1.9543]
+    assert found["aa_ratio_b_over_a"]["median"] == 1.9543
+
+
+def test_small_aa_spread_is_labeled_separately(report):
+    pair = {"fse-a": {"p50_s": 1.0}, "fse-b": {"p50_s": 1 / 1.05}}
+    assert report.aa_summary([pair])["noise_status"] == "within 10% A/A band"

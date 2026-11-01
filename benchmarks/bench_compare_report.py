@@ -84,14 +84,54 @@ def loads(pairs: list[dict]) -> tuple[float, float]:
     return min(endpoints), max(endpoints)
 
 
+def aa_summary(pairs: list[dict]) -> dict:
+    ratios = [pair["fse-b"]["p50_s"] / pair["fse-a"]["p50_s"] for pair in pairs]
+    if not ratios:
+        return {
+            "aa_ratio_b_over_a": None,
+            "symmetric_aa_band": None,
+            "noise_status": "unavailable, incomplete",
+        }
+    envelope = max(max(ratios), max(1 / value for value in ratios))
+    return {
+        "aa_ratio_b_over_a": spread(ratios),
+        "symmetric_aa_band": [1 / envelope, envelope],
+        "noise_status": (
+            "noisy, re-measure in a quiet window" if envelope > 1.1 else "within 10% A/A band"
+        ),
+    }
+
+
+def incomplete_aa(rows: list[dict]) -> list[dict]:
+    grouped: dict[tuple, dict] = {}
+    for row in rows:
+        if (
+            row["event"] == "operation"
+            and row.get("label") in ("fse-a", "fse-b")
+            and row["valid"]
+            and row["load_before"] < 5
+            and row["load_after"] < 5
+        ):
+            grouped.setdefault((row["series_id"], row["round"]), {})[row["label"]] = row
+    return [
+        pair
+        for pair in grouped.values()
+        if len(pair) == 2 and pair["fse-a"]["input_digest"] == pair["fse-b"]["input_digest"]
+    ]
+
+
 def summarize(path: Path, hourly_price: float) -> dict:
     rows = [json.loads(line) for line in path.read_text().splitlines()]
     pairs = completed_rounds(rows)
     if not pairs:
-        return {"raw": str(path), "status": "incomplete", "valid_pairs": 0}
+        return {
+            "raw": str(path),
+            "status": "incomplete",
+            "valid_pairs": 0,
+            **aa_summary(incomplete_aa(rows)),
+            "aa_scope": "diagnostic valid A/A operations, incomplete speed series",
+        }
     other = next(label for label in pairs[0] if label not in ("fse-a", "fse-b"))
-    noise = [pair["fse-b"]["p50_s"] / pair["fse-a"]["p50_s"] for pair in pairs]
-    envelope = max(max(noise), max(1 / value for value in noise))
     backends = {
         label: backend_summary([pair[label] for pair in pairs], hourly_price) for label in pairs[0]
     }
@@ -107,7 +147,8 @@ def summarize(path: Path, hourly_price: float) -> dict:
         "paired_speed_ratio_fse_over_other": spread(
             [pair[other]["p50_s"] / pair["fse-a"]["p50_s"] for pair in pairs]
         ),
-        "symmetric_aa_band": [1 / envelope, envelope],
+        **aa_summary(pairs),
+        "aa_scope": "complete valid paired series",
         "load_min": load_min,
         "load_max": load_max,
     }

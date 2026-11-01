@@ -592,3 +592,14 @@ The summary includes a reference-tariff calculation using the public CAX31 rate 
 
 
 A full-corpus numerical audit of the same 5,352 WikiText rows at source commit `945a640` uses exact cosine neighbors for every query, excluding itself. Native model2vec versus fse float32 has recall@10 1.0, minimum cosine 0.9999999999999971 and maximum absolute error 8.94e-8. fse float16 versus float32 has recall@10 0.999943946 and maximum centered-subspace angle 0.0236624 degrees. Int8 has recall@10 0.996337818 and maximum angle 1.3987229 degrees. All 5,352 queries are eligible and zero-vector disagreements are zero. This is numerical neighborhood stability; labeled task quality still requires MTEB. The audit ran at nice 10 with bounded CPU pools under the heavy-job lock. Its load ranged from 14.68 to 15.42 and its times are not used for speed comparisons. [Full diagnostics](benchmarks/baseline/results/dr151-numerics.jsonl) include every principal angle and provenance.
+
+
+**Repeatability warning for the alternatives comparison:** the one-worker and
+ten-worker WikiText POTION-8M cells above exceed the 10% symmetric A/A rule.
+They are **noisy, re-measure in a quiet window**. Keep their raw observations,
+but do not headline their throughput as a stable result. The one-worker MASSIVE
+cell is within the 10% band. The [per-cell A/A audit](docs/fse-comparison-aa.md)
+reports every initial and precision-matrix cell, including incomplete attempts.
+The largest complete matrix band reaches 1.9543, so the endpoint load gate alone
+did not ensure repeatability tonight. A/A is reported separately from the primary
+fse-a medians. This label does not relax the load gate or discard any record.

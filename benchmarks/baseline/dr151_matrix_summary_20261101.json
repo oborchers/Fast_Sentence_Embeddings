@@ -21,12 +21,34 @@
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-glove-wiki-gigaword-300-float16-w1.jsonl",
       "status": "incomplete",
-      "valid_pairs": 0
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": {
+        "median": 0.8921053803383285,
+        "min": 0.8921053803383285,
+        "max": 0.8921053803383285
+      },
+      "symmetric_aa_band": [
+        0.8921053803383285,
+        1.120943805563366
+      ],
+      "noise_status": "noisy, re-measure in a quiet window",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-glove-wiki-gigaword-300-float16-w10.jsonl",
       "status": "incomplete",
-      "valid_pairs": 0
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": {
+        "median": 1.0496754862487863,
+        "min": 0.9967490738889044,
+        "max": 1.102601898608668
+      },
+      "symmetric_aa_band": [
+        0.9069456539680028,
+        1.102601898608668
+      ],
+      "noise_status": "noisy, re-measure in a quiet window",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-glove-wiki-gigaword-300-float32-w1.jsonl",
@@ -123,10 +145,17 @@
         "min": 22.927752012146005,
         "max": 24.64040188575115
       },
+      "aa_ratio_b_over_a": {
+        "median": 1.0403690146506595,
+        "min": 0.9470861213845604,
+        "max": 1.040736470564603
+      },
       "symmetric_aa_band": [
         0.9470861213845604,
         1.055870186903472
       ],
+      "noise_status": "within 10% A/A band",
+      "aa_scope": "complete valid paired series",
       "load_min": 4.30078125,
       "load_max": 4.4365234375
     },
@@ -225,10 +254,17 @@
         "min": 28.90138330371963,
         "max": 33.532352659350664
       },
+      "aa_ratio_b_over_a": {
+        "median": 1.028977730004172,
+        "min": 0.7850111276557088,
+        "max": 1.1499594202627075
+      },
       "symmetric_aa_band": [
         0.7850111276557089,
         1.2738672927940726
       ],
+      "noise_status": "noisy, re-measure in a quiet window",
+      "aa_scope": "complete valid paired series",
       "load_min": 4.4365234375,
       "load_max": 4.9619140625
     },
@@ -327,17 +363,35 @@
         "min": 22.023264660433725,
         "max": 23.66499436618588
       },
+      "aa_ratio_b_over_a": {
+        "median": 0.9284231660006196,
+        "min": 0.8729813797544949,
+        "max": 0.9632618724825288
+      },
       "symmetric_aa_band": [
         0.8729813797544949,
         1.145499804682233
       ],
+      "noise_status": "noisy, re-measure in a quiet window",
+      "aa_scope": "complete valid paired series",
       "load_min": 4.3681640625,
       "load_max": 4.65869140625
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-glove-wiki-gigaword-300-int8-w10.jsonl",
       "status": "incomplete",
-      "valid_pairs": 0
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": {
+        "median": 0.9888062070164503,
+        "min": 0.9888062070164503,
+        "max": 0.9888062070164503
+      },
+      "symmetric_aa_band": [
+        0.9888062070164502,
+        1.011320512456455
+      ],
+      "noise_status": "within 10% A/A band",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-8M-float16-w1.jsonl",
@@ -434,22 +488,51 @@
         "min": 22.804130039258116,
         "max": 24.67854140207984
       },
+      "aa_ratio_b_over_a": {
+        "median": 0.993128073901507,
+        "min": 0.8899244183346614,
+        "max": 1.013365235193031
+      },
       "symmetric_aa_band": [
         0.8899244183346614,
         1.123690933069716
       ],
+      "noise_status": "noisy, re-measure in a quiet window",
+      "aa_scope": "complete valid paired series",
       "load_min": 4.302734375,
       "load_max": 4.7587890625
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-8M-float16-w10.jsonl",
       "status": "incomplete",
-      "valid_pairs": 0
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": {
+        "median": 1.0261259628067232,
+        "min": 1.0261259628067232,
+        "max": 1.0261259628067232
+      },
+      "symmetric_aa_band": [
+        0.9745392244678598,
+        1.0261259628067232
+      ],
+      "noise_status": "within 10% A/A band",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-8M-float32-w1.jsonl",
       "status": "incomplete",
-      "valid_pairs": 0
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": {
+        "median": 0.8587529593754479,
+        "min": 0.8587529593754479,
+        "max": 0.8587529593754479
+      },
+      "symmetric_aa_band": [
+        0.8587529593754479,
+        1.164479247590923
+      ],
+      "noise_status": "noisy, re-measure in a quiet window",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-8M-float32-w10.jsonl",
@@ -546,32 +629,76 @@
         "min": 30.511687260612476,
         "max": 41.08533132617376
       },
+      "aa_ratio_b_over_a": {
+        "median": 1.2596793412165566,
+        "min": 1.0566827300667463,
+        "max": 1.9543100299824505
+      },
       "symmetric_aa_band": [
         0.511689539867418,
         1.9543100299824505
       ],
+      "noise_status": "noisy, re-measure in a quiet window",
+      "aa_scope": "complete valid paired series",
       "load_min": 4.302734375,
       "load_max": 4.32958984375
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-word2vec-google-news-300-float16-w1.jsonl",
       "status": "incomplete",
-      "valid_pairs": 0
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": {
+        "median": 0.951927717372415,
+        "min": 0.951927717372415,
+        "max": 0.951927717372415
+      },
+      "symmetric_aa_band": [
+        0.9519277173724151,
+        1.0504999295117468
+      ],
+      "noise_status": "within 10% A/A band",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-word2vec-google-news-300-float16-w10.jsonl",
       "status": "incomplete",
-      "valid_pairs": 0
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": {
+        "median": 1.118093808511176,
+        "min": 0.9794285010418963,
+        "max": 1.2567591159804556
+      },
+      "symmetric_aa_band": [
+        0.7956974310226936,
+        1.2567591159804556
+      ],
+      "noise_status": "noisy, re-measure in a quiet window",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-word2vec-google-news-300-float32-w1.jsonl",
       "status": "incomplete",
-      "valid_pairs": 0
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-word2vec-google-news-300-float32-w10.jsonl",
       "status": "incomplete",
-      "valid_pairs": 0
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": {
+        "median": 1.480945949240212,
+        "min": 1.480945949240212,
+        "max": 1.480945949240212
+      },
+      "symmetric_aa_band": [
+        0.6752440901121627,
+        1.480945949240212
+      ],
+      "noise_status": "noisy, re-measure in a quiet window",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-word2vec-google-news-300-int8-w1.jsonl",
@@ -668,10 +795,17 @@
         "min": 23.685826315401382,
         "max": 23.906319700453217
       },
+      "aa_ratio_b_over_a": {
+        "median": 1.045784241352199,
+        "min": 0.9527235355047073,
+        "max": 1.0693396310217402
+      },
       "symmetric_aa_band": [
         0.935156587289777,
         1.0693396310217402
       ],
+      "noise_status": "within 10% A/A band",
+      "aa_scope": "complete valid paired series",
       "load_min": 4.22265625,
       "load_max": 4.52490234375
     },
@@ -770,10 +904,17 @@
         "min": 33.65948392473193,
         "max": 38.37033184687514
       },
+      "aa_ratio_b_over_a": {
+        "median": 0.9840375041644317,
+        "min": 0.9301786756523641,
+        "max": 1.0281345116496323
+      },
       "symmetric_aa_band": [
         0.930178675652364,
         1.0750622715562341
       ],
+      "noise_status": "within 10% A/A band",
+      "aa_scope": "complete valid paired series",
       "load_min": 4.36328125,
       "load_max": 4.482421875
     }
