@@ -102,7 +102,7 @@ network test. No model upload or paid service is needed.
 
 The isolated CI job tests Python 3.11 with the minimum framework and Python 3.13
 with the latest framework. Network tests and the real-model retrieval example
-run only when requested locally. See [release setup](../README.md#release-setup)
+run only when requested locally. See [release setup](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/integrations/README.md#release-setup)
 for the package tag, approval environment and pending PyPI publisher.
 
 ## AI assistance

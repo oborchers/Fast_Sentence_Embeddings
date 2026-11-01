@@ -1,3 +1,5 @@
+import runpy
+from pathlib import Path
 from threading import get_ident
 
 import pytest
@@ -83,9 +85,6 @@ def test_validation(encoder):
 @pytest.mark.network
 @pytest.mark.enable_socket
 def test_potion_retrieval():
-    import runpy
-    from pathlib import Path
-
     runpy.run_path(str(Path(__file__).parents[1] / "examples" / "retrieval.py"))
 
 
