@@ -306,5 +306,11 @@ def test_completely_filtered_library_cannot_disappear(tmp_path, include_complete
 def test_short_individual_calls_cannot_hide_behind_a_median(calls):
     sample = row()
     sample["call_seconds"] = calls
-    with pytest.raises(ValueError, match="2 seconds|finite"):
+    with pytest.raises(ValueError, match=r"2 seconds|finite"):
         PANEL["measured"](sample)
+
+
+@pytest.mark.parametrize("workers", [2, 4, 8])
+def test_dropped_worker_points_cannot_enter_library_bars(workers):
+    with pytest.raises(ValueError, match="measured panel setting"):
+        PANEL["comparison"](pair(workers))
