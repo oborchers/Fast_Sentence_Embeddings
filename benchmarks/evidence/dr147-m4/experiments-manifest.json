@@ -1,0 +1,279 @@
+{
+  "ticket": "DR-147 (MLX-Gate entscheiden und auf dem M4 Pro nachmessen)",
+  "recorded_at": "2026-11-01T09:38:07.825434+01:00",
+  "decision": "The maintainer permanently ended MLX work on 1 November 2026. Archive only, no resume or integration. Master removal was reported by the maintainer and was not independently verified here.",
+  "measured_head": "ef4d6a7bb33ac65a711458365312a5c0faf0b96a",
+  "fse_tree": "a9349076427d1811bcd85702f1dd7a9eed2639e0",
+  "native_checksum": "xxh3-128:2d9d0a93859e347a5220443fab372260",
+  "stage3_blocks": [
+    16,
+    16,
+    3,
+    0
+  ],
+  "stages4_and5": "not implemented or run",
+  "entries": [
+    {
+      "path": "scratch/stage1/dr147-stage1.py",
+      "source": "/Users/oliver.borchers/Desktop/Code/fse-m4-scratch/dr147-stage1.py",
+      "bytes": 33503,
+      "sha256": "eba55b15b3b29b458b82f9700509d68e1af4e226a005500986afabf8c10bd0ff",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "scratch/stage1/dr147_stage1_supervision.py",
+      "source": "/Users/oliver.borchers/Desktop/Code/fse-m4-scratch/dr147_stage1_supervision.py",
+      "bytes": 6359,
+      "sha256": "a47212a90eadb6daad4316df4c371c7a1df55f2986ba6047b9179272048fa5a9",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "scratch/stage1/dr147_stage1_cancel.py",
+      "source": "/Users/oliver.borchers/Desktop/Code/fse-m4-scratch/dr147_stage1_cancel.py",
+      "bytes": 5259,
+      "sha256": "944b6f6e30093272a2f529f9cb983529226e6fa1addccabb8f8d49dfacb2f1da",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "scratch/stage2/dr147-stage2.py",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage2/dr147-stage2.py",
+      "bytes": 38593,
+      "sha256": "c8a80fbb589e8da57c1fb96fa47dbd969ad0ad48d573d7ea78f4988684090030",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "scratch/stage2/dr147_stage2_imports.py",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage2/dr147_stage2_imports.py",
+      "bytes": 7135,
+      "sha256": "6dc9bc6800532483d635622c5148ed438707e1579f43ab8ecd90e177a95eed46",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "scratch/stage3/dr147-stage3.py",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/dr147-stage3.py",
+      "bytes": 20881,
+      "sha256": "37fb27f4dbb3a740421062588e3b07beb024966657750edf38c210bfbcb4d57a",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "scratch/stage3/dr147_stage3_checks.py",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/dr147_stage3_checks.py",
+      "bytes": 19207,
+      "sha256": "912c8d035b74dd1d7f07983e769e39f6624c900033033ddb6d6cf594f4195c5a",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "scratch/stage3/dr147_stage3_control.py",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/dr147_stage3_control.py",
+      "bytes": 9724,
+      "sha256": "d637dc9b3dc6f9553a8d217efdae23f4a0ee504563f9681f369f77ddfbd4984a",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "scratch/stage3/dr147_stage3_pack.py",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/dr147_stage3_pack.py",
+      "bytes": 8416,
+      "sha256": "c96ca336aa15a7a58fefb39faace09a38a924de600a2453d557cef34cf3d1c99",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "replay/DR-147-stage1-offline-summary.py",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-stage1-offline-summary.py",
+      "bytes": 6901,
+      "sha256": "7cd15ea6e36d181d5a7e3bb1e1c32141efeae6a387886985051adf34c38aa582",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "replay/DR-147-stage2-offline-summary.py",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-stage2-offline-summary.py",
+      "bytes": 8248,
+      "sha256": "99a5928b4ad4716c4c2ba190272d7bceb1401956c2ae99af6d82db214bd55691",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "replay/DR-147-stage3-offline-summary.py",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-stage3-offline-summary.py",
+      "bytes": 10784,
+      "sha256": "ebfd8a43932e764cdfc76d0c31e67099492a5aa33a35c30024a70e02d561364f",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "reports/DR-147-stage1-report.md",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-stage1-report.md",
+      "bytes": 20250,
+      "sha256": "398631d716d1f1bed1c3a96b49c5d79d59b3b41307ecff5bc9a7acff9f67744f",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "reports/DR-147-stage2-report.md",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-stage2-report.md",
+      "bytes": 24234,
+      "sha256": "e9b0ce2dbf00582f7d071e4133f87d9bc59c1f02cc54ae8ec905caee73bddd39",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "reports/DR-147-pause-handoff-worker.md",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-pause-handoff-worker.md",
+      "bytes": 8561,
+      "sha256": "290f2988f20ce959a06006891d8d6f44e6c6682b1e5a8ff0e32eb09520c1240d",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "reports/DR-147-stage1-root-inspection.md",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-stage1-root-inspection.md",
+      "bytes": 4459,
+      "sha256": "eb73c65a9fc2092e06a6d7a24d46ba3239d262e56a7e3c7e54088192fed9a597",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "reports/DR-147-stage2-root-result-inspection.md",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-stage2-root-result-inspection.md",
+      "bytes": 4635,
+      "sha256": "ed9fe6d8d9f75fb13f9ac1ad58197cf10e7468aa06b88585d0fff067f0ca3744",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "plans/DR-147-stage2-plan.md",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-stage2-plan.md",
+      "bytes": 9168,
+      "sha256": "270962af090aac14b4b8c54a41ab2e7aeb1015c13b19ff22e066d0d41d8a6193",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "plans/DR-147-stage3-plan.md",
+      "source": "/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-stage3-plan.md",
+      "bytes": 10600,
+      "sha256": "ba833427faffade62155c8b6533b5b5c6c896b865df3eaf2299ead17b2bec51b",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "receipts/DR-147-time-limit-removal.json",
+      "source": "/Users/oliver.borchers/Desktop/Code/fse-m4-scratch/DR-147-time-limit-removal.json",
+      "bytes": 1149,
+      "sha256": "148ad5c6061e5a2d91afc5d438d6ce03fde13dc18feb6ec69b626e3fa2703c91",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "receipts/dr147-cache-receipt.json",
+      "source": "/Users/oliver.borchers/Desktop/Code/fse-m4-scratch/dr147-cache-receipt.json",
+      "bytes": 1725,
+      "sha256": "f63df42dea8d6b1eeb59892773678f25f412bb562cbd282d30c17256e5905a4d",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "accounting/budget.jsonl",
+      "source": "/Users/oliver.borchers/Desktop/Code/fse-m4-scratch/budget.jsonl",
+      "bytes": 20360,
+      "sha256": "2301b7e16b0067419e620b79284a351e3bed049bc1deec3db160b6ceaf32059d",
+      "mode": "unchanged static snapshot"
+    },
+    {
+      "path": "evidence/stage1-compact.json",
+      "bytes": 77087,
+      "sha256": "5b8dd2b3361d247c92c77b7d3aa1b9ce24f77d10d86591c860127d3bfa3cf37e",
+      "mode": "field selection only, no new measurements",
+      "sources": [
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-stage1-summary.json",
+          "sha256": "f8c8e766da3b825e0375ba79c88038dd08c751f8f831fda64e2451d5c9661fbc"
+        }
+      ]
+    },
+    {
+      "path": "evidence/stage2-compact.json",
+      "bytes": 120004,
+      "sha256": "587834b9b8a4237691255515b8494bd10d40f7d4ceaac2c22f4d3ea876c4f9d6",
+      "mode": "field selection only, no new measurements",
+      "sources": [
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-stage2-summary.json",
+          "sha256": "b95489ff543f772a9262f41796b2234b5dc2cd912e3baf85db9b5d87fd6d8011"
+        }
+      ]
+    },
+    {
+      "path": "evidence/stage3-partial.json",
+      "bytes": 59914,
+      "sha256": "960ab7a00f16e53727775386ac7e9e3f3d2860e027337d6f90274fca24254692",
+      "mode": "field selection only, no new measurements",
+      "sources": [
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4-results/DR-147-pause-worker-status.json",
+          "sha256": "b4baf475a81be10849f396d2722e4a18eed75a3c65524574e6ab9feae41005dc"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/timing-wikitext-raw/result.json",
+          "sha256": "11b90fd7e457bf8b3fa5567eda4326787b180bab43fb0402d6ee5d0a97cf9a42"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-05904b4cfde7/timing-wikitext-norm/result.json",
+          "sha256": "49d75d98ab4a4829f7f3af967b673fe542f6851ccc78ca546c77eca6eb9cd74e"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-45ce18886774/timing-massive-raw/result.json",
+          "sha256": "5f3cb36babd48a7c0c1121f4fe3cb9410c1d3a16bf1d97c80e5f740a1abdfc9d"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/audit-wikitext-raw/result.json",
+          "sha256": "ab3679694b4744b2e39e406e827785e4a6d25cd971e3b011c0a59256689eae21"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/audit-wikitext-norm/result.json",
+          "sha256": "6cfbd82964c52afe8ba10a4cb73b81b9217fc23666f149aa8d19c9d238c942ee"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/audit-massive-raw/result.json",
+          "sha256": "4b286a8f666365d69db818a8923b6afb91531e1597b2ac8d51e4493a69eb2f47"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/audit-massive-norm/result.json",
+          "sha256": "1b1f6e6ae24bbf2c63c407a2149b4ba275c8d2503d31fa03bb1bb02618c1fa46"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/memory-wikitext-raw-B/result.json",
+          "sha256": "d61760dbbd21e6de4cbd051b13035d55a0d3972d4881b57a70eef8f10431bc11"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/memory-wikitext-raw-D/result.json",
+          "sha256": "833e851cf71125dddc3afe5e81bf81894f20e6d12ebaa9b7aabb8b4e0b029f41"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/memory-wikitext-norm-B/result.json",
+          "sha256": "f31156ab6573cec294cee9b9b1cdc1fbde80db3f5b52fc71d006311908f1300e"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/memory-wikitext-norm-D/result.json",
+          "sha256": "a7cb58bd4d70f593387e8dd59db5f5844cc724d0e195f7f7d9228c9221666f98"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/memory-massive-raw-B/result.json",
+          "sha256": "798de5ba3c037af8126a8619dd3b8f2f1dd003f1e39b37a89e072dda89bb34cb"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/memory-massive-raw-D/result.json",
+          "sha256": "5135fa8a1bae8eb5e4b4463a1443cb03214b4e8d18b1924ffa8d43966fc7e822"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/memory-massive-norm-B/result.json",
+          "sha256": "94844f87fe990c882be97da9581d683571132f5884c7e58ecdedfebed06fed8e"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/memory-massive-norm-D/result.json",
+          "sha256": "2869fc474022c3666f02365178e0d4867fd5f6e226d10bdd8b497fa8a2e33de1"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/cancel-massive-raw/result.json",
+          "sha256": "6273b7fc21502bfd07b7a6436c279af602ca618c74e3cc99800f623a344b8cd8"
+        },
+        {
+          "path": "/Users/oliver.borchers/Desktop/fse-m4/dr147-stage3/run-4b6fbee1b9fe/cancel-massive-norm/result.json",
+          "sha256": "99429a2021956c0bb987321fea3a6ae1fa9a21a4c18d495b494743a0f1866f02"
+        }
+      ]
+    }
+  ],
+  "omitted": "Models, vector tables, corpus/token arrays, reference .npy files, full raw journals, process dumps, large profiles and failed timestamp-trace/hooks. All local originals outside the worktree remain unchanged.",
+  "archive": "experiments-archive.zip",
+  "archive_bytes": 203158,
+  "archive_sha256": "2bdba482ecef6d66d2a9c9e0147f228264ac3a9bee22aa0433c2f6ca27a8a18c"
+}
