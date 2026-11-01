@@ -1,0 +1,13 @@
+{
+  "captured_at": "2026-11-01T01:13:19.896604+01:00",
+  "capture_note": "Captured on the same machine after the retained notebook executions. The notebook outputs separately record their execution date, platform and architecture.",
+  "cpu_model": "Apple M1 Pro",
+  "cpu_model_command": [
+    "sysctl",
+    "-n",
+    "machdep.cpu.brand_string"
+  ],
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "architecture": "arm64",
+  "python": "3.13.16"
+}

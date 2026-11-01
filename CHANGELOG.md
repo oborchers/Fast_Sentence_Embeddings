@@ -15,6 +15,13 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 - Pinned comparison caches select inference files without requiring unused model exports or evaluation metadata.
 
 - Comparison recorders reject backend or shared encoder code changes during evaluation, and precision deltas require matching executing runtimes.
+- `ShardSink` reports the first thread failure instead of a later failure caused by it, regardless of which thread the caller checks first.
+
+- `MemorySink` accepts positive numpy integer dimensions, matching the public integer validation contract. Booleans, floats and nonpositive dimensions remain errors.
+
+- The README documents the existing `StaticModel` export methods. The runtime error contract distinguishes eager collection validation from row ordering during a run.
+
+- Classifier predictions preserve trailing NUL characters in string labels, using an object array when needed. Labels without a valid UTF-8 representation raise at construction.
 
 - Removed the MLX backend before 2.0 because its maintenance cost brought no useful benefit. CPU and numpy remain available.
 
@@ -31,6 +38,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 ### Added
 
 - Reproducible CPU comparison journals with paired A/A controls, pinned inputs and environments, explicit table precision, numerical subspace and recall checks, and native Model2Vec quality adapters. Initial POTION-8M measurements and remaining comparison scope are documented in PERFORMANCE.md.
+- Local recipe notebooks for offline SIF/uSIF tables, linear heads, resumable file and queue jobs, folder polling and application integrations, with a localhost overhead measurement. Recipe dependencies remain separate from fse.
 
 - A measured RunPod EPYC 9655P roofline profile and Linux x86 performance observations, with shared-host, CPU-affinity and profiling limitations.
 
