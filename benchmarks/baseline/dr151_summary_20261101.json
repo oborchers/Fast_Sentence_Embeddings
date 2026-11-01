@@ -1,0 +1,297 @@
+{
+  "reference_tariff": {
+    "provider": "Hetzner Cloud",
+    "plan": "CAX31",
+    "hourly_price": 0.0344,
+    "currency": "EUR",
+    "price_basis": "per server-hour, excluding VAT",
+    "vcpus": 8,
+    "ram_gib": 16,
+    "processor": "Ampere Arm",
+    "source": "https://www.hetzner.com/cloud/cost-optimized/",
+    "observed_at_utc": "2026-11-01T00:13:19.859506+00:00",
+    "displayed_hourly_price": "\u20ac 0.0344 per hour, excl. VAT",
+    "availability_in_static_markup": "not available",
+    "use": "Reference tariff only. Local M1 Pro throughput is not measured CAX31 throughput.",
+    "formula": "EUR per million = 1000000 / measured_texts_per_second / 3600 * 0.0344",
+    "excluded": "VAT, storage, transfers, startup, idle time and minimum billing granularity",
+    "paid_resources_used": false
+  },
+  "cells": [
+    {
+      "raw": "benchmarks/baseline/results/dr151-model2vec-wikitext-1.jsonl",
+      "status": "complete",
+      "valid_pairs": 3,
+      "corpus": "wikitext",
+      "workers": 1,
+      "input_digest": "xxh3-128:15151abfbf2f482115b1180347b4295e",
+      "backends": {
+        "fse-a": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 219333.02645656004,
+            "min": 199744.97467110865,
+            "max": 221304.1093166773
+          },
+          "peak_rss_bytes": 216088576,
+          "model_setup_seconds": {
+            "median": 0.2042666249908507,
+            "min": 0.19900704093743116,
+            "max": 0.6625961249228567
+          },
+          "reference_tariff_eur_per_million": {
+            "median": 4.35664236705733e-05,
+            "min": 4.3178391874693745e-05,
+            "max": 4.7838778278599084e-05
+          }
+        },
+        "fse-b": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 216283.9332421588,
+            "min": 206749.35416591068,
+            "max": 221990.2491695742
+          },
+          "peak_rss_bytes": 217317376,
+          "model_setup_seconds": {
+            "median": 0.1968491249717772,
+            "min": 0.19640870799776167,
+            "max": 0.19879825005773455
+          },
+          "reference_tariff_eur_per_million": {
+            "median": 4.418060746498832e-05,
+            "min": 4.304493369101201e-05,
+            "max": 4.621806725397306e-05
+          }
+        },
+        "model2vec": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 8905.905173183006,
+            "min": 8878.995688402765,
+            "max": 8956.32910975459
+          },
+          "peak_rss_bytes": 234438656,
+          "model_setup_seconds": {
+            "median": 0.15022420790046453,
+            "min": 0.1488557499833405,
+            "max": 0.1927517500007525
+          },
+          "reference_tariff_eur_per_million": {
+            "median": 0.0010729460251080085,
+            "min": 0.0010669053625048607,
+            "max": 0.0010761977920584504
+          }
+        }
+      },
+      "paired_speed_ratio_fse_over_other": {
+        "median": 24.489165568701388,
+        "min": 22.42837429625573,
+        "max": 24.924452841635233
+      },
+      "symmetric_aa_band": [
+        0.8997916594008921,
+        1.1113683812826511
+      ],
+      "load_min": 4.60888671875,
+      "load_max": 4.98876953125
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-model2vec-wikitext-10.jsonl",
+      "status": "complete",
+      "valid_pairs": 3,
+      "corpus": "wikitext",
+      "workers": 10,
+      "input_digest": "xxh3-128:15151abfbf2f482115b1180347b4295e",
+      "backends": {
+        "fse-a": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 909269.7567096162,
+            "min": 830368.1314390005,
+            "max": 944310.889414066
+          },
+          "peak_rss_bytes": 217874432,
+          "model_setup_seconds": {
+            "median": 0.19868583406787366,
+            "min": 0.1969496669480577,
+            "max": 0.20179829094558954
+          },
+          "reference_tariff_eur_per_million": {
+            "median": 1.0509043641937837e-05,
+            "min": 1.0119078009875189e-05,
+            "max": 1.1507613543641294e-05
+          }
+        },
+        "fse-b": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 831099.0002114024,
+            "min": 816725.1550712116,
+            "max": 842016.891470309
+          },
+          "peak_rss_bytes": 216449024,
+          "model_setup_seconds": {
+            "median": 0.20033954095561057,
+            "min": 0.1991977080469951,
+            "max": 0.2102572500007227
+          },
+          "reference_tariff_eur_per_million": {
+            "median": 1.1497493743976299e-05,
+            "min": 1.1348413140346722e-05,
+            "max": 1.1699842347481498e-05
+          }
+        },
+        "model2vec": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 26048.311298326713,
+            "min": 22894.228467619476,
+            "max": 26880.4411808928
+          },
+          "peak_rss_bytes": 244383744,
+          "model_setup_seconds": {
+            "median": 0.15001691703218967,
+            "min": 0.14971637504640967,
+            "max": 0.15174475009553134
+          },
+          "reference_tariff_eur_per_million": {
+            "median": 0.0003668397327610786,
+            "min": 0.00035548358344459957,
+            "max": 0.00041737836106032073
+          }
+        }
+      },
+      "paired_speed_ratio_fse_over_other": {
+        "median": 36.252288242375485,
+        "min": 30.891164540455687,
+        "max": 39.71611264365797
+      },
+      "symmetric_aa_band": [
+        0.8648901164085697,
+        1.1562162418417614
+      ],
+      "load_min": 4.35498046875,
+      "load_max": 4.60888671875
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-model2vec-massive-1.jsonl",
+      "status": "complete",
+      "valid_pairs": 3,
+      "corpus": "massive",
+      "workers": 1,
+      "input_digest": "xxh3-128:f532343c5cfa1d7e539bc8fe33de37ab",
+      "backends": {
+        "fse-a": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 878259.566949336,
+            "min": 861891.6213457087,
+            "max": 903737.9427905612
+          },
+          "peak_rss_bytes": 474349568,
+          "model_setup_seconds": {
+            "median": 0.21603095799218863,
+            "min": 0.20167679199948907,
+            "max": 0.25486470793839544
+          },
+          "reference_tariff_eur_per_million": {
+            "median": 1.0880104145915652e-05,
+            "min": 1.0573369893101886e-05,
+            "max": 1.1086725197114753e-05
+          }
+        },
+        "fse-b": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 871424.6366641936,
+            "min": 835588.2796747439,
+            "max": 901519.4576006153
+          },
+          "peak_rss_bytes": 471777280,
+          "model_setup_seconds": {
+            "median": 0.20955349993892014,
+            "min": 0.2040311669697985,
+            "max": 0.25502962502650917
+          },
+          "reference_tariff_eur_per_million": {
+            "median": 1.0965441133422787e-05,
+            "min": 1.0599389147947584e-05,
+            "max": 1.1435722338368717e-05
+          }
+        },
+        "model2vec": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 57000.909362853476,
+            "min": 56620.404944128575,
+            "max": 57191.22673182211
+          },
+          "peak_rss_bytes": 631898112,
+          "model_setup_seconds": {
+            "median": 0.1585922499652952,
+            "min": 0.15360004198737442,
+            "max": 0.16833470796700567
+          },
+          "reference_tariff_eur_per_million": {
+            "median": 0.00016763865107356953,
+            "min": 0.00016708079370919825,
+            "max": 0.00016876522810080056
+          }
+        }
+      },
+      "paired_speed_ratio_fse_over_other": {
+        "median": 15.511361457339945,
+        "min": 15.070346810136499,
+        "max": 15.85479868465944
+      },
+      "symmetric_aa_band": [
+        0.96948184549016,
+        1.0314788303172508
+      ],
+      "load_min": 3.900390625,
+      "load_max": 4.35498046875
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-model2vec-massive-10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0
+    }
+  ]
+}

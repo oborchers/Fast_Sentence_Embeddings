@@ -566,3 +566,26 @@ The models and corpora come from the local Hugging Face cache; nothing is downlo
 - J. D. McCalpin, STREAM, https://www.cs.virginia.edu/stream/: sustained memory bandwidth measured, not quoted.
 - Apple Newsroom, "Introducing M1 Pro and M1 Max", 18.10.2021, https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max-the-most-powerful-chips-apple-has-ever-built/: "up to 200GB/s of memory bandwidth", "10-core CPU, including eight high-performance cores and two high-efficiency cores".
 - Apple Newsroom, "Apple introduces M4 Pro and M4 Max", 30.10.2024, https://www.apple.com/newsroom/2024/10/apple-introduces-m4-pro-and-m4-max/: "273GB/s of memory bandwidth", "up to 14-core CPU consisting of up to 10 performance cores and four efficiency cores".
+
+
+## Alternatives comparison (partial, 01.11.2026)
+
+DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen) currently has three complete speed cells. The full eight-model, three-table-precision matrix and quality comparison remain open. The [decision-table draft and protocol](docs/fse-comparison.md) record the full scope.
+
+These measurements use an Apple M1 Pro, macOS 27.0.1 arm64, Python 3.13.16, numpy 2.5.4, tokenizers 0.23.3 and model2vec 0.10.0. The measured source commit is `b7ffa8c`; the installed fse distribution identifies itself as `1.1.1.dev862+g82b6f5b12`. The runtime sources are unchanged by this benchmark PR. Both sides load `minishlab/potion-base-8M` at `bf8b056651a2c21b8d2565580b8569da283cab23`, with float32 tables and float32 outputs. The pinned source weight file contains 30,236,760 bytes.
+
+Each cell has three valid rotating rounds of fse A, identical fse B and native model2vec in fresh processes. Each child records a first call and three warm calls. The table reports the median across rounds of each child's warm median. Ranges cover those three independent round rates. The ratio is the median of paired rate ratios, which can differ from the ratio of the displayed medians. WikiText has 5,352 nonempty validation/test texts; MASSIVE has 151,674 test texts. Ordered input digests and exact dataset revisions are in every operation record.
+
+| Corpus | Workers | fse A texts/s, median (range) | model2vec texts/s, median (range) | Paired fse/model2vec ratio | Symmetric A/A band |
+|---|---:|---:|---:|---:|---:|
+| WikiText-103 | 1 | 219,333 (199,745 to 221,304) | 8,906 (8,879 to 8,956) | 24.49 | 0.900 to 1.111 |
+| WikiText-103 | 10 | 909,270 (830,368 to 944,311) | 26,048 (22,894 to 26,880) | 36.25 | 0.865 to 1.156 |
+| MASSIVE | 1 | 878,260 (861,892 to 903,738) | 57,001 (56,620 to 57,191) | 15.51 | 0.969 to 1.031 |
+
+All retained endpoint loads are strictly below 5: 4.609 to 4.989 for one-worker WikiText, 4.355 to 4.609 for ten-worker WikiText, and 3.900 to 4.355 for MASSIVE. Model2vec uses its one-worker mode or its default automatic parallelism. WikiText is below its 10,000-text joblib threshold, so the default run uses tokenizer parallelism. MASSIVE's all-core cell crossed the load limit and remains incomplete. Its rejected observations are retained and excluded from this table.
+
+Peak process RSS for fse A/model2vec is 206.1/223.6 MiB on one-worker WikiText, 207.8/233.1 MiB on ten-worker WikiText, and 452.4/602.6 MiB on one-worker MASSIVE. These peaks include imports, corpus preparation and encoding. Median model setup takes 0.204/0.150 s, 0.199/0.150 s and 0.216/0.159 s respectively. fse setup converts the pinned Hub files; model2vec loads its source format. Saved fse artifact startup will be measured separately with explicit table precision.
+
+[Raw journals and retained/rejected rounds](benchmarks/baseline/results/) feed the [machine-readable summary](benchmarks/baseline/dr151_summary_20261101.json). Numerical parity, the full MTEB/NanoBEIR matrix, profiles, classifiers, search, lifecycle and remaining precision cells are still required before a complete recommendation.
+
+The summary includes a reference-tariff calculation using the public CAX31 rate of EUR 0.0344 per server-hour, excluding VAT, observed on [Hetzner's pricing page](https://www.hetzner.com/cloud/cost-optimized/) on 01.11.2026. The [price evidence](benchmarks/baseline/dr151_cpu_price_20261101.json) records its eight Ampere vCPUs, 16 GiB memory and availability markup. It values measured local encode time with `1,000,000 / texts_per_second / 3,600 * hourly_price`. This scenario assumes the measured throughput at the reference tariff. Actual CAX31 throughput and deployment cost were not measured. Storage, transfer, startup, idle time, VAT and billing granularity are excluded.
