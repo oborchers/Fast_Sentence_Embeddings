@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- Recipes now guide end users through real POTION and public-dataset examples, with diagrams, a first fse 101 recipe, and a shared-split classification comparison.
+
 - `ShardSink` reports the first thread failure instead of a later failure caused by it, regardless of which thread the caller checks first.
 
 - `MemorySink` accepts positive numpy integer dimensions, matching the public integer validation contract. Booleans, floats and nonpositive dimensions remain errors.
