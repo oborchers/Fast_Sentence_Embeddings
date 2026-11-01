@@ -207,6 +207,7 @@ Name machine, OS, Python, NumPy, library versions, model revisions, worker count
 | potion-multilingual-128M | pending | pending | model2vec: pending |
 | static-retrieval-mrl-en-v1 | pending | pending | sentence-transformers: pending |
 | static-similarity-mrl-multilingual-v1 | pending | pending | sentence-transformers: pending |
+
 The classic models have fse-only measurements:
 
 | Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) |
