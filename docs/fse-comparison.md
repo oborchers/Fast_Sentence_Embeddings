@@ -76,3 +76,33 @@ lock and load strictly below five at both endpoints. Results are pending.
 
 Sources: [FAISS metrics](https://github.com/facebookresearch/faiss/wiki/MetricType-and-distances),
 [hnswlib parameters](https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md).
+
+### Classifier reconstruction protocol
+
+The historical MinishLab source at `79c655983241d68f8754dda48246b30bc34b897b`
+states 14 classification datasets, but its table has 15 dataset rows. The local
+reconstruction uses all 15 displayed rows. The [pinned SetFit manifest](../benchmarks/baseline/dr151_setfit_sources_20261101.json)
+records exact revisions and the two ambiguous dataset-name mappings. Original
+hardware, training selection, CV settings and speed averaging were not disclosed
+in that source. The stated 17,925 samples/s therefore remains a historical
+reference, not an exact replication target with a fully known protocol.
+
+`quality/prepare_setfit.py` selects exactly 1,000 stratified training examples
+with seed zero and evaluates the full test set. It fits LogisticRegressionCV
+with five folds, ten Cs and max_iter=1000, without a validation-set search.
+Both frozen POTION-8M and POTION-32M are tested through fse and native model2vec.
+Each source library gets its own fitted head. fse float16 and int8 reuse the
+head fitted on float32, so their task-score deltas isolate table quantization.
+TF-IDF uses the default scikit-learn vectorizer fitted on those same training
+examples, with the same cross-validated classifier. Accuracy and macro-F1 are
+reported separately. No speed claim comes from classifier preparation.
+
+`quality/prepare_fineweb.py` uses all 467,424 pinned FineWeb-Edu annotations.
+A seed-zero permutation holds out 46,743 pages. Every arm receives the same
+whitespace-cleaned pages and the binary label score >=3. Frozen POTION uses its
+pretrained character/token limits, whereas fastText reads the full page. This
+is a full-page filtering-task comparison with different model input limits.
+The fse heads use LogisticRegression(max_iter=1000, random_state=0). fastText
+uses wordNgrams=2 and explicitly recorded supervised defaults, with two training
+threads. Parallel fastText training is not bit deterministic. All predictions
+are evaluated on the full held-out split. Results are pending.
