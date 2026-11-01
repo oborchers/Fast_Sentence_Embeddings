@@ -1,6 +1,7 @@
 """Tiny pod regressions reject false success without loading any model."""
 
 import importlib
+import json
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,9 @@ def modules(monkeypatch):
             "pod4_receipts",
             "pod_finalize",
             "make_fixup_pod",
+            "pod_pairs",
+            "pod4_classify",
+            "pod_folded_summary",
         )
     }
 
@@ -73,9 +77,7 @@ def test_wrapper_requires_probe_and_exports_setup_failure(modules):
 
 
 def test_unfolded_short_call_rejects_round(modules, monkeypatch, tmp_path):
-    from importlib import import_module
-
-    pairs = import_module("pod_pairs")
+    pairs = modules["pod_pairs"]
     controls = dict(
         first_predict_s=3,
         warm_seconds=[3],
@@ -94,20 +96,19 @@ def test_unfolded_short_call_rejects_round(modules, monkeypatch, tmp_path):
             "encoder_call_seconds": [1, 1],
         },
     }
-    monkeypatch.setattr(pairs, "operation", lambda command, label, *args: rows[label])
+    monkeypatch.setattr(pairs, "operation", lambda _command, label, *_args: rows[label])
     good, _ = pairs.round_observation(rows, list(rows), 1, 100, tmp_path, {}, {})
     assert good is False
 
 
 def test_completed_series_cannot_hide_ineligible_classifier(modules, monkeypatch, tmp_path):
-    from importlib import import_module
     from types import SimpleNamespace
 
-    classify = import_module("pod4_classify")
-    summary = import_module("pod_folded_summary")
-    monkeypatch.setattr(classify, "calibrate", lambda *args: (tmp_path / "input.json", {}))
-    monkeypatch.setattr(classify, "series", lambda *args: {"complete": True})
-    monkeypatch.setattr(summary, "publish_summary", lambda *args: {"cells": []})
+    classify = modules["pod4_classify"]
+    summary = modules["pod_folded_summary"]
+    monkeypatch.setattr(classify, "calibrate", lambda *_args: (tmp_path / "input.json", {}))
+    monkeypatch.setattr(classify, "series", lambda *_args: {"complete": True})
+    monkeypatch.setattr(summary, "publish_summary", lambda *_args: {"cells": []})
     args = SimpleNamespace(output=tmp_path, deadline=100)
     with pytest.raises(RuntimeError, match="short, failed or noisy"):
         classify.timed(args, tmp_path, ["text"], [0], "setfit", "test")
