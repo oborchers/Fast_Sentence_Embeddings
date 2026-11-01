@@ -50,7 +50,7 @@ def measured(row):
     """The input is an audited extraction, not a replacement for DR-151 validation."""
     if row["complete"] is not True or row["runtime_attributed"] is not True:
         raise ValueError("Only complete, runtime-attributed cells may be rendered")
-    if positive(row["aa_upper"]) > 1.10:
+    if not 1 <= positive(row["aa_upper"]) <= 1.10:
         raise ValueError("Cell exceeds the DR-151 variation limit")
     source = row["source"]
     if not re.fullmatch(r"[0-9a-f]{40}", source["commit"]):
@@ -74,12 +74,18 @@ def same(rows, keys):
         raise ValueError("Rows do not describe the same comparison context")
 
 
+def same_runtime(rows):
+    if len({row["runtime_fingerprint"] for row in rows}) != 1:
+        raise ValueError("The fse rows must share one executed runtime")
+
+
 def table(rows):
     if not rows:
         return ""
     if {r["context"]["table_dtype"] for r in rows} != set(DTYPES) or len(rows) != 3:
         raise ValueError("The compact table needs all three ten-worker precisions")
     same(rows, [key for key in CONTEXT if key != "table_dtype"])
+    same_runtime(rows)
     values = {}
     for row in rows:
         rate = measured(row)
@@ -169,9 +175,16 @@ def publish(data, output, palette):
     pairs = data["comparisons"]
     if pairs:
         same([p["fse"] for p in pairs], COHORT)
+        same_runtime([p["fse"] for p in pairs])
         for theme in ("light", "dark"):
             colors = {key: value["value"] for key, value in palette[theme].items()}
             files[f"library-speedups-{theme}.svg"] = svg(pairs, data["comparison_caption"], colors)
+    owned = {"speed-table.md", "library-speedups-light.svg", "library-speedups-dark.svg"}
+    stale = sorted(name for name in owned - files.keys() if (output / name).exists())
+    if stale:
+        raise ValueError(
+            f"Unselected panel files already exist: {stale}. Review these outputs before publishing."
+        )
     # Validate every requested output before writing any file.
     for name, content in files.items():
         (output / name).write_text(content)

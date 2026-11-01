@@ -55,6 +55,7 @@ def pair():
         ("complete", False),
         ("runtime_attributed", False),
         ("aa_upper", 1.101),
+        ("aa_upper", 0.99),
         ("runtime_fingerprint", ""),
         ("texts_per_second", [100, 200]),
         ("texts_per_second", [100, float("nan"), 200]),
@@ -137,3 +138,23 @@ def test_preview_has_no_rates_or_speedup_claims():
         assert "Layout preview. No measurements." in drawing
         assert "times as fast" not in drawing
         assert colors["accent"] in drawing
+
+
+@pytest.mark.parametrize(
+    "name", ["speed-table.md", "library-speedups-light.svg", "library-speedups-dark.svg"]
+)
+def test_withdrawn_data_cannot_leave_stale_outputs_silently(tmp_path, name):
+    target = tmp_path / name
+    target.write_text("previously published output")
+    palette = json.loads((ROOT / "media/readme/palette.json").read_text())
+    data = {"format": "readme-speed-panels-v1", "table": [], "comparisons": []}
+    with pytest.raises(ValueError, match="Unselected panel files"):
+        PANEL["publish"](data, tmp_path, palette)
+    assert target.read_text() == "previously published output"
+
+
+def test_table_rejects_a_different_executed_fse_runtime():
+    rows = [row(dtype=dtype, workers=10) for dtype in PANEL["DTYPES"]]
+    rows[-1]["runtime_fingerprint"] = "other-runtime"
+    with pytest.raises(ValueError, match="one executed runtime"):
+        PANEL["table"](rows)

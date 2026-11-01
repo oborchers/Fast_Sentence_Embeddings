@@ -71,6 +71,7 @@ Do not add it to this same-model data file or bypass the model-equality check.
 Only fill `speed_panel_data.json` after auditing the committed raw rows and strict summary against DR-151's current validity rules.
 The renderer does not replace that independent source audit. Keep full evidence here, not in the public README.
 
+All fse baselines within a panel must share one executed-runtime fingerprint.
 Every cell needs three complete accepted rotating rounds, paired fse-a/fse-b, backend-specific executed-runtime identity,
 verified artifact lineage, and a symmetric A/A upper bound at most 1.10. Apply all other source protocol checks,
 including load rules for old Mac cells and the recorded host/probe rules for pod cells. Never transfer acceptance between machines.
@@ -90,3 +91,5 @@ Missing, mixed-model, mixed-input, wrong-worker, noisy or unattributed data fail
 Run `python media/readme/speed_panels.py --preview` for the explicitly unmeasured layout.
 Run `python media/readme/speed_panels.py` after audited data lands, then export SVGs with librsvg and inspect both themes.
 The main visual generator calls the same publish function. With empty data, it adds nothing to the README or final figures.
+
+Regeneration rejects pre-existing final panel files that no longer have selected data. Review those outputs explicitly before publishing again. It never silently retains withdrawn claims or deletes files.
