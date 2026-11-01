@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77", "setuptools-scm>=8", "Cython>=3.1.0", "numpy>=2.0"]
+requires = ["setuptools>=77", "setuptools-scm>=9.0.0", "Cython>=3.1.0", "numpy>=2.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -73,6 +73,10 @@ where = ["src"]
 
 [tool.setuptools_scm]
 version_file = "src/fse/_version.py"
+
+[tool.setuptools_scm.scm.git]
+# Integration releases share this repository but never define the fse version.
+describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "v[0-9]*"]
 
 # --- Dependency Groups ---
 
@@ -296,7 +300,7 @@ test-command = 'pytest {project}/tests -m "not network" -p no:cacheprovider -n a
 # --- Guardrails (tools/check_guardrails.py; AGENTS.md, Guardrails) ---
 
 [tool.fse.guardrails]
-paths = ["src", "tests", "tools", "benchmarks", "media", "recipes", "setup.py"]
+paths = ["src", "tests", "tools", "benchmarks", "media", "recipes", "integrations", "setup.py"]
 max-lines = 500
 max-cognitive-complexity = 15
 # Generated; their generators tools/make_unicode_tables.py, tools/make_wordpiece_tables.py and
@@ -475,6 +479,7 @@ ignore_names = [
     "normalizer",        # attributes of a Hugging Face tokenizer, read by tokenizers
     "pre_tokenizer",
     "post_processor",
+    "mteb_model_meta",   # metadata read by mteb.evaluate on encoder wrappers
     "hf_split",          # arguments of the MTEB encoder interface
     "hf_subset",
     "prompt_type",

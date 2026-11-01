@@ -4,7 +4,23 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
-fse 2.0 is in development on master; it changes the API and the file format (see docs/architecture/overview.md, "Principle and stages"). Entries collect here until the release.
+- `Encoder.from_pretrained(normalize=False | True)` now works for every kind of model, fse encoders (float32, float16, int8, FastText) and Model2Vec models as well as sentence-transformers models. `False` drops a final `normalize@1` and leaves the table unchanged, so linear heads fold into the classic Hub models without a detour through `StaticModel`; `True` appends it. The fingerprint describes the encoder as loaded. (DR-201)
+
+- Fix classic Hub tooling on Windows: preserve approved LF bytes, parse literal CRLF card examples, synchronize staged files through writable handles, and report unknown allocated cache size explicitly. Hub tooling changes now run Windows wheel tests on Python 3.11 and 3.15 in pull requests.
+
+- Add offline preparation and STS-B verification tools for classic word-vector Hub folders, exact PUBLIC publication inventories, isolated read-only post-upload checks, and a release-gated card-only refresh with unchanged model hashes. No models are uploaded.
+
+- Prepare LangChain, LlamaIndex and Haystack integration packages under `integrations/`, with isolated package CI, real-model retrieval examples and independent approval-gated release workflows. The planned 0.1.0 packages require fse 2.0.0.
+
+fse 2.0 is in development on master. It is an inference engine for finished static embedding models.
+It adds encoders for word tables, Model2Vec and supported sentence-transformers StaticEmbedding models,
+linear heads trained elsewhere, and saved vector stores with cosine search.
+It removes the 1.x training API (`Average`, `SIF`, `uSIF`), indexed input classes, and pickle model loading.
+Prepare weights and removed directions offline, then encode with a finished table.
+The API and saved file format change. See the [migration guide](docs/migrating-from-1x.md) before upgrading.
+The 1.x branch remains maintained. Entries collect here until the release.
+
+- Added a migration guide with executable 2.0 examples and a recorded comparison against 1.x.
 
 - Architecture documentation is split by topic under `docs/architecture/`; `ARCHITECTURE.md` indexes it and preserves the former section links.
 

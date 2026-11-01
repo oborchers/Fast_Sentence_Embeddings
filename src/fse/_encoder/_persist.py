@@ -16,14 +16,14 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 from numpy import ndarray
 
 from fse import _log
 from fse._container import CHECKSUM_PREFIX, CorruptArtifactError, checksum, fingerprint, tensor_code
-from fse._contract import Normalize
+from fse._contract import Normalize, UnsupportedArtifactError
 from fse._runtime import EncodeSpec
 from fse._tokenizer_spec import TokenizerSpec
 from fse._wordvectors import WordVectors
@@ -144,6 +144,42 @@ def check_held(
             raise CorruptArtifactError(
                 f"tensor {name} of {path or 'this encoder'} does not match its checksum"
             )
+
+
+def normalize_steps(steps: tuple[Any, ...], normalize: Any) -> tuple[Any, ...]:
+    """The steps of an encoder loaded with ``normalize``: ``"model"`` keeps them, True
+    ends them with ``normalize@1`` (the same tuple if they end with it), False drops a
+    final ``normalize@1`` (the same tuple if there is none). A ``normalize@1`` before
+    another step cannot be dropped without changing what that step receives, and raises."""
+    if normalize == "model":
+        return steps
+    last = max((i for i, step in enumerate(steps) if isinstance(step, Normalize)), default=None)
+    if normalize:
+        return steps if last == len(steps) - 1 else (*steps, Normalize())
+    if last is None:
+        return steps
+    if last != len(steps) - 1:
+        raise UnsupportedArtifactError(
+            "the model has other steps after its normalize@1, which normalize=False cannot "
+            "drop without changing what they receive"
+        )
+    return steps[:-1]
+
+
+def with_normalize(encoder: Any, normalize: Any) -> Any:
+    """``encoder`` with its final ``normalize@1`` added or dropped (``"model"``: itself),
+    sharing its table; its fingerprint is that of the result. The tensors besides the
+    table keep the checksums they were loaded with."""
+    steps = normalize_steps(encoder._content.steps, normalize)
+    if steps is encoder._content.steps:
+        return encoder
+    return type(encoder)._new(
+        replace(encoder._content, steps=steps),
+        encoder._word_vectors,
+        path=encoder._path,
+        checksums=encoder._checksums,
+        vocabulary=encoder._vocabulary,
+    )
 
 
 def quantized(

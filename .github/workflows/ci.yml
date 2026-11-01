@@ -102,7 +102,7 @@ jobs:
             echo "code=$code"
             # The extension sources, setup.py, the project metadata, the sdist manifest,
             # the lockfile. Store/container changes also need the real Windows suite.
-            flag native '^src/fse/_native|^src/fse/(_store|_container)/|^tests/test_(store|container)|^tests/support/(durability|store)\.py$|^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|\.(pyx|pxd|pxi|h)$'
+            flag native '^benchmarks/[^/]*hub[^/]*\.py$|^benchmarks/baseline/dr157/|^tests/test_hub|^tests/support/hub_classics\.py$|^\.gitattributes$|^src/fse/_native|^src/fse/(_store|_container)/|^tests/test_(store|container)|^tests/support/(durability|store)\.py$|^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|\.(pyx|pxd|pxi|h)$'
             flag deps '^(pyproject\.toml|uv\.lock)$'
             # The converter, its tests and helpers (tests/support/converted.py builds the
             # models of the conversion tests), and the pins of the st group.
@@ -122,7 +122,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           enable-cache: true
       - run: uv sync $UV_SYNC_FLAGS --group lint
@@ -147,7 +147,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           enable-cache: true
       - name: Set up Python ${{ matrix.python-version }}
@@ -202,7 +202,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           enable-cache: true
       - name: Set up Python ${{ matrix.python-version }}
@@ -223,7 +223,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
       - run: uv sync --locked --group test
       - name: Download coverage artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
@@ -244,7 +244,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           enable-cache: true
       - run: uv build --sdist
@@ -322,13 +322,15 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
       - uses: pypa/cibuildwheel@b9e566a2b284570af229f6c2a33673410d0389a3  # v4.3.4
         env:
           # A pull request builds every wheel but tests only those of the newest Python; the
-          # test jobs cover 3.11 (the minimum job) to 3.13. Other events test all.
+          # test jobs cover 3.11 (the minimum job) to 3.13. Windows also tests 3.11
+          # on PRs, so its filesystem semantics are checked at both supported ends.
+          # Other events test all.
           CIBW_SKIP: "*-win32 *_i686 *-${{ matrix.libc == 'musllinux' && 'manylinux' || 'musllinux' }}_*"
-          CIBW_TEST_SKIP: ${{ github.event_name == 'pull_request' && 'cp311-* cp312-* cp313-* cp314-*' || '' }}
+          CIBW_TEST_SKIP: ${{ github.event_name == 'pull_request' && (matrix.os == 'windows-latest' && 'cp312-* cp313-* cp314-*' || 'cp311-* cp312-* cp313-* cp314-*') || '' }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: dist-wheels-${{ matrix.os }}-${{ matrix.libc }}

@@ -2,3 +2,7 @@
 * text=auto
 # Pinned by sha256 (tools/make_grapheme_tables.py): checked out byte for byte, never with CRLF.
 tests/test_data/GraphemeBreakTest-17.0.0.txt -text
+
+# Approved Hub payload text is hashed as raw bytes, including on Windows.
+/benchmarks/baseline/dr157/cards/*.txt text eol=lf
+/benchmarks/baseline/dr157/publication-* text eol=lf

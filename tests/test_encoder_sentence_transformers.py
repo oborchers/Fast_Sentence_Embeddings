@@ -415,16 +415,14 @@ def test_the_arguments_are_checked(model, tmp_path):
         Encoder.from_pretrained(model, truncate_dim=0)
     encoder = Encoder.from_pretrained(model)
     encoder.save(tmp_path / "e.safetensors")
-    for options in ({"truncate_dim": 4}, {"normalize": True}):
-        with pytest.raises(ValueError, match="holds its own rules"):
-            Encoder.from_pretrained(tmp_path / "e.safetensors", **options)
+    with pytest.raises(ValueError, match="holds its own rules"):
+        Encoder.from_pretrained(tmp_path / "e.safetensors", truncate_dim=4)
     pytest.importorskip("model2vec")
     import support.model2vec as mv
 
     model2vec = mv.save_model(tmp_path / "m2v")
-    for options in ({"truncate_dim": 4}, {"normalize": False}):
-        with pytest.raises(ValueError, match="holds its own rules"):
-            Encoder.from_pretrained(model2vec, **options)
+    with pytest.raises(ValueError, match="holds its own rules"):
+        Encoder.from_pretrained(model2vec, truncate_dim=4)
 
 
 @pytest.mark.parametrize(

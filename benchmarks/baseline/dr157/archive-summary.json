@@ -1,0 +1,25 @@
+{
+  "archive_commit": "dac448a925fb3a6c63570be9f3d637b0d948bb53",
+  "archive_branch": "benchmark-evidence-2.0",
+  "archive_root": "benchmarks/baseline/results/dr157-20261101",
+  "published_branch_head": "dac448a925fb3a6c63570be9f3d637b0d948bb53",
+  "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+  "verified_files": 146,
+  "verified_bytes": 476939,
+  "transfer_manifest_sha256": "c57cece8ce8f37053c2f166cb3fe0b6d4bf1b3d8c7783c3684616a112a9beaf2",
+  "publication_manifest_sha256": "ac85cae41b05788bc278d68fd3231489de1615c7c15b8b79229844c3d0dabe69",
+  "all_archive_blobs_equal_source": true,
+  "orphan_branch_verified": true,
+  "manifest_paths_into_removed_files": [],
+  "before": {
+    "source_commit": "fc0b1ca0ce2eac56080ad30f344f4fa6817e1d25",
+    "merge_base": "81e64c0d5f92ea6270522f0d97a009979fc678d3",
+    "pr_added_lines": 22964,
+    "pr_deleted_lines": 0,
+    "pr_changed_files": 212,
+    "dr157_tracked_files": 179,
+    "dr157_tracked_bytes": 723998,
+    "dr157_tracked_lines": 19117,
+    "changed_head_blob_bytes": 951508
+  }
+}
