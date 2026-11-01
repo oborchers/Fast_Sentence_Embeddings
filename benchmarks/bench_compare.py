@@ -20,8 +20,9 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
-from bench_model2vec import _revision, contender
+from bench_model2vec import _revision
 from bench_pretrained import COMMITS
+from compare_backends import make_contender as contender
 from compare_inputs import corpus_identity, identity, texts
 
 
@@ -53,7 +54,11 @@ def child(args) -> None:
 
         record, vectors = measure(args, sentences)
     else:
-        record, vectors = python_measure(args, sentences)
+        from threadpoolctl import threadpool_info, threadpool_limits
+
+        with threadpool_limits(limits=args.threads):
+            record, vectors = python_measure(args, sentences)
+            record["threadpools"] = threadpool_info()
     from fse._container._hash import checksum
 
     provenance.update(corpus_identity(args.corpus, sentences))
@@ -103,7 +108,7 @@ def python_measure(args, sentences):
 def operation(args, label: str, threads: int) -> dict:
     kind = "fse" if label.startswith("fse") else args.against
     command = [
-        sys.executable,
+        str(args.other_python) if kind != "fse" and args.other_python else sys.executable,
         __file__,
         "child",
         "--kind",
@@ -217,8 +222,13 @@ def main() -> None:
     parser.add_argument("--passes", type=int, default=5)
     parser.add_argument("--rounds", type=int, default=3)
     parser.add_argument("--budget-s", type=float, default=600)
-    parser.add_argument("--against", choices=("model2vec", "st", "rust"), default="model2vec")
-    parser.add_argument("--kind", choices=("fse", "model2vec", "st", "rust"), default="fse")
+    parser.add_argument(
+        "--against", choices=("model2vec", "st", "rust", "fastembed"), default="model2vec"
+    )
+    parser.add_argument(
+        "--kind", choices=("fse", "model2vec", "st", "rust", "fastembed"), default="fse"
+    )
+    parser.add_argument("--other-python", type=Path)
     parser.add_argument("--vectors-out", type=Path)
     parser.add_argument("--lock", type=Path)
     parser.add_argument("--results", type=Path)
