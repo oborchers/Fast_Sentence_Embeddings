@@ -34,7 +34,7 @@ Bring a trained linear classifier to label text in the same application.
 
 100 million short texts (28.7 tokens on average) embedded and written to disk in 35 seconds, int8, 32 vCPU AMD EPYC 7713, RunPod, 1 November 2026.
 
-[How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/9068096b78518d212be0435918418540d154aad9/docs/benchmarks/readme-evidence.md)
+[How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/15f610bdfa9b74b543a9fd2f6cbf6c2e31d6e3df/docs/benchmarks/readme-evidence.md)
 
 ## Get started
 
