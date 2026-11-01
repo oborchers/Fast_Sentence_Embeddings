@@ -13,7 +13,6 @@ from pod_pairs import append, series
 from pod_speed import POTION, ensure_model
 
 
-
 def commands(base, workers):
     control = [
         *base,

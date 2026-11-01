@@ -2,6 +2,7 @@
 
 import importlib
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -68,6 +69,9 @@ def test_matrix_retains_every_storage_dtype_and_durability():
 
 
 @pytest.mark.usefixtures("modules")
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="POSIX pod writer uses resource and /usr/bin/df"
+)
 @pytest.mark.parametrize("mode", ["encode", "memory", "shard"])
 def test_native_paths_stream_the_file_and_do_not_build_a_text_list(monkeypatch, tmp_path, mode):
     import fse
@@ -141,6 +145,9 @@ def test_showcase_is_exactly_one_run_and_one_aa_repeat(monkeypatch, tmp_path):
 
 
 @pytest.mark.usefixtures("modules")
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="POSIX pod writer uses resource and /usr/bin/df"
+)
 @pytest.mark.parametrize("workers", [1, 32])
 def test_rust_parallelism_overrides_inherited_serial_setting(monkeypatch, workers):
     import os

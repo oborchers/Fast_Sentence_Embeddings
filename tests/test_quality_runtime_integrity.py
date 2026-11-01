@@ -1,6 +1,7 @@
 """Reject changed executing code before accepting classifier or search evidence."""
 
 import importlib
+import sys
 from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
@@ -62,6 +63,7 @@ def test_classifier_cannot_append_after_code_changes_during_prediction(
 
 
 @pytest.mark.usefixtures("modules")
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX search runner uses resource")
 def test_search_rechecks_encoder_when_search_backend_is_unchanged(monkeypatch):
     search = importlib.import_module("bench_search_compare")
     monkeypatch.setattr(search, "runtime_identity", lambda: "changed-encoder")
