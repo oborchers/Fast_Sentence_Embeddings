@@ -254,7 +254,11 @@ def task_batches(model, tasks, cache):
 
 
 def run(
-    models: list[str], task_names: list[str] | None, results: Path = RESULTS, resume: bool = False
+    models: list[str],
+    task_names: list[str] | None,
+    results: Path = RESULTS,
+    resume: bool = False,
+    defer_mind: bool = False,
 ) -> None:
     from nltk import download
 
@@ -282,6 +286,8 @@ def run(
         }
         pending = pending_tasks(results, specification, tasks) if resume else tasks
         logger.info("%s: %d pending tasks of %d", name, len(pending), len(tasks))
+        if defer_mind:
+            pending = defer_mind_task(pending, environment, specification, results)
         timer = EncodeTimer(model)
         with closing(task_batches(model, pending, cache)) as batches:
             for task_to_run, result in batches:
@@ -308,6 +314,7 @@ def run(
                                     "task": task,
                                     "type": mteb.get_task(task).metadata.type,
                                     "main_score": task_result.get_score(),
+                                    "status": "completed",
                                     **timer.stats.get(task, {}),
                                     "machine": platform.platform(),
                                     "python": sys.version.split()[0],
@@ -319,6 +326,30 @@ def run(
                             + "\n"
                         )
         logger.info("finished %s", name)
+
+
+def defer_mind_task(tasks, environment, specification, results):
+    remaining = []
+    for task in tasks:
+        if task.metadata.name != "MindSmallReranking":
+            remaining.append(task)
+            continue
+        row = {
+            **environment,
+            **specification,
+            "task": task.metadata.name,
+            "task_metadata": task.metadata.model_dump(mode="json"),
+            "status": "deferred",
+            "main_score": None,
+            "reason": "deferred: needs more than 16 GiB RAM on the M1",
+            "benchmark": "MTEB(eng, v2)",
+            "mteb": version("mteb"),
+            "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+        with results.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row) + "\n")
+        logger.info("MindSmallReranking: %s", row["reason"])
+    return remaining
 
 
 def summarize(results: Path = RESULTS) -> None:
@@ -379,6 +410,9 @@ def main() -> None:
     run_parser.add_argument(
         "--fse-models", type=Path, default=FseEncoder.folder, help="the finished fse models"
     )
+    run_parser.add_argument(
+        "--defer-mind", action="store_true", help="record the authorized RAM deferral"
+    )
     run_parser.add_argument("--resume", action="store_true", help="reuse matching completed tasks")
     run_parser.add_argument("--workers", type=int, default=2)
     run_parser.add_argument("--batch-tasks", type=int, default=8)
@@ -407,7 +441,7 @@ def main() -> None:
     from threadpoolctl import threadpool_limits
 
     with threadpool_limits(limits=args.workers):
-        run(models, tasks, args.results, args.resume)
+        run(models, tasks, args.results, args.resume, args.defer_mind)
 
 
 if __name__ == "__main__":

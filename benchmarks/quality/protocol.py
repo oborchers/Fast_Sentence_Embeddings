@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 
@@ -53,6 +54,11 @@ def compatible_results(rows: list[dict], tasks: list) -> dict[str, list[dict]]:
     for row in rows:
         key = configuration_key(row)
         group = groups.setdefault(key, {})
-        if row.get("task_metadata") == expected.get(row["task"]) and row["task"] in expected:
+        if (
+            row.get("task_metadata") == expected.get(row["task"])
+            and row["task"] in expected
+            and isinstance(row.get("main_score"), (int, float))
+            and math.isfinite(row["main_score"])
+        ):
             group[row["task"]] = row
     return {key: list(tasks.values()) for key, tasks in groups.items()}

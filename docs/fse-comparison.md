@@ -107,3 +107,15 @@ The fse heads use LogisticRegression(max_iter=1000, random_state=0). fastText
 uses wordNgrams=2 and explicitly recorded supervised defaults, with two training
 threads. Parallel fastText training is not bit deterministic. All predictions
 are evaluated on the full held-out split. Results are pending.
+
+### Authorized MIND deferral
+
+MindSmallReranking is **deferred: needs more than 16 GiB RAM on the M1**.
+The first unmodified MTEB 2.26.25 invocation reached a sampled physical footprint
+of 15.4 GiB while loading the 97,006,943 test relevance rows. It was stopped,
+retaining 19 completed tasks. The coordinator explicitly deferred this one task
+to a maintainer decision about a larger machine. The loader and evaluator remain
+unmodified. Every other selected task and model remains in scope. No sampling
+is used. Run with `--defer-mind` to write an explicit deferred record for each
+model. The expected coverage is 40/41 English tasks and 13/13 NanoBEIR tasks.
+A complete 41-task English mean must not be reported from this coverage.
