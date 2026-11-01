@@ -1,90 +1,107 @@
+<div align="center">
+
 # fse recipes
 
-Run fse in the process that already has your text. These notebooks show offline model preparation and local application patterns.
-They add no dependencies to the core package. They are run locally, not in CI.
+Start with text. Build something you can search, classify, or save.
 
-| Notebook | What it covers |
-|---|---|
-| [SIF and uSIF](01-sif-usif.ipynb) | Learn on a corpus, fold finished tables, compare GloVe and POTION on STS-B, check the historical GloVe results |
-| [Linear heads](02-linear-heads.ipynb) | Train classification and regression heads in scikit-learn, import and save folded models |
-| [Files with resume](03-files-with-resume.ipynb) | Bound memory while reading a line file, interrupt and resume without duplicate rows |
-| [Kafka and Qdrant](04-kafka-and-qdrant.ipynb) | Fake queue polls, durable offsets, replay reconciliation and local Qdrant upserts |
-| [Folder listener](05-folder-listener.ipynb) | Poll local or SMB/NFS inputs, ignore partial writes and resume from a durable prefix |
-| [Integrations](06-integrations.ipynb) | DSPy, BERTopic, txtai, Chroma, LanceDB, Qdrant and Polars |
-| [Local compute and HTTP](07-local-compute-and-http.ipynb) | Measure compute, localhost request time and 300-dimensional vector sizes |
+</div>
 
-## Run
+**New to fse? Start with [fse 101](00-fse-101.ipynb).**
+Each recipe explains the idea, shows the flow, and runs a complete example with real models and texts.
+A vector is a list of numbers that represents a text.
 
-Use standard Python 3.13 on macOS or Linux. From the repository root:
+| Picture | Recipe and promise | Reading time* |
+|---|---|---:|
+| <img src="media/00-fse-101-icon.svg" width="46" alt="Recipe number"> | [**fse 101**](00-fse-101.ipynb). Turn sentences into vectors, find similar text, and save your results. | 15 min |
+| <img src="media/01-sif-usif-icon.svg" width="46" alt="Recipe number"> | [**SIF and uSIF**](01-sif-usif.ipynb). Make classic word vectors more useful for sentence search. | 15 min |
+| <img src="media/02-linear-heads-icon.svg" width="46" alt="Recipe number"> | [**Linear heads**](02-linear-heads.ipynb). Train a text classifier, compare its accuracy, and save it for your app. | 15 min |
+| <img src="media/03-files-with-resume-icon.svg" width="46" alt="Recipe number"> | [**Files with resume**](03-files-with-resume.ipynb). Turn a text file into vectors and continue after an interruption. | 10 min |
+| <img src="media/04-kafka-and-qdrant-icon.svg" width="46" alt="Recipe number"> | [**Kafka and Qdrant**](04-kafka-and-qdrant.ipynb). Turn queued news into searchable vectors and replay safely. | 10 min |
+| <img src="media/05-folder-listener-icon.svg" width="46" alt="Recipe number"> | [**Folder listener**](05-folder-listener.ipynb). Pick up completed files and add each one to your search store. | 10 min |
+| <img src="media/06-integrations-icon.svg" width="46" alt="Recipe number"> | [**Integrations**](06-integrations.ipynb). Use one local encoder with your search, topic, and table libraries. | 15 min |
+| <img src="media/07-local-compute-and-http-icon.svg" width="46" alt="Recipe number"> | [**Local compute and HTTP**](07-local-compute-and-http.ipynb). See when a local HTTP request costs more than encoding the text. | 5 min |
+| <img src="media/08-folded-classifier-icon.svg" width="46" alt="Recipe number"> | [**Folded classifier**](08-folded-classifier.ipynb). Fold a trained classifier into word vectors, then save a smaller model for your app. | 15 min |
+
+*Estimates for reading, excluding installation, downloads, and execution.
+The first recipe includes a large-data speed demonstration, which needs additional disk space and execution time.
+
+## Run a recipe
+
+Use standard Python 3.13 on macOS or Linux, with Git, Make, a C/C++ compiler, and [uv](https://docs.astral.sh/uv/).
+Free-threaded Python builds are unsupported.
+From the repository root:
 
 ```sh
 UV_PYTHON=3.13 make install
 uv pip install --python .venv/bin/python -r recipes/requirements.txt
+```
+
+Open a recipe in Jupyter or VS Code and select `.venv/bin/python` as the kernel.
+Run cells from top to bottom, with `recipes/` as the working directory so the helpers can be imported.
+Use `uv run --no-sync` for commands after installation, because syncing removes the optional recipe packages.
+For command-line execution:
+
+```sh
 recipe_tmp=$(mktemp -d)
 IPYTHONDIR="$recipe_tmp/ipython" JUPYTER_RUNTIME_DIR="$recipe_tmp/runtime" \
   JUPYTER_CONFIG_DIR="$recipe_tmp/config" JUPYTER_DATA_DIR="$recipe_tmp/data" \
-  XDG_CACHE_HOME="$recipe_tmp/cache" \
-  uv run --no-sync jupyter execute --inplace --timeout=600 recipes/02-linear-heads.ipynb
+  uv run --no-sync jupyter execute --inplace --timeout=1800 recipes/00-fse-101.ipynb
 ```
 
-Replace the filename to execute another notebook. `--no-sync` preserves the recipe extras.
-Use the same environment as the notebook kernel. The temporary environment paths also contain kernel history and runtime files created before the first cell. The outputs committed here record the local execution environment.
-Do not run these notebooks in CI. The integration packages are intentionally optional and are pinned separately.
+Replace the filename to run another recipe.
+These recipes run locally, outside CI, and their dependencies stay separate from fse core.
+fastText 0.9.3 builds from source, which requires the C++ compiler.
 
-All generated data and downloaded files belong to a temporary directory. The SIF and timing notebooks can read exact-revision files from an existing Hub cache.
-The SIF notebook downloads GloVe, POTION and NLTK data if they are unavailable locally. The head notebook downloads SST-5 and uses GloVe. Other application examples use a small hand-built table.
-No notebook requires credentials, calls a paid service or uploads a model. The upload example is text only.
+## Models and data
 
-Run the timing notebook on a quiet machine. It refuses a one-minute load average of 5 or more before or after measurement.
-On a shared machine, hold its benchmark lock and pause competing heavy work. Record the machine and date with every measurement.
-The HTTP server exists only during the measurement cell and closes before the cell returns. There is no HTTP service deployment recipe.
+**POTION-base-8M supplies real vectors**, including in the file, queue, folder, and integration examples.
+Those examples use articles from the published AG News test split.
+The SIF recipe also uses GloVe and the repository's STS Benchmark files.
+The classification recipe uses SST-5 and a fixed sample of AG News.
+The folding recipe uses the same AG News fit/test rows to compare one raw-mean linear head before and after folding.
 
-## Resume assumptions
+Model and dataset revisions are pinned in the recipes and [_helpers.py](_helpers.py).
+Read the [POTION model card](https://huggingface.co/minishlab/potion-base-8M), [GloVe model card](https://huggingface.co/fse/glove-wiki-gigaword-300), [SST-5 dataset card](https://huggingface.co/datasets/SetFit/sst5), and [AG News dataset card](https://huggingface.co/datasets/SetFit/ag_news) for their sources and terms.
+The model and dataset terms apply separately from fse's license.
 
-Use one writer and immutable inputs. A ShardSink reports `first_row` for the existing store and `durable_rows` for the current run.
-Only acknowledge the durable prefix. A source checkpoint can lag vector publication, so reconcile it against the store before replay.
-The file examples keep their store on a supported local filesystem. Polling network inputs does not extend the store's durability guarantee to SMB/NFS.
+The helper puts generated files and new downloads in a temporary folder and reads existing exact-revision Hub snapshots without changing them.
+The final cleanup cell removes the temporary results, so choose permanent paths when adapting a recipe.
+No recipe uploads data, needs credentials, or calls a paid service.
+The queue is simulated, and databases run locally.
 
-The folder listener requires contiguous, monotonically numbered final filenames. Producers close temporary files before renaming them.
-Both file recipes reject records larger than 64 KiB before encoding. The folder notebook uses one-row shards only to expose durability boundaries.
-For a daemon, retain one sink and one streaming run, group rows into larger shards and rotate stores at a fixed row budget.
-A production ingestion manifest is needed for arbitrary names, changed files or multiple rows per file.
+## Read the results honestly
 
-## Recorded quality checks
+**Quality and speed answer different questions.**
+The classification recipe reports accuracy and macro-F1 on the same test texts for four training methods.
 
-Executed on 2026-11-01 on Apple M1 Pro, macOS 27.0.1, Python 3.13.16, with the pinned recipe packages.
-[Hardware provenance](run-environment.json) records the CPU model queried on the same machine after execution.
-The STS-B comparison fits weights and components on train texts only. These are Pearson correlations times 100 on 1,379 test pairs.
+Model2Vec trains an MLP (multilayer perceptron) with PyTorch and fine-tunes its word vectors, while fse uses fixed POTION vectors and a linear head.
+The default MLP has one hidden layer of 512 units with ReLU, which replaces negative hidden values with zero.
+Its [deployment head runs in plain NumPy](https://github.com/MinishLab/model2vec/blob/v0.10.0/model2vec/inference/mlp.py), using softmax for single-label probabilities or sigmoid when several labels can apply.
 
-| Table | Mean | SIF-10 | uSIF-5 |
-|---|---:|---:|---:|
-| GloVe-300 | 45.09 | 70.67 | 66.28 |
-| POTION-8M | 77.26 | 75.71 | 76.91 |
+The recipe records accuracy through Model2Vec's training model in PyTorch, rather than exporting the NumPy deployment pipeline.
+**The comparison is a fine-tuned MLP against a linear head**, alongside TF-IDF and fastText baselines.
+The settings are fixed examples, without a tuning search or repeated-seed confidence intervals.
 
-On this split, additional uSIF helps GloVe and slightly reduces the POTION score. This does not establish a general ranking.
-The largest absolute component error between folded and postprocessed normalized rows was 1.04e-6.
+The SIF recipe fits weights and directions on STS Benchmark training texts only.
+It reports test Pearson correlation times 100, then checks the separate historical experiment that used test-fitted directions.
+A historical reproduction is not evidence of quality on unseen data.
 
-The separate historical GloVe diagnostic fits on test texts to follow the 1.x notebook. It is not a held-out evaluation.
-It gives mean 44.4641, SIF-10 71.3792 and uSIF 68.8190 against README values 44.46, 71.43 and 68.82.
-Mean and uSIF round to the published values. SIF differs by 0.0508 points. This recipe does not claim exact reproduction of SIF.
+The fse 101 speed demonstration is labeled **measured on a MacBook in everyday use, not a controlled benchmark**.
+It prints its machine, CPU, Python, commit, date, and load averages beside the result.
+The HTTP recipe retains its historical 1 November 2026 outputs and [machine provenance](run-environment.json).
+Use the [performance guide](../PERFORMANCE.md) for measurements, methods, and their limits.
 
-SST-5 uses 8,544 training and 2,210 test sentences. The GloVe head gives five-class accuracy 0.4118.
-Its test labels agree with scikit-learn on all 2,210 rows. The ordinal regression MAE is 0.8967 label units,
-against 1.1411 for the training-mean constant. These figures describe this example, not a tuned sentiment model.
+The [folding recipe](08-folded-classifier.ipynb) compares quality and saved file size before and after folding one linear head.
+It includes saving, loading, and exact prediction checks for both fse formats.
+No speedup is claimed until matching committed raw measurements exist.
 
-## Recorded local overhead
+## Adapt a recipe safely
 
-The timing notebook ran on the same Apple M1 Pro and date, with a one-minute load average of 4.7114 before and after timing.
-It used the full 400,000-row GloVe-300 table and one worker. The warm batch contained 1,000 STS-B sentences repeated ten times.
+Use one writer, unchanged inputs, and a supported local filesystem for saved vector stores.
+**Acknowledge only durable rows**, meaning rows saved so they survive a process crash.
+For a resumed run, add `first_row`, the rows already stored, to `durable_rows`, the newly saved rows.
+The queue and folder recipes explain their ordering assumptions where they are used.
 
-| Measurement | Median or measured size |
-|---|---:|
-| Compute per sentence in a 10,000-sentence batch, five repetitions | 0.736 µs |
-| One-sentence encode call, 100 repetitions | 52.3 µs |
-| Local stdlib HTTP keepalive request with a fixed JSON vector response, 100 repetitions | 178.8 µs |
-| One 300-dimensional vector, little-endian float32 | 1,200 bytes |
-| The same vector, compact UTF-8 JSON | 6,320 bytes |
-
-The HTTP measurement excludes embedding compute and JSON parsing. The batch figure amortizes Python overhead across repeated inputs.
-The local request alone exceeded a single encode call in this setup. This supports running fse where the text already is.
-It does not establish the cost of other networks, services, concurrency levels or batched requests.
+The [API and design index](../ARCHITECTURE.md) documents the full contracts.
+The diagrams use the maintainer's brand palette with light and dark SVG variants.
+Regenerate them with `uv run --no-sync python recipes/_charts.py`.
