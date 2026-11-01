@@ -119,13 +119,18 @@ def input_file(context, cell):
 def labels(cell):
     if cell["kind"] == "classify":
         return ["fse-a", "fse-b", "unfolded", "model2vec-linear"]
-    return ["fse-a", "fse-b"] + ([cell["reference"]] if cell.get("reference") else [])
+    arms = ["fse-a", "fse-b"] + ([cell["reference"]] if cell.get("reference") else [])
+    if cell.get("small_call_exception") and cell["workers"] == 16:
+        arms += ["fse-reused", "rust-nested"]
+    return arms
 
 
 def job_for(context, cell, label, number, folder):
     path, identity = input_file(context, cell)
     model = context["models"][cell["model"]]
     backend = "fse" if label.startswith("fse-") else label
+    if backend == "rust-nested":
+        backend = "rust"
     if cell["kind"] == "classify" and backend == "fse":
         backend = "folded"
     job = dict(
@@ -133,6 +138,8 @@ def job_for(context, cell, label, number, folder):
         label=label,
         round=number,
         backend=backend,
+        persistent_pool=label == "fse-reused",
+        nested_output=label == "rust-nested",
         input_file=str(path),
         input_sha256=identity["sha256"],
         snapshot=model["snapshot"],

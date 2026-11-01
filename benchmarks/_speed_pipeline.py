@@ -52,6 +52,7 @@ def setup(root, contract):
             "--extra-index-url",
             "https://download.pytorch.org/whl/cpu",
         )
+        command(uv, "pip", "check", "--python", destination / "bin/python")
     command("git", "clone", "https://github.com/oborchers/Fast_Sentence_Embeddings.git", source)
     command("git", "-C", source, "checkout", "--detach", contract["fse_revision"])
     command(
@@ -97,6 +98,14 @@ def encoder(job):
         from fse import Encoder
 
         model = Encoder.load(job["artifact"], mmap=True)
+        if job.get("persistent_pool"):
+            from concurrent.futures import ThreadPoolExecutor
+            from contextlib import nullcontext
+
+            from fse._runtime import _executor
+
+            pool = ThreadPoolExecutor(max_workers=workers)
+            _executor.ThreadPoolExecutor = lambda **_: nullcontext(pool)
         if model.word_vectors.dtype != job["dtype"]:
             raise ValueError("finished table dtype differs from the requested cell")
         return lambda texts: model.encode(texts, workers=workers)
@@ -215,7 +224,9 @@ fn main()->Result<(),Box<dyn std::error::Error>> {
  let load=start.elapsed().as_secs_f64();
  let passes:usize=a[3].parse()?;let mut seconds=Vec::new();let mut hashes=Vec::new();
  for pass in 0..=passes {
-  let start=Instant::now();let output=model.encode_flat(&texts);
+  let start=Instant::now();let output=if a.get(6).map(String::as_str)==Some("nested") {
+   model.encode(&texts).into_iter().flatten().collect::<Vec<f32>>()
+  } else {model.encode_flat(&texts)};
   seconds.push(start.elapsed().as_secs_f64());
   let mut digest=std::collections::hash_map::DefaultHasher::new();
   for value in &output {value.to_bits().hash(&mut digest);}hashes.push(digest.finish().to_string());
@@ -249,7 +260,14 @@ codegen-units=1
 lto="thin"
 """)
     subprocess.run(
-        ["cargo", "build", "--release", "--locked", "--manifest-path", str(folder / "Cargo.toml")],
+        [
+            str(Path.home() / ".cargo/bin/cargo"),
+            "build",
+            "--release",
+            "--locked",
+            "--manifest-path",
+            str(folder / "Cargo.toml"),
+        ],
         check=True,
     )
     binary = folder / "target/release/fse-model2vec-rs-compare"
@@ -259,7 +277,9 @@ lto="thin"
         source_sha256=sha256(folder / "src/main.rs"),
         lock_sha256=sha256(lock),
         revision="19f58bef6ce145f2bc08de7016498f28d521feea",
-        compiler=subprocess.check_output(["rustc", "--version"], text=True).strip(),
+        compiler=subprocess.check_output(
+            [str(Path.home() / ".cargo/bin/rustc"), "--version"], text=True
+        ).strip(),
     )
     atomic(folder / "build.json", receipt)
     return receipt
@@ -284,6 +304,7 @@ def rust_child(job):
                 str(job.get("warm_passes", 1)),
                 job["vectors_file"],
                 str(job["workers"]),
+                "nested" if job.get("nested_output") else "flat",
             ],
             text=True,
         )
@@ -357,6 +378,7 @@ def prepare_models(root, contract):
                 "model.safetensors",
                 "tokenizer.json",
                 "config.json",
+                "config_sentence_transformers.json",
                 "modules.json",
                 "tokenizer_config.json",
                 "special_tokens_map.json",
