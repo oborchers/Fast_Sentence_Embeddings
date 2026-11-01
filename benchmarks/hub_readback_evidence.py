@@ -23,14 +23,8 @@ def write_atomic(path, value):
             temporary.unlink()
 
 
-def mkdir_durable(path):
-    missing = []
-    current = path
-    while not current.exists():
-        missing.append(current)
-        current = current.parent
-    if not current.is_dir():
-        raise NotADirectoryError(current)
-    for directory in reversed(missing):
-        directory.mkdir()
-        _sync_directory(directory.parent)
+def mkdir_durable(path, *, exist_ok=False):
+    if not path.parent.exists():
+        mkdir_durable(path.parent, exist_ok=True)
+    path.mkdir(exist_ok=exist_ok)
+    _sync_directory(path.parent)

@@ -223,7 +223,7 @@ def parent_run(args):
     receipts = json.loads(args.upload_receipts.read_text())
     entries = uploaded_entries(manifest, receipts, args.manifest)
     mkdir_durable(args.output)
-    mkdir_durable(args.scratch)
+    mkdir_durable(args.scratch, exist_ok=True)
     rows = []
     for entry, revision in entries:
         row = checked_run(entry, revision, args)

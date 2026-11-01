@@ -274,3 +274,25 @@ def test_new_evidence_directories_sync_every_parent(modules, monkeypatch, tmp_pa
     modules.evidence.mkdir_durable(target)
     assert target.is_dir()
     assert synced == [tmp_path, target.parent]
+
+
+def test_output_created_after_precheck_cannot_be_reused(modules, monkeypatch, tmp_path):
+    manifest = tmp_path / "manifest.json"
+    receipts = tmp_path / "receipts.json"
+    manifest.write_text("{}")
+    receipts.write_text("{}")
+    output = tmp_path / "evidence"
+
+    def concurrent_creation(*_args):
+        output.mkdir()
+        (output / "other-run.json").write_text("preserve")
+        return []
+
+    monkeypatch.setattr(modules.runner, "uploaded_entries", concurrent_creation)
+    args = SimpleNamespace(
+        output=output, scratch=tmp_path / "scratch", manifest=manifest, upload_receipts=receipts
+    )
+    with pytest.raises(FileExistsError):
+        modules.runner.parent_run(args)
+    assert (output / "other-run.json").read_text() == "preserve"
+    assert {path.name for path in output.iterdir()} == {"other-run.json"}
