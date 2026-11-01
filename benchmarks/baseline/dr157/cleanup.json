@@ -54,5 +54,32 @@
     "free_before_bytes": 68481634304,
     "free_after_bytes": 68656029696,
     "confirmed_absent": true
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/review-dacdb78",
+    "kind": "completed independent review checkout dacdb78",
+    "allocated_bytes_removed": 11788288,
+    "filesystem_free_before": 68524548096,
+    "filesystem_free_after": 68553285632,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:22:19.058708"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/comparison/glove-wikitext-wordfreq.safetensors",
+    "kind": "completed temporary comparison table; committed header and full bitwise audit, fit arrays and results retained",
+    "allocated_bytes_removed": 486158336,
+    "filesystem_free_before": 68493824000,
+    "filesystem_free_after": 68979965952,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:23:24.836142"
+  },
+  {
+    "target": "/Users/oliverborchers/fse-dr157/comparison/glove-fineweb-wordfreq.safetensors",
+    "kind": "completed temporary comparison table; committed header and full bitwise audit, fit arrays and results retained",
+    "allocated_bytes_removed": 486158336,
+    "filesystem_free_before": 69115973632,
+    "filesystem_free_after": 69602119680,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:23:38.917056"
   }
 ]

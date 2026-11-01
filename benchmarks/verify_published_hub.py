@@ -19,7 +19,7 @@ from pathlib import Path
 
 from hub_public_readback import FLAGS, check_uploaded_repo
 from hub_publication import file_sha256
-from hub_readback_evidence import write_atomic
+from hub_readback_evidence import mkdir_durable, write_atomic
 
 
 def cache_environment(home):
@@ -105,6 +105,18 @@ def child_run(args):
     return 0 if row["status"] == "passed" else 1
 
 
+def failed_child(result, repo, error):
+    row = {"repo": repo, **dict.fromkeys(FLAGS, False)}
+    if result.exists():
+        previous = json.loads(result.read_text())
+        if not isinstance(previous, dict) or previous.get("repo") != repo:
+            raise ValueError("existing child receipt has unexpected repository identity")
+        row = previous
+    row["status"] = "failed"
+    row["process_error"] = {"type": type(error).__name__}
+    return row
+
+
 def run_one(entry, revision, args, output):
     if shutil.disk_usage(args.scratch).free < 25 * 2**30:
         raise RuntimeError("less than 25 GiB free before cold Hub verification")
@@ -151,20 +163,8 @@ def run_one(entry, revision, args, output):
                 "exit_code": completed.returncode,
                 **dict.fromkeys(FLAGS, False),
             }
-    except subprocess.TimeoutExpired:
-        row = {
-            "repo": entry["repo"],
-            "status": "failed",
-            "error": {"type": "TimeoutExpired"},
-            **dict.fromkeys(FLAGS, False),
-        }
     except Exception as error:
-        row = {
-            "repo": entry["repo"],
-            "status": "failed",
-            "error": {"type": type(error).__name__},
-            **dict.fromkeys(FLAGS, False),
-        }
+        row = failed_child(result, entry["repo"], error)
     write_atomic(result, row)  # Preserve the complete probe before deleting downloaded bytes.
     try:
         removed = remove_owned_cache(case, owner)
@@ -222,8 +222,8 @@ def parent_run(args):
     manifest = json.loads(args.manifest.read_text())
     receipts = json.loads(args.upload_receipts.read_text())
     entries = uploaded_entries(manifest, receipts, args.manifest)
-    args.output.mkdir(parents=True)
-    args.scratch.mkdir(parents=True, exist_ok=True)
+    mkdir_durable(args.output)
+    mkdir_durable(args.scratch)
     rows = []
     for entry, revision in entries:
         row = checked_run(entry, revision, args)

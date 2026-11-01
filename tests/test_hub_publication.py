@@ -245,3 +245,32 @@ def test_failed_atomic_replacement_preserves_previous_receipt(modules, monkeypat
         evidence.write_atomic(path, {"observed": 0.7})
     assert json.loads(path.read_text()) == {"observed": 0.5}
     assert list(tmp_path.iterdir()) == [path]
+
+
+def test_timeout_preserves_published_child_measurements(modules, tmp_path):
+    import subprocess
+
+    result = tmp_path / "result.json"
+    prior = {
+        "repo": "fse/example",
+        "status": "passed",
+        "difference_points": 0.0001,
+        "probe": {"pearson_x100": 60.0001},
+        "files_ok": True,
+    }
+    modules.evidence.write_atomic(result, prior)
+    row = modules.runner.failed_child(result, "fse/example", subprocess.TimeoutExpired([], 1))
+    assert row["difference_points"] == prior["difference_points"]
+    assert row["probe"] == prior["probe"]
+    assert row["files_ok"] is True
+    assert row["status"] == "failed"
+    assert row["process_error"]["type"] == "TimeoutExpired"
+
+
+def test_new_evidence_directories_sync_every_parent(modules, monkeypatch, tmp_path):
+    synced = []
+    monkeypatch.setattr(modules.evidence, "_sync_directory", synced.append)
+    target = tmp_path / "new-parent" / "evidence"
+    modules.evidence.mkdir_durable(target)
+    assert target.is_dir()
+    assert synced == [tmp_path, target.parent]
