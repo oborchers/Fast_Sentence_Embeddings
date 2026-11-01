@@ -12,6 +12,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 - Rewrite the README around static embedding inference, model choices and sourced measurements. Clarify contribution evidence, AI disclosure and MIT agreement, add a PR checklist, and align package metadata with the unreleased 2.0 API.
 
+- `ShardSink` reports the first thread failure instead of a later failure caused by it, regardless of which thread the caller checks first.
+
 - `MemorySink` accepts positive numpy integer dimensions, matching the public integer validation contract. Booleans, floats and nonpositive dimensions remain errors.
 
 - The README documents the existing `StaticModel` export methods. The runtime error contract distinguishes eager collection validation from row ordering during a run.

@@ -40,6 +40,31 @@ _POLL = 0.05  # seconds between checks while waiting, so a signal handler runs m
 _Item = tuple[Callable[..., Any], tuple, int] | None
 
 
+class WriterFailure:
+    """The first failure of cooperating threads, reported once to their caller."""
+
+    def __init__(self):
+        self.error: BaseException | None = None
+        self.reported = False
+        self._lock = threading.Lock()
+
+    def record(self, error: BaseException) -> None:
+        with self._lock:
+            if self.error is None:
+                self.error = error
+
+    def check(self, report: bool) -> None:
+        if self.error is None:
+            return
+        with self._lock:
+            error = self.error
+            reported = self.reported
+            self.reported |= report
+        if not reported:
+            raise error
+        raise RuntimeError(f"the writer of the sink failed earlier: {error!r}") from error
+
+
 class WriterThread:
     """Runs callables in one thread, in the order they were submitted.
 
@@ -47,18 +72,20 @@ class WriterThread:
     exiting (its shard in progress then stays a temporary directory, which readers
     ignore). An error of the thread is raised at the next ``submit``, ``check`` or
     ``drain``, itself once and then as a RuntimeError naming it; work after it is
-    dropped.
+    dropped. Cooperating threads share a ``WriterFailure`` so a secondary failure never
+    replaces the first one. Each thread still finishes its queued work unless it itself
+    fails or is abandoned, so a failure elsewhere cannot close a file it still writes.
 
     The waiting pieces and the piece running are the whole state of the queue, kept
     under one condition: no counter is changed after a piece is queued, so an interrupt
     (Ctrl+C) of the caller at any point leaves a piece either queued or not.
     """
 
-    def __init__(self, name: str = "fse-shard-writer"):
+    def __init__(self, name: str = "fse-shard-writer", *, failure: WriterFailure | None = None):
         self._items: deque[_Item] = deque()
         self._state = threading.Condition()
-        self._error: BaseException | None = None
-        self._reported = False
+        self._failure = failure if failure is not None else WriterFailure()
+        self._error: BaseException | None = None  # only this thread's work stops
         self._abandoned = False
         self._accepting = True  # until the thread ends
         self._stopping = False
@@ -78,7 +105,9 @@ class WriterThread:
         self.check(report)
         with self._state:
             while self._accepting and self._full(nbytes):
+                self.check(report)
                 self._state.wait(_POLL)
+            self.check(report)
             if not self._accepting or self._abandoned:
                 raise RuntimeError("the writer thread of the sink is stopped")
             # The thread wakes only once this releases the lock, so the piece is queued by
@@ -95,19 +124,12 @@ class WriterThread:
         """Raise the error of the thread: itself until it is reported to the caller (a
         call with ``report``), then a RuntimeError that names it, so no work is ever
         dropped without an error."""
-        if self._error is None:
-            return
-        if not self._reported:
-            self._reported = report
-            raise self._error
-        raise RuntimeError(
-            f"the writer of the sink failed earlier: {self._error!r}"
-        ) from self._error
+        self._failure.check(report)
 
     @property
     def reported(self) -> bool:
         """Whether a call has raised the error of the thread."""
-        return self._reported
+        return self._failure.reported
 
     def settle(self) -> None:
         """Wait until all work handed over so far is done or dropped, without raising."""
@@ -176,6 +198,7 @@ class WriterThread:
             if self._error is None:
                 work(*args)
         except BaseException as error:  # kept for the calling thread
+            self._failure.record(error)
             self._error = self._error or error
         return True
 

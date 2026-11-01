@@ -1,6 +1,7 @@
 """Publication counts and policy remain explicit on success and failure."""
 
 import os
+import threading
 
 import pytest
 
@@ -65,8 +66,10 @@ def test_none_keeps_committed_rows_after_a_caller_error_without_confirming_them(
 
 def test_none_counts_unpublished_commits_as_dropped_after_a_write_failure(tmp_path, monkeypatch):
     sink = fse.ShardSink(tmp_path / "store", finished(), shard_rows=8, durability="none")
+    release = threading.Event()
 
     def fail(*_args):
+        assert release.wait(10)
         raise OSError(5, "injected write failure")
 
     monkeypatch.setattr(_shard, "write_at", fail)
@@ -74,13 +77,14 @@ def test_none_counts_unpublished_commits_as_dropped_after_a_write_failure(tmp_pa
         target = sink.target(0, 8)
         target[0][...] = target[1][...] = 0
 
-        def commit_and_close():
+        try:
             sink.commit(0, target)
+            release.set()
+            with pytest.raises(OSError, match="injected write failure"):
+                sink.close()
+        finally:
+            release.set()
             sink.close()
-
-        with pytest.raises(OSError, match="injected write failure"):
-            commit_and_close()
-        sink.close()
     assert (sink.published_rows, sink.durable_rows) == (0, 0)
     assert not _events(records, "store.shard_published")
     (closed,) = _events(records, "store.sink_closed")
