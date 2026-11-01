@@ -19,6 +19,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from compare_inputs import identity  # isort: skip
+from compare_runtime import backend_identity  # isort: skip
 from compare_artifacts import (
     check_head_encoder,
     checked_encoder,
@@ -93,6 +94,7 @@ def metrics(labels, predicted) -> dict:
 
 
 def record(args, row: dict) -> None:
+    row = {**row, **backend_identity(row["backend"])}
     with args.results.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(row) + "\n")
     print(json.dumps({key: row[key] for key in ("backend", "model", "macro_f1")}), flush=True)

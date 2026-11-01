@@ -33,6 +33,7 @@ def measurement_identity(tasks: list) -> dict:
             "resume.py",
             "protocol.py",
             "artifact_manifest.py",
+            "backend_runtime.py",
         )
     ]
     runtime = Path(fse.__file__).resolve().parent
@@ -41,6 +42,7 @@ def measurement_identity(tasks: list) -> dict:
     return {
         "method_fingerprint": files_digest(folder, method),
         "runtime_fingerprint": files_digest(runtime, code),
+        "fse_reference_runtime_fingerprint": files_digest(runtime, code),
         "suite_fingerprint": checksum(json.dumps(suite, sort_keys=True).encode("utf-8")),
     }
 

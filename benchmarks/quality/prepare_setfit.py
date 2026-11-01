@@ -21,6 +21,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from compare_inputs import identity  # isort: skip
+from compare_runtime import backend_identity  # isort: skip
 from compare_artifacts import (
     check_head_encoder,
     checked_encoder,
@@ -78,7 +79,14 @@ def fit(features, labels):
 
 
 def save_result(args, provenance, backend, model, labels, predicted, **extra):
-    row = {**provenance, **metrics(labels, predicted), "backend": backend, "model": model, **extra}
+    row = {
+        **provenance,
+        **backend_identity(backend),
+        **metrics(labels, predicted),
+        "backend": backend,
+        "model": model,
+        **extra,
+    }
     with args.results.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(row) + "\n")
     print(

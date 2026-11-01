@@ -51,6 +51,8 @@ from typing import Any
 import mteb
 import numpy as np
 from artifact_manifest import verified_source
+from backend_runtime import model_runtime
+from compare_runtime import verify_backend_identity
 from model2vec_adapter import NativeModel2VecEncoder
 from mteb.cache import ResultCache
 from mteb.models.abs_encoder import AbsEncoder
@@ -287,6 +289,7 @@ def run(
             },
         }
         specification.update(getattr(model, "provenance", source_identity(name)))
+        specification.update(model_runtime(model, environment))
         specification.setdefault("float32_parent_fingerprint", None)
         pending = pending_tasks(results, specification, tasks) if resume else tasks
         logger.info("%s: %d pending tasks of %d", name, len(pending), len(tasks))
@@ -295,6 +298,7 @@ def run(
         timer = EncodeTimer(model)
         with closing(task_batches(model, pending, cache)) as batches:
             for task_to_run, result in batches:
+                verify_backend_identity(specification["backend_kind"], specification)
                 for task_result in result.task_results:
                     task = task_result.task_name
                     with results.open("a", encoding="utf-8") as f:

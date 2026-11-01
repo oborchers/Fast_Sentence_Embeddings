@@ -19,7 +19,7 @@ from protocol import compatible_results
 def setup(row: dict) -> str:
     fields = (
         "method_fingerprint",
-        "runtime_fingerprint",
+        "fse_reference_runtime_fingerprint",
         "suite_fingerprint",
         "versions",
         "workers",
@@ -28,6 +28,9 @@ def setup(row: dict) -> str:
         "python",
     )
     values = {key: row.get(key) for key in fields}
+    values["fse_reference_runtime_fingerprint"] = row.get(
+        "fse_reference_runtime_fingerprint", row.get("runtime_fingerprint")
+    )
     values["python"] = (values["python"] or "").split(" ", maxsplit=1)[0]
     return json.dumps(values, sort_keys=True)
 
@@ -125,6 +128,16 @@ def summarize(rows: list[dict], selected_setup: str, artifacts: dict) -> dict:
             {
                 "model": name,
                 "source_model": source.get("source_model"),
+                "backend_runtime": {
+                    key: source.get(key)
+                    for key in (
+                        "runtime_package",
+                        "runtime_package_version",
+                        "package_location",
+                        "runtime_fingerprint",
+                        "runtime_fingerprint_scope",
+                    )
+                },
                 "source_revision": source.get("source_revision"),
                 "encoder_fingerprint": source.get("encoder_fingerprint"),
                 "artifact": artifact,
@@ -158,7 +171,7 @@ def main():
     parser.add_argument(
         "--method", help="select a method fingerprint if results contain several setups"
     )
-    parser.add_argument("--runtime", help="select a runtime fingerprint")
+    parser.add_argument("--runtime", help="select the common fse reference runtime fingerprint")
     parser.add_argument(
         "--artifacts",
         type=Path,
@@ -172,7 +185,11 @@ def main():
         for row in rows
         if row.get("method_fingerprint")
         and (not args.method or row["method_fingerprint"] == args.method)
-        and (not args.runtime or row["runtime_fingerprint"] == args.runtime)
+        and (
+            not args.runtime
+            or row.get("fse_reference_runtime_fingerprint", row["runtime_fingerprint"])
+            == args.runtime
+        )
     ]
     setups = {setup(row) for row in selected}
     if len(setups) != 1:

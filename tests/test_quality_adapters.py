@@ -115,6 +115,19 @@ class TestQualityAdapters(unittest.TestCase):
                 patch.object(runner, "metadata", return_value=meta),
                 patch.object(runner, "identity", return_value=environment),
                 patch.object(runner, "measurement_identity", return_value=fingerprints),
+                patch.object(
+                    runner,
+                    "model_runtime",
+                    return_value={
+                        "backend_kind": "st",
+                        "runtime_package": "sentence-transformers",
+                        "runtime_package_version": "pinned",
+                        "package_location": "/counterpart/st",
+                        "runtime_fingerprint": "counterpart-content",
+                        "fse_reference_runtime_fingerprint": "common-fse",
+                    },
+                ),
+                patch.object(runner, "verify_backend_identity"),
                 patch.object(runner, "ResultCache"),
                 patch.object(runner, "EncodeTimer", return_value=SimpleNamespace(stats={})),
                 patch.object(runner, "task_reservation", side_effect=lambda *_: nullcontext()),
@@ -126,7 +139,17 @@ class TestQualityAdapters(unittest.TestCase):
             row = json.loads(path.read_text())
             specification = {key: row[key] for key in importlib.import_module("resume").KEYS}
             assert row["float32_parent_fingerprint"] is None
+            assert row["runtime_package"] == "sentence-transformers"
+            assert row["runtime_fingerprint"] == "counterpart-content"
+            assert row["fse_reference_runtime_fingerprint"] == "common-fse"
             assert runner.pending_tasks(path, specification, [task]) == []
+
+    def test_comparison_context_separates_own_code_from_fse_reference(self):
+        left = {"runtime_fingerprint": "fse-own", "fse_reference_runtime_fingerprint": "shared"}
+        right = {"runtime_fingerprint": "st-own", "fse_reference_runtime_fingerprint": "shared"}
+        assert self.report.setup(left) == self.report.setup(right)
+        right["fse_reference_runtime_fingerprint"] = "different-fse-reference"
+        assert self.report.setup(left) != self.report.setup(right)
 
     def test_batch_yields_lock_when_timing_marker_appears(self):
         with tempfile.TemporaryDirectory() as directory:

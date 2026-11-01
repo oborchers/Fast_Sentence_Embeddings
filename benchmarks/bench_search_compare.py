@@ -27,6 +27,7 @@ from bench_compare import append, reservation
 from compare_artifacts import checked_encoder, runtime_identity
 from compare_inputs import corpus_identity, identity, texts
 from compare_models import MODELS, artifact_name
+from compare_runtime import verify_backend_identity
 from compare_search import (
     index_recall,
     make_index,
@@ -49,9 +50,9 @@ def child(args) -> None:
 
     sentences = texts("wikitext")
     provenance = {
-        **identity(),
+        **identity(args.kind),
+        "encoder_runtime_fingerprint": runtime_identity(),
         **corpus_identity("wikitext", sentences),
-        "runtime_fingerprint": runtime_identity(),
     }
     with threadpool_limits(limits=args.workers), tempfile.TemporaryDirectory(dir=args.tmp) as temp:
         startup_start = time.perf_counter()
@@ -89,6 +90,7 @@ def child(args) -> None:
         finally:
             if args.kind == "fse":
                 index.close()
+        verify_backend_identity(args.kind, provenance)
         files = [path] if path.is_file() else [p for p in path.rglob("*") if p.is_file()]
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         record = {

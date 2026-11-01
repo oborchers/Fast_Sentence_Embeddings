@@ -31,6 +31,8 @@ LENGTH_FIELDS = (
 def compatible(row: dict, setup: dict) -> bool:
     for key, expected in setup.items():
         value = row.get(key)
+        if key == "fse_reference_runtime_fingerprint":
+            value = row.get(key, row.get("runtime_fingerprint"))
         if key == "python":
             value = (value or "").split(" ", maxsplit=1)[0]
         if value != expected:

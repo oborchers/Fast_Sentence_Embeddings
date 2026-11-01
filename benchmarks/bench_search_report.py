@@ -29,6 +29,15 @@ def backend(records):
     first = records[0]
     return {
         "kind": first["kind"],
+        "backend_runtime": {
+            key: first.get(key)
+            for key in (
+                "runtime_package",
+                "runtime_package_version",
+                "package_location",
+                "runtime_fingerprint",
+            )
+        },
         "index_settings": first["index_settings"],
         "encoder_start": first["encoder_start"],
         "startup_scope": first["startup_scope"],
@@ -52,7 +61,7 @@ def backend(records):
 def require_compatible(records):
     common = (
         "commit",
-        "runtime_fingerprint",
+        "encoder_runtime_fingerprint",
         "versions",
         "machine",
         "python",
