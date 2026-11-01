@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "archive_root": "benchmarks/baseline/results/dr157-20261101/publication-monitor-recovery",
+  "source_snapshot": "/Users/oliverborchers/fse-dr157/publication-monitor-handoff",
+  "files": [
+    {
+      "path": "scripts/publish_hub_now.py",
+      "bytes": 7402,
+      "sha256": "ab556c194212505906bc5649196dd24a804fe9bb61229389b7879a2245b4cee4"
+    },
+    {
+      "path": "scripts/finish_publication_now.py",
+      "bytes": 7332,
+      "sha256": "735390638a31a7c50420f33511a43846dd47dd53ec02f154cc903b5c6314b1b1"
+    },
+    {
+      "path": "publication-review/check_monitor_recovery.py",
+      "bytes": 4819,
+      "sha256": "833a058c212da8f01ebb582217c4175a6f54915fac9d19fc0ac4ced284e302b7"
+    },
+    {
+      "path": "publication-review/recovery-checks.json",
+      "bytes": 369,
+      "sha256": "2c35f83c0c50287dd91eea3509072358a224a2062c89058f7550389b1a05eaca"
+    },
+    {
+      "path": "publication-review/review.md",
+      "bytes": 4761,
+      "sha256": "349af12fdf338c9d7d66553a63758cc5a49d4edd8506f836e360590b3167a45c"
+    },
+    {
+      "path": "publication-review/review.log",
+      "bytes": 212864,
+      "sha256": "1425c8c3d0138f8d2c06ab6dcce65d44fa2af90b2847e2d49d45b3586371325a"
+    },
+    {
+      "path": "publication-review/prompt.md",
+      "bytes": 2268,
+      "sha256": "9bc5c5895fab1f7d5f0a92a5c2f89bb984188610159fe03e9a1e89725bc8286b"
+    },
+    {
+      "path": "publication-review/exit-code.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "publication-review/started-at.txt",
+      "bytes": 18,
+      "sha256": "77c3250454a0c2adf8da8d490af0e897c670123ecfd2a29dc4c01fbd485900e1"
+    },
+    {
+      "path": "publication-review/review-decisions.json",
+      "bytes": 1874,
+      "sha256": "34892acea45f815541cafa2f78e2115a47561fea4134ab6c4a5254a089849285"
+    },
+    {
+      "path": "publication-now/completion-monitor-before-recovery.json",
+      "bytes": 416,
+      "sha256": "3379443098c922921e5ed4b6b11a3d12061b3c444e9320aa7a52a743338490f5"
+    }
+  ],
+  "file_count": 11,
+  "total_bytes": 242125,
+  "notes": [
+    "Operational observer recovery only. No model or card changes.",
+    "Scripts are archival data only, never execute them.",
+    "Active upload and final readback evidence are not included; they follow after completion."
+  ]
+}

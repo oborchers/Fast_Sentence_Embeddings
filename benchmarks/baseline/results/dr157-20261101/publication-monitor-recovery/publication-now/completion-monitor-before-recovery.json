@@ -1,0 +1,13 @@
+{
+  "status": "observing-upload",
+  "monitor_pid": 78805,
+  "upload_pid": 45458,
+  "milestones_notified": [
+    "Upload mit erstem frischen Readback:5",
+    "Upload mit erstem frischen Readback:10",
+    "Upload mit erstem frischen Readback:15",
+    "Upload mit erstem frischen Readback:20"
+  ],
+  "manifest_sha256": "b569e35ee442263a3b73fb3d5f8ec89cf36488816bb36af3426e5caef116a436",
+  "uploaded_and_verified": 20
+}

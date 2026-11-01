@@ -1,0 +1,38 @@
+{
+  "review_exit_code": 0,
+  "reviewed_archive_commit": "e87ea3851833257f5eac561eed853a260581d3ce",
+  "findings": [
+    {
+      "finding": "Concurrent publisher startup can replace shared receipts",
+      "decision": "confirmed and corrected for future starts with exclusive flock",
+      "running_upload": "Already past startup with existing ledger. No restart or second publisher."
+    },
+    {
+      "finding": "Final read-only verifier must stop after first failed repository",
+      "decision": "rejected",
+      "reason": "Oliver requires no remote repair or deletion on failure, and verification of every repository. The final verifier performs read-only checks and preserves all failures. The review prompt incorrectly strengthened this into a requirement to stop all read-only checks. Initial publication already stops before further Hub writes on any readback failure."
+    },
+    {
+      "finding": "Refused observer restart overwrites existing state",
+      "decision": "confirmed and corrected",
+      "test": "Existing completion evidence remains byte-identical after refused startup."
+    },
+    {
+      "finding": "Herdr notification failure prevents final verification",
+      "decision": "confirmed and corrected",
+      "test": "Injected timeout preserves observer operation and retries delivery. Final delivery retries are bounded and errors are preserved without changing successful verification state."
+    },
+    {
+      "finding": "Failed readbacks counted in success milestones",
+      "decision": "confirmed and corrected",
+      "test": "Four passes and one failure never produce a five-success milestone."
+    }
+  ],
+  "fault_injection_checks_passed": 5,
+  "old_observer_pid": 78805,
+  "replacement_observer_pid": 57500,
+  "upload_pid_untouched": 45458,
+  "models_modified": false,
+  "cards_modified": false,
+  "hub_writes_for_recovery": false
+}
