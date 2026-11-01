@@ -1,0 +1,139 @@
+"""Unfinished or incompatible observations must not become public speed claims."""
+
+import copy
+import json
+import runpy
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+PANEL = runpy.run_path(str(ROOT / "media/readme/speed_panels.py"))
+
+
+def row(backend="fse", dtype="float32", workers=1):
+    return {
+        "complete": True,
+        "runtime_attributed": True,
+        "aa_upper": 1.05,
+        "backend": backend,
+        "runtime_fingerprint": f"test-only-{backend}",
+        "source": {
+            "commit": "0" * 40,
+            "path": "benchmarks/baseline/test.jsonl",
+            "series_id": "test",
+        },
+        "context": {
+            "model": "test/model",
+            "revision": "1" * 40,
+            "parent_artifact": "test-weights",
+            "input_digest": "test-input",
+            "texts": 100,
+            "corpus": "test-corpus",
+            "machine": "test-machine",
+            "date": "test-date",
+            "workers": workers,
+            "table_dtype": dtype,
+            "output_dtype": "float32",
+            "output_dim": 256,
+            "normalize": True,
+            "tokenizer_rule": "test-rule",
+        },
+        "texts_per_second": [100, 200, 300],
+    }
+
+
+def pair():
+    reference = row("model2vec")
+    reference["texts_per_second"] = [10, 200, 30]
+    return {"fse": row(), "reference": reference, "output_checked": True}
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("complete", False),
+        ("runtime_attributed", False),
+        ("aa_upper", 1.101),
+        ("runtime_fingerprint", ""),
+        ("texts_per_second", [100, 200]),
+        ("texts_per_second", [100, float("nan"), 200]),
+    ],
+)
+def test_unqualified_measurements_fail(field, value):
+    sample = row()
+    sample[field] = value
+    with pytest.raises(ValueError):
+        PANEL["measured"](sample)
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "model",
+        "revision",
+        "input_digest",
+        "machine",
+        "workers",
+        "normalize",
+        "output_dim",
+        "table_dtype",
+        "tokenizer_rule",
+    ],
+)
+def test_same_model_bars_reject_mixed_computation(key):
+    sample = pair()
+    sample["reference"]["context"][key] = "different"
+    with pytest.raises(ValueError, match="same comparison context"):
+        PANEL["comparison"](sample)
+
+
+def test_speedup_preserves_round_pairing():
+    assert PANEL["comparison"](pair()) == 10
+
+
+def test_compact_table_requires_ten_workers_and_all_precisions():
+    rows = [row(dtype=dtype, workers=10) for dtype in PANEL["DTYPES"]]
+    assert "| int8 | 200 |" in PANEL["table"](rows)
+    with pytest.raises(ValueError):
+        PANEL["table"](rows[:2])
+    rows[-1]["context"]["workers"] = 1
+    with pytest.raises(ValueError):
+        PANEL["table"](rows)
+
+
+def test_comparison_requires_same_series_and_checked_output():
+    sample = pair()
+    sample["reference"]["source"]["series_id"] = "other"
+    with pytest.raises(ValueError, match="paired series"):
+        PANEL["comparison"](sample)
+    sample = pair()
+    sample["output_checked"] = False
+    with pytest.raises(ValueError, match="Output"):
+        PANEL["comparison"](sample)
+
+
+def test_empty_data_publishes_nothing_and_invalid_pair_writes_nothing(tmp_path):
+    palette = json.loads((ROOT / "media/readme/palette.json").read_text())
+    data = {"format": "readme-speed-panels-v1", "table": [], "comparisons": []}
+    PANEL["publish"](data, tmp_path, palette)
+    assert list(tmp_path.iterdir()) == []
+    data["table"] = [row(dtype=dtype, workers=10) for dtype in PANEL["DTYPES"]]
+    data["table_caption"] = "test caption"
+    bad = copy.deepcopy(pair())
+    bad["output_checked"] = False
+    data["comparisons"] = [bad]
+    data["comparison_caption"] = "test caption"
+    with pytest.raises(ValueError):
+        PANEL["publish"](data, tmp_path, palette)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_preview_has_no_rates_or_speedup_claims():
+    palette = json.loads((ROOT / "media/readme/palette.json").read_text())
+    for theme in ("light", "dark"):
+        colors = {key: value["value"] for key, value in palette[theme].items()}
+        drawing = PANEL["svg"]([], "Unmeasured layout", colors, preview=True)
+        assert "Layout preview. No measurements." in drawing
+        assert "times as fast" not in drawing
+        assert colors["accent"] in drawing

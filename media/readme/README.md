@@ -44,3 +44,22 @@ Architecture sources: `src/fse/_runtime/_head.py` (`make_head`, `fold`, `HeadPip
 `src/fse/_head/_model.py` (`save`, `_standalone_artifact`), and `docs/architecture/overview.md` (stage4b and finished tables).
 The next measured panel will use committed classifier rows from DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen),
 with exact head, normalization, dataset, machine, workers, date and a symmetric A/A upper band at most1.10.
+
+## Prepared speed table and library comparison
+
+`speed_panels.py` renders the next compact table and light/dark same-model speedup bars.
+The accepted-data file starts empty. No unfinished table, fake multiplier or new figure appears in the main README.
+See `docs/benchmarks/readme-speed-panels.md` for exact required DR-151 row selectors and the audit/extraction contract.
+All three table rows must be fse at 10 workers, on one machine and input. A one-worker int8 value is never substituted.
+Each library bar has a separately paired fse baseline for that same model and output.
+MiniLM is excluded from this same-model renderer.
+
+Generate explicitly unmeasured layout previews:
+
+```sh
+python media/readme/speed_panels.py --preview
+```
+
+The previews go under `media/readme/layout/` and are never linked by README.
+After accepted data arrives, the normal generator writes `speed-table.md` and `library-speedups-{light,dark}.svg`.
+The table and graphic each receive one plain caption, with process details kept in the evidence guide.

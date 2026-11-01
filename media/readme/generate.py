@@ -2,6 +2,8 @@ import html
 import json
 from pathlib import Path
 
+from speed_panels import publish
+
 ROOT = Path(__file__).resolve().parents[2]
 brand = json.loads((ROOT / "media/readme/palette.json").read_text())
 summary = json.loads(
@@ -205,3 +207,6 @@ for theme in ("light", "dark"):
         "</g></svg>",
     ]
     (out / f"classification-folding-{theme}.svg").write_text("\n".join(parts) + "\n")
+
+# Future measured panels stay absent until audited cells are supplied.
+publish(json.loads((out / "speed_panel_data.json").read_text()), out, brand)

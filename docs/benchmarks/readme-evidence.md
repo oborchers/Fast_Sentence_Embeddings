@@ -11,6 +11,8 @@ The later int8 series below record both backends correctly; their one-worker cel
 
 TODO(DR-151): Record the counterpart's loaded code identity and re-measure a same-model comparison with an A/A band within 10%.
 
+The [speed-panel delivery plan](readme-speed-panels.md) lists exact required cells for the three ten-worker precision rows and each same-model library bar. It contains no new timing results.
+
 ## Classifier comparisons: linear head versus fine-tuned MLP
 
 A head turns a text vector into scores or labels. The classification recipe compares these different training methods:

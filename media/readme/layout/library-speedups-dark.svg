@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="590" viewBox="0 0 1100 590" role="img" aria-labelledby="title desc"><title id="title">fse vs other libraries</title><desc id="desc">Model, input, output, machine and date come from the accepted rows.</desc><rect width="1100" height="590" rx="12" fill="#0F0D0A"/><g font-family="Geist, Arial, sans-serif">
+<text x="40" y="52" font-size="30" font-weight="700" fill="#E8E4DF">fse vs other libraries</text>
+<text x="40" y="84" font-size="18" font-weight="400" fill="#E8E4DF">Layout preview. No measurements.</text>
+<text x="40" y="130" font-size="21" font-weight="700" fill="#E8E4DF">Model2Vec</text>
+<rect x="370" y="108" width="670" height="35" rx="4" fill="none" stroke="#5B9E7D" stroke-dasharray="6 5"/>
+<text x="385" y="130" font-size="18" font-weight="400" fill="#E8E4DF">measured speedup</text>
+<text x="40" y="230" font-size="21" font-weight="700" fill="#E8E4DF">model2vec-rs</text>
+<rect x="370" y="208" width="670" height="35" rx="4" fill="none" stroke="#5B9E7D" stroke-dasharray="6 5"/>
+<text x="385" y="230" font-size="18" font-weight="400" fill="#E8E4DF">measured speedup</text>
+<text x="40" y="330" font-size="21" font-weight="700" fill="#E8E4DF">FastEmbed</text>
+<rect x="370" y="308" width="670" height="35" rx="4" fill="none" stroke="#5B9E7D" stroke-dasharray="6 5"/>
+<text x="385" y="330" font-size="18" font-weight="400" fill="#E8E4DF">measured speedup</text>
+<text x="40" y="430" font-size="21" font-weight="700" fill="#E8E4DF">Sentence Transformers</text>
+<rect x="370" y="408" width="670" height="35" rx="4" fill="none" stroke="#5B9E7D" stroke-dasharray="6 5"/>
+<text x="385" y="430" font-size="18" font-weight="400" fill="#E8E4DF">measured speedup</text>
+<text x="40" y="565" font-size="15" font-weight="400" fill="#E8E4DF">Model, input, output, machine and date come from the accepted rows.</text>
+</g></svg>
