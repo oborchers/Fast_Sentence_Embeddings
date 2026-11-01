@@ -108,6 +108,8 @@ compact = Encoder.from_pretrained("minishlab/potion-base-8M").quantize("int8")
 compact.save("compact.safetensors")
 ```
 
+`-raw` in a classic Hub model name means no SIF weighting. It does not mean unnormalized output.
+
 You can also use your own GloVe, word2vec or FastText vectors with the optional `fse[gensim]` adapter.
 The [SIF and uSIF recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/01-sif-usif.ipynb) shows how to prepare classic word vectors for sentence search.
 
@@ -137,13 +139,15 @@ These are worked examples you can adapt, not hosted services.
 Route support requests, filter documents or classify a dataset.
 Train a supported linear model in scikit-learn, then let fse run it directly on text.
 The model must be trained on this encoder's vectors.
+`normalize=False` works for every supported model, including our classic Hub models under `fse/`.
+Our classic Hub models load normalized by default. For folding, load with `normalize=False` before training the linear head.
 Install `scikit-learn` first: `pip install scikit-learn`.
 
 ```python
 from sklearn.linear_model import LogisticRegression
-from fse import Classifier, StaticModel
+from fse import Classifier, Encoder
 
-encoder = StaticModel.from_pretrained("minishlab/potion-base-8M", normalize=False).encoder
+encoder = Encoder.from_pretrained("minishlab/potion-base-8M", normalize=False)
 texts = ["I cannot log in", "My password is lost", "Send me a quote", "What does it cost?"]
 head = LogisticRegression().fit(encoder.encode(texts), ["support", "support", "sales", "sales"])
 classifier = Classifier.from_sklearn(encoder, head)

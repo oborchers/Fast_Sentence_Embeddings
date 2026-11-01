@@ -248,6 +248,11 @@ hub_rows = hub_encoder.encode(["cat sleep"], workers=1)
 assert hub_rows.shape[0] == 1
 ```
 
+`Encoder.from_pretrained(..., normalize=False)` works with every supported layout, including fse encoder folders.
+Omitting `normalize` keeps the model's saved setting. Our classic Hub models are saved with normalization enabled.
+For a linear head that folds, load with `normalize=False` before training the head.
+In classic Hub names, `-raw` means no SIF weighting, not unnormalized sentence vectors.
+
 The [Hub contract](architecture/hub.md) lists supported layouts and tokenization limits.
 An arbitrary transformer model is not a static embedding table.
 

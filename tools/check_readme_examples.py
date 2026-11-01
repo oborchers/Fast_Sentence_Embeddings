@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from fse import Classifier, Encoder, StaticModel
+from fse import Classifier, Encoder
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -167,7 +167,7 @@ def verify_normalization(namespace):
     if classifier._pipeline("cpu", with_vectors=False).folded is not True:
         raise AssertionError("README classifier does not use folding")
     repo = encoder._content.source.repo
-    normalized = StaticModel.from_pretrained(repo, normalize=True).encoder
+    normalized = Encoder.from_pretrained(repo, normalize=True)
     normal_head = type(head)().fit(
         normalized.encode(namespace["texts"], workers=1),
         np.resize(head.classes_, len(namespace["texts"])),
@@ -176,13 +176,6 @@ def verify_normalization(namespace):
     if explicit.normalized is not True or explicit._pipeline("cpu", with_vectors=False).folded:
         raise AssertionError("Normalized heads must use the explicit path")
     explicit.predict(["I need a new password"], workers=1)
-    try:
-        Encoder.from_pretrained(repo, normalize=False)
-    except ValueError as exc:
-        if "holds its own rules" not in str(exc):
-            raise
-    else:
-        raise AssertionError("Generic POTION loading unexpectedly accepted normalize=False")
 
 
 def verify_classifier(namespace):
