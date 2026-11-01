@@ -8,6 +8,9 @@ FIELDS = (
     "comparison_identity_version",
     "commit",
     "runtime_fingerprint",
+    "runtime_package",
+    "runtime_package_version",
+    "runtime_fingerprint_scope",
     "package_location",
     "versions",
     "threadpools",
@@ -65,8 +68,15 @@ REQUIRED = (
 
 
 def signature(row: dict) -> str:
-    if row.get("comparison_identity_version") == 2 and any(key not in row for key in REQUIRED):
+    if row.get("comparison_identity_version", 0) >= 2 and any(key not in row for key in REQUIRED):
         raise ValueError("timing record lacks required executed-runtime/configuration identity")
+    if row.get("comparison_identity_version", 0) >= 3:
+        from compare_runtime import expected_package
+
+        if row.get("runtime_package") != expected_package(row["kind"]):
+            raise ValueError("counterpart row has the wrong executing backend identity")
+        if not row.get("runtime_package_version"):
+            raise ValueError("backend runtime package version is missing")
     values = {key: row[key] for key in FIELDS if key in row}
     if "warm_seconds" in row:
         values["observed_pass_count"] = len(row["warm_seconds"])
@@ -106,10 +116,12 @@ def require_compatible(pairs: list[dict[str, dict]]) -> None:
 
 
 def identity_status(pairs: list[dict]) -> str:
-    return (
-        "executed runtime and configuration captured"
-        if all(
-            row.get("comparison_identity_version") == 2 for pair in pairs for row in pair.values()
+    rows = [row for pair in pairs for row in pair.values()]
+    if not all(row.get("comparison_identity_version", 0) >= 2 for row in rows):
+        return "historical observation: executed runtime fingerprint not captured, re-measure"
+    counterparts = [row for row in rows if row.get("kind") != "fse"]
+    if any(row.get("comparison_identity_version", 0) < 3 for row in counterparts):
+        return (
+            "fse runtime captured; counterpart runtime misattributed to fse, re-measure counterpart"
         )
-        else "historical observation: executed runtime fingerprint not captured, re-measure"
-    )
+    return "backend-specific executed runtime and configuration captured"

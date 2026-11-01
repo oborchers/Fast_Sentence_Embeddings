@@ -24,6 +24,7 @@ from compare_backends import make_contender as contender
 from compare_inputs import corpus_identity, identity, texts
 from compare_models import MODELS
 from compare_parallelism import settings
+from compare_runtime import verify_backend_identity
 from compare_wait import TimingBudgetExpiredError, TimingDeferredError, ready_operation
 
 
@@ -51,7 +52,7 @@ def child(args) -> None:
     sentences = texts(args.corpus)
     if args.warmup_texts is not None and args.warmup_texts > len(sentences):
         raise ValueError("warmup-texts exceeds the complete corpus size")
-    provenance = identity()
+    provenance = identity(args.kind)
     if args.kind == "rust":
         from compare_rust_worker import measure
 
@@ -64,6 +65,10 @@ def child(args) -> None:
             record["threadpools"] = threadpool_info()
     from fse._container._hash import checksum
 
+    verify_backend_identity(args.kind, provenance)
+    measured_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    if provenance["commit"] != measured_commit:
+        raise RuntimeError("source commit changed during the measured operation")
     provenance.update(corpus_identity(args.corpus, sentences))
     if args.vectors_out is not None:
         np.save(args.vectors_out, vectors)

@@ -32,6 +32,7 @@ from compare_artifacts import (
 from compare_inputs import identity
 from compare_models import MODELS, artifact_name
 from compare_parallelism import settings
+from compare_runtime import verify_backend_identity
 from compare_search import timed
 from compare_wait import ready_operation
 
@@ -206,9 +207,10 @@ def child(args):
     os.environ["RAYON_NUM_THREADS"] = str(args.workers)
     sets = evaluation_sets(args)
     manifest = (args.classifiers / "manifest.json") if args.suite == "fineweb" else SOURCES
-    provenance = identity()
+    provenance = identity(args.kind)
     with threadpool_limits(limits=args.workers):
         records = measure(args, sets)
+        verify_backend_identity(args.kind, provenance)
         passes = np.sum([row["warm_seconds"] for row in records], axis=0)
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         record = {

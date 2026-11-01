@@ -65,7 +65,18 @@ def test_default_model2vec_keeps_tokenizer_parallelism(bench, monkeypatch, capsy
         SimpleNamespace(threadpool_limits=lambda **_: nullcontext(), threadpool_info=lambda: []),
     )
     monkeypatch.setattr(bench, "texts", lambda _: ["a short corpus"])
-    monkeypatch.setattr(bench, "identity", lambda: {})
+    monkeypatch.setattr(
+        bench,
+        "identity",
+        lambda kind: {
+            "commit": "fixture",
+            "runtime_package": kind,
+            "runtime_fingerprint": "counterpart-" + kind,
+            "package_location": "/installed/" + kind,
+        },
+    )
+    monkeypatch.setattr(bench.subprocess, "check_output", lambda *_a, **_k: "fixture")
+    monkeypatch.setattr(bench, "verify_backend_identity", lambda *_: None)
 
     def contender(*_args, **_kwargs):
         monkeypatch.setenv("TOKENIZERS_PARALLELISM", "false")
@@ -92,6 +103,9 @@ def test_default_model2vec_keeps_tokenizer_parallelism(bench, monkeypatch, capsy
     row = json.loads(capsys.readouterr().out)
     assert len(row["warm_seconds"]) == 2
     assert row["texts"] == 1
+    assert row["runtime_package"] == "model2vec"
+    assert row["runtime_fingerprint"] == "counterpart-model2vec"
+    assert row["package_location"] == "/installed/model2vec"
 
 
 def test_interrupted_round_is_persisted_as_incomplete(bench, tmp_path, monkeypatch):
