@@ -177,7 +177,7 @@ Include quality change from each model's float32 result. Name the dataset, metri
 
 ## Benchmarks
 
-The first row uses the [preserved WikiText measurements](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/README.md)
+The POTION-8M float32 cells use the [preserved WikiText measurements](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/README.md)
 from 1 November 2026: Apple M1 Pro, macOS 27.0.1, Python 3.13.16,
 NumPy 2.5.4, tokenizers 0.23.3 and model2vec 0.10.0.
 Model2vec uses its one-worker mode or its automatic mode.
@@ -201,7 +201,7 @@ Name machine, OS, Python, NumPy, library versions, model revisions, worker count
 
 | Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) | Counterpart, float32 (modes below) |
 |---|---|---|---|
-| potion-base-8M | 219,333 (199,745 to 221,304) / pending / pending | 909,270 (830,368 to 944,311) / pending / pending | model2vec tokenizer off: 8,906 (8,879 to 8,956); on: 26,048 (22,894 to 26,880) |
+| potion-base-8M | 219,333 (199,745 to 221,304) / 206,438 (202,631 to 214,714) / pending | 909,270 (830,368 to 944,311) / pending / pending | model2vec tokenizer off: 8,906 (8,879 to 8,956); on: 26,048 (22,894 to 26,880) |
 | potion-base-32M | pending | pending | model2vec: pending |
 | potion-retrieval-32M | pending | pending | model2vec: pending |
 | potion-multilingual-128M | pending | pending | model2vec: pending |
@@ -212,21 +212,28 @@ The classic models have fse-only measurements:
 
 | Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) |
 |---|---|---|
-| GloVe-300 | 212,783 (203,964 to 219,669) / pending / pending | 828,045 (708,401 to 901,244) / pending / pending |
+| GloVe-300 | 212,783 (203,964 to 219,669) / pending / 210,198 (197,759 to 212,257) | 828,045 (708,401 to 901,244) / pending / pending |
 | word2vec-300 | pending / pending / 212,606 (211,846 to 213,981) | pending / pending / 924,000 (886,643 to 932,838) |
 
-The classic-model cells use [four completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/74f2883fe74a1e1c188cbdffa22562f4e3d7b1d1/docs/benchmarks/readme-classic-timings-20261101/README.md)
+The GloVe float32 and word2vec int8 cells use [four completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/74f2883fe74a1e1c188cbdffa22562f4e3d7b1d1/docs/benchmarks/readme-classic-timings-20261101/README.md)
 from the same date, machine and WikiText input. Each has three paired rounds,
 with one warm timed call per child after a full-corpus warmup.
 All load endpoints were below 5.
 The source reports A/A variation separately, including a time-ratio range of 0.7850 to 1.1500 for ten-worker GloVe.
 
+The one-worker POTION-8M float16 and GloVe int8 cells use [two additional completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/649d59fd66684451f25b4e5b25e07e4537f3c0bb/docs/benchmarks/readme-matrix-20261101/README.md).
+They use the same machine, date and full WikiText input, with three paired rounds.
+Each child times one call after a full-corpus warmup. All load endpoints were below 5.
+The source records separate A/A controls. These series do not establish a dtype speed ratio or task quality.
+
 The largest process memory peaks among each series' three primary fse runs were:
 
-| Classic model and table | 1 worker, MiB | 10 workers, MiB |
+| Model and table | 1 worker, MiB | 10 workers, MiB |
 |---|---:|---:|
 | GloVe-300, float32 | 661.3 | 662.0 |
+| GloVe-300, int8 | 319.1 | pending |
 | word2vec-300, int8 | 1,552.5 | 1,552.7 |
+| POTION-8M, float16 | 166.6 | pending |
 
 These peaks include imports, model and corpus loading, warmup, encoding and outputs.
 They measure process memory, not saved-file size or memory added by one call.
