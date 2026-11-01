@@ -12,6 +12,10 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 - Rewrite the README around static embedding inference, model choices and sourced measurements. Clarify contribution evidence, AI disclosure and MIT agreement, add a PR checklist, and align package metadata with the unreleased 2.0 API.
 
+- The README documents the existing `StaticModel` export methods. The runtime error contract distinguishes eager collection validation from row ordering during a run.
+
+- Classifier predictions preserve trailing NUL characters in string labels, using an object array when needed. Labels without a valid UTF-8 representation raise at construction.
+
 - Removed the MLX backend before 2.0 because its maintenance cost brought no useful benefit. CPU and numpy remain available.
 
 - `ShardSink` accepts `durability="full"` (default) or `"none"`. The latter skips shard syncs and tags every published shard, including on Windows; store creation stays fully synced. `published_rows` counts visible rows under both policies, while `durable_rows` stays zero under "none". A final full-publication sync failure counts as published but not durable. Sink logs include the new counts and policy; `dropped_rows` counts committed rows that were not published.
@@ -25,6 +29,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 - fse 2.0 uses the MIT license. The 1.x branch and existing releases remain GPL-3.0. Model and dataset licenses apply separately. FastText hashing is derived directly from the MIT fastText source with unchanged buckets; shipped text fixtures now contain original synthetic sentences instead of STS Benchmark sentences and reviews of unknown provenance.
 
 ### Added
+
+- Local recipe notebooks for offline SIF/uSIF tables, linear heads, resumable file and queue jobs, folder polling and application integrations, with a localhost overhead measurement. Recipe dependencies remain separate from fse.
 
 - A measured RunPod EPYC 9655P roofline profile and Linux x86 performance observations, with shared-host, CPU-affinity and profiling limitations.
 
