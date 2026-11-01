@@ -21,7 +21,7 @@
 
 100 million short texts (28.7 tokens on average) embedded and written to disk in 35 seconds, int8, 32 vCPU AMD EPYC 7713, RunPod, 1 November 2026.
 
-[How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/benchmarks/readme-evidence.md)
+[How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/5c54d65885f1cc7caa56785c142a521a5303c923/docs/benchmarks/readme-evidence.md)
 
 Fast Sentence Embeddings turns text into vectors for search, clustering and classification.
 It runs ready-made static models on your CPU. No GPU needed.
