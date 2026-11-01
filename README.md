@@ -21,20 +21,14 @@
 
 100 million short texts (28.7 tokens on average) embedded and written to disk in 35 seconds, int8, 32 vCPU AMD EPYC 7713, RunPod, 1 November 2026.
 
+[How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/benchmarks/readme-evidence.md)
+
 Fast Sentence Embeddings turns text into vectors for search, clustering and classification.
 It runs ready-made static models on your CPU. No GPU needed.
 Use your Model2Vec model, a supported static Sentence Transformers model, or existing word vectors.
 Bring a trained linear classifier to label text in the same application.
 
 ![An engine turns pages of text into lists of numbers.](https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/233b6d3c0aaee459792938317895790a8bdd862b/media/readme-engine.jpg)
-
-## Speed first
-
-**Compute nearly 3 million text embeddings per second.**
-
-100 million short texts (28.7 tokens on average) embedded and written to disk in 35 seconds, int8, 32 vCPU AMD EPYC 7713, RunPod, 1 November 2026.
-
-[How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/benchmarks/readme-evidence.md)
 
 ## Get started
 
@@ -97,6 +91,60 @@ vectors = encoder.encode(documents)
 
 This is an alternative workflow, not a loader for trained Doc2Vec models. Model text-length limits still apply.
 
+## Choose a model and memory budget
+
+Start with POTION-base-8M for a small English model. Use retrieval models for search and multilingual models for other languages.
+Compare quality and size below, then check the model on your own data.
+
+| Model (Hub ID) | Quality[^quality] | Float32 file size |
+|---|---:|---:|
+| [`minishlab/potion-base-32M`](https://huggingface.co/minishlab/potion-base-32M) | 55.26 | 124.1 MiB |
+| [`minishlab/potion-retrieval-32M`](https://huggingface.co/minishlab/potion-retrieval-32M) | 54.51 | 124.1 MiB |
+| [`minishlab/potion-base-8M`](https://huggingface.co/minishlab/potion-base-8M) | 53.95 | 29.2 MiB |
+| [`sentence-transformers/static-retrieval-mrl-en-v1`](https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1) | 51.89 | 119.7 MiB |
+| [`sentence-transformers/static-similarity-mrl-multilingual-v1`](https://huggingface.co/sentence-transformers/static-similarity-mrl-multilingual-v1) | 51.43 | 415.1 MiB |
+| FastText crawl-subwords-300 SIF-10 | 51.42 | 4.50 GiB |
+| paragram-300-sl999 SIF-10 | 50.98 | 1.93 GiB |
+| paranmt-300 | 50.69 | 89.5 MiB |
+| [`minishlab/potion-multilingual-128M`](https://huggingface.co/minishlab/potion-multilingual-128M) | 49.96 | 502.1 MiB |
+| GloVe 300 SIF-10 | 49.79 | 463.6 MiB |
+| word2vec-google-news-300 SIF-10 | 49.26 | 3.41 GiB |
+
+[^quality]: Measured on 1 November 2026 with MTEB 2.26.25. Scores are the unweighted mean over 40 of 41 English tasks, multiplied by 100. MIND was not computed. The GloVe, FastText, paragram and word2vec SIF-10 scores use fits on 859,346 WikiText-103 training paragraphs, not the separate Hub preparation. Sizes describe the measured float32 artifacts. [Archived results and artifact metadata](https://github.com/oborchers/Fast_Sentence_Embeddings/tree/660309c4c88930254288495a0bb025fe428870f7/benchmarks/baseline).
+
+Start with float32. Try float16 or int8 when memory matters, then check quality again.
+
+```python
+from fse import Encoder
+
+compact = Encoder.from_pretrained("minishlab/potion-base-8M").quantize("int8")
+compact.save("compact.safetensors")
+```
+
+You can also use your own GloVe, word2vec or FastText vectors with the optional `fse[gensim]` adapter.
+The [SIF and uSIF recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/01-sif-usif.ipynb) shows how to prepare classic word vectors for sentence search.
+
+## Recipes: from a model to a working application
+
+These nine recipes show the full workflow, including preparation, execution and checks.
+Start with the job you want to do:
+
+| Use case | Recipe |
+|---|---|
+| Start here: fse 101 | [Turn sentences into vectors, find similar text, and save your results.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/00-fse-101.ipynb) |
+| Sentence search | [Make classic word vectors more useful for sentence search.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/01-sif-usif.ipynb) |
+| Text classification | [Train a text classifier, compare its accuracy, and save it for your app.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/02-linear-heads.ipynb) |
+| Files with resume | [Turn a text file into vectors and continue after an interruption.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/03-files-with-resume.ipynb) |
+| Queues and Qdrant | [Turn queued news into searchable vectors and replay safely.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/04-kafka-and-qdrant.ipynb) |
+| Folder listener | [Pick up completed files and add each one to your search store.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/05-folder-listener.ipynb) |
+| Integrations | [Use one local encoder with your search, topic, and table libraries.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/06-integrations.ipynb) |
+| Local compute and HTTP | [See when a local HTTP request costs more than encoding the text.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/07-local-compute-and-http.ipynb) |
+| Folded classifier | [Fold a trained classifier into word vectors, then save a smaller model for your app.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/08-folded-classifier.ipynb) |
+
+The [recipe index](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) has setup instructions and recorded results.
+The queue recipe uses a fake queue and local Qdrant. The folder recipe polls for completed files.
+These are worked examples you can adapt, not hosted services.
+
 ## Label text with a linear classifier
 
 Route support requests, filter documents or classify a dataset.
@@ -148,27 +196,6 @@ Neural heads with hidden layers cannot use this fold, and fse does not run them.
 <img alt="Your texts enter fse on the CPU. An encoder gives vectors for search and clustering. Add a previously trained linear model to get labels for routing and filtering. Training happens outside fse." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/71b69be83efdd8adbf071ada302be8bf1db68b24/media/readme/vectors-and-labels-light.png">
 </picture>
 
-## Recipes: from a model to a working application
-
-These nine recipes show the full workflow, including preparation, execution and checks.
-Start with the job you want to do:
-
-| Use case | Recipe |
-|---|---|
-| Start here: fse 101 | [Turn sentences into vectors, find similar text, and save your results.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/00-fse-101.ipynb) |
-| Sentence search | [Make classic word vectors more useful for sentence search.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/01-sif-usif.ipynb) |
-| Text classification | [Train a text classifier, compare its accuracy, and save it for your app.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/02-linear-heads.ipynb) |
-| Files with resume | [Turn a text file into vectors and continue after an interruption.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/03-files-with-resume.ipynb) |
-| Queues and Qdrant | [Turn queued news into searchable vectors and replay safely.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/04-kafka-and-qdrant.ipynb) |
-| Folder listener | [Pick up completed files and add each one to your search store.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/05-folder-listener.ipynb) |
-| Integrations | [Use one local encoder with your search, topic, and table libraries.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/06-integrations.ipynb) |
-| Local compute and HTTP | [See when a local HTTP request costs more than encoding the text.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/07-local-compute-and-http.ipynb) |
-| Folded classifier | [Fold a trained classifier into word vectors, then save a smaller model for your app.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/08-folded-classifier.ipynb) |
-
-The [recipe index](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) has setup instructions and recorded results.
-The queue recipe uses a fake queue and local Qdrant. The folder recipe polls for completed files.
-These are worked examples you can adapt, not hosted services.
-
 ## When to use fse
 
 **Choose fse when throughput matters more than squeezing out the highest possible model quality.**
@@ -199,77 +226,6 @@ The goal is to keep useful work together and avoid overhead between steps.
 | Keep work together | The CPU fast path groups tokenization and vector calculation in compiled code. |
 | Share the work | CPU workers process batches in parallel. |
 | Control the output path | Files and streams can write to fse's vector store without collecting all results in memory. |
-
-This is why fse is an inference engine, not a training framework.
-It controls its own processing and storage path. External services and databases still have their own costs.
-
-## Choose a model and memory budget
-
-### Quality and model size
-
-Use these English task scores to balance quality and size, then check the model on your own data.
-
-| Model | MTEB(eng, v2), 40 of 41 tasks[^quality] | Float32 file size | Ready-to-load on the Hub |
-|---|---:|---:|---|
-| all-MiniLM-L6-v2 (transformer reference, not run by fse) | 59.89 | n/a, transformer | [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) |
-| potion-base-32M | 55.26 | 124.1 MiB | [`minishlab/potion-base-32M`](https://huggingface.co/minishlab/potion-base-32M) |
-| potion-retrieval-32M | 54.51 | 124.1 MiB | [`minishlab/potion-retrieval-32M`](https://huggingface.co/minishlab/potion-retrieval-32M) |
-| potion-base-8M | 53.95 | 29.2 MiB | [`minishlab/potion-base-8M`](https://huggingface.co/minishlab/potion-base-8M) |
-| static-retrieval-mrl-en-v1 | 51.89 | 119.7 MiB | [`sentence-transformers/static-retrieval-mrl-en-v1`](https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1) |
-| static-similarity-mrl-multilingual-v1 | 51.43 | 415.1 MiB | [`sentence-transformers/static-similarity-mrl-multilingual-v1`](https://huggingface.co/sentence-transformers/static-similarity-mrl-multilingual-v1) |
-| FastText crawl-subwords-300 SIF-10 (WikiText fit, measured) | 51.42 | 4.50 GiB | Not yet available |
-| paragram-300-sl999 SIF-10 (WikiText fit, measured) | 50.98 | 1.93 GiB | Not yet available |
-| paranmt-300 | 50.69 | 89.5 MiB | Not yet available |
-| potion-multilingual-128M | 49.96 | 502.1 MiB | [`minishlab/potion-multilingual-128M`](https://huggingface.co/minishlab/potion-multilingual-128M) |
-| GloVe 300 SIF-10 (WikiText fit, measured) | 49.79 | 463.6 MiB | Not yet available |
-| word2vec-google-news-300 SIF-10 (WikiText fit, measured) | 49.26 | 3.41 GiB | Not yet available |
-
-[^quality]: Measured on 1 November 2026 with MTEB 2.26.25. Scores are the unweighted mean over 40 of 41 English tasks, multiplied by 100. MIND was not computed. The GloVe, FastText, paragram and word2vec SIF-10 scores use fits on 859,346 WikiText-103 training paragraphs, not the separate Hub preparation. Sizes describe the measured float32 artifacts. [Archived results and artifact metadata](https://github.com/oborchers/Fast_Sentence_Embeddings/tree/660309c4c88930254288495a0bb025fe428870f7/benchmarks/baseline).
-
-
-### Available now
-
-Load these models directly from their publishers. We do not publish copies of them.
-
-| Start with... | For... | Saved float32 file |
-|---|---|---:|
-| [POTION-base-8M](https://huggingface.co/minishlab/potion-base-8M) | Small English general-purpose models | 29.2 MiB |
-| [POTION-base-32M](https://huggingface.co/minishlab/potion-base-32M) | English tasks with a larger vocabulary | 124.1 MiB |
-| [POTION-retrieval-32M](https://huggingface.co/minishlab/potion-retrieval-32M) | English search | 124.1 MiB |
-| [POTION-multilingual-128M](https://huggingface.co/minishlab/potion-multilingual-128M) | Tasks across languages | 502.1 MiB |
-| [static-retrieval-mrl-en-v1](https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1) | English search with adjustable vector size | 119.7 MiB |
-| [static-similarity-mrl-multilingual-v1](https://huggingface.co/sentence-transformers/static-similarity-mrl-multilingual-v1) | Similarity across languages | 415.1 MiB |
-
-Saved float32 fse files, Apple M1 Pro, 1 November 2026.
-Start with float32. Try float16 or int8 when memory matters, then check quality again.
-
-```python
-from fse import Encoder
-
-compact = Encoder.from_pretrained("minishlab/potion-base-8M").quantize("int8")
-compact.save("compact.safetensors")
-```
-
-### Classic models planned for the 2.0 release
-
-These Hub models are **planned, not yet available**:
-
-| Model | Original word vectors | Prepared with SIF-10 |
-|---|---|---|
-| GloVe-300 | `fse/glove-wiki-gigaword-300-raw` | `fse/glove-wiki-gigaword-300-sif10` |
-| word2vec-300 | `fse/word2vec-google-news-300-raw` | `fse/word2vec-google-news-300-sif10` |
-
-`raw` keeps the original word vectors. SIF-10 gives common words less weight and removes ten common directions.
-The Hub models use English frequencies from `wordfreq` and fit those directions on a FineWeb sample.
-This happens before saving. Encoding uses the finished table, without an extra SIF step.
-SIF-10 keeps the same table shape as raw.
-
-For each planned model, float32 uses the ID above. Float16 and int8 variants add `-float16` or `-int8`.
-FastText Hub models are still under consideration.
-
-You can already use your own GloVe, word2vec or FastText word vectors through the optional `fse[gensim]` adapter.
-For SIF and uSIF preparation, use [the SIF and uSIF recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/01-sif-usif.ipynb).
-uSIF stays a recipe, with no planned Hub upload. Try it on your data rather than assuming it improves every model.
 
 ## More
 
