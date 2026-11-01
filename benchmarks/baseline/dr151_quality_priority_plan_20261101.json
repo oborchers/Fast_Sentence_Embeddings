@@ -1,21 +1,9 @@
 {
   "unique_quality_configurations": 35,
-  "completed_unique": 1,
-  "pending_unique": 34,
+  "completed_unique": 4,
+  "pending_unique": 31,
   "mind": "deferred: needs more than 16 GiB RAM on the M1",
   "pending": [
-    {
-      "tier": 1,
-      "model": "fse/potion-base-32M-float32"
-    },
-    {
-      "tier": 1,
-      "model": "fse/potion-retrieval-32M-float32"
-    },
-    {
-      "tier": 1,
-      "model": "fse/potion-multilingual-128M-float32"
-    },
     {
       "tier": 1,
       "model": "fse/static-retrieval-mrl-en-v1-float32"
@@ -144,15 +132,15 @@
   "after_priorities": [
     "FineWeb full annotations",
     "all 15 disclosed SetFit rows",
-    "POTION-8M float32 confirmation under bound artifact provenance, if required for same-method quantization deltas"
+    "six Hub float32 confirmations; strict resume skips configurations complete under the final method"
   ],
   "measured_baseline_wall_seconds": 1462.740465,
   "baseline_scope": "full 53-task POTION-8M float32 invocation, includes imports, data preparation, shared-lock waits and 8-task-batch cooldowns; excludes the earlier interrupted MIND invocation",
-  "uniform_static_remaining_scenario_seconds": 48270.435345000005,
   "unmeasured_additions": [
     "MiniLM runtime",
-    "classifier preparation",
-    "possible baseline confirmation"
+    "classifiers",
+    "search/lifecycle",
+    "same-method float32 confirmations as needed"
   ],
-  "estimate_limit": "single-model scenario, not a calibrated forecast for higher dimensions or contextual models; future batches are 16 tasks"
+  "estimate_limit": "See dr151_remaining_time_20261101.json for the current four-observation elapsed-rate scenario. No quiet-machine or cloud forecast."
 }
