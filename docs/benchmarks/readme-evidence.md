@@ -374,3 +374,11 @@ The maintainer selected the headline “Compute nearly 1 million text embeddings
 It refers to the final 918,299 texts/s float32 ten-worker cell, not a new measurement.
 Keep the model, machine and date beside the speed graphic. Add “Average text: N words” there once DR-151 commits text-length statistics.
 No text length or multi-million-text result is inferred from throughput.
+
+## Average text length for the speed caption
+
+The [committed corpus-length record](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ea174334344c2fb0c97b9211af478d4acda77a40/benchmarks/baseline/dr151_corpus_lengths_20261101.json) is complete and records no throughput. Its `wikitext encode` entry has 5,352 texts and 455,097 whitespace-separated words, an arithmetic mean of 85.03307174887892. The README caption rounds that to “Average text: 85 words.”
+
+Its input digest, xxh3-128:15151abfbf2f482115b1180347b4295e, matches the source journals for all four displayed configurations. Dataset revision b08601e04326c79dfdd32d625aee71d232d685c3 covers validation and test. Words count the original input, before the configured character/token limits; they are not tokenizer pieces. The source separately reports a mean of 95.60650224215247 consumed POTION tokens.
+
+The [counting method](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ea174334344c2fb0c97b9211af478d4acda77a40/benchmarks/quality/text_lengths.py) uses len(text.split()). This is metadata for the existing encoding sample, not a multi-million-text speed run, a words/s claim or a new classifier result.
