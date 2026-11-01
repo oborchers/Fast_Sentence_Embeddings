@@ -44,3 +44,35 @@ The native Rust worker pins [model2vec-rs source](https://github.com/MinishLab/m
 ## Still required
 
 Raw valid timing pairs, full quality results, both classifier targets, search and lifecycle comparisons, CPU and memory profiles, a sourced CPU-price estimate, and final review remain open. No new comparative speed, quality, memory or cost conclusion is established yet.
+
+### Common-vector local search protocol
+
+`bench_search_compare.py` compares fse with FAISS `IndexFlatIP` and hnswlib
+HNSW on the same POTION-8M float32 WikiText vectors. Every corpus row is a
+query, including its stored self. Query batches contain either one or 64 rows.
+Both one-worker and ten-worker configurations are explicit. All contenders
+receive one shared unit-normalized float32 matrix, recorded by its digest.
+FAISS computes inner products of that matrix. fse and hnswlib compute cosine
+similarity, so rounding differences can change close neighbors.
+
+The oracle computes float64 cosine over all rows. Strict recall uses lower-ID
+ties. Boundary-equivalent recall also accepts another ID with exactly the
+float64 score at the kth boundary. Both scores are reported. Zero queries are
+included in throughput and excluded, with their count, from numerical recall.
+These scores measure index fidelity, not relevance on a labeled retrieval task.
+
+Each fresh child records encoder load, encode, index construction, durable
+save, reopen, first search, and three complete warm search passes. The empirical
+p50 and p95 of batch calls are separate from whole-pass statistics. fse writes
+its durable store during construction. FAISS and hnswlib construct in memory
+then serialize. Compare construction plus save, not construction alone. All
+saved files and their parent directories are synced before reopening. The peak
+RSS includes the encoder, index and untimed full-corpus recall audit.
+
+HNSW uses M=16, ef_construction=200, ef=100 and random_seed=100. Parallel
+construction can still change graph ordering. Three rotating paired rounds
+include a separate fse A/A control. Each operation requires the shared timing
+lock and load strictly below five at both endpoints. Results are pending.
+
+Sources: [FAISS metrics](https://github.com/facebookresearch/faiss/wiki/MetricType-and-distances),
+[hnswlib parameters](https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md).
