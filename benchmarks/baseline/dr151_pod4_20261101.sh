@@ -202,8 +202,8 @@ export DEBIAN_FRONTEND=noninteractive
 /usr/bin/apt-get update
 /usr/bin/apt-get install -y --no-install-recommends build-essential git curl procps util-linux ca-certificates
 /usr/bin/git clone --branch dr151-compare --no-checkout https://github.com/oborchers/Fast_Sentence_Embeddings.git /dr151-repo
-/usr/bin/git -C /dr151-repo checkout --detach 8f9bc58dc41f355763cf5ef3c363cce878c4b48c
-test "$(/usr/bin/git -C /dr151-repo rev-parse HEAD)" = 8f9bc58dc41f355763cf5ef3c363cce878c4b48c
+/usr/bin/git -C /dr151-repo checkout --detach e41060dab1b2a7780b52e80b31050e6ddc6f5b86
+test "$(/usr/bin/git -C /dr151-repo rev-parse HEAD)" = e41060dab1b2a7780b52e80b31050e6ddc6f5b86
 cd /dr151-repo
 export SOURCE_DATE_EPOCH=$(/usr/bin/git show -s --format=%ct HEAD)
 /usr/local/bin/python -m pip install --no-cache-dir uv==0.13.0
@@ -249,6 +249,7 @@ else
   readme_status=124
 fi
 if [ "$readme_status" -eq 75 ]; then exit 75; fi
+if [ "$readme_status" -ge 124 ]; then exit "$readme_status"; fi
 if [ ! -f /dr151-results/readme-panels/plan.json ] || [ ! -f /dr151-results/readme-panels/speed-results.jsonl ]; then exit 1; fi
 run_stage folded-classification /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod4.py classifications --cache /dr151-cache --output /dr151-results --deadline-epoch "$DR151_DEADLINE"
 classification_status=$?
@@ -305,7 +306,7 @@ status=$?
 /usr/local/bin/python - "$status" <<'DR151_INVOCATION'
 import json, sys
 from pathlib import Path
-Path('/dr151-results/bootstrap-invocation.json').write_text(json.dumps({"command":["/bin/bash","/dr151-work.sh"],"script":Path('/dr151-work.sh').read_text(),"returncode":int(sys.argv[1]),"pinned_commit":"8f9bc58dc41f355763cf5ef3c363cce878c4b48c"}))
+Path('/dr151-results/bootstrap-invocation.json').write_text(json.dumps({"command":["/bin/bash","/dr151-work.sh"],"script":Path('/dr151-work.sh').read_text(),"returncode":int(sys.argv[1]),"pinned_commit":"e41060dab1b2a7780b52e80b31050e6ddc6f5b86"}))
 DR151_INVOCATION
 finalize_seconds=$((started + 8400 - 5 - $(/usr/bin/date +%s)))
 if [ "$finalize_seconds" -lt 1 ]; then finalize_seconds=1; fi

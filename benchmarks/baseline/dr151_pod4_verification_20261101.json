@@ -1,0 +1,35 @@
+{
+  "format": "dr151-pod4-verification-v1",
+  "runtime_source_pin": "e41060dab1b2a7780b52e80b31050e6ddc6f5b86",
+  "script": "benchmarks/baseline/dr151_pod4_20261101.sh",
+  "sha256": "afa684d314a39c2811e0df00b7bf28d6fc6210b9006f8ecc99c65647b882a09f",
+  "focused_tests_passed": 46,
+  "ruff": "passed",
+  "guardrails": "passed",
+  "bash_syntax": "passed",
+  "embedded_python_blocks_compiled": 6,
+  "local_model_runs": 0,
+  "pod_launched_by_worker": false,
+  "independent_review": {
+    "tool": "Codex CLI",
+    "reviewed_final_snapshot": "8f9bc58dc41f355763cf5ef3c363cce878c4b48c",
+    "findings": [
+      {
+        "finding": "stale launch artifact in reviewed runtime tree",
+        "resolution": "regenerated from pushed final runtime pin; bytes and handoff SHA256 checked"
+      },
+      {
+        "finding": "README timeout descendants could overlap classification",
+        "resolution": "f160f59/e41060d propagate subprocess timeouts as status124; shell stops before classification; supervisor cleans the workload process group",
+        "regression": "test_child_timeout_aborts_before_other_paired_work"
+      }
+    ],
+    "final_followup": "Owner verified fixes and regression results; no claim of an independent zero-findings review on the final pin"
+  },
+  "ci_status": "single query: no checks reported on dr151-compare",
+  "limitations": [
+    "full make check/build not run locally",
+    "fresh-cache model execution remains pod-only",
+    "hard limit can leave partial classification coverage"
+  ]
+}
