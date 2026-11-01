@@ -5841,6 +5841,102 @@
       "source_commit": "894d3bb1afd76769fd090a5677e12eaa71287732"
     },
     {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/PERFORMANCE.md",
+      "size_bytes": 96936,
+      "sha256": "09dad9029ab0b6b8fed4b32567a5bdde6391241c7c800f5991e15d2d9c33475f",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "d3c9d0fb8717b2f54c6724d293356efdf99756fe",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/dr151_matrix_summary_20261101.json",
+      "size_bytes": 48697,
+      "sha256": "12d8ce0105b4036650df54d4375631979c7845529bcb3bd42bf7e6a5cf382bce",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "1c69b4b98f606982c2e2340d3a971266ed5f91f2",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/dr151_pod2_audit_20261101.json",
+      "size_bytes": 28545,
+      "sha256": "de8330fdb57a3284c734c5d1343732c068a7c829d354f84443f8c09d361b2ff7",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "5c3f96b73a16943613d662b84332c1cd375e0768",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/dr151_pod3_large_write_20261101.json",
+      "size_bytes": 47297,
+      "sha256": "5a1f5de5907c6a1e3b5e39b4878bfc942b70022b0e6a1e92e8b53dce3f88cfd7",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "b08d673986947e27c41d24548c68278bafda2e98",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/dr151_pod3_panels_20261101.json",
+      "size_bytes": 39206,
+      "sha256": "3aa1ccf6e04fadab8b0ebc79ded544441b1c67da48a98fdddbe75233fea23a0a",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "b30a2b3246cb425360a77ccc618541f77c6d959e",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/dr151_summary_20261101.json",
+      "size_bytes": 43228,
+      "sha256": "cc84477b0040c75d701471db8524e0185f13fe7c2ece59f4b0c6e22e93d661ed",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "218b328b78d4312c5dcdede962db47680cbc848f",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/benchmarks/dr151-evidence.md",
+      "size_bytes": 8193,
+      "sha256": "317b4e302983c990d8a57e5a85365b4756291eaeee5077fb57e6227e7112e1d1",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "118c3a50d280ceec7fd38997068089911c718b7f",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/fse-comparison-aa.md",
+      "size_bytes": 18595,
+      "sha256": "9aca6e0b01be5eefeacac6318349e13331ec1c470c1fc0ebb9d82c68b9a3491e",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "f7209ced24ca964ea12b1ed2f608dee7ff22633d",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/fse-comparison-pods.md",
+      "size_bytes": 18138,
+      "sha256": "1425630becd06f7e856a5a9a35ea58be77440f6d0d1538342fb515522060872f",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "8ed857492ba3eec22854d5f25c171338ac377583",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/fse-comparison.md",
+      "size_bytes": 27079,
+      "sha256": "586eefaf46f9605ab321868586557779eb55583f73cc503a18889809c76c1484",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "c211b1b4b3f8749abfbf5eedd926c6b31a16e761",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/fse-pod2-results.md",
+      "size_bytes": 11001,
+      "sha256": "ecdafba8a2196d3455f955b80670c426016e2f0ba14bf92eea56455431d52a5e",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "5b6a5f8641836d6cfd053f4e9af29b738fb445f6",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-withdrawn-publication-20261101/docs/fse-pod3-results.md",
+      "size_bytes": 3495,
+      "sha256": "2a6b1118800f0d5ecfcb3167fa242357fdb922889f1eb52fe32296588a930a32",
+      "source_commit": "dd44bc2f9561b3c31f14de9b5400229032aea696",
+      "git_blob": "e5cca07e517d081a6cb2bc5c532419982191e2d5",
+      "source_kind": "WITHDRAWN speed publication snapshot; retained only as invalid historical evidence"
+    },
+    {
       "path": "benchmarks/baseline/results/dr151_mind_loader_20261101.sample.txt",
       "size_bytes": 211933,
       "sha256": "df1f152f1f3cb594d5e12be97e8e0ac12a92590786b68c26b04fe9c1612dff30",
