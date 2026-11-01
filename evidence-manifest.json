@@ -2545,6 +2545,13 @@
       "source_commit": "894d3bb1afd76769fd090a5677e12eaa71287732"
     },
     {
+      "path": "benchmarks/baseline/results/dr151-profiles-current/window5-rss-fse/rss.worktree-crlf.csv",
+      "size_bytes": 1263,
+      "sha256": "49cc508ccc5ebf2b5282c5c8d715dbe79184f82903a5cecb905cd8ed883b3cd5",
+      "git_blob": "d316c3a65738bd56a0b9903019ba13e0dc008149",
+      "source_commit": "worktree byte representation before archive cleanup; canonical LF Git version retained at benchmarks/baseline/results/dr151-profiles-current/window5-rss-fse/rss.csv"
+    },
+    {
       "path": "benchmarks/baseline/results/dr151-profiles-current/window5-rss-fse/run.txt",
       "size_bytes": 7036,
       "sha256": "01725e2f8392b3f1ab3709023467facd05c6bb28b68804a9ce942a8294ec5948",
@@ -2648,6 +2655,13 @@
       "sha256": "550a839b14996e7edd801a3bea2c3a4d2a8fb1ffe94928aa2274b0efc4081348",
       "git_blob": "d189b1969be2cbb3af811041f3970ea206ba2090",
       "source_commit": "894d3bb1afd76769fd090a5677e12eaa71287732"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-profiles/rss-fse/rss.worktree-crlf.csv",
+      "size_bytes": 1290,
+      "sha256": "ca9510bf74ec9b850db3468dd566b9c42aff5c7e0e78b6bf423b667e4b72beda",
+      "git_blob": "cc404738888e2154c5afbde1fef2f1dac8f63c27",
+      "source_commit": "worktree byte representation before archive cleanup; canonical LF Git version retained at benchmarks/baseline/results/dr151-profiles/rss-fse/rss.csv"
     },
     {
       "path": "benchmarks/baseline/results/dr151-profiles/rss-fse/run.txt",
