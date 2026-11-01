@@ -71,7 +71,13 @@ The queue is simulated, and databases run locally.
 
 **Quality and speed answer different questions.**
 The classification recipe reports accuracy and macro-F1 on the same test texts for four training methods.
-Model2Vec fine-tunes its word vectors, while fse runs the fixed POTION encoder and an imported linear head.
+
+Model2Vec trains an MLP (multilayer perceptron) with PyTorch and fine-tunes its word vectors, while fse uses fixed POTION vectors and a linear head.
+The default MLP has one hidden layer of 512 units with ReLU, which replaces negative hidden values with zero.
+Its [deployment head runs in plain NumPy](https://github.com/MinishLab/model2vec/blob/v0.10.0/model2vec/inference/mlp.py), using softmax for single-label probabilities or sigmoid when several labels can apply.
+
+The recipe records accuracy through Model2Vec's training model in PyTorch, rather than exporting the NumPy deployment pipeline.
+**The comparison is a fine-tuned MLP against a linear head**, alongside TF-IDF and fastText baselines.
 The settings are fixed examples, without a tuning search or repeated-seed confidence intervals.
 
 The SIF recipe fits weights and directions on STS Benchmark training texts only.
