@@ -59,6 +59,20 @@ waits, imports, setup, evaluation and cooldowns. Approximate state buckets are
 not measurements of pure model compute. No throughput, compute duration or
 cloud runtime is inferred from this elapsed invocation.
 
+## Upstream length-metadata diagnostic
+
+The [diagnostic snapshot](upstream-length-diagnostic.json), published at
+[af9e653](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/af9e6533e4ba9bc939b565effb1ee3db38813979/benchmarks/baseline/dr151_document_tasks_potion32_20261101.json),
+lists 19 complete-task P32 scores selected using packaged MTEB length metadata.
+The threshold is an upstream evaluation stream averaging at least 1,000 characters.
+All 19 scores and pinned revisions match the full-task P32 journal.
+
+These are upstream aggregate descriptions, not freshly measured run inputs.
+They may precede the pinned task revision or cover additional subsets.
+No truncation frequency, model-specific token-length distribution or fresh
+long-text subset score follows. The scores use each complete task with the
+model's native limits. No new aggregate benchmark is calculated.
+
 ## Evidence and reproduction
 
 - [Original raw task records](dr151-quality-potion32-float32.jsonl)
