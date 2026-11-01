@@ -6,20 +6,6 @@ from speed_panels import publish
 
 ROOT = Path(__file__).resolve().parents[2]
 brand = json.loads((ROOT / "media/readme/palette.json").read_text())
-summary = json.loads(
-    (ROOT / "docs/benchmarks/readme-runtime-window5-20261101/summary.json").read_text()
-)
-data = {
-    (c["backends"]["fse-a"]["table_dtype"], c["workers"]): c["backends"]["fse-a"][
-        "texts_per_second"
-    ]
-    for c in summary["cells"]
-}
-int8_summary = json.loads((ROOT / "docs/benchmarks/readme-int8-20261101/summary.json").read_text())
-for cell in int8_summary["cells"]:
-    if cell["chart_eligible"]:
-        data[("int8", cell["workers"])] = cell["backends"]["fse-a"]["texts_per_second"]
-
 out = ROOT / "media/readme"
 out.mkdir(exist_ok=True)
 
@@ -30,60 +16,6 @@ def text(x, y, value, size=18, fill=None, weight=400, anchor="start"):
 
 for theme in ("light", "dark"):
     colors = {k: v["value"] for k, v in brand[theme].items()}
-    parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="598" viewBox="0 0 1100 598" role="img" aria-labelledby="title desc"><title id="title">fse throughput on WikiText</title><desc id="desc">POTION-8M: float32 one worker 222701 texts per second; int8 one worker 214848; float32 ten workers 918299; float16 ten workers 946796. Apple M1 Pro, 1 November 2026. Model already loaded.</desc><rect width="1100" height="598" rx="12" fill="{colors["bg"]}"/><g font-family="Geist, Arial, sans-serif">'
-    ]
-    parts += [
-        text(40, 52, "More text. Same CPU.", 30, weight=700),
-        text(
-            40,
-            83,
-            "POTION-8M on WikiText  |  texts per second",
-            18,
-            colors["text-secondary"],
-        ),
-    ]
-    x0 = 315
-    width = 725
-    for v, label in (
-        (0, "0"),
-        (250000, "250,000"),
-        (500000, "500,000"),
-        (750000, "750,000"),
-        (1000000, "1,000,000"),
-    ):
-        x = x0 + width * v / 1000000
-        parts += [
-            f'<path d="M{x} 116 V495" stroke="{colors["border"]}"/>',
-            text(x, 522, label, 16, colors["text-secondary"], anchor="middle"),
-        ]
-    for i, (dtype, w) in enumerate((("float32", 1), ("int8", 1), ("float32", 10), ("float16", 10))):
-        d = data[dtype, w]
-        y = 140 + 96 * i
-        end = x0 + width * d["median"] / 1000000
-        parts += [
-            text(40, y + 14, dtype, 22, weight=700),
-            text(
-                40,
-                y + 39,
-                f"{w} " + ("worker" if w == 1 else "workers"),
-                18,
-                colors["text-secondary"],
-            ),
-            text(1040, y - 6, f"{d['median']:,.0f} texts/s", 22, weight=700, anchor="end"),
-            f'<rect x="{x0}" y="{y}" width="{end - x0:.4f}" height="43" rx="4" fill="{colors["accent"]}"/>',
-        ]
-    parts += [
-        text(
-            40,
-            566,
-            "Apple M1 Pro  ·  POTION-8M  ·  WikiText  ·  1 November 2026",
-            17,
-            colors["text-secondary"],
-        ),
-        "</g></svg>",
-    ]
-    (out / f"throughput-{theme}.svg").write_text("\n".join(parts) + "\n")
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="370" viewBox="0 0 1100 370" role="img" aria-labelledby="title desc"><title id="title">Run text vectors or a fitted classifier locally</title><desc id="desc">Texts enter fse. An encoder gives vectors for search and clustering. A classifier combines an encoder with a previously trained linear model and gives labels for routing or filtering. Training happens outside fse.</desc><rect width="1100" height="370" rx="12" fill="{colors["bg"]}"/><g font-family="Geist, Arial, sans-serif">',
         text(40, 53, "One local call. Vectors or labels.", 30, weight=700),
