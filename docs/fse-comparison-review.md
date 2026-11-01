@@ -67,3 +67,8 @@ That checkpoint also passed the full gate: 9,227 tests, 524 skips, pytest 237.46
 A subsequent adapter check retains every sentence while removing empty legacy split tokens, as the recipe requires.
 The pinned quality environment passes all eleven adapter tests, including that regression.
 Read-only table mapping is now an explicit quality option and is recorded in result provenance.
+
+Final executable source `97b7418` passed Rust compilation and the full gate (9,227 passed, 525 skipped).
+Its eleven optional adapter tests also pass in the pinned quality environment.
+GitHub Actions run 41289369317 passed at that same source commit.
+The final pod preflight receipt records both script hashes, launch requirements and pending bare-pod execution.
