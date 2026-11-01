@@ -1,6 +1,7 @@
 """Measured classifier rates, paired speedups and strict source/A/A eligibility."""
 
 import json
+import math
 import statistics
 from pathlib import Path
 
@@ -63,8 +64,38 @@ def paired_speedups(rows, accepted, labels):
     return result
 
 
+def complete_rounds(operations, rounds, expected):
+    accepted = set()
+    for number in {row["round"] for row in rounds if row.get("valid") and row.get("complete")}:
+        current = [row for row in operations if row["round"] == number]
+        if len(current) == len(expected) and {row["label"] for row in current} == expected:
+            accepted.add(number)
+    return accepted
+
+
+def evidence(operations, rounds):
+    kinds = {row["kind"] for row in operations}
+    expected = (
+        {"fse-a", "fse-b", "model2vec-mlp"}
+        if "mlp" in kinds
+        else {"fse-a", "fse-b", "encode-matmul", "model2vec-same-linear"}
+    )
+    accepted = complete_rounds(operations, rounds, expected)
+    times = [row["p50_s"] for row in operations if row["label"] in ("fse-a", "fse-b")]
+    positive = bool(times) and all(math.isfinite(value) and value > 0 for value in times)
+    ratio = max(times) / min(times) if positive else None
+    equal_inputs = len({(row["input_digest"], row["texts"]) for row in operations}) == 1
+    return accepted, {
+        "complete_rounds": len(accepted),
+        "all_control_max_ratio": ratio,
+        "symmetric_aa_band": [1 / ratio, ratio] if ratio is not None else None,
+        "equal_inputs": equal_inputs,
+        "eligible": len(accepted) >= 3 and ratio is not None and ratio <= 1.1 and equal_inputs,
+    }
+
+
 def summarize_cell(identifier, completed, operations, rounds):
-    accepted = {row["round"] for row in rounds if row.get("valid")}
+    accepted, observed = evidence(operations, rounds)
     rows = [row for row in operations if row["round"] in accepted]
     if not rows:
         return {
@@ -73,6 +104,7 @@ def summarize_cell(identifier, completed, operations, rounds):
             "eligible": False,
             "reason": "no valid complete rounds",
             "aa": completed,
+            "verified_evidence": observed,
         }
     labels = sorted({row["label"] for row in rows})
     arms = {label: arm([row for row in rows if row["label"] == label]) for label in labels}
@@ -82,6 +114,12 @@ def summarize_cell(identifier, completed, operations, rounds):
     ratios = paired_speedups(rows, accepted, labels)
     eligible = (
         completed["complete"]
+        and observed["eligible"]
+        and completed.get("valid_rounds") == observed["complete_rounds"]
+        and completed.get("aa_max_ratio") is not None
+        and math.isclose(
+            completed["aa_max_ratio"], observed["all_control_max_ratio"], rel_tol=1e-12
+        )
         and stable_controls
         and all(a["runtime_stable"] and a["predictions_stable"] for a in arms.values())
     )
@@ -106,6 +144,7 @@ def summarize_cell(identifier, completed, operations, rounds):
         "arms": arms,
         "paired_fse_folded_speedup_vs_counterpart": ratios,
         "aa": completed,
+        "verified_evidence": observed,
         "control_predictions_stable": stable_controls,
         "note": "fine-tuned Model2Vec MLP is a different trained model; model2vec-same-linear uses the same sklearn coefficients",
     }

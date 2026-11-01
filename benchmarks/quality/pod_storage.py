@@ -70,6 +70,7 @@ def require_free(cache, minimum_gib, stage):
 def cleanup_preparation_sources(cache, models, output):
     from fse import Encoder
 
+    verify_owned_cache(cache, output)
     finished = sorted(models.glob("*-float32.safetensors"))
     if len(finished) != 10:
         raise ValueError("cleanup requires all ten saved static float32 artifacts")
@@ -77,7 +78,7 @@ def cleanup_preparation_sources(cache, models, output):
         encoder = Encoder.load(path, mmap=True)
         encoder.verify()
         del encoder
-    hub = cache / "huggingface/hub"
+    hub = owned_hub(cache)
     repos = [*HUB, *("fse/" + name for name in SOURCES)]
     targets = [hub / ("models--" + repo.replace("/", "--")) for repo in repos]
     targets.append(hub / "datasets--Salesforce--wikitext")
@@ -110,3 +111,29 @@ def cleanup_preparation_sources(cache, models, output):
         corpus.unlink()
         receipt.append(row)
     (output / "preparation-source-cleanup.json").write_text(json.dumps(receipt, indent=2) + "\n")
+
+
+def owned_hub(cache):
+    hub = cache / "huggingface/hub"
+    for root in (cache, cache / "huggingface", hub):
+        if root.is_symlink():
+            raise ValueError("preparation cleanup refuses a symlinked cache root")
+    if not hub.resolve().is_relative_to(cache.resolve()):
+        raise ValueError("preparation cleanup Hub directory escaped the owned pod cache")
+    return hub
+
+
+def verify_owned_cache(cache, output):
+    marker = cache / ".dr151-owner.json"
+    receipt = output / "cache-ownership.json"
+    if not marker.is_file() or not receipt.is_file():
+        raise ValueError("preparation cleanup requires an exclusively created pod cache")
+    owner = json.loads(marker.read_text())
+    if (
+        owner != json.loads(receipt.read_text())
+        or not owner.get("created_exclusively")
+        or owner.get("cache") != str(cache.resolve())
+        or len(owner.get("owner_token", "")) != 32
+        or cache.is_symlink()
+    ):
+        raise ValueError("preparation cleanup cache ownership does not match its pod receipt")

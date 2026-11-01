@@ -10,7 +10,7 @@
     "test_qrels_rows": 97006943
   },
   "observed_finished_model_bytes": 10455299824,
-  "metadata_source": "https://huggingface.co/datasets/mteb/mind_small/commit/227478e3235572039f4f7661840e059f31ef6eb1",
+  "metadata_source": "https://huggingface.co/datasets/mteb/MindSmallReranking/commit/227478e3235572039f4f7661840e059f31ef6eb1",
   "pinned_dataset_metadata": {
     "source_revision": "227478e3235572039f4f7661840e059f31ef6eb1",
     "dataset_info": [

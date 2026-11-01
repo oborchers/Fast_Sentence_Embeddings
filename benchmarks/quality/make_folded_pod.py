@@ -29,7 +29,19 @@ run_stage folded-classification /usr/bin/nice -n 10 /dr151-env/bin/python benchm
 set -uo pipefail
 started=$(/usr/bin/date +%s)
 export DR151_DEADLINE=$((started + 2700 - 60))
-/usr/bin/mkdir -p /dr151-results /dr151-cache
+/usr/bin/mkdir -p /dr151-results
+if ! /usr/bin/mkdir /dr151-cache; then
+  printf 'ERROR: /dr151-cache already exists; require a fresh exclusive pod cache.\\nALL_DONE\\n' >&2
+  /usr/bin/sleep infinity
+  exit 1
+fi
+/usr/local/bin/python - <<'DR151_CACHE_OWNER'
+import json, uuid
+from pathlib import Path
+record = {{"cache":"/dr151-cache","created_exclusively":True,"owner_token":uuid.uuid4().hex}}
+for path in ('/dr151-cache/.dr151-owner.json', '/dr151-results/cache-ownership.json'):
+    with Path(path).open('x') as stream: json.dump(record, stream)
+DR151_CACHE_OWNER
 /usr/bin/cat > /dr151-finalize.py <<'DR151_FINALIZER'
 {(HERE / "pod_finalize.py").read_text()}DR151_FINALIZER
 /usr/bin/cat > /dr151-work.sh <<'DR151_WORK'

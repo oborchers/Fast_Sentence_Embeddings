@@ -66,5 +66,21 @@ def test_disk_inventory_does_not_double_count_hub_snapshot_symlinks(modules, tmp
 
 
 def test_cleanup_requires_complete_verified_finished_models(modules, tmp_path):
-    with pytest.raises(ValueError, match="all ten"):
+    with pytest.raises(ValueError, match="exclusively created"):
         modules.cleanup_preparation_sources(tmp_path, tmp_path, tmp_path)
+
+
+def test_cleanup_rejects_reused_or_mismatched_cache(modules, tmp_path):
+    import json
+
+    cache = tmp_path / "cache"
+    output = tmp_path / "results"
+    cache.mkdir()
+    output.mkdir()
+    owner = {"cache": str(cache.resolve()), "created_exclusively": True, "owner_token": "a" * 32}
+    (cache / ".dr151-owner.json").write_text(json.dumps(owner))
+    (output / "cache-ownership.json").write_text(json.dumps(owner))
+    modules.verify_owned_cache(cache, output)
+    (output / "cache-ownership.json").write_text(json.dumps({**owner, "owner_token": "b" * 32}))
+    with pytest.raises(ValueError, match="ownership does not match"):
+        modules.verify_owned_cache(cache, output)

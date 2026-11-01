@@ -120,3 +120,11 @@ The folded and explicit arms use the same trained float32 coefficients, bias, la
 Raw-mean fse heads already fold internally. Standalone save changes persistence and retained memory, not the folding algorithm. The script records folded-file bytes beside raw-encoder plus linear-head bytes. Floating-point accumulation order can change between folding and explicit matmul, so accuracy and label disagreements are retained. The whole pod has a 45-minute hard limit, including setup, and exports partial results. No existing comparison is replaced.
 
 Pod 3 also compares Python Model2Vec with the **same frozen sklearn linear head**, including the identical float32 coefficients and bias. This isolates the encoding engines. Its fine-tuned Model2Vec MLP remains a separate trained-model comparison. AG News linear cells are published first, before MLP training, with raw and summary artifacts.
+
+## MIND rerun storage and SSH
+
+The first 60 GB pod failed during `top_ranked` train preparation, after the 97,006,943-row test qrels cast. It produced no MIND score. Pinned dataset metadata declares 41.34 GB of base Arrow data. The saved models occupied 10.46 GB. Extra casts, downloads and preparation sources also coexist. The deleted pod has no measured per-directory inventory. The [failure audit](../benchmarks/baseline/dr151_mind_disk_failure_20261101.json) distinguishes declared sizes from observed facts.
+
+The revised pod requests a 200 GB container disk. It requires 140 GiB free before setup and 120 GiB before loading MIND. It removes only raw preparation sources after verifying all ten saved static encoders. Finished artifacts and SIF fit states remain. Hub, datasets, temporary and uv caches use explicit paths under `/dr151-cache`. Xet chunk caching is disabled. No MTEB loader, split or row changes.
+
+The revised MIND script and additional classifier script install SSH first. They consume RunPod’s `PUBLIC_KEY` without shell tracing, start port 22, and retain files in `/dr151-results`. Logs stream stage start/end and disk usage. Their hard limits include setup, with reserved partial-export time. `ALL_DONE` is followed by `sleep infinity` for SSH collection. The coordinator must terminate the pods after collecting results.

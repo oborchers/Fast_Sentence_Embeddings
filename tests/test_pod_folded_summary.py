@@ -26,11 +26,18 @@ def records():
     rows = [done]
     for number in range(3):
         rows.append(
-            {"event": "round_complete", "series_id": "example", "round": number, "valid": True}
+            {
+                "event": "round_complete",
+                "series_id": "example",
+                "round": number,
+                "valid": True,
+                "complete": True,
+            }
         )
         for label, kind, package, seconds in [
             ("fse-a", "folded", "fse", 1.0),
             ("fse-b", "folded", "fse", 1.02),
+            ("encode-matmul", "encode-matmul", "fse", 1.5),
             ("model2vec-same-linear", "model2vec-linear", "model2vec", 2.0),
         ]:
             rows.append(
@@ -90,4 +97,34 @@ def test_counterpart_cannot_carry_fse_identity(summary):
     for row in rows:
         if row.get("kind") == "model2vec-linear":
             row["runtime_package"] = "fse"
+    assert not summary.summarize(rows)["cells"][0]["eligible"]
+
+
+def test_completion_flag_cannot_hide_between_round_drift(summary):
+    rows = records()
+    for row in rows:
+        if row.get("event") == "operation" and row["round"] == 2:
+            row["p50_s"] *= 2
+    cell = summary.summarize(rows)["cells"][0]
+    assert not cell["eligible"]
+    assert cell["verified_evidence"]["all_control_max_ratio"] > 2
+
+
+def test_completion_flag_cannot_replace_missing_pairs(summary):
+    rows = [row for row in records() if row.get("round") != 2]
+    assert not summary.summarize(rows)["cells"][0]["eligible"]
+
+
+def test_missing_counterpart_operations_cannot_supply_three_pairs(summary):
+    rows = [
+        row for row in records() if not (row.get("label") == "encode-matmul" and row["round"] > 0)
+    ]
+    cell = summary.summarize(rows)["cells"][0]
+    assert not cell["eligible"]
+    assert cell["verified_evidence"]["complete_rounds"] == 1
+
+
+def test_noisy_completion_record_cannot_be_overridden(summary):
+    rows = records()
+    rows[0]["aa_max_ratio"] = 1.2
     assert not summary.summarize(rows)["cells"][0]["eligible"]
