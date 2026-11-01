@@ -1,30 +1,75 @@
 {
-  "1": {
-    "fse": {
-      "median": 217808.47984935943,
-      "min": 199744.97467110865,
-      "max": 221990.2491695742,
-      "children": 6
+  "upstream_commit": "3265b35cdc102d9257144e11fd801ec91ad24adb",
+  "method": "Three primary fse-a child rates; fse-b retained separately as the A/A control. Each child uses median warm-call time.",
+  "cells": [
+    {
+      "corpus": "wikitext",
+      "workers": 1,
+      "input_digest": "xxh3-128:15151abfbf2f482115b1180347b4295e",
+      "raw": "dr151-model2vec-wikitext-1.jsonl",
+      "backends": {
+        "fse-a": {
+          "median": 219333.02645656004,
+          "min": 199744.97467110865,
+          "max": 221304.1093166773
+        },
+        "fse-b": {
+          "median": 216283.9332421588,
+          "min": 206749.35416591068,
+          "max": 221990.2491695742
+        },
+        "model2vec": {
+          "median": 8905.905173183006,
+          "min": 8878.995688402765,
+          "max": 8956.32910975459
+        }
+      }
     },
-    "model2vec": {
-      "median": 8905.905173183006,
-      "min": 8878.995688402765,
-      "max": 8956.32910975459,
-      "children": 3
-    }
-  },
-  "10": {
-    "fse": {
-      "median": 836557.9458408557,
-      "min": 816725.1550712116,
-      "max": 944310.889414066,
-      "children": 6
+    {
+      "corpus": "wikitext",
+      "workers": 10,
+      "input_digest": "xxh3-128:15151abfbf2f482115b1180347b4295e",
+      "raw": "dr151-model2vec-wikitext-10.jsonl",
+      "backends": {
+        "fse-a": {
+          "median": 909269.7567096162,
+          "min": 830368.1314390005,
+          "max": 944310.889414066
+        },
+        "fse-b": {
+          "median": 831099.0002114024,
+          "min": 816725.1550712116,
+          "max": 842016.891470309
+        },
+        "model2vec": {
+          "median": 26048.311298326713,
+          "min": 22894.228467619476,
+          "max": 26880.4411808928
+        }
+      }
     },
-    "model2vec": {
-      "median": 26048.311298326713,
-      "min": 22894.228467619476,
-      "max": 26880.4411808928,
-      "children": 3
+    {
+      "corpus": "massive",
+      "workers": 1,
+      "input_digest": "xxh3-128:f532343c5cfa1d7e539bc8fe33de37ab",
+      "raw": "dr151-model2vec-massive-1.jsonl",
+      "backends": {
+        "fse-a": {
+          "median": 878259.566949336,
+          "min": 861891.6213457087,
+          "max": 903737.9427905612
+        },
+        "fse-b": {
+          "median": 871424.6366641936,
+          "min": 835588.2796747439,
+          "max": 901519.4576006153
+        },
+        "model2vec": {
+          "median": 57000.909362853476,
+          "min": 56620.404944128575,
+          "max": 57191.22673182211
+        }
+      }
     }
-  }
+  ]
 }

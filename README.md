@@ -3,8 +3,8 @@
 **Our goal: be the fastest inference engine for static embeddings on the planet.**
 
 On 1 November 2026, an Apple M1 Pro encoded 5,352 WikiText texts with `potion-base-8M`.
-With one worker (processor thread), fse reached **217,808 texts/s**, compared with **8,906** for model2vec 0.10.0.
-With all ten cores, the medians were **836,558** and **26,048 texts/s**.
+With one worker (processor thread), the middle measured rate was **219,333 texts/s** for fse and **8,906** for model2vec 0.10.0.
+With all ten cores, the middle rates were **909,270** and **26,048 texts/s**.
 Tables stored 32-bit numbers (`float32`). Both libraries used the model's default text limits and normalization,
 which scales vectors to unit length. The models were already loaded.
 See [the method, ranges and raw results](docs/benchmarks/readme-wikitext-20261101/README.md).
@@ -141,7 +141,8 @@ The 5,352 nonblank texts come from the pinned WikiText validation and test split
 
 Each of three paired rounds runs fse twice as an A/A control and model2vec once, in rotating order.
 Each child process measures three warm calls. Its rate is texts divided by its median call time.
-fse's reported median and range use all six child rates; model2vec's use three.
+The primary fse run and model2vec each contribute three child rates to their median and range.
+The repeated fse runs remain separate A/A controls, matching the published comparison summary.
 Numbers in parentheses show the full range. All recorded load endpoints were below 5.
 The raw records include the input digest, dataset revision, source commit and A/A variation.
 
@@ -153,7 +154,7 @@ Name machine, OS, Python, NumPy, library versions, model revisions, worker count
 
 | Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) | Counterpart, float32 (1 / 10 workers) |
 |---|---|---|---|
-| potion-base-8M | 217,808 (199,745 to 221,990) / pending / pending | 836,558 (816,725 to 944,311) / pending / pending | model2vec: 8,906 (8,879 to 8,956) / 26,048 (22,894 to 26,880) |
+| potion-base-8M | 219,333 (199,745 to 221,304) / pending / pending | 909,270 (830,368 to 944,311) / pending / pending | model2vec: 8,906 (8,879 to 8,956) / 26,048 (22,894 to 26,880) |
 | potion-base-32M | pending | pending | model2vec: pending |
 | potion-retrieval-32M | pending | pending | model2vec: pending |
 | potion-multilingual-128M | pending | pending | model2vec: pending |
@@ -161,6 +162,11 @@ Name machine, OS, Python, NumPy, library versions, model revisions, worker count
 | static-similarity-mrl-multilingual-v1 | pending | pending | sentence-transformers: pending |
 | GloVe-300 | pending | pending | source and counterpart: pending |
 | word2vec-300 | pending | pending | source and counterpart: pending |
+
+The same float32 POTION-8M model also has a [one-worker MASSIVE sample](docs/benchmarks/readme-wikitext-20261101/dr151-model2vec-massive-1.jsonl).
+Across 151,674 test texts, fse processed 878,260 texts/s (861,892 to 903,738),
+and model2vec processed 57,001 (56,620 to 57,191), with the same three-round method.
+This is a separate input sample. It does not fill the pending model or dtype cells.
 
 The old 1.x STS results belong to a different API and recipe.
 See the [1.x results](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/1.x/README.md#results).
