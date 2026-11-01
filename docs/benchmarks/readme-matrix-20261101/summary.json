@@ -156,6 +156,84 @@
       },
       "load_min": 4.302734375,
       "load_max": 4.7587890625
+    },
+    {
+      "raw": "dr151-matrix-potion-base-8M-float32-w10.jsonl",
+      "series_id": "eb79511cf3be41d3b37453443e7376d0",
+      "valid_rounds": 3,
+      "backends": {
+        "fse-a": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "fse_workers": 10,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            256
+          ],
+          "file_bytes": 30664410,
+          "texts_per_second": {
+            "median": 914708.868606863,
+            "min": 827900.8775741067,
+            "max": 928079.0797801317
+          },
+          "peak_rss_bytes": 191528960
+        },
+        "fse-b": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "fse_workers": 10,
+          "tokenizer_parallelism": null,
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": null,
+          "shape": [
+            5352,
+            256
+          ],
+          "file_bytes": 30664410,
+          "texts_per_second": {
+            "median": 657231.4481037273,
+            "min": 468046.96009009227,
+            "max": 878294.9255937103
+          },
+          "peak_rss_bytes": 191791104
+        },
+        "model2vec": {
+          "model": "minishlab/potion-base-8M",
+          "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+          "table_dtype": "float32",
+          "output_dtype": "float32",
+          "fse_workers": null,
+          "tokenizer_parallelism": "on",
+          "tokenizer_thread_count": null,
+          "parallel_batch_pool": "disabled",
+          "shape": [
+            5352,
+            256
+          ],
+          "file_bytes": 30236760,
+          "texts_per_second": {
+            "median": 25074.424118607032,
+            "min": 22589.061590185862,
+            "max": 27133.893661883572
+          },
+          "peak_rss_bytes": 238157824
+        }
+      },
+      "aa_time_ratio_b_over_a": {
+        "median": 1.2596793412165566,
+        "min": 1.0566827300667463,
+        "max": 1.9543100299824505
+      },
+      "load_min": 4.302734375,
+      "load_max": 4.32958984375
     }
-  ]
+  ],
+  "published_raw_source_commit": "d20b9bcde4e74818c9ee0258cb03e7b7020583b5"
 }
