@@ -189,3 +189,35 @@ def test_later_model_memory_failure_preserves_earlier_measured_cells(
     assert report["cells"][0]["eligible"] is True
     assert report["failed"] == [panel.case_id(*specs[1])]
     assert report["complete"] is False
+
+
+def test_calibration_reserves_the_other_correctness_output(modules, monkeypatch):
+    memory = modules["pod4_memory"]
+    monkeypatch.setattr(memory, "budget", lambda: (1000, 400))
+    assert memory.encoding(1, 10, 0, 0)["additional_budget"] == 416
+    with pytest.raises(memory.MemoryAdmissionError, match="validation output reserved=True"):
+        memory.encoding(1, 10, 0, 0, reserve_output=True)
+
+
+def test_child_memory_rejection_is_preserved_before_bounded_retry(modules, monkeypatch, tmp_path):
+    module = modules["pod4_calibration"]
+    options = SimpleNamespace(output=tmp_path, deadline=float("inf"))
+    budget = {
+        "limit": 64_000_000_000,
+        "current": 12_000_000_000,
+        "additional_budget": 44_000_000_000,
+    }
+    payload = json.dumps({"event": "memory_admission_rejected", "budget": budget}) + "\n"
+    monkeypatch.setattr(module, "ensure_model", lambda *_args: None)
+    monkeypatch.setattr(module, "encode_command", lambda *_args: ["child"])
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=78, stdout=payload, stderr=""),
+    )
+    with pytest.raises(modules["pod4_memory"].MemoryAdmissionError) as caught:
+        module.calibration(options, "model", "float32", 1)
+    assert caught.value.receipt == budget
+    raw = json.loads((tmp_path / "calibration.jsonl").read_text())
+    assert raw["returncode"] == 78
+    assert raw["stdout"] == payload

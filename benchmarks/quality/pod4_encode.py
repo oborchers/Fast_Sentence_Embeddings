@@ -55,6 +55,7 @@ def arguments():
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--minimum-seconds", type=float, default=2)
     parser.add_argument("--vectors-out", type=Path)
+    parser.add_argument("--reserve-validation-output", action="store_true")
     parser.add_argument("--passes", type=int, default=1)
     return parser.parse_args()
 
@@ -76,7 +77,13 @@ def main():
         raise ValueError("shared input differs from its recorded file digest")
     artifact = artifact_path(args.models, args.model, args.table_dtype)
     width = int(header(artifact)["fse.output_dim"])
-    admission = encoding(source["texts"], width, args.input.stat().st_size, artifact.stat().st_size)
+    admission = encoding(
+        source["texts"],
+        width,
+        args.input.stat().st_size,
+        artifact.stat().st_size,
+        reserve_output=args.reserve_validation_output,
+    )
     before = identity(args.kind)
     if args.kind == "rust":
         from compare_rust_worker import measure

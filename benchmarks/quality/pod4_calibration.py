@@ -27,7 +27,12 @@ def bind_input(options, source, count):
 
 def calibration(options, repo, dtype, workers):
     ensure_model(repo, dtype, options)
-    command = [*encode_command(options, repo, dtype, "wikitext", workers, "fse"), "--passes", "1"]
+    command = [
+        *encode_command(options, repo, dtype, "wikitext", workers, "fse"),
+        "--passes",
+        "1",
+        "--reserve-validation-output",
+    ]
     done = subprocess.run(
         command,
         text=True,

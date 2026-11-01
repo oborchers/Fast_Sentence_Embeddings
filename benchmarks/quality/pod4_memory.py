@@ -41,9 +41,15 @@ def decoded_bytes(count, file_bytes):
     return file_bytes * 4 + count * 256
 
 
-def encoding(count, width, file_bytes, model_bytes):
+def encoding(count, width, file_bytes, model_bytes, *, reserve_output=False):
     required = decoded_bytes(count, file_bytes) + count * width * 4 * 4 + model_bytes * 2
-    return admit(required, "encoding inputs, model and overlapping matrices")
+    if reserve_output:
+        required += count * width * 4
+    return admit(
+        required,
+        "encoding inputs, model and overlapping matrices; validation output reserved="
+        + str(reserve_output),
+    )
 
 
 def classifier(folder, description, kind):

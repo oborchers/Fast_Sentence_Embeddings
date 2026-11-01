@@ -81,7 +81,11 @@ def probe(args):
     folder.mkdir()
     result = series(
         {
-            label: encode_command(options, POTION, "float32", "wikitext", 32, "fse")
+            label: [
+                *encode_command(options, POTION, "float32", "wikitext", 32, "fse"),
+                "--passes",
+                "3",
+            ]
             for label in ("fse-a", "fse-b")
         },
         32,
