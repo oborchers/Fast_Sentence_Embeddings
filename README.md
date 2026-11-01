@@ -2,17 +2,13 @@
 
 **Our goal: be the fastest inference engine for static embeddings on the planet.**
 
-TODO(DR-151): Add the measured headline comparison, with machine, date, texts,
-worker counts, package versions and a link to the raw results.
-
-One existing measurement: on 31 October 2026, a shared AMD EPYC 9655P processor encoded
-11,903,145 synthetic sentences per second with 16 workers (processor threads).
-Each vector held 300 numbers stored with 32 bits each (`float32`).
-The run skipped normalization, which scales a vector to unit length.
-One worker encoded 1,652,196 sentences per second. These are single shared-host observations,
-without a model2vec or sentence-transformers counterpart. They do not establish a speed record.
-See [the data and limits](benchmarks/baseline/dr190_runpod_20261031.json)
-and [PERFORMANCE.md](PERFORMANCE.md#runpod-linux-x86-observations).
+On 1 November 2026, an Apple M1 Pro encoded 5,352 WikiText texts with `potion-base-8M`.
+With one worker (processor thread), fse reached **217,808 texts/s**, compared with **8,906** for model2vec 0.10.0.
+With all ten cores, the medians were **836,558** and **26,048 texts/s**.
+Tables stored 32-bit numbers (`float32`). Both libraries used the model's default text limits and normalization,
+which scales vectors to unit length. The models were already loaded.
+See [the method, ranges and raw results](docs/benchmarks/readme-wikitext-20261101/README.md).
+Results apply to this model and input.
 
 ![An engine turns pages of text into lists of numbers.](media/readme-engine.jpg)
 
@@ -137,15 +133,27 @@ including quality change from that model's float32 result. Name the dataset, met
 
 ## Benchmarks
 
-TODO(DR-151): Replace pending cells below with the paired measurements and source links.
+The first row uses the [preserved WikiText measurements](docs/benchmarks/readme-wikitext-20261101/README.md)
+from 1 November 2026: Apple M1 Pro, macOS 27.0.1, Python 3.13.16,
+NumPy 2.5.4, tokenizers 0.23.3 and model2vec 0.10.0.
+The model revision is `bf8b056651a2c21b8d2565580b8569da283cab23`.
+The 5,352 nonblank texts come from the pinned WikiText validation and test splits.
+
+Each of three paired rounds runs fse twice as an A/A control and model2vec once, in rotating order.
+Each child process measures three warm calls. Its rate is texts divided by its median call time.
+fse's reported median and range use all six child rates; model2vec's use three.
+Numbers in parentheses show the full range. All recorded load endpoints were below 5.
+The raw records include the input digest, dataset revision, source commit and A/A variation.
+
+TODO(DR-151): Fill the remaining pending cells with paired measurements and source links.
 Report sentences/s as median and range for one worker and all available cores.
 Each cell must identify float32 / float16 / int8 table results in that order.
 The counterpart must encode the same texts, with matching token limits and normalization.
 Name machine, OS, Python, NumPy, library versions, model revisions, worker counts, load and measurement date.
 
-| Model | fse, 1 worker (f32 / f16 / i8) | fse, all cores (f32 / f16 / i8) | Counterpart on the same texts |
+| Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) | Counterpart, float32 (1 / 10 workers) |
 |---|---|---|---|
-| potion-base-8M | pending | pending | model2vec: pending |
+| potion-base-8M | 217,808 (199,745 to 221,990) / pending / pending | 836,558 (816,725 to 944,311) / pending / pending | model2vec: 8,906 (8,879 to 8,956) / 26,048 (22,894 to 26,880) |
 | potion-base-32M | pending | pending | model2vec: pending |
 | potion-retrieval-32M | pending | pending | model2vec: pending |
 | potion-multilingual-128M | pending | pending | model2vec: pending |
