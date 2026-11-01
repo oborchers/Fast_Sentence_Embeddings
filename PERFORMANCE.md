@@ -795,3 +795,41 @@ statistics. Every score matches its raw completed task record. The same
 limitations apply: these statistics describe upstream text streams, not
 measured model token counts or truncation frequency. Separate method cohorts
 remain separate. MiniLM and other counterparts are pending.
+
+
+### Static-retrieval checkpoint and backend-attributed speed reruns
+
+Static-retrieval-mrl-en-v1 float32 completed all 53 non-deferred tasks. Its
+40-task English mean is 51.8893 points, explicitly not a full 41-task mean.
+The complete 13-task NanoBEIR mean is 50.3072 points. MIND alone remains deferred
+because it needs more than 16 GiB RAM on the M1. The invocation took 17.4 minutes,
+including setup, evaluation, waits and cooldowns. Every executed runtime record
+reports actual process priority 10. The parent's earlier startup probe observed
+priority 0 before `nice` took effect and is retained separately.
+[Raw quality records](benchmarks/baseline/results/dr151-quality-staticretr-float32.jsonl)
+and [coverage summary](benchmarks/baseline/dr151_quality_staticretr_20261101.json).
+Separate method cohorts remain separate and establish no controlled ranking.
+
+Five unique quality configurations are complete. Twenty-nine static
+configurations plus MiniLM remain. A uniform elapsed-rate scenario is 11.78
+hours for those static configurations, with observed endpoint scenarios of
+8.40 and 24.68 hours. MiniLM, classifiers, search and necessary same-method
+confirmations are additional. This is not a calibrated quiet-machine or cloud
+forecast. [Measured durations](benchmarks/baseline/dr151_configuration_times_20261101.json)
+and [scenario assumptions](benchmarks/baseline/dr151_remaining_time_20261101.json).
+
+Window6 retains fresh backend-specific speed records and every rejected or
+incomplete attempt in the [matrix summary](benchmarks/baseline/dr151_matrix_summary_20261101.json).
+Model2Vec, Rust, FastEmbed and Sentence Transformers now identify their own
+executing package or binary. A/A noise remains independent of load acceptance.
+The POTION-8M float32 Model2Vec tokenizer-off/on cells have symmetric A/A maxima
+1.1197 and 1.1090, so neither supports a final same-model ratio headline.
+FastEmbed with ten requested threads reaches 2.5565 and remains explicitly
+noisy. Rust at one/ten requested threads and FastEmbed at one have A/A maxima
+within 10%. No observation is silently removed, and no load rule is relaxed.
+
+MiniLM and native multilingual POTION cache lookups failed before encoding
+because unused repository exports or evaluation files were absent. The harness
+now requests its pinned inference files. The existing required-file cache was
+verified for all seven Hub models. Model revisions and complete input sets are
+unchanged. This changes no MTEB package or loader.

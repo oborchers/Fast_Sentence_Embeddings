@@ -1,0 +1,227 @@
+{
+  "conclusion": "success",
+  "databaseId": 41271938617,
+  "headBranch": "dr151-compare",
+  "headSha": "4e888dc18aadc3b5bf6da5b7db7afaa5d0e4b944",
+  "jobs": [
+    {
+      "name": "changes",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:55:41Z",
+      "completedAt": "2026-11-01T04:55:47Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755088737"
+    },
+    {
+      "name": "sdist",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:55:50Z",
+      "completedAt": "2026-11-01T05:08:43Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112328"
+    },
+    {
+      "name": "lint",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:55:50Z",
+      "completedAt": "2026-11-01T04:57:09Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112348"
+    },
+    {
+      "name": "test-st (ubuntu-latest, 3.11)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:55:49Z",
+      "completedAt": "2026-11-01T04:57:27Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112377"
+    },
+    {
+      "name": "test (ubuntu-latest, 3.13, latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:55:50Z",
+      "completedAt": "2026-11-01T05:09:14Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112393"
+    },
+    {
+      "name": "wheels (ubuntu-24.04-arm, manylinux)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:55:52Z",
+      "completedAt": "2026-11-01T05:19:05Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112401"
+    },
+    {
+      "name": "test-st (ubuntu-latest, 3.15)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:57:10Z",
+      "completedAt": "2026-11-01T04:58:19Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112406"
+    },
+    {
+      "name": "wheels (ubuntu-24.04-arm, musllinux)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:57:08Z",
+      "completedAt": "2026-11-01T05:52:54Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112412"
+    },
+    {
+      "name": "wheels (ubuntu-latest, musllinux)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:55:49Z",
+      "completedAt": "2026-11-01T05:58:23Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112428"
+    },
+    {
+      "name": "test (macos-latest, 3.14, latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:55:50Z",
+      "completedAt": "2026-11-01T04:59:59Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112430"
+    },
+    {
+      "name": "test (ubuntu-latest, 3.12, latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:57:45Z",
+      "completedAt": "2026-11-01T05:11:04Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112436"
+    },
+    {
+      "name": "test (macos-latest, 3.11, latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:55:49Z",
+      "completedAt": "2026-11-01T05:04:51Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112438"
+    },
+    {
+      "name": "wheels (macos-latest, manylinux)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:58:48Z",
+      "completedAt": "2026-11-01T05:26:59Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112445"
+    },
+    {
+      "name": "wheels (macos-15-intel, manylinux)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:57:11Z",
+      "completedAt": "2026-11-01T06:15:52Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112446"
+    },
+    {
+      "name": "test (macos-latest, 3.12, latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:55:51Z",
+      "completedAt": "2026-11-01T05:06:38Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112460"
+    },
+    {
+      "name": "wheels (windows-latest, manylinux)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:55:49Z",
+      "completedAt": "2026-11-01T05:39:03Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112462"
+    },
+    {
+      "name": "test (ubuntu-latest, 3.14, latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:58:21Z",
+      "completedAt": "2026-11-01T05:03:30Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112468"
+    },
+    {
+      "name": "test (ubuntu-latest, 3.15, latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:58:20Z",
+      "completedAt": "2026-11-01T05:04:18Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112473"
+    },
+    {
+      "name": "wheels (ubuntu-latest, manylinux)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:57:29Z",
+      "completedAt": "2026-11-01T05:37:59Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112481"
+    },
+    {
+      "name": "test-st (macos-latest, 3.13)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:57:19Z",
+      "completedAt": "2026-11-01T04:58:46Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112485"
+    },
+    {
+      "name": "test (macos-latest, 3.15, latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T05:00:02Z",
+      "completedAt": "2026-11-01T05:05:48Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112493"
+    },
+    {
+      "name": "test (ubuntu-latest, 3.11, min)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:58:29Z",
+      "completedAt": "2026-11-01T05:14:45Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112496"
+    },
+    {
+      "name": "test (macos-latest, 3.13, latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T05:04:55Z",
+      "completedAt": "2026-11-01T05:15:29Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112521"
+    },
+    {
+      "name": "test (ubuntu-latest, 3.11, latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T04:59:06Z",
+      "completedAt": "2026-11-01T05:13:30Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124755112581"
+    },
+    {
+      "name": "coverage",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T05:15:31Z",
+      "completedAt": "2026-11-01T05:16:34Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124758860761"
+    },
+    {
+      "name": "check",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-01T06:15:54Z",
+      "completedAt": "2026-11-01T06:15:57Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124770141043"
+    },
+    {
+      "name": "release",
+      "status": "completed",
+      "conclusion": "skipped",
+      "startedAt": "2026-11-01T06:15:57Z",
+      "completedAt": "2026-11-01T06:15:57Z",
+      "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617/job/124770159935"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41271938617",
+  "scope": "Historical checkpoint only, not validation of subsequent backend-identity fixes."
+}

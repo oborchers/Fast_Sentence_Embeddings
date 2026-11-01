@@ -149,13 +149,13 @@ def potion(args, data, provenance: dict, repo: str) -> None:
 
 def native(args, data, provenance: dict, repo: str) -> None:
     import joblib
-    from huggingface_hub import snapshot_download
+    from compare_snapshots import cached_snapshot
     from model2vec import StaticModel
     from sklearn.linear_model import LogisticRegression
 
     provenance = {**provenance, **backend_identity("model2vec")}
     train, y_train, evaluation, y_eval = data
-    folder = snapshot_download(repo, revision=MODELS[repo], local_files_only=True)
+    folder = cached_snapshot(repo, MODELS[repo])
     model = StaticModel.from_pretrained(folder)
     source = native_encoder_identity(repo, Path(folder))
     fitted = LogisticRegression(max_iter=1000, random_state=0).fit(

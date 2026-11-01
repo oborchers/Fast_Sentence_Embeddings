@@ -65,9 +65,9 @@ def _revision(repo: str) -> str | None:
 
 
 def _snapshot(repo: str) -> Path:
-    from huggingface_hub import snapshot_download
+    from compare_snapshots import cached_snapshot
 
-    return Path(snapshot_download(repo, revision=_revision(repo), local_files_only=True))
+    return cached_snapshot(repo, _revision(repo))
 
 
 def contender(kind: str, threads: int, repo: str):

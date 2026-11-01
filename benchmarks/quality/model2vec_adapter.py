@@ -12,11 +12,11 @@ class NativeModel2VecEncoder(AbsEncoder):
     """Use the source library's character cut, unknown-token rule and normalization."""
 
     def __init__(self, model_name: str, revision: str, **_kwargs: Any) -> None:
-        from huggingface_hub import snapshot_download
+        from compare_snapshots import cached_snapshot
         from model2vec import StaticModel
 
         repo = model_name.removeprefix("model2vec/")
-        folder = snapshot_download(repo, revision=revision, local_files_only=True)
+        folder = cached_snapshot(repo, revision)
         self.model = StaticModel.from_pretrained(folder)
 
     def encode(

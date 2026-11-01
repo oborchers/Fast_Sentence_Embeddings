@@ -51,7 +51,9 @@ def measurement_identity(tasks: list) -> dict:
     runtime = runtime_identity()
     suite = [task.metadata.model_dump(mode="json") for task in tasks]
     return {
-        "method_fingerprint": files_digest(folder, method),
+        "method_fingerprint": files_digest(
+            folder.parent, [*method, folder.parent / "compare_snapshots.py"]
+        ),
         "runtime_fingerprint": runtime,
         "fse_reference_runtime_fingerprint": runtime,
         "suite_fingerprint": checksum(json.dumps(suite, sort_keys=True).encode("utf-8")),

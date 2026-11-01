@@ -97,7 +97,7 @@ def save_result(args, provenance, backend, model, labels, predicted, **extra):
 
 def heads(args, data, provenance, repo, output):
     import joblib
-    from huggingface_hub import snapshot_download
+    from compare_snapshots import cached_snapshot
     from model2vec import StaticModel
 
     from fse import Classifier, Encoder
@@ -135,7 +135,7 @@ def heads(args, data, provenance, repo, output):
             prediction_disagreement_vs_float32=float(np.mean(predicted != reference)),
         )
     provenance = {**provenance, **backend_identity("model2vec")}
-    native_folder = Path(snapshot_download(repo, revision=MODELS[repo], local_files_only=True))
+    native_folder = cached_snapshot(repo, MODELS[repo])
     native = StaticModel.from_pretrained(native_folder)
     source = native_encoder_identity(repo, native_folder)
     fitted = fit(native.encode(train, use_multiprocessing=False), y_train)

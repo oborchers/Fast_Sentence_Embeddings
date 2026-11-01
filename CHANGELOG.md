@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- Pinned comparison caches select inference files without requiring unused model exports or evaluation metadata.
+
 - Comparison recorders reject backend or shared encoder code changes during evaluation, and precision deltas require matching executing runtimes.
 
 - Removed the MLX backend before 2.0 because its maintenance cost brought no useful benefit. CPU and numpy remain available.

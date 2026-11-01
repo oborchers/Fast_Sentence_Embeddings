@@ -1,19 +1,20 @@
 {
-  "completed_unique": 4,
-  "pending_unique": 31,
-  "remaining_static": 30,
+  "completed_unique": 5,
+  "pending_unique": 30,
+  "remaining_static": 29,
   "remaining_contextual": 1,
   "observed_static_invocation_seconds": [
     1462.740465,
     3064.1069151250413,
     1102.8503631660715,
-    2120.387390666059
+    2120.387390666059,
+    1042.3446226669475
   ],
-  "median_seconds": 1791.5639278330295,
-  "uniform_remaining_static_hours": 14.929699398608578,
+  "median_seconds": 1462.740465,
+  "uniform_remaining_static_hours": 11.783187079166668,
   "endpoint_scenario_hours": [
-    9.190419693050595,
-    25.53422429270868
+    8.396665015928189,
+    24.683083482951723
   ],
   "extra_unmeasured": [
     "MiniLM",
@@ -21,5 +22,5 @@
     "search/lifecycle",
     "same-method Hub float32 confirmations as needed"
   ],
-  "warning": "Elapsed-rate scenario includes different waits, batch sizes and priority holds. Not a quiet-machine or cloud forecast. Metadata failures are incomplete configurations, not completed measurements."
+  "warning": "Elapsed-rate scenario includes different waits, batch sizes and priority holds. Not a quiet-machine or cloud forecast. Metadata failures are retained as incomplete configurations."
 }

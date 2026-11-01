@@ -114,6 +114,33 @@
       "nice_field_meaning": "requested adjustment, not measured actual process priority",
       "actual_nice": 20,
       "actual_nice_evidence": "old queue inherited parent nice=10 and applied nice -n 10; live MiniLM child verified at nice=20"
+    },
+    {
+      "name": "t1-03-fse_static-retrieval-mrl-en-v1-float32",
+      "model": "fse/static-retrieval-mrl-en-v1-float32",
+      "started_utc": "2026-11-01T05:53:32.953494+00:00",
+      "ended_utc": "2026-11-01T06:10:55.297397+00:00",
+      "wall_seconds": 1042.3446226669475,
+      "returncode": 0,
+      "state_seconds_approximate_5s": {
+        "own_heavy": 551.7294495819369,
+        "timing_or_manual_pause": 0.0,
+        "foreign_heavy": 0.0,
+        "other_setup_cooldown_or_wait": 490.60315404308494
+      },
+      "batch_tasks": 16,
+      "workers": 2,
+      "nice": 0,
+      "nice_requested_adjustment": 10,
+      "includes": "imports, load, full evaluation, lock waits and cooldowns",
+      "excluded_from_speed_claims": true,
+      "commit": "ae805751447dfbf35ecd1e37ead22195ac3daf51",
+      "nice_probe_immediately_after_Popen": 0,
+      "actual_nice": 10,
+      "actual_nice_evidence": "process_nice=10 in all 54 executed quality records; immediate Popen probe preceded nice exec",
+      "nice_field_meaning": "initial process-priority probe, not executed evaluation priority",
+      "measured_child_start_commit": "d180d828d9023cbab8f079ac5615f67b882585ea",
+      "commit_field_meaning": "parent observed HEAD at job end"
     }
   ],
   "note": "Full invocation wall time includes setup, evaluation, waits and cooldowns. Failed metadata jobs are retained and count as incomplete. Original scratch records remain unchanged. Priority correction applies to this old queue only."

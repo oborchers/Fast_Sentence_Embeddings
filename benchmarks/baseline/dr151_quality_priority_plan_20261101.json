@@ -1,13 +1,9 @@
 {
   "unique_quality_configurations": 35,
-  "completed_unique": 4,
-  "pending_unique": 31,
+  "completed_unique": 5,
+  "pending_unique": 30,
   "mind": "deferred: needs more than 16 GiB RAM on the M1",
   "pending": [
-    {
-      "tier": 1,
-      "model": "fse/static-retrieval-mrl-en-v1-float32"
-    },
     {
       "tier": 1,
       "model": "fse/static-similarity-mrl-multilingual-v1-float32"

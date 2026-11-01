@@ -12,9 +12,9 @@ from compare_models import MODELS, artifact_name
 
 
 def pinned_snapshot(repo: str) -> Path:
-    from huggingface_hub import snapshot_download
+    from compare_snapshots import cached_snapshot
 
-    return Path(snapshot_download(repo, revision=MODELS[repo], local_files_only=True))
+    return cached_snapshot(repo, MODELS[repo])
 
 
 def transformer_contender(threads: int, repo: str):
