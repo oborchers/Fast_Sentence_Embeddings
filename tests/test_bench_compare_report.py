@@ -91,7 +91,14 @@ def test_small_aa_spread_is_labeled_separately(report):
 
 @pytest.mark.parametrize(
     "field",
-    ["commit", "runtime_fingerprint", "encoder_fingerprint", "versions", "first_encode_texts"],
+    [
+        "commit",
+        "runtime_fingerprint",
+        "encoder_fingerprint",
+        "versions",
+        "threadpools",
+        "first_encode_texts",
+    ],
 )
 def test_changed_identity_cannot_join_an_accepted_series(report, field):
     rows = journal()

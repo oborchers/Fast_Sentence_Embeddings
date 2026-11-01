@@ -10,6 +10,7 @@ FIELDS = (
     "runtime_fingerprint",
     "package_location",
     "versions",
+    "threadpools",
     "machine",
     "cpu",
     "python",
@@ -79,6 +80,7 @@ def signature(row: dict) -> str:
                     "input_digest",
                     "preparation_manifest",
                     "artifact_identities",
+                    "prediction_digest",
                 )
             }
             for part in row["datasets"]
