@@ -7,6 +7,7 @@ quality samples, historical observations, ranges and source records.
 
 The [file manifest](readme-evidence-manifest.json) lists every archived README snapshot with its byte size, SHA256 and immutable file URL.
 The originals live on the separate `benchmark-evidence-2.0` branch and remain byte-identical.
+The [comparison study manifest](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/41d9fc8c54f859cd6c450a94c34c95dcc0d7c84e/benchmarks/baseline/dr151_evidence_manifest_20261101.json) covers its upstream journals, profiles and audits.
 This branch is never merged into master. Local study files retain only compact summaries, each below 50 KB.
 The [validation summary](readme-validation-20261101.json) identifies the exact source commit covered by its package and CI checks.
 
@@ -100,12 +101,12 @@ The symmetric A/A band is 0.9264813765346346 to 1.079352510830116.
 Each process records three warm calls; its per-round rate is 2,000 divided by their median duration.
 The table takes the median and range of the three fse-a or reference round rates, preserving fse-b separately.
 
-Exact source: [complete raw journal](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/2501a387d197d54e31b79bd57dcc350ac1503a07/benchmarks/baseline/results/dr151-pod2-20261101/speed-results.jsonl.gz),
+Exact source: [complete raw journal](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/benchmarks/baseline/results/dr151-pod2-20261101/speed-results.jsonl.gz),
 series `be8994521d4c496ba64b30b19dd39b2a`, cell `classification/setfit/subj/minishlab/potion-base-8M/1/model2vec`, rounds 0, 1 and 2.
 The journal contains nine operation records, three round records and a final series record for this cell.
 Executed source: `97b741887dc0bd4730131aa60a7b5242fef8d5ef`.
 fse runtime: `xxh3-128:d2dc5ced22cb83dc2df3f15624ad2e69`; Model2Vec runtime: `xxh3-128:4852905a78404abddd67f88f333e9f5d`.
-The [retained artifact-header proof](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/d2f6b5b811c3fa0caf91a9aba5497a8ba58a3c3c/benchmarks/baseline/dr151_pod2_normalization_evidence_20261101.json) binds fse's encoder to `normalize@1`.
+The [retained artifact-header proof](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/benchmarks/baseline/dr151_pod2_normalization_evidence_20261101.json) binds fse's encoder to `normalize@1`.
 No absent model weights were copied or rehashed. All 32-worker Subjectivity/POTION-8M cells fail the original A/A gate.
 The corrected raw-mean folded comparison remains a separate Pod 4 deliverable.
 
@@ -273,7 +274,7 @@ These are task-quality scores. Setup, suspension and shared-job waits do not pro
 
 ### First neighborhood stability check
 
-An [audit of POTION-8M](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/771fc882e1813ec9b57faa9d04435ef2cd850262/benchmarks/baseline/results/dr151-numerics.jsonl)
+An [audit of POTION-8M](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/benchmarks/baseline/results/dr151-numerics.jsonl)
 used all 5,352 nonblank WikiText validation and test texts on 1 November 2026, on an Apple M1 Pro.
 It found the ten most similar other vectors for every text, using cosine similarity, which compares vector directions.
 It then measured how many of those neighbors each candidate retained, compared with fse's float32 table.
