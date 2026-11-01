@@ -2,9 +2,21 @@
 # Slim Pod 4 fix-up, never launched by this generator. python:3.13, cpu3c, 32 vCPU, 64 GB RAM, 100 GB disk.
 set -uo pipefail
 started=$(/usr/bin/date +%s)
+failure_manifest() {
+/usr/local/bin/python - "$1" "$2" <<'DR151_FAILURE'
+import base64, gzip, hashlib, json, sys
+value = {'complete':False, 'returncode':int(sys.argv[1]), 'reason':sys.argv[2], 'status':'partial or failed'}
+blob = gzip.compress(json.dumps(value).encode(), mtime=0)
+encoded = base64.b64encode(blob).decode()
+chunks = [encoded[i:i+160] for i in range(0,len(encoded),160)]
+print('DR190_BEGIN manifest',len(blob),hashlib.sha256(blob).hexdigest(),flush=True)
+for i, chunk in enumerate(chunks): print('DR190_DATA manifest',i,chunk,flush=True)
+print('DR190_END manifest',len(chunks),flush=True)
+DR151_FAILURE
+}
 export DR151_DEADLINE=$((started + 8400 - 90))
 /usr/bin/mkdir -p /dr151-results
-/usr/bin/cat > /dr151-finalize.py <<'DR151_FINALIZER'
+if ! /usr/bin/cat > /dr151-finalize.py <<'DR151_FINALIZER'
 """Stdlib-only artifact export, including partial JSONL files after a hard timeout."""
 
 import base64
@@ -104,6 +116,12 @@ if __name__ == "__main__":
     else:
         final(Path(sys.argv[1]), int(sys.argv[2]), sentinel="--no-sentinel" not in sys.argv)
 DR151_FINALIZER
+then
+  failure_manifest 1 finalizer-creation
+  printf 'ALL_DONE\n'
+  /usr/bin/sleep infinity
+  exit 1
+fi
 /usr/local/bin/python - <<'DR151_PLAN'
 import json, shutil
 from pathlib import Path
@@ -114,14 +132,14 @@ if usage.total < 100_000_000_000 or usage.free < 25 * 1024**3:
     raise SystemExit('require 100 GB capacity and at least 25 GiB free')
 DR151_PLAN
 if [ "$?" -ne 0 ]; then
-  /usr/local/bin/python /dr151-finalize.py --failure 1 disk-preflight
+  failure_manifest 1 disk-preflight
   printf 'ALL_DONE\n'
   /usr/bin/sleep infinity
   exit 1
 fi
 if ! /usr/bin/mkdir /dr151-cache; then
   printf 'ERROR: /dr151-cache already exists; require a fresh exclusive pod cache.\n' >&2
-  /usr/local/bin/python /dr151-finalize.py --failure 1 cache-ownership
+  failure_manifest 1 cache-ownership
   printf 'ALL_DONE\n'
   /usr/bin/sleep infinity
   exit 1
@@ -135,7 +153,7 @@ for path in ('/dr151-cache/.dr151-owner.json', '/dr151-results/cache-ownership.j
 DR151_CACHE_OWNER
 then
   printf 'ERROR: cannot establish exclusive cache ownership.\n' >&2
-  /usr/local/bin/python /dr151-finalize.py --failure 1 cache-ownership
+  failure_manifest 1 cache-ownership
   printf 'ALL_DONE\n'
   /usr/bin/sleep infinity
   exit 1
@@ -184,8 +202,8 @@ export DEBIAN_FRONTEND=noninteractive
 /usr/bin/apt-get update
 /usr/bin/apt-get install -y --no-install-recommends build-essential git curl procps util-linux ca-certificates
 /usr/bin/git clone --branch dr151-compare --no-checkout https://github.com/oborchers/Fast_Sentence_Embeddings.git /dr151-repo
-/usr/bin/git -C /dr151-repo checkout --detach 3b4b308f0a766a59775950331ae9cd30b848d47d
-test "$(/usr/bin/git -C /dr151-repo rev-parse HEAD)" = 3b4b308f0a766a59775950331ae9cd30b848d47d
+/usr/bin/git -C /dr151-repo checkout --detach 8f9bc58dc41f355763cf5ef3c363cce878c4b48c
+test "$(/usr/bin/git -C /dr151-repo rev-parse HEAD)" = 8f9bc58dc41f355763cf5ef3c363cce878c4b48c
 cd /dr151-repo
 export SOURCE_DATE_EPOCH=$(/usr/bin/git show -s --format=%ct HEAD)
 /usr/local/bin/python -m pip install --no-cache-dir uv==0.13.0
@@ -205,12 +223,17 @@ set -euxo pipefail
 /bin/bash /dr151-rustup.sh -y --profile minimal --default-toolchain 1.98.0
 /dr151-env/bin/python -c 'import sys; sys.path.insert(0,"benchmarks"); from compare_rust_build import build_worker; build_worker()'
 DR151_RUST
-run_stage rust-setup /usr/bin/timeout --signal=TERM --kill-after=10 600 /bin/bash /dr151-rust-setup.sh
+rust_seconds=$((DR151_DEADLINE - $(/usr/bin/date +%s) - 20))
+if [ "$rust_seconds" -gt 600 ]; then rust_seconds=600; fi
+if [ "$rust_seconds" -le 0 ]; then exit 124; fi
+run_stage rust-setup /usr/bin/timeout --foreground --signal=TERM --kill-after=10 "$rust_seconds" /bin/bash /dr151-rust-setup.sh
 rust_status=$?
 if [ "$rust_status" -ne 0 ]; then exit "$rust_status"; fi
 probe_deadline=$(( $(/usr/bin/date +%s) + 900 ))
 if [ "$probe_deadline" -gt "$DR151_DEADLINE" ]; then probe_deadline=$DR151_DEADLINE; fi
-run_stage quiet-probe /usr/bin/timeout --signal=TERM --kill-after=10 900 /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod4.py probe --cache /dr151-cache --output /dr151-results --deadline-epoch "$probe_deadline"
+probe_seconds=$((probe_deadline - $(/usr/bin/date +%s) - 20))
+if [ "$probe_seconds" -le 0 ]; then exit 124; fi
+run_stage quiet-probe /usr/bin/timeout --foreground --signal=TERM --kill-after=10 "$probe_seconds" /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod4.py probe --cache /dr151-cache --output /dr151-results --deadline-epoch "$probe_deadline"
 probe_status=$?
 if [ "$probe_status" -ne 0 ]; then exit "$probe_status"; fi
 /dr151-env/bin/python -c 'import json; assert json.load(open("/dr151-results/readme-panels/probe.json")).get("passed") is True'
@@ -220,31 +243,76 @@ readme_deadline=$(( $(/usr/bin/date +%s) + 4200 ))
 if [ "$readme_deadline" -gt "$((DR151_DEADLINE - 3000))" ]; then readme_deadline=$((DR151_DEADLINE - 3000)); fi
 readme_seconds=$((readme_deadline - $(/usr/bin/date +%s)))
 if [ "$readme_seconds" -gt 0 ]; then
-  run_stage readme-panels /usr/bin/timeout --signal=TERM --kill-after=10 "$readme_seconds" /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod4.py readme --cache /dr151-cache --output /dr151-results --deadline-epoch "$readme_deadline"
+  run_stage readme-panels /usr/bin/timeout --foreground --signal=TERM --kill-after=10 "$readme_seconds" /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod4.py readme --cache /dr151-cache --output /dr151-results --deadline-epoch "$readme_deadline"
   readme_status=$?
 else
   readme_status=124
 fi
 if [ "$readme_status" -eq 75 ]; then exit 75; fi
+if [ ! -f /dr151-results/readme-panels/plan.json ] || [ ! -f /dr151-results/readme-panels/speed-results.jsonl ]; then exit 1; fi
 run_stage folded-classification /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod4.py classifications --cache /dr151-cache --output /dr151-results --deadline-epoch "$DR151_DEADLINE"
 classification_status=$?
 if [ "$readme_status" -ne 0 ]; then exit "$readme_status"; fi
 exit "$classification_status"
 DR151_WORK
 remaining=$((DR151_DEADLINE - $(/usr/bin/date +%s)))
-/usr/bin/timeout --signal=TERM --kill-after=15 "$remaining" /bin/bash /dr151-work.sh 2>&1 | /usr/bin/tee --output-error=warn /dr151-results/bootstrap.log
-status=${PIPESTATUS[0]}
+/usr/local/bin/python - "$remaining" <<'DR151_SUPERVISOR'
+"""Bound a fresh workload process group and retain logs without an inherited tee pipe."""
+
+import contextlib
+import os
+import signal
+import subprocess
+import sys
+from pathlib import Path
+
+
+def kill_group(pid, sig):
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(pid, sig)
+
+
+def run(command, output, seconds):
+    if seconds <= 0:
+        return 124
+    with output.open("ab", buffering=0) as log:
+        child = subprocess.Popen(
+            command, stdout=log, stderr=subprocess.STDOUT, start_new_session=True
+        )
+        try:
+            status = child.wait(timeout=seconds)
+        except subprocess.TimeoutExpired:
+            status = 124
+        finally:
+            kill_group(child.pid, signal.SIGTERM)
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                child.wait(timeout=10)
+            kill_group(child.pid, signal.SIGKILL)
+            child.wait()
+    return status if status >= 0 else 128 - status
+
+
+if __name__ == "__main__":
+    raise SystemExit(
+        run(
+            ["/bin/bash", "/dr151-work.sh"],
+            Path("/dr151-results/bootstrap.log"),
+            float(sys.argv[1]),
+        )
+    )
+DR151_SUPERVISOR
+status=$?
 /usr/local/bin/python - "$status" <<'DR151_INVOCATION'
 import json, sys
 from pathlib import Path
-Path('/dr151-results/bootstrap-invocation.json').write_text(json.dumps({"command":["/bin/bash","/dr151-work.sh"],"script":Path('/dr151-work.sh').read_text(),"returncode":int(sys.argv[1]),"pinned_commit":"3b4b308f0a766a59775950331ae9cd30b848d47d"}))
+Path('/dr151-results/bootstrap-invocation.json').write_text(json.dumps({"command":["/bin/bash","/dr151-work.sh"],"script":Path('/dr151-work.sh').read_text(),"returncode":int(sys.argv[1]),"pinned_commit":"8f9bc58dc41f355763cf5ef3c363cce878c4b48c"}))
 DR151_INVOCATION
 finalize_seconds=$((started + 8400 - 5 - $(/usr/bin/date +%s)))
 if [ "$finalize_seconds" -lt 1 ]; then finalize_seconds=1; fi
 /usr/bin/timeout --signal=TERM --kill-after=2 "$finalize_seconds" /usr/local/bin/python /dr151-finalize.py /dr151-results "$status" --no-sentinel
 export_status=$?
 if [ "$export_status" -ne 0 ]; then
-  /usr/local/bin/python /dr151-finalize.py --failure "$export_status" export-failed
+  failure_manifest "$export_status" export-failed
 fi
 printf 'ALL_DONE\n'
 /usr/bin/sleep infinity
