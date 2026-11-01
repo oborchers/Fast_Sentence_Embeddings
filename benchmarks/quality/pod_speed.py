@@ -51,6 +51,10 @@ def ensure_model(repo, dtype, args):
 
 
 def encode_command(args, repo, dtype, corpus, workers, kind):
+    if getattr(args, "input_file", None):
+        from pod4_encode import command
+
+        return command(args, repo, dtype, workers, kind)
     return [
         sys.executable,
         str(ROOT / "benchmarks/bench_compare.py"),

@@ -22,8 +22,13 @@ def measure(args, sentences: list[str]) -> tuple[dict, np.ndarray]:
     scratch.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=scratch) as directory:
         folder = Path(directory)
-        corpus = folder / "corpus.json"
-        corpus.write_text(json.dumps(sentences), encoding="utf-8")
+        corpus = getattr(args, "input_file", None)
+        native_prefix = [str(binary)]
+        if corpus is None:
+            corpus = folder / "corpus.json"
+            corpus.write_text(json.dumps(sentences), encoding="utf-8")
+        else:
+            native_prefix.append("--lines")
         output = folder / "vectors.f32"
         environment = {
             **os.environ,
@@ -31,7 +36,13 @@ def measure(args, sentences: list[str]) -> tuple[dict, np.ndarray]:
             "TOKENIZERS_PARALLELISM": "false" if args.threads == 1 else "true",
         }
         done = subprocess.run(
-            [str(binary), str(_snapshot(args.model)), str(corpus), str(args.passes), str(output)],
+            [
+                *native_prefix,
+                str(_snapshot(args.model)),
+                str(corpus),
+                str(args.passes),
+                str(output),
+            ],
             capture_output=True,
             text=True,
             env=environment,

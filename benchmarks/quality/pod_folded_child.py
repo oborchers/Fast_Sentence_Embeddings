@@ -23,16 +23,19 @@ from native_classifier import checked_pipeline  # isort: skip
 from prepare_fineweb import digest, metrics  # isort: skip
 
 
-def evaluation(folder, manifest):
-    path = folder / manifest["evaluation"]["file"]
-    if file_digest(path) != manifest["evaluation"]["checksum"]:
+def evaluation(folder, manifest, description=None):
+    description = manifest["evaluation"] if description is None else description
+    path = folder / description["file"]
+    if file_digest(path) != description["checksum"]:
         raise ValueError("evaluation file differs from its preparation record")
-    rows = [json.loads(line) for line in path.read_text().splitlines()]
-    texts, labels = [row["text"] for row in rows], np.asarray([row["label"] for row in rows])
-    if (
-        len(texts) != manifest["evaluation"]["rows"]
-        or digest(texts) != manifest["evaluation"]["input_digest"]
-    ):
+    texts, labels = [], []
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            row = json.loads(line)
+            texts.append(row["text"])
+            labels.append(row["label"])
+    labels = np.asarray(labels)
+    if len(texts) != description["rows"] or digest(texts) != description["input_digest"]:
         raise ValueError("evaluation rows differ from the complete pinned test set")
     return texts, labels
 
@@ -72,12 +75,12 @@ def predictor(kind, folder, workers):
     return lambda rows: linear_predict(encoder, weight, bias, classes, rows, workers)
 
 
-def measure(predict, rows):
+def measure(predict, rows, passes=3):
     start = time.perf_counter()
     expected = predict(rows)
     first = time.perf_counter() - start
     durations = []
-    for _ in range(3):
+    for _ in range(passes):
         start = time.perf_counter()
         observed = predict(rows)
         durations.append(time.perf_counter() - start)
@@ -93,9 +96,18 @@ def main():
         "--kind", choices=["folded", "encode-matmul", "model2vec-linear", "mlp"], required=True
     )
     parser.add_argument("--workers", type=int, choices=[1, 32], required=True)
+    parser.add_argument("--evaluation-record", type=Path)
+    parser.add_argument("--passes", type=int, default=3)
+    parser.add_argument("--minimum-seconds", type=float, default=0)
     args = parser.parse_args()
+    if args.passes < 1:
+        raise ValueError("passes must be positive")
     if sys.platform != "linux":
         raise RuntimeError("classifier timing is restricted to the Linux pod")
+    allowed = sorted(os.sched_getaffinity(0))
+    if len(allowed) < args.workers:
+        raise ValueError("requested CPU budget exceeds the pod affinity")
+    os.sched_setaffinity(0, allowed[: args.workers])
     os.environ["TOKENIZERS_PARALLELISM"] = "true" if args.workers > 1 else "false"
     os.environ["RAYON_NUM_THREADS"] = str(args.workers)
     from threadpoolctl import threadpool_info, threadpool_limits
@@ -103,7 +115,8 @@ def main():
     from fse._container._hash import checksum
 
     manifest = json.loads((args.folder / "manifest.json").read_text())
-    rows, labels = evaluation(args.folder, manifest)
+    description = json.loads(args.evaluation_record.read_text()) if args.evaluation_record else None
+    rows, labels = evaluation(args.folder, manifest, description)
     for name, expected in manifest["files"].items():
         if file_digest(args.folder / name) != expected["checksum"]:
             raise ValueError("fitted linear artifact changed before inference")
@@ -114,7 +127,7 @@ def main():
         start = time.perf_counter()
         predict = predictor(args.kind, args.folder, args.workers)
         load_s = time.perf_counter() - start
-        predicted, first, seconds = measure(predict, rows)
+        predicted, first, seconds = measure(predict, rows, args.passes)
         pools = threadpool_info()
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
     verify_backend_identity(backend, runtime)
@@ -137,6 +150,13 @@ def main():
         "input_digest": digest(rows),
         "output_digest": checksum(np.ascontiguousarray(predicted)),
         "requested_workers": args.workers,
+        "effective_affinity": sorted(os.sched_getaffinity(0)),
+        "minimum_call_seconds": args.minimum_seconds if backend == "fse" else 0,
+        "inference_input": description or manifest["evaluation"],
+        "original_heldout_quality": manifest["quality"],
+        "quality_scope": "inference-only repetitions"
+        if description
+        else "original complete heldout",
         "table_dtype": "float32",
         "output_dtype": "labels",
         "load_s": load_s,
