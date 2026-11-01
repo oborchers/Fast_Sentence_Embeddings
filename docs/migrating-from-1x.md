@@ -276,6 +276,20 @@ It checks Average, SIF, and uSIF, with folded tables exported by 1.x.
 The recorded run distinguishes known words, an unknown word, an unknown-only sentence, and an empty sentence.
 It compares raw outputs and normalized outputs separately. There are no timing measurements.
 
+In that run, raw Average matched bit for bit on all four probes.
+The largest absolute element differences were:
+
+| Exported model | Raw output | Normalized output |
+|---|---:|---:|
+| Average | 0 | 5.96e-8 |
+| SIF, one removed direction | 4.66e-10 | 1.19e-7 |
+| uSIF, one weighted direction | 5.96e-8 | 8.94e-8 |
+
+Both versions returned zero rows for the unknown-only and empty sentences in this example.
+These are observations on this fixed float32 table, not bounds for other inputs.
+Normalization uses the 2.0 numerical contract, and folding changes the order of arithmetic.
+Keep `normalize=False` when moving a raw-mean application and validate any further numerical requirements yourself.
+
 Reproduce from the repository root, with each environment using its own installed fse:
 
 ```sh
