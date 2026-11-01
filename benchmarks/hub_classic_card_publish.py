@@ -30,7 +30,7 @@ def _write_json(path, value):
     descriptor, name = tempfile.mkstemp(prefix=f".{path.name}.writing-", dir=path.parent)
     temporary = Path(name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
             stream.write(json.dumps(value, indent=2) + "\n")
             stream.flush()
             os.fsync(stream.fileno())
@@ -42,7 +42,7 @@ def _write_json(path, value):
 
 def _sync_payloads(stage):
     for path in stage.iterdir():
-        with path.open("rb") as stream:
+        with path.open("r+b") as stream:  # Windows fsync requires a writable handle.
             os.fsync(stream.fileno())
     _sync_directory(stage)
 
@@ -54,9 +54,11 @@ def publish_card(folder, record_path, cards, text, fit, attributes=None):
     before = read_json(record_path)
     stage = Path(tempfile.mkdtemp(prefix=f".{folder.name}.card-stage-", dir=folder.parent))
     try:
-        (stage / "README.md").write_text(text)
+        (stage / "README.md").write_text(text, encoding="utf-8", newline="\n")
         if fit is not None:
-            (stage / "preparation.json").write_text(json.dumps(fit, indent=2) + "\n")
+            (stage / "preparation.json").write_text(
+                json.dumps(fit, indent=2) + "\n", encoding="utf-8", newline="\n"
+            )
         if attributes is not None:
             (stage / ".gitattributes").write_bytes(attributes)
         after = dict(before, files=dict(before["files"]), card_recipe=CARD_RECIPE)

@@ -43,7 +43,7 @@ def file_sha256(path):
 
 
 def card_example(card, repo):
-    blocks = re.findall(r"```python\n(.*?)\n```", card, flags=re.DOTALL)
+    blocks = re.findall(r"```python\r?\n(.*?)\r?\n```", card, flags=re.DOTALL)
     if len(blocks) != 1:
         raise ValueError("a classic card must contain exactly one Python example")
     code = blocks[0]
@@ -105,7 +105,7 @@ def validate_vectors(vectors, rows, dimension):
 def publication_entry(models, record, fit, indices):
     folder = models / record["repo"].split("/")[1]
     encoder = fse.Encoder.from_pretrained(folder, mmap=True)
-    example = card_example((folder / "README.md").read_text(), record["repo"])
+    example = card_example((folder / "README.md").read_bytes().decode("utf-8"), record["repo"])
     name = record["source"].split("/")[1]
     files = {
         p.name: {"bytes": p.stat().st_size, "sha256": file_sha256(p)}

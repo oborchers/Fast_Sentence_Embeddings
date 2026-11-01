@@ -65,6 +65,14 @@ def uploaded_entries(manifest, receipts, manifest_path):
     return [(known[row["repo"]], row["revision"]) for row in uploaded]
 
 
+def cache_sizes(case):
+    stats = [p.stat() for p in case.rglob("*") if p.is_file() and not p.is_symlink()]
+    blocks = [getattr(value, "st_blocks", None) for value in stats]
+    # Windows provides no st_blocks. Logical bytes are not allocated-space evidence.
+    allocated = None if any(value is None for value in blocks) else sum(blocks) * 512
+    return {"logical_bytes": sum(value.st_size for value in stats), "allocated_bytes": allocated}
+
+
 def remove_owned_cache(case, owner):
     if (
         case.is_symlink()
@@ -74,17 +82,13 @@ def remove_owned_cache(case, owner):
         raise ValueError("scratch ownership changed; refusing cache deletion")
     if {path.name for path in case.iterdir()} != {"owner.json", "hf-home"}:
         raise ValueError("unexpected files in owned cache scratch; refusing deletion")
-    allocated = sum(
-        path.stat().st_blocks * 512
-        for path in case.rglob("*")
-        if path.is_file() and not path.is_symlink()
-    )
+    sizes = cache_sizes(case)
     print(
         json.dumps(
             {
                 "verified_cache_to_remove": str(case),
                 "repo": owner["repo"],
-                "allocated_bytes": allocated,
+                **sizes,
             }
         ),
         flush=True,
@@ -92,7 +96,7 @@ def remove_owned_cache(case, owner):
     shutil.rmtree(case)
     if case.exists():
         raise OSError("owned readback cache remains after cleanup")
-    return allocated
+    return sizes["allocated_bytes"]
 
 
 def child_run(args):
