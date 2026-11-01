@@ -7,6 +7,7 @@ quality samples, historical observations, ranges and source records.
 
 The fse cells from timing window 5 have valid fse runtime attribution.
 Their Model2Vec controls still require re-measurement. Recorder fix02d387c applies to future measurements only.
+The later int8 series below record both backends correctly; their one-worker cell passes the timing-variation limit.
 
 TODO(DR-151): Record the counterpart's loaded code identity and re-measure a same-model comparison with an A/A band within 10%.
 
@@ -267,12 +268,19 @@ Do not pool those controls or infer a dtype speed ratio from these separate seri
 
 | Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) | Counterpart, float32 (modes below) |
 |---|---|---|---|
-| potion-base-8M | 222,701 (209,179 to 229,351), A/A 0.9707 to 1.0302 / 206,438 (202,631 to 214,714) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) / pending | 918,299 (856,137 to 938,323), A/A 0.9378 to 1.0664 / 946,796 (928,663 to 955,245), A/A 0.9180 to 1.0893 / pending | model2vec tokenizer off: 8,926 (8,861 to 8,971) **to be re-measured for runtime attribution**, A/A 0.9707 to 1.0302; on: 23,312 (20,426 to 27,554) **to be re-measured for runtime attribution**, A/A 0.9378 to 1.0664 |
+| potion-base-8M | 222,701 (209,179 to 229,351), A/A 0.9707 to 1.0302 / 206,438 (202,631 to 214,714) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) / 214,848 (210,828 to 226,852), A/A 0.9722 to 1.0286 | 918,299 (856,137 to 938,323), A/A 0.9378 to 1.0664 / 946,796 (928,663 to 955,245), A/A 0.9180 to 1.0893 / 919,009 (918,772 to 952,730) **noisy, to be re-measured** (A/A band 0.8953 to 1.1169) | model2vec tokenizer off: 8,926 (8,861 to 8,971) **to be re-measured for runtime attribution**, A/A 0.9707 to 1.0302; on: 23,312 (20,426 to 27,554) **to be re-measured for runtime attribution**, A/A 0.9378 to 1.0664 |
 | potion-base-32M | pending | pending | model2vec: pending |
 | potion-retrieval-32M | pending | pending | model2vec: pending |
 | potion-multilingual-128M | pending | pending | model2vec: pending |
 | static-retrieval-mrl-en-v1 | pending | pending | sentence-transformers: pending |
 | static-similarity-mrl-multilingual-v1 | pending | pending | sentence-transformers: pending |
+
+The [POTION-8M int8 series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/e490e589a446844ee234f8800a6bdc1dba09c169/docs/benchmarks/readme-int8-20261101/README.md) record backend-specific runtime identities.
+The one-worker cell is within the 10% A/A band and appears in the chart.
+The ten-worker cell exceeds that band and is visibly marked noisy. It is not a headline observation.
+Both use the same pinned model, input and fse runtime as the other chart settings, with one excluded warmup and one timed call per child.
+Their native controls use float32 and remain separate from the float32-series controls in the counterpart column.
+These records measure encoding, not classification or a paired dtype speedup.
 
 The classic models have fse-only measurements:
 
@@ -304,6 +312,7 @@ The largest process memory peaks among each series' three primary fse runs were:
 | word2vec-300, int8 | 1,552.5 **to be re-measured for runtime attribution** | 1,552.7 **to be re-measured for runtime attribution** |
 | POTION-8M, float16 | 166.6 **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) | 169.6 |
 | POTION-8M, float32 | 183.0 | 184.3 |
+| POTION-8M, int8 | 161.8 | 161.1 **noisy, to be re-measured** (A/A band 0.8953 to 1.1169) |
 
 These peaks include imports, model and corpus loading, warmup, encoding and outputs.
 Their A/A labels refer to timing variation, not memory variation.
