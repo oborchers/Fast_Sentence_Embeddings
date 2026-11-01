@@ -19,6 +19,7 @@ from pathlib import Path
 
 from hub_public_readback import FLAGS, check_uploaded_repo
 from hub_publication import file_sha256
+from hub_readback_evidence import write_atomic
 
 
 def cache_environment(home):
@@ -98,8 +99,9 @@ def child_run(args):
     manifest = json.loads(args.manifest.read_text())
     entry = next(value for value in manifest["repositories"] if value["repo"] == args.repo)
     row = check_uploaded_repo(entry, args.revision, args.hf_home)
-    with args.result.open("x") as stream:
-        stream.write(json.dumps(row, indent=2, allow_nan=False) + "\n")
+    if args.result.exists():
+        raise FileExistsError(args.result)
+    write_atomic(args.result, row)
     return 0 if row["status"] == "passed" else 1
 
 
@@ -139,6 +141,9 @@ def run_one(entry, revision, args, output):
             )
         if result.exists():
             row = json.loads(result.read_text())
+            row["exit_code"] = completed.returncode
+            if completed.returncode != 0:
+                row["status"] = "failed"
         else:
             row = {
                 "repo": entry["repo"],
@@ -160,19 +165,19 @@ def run_one(entry, revision, args, output):
             "error": {"type": type(error).__name__},
             **dict.fromkeys(FLAGS, False),
         }
-    finally:
-        try:
-            removed = remove_owned_cache(case, owner)
-            cache_removed = True
-        except Exception as cleanup_error:
-            removed, cache_removed = 0, False
-            cleanup_failure = type(cleanup_error).__name__
+    write_atomic(result, row)  # Preserve the complete probe before deleting downloaded bytes.
+    try:
+        removed = remove_owned_cache(case, owner)
+        cache_removed = True
+    except Exception as cleanup_error:
+        removed, cache_removed = 0, False
+        cleanup_failure = type(cleanup_error).__name__
     row["cache_removed"] = cache_removed
     row["cache_allocated_bytes_removed"] = removed
     if not cache_removed:
         row["status"] = "failed"
         row["cleanup_error"] = cleanup_failure
-    result.write_text(json.dumps(row, indent=2, allow_nan=False) + "\n")
+    write_atomic(result, row)
     return row
 
 
@@ -231,9 +236,7 @@ def parent_run(args):
             "complete": len(rows) == len(entries),
             "passed": all(value["status"] == "passed" for value in rows),
         }
-        (args.output / "evidence.json").write_text(
-            json.dumps(evidence, indent=2, allow_nan=False) + "\n"
-        )
+        write_atomic(args.output / "evidence.json", evidence)
         (args.output / "report.md").write_text(
             "# Fresh public Hub readback\n\n" + "\n".join(table(rows)) + "\n"
         )

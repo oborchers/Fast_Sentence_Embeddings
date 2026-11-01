@@ -40,6 +40,13 @@ def _write_json(path, value):
         temporary.unlink()
 
 
+def _sync_payloads(stage):
+    for path in stage.iterdir():
+        with path.open("rb") as stream:
+            os.fsync(stream.fileno())
+    _sync_directory(stage)
+
+
 def publish_card(folder, record_path, cards, text, fit, attributes=None):
     journal = journal_path(folder)
     if journal.exists():
@@ -56,7 +63,7 @@ def publish_card(folder, record_path, cards, text, fit, attributes=None):
         for path in stage.iterdir():
             after["files"][path.name] = _spec(path)
         _write_json(stage / "manifest.json", after)
-        _sync_directory(stage)
+        _sync_payloads(stage)
         _write_json(journal, {"stage": stage.name, "before": before, "after": after})
     except BaseException:
         if not journal.exists():

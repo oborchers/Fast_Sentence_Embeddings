@@ -19,6 +19,7 @@ def modules(monkeypatch):
         publication=importlib.import_module("hub_publication"),
         readback=importlib.import_module("hub_public_readback"),
         runner=importlib.import_module("verify_published_hub"),
+        evidence=importlib.import_module("hub_readback_evidence"),
     )
 
 
@@ -102,7 +103,11 @@ def test_readback_records_each_check_and_keeps_failure_evidence(modules, monkeyp
     monkeypatch.setattr(readback, "check_cache_revision", lambda *_: None)
     monkeypatch.setattr(readback, "download_and_check", lambda *_: ({}, {"checked": True}))
     monkeypatch.setattr(readback, "metadata_of", lambda *_: entry["metadata"])
-    monkeypatch.setattr(readback, "run_probe", lambda *_: {"difference_points": 0.0})
+    monkeypatch.setattr(
+        readback,
+        "run_probe",
+        lambda *_: {"difference_points": 0.0, "tolerance_ok": True, "bitwise_ok": True},
+    )
     row = readback.check_uploaded_repo(entry, "a" * 40, tmp_path)
     assert row["status"] == "passed"
     assert all(row[flag] is True for flag in readback.FLAGS)
@@ -194,3 +199,49 @@ def test_disk_guard_failure_becomes_durable_failed_row(modules, monkeypatch, tmp
     assert row["status"] == "failed"
     assert row["error"]["type"] == "RuntimeError"
     assert all(row[flag] is False for flag in modules.readback.FLAGS)
+
+
+def test_failed_probe_keeps_observed_difference_and_vector_hash(modules, monkeypatch, tmp_path):
+    readback = modules.readback
+    entry = {
+        "repo": "fse/example",
+        "local_folder": str(tmp_path),
+        "method": "raw",
+        "metadata": {"dimension": 3},
+        "python_example_sha256": "test",
+        "probe": {},
+    }
+    monkeypatch.setattr(readback, "check_public_info", lambda *_: None)
+    monkeypatch.setattr(readback, "execute_example", lambda *_: object())
+    monkeypatch.setattr(readback, "check_cache_revision", lambda *_: None)
+    monkeypatch.setattr(readback, "download_and_check", lambda *_: ({}, {}))
+    monkeypatch.setattr(readback, "metadata_of", lambda *_: entry["metadata"])
+    probe = {
+        "difference_points": 0.5,
+        "pearson_x100": 60.5,
+        "vectors_xxh3": "observed",
+        "tolerance_ok": False,
+        "bitwise_ok": False,
+    }
+    monkeypatch.setattr(readback, "run_probe", lambda *_: probe)
+    row = readback.check_uploaded_repo(entry, "a" * 40, tmp_path)
+    assert row["status"] == "failed"
+    assert row["run_ok"] is False
+    assert row["difference_points"] == 0.5
+    assert row["probe"] == probe
+    assert "+0.50000000" in "\n".join(modules.runner.table([row]))
+
+
+def test_failed_atomic_replacement_preserves_previous_receipt(modules, monkeypatch, tmp_path):
+    evidence = modules.evidence
+    path = tmp_path / "result.json"
+    evidence.write_atomic(path, {"observed": 0.5})
+
+    def interrupted(*_args):
+        raise OSError("injected replacement failure")
+
+    monkeypatch.setattr(evidence.os, "replace", interrupted)
+    with pytest.raises(OSError, match="injected replacement failure"):
+        evidence.write_atomic(path, {"observed": 0.7})
+    assert json.loads(path.read_text()) == {"observed": 0.5}
+    assert list(tmp_path.iterdir()) == [path]

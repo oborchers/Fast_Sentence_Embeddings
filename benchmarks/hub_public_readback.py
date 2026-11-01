@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 from hub_classic_metrics import score
 from hub_publication import (
     TOLERANCE_POINTS,
@@ -92,11 +93,9 @@ def run_probe(encoder, expected):
     validate_vectors(vectors, expected["sentences"], encoder.output_dim)
     pearson = score(labels, vectors)
     delta = pearson - expected["pearson_x100"]
-    if not abs(delta) <= TOLERANCE_POINTS:
-        raise ValueError("fresh Hub STS-B probe exceeds the local Pearson tolerance")
+    if not np.isfinite(pearson):
+        raise ValueError("fresh Hub STS-B probe Pearson is not finite")
     actual_checksum = checksum(vectors)
-    if actual_checksum != expected["vectors_xxh3"]:
-        raise ValueError("fresh Hub CPU vectors differ from the local bitwise probe reference")
     return {
         "pearson_x100": pearson,
         "local_pearson_x100": expected["pearson_x100"],
@@ -106,6 +105,9 @@ def run_probe(encoder, expected):
         "shape": list(vectors.shape),
         "output_dtype": vectors.dtype.name,
         "vectors_xxh3": actual_checksum,
+        "expected_vectors_xxh3": expected["vectors_xxh3"],
+        "tolerance_ok": abs(delta) <= TOLERANCE_POINTS,
+        "bitwise_ok": actual_checksum == expected["vectors_xxh3"],
     }
 
 
@@ -145,7 +147,11 @@ def check_uploaded_repo(entry, revision, home):
         stage = "run"
         row["probe"] = run_probe(encoder, entry["probe"])
         row["difference_points"] = row["probe"]["difference_points"]
-        row["run_ok"] = True
+        row["run_ok"] = row["probe"]["tolerance_ok"] and row["probe"]["bitwise_ok"]
+        if not row["run_ok"]:
+            raise ValueError(
+                "fresh Hub probe differs from the local reference; see probe measurements"
+            )
     except Exception as error:
         row[
             {
