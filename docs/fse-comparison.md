@@ -66,7 +66,8 @@ save, reopen, first search, and three complete warm search passes. The empirical
 p50 and p95 of batch calls are separate from whole-pass statistics. fse writes
 its durable store during construction. FAISS and hnswlib construct in memory
 then serialize. Compare construction plus save, not construction alone. All
-saved files and their parent directories are synced before reopening. The peak
+saved files receive fsync and their parent directories receive F_FULLFSYNC on
+macOS (fsync on other POSIX systems), matching fse full durability. The peak
 RSS includes the encoder, index and untimed full-corpus recall audit.
 
 HNSW uses M=16, ef_construction=200, ef=100 and random_seed=100. Parallel
@@ -94,7 +95,7 @@ Both frozen POTION-8M and POTION-32M are tested through fse and native model2vec
 Each source library gets its own fitted head. fse float16 and int8 reuse the
 head fitted on float32, so their task-score deltas isolate table quantization.
 TF-IDF uses the default scikit-learn vectorizer fitted on those same training
-examples, with the same cross-validated classifier. Accuracy and macro-F1 are
+examples, with a complete vectorizer/classifier pipeline cross-validated over the same ten C values and five folds. Accuracy and macro-F1 are
 reported separately. No speed claim comes from classifier preparation.
 
 `quality/prepare_fineweb.py` uses all 467,424 pinned FineWeb-Edu annotations.

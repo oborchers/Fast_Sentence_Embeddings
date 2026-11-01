@@ -570,17 +570,17 @@ The models and corpora come from the local Hugging Face cache; nothing is downlo
 
 ## Alternatives comparison (partial, 01.11.2026)
 
-DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen) currently has three complete speed cells. The full eight-model, three-table-precision matrix and quality comparison remain open. The [decision-table draft and protocol](docs/fse-comparison.md) record the full scope.
+DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen) has three initial complete speed cells and seven complete precision-matrix cells. The full eight-model, three-table-precision matrix and quality comparison remain open. The [decision-table draft and protocol](docs/fse-comparison.md) record the full scope.
 
 These measurements use an Apple M1 Pro, macOS 27.0.1 arm64, Python 3.13.16, numpy 2.5.4, tokenizers 0.23.3 and model2vec 0.10.0. The measured source commit is `b7ffa8c`; the installed fse distribution identifies itself as `1.1.1.dev862+g82b6f5b12`. The runtime sources are unchanged by this benchmark PR. Both sides load `minishlab/potion-base-8M` at `bf8b056651a2c21b8d2565580b8569da283cab23`, with float32 tables and float32 outputs. The pinned source weight file contains 30,236,760 bytes.
 
 Each cell has three valid rotating rounds of fse A, identical fse B and native model2vec in fresh processes. Each child records a first call and three warm calls. The table reports the median across rounds of each child's warm median. Ranges cover those three independent round rates. The ratio is the median of paired rate ratios, which can differ from the ratio of the displayed medians. WikiText has 5,352 nonempty validation/test texts; MASSIVE has 151,674 test texts. Ordered input digests and exact dataset revisions are in every operation record.
 
-| Corpus | fse workers | model2vec tokenizer parallelism | fse A texts/s, median (range) | model2vec texts/s, median (range) | Paired fse/model2vec ratio | Symmetric A/A band |
-|---|---:|---|---:|---:|---:|---:|
-| WikiText-103 | 1 | off | 219,333 (199,745 to 221,304) | 8,906 (8,879 to 8,956) | 24.49 | 0.900 to 1.111 |
-| WikiText-103 | 10 | on | 909,270 (830,368 to 944,311) | 26,048 (22,894 to 26,880) | 36.25 | 0.865 to 1.156 |
-| MASSIVE | 1 | off | 878,260 (861,892 to 903,738) | 57,001 (56,620 to 57,191) | 15.51 | 0.969 to 1.031 |
+| Corpus | fse workers | model2vec tokenizer parallelism | fse A texts/s, median (range) | model2vec texts/s, median (range) | Paired fse/model2vec ratio | Symmetric A/A band | Repeatability |
+|---|---:|---|---:|---:|---:|---:|---|
+| WikiText-103 | 1 | off | 219,333 (199,745 to 221,304) | 8,906 (8,879 to 8,956) | 24.49 | 0.900 to 1.111 | noisy, re-measure in a quiet window |
+| WikiText-103 | 10 | on | 909,270 (830,368 to 944,311) | 26,048 (22,894 to 26,880) | 36.25 | 0.865 to 1.156 | noisy, re-measure in a quiet window |
+| MASSIVE | 1 | off | 878,260 (861,892 to 903,738) | 57,001 (56,620 to 57,191) | 15.51 | 0.969 to 1.031 | within 10% A/A band |
 
 All retained endpoint loads are strictly below 5: 4.609 to 4.989 for one-worker WikiText, 4.355 to 4.609 for ten-worker WikiText, and 3.900 to 4.355 for MASSIVE. Model2vec uses its one-worker mode or its default automatic parallelism. WikiText is below its 10,000-text joblib threshold, so the default run uses tokenizer parallelism. The exact tokenizer thread count was not measured. MASSIVE's all-core cell crossed the load limit and remains incomplete. Its rejected observations are retained and excluded from this table.
 
