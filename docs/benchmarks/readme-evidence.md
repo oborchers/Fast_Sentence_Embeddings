@@ -54,9 +54,9 @@ The main README now reserves a measured classification table and chart instead o
 No controlled classifier rates are published yet. The measured panel will use committed DR-151 classifier records,
 with the exact trained head, normalization, dataset, machine, date and worker count from each row.
 The normalized-linear comparison and raw-mean folded comparison stay separate.
-Speedup is the matched reference time divided by fse time for the same input, equivalently their throughput ratio.
+Speedup is the matched reference time divided by fse time for the same input, equivalently fse throughput divided by reference throughput.
 A separately fine-tuned Model2Vec MLP is a different trained model, so it does not fill a same-head engine comparison.
-Its default512-unitReLU head and PyTorch/NumPy paths are documented above.
+Its default 512-unit ReLU head and PyTorch/NumPy paths are documented above.
 Only complete series with executed-backend attribution and a symmetric A/A upper band at most1.10 qualify.
 Encoder-only throughput and retained recipe accuracy rows do not fill this measurement.
 
