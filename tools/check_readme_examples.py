@@ -16,6 +16,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+import numpy as np
+
+from fse import Classifier, Encoder, StaticModel
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -43,7 +47,6 @@ def working_directory(path):
 
 
 def verify_vectors(namespace):
-    import numpy as np
 
     if "vectors" not in namespace:
         return {}
@@ -90,8 +93,6 @@ print(json.dumps(model.predict(['I need a new password'], workers=1).tolist()))
 
 def verify_normalization(namespace):
     """Check both the folded raw path and the explicit normalized-head claim."""
-    import numpy as np
-    from fse import Classifier, Encoder, StaticModel
 
     encoder, classifier, head = (namespace[k] for k in ("encoder", "classifier", "head"))
     if encoder.steps or classifier.normalized is not False:
@@ -118,8 +119,6 @@ def verify_normalization(namespace):
 
 
 def verify_classifier(namespace):
-    import numpy as np
-    from fse import Classifier
 
     verify_normalization(namespace)
     classifier = namespace["classifier"]
@@ -142,7 +141,6 @@ def verify_classifier(namespace):
 
 
 def execute_example(readme, line, code):
-    from fse import Encoder
 
     namespace = {"__name__": "__main__"}
     exec(compile("\n" * (line - 1) + code, str(readme), "exec"), namespace)
@@ -155,7 +153,11 @@ def execute_example(readme, line, code):
             raise AssertionError("Quantization example must save an int8 table")
         compact.encode(["the cat sleeps"], workers=1)
         result["saved_table_dtype"] = compact.word_vectors.dtype
-    encoder = namespace.get("encoder") or getattr(namespace.get("model"), "encoder", None)
+    encoder = (
+        namespace.get("encoder")
+        or getattr(namespace.get("model"), "encoder", None)
+        or namespace.get("compact")
+    )
     if encoder is not None:
         result.update(encoder_record(encoder))
     del namespace
