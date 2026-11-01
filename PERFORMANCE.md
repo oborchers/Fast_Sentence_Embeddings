@@ -570,6 +570,25 @@ The models and corpora come from the local Hugging Face cache; nothing is downlo
 
 ## Alternatives comparison (partial, 01.11.2026)
 
+### Recorder correction for counterpart runtime attribution
+
+The window5 fse rates, ranges and A/A controls remain valid. The recorded
+Model2Vec package path and content fingerprint incorrectly identified fse.
+Its measured rates remain retained, but their runtime attribution and final
+same-model ratio claims are provisional until re-measurement. The same recorder
+path affected Rust, FastEmbed and Sentence Transformers before correction.
+No final comparison headline should use those counterpart identities.
+
+Fix `02d387c` records each executing backend's own package version, install
+origin and installed-file content hash, excluding mutable Python caches.
+Rust uses the verified worker binary hash and locked build inputs. The recorder
+checks the backend identity before and after measurement. Tests reject a
+Model2Vec row carrying fse identity and verify Python, native and configuration
+file changes alter the counterpart hash. Follow-up `d635a12` exposes the
+attribution limitation in summaries without dropping valid fse timings.
+Counterpart cells will be re-measured with fresh rotating fse A/A controls.
+
+
 **Runtime attribution limitation:** the initial speed journals record checkout commits and package versions, but lack executed-runtime content fingerprints. They remain historical observations and need re-measurement before final throughput claims. New runs capture the loaded package location, native extension contents and verified Rust build identity.
 
 DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen) has three initial complete speed cells and seven complete precision-matrix cells. The full eight-model, three-table-precision matrix and quality comparison remain open. The [decision-table draft and protocol](docs/fse-comparison.md) record the full scope.

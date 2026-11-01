@@ -17,6 +17,7 @@
     "excluded": "VAT, storage, transfers, startup, idle time and minimum billing granularity",
     "paid_resources_used": false
   },
+  "runtime_attribution": "Existing fse version2 rows retain valid fse code identity. Counterpart version2 rows incorrectly contain fse identity and remain provisional until version3 backend-specific re-measurement. No raw timing or A/A observation is dropped.",
   "cells": [
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-fastembed-float32-w1.jsonl",
@@ -314,6 +315,7 @@
       "raw": "benchmarks/baseline/results/dr151-matrix-glove-wiki-gigaword-300-float32-w1.jsonl",
       "status": "complete",
       "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "paired_speed_ratio_status": "provisional counterpart attribution, re-measure before final ratio claims",
       "diagnostic_aa_configurations": [
         {
           "configuration": {
@@ -441,6 +443,11 @@
       "backends": {
         "fse-a": {
           "model": "fse/glove-wiki-gigaword-300",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -468,6 +475,11 @@
         },
         "fse-b": {
           "model": "fse/glove-wiki-gigaword-300",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -495,6 +507,11 @@
         },
         "model2vec": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -544,6 +561,7 @@
       "raw": "benchmarks/baseline/results/dr151-matrix-glove-wiki-gigaword-300-float32-w10.jsonl",
       "status": "complete",
       "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "paired_speed_ratio_status": "provisional counterpart attribution, re-measure before final ratio claims",
       "diagnostic_aa_configurations": [
         {
           "configuration": {
@@ -671,6 +689,11 @@
       "backends": {
         "fse-a": {
           "model": "fse/glove-wiki-gigaword-300",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -698,6 +721,11 @@
         },
         "fse-b": {
           "model": "fse/glove-wiki-gigaword-300",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -725,6 +753,11 @@
         },
         "model2vec": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -774,6 +807,7 @@
       "raw": "benchmarks/baseline/results/dr151-matrix-glove-wiki-gigaword-300-int8-w1.jsonl",
       "status": "complete",
       "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "paired_speed_ratio_status": "provisional counterpart attribution, re-measure before final ratio claims",
       "diagnostic_aa_configurations": [
         {
           "configuration": {
@@ -901,6 +935,11 @@
       "backends": {
         "fse-a": {
           "model": "fse/glove-wiki-gigaword-300",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
           "table_dtype": "int8",
           "output_dtype": "float32",
@@ -928,6 +967,11 @@
         },
         "fse-b": {
           "model": "fse/glove-wiki-gigaword-300",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "4e5ad402664236b85be45a0d107b95259ba8a909",
           "table_dtype": "int8",
           "output_dtype": "float32",
@@ -955,6 +999,11 @@
         },
         "model2vec": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -1220,6 +1269,7 @@
       "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-8M-float16-w1.jsonl",
       "status": "complete",
       "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "paired_speed_ratio_status": "provisional counterpart attribution, re-measure before final ratio claims",
       "diagnostic_aa_configurations": [
         {
           "configuration": {
@@ -1478,6 +1528,11 @@
       "backends": {
         "fse-a": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float16",
           "output_dtype": "float32",
@@ -1505,6 +1560,11 @@
         },
         "fse-b": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float16",
           "output_dtype": "float32",
@@ -1532,6 +1592,11 @@
         },
         "model2vec": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -1580,7 +1645,8 @@
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-8M-float16-w10.jsonl",
       "status": "complete",
-      "identity_status": "executed runtime and configuration captured",
+      "identity_status": "fse runtime captured; counterpart runtime misattributed to fse, re-measure counterpart",
+      "paired_speed_ratio_status": "provisional counterpart attribution, re-measure before final ratio claims",
       "diagnostic_aa_configurations": [
         {
           "configuration": {
@@ -1839,6 +1905,11 @@
       "backends": {
         "fse-a": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "fse runtime captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+          "recorded_runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float16",
           "output_dtype": "float32",
@@ -1866,6 +1937,11 @@
         },
         "fse-b": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "fse runtime captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+          "recorded_runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float16",
           "output_dtype": "float32",
@@ -1893,6 +1969,11 @@
         },
         "model2vec": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "counterpart identity incorrectly points to fse; re-measure",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+          "recorded_runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -1941,7 +2022,8 @@
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-8M-float32-w1.jsonl",
       "status": "complete",
-      "identity_status": "executed runtime and configuration captured",
+      "identity_status": "fse runtime captured; counterpart runtime misattributed to fse, re-measure counterpart",
+      "paired_speed_ratio_status": "provisional counterpart attribution, re-measure before final ratio claims",
       "diagnostic_aa_configurations": [
         {
           "configuration": {
@@ -2200,6 +2282,11 @@
       "backends": {
         "fse-a": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "fse runtime captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+          "recorded_runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -2227,6 +2314,11 @@
         },
         "fse-b": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "fse runtime captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+          "recorded_runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -2254,6 +2346,11 @@
         },
         "model2vec": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "counterpart identity incorrectly points to fse; re-measure",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+          "recorded_runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -2302,7 +2399,8 @@
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-8M-float32-w10.jsonl",
       "status": "complete",
-      "identity_status": "executed runtime and configuration captured",
+      "identity_status": "fse runtime captured; counterpart runtime misattributed to fse, re-measure counterpart",
+      "paired_speed_ratio_status": "provisional counterpart attribution, re-measure before final ratio claims",
       "diagnostic_aa_configurations": [
         {
           "configuration": {
@@ -2561,6 +2659,11 @@
       "backends": {
         "fse-a": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "fse runtime captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+          "recorded_runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -2588,6 +2691,11 @@
         },
         "fse-b": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "fse runtime captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+          "recorded_runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -2615,6 +2723,11 @@
         },
         "model2vec": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "counterpart identity incorrectly points to fse; re-measure",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr151-compare/src/fse/__init__.py",
+          "recorded_runtime_fingerprint": "xxh3-128:19dd73e91757cd9b93c8e0a83a86440b",
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -3627,6 +3740,7 @@
       "raw": "benchmarks/baseline/results/dr151-matrix-word2vec-google-news-300-int8-w1.jsonl",
       "status": "complete",
       "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "paired_speed_ratio_status": "provisional counterpart attribution, re-measure before final ratio claims",
       "diagnostic_aa_configurations": [
         {
           "configuration": {
@@ -3754,6 +3868,11 @@
       "backends": {
         "fse-a": {
           "model": "fse/word2vec-google-news-300",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
           "table_dtype": "int8",
           "output_dtype": "float32",
@@ -3781,6 +3900,11 @@
         },
         "fse-b": {
           "model": "fse/word2vec-google-news-300",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
           "table_dtype": "int8",
           "output_dtype": "float32",
@@ -3808,6 +3932,11 @@
         },
         "model2vec": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float32",
           "output_dtype": "float32",
@@ -3857,6 +3986,7 @@
       "raw": "benchmarks/baseline/results/dr151-matrix-word2vec-google-news-300-int8-w10.jsonl",
       "status": "complete",
       "identity_status": "historical observation: executed runtime fingerprint not captured, re-measure",
+      "paired_speed_ratio_status": "provisional counterpart attribution, re-measure before final ratio claims",
       "diagnostic_aa_configurations": [
         {
           "configuration": {
@@ -3984,6 +4114,11 @@
       "backends": {
         "fse-a": {
           "model": "fse/word2vec-google-news-300",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
           "table_dtype": "int8",
           "output_dtype": "float32",
@@ -4011,6 +4146,11 @@
         },
         "fse-b": {
           "model": "fse/word2vec-google-news-300",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
           "table_dtype": "int8",
           "output_dtype": "float32",
@@ -4038,6 +4178,11 @@
         },
         "model2vec": {
           "model": "minishlab/potion-base-8M",
+          "runtime_identity_status": "historical runtime identity not captured",
+          "runtime_package": null,
+          "runtime_package_version": null,
+          "recorded_package_location": null,
+          "recorded_runtime_fingerprint": null,
           "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
           "table_dtype": "float32",
           "output_dtype": "float32",
