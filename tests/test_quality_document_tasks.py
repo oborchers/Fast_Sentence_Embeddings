@@ -89,3 +89,22 @@ def test_missing_model_score_stays_pending(reporter, tmp_path):
     scores = reporter.summarize(document, rows, tmp_path, 1000)["tasks"][0]["scores"]
     assert scores[1]["status"] == "pending"
     assert scores[1]["score"] is None
+
+
+def test_multilingual_aggregate_does_not_supply_unrelated_subset_lengths(reporter):
+    packaged = {
+        "test": {
+            "text_statistics": {"average_text_length": 9000},
+            "hf_subset_descriptive_stats": {
+                "en": {"text_statistics": {"average_text_length": 2000}},
+                "de": {"text_statistics": {"average_text_length": 8000}},
+            },
+        }
+    }
+    meta = {"eval_splits": ["test"], "eval_langs": {"en": ["eng-Latn"], "de": ["deu-Latn"]}}
+    assert reporter.evaluation_streams(packaged, meta) == [
+        {
+            "stream": "test/hf_subset_descriptive_stats/en/text_statistics",
+            "average_text_length": 2000,
+        }
+    ]
