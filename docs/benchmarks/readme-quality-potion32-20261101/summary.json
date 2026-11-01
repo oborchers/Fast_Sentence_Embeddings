@@ -31,5 +31,8 @@
         "ndcg_at_10"
       ]
     }
-  }
+  },
+  "mind_final_status": "not computed: MTEB 2.26.25 MindSmallReranking needs more memory than the 64 GB pod (two attempts, status 137 and earlier ENOSPC)",
+  "evidence_manifest": "../readme-evidence-manifest.json",
+  "archived_original_summary": "verified-means.json"
 }

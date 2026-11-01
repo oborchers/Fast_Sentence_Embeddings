@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- Move raw README benchmark copies to the verified evidence branch, retaining small summaries and a SHA256 manifest. Distinguish FineWeb/wordfreq Hub SIF models from WikiText-fitted benchmark models.
+
 - Label each planned README library bar with its own paired input size, while retaining shared inputs for precision tables and core selection.
 
 - Retain earlier Pod 2 normalized-classifier results in the evidence guide, with their short-call protocol and separately fitted-head limits.

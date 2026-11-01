@@ -237,8 +237,9 @@ These Hub models are **planned, not yet available**:
 | GloVe-300 | `fse/glove-wiki-gigaword-300-raw` | `fse/glove-wiki-gigaword-300-sif10` |
 | word2vec-300 | `fse/word2vec-google-news-300-raw` | `fse/word2vec-google-news-300-sif10` |
 
-`raw` keeps the original word vectors. SIF-10 weights words and removes ten common directions from their vectors.
-That preparation uses WikiText-103 and happens before saving. Encoding then uses the finished table, without an extra SIF step.
+`raw` keeps the original word vectors. SIF-10 gives common words less weight and removes ten common directions.
+The Hub models use English frequencies from `wordfreq` and fit those directions on a FineWeb sample.
+This happens before saving. Encoding uses the finished table, without an extra SIF step.
 SIF-10 keeps the same table shape as raw.
 
 For each planned model, float32 uses the ID above. Float16 and int8 variants add `-float16` or `-int8`.

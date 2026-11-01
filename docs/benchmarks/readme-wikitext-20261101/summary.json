@@ -112,5 +112,7 @@
     }
   ],
   "aa_audit_source_commit": "f7537d970e4d883b4bfcd61d991859a36cb6da19",
-  "runtime_attribution_review_commit": "4e888dc18aadc3b5bf6da5b7db7afaa5d0e4b944"
+  "runtime_attribution_review_commit": "4e888dc18aadc3b5bf6da5b7db7afaa5d0e4b944",
+  "evidence_manifest": "../readme-evidence-manifest.json",
+  "archived_original_summary": "summary.json"
 }

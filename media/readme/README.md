@@ -6,7 +6,7 @@ revision `648624ce9bed1d08cacd00e32d5a4bf8ca62f271` (25 October 2026).
 The visuals use the brand's editorial explainer mode: warm surfaces, one green accent and clear reading order.
 
 Historical Mac throughput assets belong to the evidence archive, not the current README generator.
-Their originals remain intact until the archive commit and hashes are verified.
+Their originals are preserved byte-for-byte in the verified evidence archive.
 `docs/benchmarks/readme-evidence-manifest.json` records the transfer source and status.
 The generator only creates explanatory illustrations and accepted current speed panels.
 It does not read historical Mac journals or regenerate their measured plots.

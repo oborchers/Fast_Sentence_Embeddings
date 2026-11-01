@@ -3,9 +3,16 @@
 The README keeps the introduction short. This guide retains the full model and precision matrix,
 quality samples, historical observations, ranges and source records.
 
+## Evidence archive
+
+The [file manifest](readme-evidence-manifest.json) lists every archived README snapshot with its byte size, SHA256 and immutable file URL.
+The originals live on the separate `benchmark-evidence-2.0` branch and remain byte-identical.
+This branch is never merged into master. Local study files retain only compact summaries, each below 50 KB.
+The [validation summary](readme-validation-20261101.json) identifies the exact source commit covered by its package and CI checks.
+
 ## Current headline: 100 million text file-to-vector showcase
 
-The [committed showcase snapshot](readme-showcase-20261101/README.md) backs the maintainer-approved “Compute nearly 3 million text embeddings per second.” headline.
+The [committed showcase snapshot](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-showcase-20261101/README.md) backs the maintainer-approved “Compute nearly 3 million text embeddings per second.” headline.
 The primary run processed 100,000,000 rows at 2,832,638.70 texts/s, from input read through int8 ShardSink close, on 32 vCPU AMD EPYC 7713.
 It uses repeated and shuffled WikiText-103 passages, averaging 28.73027215 POTION tokens, and a float32 model table with int8 output storage.
 The one-primary-plus-one-repeat showcase exception and its 4.53% A/A spread are documented in that snapshot, with exact raw files and output size.
@@ -167,6 +174,21 @@ Treat these historical pipeline ratios as **to be re-measured for runtime attrib
 See [PERFORMANCE.md](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/PERFORMANCE.md#int8-tables-at-1024-dimensions) for workload details and limits.
 See [the format rules](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/formats.md#encoder-1) for rounding and rejected values.
 
+### Hub SIF-10 tables and classic benchmark tables
+
+These are different finished tables. Keep their results separate.
+
+| Table family | Word weights | Where the ten components are fitted | Score source |
+|---|---|---|---|
+| Planned Hub `-sif10` models | English frequencies from wordfreq | A FineWeb sample | The Hub study's own committed results |
+| Classic benchmark tables | WikiText-103 frequencies | WikiText-103 training text | The corresponding classic benchmark study |
+
+The maintainer selected the FineWeb preparation for the Hub models.
+Hub scores must come from the [Hub preparation study](https://github.com/oborchers/Fast_Sentence_Embeddings/tree/f320afa6036352c3616671a9302d76ac4917bf7c/benchmarks/baseline/dr157), with the model's own fit receipt and artifact identity.
+The GloVe/paranmt benchmark rows and the Pod 5 word2vec/FastText/paragram rows use the separate WikiText protocol.
+Their scores do not describe the Hub models. The legacy 1.x diagnostic is also a separate protocol.
+No Hub score or corpus-selection mean is inferred from a classic benchmark row.
+
 ### Complete saved-file sizes
 
 These [file-size observations](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/3b511c89e905368557b5eb864896b5a5d2cba47c/docs/benchmarks/readme-model-sizes-20261101.json)
@@ -200,7 +222,7 @@ The original raw snapshots retain their historical deferred/null records; no mis
 
 **POTION-8M, float32**
 
-One [quality sample](readme-quality-20261101/README.md)
+One [quality sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-quality-20261101/README.md)
 measured POTION-8M with a float32 table and two fse workers on 1 November 2026.
 It used an Apple M1 Pro, macOS 27.0.1, Python 3.13.16, NumPy 2.5.4 and MTEB 2.26.25.
 MTEB is a collection of tests for text vectors. NanoBEIR is a set of 13 small search tests.
@@ -219,7 +241,7 @@ Further model and dtype comparisons, including quality changes from float32, rem
 
 **Later POTION-base-32M sample, float32**
 
-A [later sample](readme-quality-potion32-20261101/README.md)
+A [later sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-quality-potion32-20261101/README.md)
 used POTION-base-32M, two fse workers and the same Apple M1 Pro on 1 November 2026.
 The recorded evaluation code differs from the POTION-8M run above.
 Confirmations of POTION-8M and POTION-base-32M with matching evaluation code are queued after the recording fix.
@@ -235,7 +257,7 @@ The source records each task's metric and dataset revision, the saved model, and
 
 **POTION-retrieval-32M, float32, with fixed runtime recording**
 
-A [separate quality sample](readme-quality-retrieval32-20261101/README.md)
+A [separate quality sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-quality-retrieval32-20261101/README.md)
 measured POTION-retrieval-32M with two fse workers on the Apple M1 Pro on 1 November 2026.
 It records the loaded code's identity after the recording fix.
 Its evaluation code differs from the earlier P8/P32 checkpoints, which still await matching-code confirmations.
@@ -276,13 +298,13 @@ They remain here for provenance, not in the public README. They are not the RunP
 The old laptop value is 918,299 texts/s for POTION-8M float32 at ten workers; the model was already loaded and no output-file writer is included.
 
 <picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/dbfbf2e28465cad2371d7848f16058bbb8061a51/media/readme/throughput-dark.png">
-<img alt="POTION-8M on WikiText: float32, one worker, 222,701 texts/s; int8, one worker, 214,848; float32, ten workers, 918,299; float16, ten workers, 946,796. Apple M1 Pro, 1 November 2026." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/dbfbf2e28465cad2371d7848f16058bbb8061a51/media/readme/throughput-light.png">
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/04e5cbeb1af5d36a45384906d91457d423829680/media/readme/throughput-dark.png">
+<img alt="POTION-8M on WikiText: float32, one worker, 222,701 texts/s; int8, one worker, 214,848; float32, ten workers, 918,299; float16, ten workers, 946,796. Apple M1 Pro, 1 November 2026." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/04e5cbeb1af5d36a45384906d91457d423829680/media/readme/throughput-light.png">
 </picture>
 
 
 The POTION-8M float32 cells and ten-worker float16 cell use
-[WikiText measurements with fse runtime attribution](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/57fa216d15ebc9eb98272d69fe2f5182259cd511/docs/benchmarks/readme-runtime-window5-20261101/README.md)
+[WikiText measurements with fse runtime attribution](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-runtime-window5-20261101/README.md)
 from 1 November 2026: Apple M1 Pro, macOS 27.0.1, Python 3.13.16,
 NumPy 2.5.4, tokenizers 0.23.3 and model2vec 0.10.0.
 Both libraries use model revision `bf8b056651a2c21b8d2565580b8569da283cab23`.
@@ -330,7 +352,7 @@ Do not pool those controls or infer a dtype speed ratio from these separate seri
 | static-retrieval-mrl-en-v1 | pending | pending | sentence-transformers: pending |
 | static-similarity-mrl-multilingual-v1 | pending | pending | sentence-transformers: pending |
 
-The [POTION-8M int8 series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/e490e589a446844ee234f8800a6bdc1dba09c169/docs/benchmarks/readme-int8-20261101/README.md) record backend-specific runtime identities.
+The [POTION-8M int8 series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-int8-20261101/README.md) record backend-specific runtime identities.
 The one-worker cell is within the 10% A/A band and appears in the chart.
 The ten-worker cell exceeds that band and is visibly marked noisy. It is not a headline observation.
 Both use the same pinned model, input and fse runtime as the other chart settings, with one excluded warmup and one timed call per child.
@@ -344,14 +366,14 @@ The classic models have fse-only measurements:
 | GloVe-300 | 212,783 (203,964 to 219,669) **to be re-measured for runtime attribution** / pending / 210,198 (197,759 to 212,257) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8730 to 1.1455) | 828,045 (708,401 to 901,244) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.7850 to 1.2739) / pending / pending |
 | word2vec-300 | pending / pending / 212,606 (211,846 to 213,981) **to be re-measured for runtime attribution** | pending / pending / 924,000 (886,643 to 932,838) **to be re-measured for runtime attribution** |
 
-The GloVe float32 and word2vec int8 cells use [four completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/97f19344fdcc76f151227b523992b11c58372811/docs/benchmarks/readme-classic-timings-20261101/README.md)
+The GloVe float32 and word2vec int8 cells use [four completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-classic-timings-20261101/README.md)
 from the same date, machine and WikiText input. Each has three paired rounds,
 with one warm timed call per child after a full-corpus warmup.
 All load endpoints were below 5.
 The source reports A/A variation separately, including a time-ratio range of 0.7850 to 1.1500 for ten-worker GloVe.
 
 The historical one-worker POTION-8M float16 and GloVe int8 cells come from
-[three completed precision-matrix series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/97f19344fdcc76f151227b523992b11c58372811/docs/benchmarks/readme-matrix-20261101/README.md).
+[three completed precision-matrix series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-matrix-20261101/README.md).
 They use the same machine, date and full WikiText input, with three paired rounds.
 Each child times one call after a full-corpus warmup. All load endpoints were below 5.
 The source also preserves the superseded ten-worker POTION float32 series, whose A/A upper band was 1.9543.
@@ -392,7 +414,7 @@ Labels inherit the paired fse series' timing classification, not a separate Mode
 The off/on controls accompanied the one/ten-worker fse series, respectively.
 No Model2Vec batch-worker pool ran. Its exact tokenizer thread count was not measured.
 
-The historical [one-worker MASSIVE sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/dr151-model2vec-massive-1.jsonl) records these historical rates.
+The historical [one-worker MASSIVE sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-wikitext-20261101/dr151-model2vec-massive-1.jsonl) records these historical rates.
 Across 151,674 test texts, fse processed 878,260 texts/s (861,892 to 903,738) **to be re-measured for runtime attribution**,
 and model2vec processed 57,001 (56,620 to 57,191) **to be re-measured for runtime attribution**, with the same three-round method.
 Its symmetric A/A band is 0.9695 to 1.0315, within 10%, but runtime attribution still requires re-measurement.
@@ -456,3 +478,19 @@ POTION-8M drives its dtype table. MRL library bars require MRL's own decision ce
 No six-point curve, interpolation or scaling graphic is required. Missing decision cells fail publication.
 The `call_seconds` extraction includes every first and warm fse-a/fse-b call from accepted rounds, each at least two seconds.
 See the [row plan](readme-speed-panels.md). Missing data stays out of the public README.
+
+## Compact local summaries
+
+Full journals, rich original summaries and study notes are linked through the file manifest above.
+
+| Study | Compact summary |
+|---|---|
+| Earlier WikiText and MASSIVE | [Summary](readme-wikitext-20261101/summary.json) |
+| Classic model timings | [Summary](readme-classic-timings-20261101/summary.json) |
+| Earlier precision matrix | [Summary](readme-matrix-20261101/summary.json) |
+| Runtime-attributed Mac window | [Summary](readme-runtime-window5-20261101/summary.json) |
+| Earlier int8 comparison | [Summary](readme-int8-20261101/summary.json) |
+| POTION-8M quality, English 40 of 41 tasks | [Summary](readme-quality-20261101/summary.json) |
+| POTION-32M quality, English 40 of 41 tasks | [Summary](readme-quality-potion32-20261101/summary.json) |
+| Retrieval-32M quality, English 40 of 41 tasks | [Summary](readme-quality-retrieval32-20261101/summary.json) |
+| 100M-text showcase | [Summary](readme-showcase-20261101/summary.json) |
