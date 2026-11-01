@@ -49,7 +49,7 @@ def test_invalid_or_incompatible_verification_cannot_reach_cards(family, mutatio
         row["difference_1x_points"] = 1.0
     else:
         row["pairs"] = 1
-    with pytest.raises(ValueError, match="verification|finite|identity mismatch|does not match"):
+    with pytest.raises(ValueError, match=r"verification|finite|identity mismatch|does not match"):
         checks.verification_rows(verification, "glove-wiki-gigaword-300")
 
 
