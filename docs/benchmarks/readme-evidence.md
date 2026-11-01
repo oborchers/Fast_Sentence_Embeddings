@@ -14,13 +14,15 @@ TODO(DR-151): Record the counterpart's loaded code identity and re-measure a sam
 
 A head turns a text vector into scores or labels. The classification recipe compares these different training methods:
 
-| Method | Word vectors | Trained head | Training | Prediction |
+| Method | Word vectors | Trained head | Training | Prediction path |
 |---|---|---|---|---|
 | fse with an imported linear head | Fixed for head training | Linear | scikit-learn in the recipe | fse CPU backend |
-| Model2Vec 0.10.0 classifier | Fine-tuned during training | MLP, by default one hidden layer of 512 units with ReLU | PyTorch | Plain NumPy head |
+| Model2Vec 0.10.0 classifier | Fine-tuned during training | MLP, by default one hidden layer of 512 units with ReLU | PyTorch | Recipe: PyTorch model. Exported head: plain NumPy. |
 
 An MLP is a small neural network. ReLU clips negative hidden-layer values to zero.
-The Model2Vec head applies softmax or sigmoid when returning probabilities.
+The exported Model2Vec head runs in plain NumPy, with softmax or sigmoid when returning probabilities.
+The [linked recipe at its current source](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/a60445423f27161dbf02fe9d4cecc670b0445228/recipes/02-linear-heads.ipynb)
+calls `predict` on the trained PyTorch model instead. Its accuracy rows are not NumPy-export measurements.
 Its [classification defaults](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/train/classifier.py), [trainable embeddings and head construction](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/train/base.py),
 and [NumPy inference implementation](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/inference/mlp.py) are pinned to the official 0.10.0 source.
 
