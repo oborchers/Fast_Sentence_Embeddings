@@ -32,7 +32,6 @@ def test_fold_matches_unfolded_sentence_projection(recipe):
     assert np.array_equal(actual[-1], np.zeros(12, dtype=np.float32))
 
 
-
 def test_components_keep_ten_largest_uncentered_directions(recipe):
     pytest.importorskip("scipy.linalg")
     rows = np.diag(np.sqrt(np.arange(1, 13, dtype=np.float32)))
