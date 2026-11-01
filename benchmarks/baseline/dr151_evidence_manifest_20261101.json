@@ -2384,6 +2384,78 @@
       "source_commit": "894d3bb1afd76769fd090a5677e12eaa71287732"
     },
     {
+      "path": "benchmarks/baseline/results/dr151-pod4-20261101/bootstrap-invocation.json",
+      "size_bytes": 5910,
+      "sha256": "c73ff7eae4965b462dcac5edd064d75a1f45296f60e59bf31a29f52ae8c846a3",
+      "source_commit": "e41060dab1b2a7780b52e80b31050e6ddc6f5b86",
+      "git_blob": "e0356000836c2633ad001bb11a70417c33e118de",
+      "source_kind": "coordinator-verified pod transfer"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4-20261101/bootstrap.log",
+      "size_bytes": 27208,
+      "sha256": "29a73b41a26c2225f6984d13b0297528b3f191e320be78d8f0b296425d482207",
+      "source_commit": "e41060dab1b2a7780b52e80b31050e6ddc6f5b86",
+      "git_blob": "f33fbf17e05bf0de2ca0855704a3f8a73e6559db",
+      "source_kind": "coordinator-verified pod transfer"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4-20261101/cache-ownership.json",
+      "size_bytes": 105,
+      "sha256": "605922fd619877bbc2dda8b3c855e37e26cdaea0125ee2919d7ca36d68bbbad5",
+      "source_commit": "e41060dab1b2a7780b52e80b31050e6ddc6f5b86",
+      "git_blob": "e76da84988f6f518bedc93be6334df85bf5b6fb5",
+      "source_kind": "coordinator-verified pod transfer"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4-20261101/disk-preflight.json",
+      "size_bytes": 45,
+      "sha256": "91db890003b24c466c54b0be254acaf1907b82990046792e26e6525c0ccbf5bf",
+      "source_commit": "e41060dab1b2a7780b52e80b31050e6ddc6f5b86",
+      "git_blob": "fa3ce866e7b39e88a487b20a1a0eae139570a0ec",
+      "source_kind": "coordinator-verified pod transfer"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4-20261101/pod4-plan.json",
+      "size_bytes": 50,
+      "sha256": "334fcc8b01bc4fa20fdd3e3aef5188a2749ddc6c2c37aafc08d278b0210c8f31",
+      "source_commit": "e41060dab1b2a7780b52e80b31050e6ddc6f5b86",
+      "git_blob": "ebd1b1fcd11a5511b4289600e3bb203672dbf017",
+      "source_kind": "coordinator-verified pod transfer"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4-20261101/readme-panels/calibration.jsonl",
+      "size_bytes": 20314,
+      "sha256": "098579f7e295f7b8967b0612bc69195824b79508aff2b850857ff528e40b9691",
+      "source_commit": "e41060dab1b2a7780b52e80b31050e6ddc6f5b86",
+      "git_blob": "b15ec3285e44ea6fd3270e7cf3086023b3c59fd3",
+      "source_kind": "coordinator-verified pod transfer"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4-20261101/readme-panels/probe.json",
+      "size_bytes": 6470,
+      "sha256": "d34fa0061288ef749677e944aa89bdf8c722dfa0c780ee17a410ae46b73d01a2",
+      "source_commit": "e41060dab1b2a7780b52e80b31050e6ddc6f5b86",
+      "git_blob": "9a564f13b00ab31101ec2d91dfb3b77021039537",
+      "source_kind": "coordinator-verified pod transfer"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4-20261101/readme-panels/probe/invocations.jsonl",
+      "size_bytes": 45559,
+      "sha256": "4aae924450285d745d160f9f7914e27e21ad38619f5344160d92efad4d97c0fb",
+      "source_commit": "e41060dab1b2a7780b52e80b31050e6ddc6f5b86",
+      "git_blob": "ce66497d9419092242ddbde82e20dfc70b857f84",
+      "source_kind": "coordinator-verified pod transfer"
+    },
+    {
+      "path": "benchmarks/baseline/results/dr151-pod4-20261101/readme-panels/probe/speed-results.jsonl",
+      "size_bytes": 122008,
+      "sha256": "d71910403c97032a7b39ea3fe9aa4bf23ca28b8740e4f171f2dae6f81e3be2c6",
+      "source_commit": "e41060dab1b2a7780b52e80b31050e6ddc6f5b86",
+      "git_blob": "8de9f5ea45e0c2ed2fc6bce5a71d74428f2c0f2e",
+      "source_kind": "coordinator-verified pod transfer"
+    },
+    {
       "path": "benchmarks/baseline/results/dr151-pod4-reviews-20261101/pod4-final-prompt.md",
       "size_bytes": 1375,
       "sha256": "4ce8e1bd3911efc139be101c2b7ed280837a886d8730575ca5a9026ce2b06de8",
@@ -3197,9 +3269,9 @@
     }
   ],
   "evidence_branch": "benchmark-evidence-2.0",
-  "evidence_commit": "ae79c80c5736706a1e39df2f69a18e5801ae82d3",
-  "evidence_commit_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/commit/ae79c80c5736706a1e39df2f69a18e5801ae82d3",
-  "verified_files": 456,
-  "total_size_bytes": 67499492,
-  "verification": "Every archived byte checked against the evidence commit. Two CRLF working-copy variants are preserved separately from their original canonical LF Git blobs. No measured value changed."
+  "evidence_commit": "b734a9b78829988b52788be3e3707ac6a68c5c10",
+  "evidence_commit_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/commit/b734a9b78829988b52788be3e3707ac6a68c5c10",
+  "verified_files": 465,
+  "total_size_bytes": 67727161,
+  "verification": "Existing immutable evidence blobs unchanged; appended pod files read back and checked by size and SHA256. Canonical and CRLF variants remain preserved."
 }

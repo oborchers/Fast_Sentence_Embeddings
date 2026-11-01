@@ -1,0 +1,50 @@
+{
+  "format": "pod4-probe-summary-v1",
+  "runtime_source_pin": "e41060dab1b2a7780b52e80b31050e6ddc6f5b86",
+  "frozen_script_commit": "894d3bb",
+  "script_sha256": "afa684d314a39c2811e0df00b7bf28d6fc6210b9006f8ecc99c65647b882a09f",
+  "status": "quiet probe rejected; no README or classification stage ran",
+  "returncode": 75,
+  "copied_text_files": 9,
+  "copied_text_bytes": 227669,
+  "operations": 8,
+  "complete_rounds": 4,
+  "valid_rounds": 4,
+  "aa_max_ratio": 1.1506593476578448,
+  "symmetric_aa_band": [
+    0.869066941519651,
+    1.1506593476578448
+  ],
+  "within_round_max_ratio": 1.0424463569061715,
+  "control_seconds_range": [
+    2.7098084540339187,
+    3.118066427996382
+  ],
+  "probe_seconds": 138.01517746900208,
+  "eligible": false,
+  "host": {
+    "cpu": "AMD EPYC 9654 96-Core Processor",
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.41",
+    "assigned_vcpu": 32,
+    "memory_limit": "64000000000"
+  },
+  "input": {
+    "texts": 2600000,
+    "input_digest": "xxh3-128:76a5d784b2440a3ef855d1bdad46ae80",
+    "input_checksum": "xxh3-128:391848cc94061330c89cb86e21fe0f81",
+    "seed": 0,
+    "distinct_input_texts": 782213,
+    "repetition_factor": 3.323902824422504,
+    "input_label": "sampled and shuffled WikiText-103 passages",
+    "dataset_revision": "b08601e04326c79dfdd32d625aee71d232d685c3"
+  },
+  "runtime": {
+    "runtime_package": "fse",
+    "runtime_package_version": "2.0.0.dev0",
+    "runtime_fingerprint": "xxh3-128:d2dc5ced22cb83dc2df3f15624ad2e69"
+  },
+  "verification": "All nine text files parse, all eight controls share input/output/runtime identity, all actual fse calls meet two seconds, global A/A recomputed from raw medians matches the rejected probe.",
+  "evidence_commit": "b734a9b78829988b52788be3e3707ac6a68c5c10",
+  "raw_directory": "benchmarks/baseline/results/dr151-pod4-20261101",
+  "evidence_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/tree/b734a9b78829988b52788be3e3707ac6a68c5c10/benchmarks/baseline/results/dr151-pod4-20261101"
+}
