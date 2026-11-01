@@ -48,6 +48,7 @@ vectors = encoder.encode(["the cat sleeps", "a dog runs"])
 ```
 
 A vector is a list of numbers that represents a text. Here you get a NumPy array with one row per text.
+For document vectors, pass your documents as strings. The model's text-length limits still apply.
 The first load downloads the model. Its license applies separately.
 For complete applications, explore the nine [recipes](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) below.
 
@@ -76,20 +77,6 @@ vectors = encoder.encode(["How do I reset my password?", "Open your account sett
 ```
 
 This supports compatible static models. It does not run contextual transformers such as MiniLM or BGE.
-
-### Need document vectors, as in a Doc2Vec workflow?
-
-Use a ready-made model to encode your documents, without training a new Doc2Vec model:
-
-```python
-from fse import Encoder
-
-encoder = Encoder.from_pretrained("minishlab/potion-base-32M")
-documents = ["A customer needs help signing in.", "A visitor asks about pricing."]
-vectors = encoder.encode(documents)
-```
-
-This is an alternative workflow, not a loader for trained Doc2Vec models. Model text-length limits still apply.
 
 ## Choose a model and memory budget
 
