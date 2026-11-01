@@ -49,9 +49,23 @@ def checked_completed(quality):
     return completed
 
 
+def validate_invocation_model(row, model):
+    command = row.get("command", [])
+    try:
+        position = command.index("--models") + 1
+    except ValueError as exc:
+        raise ValueError("invocation must record its --models argument") from exc
+    if command[position : position + 1] != [model]:
+        raise ValueError("invocation and quality models differ")
+    if len(command) > position + 1 and not command[position + 1].startswith("--"):
+        raise ValueError("invocation must select exactly one model")
+
+
 def report(invocations, quality, job_name, expected_tasks):
     finished = [r for r in invocations if r.get("name") == job_name and r.get("finished_at")]
     completed = checked_completed(quality)
+    for row in finished:
+        validate_invocation_model(row, completed[0]["model"])
     spans = intervals(finished)
     succeeded = any(r.get("returncode") == 0 and r.get("status") == "completed" for r in finished)
     return {
@@ -70,7 +84,7 @@ def report(invocations, quality, job_name, expected_tasks):
         else None,
         "individual_invocations": finished,
         "scope": "Invocation wall time includes imports, loading, evaluation and waits/cooldowns inside the invocation. Overlapping intervals count once. Calendar span also includes gaps outside invocations.",
-        "encode_scope": "Raw quality seconds sum model.encode calls only; exclude other evaluation work, loading and fairness waits. Never interpret this field as full task duration.",
+        "encode_scope": "Raw quality seconds sum model.encode calls only; exclude evaluation work, model loading and fairness waits outside those calls. Never interpret this field as full task duration.",
         "not_cpu_speed_evidence": True,
     }
 

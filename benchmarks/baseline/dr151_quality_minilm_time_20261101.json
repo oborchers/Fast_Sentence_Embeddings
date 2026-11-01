@@ -104,6 +104,6 @@
     }
   ],
   "scope": "Invocation wall time includes imports, loading, evaluation and waits/cooldowns inside the invocation. Overlapping intervals count once. Calendar span also includes gaps outside invocations.",
-  "encode_scope": "Raw quality seconds sum model.encode calls only; exclude other evaluation work, loading and fairness waits. Never interpret this field as full task duration.",
+  "encode_scope": "Raw quality seconds sum model.encode calls only; exclude evaluation work, model loading and fairness waits outside those calls. Never interpret this field as full task duration.",
   "not_cpu_speed_evidence": true
 }
