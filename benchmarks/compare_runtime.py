@@ -26,19 +26,38 @@ def stable_file(path: Path) -> bool:
     )
 
 
-def installed_files(package, spec) -> dict[str, Path]:
+def recorded_files(package) -> dict[str, Path]:
     if package.files is None:
         raise ValueError("backend distribution has no installed-file manifest")
     paths = {
         "distribution/" + str(p): Path(package.locate_file(p)).resolve() for p in package.files
     }
+    for path in paths.values():
+        if (
+            path.suffix not in (".pyc", ".pyo")
+            and "__pycache__" not in path.parts
+            and not path.is_file()
+        ):
+            raise ValueError("backend distribution has a missing installed file")
+    return paths
+
+
+def installed_files(package, spec) -> dict[str, Path]:
+    paths = recorded_files(package)
     root = Path(spec.origin).resolve()
     if spec.submodule_search_locations is not None:
         root = root.parent
-        paths.update({"module/" + str(p.relative_to(root)): p for p in root.rglob("*")})
+        paths.update({"module/" + str(p.relative_to(root)): p.resolve() for p in root.rglob("*")})
     else:
         paths["module/" + root.name] = root
-    return {name: path for name, path in paths.items() if stable_file(path)}
+    result, seen = {}, set()
+    for name, path in sorted(
+        paths.items(), key=lambda item: (not item[0].startswith("module/"), item[0])
+    ):
+        if stable_file(path) and path not in seen:
+            result[name] = path
+            seen.add(path)
+    return result
 
 
 def package_identity(module_name: str, distribution_name: str) -> dict:

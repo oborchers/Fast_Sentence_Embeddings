@@ -38,6 +38,7 @@ def test_counterpart_uses_its_own_install_path_version_and_content(runtime, inst
     record = runtime.backend_identity("model2vec")
     assert record["runtime_package"] == "model2vec"
     assert record["runtime_package_version"] == "0.10.0"
+    assert record["runtime_file_count"] == 4
     assert record["package_location"] == str(installed / "__init__.py")
     assert record["runtime_fingerprint"] != runtime.runtime_identity()
 
@@ -69,3 +70,11 @@ def test_rust_identity_is_the_verified_binary_not_python_fse(runtime, monkeypatc
     assert record["package_location"] == str(Path("/verified/rust-worker").resolve())
     assert record["runtime_fingerprint"] == "rust-binary-content"
     assert record["rust_worker_build"]["binary_digest"] == "rust-binary-content"
+
+
+def test_missing_declared_code_file_cannot_be_silently_omitted(runtime, installed):
+    path = installed / "settings.json"
+    assert path.read_bytes() == b"installed counterpart content"
+    path.unlink()
+    with pytest.raises(ValueError, match="missing installed file"):
+        runtime.backend_identity("model2vec")
