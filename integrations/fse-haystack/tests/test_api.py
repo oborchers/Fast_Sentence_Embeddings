@@ -1,7 +1,7 @@
 from threading import get_ident
 
 import pytest
-from haystack import Document, Pipeline
+from haystack import AsyncPipeline, Document, Pipeline
 from haystack_integrations.components.embedders.fse import FseDocumentEmbedder, FseTextEmbedder
 
 from fse import Encoder
@@ -92,3 +92,20 @@ def test_local_artifact(encoder, tmp_path):
     clone = FseTextEmbedder.from_dict(model.to_dict())
     clone.warm_up()
     assert clone.run("hello") == model.run("hello")
+
+
+async def test_cold_async_pipeline_loads_off_loop(encoder, monkeypatch):
+    threads = []
+    loop_thread = get_ident()
+
+    def load(*_args, **_kwargs):
+        threads.append(get_ident())
+        return encoder
+
+    monkeypatch.setattr(Encoder, "from_pretrained", load)
+    pipeline = AsyncPipeline()
+    pipeline.add_component("embed", FseTextEmbedder("local"))
+    result = await pipeline.run_async({"embed": {"text": "hello"}})
+    assert result["embed"]["embedding"] == encoder.encode(["hello"]).tolist()[0]
+    assert threads
+    assert all(thread != loop_thread for thread in threads)

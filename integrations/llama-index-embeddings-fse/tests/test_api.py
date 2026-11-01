@@ -1,6 +1,10 @@
+import pickle
 from threading import get_ident
 
+import numpy as np
 import pytest
+from llama_index.core.ingestion import IngestionCache, IngestionPipeline
+from llama_index.core.ingestion.pipeline import get_transformation_hash, run_transformations
 from llama_index.core.schema import TextNode
 from llama_index.embeddings.fse import FseEmbedding
 
@@ -69,3 +73,51 @@ def test_local_artifact(encoder, tmp_path):
         model.get_text_embedding_batch(["hello", "world"])
         == encoder.encode(["hello", "world"]).tolist()
     )
+
+
+def test_ingestion_cache_identity(encoder):
+    other = Encoder.from_arrays(
+        np.array([[2, 0, 1], [1, 2, 0]], dtype=np.float32), words=["hello", "world"]
+    )
+    first = FseEmbedding(encoder=encoder)
+    second = FseEmbedding(encoder=other)
+    half = FseEmbedding(encoder=encoder, dtype="float16")
+    nodes = [TextNode(text="hello")]
+    identities = {get_transformation_hash(nodes, model) for model in [first, second, half]}
+    assert len(identities) == 3
+    cache = IngestionCache()
+    for model in [first, second, half]:
+        result = run_transformations([TextNode(text="hello")], [model], cache=cache)
+        assert result[0].embedding == model.get_text_embedding("hello")
+    with pytest.raises(ValueError, match="injected encoder"):
+        pickle.dumps(first)
+    with pytest.raises(ValueError, match="injected encoder"):
+        FseEmbedding.from_dict(first.to_dict())
+
+
+def test_process_ingestion_keeps_options(encoder, tmp_path):
+    path = tmp_path / "encoder.safetensors"
+    encoder.save(path)
+    model = FseEmbedding(
+        str(path),
+        dtype="float16",
+        workers=1,
+        embed_batch_size=1,
+        load_kwargs={"local_files_only": True},
+    )
+    restored = FseEmbedding.from_dict(model.to_dict())
+    assert restored.get_query_embedding("hello") == model.get_query_embedding("hello")
+    clone = pickle.loads(pickle.dumps(model))
+    assert clone.dtype == "float16"
+    assert clone.workers == 1
+    assert clone.load_kwargs == {"local_files_only": True}
+    assert clone.encoder_fingerprint == encoder.fingerprint
+    pipeline = IngestionPipeline(transformations=[model])
+    result = pipeline.run(nodes=[TextNode(text="hello"), TextNode(text="world")], num_workers=2)
+    assert [node.embedding for node in result] == encoder.encode(
+        ["hello", "world"], dtype="float16", workers=1
+    ).tolist()
+    data = model.to_dict()
+    data["encoder_fingerprint"] = "different"
+    with pytest.raises(ValueError, match="fingerprint"):
+        FseEmbedding.from_dict(data)

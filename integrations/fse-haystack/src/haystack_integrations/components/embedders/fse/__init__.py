@@ -40,6 +40,9 @@ class _FseEmbedder:
         if self._encoder is None:
             self._encoder = Encoder.from_pretrained(self.model, **self.load_kwargs)
 
+    async def warm_up_async(self) -> None:
+        await to_thread(self.warm_up)
+
     def _embed(self, texts: list[str]) -> list[list[float]]:
         if self._encoder is None:
             raise RuntimeError("Call warm_up() before run()")

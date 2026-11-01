@@ -26,8 +26,13 @@ async hooks. LlamaIndex's `embed_batch_size` controls calls to fse. Its `num_wor
 controls async batch concurrency, while `workers` controls fse workers per call.
 Avoid multiplying both settings without checking your application's resource use.
 Callbacks, caches and node embedding use the base class behavior.
-The loaded encoder and encode options are private runtime state, not a model
-serialization format. Recreate the adapter with the original options after loading.
+The transformation identity includes the encoder fingerprint and output dtype,
+so ingestion caches distinguish models and precision. Saved model references and
+options survive process-based ingestion. Reconstruction checks the loaded fingerprint.
+Injected in-memory encoders support caching but cannot be pickled or reconstructed
+without the original encoder. Save them and use a local path for multiprocessing.
+Serialized dictionaries omit Hub tokens. Pickling with an explicit token is refused.
+Use the Hub credential store for reconstruction.
 LlamaIndex requires new integrations to live outside its monorepo.
 
 ## Framework baseline and guides
@@ -59,7 +64,7 @@ and allocates Python objects, so it takes additional time and memory.
 It does not retain the array's compact float16 or float32 storage.
 Empty and unknown-only text follows fse's zero-vector behavior.
 Async methods delegate encoding and list conversion to a thread.
-Loading is synchronous, so construct and warm models before serving async requests.
+Loading is synchronous, so construct models before serving async requests.
 
 ## Development
 

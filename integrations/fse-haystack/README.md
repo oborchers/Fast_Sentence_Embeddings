@@ -70,7 +70,8 @@ and allocates Python objects, so it takes additional time and memory.
 It does not retain the array's compact float16 or float32 storage.
 Empty and unknown-only text follows fse's zero-vector behavior.
 Async methods delegate encoding and list conversion to a thread.
-Loading is synchronous, so construct and warm models before serving async requests.
+Construct models before serving async requests. Haystack also provides
+`warm_up_async()` so async pipelines can load outside the event loop.
 
 ## Development
 
