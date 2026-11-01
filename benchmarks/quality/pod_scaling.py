@@ -1,4 +1,4 @@
-"""Final Pod 3 stage: the headline encoder pipeline at every requested worker count."""
+"""Export the measured README curves, failing on missing or ineligible points."""
 
 from __future__ import annotations
 
@@ -127,7 +127,11 @@ def run(args):
         "cells": cells,
         "missing": sorted(wanted - {cell["cell"] for cell in cells}),
         "source": str(source),
+        "ineligible": [cell["cell"] for cell in cells if not cell["eligible"]],
         "note": "Reuses the exact paired README series, without a second timing run.",
     }
+    result["complete"] = not result["missing"] and not result["ineligible"]
     (folder / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
     emit("worker-scaling-summary", result)
+    if not result["complete"]:
+        raise RuntimeError("scaling evidence has missing or ineligible required points")
