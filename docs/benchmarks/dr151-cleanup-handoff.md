@@ -2,7 +2,7 @@
 
 Pod 4 and Pod 4b were collected and deleted by the coordinator. Their complete raw copies are archived, with compact rejection/failure summaries on the code branch. Pod 4c is ready under the frozen handoff at `benchmarks/baseline/dr151_pod4c_handoff_20261101.md`. No worker controls pod lifecycle.
 
-The evidence archive is e8b338363def0f43a9460ea94a66cd2b96e8bb52, containing 477 files and 68,097,415 bytes. All 48 README transfer files were independently verified by their owner. The original eight 1.1 baseline files remain unchanged on the code branch.
+The evidence archive is e8b338363def0f43a9460ea94a66cd2b96e8bb52, containing 477 manifest-listed payload files and 68,097,415 payload bytes. Including its README and internal manifest, the archive tree contains 479 files and 68,270,533 bytes. All 48 README transfer files were independently verified by their owner. The original eight 1.1 baseline files remain unchanged on the code branch.
 
 ## Completed addition after Pod 4 collection
 
