@@ -20,8 +20,20 @@ def files_digest(root: Path, paths: list[Path]) -> str:
     return hasher.checksum()
 
 
-def measurement_identity(tasks: list) -> dict:
+def runtime_identity() -> str:
     import fse
+
+    runtime = Path(fse.__file__).resolve().parent
+    code = [*runtime.rglob("*.py"), *runtime.glob("_native*.so"), *runtime.glob("_native*.pyd")]
+    return files_digest(runtime, code)
+
+
+def verify_reference_runtime(environment: dict) -> None:
+    if runtime_identity() != environment["fse_reference_runtime_fingerprint"]:
+        raise ValueError("common fse reference runtime changed during quality evaluation")
+
+
+def measurement_identity(tasks: list) -> dict:
     from fse._container._hash import checksum
 
     folder = Path(__file__).resolve().parent
@@ -36,13 +48,12 @@ def measurement_identity(tasks: list) -> dict:
             "backend_runtime.py",
         )
     ]
-    runtime = Path(fse.__file__).resolve().parent
-    code = [*runtime.rglob("*.py"), *runtime.glob("_native*.so"), *runtime.glob("_native*.pyd")]
+    runtime = runtime_identity()
     suite = [task.metadata.model_dump(mode="json") for task in tasks]
     return {
         "method_fingerprint": files_digest(folder, method),
-        "runtime_fingerprint": files_digest(runtime, code),
-        "fse_reference_runtime_fingerprint": files_digest(runtime, code),
+        "runtime_fingerprint": runtime,
+        "fse_reference_runtime_fingerprint": runtime,
         "suite_fingerprint": checksum(json.dumps(suite, sort_keys=True).encode("utf-8")),
     }
 

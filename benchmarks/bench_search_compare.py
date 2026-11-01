@@ -42,6 +42,11 @@ from compare_wait import ready_operation
 REPO = "minishlab/potion-base-8M"
 
 
+def verify_encoder_runtime(provenance: dict) -> None:
+    if runtime_identity() != provenance["encoder_runtime_fingerprint"]:
+        raise ValueError("shared encoder runtime changed during the search operation")
+
+
 def child(args) -> None:
     from threadpoolctl import threadpool_info, threadpool_limits
 
@@ -91,6 +96,7 @@ def child(args) -> None:
             if args.kind == "fse":
                 index.close()
         verify_backend_identity(args.kind, provenance)
+        verify_encoder_runtime(provenance)
         files = [path] if path.is_file() else [p for p in path.rglob("*") if p.is_file()]
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         record = {

@@ -21,7 +21,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from compare_inputs import identity  # isort: skip
-from compare_runtime import backend_identity  # isort: skip
+from compare_runtime import backend_identity, verify_backend_identity  # isort: skip
 from compare_artifacts import (
     check_head_encoder,
     checked_encoder,
@@ -79,9 +79,9 @@ def fit(features, labels):
 
 
 def save_result(args, provenance, backend, model, labels, predicted, **extra):
+    verify_backend_identity(backend, provenance)
     row = {
         **provenance,
-        **backend_identity(backend),
         **metrics(labels, predicted),
         "backend": backend,
         "model": model,
@@ -102,6 +102,7 @@ def heads(args, data, provenance, repo, output):
 
     from fse import Classifier, Encoder
 
+    provenance = {**provenance, **backend_identity("fse")}
     train, y_train, evaluation, y_eval = data
     encoder = Encoder.load(args.models / artifact_name(repo, "float32"))
     training_source = checked_encoder(encoder, args.models, repo, "float32")
@@ -133,6 +134,7 @@ def heads(args, data, provenance, repo, output):
             head_training_table_dtype="float32",
             prediction_disagreement_vs_float32=float(np.mean(predicted != reference)),
         )
+    provenance = {**provenance, **backend_identity("model2vec")}
     native_folder = Path(snapshot_download(repo, revision=MODELS[repo], local_files_only=True))
     native = StaticModel.from_pretrained(native_folder)
     source = native_encoder_identity(repo, native_folder)
@@ -162,6 +164,7 @@ def tfidf(args, data, provenance, output):
     from sklearn.model_selection import GridSearchCV
     from sklearn.pipeline import make_pipeline
 
+    provenance = {**provenance, **backend_identity("tfidf")}
     train, y_train, evaluation, y_eval = data
     search = GridSearchCV(
         make_pipeline(TfidfVectorizer(), LogisticRegression(max_iter=1000, random_state=0)),

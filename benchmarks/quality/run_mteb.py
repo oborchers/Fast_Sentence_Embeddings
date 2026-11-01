@@ -55,7 +55,12 @@ from model2vec_adapter import NativeModel2VecEncoder
 from mteb.cache import ResultCache
 from mteb.models.abs_encoder import AbsEncoder
 from mteb.models.model_meta import ModelMeta, ScoringFunction
-from protocol import compatible_results, measurement_identity, source_identity
+from protocol import (
+    compatible_results,
+    measurement_identity,
+    source_identity,
+    verify_reference_runtime,
+)
 from resume import pending_tasks
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -272,6 +277,7 @@ def run(
     cache = ResultCache(CACHE / "mteb")
     environment = {**identity(), **measurement_identity(tasks_for(None))}
     for name in models:
+        verify_reference_runtime(environment)
         with task_reservation(FseEncoder.coordination):
             meta = metadata(name)
             model = meta.load_model(device="cpu")
@@ -299,6 +305,7 @@ def run(
         with closing(task_batches(model, pending, cache)) as batches:
             for task_to_run, result in batches:
                 verify_backend_identity(specification["backend_kind"], specification)
+                verify_reference_runtime(environment)
                 for task_result in result.task_results:
                     task = task_result.task_name
                     with results.open("a", encoding="utf-8") as f:

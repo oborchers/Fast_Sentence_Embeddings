@@ -19,7 +19,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from compare_inputs import identity  # isort: skip
-from compare_runtime import backend_identity  # isort: skip
+from compare_runtime import backend_identity, verify_backend_identity  # isort: skip
 from compare_artifacts import (
     check_head_encoder,
     checked_encoder,
@@ -94,7 +94,7 @@ def metrics(labels, predicted) -> dict:
 
 
 def record(args, row: dict) -> None:
-    row = {**row, **backend_identity(row["backend"])}
+    verify_backend_identity(row["backend"], row)
     with args.results.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(row) + "\n")
     print(json.dumps({key: row[key] for key in ("backend", "model", "macro_f1")}), flush=True)
@@ -106,6 +106,7 @@ def potion(args, data, provenance: dict, repo: str) -> None:
 
     from fse import Classifier, Encoder
 
+    provenance = {**provenance, **backend_identity("fse")}
     train, y_train, evaluation, y_eval = data
     encoder = Encoder.load(args.models / artifact_name(repo, "float32"))
     training_source = checked_encoder(encoder, args.models, repo, "float32")
@@ -152,6 +153,7 @@ def native(args, data, provenance: dict, repo: str) -> None:
     from model2vec import StaticModel
     from sklearn.linear_model import LogisticRegression
 
+    provenance = {**provenance, **backend_identity("model2vec")}
     train, y_train, evaluation, y_eval = data
     folder = snapshot_download(repo, revision=MODELS[repo], local_files_only=True)
     model = StaticModel.from_pretrained(folder)
@@ -183,6 +185,7 @@ def native(args, data, provenance: dict, repo: str) -> None:
 def fasttext(args, data, provenance: dict) -> None:
     import fasttext
 
+    provenance = {**provenance, **backend_identity("fasttext")}
     train, y_train, evaluation, y_eval = data
     path = args.output / "owned-intermediate-train.fasttext"
     with path.open("x", encoding="utf-8") as stream:

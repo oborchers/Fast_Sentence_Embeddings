@@ -84,6 +84,28 @@ class TestQualityAdapters(unittest.TestCase):
             is None
         )
 
+    def test_precision_delta_requires_the_same_executing_backend_code(self):
+        left = {
+            "task_metadata": {"main_score": "accuracy"},
+            "main_score": 0.5,
+            "benchmark": "test",
+            "source_revision": "pinned",
+            "float32_parent_fingerprint": "parent",
+            "runtime_package": "fse",
+            "runtime_package_version": "installed-version",
+            "runtime_fingerprint": "code-before",
+            "fse_reference_runtime_fingerprint": "common-reference",
+        }
+        right = {**left, "main_score": 0.4, "encoder_fingerprint": "parent"}
+        delta = self.report.task_deltas({"task": left}, {"task": right})[0]
+        assert abs(delta["delta_vs_float32_points"] - 10) < 1e-12
+        for key in ("runtime_package", "runtime_package_version", "runtime_fingerprint"):
+            with self.subTest(key=key):
+                other = {**right, key: "different"}
+                delta = self.report.task_deltas({"task": left}, {"task": other})[0]
+                assert delta["float32_score"] is None
+                assert delta["delta_vs_float32_points"] is None
+
     def test_non_fse_written_result_round_trips_through_resume(self):
         import json
         from contextlib import nullcontext
@@ -128,6 +150,7 @@ class TestQualityAdapters(unittest.TestCase):
                     },
                 ),
                 patch.object(runner, "verify_backend_identity"),
+                patch.object(runner, "verify_reference_runtime"),
                 patch.object(runner, "ResultCache"),
                 patch.object(runner, "EncodeTimer", return_value=SimpleNamespace(stats={})),
                 patch.object(runner, "task_reservation", side_effect=lambda *_: nullcontext()),

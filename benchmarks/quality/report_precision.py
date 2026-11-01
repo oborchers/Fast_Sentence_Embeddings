@@ -52,11 +52,17 @@ def baseline_name(name: str) -> str | None:
     return None
 
 
+def matching_runtime(row: dict, baseline: dict) -> bool:
+    keys = ("runtime_package", "runtime_package_version", "runtime_fingerprint")
+    return all(row.get(key) and row[key] == baseline.get(key) for key in keys)
+
+
 def task_deltas(rows: dict, baseline: dict) -> list[dict]:
     result = []
     for name, row in sorted(rows.items()):
         other = baseline.get(name)
-        matches = other and row["task_metadata"] == other["task_metadata"]
+        matches = other and matching_runtime(row, other)
+        matches = matches and row["task_metadata"] == other["task_metadata"]
         matches = (
             matches
             and row.get("source_revision")
