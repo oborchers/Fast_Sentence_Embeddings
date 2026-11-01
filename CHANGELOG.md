@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- The README documents the existing `StaticModel` export methods. The runtime error contract distinguishes eager collection validation from row ordering during a run.
+
 - Classifier predictions preserve trailing NUL characters in string labels, using an object array when needed. Labels without a valid UTF-8 representation raise at construction.
 
 - Removed the MLX backend before 2.0 because its maintenance cost brought no useful benefit. CPU and numpy remain available.
