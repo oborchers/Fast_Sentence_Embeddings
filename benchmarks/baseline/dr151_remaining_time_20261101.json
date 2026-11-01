@@ -1,7 +1,7 @@
 {
-  "completed_unique_configurations": 2,
-  "remaining_unique_configurations": 33,
-  "remaining_static_configurations": 32,
+  "completed_unique_configurations": 3,
+  "remaining_unique_configurations": 32,
+  "remaining_static_configurations": 31,
   "observed_configurations": [
     {
       "model": "fse/potion-base-8M-float32",
@@ -35,22 +35,47 @@
       "includes": "imports, load, full evaluation, lock waits and cooldowns",
       "excluded_from_speed_claims": true,
       "commit": "41ea1ea10d8464b5a12442ad5da226c0e1153657"
+    },
+    {
+      "name": "t1-01-fse_potion-retrieval-32M-float32",
+      "model": "fse/potion-retrieval-32M-float32",
+      "started_utc": "2026-11-01T04:15:16.235483+00:00",
+      "ended_utc": "2026-11-01T04:33:39.085858+00:00",
+      "wall_seconds": 1102.8503631660715,
+      "returncode": 0,
+      "state_seconds_approximate_5s": {
+        "own_heavy": 507.1316550819902,
+        "timing_or_manual_pause": 85.09192100004293,
+        "foreign_heavy": 0.0,
+        "other_setup_cooldown_or_wait": 510.62189279298764
+      },
+      "batch_tasks": 16,
+      "workers": 2,
+      "nice": 10,
+      "includes": "imports, load, full evaluation, lock waits and cooldowns",
+      "excluded_from_speed_claims": true,
+      "commit": "af9e6533e4ba9bc939b565effb1ee3db38813979"
     }
   ],
   "planning_scenario_only": {
-    "at_shorter_observed_wall_hours": 13.002137466666667,
-    "at_longer_observed_wall_hours": 27.23650591222259,
-    "at_mean_observed_wall_hours": 20.11932168944463,
+    "at_shorter_observed_wall_hours": 9.496767016152281,
+    "at_longer_observed_wall_hours": 26.385365102465634,
     "unmeasured_additions": [
       "all-MiniLM-L6-v2",
       "FineWeb and SetFit classifier work",
-      "same-method POTION-8M confirmation"
+      "two same-method float32 confirmations"
     ],
     "limitations": [
       "POTION-32M includes a manual SIGSTOP priority hold, shared marker wait and foreign heavy work",
       "POTION-8M batches had8 tasks; POTION-32M batches had16",
       "model dimensions, precision and task costs differ",
-      "two elapsed observations do not calibrate a cloud or quiet-machine forecast"
-    ]
-  }
+      "three elapsed observations do not calibrate a cloud or quiet-machine forecast"
+    ],
+    "at_median_observed_wall_hours": 12.595820670833334
+  },
+  "normalized_method_cohort_completed": 1,
+  "required_same_method_confirmations": [
+    "fse/potion-base-8M-float32",
+    "fse/potion-base-32M-float32"
+  ]
 }

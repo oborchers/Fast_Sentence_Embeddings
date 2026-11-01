@@ -645,13 +645,42 @@ were first pushed in `7bb78dd`.
 The invocation took 3,064.107 seconds of elapsed wall time, including a manual
 priority suspension, shared waits, setup and cooldowns. This is not model
 computation time. The earlier POTION-8M invocation took 1,462.740 seconds with
-different batch sizes and waits. Applying those two elapsed rates uniformly
-to the 32 remaining static configurations gives a planning scenario of
+different batch sizes and waits. At that checkpoint, applying those two elapsed rates uniformly
+to the 32 remaining static configurations gave a planning scenario of
 13.00 to 27.24 hours, plus MiniLM, classifiers and baseline confirmation.
 This range is not a calibrated quiet-machine or cloud forecast.
 [Invocation durations](benchmarks/baseline/dr151_configuration_times_20261101.json)
 and [remaining-time assumptions](benchmarks/baseline/dr151_remaining_time_20261101.json)
 retain the underlying observations.
+
+
+### POTION-retrieval-32M quality checkpoint (01.11.2026)
+
+POTION-retrieval-32M float32 completed all 53 non-deferred tasks with unmodified
+MTEB 2.26.25. Its English 40-task mean is **54.5098 points** and its complete
+13-task NanoBEIR mean is **50.3872 points**. MIND alone remains deferred, so the
+full 41-task English mean is unavailable. The pinned revision is
+`6fc8051fab2a1e0ee76689cf08c853792ac285e7`, and the encoder fingerprint is
+`xxh3-128:6f78af26bab53a3d464e97d9189f5b20`.
+
+This is the first completed configuration under the normalized result-writer
+method and current runtime fingerprint. The raw measured checkout is
+`300bde8`. Earlier POTION-8M and POTION-32M checkpoints use different method or
+runtime identities. Both confirmations remain queued, so these checkpoints
+still establish no controlled model ranking. [Raw task records](benchmarks/baseline/results/dr151-quality-retrieval32-float32.jsonl)
+and [coverage summary](benchmarks/baseline/dr151_quality_retrieval32_20261101.json).
+
+The invocation took **1,102.850 seconds** (18.38 minutes), including setup,
+shared waits, cooldowns and the reserved store timing hold. Approximate state
+samples are retained separately and are not encoding-throughput measurements.
+Thirty-one static configurations remain, plus MiniLM and two same-method
+confirmations. Applying the median observed invocation duration uniformly to
+those 31 static configurations gives a **12.60-hour planning scenario**.
+The shorter and longer observed durations give 9.50 and 26.39 hours.
+These scenarios exclude MiniLM, classifiers and confirmations. Model dimensions,
+precision and shared waits differ, so they do not calibrate a quiet-machine or
+cloud forecast. [Invocation durations](benchmarks/baseline/dr151_configuration_times_20261101.json)
+and [remaining-time assumptions](benchmarks/baseline/dr151_remaining_time_20261101.json).
 
 
 ### Quality on tasks with longer inputs (partial, 01.11.2026)
