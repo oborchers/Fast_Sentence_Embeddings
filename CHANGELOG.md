@@ -4,14 +4,13 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
-- Comparison recorders reject backend or shared encoder code changes during evaluation, and precision deltas require matching executing runtimes.
-
-
 fse 2.0 is in development on master; it changes the API and the file format (see docs/architecture/overview.md, "Principle and stages"). Entries collect here until the release.
 
 - Architecture documentation is split by topic under `docs/architecture/`; `ARCHITECTURE.md` indexes it and preserves the former section links.
 
 ### Changed
+
+- Comparison recorders reject backend or shared encoder code changes during evaluation, and precision deltas require matching executing runtimes.
 
 - Removed the MLX backend before 2.0 because its maintenance cost brought no useful benefit. CPU and numpy remain available.
 

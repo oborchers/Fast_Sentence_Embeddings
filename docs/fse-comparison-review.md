@@ -21,3 +21,31 @@ Static inspection found no remaining optional-import portability defect.
 This is not execution verification or a completed-results review.
 After the corrections, 60 focused regression tests and seven pinned MTEB adapter tests pass. Ruff and guardrails pass. The full check at `4e888dc` passed under the heavy lock with `PYTEST_N=4`: 9,121 passed and 521 skipped in 239.19 seconds. The locked Rust build passed and its source/binary manifest was sealed. [Validation record](../benchmarks/baseline/dr151_validation_20261101.json). A final complete-results gate remains required.
 All missing measurements and the final claims review remain open.
+
+
+## Backend identity follow-up review (68e1bae)
+
+An independent read-only Codex review used gpt-6-astra with high reasoning on
+a detached committed snapshot. It ran no tests and changed no files. The full
+review is retained locally at `/private/tmp/dr151-runtime-review.last.md`.
+The review found no defect in counterpart package selection, installation
+path, installed-file hashing or the verified Rust binary identity.
+
+All three reported findings were verified and fixed in `c3005fa`:
+
+- Error: precision reports could group different executing fse runtimes under
+  the same cached reference. Precision deltas now require equal package,
+  version and content hash. Quality also rechecks the shared reference before
+  each model and after each task.
+- Error: classifier preparation captured own backend identity only when
+  writing completed predictions. Each backend now captures it before loading,
+  training and prediction, then verifies the original identity before append.
+- Warning: FAISS/hnswlib search verified the search backend but left the common
+  fse encoder hash unchecked. Every search record now rechecks that hash.
+
+Eleven focused runtime/protocol tests pass. Ten adapter tests pass through
+unittest in the pinned MTEB environment. The attempted pytest command in that
+environment failed because pytest is not installed; no dependency was added.
+Ruff check, format check and guardrails pass. The full local gate is queued
+under heavy.lock after window6. Final full-scope evidence and claims still
+require review when collection finishes.
