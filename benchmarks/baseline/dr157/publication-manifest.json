@@ -7675,7 +7675,7 @@
         "tolerance_points": 0.001,
         "vectors_xxh3": "xxh3-128:9c6ae69d79f3cbad13ab1da659d4fda2"
       },
-      "publication_hold": "DR-146 (\u00dcber FastText in 2.0 entscheiden (12f))"
+      "publication_hold": null
     },
     {
       "repo": "fse/fasttext-crawl-subwords-300-raw-float16",
@@ -7980,7 +7980,7 @@
         "tolerance_points": 0.001,
         "vectors_xxh3": "xxh3-128:8bd9bfc750c5e32dbeb38b1e9546f4c8"
       },
-      "publication_hold": "DR-146 (\u00dcber FastText in 2.0 entscheiden (12f))"
+      "publication_hold": null
     },
     {
       "repo": "fse/fasttext-crawl-subwords-300-raw-int8",
@@ -8285,7 +8285,7 @@
         "tolerance_points": 0.001,
         "vectors_xxh3": "xxh3-128:18101193869f6fd37ec8fd205f3effcc"
       },
-      "publication_hold": "DR-146 (\u00dcber FastText in 2.0 entscheiden (12f))"
+      "publication_hold": null
     },
     {
       "repo": "fse/fasttext-crawl-subwords-300-sif10",
@@ -8594,7 +8594,7 @@
         "tolerance_points": 0.001,
         "vectors_xxh3": "xxh3-128:1cdbe62008e410af7d199ce83d247d9c"
       },
-      "publication_hold": "DR-146 (\u00dcber FastText in 2.0 entscheiden (12f))"
+      "publication_hold": null
     },
     {
       "repo": "fse/fasttext-crawl-subwords-300-sif10-float16",
@@ -8903,7 +8903,7 @@
         "tolerance_points": 0.001,
         "vectors_xxh3": "xxh3-128:d48a32e5837ad782a4e50406147dcf60"
       },
-      "publication_hold": "DR-146 (\u00dcber FastText in 2.0 entscheiden (12f))"
+      "publication_hold": null
     },
     {
       "repo": "fse/fasttext-crawl-subwords-300-sif10-int8",
@@ -9212,7 +9212,7 @@
         "tolerance_points": 0.001,
         "vectors_xxh3": "xxh3-128:ee63fab02337418dfcfb2215fdcbdd7f"
       },
-      "publication_hold": "DR-146 (\u00dcber FastText in 2.0 entscheiden (12f))"
+      "publication_hold": null
     }
   ],
   "total_bytes": 39426324698,

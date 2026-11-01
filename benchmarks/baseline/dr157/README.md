@@ -26,8 +26,7 @@ It excludes downloaded models, caches and corpus inputs.
 
 All published repositories must be PUBLIC from creation. Oliver's approval of
 cards, repo names, licenses and every payload file is the final gate before any
-Hub write. FastText additionally awaits DR-146 (Über FastText in 2.0 entscheiden
-(12f)). No upload, Hub write, token use or pod lifecycle action occurred here.
+Hub write. FastText is approved for 2.0; DR-146 (Über FastText in 2.0 entscheiden (12f)) is Done. Option B requires release 2.0.0 and regenerated cards before upload. No upload, Hub write, token use or pod lifecycle action occurred here.
 Actual fresh Hub readback remains pending until approval and completed uploads.
 
-`report.md` is the final local report. `make-check-da79a11.txt` records 9,167 passing tests and 514 skipped tests. The exact PUBLIC approval payload is `publication-manifest.json`, with its SHA256 in `publication-manifest-sha256.json`; `publication-inventory.md` lists all 135 files and actual sizes. Total: 39,426,324,698 bytes. No publication approval has been received.
+`report.md` is the final local report. `make-check-da79a11.txt` records 9,167 passing tests and 514 skipped tests. The exact PUBLIC approval payload is `publication-manifest.json`, with its SHA256 in `publication-manifest-sha256.json`; `publication-inventory.md` lists all 135 files and actual sizes. Total: 39,426,324,698 bytes. Content, repo list and licenses are approved under Option B. The final release-card payload is pending release 2.0.0.

@@ -144,5 +144,14 @@
     "filesystem_free_after": 70671773696,
     "confirmed_absent": true,
     "time": "2026-11-01T19:37:10.385911"
+  },
+  {
+    "target": "/Users/oliverborchers/.herdr/worktrees/Fast_Sentence_Embeddings/dr157-hub/src/fse/_native.c",
+    "kind": "Cython intermediate regenerated during the final uv editable rebuild; full make check is terminal and compiled extension is retained",
+    "allocated_bytes_removed": 6086656,
+    "filesystem_free_before": 70675062784,
+    "filesystem_free_after": 70681124864,
+    "confirmed_absent": true,
+    "time": "2026-11-01T19:41:28.415323"
   }
 ]

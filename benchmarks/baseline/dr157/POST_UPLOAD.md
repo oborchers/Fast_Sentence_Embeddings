@@ -3,7 +3,7 @@
 This worker has performed no Hub writes. Oliver must approve the exact cards,
 repository names, licenses and complete file inventory in the immutable publication
 manifest before the coordinator creates any PUBLIC repo. There is no private stage.
-FastText retains its separate publication hold.
+Oliver approved the content, repository list and licenses of all 30 repos under Option B. FastText has no remaining separate hold. Upload waits for release 2.0.0 and regenerated release cards.
 
 After the approved uploads finish, the coordinator supplies a JSON receipt:
 

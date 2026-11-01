@@ -178,23 +178,22 @@ Additional removal: the regenerated Cython intermediate had 6,086,512 logical by
 
 Source 73176a9 passed make check: 9,164 tests passed, 514 skipped. Final source da79a11 passed make check: 9,167 tests passed, 514 skipped in 223.76 seconds. Format, lint, guardrails, type checking and the offline suite passed. The final independent review reports Keine Befunde. All earlier review findings are resolved in committed source and evidence. The interrupted 2f4c1a8 gate is retained without a passing claim.
 
-FastText publication remains deferred pending DR-146 (Über FastText in 2.0 entscheiden (12f)). Every repository must be PUBLIC from creation. Oliver must approve exact cards, repo names, licenses and every file before any Hub write. The initial GloVe prototypes were retired after preserving their small evidence.
+Oliver approved FastText for 2.0; DR-146 (Über FastText in 2.0 entscheiden (12f)) is Done. The six FastText publication_hold fields are now null. Every repository must be PUBLIC from creation. Oliver must approve exact cards, repo names, licenses and every file before any Hub write. The initial GloVe prototypes were retired after preserving their small evidence.
 ## PUBLIC approval payload
 
 All 30 repositories contain 135 files, totaling **39,426,324,698 bytes**
-(39.426 GB, 36.719 GiB). FastText accounts for 17,023,110,368 bytes and retains
-its separate publication hold. Sizes include all payload files.
+(39.426 GB, 36.719 GiB). FastText accounts for 17,023,110,368 bytes and has no separate publication hold. Sizes include all payload files.
 
 Exact inventory, including the table by source, method and dtype:
 `/Users/oliverborchers/fse-dr157/publication-inventory.md`.
 
 Immutable manifest: `/Users/oliverborchers/fse-dr157/publication-manifest.json`.
-SHA256: `63eedec43080821a1d6af895c4a50c670c588f501a63a00ddd116d96d8881af1`.
+SHA256: `ac85cae41b05788bc278d68fd3231489de1615c7c15b8b79229844c3d0dabe69`.
 The same bytes are committed under `benchmarks/baseline/dr157/`.
 All 30 literal cards are committed under `cards/*.txt`; local Markdown previews
 remain in `/Users/oliverborchers/fse-dr157/cards`.
 
-No approval has been received and no Hub write has occurred.
+Oliver approved the content, repo list and licenses of all 30 repos (Option B). Upload must wait until the 2.0.0 release and regenerated release cards. This development-card manifest remains unapproved as a final upload payload. No Hub write has occurred.
 
 ## Required post-upload verification
 
@@ -231,5 +230,5 @@ references are ready for Oliver's review. This is not publication authorization.
 The coordinator receives the report and manifest directly through Herdr.
 
 Done: local preparation, verification, review, PUBLIC approval inventory and read-only post-upload runner.
-Open: actual fresh Hub readback after approval and coordinator uploads, plus the FastText publication decision.
-Needs from you: Oliver's explicit approval and the coordinator's complete uploaded-repository commit receipts.
+Open: actual fresh Hub readback after approval and coordinator uploads, and regenerated release cards for 2.0.0.
+Needs from you: release 2.0.0, followed by the coordinator's complete uploaded-repository commit receipts.

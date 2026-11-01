@@ -1,7 +1,7 @@
 {
   "file": "publication-manifest.json",
-  "sha256": "63eedec43080821a1d6af895c4a50c670c588f501a63a00ddd116d96d8881af1",
-  "bytes": 176086,
+  "sha256": "ac85cae41b05788bc278d68fd3231489de1615c7c15b8b79229844c3d0dabe69",
+  "bytes": 175786,
   "repositories": 30,
   "payload_files": 135,
   "approval_status": "pending Oliver explicit approval",
