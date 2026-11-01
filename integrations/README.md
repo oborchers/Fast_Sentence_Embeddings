@@ -55,7 +55,9 @@ The maintainer must complete this setup before any approved publication:
 
 Only the publish job receives `id-token: write`. It downloads this run's package
 artifact and executes no checkout code. Package tags do not match fse's `v*`
-release trigger, and fse tags do not trigger package releases. There is no manual
+release trigger, and fse tags do not trigger package releases. Core version
+detection also considers only `v[0-9]*` tags, so an adapter tag cannot change
+the fse version reported by setuptools-scm. There is no manual
 or pull-request publication trigger. No API tokens or package credentials are used.
 
 Sources: [PyPI pending publishers](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)

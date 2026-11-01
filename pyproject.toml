@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77", "setuptools-scm>=8", "Cython>=3.1.0", "numpy>=2.0"]
+requires = ["setuptools>=77", "setuptools-scm>=8.4", "Cython>=3.1.0", "numpy>=2.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -70,6 +70,10 @@ where = ["src"]
 
 [tool.setuptools_scm]
 version_file = "src/fse/_version.py"
+
+[tool.setuptools_scm.scm.git]
+# Integration releases share this repository but never define the fse version.
+describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "v[0-9]*"]
 
 # --- Dependency Groups ---
 

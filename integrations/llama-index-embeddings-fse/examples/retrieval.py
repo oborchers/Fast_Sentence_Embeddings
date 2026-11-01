@@ -10,9 +10,7 @@ texts = [
     "Baking bread requires flour, water and yeast.",
     "Planets orbit the sun in the solar system.",
 ]
-embeddings = FseEmbedding(
-    model_name="minishlab/potion-base-8M", workers=1, embed_batch_size=2
-)
+embeddings = FseEmbedding(model_name="minishlab/potion-base-8M", workers=1, embed_batch_size=2)
 index = VectorStoreIndex.from_documents(
     [Document(text=text) for text in texts], embed_model=embeddings
 )

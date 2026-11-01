@@ -101,6 +101,7 @@ For each of the three package directories, the following checks apply:
 | `tests/test_api.py` | Every assertion checked for actual vector parity or framework behavior. Process ingestion really uses two processes. Local artifact options remain valid. Network coverage now runs the full retrieval example. |
 | `tests/conftest.py` | Tiny float32 encoder fixture uses the current API and independent pytest fixture lifetime. Haystack telemetry is disabled in its tests. |
 | `pyproject.toml` | Build backend, namespace discovery, name/version, stable fse requirement, framework minimum, test extras, strict warnings and socket markers reviewed. |
+| `.gitignore` | Only local environments, build outputs and caches are ignored. Sources, tests and examples remain tracked. |
 | `MANIFEST.in` | Includes changelog, complete tests and examples in sdist. |
 | `README.md` | All code snippets and options reviewed against the current implementation. Removed stale layout-decision and prerelease-dependency wording. |
 | `LICENSE` | Complete MIT grant present in every package. |
