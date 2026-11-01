@@ -177,10 +177,10 @@ Include quality change from each model's float32 result. Name the dataset, metri
 
 ## Benchmarks
 
-The POTION-8M float32 cells use the [preserved WikiText measurements](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/README.md)
+The one-worker POTION-8M float32 cell uses the [preserved WikiText measurements](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/233b6d3c0aaee459792938317895790a8bdd862b/docs/benchmarks/readme-wikitext-20261101/README.md)
 from 1 November 2026: Apple M1 Pro, macOS 27.0.1, Python 3.13.16,
 NumPy 2.5.4, tokenizers 0.23.3 and model2vec 0.10.0.
-Model2vec uses its one-worker mode or its automatic mode.
+Model2vec tokenizer parallelism is off or on, as labeled.
 The runner enables parallel tokenization for the automatic-mode call.
 This input is below the 10,000-text batch-pool threshold, so no batch-worker pool runs.
 The model revision is `bf8b056651a2c21b8d2565580b8569da283cab23`.
@@ -192,6 +192,8 @@ The primary fse run and model2vec each contribute three child rates to their med
 The repeated fse runs remain separate A/A controls, matching the published comparison summary.
 Numbers in parentheses show the full range. All recorded load endpoints were below 5.
 The raw records include the input digest, dataset revision, source commit and A/A variation.
+The headline keeps the original published sample. The table below uses a later precision-matrix sample
+for ten-worker POTION-8M float32, with one timed call per child as described below.
 
 TODO(DR-151): Fill the remaining pending cells with paired measurements and source links.
 Report sentences/s as median and range for one worker and all available cores.
@@ -201,7 +203,7 @@ Name machine, OS, Python, NumPy, library versions, model revisions, worker count
 
 | Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) | Counterpart, float32 (modes below) |
 |---|---|---|---|
-| potion-base-8M | 219,333 (199,745 to 221,304) / 206,438 (202,631 to 214,714) / pending | 909,270 (830,368 to 944,311) / pending / pending | model2vec tokenizer off: 8,906 (8,879 to 8,956); on: 26,048 (22,894 to 26,880) |
+| potion-base-8M | 219,333 (199,745 to 221,304) / 206,438 (202,631 to 214,714) / pending | 914,709 (827,901 to 928,079) / pending / pending | model2vec tokenizer off: 8,906 (8,879 to 8,956); on: 25,074 (22,589 to 27,134) |
 | potion-base-32M | pending | pending | model2vec: pending |
 | potion-retrieval-32M | pending | pending | model2vec: pending |
 | potion-multilingual-128M | pending | pending | model2vec: pending |
@@ -221,10 +223,13 @@ with one warm timed call per child after a full-corpus warmup.
 All load endpoints were below 5.
 The source reports A/A variation separately, including a time-ratio range of 0.7850 to 1.1500 for ten-worker GloVe.
 
-The one-worker POTION-8M float16 and GloVe int8 cells use [two additional completed series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/649d59fd66684451f25b4e5b25e07e4537f3c0bb/docs/benchmarks/readme-matrix-20261101/README.md).
+The one-worker POTION-8M float16, GloVe int8 and ten-worker POTION-8M float32 cells use
+[three completed precision-matrix series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/cf5bc7a420c80d1e16b141b8968acec2d4ef8e65/docs/benchmarks/readme-matrix-20261101/README.md).
 They use the same machine, date and full WikiText input, with three paired rounds.
 Each child times one call after a full-corpus warmup. All load endpoints were below 5.
-The source records separate A/A controls. These series do not establish a dtype speed ratio or task quality.
+The source records separate A/A controls. In one ten-worker POTION round, the repeated fse call
+took 1.9543 times as long as the primary call. This wide variation limits speed conclusions.
+These series do not establish a dtype speed ratio or task quality.
 
 The largest process memory peaks among each series' three primary fse runs were:
 
@@ -234,6 +239,7 @@ The largest process memory peaks among each series' three primary fse runs were:
 | GloVe-300, int8 | 319.1 | pending |
 | word2vec-300, int8 | 1,552.5 | 1,552.7 |
 | POTION-8M, float16 | 166.6 | pending |
+| POTION-8M, float32 | pending | 182.7 |
 
 These peaks include imports, model and corpus loading, warmup, encoding and outputs.
 They measure process memory, not saved-file size or memory added by one call.
