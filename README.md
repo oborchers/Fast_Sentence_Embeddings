@@ -186,25 +186,48 @@ It controls its own processing and storage path. External services and databases
 
 ## Choose a model and memory budget
 
+### Available now
+
+Load these models directly from their publishers. We do not publish copies of them.
+
 | Start with... | For... | Saved float32 file |
 |---|---|---:|
-| POTION-base-8M | Small English general-purpose models | 29.2 MiB |
-| POTION-base-32M | English tasks with a larger vocabulary | 124.1 MiB |
-| POTION-retrieval-32M | English search | 124.1 MiB |
-| POTION-multilingual-128M | Tasks across languages | 502.1 MiB |
-| static-retrieval-mrl-en-v1 | English search with adjustable vector size | 119.7 MiB |
-| static-similarity-mrl-multilingual-v1 | Similarity across languages | 415.1 MiB |
+| [POTION-base-8M](https://huggingface.co/minishlab/potion-base-8M) | Small English general-purpose models | 29.2 MiB |
+| [POTION-base-32M](https://huggingface.co/minishlab/potion-base-32M) | English tasks with a larger vocabulary | 124.1 MiB |
+| [POTION-retrieval-32M](https://huggingface.co/minishlab/potion-retrieval-32M) | English search | 124.1 MiB |
+| [POTION-multilingual-128M](https://huggingface.co/minishlab/potion-multilingual-128M) | Tasks across languages | 502.1 MiB |
+| [static-retrieval-mrl-en-v1](https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1) | English search with adjustable vector size | 119.7 MiB |
+| [static-similarity-mrl-multilingual-v1](https://huggingface.co/sentence-transformers/static-similarity-mrl-multilingual-v1) | Similarity across languages | 415.1 MiB |
 
 These are models to evaluate, not a quality ranking. Sizes cover complete saved fse files, not process memory.
 Start with float32. Try float16 or int8 when memory matters, then check quality again.
 
 ```python
-compact = encoder.quantize("int8")
+compact = Encoder.from_pretrained("minishlab/potion-base-8M").quantize("int8")
 compact.save("compact.safetensors")
 ```
 
-fse also supports classic GloVe, word2vec and FastText word vectors through the optional `fse[gensim]` adapter.
+### Classic models planned for the 2.0 release
+
+These Hub models are **planned, not yet available**:
+
+| Model | Original word vectors | Prepared with SIF-10 |
+|---|---|---|
+| GloVe-300 | `fse/glove-wiki-gigaword-300-raw` | `fse/glove-wiki-gigaword-300-sif10` |
+| word2vec-300 | `fse/word2vec-google-news-300-raw` | `fse/word2vec-google-news-300-sif10` |
+
+`raw` keeps the original word vectors. SIF-10 weights words and removes ten common directions from their vectors.
+That preparation uses WikiText-103 and happens before saving. Encoding then uses the finished table, without an extra SIF step.
+SIF-10 keeps the same table shape as raw. We have no published file sizes for these new Hub variants yet.
+
+For each planned model, float32 uses the ID above. Float16 and int8 variants add `-float16` or `-int8`.
+FastText Hub models are still under consideration.
+
+TODO(DR-151): Add MTEB quality comparisons for the classic raw and SIF-10 models when measured.
+
+You can already use your own GloVe, word2vec or FastText word vectors through the optional `fse[gensim]` adapter.
 For SIF and uSIF preparation, use [the SIF and uSIF recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/01-sif-usif.ipynb).
+uSIF stays a recipe, with no planned Hub upload. Try it on your data rather than assuming it improves every model.
 
 ## More
 
