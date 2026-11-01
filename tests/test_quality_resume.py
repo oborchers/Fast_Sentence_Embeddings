@@ -21,7 +21,18 @@ def inputs():
     specification = dict(
         zip(
             MODULE.KEYS,
-            ("fse/model", "rev", "loader", "fingerprint", 2, "cpu", {"mteb": "pinned"}),
+            (
+                "fse/model",
+                "rev",
+                "loader",
+                "fingerprint",
+                2,
+                "cpu",
+                {"mteb": "pinned"},
+                "method",
+                "runtime",
+                "suite",
+            ),
             strict=True,
         )
     )

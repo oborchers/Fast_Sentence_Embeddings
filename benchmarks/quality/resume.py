@@ -6,7 +6,18 @@ import json
 import math
 from pathlib import Path
 
-KEYS = ("model", "revision", "loader", "encoder_fingerprint", "workers", "device", "versions")
+KEYS = (
+    "model",
+    "revision",
+    "loader",
+    "encoder_fingerprint",
+    "workers",
+    "device",
+    "versions",
+    "method_fingerprint",
+    "runtime_fingerprint",
+    "suite_fingerprint",
+)
 
 
 def pending_tasks(path: Path, specification: dict, tasks: list) -> list:

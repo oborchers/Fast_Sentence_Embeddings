@@ -54,6 +54,7 @@ from model2vec_adapter import NativeModel2VecEncoder
 from mteb.cache import ResultCache
 from mteb.models.abs_encoder import AbsEncoder
 from mteb.models.model_meta import ModelMeta, ScoringFunction
+from protocol import compatible_results, measurement_identity
 from resume import pending_tasks
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -261,7 +262,7 @@ def run(
     tasks = tasks_for(task_names)
     benchmark_of = {t.metadata.name: b for b in BENCHMARKS for t in mteb.get_benchmark(b).tasks}
     cache = ResultCache(CACHE / "mteb")
-    environment = identity()
+    environment = {**identity(), **measurement_identity(tasks_for(None))}
     for name in models:
         with task_reservation(FseEncoder.coordination):
             meta = metadata(name)
@@ -274,6 +275,10 @@ def run(
             "workers": FseEncoder.workers,
             "device": "cpu",
             "versions": environment["versions"],
+            **{
+                key: environment[key]
+                for key in ("method_fingerprint", "runtime_fingerprint", "suite_fingerprint")
+            },
         }
         pending = pending_tasks(results, specification, tasks) if resume else tasks
         logger.info("%s: %d pending tasks of %d", name, len(pending), len(tasks))
@@ -318,23 +323,22 @@ def run(
 
 def summarize(results: Path = RESULTS) -> None:
     """Print a Markdown table of the latest result per model and task."""
-    # One row per model, fse version and machine: results of different versions or
-    # machines are never averaged together.
-    latest: dict[tuple[str, str], dict[str, Any]] = {}
-    for line in results.read_text(encoding="utf-8").splitlines():
-        row = json.loads(line)
-        model = f"{row['model']} ({row['fse']}, {row['machine']})"
-        latest[model, row["task"]] = row
-    by_model: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for (model, _), row in latest.items():
-        by_model[model].append(row)
+    rows = [json.loads(line) for line in results.read_text(encoding="utf-8").splitlines()]
+    by_model = compatible_results(rows, tasks_for(None))
     eng = {t.metadata.name for t in mteb.get_benchmark("MTEB(eng, v2)").tasks}
     types = sorted({t.metadata.type for t in mteb.get_benchmark("MTEB(eng, v2)").tasks})
     print(
-        "| Model | Mean (Task) | Mean (TaskType) | " + " | ".join(types) + " | NanoBEIR | texts/s |"
+        "| Model | Mean (Task) | Mean (TaskType) | "
+        + " | ".join(types)
+        + " | NanoBEIR (13 tasks required) | coverage | texts/s |"
     )
-    print("|---" * (len(types) + 5) + "|")
-    for model, rows in sorted(by_model.items()):
+    print("|---" * (len(types) + 6) + "|")
+    for key, rows in sorted(by_model.items()):
+        config = json.loads(key)
+        model = (
+            f"{config['model']} ({config.get('method_fingerprint') or config.get('legacy_commit')}, "
+            f"{config.get('runtime_fingerprint')}, {config.get('workers')} workers)"
+        )
         main = [r for r in rows if r["task"] in eng]
         nano = [r["main_score"] for r in rows if r["benchmark"] == "NanoBEIR"]
         per_type = {ty: [r["main_score"] for r in main if r["type"] == ty] for ty in types}
@@ -351,11 +355,11 @@ def summarize(results: Path = RESULTS) -> None:
         print(
             f"| {model} | {100 * mean_task:.2f} | {100 * mean_type:.2f} | "
             + " | ".join(cells)
-            + f" | {100 * statistics.mean(nano):.2f} | {texts / seconds:,.0f} |"
+            + f" | {100 * statistics.mean(nano) if len(nano) == 13 else float('nan'):.2f} | {len(main)}/41 + {len(nano)}/13 | {texts / seconds:,.0f} |"
             if nano and seconds
             else f"| {model} | {100 * mean_task:.2f} | {100 * mean_type:.2f} | "
             + " | ".join(cells)
-            + " | | |"
+            + f" | | {len(main)}/41 + {len(nano)}/13 | |"
         )
 
 
