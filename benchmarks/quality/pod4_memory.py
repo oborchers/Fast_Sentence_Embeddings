@@ -4,6 +4,16 @@ import json
 from pathlib import Path
 
 
+class MemoryAdmissionError(MemoryError):
+    """A rejected allocation with machine-readable limits, before allocation."""
+
+    def __init__(self, receipt):
+        self.receipt = receipt
+        super().__init__(
+            f"conservative allocation budget exceeds available cgroup memory: {receipt}"
+        )
+
+
 def budget():
     root = Path("/sys/fs/cgroup")
     maximum = (root / "memory.max").read_text().strip()
@@ -16,11 +26,15 @@ def admit(required, purpose):
     maximum, current = budget()
     if not isinstance(required, int) or required < 0:
         raise ValueError("allocation budget must be a nonnegative integer")
+    receipt = {
+        "limit": maximum,
+        "current": current,
+        "additional_budget": required,
+        "scope": purpose,
+    }
     if current + required > maximum * 0.85:
-        raise MemoryError(
-            f"{purpose}: conservative allocation budget exceeds available cgroup memory"
-        )
-    return {"limit": maximum, "current": current, "additional_budget": required, "scope": purpose}
+        raise MemoryAdmissionError(receipt)
+    return receipt
 
 
 def decoded_bytes(count, file_bytes):

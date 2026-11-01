@@ -1,15 +1,12 @@
 """The slim Pod 4 panels, with calibrated shared inputs and strict long-call gates."""
 
 import json
-import math
-import subprocess
 import time
 from types import SimpleNamespace
 
-from artifact_manifest import header
-from compare_models import artifact_path
-from compare_parallelism import child_environment
-from pod4_inputs import source_passages, write_input
+from pod4_calibration import bind_input, calibrate
+from pod4_inputs import source_passages
+from pod4_storage import release, release_current
 from pod_artifacts import emit, export_jsonl
 from pod_duration import qualifies
 from pod_pairs import append, series
@@ -46,71 +43,6 @@ def cases():
     return table + pairs
 
 
-def bind_input(options, source, count):
-    path, record = write_input(options.inputs, source, count)
-    options.input_file, options.input_record = path, record
-    return count
-
-
-def check_memory(options, repo, dtype, count):
-    metadata = header(artifact_path(options.models, repo, dtype))
-    width = int(metadata["fse.output_dim"])
-    limit_path = "/sys/fs/cgroup/memory.max"
-    from pathlib import Path
-
-    limit = Path(limit_path).read_text().strip()
-    if limit == "max":
-        raise RuntimeError("pod must declare a finite memory limit")
-    if count * width * 4 * 4 > int(limit) * 0.8:
-        raise MemoryError("calibration input exceeds conservative matrix memory budget")
-
-
-def calibration(options, repo, dtype, workers):
-    ensure_model(repo, dtype, options)
-    check_memory(options, repo, dtype, options.input_record["texts"])
-    command = [*encode_command(options, repo, dtype, "wikitext", workers, "fse"), "--passes", "1"]
-    done = subprocess.run(
-        command,
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=max(0.01, options.deadline - time.monotonic()),
-        env=child_environment(workers),
-    )
-    record = {
-        "model": repo,
-        "dtype": dtype,
-        "workers": workers,
-        "command": command,
-        "returncode": done.returncode,
-        "scope": "input sizing only, not a published speed cell",
-    }
-    if done.returncode:
-        append(options.output / "calibration.jsonl", {**record, "stderr": done.stderr[-12000:]})
-        raise RuntimeError("fse calibration child failed")
-    row = json.loads(done.stdout.strip().splitlines()[-1])
-    append(options.output / "calibration.jsonl", {**record, "measurement": row})
-    return min(row["first_encode_s"], *row["warm_seconds"])
-
-
-def calibrate(options, source, specifications):
-    count = 250_000
-    while True:
-        if time.monotonic() >= options.deadline:
-            raise TimeoutError("input calibration reached stage deadline")
-        bind_input(options, source, count)
-        smallest = min(
-            calibration(options, repo, dtype, workers) for repo, dtype, workers in specifications
-        )
-        if smallest >= TARGET:
-            return count
-        if not math.isfinite(smallest) or smallest <= 0:
-            raise ValueError("calibration returned a nonpositive duration")
-        count = max(count + 10_000, math.ceil(count * TARGET / smallest * 1.1 / 10_000) * 10_000)
-        if count > MAX_ROWS:
-            raise RuntimeError("ten million rows cannot establish the required long-call margin")
-
-
 def check_durations(folder, identifier):
     rows = [json.loads(line) for line in (folder / "speed-results.jsonl").read_text().splitlines()]
     controls = [
@@ -135,6 +67,8 @@ def options_for(args):
         inputs=args.output / "pipeline-inputs",
         deadline=args.deadline,
         abort_on_timeout=True,
+        pinned_inputs=set(),
+        failed_models={},
     )
 
 
@@ -159,6 +93,7 @@ def probe(args):
     )
     result["passed"] = result["complete"] and check_durations(folder, "pod4/long-call-host-probe")
     (options.output / "probe.json").write_text(json.dumps(result, indent=2) + "\n")
+    release_current(options)
     if not result["passed"]:
         raise QuietPodRequiredError("bounded long-call A/A probe failed; require a quiet pod")
 
@@ -174,13 +109,15 @@ def run(args):
         (POTION, dtype, workers) for workers in SETTINGS for dtype in ("float32", "float16", "int8")
     ]
     counts = {"table": calibrate(options, source, table)}
-    counts[STATIC_ST] = calibrate(
-        options, source, [(STATIC_ST, "float32", workers) for workers in SETTINGS]
-    )
+    options.pinned_inputs.add(options.input_file)
+    options.table_input = options.input_file
     plan = {
         "format": "pod4-slim-panels-v1",
         "cases": [case_id(*spec) for spec in cases()],
         "minimum_fse_call_seconds": MINIMUM,
+        "warm_passes_per_operation": 1,
+        "required_rotating_pairs": 3,
+        "memory_policy": "unchanged 85-percent cgroup admission with bounded input-size search",
         "sampling_seed": 0,
         "input_label": "sampled and shuffled WikiText-103 passages",
         "selection": "keep one; choose32 only if median32/median16>=1.20, otherwise16",
@@ -188,6 +125,31 @@ def run(args):
     }
     (folder / "plan.json").write_text(json.dumps(plan, indent=2) + "\n")
     run_cases(options, source, counts, plan)
+
+
+def shared_model_count(options, source, counts, repo):
+    if repo in options.failed_models:
+        raise RuntimeError("model calibration previously failed: " + options.failed_models[repo])
+    if repo not in counts:
+        try:
+            counts[repo] = calibrate(options, source, [(repo, "float32", w) for w in SETTINGS])
+        except Exception as error:
+            abort(error)
+            options.failed_models[repo] = repr(error)
+            raise
+        options.pinned_inputs.add(options.input_file)
+    return counts[repo]
+
+
+def case_input(options, source, counts, repo, dtype, workers, against):
+    if against and options.table_input in options.pinned_inputs:
+        options.pinned_inputs.remove(options.table_input)
+        release(options, options.table_input)
+    if repo == STATIC_ST:
+        return shared_model_count(options, source, counts, repo)
+    if against:
+        return calibrate(options, source, [(repo, dtype, workers)])
+    return counts["table"]
 
 
 def run_cases(options, source, counts, plan):
@@ -198,10 +160,7 @@ def run_cases(options, source, counts, plan):
         if time.monotonic() >= options.deadline:
             raise TimeoutError("README panel stage deadline reached")
         try:
-            if against and repo == POTION:
-                count = calibrate(options, source, [(repo, dtype, workers)])
-            else:
-                count = counts["table" if repo == POTION else STATIC_ST]
+            count = case_input(options, source, counts, repo, dtype, workers, against)
             bind_input(options, source, count)
             result = measure(options, repo, dtype, workers, against)
             result["minimum_call_duration_passed"] = check_durations(folder, identifier)
@@ -217,6 +176,7 @@ def run_cases(options, source, counts, plan):
                 folder / "invocations.jsonl",
                 {"cell": identifier, "status": "failed", "error": repr(error)},
             )
+        release_current(options)
         report = {
             "format": "readme-paired-summary-v1",
             "plan": plan,
@@ -226,6 +186,9 @@ def run_cases(options, source, counts, plan):
         }
         (folder / "summary.json").write_text(json.dumps(report, indent=2) + "\n")
         emit("pod4-panels-" + str(len(completed)), report)
+    for path in list(options.pinned_inputs):
+        options.pinned_inputs.remove(path)
+        release(options, path)
     export_jsonl("pod4-readme-raw", folder / "speed-results.jsonl")
     if failed:
         raise RuntimeError("README panel stage has failed, short or noisy cells")

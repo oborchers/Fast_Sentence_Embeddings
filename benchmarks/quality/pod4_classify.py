@@ -61,7 +61,7 @@ def expanded_input(folder, texts, labels, requested):
     return receipt, record
 
 
-def command(folder, workers, kind, receipt, passes=3):
+def command(folder, workers, kind, receipt, passes=1):
     return [
         sys.executable,
         str(Path(__file__).with_name("pod_folded_child.py")),

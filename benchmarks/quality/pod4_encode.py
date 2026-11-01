@@ -15,7 +15,7 @@ from artifact_manifest import header
 from compare_artifacts import file_digest
 from compare_models import artifact_path
 
-from pod4_memory import encoding  # isort: skip
+from pod4_memory import MemoryAdmissionError, encoding  # isort: skip
 from compare_inputs import identity  # isort: skip
 from compare_models import MODELS  # isort: skip
 from compare_parallelism import settings  # isort: skip
@@ -55,7 +55,7 @@ def arguments():
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--minimum-seconds", type=float, default=2)
     parser.add_argument("--vectors-out", type=Path)
-    parser.add_argument("--passes", type=int, default=3)
+    parser.add_argument("--passes", type=int, default=1)
     return parser.parse_args()
 
 
@@ -144,4 +144,10 @@ def finish(args, source, before, vectors, record):
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except MemoryAdmissionError as error:
+        print(
+            json.dumps({"event": "memory_admission_rejected", "budget": error.receipt}), flush=True
+        )
+        raise SystemExit(78) from error

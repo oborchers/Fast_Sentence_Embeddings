@@ -80,7 +80,7 @@ def sampled_lengths(source, indices):
     }
 
 
-def write_input(folder, source, count, seed=SEED):
+def write_input(folder, source, count, seed=SEED, *, receipt_archive=None):
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"passages-{count}-seed{seed}.txt"
     receipt = path.with_suffix(".identity.json")
@@ -101,6 +101,13 @@ def write_input(folder, source, count, seed=SEED):
     selected = np.unique(indices)
     distinct = len({source[int(index)] for index in selected})
     digest = write_shuffled(path, source, indices)
+    if receipt_archive is not None and (receipt_archive / receipt.name).exists():
+        data = (receipt_archive / receipt.name).read_bytes()
+        record = json.loads(data)
+        if record["input_digest"] != digest or record["checksum"] != file_digest(path):
+            raise ValueError("regenerated sampled input differs from its immutable receipt")
+        receipt.write_bytes(data)
+        return path, record
     record = {
         **sampled_lengths(source, indices),
         "texts": count,

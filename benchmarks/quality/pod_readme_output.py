@@ -106,6 +106,10 @@ def run_vectors(options, repo, dtype, workers, kind, path):
         raise ValueError("output correctness call violates minimum duration")
     if row.get("runtime_package") != expected_package(kind):
         raise ValueError("output check carries the wrong backend identity")
+    if getattr(options, "input_file", None):
+        from pod4_storage import discard_validation_cache
+
+        discard_validation_cache(path)
     return row, np.load(path, mmap_mode="r" if getattr(options, "input_file", None) else None)
 
 
