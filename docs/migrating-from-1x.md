@@ -66,7 +66,7 @@ rows = encoder.encode(tokens, workers=1)
 assert rows.shape == (2, 3)
 ```
 
-`normalize=False` requests raw means. New encoders default to normalization to unit length.
+`normalize=False` requests raw means. `from_arrays` and `from_word_vectors` default to normalization to unit length.
 Use `tokenizer="external"` when you own tokenization and pass token lists.
 Tokens must be nonempty and contain no whitespace in 2.0.
 Remove empty tokens deliberately during input preparation.
