@@ -132,3 +132,25 @@ Classifier manifests bind each fitted head to the actual training encoder finger
 `quality/report_document_tasks.py` joins a compatible quality summary and raw journal to the installed MTEB2.26.25 descriptive statistics. It reports every full task with an upstream evaluation text stream averaging at least1,000 characters. The output preserves task metrics, model limits and source-statistics digests. It never samples evaluation rows or averages different task metrics into a new benchmark score. These upstream lengths are not fresh measurements of the run or truncation frequencies.
 
 The window5 counterpart runtime path/hash was incorrectly copied from fse. Existing fse rates and A/A remain valid. Counterpart rates and final ratios are provisional until re-measurement with backend-specific package identity. Recorder fix02d387c and reporting follow-upd635a12 retain every original observation. The own-package hash covers declared installed files and the module tree, excluding mutable Python caches. Rust records its verified binary digest. Common harness imports precede model-setup timing, so that stage is not a complete cold process startup.
+
+
+### Native math limits and the FAISS CPU path
+
+New child launches set OpenMP, OpenBLAS, MKL, BLIS, Accelerate and NumExpr maxima
+before Python imports NumPy. Each row records these requested limits. A paired
+round rejects different limits between its contenders. Supported thread pools
+remain recorded separately. These maxima do not measure the exact active
+thread count. Model2Vec's tokenizer off/on labels and unmeasured exact tokenizer
+thread count remain unchanged. Apple's installed `Accelerate(7)` manual notes
+that `VECLIB_MAXIMUM_THREADS` can be cached and must precede Accelerate calls.
+The local NumPy build uses Accelerate, which this threadpoolctl inspection does
+not enumerate. These explicit launch limits therefore cover search BLAS and
+sklearn prediction before their first measurements.
+
+The installed FAISS wheel reports `OPTIMIZE DD ARM_NEON MAC_METAL`. The harness
+constructs CPU `IndexFlatIP`. Its pinned implementation calls
+`knn_inner_product`, while Metal uses a separate index and cloning API.
+[FAISS 1.15.1 IndexFlat implementation](https://github.com/facebookresearch/faiss/blob/v1.15.1/faiss/IndexFlat.cpp),
+[CPU inner-product search](https://github.com/facebookresearch/faiss/blob/v1.15.1/faiss/utils/distances.cpp)
+and [Add Metal GPU backend for Apple Silicon (IndexFlat)](https://github.com/facebookresearch/faiss/pull/5144).
+No GPU index is constructed by this harness.

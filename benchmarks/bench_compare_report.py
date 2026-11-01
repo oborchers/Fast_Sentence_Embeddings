@@ -56,6 +56,9 @@ def validate_pair(operations: list[dict]) -> dict[str, dict]:
         raise ValueError("completed round has an invalid operation")
     if len({row["input_digest"] for row in operations}) != 1:
         raise ValueError("completed round has different inputs")
+    limits = {json.dumps(row.get("native_thread_limits"), sort_keys=True) for row in operations}
+    if len(limits) != 1:
+        raise ValueError("completed round has different native math thread limits")
     require_compatible([labels])
     return labels
 

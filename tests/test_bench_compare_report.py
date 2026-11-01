@@ -133,3 +133,16 @@ def test_diagnostic_aa_uses_only_latest_compatible_configuration(report):
     diagnostic = report.diagnostic_aa(rows)
     assert len(diagnostic) == 2
     assert [group["valid_pairs"] for group in diagnostic] == [2, 1]
+
+
+def test_counterpart_cannot_use_different_math_limits_from_fse_controls(report):
+    rows = journal()
+    for row in rows:
+        if row["event"] == "operation":
+            row["native_thread_limits"] = {"VECLIB_MAXIMUM_THREADS": "1"}
+    assert len(report.completed_rounds(rows)) == 3
+    for row in rows:
+        if row.get("label") == "model2vec":
+            row["native_thread_limits"] = {"VECLIB_MAXIMUM_THREADS": "10"}
+    with pytest.raises(ValueError, match="different native math thread limits"):
+        report.completed_rounds(rows)
