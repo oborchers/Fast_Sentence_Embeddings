@@ -3,6 +3,14 @@
 The README keeps the introduction short. This guide retains the full model and precision matrix,
 quality samples, historical observations, ranges and source records.
 
+## Current headline: 100 million text file-to-vector showcase
+
+The [committed showcase snapshot](readme-showcase-20261101/README.md) backs the maintainer-approved “Compute nearly 3 million text embeddings per second.” headline.
+The primary run processed 100,000,000 rows at 2,832,638.70 texts/s, from input read through int8 ShardSink close, on 32 vCPU AMD EPYC 7713.
+It uses repeated and shuffled WikiText-103 passages, averaging 28.73027215 POTION tokens, and a float32 model table with int8 output storage.
+The one-primary-plus-one-repeat showcase exception and its 4.53% A/A spread are documented in that snapshot, with exact raw files and output size.
+It is separate from pure encoding on the Mac and does not fill missing library, scaling or folded-classifier comparisons.
+
 ## Pending library comparison
 
 The fse cells from timing window 5 have valid fse runtime attribution.
@@ -155,20 +163,24 @@ The source records exact byte counts, model revisions and the environment that p
 
 ### Task-quality samples
 
+MIND final status: **not computed: MTEB 2.26.25 MindSmallReranking needs more memory than the 64 GB pod (two attempts, status 137 and earlier ENOSPC)**. No further MIND runs are planned.
+Every English MTEB(eng, v2) mean below is explicitly based on **40 of 41 tasks**.
+The original raw snapshots retain their historical deferred/null records; no missing task score is invented.
+
 **POTION-8M, float32**
 
-One [quality sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/e11d7b440e82f02516347145a186762f111ce27a/docs/benchmarks/readme-quality-20261101/README.md)
+One [quality sample](readme-quality-20261101/README.md)
 measured POTION-8M with a float32 table and two fse workers on 1 November 2026.
 It used an Apple M1 Pro, macOS 27.0.1, Python 3.13.16, NumPy 2.5.4 and MTEB 2.26.25.
 MTEB is a collection of tests for text vectors. NanoBEIR is a set of 13 small search tests.
 
 | Task group | Coverage | Mean task score, points |
 |---|---|---:|
-| English MTEB(eng, v2), completed tasks only | 40 of 41, MIND deferred | 53.9527 |
+| English MTEB(eng, v2), completed tasks only | 40 of 41 tasks, MIND not computed | 53.9527 |
 | NanoBEIR search tasks | All 13 of 13 | 43.8485 |
 
 Each completed task has equal weight. Points are 100 times the native task score.
-The English row averages only 40 completed tasks. The coordinator deferred MindSmallReranking (MIND).
+The English row averages 40 of 41 tasks. MIND is not computed.
 It is **not the complete 41-task benchmark score**.
 English tasks use different metrics. NanoBEIR uses `ndcg_at_10`, a score for the first ten search results.
 The source records every task, metric, dataset revision and the exact saved model identity.
@@ -176,7 +188,7 @@ Further model and dtype comparisons, including quality changes from float32, rem
 
 **Later POTION-base-32M sample, float32**
 
-A [later sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ba96e9a663062c86edb1e8eb8aa75774ccf04bb1/docs/benchmarks/readme-quality-potion32-20261101/README.md)
+A [later sample](readme-quality-potion32-20261101/README.md)
 used POTION-base-32M, two fse workers and the same Apple M1 Pro on 1 November 2026.
 The recorded evaluation code differs from the POTION-8M run above.
 Confirmations of POTION-8M and POTION-base-32M with matching evaluation code are queued after the recording fix.
@@ -184,15 +196,15 @@ A controlled model ranking remains pending.
 
 | Task group | Coverage | Mean task score, points |
 |---|---|---:|
-| English MTEB(eng, v2), completed tasks only | 40 of 41, MIND deferred | 55.2573 |
+| English MTEB(eng, v2), completed tasks only | 40 of 41 tasks, MIND not computed | 55.2573 |
 | NanoBEIR search tasks | All 13 of 13 | 46.1754 |
 
-This English mean also excludes deferred MIND. It is **not the complete 41-task benchmark score**.
+This English mean covers 40 of 41 tasks and excludes uncomputed MIND. It is **not the complete 41-task benchmark score**.
 The source records each task's metric and dataset revision, the saved model, and the code identifiers.
 
 **POTION-retrieval-32M, float32, with fixed runtime recording**
 
-A [separate quality sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ba96e9a663062c86edb1e8eb8aa75774ccf04bb1/docs/benchmarks/readme-quality-retrieval32-20261101/README.md)
+A [separate quality sample](readme-quality-retrieval32-20261101/README.md)
 measured POTION-retrieval-32M with two fse workers on the Apple M1 Pro on 1 November 2026.
 It records the loaded code's identity after the recording fix.
 Its evaluation code differs from the earlier P8/P32 checkpoints, which still await matching-code confirmations.
@@ -200,10 +212,10 @@ A controlled model ranking remains pending.
 
 | Task group | Coverage | Mean task score, points |
 |---|---|---:|
-| English MTEB(eng, v2), completed tasks only | 40 of 41, MIND deferred | 54.5098 |
+| English MTEB(eng, v2), completed tasks only | 40 of 41 tasks, MIND not computed | 54.5098 |
 | NanoBEIR search tasks | All 13 of 13 | 50.3872 |
 
-The English mean excludes MIND and is **not the complete 41-task benchmark score**.
+The English mean covers 40 of 41 tasks, excludes uncomputed MIND and is **not the complete 41-task benchmark score**.
 These are task-quality scores. Setup, suspension and shared-job waits do not provide a model compute-time measurement.
 
 ### First neighborhood stability check

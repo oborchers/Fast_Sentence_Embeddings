@@ -9,11 +9,13 @@ Both files here are byte-identical snapshots of that commit.
 
 | Task group | Completed | Mean task score, points |
 |---|---:|---:|
-| MTEB(eng, v2), completed tasks only | 40 of 41, MIND deferred | 53.9527 |
+| MTEB(eng, v2), completed tasks only | 40 of 41 tasks, MIND not computed | 53.9527 |
 | NanoBEIR search tasks | All 13 of 13 | 43.8485 |
 
 The English mean is **not the complete 41-task benchmark score**.
-MindSmallReranking was explicitly deferred by the coordinator. Its raw record
+Final MIND status: **not computed: MTEB 2.26.25 MindSmallReranking needs more memory than the 64 GB pod (two attempts, status 137 and earlier ENOSPC)**. No further MIND runs.
+The reported English mean covers **40 of 41 tasks**.
+The historical snapshot marked MindSmallReranking deferred. Its raw record
 has status deferred and a null score. The full-41 English mean stays null.
 The other 53 raw records have status completed and finite task scores.
 Task names are unique: 40 English tasks, 13 NanoBEIR tasks and one deferred MIND task.
@@ -68,7 +70,7 @@ quality equality with another library or speed conclusion follows.
 - [Bound artifact manifest](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/0de9c3ddc66722581722a5ed732a78cb19b6fe19/benchmarks/baseline/dr151_model_artifacts_20261101.json)
 
 From the producing checkout with its pinned quality environment and prepared
-artifact, run the complete selected suites with the authorized MIND deferral:
+artifact, reproduce the 40 completed English tasks with MIND excluded:
 
 ```sh
 nice -n 10 .venv-quality/bin/python benchmarks/quality/run_mteb.py run \

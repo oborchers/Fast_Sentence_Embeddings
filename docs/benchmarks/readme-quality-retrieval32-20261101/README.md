@@ -10,11 +10,13 @@ summary and invocation-wall evidence here are byte-identical snapshots.
 
 | Task group | Completed | Mean task score, points |
 |---|---:|---:|
-| MTEB(eng, v2), completed tasks only | 40 of 41, MIND deferred | 54.5098 |
+| MTEB(eng, v2), completed tasks only | 40 of 41 tasks, MIND not computed | 54.5098 |
 | NanoBEIR search tasks | All 13 of 13 | 50.3872 |
 
 The English mean is **not the complete 41-task benchmark score**.
-MindSmallReranking alone was deferred as authorized. Its score and the full-41
+Final MIND status: **not computed: MTEB 2.26.25 MindSmallReranking needs more memory than the 64 GB pod (two attempts, status 137 and earlier ENOSPC)**. No further MIND runs.
+The reported English mean covers **40 of 41 tasks**.
+The historical snapshot marked MindSmallReranking deferred. Its score and the full-41
 English mean remain null. The journal contains 54 unique task names, with
 53 completed finite scores and one deferred record. All task dataset revisions are pinned.
 
