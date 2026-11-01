@@ -302,6 +302,7 @@ def run(
                             json.dumps(
                                 {
                                     **environment,
+                                    **specification,
                                     "model": name,
                                     **getattr(model, "provenance", source_identity(name)),
                                     "loader": f"{type(model).__module__}.{type(model).__name__}",

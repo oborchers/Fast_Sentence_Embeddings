@@ -75,6 +75,7 @@ def child(args) -> None:
             "revision": MODELS[args.model],
             "corpus": args.corpus,
             "texts": len(sentences),
+            "timed_passes": args.passes,
             "output_digest": checksum(np.ascontiguousarray(vectors)),
             "p50_s": float(np.median(record["warm_seconds"])),
             "p95_s": float(np.percentile(record["warm_seconds"], 95)),
@@ -119,6 +120,7 @@ def python_measure(args, sentences):
         "encoder_fingerprint": encode.encoder_fingerprint
         if hasattr(encode, "encoder_fingerprint")
         else None,
+        "artifact_provenance": getattr(encode, "artifact_provenance", None),
         "batch_size": encode.batch_size if hasattr(encode, "batch_size") else None,
         "torch_num_threads": encode.torch_num_threads
         if hasattr(encode, "torch_num_threads")

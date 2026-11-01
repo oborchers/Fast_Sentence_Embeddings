@@ -21,7 +21,13 @@ from pathlib import Path
 
 import numpy as np
 from bench_compare import append, reservation
-from compare_artifacts import file_digest, validate_preparation
+from compare_artifacts import (
+    check_head_encoder,
+    checked_encoder,
+    file_digest,
+    native_encoder_identity,
+    validate_preparation,
+)
 from compare_inputs import identity
 from compare_models import MODELS, artifact_name
 from compare_parallelism import settings
@@ -58,6 +64,13 @@ def predictor(args, name):
             encoder = Encoder.load(args.models / artifact_name(args.model, args.table_dtype))
             head = joblib.load(folder / f"{stem}-fse-sklearn.joblib")
             model = Classifier.from_sklearn(encoder, head)
+        source = checked_encoder(model.encoder, args.models, args.model, args.table_dtype)
+        head_name = (
+            f"{stem}-{args.table_dtype}.safetensors"
+            if args.suite == "fineweb"
+            else f"{stem}-fse-sklearn.joblib"
+        )
+        check_head_encoder(json.loads((folder / "manifest.json").read_text()), head_name, source)
         if model.encoder.word_vectors.dtype != args.table_dtype:
             raise ValueError("classifier table dtype differs from the requested dtype")
         return lambda rows: model.predict(rows, workers=args.workers), fse_files(args, folder, stem)
@@ -69,6 +82,12 @@ def predictor(args, name):
             args.model, revision=MODELS[args.model], local_files_only=True
         )
         model = StaticModel.from_pretrained(folder_model)
+        source = native_encoder_identity(args.model, Path(folder_model))
+        check_head_encoder(
+            json.loads((folder / "manifest.json").read_text()),
+            f"{stem}-model2vec-sklearn.joblib",
+            source,
+        )
         head = joblib.load(folder / f"{stem}-model2vec-sklearn.joblib")
         return (
             lambda rows: head.predict(model.encode(rows, use_multiprocessing=False)),
@@ -132,7 +151,9 @@ def artifact_identities(paths, preparation):
     for path in paths:
         observed = {"file_bytes": path.stat().st_size, "checksum": file_digest(path)}
         expected = preparation.get("artifacts", {}).get(path.name)
-        if expected is None and path.suffix in (".joblib", ".bin"):
+        if expected is None and (
+            path.suffix in (".joblib", ".bin") or path.name in preparation.get("head_encoders", {})
+        ):
             raise ValueError(f"{path.name}: fitted artifact missing from preparation manifest")
         if expected is not None and observed != expected:
             raise ValueError(f"{path.name}: fitted artifact differs from preparation manifest")
@@ -206,6 +227,7 @@ def child(args):
             "threads": args.workers,
             **parallelism(args),
             "native_multiprocessing": False,
+            "timed_passes": args.passes,
             "load_s": sum(row["model_setup_s"] for row in records),
             "first_predict_s": sum(row["first_predict_s"] for row in records),
             "p50_s": float(np.median(passes)),

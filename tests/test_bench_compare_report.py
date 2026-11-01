@@ -87,3 +87,37 @@ def test_large_aa_spread_labels_cell_without_dropping_it(report):
 def test_small_aa_spread_is_labeled_separately(report):
     pair = {"fse-a": {"p50_s": 1.0}, "fse-b": {"p50_s": 1 / 1.05}}
     assert report.aa_summary([pair])["noise_status"] == "within 10% A/A band"
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["commit", "runtime_fingerprint", "encoder_fingerprint", "versions", "first_encode_texts"],
+)
+def test_changed_identity_cannot_join_an_accepted_series(report, field):
+    rows = journal()
+    for row in rows:
+        if row["event"] == "operation":
+            row[field] = "original"
+    rows[4][field] = "changed"
+    with pytest.raises(ValueError, match="incompatible"):
+        report.completed_rounds(rows)
+
+
+def test_counterpart_can_have_a_different_environment_but_cannot_change_it(report):
+    rows = journal()
+    for row in rows:
+        if row["event"] == "operation":
+            row["versions"] = {"backend": "other" if row["label"] == "model2vec" else "fse"}
+    assert len(report.completed_rounds(rows)) == 3
+    rows[6]["versions"] = {"backend": "changed"}
+    with pytest.raises(ValueError, match="incompatible"):
+        report.completed_rounds(rows)
+
+
+def test_diagnostic_aa_uses_only_latest_compatible_configuration(report):
+    rows = [row for row in journal() if row["event"] == "operation"]
+    for row in rows:
+        row["commit"] = "old" if row["round"] < 2 else "new"
+    pairs = report.incomplete_aa(rows)
+    assert len(pairs) == 1
+    assert pairs[0]["fse-a"]["commit"] == "new"

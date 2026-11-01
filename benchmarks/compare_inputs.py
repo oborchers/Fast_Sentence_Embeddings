@@ -139,7 +139,14 @@ def cpu_name() -> str:
 
 
 def identity() -> dict:
+    from compare_artifacts import runtime_identity
+
+    import fse
+
     return {
+        "comparison_identity_version": 2,
+        "runtime_fingerprint": runtime_identity(),
+        "package_location": str(Path(fse.__file__).resolve()),
         "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
         "machine": platform.platform(),
         "cpu": cpu_name(),

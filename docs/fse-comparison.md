@@ -25,11 +25,11 @@ Use Python 3.13. Install quality dependencies from `benchmarks/quality/requireme
 
 `benchmarks/quality/prepare_models.py` converts the six pinned Hub models. `prepare_word_models.py` converts the two pinned word-vector tables without fitting. Both write a source manifest next to the resulting artifacts and refuse existing output files.
 
-`benchmarks/bench_compare.py run` rotates fse A, identical fse B and a counterpart. Supply `--lock`, `--results`, `--threads 1` or the usable CPU count, and at least three rounds. `--against` selects model2vec, st, rust or fastembed. `--other-python` selects the isolated counterpart environment. Build the Rust worker with its committed Cargo lock file before selecting rust.
+`benchmarks/bench_compare.py run` rotates fse A, identical fse B and a counterpart. Supply `--lock`, `--results`, `--threads 1` or the usable CPU count, and at least three rounds. `--against` selects model2vec, st, rust or fastembed. `--other-python` selects the isolated counterpart environment. Build the Rust worker with `benchmarks/compare_rust_build.py --coordination <scratchpad>` before selecting rust. The helper uses the heavy lock and records locked inputs, compiler and binary digest. The worker refuses a changed source or binary.
 
 Every operation and round carries a unique series ID. Only a completed round with matching ordered-input digests and strict endpoint loads below 5 qualifies. Completed, incomplete and rejected rounds remain in the raw journal. Pass percentiles describe repeated calls inside one process. Independent round ratios and the A/A control assess repeatability.
 
-The corpus reader selects one immutable dataset revision. It records explicit splits and a length-delimited XXH3-128 digest of every ordered input text. The journal records the model revision, source commit, complete Python package environment, CPU, OS and Python. Model setup includes the backend import in a fresh child; corpus IO, provenance and result serialization are outside encode timing. RSS scopes distinguish Python and native Rust processes.
+The corpus reader selects one immutable dataset revision. It records explicit splits and a length-delimited XXH3-128 digest of every ordered input text. The journal records the model revision, source commit, complete Python package environment, CPU, OS and Python. Model setup includes the backend import in a fresh child; corpus IO, provenance and result serialization are outside encode timing. RSS scopes distinguish Python and native Rust processes. New records capture the loaded fse package path and runtime content fingerprint. Reports reject changes between rounds or between the two fse controls. Historical records without runtime fingerprints remain explicitly qualified observations.
 
 Quality runs on the CPU with bounded torch, tokenizer and BLAS pools. Use `--coordination` for shared heavy-job locking and `nice -n 10`. The runner saves each task immediately. It yields at a task boundary when a timing window appears, releases after a bounded task batch, and waits at least 120 seconds before reacquiring the heavy lock.
 
@@ -125,4 +125,6 @@ IO and finished-table conversion together as `table_load_build_s`. This is the
 public import API's combined stage. `--encoder-start saved` loads the already
 finished table instead. The combined stage is not added a second time to startup.
 Both modes then encode, build and durably save the index, reopen it, and perform
-first and warm queries. All search arms use the same encoder startup mode.
+first and warm queries. Common normalization has its own `preprocess_s` timer. `startup_through_first_search_s` measures model load through first search, including preprocessing and intervening overhead. It excludes input/provenance preparation and later recall diagnostics. Do not add the combined build/save field to its component times. All search arms use the same encoder startup mode.
+
+Classifier manifests bind each fitted head to the actual training encoder fingerprint. Quantized tables must match their verified float32 parent. Native model2vec heads bind the weights and tokenizer/config files. Preparation and prediction both validate these identities. Completed quality records write the same normalized identity fields that resume checks, including explicit null fields for non-fse models.

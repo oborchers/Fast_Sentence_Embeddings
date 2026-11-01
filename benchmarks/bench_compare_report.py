@@ -7,6 +7,8 @@ import json
 import statistics
 from pathlib import Path
 
+from compare_compatibility import identity_status, require_compatible, signature
+
 
 def completed_rounds(rows: list[dict]) -> list[dict[str, dict]]:
     finished = [
@@ -35,6 +37,7 @@ def completed_rounds(rows: list[dict]) -> list[dict[str, dict]]:
         pairs.append(validate_pair(operations))
     if len(pairs) < finished[-1]["required_rounds"]:
         raise ValueError("series completion count is not backed by valid rounds")
+    require_compatible(pairs)
     return pairs
 
 
@@ -48,6 +51,7 @@ def validate_pair(operations: list[dict]) -> dict[str, dict]:
         raise ValueError("completed round has an invalid operation")
     if len({row["input_digest"] for row in operations}) != 1:
         raise ValueError("completed round has different inputs")
+    require_compatible([labels])
     return labels
 
 
@@ -113,11 +117,16 @@ def incomplete_aa(rows: list[dict]) -> list[dict]:
             and row["load_after"] < 5
         ):
             grouped.setdefault((row["series_id"], row["round"]), {})[row["label"]] = row
-    return [
+    pairs = [
         pair
         for pair in grouped.values()
         if len(pair) == 2 and pair["fse-a"]["input_digest"] == pair["fse-b"]["input_digest"]
     ]
+    for pair in pairs:
+        require_compatible([pair])
+    # Never aggregate diagnostic A/A across changed implementations/settings.
+    latest = signature(pairs[-1]["fse-a"]) if pairs else None
+    return [pair for pair in pairs if signature(pair["fse-a"]) == latest]
 
 
 def summarize(path: Path, hourly_price: float) -> dict:
@@ -139,6 +148,7 @@ def summarize(path: Path, hourly_price: float) -> dict:
     return {
         "raw": str(path),
         "status": "complete",
+        "identity_status": identity_status(pairs),
         "valid_pairs": len(pairs),
         "corpus": pairs[0]["fse-a"]["corpus"],
         "workers": pairs[0]["fse-a"]["threads"],

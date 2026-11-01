@@ -19,7 +19,14 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from compare_inputs import identity  # isort: skip
-from compare_artifacts import seal_preparation  # isort: skip
+from compare_artifacts import (
+    check_head_encoder,
+    checked_encoder,
+    native_encoder_identity,
+    record_head_encoder,
+    seal_preparation,
+)  # isort: skip
+
 from compare_models import MODELS, artifact_name  # isort: skip
 from quality_coordination import task_reservation  # isort: skip
 
@@ -99,20 +106,25 @@ def potion(args, data, provenance: dict, repo: str) -> None:
 
     train, y_train, evaluation, y_eval = data
     encoder = Encoder.load(args.models / artifact_name(repo, "float32"))
+    training_source = checked_encoder(encoder, args.models, repo, "float32")
     fitted = LogisticRegression(max_iter=1000, random_state=0).fit(
         encoder.encode(train, workers=2), y_train.astype(np.int64)
     )
     stem = repo.rsplit("/", maxsplit=1)[-1]
     joblib.dump(fitted, args.output / f"{stem}-fse-sklearn.joblib")
+    record_head_encoder(args.output, f"{stem}-fse-sklearn.joblib", training_source)
     reference = None
     for dtype in ("float32", "float16", "int8"):
         enc = Encoder.load(args.models / artifact_name(repo, dtype))
+        source = checked_encoder(enc, args.models, repo, dtype)
+        check_head_encoder({"head_encoders": {"training": training_source}}, "training", source)
         model = Classifier.from_sklearn(enc, fitted)
         predicted = model.predict(evaluation, workers=2)
         if reference is None:
             reference = predicted
         path = args.output / f"{stem}-{dtype}.safetensors"
         model.save(path)
+        record_head_encoder(args.output, path.name, training_source)
         record(
             args,
             {
@@ -141,6 +153,7 @@ def native(args, data, provenance: dict, repo: str) -> None:
     train, y_train, evaluation, y_eval = data
     folder = snapshot_download(repo, revision=MODELS[repo], local_files_only=True)
     model = StaticModel.from_pretrained(folder)
+    source = native_encoder_identity(repo, Path(folder))
     fitted = LogisticRegression(max_iter=1000, random_state=0).fit(
         model.encode(train, use_multiprocessing=False), y_train.astype(np.int64)
     )
@@ -148,6 +161,8 @@ def native(args, data, provenance: dict, repo: str) -> None:
     joblib.dump(
         fitted, args.output / f"{repo.rsplit('/', maxsplit=1)[-1]}-model2vec-sklearn.joblib"
     )
+    stem = repo.rsplit("/", maxsplit=1)[-1]
+    record_head_encoder(args.output, f"{stem}-model2vec-sklearn.joblib", source)
     record(
         args,
         {

@@ -52,9 +52,11 @@ def child(args) -> None:
         "runtime_fingerprint": runtime_identity(),
     }
     with threadpool_limits(limits=args.workers), tempfile.TemporaryDirectory(dir=args.tmp) as temp:
+        startup_start = time.perf_counter()
         load_s, encoder = timed(lambda: load_encoder(args, Encoder))
         encode_s, vectors = timed(lambda: encoder.encode(sentences, workers=args.workers))
-        # Explicit preprocessing shared by all libraries, outside their index timers.
+        # Common preprocessing is a separate lifecycle stage.
+        preprocess_start = time.perf_counter()
         norms = np.linalg.norm(vectors.astype(np.float64), axis=1)
         matrix = np.ascontiguousarray(
             np.divide(
@@ -62,6 +64,7 @@ def child(args) -> None:
             ),
             dtype=np.float32,
         )
+        preprocess_s = time.perf_counter() - preprocess_start
         path = Path(temp) / "index"
         build_s, index = timed(lambda: make_index(args.kind, matrix, encoder, path, args.workers))
         save_s, _ = timed(lambda: save_index(args.kind, index, path))
@@ -69,6 +72,7 @@ def child(args) -> None:
         open_s, index = timed(lambda: open_index(args.kind, path, matrix.shape[1], args.workers))
         try:
             first_s, _ = timed(lambda: search(args.kind, index, matrix[:1], args.k, args.workers))
+            startup_s = time.perf_counter() - startup_start
             passes, batches = [], []
             for _ in range(args.passes):
                 seconds, (ids, calls) = timed(
@@ -109,6 +113,9 @@ def child(args) -> None:
             if args.encoder_start == "source"
             else "finished table prepared offline",
             "encode_s": encode_s,
+            "preprocess_s": preprocess_s,
+            "startup_through_first_search_s": startup_s,
+            "startup_scope": "model load through first search, including preprocessing and overhead",
             "build_s": build_s,
             "save_s": save_s,
             "index_build_and_save_s": build_s + save_s,

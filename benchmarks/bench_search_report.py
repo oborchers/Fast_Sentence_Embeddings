@@ -11,6 +11,8 @@ from bench_compare_report import aa_summary, completed_rounds, incomplete_aa, sp
 PHASES = (
     "load_s",
     "encode_s",
+    "preprocess_s",
+    "startup_through_first_search_s",
     "build_s",
     "save_s",
     "index_build_and_save_s",
@@ -29,6 +31,7 @@ def backend(records):
         "kind": first["kind"],
         "index_settings": first["index_settings"],
         "encoder_start": first["encoder_start"],
+        "startup_scope": first["startup_scope"],
         "table_load_build_scope": first["table_load_build_scope"],
         "phase_seconds": {key: spread([row[key] for row in records]) for key in PHASES},
         "table_load_build_seconds": spread([row["table_load_build_s"] for row in records])

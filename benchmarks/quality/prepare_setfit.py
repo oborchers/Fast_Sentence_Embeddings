@@ -21,7 +21,14 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from compare_inputs import identity  # isort: skip
-from compare_artifacts import seal_preparation  # isort: skip
+from compare_artifacts import (
+    check_head_encoder,
+    checked_encoder,
+    native_encoder_identity,
+    record_head_encoder,
+    seal_preparation,
+)  # isort: skip
+
 from compare_models import MODELS, artifact_name  # isort: skip
 from quality_coordination import task_reservation  # isort: skip
 from prepare_fineweb import digest, metrics  # isort: skip
@@ -89,12 +96,16 @@ def heads(args, data, provenance, repo, output):
 
     train, y_train, evaluation, y_eval = data
     encoder = Encoder.load(args.models / artifact_name(repo, "float32"))
+    training_source = checked_encoder(encoder, args.models, repo, "float32")
     fitted = fit(encoder.encode(train, workers=2), y_train)
     stem = repo.rsplit("/", maxsplit=1)[-1]
     joblib.dump(fitted, output / f"{stem}-fse-sklearn.joblib")
+    record_head_encoder(output, f"{stem}-fse-sklearn.joblib", training_source)
     reference = None
     for dtype in ("float32", "float16", "int8"):
         enc = Encoder.load(args.models / artifact_name(repo, dtype))
+        source = checked_encoder(enc, args.models, repo, dtype)
+        check_head_encoder({"head_encoders": {"training": training_source}}, "training", source)
         model = Classifier.from_sklearn(enc, fitted)
         predicted = model.predict(evaluation, workers=2)
         if reference is None:
@@ -114,12 +125,13 @@ def heads(args, data, provenance, repo, output):
             head_training_table_dtype="float32",
             prediction_disagreement_vs_float32=float(np.mean(predicted != reference)),
         )
-    native = StaticModel.from_pretrained(
-        snapshot_download(repo, revision=MODELS[repo], local_files_only=True)
-    )
+    native_folder = Path(snapshot_download(repo, revision=MODELS[repo], local_files_only=True))
+    native = StaticModel.from_pretrained(native_folder)
+    source = native_encoder_identity(repo, native_folder)
     fitted = fit(native.encode(train, use_multiprocessing=False), y_train)
     predicted = fitted.predict(native.encode(evaluation, use_multiprocessing=False))
     joblib.dump(fitted, output / f"{stem}-model2vec-sklearn.joblib")
+    record_head_encoder(output, f"{stem}-model2vec-sklearn.joblib", source)
     save_result(
         args,
         provenance,

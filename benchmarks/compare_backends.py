@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 from bench_model2vec import _snapshot, contender
+from compare_artifacts import checked_encoder
 from compare_models import MODELS, artifact_name
 
 
@@ -86,6 +87,8 @@ def fse_contender(threads: int, repo: str, dtype: str, folder: Path | None):
     if encoder.word_vectors.dtype != dtype:
         raise ValueError(f"loaded table is {encoder.word_vectors.dtype}, requested {dtype}")
 
+    provenance = checked_encoder(encoder, folder, repo, dtype) if folder is not None else None
+
     def encode(batch):
         return encoder.encode(batch, workers=threads)
 
@@ -93,4 +96,5 @@ def fse_contender(threads: int, repo: str, dtype: str, folder: Path | None):
     encode.file_bytes = path.stat().st_size
     encode.load_source = source
     encode.encoder_fingerprint = encoder.fingerprint
+    encode.artifact_provenance = provenance
     return encode

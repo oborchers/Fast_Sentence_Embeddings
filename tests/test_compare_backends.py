@@ -38,6 +38,7 @@ def test_int8_table_does_not_request_int8_outputs(backends, monkeypatch, tmp_pat
         word_vectors=SimpleNamespace(dtype="int8"), fingerprint="test", encode=encode
     )
     monkeypatch.setattr(fse, "Encoder", SimpleNamespace(load=lambda _path: fake))
+    monkeypatch.setattr(backends, "checked_encoder", lambda *_: {"source_model": "fixture"})
     run = backends.fse_contender(10, "minishlab/potion-base-8M", "int8", tmp_path)
     assert run(["a"]).dtype == np.float32
     assert run.table_dtype == "int8"

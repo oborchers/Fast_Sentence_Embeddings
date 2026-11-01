@@ -570,6 +570,8 @@ The models and corpora come from the local Hugging Face cache; nothing is downlo
 
 ## Alternatives comparison (partial, 01.11.2026)
 
+**Runtime attribution limitation:** the initial speed journals record checkout commits and package versions, but lack executed-runtime content fingerprints. They remain historical observations and need re-measurement before final throughput claims. New runs capture the loaded package location, native extension contents and verified Rust build identity.
+
 DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen) has three initial complete speed cells and seven complete precision-matrix cells. The full eight-model, three-table-precision matrix and quality comparison remain open. The [decision-table draft and protocol](docs/fse-comparison.md) record the full scope.
 
 These measurements use an Apple M1 Pro, macOS 27.0.1 arm64, Python 3.13.16, numpy 2.5.4, tokenizers 0.23.3 and model2vec 0.10.0. The measured source commit is `b7ffa8c`; the installed fse distribution identifies itself as `1.1.1.dev862+g82b6f5b12`. The runtime sources are unchanged by this benchmark PR. Both sides load `minishlab/potion-base-8M` at `bf8b056651a2c21b8d2565580b8569da283cab23`, with float32 tables and float32 outputs. The pinned source weight file contains 30,236,760 bytes.

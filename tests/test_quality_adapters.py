@@ -84,6 +84,50 @@ class TestQualityAdapters(unittest.TestCase):
             is None
         )
 
+    def test_non_fse_written_result_round_trips_through_resume(self):
+        import json
+        from contextlib import nullcontext
+
+        runner = self.runner
+        task_metadata = {"name": "example", "type": "STS"}
+        task = SimpleNamespace(
+            metadata=SimpleNamespace(
+                name="example", type="STS", model_dump=lambda **_: task_metadata
+            )
+        )
+        result = SimpleNamespace(
+            task_results=[SimpleNamespace(task_name="example", get_score=lambda: 0.5)]
+        )
+        meta = SimpleNamespace(revision="pinned", load_model=lambda **_: SimpleNamespace())
+        environment = {"versions": {"mteb": "pinned"}}
+        fingerprints = {
+            key: key for key in ("method_fingerprint", "runtime_fingerprint", "suite_fingerprint")
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "scores.jsonl"
+            with (
+                patch("nltk.download"),
+                patch.object(runner, "tasks_for", return_value=[task]),
+                patch.object(
+                    runner.mteb, "get_benchmark", return_value=SimpleNamespace(tasks=[task])
+                ),
+                patch.object(runner.mteb, "get_task", return_value=task),
+                patch.object(runner, "metadata", return_value=meta),
+                patch.object(runner, "identity", return_value=environment),
+                patch.object(runner, "measurement_identity", return_value=fingerprints),
+                patch.object(runner, "ResultCache"),
+                patch.object(runner, "EncodeTimer", return_value=SimpleNamespace(stats={})),
+                patch.object(runner, "task_reservation", side_effect=lambda *_: nullcontext()),
+                patch.object(
+                    runner, "task_batches", side_effect=lambda *_: (r for r in [(task, result)])
+                ),
+            ):
+                runner.run(["sentence-transformers/all-MiniLM-L6-v2"], None, path)
+            row = json.loads(path.read_text())
+            specification = {key: row[key] for key in importlib.import_module("resume").KEYS}
+            assert row["float32_parent_fingerprint"] is None
+            assert runner.pending_tasks(path, specification, [task]) == []
+
     def test_batch_yields_lock_when_timing_marker_appears(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
