@@ -2,6 +2,8 @@
 
 import importlib
 import json
+import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -97,3 +99,25 @@ def test_interrupted_card_publication_can_recover_without_changing_model_bytes(
     assert after["files"]["README.md"]["xxh3"] == evidence.digest(folder / "README.md")
     assert not publisher.journal_path(folder).exists()
     assert not list(models.glob(f".{folder.name}.card-stage-*"))
+
+
+def test_publication_sync_uses_writable_handles_and_exact_utf8_lf(family, monkeypatch, tmp_path):
+    publisher = importlib.import_module("hub_classic_card_publish")
+    models, records, _, fit, _ = family
+    record = next(r for r in records if r["method"] == "sif10" and r["dtype"] == "float32")
+    folder = models / record["repo"].split("/")[1]
+    model_before = (folder / "model.safetensors").read_bytes()
+    original = os.fsync
+
+    def writable_sync(descriptor):
+        if stat.S_ISREG(os.fstat(descriptor).st_mode):
+            # Windows rejects fsync on read-only descriptors. Test that requirement on POSIX too.
+            os.write(descriptor, b"")
+        original(descriptor)
+
+    monkeypatch.setattr(publisher.os, "fsync", writable_sync)
+    text = "derived café card\nsecond line\n"
+    publisher.publish_card(folder, models / f"{folder.name}.json", tmp_path / "cards", text, fit)
+    assert (folder / "README.md").read_bytes() == text.encode("utf-8")
+    assert (folder / "model.safetensors").read_bytes() == model_before
+    assert not publisher.journal_path(folder).exists()

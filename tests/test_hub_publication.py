@@ -23,13 +23,17 @@ def modules(monkeypatch):
     )
 
 
-def test_only_literal_read_only_card_pattern_is_executed(modules):
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_only_literal_read_only_card_pattern_is_executed(modules, newline):
     code = 'import fse\nencoder = fse.Encoder.from_pretrained("fse/example")\nvectors = encoder.encode(["A sentence."])'
-    card = f"```python\n{code}\n```"
+    code = code.replace("\n", newline)
+    card = f"```python{newline}{code}{newline}```"
     assert modules.publication.card_example(card, "fse/example") == code
     for changed in (code + '\nprint("extra action")', code.replace("fse/example", "fse/other")):
         with pytest.raises(ValueError, match="read-only"):
-            modules.publication.card_example(f"```python\n{changed}\n```", "fse/example")
+            modules.publication.card_example(
+                f"```python{newline}{changed}{newline}```", "fse/example"
+            )
 
 
 def test_file_sha256_covers_exact_payload_bytes(modules, tmp_path):
@@ -73,7 +77,9 @@ def test_owned_cache_cleanup_refuses_unexpected_files(modules, tmp_path):
         modules.runner.remove_owned_cache(case, owner)
     assert unexpected.read_text() == "preserve"
     unexpected.unlink()
-    assert modules.runner.remove_owned_cache(case, owner) > 0
+    blocks = getattr((case / "owner.json").stat(), "st_blocks", None)
+    expected_allocated = None if blocks is None else blocks * 512
+    assert modules.runner.remove_owned_cache(case, owner) == expected_allocated
     assert not case.exists()
 
 
@@ -296,3 +302,28 @@ def test_output_created_after_precheck_cannot_be_reused(modules, monkeypatch, tm
         modules.runner.parent_run(args)
     assert (output / "other-run.json").read_text() == "preserve"
     assert {path.name for path in output.iterdir()} == {"other-run.json"}
+
+
+def test_cache_sizes_report_logical_bytes_without_inventing_allocation(modules):
+    file = SimpleNamespace(
+        is_file=lambda: True,
+        is_symlink=lambda: False,
+        stat=lambda: SimpleNamespace(st_size=17),
+    )
+    case = SimpleNamespace(rglob=lambda _: [file])
+    assert modules.runner.cache_sizes(case) == {"logical_bytes": 17, "allocated_bytes": None}
+
+
+def test_approved_manifest_and_card_checkout_bytes_match_frozen_hashes(modules):
+    base = BENCHMARKS / "baseline" / "dr157"
+    manifest = base / "publication-manifest.json"
+    receipt = json.loads((base / "publication-manifest-sha256.json").read_bytes())
+    assert modules.publication.file_sha256(manifest) == receipt["sha256"]
+    assert manifest.stat().st_size == receipt["bytes"]
+    entries = json.loads(manifest.read_bytes())["repositories"]
+    assert len(entries) == 30
+    for entry in entries:
+        card = base / "cards" / (entry["repo"].split("/")[1] + ".txt")
+        expected = entry["files"]["README.md"]
+        assert card.stat().st_size == expected["bytes"]
+        assert modules.publication.file_sha256(card) == expected["sha256"]
