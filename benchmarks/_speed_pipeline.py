@@ -42,6 +42,7 @@ def setup(root, contract, allocated_at):
             here / lock,
             "--extra-index-url",
             "https://download.pytorch.org/whl/cpu",
+            "--index-strategy=unsafe-best-match",
         )
         execute(uv, "pip", "check", "--python", destination / "bin/python")
     execute("git", "clone", "https://github.com/oborchers/Fast_Sentence_Embeddings.git", source)
