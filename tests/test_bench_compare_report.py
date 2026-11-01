@@ -121,3 +121,8 @@ def test_diagnostic_aa_uses_only_latest_compatible_configuration(report):
     pairs = report.incomplete_aa(rows)
     assert len(pairs) == 1
     assert pairs[0]["fse-a"]["commit"] == "new"
+    for row in rows:
+        row["p50_s"] = 1.0
+    diagnostic = report.diagnostic_aa(rows)
+    assert len(diagnostic) == 2
+    assert [group["valid_pairs"] for group in diagnostic] == [2, 1]

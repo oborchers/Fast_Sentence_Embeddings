@@ -106,7 +106,7 @@ def aa_summary(pairs: list[dict]) -> dict:
     }
 
 
-def incomplete_aa(rows: list[dict]) -> list[dict]:
+def diagnostic_aa_groups(rows: list[dict]) -> list[list[dict]]:
     grouped: dict[tuple, dict] = {}
     for row in rows:
         if (
@@ -124,9 +124,26 @@ def incomplete_aa(rows: list[dict]) -> list[dict]:
     ]
     for pair in pairs:
         require_compatible([pair])
-    # Never aggregate diagnostic A/A across changed implementations/settings.
-    latest = signature(pairs[-1]["fse-a"]) if pairs else None
-    return [pair for pair in pairs if signature(pair["fse-a"]) == latest]
+    configurations: dict[str, list[dict]] = {}
+    for pair in pairs:
+        configurations.setdefault(signature(pair["fse-a"]), []).append(pair)
+    return list(configurations.values())
+
+
+def incomplete_aa(rows: list[dict]) -> list[dict]:
+    groups = diagnostic_aa_groups(rows)
+    return groups[-1] if groups else []
+
+
+def diagnostic_aa(rows: list[dict]) -> list[dict]:
+    return [
+        {
+            "configuration": json.loads(signature(group[0]["fse-a"])),
+            "valid_pairs": len(group),
+            **aa_summary(group),
+        }
+        for group in diagnostic_aa_groups(rows)
+    ]
 
 
 def summarize(path: Path, hourly_price: float) -> dict:
@@ -137,6 +154,7 @@ def summarize(path: Path, hourly_price: float) -> dict:
             "raw": str(path),
             "status": "incomplete",
             "valid_pairs": 0,
+            "diagnostic_aa_configurations": diagnostic_aa(rows),
             **aa_summary(incomplete_aa(rows)),
             "aa_scope": "diagnostic valid A/A operations, incomplete speed series",
         }
@@ -149,6 +167,7 @@ def summarize(path: Path, hourly_price: float) -> dict:
         "raw": str(path),
         "status": "complete",
         "identity_status": identity_status(pairs),
+        "diagnostic_aa_configurations": diagnostic_aa(rows),
         "valid_pairs": len(pairs),
         "corpus": pairs[0]["fse-a"]["corpus"],
         "workers": pairs[0]["fse-a"]["threads"],

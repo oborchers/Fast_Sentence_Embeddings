@@ -27,22 +27,26 @@ def verified_binary() -> tuple[Path, dict]:
     return BINARY, record
 
 
+def build_worker() -> None:
+    inputs = build_inputs()
+    subprocess.run(["cargo", "build", "--release", "--locked"], cwd=ROOT, check=True)
+    if inputs != build_inputs():
+        raise ValueError("Rust sources changed during the build")
+    record = {
+        "inputs": inputs,
+        "binary_digest": file_digest(BINARY),
+        "rustc": subprocess.check_output(["rustc", "--version"], text=True).strip(),
+        "command": ["cargo", "build", "--release", "--locked"],
+    }
+    MANIFEST.write_text(json.dumps(record, indent=2) + "\n")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--coordination", type=Path, required=True)
     args = parser.parse_args()
     with task_reservation(args.coordination):
-        inputs = build_inputs()
-        subprocess.run(["cargo", "build", "--release", "--locked"], cwd=ROOT, check=True)
-        if inputs != build_inputs():
-            raise ValueError("Rust sources changed during the build")
-        record = {
-            "inputs": inputs,
-            "binary_digest": file_digest(BINARY),
-            "rustc": subprocess.check_output(["rustc", "--version"], text=True).strip(),
-            "command": ["cargo", "build", "--release", "--locked"],
-        }
-        MANIFEST.write_text(json.dumps(record, indent=2) + "\n")
+        build_worker()
 
 
 if __name__ == "__main__":
