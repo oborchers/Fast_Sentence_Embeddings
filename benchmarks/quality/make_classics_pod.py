@@ -1,4 +1,4 @@
-"""Generate Pod 5, historical GloVe protocol, with a 220-minute work/export limit."""
+"""Generate Pod 5, historical GloVe protocol, with a 215-minute work/export limit."""
 
 from __future__ import annotations
 
@@ -16,6 +16,18 @@ FINALIZER = """import hashlib, json, sys
 from pathlib import Path
 root = Path('/dr151-results')
 status = int(sys.argv[2])
+models = Path('/dr151-cache/models')
+for pattern in ('*.json', '*.jsonl', '*-fit.npz'):
+    for path in models.glob(pattern):
+        shutil.copy2(path, root / path.name)
+memory = {}
+for name in ('memory.current', 'memory.peak', 'memory.max',
+             'memory/memory.usage_in_bytes', 'memory/memory.max_usage_in_bytes',
+             'memory/memory.limit_in_bytes'):
+    path = Path('/sys/fs/cgroup') / name
+    if path.is_file():
+        memory[name] = path.read_text().strip()
+(root / 'container-memory.json').write_text(json.dumps(memory, indent=2) + '\\n')
 files = []
 for path in sorted(root.rglob('*')):
     if path.is_file() and path.name != 'transfer-manifest.json':
@@ -43,7 +55,21 @@ import json, shutil
 from pathlib import Path
 free = shutil.disk_usage('/dr151-cache').free
 ram = int(next(line.split()[1] for line in Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemTotal:'))) * 1024
-print(json.dumps({'free_bytes': free, 'ram_bytes': ram}), flush=True)
+limits = []
+for name in ('/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes'):
+    path = Path(name)
+    if path.is_file():
+        value = path.read_text().strip()
+        if value != 'max':
+            limits.append(int(value))
+ram = min([ram, *limits])
+current = Path('/sys/fs/cgroup/memory.current')
+if not current.is_file():
+    current = Path('/sys/fs/cgroup/memory/memory.usage_in_bytes')
+used = int(current.read_text()) if current.is_file() else 0
+if ram - used < 56 * 2**30:
+    raise SystemExit('Pod 5 needs at least 56 GiB cgroup headroom before setup')
+print(json.dumps({'free_bytes': free, 'effective_ram_bytes': ram, 'cgroup_limits': limits}), flush=True)
 if free < 150 * 2**30 or ram < 58 * 2**30:
     raise SystemExit('Pod 5 requires 64 GB RAM and 200 GB disk, with 150 GiB initially free')
 DR151_PREFLIGHT
@@ -54,9 +80,9 @@ DR151_PREFLIGHT
     work = work.replace("build-essential git curl", "time build-essential git curl")
     work += install_quality()
     work += """printf 'stage_end environment %s\\n' "$(/usr/bin/date -u +%FT%TZ)"
-run_stage classics /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod5.py --workers 16
+run_stage classics /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/pod5.py --workers 2
 """
-    shell = template(commit, limit=13200, export_reserve=120)
+    shell = template(commit, limit=12900, export_reserve=120)
     start = shell.index("\n", shell.index("<<'DR151_WORK'")) + 1
     end = shell.index("DR151_WORK\n", start)
     shell = shell[:start] + work + shell[end:]
@@ -69,6 +95,21 @@ run_stage classics /usr/bin/nice -n 10 /dr151-env/bin/python benchmarks/quality/
         """  /usr/bin/df -h /dr151-cache
   /usr/local/bin/python -c 'import shutil; assert shutil.disk_usage("/dr151-cache").free >= 40*2**30, "Pod 5 stage needs 40 GiB free"' || return 1
   if "$@";""",
+    )
+    shell = shell.replace(
+        "started=$(/usr/bin/date +%s)",
+        """actual_started=$(/usr/bin/date +%s)
+if ! [[ "${DR151_ALLOCATION_EPOCH:-}" =~ ^[0-9]{10}$ ]]; then
+  printf 'ERROR missing allocation budget epoch. ALL_DONE\\n' >&2
+  /usr/bin/sleep infinity
+  exit 2
+fi
+started=$DR151_ALLOCATION_EPOCH
+if [ "$started" -gt "$actual_started" ] || [ "$((actual_started - started))" -gt 600 ]; then
+  printf 'ERROR invalid or stale allocation budget epoch. ALL_DONE\\n' >&2
+  /usr/bin/sleep infinity
+  exit 2
+fi""",
     )
     return shell.replace(
         "Additional Pod 3. python:3.13, cpu3c, 32 vCPU, 64 GB RAM, 150 GB disk.",

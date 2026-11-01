@@ -49,7 +49,8 @@ def test_zero_results_cannot_complete(pod, tmp_path):
 
 def test_child_failure_records_receipt_and_stops(pod, monkeypatch, tmp_path):
     monkeypatch.setattr(pod, "require_space", lambda _: None)
-    monkeypatch.setattr(pod.subprocess, "run", lambda *_a, **_k: SimpleNamespace(returncode=17))
+    monkeypatch.setenv("DR151_DEADLINE", "9999999999")
+    monkeypatch.setattr(pod, "run_bounded", lambda *_a: 17)
     with pytest.raises(RuntimeError, match="exit 17"):
         pod.invoke("task", ["false"], tmp_path, tmp_path)
     assert json.loads((tmp_path / "invocations.jsonl").read_text())["returncode"] == 17
@@ -73,7 +74,7 @@ def test_shell_and_finalizer_keep_failure_evidence(tmp_path):
     path.write_text(work)
     subprocess.run(["bash", "-n", str(path)], check=True)
     assert work.index("run_stage ssh") < work.index("git clone")
-    assert "13200 - 120" in shell
+    assert "12900 - 120" in shell
     assert "--branch dr151-quality" in work
     assert "150 * 2**30" in work
     assert "sleep infinity" in shell
@@ -95,3 +96,28 @@ def test_paragram_pin_preserves_earlier_pod_scope():
     sources = importlib.import_module("classic_sources")
     assert len(sources.SOURCES) == 4
     assert sources.ALL_SOURCES["paragram-300-sl999"] == "c99818c1470d5c4e454eb9d59dfce2b179dba455"
+
+
+def test_timeout_reaps_child_group_and_reports_failure(pod, monkeypatch):
+    signals = []
+
+    class Child:
+        pid = 123
+        calls = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def wait(self, timeout=None):
+            self.calls += 1
+            if self.calls == 1:
+                raise subprocess.TimeoutExpired("child", timeout)
+            return 0
+
+    monkeypatch.setattr(pod.subprocess, "Popen", lambda *_a, **_k: Child())
+    monkeypatch.setattr(pod.os, "killpg", lambda pid, signum: signals.append((pid, signum)))
+    assert pod.run_bounded(["child"], 1) == 124
+    assert signals == [(123, pod.signal.SIGTERM), (123, pod.signal.SIGKILL)]

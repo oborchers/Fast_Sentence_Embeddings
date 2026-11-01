@@ -7,9 +7,11 @@ import json
 import math
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
+from contextlib import suppress
 from pathlib import Path
 
 SOURCES = ("word2vec-google-news-300", "fasttext-crawl-subwords-300", "paragram-300-sl999")
@@ -27,24 +29,66 @@ def require_space(cache, gib=40):
         )
 
 
+def memory_snapshot():
+    record = {}
+    for name in (
+        "memory.current",
+        "memory.peak",
+        "memory.max",
+        "memory/memory.usage_in_bytes",
+        "memory/memory.max_usage_in_bytes",
+        "memory/memory.limit_in_bytes",
+    ):
+        path = Path("/sys/fs/cgroup") / name
+        if path.is_file():
+            record[name] = path.read_text().strip()
+    return record
+
+
+def run_bounded(command, seconds):
+    if seconds <= 0:
+        return 124
+    with subprocess.Popen(command, start_new_session=True) as child:
+        try:
+            return child.wait(timeout=seconds)
+        except subprocess.TimeoutExpired:
+            with suppress(ProcessLookupError):
+                os.killpg(child.pid, signal.SIGTERM)
+            with suppress(subprocess.TimeoutExpired):
+                child.wait(timeout=5)
+            with suppress(ProcessLookupError):
+                os.killpg(child.pid, signal.SIGKILL)
+            child.wait()
+            return 124
+
+
 def invoke(name, command, cache, output):
     require_space(cache)
     print(f"stage_start {name}", flush=True)
     started = time.time()
     command = ["/usr/bin/time", "-v", "-o", str(output / f"{name}.rss.txt"), *command]
-    result = subprocess.run(command, check=False)
+    (output / "active-stage.json").write_text(
+        json.dumps(
+            {"stage": name, "command": command, "started_epoch": started, "returncode": None}
+        )
+        + "\n"
+    )
+    seconds = int(os.environ["DR151_DEADLINE"]) - time.time() - 20
+    returncode = run_bounded(command, seconds)
     row = {
         "stage": name,
         "command": command,
-        "returncode": result.returncode,
+        "returncode": returncode,
         "seconds": time.time() - started,
-        "status": "completed" if result.returncode == 0 else "failed",
+        "memory_after": memory_snapshot(),
+        "status": "completed" if returncode == 0 else "failed",
     }
     with (output / "invocations.jsonl").open("a") as stream:
         stream.write(json.dumps(row) + "\n")
-    print(f"stage_end {name} status={result.returncode}", flush=True)
-    if result.returncode:
-        raise RuntimeError(f"stage {name} failed with exit {result.returncode}")
+    (output / "active-stage.json").write_text(json.dumps(row) + "\n")
+    print(f"stage_end {name} status={returncode}", flush=True)
+    if returncode:
+        raise RuntimeError(f"stage {name} failed with exit {returncode}")
 
 
 def verify_task(path, model, task):
@@ -76,7 +120,7 @@ def task_plan():
 
 
 def run(cache, output, workers):
-    from classic_sources import stem
+    from classic_sources import ALL_SOURCES, stem
 
     models = cache / "models"
     models.mkdir()
@@ -118,7 +162,18 @@ def run(cache, output, workers):
         for path in models.glob("*-fit.npz"):
             shutil.copy2(path, output / path.name)
         model = f"fse/{stem(source)}-float32"
-        last = None
+        deferred = {
+            "model": model,
+            "source_model": f"fse/{source}",
+            "source_revision": ALL_SOURCES[source],
+            "task": "MindSmallReranking",
+            "status": "not computed",
+            "reason": REASON,
+            "main_score": None,
+            "benchmark": "MTEB(eng, v2)",
+            "table_dtype": "float32",
+        }
+        (output / (source + "-excluded.json")).write_text(json.dumps(deferred, indent=2) + "\n")
         for task in tasks:
             name = source + "-" + task
             path = output / (name + ".jsonl")
@@ -145,17 +200,7 @@ def run(cache, output, workers):
                 cache,
                 output,
             )
-            last = verify_task(path, model, task)
-        deferred = {
-            **last,
-            "task": "MindSmallReranking",
-            "task_metadata": None,
-            "status": "not computed",
-            "reason": REASON,
-            "main_score": None,
-            "benchmark": "MTEB(eng, v2)",
-        }
-        (output / (source + "-excluded.json")).write_text(json.dumps(deferred, indent=2) + "\n")
+            verify_task(path, model, task)
     (output / "complete.json").write_text(
         json.dumps(
             {
@@ -175,7 +220,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cache", type=Path, default=Path("/dr151-cache"))
     parser.add_argument("--output", type=Path, default=Path("/dr151-results"))
-    parser.add_argument("--workers", type=int, default=16)
+    parser.add_argument("--workers", type=int, default=2)
     args = parser.parse_args()
     if sys.platform != "linux" or args.output.resolve() != Path("/dr151-results"):
         raise RuntimeError("Pod 5 runs only on Linux with results under /dr151-results")
