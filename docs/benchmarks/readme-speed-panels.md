@@ -119,7 +119,7 @@ Both rows name the same combined paired journal and series. Preserve original re
 The renderer derives core settings from `selection_rows` using the shared input for each model.
 Dtype cells must match that input. Library bars may have their own inputs, but both arms of each bar must match exactly.
 All displayed cells still require the selection model, runtime, machine, corpus and output context. It then
-and filters out other settings before rendering. It rejects missing chosen rows, mixed contexts, noisy/unattributed rows
+filters out other settings before rendering. It rejects missing chosen rows, mixed contexts, noisy/unattributed rows
 and stale unselected output files before writing.
 It never silently retains withdrawn claims or deletes files.
 
