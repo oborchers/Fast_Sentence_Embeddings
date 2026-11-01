@@ -19,27 +19,27 @@ def duration_rows(rows):
     )
 
 
+def readme_cell(raw, checks, cell):
+    done = [r for r in raw if r.get("event") == "series_complete" and r["cell"] == cell]
+    checked = [r for r in checks if r["cell"] == cell]
+    if len(done) != 1 or len(checked) != 1:
+        return {"cell": cell, "eligible": False}
+    rows = [r for r in raw if r.get("series_id") == done[0]["series_id"]]
+    operations = [r for r in rows if r.get("event") == "operation"]
+    rounds = [r for r in rows if r.get("event") == "round_complete"]
+    against = cell.rsplit("/", 1)[-1]
+    labels = ["fse-a", "fse-b", *([] if against == "table" else [against])]
+    summary = encode(done[0], operations, rounds, labels, checked[0])
+    summary["eligible"] &= duration_rows(operations) and duration_rows(
+        list(checked[0]["records"].values())
+    )
+    return summary
+
+
 def readme(path, expected):
     raw = read_jsonl(path / "speed-results.jsonl")
     checks = read_jsonl(path / "output-checks.jsonl")
-    result = []
-    for cell in expected:
-        done = [r for r in raw if r.get("event") == "series_complete" and r["cell"] == cell]
-        checked = [r for r in checks if r["cell"] == cell]
-        if len(done) != 1 or len(checked) != 1:
-            result.append({"cell": cell, "eligible": False})
-            continue
-        rows = [r for r in raw if r.get("series_id") == done[0]["series_id"]]
-        operations = [r for r in rows if r.get("event") == "operation"]
-        rounds = [r for r in rows if r.get("event") == "round_complete"]
-        against = cell.rsplit("/", 1)[-1]
-        labels = ["fse-a", "fse-b", *([] if against == "table" else [against])]
-        summary = encode(done[0], operations, rounds, labels, checked[0])
-        summary["eligible"] &= duration_rows(operations) and duration_rows(
-            list(checked[0]["records"].values())
-        )
-        result.append(summary)
-    return {"cells": result}
+    return {"cells": [readme_cell(raw, checks, cell) for cell in expected]}
 
 
 def classification(path):

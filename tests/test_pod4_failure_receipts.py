@@ -71,7 +71,7 @@ def test_wrapper_requires_probe_and_exports_setup_failure(modules):
     script = modules["make_fixup_pod"].script("a" * 40)
     assert 'if [ "$probe_status" -ne 0 ]; then exit "$probe_status"; fi' in script
     assert 'if [ "$receipt_status" -ne 0 ]; then exit "$receipt_status"; fi' in script
-    assert "timeout --signal=TERM --kill-after=10 900" in script
+    assert 'timeout --foreground --signal=TERM --kill-after=10 "$probe_seconds"' in script
     assert script.index("quiet-probe") < script.index("run_stage readme-panels")
     assert '"$status" --no-sentinel' in script
     assert 'failure_manifest "$export_status" export-failed' in script
