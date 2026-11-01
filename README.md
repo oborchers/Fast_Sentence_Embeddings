@@ -67,6 +67,26 @@ The [numerical contract](docs/architecture/numerical-contract.md) defines fse's 
 Converted models can differ from their original library within float32 rounding.
 Quantized models can lose quality. Bit identity does not mean equal quality between models or storage types.
 
+### Keep compute close to your text
+
+For a local application, start by running fse in the process that already has the text.
+This avoids moving text and vectors through a service. Measure that transfer cost before adding a service.
+
+One [notebook measurement](recipes/07-local-compute-and-http.ipynb), dated 1 November 2026,
+used an Apple M1 Pro, macOS 27.0.1, Python 3.13.16 and one worker with the full GloVe-300 table:
+
+| Work measured | Median time |
+|---|---:|
+| Encode a batch of 10,000 texts, per text | 0.736 microseconds |
+| Encode one text in one call | 52.3 microseconds |
+| Receive a fixed JSON vector over localhost HTTP, with keepalive | 178.8 microseconds |
+
+The batch result uses five warm batches of 1,000 STS-B texts repeated ten times.
+The other results use 100 calls each. Load was 4.7114 before and after timing.
+The HTTP measurement excludes embedding compute and JSON parsing. These are different operations, not a service speedup comparison.
+One actual normalized vector used 1,200 bytes as 300 float32 values and 6,320 bytes as compact UTF-8 JSON.
+JSON size depends on the values and formatting. Batching, concurrency and real networks change these costs.
+
 ## Which model, which dtype?
 
 Start with a model designed for your language and task. The links below lead to its publisher's model card.
