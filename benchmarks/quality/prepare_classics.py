@@ -22,7 +22,7 @@ from compare_inputs import identity  # isort: skip
 from quality_coordination import task_reservation  # isort: skip
 from classic_corpus import batches, fit_corpus, frequencies  # isort: skip
 from classic_math import components, fold_table, gram_of_batches, reference_means, sif_weights  # isort: skip
-from classic_sources import FIT_LINES, FIT_REPO, FIT_REVISION, SEED, SOURCES, stem  # isort: skip
+from classic_sources import ALL_SOURCES, FIT_LINES, FIT_REPO, FIT_REVISION, SEED, stem  # isort: skip
 from preparation_catalog import register  # isort: skip
 
 
@@ -33,7 +33,7 @@ def source_model(name: str):
     folder = Path(
         snapshot_download(
             f"fse/{name}",
-            revision=SOURCES[name],
+            revision=ALL_SOURCES[name],
             allow_patterns=[f"{name}.model", f"{name}.model.*.npy", "README.md"],
             max_workers=2,
         )
@@ -162,7 +162,7 @@ def prepare(name: str, folder: Path, cache: Path, workers: int, dtypes: list[str
     record = {
         **identity(),
         "source": f"fse/{name}",
-        "revision": SOURCES[name],
+        "revision": ALL_SOURCES[name],
         "recipe": "plain mean" if name == "paranmt-300" else "SIF-10",
         "load_path": "KeyedVectors.load(mmap='r') -> fse.gensim.from_gensim -> Encoder",
         "timing_proxy": bool(proxy),
@@ -192,7 +192,7 @@ def prepare(name: str, folder: Path, cache: Path, workers: int, dtypes: list[str
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--name", choices=sorted(SOURCES), required=True)
+    parser.add_argument("--name", choices=sorted(ALL_SOURCES), required=True)
     parser.add_argument("--folder", type=Path, required=True)
     parser.add_argument("--cache", type=Path, default=Path.home() / ".cache/fse-quality")
     parser.add_argument("--workers", type=int, default=2)
