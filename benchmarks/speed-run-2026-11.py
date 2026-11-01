@@ -226,12 +226,154 @@ def describe(contract):
     }
 
 
+def package_identity(name):
+    from importlib import import_module, metadata
+
+    module = import_module(name.replace("-", "_"))
+    distribution = metadata.distribution(name)
+    digest = hashlib.sha256()
+    files = []
+    for item in sorted(distribution.files or []):
+        path = Path(distribution.locate_file(item))
+        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
+            digest.update(str(item).encode())
+            digest.update(bytes.fromhex(sha256(path)))
+            files.append(str(item))
+    for path in sorted(Path(module.__file__).resolve().parent.rglob("*")):
+        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
+            digest.update(str(path.relative_to(Path(module.__file__).resolve().parent)).encode())
+            digest.update(bytes.fromhex(sha256(path)))
+    if not files:
+        raise ValueError("backend distribution has no verifiable installed files")
+    return {
+        "package": name,
+        "version": distribution.version,
+        "path": module.__file__,
+        "sha256": digest.hexdigest(),
+        "files": len(files),
+    }
+
+
+def encoder(job):
+    kind, workers = job["backend"], job["workers"]
+    if kind == "fse":
+        from fse import Encoder
+
+        model = Encoder.load(job["artifact"], mmap=True)
+        if model.word_vectors.dtype != job["dtype"]:
+            raise ValueError("finished table dtype differs from the requested cell")
+        return lambda texts: model.encode(texts, workers=workers)
+    if kind == "model2vec":
+        from model2vec import StaticModel
+
+        model = StaticModel.from_pretrained(job["snapshot"], normalize=True)
+        return lambda texts: model.encode(texts, use_multiprocessing=workers > 1)
+    if kind == "st":
+        import torch
+        from sentence_transformers import SentenceTransformer
+
+        torch.set_num_threads(workers)
+        model = SentenceTransformer(job["snapshot"], device="cpu", local_files_only=True)
+        return lambda texts: model.encode(
+            texts, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False
+        )
+    if kind == "fastembed":
+        import numpy as np
+        from fastembed import TextEmbedding
+
+        model = TextEmbedding(
+            model_name=job["model"], specific_model_path=job["snapshot"], local_files_only=True
+        )
+        return lambda texts: np.stack(list(model.embed(texts, parallel=None)))
+    raise ValueError(f"unsupported Python backend: {kind}")
+
+
+def configure(workers):
+    for name in (
+        "OMP_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "BLIS_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+        "RAYON_NUM_THREADS",
+    ):
+        os.environ[name] = str(workers)
+    os.environ["TOKENIZERS_PARALLELISM"] = "true" if workers > 1 else "false"
+    if hasattr(os, "sched_getaffinity"):
+        cpus = sorted(os.sched_getaffinity(0))
+        if len(cpus) < workers:
+            raise ValueError("requested workers exceed available CPU affinity")
+        os.sched_setaffinity(0, cpus[:workers])
+
+
+def measure_child(job):
+    configure(job["workers"])
+    import resource
+
+    import numpy as np
+
+    package = {
+        "fse": "fse",
+        "model2vec": "model2vec",
+        "st": "sentence-transformers",
+        "fastembed": "fastembed",
+    }[job["backend"]]
+    identity = package_identity(package)
+    with Path(job["input_file"]).open() as stream:
+        texts = [line.rstrip("\n") for line in stream]
+    if len(texts) != job["texts"] or sha256(Path(job["input_file"])) != job["input_sha256"]:
+        raise ValueError("input row count or digest changed")
+    started = time.perf_counter()
+    encode = encoder(job)
+    load_seconds = time.perf_counter() - started
+    durations, outputs = [], []
+    for _ in range(1 + job.get("warm_passes", 1)):
+        started = time.perf_counter()
+        vectors = encode(texts)
+        durations.append(time.perf_counter() - started)
+        if vectors.dtype != np.float32 or vectors.ndim != 2 or len(vectors) != len(texts):
+            raise ValueError("backend must return the agreed dense float32 output")
+        digest = hashlib.sha256(memoryview(np.ascontiguousarray(vectors)).cast("B")).hexdigest()
+        outputs.append(digest)
+        if len(outputs) == 1:
+            mapped = np.lib.format.open_memmap(
+                job["vectors_file"], mode="w+", dtype="float32", shape=vectors.shape
+            )
+            for start in range(0, len(vectors), 4096):
+                mapped[start : start + 4096] = vectors[start : start + 4096]
+            mapped.flush()
+            del mapped
+        del vectors
+    if len(set(outputs)) != 1 or package_identity(package) != identity:
+        raise ValueError("output or executing backend changed between calls")
+    atomic(
+        Path(job["receipt"]),
+        {
+            "label": job["label"],
+            "round": job["round"],
+            "identity": identity,
+            "first_seconds": durations[0],
+            "warm_seconds": durations[1:],
+            "output_sha256": outputs[0],
+            "output_checked": False,
+            "load_seconds": load_seconds,
+            "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            * (1 if sys.platform == "darwin" else 1024),
+        },
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=INPUT)
-    parser.add_argument("--describe", action="store_true", required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--describe", action="store_true")
+    mode.add_argument("--child-job", type=Path)
     args = parser.parse_args()
-    print(json.dumps(describe(document(args.input)), indent=2))
+    if args.child_job:
+        measure_child(document(args.child_job))
+    else:
+        print(json.dumps(describe(document(args.input)), indent=2))
 
 
 if __name__ == "__main__":
