@@ -19,3 +19,7 @@ lancedb==0.41.0
 qdrant-client==1.20.0
 polars==2.1.0
 pyarrow==26.0.0
+matplotlib==3.11.2
+model2vec[train]==0.10.0
+torch==2.15.0
+fasttext==0.9.3
