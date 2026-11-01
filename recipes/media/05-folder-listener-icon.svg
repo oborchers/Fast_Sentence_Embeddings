@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+<defs><style type="text/css">:root{--recipe-bg:#FAFAF8;--recipe-card:#F0EBE3;--recipe-accent:#2D6A4F;--recipe-text:#1E1B18;--recipe-muted:#4F463E;--recipe-highlight:#D4E8DC}@media(prefers-color-scheme:dark){:root{--recipe-bg:#0F0D0A;--recipe-card:#1C1916;--recipe-accent:#5B9E7D;--recipe-text:#E8E4DF;--recipe-muted:#B0A9A0;--recipe-highlight:#1A2E24}}</style></defs><rect x="2" y="2" width="60" height="60" rx="14" fill="var(--recipe-highlight)"/>
+<text x="32" y="42" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="bold" fill="var(--recipe-accent)">05</text></svg>

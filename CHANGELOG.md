@@ -4,7 +4,17 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
-fse 2.0 is in development on master; it changes the API and the file format (see docs/architecture/overview.md, "Principle and stages"). Entries collect here until the release.
+- Prepare LangChain, LlamaIndex and Haystack integration packages under `integrations/`, with isolated package CI, real-model retrieval examples and independent approval-gated release workflows. The planned 0.1.0 packages require fse 2.0.0.
+
+fse 2.0 is in development on master. It is an inference engine for finished static embedding models.
+It adds encoders for word tables, Model2Vec and supported sentence-transformers StaticEmbedding models,
+linear heads trained elsewhere, and saved vector stores with cosine search.
+It removes the 1.x training API (`Average`, `SIF`, `uSIF`), indexed input classes, and pickle model loading.
+Prepare weights and removed directions offline, then encode with a finished table.
+The API and saved file format change. See the [migration guide](docs/migrating-from-1x.md) before upgrading.
+The 1.x branch remains maintained. Entries collect here until the release.
+
+- Added a migration guide with executable 2.0 examples and a recorded comparison against 1.x.
 
 - Architecture documentation is split by topic under `docs/architecture/`; `ARCHITECTURE.md` indexes it and preserves the former section links.
 
@@ -21,6 +31,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 - Pinned comparison caches select inference files without requiring unused model exports or evaluation metadata.
 
 - Comparison recorders reject backend or shared encoder code changes during evaluation, and precision deltas require matching executing runtimes.
+- Recipes now guide end users through real POTION and public-dataset examples, with diagrams, a first fse 101 recipe, and a shared-split classification comparison.
+
 - `ShardSink` reports the first thread failure instead of a later failure caused by it, regardless of which thread the caller checks first.
 
 - `MemorySink` accepts positive numpy integer dimensions, matching the public integer validation contract. Booleans, floats and nonpositive dimensions remain errors.
@@ -44,6 +56,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 ### Added
 
 - Reproducible CPU comparison journals with paired A/A controls, pinned inputs and environments, explicit table precision, numerical subspace and recall checks, and native Model2Vec quality adapters. Initial POTION-8M measurements and remaining comparison scope are documented in PERFORMANCE.md.
+- A recipe for folding a trained linear classifier into word vectors, comparing quality and saved file sizes, and saving and reloading complete and standalone models.
+
 - Local recipe notebooks for offline SIF/uSIF tables, linear heads, resumable file and queue jobs, folder polling and application integrations, with a localhost overhead measurement. Recipe dependencies remain separate from fse.
 
 - A measured RunPod EPYC 9655P roofline profile and Linux x86 performance observations, with shared-host, CPU-affinity and profiling limitations.
