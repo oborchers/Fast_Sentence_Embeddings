@@ -157,6 +157,25 @@ Their recipe is an unweighted mean with `fse_words@1` tokens and normalized outp
 Use these sizes to plan disk storage. Measure peak memory, speed and quality for your workload.
 The source records exact byte counts, model revisions and the environment that prepared the files.
 
+### First task-quality sample
+
+One [quality sample](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/e11d7b440e82f02516347145a186762f111ce27a/docs/benchmarks/readme-quality-20261101/README.md)
+measured POTION-8M with a float32 table and two fse workers on 1 November 2026.
+It used an Apple M1 Pro, macOS 27.0.1, Python 3.13.16, NumPy 2.5.4 and MTEB 2.26.25.
+MTEB is a collection of tests for text vectors. NanoBEIR is a set of 13 small search tests.
+
+| Task group | Coverage | Mean task score, points |
+|---|---|---:|
+| English MTEB(eng, v2), completed tasks only | 40 of 41, MIND deferred | 53.9527 |
+| NanoBEIR search tasks | All 13 of 13 | 43.8485 |
+
+Each completed task has equal weight. Points are 100 times the native task score.
+The English row averages only 40 completed tasks. The coordinator deferred MindSmallReranking (MIND).
+It is **not the complete 41-task benchmark score**.
+English tasks use different metrics. NanoBEIR uses `ndcg_at_10`, a score for the first ten search results.
+The source records every task, metric, dataset revision and the exact saved model identity.
+Other models, table precisions and their quality changes from float32 remain pending. No quality ranking follows.
+
 ### First neighborhood stability check
 
 An [audit of POTION-8M](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/771fc882e1813ec9b57faa9d04435ef2cd850262/benchmarks/baseline/results/dr151-numerics.jsonl)
@@ -172,9 +191,9 @@ It then measured how many of those neighbors each candidate retained, compared w
 
 Every text had a nonzero vector. The audit excludes each text from its own neighbor list.
 For equal scores, the earlier text in the input comes first. All outputs are float32.
-These results measure neighborhood stability on this input. Classification and retrieval task scores remain pending.
+These results measure neighborhood stability on this input. Further model and dtype task comparisons remain pending.
 
-TODO(DR-151): Add the remaining peak-memory and speed comparisons, plus all task-score comparisons.
+TODO(DR-151): Add the remaining peak-memory, speed and task-score comparisons.
 Include quality change from each model's float32 result. Name the dataset, metric, revision and date.
 
 ## Benchmarks
