@@ -1,0 +1,42 @@
+{
+  "stage": "before-preparation",
+  "time_utc": "2026-11-01T10:25:33Z",
+  "filesystem": {
+    "total": 214748364800,
+    "used": 3720245248,
+    "free": 211028119552
+  },
+  "categories": {
+    "finished_models": {
+      "path": "/dr151-results/models",
+      "regular_file_bytes": 0,
+      "files": 0
+    },
+    "hub": {
+      "path": "/dr151-cache/huggingface/hub",
+      "regular_file_bytes": 0,
+      "files": 0
+    },
+    "datasets_arrow": {
+      "path": "/dr151-cache/huggingface/datasets",
+      "regular_file_bytes": 0,
+      "files": 0
+    },
+    "xet": {
+      "path": "/dr151-cache/huggingface/xet",
+      "regular_file_bytes": 0,
+      "files": 0
+    },
+    "uv": {
+      "path": "/dr151-cache/uv",
+      "regular_file_bytes": 1688672557,
+      "files": 32653
+    },
+    "temporary": {
+      "path": "/dr151-cache/tmp",
+      "regular_file_bytes": 0,
+      "files": 1
+    }
+  },
+  "scope": "regular-file apparent bytes, symlinks excluded; filesystem usage includes all allocated data"
+}
