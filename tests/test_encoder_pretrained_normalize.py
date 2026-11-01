@@ -11,6 +11,8 @@ import pytest
 import fse
 from fse._contract import Normalize, UnsupportedArtifactError
 from fse._encoder import Encoder, _persist
+from fse._encoder._format import Source
+from fse._tokenizer_spec import TokenizerSpec
 from support import quantized as qz
 from support.encoder import finished
 from support.runtime import texts
@@ -75,13 +77,45 @@ def test_normalize_is_checked_against_the_config_before_it_changes_the_encoder(t
 
 
 def test_the_encoder_without_normalization_keeps_its_provenance(tmp_path):
-    folder = finished().save_pretrained(tmp_path / "fse", license="mit")
+    wv = finished().word_vectors
+    source = Source("model2vec", "org/name", "abc", (8, 6))
+    converted = Encoder._converted(
+        wv, TokenizerSpec.of("fse_words@1"), normalize=True, source=source, license="mit"
+    )
+    folder = converted.save_pretrained(tmp_path / "fse")
     original = Encoder.from_pretrained(folder)
+    assert original._content.source == source
+    assert original._content.license == "mit"
     raw = Encoder.from_pretrained(folder, normalize=False)
-    assert raw._content.source == original._content.source
-    assert raw._content.license == original._content.license
+    assert raw._content.source == source
+    assert raw._content.license == "mit"
     assert raw.fingerprint != original.fingerprint
     assert original.steps == ("normalize@1",)
+    raw.save(tmp_path / "raw.safetensors")
+    again = Encoder.load(tmp_path / "raw.safetensors")
+    assert (again._content.source, again._content.license) == (source, "mit")
+
+
+@pytest.mark.parametrize("fasttext", [False, True])
+@pytest.mark.parametrize("asked", [False, True])
+def test_a_changed_encoder_shares_the_table_path_and_checks_of_the_loaded_one(
+    tmp_path, asked, fasttext
+):
+    folder = finished(fasttext=fasttext, normalize=not asked).save_pretrained(
+        tmp_path / "fse", license="mit"
+    )
+    base = Encoder.from_pretrained(folder, mmap=True)
+    changed = Encoder.from_pretrained(folder, normalize=asked, mmap=True)
+    shared = _persist.with_normalize(base, asked)
+    assert shared is not base
+    assert shared._word_vectors is base._word_vectors
+    assert (shared._path, shared._checksums) == (base._path, base._checksums)
+    assert shared._checksums
+    assert changed._path == base._path
+    shared.verify()
+    changed.verify()
+    assert _persist.with_normalize(shared, asked) is shared
+    assert _persist.with_normalize(base, "model") is base
 
 
 @pytest.mark.parametrize("fasttext", [False, True])
