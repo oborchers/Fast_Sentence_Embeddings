@@ -146,7 +146,7 @@ def operation(args, label: str) -> dict:
             "HEAD",
             "--",
             "src",
-            "benchmarks",
+            ":(glob)benchmarks/**/*.py",
             "pyproject.toml",
             "setup.py",
             "uv.lock",

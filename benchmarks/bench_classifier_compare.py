@@ -174,8 +174,10 @@ def child(args):
             "p95_s": float(np.percentile(passes, 95)),
             "warm_seconds": passes.tolist(),
             "datasets": records,
-            "file_bytes": sum(p.stat().st_size for p in args.classifiers.rglob("*") if p.is_file()),
-            "file_bytes_scope": "entire prepared classifier suite, all variants",
+            "file_bytes": sum(
+                {path: size for row in records for path, size in row["artifacts"].items()}.values()
+            ),
+            "file_bytes_scope": "required weights, tokenizer/config JSON and fitted heads, unique paths",
             "peak_rss_bytes": peak if sys.platform == "darwin" else peak * 1024,
             "rss_scope": "fresh process, complete test inputs and one classifier at a time",
             "threadpools": threadpool_info(),
@@ -194,7 +196,7 @@ def operation(args, label):
             "HEAD",
             "--",
             "src",
-            "benchmarks",
+            ":(glob)benchmarks/**/*.py",
             "pyproject.toml",
             "setup.py",
             "uv.lock",
