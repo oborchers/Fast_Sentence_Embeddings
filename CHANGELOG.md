@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- `Encoder.from_pretrained(normalize=False | True)` now works for every kind of model, fse encoders (float32, float16, int8, FastText) and Model2Vec models as well as sentence-transformers models. `False` drops a final `normalize@1` and leaves the table unchanged, so linear heads fold into the classic Hub models without a detour through `StaticModel`; `True` appends it. The fingerprint describes the encoder as loaded. (DR-201)
+
+- Fix classic Hub tooling on Windows: preserve approved LF bytes, parse literal CRLF card examples, synchronize staged files through writable handles, and report unknown allocated cache size explicitly. Hub tooling changes now run Windows wheel tests on Python 3.11 and 3.15 in pull requests.
+
+- Add offline preparation and STS-B verification tools for classic word-vector Hub folders, exact PUBLIC publication inventories, isolated read-only post-upload checks, and a release-gated card-only refresh with unchanged model hashes. No models are uploaded.
+
 - Prepare LangChain, LlamaIndex and Haystack integration packages under `integrations/`, with isolated package CI, real-model retrieval examples and independent approval-gated release workflows. The planned 0.1.0 packages require fse 2.0.0.
 
 fse 2.0 is in development on master. It is an inference engine for finished static embedding models.

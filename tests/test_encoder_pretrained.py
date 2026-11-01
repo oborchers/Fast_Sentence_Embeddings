@@ -49,7 +49,7 @@ def test_an_fse_folder_names_its_model_file(model, tmp_path):
         Encoder.from_pretrained(folder, truncate=False)
     with pytest.raises(ValueError, match="max_length: this model holds its own rules"):
         Encoder.from_pretrained(folder / "model.safetensors", max_length=3)
-    with pytest.raises(ValueError, match="normalize and truncate_dim: this model holds"):
+    with pytest.raises(ValueError, match="truncate_dim: this model holds"):
         Encoder.from_pretrained(folder, truncate_dim=2, normalize=False)
     provisional = {k: v for k, v in config.items() if k in ("model_type", "fse_kind")}
     provisional |= {"fse_format_version": 1, "encoder": "model.safetensors"}

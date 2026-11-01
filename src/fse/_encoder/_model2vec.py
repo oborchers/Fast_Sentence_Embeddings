@@ -12,7 +12,7 @@ and a ``tokenizer.json``. Its encoder pools the rows of the token ids with
 ``unigram@1`` (a Unigram one, such as that of potion-multilingual-128M) with the unknown id
 dropped, and the length rule is model2vec 0.10.0's (``model.py``): ``max_length`` tokens (512 unless the
 config says otherwise, null for none) of the first ``max_length`` times the median token
-length characters. ``normalize`` comes from the config (default false). Only float32
+length characters. ``normalize`` comes from the config (default false) unless ``from_pretrained`` gives one. Only float32
 tables: model2vec computes the mean of a float16 table in float16, so the bound of the
 comparison would not hold. Every key of the config is known: the ones used are checked
 against the table, provenance is accepted and ignored, vocabulary quantization and heads
@@ -50,11 +50,17 @@ _DTYPES = {"float32": "float32", "float16": "float16", "int8": "int8", "float64"
 
 
 def read_model2vec(
-    files: Files, config: Any, *, truncate: bool = True, max_length: Any = MODEL_RULE
+    files: Files,
+    config: Any,
+    *,
+    truncate: bool = True,
+    max_length: Any = MODEL_RULE,
+    normalize: Any = MODEL_RULE,
 ) -> Converted:
     """The encoder parts of the files of a Model2Vec model (``FILES``) with its parsed
     ``config``. With ``truncate`` the length rule is the model's, or ``max_length`` tokens
-    (None: no cut); without, texts are read whole."""
+    (None: no cut); without, texts are read whole. ``normalize`` is the config's unless
+    a bool is given."""
     config = check_config(config, files.where("config.json"))
     where = files.where("tokenizer.json")
     tokens, parameters = tokenizer_of(
@@ -67,7 +73,8 @@ def read_model2vec(
     length = _length(config, truncate, max_length)
     max_chars = None if length is None else length * median_length(tokens)
     spec = TokenizerSpec(parameters.identifier, parameters, "drop", length, max_chars)
-    return Converted(words, spec, config.get("normalize", False))
+    own = config.get("normalize", False)
+    return Converted(words, spec, own if normalize == MODEL_RULE else normalize)
 
 
 def check_config(config: Any, path: Path) -> dict[str, Any]:
