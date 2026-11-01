@@ -17,6 +17,9 @@ KEYS = (
     "method_fingerprint",
     "runtime_fingerprint",
     "suite_fingerprint",
+    "source_model",
+    "source_revision",
+    "float32_parent_fingerprint",
 )
 
 

@@ -88,6 +88,13 @@ def model_records(selected, tasks):
     return models
 
 
+def checked_artifact(name, source, artifacts):
+    artifact = artifacts.get(name.removeprefix("fse/") + ".safetensors")
+    if artifact and artifact.get("encoder_fingerprint") != source.get("encoder_fingerprint"):
+        raise ValueError(f"{name}: artifact manifest differs from the measured fingerprint")
+    return artifact
+
+
 def summarize(rows: list[dict], selected_setup: str, artifacts: dict) -> dict:
     tasks = [
         task
@@ -113,9 +120,7 @@ def summarize(rows: list[dict], selected_setup: str, artifacts: dict) -> dict:
                 if row.get("model") == name and row.get("status") == "deferred"
             }
         )
-        artifact = artifacts.get(name.removeprefix("fse/") + ".safetensors")
-        if artifact and artifact.get("encoder_fingerprint") != source.get("encoder_fingerprint"):
-            raise ValueError(f"{name}: artifact manifest differs from the measured fingerprint")
+        artifact = checked_artifact(name, source, artifacts)
         result.append(
             {
                 "model": name,

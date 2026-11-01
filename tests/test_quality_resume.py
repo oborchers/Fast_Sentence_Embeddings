@@ -18,24 +18,8 @@ SPEC.loader.exec_module(MODULE)
 def inputs():
     metadata = {"name": "task", "dataset": {"revision": "pinned"}}
     task = SimpleNamespace(metadata=SimpleNamespace(name="task", model_dump=lambda **_: metadata))
-    specification = dict(
-        zip(
-            MODULE.KEYS,
-            (
-                "fse/model",
-                "rev",
-                "loader",
-                "fingerprint",
-                2,
-                "cpu",
-                {"mteb": "pinned"},
-                "method",
-                "runtime",
-                "suite",
-            ),
-            strict=True,
-        )
-    )
+    specification = {key: key for key in MODULE.KEYS}
+    specification.update(workers=2, device="cpu", versions={"mteb": "pinned"})
     row = {**specification, "task": "task", "task_metadata": metadata, "main_score": 0.5}
     return task, specification, row
 

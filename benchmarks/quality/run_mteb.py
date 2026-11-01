@@ -286,6 +286,8 @@ def run(
                 for key in ("method_fingerprint", "runtime_fingerprint", "suite_fingerprint")
             },
         }
+        specification.update(getattr(model, "provenance", source_identity(name)))
+        specification.setdefault("float32_parent_fingerprint", None)
         pending = pending_tasks(results, specification, tasks) if resume else tasks
         logger.info("%s: %d pending tasks of %d", name, len(pending), len(tasks))
         if defer_mind:

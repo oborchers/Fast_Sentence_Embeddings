@@ -14,26 +14,40 @@ def header(path: Path) -> dict:
         return json.loads(stream.read(size))["__metadata__"]
 
 
+def preparation_record(entry, records, pins):
+    name = entry["artifact"]
+    matches = [record for record in records if name in record["artifacts"]]
+    if len(matches) != 1:
+        raise ValueError(f"{name}: need one unambiguous preparation record")
+    record = matches[0]
+    repo, revision = record["source"], record["revision"]
+    if pins.get(repo) != revision or entry["source"] != repo or entry["revision"] != revision:
+        raise ValueError(f"{name}: preparation source differs from the pin")
+    return record
+
+
+def checked_header(folder, entry, record):
+    name = entry["artifact"]
+    metadata = header(folder / name)
+    embedded = json.loads(metadata.get("fse.source", "null"))
+    if embedded is not None and (
+        embedded["repo"] != record["source"] or embedded["revision"] != record["revision"]
+    ):
+        raise ValueError(f"{name}: embedded source differs from the preparation record")
+    if embedded is None and not record["source"].startswith("fse/"):
+        raise ValueError(f"{name}: converted Hub encoder lacks its embedded source")
+    if metadata["fse.dtype"] != entry["table_dtype"]:
+        raise ValueError(f"{name}: table dtype differs from the artifact manifest")
+    return metadata, embedded
+
+
 def bind(folder: Path, artifacts: dict, pins: dict) -> dict:
     records = [json.loads(line) for line in (folder / "sources.jsonl").read_text().splitlines()]
     bound = []
     for entry in artifacts["artifacts"]:
         name = entry["artifact"]
-        matches = [record for record in records if name in record["artifacts"]]
-        if len(matches) != 1:
-            raise ValueError(f"{name}: need one unambiguous preparation record")
-        record = matches[0]
-        repo, revision = record["source"], record["revision"]
-        if pins.get(repo) != revision or entry["source"] != repo or entry["revision"] != revision:
-            raise ValueError(f"{name}: preparation source differs from the pin")
-        metadata = header(folder / name)
-        embedded = json.loads(metadata.get("fse.source", "null"))
-        if embedded is not None and (embedded["repo"] != repo or embedded["revision"] != revision):
-            raise ValueError(f"{name}: embedded source differs from the preparation record")
-        if embedded is None and not repo.startswith("fse/"):
-            raise ValueError(f"{name}: converted Hub encoder lacks its embedded source")
-        if metadata["fse.dtype"] != entry["table_dtype"]:
-            raise ValueError(f"{name}: table dtype differs from the artifact manifest")
+        record = preparation_record(entry, records, pins)
+        metadata, embedded = checked_header(folder, entry, record)
         parents = [
             file for file in record["artifacts"] if header(folder / file)["fse.dtype"] == "float32"
         ]
@@ -66,6 +80,7 @@ def verified_source(path: Path, encoder) -> dict:
         encoder.fingerprint != entry["encoder_fingerprint"]
         or encoder.word_vectors.dtype != entry["table_dtype"]
         or embedded != entry["embedded_source"]
+        or path.stat().st_size != entry["file_bytes"]
     ):
         raise ValueError(
             f"{path.name}: loaded artifact differs from its bound preparation identity"
