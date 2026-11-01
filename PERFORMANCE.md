@@ -607,12 +607,12 @@ All retained endpoint loads are strictly below 5: 4.609 to 4.989 for one-worker 
 
 Peak process RSS for fse A/model2vec is 206.1/223.6 MiB on one-worker WikiText, 207.8/233.1 MiB on ten-worker WikiText, and 452.4/602.6 MiB on one-worker MASSIVE. These peaks include imports, corpus preparation and encoding. Median model setup takes 0.204/0.150 s, 0.199/0.150 s and 0.216/0.159 s respectively. fse setup converts the pinned Hub files; model2vec loads its source format. Saved fse artifact startup will be measured separately with explicit table precision.
 
-[Raw journals and retained/rejected rounds](benchmarks/baseline/results/) feed the [machine-readable summary](benchmarks/baseline/dr151_summary_20261101.json). Numerical parity, the full MTEB/NanoBEIR matrix, profiles, classifiers, search, lifecycle and remaining precision cells are still required before a complete recommendation.
+[Raw journals and retained/rejected rounds](https://github.com/oborchers/Fast_Sentence_Embeddings/tree/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/results) feed the [machine-readable summary](benchmarks/baseline/dr151_summary_20261101.json). Numerical parity, the full MTEB/NanoBEIR matrix, profiles, classifiers, search, lifecycle and remaining precision cells are still required before a complete recommendation.
 
 The summary includes a reference-tariff calculation using the public CAX31 rate of EUR 0.0344 per server-hour, excluding VAT, observed on [Hetzner's pricing page](https://www.hetzner.com/cloud/cost-optimized/) on 01.11.2026. The [price evidence](benchmarks/baseline/dr151_cpu_price_20261101.json) records its eight Ampere vCPUs, 16 GiB memory and availability markup. It values measured local encode time with `1,000,000 / texts_per_second / 3,600 * hourly_price`. This scenario assumes the measured throughput at the reference tariff. Actual CAX31 throughput and deployment cost were not measured. Storage, transfer, startup, idle time, VAT and billing granularity are excluded.
 
 
-A full-corpus numerical audit of the same 5,352 WikiText rows at source commit `945a640` uses exact cosine neighbors for every query, excluding itself. Native model2vec versus fse float32 has recall@10 1.0, minimum cosine 0.9999999999999971 and maximum absolute error 8.94e-8. fse float16 versus float32 has recall@10 0.999943946 and maximum centered-subspace angle 0.0236624 degrees. Int8 has recall@10 0.996337818 and maximum angle 1.3987229 degrees. All 5,352 queries are eligible and zero-vector disagreements are zero. This is numerical neighborhood stability; labeled task quality still requires MTEB. The audit ran at nice 10 with bounded CPU pools under the heavy-job lock. Its load ranged from 14.68 to 15.42 and its times are not used for speed comparisons. [Full diagnostics](benchmarks/baseline/results/dr151-numerics.jsonl) include every principal angle and provenance.
+A full-corpus numerical audit of the same 5,352 WikiText rows at source commit `945a640` uses exact cosine neighbors for every query, excluding itself. Native model2vec versus fse float32 has recall@10 1.0, minimum cosine 0.9999999999999971 and maximum absolute error 8.94e-8. fse float16 versus float32 has recall@10 0.999943946 and maximum centered-subspace angle 0.0236624 degrees. Int8 has recall@10 0.996337818 and maximum angle 1.3987229 degrees. All 5,352 queries are eligible and zero-vector disagreements are zero. This is numerical neighborhood stability; labeled task quality still requires MTEB. The audit ran at nice 10 with bounded CPU pools under the heavy-job lock. Its load ranged from 14.68 to 15.42 and its times are not used for speed comparisons. [Full diagnostics](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/results/dr151-numerics.jsonl) include every principal angle and provenance.
 
 
 **Repeatability warning for the alternatives comparison:** the one-worker and
@@ -639,7 +639,7 @@ The run used two CPU workers at nice 10, source commit `265e70d`, and encoder
 fingerprint `xxh3-128:7aed2ca9bf7f9073ffa6778672a7575f`, matching the pinned
 POTION-8M artifact in the bound source manifest. Source revisions, dataset
 metadata, package versions and every task main score are retained in the
-[raw quality journal](benchmarks/baseline/results/dr151-quality-primary.jsonl)
+[raw quality journal](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/results/dr151-quality-primary.jsonl)
 and [coverage summary](benchmarks/baseline/dr151_quality_primary_20261101.json).
 Quality-run encode times are not used for speed or cost claims.
 
@@ -657,7 +657,7 @@ The run began from source `0de9c3d`. Its method and runtime fingerprints differ
 from the first POTION-8M invocation because provenance checks and the installed
 extension changed between runs. These checkpoints therefore do not establish
 a controlled model ranking. A same-method POTION-8M confirmation remains queued.
-[Raw task records](benchmarks/baseline/results/dr151-quality-potion32-float32.jsonl)
+[Raw task records](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/results/dr151-quality-potion32-float32.jsonl)
 and the [complete coverage summary](benchmarks/baseline/dr151_quality_potion32_20261101.json)
 were first pushed in `7bb78dd`.
 
@@ -669,7 +669,7 @@ to the 32 remaining static configurations gave a planning scenario of
 13.00 to 27.24 hours, plus MiniLM, classifiers and baseline confirmation.
 This range is not a calibrated quiet-machine or cloud forecast.
 [Invocation durations](benchmarks/baseline/dr151_configuration_times_20261101.json)
-and [remaining-time assumptions](benchmarks/baseline/dr151_remaining_time_20261101.json)
+and [remaining-time assumptions](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_remaining_time_20261101.json)
 retain the underlying observations.
 
 
@@ -686,7 +686,7 @@ This is the first completed configuration under the normalized result-writer
 method and current runtime fingerprint. The raw measured checkout is
 `300bde8`. Earlier POTION-8M and POTION-32M checkpoints use different method or
 runtime identities. Both confirmations remain queued, so these checkpoints
-still establish no controlled model ranking. [Raw task records](benchmarks/baseline/results/dr151-quality-retrieval32-float32.jsonl)
+still establish no controlled model ranking. [Raw task records](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/results/dr151-quality-retrieval32-float32.jsonl)
 and [coverage summary](benchmarks/baseline/dr151_quality_retrieval32_20261101.json).
 
 The invocation took **1,102.850 seconds** (18.38 minutes), including setup,
@@ -699,7 +699,7 @@ The shorter and longer observed durations give 9.50 and 26.39 hours.
 These scenarios exclude MiniLM, classifiers and confirmations. Model dimensions,
 precision and shared waits differ, so they do not calibrate a quiet-machine or
 cloud forecast. [Invocation durations](benchmarks/baseline/dr151_configuration_times_20261101.json)
-and [remaining-time assumptions](benchmarks/baseline/dr151_remaining_time_20261101.json).
+and [remaining-time assumptions](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_remaining_time_20261101.json).
 
 
 ### Quality on tasks with longer inputs (partial, 01.11.2026)
@@ -729,30 +729,12 @@ measure model token lengths or truncation frequency. Scores use each model's
 native input limits. The report retains the actual encoder description and
 separate input streams. Other models remain pending, so this is no quality
 ranking or evidence of full-document context retention.
-[All 19 task breakouts and source-statistics digests](benchmarks/baseline/dr151_document_tasks_potion32_20261101.json).
+[All 19 task breakouts and source-statistics digests](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_document_tasks_potion32_20261101.json).
 
 
 ### Comparison profiles (01.11.2026)
 
-POTION-8M float32 on all 5,352 WikiText rows has four accepted instrumented
-profiles. All endpoint loads are below five. fse CPU uses 100 full passes,
-native model2vec CPU uses three, fse native-memory uses 30, and fse process-tree
-RSS uses 100. Profiles include imports, input preparation, startup and encoding.
-Their durations are not speed or cost evidence. The source commit is `0de9c3d`.
-
-Across 6,612 fse CPU samples, `fse_loop_f32_neon` has 18.0% self samples,
-`_wp_piece` 15.6%, and `fse_normalize_body` 1.2%. Across 4,034 native model2vec
-samples, Unicode category lookup has 9.5% self samples and memory moves 8.7%.
-Its BERT normalizer appears in 22.4% of sample stacks, including callees.
-Self and stack shares measure different things.
-
-The fse process-tree RSS peak is **231,424,000 bytes (220.7 MiB)**. Memray reports
-a tracked allocation peak of 1.169 GB, including a 1.074 GB memory mapping
-during imports. That allocation total is not resident RAM. Largest cumulative
-allocation sites include imports, `StringSource` construction, `MemorySink._new`
-and `CpuBackend.text_rows`. Cumulative totals over repeated calls are not
-simultaneous memory peaks. [Profile metadata and load endpoints](benchmarks/baseline/dr151_profiles_20261101.json)
-and [raw CPU, native-memory and RSS artifacts](benchmarks/baseline/results/dr151-profiles/).
+[The compact profile table](docs/benchmarks/dr151-profiles.md) records the hottest functions and memory peaks. Complete CPU samples, native allocation traces/HTML, RSS logs and original profile metadata live in the [pinned evidence archive](https://github.com/oborchers/Fast_Sentence_Embeddings/commit/ae79c80c5736706a1e39df2f69a18e5801ae82d3). Instrumented durations are not speed evidence. The table preserves the original runtime-attribution and allocation-versus-resident-memory caveats.
 
 
 ### Additional quality checkpoint and runtime correction (01.11.2026)
@@ -761,7 +743,7 @@ POTION-multilingual-128M float32 completed all 53 non-deferred tasks with
 unmodified MTEB 2.26.25. The 40-task English mean is 49.9565 points and the
 complete 13-task NanoBEIR mean is 36.6528 points. MIND remains deferred because
 it needs more than 16 GiB RAM on the M1. This is not a full 41-task English mean.
-[Raw scores](benchmarks/baseline/results/dr151-quality-multilingual128-float32.jsonl)
+[Raw scores](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/results/dr151-quality-multilingual128-float32.jsonl)
 and [coverage summary](benchmarks/baseline/dr151_quality_multilingual128_20261101.json)
 retain the measured method and runtime. Earlier checkpoints use different
 method cohorts, so these figures establish no controlled cross-model ranking.
@@ -787,9 +769,9 @@ fresh runs with the corrected identity before final comparison claims.
 
 
 Long-input breakouts are also available for the other completed checkpoints:
-[POTION-8M](benchmarks/baseline/dr151_document_tasks_potion8_20261101.json),
-[POTION-retrieval-32M](benchmarks/baseline/dr151_document_tasks_retrieval32_20261101.json)
-and [POTION-multilingual-128M](benchmarks/baseline/dr151_document_tasks_multilingual128_20261101.json).
+[POTION-8M](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_document_tasks_potion8_20261101.json),
+[POTION-retrieval-32M](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_document_tasks_retrieval32_20261101.json)
+and [POTION-multilingual-128M](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_document_tasks_multilingual128_20261101.json).
 Each retains 19 full-task scores and the corresponding packaged length
 statistics. Every score matches its raw completed task record. The same
 limitations apply: these statistics describe upstream text streams, not
@@ -806,7 +788,7 @@ because it needs more than 16 GiB RAM on the M1. The invocation took 17.4 minute
 including setup, evaluation, waits and cooldowns. Every executed runtime record
 reports actual process priority 10. The parent's earlier startup probe observed
 priority 0 before `nice` took effect and is retained separately.
-[Raw quality records](benchmarks/baseline/results/dr151-quality-staticretr-float32.jsonl)
+[Raw quality records](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/results/dr151-quality-staticretr-float32.jsonl)
 and [coverage summary](benchmarks/baseline/dr151_quality_staticretr_20261101.json).
 Separate method cohorts remain separate and establish no controlled ranking.
 
@@ -816,7 +798,7 @@ hours for those static configurations, with observed endpoint scenarios of
 8.40 and 24.68 hours. MiniLM, classifiers, search and necessary same-method
 confirmations are additional. This is not a calibrated quiet-machine or cloud
 forecast. [Measured durations](benchmarks/baseline/dr151_configuration_times_20261101.json)
-and [scenario assumptions](benchmarks/baseline/dr151_remaining_time_20261101.json).
+and [scenario assumptions](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_remaining_time_20261101.json).
 
 Window6 retains fresh backend-specific speed records and every rejected or
 incomplete attempt in the [matrix summary](benchmarks/baseline/dr151_matrix_summary_20261101.json).
@@ -840,7 +822,7 @@ tasks. The English40 mean is 51.4292 points, not a full English41 mean. The
 complete NanoBEIR13 mean is 43.5178 points. MIND alone is deferred.
 The invocation took 17.59 minutes including setup and waits,
 with actual process priority 10 throughout its runtime records.
-[Raw records](benchmarks/baseline/results/dr151-quality-staticsim-float32.jsonl)
+[Raw records](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/results/dr151-quality-staticsim-float32.jsonl)
 and [coverage summary](benchmarks/baseline/dr151_quality_staticsim_20261101.json).
 Six unique configurations are complete. Twenty-eight static configurations
 plus MiniLM remain. The uniform static scenario is now 9.98 hours,
@@ -852,7 +834,7 @@ These checkpoints use separate method cohorts and establish no controlled rankin
 
 Model2Vec 0.10.0 fine-tunes its embeddings and an MLP with one 512-unit ReLU hidden layer using PyTorch. The exported classifier runs in plain NumPy, with softmax or sigmoid for probabilities. Its label path selects from logits. fse's classifier head is linear. Accuracy and speed therefore compare a fine-tuned MLP against a frozen-embedding linear head. [Pinned MLP implementation](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/inference/mlp.py), [pinned training documentation](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/train/README.md).
 
-Controlled Pod 2 classifier throughput is now published in [the Pod 2 audit](docs/fse-pod2-results.md). The published [POTION-8M Model2Vec MLP subj reference](benchmarks/baseline/dr151_native_classifier_pinned_accuracy_20261101.jsonl) records accuracy 0.890000 and macro-F1 0.889887 on all 2,000 test rows. It follows the fixed 1,000-row training selection and has no local training or inference timing. Its complete 2,000-row prediction digest and accuracy now match the pod; training used two versus sixteen Torch threads, and fitted export bytes differ.
+Controlled Pod 2 classifier throughput is now published in [the Pod 2 audit](docs/fse-pod2-results.md). The published [POTION-8M Model2Vec MLP subj reference](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_native_classifier_pinned_accuracy_20261101.jsonl) records accuracy 0.890000 and macro-F1 0.889887 on all 2,000 test rows. It follows the fixed 1,000-row training selection and has no local training or inference timing. Its complete 2,000-row prediction digest and accuracy now match the pod; training used two versus sixteen Torch threads, and fitted export bytes differ.
 
 Pod 3 adds a controlled folding comparison on the same raw-mean linear model: fse `Classifier.predict` on its folded table, versus fse `Encoder.encode` followed by the identical float32 weight matrix and bias. Both worker settings, 1 and 32, receive the complete evaluation sets. A fine-tuned Model2Vec MLP running through its exported NumPy pipeline is a separate arm. Every arm records accuracy, size, runtime identity and rotating fse A/A controls. No rates are filled into a graphic before raw controlled results exist.
 
@@ -862,7 +844,7 @@ Pod 3 also compares Python Model2Vec with the **same frozen sklearn linear head*
 
 The fresh Linux Pod 3 cohort supplies both README graphics on one machine. It includes POTION-8M float32/float16/int8 tables and all same-model references at 1, 16 and 32 workers. Native sentence-transformers StaticEmbedding uses static-retrieval-mrl-en-v1 with its own fse baseline. Both models have measured float32 curve points at 1, 2, 4, 8, 16 and 32. The renderer retains one core and selects 32 only if its unrounded primary median is at least 1.20 times the 16-worker median. Otherwise it selects 16. The lower intermediate settings remain curve-only. All rates remain pending actual controlled pod artifacts. The Mac headline remains a separate machine-specific result.
 
-The document-quality breakout now includes 19 complete tasks each for [static retrieval MRL](benchmarks/baseline/dr151_document_tasks_staticretr_20261101.json) and [static similarity MRL](benchmarks/baseline/dr151_document_tasks_staticsim_20261101.json), plus 19 completed [MiniLM document tasks](benchmarks/baseline/dr151_document_tasks_minilm_20261101.json). Each selected task has an upstream MTEB evaluation text stream averaging at least 1,000 characters. These are full task scores, without evaluation sampling, and preserve their native metrics. Length metadata is packaged MTEB descriptive evidence, not fresh input or truncation measurement. Model-specific limits and configuration cohorts remain explicit. No combined quality ranking is claimed. MiniLM now has all 53 non-deferred task scores; its full 41-task English score still awaits MIND.
+The document-quality breakout now includes 19 complete tasks each for [static retrieval MRL](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_document_tasks_staticretr_20261101.json) and [static similarity MRL](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_document_tasks_staticsim_20261101.json), plus 19 completed [MiniLM document tasks](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_document_tasks_minilm_20261101.json). Each selected task has an upstream MTEB evaluation text stream averaging at least 1,000 characters. These are full task scores, without evaluation sampling, and preserve their native metrics. Length metadata is packaged MTEB descriptive evidence, not fresh input or truncation measurement. Model-specific limits and configuration cohorts remain explicit. No combined quality ranking is claimed. MiniLM now has all 53 non-deferred task scores; its full 41-task English score still awaits MIND.
 
 
 ## Pod 2 result coverage
@@ -885,7 +867,7 @@ MiniLM-L6-v2 and plain-mean fse/paranmt-300 have completed all 40 local English 
 
 ParaNMT loads the pinned fse Hub KeyedVectors through `KeyedVectors.load(mmap='r')`, `fse.gensim.from_gensim` and the normal 2.0 Encoder path. Its recorded encoder uses `fse_words@1` and `normalize@1`; no SIF fit is applied. The [artifact receipt](benchmarks/baseline/dr151_classic_fitted_artifacts_20261101.json) binds its source revision and fingerprint. Other model cohorts retain their own setup identities and do not form a single controlled ranking.
 
-Raw quality `seconds` sums encode calls, not complete task evaluation. Earlier intermediate reports mislabelled that field as task elapsed; those duration scenarios are withdrawn. The [MiniLM elapsed report](benchmarks/baseline/dr151_quality_minilm_time_20261101.json) and [ParaNMT elapsed report](benchmarks/baseline/dr151_quality_paranmt_time_20261101.json) preserve invocation boundaries, overlapping retries, waits and calendar gaps explicitly. These completion-time diagnostics are not speed evidence.
+Raw quality `seconds` sums encode calls, not complete task evaluation. Earlier intermediate reports mislabelled that field as task elapsed; those duration scenarios are withdrawn. The [MiniLM elapsed report](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_quality_minilm_time_20261101.json) and [ParaNMT elapsed report](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_quality_paranmt_time_20261101.json) preserve invocation boundaries, overlapping retries, waits and calendar gaps explicitly. These completion-time diagnostics are not speed evidence.
 
 
 ## GloVe SIF-10 partial local configuration

@@ -1,6 +1,6 @@
 # Pod 3 and MIND rerun evidence, 2026-11-01
 
-Raw publication commit: `cbcad5a`. All 20 Pod 3 files and 11 MIND files from the coordinator's durable copies are preserved under `benchmarks/baseline/results/dr151-pod3-20261101/` and `dr151-mind2-20261101/`. Logs use lossless gzip. All 31 pushed Git objects were restored and matched each original byte count and SHA256 in [the transfer manifest](../benchmarks/baseline/dr151_pod3_mind2_transfer_manifest_20261101.json). Manifest SHA256: `4378c684d4a23eb522e035a242faa5d0aeac60a515aa40804e9ae292bd4f4916`.
+Raw publication commit: `cbcad5a`. All 20 Pod 3 files and 11 MIND files from the coordinator's durable copies are preserved under `benchmarks/baseline/results/dr151-pod3-20261101/` and `dr151-mind2-20261101/`. Logs use lossless gzip. All 31 pushed Git objects were restored and matched each original byte count and SHA256 in [the transfer manifest](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_pod3_mind2_transfer_manifest_20261101.json). Manifest SHA256: `4378c684d4a23eb522e035a242faa5d0aeac60a515aa40804e9ae292bd4f4916`.
 
 ## Handoff for the README owner
 
@@ -16,4 +16,4 @@ MIND is **not computed: MTEB 2.26.25 MindSmallReranking needs more memory than t
 
 The rerun log proves task loading completed before status 137. A live SSH inspection before pod deletion observed memory.max=64000000000, memory.peak=64000000000 and oom_kill=1. Those temporary diagnostic files were subsequently lost in the scratchpad cleanup; this sentence preserves the observed diagnosis, not a recoverable raw cgroup artifact. The surviving bootstrap log and disk snapshots are committed. The first failure was disk exhaustion; the second reached the memory limit with disk 33 percent used.
 
-Complete DR190 fitted-artifacts, model-order and mind-load blocks were decoded from the preserved log into [the extracted log artifacts](../benchmarks/baseline/dr151_mind2_log_artifacts_20261101.json). The separately rescued model manifests and fit NPZ files were also lost during cleanup and are not represented as committed payloads. Large generated inputs and safetensors weights were not transferred.
+Complete DR190 fitted-artifacts, model-order and mind-load blocks were decoded from the preserved log into [the extracted log artifacts](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_mind2_log_artifacts_20261101.json). The separately rescued model manifests and fit NPZ files were also lost during cleanup and are not represented as committed payloads. Large generated inputs and safetensors weights were not transferred.

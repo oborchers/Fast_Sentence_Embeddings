@@ -95,3 +95,6 @@ src/fse/_native.c
 htmlcov/
 wheelhouse/
 profiles/
+
+# Raw benchmark evidence belongs on benchmark-evidence-2.0.
+/benchmarks/baseline/results/

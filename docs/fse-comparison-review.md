@@ -19,7 +19,7 @@ It found no further issue with numerical recall, MIND coverage, profile claims,
 the tariff scenario or the qualified elapsed-time scenario.
 Static inspection found no remaining optional-import portability defect.
 This is not execution verification or a completed-results review.
-After the corrections, 60 focused regression tests and seven pinned MTEB adapter tests pass. Ruff and guardrails pass. The full check at `4e888dc` passed under the heavy lock with `PYTEST_N=4`: 9,121 passed and 521 skipped in 239.19 seconds. The locked Rust build passed and its source/binary manifest was sealed. [Validation record](../benchmarks/baseline/dr151_validation_20261101.json). A final complete-results gate remains required.
+After the corrections, 60 focused regression tests and seven pinned MTEB adapter tests pass. Ruff and guardrails pass. The full check at `4e888dc` passed under the heavy lock with `PYTEST_N=4`: 9,121 passed and 521 skipped in 239.19 seconds. The locked Rust build passed and its source/binary manifest was sealed. [Validation record](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_validation_20261101.json). A final complete-results gate remains required.
 All missing measurements and the final claims review remain open.
 
 

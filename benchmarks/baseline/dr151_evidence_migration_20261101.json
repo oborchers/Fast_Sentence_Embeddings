@@ -1,0 +1,17 @@
+{
+  "format": "evidence-migration-receipt-v1",
+  "evidence_commit": "ae79c80c5736706a1e39df2f69a18e5801ae82d3",
+  "archive_files": 456,
+  "archive_bytes": 67499492,
+  "removed_master_copies": 367,
+  "removed_master_canonical_bytes": 60624803,
+  "archive_verified_by_size_and_sha256": true,
+  "csv_worktree_byte_variants_preserved": 2,
+  "review_checkouts_removed": 3,
+  "review_checkout_allocated_kib_removed": 220956,
+  "obsolete_uncommitted_script_bytes_removed": 11448,
+  "duplicate_profile_bytes_removed": 2706246,
+  "duplicate_profile_files_removed": 5,
+  "shared_caches_deleted": false,
+  "note": "Results and reports are preserved on the pushed orphan evidence branch. Allocated file sizes are not an isolated measurement of physical APFS free-space gain."
+}

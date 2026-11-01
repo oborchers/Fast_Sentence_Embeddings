@@ -109,3 +109,7 @@ SIF-10 over glove-wiki-gigaword-300 on the 859,346 WikiText paragraphs, 10 worke
 | infer of 1 / 1,000 / 100,000 sentences, p50 | 1.6 ms / 14.8 ms / 1.10 s | 1.2 ms / 14.6 ms / 1.08 s |
 
 `infer` runs in one thread in 1.1: 100,000 paragraphs take about a second whatever the number of workers. The float32 first search builds a normalized copy of all rows; int8 keeps inverse norms only, but scores int8 rows more slowly.
+
+## Raw evidence storage
+
+Raw results and profile artifacts are stored on the separate orphan branch `benchmark-evidence-2.0`, never merged into master. [The evidence guide](../../docs/benchmarks/dr151-evidence.md) links compact study summaries, the complete SHA256 manifest and the restore command. Historical `results/` paths refer to that archive. Restore required inputs explicitly before running a historical script. Numerical test fixtures remain under `tests/test_data`.

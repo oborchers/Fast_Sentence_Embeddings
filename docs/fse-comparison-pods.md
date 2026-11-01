@@ -124,7 +124,7 @@ Pod 3 also compares Python Model2Vec with the **same frozen sklearn linear head*
 
 ## MIND rerun storage and SSH
 
-The first 60 GB pod failed during `top_ranked` train preparation, after the 97,006,943-row test qrels cast. It produced no MIND score. Pinned dataset metadata declares 41.34 GB of base Arrow data. The saved models occupied 10.46 GB. Extra casts, downloads and preparation sources also coexist. The deleted pod has no measured per-directory inventory. The [failure audit](../benchmarks/baseline/dr151_mind_disk_failure_20261101.json) distinguishes declared sizes from observed facts.
+The first 60 GB pod failed during `top_ranked` train preparation, after the 97,006,943-row test qrels cast. It produced no MIND score. Pinned dataset metadata declares 41.34 GB of base Arrow data. The saved models occupied 10.46 GB. Extra casts, downloads and preparation sources also coexist. The deleted pod has no measured per-directory inventory. The [failure audit](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_mind_disk_failure_20261101.json) distinguishes declared sizes from observed facts.
 
 The revised pod requests a 200 GB container disk. It requires 140 GiB free before setup and 120 GiB before loading MIND. It removes only raw preparation sources after verifying all ten saved static encoders. Finished artifacts and SIF fit states remain. Hub, datasets, temporary and uv caches use explicit paths under `/dr151-cache`. Xet chunk caching is disabled. No MTEB loader, split or row changes.
 

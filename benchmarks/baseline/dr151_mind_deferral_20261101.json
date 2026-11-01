@@ -1,17 +1,15 @@
 {
   "task": "MindSmallReranking",
-  "status": "deferred",
-  "reason": "deferred: needs more than 16 GiB RAM on the M1",
+  "status": "not computed",
+  "reason": "not computed: MTEB 2.26.25 MindSmallReranking needs more memory than the 64 GB pod (two attempts, status 137 and earlier ENOSPC)",
   "mteb": "2.26.25",
   "dataset": "mteb/MindSmallReranking",
   "dataset_revision": "227478e3235572039f4f7661840e059f31ef6eb1",
-  "test_qrel_rows": 97006943,
-  "observed_physical_footprint": "15.4G (macOS sample output)",
-  "evidence": "results/dr151_mind_loader_20261101.sample.txt",
   "loader_modified": false,
   "evaluator_modified": false,
   "sampling": false,
-  "completed_tasks_retained": 19,
-  "decision": "Coordinator explicitly deferred only MIND. Maintainer decides about a larger machine tomorrow.",
-  "remaining_required_coverage": "40/41 English tasks and 13/13 NanoBEIR tasks per model"
+  "english_coverage": "40 of 41 tasks, MIND excluded",
+  "further_mind_runs": false,
+  "historical_m1_deferral": "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_mind_deferral_20261101.json",
+  "pod_attempt_evidence": "https://github.com/oborchers/Fast_Sentence_Embeddings/tree/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/results/dr151-mind2-20261101"
 }

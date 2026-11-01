@@ -6,9 +6,9 @@ The four-hour workload ended with return code **124**. `ALL_DONE` marked artifac
 
 All **184 received text/JSON/log files** are committed at `2501a38`. This includes the complete 4,790-line speed journal. No row was filtered. Three large files use lossless gzip. Every original file was restored from that pushed commit and matched its original SHA256 and byte count.
 
-- [Restoration manifest](../benchmarks/baseline/dr151_pod2_raw_manifest_20261101.json)
-- [Complete speed journal, gzip](../benchmarks/baseline/results/dr151-pod2-20261101/speed-results.jsonl.gz)
-- [Classification quality records](../benchmarks/baseline/results/dr151-pod2-20261101/classification-quality.jsonl)
+- [Restoration manifest](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_pod2_raw_manifest_20261101.json)
+- [Complete speed journal, gzip](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/results/dr151-pod2-20261101/speed-results.jsonl.gz)
+- [Classification quality records](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/results/dr151-pod2-20261101/classification-quality.jsonl)
 - [Independent mechanical audit](../benchmarks/baseline/dr151_pod2_audit_20261101.json)
 
 The original transfer archive SHA256 is `934dfc9595f91bbb100e96d7eb55f5d114fb5465c9bca2b1367609b38ece366f`. The uncompressed speed journal SHA256 is `90fed831b1e7dacb1fafb955e05929428f1624071915c293d16ec88c4cd69883`.
@@ -45,7 +45,7 @@ Pod 2 did not retain full encode arrays for a new cross-library numerical output
 
 ## Classifier configuration and eligible example
 
-Pod 2's fse heads run on **normalized vectors**. They are not raw-mean folded heads. Both recorded POTION float32 parent fingerprints match retained artifact headers containing `normalize@1`. The pinned `Classifier.from_sklearn` defaults to the encoder setting. The [source/parent proof](../benchmarks/baseline/dr151_pod2_normalization_evidence_20261101.json) records these retained headers and their exact match to transferred Pod 2 manifest entries. Pod 3 remains necessary for folded raw means versus explicit encoding plus the same head.
+Pod 2's fse heads run on **normalized vectors**. They are not raw-mean folded heads. Both recorded POTION float32 parent fingerprints match retained artifact headers containing `normalize@1`. The pinned `Classifier.from_sklearn` defaults to the encoder setting. The [source/parent proof](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ae79c80c5736706a1e39df2f69a18e5801ae82d3/benchmarks/baseline/dr151_pod2_normalization_evidence_20261101.json) records these retained headers and their exact match to transferred Pod 2 manifest entries. Pod 3 remains necessary for folded raw means versus explicit encoding plus the same head.
 
 The frozen Model2Vec plus sklearn row uses its independently fitted linear head. It is not the same coefficient array as fse's head. The separate Model2Vec classifier fine-tunes embeddings and trains an MLP with PyTorch, by default one 512-unit ReLU hidden layer. Its exported inference pipeline runs in plain NumPy in model2vec 0.10.0 (`model2vec/inference/mlp.py`). This is a different trained model from fse's frozen encoder and linear head. Training times stay separate from inference.
 
