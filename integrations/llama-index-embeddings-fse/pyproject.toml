@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llama-index-embeddings-fse"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "fse embeddings for llama-index-core"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
-dependencies = ["fse>=2.0.0.dev0", "llama-index-core>=0.14.25"]
+dependencies = ["fse>=2.0.0", "llama-index-core>=0.14.25"]
 
 [project.urls]
 Repository = "https://github.com/oborchers/Fast_Sentence_Embeddings"

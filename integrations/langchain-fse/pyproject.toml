@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "langchain-fse"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "fse embeddings for langchain-core"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
-dependencies = ["fse>=2.0.0.dev0", "langchain-core>=1.7.3"]
+dependencies = ["fse>=2.0.0", "langchain-core>=1.7.3"]
 
 [project.urls]
 Repository = "https://github.com/oborchers/Fast_Sentence_Embeddings"

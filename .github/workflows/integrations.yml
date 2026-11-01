@@ -1,0 +1,81 @@
+name: Integrations
+
+on:
+  pull_request:
+    branches: [master]
+    paths: ["integrations/**", "src/fse/**", "pyproject.toml", "setup.py", "MANIFEST.in", "uv.lock", ".github/workflows/integrations.yml", ".github/workflows/release-*.yml"]
+  push:
+    branches: [master]
+    paths: ["integrations/**", "src/fse/**", "pyproject.toml", "setup.py", "MANIFEST.in", "uv.lock", ".github/workflows/integrations.yml", ".github/workflows/release-*.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.diff.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # A new branch has an all-zero before SHA. Treat it as a full run.
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            files="src/fse/"
+          else
+            files=$(git diff --name-only "$BASE" "$HEAD")
+          fi
+          matrix='[]'
+          for package in langchain-fse llama-index-embeddings-fse fse-haystack; do
+            if echo "$files" | grep -qE "^integrations/($package/|README.md$)|^src/fse/|^(pyproject.toml|setup.py|MANIFEST.in|uv.lock)$|^\.github/workflows/(integrations.yml|release-$package.yml)$"; then
+              matrix=$(jq -nc --argjson old "$matrix" --arg package "$package" '$old + [{package: $package, python: "3.11", deps: "minimum"}, {package: $package, python: "3.13", deps: "latest"}]')
+            fi
+          done
+          echo "matrix={\"include\":$matrix}" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: changes
+    if: needs.changes.outputs.matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    defaults:
+      run:
+        working-directory: integrations/${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+      - run: uv venv --python ${{ matrix.python }} .venv
+      - name: Install only this framework and the local fse checkout
+        run: uv pip install --python .venv/bin/python '../..' '.[test]'
+        env:
+          # Local testing only. Published adapters still require fse>=2.0.0.
+          SETUPTOOLS_SCM_PRETEND_VERSION_FOR_FSE: "2.0.0"
+      - name: Pin the minimum framework
+        if: matrix.deps == 'minimum'
+        run: |
+          case '${{ matrix.package }}' in
+            langchain-fse) framework='langchain-core==1.7.3' ;;
+            llama-index-embeddings-fse) framework='llama-index-core==0.14.25' ;;
+            fse-haystack) framework='haystack-ai==3.4.1' ;;
+          esac
+          uv pip install --python .venv/bin/python "$framework"
+      - run: uv pip check --python .venv/bin/python
+      - run: .venv/bin/python -m pytest -m 'not network'
+      - run: uv build --out-dir dist
+      - run: uvx twine check dist/*

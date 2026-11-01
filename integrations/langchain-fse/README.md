@@ -1,10 +1,10 @@
 # langchain-fse
 
-Prepared, unpublished LangChain integration for fse 2.0. The maintainer has not
-yet selected the repository layout or approved publication.
+Prepared, unpublished LangChain integration for fse 2.0. Version 0.1.0 will be published only after fse 2.0.0 and separate maintainer approval.
+This package lives in `integrations/langchain-fse/` in the fse repository.
 
 This package depends on fse and `langchain-core` only. Framework dependencies never enter
-fse core. This folder can move unchanged into a standalone repository.
+fse core. This package has its own CI environment and release workflow.
 
 ## Use
 
@@ -29,7 +29,7 @@ LangChain requires standalone packages for new integrations.
 
 ## Framework baseline and guides
 
-The supported minimum for this draft is `langchain-core==1.7.3`, the current stable
+The supported minimum for version 0.1.0 is `langchain-core==1.7.3`, the current stable
 release checked on 2026-11-01 from [PyPI](https://pypi.org/project/langchain-core/1.7.3/).
 This is our tested minimum and makes no compatibility claim for older framework releases.
 The runtime dependency allows later versions. Recheck compatibility before publication.
@@ -65,25 +65,34 @@ Use standard Python 3.13. From this package directory in the fse checkout:
 
 ```sh
 uv venv --python 3.13 .venv
-SETUPTOOLS_SCM_PRETEND_VERSION_FOR_FSE=2.0.0.dev0 \
+SETUPTOOLS_SCM_PRETEND_VERSION_FOR_FSE=2.0.0 \
   uv pip install --python .venv/bin/python -e '../..' -e '.[test]'
 .venv/bin/python -m pytest -m 'not network'
 .venv/bin/python -m pytest -m network
 uv build --out-dir dist
+.venv/bin/python examples/retrieval.py
 ```
 
 The version override labels the development checkout for dependency resolution.
 It does not create a tag, release or published package.
 
-After moving the folder to its own repository, replace `-e '../..'` with an
-available fse 2.0 build. The declared requirement is `fse>=2.0.0.dev0`.
+The declared requirement is `fse>=2.0.0`. The version override tests the local
+unreleased checkout without weakening the published dependency.
 The network test downloads `minishlab/potion-base-8M`. Offline tests build a tiny
 local encoder with `Encoder.from_arrays` and compare vectors with fse directly.
 Tests disable Python network sockets by default and enable them for the marked
 network test. No model upload or paid service is needed.
 
+## CI and release
+
+The isolated CI job tests Python 3.11 with the minimum framework and Python 3.13
+with the latest framework. Network tests and the real-model retrieval example
+run only when requested locally. See [release setup](../README.md#release-setup)
+for the package tag, approval environment and pending PyPI publisher.
+
 ## AI assistance
 
 These package sources, tests and documentation were prepared with AI assistance
-using Codex. The maintainer remains responsible for reviewing and validating them.
+using Codex. Validation uses offline vector parity, framework API tests and the
+real-model retrieval example. The maintainer remains responsible for review and maintenance.
 Publication and framework listing submissions require a separate maintainer decision.

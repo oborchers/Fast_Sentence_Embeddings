@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fse-haystack"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "fse embeddings for haystack-ai"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
-dependencies = ["fse>=2.0.0.dev0", "haystack-ai>=3.4.1"]
+dependencies = ["fse>=2.0.0", "haystack-ai>=3.4.1"]
 
 [project.urls]
 Repository = "https://github.com/oborchers/Fast_Sentence_Embeddings"
