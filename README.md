@@ -5,9 +5,11 @@
 TODO(DR-151): Add the measured headline comparison, with machine, date, texts,
 worker counts, package versions and a link to the raw results.
 
-One existing measurement: on 31 October 2026, an AMD EPYC 9655P pod encoded
-11,903,145 synthetic sentences/s with 16 workers, float32 tables at dimension 300, and normalization disabled.
-One worker encoded 1,652,196 sentences/s. These are single shared-host observations,
+One existing measurement: on 31 October 2026, a shared AMD EPYC 9655P processor encoded
+11,903,145 synthetic sentences per second with 16 workers (processor threads).
+Each vector held 300 numbers stored with 32 bits each (`float32`).
+The run skipped normalization, which scales a vector to unit length.
+One worker encoded 1,652,196 sentences per second. These are single shared-host observations,
 without a model2vec or sentence-transformers counterpart. They do not establish a speed record.
 See [the data and limits](benchmarks/baseline/dr190_runpod_20261031.json)
 and [PERFORMANCE.md](PERFORMANCE.md#runpod-linux-x86-observations).
@@ -73,18 +75,22 @@ For a local application, start by running fse in the process that already has th
 This avoids moving text and vectors through a service. Measure that transfer cost before adding a service.
 
 One [notebook measurement](recipes/07-local-compute-and-http.ipynb), dated 1 November 2026,
-used an Apple M1 Pro, macOS 27.0.1, Python 3.13.16 and one worker with the full GloVe-300 table:
+used an Apple M1 Pro, macOS 27.0.1, Python 3.13.16 and one worker with the full GloVe-300 table.
+Median means the middle measured time. A microsecond is one millionth of a second.
+HTTP is the protocol websites use to transfer data. JSON is a text format for data.
 
 | Work measured | Median time |
 |---|---:|
 | Encode a batch of 10,000 texts, per text | 0.736 microseconds |
 | Encode one text in one call | 52.3 microseconds |
-| Receive a fixed JSON vector over localhost HTTP, with keepalive | 178.8 microseconds |
+| Receive a fixed JSON vector over HTTP on the same computer, reusing one connection | 178.8 microseconds |
 
-The batch result uses five warm batches of 1,000 STS-B texts repeated ten times.
-The other results use 100 calls each. Load was 4.7114 before and after timing.
-The HTTP measurement excludes embedding compute and JSON parsing. These are different operations, not a service speedup comparison.
-One actual normalized vector used 1,200 bytes as 300 float32 values and 6,320 bytes as compact UTF-8 JSON.
+The batch result uses five warm batches. Each batch repeats 1,000 texts from STS-B ten times.
+STS-B is a test set of sentence pairs. The other results use 100 calls each.
+The one-minute system load, a measure of running and waiting work, was 4.7114 before and after timing.
+The HTTP test excludes embedding compute and turning the received text back into numbers.
+Each row measures a different operation. A service that also encodes text needs its own test.
+One actual normalized vector used 1,200 bytes as 300 float32 values and 6,320 bytes as compact JSON text.
 JSON size depends on the values and formatting. Batching, concurrency and real networks change these costs.
 
 ## Which model, which dtype?
