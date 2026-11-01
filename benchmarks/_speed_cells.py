@@ -7,6 +7,7 @@ import json
 import math
 import os
 import platform
+import shutil
 import statistics
 import subprocess
 import sys
@@ -14,7 +15,9 @@ import time
 from pathlib import Path
 
 
-def command(*arguments):
+def command(*arguments, ledger=None):
+    if ledger is not None and not ledger.admit(60, "setup"):
+        raise RuntimeError("setup admission budget exhausted")
     subprocess.run([str(value) for value in arguments], check=True)
 
 
@@ -140,12 +143,20 @@ def summarize(cell, operations):
     }
 
 
+def work_units(cell):
+    arms = 4 if cell["kind"] == "classify" else 2 + bool(cell.get("reference"))
+    arms += 2 if cell.get("small_call_exception") and cell["workers"] == 16 else 0
+    return max(1, cell.get("texts", 1)) * cell["rounds"] * (1 + cell.get("warm_passes", 1)) * arms
+
+
 class Ledger:
     """Reserve expected future work; never terminate a running cell."""
 
     def __init__(self, root, contract, allocated_at):
         self.root, self.contract, self.allocated_at = root, contract, allocated_at
         self.finished = []
+        self.deadlines = {}
+        self.stopping = False
         self.hourly = (
             contract["billing"]["compute_usd_per_hour"]
             + contract["machine"]["disk_gb"]
@@ -158,18 +169,27 @@ class Ledger:
 
     def estimate(self, cell, fallback):
         previous = [
-            r["duration_seconds"] * cell.get("texts", 1) / r.get("texts", 1)
+            r["duration_seconds"] * work_units(cell) / work_units(r)
             for r in self.finished
-            if (r["kind"], r.get("model"), r.get("reference"), r.get("workers"))
-            == (cell["kind"], cell.get("model"), cell.get("reference"), cell.get("workers"))
+            if all(
+                r.get(k) == cell.get(k) for k in ("kind", "model", "reference", "workers", "stage")
+            )
             and r["status"] not in ("not_started", "failed")
         ]
         return statistics.median(previous) if previous else cell.get("estimated_seconds", fallback)
 
-    def admit(self, seconds):
-        return (self.elapsed() + seconds + 600) * self.hourly / 3600 <= self.contract["billing"][
-            "planning_balance_usd"
-        ]
+    def admit(self, seconds, stage):
+        budget = next(
+            s["budget_minutes"] * 60 for s in self.contract["stages"] if s["name"] == stage
+        )
+        spent = self.elapsed() if stage == "setup" else 0
+        self.deadlines.setdefault(stage, time.monotonic() + budget - spent)
+        horizon = self.contract["billing"]["planning_minutes"] * 60
+        funds = self.contract["billing"]["planning_balance_usd"] * 3600 / self.hourly
+        available = min(horizon, funds) - self.elapsed() - 600
+        return (
+            not self.stopping and time.monotonic() < self.deadlines[stage] and seconds <= available
+        )
 
     def progress(self, cell, stage):
         remaining = [
@@ -231,43 +251,28 @@ class Ledger:
         return 0 if success else 1
 
 
-def describe(contract):
-    return {
-        "variant": contract["variant"],
-        "planned_cells": len(contract["cells"]),
-        "planning_minutes": sum(s["budget_minutes"] for s in contract["stages"]),
-        "hard_deadline": False,
-        "cells": contract["cells"],
-        "machine": contract["machine"],
-        "python": platform.python_version(),
-    }
-
-
 def package_identity(name):
     from importlib import import_module, metadata
 
     module = import_module(name.replace("-", "_"))
     distribution = metadata.distribution(name)
     digest = hashlib.sha256()
-    files = []
-    for item in sorted(distribution.files or []):
-        path = Path(distribution.locate_file(item))
-        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
-            digest.update(str(item).encode())
-            digest.update(bytes.fromhex(sha256(path)))
-            files.append(str(item))
-    for path in sorted(Path(module.__file__).resolve().parent.rglob("*")):
-        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
-            digest.update(str(path.relative_to(Path(module.__file__).resolve().parent)).encode())
-            digest.update(bytes.fromhex(sha256(path)))
-    if not files:
+    if not distribution.files:
         raise ValueError("backend distribution has no verifiable installed files")
+    root = Path(module.__file__).resolve().parent
+    files = {str(item): Path(distribution.locate_file(item)) for item in distribution.files}
+    files.update({"loaded/" + str(p.relative_to(root)): p for p in root.rglob("*")})
+    checked = 0
+    for name, path in sorted(files.items()):
+        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
+            digest.update(name.encode() + b"\0" + bytes.fromhex(sha256(path)))
+            checked += 1
     return {
         "package": name,
         "version": distribution.version,
         "path": module.__file__,
         "sha256": digest.hexdigest(),
-        "files": len(files),
+        "files": checked,
     }
 
 
@@ -351,6 +356,11 @@ def memory_admit(count, dimensions, input_bytes):
         raise MemoryError(
             "input, overlapping outputs and validation exceed conservative cgroup budget"
         )
+
+
+def disk_admit(path, required):
+    if shutil.disk_usage(path).free < required + 2 * 1024**3:
+        raise OSError("insufficient disk for this operation plus 2 GiB result reserve")
 
 
 def startup_job(job):
@@ -451,7 +461,12 @@ def write_input(path, source, count, seed, repeated=False, token_counts=None):
     generator.shuffle(positions)
     digest = hashlib.sha256()
     weights = np.bincount(positions, minlength=len(source))
-    words = characters = 0
+    words = characters = input_bytes = 0
+    for text, weight in zip(source, weights, strict=True):
+        words += int(weight) * len(text.split())
+        characters += int(weight) * len(text)
+        input_bytes += int(weight) * (len(text.encode("utf-8")) + 1)
+    disk_admit(path.parent, input_bytes)
     with path.open("xb") as stream:
         for position in positions:
             data = source[int(position)].encode("utf-8")
@@ -460,9 +475,6 @@ def write_input(path, source, count, seed, repeated=False, token_counts=None):
             digest.update(data)
         stream.flush()
         os.fsync(stream.fileno())
-    for text, weight in zip(source, weights, strict=True):
-        words += int(weight) * len(text.split())
-        characters += int(weight) * len(text)
     unique_source = len(set(source))
     result = dict(
         texts=count,

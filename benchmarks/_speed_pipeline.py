@@ -8,36 +8,29 @@ import shutil
 import subprocess
 import sys
 import time
+from functools import partial
 from importlib.metadata import distributions
 from pathlib import Path
 
-from _speed_cells import atomic, command, configure, package_identity, sha256
+from _speed_cells import Ledger, atomic, command, configure, package_identity, sha256
 
 
-def setup(root, contract):
+def setup(root, contract, allocated_at):
     """Install the two frozen CPU environments without starting measurement."""
     root.mkdir(parents=True, exist_ok=False)
     here = Path(__file__).resolve().parent
     tools, source = root / "tools", root / "fse-source"
     tools.mkdir()
-    command("apt-get", "update")
-    command(
-        "apt-get",
-        "install",
-        "-y",
-        "build-essential",
-        "pkg-config",
-        "libssl-dev",
-        "curl",
-        "git",
-        "ca-certificates",
-    )
-    command(sys.executable, "-m", "pip", "install", "--prefix", tools, "uv==0.13.0")
+    execute = partial(command, ledger=Ledger(root, contract, allocated_at))
+    execute("apt-get", "update")
+    packages = ("build-essential", "pkg-config", "libssl-dev", "curl", "git", "ca-certificates")
+    execute("apt-get", "install", "-y", *packages)
+    execute(sys.executable, "-m", "pip", "install", "--prefix", tools, "uv==0.13.0")
     uv = tools / "bin/uv"
     for name, lock in (("main", "speed-main.lock.txt"), ("reference", "speed-reference.lock.txt")):
         destination = root / name
-        command(uv, "venv", "--python", sys.executable, destination)
-        command(
+        execute(uv, "venv", "--python", sys.executable, destination)
+        execute(
             uv,
             "pip",
             "install",
@@ -49,22 +42,14 @@ def setup(root, contract):
             "--extra-index-url",
             "https://download.pytorch.org/whl/cpu",
         )
-        command(uv, "pip", "check", "--python", destination / "bin/python")
-    command("git", "clone", "https://github.com/oborchers/Fast_Sentence_Embeddings.git", source)
-    command("git", "-C", source, "checkout", "--detach", contract["fse_revision"])
-    command(
-        uv,
-        "pip",
-        "install",
-        "--python",
-        root / "main/bin/python",
-        "--no-deps",
-        "--no-build-isolation",
-        source,
-    )
-    command(uv, "pip", "check", "--python", root / "main/bin/python")
+        execute(uv, "pip", "check", "--python", destination / "bin/python")
+    execute("git", "clone", "https://github.com/oborchers/Fast_Sentence_Embeddings.git", source)
+    execute("git", "-C", source, "checkout", "--detach", contract["fse_revision"])
+    flags = ("--no-deps", "--no-build-isolation")
+    execute(uv, "pip", "install", "--python", root / "main/bin/python", *flags, source)
+    execute(uv, "pip", "check", "--python", root / "main/bin/python")
     installer = tools / "rustup-init"
-    command(
+    execute(
         "curl",
         "--fail",
         "--location",
@@ -73,7 +58,7 @@ def setup(root, contract):
         "https://static.rust-lang.org/rustup/archive/1.28.2/x86_64-unknown-linux-gnu/rustup-init",
     )
     installer.chmod(0o700)
-    command(
+    execute(
         installer, "-y", "--no-modify-path", "--profile", "minimal", "--default-toolchain", "1.98.0"
     )
     atomic(

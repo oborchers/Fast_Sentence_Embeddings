@@ -12,80 +12,52 @@ import threading
 import time
 from pathlib import Path
 
-from _speed_cells import (
-    Ledger,
-    append,
-    atomic,
-    check_output,
-    corpus_sources,
-    describe,
-    document,
-    memory_admit,
-    metadata,
-    observations,
-    output_array,
-    sha256,
-    startup_job,
-    summarize,
-    token_lengths,
-    write_input,
-)
-from _speed_pipeline import (
-    build_rust,
-    measure_child,
-    prepare_head,
-    prepare_models,
-    setup,
-    stream_child,
-)
+import _speed_cells as records
+import _speed_pipeline as engines
 
 HERE = Path(__file__).resolve().parent
 INPUT = HERE / "speed-input-2026-11.json"
 
 
-def attempt(root, name, function):
-    started = time.monotonic()
+def attempt(ledger, name, function, stage="setup", seconds=60):
+    started, value = time.monotonic(), None
+    record = dict(stage=name)
     try:
+        if not ledger.admit(seconds, stage):
+            raise RuntimeError(stage + " admission budget exhausted")
         value = function()
-        append(
-            root / "preparation.jsonl",
-            dict(stage=name, status="complete", seconds=time.monotonic() - started),
-        )
-        return value
+        record["status"] = "complete"
     except Exception as error:
-        append(
-            root / "preparation.jsonl",
-            dict(
-                stage=name, status="failed", seconds=time.monotonic() - started, error=repr(error)
-            ),
-        )
-        return None
+        record.update(status="failed", error=repr(error))
+    record["seconds"] = time.monotonic() - started
+    records.append(ledger.root / "preparation.jsonl", record)
+    return value
 
 
 def prepare(args, contract, ledger):
     work = args.work
     work.mkdir(parents=True, exist_ok=False)
-    atomic(
+    records.atomic(
         work / "owner.json",
-        dict(script=sha256(Path(__file__)), results=str(args.results.resolve())),
+        dict(script=records.sha256(Path(__file__)), results=str(args.results.resolve())),
     )
     models = {}
     for repo in contract["models"]:
         prepared = attempt(
-            args.results,
+            ledger,
             "model-" + repo.replace("/", "-"),
-            lambda name=repo: prepare_models(
+            lambda name=repo: engines.prepare_models(
                 work, {**contract, "models": {name: contract["models"][name]}}
             ),
         )
         models.update(prepared or {})
     sources = attempt(
-        args.results, "corpus", lambda: corpus_sources(contract, work / "datasets")
+        ledger, "corpus", lambda: records.corpus_sources(contract, work / "datasets")
     ) or ([], [])
     rust = attempt(
-        args.results, "rust", lambda: build_rust(work / "native", HERE / "speed-rust.lock")
+        ledger, "rust", lambda: engines.build_rust(work / "native", HERE / "speed-rust.lock")
     )
-    head = attempt(args.results, "head", lambda: prepare_head(work, contract, models))
+    head = attempt(ledger, "head", lambda: engines.prepare_head(work, contract, models))
     return dict(
         models=models,
         paragraphs=sources[0],
@@ -114,13 +86,15 @@ def input_file(context, cell):
         token_cache = context.setdefault("token_lengths", {})
         if key[:2] not in token_cache:
             snapshot = context["models"]["minishlab/potion-base-8M"]["snapshot"]
-            token_cache[key[:2]] = token_lengths(snapshot, source)
+            token_cache[key[:2]] = records.token_lengths(snapshot, source)
         path = context["work"] / ("input-" + "-".join(map(str, key)) + ".txt")
-        identity = write_input(
+        identity = records.write_input(
             path, source, cell["texts"], 0, repeated=repeated, token_counts=token_cache[key[:2]]
         )
         context["inputs"][key] = (path, identity)
-        append(context["ledger"].root / "input-identities.jsonl", dict(file=path.name, **identity))
+        records.append(
+            context["ledger"].root / "input-identities.jsonl", dict(file=path.name, **identity)
+        )
     return context["inputs"][key]
 
 
@@ -167,7 +141,7 @@ def job_for(context, cell, label, number, folder):
 def launch(context, cell, job, folder):
     root = context["ledger"].root
     filename = root / (cell["id"] + "-" + str(job["round"]) + "-" + job["label"] + ".job.json")
-    atomic(filename, job)
+    records.atomic(filename, job)
     interpreter = context["reference_python"] if job["backend"] == "fastembed" else sys.executable
     with (root / (filename.stem + ".log")).open("x") as stream:
         process = subprocess.Popen(
@@ -179,13 +153,13 @@ def launch(context, cell, job, folder):
             time.sleep(0.25)
     if process.returncode:
         raise RuntimeError(f"{job['backend']} exited {process.returncode}; see {filename.stem}.log")
-    record = document(folder / "receipt.json")
+    record = records.document(folder / "receipt.json")
     record.update(
         input_sha256=job["input_sha256"],
         model=job["model"],
         revision=context["models"][job["model"]]["revision"],
         adapter_sha256={
-            p.name: sha256(p)
+            p.name: records.sha256(p)
             for p in (
                 Path(__file__).resolve(),
                 HERE / "_speed_cells.py",
@@ -196,8 +170,8 @@ def launch(context, cell, job, folder):
     )
     tokens = record["input_identity"]["tokens_total"]
     record["mean_tokens"] = tokens / cell["texts"]
-    record["tokens_per_second"] = [tokens / value for value in observations(record)]
-    append(root / "operations.jsonl", dict(cell_id=cell["id"], **record))
+    record["tokens_per_second"] = [tokens / value for value in records.observations(record)]
+    records.append(root / "operations.jsonl", dict(cell_id=cell["id"], **record))
     return record
 
 
@@ -225,14 +199,14 @@ def stream_cell(context, cell):
                 raise ValueError("streamed A/A vector or quantization data differs")
             remove_output(context, Path(job["vectors_file"]), record)
             operations.append(record)
-    return summarize(cell, operations)
+    return records.summarize(cell, operations)
 
 
 def encode_cell(context, cell):
 
     path, _ = input_file(context, cell)
     dimension = 1024 if "static-retrieval" in cell["model"] else 256
-    memory_admit(cell["texts"], dimension, path.stat().st_size)
+    records.memory_admit(cell["texts"], dimension, path.stat().st_size)
     operations, reference, control = [], None, None
     for number in range(cell["rounds"]):
         order = labels(cell)
@@ -242,16 +216,16 @@ def encode_cell(context, cell):
             folder.mkdir()
             job = job_for(context, cell, label, number, folder)
             record = launch(context, cell, job, folder)
-            output = output_array(job["vectors_file"], record)
+            output = records.output_array(job["vectors_file"], record)
             if reference is None:
                 if label != "fse-a":
                     raise ValueError("first reference must be fse-a")
                 reference, control = output, (Path(job["vectors_file"]), record)
             else:
-                difference = check_output(
+                difference = records.check_output(
                     reference, output, label.startswith("fse-") or cell["kind"] == "classify"
                 )
-                append(
+                records.append(
                     context["ledger"].root / "checks.jsonl",
                     dict(
                         cell_id=cell["id"],
@@ -267,7 +241,7 @@ def encode_cell(context, cell):
             operations.append(record)
     del reference
     remove_output(context, *control)
-    return summarize(cell, operations)
+    return records.summarize(cell, operations)
 
 
 def execute_cell(context, cell):
@@ -278,11 +252,15 @@ def execute_cell(context, cell):
             raise ValueError("native build failed")
         path = context["ledger"].root / (cell["id"] + ".startup.json")
         job = path.with_suffix(".job.json")
-        atomic(job, dict(cell, binary=context["rust"]["binary"], receipt=str(path)))
+        records.atomic(job, dict(cell, binary=context["rust"]["binary"], receipt=str(path)))
         subprocess.run(
             [sys.executable, str(Path(__file__).resolve()), "--child-job", str(job)], check=True
         )
-        return document(path)
+        return records.document(path)
+    bytes_per_text = (
+        300 if cell["kind"] == "stream" else 8192 if "static-retrieval" in cell["model"] else 2048
+    )
+    records.disk_admit(context["work"], cell["texts"] * bytes_per_text)
     return stream_cell(context, cell) if cell["kind"] == "stream" else encode_cell(context, cell)
 
 
@@ -319,12 +297,14 @@ def quiet(context):
     result["observation_seconds"] = time.monotonic() - started
     if result["observation_seconds"] < 120:
         result.update(status="invalid", reason="observation window shorter than 120 seconds")
-    atomic(ledger.root / "quiet.json", result)
+    records.atomic(ledger.root / "quiet.json", result)
     return result
 
 
 def sizing_job(context, repo, workers, backend, name, kind="encode"):
     ledger = context["ledger"]
+    if not ledger.admit(60, "sizing"):
+        raise RuntimeError("sizing admission budget exhausted")
     cell = dict(
         id=name,
         stage="sizing",
@@ -351,11 +331,12 @@ def apply_sizing(context, cell, rate, number):
     reference_rate = None
     if cell.get("reference"):
         reference_rate = attempt(
-            context["ledger"].root,
+            context["ledger"],
             f"sizing-reference-{number}",
             lambda c=cell, n=number: sizing_job(
                 context, c["model"], c["workers"], c["reference"], f"sizing-reference-{n}"
             ),
+            stage="sizing",
         )
         if reference_rate is None:
             cell["preparation_error"] = "required reference sizing failed"
@@ -382,26 +363,23 @@ def size_once(context):
         key = (cell["model"], cell["workers"], cell["kind"])
         if key not in rates:
             rates[key] = attempt(
-                context["ledger"].root,
+                context["ledger"],
                 f"sizing-fse-{number}",
                 lambda c=cell, n=number: sizing_job(
                     context, c["model"], c["workers"], "fse", f"sizing-fse-{n}", c["kind"]
                 ),
+                stage="sizing",
             )
         if rates[key] is None:
             cell["preparation_error"] = "required one-shot sizing failed"
             continue
         apply_sizing(context, cell, rates[key], number)
-    atomic(context["ledger"].root / "sized-input.json", contract)
+    records.atomic(context["ledger"].root / "sized-input.json", contract)
 
 
-def scheduled_cell(context, cell, ledger, deadline, interrupted, contract):
+def scheduled_cell(context, cell, ledger, contract):
     started = time.monotonic()
-    allowed = (
-        not interrupted.is_set()
-        and started < deadline
-        and ledger.admit(ledger.estimate(cell, estimate(contract, cell)))
-    )
+    allowed = ledger.admit(ledger.estimate(cell, estimate(contract, cell)), cell["stage"])
     if not allowed:
         ledger.result(
             cell,
@@ -426,30 +404,24 @@ def validate_host(args):
 
 def run(args):
     validate_host(args)
-    contract = document(args.input)
+    contract = records.document(args.input)
     args.results.mkdir(parents=True, exist_ok=False)
-    ledger = Ledger(args.results, contract, args.allocated_at)
-    metadata(args.results, contract)
+    ledger = records.Ledger(args.results, contract, args.allocated_at)
+    records.metadata(args.results, contract)
     stop = threading.Event()
     watcher = threading.Thread(target=heartbeat, args=(ledger, stop), daemon=True)
     watcher.start()
-    interrupted = threading.Event()
     for signum in (signal.SIGINT, signal.SIGTERM):
-        signal.signal(signum, lambda *_: interrupted.set())
+        signal.signal(signum, lambda *_: setattr(ledger, "stopping", True))
     try:
         context = prepare(args, contract, ledger)
-        attempt(args.results, "quiet", lambda: quiet(context))
-        attempt(args.results, "sizing", lambda: size_once(context))
-        deadlines = {}
+        attempt(ledger, "quiet", lambda: quiet(context), stage="quiet", seconds=540)
+        attempt(ledger, "sizing", lambda: size_once(context), stage="sizing", seconds=600)
         for cell in contract["cells"]:
             ledger.current, ledger.stage = cell["id"], cell["stage"]
-            budget = next(
-                s["budget_minutes"] * 60 for s in contract["stages"] if s["name"] == cell["stage"]
-            )
-            deadlines.setdefault(cell["stage"], time.monotonic() + budget)
-            scheduled_cell(context, cell, ledger, deadlines[cell["stage"]], interrupted, contract)
+            scheduled_cell(context, cell, ledger, contract)
     except Exception as error:
-        append(args.results / "fatal.jsonl", dict(error=repr(error)))
+        records.append(args.results / "fatal.jsonl", dict(error=repr(error)))
         finished = {row["cell_id"] for row in ledger.finished}
         for cell in contract["cells"]:
             if cell["id"] not in finished:
@@ -466,6 +438,18 @@ def run(args):
     return ledger.done()
 
 
+def describe(contract):
+    return {
+        "variant": contract["variant"],
+        "planned_cells": len(contract["cells"]),
+        "planning_minutes": sum(s["budget_minutes"] for s in contract["stages"]),
+        "hard_deadline": False,
+        "cells": contract["cells"],
+        "machine": contract["machine"],
+        "python": sys.version.split()[0],
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=INPUT)
@@ -474,22 +458,25 @@ def main():
     mode.add_argument("--child-job", type=Path)
     mode.add_argument("--run", action="store_true")
     mode.add_argument("--setup", type=Path)
-    parser.add_argument("--results", type=Path, default=Path("/dr151-results"))
+    parser.add_argument("--results", type=Path, default=Path("/speed-results"))
     parser.add_argument("--work", type=Path, default=Path("/speed-work"))
     parser.add_argument("--reference-python", default="/speed-env/reference/bin/python")
     parser.add_argument("--allocated-at", type=float)
     args = parser.parse_args()
     if args.setup:
-        setup(args.setup, document(args.input))
+        validate_host(args)
+        engines.setup(args.setup, records.document(args.input), args.allocated_at)
         return 0
     if args.child_job:
-        job = document(args.child_job)
-        function = {"stream": stream_child, "startup": startup_job}.get(job["kind"], measure_child)
+        job = records.document(args.child_job)
+        function = {"stream": engines.stream_child, "startup": records.startup_job}.get(
+            job["kind"], engines.measure_child
+        )
         function(job)
         return 0
     if args.run:
         return run(args)
-    print(json.dumps(describe(document(args.input)), indent=2))
+    print(json.dumps(describe(records.document(args.input)), indent=2))
     return 0
 
 
