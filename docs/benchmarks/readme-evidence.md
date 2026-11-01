@@ -25,7 +25,7 @@ Its [classification defaults](https://github.com/MinishLab/model2vec/blob/745bf9
 and [NumPy inference implementation](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/inference/mlp.py) are pinned to the official 0.10.0 source.
 
 The recipe uses a fixed encoder and linear head for fse, while Model2Vec changes both the word vectors and head.
-Accuracy differences therefore compare trained models, not an accuracy gap caused by the inference engine.
+Accuracy differences here do not isolate the inference engine.
 Speed comparisons must also name these heads and the encoder settings rather than treating them as the same computation.
 
 The Model2Vec encoding-only timing rows below use static sentence vectors. They do not run this classifier's MLP head.

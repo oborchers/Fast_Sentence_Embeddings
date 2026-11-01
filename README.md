@@ -124,7 +124,7 @@ For large datasets, pass batches instead of building one huge list.
 The recipe below covers training, classification, regression and saving the finished model.
 
 The classification recipe compares fse's linear head with Model2Vec 0.10.0's fine-tuned MLP, a small neural network.
-Model2Vec also updates its word vectors during training.
+In this recipe, Model2Vec also updates its word vectors during training.
 
 Its [default head](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/train/classifier.py) has one hidden layer of 512 units with ReLU, which clips negative values to zero.
 It trains with PyTorch. The [prediction head](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/inference/mlp.py) runs in NumPy, with softmax or sigmoid for probabilities.
