@@ -1,9 +1,10 @@
 # Bounded comparison pods
 
 The coordinator launches these scripts. The benchmark tooling never calls RunPod.
-Generate the scripts from a pushed commit with
-`python benchmarks/quality/make_pod_scripts.py --commit <full SHA> --output <scratchpad>`.
-Both scripts use image `python:3.13`, 32 vCPU, 64 GB RAM and **60 GB disk**.
+Generate the revised MIND script with `python benchmarks/quality/make_mind_pod.py --commit <full SHA> --output <scratchpad>/dr151-pod1.sh`.
+Generate Pod 3 with `python benchmarks/quality/make_folded_pod.py --commit <full SHA> --output <scratchpad>/dr151-pod3.sh`.
+Keep the already launched Pod 2 script immutable.
+All use image `python:3.13`, 32 vCPU and 64 GB RAM. MIND needs **200 GB disk**, the existing Pod 2 uses **60 GB**, and expanded Pod 3 needs **150 GB**.
 Setup counts against the hard limit. Computation stops before artifact export.
 After export, `ALL_DONE` precedes `sleep infinity`, so the coordinator can collect logs.
 The coordinator must terminate the pod after collecting the logs.
@@ -117,7 +118,7 @@ Every existing Pod 2 classifier comparison stays intact. Pod 3 adds POTION-8M fl
 
 The folded and explicit arms use the same trained float32 coefficients, bias, labels and raw encoder. The explicit arm runs `Encoder.encode` followed by `vectors @ weight.T + bias`. The folded arm uses `Classifier.predict` on its projected table. Each operation records accuracy, size and its own backend identity. The Model2Vec reference is the fine-tuned MLP and exported NumPy pipeline described above.
 
-Raw-mean fse heads already fold internally. Standalone save changes persistence and retained memory, not the folding algorithm. The script records folded-file bytes beside raw-encoder plus linear-head bytes. Floating-point accumulation order can change between folding and explicit matmul, so accuracy and label disagreements are retained. The whole pod has a 45-minute hard limit, including setup, and exports partial results. No existing comparison is replaced.
+Raw-mean fse heads already fold internally. Standalone save changes persistence and retained memory, not the folding algorithm. The script records folded-file bytes beside raw-encoder plus linear-head bytes. Floating-point accumulation order can change between folding and explicit matmul, so accuracy and label disagreements are retained. The expanded whole pod has a 150-minute hard limit, including setup, and exports partial results. Its additional stages and budget are specified below. No existing comparison is replaced.
 
 Pod 3 also compares Python Model2Vec with the **same frozen sklearn linear head**, including the identical float32 coefficients and bias. This isolates the encoding engines. Its fine-tuned Model2Vec MLP remains a separate trained-model comparison. AG News linear cells are published first, before MLP training, with raw and summary artifacts.
 
@@ -143,4 +144,4 @@ The final showcase prepares one 100M-text file using the same qualifying source 
 
 Each large raw row records texts/s, tokens/s, mean tokens, peak RSS, bytes written, time until durable where applicable, and disk space before output, with output present, and after cleanup. The fse WordPiece path has no sentence-result cache. The pinned [model2vec-rs implementation](https://github.com/MinishLab/model2vec-rs/blob/19f58bef6ce145f2bc08de7016498f28d521feea/src/model.rs) and its fast WordPiece path also have no sentence-result cache. Artifact and OS filesystem caches are separate. Input checksum verification warms the filesystem cache before each operation, which is recorded.
 
-Budget handoff uses the coordinator's existing upper bounds: $0.45 + $3.85 + $2.90 = $7.20. At the unverified planning rate of $0.96/hour, 150 minutes adds $2.40 compute and about $0.052 container storage (150 GB, $0.10/GB/month, 30 days). Total workload estimate: $9.65. To keep the supplied total below $10, launch only at an actual quoted rate at most $1.05/hour and terminate within 155 minutes of pod creation, including collection. Under those assumptions the upper bound is about $9.97. The script itself prints ALL_DONE and sleeps for SSH collection, so the coordinator must enforce the termination deadline. No pod is launched by the comparison worker.
+Budget handoff uses the coordinator's existing upper bounds: $0.45 + $3.85 + $2.90 = $7.20. At the unverified planning rate of $0.96/hour, extrapolated from the [published cpu3c example](https://hi5.sh/guide/compute/runpod/), 150 minutes adds $2.40 compute and about $0.052 container storage (150 GB, [$0.10/GB/month](https://docs.runpod.io/pods/pricing), 30 days). Total workload estimate: $9.65. To keep the supplied total below $10, launch only at an actual quoted rate at most $1.05/hour and terminate within 155 minutes of pod creation, including collection. Under those assumptions the upper bound is about $9.97. The script itself prints ALL_DONE and sleeps for SSH collection, so the coordinator must enforce the termination deadline. No pod is launched by the comparison worker.

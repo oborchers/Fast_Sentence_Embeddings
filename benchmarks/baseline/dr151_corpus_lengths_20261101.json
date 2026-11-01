@@ -260,7 +260,7 @@
     {
       "dataset": "SetFit/20_newsgroups",
       "dataset_revision": "f1b91292074e7cfb69be58b642d583ec262f30ed",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 7532,
       "input_digest": "xxh3-128:a2f5289d2c40a1b865d7e94ed97ea014",
@@ -279,12 +279,13 @@
         "mean": 170.6451141795008,
         "median": 119.0
       },
-      "name": "setfit/20_newsgroups evaluation"
+      "name": "setfit/20_newsgroups evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/ade_corpus_v2_classification",
       "dataset_revision": "0d5751865d26618e2141fe0aecf06477d93d0955",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 5879,
       "input_digest": "xxh3-128:062acbf36f4f6a0431dc8baa0bc75430",
@@ -303,12 +304,13 @@
         "mean": 30.08351760503487,
         "median": 27.0
       },
-      "name": "setfit/ade_corpus_v2_classification evaluation"
+      "name": "setfit/ade_corpus_v2_classification evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/ag_news",
       "dataset_revision": "ca5ba619eb034211db5f70932b6702efd21e7c73",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 7600,
       "input_digest": "xxh3-128:04523fbaeb520d3639d0f98480ddd7ea",
@@ -327,12 +329,13 @@
         "mean": 50.746184210526316,
         "median": 48.0
       },
-      "name": "setfit/ag_news evaluation"
+      "name": "setfit/ag_news evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/amazon_counterfactual_en",
       "dataset_revision": "bb7e3bd207c48e2c4046f0c16107beda80c91342",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 5000,
       "input_digest": "xxh3-128:e1f62d4353ba179928b2c8dee4c37e44",
@@ -351,12 +354,13 @@
         "mean": 24.1704,
         "median": 20.0
       },
-      "name": "setfit/amazon_counterfactual_en evaluation"
+      "name": "setfit/amazon_counterfactual_en evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/bbc-news",
       "dataset_revision": "9c31f7087a8c225be8b4c420d70216ef1f121eb0",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 1000,
       "input_digest": "xxh3-128:2266631f1c12326c019424672674b73e",
@@ -375,12 +379,13 @@
         "mean": 387.454,
         "median": 390.5
       },
-      "name": "setfit/bbc-news evaluation"
+      "name": "setfit/bbc-news evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/emotion",
       "dataset_revision": "6c362e04d016f6b6a9377e85c3b944140f0b96c9",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 2000,
       "input_digest": "xxh3-128:9fd21b8898769e70236267a3e0f6e903",
@@ -399,12 +404,13 @@
         "mean": 20.212,
         "median": 18.0
       },
-      "name": "setfit/emotion evaluation"
+      "name": "setfit/emotion evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/enron_spam",
       "dataset_revision": "1916f66c89d52221ae33eb57d44498b4f3a5df22",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 2000,
       "input_digest": "xxh3-128:4e1ff019657c2a850b8b230d9ad09cc0",
@@ -423,12 +429,13 @@
         "mean": 231.1975,
         "median": 173.0
       },
-      "name": "setfit/enron_spam evaluation"
+      "name": "setfit/enron_spam evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/hate_speech_offensive",
       "dataset_revision": "d0dafd0c98ed4f90649fbb1c77d5dee7857c0d49",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 2000,
       "input_digest": "xxh3-128:1d17e2910ce7be68d4f1facd489158dd",
@@ -447,12 +454,13 @@
         "mean": 28.183,
         "median": 26.0
       },
-      "name": "setfit/hate_speech_offensive evaluation"
+      "name": "setfit/hate_speech_offensive evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/imdb",
       "dataset_revision": "4b6709222b9068922d6bd4fe3b0271b1391dd218",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 25000,
       "input_digest": "xxh3-128:7094d9d8074d0f26a170528463c69c90",
@@ -471,12 +479,13 @@
         "mean": 269.49292,
         "median": 228.0
       },
-      "name": "setfit/imdb evaluation"
+      "name": "setfit/imdb evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/amazon_massive_scenario_en-US",
       "dataset_revision": "ca5650004c0b6fe9271a67bbbd3e3ee669be09d7",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 2974,
       "input_digest": "xxh3-128:cdaab8132b4741cc3a07f39772b92c81",
@@ -495,12 +504,13 @@
         "mean": 7.392737054472091,
         "median": 7.0
       },
-      "name": "setfit/amazon_massive_scenario_en-US evaluation"
+      "name": "setfit/amazon_massive_scenario_en-US evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/SentEval-CR",
       "dataset_revision": "c9ccf96a8fea3c88f5573b8a11228e0122a3c7cc",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 753,
       "input_digest": "xxh3-128:8fea562e5093aafd299b676d8e0f81ce",
@@ -519,12 +529,13 @@
         "mean": 22.50597609561753,
         "median": 20.0
       },
-      "name": "setfit/SentEval-CR evaluation"
+      "name": "setfit/SentEval-CR evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/sst5",
       "dataset_revision": "e51bdcd8cd3a30da231967c1a249ba59361279a3",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 2210,
       "input_digest": "xxh3-128:549a3b68e6b7ebe66d51e176e3bbd80d",
@@ -543,12 +554,13 @@
         "mean": 23.000452488687785,
         "median": 22.0
       },
-      "name": "setfit/sst5 evaluation"
+      "name": "setfit/sst5 evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/student-question-categories",
       "dataset_revision": "a0053782f27c4d68d642f4b9169cb1cb49088ee2",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 5000,
       "input_digest": "xxh3-128:4d4a6bf689954796ceb3b36df335c6c5",
@@ -567,12 +579,13 @@
         "mean": 87.3994,
         "median": 70.0
       },
-      "name": "setfit/student-question-categories evaluation"
+      "name": "setfit/student-question-categories evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/subj",
       "dataset_revision": "f3c1162e678417f664d76b21864fdb87b0615fcf",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 2000,
       "input_digest": "xxh3-128:2e5959b4c3c1a814b2b155f88f1e0d0e",
@@ -591,12 +604,13 @@
         "mean": 28.3815,
         "median": 26.0
       },
-      "name": "setfit/subj evaluation"
+      "name": "setfit/subj evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "SetFit/tweet_sentiment_extraction",
       "dataset_revision": "0d5359cfbb2470332f2b82e62269cf755e0ac5c3",
-      "split": "1000 stratified, seed 0",
+      "split": "test",
       "protocol": "historical 15 displayed rows reconstruction",
       "texts": 3534,
       "input_digest": "xxh3-128:dfd5ac50743bca63b1f2b8a2d11673a4",
@@ -615,7 +629,8 @@
         "mean": 18.56168647425014,
         "median": 17.0
       },
-      "name": "setfit/tweet_sentiment_extraction evaluation"
+      "name": "setfit/tweet_sentiment_extraction evaluation",
+      "training_selection": "1000 stratified, seed 0"
     },
     {
       "dataset": "HuggingFaceFW/fineweb-edu-llama3-annotations",
@@ -642,5 +657,10 @@
       },
       "name": "fineweb/fineweb evaluation"
     }
-  ]
+  ],
+  "provenance_label_correction": {
+    "original_artifact_commit": "ea174334344c2fb0c97b9211af478d4acda77a40",
+    "description": "SetFit evaluation split is test; the former split label described training selection. All length counts, means and medians are unchanged.",
+    "correction_method_sha256": "2a1422896a41692ef9ff7d482704cf55f33f2c513f48f963ca41b6b59fd9fe68"
+  }
 }

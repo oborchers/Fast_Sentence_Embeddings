@@ -148,6 +148,7 @@ def test_rust_parallelism_overrides_inherited_serial_setting(monkeypatch, worker
     paths = importlib.import_module("large_write_paths")
     observed = []
     monkeypatch.setenv("TOKENIZERS_PARALLELISM", "false")
+    monkeypatch.setenv("RAYON_NUM_THREADS", "1")
     monkeypatch.setattr(
         paths,
         "rust_pipeline",
@@ -157,3 +158,22 @@ def test_rust_parallelism_overrides_inherited_serial_setting(monkeypatch, worker
     )
     paths.run(SimpleNamespace(kind="rust", workers=workers), Path("unused"))
     assert observed == [("true" if workers > 1 else "false", str(workers))]
+
+
+@pytest.mark.usefixtures("modules")
+def test_corpus_lengths_use_full_evaluation_rows_and_label_the_test_split(monkeypatch, tmp_path):
+    counter = importlib.import_module("corpus_lengths")
+    monkeypatch.setattr(counter, "texts", lambda _: ["filler"])
+    monkeypatch.setattr(counter, "chunks", lambda: iter(["one two three four five"]))
+    data = (["training"], [0], ["eval one", "eval two"], [0, 1])
+    monkeypatch.setattr(
+        counter,
+        "inputs",
+        lambda *_: iter([("fixture", data, {"split": "1000 stratified, seed 0"})]),
+    )
+    rows = list(counter.source_rows(tmp_path))
+    name, evaluation, provenance = next(row for row in rows if row[0].startswith("setfit/"))
+    assert name == "setfit/fixture evaluation"
+    assert evaluation == ["eval one", "eval two"]
+    assert provenance["split"] == "test"
+    assert provenance["training_selection"] == "1000 stratified, seed 0"

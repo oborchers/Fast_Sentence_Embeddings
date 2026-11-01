@@ -1,7 +1,7 @@
 # Speed corpus lengths
 
 Exact counts from [the committed raw statistics](../benchmarks/baseline/dr151_corpus_lengths_20261101.json). Words use whitespace splitting. Characters are Unicode code points.
-POTION tokens follow pinned model truncation and unknown-token removal. No throughput is measured here.
+POTION tokens follow pinned model truncation and unknown-token removal. No throughput is measured here. The 2M recipe uses source positions once; natural duplicate strings can occur.
 
 | Corpus | Texts | Words mean / median | Characters mean / median | POTION tokens mean / median |
 | --- | ---: | ---: | ---: | ---: |
@@ -26,3 +26,5 @@ POTION tokens follow pinned model truncation and unknown-token removal. No throu
 | setfit/subj evaluation | 2,000 | 24.80 / 23 | 129.66 / 120.5 | 28.38 / 26 |
 | setfit/tweet_sentiment_extraction evaluation | 3,534 | 12.76 / 12 | 67.76 / 63 | 18.56 / 17 |
 | fineweb/fineweb evaluation | 46,743 | 584.16 / 386 | 3530.06 / 2339 | 386.79 / 491 |
+
+SetFit rows use the complete pinned test split. Training selection is recorded separately in the JSON. The provenance label correction changes no length value.

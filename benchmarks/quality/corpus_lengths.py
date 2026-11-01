@@ -47,7 +47,17 @@ def source_rows(cache):
     )
     for suite in ("setfit", "fineweb"):
         for name, data, provenance in inputs(suite, cache / suite, None):
-            yield suite + "/" + name + " evaluation", data[2], provenance
+            yield (
+                suite + "/" + name + " evaluation",
+                data[2],
+                evaluation_provenance(suite, provenance),
+            )
+
+
+def evaluation_provenance(suite, provenance):
+    if suite == "setfit":
+        return {**provenance, "split": "test", "training_selection": provenance["split"]}
+    return provenance
 
 
 def markdown(result, json_path):

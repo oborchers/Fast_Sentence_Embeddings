@@ -146,6 +146,8 @@ def main():
                 if args.kind == "fse"
                 else "Rust BufReader lines",
                 "scope": "input read, encode, requested sink/writer and close; model load and digest verification excluded",
+                "output_digest_scope": "row-major float32 vector bytes; ShardSink values decoded after stored shard checksum verification",
+                "bytes_written_scope": "logical output file bytes, not device write amplification",
                 "output_retention": "each output verified, measured, then removed before the next operation",
             }
         )
