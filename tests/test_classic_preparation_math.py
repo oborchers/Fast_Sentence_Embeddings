@@ -23,13 +23,23 @@ def test_fold_matches_unfolded_sentence_projection(recipe):
     lookup = {"a": 4, "b": 9}
     means = recipe.reference_means(table, lookup, tokens)
     assert np.array_equal(means[0], table[[4, 9]].sum(axis=0, dtype=np.float32) / 3)
-    basis = recipe.components(recipe.gram_of_batches([table[:50], table[50:]]))
+    basis = np.linalg.qr(random.normal(size=(12, 12)))[0][:, :10].T.astype(np.float32)
     folded = np.empty_like(table)
     recipe.fold_table(table, basis, folded)
     expected = recipe.remove(means, basis)
     actual = recipe.reference_means(folded, lookup, tokens)
     np.testing.assert_allclose(actual, expected, atol=2e-6, rtol=2e-6)
     assert np.array_equal(actual[-1], np.zeros(12, dtype=np.float32))
+
+
+
+def test_components_keep_ten_largest_uncentered_directions(recipe):
+    pytest.importorskip("scipy.linalg")
+    rows = np.diag(np.sqrt(np.arange(1, 13, dtype=np.float32)))
+    gram = recipe.gram_of_batches([rows[:6], rows[6:]])
+    basis = recipe.components(gram)
+    expected = np.eye(12, dtype=np.float32)[-10:][::-1]
+    np.testing.assert_array_equal(basis, expected)
 
 
 def test_sif_uses_training_frequencies_only_and_requires_overlap(recipe):
