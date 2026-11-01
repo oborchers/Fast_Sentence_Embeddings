@@ -1,81 +1,25 @@
 {
-  "completed_unique_configurations": 3,
-  "remaining_unique_configurations": 32,
-  "remaining_static_configurations": 31,
-  "observed_configurations": [
-    {
-      "model": "fse/potion-base-8M-float32",
-      "wall_seconds": 1462.740465,
-      "batch_tasks": 8,
-      "includes": [
-        "imports",
-        "model loading",
-        "dataset preparation",
-        "evaluation",
-        "lock waits",
-        "fairness cooldowns"
-      ]
-    },
-    {
-      "name": "t1-00-fse_potion-base-32M-float32",
-      "model": "fse/potion-base-32M-float32",
-      "started_utc": "2026-11-01T03:01:27.821181+00:00",
-      "ended_utc": "2026-11-01T03:52:31.927734+00:00",
-      "wall_seconds": 3064.1069151250413,
-      "returncode": 0,
-      "state_seconds_approximate_5s": {
-        "own_heavy": 545.5434902498964,
-        "timing_or_manual_pause": 656.0508586670039,
-        "foreign_heavy": 966.3450265009888,
-        "other_setup_cooldown_or_wait": 896.1605397900566
-      },
-      "batch_tasks": 16,
-      "workers": 2,
-      "nice": 10,
-      "includes": "imports, load, full evaluation, lock waits and cooldowns",
-      "excluded_from_speed_claims": true,
-      "commit": "41ea1ea10d8464b5a12442ad5da226c0e1153657"
-    },
-    {
-      "name": "t1-01-fse_potion-retrieval-32M-float32",
-      "model": "fse/potion-retrieval-32M-float32",
-      "started_utc": "2026-11-01T04:15:16.235483+00:00",
-      "ended_utc": "2026-11-01T04:33:39.085858+00:00",
-      "wall_seconds": 1102.8503631660715,
-      "returncode": 0,
-      "state_seconds_approximate_5s": {
-        "own_heavy": 507.1316550819902,
-        "timing_or_manual_pause": 85.09192100004293,
-        "foreign_heavy": 0.0,
-        "other_setup_cooldown_or_wait": 510.62189279298764
-      },
-      "batch_tasks": 16,
-      "workers": 2,
-      "nice": 10,
-      "includes": "imports, load, full evaluation, lock waits and cooldowns",
-      "excluded_from_speed_claims": true,
-      "commit": "af9e6533e4ba9bc939b565effb1ee3db38813979"
-    }
+  "completed_unique": 4,
+  "pending_unique": 31,
+  "remaining_static": 30,
+  "remaining_contextual": 1,
+  "observed_static_invocation_seconds": [
+    1462.740465,
+    3064.1069151250413,
+    1102.8503631660715,
+    2120.387390666059
   ],
-  "planning_scenario_only": {
-    "at_shorter_observed_wall_hours": 9.496767016152281,
-    "at_longer_observed_wall_hours": 26.385365102465634,
-    "unmeasured_additions": [
-      "all-MiniLM-L6-v2",
-      "FineWeb and SetFit classifier work",
-      "two same-method float32 confirmations"
-    ],
-    "limitations": [
-      "POTION-32M includes a manual SIGSTOP priority hold, shared marker wait and foreign heavy work",
-      "POTION-8M batches had8 tasks; POTION-32M batches had16",
-      "model dimensions, precision and task costs differ",
-      "three elapsed observations do not calibrate a cloud or quiet-machine forecast"
-    ],
-    "at_median_observed_wall_hours": 12.595820670833334
-  },
-  "normalized_method_cohort_completed": 1,
-  "required_same_method_confirmations": [
-    "fse/potion-base-8M-float32",
-    "fse/potion-base-32M-float32"
-  ]
+  "median_seconds": 1791.5639278330295,
+  "uniform_remaining_static_hours": 14.929699398608578,
+  "endpoint_scenario_hours": [
+    9.190419693050595,
+    25.53422429270868
+  ],
+  "extra_unmeasured": [
+    "MiniLM",
+    "classifiers",
+    "search/lifecycle",
+    "same-method Hub float32 confirmations as needed"
+  ],
+  "warning": "Elapsed-rate scenario includes different waits, batch sizes and priority holds. Not a quiet-machine or cloud forecast. Metadata failures are incomplete configurations, not completed measurements."
 }

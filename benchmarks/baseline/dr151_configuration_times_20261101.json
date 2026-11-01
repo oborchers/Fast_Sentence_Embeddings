@@ -15,10 +15,13 @@
       },
       "batch_tasks": 16,
       "workers": 2,
-      "nice": 10,
       "includes": "imports, load, full evaluation, lock waits and cooldowns",
       "excluded_from_speed_claims": true,
-      "commit": "41ea1ea10d8464b5a12442ad5da226c0e1153657"
+      "commit": "41ea1ea10d8464b5a12442ad5da226c0e1153657",
+      "original_nice_field": 10,
+      "nice_field_meaning": "requested adjustment, not measured actual process priority",
+      "actual_nice": 20,
+      "actual_nice_evidence": "old queue inherited parent nice=10 and applied nice -n 10; live MiniLM child verified at nice=20"
     },
     {
       "name": "t1-01-fse_potion-retrieval-32M-float32",
@@ -35,11 +38,83 @@
       },
       "batch_tasks": 16,
       "workers": 2,
-      "nice": 10,
       "includes": "imports, load, full evaluation, lock waits and cooldowns",
       "excluded_from_speed_claims": true,
-      "commit": "af9e6533e4ba9bc939b565effb1ee3db38813979"
+      "commit": "af9e6533e4ba9bc939b565effb1ee3db38813979",
+      "original_nice_field": 10,
+      "nice_field_meaning": "requested adjustment, not measured actual process priority",
+      "actual_nice": 20,
+      "actual_nice_evidence": "old queue inherited parent nice=10 and applied nice -n 10; live MiniLM child verified at nice=20"
+    },
+    {
+      "name": "t1-02-fse_potion-multilingual-128M-float32",
+      "model": "fse/potion-multilingual-128M-float32",
+      "started_utc": "2026-11-01T04:35:39.125582+00:00",
+      "ended_utc": "2026-11-01T05:10:59.512451+00:00",
+      "wall_seconds": 2120.387390666059,
+      "returncode": 0,
+      "state_seconds_approximate_5s": {
+        "own_heavy": 553.4925657078857,
+        "timing_or_manual_pause": 1031.2045875419863,
+        "foreign_heavy": 0.0,
+        "other_setup_cooldown_or_wait": 535.6768256251235
+      },
+      "batch_tasks": 16,
+      "workers": 2,
+      "includes": "imports, load, full evaluation, lock waits and cooldowns",
+      "excluded_from_speed_claims": true,
+      "commit": "90de884486567d5ad070dc943cb61031e4e71e38",
+      "original_nice_field": 10,
+      "nice_field_meaning": "requested adjustment, not measured actual process priority",
+      "actual_nice": 20,
+      "actual_nice_evidence": "old queue inherited parent nice=10 and applied nice -n 10; live MiniLM child verified at nice=20"
+    },
+    {
+      "name": "t1-03-fse_static-retrieval-mrl-en-v1-float32",
+      "model": "fse/static-retrieval-mrl-en-v1-float32",
+      "started_utc": "2026-11-01T05:12:59.545326+00:00",
+      "ended_utc": "2026-11-01T05:13:06.135687+00:00",
+      "wall_seconds": 6.590351124992594,
+      "returncode": 1,
+      "state_seconds_approximate_5s": {
+        "own_heavy": 0.0,
+        "timing_or_manual_pause": 0.0,
+        "foreign_heavy": 0.0,
+        "other_setup_cooldown_or_wait": 6.578785000019707
+      },
+      "batch_tasks": 16,
+      "workers": 2,
+      "includes": "imports, load, full evaluation, lock waits and cooldowns",
+      "excluded_from_speed_claims": true,
+      "commit": "90de884486567d5ad070dc943cb61031e4e71e38",
+      "original_nice_field": 10,
+      "nice_field_meaning": "requested adjustment, not measured actual process priority",
+      "actual_nice": 20,
+      "actual_nice_evidence": "old queue inherited parent nice=10 and applied nice -n 10; live MiniLM child verified at nice=20"
+    },
+    {
+      "name": "t1-04-fse_static-similarity-mrl-multilingual-v1-float32",
+      "model": "fse/static-similarity-mrl-multilingual-v1-float32",
+      "started_utc": "2026-11-01T05:15:06.161535+00:00",
+      "ended_utc": "2026-11-01T05:15:12.797036+00:00",
+      "wall_seconds": 6.635500415926799,
+      "returncode": 1,
+      "state_seconds_approximate_5s": {
+        "own_heavy": 0.0,
+        "timing_or_manual_pause": 0.0,
+        "foreign_heavy": 0.0,
+        "other_setup_cooldown_or_wait": 6.6271053339587525
+      },
+      "batch_tasks": 16,
+      "workers": 2,
+      "includes": "imports, load, full evaluation, lock waits and cooldowns",
+      "excluded_from_speed_claims": true,
+      "commit": "02d387c8f901137368d5353af74e20f6bb0af0d5",
+      "original_nice_field": 10,
+      "nice_field_meaning": "requested adjustment, not measured actual process priority",
+      "actual_nice": 20,
+      "actual_nice_evidence": "old queue inherited parent nice=10 and applied nice -n 10; live MiniLM child verified at nice=20"
     }
   ],
-  "note": "wall time includes manual SIGSTOP priority hold, imports, datasets, evaluation, shared waits and cooldowns; approximate states do not identify SIGSTOP separately; no measured encoding throughput or cloud runtime claim"
+  "note": "Full invocation wall time includes setup, evaluation, waits and cooldowns. Failed metadata jobs are retained and count as incomplete. Original scratch records remain unchanged. Priority correction applies to this old queue only."
 }

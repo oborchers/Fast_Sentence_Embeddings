@@ -753,3 +753,34 @@ allocation sites include imports, `StringSource` construction, `MemorySink._new`
 and `CpuBackend.text_rows`. Cumulative totals over repeated calls are not
 simultaneous memory peaks. [Profile metadata and load endpoints](benchmarks/baseline/dr151_profiles_20261101.json)
 and [raw CPU, native-memory and RSS artifacts](benchmarks/baseline/results/dr151-profiles/).
+
+
+### Additional quality checkpoint and runtime correction (01.11.2026)
+
+POTION-multilingual-128M float32 completed all 53 non-deferred tasks with
+unmodified MTEB 2.26.25. The 40-task English mean is 49.9565 points and the
+complete 13-task NanoBEIR mean is 36.6528 points. MIND remains deferred because
+it needs more than 16 GiB RAM on the M1. This is not a full 41-task English mean.
+[Raw scores](benchmarks/baseline/results/dr151-quality-multilingual128-float32.jsonl)
+and [coverage summary](benchmarks/baseline/dr151_quality_multilingual128_20261101.json)
+retain the measured method and runtime. Earlier checkpoints use different
+method cohorts, so these figures establish no controlled cross-model ranking.
+
+The four completed invocations took 24.4, 51.1, 18.4 and 35.3 minutes, including
+setup, shared waits and cooldowns. For 30 remaining static configurations,
+a uniform elapsed-rate scenario is 14.93 hours at the observed median,
+with endpoints of 9.19 and 25.53 hours. MiniLM, classifiers, search and necessary
+same-method confirmations are additional. These observations do not calibrate
+quiet-machine or cloud runtime. [Durations and corrected process-priority
+meaning](benchmarks/baseline/dr151_configuration_times_20261101.json) retain the
+two failed metadata jobs as incomplete configurations.
+
+The counterpart recorder defect also affects attribution of historical
+model2vec profiles above. Their observed samples remain diagnostic, but their
+own installed-code identity was not captured. No final counterpart speed,
+profile attribution or paired ratio headline is supported by those rows.
+Commit `02d387c` adds each executing backend's package version, install path
+and installed-file content hash. Rust additionally binds its verified binary.
+Follow-up commits extend this identity to quality, classifiers and search.
+Existing fse measurements remain valid. Counterpart measurements require
+fresh runs with the corrected identity before final comparison claims.
