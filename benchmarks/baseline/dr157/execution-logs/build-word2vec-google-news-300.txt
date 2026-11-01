@@ -1,8 +1,0 @@
-Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 1015.24it/s]
-{"built": "fse/word2vec-google-news-300-raw", "fingerprint": "xxh3-128:64e4ef70aca1f497f7173a33764825dd"}
-{"built": "fse/word2vec-google-news-300-raw-float16", "fingerprint": "xxh3-128:4fbe512db126cfe88b7daa8ef5440a7c"}
-{"built": "fse/word2vec-google-news-300-raw-int8", "fingerprint": "xxh3-128:1535b380564e1ce4a7dbd553eaddec01"}
-Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 1378.04it/s]
-{"built": "fse/word2vec-google-news-300-sif10", "fingerprint": "xxh3-128:d56902a9d7d77240e264aa99f4d2cf00"}
-{"built": "fse/word2vec-google-news-300-sif10-float16", "fingerprint": "xxh3-128:499b36600b36b4a6672d3ccab989b585"}
-{"built": "fse/word2vec-google-news-300-sif10-int8", "fingerprint": "xxh3-128:06ce76785b6c401587536055650438bd"}

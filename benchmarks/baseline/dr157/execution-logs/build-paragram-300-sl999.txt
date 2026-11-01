@@ -1,8 +1,0 @@
-Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 799.37it/s]
-{"built": "fse/paragram-300-sl999-raw", "fingerprint": "xxh3-128:70ea0079ef30b2c0e3b9918ae66b4296"}
-{"built": "fse/paragram-300-sl999-raw-float16", "fingerprint": "xxh3-128:d437ec72d880179f652b77366a523b97"}
-{"built": "fse/paragram-300-sl999-raw-int8", "fingerprint": "xxh3-128:811484bfb3fb71ed12bcaeb4744d991b"}
-Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 2816.23it/s]
-{"built": "fse/paragram-300-sl999-sif10", "fingerprint": "xxh3-128:c6c96fd66f29e85fa6fefdf30661badd"}
-{"built": "fse/paragram-300-sl999-sif10-float16", "fingerprint": "xxh3-128:2b2ab794cc974b128746edfe070c320d"}
-{"built": "fse/paragram-300-sl999-sif10-int8", "fingerprint": "xxh3-128:37fbc7e840861300414e76ec0964f409"}

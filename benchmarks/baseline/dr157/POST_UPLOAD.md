@@ -28,8 +28,8 @@ The remote file list must equal the complete local file list.
 Run with the same fse 2.0 CPU installation used for the local references:
 
 ```sh
-.venv/bin/python benchmarks/verify_published_hub.py \
-  --manifest /Users/oliverborchers/fse-dr157/publication-manifest.json \
+/Users/oliverborchers/fse-dr157/release-env/bin/python benchmarks/verify_published_hub.py \
+  --manifest /Users/oliverborchers/fse-dr157/release-2.0.0/publication-manifest.json \
   --upload-receipts /Users/oliverborchers/fse-dr157/upload-receipts.json \
   --output /Users/oliverborchers/fse-dr157/public-readback-01 \
   --scratch /Users/oliverborchers/fse-dr157/public-readback-scratch
@@ -53,7 +53,10 @@ bytes removed. Evidence and logs stay outside scratch. A failure stops that repo
 checks, records the failed stage and allows the remaining repos to be checked.
 No failure triggers Hub deletion, overwrite or repair.
 
-Commit `evidence.json`, `report.md`, per-repo JSON and logs to this evidence folder.
-Report the complete per-repo table and the evidence commit to fse-main. Actual
+Hand raw `evidence.json`, reports, per-repo JSON and logs to dr151-compare, the sole
+writer of `benchmark-evidence-2.0`, for archival under
+`benchmarks/baseline/results/dr157-20261101/`. Verify the published archive bytes.
+Only a compact summary and immutable archive reference belong in this folder.
+Report the complete per-repo table and the archive commit to fse-main. Actual
 post-upload checks remain pending until release 2.0.0, release cards and completed
 upload receipts exist.
