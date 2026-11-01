@@ -13,6 +13,11 @@ data = {
     ]
     for c in summary["cells"]
 }
+int8_summary = json.loads((ROOT / "docs/benchmarks/readme-int8-20261101/summary.json").read_text())
+for cell in int8_summary["cells"]:
+    if cell["chart_eligible"]:
+        data[("int8", cell["workers"])] = cell["backends"]["fse-a"]["texts_per_second"]
+
 out = ROOT / "media/readme"
 out.mkdir(exist_ok=True)
 
@@ -24,7 +29,7 @@ def text(x, y, value, size=18, fill=None, weight=400, anchor="start"):
 for theme in ("light", "dark"):
     colors = {k: v["value"] for k, v in brand[theme].items()}
     parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="530" viewBox="0 0 1100 530" role="img" aria-labelledby="title desc"><title id="title">fse throughput on WikiText</title><desc id="desc">POTION-8M: float32 one worker 222701 texts per second; float32 ten workers 918299; float16 ten workers 946796. Bars show medians, ticks show full ranges. Apple M1 Pro, 1 November 2026. This compares fse configurations, not libraries.</desc><rect width="1100" height="530" rx="12" fill="{colors["bg"]}"/><g font-family="Geist, Arial, sans-serif">'
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="626" viewBox="0 0 1100 626" role="img" aria-labelledby="title desc"><title id="title">fse throughput on WikiText</title><desc id="desc">POTION-8M: float32 one worker 222701 texts per second; int8 one worker 214848; float32 ten workers 918299; float16 ten workers 946796. Bars show medians, ticks show full ranges. Apple M1 Pro, 1 November 2026. This compares fse configurations, not libraries.</desc><rect width="1100" height="626" rx="12" fill="{colors["bg"]}"/><g font-family="Geist, Arial, sans-serif">'
     ]
     parts += [
         text(40, 52, "More text. Same CPU.", 30, weight=700),
@@ -47,10 +52,10 @@ for theme in ("light", "dark"):
     ):
         x = x0 + width * v / 1000000
         parts += [
-            f'<path d="M{x} 116 V399" stroke="{colors["border"]}"/>',
-            text(x, 426, label, 16, colors["text-secondary"], anchor="middle"),
+            f'<path d="M{x} 116 V495" stroke="{colors["border"]}"/>',
+            text(x, 522, label, 16, colors["text-secondary"], anchor="middle"),
         ]
-    for i, (dtype, w) in enumerate((("float32", 1), ("float32", 10), ("float16", 10))):
+    for i, (dtype, w) in enumerate((("float32", 1), ("int8", 1), ("float32", 10), ("float16", 10))):
         d = data[dtype, w]
         y = 140 + 96 * i
         end = x0 + width * d["median"] / 1000000
@@ -72,15 +77,15 @@ for theme in ("light", "dark"):
     parts += [
         text(
             40,
-            470,
+            566,
             "Apple M1 Pro  ·  1 November 2026  ·  5,352 nonblank validation/test texts",
             17,
             colors["text-secondary"],
         ),
         text(
             40,
-            502,
-            "3 paired rounds  ·  bars: medians  ·  ticks: full ranges  ·  models already loaded",
+            598,
+            "3 paired rounds per setting  ·  bars: medians  ·  ticks: full ranges  ·  models already loaded",
             17,
             colors["text-secondary"],
         ),

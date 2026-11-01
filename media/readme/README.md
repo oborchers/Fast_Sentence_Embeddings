@@ -6,7 +6,9 @@ revision `648624ce9bed1d08cacd00e32d5a4bf8ca62f271` (25 October 2026).
 The visuals use the brand's editorial explainer mode: warm surfaces, one green accent and clear reading order.
 
 `throughput-*.svg` and its PNG exports show fse configurations, not a library speed ranking.
-Values come from `docs/benchmarks/readme-runtime-window5-20261101/summary.json`.
+Values come from `docs/benchmarks/readme-runtime-window5-20261101/summary.json`
+and `docs/benchmarks/readme-int8-20261101/summary.json`. The latter adds only its eligible one-worker int8 cell.
+Ten-worker int8 exceeds the 10% A/A band and is not plotted. All plotted fse rows have the same runtime content identity.
 Bars use exact fse-a medians with a common zero baseline. Whiskers show the full observed range.
 The model, corpus, machine, date and measurement scope appear inside the image.
 No Model2Vec rate or inferred words-per-second count is plotted.
