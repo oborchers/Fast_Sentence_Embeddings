@@ -2,6 +2,8 @@
 
 import json
 import os
+import platform
+import subprocess
 import shutil
 from datetime import date
 from pathlib import Path
@@ -38,6 +40,12 @@ class Recipe:
             self.previous[name] = os.environ.get(name)
             os.environ[name] = value
         print(f"Recipe run: {date.today().isoformat()}. Generated files are temporary.")
+        cpu = platform.processor() or platform.machine()
+        if platform.system() == "Darwin":
+            cpu = subprocess.check_output(
+                ["sysctl", "-n", "machdep.cpu.brand_string"], text=True
+            ).strip()
+        print(f"{cpu}. {platform.platform()}. Python {platform.python_version()}.")
 
     def source_file(self, repo, revision, filename, *, repo_type="model"):
         from huggingface_hub import hf_hub_download

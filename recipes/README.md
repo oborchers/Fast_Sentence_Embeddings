@@ -12,14 +12,14 @@ A vector is a list of numbers that represents a text.
 
 | Picture | Recipe and promise | Reading time* |
 |---|---|---:|
-| <img src="media/00-fse-101-light.svg" width="180" alt="Text to vectors to similar texts"> | [**fse 101**](00-fse-101.ipynb). Turn sentences into vectors, find similar text, and save your results. | 15 min |
-| <img src="media/01-sif-usif-light.svg" width="180" alt="Prepare a weighted word table"> | [**SIF and uSIF**](01-sif-usif.ipynb). Make classic word vectors more useful for sentence search. | 15 min |
-| <img src="media/02-linear-heads-light.svg" width="180" alt="Compare four classifiers"> | [**Linear heads**](02-linear-heads.ipynb). Train a text classifier, compare its accuracy, and save it for your app. | 15 min |
-| <img src="media/03-files-with-resume-light.svg" width="180" alt="File batches to a saved store"> | [**Files with resume**](03-files-with-resume.ipynb). Turn a text file into vectors and continue after an interruption. | 10 min |
-| <img src="media/04-kafka-and-qdrant-light.svg" width="180" alt="Queue to disk to Qdrant"> | [**Kafka and Qdrant**](04-kafka-and-qdrant.ipynb). Turn queued news into searchable vectors and replay safely. | 10 min |
-| <img src="media/05-folder-listener-light.svg" width="180" alt="Completed files to a local store"> | [**Folder listener**](05-folder-listener.ipynb). Pick up completed files and add each one to your search store. | 10 min |
-| <img src="media/06-integrations-light.svg" width="180" alt="One encoder for several libraries"> | [**Integrations**](06-integrations.ipynb). Use one local encoder with your search, topic, and table libraries. | 15 min |
-| <img src="media/07-local-compute-and-http-light.svg" width="180" alt="Local compute and HTTP transfer"> | [**Local compute and HTTP**](07-local-compute-and-http.ipynb). See when a local HTTP request costs more than encoding the text. | 5 min |
+| <img src="media/00-fse-101.svg" width="180" alt="Text to vectors to similar texts"> | [**fse 101**](00-fse-101.ipynb). Turn sentences into vectors, find similar text, and save your results. | 15 min |
+| <img src="media/01-sif-usif.svg" width="180" alt="Prepare a weighted word table"> | [**SIF and uSIF**](01-sif-usif.ipynb). Make classic word vectors more useful for sentence search. | 15 min |
+| <img src="media/02-linear-heads.svg" width="180" alt="Compare four classifiers"> | [**Linear heads**](02-linear-heads.ipynb). Train a text classifier, compare its accuracy, and save it for your app. | 15 min |
+| <img src="media/03-files-with-resume.svg" width="180" alt="File batches to a saved store"> | [**Files with resume**](03-files-with-resume.ipynb). Turn a text file into vectors and continue after an interruption. | 10 min |
+| <img src="media/04-kafka-and-qdrant.svg" width="180" alt="Queue to disk to Qdrant"> | [**Kafka and Qdrant**](04-kafka-and-qdrant.ipynb). Turn queued news into searchable vectors and replay safely. | 10 min |
+| <img src="media/05-folder-listener.svg" width="180" alt="Completed files to a local store"> | [**Folder listener**](05-folder-listener.ipynb). Pick up completed files and add each one to your search store. | 10 min |
+| <img src="media/06-integrations.svg" width="180" alt="One encoder for several libraries"> | [**Integrations**](06-integrations.ipynb). Use one local encoder with your search, topic, and table libraries. | 15 min |
+| <img src="media/07-local-compute-and-http.svg" width="180" alt="Local compute and HTTP transfer"> | [**Local compute and HTTP**](07-local-compute-and-http.ipynb). See when a local HTTP request costs more than encoding the text. | 5 min |
 
 *Estimates for reading, excluding installation, downloads, and execution.
 The first recipe includes a large-data speed demonstration, which needs additional disk space and execution time.

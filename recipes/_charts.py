@@ -126,6 +126,23 @@ def diagram(name, theme):
         MEDIA.mkdir(exist_ok=True)
         fig.savefig(MEDIA / f"{name}-{theme}.svg", facecolor=fig.get_facecolor())
         plt.close(fig)
+        if theme == "light":
+            adaptive_svg(MEDIA / f"{name}-light.svg", MEDIA / f"{name}.svg")
+
+
+def adaptive_svg(source, target):
+    """GitHub strips picture/source in ipynb, so let the SVG choose its own theme."""
+    svg = source.read_text()
+    for token, color in PALETTES["light"].items():
+        svg = svg.replace(color.lower(), f"var(--recipe-{token})")
+    rules = []
+    for theme, colors in PALETTES.items():
+        values = ";".join(f"--recipe-{key}:{value}" for key, value in colors.items())
+        rule = f":root{{{values}}}"
+        rules.append(rule if theme == "light" else f"@media(prefers-color-scheme:dark){{{rule}}}")
+    style = '<style type="text/css">' + "".join(rules) + "</style>"
+    svg = svg.replace("<defs>", "<defs>" + style, 1)
+    target.write_text(svg)
 
 
 def quality_chart(results):

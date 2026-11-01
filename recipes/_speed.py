@@ -19,6 +19,7 @@ WIKITEXT_REVISION = "b08601e04326c79dfdd32d625aee71d232d685c3"
 def sentence_file(recipe, limit=2_000_000):
     """Download real WikiText-103 train rows and split at punctuation plus whitespace."""
     output = recipe.work / "wiki-sentences.txt"
+    count = 0
     with output.open("w", encoding="utf-8") as stream:
         for count, sentence in enumerate(wiki_sentences(recipe), 1):
             stream.write(sentence + "\n")
