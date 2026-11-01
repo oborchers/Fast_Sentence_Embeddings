@@ -81,6 +81,7 @@ def export_candidate(encoder, basis, kind, words, output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--corpus", choices=["wikitext", "fineweb"])
     parser.add_argument("--cache", type=Path, default=Path.home() / ".cache/fse-quality")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -88,7 +89,7 @@ def main():
     weights = wordfreq_weights(kv.index_to_key)
     with tempfile.TemporaryDirectory(prefix="weighted-", dir=args.output) as temp:
         encoder = weighted_encoder(kv, weights, Path(temp))
-        for kind in ("wikitext", "fineweb"):
+        for kind in [args.corpus] if args.corpus else ["wikitext", "fineweb"]:
             corpus = (
                 fit_corpus(args.cache)
                 if kind == "wikitext"
