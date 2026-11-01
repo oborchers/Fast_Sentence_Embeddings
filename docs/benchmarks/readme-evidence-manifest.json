@@ -1,0 +1,259 @@
+{
+  "format": "dr154-evidence-transfer-v1",
+  "source_commit": "7164b12637370d8064346d18161d73eee27dcb84",
+  "source_commit_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/commit/7164b12637370d8064346d18161d73eee27dcb84",
+  "archive_branch": "benchmark-evidence-2.0",
+  "archive_writer": "dr151-compare",
+  "files": [
+    {
+      "path": "docs/benchmarks/readme-classic-timings-20261101/README.md",
+      "size_bytes": 8235,
+      "sha256": "ebeb7052224cade858b1efa9f0a48d8d213b5d4717d2d71cae46cae5143beba5"
+    },
+    {
+      "path": "docs/benchmarks/readme-classic-timings-20261101/dr151-matrix-glove-wiki-gigaword-300-float32-w1.jsonl",
+      "size_bytes": 29161,
+      "sha256": "e3def227920b7a345ae91790584af2945871c217ef9be5cdc41dea0948eed87a"
+    },
+    {
+      "path": "docs/benchmarks/readme-classic-timings-20261101/dr151-matrix-glove-wiki-gigaword-300-float32-w10.jsonl",
+      "size_bytes": 29218,
+      "sha256": "584bd626f3c2d6df3ad30aa3f2f8c2299682b057ae4e0678968aedde73c45234"
+    },
+    {
+      "path": "docs/benchmarks/readme-classic-timings-20261101/dr151-matrix-word2vec-google-news-300-int8-w1.jsonl",
+      "size_bytes": 29168,
+      "sha256": "53756b88e9cb405183c6f58334dbb12d37c826b0bb82727b2185e4473918f77b"
+    },
+    {
+      "path": "docs/benchmarks/readme-classic-timings-20261101/dr151-matrix-word2vec-google-news-300-int8-w10.jsonl",
+      "size_bytes": 29173,
+      "sha256": "dda277c739f666cefd49da79d11271b25620b338a5aee04b9433ef5ed51b6047"
+    },
+    {
+      "path": "docs/benchmarks/readme-classic-timings-20261101/summary.json",
+      "size_bytes": 12046,
+      "sha256": "c2bea70bba3339689a9fd5a552a9f34198a02652ac1e408bdf0bb25871f7b3e5"
+    },
+    {
+      "path": "docs/benchmarks/readme-int8-20261101/README.md",
+      "size_bytes": 5404,
+      "sha256": "0a41805291b6cb001c399298e6d9a045c44f25560ec39d2790ca2eb6e5b16748"
+    },
+    {
+      "path": "docs/benchmarks/readme-int8-20261101/dr151-matrix-potion-base-8M-int8-w1.jsonl",
+      "size_bytes": 47311,
+      "sha256": "b6fad5d04178047d0bb6bb6939bd2c0c56f7429cd3c960dd47d4d990aba0b1c8"
+    },
+    {
+      "path": "docs/benchmarks/readme-int8-20261101/dr151-matrix-potion-base-8M-int8-w10.jsonl",
+      "size_bytes": 35901,
+      "sha256": "3fb1ca6d3d0984b874d315bbceb12c399d074d4fdcfcb3d2889c39460c0c638d"
+    },
+    {
+      "path": "docs/benchmarks/readme-int8-20261101/summary.json",
+      "size_bytes": 46701,
+      "sha256": "b9973a3a5f8eb95cc326a1f2d864b659860a45ec379e12066b3c417088ceb9fd"
+    },
+    {
+      "path": "docs/benchmarks/readme-matrix-20261101/README.md",
+      "size_bytes": 8331,
+      "sha256": "5f652ea34bbbcf1dbf4cbc6dd3bce05b9fcb0e55c396035b563b460a72b0cc76"
+    },
+    {
+      "path": "docs/benchmarks/readme-matrix-20261101/dr151-matrix-glove-wiki-gigaword-300-int8-w1.jsonl",
+      "size_bytes": 29157,
+      "sha256": "3d8e808fd895e73433bd860e86bb4fce05e591d3711a5840ebbacc1fbcbf6cbd"
+    },
+    {
+      "path": "docs/benchmarks/readme-matrix-20261101/dr151-matrix-potion-base-8M-float16-w1.jsonl",
+      "size_bytes": 29156,
+      "sha256": "bac46280f92c0a850546055a6a1cd1e920ac08ebf3491b7287e1cb9962a9840a"
+    },
+    {
+      "path": "docs/benchmarks/readme-matrix-20261101/dr151-matrix-potion-base-8M-float32-w10.jsonl",
+      "size_bytes": 29208,
+      "sha256": "675ba9c878b87e9586b6a10e0ca31b54dbb11bc0ec13f1c1cbfa26c2e57a94cd"
+    },
+    {
+      "path": "docs/benchmarks/readme-matrix-20261101/summary.json",
+      "size_bytes": 9190,
+      "sha256": "3d44bec79170827ab98aa88040491045a7cfdcbef18ec1a11bdd070f90bb003c"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-20261101/README.md",
+      "size_bytes": 5083,
+      "sha256": "a1b9c90bb4584fb41dd8785627d6bab0833cb63edf573fb8bf1bf0fd4f5c7186"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-20261101/dr151-quality-primary.jsonl",
+      "size_bytes": 231906,
+      "sha256": "def0ce0661397f85c02e5ee569c6d8b61aa8bbc7ea8b33eda63e6dc9da8d4d62"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-20261101/published-summary.json",
+      "size_bytes": 17613,
+      "sha256": "bd4cd1247db0c8383a0a6a39b1c669bf595bff334dbe1d63ec0d8f02d82c994c"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-20261101/verified-means.json",
+      "size_bytes": 984,
+      "sha256": "d020b41040f0d2745cc6f26eef0a7bcfbbfbc84a1f7237f99e978797f1d02e89"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-potion32-20261101/README.md",
+      "size_bytes": 6067,
+      "sha256": "f505aa5b83edd71f2c5423db8079aef16536fd9f6332ebe32786d7d96d22f5fc"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-potion32-20261101/dr151-quality-potion32-float32.jsonl",
+      "size_bytes": 241645,
+      "sha256": "27d3a65e7911f977181f695337f11fd4c24c92df8c3d2369329e0e84f714b8fa"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-potion32-20261101/invocation-wall.json",
+      "size_bytes": 1026,
+      "sha256": "4441a8550e0ea80eff631e9e92d0e59fd8957270b8a8f127094c40878e6a090a"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-potion32-20261101/published-summary.json",
+      "size_bytes": 18029,
+      "sha256": "7cda2cb0175f8bf3bbe24c6938014bb61c499d49a5359076e395b1894eeb831a"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-potion32-20261101/upstream-length-diagnostic.json",
+      "size_bytes": 21411,
+      "sha256": "4a733aa1299ba41632481612ec85c597fbf03356f7d04ecdafe4a8b207e4bbaf"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-potion32-20261101/verified-means.json",
+      "size_bytes": 983,
+      "sha256": "627b0a252143cb2fe4dd5d3620494c10442fb978aa1a41e34ed0f9e15217da6e"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-retrieval32-20261101/README.md",
+      "size_bytes": 5236,
+      "sha256": "45df8e0948422e04d49aca74493c4754f92afa70651f99386d3bdbb0195f1c4e"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-retrieval32-20261101/dr151-quality-retrieval32-float32.jsonl",
+      "size_bytes": 250539,
+      "sha256": "1bbcdfc30645ae75ebe8a6f408faf1cc91c4a3aebb122f2f3f7de40103f602ff"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-retrieval32-20261101/invocation-wall.json",
+      "size_bytes": 1796,
+      "sha256": "f066c295659d75f37909ae995c4f6ba065763d1919e59a227b90b2f01ee87f6c"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-retrieval32-20261101/published-summary.json",
+      "size_bytes": 18077,
+      "sha256": "3f38855e7c3155a90fe5671c59433243d3b8e0d682197b3ffb555d174035280a"
+    },
+    {
+      "path": "docs/benchmarks/readme-quality-retrieval32-20261101/verified-means.json",
+      "size_bytes": 986,
+      "sha256": "30be94a1c5a308ef4009ed90a48baf7ff6195a0c148de6f78f230feea642f6a1"
+    },
+    {
+      "path": "docs/benchmarks/readme-runtime-window5-20261101/README.md",
+      "size_bytes": 6713,
+      "sha256": "ee5bd3e6b8074c11724d8b755c06ecf8bee5bea7415c6c63436952f7808ad805"
+    },
+    {
+      "path": "docs/benchmarks/readme-runtime-window5-20261101/dr151-matrix-potion-base-8M-float16-w10.jsonl",
+      "size_bytes": 43972,
+      "sha256": "de93bcc0c101cb061aa4ba1f5d3d50d7ca2b36290b644c01cc1140c09c8653f9"
+    },
+    {
+      "path": "docs/benchmarks/readme-runtime-window5-20261101/dr151-matrix-potion-base-8M-float32-w1.jsonl",
+      "size_bytes": 50304,
+      "sha256": "e4106ced0d000092913914705bf8a132c5ab99344c9acf8aff0b843d31f1f119"
+    },
+    {
+      "path": "docs/benchmarks/readme-runtime-window5-20261101/dr151-matrix-potion-base-8M-float32-w10.jsonl",
+      "size_bytes": 63105,
+      "sha256": "ecf83bd5fde3f5a0526b3d1d3b09edfe91a963a72e6ff4874fc2783f0fd39ce8"
+    },
+    {
+      "path": "docs/benchmarks/readme-runtime-window5-20261101/summary.json",
+      "size_bytes": 69863,
+      "sha256": "d44dd2fa5a0083e122a5378a13254abbfedb349e5a7b4c82159147c923e2ea05"
+    },
+    {
+      "path": "docs/benchmarks/readme-showcase-20261101/README.md",
+      "size_bytes": 4522,
+      "sha256": "6b04c8414e890ce151a755445682197e4cf265f78dd700aa81412dc5ae8b1fec"
+    },
+    {
+      "path": "docs/benchmarks/readme-showcase-20261101/input-identity.json",
+      "size_bytes": 2553,
+      "sha256": "cf41e9bf30302165b43779b4752920be7cdb5aa79a7c7ffb47cc9dffb7f8752a"
+    },
+    {
+      "path": "docs/benchmarks/readme-showcase-20261101/speed-results.jsonl",
+      "size_bytes": 53561,
+      "sha256": "1b4ace4666947429064a46d35bf23a118f07aee754b363efbf0e656bfb0f0251"
+    },
+    {
+      "path": "docs/benchmarks/readme-showcase-20261101/summary.json",
+      "size_bytes": 33097,
+      "sha256": "d5d5cb594ba5880ee13c43243d59b3a59979a5c8381a8470476afe253737bcb1"
+    },
+    {
+      "path": "docs/benchmarks/readme-wikitext-20261101/README.md",
+      "size_bytes": 5787,
+      "sha256": "e329f656a870ccd60772d03ffa216e7c69fb05c030fdff1552235a988d9291f7"
+    },
+    {
+      "path": "docs/benchmarks/readme-wikitext-20261101/dr151-model2vec-massive-1.jsonl",
+      "size_bytes": 34629,
+      "sha256": "a7ec3b10131ce981a26d512d057691aa159b35813b034fdbacbbe018d3c565cc"
+    },
+    {
+      "path": "docs/benchmarks/readme-wikitext-20261101/dr151-model2vec-wikitext-1.jsonl",
+      "size_bytes": 35033,
+      "sha256": "fe570b24a5aca4524d8ea02339770d438f1e93672db817668b55acc8cd5c54d2"
+    },
+    {
+      "path": "docs/benchmarks/readme-wikitext-20261101/dr151-model2vec-wikitext-10.jsonl",
+      "size_bytes": 34770,
+      "sha256": "1df0f4cae6129905f5b9a665df22b0302d515ef1d1c21ba9e4a07389e15b7fd0"
+    },
+    {
+      "path": "docs/benchmarks/readme-wikitext-20261101/summary.json",
+      "size_bytes": 3822,
+      "sha256": "e92e7cbb7502de4cf8cf46bf1b5f628cb74fd08cf9c8998b2a5c48d594764915"
+    },
+    {
+      "path": "media/readme/throughput-dark.png",
+      "size_bytes": 71196,
+      "sha256": "ffa34666f0b848d8e259afd955e791b577d0e9896c92a039776d1982465ff7ae"
+    },
+    {
+      "path": "media/readme/throughput-dark.svg",
+      "size_bytes": 3266,
+      "sha256": "ccf54050cb57ef36539944856200112f79dbb724f4fe2fad1211914bc31b8717"
+    },
+    {
+      "path": "media/readme/throughput-light.png",
+      "size_bytes": 71166,
+      "sha256": "2c209d0f055ad5d75325173bf006ff2baf9bf3770f6f5f9be648a48477f591f3"
+    },
+    {
+      "path": "media/readme/throughput-light.svg",
+      "size_bytes": 3266,
+      "sha256": "b37a141bc7a1fe56a117a6bd8919e33b3f1507d5878f0642e2833d1315053e5c"
+    }
+  ],
+  "total_files": 48,
+  "total_bytes": 1789366,
+  "keep_on_master": [
+    "docs/benchmarks/readme-model-sizes-20261101.json",
+    "docs/benchmarks/readme-classic-model-sizes-20261101.json",
+    "docs/benchmarks/readme-evidence.md",
+    "docs/benchmarks/readme-speed-panels.md"
+  ],
+  "master_followup": "Archive the full originals byte-for-byte, including original rich summaries. DR-154 will then keep one small summary per cited study plus a manifest, update guide links and stop regenerating historical Mac plots. Do not change any measured number.",
+  "status": "archive publication and SHA256 verification pending"
+}

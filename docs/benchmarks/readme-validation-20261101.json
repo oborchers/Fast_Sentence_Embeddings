@@ -1,0 +1,195 @@
+{
+  "format": "readme-validation-summary-v1",
+  "tested_source_commit": "7164b12637370d8064346d18161d73eee27dcb84",
+  "ci": {
+    "run": 41322804914,
+    "url": "https://github.com/oborchers/Fast_Sentence_Embeddings/actions/runs/41322804914",
+    "conclusion": "success",
+    "integrations_run": 41322804880,
+    "integrations_conclusion": "success",
+    "coverage_job": "skipped by workflow",
+    "release_job": "skipped by workflow"
+  },
+  "local_checks": {
+    "source_commit": "7164b12637370d8064346d18161d73eee27dcb84",
+    "focused_tests_passed": 66,
+    "network_tests_deselected": 1,
+    "ruff": "passed",
+    "format": "passed",
+    "guardrails": "passed"
+  },
+  "readme_sha256": "bfbb8d29cdecd163a9fe220ca75e11c5c4745a6b640008573ee27a6b96c31362",
+  "verified_metadata": {
+    "name": "fse",
+    "description": "CPU inference for static text embeddings",
+    "requires_python": ">=3.11",
+    "python_classifiers": [
+      "3.11",
+      "3.12",
+      "3.13",
+      "3.14",
+      "3.15"
+    ],
+    "license_expression": "MIT",
+    "description_content_type": "text/markdown",
+    "readme_body": "matches tested source commit",
+    "distribution_installation": "none"
+  },
+  "distribution_files": [
+    {
+      "bytes": 2459457,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb.tar.gz"
+    },
+    {
+      "bytes": 959456,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp311-cp311-macosx_11_0_arm64.whl"
+    },
+    {
+      "bytes": 963597,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp312-cp312-macosx_11_0_arm64.whl"
+    },
+    {
+      "bytes": 968230,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp313-cp313-macosx_11_0_arm64.whl"
+    },
+    {
+      "bytes": 971633,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp314-cp314-macosx_11_0_arm64.whl"
+    },
+    {
+      "bytes": 969956,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp315-cp315-macosx_11_0_arm64.whl"
+    },
+    {
+      "bytes": 3766684,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"
+    },
+    {
+      "bytes": 3636529,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"
+    },
+    {
+      "bytes": 3638604,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"
+    },
+    {
+      "bytes": 3626562,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"
+    },
+    {
+      "bytes": 3618620,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp315-cp315-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"
+    },
+    {
+      "bytes": 3843166,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+    },
+    {
+      "bytes": 3700812,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+    },
+    {
+      "bytes": 3702511,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+    },
+    {
+      "bytes": 3664990,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+    },
+    {
+      "bytes": 3678212,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+    },
+    {
+      "bytes": 879764,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp311-cp311-win_amd64.whl"
+    },
+    {
+      "bytes": 861223,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp312-cp312-win_amd64.whl"
+    },
+    {
+      "bytes": 859632,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp313-cp313-win_amd64.whl"
+    },
+    {
+      "bytes": 873841,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp314-cp314-win_amd64.whl"
+    },
+    {
+      "bytes": 873475,
+      "version": "1.1.1.dev1028+ge9764fb",
+      "readme_matches_head": true,
+      "metadata_verified": true,
+      "file": "fse-1.1.1.dev1028+ge9764fb-cp315-cp315-win_amd64.whl"
+    }
+  ],
+  "independent_review": {
+    "reviewed_commit": "da4d379feda71a102cb79bdb9404e37d541a10c9",
+    "model": "gpt-6-astra",
+    "reasoning": "high",
+    "result": "no findings",
+    "later_changes": "plan grammar, evidence link and caption punctuation only"
+  },
+  "scope": "This records validation at tested_source_commit, not an automatic pass for later commits."
+}
