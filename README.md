@@ -130,8 +130,27 @@ Those runs used a benchmark pipeline, not the current public `Encoder.quantize` 
 See [PERFORMANCE.md](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/PERFORMANCE.md#int8-tables-at-1024-dimensions) for workload details and limits.
 See [the format rules](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/formats.md#encoder-1) for rounding and rejected values.
 
-TODO(DR-151): Add measured file size, peak memory, speed and task scores for each model and dtype,
-including quality change from that model's float32 result. Name the dataset, metric, revision and date.
+### Complete saved-file sizes
+
+These [file-size observations](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/3b511c89e905368557b5eb864896b5a5d2cba47c/docs/benchmarks/readme-model-sizes-20261101.json)
+were recorded on 1 November 2026 on an Apple M1 Pro.
+They cover complete saved fse files, including vocabulary, tokenizer data and int8 row scales.
+One MiB is 1,048,576 bytes. Each model keeps its original number of values per vector.
+
+| Model | Values per vector | float32, MiB | float16, MiB | int8, MiB |
+|---|---:|---:|---:|---:|
+| potion-base-8M | 256 | 29.2 | 14.8 | 7.7 |
+| potion-base-32M | 512 | 124.1 | 62.5 | 31.9 |
+| potion-retrieval-32M | 512 | 124.1 | 62.5 | 31.9 |
+| potion-multilingual-128M | 256 | 502.1 | 257.8 | 137.5 |
+| static-retrieval-mrl-en-v1 | 1024 | 119.7 | 60.0 | 30.3 |
+| static-similarity-mrl-multilingual-v1 | 1024 | 415.1 | 208.3 | 105.3 |
+
+Use these sizes to plan disk storage. Measure peak memory, speed and quality for your workload.
+The source records exact byte counts, model revisions and the environment that prepared the files.
+
+TODO(DR-151): Add the remaining classic-model file sizes and all peak-memory, speed and task-score comparisons.
+Include quality change from each model's float32 result. Name the dataset, metric, revision and date.
 
 ## Benchmarks
 
