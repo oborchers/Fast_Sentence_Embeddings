@@ -47,7 +47,7 @@ def child(args) -> None:
     sentences = texts("wikitext")
     provenance = {**identity(), **corpus_identity("wikitext", sentences)}
     with threadpool_limits(limits=args.workers), tempfile.TemporaryDirectory(dir=args.tmp) as temp:
-        load_s, encoder = timed(lambda: Encoder.load(args.models / artifact_name(REPO, "float32")))
+        load_s, encoder = timed(lambda: load_encoder(args, Encoder))
         encode_s, vectors = timed(lambda: encoder.encode(sentences, workers=args.workers))
         # Explicit preprocessing shared by all libraries, outside their index timers.
         norms = np.linalg.norm(vectors.astype(np.float64), axis=1)
@@ -98,6 +98,11 @@ def child(args) -> None:
             "query_batch": args.batch,
             "k": args.k,
             "load_s": load_s,
+            "encoder_start": args.encoder_start,
+            "table_load_build_s": load_s if args.encoder_start == "source" else None,
+            "table_load_build_scope": "pinned source IO plus conversion"
+            if args.encoder_start == "source"
+            else "finished table prepared offline",
             "encode_s": encode_s,
             "build_s": build_s,
             "save_s": save_s,
@@ -120,6 +125,12 @@ def child(args) -> None:
             "time_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
     print(json.dumps(record))
+
+
+def load_encoder(args, encoder_type):
+    if args.encoder_start == "source":
+        return encoder_type.from_pretrained(REPO, revision=MODELS[REPO], local_files_only=True)
+    return encoder_type.load(args.models / artifact_name(REPO, "float32"))
 
 
 def settings(kind: str) -> dict:
@@ -161,6 +172,8 @@ def operation(args, label: str) -> dict:
         "child",
         "--kind",
         kind,
+        "--encoder-start",
+        args.encoder_start,
         "--workers",
         str(args.workers),
         "--models",
@@ -250,6 +263,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["run", "child"])
     parser.add_argument("--kind", choices=["fse", "faiss", "hnswlib"], default="fse")
+    parser.add_argument("--encoder-start", choices=["saved", "source"], default="saved")
     parser.add_argument("--against", choices=["faiss", "hnswlib"], default="faiss")
     parser.add_argument("--workers", type=int, choices=[1, 10], default=1)
     parser.add_argument("--batch", type=int, choices=[1, 64], default=64)

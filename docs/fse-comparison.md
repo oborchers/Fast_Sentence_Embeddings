@@ -119,3 +119,10 @@ unmodified. Every other selected task and model remains in scope. No sampling
 is used. Run with `--defer-mind` to write an explicit deferred record for each
 model. The expected coverage is 40/41 English tasks and 13/13 NanoBEIR tasks.
 A complete 41-task English mean must not be reported from this coverage.
+
+`bench_search_compare.py --encoder-start source` measures pinned source-weight
+IO and finished-table conversion together as `table_load_build_s`. This is the
+public import API's combined stage. `--encoder-start saved` loads the already
+finished table instead. The combined stage is not added a second time to startup.
+Both modes then encode, build and durably save the index, reopen it, and perform
+first and warm queries. All search arms use the same encoder startup mode.
