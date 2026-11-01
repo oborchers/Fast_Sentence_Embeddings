@@ -136,7 +136,7 @@ They do not measure these 2.0 models.
 
 - **Model2Vec:** `fse.StaticModel` provides a compatibility API. It accepts a string or a list through `encode`.
   `StaticModel.save_pretrained` and `StaticModel.push_to_hub` export fse model folders.
-  Reload them with `fse.StaticModel.from_pretrained`. Model2Vec itself cannot read these folders.
+  Reload them with `fse.StaticModel.from_pretrained`. Model2Vec 0.10.0 cannot read these folders.
   Publishing requires a recorded model license.
   See the [supported calls and differences](docs/architecture/hub.md#model2vec-compatibility-fsestaticmodel).
 - **sentence-transformers:** `Encoder.from_pretrained` reads supported models containing one StaticEmbedding module.
