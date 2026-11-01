@@ -2,23 +2,18 @@
 
 **Our goal: be the fastest inference engine for static embeddings on the planet.**
 
-**Final current-runtime headline: pending re-measurement.**
-
-TODO(DR-151): Re-measure the intended headline comparison with executed-runtime identity and an A/A band within 10%.
-
-Historical MASSIVE observations from 1 November 2026 used an Apple M1 Pro and `potion-base-8M` on 151,674 test texts.
-Runtime here means the package code actually loaded. These logs did not record identifiers computed from that code's contents.
-These figures cannot serve as final current-runtime throughput results.
-One fse worker (a processor thread) encoded **878,260 texts/s** **to be re-measured for runtime attribution**.
-Model2vec 0.10.0 with tokenizer parallelism off encoded **57,001 texts/s** **to be re-measured for runtime attribution**.
-These are the middle rates from three valid paired rounds, with the models already loaded.
+On **1 November 2026**, an **Apple M1 Pro** encoded **222,701 texts/s with one fse worker**
+versus **8,926 texts/s with Model2Vec 0.10.0**, with tokenizer parallelism off.
+Both used the same pinned **POTION-8M float32** model on **5,352 nonblank WikiText validation and test texts**.
+A worker is a processor thread. A tokenizer divides text into words and word pieces.
+These are median rates from three valid paired rounds, with models already loaded.
+The ranges were **209,179 to 229,351** for fse and **8,861 to 8,971** for Model2Vec.
 An A/A check repeats the same fse configuration to measure timing variation.
-Its symmetric band was **0.9695 to 1.0315, within 10%**.
-This is an observed variation band, not a confidence interval. It does not resolve the missing runtime attribution.
-A tokenizer divides text into words and word pieces. Tables stored 32-bit numbers (`float32`).
-Both libraries used the model's default text limits and normalization, which scales vectors to unit length.
-See [the method, ranges, A/A audit and raw results](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/97f19344fdcc76f151227b523992b11c58372811/docs/benchmarks/readme-wikitext-20261101/README.md).
-Results apply to this model and input.
+Its symmetric band was **0.9707 to 1.0302, within 10%**. This is not a confidence interval.
+The logs record the loaded packages' locations and content identifiers, which identify the code that ran.
+Both libraries used default text limits and normalization, which scales vectors to unit length.
+See [the method, runtime identities, ranges and raw results](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/00b9d0f2dac887a47bd9883e8fb2e6f48a81ed1b/docs/benchmarks/readme-runtime-window5-20261101/README.md).
+Results apply to this model and input. Other models and texts need their own measurements.
 
 ![An engine turns pages of text into lists of numbers.](https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/233b6d3c0aaee459792938317895790a8bdd862b/media/readme-engine.jpg)
 
@@ -240,24 +235,18 @@ Include quality change from each model's float32 result. Name the dataset, metri
 
 ## Benchmarks
 
-The one-worker POTION-8M float32 cell uses the [preserved WikiText measurements](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/97f19344fdcc76f151227b523992b11c58372811/docs/benchmarks/readme-wikitext-20261101/README.md)
+The current POTION-8M float32 cells and ten-worker float16 cell use
+[runtime-attributed WikiText measurements](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/00b9d0f2dac887a47bd9883e8fb2e6f48a81ed1b/docs/benchmarks/readme-runtime-window5-20261101/README.md)
 from 1 November 2026: Apple M1 Pro, macOS 27.0.1, Python 3.13.16,
 NumPy 2.5.4, tokenizers 0.23.3 and model2vec 0.10.0.
-Model2vec tokenizer parallelism is off or on, as labeled.
-The runner enables parallel tokenization for the automatic-mode call.
-This input is below the 10,000-text batch-pool threshold, so no batch-worker pool runs.
-The model revision is `bf8b056651a2c21b8d2565580b8569da283cab23`.
-The 5,352 nonblank texts come from the pinned WikiText validation and test splits.
-
-Each of three paired rounds runs fse twice as an A/A control and model2vec once, in rotating order.
-Each child process measures three warm calls. Its rate is texts divided by its median call time.
-The primary fse run and model2vec each contribute three child rates to their median and range.
-The repeated fse runs remain separate A/A controls, matching the published comparison summary.
-Numbers in parentheses show the full range. All recorded load endpoints were below 5.
-The raw records include the input digest, dataset revision, source commit and A/A variation.
-The historical MASSIVE sample has an A/A band within 10%, but lacks executed-runtime identity.
-The table below uses a later precision-matrix sample for ten-worker POTION-8M float32,
-with one timed call per child as described below.
+Both libraries use model revision `bf8b056651a2c21b8d2565580b8569da283cab23`.
+Each call receives all 5,352 nonblank texts from the pinned WikiText validation and test splits.
+Each of three paired rounds rotates fse-a, fse-b and Model2Vec in separate processes.
+Each process performs an excluded full-corpus warmup, then times one full-corpus call.
+Primary results use fse-a medians and full ranges. fse-b remains a separate A/A control.
+Model2Vec tokenizer parallelism is off or on, as labeled. Its exact thread count was not measured.
+No batch-worker pool runs because the input is below 10,000 texts.
+All recorded load endpoints were below 5. The source records code, model, input and settings identities.
 
 The [committed A/A audit](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/f7537d970e4d883b4bfcd61d991859a36cb6da19/docs/fse-comparison-aa.md)
 labels every complete comparison. For each repeated fse call, compare its time with the primary call.
@@ -266,7 +255,7 @@ A band above 1.10 is **noisy, to be re-measured** in a quiet window.
 Only re-measured cells with executed-runtime identity and A/A bands within 10% may supply final headline rates.
 Record loaded package paths and content fingerprints. Keep code, model, input and settings unchanged within each series.
 A checkout commit, package version or model fingerprint alone does not identify the code that ran.
-All current comparison rates below are historical and require re-measurement for runtime attribution.
+Other comparison rates below remain historical and carry visible runtime-attribution qualifiers.
 See the [executed-runtime audit](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/4e888dc18aadc3b5bf6da5b7db7afaa5d0e4b944/docs/fse-comparison-review.md).
 These empirical A/A bands are not confidence intervals.
 Incomplete attempts supply no accepted speed, even when their diagnostic A/A band is small.
@@ -278,12 +267,13 @@ The counterpart must encode the same texts. Record token limits, normalization a
 Name machine, OS, Python, NumPy, library versions, model revisions, worker counts, load and measurement date.
 
 Model2vec labels below inherit the paired fse series' A/A band, not a separate Model2vec A/A test.
-In the POTION-8M row, tokenizer off uses the original one-worker float32 series.
-Tokenizer on uses the later ten-worker float32 precision-matrix series.
+In the POTION-8M row, the two counterpart values use the new one/ten-worker float32 series, respectively.
+The ten-worker float16 series has a separate float32 Model2Vec control, retained in its source.
+Do not pool those controls or infer a dtype speed ratio from these separate series.
 
 | Model | fse, 1 worker (f32 / f16 / i8) | fse, 10 workers (f32 / f16 / i8) | Counterpart, float32 (modes below) |
 |---|---|---|---|
-| potion-base-8M | 219,333 (199,745 to 221,304) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8998 to 1.1114) / 206,438 (202,631 to 214,714) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) / pending | 914,709 (827,901 to 928,079) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) / pending / pending | model2vec tokenizer off: 8,906 (8,879 to 8,956) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8998 to 1.1114); on: 25,074 (22,589 to 27,134) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) |
+| potion-base-8M | 222,701 (209,179 to 229,351), A/A 0.9707 to 1.0302 / 206,438 (202,631 to 214,714) **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) / pending | 918,299 (856,137 to 938,323), A/A 0.9378 to 1.0664 / 946,796 (928,663 to 955,245), A/A 0.9180 to 1.0893 / pending | model2vec tokenizer off: 8,926 (8,861 to 8,971), A/A 0.9707 to 1.0302; on: 23,312 (20,426 to 27,554), A/A 0.9378 to 1.0664 |
 | potion-base-32M | pending | pending | model2vec: pending |
 | potion-retrieval-32M | pending | pending | model2vec: pending |
 | potion-multilingual-128M | pending | pending | model2vec: pending |
@@ -303,12 +293,12 @@ with one warm timed call per child after a full-corpus warmup.
 All load endpoints were below 5.
 The source reports A/A variation separately, including a time-ratio range of 0.7850 to 1.1500 for ten-worker GloVe.
 
-The one-worker POTION-8M float16, GloVe int8 and ten-worker POTION-8M float32 cells use
+The historical one-worker POTION-8M float16 and GloVe int8 cells come from
 [three completed precision-matrix series](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/97f19344fdcc76f151227b523992b11c58372811/docs/benchmarks/readme-matrix-20261101/README.md).
 They use the same machine, date and full WikiText input, with three paired rounds.
 Each child times one call after a full-corpus warmup. All load endpoints were below 5.
-The source records separate A/A controls. In one ten-worker POTION round, the repeated fse call
-took 1.9543 times as long as the primary call. This wide variation limits speed conclusions.
+The source also preserves the superseded ten-worker POTION float32 series, whose A/A upper band was 1.9543.
+Its historical rates remain in the source, separate from the new runtime-attributed series.
 These series do not establish a dtype speed ratio or task quality.
 
 The largest process memory peaks among each series' three primary fse runs were:
@@ -318,8 +308,8 @@ The largest process memory peaks among each series' three primary fse runs were:
 | GloVe-300, float32 | 661.3 **to be re-measured for runtime attribution** | 662.0 **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.7850 to 1.2739) |
 | GloVe-300, int8 | 319.1 **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8730 to 1.1455) | pending |
 | word2vec-300, int8 | 1,552.5 **to be re-measured for runtime attribution** | 1,552.7 **to be re-measured for runtime attribution** |
-| POTION-8M, float16 | 166.6 **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) | pending |
-| POTION-8M, float32 | pending | 182.7 **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) |
+| POTION-8M, float16 | 166.6 **to be re-measured for runtime attribution** **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) | 169.6 |
+| POTION-8M, float32 | 183.0 | 184.3 |
 
 These peaks include imports, model and corpus loading, warmup, encoding and outputs.
 Their A/A labels refer to timing variation, not memory variation.
