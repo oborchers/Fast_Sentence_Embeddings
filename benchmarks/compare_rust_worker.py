@@ -20,7 +20,9 @@ def measure(args, sentences: list[str]) -> tuple[dict, np.ndarray]:
     )
     if not binary.is_file():
         raise FileNotFoundError(f"build the pinned Rust worker first: {binary}")
-    with tempfile.TemporaryDirectory() as directory:
+    scratch = Path(os.environ.get("FSE_QUALITY_CACHE", Path.home() / ".cache/fse-quality")) / "tmp"
+    scratch.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=scratch) as directory:
         folder = Path(directory)
         corpus = folder / "corpus.json"
         corpus.write_text(json.dumps(sentences), encoding="utf-8")

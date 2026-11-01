@@ -576,16 +576,19 @@ These measurements use an Apple M1 Pro, macOS 27.0.1 arm64, Python 3.13.16, nump
 
 Each cell has three valid rotating rounds of fse A, identical fse B and native model2vec in fresh processes. Each child records a first call and three warm calls. The table reports the median across rounds of each child's warm median. Ranges cover those three independent round rates. The ratio is the median of paired rate ratios, which can differ from the ratio of the displayed medians. WikiText has 5,352 nonempty validation/test texts; MASSIVE has 151,674 test texts. Ordered input digests and exact dataset revisions are in every operation record.
 
-| Corpus | Workers | fse A texts/s, median (range) | model2vec texts/s, median (range) | Paired fse/model2vec ratio | Symmetric A/A band |
-|---|---:|---:|---:|---:|---:|
-| WikiText-103 | 1 | 219,333 (199,745 to 221,304) | 8,906 (8,879 to 8,956) | 24.49 | 0.900 to 1.111 |
-| WikiText-103 | 10 | 909,270 (830,368 to 944,311) | 26,048 (22,894 to 26,880) | 36.25 | 0.865 to 1.156 |
-| MASSIVE | 1 | 878,260 (861,892 to 903,738) | 57,001 (56,620 to 57,191) | 15.51 | 0.969 to 1.031 |
+| Corpus | fse workers | model2vec tokenizer parallelism | fse A texts/s, median (range) | model2vec texts/s, median (range) | Paired fse/model2vec ratio | Symmetric A/A band |
+|---|---:|---|---:|---:|---:|---:|
+| WikiText-103 | 1 | off | 219,333 (199,745 to 221,304) | 8,906 (8,879 to 8,956) | 24.49 | 0.900 to 1.111 |
+| WikiText-103 | 10 | on | 909,270 (830,368 to 944,311) | 26,048 (22,894 to 26,880) | 36.25 | 0.865 to 1.156 |
+| MASSIVE | 1 | off | 878,260 (861,892 to 903,738) | 57,001 (56,620 to 57,191) | 15.51 | 0.969 to 1.031 |
 
-All retained endpoint loads are strictly below 5: 4.609 to 4.989 for one-worker WikiText, 4.355 to 4.609 for ten-worker WikiText, and 3.900 to 4.355 for MASSIVE. Model2vec uses its one-worker mode or its default automatic parallelism. WikiText is below its 10,000-text joblib threshold, so the default run uses tokenizer parallelism. MASSIVE's all-core cell crossed the load limit and remains incomplete. Its rejected observations are retained and excluded from this table.
+All retained endpoint loads are strictly below 5: 4.609 to 4.989 for one-worker WikiText, 4.355 to 4.609 for ten-worker WikiText, and 3.900 to 4.355 for MASSIVE. Model2vec uses its one-worker mode or its default automatic parallelism. WikiText is below its 10,000-text joblib threshold, so the default run uses tokenizer parallelism. The exact tokenizer thread count was not measured. MASSIVE's all-core cell crossed the load limit and remains incomplete. Its rejected observations are retained and excluded from this table.
 
 Peak process RSS for fse A/model2vec is 206.1/223.6 MiB on one-worker WikiText, 207.8/233.1 MiB on ten-worker WikiText, and 452.4/602.6 MiB on one-worker MASSIVE. These peaks include imports, corpus preparation and encoding. Median model setup takes 0.204/0.150 s, 0.199/0.150 s and 0.216/0.159 s respectively. fse setup converts the pinned Hub files; model2vec loads its source format. Saved fse artifact startup will be measured separately with explicit table precision.
 
 [Raw journals and retained/rejected rounds](benchmarks/baseline/results/) feed the [machine-readable summary](benchmarks/baseline/dr151_summary_20261101.json). Numerical parity, the full MTEB/NanoBEIR matrix, profiles, classifiers, search, lifecycle and remaining precision cells are still required before a complete recommendation.
 
 The summary includes a reference-tariff calculation using the public CAX31 rate of EUR 0.0344 per server-hour, excluding VAT, observed on [Hetzner's pricing page](https://www.hetzner.com/cloud/cost-optimized/) on 01.11.2026. The [price evidence](benchmarks/baseline/dr151_cpu_price_20261101.json) records its eight Ampere vCPUs, 16 GiB memory and availability markup. It values measured local encode time with `1,000,000 / texts_per_second / 3,600 * hourly_price`. This scenario assumes the measured throughput at the reference tariff. Actual CAX31 throughput and deployment cost were not measured. Storage, transfer, startup, idle time, VAT and billing granularity are excluded.
+
+
+A full-corpus numerical audit of the same 5,352 WikiText rows at source commit `945a640` uses exact cosine neighbors for every query, excluding itself. Native model2vec versus fse float32 has recall@10 1.0, minimum cosine 0.9999999999999971 and maximum absolute error 8.94e-8. fse float16 versus float32 has recall@10 0.999943946 and maximum centered-subspace angle 0.0236624 degrees. Int8 has recall@10 0.996337818 and maximum angle 1.3987229 degrees. All 5,352 queries are eligible and zero-vector disagreements are zero. This is numerical neighborhood stability; labeled task quality still requires MTEB. The audit ran at nice 10 with bounded CPU pools under the heavy-job lock. Its load ranged from 14.68 to 15.42 and its times are not used for speed comparisons. [Full diagnostics](benchmarks/baseline/results/dr151-numerics.jsonl) include every principal angle and provenance.

@@ -23,6 +23,7 @@ import numpy as np
 from compare_backends import make_contender as contender
 from compare_inputs import corpus_identity, identity, texts
 from compare_models import MODELS
+from compare_parallelism import settings
 
 
 @contextmanager
@@ -68,7 +69,7 @@ def child(args) -> None:
             **provenance,
             "time_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "kind": args.kind,
-            "threads": args.threads,
+            **settings(args.kind, args.threads, len(sentences)),
             "model": args.model,
             "revision": MODELS[args.model],
             "corpus": args.corpus,
