@@ -33,6 +33,59 @@ then
   exit 1
 fi
 /usr/bin/cat > /dr151-finalize.py <<'DR151_FINALIZER'
+"""Fail-closed Linux cgroup v2 evidence for the explicitly supported pod layout.
+
+Kernel reference: https://docs.kernel.org/admin-guide/cgroup-v2.html
+A private cgroup namespace must expose this process's own cgroup at the mount root.
+Visible ancestors are rejected rather than assuming their limits do not apply.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+
+
+def snapshot(root=Path("/sys/fs/cgroup"), proc=Path("/proc"), pid=None):
+    pid = os.getpid() if pid is None else pid
+    membership = (proc / "self/cgroup").read_text().splitlines()
+    if membership != ["0::/"]:
+        raise RuntimeError("Pod 5 requires a private cgroup v2 namespace rooted at its own cgroup")
+    mounts = [line.split() for line in (proc / "self/mountinfo").read_text().splitlines()]
+    matches = [
+        fields
+        for fields in mounts
+        if fields[4] == str(root) and fields[fields.index("-") + 1] == "cgroup2"
+    ]
+    if len(matches) != 1:
+        raise RuntimeError("Pod 5 requires one cgroup v2 mount at /sys/fs/cgroup")
+    if str(pid) not in (root / "cgroup.procs").read_text().splitlines():
+        raise RuntimeError("cgroup mount root does not contain the recording process")
+    values = {}
+    for name in ("memory.max", "memory.current", "memory.peak"):
+        value = (root / name).read_text().strip()
+        if not value.isdecimal():
+            raise RuntimeError(f"Pod 5 needs a finite numeric {name} counter")
+        values[name] = int(value)
+    if values["memory.max"] <= 0 or values["memory.peak"] < values["memory.current"]:
+        raise RuntimeError("invalid cgroup memory counters")
+    return {
+        **values,
+        "cgroup_namespace": "private root",
+        "mount_root": matches[0][3],
+        "ancestor_scope": "namespace root limit; host ancestors require coordinator allocation verification",
+    }
+
+
+def preflight():
+    state = snapshot()
+    print(json.dumps(state), flush=True)
+    if state["memory.max"] < 58 * 2**30:
+        raise RuntimeError("Pod 5 requires at least 58 GiB effective cgroup RAM")
+    if state["memory.max"] - state["memory.current"] < 56 * 2**30:
+        raise RuntimeError("Pod 5 needs at least 56 GiB cgroup headroom before setup")
+
 import hashlib, json, shutil, sys
 from pathlib import Path
 root = Path('/dr151-results')
@@ -41,13 +94,11 @@ models = Path('/dr151-cache/models')
 for pattern in ('*.json', '*.jsonl', '*-fit.npz'):
     for path in models.glob(pattern):
         shutil.copy2(path, root / path.name)
-memory = {}
-for name in ('memory.current', 'memory.peak', 'memory.max',
-             'memory/memory.usage_in_bytes', 'memory/memory.max_usage_in_bytes',
-             'memory/memory.limit_in_bytes'):
-    path = Path('/sys/fs/cgroup') / name
-    if path.is_file():
-        memory[name] = path.read_text().strip()
+try:
+    memory = snapshot()
+except (OSError, RuntimeError) as error:
+    memory = {'error': str(error)}
+    status = status or 1
 (root / 'container-memory.json').write_text(json.dumps(memory, indent=2) + '\n')
 files = []
 for path in sorted(root.rglob('*')):
@@ -104,27 +155,64 @@ export UV_CACHE_DIR=/dr151-cache/uv TMPDIR=/dr151-cache/tmp HF_HUB_DISABLE_XET=1
 export NLTK_DATA=/dr151-cache/nltk
 /usr/bin/mkdir -p "$TMPDIR" "$HF_DATASETS_CACHE" "$NLTK_DATA"
 /usr/local/bin/python - <<'DR151_PREFLIGHT'
-import json, shutil
+"""Fail-closed Linux cgroup v2 evidence for the explicitly supported pod layout.
+
+Kernel reference: https://docs.kernel.org/admin-guide/cgroup-v2.html
+A private cgroup namespace must expose this process's own cgroup at the mount root.
+Visible ancestors are rejected rather than assuming their limits do not apply.
+"""
+
+from __future__ import annotations
+
+import json
+import os
 from pathlib import Path
+
+
+def snapshot(root=Path("/sys/fs/cgroup"), proc=Path("/proc"), pid=None):
+    pid = os.getpid() if pid is None else pid
+    membership = (proc / "self/cgroup").read_text().splitlines()
+    if membership != ["0::/"]:
+        raise RuntimeError("Pod 5 requires a private cgroup v2 namespace rooted at its own cgroup")
+    mounts = [line.split() for line in (proc / "self/mountinfo").read_text().splitlines()]
+    matches = [
+        fields
+        for fields in mounts
+        if fields[4] == str(root) and fields[fields.index("-") + 1] == "cgroup2"
+    ]
+    if len(matches) != 1:
+        raise RuntimeError("Pod 5 requires one cgroup v2 mount at /sys/fs/cgroup")
+    if str(pid) not in (root / "cgroup.procs").read_text().splitlines():
+        raise RuntimeError("cgroup mount root does not contain the recording process")
+    values = {}
+    for name in ("memory.max", "memory.current", "memory.peak"):
+        value = (root / name).read_text().strip()
+        if not value.isdecimal():
+            raise RuntimeError(f"Pod 5 needs a finite numeric {name} counter")
+        values[name] = int(value)
+    if values["memory.max"] <= 0 or values["memory.peak"] < values["memory.current"]:
+        raise RuntimeError("invalid cgroup memory counters")
+    return {
+        **values,
+        "cgroup_namespace": "private root",
+        "mount_root": matches[0][3],
+        "ancestor_scope": "namespace root limit; host ancestors require coordinator allocation verification",
+    }
+
+
+def preflight():
+    state = snapshot()
+    print(json.dumps(state), flush=True)
+    if state["memory.max"] < 58 * 2**30:
+        raise RuntimeError("Pod 5 requires at least 58 GiB effective cgroup RAM")
+    if state["memory.max"] - state["memory.current"] < 56 * 2**30:
+        raise RuntimeError("Pod 5 needs at least 56 GiB cgroup headroom before setup")
+
+preflight()
+import shutil
 free = shutil.disk_usage('/dr151-cache').free
-ram = int(next(line.split()[1] for line in Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemTotal:'))) * 1024
-limits = []
-for name in ('/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes'):
-    path = Path(name)
-    if path.is_file():
-        value = path.read_text().strip()
-        if value != 'max':
-            limits.append(int(value))
-ram = min([ram, *limits])
-current = Path('/sys/fs/cgroup/memory.current')
-if not current.is_file():
-    current = Path('/sys/fs/cgroup/memory/memory.usage_in_bytes')
-used = int(current.read_text()) if current.is_file() else 0
-if ram - used < 56 * 2**30:
-    raise SystemExit('Pod 5 needs at least 56 GiB cgroup headroom before setup')
-print(json.dumps({'free_bytes': free, 'effective_ram_bytes': ram, 'cgroup_limits': limits}), flush=True)
-if free < 150 * 2**30 or ram < 58 * 2**30:
-    raise SystemExit('Pod 5 requires 64 GB RAM and 200 GB disk, with 150 GiB initially free')
+if free < 150 * 2**30:
+    raise SystemExit('Pod 5 requires 200 GB disk, with 150 GiB initially free')
 DR151_PREFLIGHT
 export PATH=/root/.cargo/bin:/usr/local/bin:/usr/bin:/bin
 export PYTHONUNBUFFERED=1 UV_NO_PROGRESS=1 HF_HUB_DISABLE_PROGRESS_BARS=1
@@ -136,8 +224,8 @@ export DEBIAN_FRONTEND=noninteractive
 /usr/bin/apt-get update
 /usr/bin/apt-get install -y --no-install-recommends time build-essential git curl procps util-linux ca-certificates
 /usr/bin/git clone --branch dr151-quality --no-checkout https://github.com/oborchers/Fast_Sentence_Embeddings.git /dr151-repo
-/usr/bin/git -C /dr151-repo checkout --detach 0a79ef7157d64d5f93a6c1c3ef6ee7cd9af88067
-test "$(/usr/bin/git -C /dr151-repo rev-parse HEAD)" = 0a79ef7157d64d5f93a6c1c3ef6ee7cd9af88067
+/usr/bin/git -C /dr151-repo checkout --detach b0bdc3d08544fdecfadeffc8ca5dae303ffd898d
+test "$(/usr/bin/git -C /dr151-repo rev-parse HEAD)" = b0bdc3d08544fdecfadeffc8ca5dae303ffd898d
 cd /dr151-repo
 export SOURCE_DATE_EPOCH=$(/usr/bin/git show -s --format=%ct HEAD)
 /usr/local/bin/python -m pip install --no-cache-dir uv==0.13.0
@@ -156,7 +244,7 @@ status=${PIPESTATUS[0]}
 /usr/local/bin/python - "$status" <<'DR151_INVOCATION'
 import json, sys
 from pathlib import Path
-Path('/dr151-results/bootstrap-invocation.json').write_text(json.dumps({"command":["/bin/bash","/dr151-work.sh"],"script":Path('/dr151-work.sh').read_text(),"returncode":int(sys.argv[1]),"pinned_commit":"0a79ef7157d64d5f93a6c1c3ef6ee7cd9af88067"}))
+Path('/dr151-results/bootstrap-invocation.json').write_text(json.dumps({"command":["/bin/bash","/dr151-work.sh"],"script":Path('/dr151-work.sh').read_text(),"returncode":int(sys.argv[1]),"pinned_commit":"b0bdc3d08544fdecfadeffc8ca5dae303ffd898d"}))
 DR151_INVOCATION
 finalize_seconds=$((started + 12900 - 5 - $(/usr/bin/date +%s)))
 if [ "$finalize_seconds" -lt 1 ]; then finalize_seconds=1; fi
