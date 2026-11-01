@@ -191,7 +191,7 @@ A repeat of POTION-8M with matching evaluation code is queued. A controlled mode
 | NanoBEIR search tasks | All 13 of 13 | 46.1754 |
 
 This English mean also excludes deferred MIND. It is **not the complete 41-task benchmark score**.
-The source records the changed method and runtime identifiers, task metrics, revisions and bound model identity.
+The source records each task's metric and dataset revision, the saved model, and the code identifiers.
 
 ### First neighborhood stability check
 
