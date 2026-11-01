@@ -67,11 +67,15 @@ Use standard Python 3.13. From this package directory in the fse checkout:
 
 ```sh
 uv venv --python 3.13 .venv
-uv pip install --python .venv/bin/python -e '../..' -e '.[test]'
+SETUPTOOLS_SCM_PRETEND_VERSION_FOR_FSE=2.0.0.dev0 \
+  uv pip install --python .venv/bin/python -e '../..' -e '.[test]'
 .venv/bin/python -m pytest -m 'not network'
 .venv/bin/python -m pytest -m network
 uv build --out-dir dist
 ```
+
+The version override labels the development checkout for dependency resolution.
+It does not create a tag, release or published package.
 
 After moving the folder to its own repository, replace `-e '../..'` with an
 available fse 2.0 build. The declared requirement is `fse>=2.0.0.dev0`.

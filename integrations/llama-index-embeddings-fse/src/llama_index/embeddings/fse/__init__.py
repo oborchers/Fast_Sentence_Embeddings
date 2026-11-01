@@ -29,6 +29,9 @@ class FseEmbedding(BaseEmbedding):
             raise ValueError("dtype must be float32 or float16 for float-list embeddings")
         if encoder is not None and load_kwargs:
             raise ValueError("load_kwargs cannot be used with an existing encoder")
+        unknown = kwargs.keys() - BaseEmbedding.model_fields.keys()
+        if unknown:
+            raise TypeError(f"Unknown BaseEmbedding options: {sorted(unknown)}")
         super().__init__(model_name=model_name, **kwargs)
         self._encoder = (
             encoder
