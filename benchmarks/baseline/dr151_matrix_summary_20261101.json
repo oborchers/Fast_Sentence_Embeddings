@@ -19,6 +19,24 @@
   },
   "cells": [
     {
+      "raw": "benchmarks/baseline/results/dr151-matrix-fastembed-float32-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-fastembed-float32-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
       "raw": "benchmarks/baseline/results/dr151-matrix-glove-wiki-gigaword-300-float16-w1.jsonl",
       "status": "incomplete",
       "valid_pairs": 0,
@@ -394,6 +412,78 @@
       "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
     },
     {
+      "raw": "benchmarks/baseline/results/dr151-matrix-minilm-float32-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-minilm-float32-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-32M-float16-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-32M-float16-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-32M-float32-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-32M-float32-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-32M-int8-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-32M-int8-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
       "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-8M-float16-w1.jsonl",
       "status": "complete",
       "valid_pairs": 3,
@@ -642,6 +732,258 @@
       "aa_scope": "complete valid paired series",
       "load_min": 4.302734375,
       "load_max": 4.32958984375
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-8M-int8-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-base-8M-int8-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-multilingual-128M-float16-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-multilingual-128M-float16-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-multilingual-128M-float32-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-multilingual-128M-float32-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-multilingual-128M-int8-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-multilingual-128M-int8-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-retrieval-32M-float16-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-retrieval-32M-float16-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-retrieval-32M-float32-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-retrieval-32M-float32-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-retrieval-32M-int8-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-potion-retrieval-32M-int8-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-rust-float32-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-rust-float32-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-static-retrieval-mrl-en-v1-float16-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-static-retrieval-mrl-en-v1-float16-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-static-retrieval-mrl-en-v1-float32-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-static-retrieval-mrl-en-v1-float32-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-static-retrieval-mrl-en-v1-int8-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-static-retrieval-mrl-en-v1-int8-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-static-similarity-mrl-multilingual-v1-float16-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-static-similarity-mrl-multilingual-v1-float16-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-static-similarity-mrl-multilingual-v1-float32-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-static-similarity-mrl-multilingual-v1-float32-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-static-similarity-mrl-multilingual-v1-int8-w1.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
+    },
+    {
+      "raw": "benchmarks/baseline/results/dr151-matrix-static-similarity-mrl-multilingual-v1-int8-w10.jsonl",
+      "status": "incomplete",
+      "valid_pairs": 0,
+      "aa_ratio_b_over_a": null,
+      "symmetric_aa_band": null,
+      "noise_status": "unavailable, incomplete",
+      "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
     },
     {
       "raw": "benchmarks/baseline/results/dr151-matrix-word2vec-google-news-300-float16-w1.jsonl",
