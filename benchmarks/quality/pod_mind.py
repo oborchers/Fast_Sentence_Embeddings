@@ -98,8 +98,9 @@ def evaluate_one(name, task, shared_seconds, hardware, output, workers):
     gc.collect()
 
 
-def run(models, output, workers):
+def run(models, cache, output, workers):
     import mteb
+    from pod_storage import require_free, snapshot
     from run_mteb import FseEncoder
 
     if version("mteb") != "2.26.25":
@@ -115,9 +116,19 @@ def run(models, output, workers):
     if task.metadata.dataset["revision"] != "227478e3235572039f4f7661840e059f31ef6eb1":
         raise ValueError("MIND task dataset differs from its pinned revision")
     before = mteb_files()
+    snapshot(cache, models, output, "before-mind-load")
+    require_free(cache, 120, "before loading unmodified MIND")
     begin = time.monotonic()
-    task.load_data(num_proc=1)
+    try:
+        task.load_data(num_proc=1)
+    except Exception:
+        try:
+            snapshot(cache, models, output, "mind-load-failed")
+        except OSError as diagnostic_error:
+            emit("mind-load-diagnostic-failed", {"errno": diagnostic_error.errno})
+        raise
     shared_seconds = time.monotonic() - begin
+    snapshot(cache, models, output, "mind-loaded")
     if not task.data_loaded:
         raise RuntimeError("MIND task did not finish loading")
     emit(
@@ -155,18 +166,27 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--workers", type=int, default=16)
     args = parser.parse_args()
+    if sys.platform != "linux":
+        raise RuntimeError("MIND pod execution requires Linux; local MIND remains deferred")
     args.output.mkdir(parents=True, exist_ok=True)
+    args.cache.mkdir(parents=True, exist_ok=True)
     if args.stage == "prepare":
         from pod_models import archive_fit_receipts, prepare_mind
+        from pod_storage import cleanup_preparation_sources, require_free, snapshot
 
+        snapshot(args.cache, args.models, args.output, "before-preparation")
+        require_free(args.cache, 140, "before model preparation")
         order = prepare_mind(args.models, args.cache, args.workers)
         if len(order) != 11:
             raise ValueError("MIND plan must contain all eleven float32 configurations")
         (args.output / "model-order.json").write_text(json.dumps(order))
         emit("fitted-artifacts", archive_fit_receipts(args.models))
         emit("model-order", order)
+        snapshot(args.cache, args.models, args.output, "preparation-saved")
+        cleanup_preparation_sources(args.cache, args.models, args.output)
+        snapshot(args.cache, args.models, args.output, "preparation-cleaned")
     else:
-        run(args.models, args.output, args.workers)
+        run(args.models, args.cache, args.output, args.workers)
 
 
 if __name__ == "__main__":

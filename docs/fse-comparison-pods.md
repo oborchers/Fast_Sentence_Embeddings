@@ -85,7 +85,7 @@ The direct native comparison pins `model2vec[train]==0.10.0`.
 Its documented API is `StaticModelForClassification.from_pretrained(path=...)`, `fit`, then `to_pipeline()`.
 The pipeline is saved and reloaded as `StaticModelPipeline` for inference.
 Each comparison uses the same POTION source and dataset splits as its frozen counterpart.
-Native training updates embeddings and a 512-unit hidden layer. Frozen LogReg updates only its linear head.
+Model2Vec 0.10.0 fine-tunes its embeddings and an MLP with one 512-unit ReLU hidden layer using PyTorch. The exported classifier runs in plain NumPy, with softmax or sigmoid for probabilities. Its label path selects from logits. fse's classifier head is linear. Accuracy and speed therefore compare a fine-tuned MLP against a frozen-embedding linear head. [Pinned MLP implementation](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/inference/mlp.py), [pinned training documentation](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/train/README.md).
 Training durations are separate and explicitly label sklearn versus torch tool chains.
 Native early stopping uses a seed-0 internal training split, a 0.1 fraction capped at 10,000 rows.
 This is 100 rows for SetFit and 10,000 for FineWeb. No evaluation row enters this split.
@@ -110,3 +110,13 @@ FastText's benchmark inclusion makes no statement about its eventual fse 2.0 rel
 Every result JSONL, invocation record and preparation manifest is exported with DR190 artifact markers.
 The final manifest labels timeouts, failed invocations and noisy cells as incomplete.
 No duration estimate guarantees completion of this expanded queue within four hours.
+
+## Additional Pod 3
+
+Every existing Pod 2 classifier comparison stays intact. Pod 3 adds POTION-8M float32 raw-mean linear inference at workers 1/32 on the same fifteen SetFit datasets and held-out FineWeb pages.
+
+The folded and explicit arms use the same trained float32 coefficients, bias, labels and raw encoder. The explicit arm runs `Encoder.encode` followed by `vectors @ weight.T + bias`. The folded arm uses `Classifier.predict` on its projected table. Each operation records accuracy, size and its own backend identity. The Model2Vec reference is the fine-tuned MLP and exported NumPy pipeline described above.
+
+Raw-mean fse heads already fold internally. Standalone save changes persistence and retained memory, not the folding algorithm. The script records folded-file bytes beside raw-encoder plus linear-head bytes. Floating-point accumulation order can change between folding and explicit matmul, so accuracy and label disagreements are retained. The whole pod has a 45-minute hard limit, including setup, and exports partial results. No existing comparison is replaced.
+
+Pod 3 also compares Python Model2Vec with the **same frozen sklearn linear head**, including the identical float32 coefficients and bias. This isolates the encoding engines. Its fine-tuned Model2Vec MLP remains a separate trained-model comparison. AG News linear cells are published first, before MLP training, with raw and summary artifacts.

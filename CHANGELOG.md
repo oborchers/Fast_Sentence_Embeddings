@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- Pod comparison scripts support SSH result collection, early MIND disk checks, and a paired folded-versus-explicit classifier comparison with the same linear head.
+
 - Comparison tooling prepares bounded Linux pod runs, offline SIF-10 classics, and Model2Vec's exported classifier with separate training and inference records.
 
 - Comparison child processes bound native math libraries, including Apple Accelerate, before imports and record those requested limits.

@@ -847,3 +847,15 @@ plus MiniLM remain. The uniform static scenario is now 9.98 hours,
 with endpoints 8.11 and 23.83 hours.
 MiniLM, classifiers, search and required same-method confirmations are additional.
 These checkpoints use separate method cohorts and establish no controlled ranking.
+
+### Classifier speed evidence and folding
+
+Model2Vec 0.10.0 fine-tunes its embeddings and an MLP with one 512-unit ReLU hidden layer using PyTorch. The exported classifier runs in plain NumPy, with softmax or sigmoid for probabilities. Its label path selects from logits. fse's classifier head is linear. Accuracy and speed therefore compare a fine-tuned MLP against a frozen-embedding linear head. [Pinned MLP implementation](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/inference/mlp.py), [pinned training documentation](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/train/README.md).
+
+No controlled classifier throughput cells have been published yet. The published [POTION-8M Model2Vec MLP subj reference](benchmarks/baseline/dr151_native_classifier_pinned_accuracy_20261101.jsonl) records accuracy 0.890000 and macro-F1 0.889887 on all 2,000 test rows. It follows the fixed 1,000-row training selection and has no local training or inference timing. Its comparison with the pod remains pending.
+
+Pod 3 adds a controlled folding comparison on the same raw-mean linear model: fse `Classifier.predict` on its folded table, versus fse `Encoder.encode` followed by the identical float32 weight matrix and bias. Both worker settings, 1 and 32, receive the complete evaluation sets. A fine-tuned Model2Vec MLP running through its exported NumPy pipeline is a third arm. Every arm records accuracy, size, runtime identity and rotating fse A/A controls. No rates are filled into a graphic before raw controlled results exist.
+
+Raw-mean fse heads already fold internally. Saving standalone writes that projected table and bias; it is not a separate faster algorithm. The size comparison reports folded model bytes versus encoder plus linear-head bytes. The existing normalized-linear, LogReg, TF-IDF, fastText and Model2Vec MLP comparisons remain unchanged.
+
+Pod 3 also compares Python Model2Vec with the **same frozen sklearn linear head**, including the identical float32 coefficients and bias. This isolates the encoding engines. Its fine-tuned Model2Vec MLP remains a separate trained-model comparison. AG News linear cells are published first, before MLP training, with raw and summary artifacts.

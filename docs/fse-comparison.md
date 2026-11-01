@@ -91,7 +91,7 @@ reference, not an exact replication target with a fully known protocol.
 `quality/prepare_setfit.py` selects exactly 1,000 stratified training examples
 with seed zero and evaluates the full test set. It fits LogisticRegressionCV
 with five folds, ten Cs and max_iter=1000, without a validation-set search.
-Both frozen POTION-8M and POTION-32M are tested through fse and native model2vec.
+Both frozen POTION-8M and POTION-32M are tested through fse linear heads and Python Model2Vec embeddings plus sklearn LogReg linear heads.
 Each source library gets its own fitted head. fse float16 and int8 reuse the
 head fitted on float32, so their task-score deltas isolate table quantization.
 TF-IDF uses the default scikit-learn vectorizer fitted on those same training
@@ -127,7 +127,7 @@ finished table instead. The combined stage is not added a second time to startup
 Both modes then encode, build and durably save the index, reopen it, and perform
 first and warm queries. Common normalization has its own `preprocess_s` timer. `startup_through_first_search_s` measures model load through first search, including preprocessing and intervening overhead. It excludes input/provenance preparation and later recall diagnostics. Do not add the combined build/save field to its component times. All search arms use the same encoder startup mode.
 
-Classifier manifests bind each fitted head to the actual training encoder fingerprint. Quantized tables must match their verified float32 parent. Native model2vec heads bind the weights and tokenizer/config files. Preparation and prediction both validate these identities. Completed quality records write the same normalized identity fields that resume checks, including explicit null fields for non-fse models.
+Classifier manifests bind each fitted head to the actual training encoder fingerprint. Quantized tables must match their verified float32 parent. Frozen Model2Vec plus sklearn linear heads bind the weights and tokenizer/config files. Preparation and prediction both validate these identities. Completed quality records write the same normalized identity fields that resume checks, including explicit null fields for non-fse models.
 
 `quality/report_document_tasks.py` joins a compatible quality summary and raw journal to the installed MTEB2.26.25 descriptive statistics. It reports every full task with an upstream evaluation text stream averaging at least1,000 characters. The output preserves task metrics, model limits and source-statistics digests. It never samples evaluation rows or averages different task metrics into a new benchmark score. These upstream lengths are not fresh measurements of the run or truncation frequencies.
 
@@ -154,3 +154,11 @@ constructs CPU `IndexFlatIP`. Its pinned implementation calls
 [CPU inner-product search](https://github.com/facebookresearch/faiss/blob/v1.15.1/faiss/utils/distances.cpp)
 and [Add Metal GPU backend for Apple Silicon (IndexFlat)](https://github.com/facebookresearch/faiss/pull/5144).
 No GPU index is constructed by this harness.
+
+### Exported MLP and additional folding comparison
+
+Model2Vec 0.10.0 fine-tunes its embeddings and an MLP with one 512-unit ReLU hidden layer using PyTorch. The exported classifier runs in plain NumPy, with softmax or sigmoid for probabilities. Its label path selects from logits. fse's classifier head is linear. Accuracy and speed therefore compare a fine-tuned MLP against a frozen-embedding linear head. [Pinned MLP implementation](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/inference/mlp.py), [pinned training documentation](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/train/README.md).
+
+Controlled classifier throughput is pending. Encoder-only measurements do not establish classifier rates. Pod 3 adds raw-mean fse folded prediction versus raw `Encoder.encode` plus the exact same linear matmul. It also includes the exported fine-tuned Model2Vec MLP reference. Existing unfolded normalized-linear, LogReg, TF-IDF and fastText rows remain unchanged. Standalone storage preserves fse's automatic raw-head folding algorithm.
+
+Pod 3 also compares Python Model2Vec with the **same frozen sklearn linear head**, including the identical float32 coefficients and bias. This isolates the encoding engines. Its fine-tuned Model2Vec MLP remains a separate trained-model comparison. AG News linear cells are published first, before MLP training, with raw and summary artifacts.

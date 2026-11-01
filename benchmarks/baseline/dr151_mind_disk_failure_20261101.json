@@ -1,0 +1,506 @@
+{
+  "status": "failed, no MIND score",
+  "source_commit": "97b741887dc0bd4730131aa60a7b5242fef8d5ef",
+  "container_disk_gb": 60,
+  "error": "OSError [Errno 28] No space left on device",
+  "failure_stage": "top_ranked train generation, after full test qrels cast",
+  "observed_progress": {
+    "top_ranked_train_rows_written": 280166,
+    "top_ranked_train_rows_total": 5107639,
+    "test_qrels_rows": 97006943
+  },
+  "observed_finished_model_bytes": 10455299824,
+  "metadata_source": "https://huggingface.co/datasets/mteb/mind_small/commit/227478e3235572039f4f7661840e059f31ef6eb1",
+  "pinned_dataset_metadata": {
+    "source_revision": "227478e3235572039f4f7661840e059f31ef6eb1",
+    "dataset_info": [
+      {
+        "config_name": "corpus",
+        "features": [
+          {
+            "name": "_id",
+            "dtype": "string"
+          },
+          {
+            "name": "text",
+            "dtype": "string"
+          },
+          {
+            "name": "title",
+            "dtype": "string"
+          }
+        ],
+        "splits": [
+          {
+            "name": "train",
+            "num_bytes": 2468752,
+            "num_examples": 19810
+          },
+          {
+            "name": "test",
+            "num_bytes": 654910,
+            "num_examples": 5277
+          }
+        ],
+        "download_size": 2323653,
+        "dataset_size": 3123662
+      },
+      {
+        "config_name": "default",
+        "features": [
+          {
+            "name": "query-id",
+            "dtype": "string"
+          },
+          {
+            "name": "corpus-id",
+            "dtype": "string"
+          },
+          {
+            "name": "score",
+            "dtype": "int64"
+          }
+        ],
+        "splits": [
+          {
+            "name": "train",
+            "num_bytes": 17048656195,
+            "num_examples": 207455003
+          },
+          {
+            "name": "test",
+            "num_bytes": 7834166688,
+            "num_examples": 97006943
+          }
+        ],
+        "download_size": 1595227632,
+        "dataset_size": 24882822883
+      },
+      {
+        "config_name": "queries",
+        "features": [
+          {
+            "name": "_id",
+            "dtype": "string"
+          },
+          {
+            "name": "text",
+            "dtype": "string"
+          }
+        ],
+        "splits": [
+          {
+            "name": "train",
+            "num_bytes": 487986366,
+            "num_examples": 5107639
+          },
+          {
+            "name": "test",
+            "num_bytes": 222948506,
+            "num_examples": 2362514
+          }
+        ],
+        "download_size": 396128815,
+        "dataset_size": 710934872
+      },
+      {
+        "config_name": "top_ranked",
+        "features": [
+          {
+            "name": "query-id",
+            "dtype": "string"
+          },
+          {
+            "name": "corpus-ids",
+            "sequence": "string"
+          }
+        ],
+        "splits": [
+          {
+            "name": "train",
+            "num_bytes": 10729389945,
+            "num_examples": 5107639
+          },
+          {
+            "name": "test",
+            "num_bytes": 5013381576,
+            "num_examples": 2362514
+          }
+        ],
+        "download_size": 302864452,
+        "dataset_size": 15742771521
+      }
+    ],
+    "files": [
+      {
+        "name": ".gitattributes",
+        "bytes": 2461
+      },
+      {
+        "name": "README.md",
+        "bytes": 1792
+      },
+      {
+        "name": "corpus/test-00000-of-00001.parquet",
+        "bytes": 486699
+      },
+      {
+        "name": "corpus/train-00000-of-00001.parquet",
+        "bytes": 1836954
+      },
+      {
+        "name": "data/test-00000-of-00016.parquet",
+        "bytes": 30126144
+      },
+      {
+        "name": "data/test-00001-of-00016.parquet",
+        "bytes": 31606551
+      },
+      {
+        "name": "data/test-00002-of-00016.parquet",
+        "bytes": 30429936
+      },
+      {
+        "name": "data/test-00003-of-00016.parquet",
+        "bytes": 30837920
+      },
+      {
+        "name": "data/test-00004-of-00016.parquet",
+        "bytes": 31632802
+      },
+      {
+        "name": "data/test-00005-of-00016.parquet",
+        "bytes": 32017133
+      },
+      {
+        "name": "data/test-00006-of-00016.parquet",
+        "bytes": 31212488
+      },
+      {
+        "name": "data/test-00007-of-00016.parquet",
+        "bytes": 30290794
+      },
+      {
+        "name": "data/test-00008-of-00016.parquet",
+        "bytes": 32559681
+      },
+      {
+        "name": "data/test-00009-of-00016.parquet",
+        "bytes": 31533561
+      },
+      {
+        "name": "data/test-00010-of-00016.parquet",
+        "bytes": 32013007
+      },
+      {
+        "name": "data/test-00011-of-00016.parquet",
+        "bytes": 31496190
+      },
+      {
+        "name": "data/test-00012-of-00016.parquet",
+        "bytes": 31047771
+      },
+      {
+        "name": "data/test-00013-of-00016.parquet",
+        "bytes": 31411470
+      },
+      {
+        "name": "data/test-00014-of-00016.parquet",
+        "bytes": 31374268
+      },
+      {
+        "name": "data/test-00015-of-00016.parquet",
+        "bytes": 31414328
+      },
+      {
+        "name": "data/train-00000-of-00035.parquet",
+        "bytes": 31445688
+      },
+      {
+        "name": "data/train-00001-of-00035.parquet",
+        "bytes": 30642401
+      },
+      {
+        "name": "data/train-00002-of-00035.parquet",
+        "bytes": 30620160
+      },
+      {
+        "name": "data/train-00003-of-00035.parquet",
+        "bytes": 31399262
+      },
+      {
+        "name": "data/train-00004-of-00035.parquet",
+        "bytes": 30896006
+      },
+      {
+        "name": "data/train-00005-of-00035.parquet",
+        "bytes": 31198409
+      },
+      {
+        "name": "data/train-00006-of-00035.parquet",
+        "bytes": 30941220
+      },
+      {
+        "name": "data/train-00007-of-00035.parquet",
+        "bytes": 31669790
+      },
+      {
+        "name": "data/train-00008-of-00035.parquet",
+        "bytes": 31478258
+      },
+      {
+        "name": "data/train-00009-of-00035.parquet",
+        "bytes": 30648551
+      },
+      {
+        "name": "data/train-00010-of-00035.parquet",
+        "bytes": 30927556
+      },
+      {
+        "name": "data/train-00011-of-00035.parquet",
+        "bytes": 30930581
+      },
+      {
+        "name": "data/train-00012-of-00035.parquet",
+        "bytes": 31824677
+      },
+      {
+        "name": "data/train-00013-of-00035.parquet",
+        "bytes": 31057266
+      },
+      {
+        "name": "data/train-00014-of-00035.parquet",
+        "bytes": 32094162
+      },
+      {
+        "name": "data/train-00015-of-00035.parquet",
+        "bytes": 31918607
+      },
+      {
+        "name": "data/train-00016-of-00035.parquet",
+        "bytes": 31331727
+      },
+      {
+        "name": "data/train-00017-of-00035.parquet",
+        "bytes": 30920541
+      },
+      {
+        "name": "data/train-00018-of-00035.parquet",
+        "bytes": 30547488
+      },
+      {
+        "name": "data/train-00019-of-00035.parquet",
+        "bytes": 31727912
+      },
+      {
+        "name": "data/train-00020-of-00035.parquet",
+        "bytes": 31693843
+      },
+      {
+        "name": "data/train-00021-of-00035.parquet",
+        "bytes": 32161956
+      },
+      {
+        "name": "data/train-00022-of-00035.parquet",
+        "bytes": 31135647
+      },
+      {
+        "name": "data/train-00023-of-00035.parquet",
+        "bytes": 31073161
+      },
+      {
+        "name": "data/train-00024-of-00035.parquet",
+        "bytes": 30553967
+      },
+      {
+        "name": "data/train-00025-of-00035.parquet",
+        "bytes": 32344507
+      },
+      {
+        "name": "data/train-00026-of-00035.parquet",
+        "bytes": 30885399
+      },
+      {
+        "name": "data/train-00027-of-00035.parquet",
+        "bytes": 30769135
+      },
+      {
+        "name": "data/train-00028-of-00035.parquet",
+        "bytes": 31114598
+      },
+      {
+        "name": "data/train-00029-of-00035.parquet",
+        "bytes": 30912966
+      },
+      {
+        "name": "data/train-00030-of-00035.parquet",
+        "bytes": 30970699
+      },
+      {
+        "name": "data/train-00031-of-00035.parquet",
+        "bytes": 32173267
+      },
+      {
+        "name": "data/train-00032-of-00035.parquet",
+        "bytes": 31159132
+      },
+      {
+        "name": "data/train-00033-of-00035.parquet",
+        "bytes": 30525839
+      },
+      {
+        "name": "data/train-00034-of-00035.parquet",
+        "bytes": 32529210
+      },
+      {
+        "name": "queries/test-00000-of-00001.parquet",
+        "bytes": 124723885
+      },
+      {
+        "name": "queries/train-00000-of-00001.parquet",
+        "bytes": 271404930
+      },
+      {
+        "name": "top_ranked/test-00000-of-00011.parquet",
+        "bytes": 6934976
+      },
+      {
+        "name": "top_ranked/test-00001-of-00011.parquet",
+        "bytes": 6900553
+      },
+      {
+        "name": "top_ranked/test-00002-of-00011.parquet",
+        "bytes": 6843587
+      },
+      {
+        "name": "top_ranked/test-00003-of-00011.parquet",
+        "bytes": 6918031
+      },
+      {
+        "name": "top_ranked/test-00004-of-00011.parquet",
+        "bytes": 6937368
+      },
+      {
+        "name": "top_ranked/test-00005-of-00011.parquet",
+        "bytes": 6988914
+      },
+      {
+        "name": "top_ranked/test-00006-of-00011.parquet",
+        "bytes": 7054032
+      },
+      {
+        "name": "top_ranked/test-00007-of-00011.parquet",
+        "bytes": 6927164
+      },
+      {
+        "name": "top_ranked/test-00008-of-00011.parquet",
+        "bytes": 6899401
+      },
+      {
+        "name": "top_ranked/test-00009-of-00011.parquet",
+        "bytes": 6842381
+      },
+      {
+        "name": "top_ranked/test-00010-of-00011.parquet",
+        "bytes": 6918258
+      },
+      {
+        "name": "top_ranked/train-00000-of-00022.parquet",
+        "bytes": 10248685
+      },
+      {
+        "name": "top_ranked/train-00001-of-00022.parquet",
+        "bytes": 10113239
+      },
+      {
+        "name": "top_ranked/train-00002-of-00022.parquet",
+        "bytes": 10289471
+      },
+      {
+        "name": "top_ranked/train-00003-of-00022.parquet",
+        "bytes": 10042777
+      },
+      {
+        "name": "top_ranked/train-00004-of-00022.parquet",
+        "bytes": 10367362
+      },
+      {
+        "name": "top_ranked/train-00005-of-00022.parquet",
+        "bytes": 10335180
+      },
+      {
+        "name": "top_ranked/train-00006-of-00022.parquet",
+        "bytes": 10082160
+      },
+      {
+        "name": "top_ranked/train-00007-of-00022.parquet",
+        "bytes": 10293772
+      },
+      {
+        "name": "top_ranked/train-00008-of-00022.parquet",
+        "bytes": 10390321
+      },
+      {
+        "name": "top_ranked/train-00009-of-00022.parquet",
+        "bytes": 10431896
+      },
+      {
+        "name": "top_ranked/train-00010-of-00022.parquet",
+        "bytes": 10275860
+      },
+      {
+        "name": "top_ranked/train-00011-of-00022.parquet",
+        "bytes": 10291603
+      },
+      {
+        "name": "top_ranked/train-00012-of-00022.parquet",
+        "bytes": 10301845
+      },
+      {
+        "name": "top_ranked/train-00013-of-00022.parquet",
+        "bytes": 10486172
+      },
+      {
+        "name": "top_ranked/train-00014-of-00022.parquet",
+        "bytes": 10324948
+      },
+      {
+        "name": "top_ranked/train-00015-of-00022.parquet",
+        "bytes": 10523263
+      },
+      {
+        "name": "top_ranked/train-00016-of-00022.parquet",
+        "bytes": 10490937
+      },
+      {
+        "name": "top_ranked/train-00017-of-00022.parquet",
+        "bytes": 10385250
+      },
+      {
+        "name": "top_ranked/train-00018-of-00022.parquet",
+        "bytes": 10245755
+      },
+      {
+        "name": "top_ranked/train-00019-of-00022.parquet",
+        "bytes": 10475737
+      },
+      {
+        "name": "top_ranked/train-00020-of-00022.parquet",
+        "bytes": 10137796
+      },
+      {
+        "name": "top_ranked/train-00021-of-00022.parquet",
+        "bytes": 10165758
+      }
+    ]
+  },
+  "declared_arrow_bytes_all_configs": 41339652938,
+  "limits": "failed pod was deleted before a directory inventory; metadata sizes are not a measured failed-filesystem breakdown",
+  "fix": {
+    "container_disk_gb": 200,
+    "initial_free_gib": 140,
+    "before_mind_free_gib": 120,
+    "cleanup": "only verified preparation sources in the fresh exclusive pod cache; retain finished artifacts, fit states and full MIND data",
+    "mteb": "2.26.25 unmodified, no task/split/row removal"
+  }
+}
