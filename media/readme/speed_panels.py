@@ -290,7 +290,7 @@ def caption_lines(rows, caption, *, preview=False):
     )
     sizes = "Input sizes appear beside each bar."
     if not preview:
-        sizes = "; ".join(
+        sizes = ". ".join(
             f"{BACKENDS[p['reference']['backend']]} ({core_label(p['fse']['context']['workers']).lower()}): {p['fse']['context']['texts']:,} texts"
             for p in rows
         )
