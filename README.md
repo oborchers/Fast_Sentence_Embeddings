@@ -5,7 +5,8 @@
 </picture>
 </p>
 
-<h2 align="center"><strong>Our goal: be the fastest inference engine for static embeddings on the planet.</strong></h2>
+<h2 align="center"><strong>The fastest inference engine for static embeddings on the planet*</strong></h2>
+<p align="center"><sub>* That's our goal, at least.</sub></p>
 
 <p align="center">
 <a href="https://github.com/oborchers/Fast_Sentence_Embeddings/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/oborchers/Fast_Sentence_Embeddings/actions/workflows/ci.yml/badge.svg?branch=master"></a>
@@ -187,7 +188,7 @@ compact.save("compact.safetensors")
 ```
 
 fse also supports classic GloVe, word2vec and FastText word vectors through the optional `fse[gensim]` adapter.
-SIF and uSIF preparation is covered in the first recipe.
+For SIF and uSIF preparation, use [the SIF and uSIF recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/01-sif-usif.ipynb).
 
 ## More
 
