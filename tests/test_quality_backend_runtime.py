@@ -15,7 +15,8 @@ def backend(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "package,kind", [("fse", "fse"), ("model2vec", "model2vec"), ("sentence_transformers", "st")]
+    ("package", "kind"),
+    [("fse", "fse"), ("model2vec", "model2vec"), ("sentence_transformers", "st")],
 )
 def test_actual_inner_model_selects_its_own_runtime(backend, monkeypatch, package, kind):
     model_type = type("Encoder", (), {"__module__": package + ".implementation"})
