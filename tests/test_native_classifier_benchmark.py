@@ -84,6 +84,13 @@ def test_training_sees_only_training_rows_and_evaluates_reload(native, monkeypat
         SimpleNamespace(monotonic=lambda: pytest.fail("local accuracy must not time training")),
     )
     data = (["train a", "train b"], np.array([0, 1]), ["test a", "test b"], np.array([1, 0]))
+
+    def held_out_metrics(labels, predicted):
+        np.testing.assert_array_equal(labels, data[3])
+        np.testing.assert_array_equal(predicted, data[3])
+        return {"accuracy": 1.0, "macro_f1": 1.0}
+
+    monkeypatch.setattr(native, "metrics", held_out_metrics)
     row = native.train(data, "minishlab/potion-base-8M", tmp_path / "export", {})
     fitting = next(call for call in calls if call[0] == "fit")
     assert fitting[1] == data[0]

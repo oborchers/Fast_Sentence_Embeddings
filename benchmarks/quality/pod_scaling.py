@@ -10,7 +10,6 @@ from pod_folded_summary import complete_rounds, runtime, spread
 from pod_speed import POTION
 
 WORKERS = (1, 2, 4, 8, 16, 32)
-RESERVE_SECONDS = 300
 
 
 def eligibility(done, operations, accepted):

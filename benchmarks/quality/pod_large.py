@@ -12,7 +12,6 @@ from pod_large_summary import summarize
 from pod_pairs import append, series
 from pod_speed import POTION, ensure_model
 
-RESERVE_SECONDS = 4200
 
 
 def commands(base, workers):

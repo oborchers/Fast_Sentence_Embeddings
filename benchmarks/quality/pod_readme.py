@@ -16,7 +16,6 @@ WORKERS = (1, 16, 32)
 CURVE_WORKERS = (1, 2, 4, 8, 16, 32)
 DTYPES = ("float32", "float16", "int8")
 STATIC_ST = "sentence-transformers/static-retrieval-mrl-en-v1"
-RESERVE_SECONDS = 1200
 
 
 def cases():

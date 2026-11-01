@@ -12,7 +12,6 @@ from pod_large_inputs import SHOWCASE_ROWS, prepare_one
 from pod_pairs import aa_band, append, operation
 from pod_speed import POTION, ensure_model
 
-RESERVE_SECONDS = 2100
 
 
 def run(args):
