@@ -3362,6 +3362,22 @@
       "sha256": "b37a141bc7a1fe56a117a6bd8919e33b3f1507d5878f0642e2833d1315053e5c",
       "git_blob": "ca4f435ab1f7db180c384b1d379b5bdccccb8678",
       "source_commit": "7164b12637370d8064346d18161d73eee27dcb84"
+    },
+    {
+      "path": "reviews/dr151-master-study-compaction-20261101/prompt.md",
+      "size_bytes": 916,
+      "sha256": "24630d01d614c75d4df97a2b7f22b94715fd91802b16b6fd47465f2781d77867",
+      "source_commit": "bc1d79b0aef6d88590629825d9bcdcae387f110d",
+      "git_blob": "ee88b8ec36027bbd59750917ce30ca94c842a80a",
+      "source_kind": "independent read-only CLI review"
+    },
+    {
+      "path": "reviews/dr151-master-study-compaction-20261101/review.md",
+      "size_bytes": 2232,
+      "sha256": "44fdf0c5c0517bce0214a255393b15f3f308f242a2dc9ca9f6cbbd3c54dc952d",
+      "source_commit": "bc1d79b0aef6d88590629825d9bcdcae387f110d",
+      "git_blob": "80ad66cbb6513658069c084294f9e96d68ba207a",
+      "source_kind": "independent read-only CLI review"
     }
   ]
 }
