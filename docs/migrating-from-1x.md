@@ -68,7 +68,10 @@ assert rows.shape == (2, 3)
 
 `normalize=False` requests raw means. New encoders default to normalization to unit length.
 Use `tokenizer="external"` when you own tokenization and pass token lists.
-Empty token strings are invalid in 2.0. Remove them deliberately during your input preparation.
+Tokens must be nonempty and contain no whitespace in 2.0.
+Remove empty tokens deliberately during input preparation.
+For plain-table phrase tokens such as `"New York"`, remap both vocabulary and inputs consistently to unique whitespace-free names.
+Check for name collisions. Keep the application on 1.x if that remapping does not fit its data.
 
 To import your finished gensim vectors, install the `gensim` extra and replace the array constructor:
 
@@ -143,14 +146,17 @@ Keep that application on 1.x until you have checked an appropriate offline expor
 | 1.x | 2.0 |
 |---|---|
 | `infer(IndexedList(tokens))` | `encode(tokens)` with an external tokenizer |
-| `TextList(texts)` or `SplitIndexedList(texts)` | `encode(texts)` with a text tokenizer |
-| `CorpusFile(path)` / `IndexedLineDocument(path)` | `encode(Path(path))`, one UTF-8 sentence per line |
+| `TextList(texts)` or `SplitIndexedList(texts)` | `encode(texts)` with `tokenizer="external"` to keep whitespace splitting |
+| Uncompressed `CorpusFile(path)` / `IndexedLineDocument(path)` | `encode(Path(path))`, one UTF-8 sentence per line, with the external tokenizer |
+| Compressed `IndexedLineDocument(path)` | Open a decompressed text stream, then pass the stream to `encode`. |
 | Reiterable indexed input | Ordered collections, or a one-pass stream of strings |
 | Custom indices, including repeated indices | One output row per input sentence, in input order. Combine rows yourself if needed. |
 | Constructor `workers=1` by default | Usable CPU count by default, with small inputs run inline |
 
-The default text tokenizer `fse_words@1` is not a replacement for every custom 1.x splitter.
-Use external token lists to keep your own splitting rules.
+The external tokenizer also accepts strings and splits them at whitespace, preserving case and punctuation.
+Use it to retain standard 1.x `TextList`, `SplitIndexedList`, and file splitting.
+The default `fse_words@1` changes preprocessing, including lowercasing and punctuation handling.
+Choose it explicitly only when you intend that change. Use token lists for your own splitting rules.
 A bare string is rejected. Use `[text]` for one sentence and a `Path` for a file.
 Streams yield strings, not the old `(tokens, index)` pairs.
 
@@ -158,7 +164,7 @@ Streams yield strings, not the old `(tokens, index)` pairs.
 # 2.0: inputs
 from pathlib import Path
 
-text_encoder = Encoder.from_arrays(table, words=words, normalize=True)
+text_encoder = Encoder.from_arrays(table, words=words, tokenizer="external", normalize=True)
 texts = ["cat sleep", "dog sleep"]
 text_rows = text_encoder.encode(texts, workers=2)
 single = text_encoder.encode(["cat sleep"], workers=1)
@@ -167,6 +173,15 @@ Path("sentences.txt").write_text("cat sleep\ndog sleep\n", encoding="utf-8")
 file_rows = text_encoder.encode(Path("sentences.txt"), workers=1)
 np.testing.assert_array_equal(text_rows, streamed)
 np.testing.assert_array_equal(text_rows, file_rows)
+
+# Path input is for uncompressed files. Use a decompressed stream for gzip.
+import gzip
+
+with gzip.open("sentences.txt.gz", "wt", encoding="utf-8") as output:
+    output.write("cat sleep\ndog sleep\n")
+with gzip.open("sentences.txt.gz", "rt", encoding="utf-8") as source:
+    compressed_rows = text_encoder.encode(source, workers=1)
+np.testing.assert_array_equal(text_rows, compressed_rows)
 ```
 
 Set `workers=1` per request when a server already handles requests concurrently.
@@ -210,7 +225,9 @@ Load them with gensim in an environment where it is supported, then convert:
 ```python
 # 2.0: legacy-hub
 legacy_kv = KeyedVectors.load("glove-wiki-gigaword-50.model", mmap="r")
-legacy_encoder = Encoder.from_word_vectors(from_gensim(legacy_kv), normalize=True)
+legacy_encoder = Encoder.from_word_vectors(
+    from_gensim(legacy_kv), tokenizer="external", normalize=True
+)
 legacy_rows = legacy_encoder.encode(["cat sleep"], workers=1)
 ```
 
@@ -283,8 +300,9 @@ The largest absolute element differences were:
 |---|---:|---:|
 | Average | 0 | 5.96e-8 |
 | SIF, one removed direction | 4.66e-10 | 1.19e-7 |
-| uSIF, one weighted direction | 5.96e-8 | 8.94e-8 |
+| uSIF, two weighted directions | 8.94e-8 | 1.49e-7 |
 
+The two uSIF removal weights were approximately 0.813 and 0.187, recorded in full in the JSON.
 Both versions returned zero rows for the unknown-only and empty sentences in this example.
 These are observations on this fixed float32 table, not bounds for other inputs.
 Normalization uses the 2.0 numerical contract, and folding changes the order of arithmetic.

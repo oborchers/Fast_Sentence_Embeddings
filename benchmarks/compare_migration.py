@@ -34,14 +34,21 @@ def export(path, source_commit):
         kv.set_vecattr(word, "count", count)
     arrays = {"words": np.array(WORDS), "table": table}
     for name, cls in [("average", fse.Average), ("sif", fse.SIF), ("usif", fse.uSIF)]:
-        kwargs = {} if name == "average" else {"components": 1}
+        count = {"average": 0, "sif": 1, "usif": 2}[name]
+        kwargs = {} if name == "average" else {"components": count}
         model = cls(kv, workers=1, **kwargs)
         model.train(fse.IndexedList(TRAIN))
         folded = model.wv.vectors * model.word_weights[:, None]
+        factors = np.empty(0, np.float32)
         if name != "average":
             basis = model.svd_res[1]
             factors = model.svd_weights if name == "usif" else np.ones(len(basis), np.float32)
             folded -= ((folded @ basis.T) * factors) @ basis
+        if name == "usif":
+            assert len(factors) == 2
+            assert np.all((factors > 0) & (factors < 1))
+        arrays[f"{name}_components"] = np.array(count)
+        arrays[f"{name}_factors"] = factors
         arrays[f"{name}_table"] = folded
         for norm in [False, True]:
             arrays[f"{name}_{norm}"] = model.infer(fse.IndexedList(PROBES), use_norm=norm)
@@ -57,12 +64,17 @@ def compare(path):
         "probes": PROBES,
         "python": platform.python_version(),
         "numpy": np.__version__,
+        "model_details": {},
         "results": {},
     }
     with np.load(path, allow_pickle=False) as data:
         report["legacy_version"] = str(data["legacy_version"])
         report["legacy_commit"] = str(data["legacy_commit"])
         for name in ["average", "sif", "usif"]:
+            report["model_details"][name] = {
+                "components": int(data[f"{name}_components"]),
+                "factors": data[f"{name}_factors"].tolist(),
+            }
             for norm in [False, True]:
                 encoder = Encoder.from_arrays(
                     data[f"{name}_table"],
