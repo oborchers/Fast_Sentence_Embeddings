@@ -11,8 +11,9 @@ One core always remains selected. The second setting is chosen automatically fro
 
 - Show **all 32 cores** only when median fse-a throughput at 32 divided by median fse-a throughput at 16 is **at least 1.20**.
 - Compare the unrounded medians. The boundary is inclusive; 1.199999 does not qualify.
-- Otherwise choose the highest accepted median among 1, 2, 4, 8 and 16 workers. Ties choose fewer cores.
-- If one core is the best setting, show it once, without a duplicate column/group.
+- Otherwise show **16 cores**, even when 2, 4 or 8 are faster on the curve.
+- The public panels always show exactly one core plus either 16 or 32. Smaller settings appear only in the scaling curve.
+- The generated `core-selection-evidence.md` records any smaller setting that beats 16, with exact medians and committed sources. Include that generated note in the evidence guide when publishing results.
 - When 32 fails the threshold, add one plain line: “More than 16 cores adds little here.” The library figure names the affected model.
 
 Each scaling cell has its own three rotating fse-a/fse-b rounds. The decision compares their primary medians;
@@ -22,7 +23,7 @@ The renderer refuses a panel without its required curve rather than inventing a 
 The existing 918,299 texts/s Mac headline at ten workers remains unchanged with its Apple M1 Pro caption.
 Do not mix Mac and Pod cells in one table or speedup.
 
-## Compact table: one core and the measured best setting
+## Compact table: one core plus 16 or 32
 
 Use POTION-8M, one pinned model revision and float32 parent artifact, complete WikiText encoding input,
 one Pod machine and date, and float32 vector output. Preserve the cohort's exact digest, newline rules and tokenizer limits.
@@ -37,8 +38,7 @@ Collect all nine cells during the same Pod run, not by a follow-up request after
 After scaling selection the renderer uses only workers=1 and workers=K, keeping the other observations in evidence.
 No one-core-only or 32-worker int8 cell can fill a missing K-worker cell.
 All selected cells must share one machine/runtime and context with the decision curve.
-If K is 2, 4 or 8, a 1/16/32-only grid is insufficient. Until that scheduling case is resolved,
-the renderer refuses missing selected cells and does not silently replace K with 16.
+K is always 16 or 32. The 1/16/32 grid therefore contains all possible selected cells; no second Pod run or per-curve follow-up request is needed.
 
 Planned public layout:
 
@@ -68,7 +68,7 @@ Use float32 tables and float32 vector output, with the same dimension and normal
 Collect all twelve paired series at workers 1, 16 and 32 in the same Pod run.
 Also collect both complete six-point model curves before the Pod ends. No separate Pod round or per-curve follow-up request is planned.
 The renderer filters the measured grid to one core and the selected K for each model.
-If K is below 16, the missing selected rows remain a publication blocker until that case is resolved.
+K is 16 or 32. Settings 2, 4 and 8 stay in the scaling curve only; they are never substituted into these library panels.
 The Sentence Transformers numerator must run that same MRL model.
 Never compare POTION-8M fse with the MRL reference and label it a library speedup.
 Keep model names visible under every bar; each bar is a same-model comparison despite different static models across rows.

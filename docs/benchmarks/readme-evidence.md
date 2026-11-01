@@ -389,12 +389,14 @@ The [counting method](https://github.com/oborchers/Fast_Sentence_Embeddings/blob
 
 Keep one core. For each model, show 32 only if its accepted float32 scaling median is at least 1.20 times its accepted 16-worker median.
 Use unrounded medians of the three primary fse-a observations, each with its own valid paired fse-a/fse-b series.
-Otherwise choose the fastest accepted setting among 1, 2, 4, 8 and 16, resolving ties in favour of fewer cores.
-If one core wins, show it once. Display “More than 16 cores adds little here.” when the 32/16 ratio falls below 1.20.
+Otherwise show 16, even if 2, 4 or 8 have a higher measured rate. One core remains visible in every panel. Display “More than 16 cores adds little here.” when the 32/16 ratio falls below 1.20.
 This is an explicit editorial threshold for these workloads, not a general CPU-scaling claim.
 
 The generator reads immutable source references and ordered rates from the audited `scaling` extraction.
 It requires complete coherent curves at 1, 2, 4, 8, 16 and 32 for each displayed model, with all existing validity checks.
 It selects the core setting automatically and requires dtype/reference measurements at that exact setting.
 POTION-8M's curve drives its dtype table. MRL library bars require MRL's own curve.
+The renderer also writes `core-selection-evidence.md`, with all six medians, immutable source references and series IDs.
+If a smaller setting beats 16, its generated note explicitly records that fact and explains the fixed 16-core fallback.
+Include that note here alongside the final measurements. The 1/16/32 grid covers every possible panel choice.
 See the [row plan](readme-speed-panels.md). Missing data stays out of the public README.

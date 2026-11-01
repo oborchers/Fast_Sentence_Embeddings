@@ -100,12 +100,7 @@ def select_cores(rows):
     if any(r["backend"] != "fse" or r["context"]["table_dtype"] != "float32" for r in rows):
         raise ValueError("Selection uses fse float32 scaling rows")
     medians = {worker: measured(row) for worker, row in points.items()}
-    chosen = (
-        32
-        if medians[32] / medians[16] >= MIN_32_GAIN
-        else max((w for w in SCALING_WORKERS if w <= 16), key=lambda w: (medians[w], -w))
-    )
-    return tuple(sorted({1, chosen}))
+    return (1, 32) if medians[32] / medians[16] >= MIN_32_GAIN else (1, 16)
 
 
 def selections(rows):
@@ -135,6 +130,45 @@ def selection_notes(selected):
         for model, workers in sorted(selected.items())
         if 32 not in workers
     ]
+
+
+def selection_audit(rows, selected):
+    lines = [
+        "# Core selection evidence",
+        "",
+        "Public settings are one core plus 32 only at a 32/16 ratio of at least 1.20; otherwise 16.",
+        "",
+    ]
+    for model, workers in sorted(selected.items()):
+        curve = [r for r in rows if r["context"]["model"] == model]
+        medians = {r["context"]["workers"]: measured(r) for r in curve}
+        best_small = max((2, 4, 8), key=lambda w: (medians[w], -w))
+        lines.append(f"## {model}")
+        lines.append(
+            f"Selected settings: {workers}. Unrounded 32/16 ratio: {medians[32] / medians[16]:.17g}."
+        )
+        if medians[best_small] > medians[16]:
+            lines.append(
+                f"The {best_small}-worker median ({medians[best_small]:.17g} texts/s) exceeds the 16-worker median ({medians[16]:.17g}). The README still uses 16 as its fallback, per maintainer decision. Smaller settings belong in the scaling curve only."
+            )
+        lines.extend(audit_sources(curve))
+        lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def audit_sources(rows):
+    lines = [
+        "",
+        "| Workers | Primary median texts/s | Committed source | Series |",
+        "|---:|---:|---|---|",
+    ]
+    for row in sorted(rows, key=lambda r: r["context"]["workers"]):
+        source = row["source"]
+        url = f"https://github.com/oborchers/Fast_Sentence_Embeddings/blob/{source['commit']}/{source['path']}"
+        lines.append(
+            f"| {row['context']['workers']} | {measured(row):.17g} | [journal]({url}) | {source['series_id']} |"
+        )
+    return lines
 
 
 def table(rows, workers):
@@ -266,7 +300,12 @@ def paired_core_settings(pairs, selected):
 
 
 def check_stale(output, files):
-    owned = {"speed-table.md", "library-speedups-light.svg", "library-speedups-dark.svg"}
+    owned = {
+        "speed-table.md",
+        "library-speedups-light.svg",
+        "library-speedups-dark.svg",
+        "core-selection-evidence.md",
+    }
     stale = sorted(name for name in owned - files.keys() if (output / name).exists())
     if stale:
         raise ValueError(
@@ -277,7 +316,11 @@ def check_stale(output, files):
 def panel_files(data, palette):
     selected = selections(data.get("scaling", []))
     table_rows = selected_rows(data["table"], data.get("scaling", []), selected)
-    files = {}
+    files = (
+        {"core-selection-evidence.md": selection_audit(data["scaling"], selected)}
+        if selected
+        else {}
+    )
     if table_rows:
         model = table_rows[0]["context"]["model"]
         note = "\n".join(selection_notes({model: selected[model]}))

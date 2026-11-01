@@ -142,7 +142,13 @@ def test_preview_has_no_rates_or_speedup_claims():
 
 
 @pytest.mark.parametrize(
-    "name", ["speed-table.md", "library-speedups-light.svg", "library-speedups-dark.svg"]
+    "name",
+    [
+        "speed-table.md",
+        "library-speedups-light.svg",
+        "library-speedups-dark.svg",
+        "core-selection-evidence.md",
+    ],
 )
 def test_withdrawn_data_cannot_leave_stale_outputs_silently(tmp_path, name):
     target = tmp_path / name
@@ -188,14 +194,14 @@ def test_32_core_threshold_is_inclusive_and_unrounded(rate32, chosen):
     assert PANEL["select_cores"](curve(rate32)) == chosen
 
 
-def test_fastest_valid_setting_up_to_16_wins_and_ties_use_fewer_cores():
+def test_fallback_stays_16_even_when_smaller_settings_are_faster():
     points = curve(1100)
     points[3]["texts_per_second"] = [1500] * 3
-    assert PANEL["select_cores"](points) == (1, 8)
+    assert PANEL["select_cores"](points) == (1, 16)
     points[3]["texts_per_second"] = [1000] * 3
-    assert PANEL["select_cores"](points) == (1, 8)
+    assert PANEL["select_cores"](points) == (1, 16)
     points[0]["texts_per_second"] = [2000] * 3
-    assert PANEL["select_cores"](points) == (1,)
+    assert PANEL["select_cores"](points) == (1, 16)
 
 
 def test_scaling_selection_requires_complete_valid_coherent_points():
@@ -246,7 +252,7 @@ def test_scaling_is_required_for_every_library_model(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
-def test_one_16_32_grid_does_not_silently_replace_an_8_core_winner(tmp_path):
+def test_one_16_32_grid_uses_16_and_reports_a_faster_8_core_setting(tmp_path):
     palette = json.loads((ROOT / "media/readme/palette.json").read_text())
     points = curve(1100)
     points[3]["texts_per_second"] = [1500] * 3
@@ -254,9 +260,15 @@ def test_one_16_32_grid_does_not_silently_replace_an_8_core_winner(tmp_path):
         "format": "readme-speed-panels-v1",
         "scaling": points,
         "table": [row(dtype=dtype, workers=w) for dtype in PANEL["DTYPES"] for w in (1, 16, 32)],
-        "comparisons": [],
+        "comparisons": [pair(w) for w in (1, 16, 32)],
         "table_caption": "test fixture",
+        "comparison_caption": "test fixture",
     }
-    with pytest.raises(ValueError, match="all precisions"):
-        PANEL["publish"](data, tmp_path, palette)
-    assert list(tmp_path.iterdir()) == []
+    PANEL["publish"](data, tmp_path, palette)
+    text = (tmp_path / "speed-table.md").read_text()
+    assert "16 cores" in text
+    assert "All 32 cores" not in text
+    evidence = (tmp_path / "core-selection-evidence.md").read_text()
+    assert "8-worker median" in evidence
+    assert "README still uses 16" in evidence
+    assert "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/" in evidence

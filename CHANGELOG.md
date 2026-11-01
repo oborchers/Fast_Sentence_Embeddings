@@ -10,7 +10,7 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
-- Prepare a validated README speed-table renderer and light/dark library comparison layouts. Keep unfinished measurements out of the public README.
+- Prepare a validated README speed-table renderer and light/dark library comparison layouts, selecting 32 cores only above the measured 1.20 threshold against 16. Keep unfinished measurements out of the public README.
 - Rewrite the README with restored branding, a short release-style introduction, measured CPU throughput, early usage examples, prominent recipes and light/dark brand-colored graphics. Keep detailed benchmark evidence in a companion guide. Clarify contribution evidence, AI disclosure and MIT agreement, add a PR checklist, and align package metadata with the unreleased 2.0 API.
 
 - Recipes now guide end users through real POTION and public-dataset examples, with diagrams, a first fse 101 recipe, and a shared-split classification comparison.
