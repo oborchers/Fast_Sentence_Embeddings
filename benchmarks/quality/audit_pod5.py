@@ -174,7 +174,7 @@ def checked_invocations(root, tasks):
         raise ValueError("owned cache cleanup receipts are missing")
 
 
-def audit(root, expected_manifest):
+def audit(root, expected_manifest, historical_corpus=None):
     try:
         errors = transfer_errors(root, expected_manifest)
     except (KeyError, ValueError, OSError) as error:
@@ -201,6 +201,10 @@ def audit(root, expected_manifest):
             raise ValueError("source pin or completion receipt differs")
         artifacts = document(root, "artifact-identities.json")["artifacts"]
         historical = document(BASELINE, "dr151_quality_glove_20261101.json")
+        from pod5_corpus import verified_reference
+
+        historical, proof = verified_reference(historical, artifacts, historical_corpus)
+        result["corpus_verification"] = proof
         tasks = expected_tasks()
         checked_invocations(root, tasks)
         result["models"] = [
@@ -217,8 +221,13 @@ def main():
     parser.add_argument("folder", type=Path)
     parser.add_argument("--manifest-sha256", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--historical-corpus",
+        type=Path,
+        help="verify byte-different files have identical consumed tokens",
+    )
     args = parser.parse_args()
-    result = audit(args.folder, args.manifest_sha256)
+    result = audit(args.folder, args.manifest_sha256, args.historical_corpus)
     args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + "\n")
     print(json.dumps({key: value for key, value in result.items() if key != "models"}), flush=True)
     raise SystemExit(0 if result["experiment_complete"] else 2)

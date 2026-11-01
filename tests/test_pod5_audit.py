@@ -125,7 +125,13 @@ def test_full_collection_requires_every_score(audit, row_fixture, tmp_path):
     tasks, artifacts, invocations = audit.expected_tasks(), [], []
     for source in audit.SOURCES:
         name = f"SIF-10-{source}-float32.safetensors"
-        artifacts.append({"artifact": name, "encoder_fingerprint": "test-fingerprint"})
+        artifacts.append(
+            {
+                "artifact": name,
+                "encoder_fingerprint": "test-fingerprint",
+                "preparation_record": {"fit": template["fit_provenance"]},
+            }
+        )
         for task, benchmark in tasks.items():
             row = {
                 **template,
