@@ -114,7 +114,17 @@ def python_measure(args, sentences):
 
 
 def operation(args, label: str, threads: int) -> dict:
-    if subprocess.run(["git", "diff", "--quiet", "HEAD"], check=False).returncode:
+    sources = [
+        "src",
+        "setup.py",
+        "pyproject.toml",
+        "uv.lock",
+        ":(glob)benchmarks/**/*.py",
+        "benchmarks/compare_rust/src",
+        "benchmarks/compare_rust/Cargo.toml",
+        "benchmarks/compare_rust/Cargo.lock",
+    ]
+    if subprocess.run(["git", "diff", "--quiet", "HEAD", "--", *sources], check=False).returncode:
         raise RuntimeError("timing deferred: tracked worktree changes are not committed")
     kind = "fse" if label.startswith("fse") else args.against
     command = [
