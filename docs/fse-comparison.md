@@ -205,3 +205,8 @@ GloVe-300 SIF-10 float32 completed all forty local English tasks with a mean of 
 The [document-task breakout](../benchmarks/baseline/dr151_document_tasks_glove_20261101.json) covers all thirteen qualifying tasks from this completed English snapshot. It retains full native task scores and packaged upstream length statistics, without sampling or a new mixed-metric aggregate. Additional NanoBEIR document tasks remain pending.
 
 The encoder fingerprint is `xxh3-128:17aa9ef7d19273be5e619bed5ef64d10`, matching the committed classic fit receipt. SIF-10 was fitted on the pinned WikiText-103 training corpus, never evaluation data. It uses the recorded legacy NLTK recipe tokenizer at fit and inference. These results do not isolate a SIF gain against raw GloVe, and the authors' different MTEB aggregate is not a matched comparison.
+
+
+## Final MIND scope decision
+
+MIND is **not computed: MTEB 2.26.25 MindSmallReranking needs more memory than the 64 GB pod (two attempts, status 137 and earlier ENOSPC)**. No further MIND run is planned. English means cover 40 of 41 tasks, with no substituted score. Historical deferred records remain unchanged. See the [Pod 3 and MIND evidence](fse-pod3-results.md) for committed logs and the surviving provenance.
