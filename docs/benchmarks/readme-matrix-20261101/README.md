@@ -36,6 +36,8 @@ inferred across these separate series. Task-quality scores remain pending.
 | POTION-8M, float16 | 1 | 206,438 (202,631 to 214,714) **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) | 166.6 **noisy, to be re-measured** (A/A band 0.8899 to 1.1237) |
 | POTION-8M, float32 | 10 | 914,709 (827,901 to 928,079) **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) | 182.7 **noisy, to be re-measured** (A/A band 0.5117 to 1.9543) |
 
+A/A labels attached to memory peaks describe timing variation, not memory variation.
+
 Process peak is the largest primary fse-a process ru_maxrss across three
 rounds, divided by 1,048,576. On macOS ru_maxrss is in bytes. It includes
 imports, corpus and model loading, warmup, encoding and outputs. It is not

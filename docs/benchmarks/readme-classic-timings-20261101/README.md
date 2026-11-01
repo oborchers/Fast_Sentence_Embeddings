@@ -44,6 +44,8 @@ was not measured. fse itself uses one or ten workers as recorded.
 | word2vec-300, int8 | 1 | 212,606 (211,846 to 213,981) | 1,552.5 |
 | word2vec-300, int8 | 10 | 924,000 (886,643 to 932,838) | 1,552.7 |
 
+A/A labels attached to memory peaks describe timing variation, not memory variation.
+
 The paired Model2Vec POTION-8M float32 controls, on the same texts:
 
 | Paired classic configuration | Tokenizer off, texts/s | Tokenizer on, texts/s |
