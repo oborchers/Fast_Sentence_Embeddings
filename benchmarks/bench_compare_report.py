@@ -55,6 +55,31 @@ def spread(values: list[float]) -> dict:
     return {"median": statistics.median(values), "min": min(values), "max": max(values)}
 
 
+def backend_summary(records: list[dict], hourly_price: float) -> dict:
+    rates = [row["texts"] / row["p50_s"] for row in records]
+    return {
+        "model": records[0]["model"],
+        "revision": records[0]["revision"],
+        "table_dtype": records[0]["table_dtype"],
+        "output_dtype": records[0]["output_dtype"],
+        "file_bytes": records[0]["file_bytes"],
+        "texts_per_second": spread(rates),
+        "peak_rss_bytes": max(row["peak_rss_bytes"] for row in records),
+        "model_setup_seconds": spread([row["load_s"] for row in records]),
+        "reference_tariff_eur_per_million": spread(
+            [1e6 / rate / 3600 * hourly_price for rate in rates]
+        ),
+    }
+
+
+def loads(pairs: list[dict]) -> tuple[float, float]:
+    endpoints = []
+    for pair in pairs:
+        for row in pair.values():
+            endpoints.extend((row["load_before"], row["load_after"]))
+    return min(endpoints), max(endpoints)
+
+
 def summarize(path: Path, hourly_price: float) -> dict:
     rows = [json.loads(line) for line in path.read_text().splitlines()]
     pairs = completed_rounds(rows)
@@ -63,23 +88,10 @@ def summarize(path: Path, hourly_price: float) -> dict:
     other = next(label for label in pairs[0] if label not in ("fse-a", "fse-b"))
     noise = [pair["fse-b"]["p50_s"] / pair["fse-a"]["p50_s"] for pair in pairs]
     envelope = max(max(noise), max(1 / value for value in noise))
-    backends = {}
-    for label in pairs[0]:
-        records = [pair[label] for pair in pairs]
-        rates = [row["texts"] / row["p50_s"] for row in records]
-        backends[label] = {
-            "model": records[0]["model"],
-            "revision": records[0]["revision"],
-            "table_dtype": records[0]["table_dtype"],
-            "output_dtype": records[0]["output_dtype"],
-            "file_bytes": records[0]["file_bytes"],
-            "texts_per_second": spread(rates),
-            "peak_rss_bytes": max(row["peak_rss_bytes"] for row in records),
-            "model_setup_seconds": spread([row["load_s"] for row in records]),
-            "reference_tariff_eur_per_million": spread(
-                [1e6 / rate / 3600 * hourly_price for rate in rates]
-            ),
-        }
+    backends = {
+        label: backend_summary([pair[label] for pair in pairs], hourly_price) for label in pairs[0]
+    }
+    load_min, load_max = loads(pairs)
     return {
         "raw": str(path),
         "status": "complete",
@@ -92,12 +104,8 @@ def summarize(path: Path, hourly_price: float) -> dict:
             [pair[other]["p50_s"] / pair["fse-a"]["p50_s"] for pair in pairs]
         ),
         "symmetric_aa_band": [1 / envelope, envelope],
-        "load_min": min(
-            min(row["load_before"], row["load_after"]) for pair in pairs for row in pair.values()
-        ),
-        "load_max": max(
-            max(row["load_before"], row["load_after"]) for pair in pairs for row in pair.values()
-        ),
+        "load_min": load_min,
+        "load_max": load_max,
     }
 
 
