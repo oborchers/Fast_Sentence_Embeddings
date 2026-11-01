@@ -201,6 +201,7 @@ class ShardSink:
         """End the current shard at the rows reserved so far; it is published once they
         are committed."""
         self._check_open()
+        self._check_threads()
         if self._writers and not self._writers[-1].full:
             writer = self._writers[-1]
             if writer.reserved == 0:
@@ -212,6 +213,7 @@ class ShardSink:
         """Publish every shard whose rows are all committed and wait for it; returns
         ``durable_rows``."""
         self._check_open()
+        self._check_threads()
         self._publish_ready()
         self._drain()
         return self.durable_rows
@@ -220,6 +222,7 @@ class ShardSink:
         """Seal and publish everything committed; every reserved row must be committed.
         Returns ``durable_rows``."""
         self._check_open()
+        self._check_threads()
         if self._reserved != self._committed:
             raise RuntimeError(
                 f"{self._reserved - self._committed} reserved rows were not committed"

@@ -10,7 +10,7 @@ from support.encoder import finished
 
 
 @pytest.mark.parametrize("durability", ["full", "none"])
-@pytest.mark.parametrize("call", ["target", "commit", "publish", "flush", "close"])
+@pytest.mark.parametrize("call", ["target", "commit", "seal", "publish", "flush", "close"])
 def test_write_failure_survives_publication_and_hash_handover(
     tmp_path, monkeypatch, durability, call
 ):
@@ -61,6 +61,39 @@ def test_write_failure_survives_publication_and_hash_handover(
             assert repeated.value.__cause__ is root
     finally:
         release.set()
+        sink.close()
+    assert sink.published_rows == sink.durable_rows == 0
+    assert not list(sink.path.glob(".shard-*"))
+
+
+@pytest.mark.parametrize("durability", ["full", "none"])
+def test_write_failure_between_commit_submissions_is_reported(tmp_path, monkeypatch, durability):
+    sink = ShardSink(tmp_path / "store", finished(), shard_rows=8, durability=durability)
+    root = OSError(28, "No space left on device")
+    real_submit = sink._hash.submit
+
+    def fail_write(*_args):
+        raise root
+
+    def after_write(*args, **kwargs):
+        sink._io.settle()
+        real_submit(*args, **kwargs)
+
+    monkeypatch.setattr(_shard, "write_at", fail_write)
+    monkeypatch.setattr(sink._hash, "submit", after_write)
+    try:
+        target = sink.target(0, 8)
+        for array in target:
+            array[...] = 0
+        with pytest.raises(OSError, match="No space left") as raised:
+            sink.commit(0, target)
+        assert raised.value is root
+        assert sink._committed == 0
+        for call in (sink.seal, sink.publish, sink.flush):
+            with pytest.raises(RuntimeError, match="failed earlier") as repeated:
+                call()
+            assert repeated.value.__cause__ is root
+    finally:
         sink.close()
     assert sink.published_rows == sink.durable_rows == 0
     assert not list(sink.path.glob(".shard-*"))
