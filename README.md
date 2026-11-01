@@ -10,7 +10,7 @@ New WikiText measurements record fse's loaded code and pass the timing-variation
 The Model2Vec rows also record fse's code identity, leaving Model2Vec's executed code unidentified.
 A package version alone does not identify the code that ran.
 The numbers remain in the benchmark table with this limit. They cannot yet supply a final comparison headline.
-See [the recorder audit, method and raw results](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/3b65296a6261610ad6e66f8665bbbff83ca89af3/docs/benchmarks/readme-runtime-window5-20261101/README.md).
+See [the recorder audit, method and raw results](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/57fa216d15ebc9eb98272d69fe2f5182259cd511/docs/benchmarks/readme-runtime-window5-20261101/README.md).
 
 ![An engine turns pages of text into lists of numbers.](https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/233b6d3c0aaee459792938317895790a8bdd862b/media/readme-engine.jpg)
 
@@ -233,7 +233,7 @@ Include quality change from each model's float32 result. Name the dataset, metri
 ## Benchmarks
 
 The POTION-8M float32 cells and ten-worker float16 cell use
-[WikiText measurements with fse runtime attribution](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/3b65296a6261610ad6e66f8665bbbff83ca89af3/docs/benchmarks/readme-runtime-window5-20261101/README.md)
+[WikiText measurements with fse runtime attribution](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/57fa216d15ebc9eb98272d69fe2f5182259cd511/docs/benchmarks/readme-runtime-window5-20261101/README.md)
 from 1 November 2026: Apple M1 Pro, macOS 27.0.1, Python 3.13.16,
 NumPy 2.5.4, tokenizers 0.23.3 and model2vec 0.10.0.
 Both libraries use model revision `bf8b056651a2c21b8d2565580b8569da283cab23`.
