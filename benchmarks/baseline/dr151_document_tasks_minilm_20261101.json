@@ -398,6 +398,35 @@
           "status": "measured full task"
         }
       ]
+    },
+    {
+      "task": "Touche2020Retrieval.v3",
+      "type": "Retrieval",
+      "dataset": {
+        "path": "mteb/webis-touche2020-v3",
+        "revision": "431886eaecc48f067a3975b70d0949ea2862463c"
+      },
+      "length_metadata_file": "Retrieval/Touche2020Retrieval.v3.json",
+      "length_metadata_digest": "xxh3-128:a970194a2f2e2b9f2c92afb18eca8c85",
+      "input_streams": [
+        {
+          "stream": "test/documents_text_statistics",
+          "min_text_length": 40,
+          "average_text_length": 2096.3809542623103,
+          "max_text_length": 105982,
+          "total_text_length": 636737980,
+          "unique_texts": 301580
+        }
+      ],
+      "scores": [
+        {
+          "model": "sentence-transformers/all-MiniLM-L6-v2",
+          "metric": "ndcg_at_10",
+          "score": 0.49713,
+          "delta_vs_float32_points": null,
+          "status": "measured full task"
+        }
+      ]
     }
   ],
   "missing_packaged_statistics": [],

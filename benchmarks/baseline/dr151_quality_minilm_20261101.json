@@ -101,7 +101,7 @@
       "source_revision": "8b3219a92973c328a8e22fadcfa821b5dc75636a",
       "encoder_fingerprint": null,
       "artifact": null,
-      "english_completed": 30,
+      "english_completed": 31,
       "english_required": 41,
       "nanobeir_completed": 0,
       "nanobeir_required": 13,
@@ -349,6 +349,14 @@
           "benchmark": "MTEB(eng, v2)",
           "metric": "ndcg_at_10",
           "score": 0.47236,
+          "float32_score": null,
+          "delta_vs_float32_points": null
+        },
+        {
+          "task": "Touche2020Retrieval.v3",
+          "benchmark": "MTEB(eng, v2)",
+          "metric": "ndcg_at_10",
+          "score": 0.49713,
           "float32_score": null,
           "delta_vs_float32_points": null
         }

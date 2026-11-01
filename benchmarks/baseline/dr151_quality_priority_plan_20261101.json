@@ -1,6 +1,6 @@
 {
   "scope_revision": "maintainer two-pod scope plus additional Pod3, 2026-11-01",
-  "snapshot_utc": "2026-11-01T12:11:48.734657+00:00",
+  "snapshot_utc": "2026-11-01T12:41:02.585103+00:00",
   "supersedes": "original 35-configuration priority plan; historical results remain unchanged",
   "unique_model_dtype_configurations": 31,
   "full_float32_configurations": [
@@ -81,22 +81,22 @@
   "minilm_snapshot": {
     "raw": "benchmarks/baseline/results/dr151-quality-minilm-float32.jsonl",
     "summary": "benchmarks/baseline/dr151_quality_minilm_20261101.json",
-    "completed_tasks": 30,
+    "completed_tasks": 31,
     "required_local_tasks": 53,
-    "journal_rows": 32,
+    "journal_rows": 33,
     "deferred_records": 2,
-    "sum_completed_task_wall_seconds": 7126.461670789635,
+    "sum_completed_task_wall_seconds": 10358.913145748433,
     "complete_configuration_wall_seconds": null
   },
   "time_scenario": {
     "is_eta": false,
-    "remaining_minilm_seconds_completed_task_average_proxy": 5463.620614272053,
+    "remaining_minilm_seconds_completed_task_average_proxy": 7351.486748595662,
     "four_classics_seconds_hub_median_proxy": 5131.181656,
     "remaining29reduced_seconds_p8_proxy": 13289.426465000026,
-    "sum_proxy_hours": 6.634507982020022,
+    "sum_proxy_hours": 7.158915241554357,
     "excluded": "classic fitting, numerical recall, setup, future fairness waits, task/model-size and tokenizer differences; MiniLM remaining tasks need not match completed average",
     "previous_minilm_75min_estimate": "already exceeded by measured completed-task wall time"
   },
-  "local_scheduling": "nice10, workers2, heavy.lock batches8,120-second cooldown; current boundary yields dr156-integrations then dr156-userdocs",
+  "local_scheduling": "nice10, workers2, batches8,120-second cooldown; paused without lock at completed task boundary12:38:29UTC; dr156 integrations running, then dr156-userdocs and normal fairness",
   "speed_scope": "pods only, no local timing under rule10"
 }
