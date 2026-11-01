@@ -51,8 +51,6 @@ from typing import Any
 import mteb
 import numpy as np
 from artifact_manifest import verified_source
-from backend_runtime import model_runtime
-from compare_runtime import verify_backend_identity
 from model2vec_adapter import NativeModel2VecEncoder
 from mteb.cache import ResultCache
 from mteb.models.abs_encoder import AbsEncoder
@@ -61,6 +59,8 @@ from protocol import compatible_results, measurement_identity, source_identity
 from resume import pending_tasks
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from backend_runtime import model_runtime  # isort: skip
+from compare_runtime import verify_backend_identity  # isort: skip
 from quality_coordination import paused, task_reservation  # isort: skip
 from bench_pretrained import COMMITS  # isort: skip
 from compare_inputs import identity  # isort: skip
