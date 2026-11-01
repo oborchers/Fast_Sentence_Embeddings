@@ -40,13 +40,20 @@ def fence(line):
 def opening(line, heading, number):
     value = fence(line)
     if value is None:
-        if re.search(r"(?:`{3,}|~{3,})[ \t]*(?:python3?|py)(?:[ \t]|$)", line):
+        if re.match(
+            r"^(?:[ \t]+|(?:[ \t]*>[ \t]*)+|[ \t]*(?:[-+*]|\d+[.)])[ \t]+)(?:`{3,}|~{3,})[ \t]*(?:python3?|py)(?:[ \t]|$)",
+            line,
+        ):
             raise ValueError(
                 f"Unsupported nested Python fence at line {number}; use a top-level fence"
             )
         return None
     indent, marker, info = value
     language = info.split()[0] if info else ""
+    if indent and language in PYTHON_TAGS:
+        raise ValueError(
+            f"Indented Python fence at line {number}; use an unindented top-level fence"
+        )
     return {
         "indent": indent,
         "marker": marker,
@@ -68,13 +75,12 @@ def closing(line, block):
 
 
 def append_line(block, line):
-    # Strip only the fence's Markdown indentation, preserving code and blank lines.
-    spaces = len(line) - len(line.lstrip(" "))
-    block["code"].append(line[min(block["indent"], spaces) :])
+    # Python openers are unindented, so displayed code has no Markdown indent to remove.
+    block["code"].append(line)
 
 
 def snippets(readme):
-    """Read top-level Python fences; reject unsupported nesting instead of skipping it.
+    """Read unindented Python fences; reject indentation/nesting instead of skipping it.
 
     https://spec.commonmark.org/0.31.2/#fenced-code-blocks
     """

@@ -36,8 +36,8 @@ def test_all_readme_python_examples_with_real_models(tmp_path):
 
 
 @pytest.mark.parametrize("marker", ["```", "````", "~~~", "~~~~"])
-@pytest.mark.parametrize("indent", ["", "   "])
-def test_fence_styles_preserve_blank_lines_and_displayed_code(tmp_path, marker, indent):
+def test_fence_styles_preserve_blank_lines_and_displayed_code(tmp_path, marker):
+    indent = ""
     readme = tmp_path / "README.md"
     readme.write_text(
         f"# Example\n{indent}{marker}python\n\n{indent}answer = 1\n{indent}{marker}\n"
@@ -68,3 +68,26 @@ def test_shorter_backticks_do_not_close_a_long_python_fence(tmp_path):
     readme.write_text("````python\n```\n````\n")
     parsed = runpy.run_path(str(CHECK))["snippets"](readme)
     assert parsed == [("README", 2, "```\n")]
+
+
+def test_list_continuation_python_fence_is_rejected_explicitly(tmp_path):
+    readme = tmp_path / "README.md"
+    readme.write_text("- Example:\n\n  ```python\n  answer = 1\n  ```\n")
+    with pytest.raises(ValueError, match="Indented Python fence"):
+        runpy.run_path(str(CHECK))["snippets"](readme)
+
+
+def test_inline_fence_description_is_not_misread_as_a_nested_block(tmp_path):
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "The sequence ```python opens a Python block.\n# Real\n```python\nanswer = 1\n```\n"
+    )
+    assert runpy.run_path(str(CHECK))["snippets"](readme) == [("Real", 4, "answer = 1\n")]
+
+
+def test_tabs_inside_multiline_strings_are_preserved(tmp_path):
+    readme = tmp_path / "README.md"
+    code = 'text = """first\n\tsecond\n"""\n'
+    readme.write_text("```python\n" + code + "```\n")
+    parsed = runpy.run_path(str(CHECK))["snippets"](readme)
+    assert parsed == [("README", 2, code)]

@@ -28,7 +28,7 @@ make check PYTEST_N=4
 `make init` creates the environment, installs dependencies, builds the extension and installs pre-commit hooks.
 `make check` checks formatting, lint, import contracts, guardrails, types and tests without network downloads.
 Use `make test-network` for Hub download tests and `make test-st` for sentence-transformers comparisons.
-After changing README Python examples, run `make test-readme`. It executes every Python block unchanged with real Hub models, including the raw classifier and saved-model checks.
+After changing README Python examples, run `make test-readme`. It executes every Python block unchanged with real Hub models, including the raw classifier and saved-model checks. Keep executable Python fences unindented at the top level; unsupported nesting fails the check.
 Run `make help` for all targets.
 After editing Cython or native headers, run `make rebuild-ext`.
 
