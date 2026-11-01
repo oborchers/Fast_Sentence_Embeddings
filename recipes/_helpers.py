@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 from datetime import date
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -43,16 +44,25 @@ class Recipe:
 
         prefix = "models" if repo_type == "model" else "datasets"
         cached = (
-            Path.home() / ".cache/huggingface/hub"
+            Path.home()
+            / ".cache/huggingface/hub"
             / (prefix + "--" + repo.replace("/", "--"))
-            / "snapshots" / revision / filename
+            / "snapshots"
+            / revision
+            / filename
         )
         if cached.is_file():
             return cached
-        return Path(hf_hub_download(
-            repo, filename, revision=revision, repo_type=repo_type,
-            cache_dir=self.work / "hub", token=False,
-        ))
+        return Path(
+            hf_hub_download(
+                repo,
+                filename,
+                revision=revision,
+                repo_type=repo_type,
+                cache_dir=self.work / "hub",
+                token=False,
+            )
+        )
 
     def model_folder(self):
         # Keep the three Model2Vec files together, even with a partial existing cache.
@@ -63,13 +73,13 @@ class Recipe:
         for filename, path in zip(files, paths, strict=True):
             target = folder / filename
             if not target.exists():
-                target.symlink_to(path)
+                shutil.copyfile(path, target)
         return folder
 
-    def encoder(self, *, normalize=True):
+    def encoder(self):
         import fse
 
-        return fse.Encoder.from_pretrained(self.model_folder(), normalize=normalize)
+        return fse.Encoder.from_pretrained(self.model_folder())
 
     def dataset(self, name, split):
         import numpy as np
