@@ -1,6 +1,6 @@
 {
   "captured_at": "2026-11-01T01:13:19.896604+01:00",
-  "capture_note": "Captured on the same machine after the retained notebook executions. The notebook outputs separately record their execution date, platform and architecture.",
+  "capture_note": "Captured on the same machine after the retained recipe executions. The recipe outputs separately record their execution date, platform and architecture.",
   "cpu_model": "Apple M1 Pro",
   "cpu_model_command": [
     "sysctl",
