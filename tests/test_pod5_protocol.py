@@ -182,3 +182,10 @@ def test_missing_peak_counter_cannot_pass(memory_tree):
 def test_cleanup_refuses_cache_without_ownership(pod, tmp_path):
     with pytest.raises(ValueError, match="exclusively created"):
         pod.discard_cache(tmp_path / "intermediate", tmp_path, tmp_path)
+
+
+def test_preflight_rejects_low_namespace_ram(memory_tree, monkeypatch):
+    memory, _, _ = memory_tree
+    monkeypatch.setattr(memory, "snapshot", lambda: {"memory.max": 16 * 2**30, "memory.current": 0})
+    with pytest.raises(RuntimeError, match="58 GiB"):
+        memory.preflight()
