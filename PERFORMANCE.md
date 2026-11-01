@@ -621,3 +621,26 @@ metadata, package versions and every task main score are retained in the
 [raw quality journal](benchmarks/baseline/results/dr151-quality-primary.jsonl)
 and [coverage summary](benchmarks/baseline/dr151_quality_primary_20261101.json).
 Quality-run encode times are not used for speed or cost claims.
+
+
+### Comparison profiles (01.11.2026)
+
+POTION-8M float32 on all 5,352 WikiText rows has four accepted instrumented
+profiles. All endpoint loads are below five. fse CPU uses 100 full passes,
+native model2vec CPU uses three, fse native-memory uses 30, and fse process-tree
+RSS uses 100. Profiles include imports, input preparation, startup and encoding.
+Their durations are not speed or cost evidence. The source commit is `0de9c3d`.
+
+Across 6,612 fse CPU samples, `fse_loop_f32_neon` has 18.0% self samples,
+`_wp_piece` 15.6%, and `fse_normalize_body` 1.2%. Across 4,034 native model2vec
+samples, Unicode category lookup has 9.5% self samples and memory moves 8.7%.
+Its BERT normalizer appears in 22.4% of sample stacks, including callees.
+Self and stack shares measure different things.
+
+The fse process-tree RSS peak is **231,424,000 bytes (220.7 MiB)**. Memray reports
+a tracked allocation peak of 1.169 GB, including a 1.074 GB memory mapping
+during imports. That allocation total is not resident RAM. Largest cumulative
+allocation sites include imports, `StringSource` construction, `MemorySink._new`
+and `CpuBackend.text_rows`. Cumulative totals over repeated calls are not
+simultaneous memory peaks. [Profile metadata and load endpoints](benchmarks/baseline/dr151_profiles_20261101.json)
+and [raw CPU, native-memory and RSS artifacts](benchmarks/baseline/results/dr151-profiles/).

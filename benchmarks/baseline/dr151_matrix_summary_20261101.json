@@ -1021,9 +1021,16 @@
       "raw": "benchmarks/baseline/results/dr151-matrix-word2vec-google-news-300-float32-w1.jsonl",
       "status": "incomplete",
       "valid_pairs": 0,
-      "aa_ratio_b_over_a": null,
-      "symmetric_aa_band": null,
-      "noise_status": "unavailable, incomplete",
+      "aa_ratio_b_over_a": {
+        "median": 0.8908230938160715,
+        "min": 0.8908230938160715,
+        "max": 0.8908230938160715
+      },
+      "symmetric_aa_band": [
+        0.8908230938160714,
+        1.1225573370760304
+      ],
+      "noise_status": "noisy, re-measure in a quiet window",
       "aa_scope": "diagnostic valid A/A operations, incomplete speed series"
     },
     {
