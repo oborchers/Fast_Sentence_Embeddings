@@ -23,7 +23,7 @@ import numpy as np
 from compare_backends import make_contender as contender
 from compare_inputs import corpus_identity, identity, texts
 from compare_models import MODELS
-from compare_parallelism import settings
+from compare_parallelism import child_environment, settings
 from compare_runtime import verify_backend_identity
 from compare_wait import TimingBudgetExpiredError, TimingDeferredError, ready_operation
 
@@ -172,7 +172,9 @@ def operation(args, label: str, threads: int) -> dict:
         command.extend(["--warmup-texts", str(args.warmup_texts)])
     with reservation(args.lock):
         before = os.getloadavg()[0]
-        done = subprocess.run(command, text=True, capture_output=True, check=False)
+        done = subprocess.run(
+            command, text=True, capture_output=True, check=False, env=child_environment(threads)
+        )
         after = os.getloadavg()[0]
         if done.returncode:
             raise RuntimeError(f"{label} failed: {done.stderr[-3000:]}")

@@ -14,6 +14,7 @@ FIELDS = (
     "package_location",
     "versions",
     "threadpools",
+    "native_thread_limits",
     "machine",
     "process_nice",
     "cpu",

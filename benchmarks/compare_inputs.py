@@ -139,10 +139,12 @@ def cpu_name() -> str:
 
 
 def identity(kind: str = "fse") -> dict:
+    from compare_parallelism import native_thread_limits
     from compare_runtime import backend_identity
 
     return {
         "comparison_identity_version": 3,
+        "native_thread_limits": native_thread_limits(),
         **backend_identity(kind),
         "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
         "machine": platform.platform(),

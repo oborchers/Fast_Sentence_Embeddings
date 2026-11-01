@@ -70,6 +70,7 @@ def backend_summary(records: list[dict], hourly_price: float) -> dict:
         "model": records[0]["model"],
         "runtime_identity_status": backend_attribution(records[0]),
         "runtime_package": records[0].get("runtime_package"),
+        "native_thread_limits": records[0].get("native_thread_limits"),
         "runtime_package_version": records[0].get("runtime_package_version"),
         "recorded_package_location": records[0].get("package_location"),
         "recorded_runtime_fingerprint": records[0].get("runtime_fingerprint"),

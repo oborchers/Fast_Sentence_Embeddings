@@ -10,6 +10,8 @@ fse 2.0 is in development on master; it changes the API and the file format (see
 
 ### Changed
 
+- Comparison child processes bound native math libraries, including Apple Accelerate, before imports and record those requested limits.
+
 - Pinned comparison caches select inference files without requiring unused model exports or evaluation metadata.
 
 - Comparison recorders reject backend or shared encoder code changes during evaluation, and precision deltas require matching executing runtimes.

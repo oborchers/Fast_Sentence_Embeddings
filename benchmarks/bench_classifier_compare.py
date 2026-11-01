@@ -31,7 +31,7 @@ from compare_artifacts import (
 )
 from compare_inputs import identity
 from compare_models import MODELS, artifact_name
-from compare_parallelism import settings
+from compare_parallelism import child_environment, settings
 from compare_runtime import verify_backend_identity
 from compare_search import timed
 from compare_wait import ready_operation
@@ -294,7 +294,13 @@ def operation(args, label):
     ]
     with reservation(args.lock):
         before = os.getloadavg()[0]
-        done = subprocess.run(command, capture_output=True, text=True, check=False)
+        done = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=child_environment(args.workers),
+        )
         after = os.getloadavg()[0]
         if done.returncode:
             raise RuntimeError(f"{label} failed: {done.stderr[-3000:]}")
