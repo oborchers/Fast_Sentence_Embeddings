@@ -12,11 +12,11 @@ from functools import partial
 from importlib.metadata import distributions
 from pathlib import Path
 
-from _speed_cells import atomic, configure, package_identity, sha256, telemetry
+from _speed_cells import admit, atomic, configure, package_identity, sha256, telemetry
 
 
 def setup_command(*arguments, allocated_at, contract):
-    if time.time() - allocated_at > contract["billing"]["planning_minutes"] * 60:
+    if not admit(contract, allocated_at, 60):
         raise RuntimeError("setup exhausted allocation budget")
     subprocess.run([str(x) for x in arguments], check=True)
 

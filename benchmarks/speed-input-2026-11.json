@@ -85,7 +85,8 @@
       "dtype": "float32",
       "rounds": 3,
       "estimated_seconds": 360,
-      "dimensions": 256
+      "dimensions": 256,
+      "planned_input_bytes": 221971208
     },
     {
       "id": "libraries-rust-1",
@@ -98,7 +99,8 @@
       "dtype": "float32",
       "rounds": 3,
       "estimated_seconds": 240,
-      "dimensions": 256
+      "dimensions": 256,
+      "planned_input_bytes": 762049047
     },
     {
       "id": "libraries-fastembed-1",
@@ -111,7 +113,8 @@
       "dtype": "float32",
       "rounds": 3,
       "estimated_seconds": 720,
-      "dimensions": 256
+      "dimensions": 256,
+      "planned_input_bytes": 190229249
     },
     {
       "id": "libraries-st-1",
@@ -124,7 +127,8 @@
       "dtype": "float32",
       "rounds": 3,
       "estimated_seconds": 510.0,
-      "dimensions": 1024
+      "dimensions": 1024,
+      "planned_input_bytes": 95154880
     },
     {
       "id": "libraries-model2vec-16",
@@ -137,7 +141,8 @@
       "dtype": "float32",
       "rounds": 3,
       "estimated_seconds": 360,
-      "dimensions": 256
+      "dimensions": 256,
+      "planned_input_bytes": 1903633170
     },
     {
       "id": "libraries-rust-16",
@@ -150,7 +155,8 @@
       "dtype": "float32",
       "rounds": 3,
       "estimated_seconds": 240,
-      "dimensions": 256
+      "dimensions": 256,
+      "planned_input_bytes": 1903633170
     },
     {
       "id": "libraries-fastembed-16",
@@ -163,7 +169,8 @@
       "dtype": "float32",
       "rounds": 3,
       "estimated_seconds": 720,
-      "dimensions": 256
+      "dimensions": 256,
+      "planned_input_bytes": 1903633170
     },
     {
       "id": "libraries-st-16",
@@ -176,7 +183,8 @@
       "dtype": "float32",
       "rounds": 3,
       "estimated_seconds": 510.0,
-      "dimensions": 1024
+      "dimensions": 1024,
+      "planned_input_bytes": 889008606
     }
   ],
   "quiet_cell": {

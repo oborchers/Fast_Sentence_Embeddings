@@ -29,19 +29,9 @@ class Ledger:
         self.finished, self.stopping = [], False
         self.current, self.stage = "preparation", "setup"
         self.lock = threading.Lock()
-        self.hourly = contract["billing"]["compute_usd_per_hour"] + (
-            contract["machine"]["disk_gb"]
-            * contract["billing"]["disk_usd_per_gb_month"]
-            / contract["billing"]["month_hours"]
-        )
 
     def admit(self, estimate):
-        elapsed = time.time() - self.allocated_at
-        ceiling = min(
-            self.contract["billing"]["planning_minutes"] * 60,
-            self.contract["billing"]["planning_balance_usd"] * 3600 / self.hourly,
-        )
-        return not self.stopping and elapsed + estimate + 600 <= ceiling
+        return not self.stopping and records.admit(self.contract, self.allocated_at, estimate)
 
     def progress(self, terminal=False):
         with self.lock:
@@ -118,6 +108,11 @@ class Ledger:
         return code
 
 
+def require_budget(ledger, estimate):
+    if not ledger.admit(estimate):
+        raise RuntimeError("preparation admission budget or stop signal exhausted")
+
+
 def prepare(args, contract, ledger):
     args.work.mkdir(parents=True, exist_ok=False)
     records.atomic(
@@ -127,8 +122,11 @@ def prepare(args, contract, ledger):
     setup_record = Path(sys.executable).parents[2] / "setup.json"
     if setup_record.exists():
         shutil.copyfile(setup_record, args.results / "setup.json")
+    require_budget(ledger, 60)
     models = engines.prepare_models(args.work, contract)
+    require_budget(ledger, 60)
     paragraphs, unknown = records.corpus_sources(contract, args.work / "datasets")
+    require_budget(ledger, 60)
     rust = engines.build_rust(args.work / "native", HERE / "speed-rust.lock")
     return {
         "work": args.work,
@@ -155,6 +153,9 @@ def prepare_input(context, cell):
         source = [text[:limit] for text in source]
     path = context["work"] / (cell["id"] + ".txt")
     identity = records.write_input(path, source, mandatory, cell["texts"], 0)
+    if not cell.get("functional_only") and cell.get("planned_input_bytes") is not None:
+        if identity["file_bytes"] != cell["planned_input_bytes"]:
+            raise ValueError("prepared input differs from the fixed production byte count")
     identity["common_character_limit"] = None if mandatory else limit
     sample = path.with_suffix(".sample.json")
     records.atomic(sample, identity["sample_rows"])
@@ -285,6 +286,31 @@ def summarize_pair(cell, observations, identity):
     }
 
 
+def memory_preflight(context, contract):
+    maximum = Path("/sys/fs/cgroup/memory.max").read_text().strip()
+    if maximum == "max":
+        raise ValueError("finite cgroup memory limit required")
+    target = contract["machine"]["ram_bytes"]
+    limit = target if contract.get("functional_only") else min(target, int(maximum))
+    rows = []
+    for cell in contract["cells"]:
+        production = dict(
+            cell,
+            texts=cell.get("production_texts", cell["texts"]),
+            workers=cell.get("production_workers", cell["workers"]),
+            functional_only=False,
+        )
+        model_bytes = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
+        plan = records.memory_plan(production, cell["planned_input_bytes"], model_bytes, limit)
+        rows.append(dict(cell_id=cell["id"], **plan))
+    records.atomic(
+        context["ledger"].root / "preflight-memory.json",
+        {"production_limit_bytes": target, "actual_cgroup_limit": int(maximum), "rows": rows},
+    )
+    if not all(row["admitted"] for row in rows):
+        raise MemoryError("at least one fixed pair exceeds the preflight memory budget")
+
+
 def pair(context, cell):
     path, sample, identity = prepare_input(context, cell)
     model_bytes = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
@@ -357,8 +383,10 @@ def write_environment(args, contract):
 def run(args):
     contract = records.document(args.input)
     if args.rehearse:
+        contract["rehearsal_limits"] = records.rehearsal_limits()
         contract["functional_only"] = True
         for cell in [*contract["cells"], contract["quiet_cell"]]:
+            cell["production_workers"], cell["production_texts"] = cell["workers"], cell["texts"]
             cell.update(texts=12_000, workers=min(cell["workers"], 2), functional_only=True)
         contract["billing"].update(planning_minutes=180, planning_balance_usd=10)
     args.results.mkdir(parents=True, exist_ok=False)
@@ -371,8 +399,11 @@ def run(args):
         signal.signal(signum, lambda *_: setattr(ledger, "stopping", True))
     context = None
     try:
+        require_budget(ledger, 60)
         context = prepare(args, contract, ledger)
+        memory_preflight(context, contract)
         ledger.stage, ledger.current = "quiet", "quiet"
+        require_budget(ledger, 1 if args.rehearse else contract["rules"]["quiet_seconds"])
         quiet(context, contract)
         ledger.stage = "libraries"
         for cell in contract["cells"]:
@@ -427,6 +458,8 @@ def main():
     if args.allocated_at is None:
         raise ValueError("allocation Unix timestamp required")
     if args.setup:
+        if os.getenv("SPEED_REHEARSAL") == "1":
+            records.rehearsal_limits()
         engines.setup(args.setup, contract, args.allocated_at)
         return 0
     return run(args)

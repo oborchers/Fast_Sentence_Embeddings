@@ -237,3 +237,29 @@ def write_input(path, source, mandatory, count, seed):
     }
     atomic(path.with_suffix(".json"), identity)
     return identity
+
+
+def admit(contract, allocated_at, estimate):
+    billing = contract["billing"]
+    hourly = billing["compute_usd_per_hour"] + (
+        contract["machine"]["disk_gb"] * billing["disk_usd_per_gb_month"] / billing["month_hours"]
+    )
+    ceiling = min(billing["planning_minutes"] * 60, billing["planning_balance_usd"] * 3600 / hourly)
+    return max(0, time.time() - allocated_at) + estimate + 600 <= ceiling
+
+
+def rehearsal_limits():
+    root = Path("/sys/fs/cgroup")
+    memory = (root / "memory.max").read_text().strip()
+    quota, period = (root / "cpu.max").read_text().split()
+    if memory == "max" or int(memory) > 4 * 1024**3:
+        raise ValueError("rehearsal requires a cgroup memory limit of at most four GiB")
+    if quota == "max" or int(quota) > 2 * int(period):
+        raise ValueError("rehearsal requires a cgroup CPU quota of at most two CPUs")
+    os.environ["CARGO_BUILD_JOBS"] = "2"
+    return {
+        "memory_bytes": int(memory),
+        "cpu_quota": int(quota),
+        "cpu_period": int(period),
+        "cargo_jobs": 2,
+    }
