@@ -26,6 +26,9 @@ The 1.x branch remains maintained. Entries collect here until the release.
 
 ### Changed
 
+- Rewrite the README with restored branding, practical examples, one supported-model quality table and prominent recipes. Add paired library speed tables and charts for light and dark backgrounds. Keep English MTEB scores labelled 40 of 41 tasks, with MIND not computed, and link benchmark evidence separately.
+- Add a catalog of all 30 classic Hub models, with copyable IDs, precision variants and model-file download sizes.
+- Clarify contribution evidence, AI disclosure and MIT agreement, add a PR checklist, and align package metadata with the 2.0 API.
 - Add final paired-library and native-file writing summaries with pinned source snapshots and separately archived raw evidence. The approved three-round sentence protocol has no A/A duplicate arm; the separate historical dtype study retains its original controls. All M1 timing and earlier small-input headline comparisons remain withdrawn. Quality and accuracy are unchanged. See `docs/fse-comparison.md`.
 
 - Recipes now guide end users through real POTION and public-dataset examples, with diagrams, a first fse 101 recipe, and a shared-split classification comparison.
