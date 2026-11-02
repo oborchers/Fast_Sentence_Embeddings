@@ -5,12 +5,12 @@ of each model's own tokenizer; the vectors equal model2vec 0.10.0's within the b
 tests/support/model2vec.py; converting a commit always gives the same encoder.
 """
 
-import csv
 import random
 from pathlib import Path
 
 import numpy as np
 import pytest
+from stsb import read_rows
 
 from fse._contract import Batch
 from fse._encoder import Encoder
@@ -19,7 +19,6 @@ from support import quantized as qz
 from support import wordpiece as wp
 
 pytestmark = pytest.mark.network
-ROOT = Path(__file__).resolve().parent.parent
 MODELS = {
     "minishlab/potion-base-8M": (
         "bf8b056651a2c21b8d2565580b8569da283cab23",
@@ -37,8 +36,7 @@ MODELS = {
 
 
 def _texts(tokens):
-    with open(ROOT / "evaluation" / "sts-test.csv", encoding="utf-8", newline="") as f:
-        sts = [s for row in csv.reader(f, delimiter="\t", quoting=csv.QUOTE_NONE) for s in row[5:7]]
+    sts = [sentence for row in read_rows() for sentence in row[5:7]]
     rng = random.Random(7)
     words = rng.sample([t for t in tokens if not t.startswith("[")], 2000)
     edge = ["hello [MASK] [PAD] [UNK] [CLS] world [SEP]", "x" * 101, "İstanbul", ""]

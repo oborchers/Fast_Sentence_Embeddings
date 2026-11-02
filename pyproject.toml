@@ -223,7 +223,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # tests/support holds helpers the test modules share; test modules never import each other.
-pythonpath = ["tests"]
+pythonpath = ["tests", "tools"]
 python_files = "test_*.py"
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 xfail_strict = true
@@ -300,7 +300,7 @@ test-command = 'pytest {project}/tests -m "not network" -p no:cacheprovider -n a
 # --- Guardrails (tools/check_guardrails.py; AGENTS.md, Guardrails) ---
 
 [tool.fse.guardrails]
-paths = ["src", "tests", "tools", "benchmarks", "media", "recipes", "integrations", "setup.py"]
+paths = ["src", "tests", "tools", "benchmarks", "docs/assets", "recipes", "integrations", "setup.py"]
 max-lines = 500
 max-cognitive-complexity = 15
 # Generated; their generators tools/make_unicode_tables.py, tools/make_wordpiece_tables.py and

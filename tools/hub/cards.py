@@ -1,23 +1,13 @@
-"""Enrich the existing fse 2.0 card template with measured classic-model facts.
-
-No core template or persistence schema changes are needed. fse.source identifies
-the original vector copy; preparation.json and the card document the offline fit.
-"""
+"""Render the published classic cards from model metadata and recorded measurements."""
 
 from __future__ import annotations
 
-import argparse
 import json
-from pathlib import Path
-
-from hub_classic_card_publish import publish_card, recover_pending
-from hub_classic_delivery import CARD_RECIPE, validated_source
-from hub_classic_evidence import validate_build
-from hub_classic_sources import ATTRIBUTES, FSE_API_REVISION, SOURCES
-from hub_classic_verification import verification_rows
-from prepare_hub_classics import LICENSES
+import re
 
 from fse._encoder import _card, _folder
+
+NORMALIZATION_NOTE = 'The encoder normalizes every vector to unit length (the stored step `normalize@1`). To get the raw weighted mean instead, for example to fold a linear head into the table, load it with `normalize=False`:\n\n```python\nencoder = fse.Encoder.from_pretrained("{repo}", normalize=False)\n```\n\nThe suffix `-raw` means without SIF weighting, not without normalization. Both `-raw` and `-sif10` models load normalized by default.\n\n'
 
 SOURCE_TAGS = {
     "glove-wiki-gigaword-300": "glove",
@@ -146,60 +136,38 @@ def measured_text(record, result, rows):
 
 
 def render(folder, record, verification, fit):
+    """Generate a card without reading any previous README."""
     name = record["source"].split("/")[1]
-    keyed = verification_rows(verification, name)
-    result = keyed[(record["method"], record["dtype"])]
-    validate_build(folder, record, result, fit)
+    matches = [
+        row
+        for row in verification["rows"]
+        if row.get("method") == record["method"] and row.get("dtype") == record["dtype"]
+    ]
+    if len(matches) != 1 or matches[0]["fingerprint"] != record["fingerprint"]:
+        raise ValueError("measurement does not identify this model")
     metadata, shapes = _folder._header(folder / "model.safetensors")
-    name = record["source"].split("/")[1]
+    if metadata["fse.fingerprint"] != record["fingerprint"]:
+        raise ValueError("model differs from its build record")
     template = _card.card(
         metadata,
         shapes,
-        license=LICENSES[name],
+        license=metadata["fse.license"],
         language=["en"],
         model_name=record["repo"],
         location=record["repo"],
     ).decode()
     text = front_matter(template, name, fit)
+    text = text.replace("pip install fse", 'pip install "fse>=2.0"')
+    text = text.replace("## Usage\n", "## Usage\n\nThis model requires fse 2.0 or later.\n")
+    text, count = re.subn(r"(?m)^- written by: fse[^\r\n]*\r?\n", "", text)
+    if count != 1:
+        raise ValueError("unexpected writer line")
     text = text.replace(
-        "pip install fse",
-        f'pip install "git+https://github.com/oborchers/Fast_Sentence_Embeddings.git@{FSE_API_REVISION}"',
+        "## Source and license\n",
+        NORMALIZATION_NOTE.format(repo=record["repo"]) + "## Source and license\n",
     )
-    text = text.replace(
-        "## Usage\n",
-        "## Usage\n\nThis model requires the fse 2.0 API, currently in development. The install command pins its source.\n",
-    )
-    text += f"\n<!-- {CARD_RECIPE} -->\n"
-    text += "\n" + "\n".join(measured_text(record, result, verification["rows"]))
+    text += "\n<!-- fse-classic-card@1 -->\n"
+    text += "\n" + "\n".join(measured_text(record, matches[0], verification["rows"]))
     if fit is not None:
         text += "\n" + "\n".join(fit_text(fit))
-    text += "\n## Source terms and attribution\n\n" + TERMS[name] + "\n"
-    return text
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--models", type=Path, required=True)
-    parser.add_argument("--cards", type=Path, required=True)
-    parser.add_argument("--selection", type=Path, required=True)
-    args = parser.parse_args()
-    args.cards.mkdir(parents=True, exist_ok=True)
-    recover_pending(args.models, args.cards)
-    for name in SOURCES:
-        records, verification, fit = validated_source(args.models, name, args.selection)
-        for record in records:
-            folder = args.models / record["repo"].split("/")[1]
-            current_fit = fit if record["method"] == "sif10" else None
-            text = render(folder, record, verification, current_fit)
-            publish_card(
-                folder,
-                args.models / f"{folder.name}.json",
-                args.cards,
-                text,
-                current_fit,
-                ATTRIBUTES,
-            )
-
-
-if __name__ == "__main__":
-    main()
+    return text + "\n## Source terms and attribution\n\n" + TERMS[name] + "\n"

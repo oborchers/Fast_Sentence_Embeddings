@@ -32,4 +32,3 @@ LICENSES = {
 }
 
 ATTRIBUTES = b"*.safetensors filter=lfs diff=lfs merge=lfs -text\n"
-FSE_API_REVISION = "81e64c0d5f92ea6270522f0d97a009979fc678d3"

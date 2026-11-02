@@ -14,3 +14,7 @@ All 146 archived files (476,939 bytes) were independently verified before remova
 Manifest SHA256 remains `ac85cae41b05788bc278d68fd3231489de1615c7c15b8b79229844c3d0dabe69`.
 Option B approves all 30 repo contents, names and licenses. Upload waits for release
 2.0.0 and new release cards. No Hub writes occurred.
+
+The publication scripts referenced by these historical records were consolidated into
+`tools/hub/run.py`. The old scripts were verified and archived locally at the
+maintainer's request. These records describe the earlier workflow.

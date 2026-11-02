@@ -13,13 +13,13 @@ Colors are copied from `brand-identity/colors/tokens.json`, revision
 Regenerate the SVGs with Python's standard library:
 
 ```sh
-python media/readme/generate.py
+python docs/assets/readme/generate.py
 ```
 
 Export either SVG with librsvg:
 
 ```sh
-rsvg-convert media/readme/vectors-and-labels-light.svg -o media/readme/vectors-and-labels-light.png
+rsvg-convert docs/assets/readme/vectors-and-labels-light.svg -o docs/assets/readme/vectors-and-labels-light.png
 ```
 
 Repeat for the dark theme. Fonts use Geist, then Arial or sans-serif as fallback.

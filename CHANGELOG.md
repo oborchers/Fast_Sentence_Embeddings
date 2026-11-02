@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Consolidate classic Hub publication under `tools/hub/run.py`, regenerate the published cards including `normalize=False`, and rebuild prepared payloads with exact manifest checks and explicit upload opt-in.
+
 - `Encoder.from_pretrained(normalize=False | True)` now works for every kind of model, fse encoders (float32, float16, int8, FastText) and Model2Vec models as well as sentence-transformers models. `False` drops a final `normalize@1` and leaves the table unchanged, so linear heads fold into the classic Hub models without a detour through `StaticModel`; `True` appends it. The fingerprint describes the encoder as loaded. (DR-201)
 
 - Fix classic Hub tooling on Windows: preserve approved LF bytes, parse literal CRLF card examples, synchronize staged files through writable handles, and report unknown allocated cache size explicitly. Hub tooling changes now run Windows wheel tests on Python 3.11 and 3.15 in pull requests.
@@ -25,6 +27,8 @@ The 1.x branch remains maintained. Entries collect here until the release.
 - Architecture documentation is split by topic under `docs/architecture/`; `ARCHITECTURE.md` indexes it and preserves the former section links.
 
 ### Changed
+
+- Move repository media to `docs/assets/`, remove historical research notes and bundled STS-B data, and load the same pinned STS-B sentences from the Hub in recipe 07.
 
 - Integration package READMEs document raw means through `load_kwargs={"normalize": False}` for every supported pretrained model and the default `"model"` normalization rule.
 
@@ -161,7 +165,7 @@ The 1.x branch remains maintained. Entries collect here until the release.
 - **SIF and uSIF no longer slow down with more workers.** OpenBLAS started its own threads in every worker for the Gram matrix and the removal of components, so 16 workers could run 256 BLAS threads on 16 cores. During `train`, and while `infer` removes components, BLAS now gets `cores // workers` threads (at least one; the limit holds for the whole process during the call), and the components are removed by all workers in parallel. Results are unchanged.
 - New dependency: `threadpoolctl>=3.1.0`, to limit the BLAS threads.
 - At DEBUG level, every training logs how much of its time the producer and the workers spend reading, averaging and waiting, and which side limits it.
-- A new logo, with a light and a dark variant that the README picks by color scheme. The sources and their generator are in `media/logo/`; `media/fse.png` stays for the READMEs of earlier releases.
+- A new logo, with a light and a dark variant that the README picks by color scheme. The sources and their generator are in `docs/assets/logo/`; `docs/assets/fse.png` stays for the READMEs of earlier releases.
 - Unknown keyword arguments to `Average` and `BaseSentence2VecModel` raise a `pydantic.ValidationError` instead of being silently ignored, like at every other validated entry point.
 - Sentence tuples must have exactly two elements, `(words, index)`; longer tuples raise a `ValueError` instead of losing the extra element. `restrict_size=(lo, hi)` with `hi < lo` raises a `ValueError` instead of returning nothing.
 - The input classes reject sets with a `TypeError`. A set has no order, so the sentence indices would be arbitrary; pass `sorted(...)` instead.

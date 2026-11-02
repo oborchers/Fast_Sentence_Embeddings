@@ -71,7 +71,7 @@ The class paths match the package source and the successful notebook imports.
 The maintainer requested ready-for-review status after green CI. Merge still
 requires publication of all three adapters after fse 2.0.0 and separate
 maintainer approval. This record authorizes no PR merge, package publication
-or pod lifecycle action.
+or infrastructure lifecycle action.
 
 ```markdown
 ## Use fse with your framework
