@@ -1,18 +1,44 @@
-"""Private inference and input primitives for the single CPU comparison."""
+"""Private backend adapters for the fixed library-only comparison."""
 
 from __future__ import annotations
 
-import hashlib
 import json
-import shutil
+import os
 import subprocess
 import sys
 import time
 from functools import partial
-from importlib.metadata import distributions
 from pathlib import Path
 
-from _speed_cells import Ledger, atomic, command, configure, package_identity, sha256
+from _speed_cells import atomic, configure, package_identity, sha256, telemetry
+
+
+def setup_command(*arguments, allocated_at, contract):
+    if time.time() - allocated_at > contract["billing"]["planning_minutes"] * 60:
+        raise RuntimeError("setup exhausted allocation budget")
+    subprocess.run([str(x) for x in arguments], check=True)
+
+
+RUST_SOURCE = r"""
+use model2vec_rs::model::StaticModel;
+use serde_json::json;
+use std::{env,fs,io::{BufRead,BufReader,Write},time::Instant};
+fn main()->Result<(),Box<dyn std::error::Error>> {
+ let a:Vec<String>=env::args().collect();let workers:usize=a[5].parse()?;
+ rayon::ThreadPoolBuilder::new().num_threads(workers).build_global()?;
+ let texts:Vec<String>=BufReader::new(fs::File::open(&a[2])?).lines().collect::<Result<_,_>>()?;
+ let model=StaticModel::from_pretrained(&a[1],None,None,None)?;
+ let indices:Vec<usize>=serde_json::from_slice(&fs::read(&a[6])?)?;
+ let warmed=model.encode_flat(&texts);drop(warmed);
+ let start=Instant::now();let output=model.encode_flat(&texts);let seconds=start.elapsed().as_secs_f64();
+ assert_eq!(output.len(),texts.len()*model.dim());assert!(cfg!(target_endian="little"));
+ let mut file=fs::OpenOptions::new().write(true).create_new(true).open(&a[4])?;
+ for row in &indices {let first=row*model.dim();let slice=&output[first..first+model.dim()];
+  let bytes=unsafe {std::slice::from_raw_parts(slice.as_ptr() as *const u8,slice.len()*4)};file.write_all(bytes)?;}
+ file.sync_all()?;
+ println!("{}",json!({"seconds":seconds,"actual_threads":rayon::current_num_threads(),"shape":[indices.len(),model.dim()],"full_shape":[texts.len(),model.dim()]}));Ok(())
+}
+"""
 
 
 def setup(root, contract, allocated_at):
@@ -21,7 +47,7 @@ def setup(root, contract, allocated_at):
     here = Path(__file__).resolve().parent
     tools, source = root / "tools", root / "fse-source"
     tools.mkdir()
-    execute = partial(command, ledger=Ledger(root, contract, allocated_at))
+    execute = partial(setup_command, allocated_at=allocated_at, contract=contract)
     execute("apt-get", "update")
     packages = ("build-essential", "pkg-config", "libssl-dev", "curl", "git", "ca-certificates")
     execute("apt-get", "install", "-y", *packages)
@@ -79,30 +105,12 @@ def setup(root, contract, allocated_at):
     )
 
 
-def paired_source(context, source):
-    from fse import StaticModel
-
-    model = StaticModel.from_pretrained(context["models"]["minishlab/potion-base-8M"]["snapshot"])
-    if model.max_length != 512:
-        raise ValueError("shared FastEmbed pair requires the pinned 512-token rule")
-    limit = model.max_length * model.median_token_length
-    return [text[:limit] for text in source], limit
-
-
 def encoder(job):
     kind, workers = job["backend"], job["workers"]
     if kind == "fse":
         from fse import Encoder
 
         model = Encoder.load(job["artifact"], mmap=True)
-        if job.get("persistent_pool"):
-            from concurrent.futures import ThreadPoolExecutor
-            from contextlib import nullcontext
-
-            from fse._runtime import _executor
-
-            pool = ThreadPoolExecutor(max_workers=workers)
-            _executor.ThreadPoolExecutor = lambda **_: nullcontext(pool)
         if model.word_vectors.dtype != job["dtype"]:
             raise ValueError("finished table dtype differs from the requested cell")
         return lambda texts: model.encode(texts, workers=workers)
@@ -129,115 +137,6 @@ def encoder(job):
         )
         return lambda texts: np.stack(list(model.embed(texts, parallel=None)))
     raise ValueError(f"unsupported Python backend: {kind}")
-
-
-def capture_output(job, vectors, count, first):
-    import numpy as np
-
-    dtype, ndim = (np.int64, 1) if job.get("kind") == "classify" else (np.float32, 2)
-    if vectors.dtype != dtype or vectors.ndim != ndim or len(vectors) != count:
-        raise ValueError("backend returned a different output contract")
-    if not vectors.flags.c_contiguous:
-        raise ValueError("backend output must be a contiguous array")
-    digest = hashlib.sha256(memoryview(vectors).cast("B")).hexdigest()
-    if first:
-        mapped = np.lib.format.open_memmap(
-            job["vectors_file"], mode="w+", dtype=dtype, shape=vectors.shape
-        )
-        for start in range(0, len(vectors), 4096):
-            mapped[start : start + 4096] = vectors[start : start + 4096]
-        mapped.flush()
-        del mapped
-    return digest
-
-
-def measure_child(job):
-    if job["backend"] == "rust":
-        return rust_child(job)
-    configure(job["workers"])
-    import resource
-
-    package = {
-        "fse": "fse",
-        "model2vec": "model2vec",
-        "st": "sentence-transformers",
-        "fastembed": "fastembed",
-        "folded": "fse",
-        "unfolded": "fse",
-        "model2vec-linear": "model2vec",
-    }[job["backend"]]
-    identity = package_identity(package)
-    with Path(job["input_file"]).open() as stream:
-        texts = [line.rstrip("\n") for line in stream]
-    if len(texts) != job["texts"] or sha256(Path(job["input_file"])) != job["input_sha256"]:
-        raise ValueError("input row count or digest changed")
-    started = time.perf_counter()
-    encode = class_encoder(job) if job.get("kind") == "classify" else encoder(job)
-    load_seconds = time.perf_counter() - started
-    durations, outputs = [], []
-    for _ in range(1 + job.get("warm_passes", 1)):
-        started = time.perf_counter()
-        vectors = encode(texts)
-        durations.append(time.perf_counter() - started)
-        digest = capture_output(job, vectors, len(texts), len(outputs) == 0)
-        outputs.append(digest)
-        del vectors
-    if len(set(outputs)) != 1 or package_identity(package) != identity:
-        raise ValueError("output or executing backend changed between calls")
-    atomic(
-        Path(job["receipt"]),
-        {
-            "label": job["label"],
-            "round": job["round"],
-            "identity": identity,
-            "versions": {d.metadata["Name"]: d.version for d in distributions()},
-            "first_seconds": durations[0],
-            "warm_seconds": durations[1:],
-            "output_sha256": outputs[0],
-            "output_checked": False,
-            "load_seconds": load_seconds,
-            "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-            * (1 if sys.platform == "darwin" else 1024),
-        },
-    )
-
-
-RUST_SOURCE = r"""
-use model2vec_rs::model::StaticModel;
-use serde_json::json;
-use std::{env,fs,io::{BufRead,BufReader,Write},time::Instant,hash::{Hash,Hasher}};
-fn main()->Result<(),Box<dyn std::error::Error>> {
- let a:Vec<String>=env::args().collect();
- if a.get(1).map(String::as_str)==Some("--startup") {
-  let start=Instant::now();let n:usize=a[2].parse()?;
-  rayon::ThreadPoolBuilder::new().num_threads(n).build_global()?;rayon::broadcast(|_|());
-  println!("{}",json!({"pool_seconds":start.elapsed().as_secs_f64(),"threads":rayon::current_num_threads()}));return Ok(());
- }
- let workers:usize=a[5].parse()?;
- let start=Instant::now();
- rayon::ThreadPoolBuilder::new().num_threads(workers).build_global()?;
- let pool=start.elapsed().as_secs_f64();
- let texts:Vec<String>=BufReader::new(fs::File::open(&a[2])?).lines().collect::<Result<_,_>>()?;
- let start=Instant::now();let model=StaticModel::from_pretrained(&a[1],None,None,None)?;
- let load=start.elapsed().as_secs_f64();
- let passes:usize=a[3].parse()?;let mut seconds=Vec::new();let mut hashes=Vec::new();
- for pass in 0..=passes {
-  let start=Instant::now();let (output,elapsed)=if a.get(6).map(String::as_str)==Some("nested") {
-   let nested=model.encode(&texts);let elapsed=start.elapsed().as_secs_f64();(nested.into_iter().flatten().collect::<Vec<f32>>(),elapsed)
-  } else {let output=model.encode_flat(&texts);let elapsed=start.elapsed().as_secs_f64();(output,elapsed)};
-  seconds.push(elapsed);
-  let mut digest=std::collections::hash_map::DefaultHasher::new();
-  for value in &output {value.to_bits().hash(&mut digest);}hashes.push(digest.finish().to_string());
-  if pass==0 {
-   assert!(cfg!(target_endian="little"));
-   let bytes=unsafe {std::slice::from_raw_parts(output.as_ptr() as *const u8,output.len()*4)};
-   let mut file=fs::OpenOptions::new().write(true).create_new(true).open(&a[4])?;
-   file.write_all(bytes)?;file.sync_all()?;
-  }
- }
- println!("{}",json!({"load_seconds":load,"pool_start_seconds":pool,"actual_threads":rayon::current_num_threads(),"first_seconds":seconds[0],"warm_seconds":&seconds[1..],"output_hashes":hashes,"shape":[texts.len(),model.dim()]}));Ok(())
-}
-"""
 
 
 def build_rust(folder, lock):
@@ -293,24 +192,23 @@ def rust_child(job):
         or sha256(Path(job["input_file"])) != job["input_sha256"]
     ):
         raise ValueError("Rust binary or input differs from its frozen record")
+    before = telemetry()
     record = json.loads(
         subprocess.check_output(
             [
                 str(binary),
                 job["snapshot"],
                 job["input_file"],
-                str(job.get("warm_passes", 1)),
+                "1",
                 job["vectors_file"],
                 str(job["workers"]),
-                "nested" if job.get("nested_output") else "flat",
+                job["sample_file"],
             ],
             text=True,
         )
     )
-    if len(set(record.pop("output_hashes"))) != 1 or record["actual_threads"] != job["workers"]:
-        raise ValueError("Rust output or worker budget changed")
-    if sha256(binary) != job["binary_sha256"]:
-        raise ValueError("Rust binary changed during measurement")
+    if record["actual_threads"] != job["workers"] or sha256(binary) != job["binary_sha256"]:
+        raise ValueError("Rust worker count or code changed")
     record.update(
         label=job["label"],
         round=job["round"],
@@ -327,174 +225,84 @@ def rust_child(job):
         * (1 if sys.platform == "darwin" else 1024),
         output_checked=False,
         vector_format="raw",
+        telemetry_before=before,
+        telemetry_after=telemetry(),
     )
     atomic(Path(job["receipt"]), record)
-
-
-def class_encoder(job):
-    import numpy as np
-
-    from fse import Classifier, Encoder
-
-    head = np.load(job["head_file"])
-    weight, bias = head["weight"], head["bias"]
-    if job["backend"] == "folded":
-        model = Classifier.load(job["folded_file"], mmap=True)
-        if not model.standalone or model.normalized:
-            raise ValueError("classification requires a folded raw-mean table")
-        return lambda texts: model.predict(texts, workers=job["workers"])
-    if job["backend"] == "model2vec-linear":
-        from model2vec import StaticModel
-
-        model = StaticModel.from_pretrained(job["snapshot"], normalize=False)
-
-        def encode(texts):
-            return model.encode(texts, use_multiprocessing=job["workers"] > 1)
-    else:
-        model = Encoder.load(job["raw_encoder"], mmap=True)
-        if model.steps:
-            raise ValueError("unfolded arm must use raw unnormalized means")
-
-        def encode(texts):
-            return model.encode(texts, workers=job["workers"])
-
-    return lambda texts: np.argmax(encode(texts) @ weight.T + bias, axis=1).astype(np.int64)
 
 
 def prepare_models(root, contract):
     from huggingface_hub import snapshot_download
 
-    from fse import StaticModel
+    from fse import Encoder, StaticModel
 
-    models = {}
+    result = {}
     for repo, revision in contract["models"].items():
         snapshot = snapshot_download(
             repo,
             revision=revision,
             cache_dir=root / "hub",
-            allow_patterns=[
-                "model.safetensors",
-                "tokenizer.json",
-                "config.json",
-                "config_sentence_transformers.json",
-                "modules.json",
-                "tokenizer_config.json",
-                "special_tokens_map.json",
-                "*/model.safetensors",
-                "*/tokenizer.json",
-                "*/config.json",
-            ],
+            allow_patterns=["*.json", "*.safetensors", "*/*.json", "*/*.safetensors"],
         )
-        maximum = None if repo.startswith("sentence-transformers/") else 512
-        normal = StaticModel.from_pretrained(snapshot, normalize=True, max_length=maximum).encoder
-        item = dict(snapshot=snapshot, revision=revision, artifacts={})
-        for dtype in ("float32", "float16", "int8"):
-            destination = root / (repo.split("/")[-1] + "-" + dtype + ".safetensors")
-            (normal if dtype == "float32" else normal.quantize(dtype)).save(destination)
-            item["artifacts"][dtype] = str(destination)
-        models[repo] = item
-    return models
-
-
-def prepare_head(root, contract, models):
-    import numpy as np
-    from datasets import load_dataset
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import train_test_split
-
-    from fse import Classifier, StaticModel
-
-    spec = contract["classification"]
-    data = load_dataset(spec["repo"], revision=spec["revision"], cache_dir=str(root / "datasets"))
-
-    def subset(split, count):
-        rows = data[split]
-        a, _, b, _ = train_test_split(
-            rows["text"],
-            rows["label"],
-            train_size=count,
-            stratify=rows["label"],
-            random_state=spec["seed"],
+        encoder = (
+            Encoder.from_pretrained(snapshot, normalize=True, truncate=False)
+            if repo.startswith("sentence-transformers/")
+            else StaticModel.from_pretrained(snapshot, normalize=True).encoder
         )
-        return a, b
-
-    texts, labels = subset("train", spec["train_selection"])
-    fit, _, target, _ = train_test_split(
-        texts, labels, test_size=0.2, stratify=labels, random_state=spec["seed"]
-    )
-    sample, _ = subset("test", spec["evaluation_selection"])
-    model = StaticModel.from_pretrained(
-        models["minishlab/potion-base-8M"]["snapshot"], normalize=False
-    ).encoder
-    head = LogisticRegression(
-        C=spec["C"], max_iter=spec["max_iter"], random_state=spec["seed"]
-    ).fit(model.encode(fit, workers=1), target)
-    weight, bias = head.coef_.astype(np.float32), head.intercept_.astype(np.float32)
-    folder = root / "head.npz"
-    np.savez(folder, weight=weight, bias=bias)
-    raw, folded = root / "raw.safetensors", root / "folded.safetensors"
-    model.save(raw)
-    classifier = Classifier.from_arrays(
-        model, weight, bias, labels=np.arange(4, dtype=np.int64), normalized=False
-    )
-    classifier.save(folded, standalone=True)
-    return sample, dict(
-        head_file=str(folder),
-        raw_encoder=str(raw),
-        folded_file=str(folded),
-        head_sha256=sha256(folder),
-        accuracy="historical recipe only; not measured",
-    )
+        artifact = root / (repo.rsplit("/", 1)[-1] + ".safetensors")
+        encoder.save(artifact)
+        result[repo] = {"snapshot": snapshot, "artifact": str(artifact), "revision": revision}
+    return result
 
 
-def stream_child(job):
+def measure_child(job):
+    if job["backend"] == "rust":
+        return rust_child(job)
+    configure(job["workers"])
     import resource
 
-    configure(job["workers"])
-    from fse import Encoder, ShardSink, VectorStore
+    import numpy as np
 
-    source, output = Path(job["input_file"]), Path(job["vectors_file"])
-    if sha256(source) != job["input_sha256"] or output.exists():
-        raise ValueError("streaming input changed or output already exists")
-    model = Encoder.load(job["artifact"], mmap=True)
-    identity = package_identity("fse")
-    disk_before = shutil.disk_usage(output.parent)._asdict()
+    package = {
+        "fse": "fse",
+        "model2vec": "model2vec",
+        "st": "sentence-transformers",
+        "fastembed": "fastembed",
+    }[job["backend"]]
+    identity = package_identity(package)
+    with Path(job["input_file"]).open() as stream:
+        texts = [line.rstrip("\n") for line in stream]
+    if len(texts) != job["texts"] or sha256(Path(job["input_file"])) != job["input_sha256"]:
+        raise ValueError("input changed")
+    indices = np.asarray(json.loads(Path(job["sample_file"]).read_text()), dtype=np.int64)
+    encode = encoder(job)
+    warm = encode(texts)
+    if warm.shape != (len(texts), job["dimensions"]):
+        raise ValueError("warm output shape changed")
+    del warm
+    before = telemetry()
     started = time.perf_counter()
-    with ShardSink(output, model, dtype="int8", durability="none") as sink:
-        model.encode(source, workers=job["workers"], sink=sink)
+    vectors = encode(texts)
     seconds = time.perf_counter() - started
-    store = VectorStore.open(output)
-    if len(store) != job["texts"]:
-        raise ValueError("stream output row count differs")
-    files = [
-        dict(path=str(p.relative_to(output)), bytes=p.stat().st_size, sha256=sha256(p))
-        for p in sorted(output.rglob("*"))
-        if p.is_file()
-    ]
-    if package_identity("fse") != identity:
-        raise ValueError("executing backend changed during streaming")
+    after = telemetry()
+    if vectors.dtype != np.float32 or vectors.shape != (len(texts), job["dimensions"]):
+        raise ValueError("backend output contract changed")
+    sample = np.ascontiguousarray(vectors[indices])
+    with Path(job["vectors_file"]).open("xb") as stream:
+        np.save(stream, sample, allow_pickle=False)
+        stream.flush()
+        os.fsync(stream.fileno())
+    if package_identity(package) != identity:
+        raise ValueError("executing backend changed")
     atomic(
         Path(job["receipt"]),
-        dict(
-            label=job["label"],
-            round=job["round"],
-            identity=identity,
-            df_before=disk_before,
-            df_after=shutil.disk_usage(output.parent)._asdict(),
-            measurement_kind="streamed-single-call",
-            single_call_seconds=seconds,
-            vector_data_sha256=hashlib.sha256(
-                json.dumps(
-                    [r for r in files if r["path"].endswith(".npy")], sort_keys=True
-                ).encode()
-            ).hexdigest(),
-            output_checked=True,
-            rows=len(store),
-            files=files,
-            bytes_written=sum(p["bytes"] for p in files),
-            peak_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-            * (1 if sys.platform == "darwin" else 1024),
-            durability="none",
-            time_until_durable=None,
-        ),
+        {
+            "identity": identity,
+            "seconds": seconds,
+            "shape": list(sample.shape),
+            "full_shape": list(vectors.shape),
+            "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
+            "telemetry_before": before,
+            "telemetry_after": after,
+        },
     )

@@ -1,10 +1,10 @@
-"""Single entry for the frozen CPU comparison; no automatic machine lifecycle."""
+"""One fixed library-only CPU comparison; machine lifecycle belongs to the coordinator."""
 
 from __future__ import annotations
 
 import argparse
 import json
-import shutil
+import platform
 import signal
 import subprocess
 import sys
@@ -19,443 +19,339 @@ HERE = Path(__file__).resolve().parent
 INPUT = HERE / "speed-input-2026-11.json"
 
 
-def attempt(ledger, name, function, stage="setup", seconds=60):
-    started, value = time.monotonic(), None
-    record = dict(stage=name)
-    try:
-        if not ledger.admit(seconds, stage):
-            raise RuntimeError(stage + " admission budget exhausted")
-        value = function()
-        record["status"] = "complete"
-    except Exception as error:
-        record.update(status="failed", error=repr(error))
-    record["seconds"] = time.monotonic() - started
-    records.append(ledger.root / "preparation.jsonl", record)
-    return value
+class Ledger:
+    def __init__(self, root, contract, allocated_at):
+        self.root, self.contract, self.allocated_at = root, contract, allocated_at
+        self.finished, self.stopping = [], False
+        self.current, self.stage = "preparation", "setup"
+        self.lock = threading.Lock()
+        self.hourly = contract["billing"]["compute_usd_per_hour"] + (
+            contract["machine"]["disk_gb"]
+            * contract["billing"]["disk_usd_per_gb_month"]
+            / contract["billing"]["month_hours"]
+        )
+
+    def admit(self, estimate):
+        elapsed = time.time() - self.allocated_at
+        ceiling = min(
+            self.contract["billing"]["planning_minutes"] * 60,
+            self.contract["billing"]["planning_balance_usd"] * 3600 / self.hourly,
+        )
+        return not self.stopping and elapsed + estimate + 600 <= ceiling
+
+    def progress(self, terminal=False):
+        with self.lock:
+            remaining = [
+                c
+                for c in self.contract["cells"]
+                if c["id"] not in {r["cell_id"] for r in self.finished}
+            ]
+            records.atomic(
+                self.root / "progress.json",
+                {
+                    "stage": "collection" if terminal else self.stage,
+                    "cell": "DONE" if terminal else self.current,
+                    "finished": len(self.finished),
+                    "planned": len(self.contract["cells"]),
+                    "elapsed_seconds": time.time() - self.allocated_at,
+                    "estimated_remaining_seconds": sum(c["estimated_seconds"] for c in remaining),
+                },
+            )
+
+    def result(self, cell, started, **result):
+        row = {
+            **cell,
+            "cell_id": cell["id"],
+            "run_id": self.contract["format"],
+            "machine_environment_sha256": records.sha256(self.root / "environment.json"),
+            "platform": platform.platform(),
+            "python": sys.version,
+            "completed_at_unix": time.time(),
+            "duration_seconds": time.monotonic() - started,
+            "functional_only": self.contract.get("functional_only", False),
+            **result,
+        }
+        records.append(self.root / "cells.jsonl", row)
+        self.finished.append(row)
+        self.progress()
+
+    def done(self):
+        self.progress(terminal=True)
+        files = [
+            {
+                "path": str(p.relative_to(self.root)),
+                "bytes": p.stat().st_size,
+                "sha256": records.sha256(p),
+            }
+            for p in sorted(self.root.rglob("*"))
+            if p.is_file() and p.name not in ("manifest.json", "DONE")
+        ]
+        records.atomic(self.root / "manifest.json", {"files": files})
+        code = int(len(self.finished) != 8 or any(r["status"] != "valid" for r in self.finished))
+        records.atomic(
+            self.root / "DONE",
+            {
+                "exit_status": code,
+                "completed_at": time.time(),
+                "cells": len(self.finished),
+                "manifest_sha256": records.sha256(self.root / "manifest.json"),
+            },
+        )
+        return code
 
 
 def prepare(args, contract, ledger):
-    work = args.work
-    work.mkdir(parents=True, exist_ok=False)
+    args.work.mkdir(parents=True, exist_ok=False)
     records.atomic(
-        work / "owner.json",
-        dict(script=records.sha256(Path(__file__)), results=str(args.results.resolve())),
+        args.work / "owner.json",
+        {"script_sha256": records.sha256(Path(__file__)), "results": str(args.results.resolve())},
     )
-    setup_record = Path(sys.executable).parents[2] / "setup.json"
-    if setup_record.exists():
-        shutil.copyfile(setup_record, args.results / "setup.json")
-    models = {}
-    for repo in contract["models"]:
-        prepared = attempt(
-            ledger,
-            "model-" + repo.replace("/", "-"),
-            lambda name=repo: engines.prepare_models(
-                work, {**contract, "models": {name: contract["models"][name]}}
-            ),
-        )
-        models.update(prepared or {})
-    sources = attempt(
-        ledger, "corpus", lambda: records.corpus_sources(contract, work / "datasets")
-    ) or ([], [])
-    rust = attempt(
-        ledger, "rust", lambda: engines.build_rust(work / "native", HERE / "speed-rust.lock")
-    )
-    head = attempt(ledger, "head", lambda: engines.prepare_head(work, contract, models))
-    return dict(
-        models=models,
-        paragraphs=sources[0],
-        sentences=sources[1],
-        rust=rust,
-        head=head,
-        inputs={},
-        work=work,
-        contract=contract,
-        reference_python=args.reference_python,
-        ledger=ledger,
-    )
+    models = engines.prepare_models(args.work, contract)
+    paragraphs, unknown = records.corpus_sources(contract, args.work / "datasets")
+    rust = engines.build_rust(args.work / "native", HERE / "speed-rust.lock")
+    return {
+        "work": args.work,
+        "ledger": ledger,
+        "models": models,
+        "paragraphs": paragraphs,
+        "unknown": unknown,
+        "rust": rust,
+        "reference_python": args.reference_python,
+    }
 
 
-def input_file(context, cell):
-    source = context["paragraphs"]
-    repeated = cell["kind"] == "stream"
-    if repeated:
-        source = context["sentences"]
-    if cell["kind"] == "classify":
-        if context["head"] is None:
-            raise ValueError("classification preparation failed")
-        source = context["head"][0]
-    paired = (
-        cell["model"] == "minishlab/potion-base-8M"
-        and cell["kind"] == "encode"
-        and cell["stage"] in ("libraries", "sizing")
-    )
-    if paired:
-        if "paired_source" not in context:
-            context["paired_source"] = engines.paired_source(context, source)
-        source, limit = context["paired_source"]
-    key = (cell["kind"] == "classify", repeated, paired, cell["texts"])
-    if key not in context["inputs"]:
-        token_cache = context.setdefault("token_lengths", {})
-        if key[:-1] not in token_cache:
-            snapshot = context["models"]["minishlab/potion-base-8M"]["snapshot"]
-            token_cache[key[:-1]] = records.token_lengths(snapshot, source)
-        path = context["work"] / ("input-" + "-".join(map(str, key)) + ".txt")
-        identity = records.write_input(
-            path, source, cell["texts"], 0, repeated=repeated, token_counts=token_cache[key[:-1]]
-        )
-        identity["common_character_limit"] = limit if paired else None
-        context["inputs"][key] = (path, identity)
-        records.append(
-            context["ledger"].root / "input-identities.jsonl", dict(file=path.name, **identity)
-        )
-    return context["inputs"][key]
+def prepare_input(context, cell):
+    source, mandatory = context["paragraphs"], []
+    if cell["reference"] == "st":
+        mandatory = context["unknown"]
+    else:
+        from fse import StaticModel
+
+        model = StaticModel.from_pretrained(context["models"][cell["model"]]["snapshot"])
+        if model.max_length != 512:
+            raise ValueError("shared truncation requires the pinned 512-token rule")
+        limit = model.max_length * model.median_token_length
+        source = [text[:limit] for text in source]
+    path = context["work"] / (cell["id"] + ".txt")
+    identity = records.write_input(path, source, mandatory, cell["texts"], 0)
+    identity["common_character_limit"] = None if mandatory else limit
+    sample = path.with_suffix(".sample.json")
+    records.atomic(sample, identity["sample_rows"])
+    records.append(context["ledger"].root / "inputs.jsonl", dict(cell_id=cell["id"], **identity))
+    return path, sample, identity
 
 
-def labels(cell):
-    if cell["kind"] == "classify":
-        return ["fse-a", "fse-b", "unfolded", "model2vec-linear"]
-    arms = ["fse-a", "fse-b"] + ([cell["reference"]] if cell.get("reference") else [])
-    if cell.get("small_call_exception") and cell["workers"] == 16:
-        arms += ["fse-reused", "rust-nested"]
-    return arms
-
-
-def job_for(context, cell, label, number, folder):
-    path, identity = input_file(context, cell)
+def launch(context, cell, label, number, path, sample, identity):
+    root, work = context["ledger"].root, context["work"]
+    folder = work / f"{cell['id']}-{number}-{label}"
+    folder.mkdir()
     model = context["models"][cell["model"]]
-    backend = "fse" if label.startswith("fse-") else label
-    if backend == "rust-nested":
-        backend = "rust"
-    if cell["kind"] == "classify" and backend == "fse":
-        backend = "folded"
     job = dict(
         cell,
         label=label,
         round=number,
-        backend=backend,
-        persistent_pool=label == "fse-reused",
-        nested_output=label == "rust-nested",
+        backend=label,
         input_file=str(path),
         input_sha256=identity["sha256"],
+        sample_file=str(sample),
         snapshot=model["snapshot"],
-        artifact=model["artifacts"][cell["dtype"]],
-        vectors_file=str(folder / "vectors"),
+        artifact=model["artifact"],
+        vectors_file=str(folder / "sample"),
         receipt=str(folder / "receipt.json"),
     )
-    if backend == "rust":
-        if not context["rust"]:
-            raise ValueError("native build failed")
+    if label == "rust":
         job.update(context["rust"], rust_revision=context["rust"]["revision"])
-    if cell["kind"] == "classify":
-        job.update(context["head"][1])
-    return job
-
-
-def launch(context, cell, job, folder):
-    root = context["ledger"].root
-    filename = root / (cell["id"] + "-" + str(job["round"]) + "-" + job["label"] + ".job.json")
-    records.atomic(filename, job)
-    interpreter = context["reference_python"] if job["backend"] == "fastembed" else sys.executable
-    with (root / (filename.stem + ".log")).open("x") as stream:
-        process = subprocess.Popen(
-            [interpreter, str(Path(__file__).resolve()), "--child-job", str(filename)],
+    spec = root / f"{cell['id']}-{number}-{label}.job.json"
+    records.atomic(spec, job)
+    python = context["reference_python"] if label == "fastembed" else sys.executable
+    with spec.with_suffix(".log").open("x") as stream:
+        child = subprocess.Popen(
+            [python, str(Path(__file__).resolve()), "--child-job", str(spec)],
             stdout=stream,
             stderr=subprocess.STDOUT,
         )
-        while process.poll() is None:
+        while child.poll() is None:
             time.sleep(0.25)
-    if process.returncode:
-        raise RuntimeError(f"{job['backend']} exited {process.returncode}; see {filename.stem}.log")
+    if child.returncode:
+        raise RuntimeError(f"{label} failed with status {child.returncode}; see {spec.name}")
     record = records.document(folder / "receipt.json")
     record.update(
-        input_sha256=job["input_sha256"],
-        model=job["model"],
-        revision=context["models"][job["model"]]["revision"],
+        label=label,
+        round=number,
+        input_sha256=identity["sha256"],
+        model=cell["model"],
+        revision=model["revision"],
+        sample_file=str(folder / "sample"),
         adapter_sha256={
             p.name: records.sha256(p)
-            for p in (
-                Path(__file__).resolve(),
-                HERE / "_speed_cells.py",
-                HERE / "_speed_pipeline.py",
-            )
+            for p in (Path(__file__), HERE / "_speed_cells.py", HERE / "_speed_pipeline.py")
         },
-        input_identity=input_file(context, cell)[1],
     )
-    tokens = record["input_identity"]["tokens_total"]
-    record["mean_tokens"] = tokens / cell["texts"]
-    record["tokens_per_second"] = [tokens / value for value in records.observations(record)]
     records.append(root / "operations.jsonl", dict(cell_id=cell["id"], **record))
     return record
 
 
-def remove_output(context, path, record):
-    if not path.resolve().is_relative_to(context["work"].resolve()) or path.is_symlink():
-        raise ValueError("output ownership changed")
-    if path.is_dir():
-        actual = {str(p.relative_to(path)) for p in path.rglob("*") if p.is_file()}
-        if actual != {r["path"] for r in record["files"]}:
-            raise ValueError("stream output inventory changed")
-        shutil.rmtree(path)
-    else:
+def sample_array(record):
+    import numpy as np
+
+    path = record["sample_file"]
+    if record.get("vector_format") == "raw":
+        return np.memmap(path, dtype="<f4", mode="r", shape=tuple(record["shape"]))
+    return np.load(path, mmap_mode="r", allow_pickle=False)
+
+
+def cleanup(context, paths):
+    for path in paths:
+        if not path.resolve().is_relative_to(context["work"].resolve()) or path.is_symlink():
+            raise ValueError("cleanup ownership changed")
         path.unlink()
 
 
-def stream_cell(context, cell):
-    operations = []
-    for number in range(cell["rounds"]):
-        for label in labels(cell):
-            folder = context["work"] / f"{cell['id']}-{number}-{label}"
-            folder.mkdir()
-            job = job_for(context, cell, label, number, folder)
-            record = launch(context, cell, job, folder)
-            if operations and record["vector_data_sha256"] != operations[0]["vector_data_sha256"]:
-                raise ValueError("streamed A/A vector or quantization data differs")
-            remove_output(context, Path(job["vectors_file"]), record)
-            operations.append(record)
-    return records.summarize(cell, operations)
-
-
-def encode_cell(context, cell):
-
-    path, _ = input_file(context, cell)
-    dimension = 1024 if "static-retrieval" in cell["model"] else 256
-    records.memory_admit(cell["texts"], dimension, path.stat().st_size)
-    operations, reference, control = [], None, None
-    for number in range(cell["rounds"]):
-        order = labels(cell)
-        order = order[number % len(order) :] + order[: number % len(order)]
-        for label in order:
-            folder = context["work"] / f"{cell['id']}-{number}-{label}"
-            folder.mkdir()
-            job = job_for(context, cell, label, number, folder)
-            record = launch(context, cell, job, folder)
-            output = records.output_array(job["vectors_file"], record)
-            if reference is None:
-                if label != "fse-a":
-                    raise ValueError("first reference must be fse-a")
-                reference, control = output, (Path(job["vectors_file"]), record)
-            else:
-                difference = records.check_output(
-                    reference, output, label.startswith("fse-") or cell["kind"] == "classify"
-                )
-                records.append(
-                    context["ledger"].root / "checks.jsonl",
-                    dict(
-                        cell_id=cell["id"],
-                        label=label,
-                        round=number,
-                        max_abs_difference=difference,
-                        rows=len(output),
-                    ),
-                )
-                del output
-                remove_output(context, Path(job["vectors_file"]), record)
-            record["output_checked"] = True
-            operations.append(record)
-    del reference
-    remove_output(context, *control)
-    return records.summarize(cell, operations)
-
-
-def execute_cell(context, cell):
-    if cell.get("preparation_error"):
-        raise ValueError(cell["preparation_error"])
-    if cell["kind"] == "startup":
-        if not context["rust"]:
-            raise ValueError("native build failed")
-        path = context["ledger"].root / (cell["id"] + ".startup.json")
-        job = path.with_suffix(".job.json")
-        records.atomic(job, dict(cell, binary=context["rust"]["binary"], receipt=str(path)))
-        subprocess.run(
-            [sys.executable, str(Path(__file__).resolve()), "--child-job", str(job)], check=True
+def pair(context, cell):
+    path, sample, identity = prepare_input(context, cell)
+    model_bytes = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
+    maximum = Path("/sys/fs/cgroup/memory.max").read_text().strip()
+    if maximum == "max":
+        raise ValueError("finite cgroup memory limit required")
+    budget = records.memory_plan(cell, identity["file_bytes"], model_bytes, int(maximum))
+    records.append(context["ledger"].root / "memory.jsonl", dict(cell_id=cell["id"], **budget))
+    if not budget["admitted"]:
+        raise MemoryError("fixed input exceeds the declared memory budget")
+    observations = []
+    for number in range(3):
+        labels = ["fse", cell["reference"]]
+        for label in labels if number % 2 == 0 else labels[::-1]:
+            observations.append(launch(context, cell, label, number, path, sample, identity))
+        a, b = observations[-2:]
+        delta = records.check_output(sample_array(a), sample_array(b), False)
+        records.append(
+            context["ledger"].root / "checks.jsonl",
+            {
+                "cell_id": cell["id"],
+                "round": number,
+                "rows": len(identity["sample_rows"]),
+                "mandatory_unknown_rows": identity["mandatory_prefix_rows"],
+                "max_abs_difference": delta,
+            },
         )
-        return records.document(path)
-    bytes_per_text = (
-        300 if cell["kind"] == "stream" else 8192 if "static-retrieval" in cell["model"] else 2048
+        cleanup(context, [Path(a["sample_file"]), Path(b["sample_file"])])
+    arms = {
+        name: [
+            next(r for r in observations if r["label"] == name and r["round"] == n)
+            for n in range(3)
+        ]
+        for name in ("fse", cell["reference"])
+    }
+    for name, rows in arms.items():
+        if len({json.dumps(r["identity"], sort_keys=True) for r in rows}) != 1:
+            raise ValueError("executing backend changed between rounds")
+        if (
+            name == "fse"
+            and not cell.get("functional_only")
+            and min(r["seconds"] for r in rows) < 2
+        ):
+            raise ValueError("fse call shorter than two seconds")
+    ratios = [
+        b["seconds"] / a["seconds"]
+        for a, b in zip(arms["fse"], arms[cell["reference"]], strict=True)
+    ]
+    cleanup(context, [path, path.with_suffix(".json"), sample])
+    return {
+        "status": "valid",
+        "input_identity": identity,
+        "sample_checked": True,
+        "paired_speedup": records.spread(ratios),
+        "arms": {
+            name: {
+                "seconds": records.spread([r["seconds"] for r in rows]),
+                "ordered_seconds": [r["seconds"] for r in rows],
+                "identity": rows[0]["identity"],
+            }
+            for name, rows in arms.items()
+        },
+    }
+
+
+def quiet(context, contract):
+    cell = dict(contract["quiet_cell"])
+    path, sample, identity = prepare_input(context, cell)
+    observations, started = [], time.monotonic()
+    duration = 1 if contract.get("functional_only") else contract["rules"]["quiet_seconds"]
+    while time.monotonic() - started < duration:
+        row = launch(context, cell, "fse", len(observations), path, sample, identity)
+        observations.append(row["seconds"])
+        cleanup(context, [Path(row["sample_file"])])
+    records.atomic(
+        context["ledger"].root / "quiet.json",
+        {
+            "seconds": observations,
+            "spread": records.spread(observations),
+            "policy": "record only, no A/A pair rejection",
+            "telemetry": records.telemetry(),
+        },
     )
-    records.disk_admit(context["work"], cell["texts"] * bytes_per_text)
-    return stream_cell(context, cell) if cell["kind"] == "stream" else encode_cell(context, cell)
-
-
-def estimate(contract, cell):
-    stage = next(r for r in contract["stages"] if r["name"] == cell["stage"])
-    count = sum(r["stage"] == cell["stage"] for r in contract["cells"])
-    return stage["estimate_minutes"] * 60 / count
+    cleanup(context, [path, path.with_suffix(".json"), sample])
 
 
 def heartbeat(ledger, stop):
     while not stop.is_set():
-        ledger.progress(
-            getattr(ledger, "current", "preparation"), getattr(ledger, "stage", "setup")
-        )
+        ledger.progress()
         stop.wait(15)
 
 
-def quiet(context):
-    ledger = context["ledger"]
-    cell = dict(ledger.contract["quiet_cell"])
-    ledger.current, ledger.stage = cell["id"], cell["stage"]
-    started = time.monotonic()
-    result = encode_cell(context, cell)
-    result["observation_seconds"] = time.monotonic() - started
-    if result["observation_seconds"] < 120:
-        result.update(status="invalid", reason="observation window shorter than 120 seconds")
-    records.atomic(ledger.root / "quiet.json", result)
-    return result
-
-
-def sizing_job(context, repo, workers, backend, name, kind="encode"):
-    ledger = context["ledger"]
-    if not ledger.admit(60, "sizing"):
-        raise RuntimeError("sizing admission budget exhausted")
-    cell = dict(
-        id=name,
-        stage="sizing",
-        kind=kind,
-        workers=workers,
-        texts=50_000,
-        model=repo,
-        dtype="float32",
-        rounds=1,
-    )
-    folder = context["work"] / name
-    folder.mkdir()
-    job = job_for(context, cell, "fse-a" if backend in ("fse", "folded") else backend, 0, folder)
-    ledger.current, ledger.stage = name, "sizing"
-    record = launch(context, cell, job, folder)
-    remove_output(context, Path(job["vectors_file"]), record)
-    rate = 50_000 / min(record["first_seconds"], *record["warm_seconds"])
-    context.setdefault("sizing_rates", {})[(repo, workers, backend, kind)] = rate
-    return rate
-
-
-def apply_sizing(context, cell, rate, number):
-    step = 100_000 if cell["kind"] == "classify" else 50_000
-    requested = max(cell["texts"], int(3 * rate / step + 0.999999) * step)
-    cell["texts"] = requested
-    reference_rate = None
-    if cell.get("reference"):
-        reference_rate = attempt(
-            context["ledger"],
-            f"sizing-reference-{number}",
-            lambda c=cell, n=number: sizing_job(
-                context, c["model"], c["workers"], c["reference"], f"sizing-reference-{n}"
-            ),
-            stage="sizing",
-        )
-        if reference_rate is None:
-            cell["preparation_error"] = "required reference sizing failed"
-    calls = 1 + cell.get("warm_passes", 1)
-    seconds_per_round = 2 * requested / rate
-    if reference_rate:
-        seconds_per_round += requested / reference_rate
-    if cell["kind"] == "classify":
-        encoder_rates = [
-            context["sizing_rates"].get((cell["model"], cell["workers"], arm, "encode"))
-            for arm in ("fse", "model2vec")
-        ]
-        if not all(encoder_rates):
-            cell["preparation_error"] = "classifier cost requires both observed encoder rates"
-            return
-        seconds_per_round += sum(requested / observed for observed in encoder_rates)
-    cell["estimated_seconds"] = max(
-        estimate(context["contract"], cell), cell["rounds"] * calls * seconds_per_round
-    )
-    cell["sizing"] = dict(
-        fse_texts_per_second=rate,
-        reference_texts_per_second=reference_rate,
-        target_fse_seconds=3,
-        search_iterations=0,
-    )
-
-
-def size_once(context):
-    contract, rates = context["contract"], {}
-    ordered = sorted(enumerate(contract["cells"]), key=lambda item: item[1]["kind"] == "classify")
-    for number, cell in ordered:
-        if cell["stage"] not in ("libraries", "classification"):
-            continue
-        key = (cell["model"], cell["workers"], cell["kind"])
-        if key not in rates:
-            rates[key] = attempt(
-                context["ledger"],
-                f"sizing-fse-{number}",
-                lambda c=cell, n=number: sizing_job(
-                    context, c["model"], c["workers"], "fse", f"sizing-fse-{n}", c["kind"]
-                ),
-                stage="sizing",
-            )
-        if rates[key] is None:
-            cell["preparation_error"] = "required one-shot sizing failed"
-            continue
-        apply_sizing(context, cell, rates[key], number)
-    records.atomic(context["ledger"].root / "sized-input.json", contract)
-
-
-def scheduled_cell(context, cell, ledger, contract):
-    started = time.monotonic()
-    allowed = ledger.admit(ledger.estimate(cell, estimate(contract, cell)), cell["stage"])
-    if not allowed:
-        ledger.result(
-            cell,
-            "not_started",
-            started,
-            reason="stage or soft total admission budget exhausted",
-        )
-        return
-    try:
-        result = execute_cell(context, cell)
-        ledger.result(cell, result.pop("status"), started, **result)
-    except Exception as error:
-        ledger.result(cell, "failed", started, reason=repr(error))
-
-
-def validate_host(args):
-    if sys.platform != "linux" or sys.version_info[:2] != (3, 13):
-        raise RuntimeError("The full measurement requires Linux and Python 3.13")
-    if args.allocated_at is None:
-        raise ValueError("--allocated-at must be the machine allocation Unix timestamp")
-    if sys.version.split()[0] != records.document(args.input)["machine"]["python_patch"]:
-        raise RuntimeError("Python patch version differs from the pinned image")
-
-
 def run(args):
-    validate_host(args)
     contract = records.document(args.input)
+    if args.rehearse:
+        contract["functional_only"] = True
+        for cell in [*contract["cells"], contract["quiet_cell"]]:
+            cell.update(texts=128, workers=min(cell["workers"], 2), functional_only=True)
+        contract["billing"].update(planning_minutes=180, planning_balance_usd=10)
     args.results.mkdir(parents=True, exist_ok=False)
-    ledger = records.Ledger(args.results, contract, args.allocated_at)
-    records.metadata(args.results, contract)
-    environment = records.document(args.results / "environment.json")
-    cpuinfo = Path("/proc/cpuinfo")
-    environment["cpuinfo"] = cpuinfo.read_text() if cpuinfo.exists() else None
-    records.atomic(args.results / "environment.json", environment)
+    ledger = Ledger(args.results, contract, args.allocated_at)
+    records.atomic(
+        args.results / "environment.json",
+        {
+            "contract": contract,
+            "platform": platform.platform(),
+            "python": sys.version,
+            "telemetry": records.telemetry(),
+            "affinity": sorted(__import__("os").sched_getaffinity(0)),
+        },
+    )
     stop = threading.Event()
     watcher = threading.Thread(target=heartbeat, args=(ledger, stop), daemon=True)
     watcher.start()
     for signum in (signal.SIGINT, signal.SIGTERM):
         signal.signal(signum, lambda *_: setattr(ledger, "stopping", True))
+    context = None
     try:
         context = prepare(args, contract, ledger)
-        attempt(ledger, "quiet", lambda: quiet(context), stage="quiet", seconds=540)
-        attempt(ledger, "sizing", lambda: size_once(context), stage="sizing", seconds=600)
+        ledger.stage, ledger.current = "quiet", "quiet"
+        quiet(context, contract)
+        ledger.stage = "libraries"
         for cell in contract["cells"]:
-            ledger.current, ledger.stage = cell["id"], cell["stage"]
-            scheduled_cell(context, cell, ledger, contract)
+            ledger.current = cell["id"]
+            started = time.monotonic()
+            if not ledger.admit(cell["estimated_seconds"]):
+                ledger.result(
+                    cell, started, status="not_started", reason="soft budget or stop signal"
+                )
+                continue
+            try:
+                ledger.result(cell, started, **pair(context, cell))
+            except Exception as error:
+                ledger.result(cell, started, status="failed", reason=repr(error))
     except Exception as error:
-        records.append(args.results / "fatal.jsonl", dict(error=repr(error)))
-        finished = {row["cell_id"] for row in ledger.finished}
+        records.append(args.results / "fatal.jsonl", {"error": repr(error)})
+    finally:
+        finished = {r["cell_id"] for r in ledger.finished}
         for cell in contract["cells"]:
             if cell["id"] not in finished:
                 ledger.result(
-                    cell,
-                    "not_started",
-                    time.monotonic(),
-                    reason="run preparation failed: " + repr(error),
+                    cell, time.monotonic(), status="not_started", reason="preparation failed"
                 )
-    finally:
         stop.set()
         watcher.join()
-        ledger.progress("DONE", "collection")
     return ledger.done()
 
 
@@ -465,33 +361,29 @@ def main():
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--describe", action="store_true")
     mode.add_argument("--child-job", type=Path)
-    mode.add_argument("--run", action="store_true")
     mode.add_argument("--setup", type=Path)
+    mode.add_argument("--run", action="store_true")
+    mode.add_argument("--rehearse", action="store_true")
     parser.add_argument("--results", type=Path, default=Path("/speed-results"))
     parser.add_argument("--work", type=Path, default=Path("/speed-work"))
     parser.add_argument("--reference-python", default="/speed-env/reference/bin/python")
     parser.add_argument("--allocated-at", type=float)
     args = parser.parse_args()
-    if args.setup:
-        validate_host(args)
-        engines.setup(args.setup, records.document(args.input), args.allocated_at)
-        return 0
     if args.child_job:
-        job = records.document(args.child_job)
-        function = {"stream": engines.stream_child, "startup": records.startup_job}.get(
-            job["kind"], engines.measure_child
-        )
-        function(job)
+        engines.measure_child(records.document(args.child_job))
         return 0
-    if args.run:
-        return run(args)
     contract = records.document(args.input)
-    print(
-        json.dumps(
-            dict(contract, planned_cells=len(contract["cells"]), hard_deadline=False), indent=2
-        )
-    )
-    return 0
+    if args.describe:
+        print(json.dumps(contract, indent=2))
+        return 0
+    if sys.platform != "linux" or sys.version.split()[0] != contract["machine"]["python_patch"]:
+        raise RuntimeError("pinned Linux Python required")
+    if args.allocated_at is None:
+        raise ValueError("allocation Unix timestamp required")
+    if args.setup:
+        engines.setup(args.setup, contract, args.allocated_at)
+        return 0
+    return run(args)
 
 
 if __name__ == "__main__":

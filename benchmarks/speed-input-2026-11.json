@@ -1,6 +1,6 @@
 {
-  "format": "speed-input-v1",
-  "variant": "full",
+  "format": "library-run-2026-11-v1",
+  "variant": "library-only",
   "fse_revision": "624251df2269e3099f5c61987be63e718893b58c",
   "models": {
     "minishlab/potion-base-8M": "bf8b056651a2c21b8d2565580b8569da283cab23",
@@ -18,18 +18,6 @@
     "sampling": "source positions with replacement, followed by seeded shuffle",
     "expected_source_positions": 832318
   },
-  "classification": {
-    "repo": "SetFit/ag_news",
-    "revision": "ca5ba619eb034211db5f70932b6702efd21e7c73",
-    "seed": 7,
-    "train_selection": 8000,
-    "fit_selection": 6400,
-    "evaluation_selection": 2000,
-    "C": 1,
-    "max_iter": 1000,
-    "normalize": false,
-    "accuracy_policy": "historical recipe only; no new accuracy calculation"
-  },
   "machine": {
     "vcpu": 32,
     "ram_bytes": 64000000000,
@@ -45,8 +33,8 @@
     "compute_usd_per_hour": 0.96,
     "disk_usd_per_gb_month": 0.1,
     "month_hours": 720,
-    "planning_balance_usd": 7.3,
-    "planning_minutes": 345,
+    "planning_balance_usd": 1.8,
+    "planning_minutes": 100,
     "kill_running_cells": false,
     "setup_stage_clock_env": "SPEED_SETUP_STARTED_AT",
     "allocation_clock": "--allocated-at includes machine provisioning and bootstrap"
@@ -54,43 +42,18 @@
   "stages": [
     {
       "name": "setup",
+      "estimate_minutes": 8,
+      "budget_minutes": 15
+    },
+    {
+      "name": "quiet",
       "estimate_minutes": 3,
       "budget_minutes": 5
     },
     {
-      "name": "quiet",
-      "estimate_minutes": 9,
-      "budget_minutes": 14
-    },
-    {
-      "name": "sizing",
-      "estimate_minutes": 10,
-      "budget_minutes": 15
-    },
-    {
-      "name": "headline",
-      "estimate_minutes": 18,
-      "budget_minutes": 27
-    },
-    {
-      "name": "dtypes",
-      "estimate_minutes": 28,
-      "budget_minutes": 42
-    },
-    {
-      "name": "classification",
-      "estimate_minutes": 20,
-      "budget_minutes": 30
-    },
-    {
       "name": "libraries",
-      "estimate_minutes": 108,
-      "budget_minutes": 162
-    },
-    {
-      "name": "call-size",
-      "estimate_minutes": 30,
-      "budget_minutes": 45
+      "estimate_minutes": 61,
+      "budget_minutes": 75
     },
     {
       "name": "collection",
@@ -101,317 +64,196 @@
   "rules": {
     "rounds": 3,
     "minimum_fse_seconds": 2,
-    "aa_upper": 1.1,
+    "warmup_calls": 1,
+    "measured_calls": 1,
+    "sample_rows": 10000,
+    "sample_seed": 0,
+    "rtol": 3e-05,
+    "atol": 3e-06,
     "repeat_failed_cells": false,
-    "quiet_failure": "continue with independent cell controls",
-    "first_and_warm_separate": true
+    "quiet_seconds": 180
   },
   "cells": [
     {
-      "id": "headline-01",
-      "stage": "headline",
-      "kind": "stream",
-      "workers": 32,
-      "texts": 100000000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "int8",
-      "rounds": 2
-    },
-    {
-      "id": "dtypes-02",
-      "stage": "dtypes",
-      "kind": "encode",
-      "workers": 1,
-      "texts": 4620000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
-      "reference": null,
-      "rounds": 3
-    },
-    {
-      "id": "dtypes-03",
-      "stage": "dtypes",
-      "kind": "encode",
-      "workers": 1,
-      "texts": 4620000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float16",
-      "reference": null,
-      "rounds": 3
-    },
-    {
-      "id": "dtypes-04",
-      "stage": "dtypes",
-      "kind": "encode",
-      "workers": 1,
-      "texts": 4620000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "int8",
-      "reference": null,
-      "rounds": 3
-    },
-    {
-      "id": "dtypes-05",
-      "stage": "dtypes",
-      "kind": "encode",
-      "workers": 16,
-      "texts": 4620000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
-      "reference": null,
-      "rounds": 3
-    },
-    {
-      "id": "dtypes-06",
-      "stage": "dtypes",
-      "kind": "encode",
-      "workers": 16,
-      "texts": 4620000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float16",
-      "reference": null,
-      "rounds": 3
-    },
-    {
-      "id": "dtypes-07",
-      "stage": "dtypes",
-      "kind": "encode",
-      "workers": 16,
-      "texts": 4620000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "int8",
-      "reference": null,
-      "rounds": 3
-    },
-    {
-      "id": "classification-08",
-      "stage": "classification",
-      "kind": "classify",
-      "workers": 16,
-      "texts": 10000000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
-      "dataset": "SetFit/ag_news",
-      "rounds": 3
-    },
-    {
-      "id": "libraries-09",
+      "id": "libraries-model2vec-1",
       "stage": "libraries",
       "kind": "encode",
-      "workers": 1,
-      "texts": 450000,
       "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
       "reference": "model2vec",
-      "rounds": 3
+      "workers": 1,
+      "texts": 350000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 360,
+      "dimensions": 256
     },
     {
-      "id": "libraries-10",
+      "id": "libraries-rust-1",
       "stage": "libraries",
       "kind": "encode",
-      "workers": 1,
-      "texts": 450000,
       "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
       "reference": "rust",
-      "rounds": 3
+      "workers": 1,
+      "texts": 1200000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 240,
+      "dimensions": 256
     },
     {
-      "id": "libraries-11",
+      "id": "libraries-fastembed-1",
       "stage": "libraries",
       "kind": "encode",
-      "workers": 1,
-      "texts": 450000,
       "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
       "reference": "fastembed",
-      "rounds": 3
-    },
-    {
-      "id": "libraries-12",
-      "stage": "libraries",
-      "kind": "encode",
       "workers": 1,
-      "texts": 250000,
-      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "texts": 300000,
       "dtype": "float32",
-      "reference": "st",
-      "rounds": 3
+      "rounds": 3,
+      "estimated_seconds": 720,
+      "dimensions": 256
     },
     {
-      "id": "libraries-13",
+      "id": "libraries-st-1",
       "stage": "libraries",
       "kind": "encode",
-      "workers": 16,
-      "texts": 4200000,
-      "model": "minishlab/potion-base-8M",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "reference": "st",
+      "workers": 1,
+      "texts": 150000,
       "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 510.0,
+      "dimensions": 1024
+    },
+    {
+      "id": "libraries-model2vec-16",
+      "stage": "libraries",
+      "kind": "encode",
+      "model": "minishlab/potion-base-8M",
       "reference": "model2vec",
-      "rounds": 3
-    },
-    {
-      "id": "libraries-14",
-      "stage": "libraries",
-      "kind": "encode",
-      "workers": 16,
-      "texts": 4200000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
-      "reference": "rust",
-      "rounds": 3
-    },
-    {
-      "id": "libraries-15",
-      "stage": "libraries",
-      "kind": "encode",
-      "workers": 16,
-      "texts": 4200000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
-      "reference": "fastembed",
-      "rounds": 3
-    },
-    {
-      "id": "libraries-16",
-      "stage": "libraries",
-      "kind": "encode",
-      "workers": 16,
-      "texts": 1500000,
-      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
-      "dtype": "float32",
-      "reference": "st",
-      "rounds": 3
-    },
-    {
-      "id": "call-size-17",
-      "stage": "call-size",
-      "kind": "encode",
-      "workers": 1,
-      "texts": 5000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
-      "reference": "rust",
-      "rounds": 3,
-      "warm_passes": 128,
-      "small_call_exception": true
-    },
-    {
-      "id": "call-size-18",
-      "stage": "call-size",
-      "kind": "encode",
-      "workers": 1,
-      "texts": 50000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
-      "reference": "rust",
-      "rounds": 3,
-      "warm_passes": 32,
-      "small_call_exception": true
-    },
-    {
-      "id": "call-size-19",
-      "stage": "call-size",
-      "kind": "encode",
-      "workers": 1,
-      "texts": 500000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
-      "reference": "rust",
-      "rounds": 3,
-      "warm_passes": 8,
-      "small_call_exception": true
-    },
-    {
-      "id": "call-size-20",
-      "stage": "call-size",
-      "kind": "encode",
-      "workers": 1,
-      "texts": 3000000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
-      "reference": "rust",
-      "rounds": 3,
-      "warm_passes": 3,
-      "small_call_exception": true
-    },
-    {
-      "id": "call-size-21",
-      "stage": "call-size",
-      "kind": "encode",
-      "workers": 16,
-      "texts": 5000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
-      "reference": "rust",
-      "rounds": 3,
-      "warm_passes": 128,
-      "small_call_exception": true
-    },
-    {
-      "id": "call-size-22",
-      "stage": "call-size",
-      "kind": "encode",
-      "workers": 16,
-      "texts": 50000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
-      "reference": "rust",
-      "rounds": 3,
-      "warm_passes": 32,
-      "small_call_exception": true
-    },
-    {
-      "id": "call-size-23",
-      "stage": "call-size",
-      "kind": "encode",
-      "workers": 16,
-      "texts": 500000,
-      "model": "minishlab/potion-base-8M",
-      "dtype": "float32",
-      "reference": "rust",
-      "rounds": 3,
-      "warm_passes": 8,
-      "small_call_exception": true
-    },
-    {
-      "id": "call-size-24",
-      "stage": "call-size",
-      "kind": "encode",
       "workers": 16,
       "texts": 3000000,
-      "model": "minishlab/potion-base-8M",
       "dtype": "float32",
-      "reference": "rust",
       "rounds": 3,
-      "warm_passes": 3,
-      "small_call_exception": true
+      "estimated_seconds": 360,
+      "dimensions": 256
     },
     {
-      "id": "call-size-25",
-      "stage": "call-size",
-      "kind": "startup",
-      "workers": 1,
-      "texts": 0,
-      "rounds": 30
-    },
-    {
-      "id": "call-size-26",
-      "stage": "call-size",
-      "kind": "startup",
+      "id": "libraries-rust-16",
+      "stage": "libraries",
+      "kind": "encode",
+      "model": "minishlab/potion-base-8M",
+      "reference": "rust",
       "workers": 16,
-      "texts": 0,
-      "rounds": 30
+      "texts": 3000000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 240,
+      "dimensions": 256
+    },
+    {
+      "id": "libraries-fastembed-16",
+      "stage": "libraries",
+      "kind": "encode",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fastembed",
+      "workers": 16,
+      "texts": 3000000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 720,
+      "dimensions": 256
+    },
+    {
+      "id": "libraries-st-16",
+      "stage": "libraries",
+      "kind": "encode",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "reference": "st",
+      "workers": 16,
+      "texts": 1400000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 510.0,
+      "dimensions": 1024
     }
   ],
   "quiet_cell": {
     "id": "quiet",
-    "stage": "quiet",
-    "kind": "encode",
-    "workers": 1,
-    "texts": 1000000,
     "model": "minishlab/potion-base-8M",
+    "reference": null,
+    "workers": 1,
+    "texts": 300000,
+    "dimensions": 256,
     "dtype": "float32",
-    "rounds": 3,
-    "warm_passes": 3
-  }
+    "rounds": 1,
+    "kind": "encode"
+  },
+  "unknown_cases": [
+    {
+      "row": 68,
+      "source_position": 501002,
+      "unknown_tokens": 1,
+      "tokens": 174,
+      "is_first_failure_example": true,
+      "text_sha256": "30da9c0bf5f6a79cea46d383f9186533913ef3c059e5e27e08f5e3f31ff6318c"
+    },
+    {
+      "row": 205,
+      "source_position": 393732,
+      "unknown_tokens": 2,
+      "tokens": 257,
+      "is_first_failure_example": true,
+      "text_sha256": "b4b3ba4dac52d1ce4f16433e095e530452acb692ae114e4dfc709ca1c2b7f7f3"
+    },
+    {
+      "row": 248,
+      "source_position": 190647,
+      "unknown_tokens": 2,
+      "tokens": 51,
+      "is_first_failure_example": true,
+      "text_sha256": "35dfd54a27ac14c54421862c778c3412cf2f3afc4a00eb749c428e7e12c5e0f3"
+    },
+    {
+      "row": 551,
+      "source_position": 356849,
+      "unknown_tokens": 1,
+      "tokens": 123,
+      "is_first_failure_example": true,
+      "text_sha256": "75c6c4f3764a85ff631e44c092bbaa27bd076a7b61e68752aefa2b3c3fb01d6e"
+    },
+    {
+      "row": 664,
+      "source_position": 255235,
+      "unknown_tokens": 9,
+      "tokens": 422,
+      "is_first_failure_example": true,
+      "text_sha256": "d73134948a7f491ea898a83c5a1a09e6669e5b6690155dd1fa6d7272ac8c2f85"
+    },
+    {
+      "row": 1180,
+      "source_position": 152685,
+      "unknown_tokens": 1,
+      "tokens": 115,
+      "is_first_failure_example": true,
+      "text_sha256": "116da2f37111106d9c0f916703415b1ded6583b28382c802d46399f73b413fb7"
+    },
+    {
+      "row": 1951,
+      "source_position": 241616,
+      "unknown_tokens": 5,
+      "tokens": 77,
+      "is_first_failure_example": true,
+      "text_sha256": "fd4f58642b1646f7e01b120ab6cb14e72c6d24de82f194b821559e6ab8d3a159"
+    },
+    {
+      "row": 2168,
+      "source_position": 380271,
+      "unknown_tokens": 2,
+      "tokens": 124,
+      "is_first_failure_example": true,
+      "text_sha256": "4ac2df529fe5661edc5acd7bcb52c11bf215b19fbc18b7f69061767d16b93074"
+    }
+  ]
 }
