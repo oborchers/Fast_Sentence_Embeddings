@@ -38,28 +38,7 @@ def summarize(folder):
         "cells_sha256": sha256(path),
         "score_scale": "0 to 1",
         "rows": result,
-        "artifact_scores": [
-            {
-                k: r[k]
-                for k in (
-                    "cell_id",
-                    "kind",
-                    "model",
-                    "fit_id",
-                    "fit",
-                    "table_dtype",
-                    "pearson",
-                    "spearman",
-                    "recall_at_10",
-                    "benchmark",
-                )
-                if k in r
-            }
-            for r in rows
-            if r["status"] == "valid"
-            and r["kind"] in ("sts", "recall")
-            and not r.get("functional_only")
-        ],
+        "artifact_scores": artifact_scores(rows),
         "note": "No existing README or model-card value is updated by this command. Missing coverage has no mean.",
     }
 
@@ -77,3 +56,28 @@ def configuration_summary(key, tasks):
             (v for (_, task), v in tasks.items() if task == "STSBenchmark"), None
         ),
     }
+
+
+def artifact_scores(rows):
+    return [
+        {
+            k: r[k]
+            for k in (
+                "cell_id",
+                "kind",
+                "model",
+                "fit_id",
+                "fit",
+                "table_dtype",
+                "pearson",
+                "spearman",
+                "recall_at_10",
+                "benchmark",
+            )
+            if k in r
+        }
+        for r in rows
+        if r["status"] == "valid"
+        and r["kind"] in ("sts", "recall")
+        and not r.get("functional_only")
+    ]

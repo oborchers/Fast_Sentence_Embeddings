@@ -130,6 +130,17 @@ python benchmarks/quality.py --summarize /quality-results > /external/quality-su
 
 Model cards and the README consume reviewed summaries. Summarization never writes either file. Diagnostic quality wall times are not inference-throughput claims. Existing published quality values and protected 1.1 baselines remain unchanged.
 
+## Fit corpus equivalence
+
+The shared WikiText verifier accepts two explicit xxh3-128 values:
+
+- Historical raw serialization: `c89c1a2929270add9040835399b8bea4`.
+- Cold-cache one-space serialization: `ca7a595ff0547a4a847a849d749d3604`.
+
+The independently verified audit established identical `line.split()` tokens for all 859,346 paragraphs. Only whitespace differs in 6,063 lines, removing 7,930 bytes. Both files therefore feed the same fit inputs. The verifier accepts no other digest, does not rewrite either file, and each new fit receipt records the actual corpus SHA256. Existing quality scores are unchanged.
+
+The original audit is preserved inside [the source-evidence bundle at `608cf02a`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/608cf02a9557ef8bade83ae6c0c2fadd5b8d5012/archives/comparison-source-2026-11.tar.gz). Its member SHA256 is `f3203379bec429743381efc41ab03125837615702a147c8b6aa9169396d7a008`. The bundle's manifest identifies the original member path and bytes. No new full corpus fit was run for this verifier correction.
+
 ## Monitor, collect and retain
 
 Monitor `progress.json`, `cells.jsonl` and `DONE` at the agreed interval. SIGTERM prevents new cells after the current safe boundary. A failed cell remains failed. No automatic retry relaxes a requirement. A missing or nonzero completion is never success.
