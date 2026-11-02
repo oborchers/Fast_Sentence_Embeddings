@@ -92,7 +92,7 @@ A historical reproduction is not evidence of quality on unseen data.
 The fse 101 speed demonstration is labeled **measured on a MacBook in everyday use, not a controlled benchmark**.
 It prints its machine, CPU, Python, commit, date, and load averages beside the result.
 The HTTP recipe retains its historical 1 November 2026 outputs and [machine provenance](run-environment.json).
-Use the [performance guide](../PERFORMANCE.md) for measurements, methods, and their limits.
+Use the [comparison guide](../docs/fse-comparison.md) for measurements, methods, and their limits.
 
 The [folding recipe](08-folded-classifier.ipynb) compares quality and saved file size before and after folding one linear head.
 It includes saving, loading, and exact prediction checks for both fse formats.

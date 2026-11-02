@@ -63,15 +63,15 @@ concern appears.
 
 ## Reviewed README insertion
 
-The text below belongs in the root README only after
-#189 (2.0: Rewrite the README, CONTRIBUTING and package metadata) merges.
-Merge master into the tutorial branch, inspect the merged README, then place
-this section after the classifier and folding material in the new style.
+The text below is included in the root README after the classifier and folding
+material. The prerequisite #189 (2.0: Rewrite the README, CONTRIBUTING and package
+metadata) merged as `6c7457b4682ab302a106e963eee6dd2effe03e6e` before this insertion.
 The class paths match the package source and the successful notebook imports.
 
-This docs PR remains draft. It merges only after the README prerequisite and
-publication of all three adapters after fse 2.0.0. This record authorizes no
-PR merge, package publication or pod lifecycle action.
+The maintainer requested ready-for-review status after green CI. Merge still
+requires publication of all three adapters after fse 2.0.0 and separate
+maintainer approval. This record authorizes no PR merge, package publication
+or pod lifecycle action.
 
 ```markdown
 ## Use fse with your framework

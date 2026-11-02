@@ -246,6 +246,19 @@ Neural heads with hidden layers cannot use this fold, and fse does not run them.
 <img alt="Your texts enter fse on the CPU. An encoder gives vectors for search and clustering. Add a previously trained linear model to get labels for routing and filtering. Training happens outside fse." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/71b69be83efdd8adbf071ada302be8bf1db68b24/media/readme/vectors-and-labels-light.png">
 </picture>
 
+## Use fse with your framework
+
+Use the same local encoder in LangChain, LlamaIndex, or Haystack.
+Each framework has a separate package, so fse core needs no framework dependency.
+
+| Framework | Install | Embedding interface |
+|---|---|---|
+| LangChain | `pip install langchain-fse` | `langchain_fse.FseEmbeddings` |
+| LlamaIndex | `pip install llama-index-embeddings-fse` | `llama_index.embeddings.fse.FseEmbedding` |
+| Haystack | `pip install fse-haystack` | `FseTextEmbedder` and `FseDocumentEmbedder` from `haystack_integrations.components.embedders.fse` |
+
+See [recipe 06](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/06-integrations.ipynb) for complete local search examples with POTION and real news articles.
+
 ## When to use fse
 
 **Choose fse when throughput matters more than squeezing out the highest possible model quality.**

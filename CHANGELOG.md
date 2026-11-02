@@ -28,7 +28,7 @@ The 1.x branch remains maintained. Entries collect here until the release.
 
 - Integration package READMEs document raw means through `load_kwargs={"normalize": False}` for every supported pretrained model and the default `"model"` normalization rule.
 
-- Recipe 06 adds LangChain, LlamaIndex and Haystack searches through the prepared fse packages, with publication-dependent installation instructions.
+- Recipe 06 adds LangChain, LlamaIndex and Haystack searches through the prepared fse packages, with publication-dependent installation instructions and a package overview in the main README.
 
 - Rewrite the README with restored branding, practical examples, one supported-model quality table and prominent recipes. Add paired library speed tables and charts for light and dark backgrounds. Keep English MTEB scores labelled 40 of 41 tasks, with MIND not computed, and link benchmark evidence separately.
 - Add a catalog of all 30 classic Hub models, with copyable IDs, precision variants and model-file download sizes.
