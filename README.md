@@ -17,11 +17,13 @@
 <a href="https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"></a>
 </p>
 
-**Compute nearly 3 million text embeddings per second.**
+**Compute more than 7 million text embeddings per second.**
 
-100 million short texts (28.7 tokens on average) embedded and written to disk in 35 seconds, int8, 32 vCPU AMD EPYC 7713, RunPod, 1 November 2026.
+100 million WikiText sentences (28.7 tokens on average) embedded and written to disk in 13.46 seconds. Float32 model table, int8 output, 16 workers, AMD EPYC 9575F (32 vCPU), RunPod, 2 November 2026.[^headline]
 
-[Headline source](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-showcase-20261101/README.md). [How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/d410166c86d827a1df30d991d9d69ee840f57e2f/docs/benchmarks/readme-evidence.md)
+[How we measured](docs/benchmarks/readme-evidence.md)
+
+[^headline]: Median of three runs. On the same machine, 32 workers took 16.75 seconds, so we use 16 workers here.
 
 Fast Sentence Embeddings turns text into vectors for search, clustering and classification.
 It runs ready-made static models on your CPU. No GPU needed.

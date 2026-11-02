@@ -2,19 +2,27 @@
 
 ## Headline and dtype table use different machines
 
-The maintainer explicitly approved restoring the earlier headline. Its source is the
-[pinned headline evidence](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-showcase-20261101/README.md)
-on `benchmark-evidence-2.0`.
+The headline uses the approved 16-worker file-to-vector run on AMD EPYC 9575F with 32 allocated vCPU, RunPod, 2 November 2026.
+It embeds 100 million sampled, repeated and shuffled WikiText-103 sentences with POTION-8M (256 dimensions).
+There are 3,755,995 distinct source sentences, repeated about 26.6 times.
+Average text length is 28.73384302 POTION tokenizer IDs (25.57447294 words).
+The model table is float32 and output storage is int8.
 
-The headline describes the 100-million-text file-to-vector run on AMD EPYC 7713 with 32 vCPU, 1 November 2026.
-It reads repeated and shuffled WikiText-103 passages, encodes them and writes int8 output through sink close.
-The model table is float32. The caption's `int8` describes output storage, not model precision.
-Model loading is excluded, and durability `none` does not wait for crash-safe storage.
-The approved headline and caption are copied verbatim from the archived evidence.
+Three encoding-and-write calls took 13.40701300802175, 13.48732629197184 and 13.458833114011213 seconds.
+The median is 13.458833114011213 seconds, or 7,430,064.638805557 texts/s.
+The README rounds the duration to 13.46 seconds and says more than 7 million, without rounding the rate up.
+The same machine's 32-worker run took a median of 16.75060166104231 seconds, rounded to 16.75 in the footnote.
+The calls include writing through sink close, but exclude model loading and the later explicit filesystem sync.
+Durability is `none`; the headline does not claim crash-safe storage at 13.46 seconds.
+
+The collected 16-worker manifest SHA256 is `5fb185267692e6b14cb3831972b4324f9bd599a922a72a37ac3c7bd44d042172`.
+The 32-worker manifest SHA256 is `079581ae37e056565d2d60ec01061d65b6fa0fc7ead77bc1037787a092ba8f31`.
+Both manifests and all listed member hashes were checked locally against the collected results.
+The evidence owner is archiving these results on `benchmark-evidence-2.0`; the fixed archive URL will be added once supplied.
 
 The dtype table comes from a separate AMD EPYC 9965 run described below.
 These are different machines and workloads. Their rates are not combined or used to derive a speedup.
-The exception applies only to the headline. Library comparisons remain open, and no other missing cell is filled from an older run.
+Library comparisons remain open, and missing cells are not filled from an older run.
 
 ## Dtype table: AMD EPYC 9965
 
