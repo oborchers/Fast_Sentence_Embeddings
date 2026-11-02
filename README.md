@@ -17,13 +17,7 @@
 <a href="https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"></a>
 </p>
 
-**Compute more than 7 million text embeddings per second.**
-
-100 million WikiText sentences (28.7 tokens on average) embedded and written to disk in 13.46 seconds. Float32 model table, int8 output, 16 workers, AMD EPYC 9575F (32 vCPU), RunPod, 2 November 2026.[^headline]
-
-[How we measured](docs/benchmarks/readme-evidence.md)
-
-[^headline]: Median of three runs. On the same machine, 32 workers took 16.75 seconds, so we use 16 workers here.
+<p align="center"><strong>Compute more than 7 million text embeddings per second.</strong></p>
 
 Fast Sentence Embeddings turns text into vectors for search, clustering and classification.
 It runs ready-made static models on your CPU. No GPU needed.
@@ -31,6 +25,12 @@ Use your Model2Vec model, a supported static Sentence Transformers model, or exi
 Bring a trained linear classifier to label text in the same application.
 
 ![An engine turns pages of text into lists of numbers.](https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/233b6d3c0aaee459792938317895790a8bdd862b/media/readme-engine.jpg)
+
+[^headline] 100 million WikiText sentences (28.7 tokens on average) embedded and written to disk in 13.46 seconds. Float32 model table, int8 output, 16 workers, AMD EPYC 9575F (32 vCPU), RunPod, 2 November 2026.
+
+[How we measured](docs/benchmarks/readme-evidence.md)
+
+[^headline]: Median of three runs. On the same machine, 32 workers took 16.75 seconds, so we use 16 workers here.
 
 ## Speed first
 
