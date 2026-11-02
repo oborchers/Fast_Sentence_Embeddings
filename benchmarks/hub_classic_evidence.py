@@ -11,11 +11,10 @@ from functools import lru_cache
 from importlib.metadata import version
 from pathlib import Path
 
-from hub_classic_sources import LICENSES, SOURCES
+from hub_classic_sources import SOURCES
 
 import fse
 from fse._container._hash import Hasher, checksum
-from fse._encoder import _folder
 
 STS_COMMIT = "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6"
 STS_CHECKSUM = "xxh3-128:139bba1402050737ae635ecf8498280b"
@@ -119,49 +118,3 @@ def candidate_evidence(output, kind):
         "state_xxh3": fit["state_xxh3"],
         "tokenizer": tokenizer_identity(),
     }
-
-
-def validate_build(folder, record, result, fit):
-    metadata = fse.Encoder.from_pretrained(folder, mmap=True)
-    if (
-        metadata.fingerprint != record["fingerprint"]
-        or result.get("fingerprint") != record["fingerprint"]
-    ):
-        raise ValueError("model, build and verification fingerprints do not match")
-    _build_source(metadata, record)
-    _build_table(metadata, folder, record)
-    if {p.name for p in folder.iterdir()} != set(record["files"]):
-        raise ValueError("model file inventory differs from the build manifest")
-    for name, spec in record["files"].items():
-        path = folder / name
-        if path.stat().st_size != spec["bytes"] or digest(path) != spec["xxh3"]:
-            raise ValueError(f"build file changed: {path.name}")
-    if result.get("model_xxh3") != record["files"]["model.safetensors"]["xxh3"]:
-        raise ValueError("verification does not describe the recorded model file")
-    if fit is not None:
-        state = folder.parent / f"{record['source'].split('/')[1]}-fit.npz"
-        if digest(state) != fit["state_xxh3"] or result.get("state_xxh3") != fit["state_xxh3"]:
-            raise ValueError("verification and fitted state do not match")
-
-
-def _build_source(metadata, record):
-    name = record["source"].split("/")[1]
-    source = metadata._content.source
-    if source is None or source.repo != record["source"] or source.revision != SOURCES[name]:
-        raise ValueError("model source differs from the build manifest")
-    if metadata._content.license != LICENSES[name]:
-        raise ValueError("model license differs from the source terms")
-
-
-def _build_table(encoder, folder, record):
-    header, _ = _folder._header(folder / "model.safetensors")
-    if header["fse.dtype"] != record["dtype"]:
-        raise ValueError("model dtype differs from the build manifest")
-    parent = record["float32_table_fingerprint"]
-    actual = (
-        encoder.word_vectors.fingerprint
-        if record["dtype"] == "float32"
-        else header.get("fse.quantized_from")
-    )
-    if actual != parent:
-        raise ValueError("model table does not have the recorded float32 parent")
