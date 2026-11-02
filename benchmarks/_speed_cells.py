@@ -148,6 +148,9 @@ def telemetry():
         for line in Path("/proc/meminfo").read_text().splitlines()
         if line.startswith(("Dirty:", "Writeback:", "MemAvailable:"))
     ]
+    result["process_io"] = Path("/proc/self/io").read_text()
+    io = root / "io.stat"
+    result["cgroup_io"] = io.read_text() if io.exists() else None
     return result
 
 
@@ -376,6 +379,7 @@ class Ledger:
         code = int(
             len(self.finished) != len(self.contract["cells"])
             or any(r["status"] != "valid" for r in self.finished)
+            or (self.root / "fatal.jsonl").exists()
         )
         atomic(
             self.root / "DONE",
@@ -397,3 +401,19 @@ def stream_budget(work, cell, source):
     limit = Path("/sys/fs/cgroup/memory.max").read_text().strip()
     if not cell.get("functional_only") and (limit == "max" or int(limit) * 0.85 < 20 * 1024**3):
         raise MemoryError("headline needs a bounded memory allowance of at least 26 GB")
+
+
+def remove_headline(work, output, files):
+    actual = {str(p.relative_to(output)) for p in output.rglob("*") if p.is_file()}
+    if output.is_symlink() or not output.resolve().is_relative_to(work.resolve()):
+        raise ValueError("headline cleanup ownership changed")
+    if actual != {r["path"] for r in files}:
+        raise ValueError("headline output inventory changed before cleanup")
+    if any(p.is_symlink() for p in output.rglob("*")):
+        raise ValueError("headline cleanup contains a symlink")
+    shutil.rmtree(output)
+    descriptor = os.open(output.parent, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)

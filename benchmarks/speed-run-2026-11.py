@@ -409,12 +409,7 @@ def run_headline(context, contract):
             break
         row = launch(context, cell, "fse", number, path, sample, identity)
         output = Path(row["sample_file"])
-        actual = {str(p.relative_to(output)) for p in output.rglob("*") if p.is_file()}
-        if output.is_symlink() or not output.resolve().is_relative_to(work.resolve()):
-            raise ValueError("headline cleanup ownership changed")
-        if actual != {r["path"] for r in row["files"]}:
-            raise ValueError("headline output inventory changed before cleanup")
-        shutil.rmtree(output)
+        records.remove_headline(work, output, row["files"])
         records.append(
             ledger.root / "cleanup.jsonl",
             dict(
@@ -425,6 +420,9 @@ def run_headline(context, contract):
         )
         rows.append(row)
     complete = len(rows) == cell["rounds"]
+    cleanup(
+        context, [path, path.with_suffix(".json"), sample, path.with_suffix(".sample-texts.json")]
+    )
     ledger.result(
         cell,
         started,
@@ -443,9 +441,6 @@ def run_headline(context, contract):
         if rows
         else None,
         reason=None if complete else "stop signal or budget before next round",
-    )
-    cleanup(
-        context, [path, path.with_suffix(".json"), sample, path.with_suffix(".sample-texts.json")]
     )
 
 
