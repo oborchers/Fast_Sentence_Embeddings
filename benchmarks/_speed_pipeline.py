@@ -123,14 +123,7 @@ def encoder(job):
         model = StaticModel.from_pretrained(job["snapshot"], normalize=True)
         return lambda texts: model.encode(texts, use_multiprocessing=workers > 1)
     if kind == "st":
-        import torch
-        from sentence_transformers import SentenceTransformer
-
-        torch.set_num_threads(workers)
-        model = SentenceTransformer(job["snapshot"], device="cpu", local_files_only=True)
-        return lambda texts: model.encode(
-            texts, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False
-        )
+        return st_encoder(job)
     if kind == "fastembed":
         import numpy as np
         from fastembed import TextEmbedding
@@ -275,7 +268,7 @@ def measure_child(job):
         return headline_child(job)
     if job["backend"] == "rust":
         return rust_child(job)
-    configure(job["workers"], native_threads=1 if job["backend"] == "fastembed" else None)
+    configure(job["workers"], native_threads=1 if job["backend"] in ("fastembed", "st") else None)
     import resource
 
     import numpy as np
@@ -293,38 +286,42 @@ def measure_child(job):
         raise ValueError("input changed")
     indices = np.asarray(json.loads(Path(job["sample_file"]).read_text()), dtype=np.int64)
     encode = encoder(job)
-    warm = encode(texts)
-    if warm.shape != (len(texts), job["dimensions"]):
-        raise ValueError("warm output shape changed")
-    del warm
-    gc.collect()
-    before = telemetry()
-    started = time.perf_counter()
-    vectors = encode(texts)
-    seconds = time.perf_counter() - started
-    after = telemetry()
-    if vectors.dtype != np.float32 or vectors.shape != (len(texts), job["dimensions"]):
-        raise ValueError("backend output contract changed")
-    sample = np.ascontiguousarray(vectors[indices])
-    with Path(job["vectors_file"]).open("xb") as stream:
-        np.save(stream, sample, allow_pickle=False)
-        stream.flush()
-        os.fsync(stream.fileno())
-    if package_identity(package) != identity:
-        raise ValueError("executing backend changed")
-    atomic(
-        Path(job["receipt"]),
-        {
-            "identity": identity,
-            "versions": {d.metadata["Name"]: d.version for d in distributions()},
-            "seconds": seconds,
-            "shape": list(sample.shape),
-            "full_shape": list(vectors.shape),
-            "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
-            "telemetry_before": before,
-            "telemetry_after": after,
-        },
-    )
+    try:
+        warm = encode(texts)
+        if warm.shape != (len(texts), job["dimensions"]):
+            raise ValueError("warm output shape changed")
+        del warm
+        gc.collect()
+        before = telemetry()
+        started = time.perf_counter()
+        vectors = encode(texts)
+        seconds = time.perf_counter() - started
+        after = telemetry()
+        if vectors.dtype != np.float32 or vectors.shape != (len(texts), job["dimensions"]):
+            raise ValueError("backend output contract changed")
+        sample = np.ascontiguousarray(vectors[indices])
+        with Path(job["vectors_file"]).open("xb") as stream:
+            np.save(stream, sample, allow_pickle=False)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if package_identity(package) != identity:
+            raise ValueError("executing backend changed")
+        atomic(
+            Path(job["receipt"]),
+            {
+                "identity": identity,
+                "versions": {d.metadata["Name"]: d.version for d in distributions()},
+                "seconds": seconds,
+                "shape": list(sample.shape),
+                "full_shape": list(vectors.shape),
+                "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
+                "telemetry_before": before,
+                "telemetry_after": after,
+            },
+        )
+    finally:
+        if hasattr(encode, "close"):
+            encode.close()
 
 
 def headline_tokens(snapshot, source):
@@ -456,3 +453,48 @@ def stored_codes(store, indices):
         codes[mask] = tensors["vectors"][rows]
         scales[mask] = tensors["scales"][rows]
     return codes, scales
+
+
+def st_pool_worker(*args):
+    import torch
+    from sentence_transformers import SentenceTransformer
+
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
+    SentenceTransformer._multi_process_worker(*args)
+
+
+def st_encoder(job):
+    import torch
+    from sentence_transformers import SentenceTransformer
+
+    workers = job["workers"]
+    torch.set_num_threads(1 if workers > 1 else workers)
+    model = SentenceTransformer(job["snapshot"], device="cpu", local_files_only=True)
+    if workers == 1:
+        return lambda texts: model.encode(
+            texts, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False
+        )
+    torch.set_num_interop_threads(1)
+    original = SentenceTransformer.__dict__.get("_multi_process_worker")
+    SentenceTransformer._multi_process_worker = staticmethod(st_pool_worker)
+    try:
+        pool = model.start_multi_process_pool(target_devices=["cpu"] * workers)
+    finally:
+        if original is None:
+            del SentenceTransformer._multi_process_worker
+        else:
+            SentenceTransformer._multi_process_worker = original
+
+    def encode(texts):
+        return model.encode(
+            texts,
+            pool=pool,
+            batch_size=1024,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+            show_progress_bar=False,
+        )
+
+    encode.close = lambda: model.stop_multi_process_pool(pool)
+    return encode
