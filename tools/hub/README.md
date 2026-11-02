@@ -44,6 +44,7 @@ No throughput measurement runs during preparation.
 under the new `--output` directory. `readback` anonymously resolves each public
 repository to an exact revision, downloads into a fresh temporary cache, compares
 all files and loads both default normalization and `normalize=False`. It also
+loads both examples through the public repository ID in a separate cache and
 compares the recorded 512-sentence probe bit for bit. This probe reads the original
 STS-B fixture from immutable Git history, so use a checkout with history. The Hub
 mirror rounds some labels and cannot reproduce the original Pearson exactly.
@@ -53,7 +54,9 @@ Only its own temporary cache is removed.
 including the 30 already published repositories in this manifest. It creates new
 public repositories only after checking all local payloads and remote names.
 It records each creation and commit before continuing, then performs readback.
-A failed run never deletes or repairs a remote repository. Inspect the durable
+Before each creation the ledger records that its outcome is unknown. A lost
+response never proves that no remote write occurred. A failed run never deletes
+or repairs a remote repository. Inspect the durable
 receipt before any retry. Hub authentication belongs to the installed CLI or its
 approved environment, never to a file in this repository. The default local
 commands perform no Hub writes.

@@ -15,12 +15,14 @@ STS_COMMIT = "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6"
 STS_CHECKSUM = "xxh3-128:139bba1402050737ae635ecf8498280b"
 
 
-def runtime(folder, entry):
+def runtime(folder, entry, *, revision=None, cache=None):
     card = (folder / "README.md").read_text()
     blocks = re.findall(r"```python\r?\n(.*?)\r?\n```", card, flags=re.DOTALL)
     if blocks != [entry["python_example"], entry["folded_head_python_example"]]:
         raise ValueError("downloaded card examples differ from the recorded examples")
-    encoder = fse.Encoder.from_pretrained(folder, mmap=True)
+    source = folder if revision is None else entry["repo"]
+    hub = {} if revision is None else {"revision": revision, "token": False, "cache_dir": cache}
+    encoder = fse.Encoder.from_pretrained(source, mmap=True, **hub)
     metadata = entry["metadata"]
     if (
         encoder.fingerprint != metadata["fingerprint"]
@@ -29,7 +31,7 @@ def runtime(folder, entry):
         or encoder.word_vectors.stored_vectors.dtype.name != metadata["dtype"]
     ):
         raise ValueError("readback runtime metadata differs")
-    raw = fse.Encoder.from_pretrained(folder, mmap=True, normalize=False)
+    raw = fse.Encoder.from_pretrained(source, mmap=True, normalize=False, **hub)
     raw_vectors = raw.encode(["A sentence."], workers=1)
     if raw_vectors.shape != (1, encoder.output_dim) or not np.isfinite(raw_vectors).all():
         raise ValueError("normalize=False example failed")

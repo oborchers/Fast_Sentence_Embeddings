@@ -8,18 +8,16 @@ with ``truncate_dim=256``; converting a commit always gives the same encoder, al
 the cache alone.
 """
 
-import csv
 import random
-from pathlib import Path
 
 import pytest
+from stsb import read_rows
 
 from fse._encoder import Encoder
 from support import converted as cv
 from support import wordpiece as wp
 
 pytestmark = pytest.mark.network
-ROOT = Path(__file__).resolve().parent.parent
 MODELS = {
     "sentence-transformers/static-retrieval-mrl-en-v1": (
         "f60985c706f192d45d218078e49e5a8b6f15283a",
@@ -48,8 +46,7 @@ SCRIPTS = [
 
 
 def _texts(tokens):
-    with open(ROOT / "evaluation" / "sts-test.csv", encoding="utf-8", newline="") as f:
-        sts = [s for row in csv.reader(f, delimiter="\t", quoting=csv.QUOTE_NONE) for s in row[5:7]]
+    sts = [sentence for row in read_rows() for sentence in row[5:7]]
     rng = random.Random(7)
     words = rng.sample([t for t in tokens if not t.startswith("[")], 2000)
     edge = ["hello [MASK] [PAD] [UNK] [CLS] world [SEP]", "x" * 101, "İstanbul", "", "zzqxj"]

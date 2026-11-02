@@ -34,6 +34,8 @@ def revision_info(api, entry, revision):
         raise ValueError("public repository identity or visibility differs")
     if not re.fullmatch(r"[a-f0-9]{40}", info.sha or ""):
         raise ValueError("Hub returned no exact revision")
+    if re.fullmatch(r"[a-f0-9]{40}", revision) and info.sha != revision:
+        raise ValueError("Hub returned a different exact revision")
     if {item.rfilename for item in info.siblings} != set(entry["files"]):
         raise ValueError("remote inventory differs")
     return info.sha
@@ -58,7 +60,9 @@ def readback(entry, scratch, revision="main"):
                 raise ValueError("download escaped the fresh cache")
             os.link(source, materialized / name)
         files = check(materialized, entry)
-        probe = runtime(materialized, entry)
+        probe = runtime(
+            materialized, entry, revision=revision, cache=Path(temporary) / "public-api"
+        )
     return {
         "repo": entry["repo"],
         "revision": revision,
@@ -98,9 +102,14 @@ def upload(entries, models, scratch, receipt, enabled):
         row = {"repo": entry["repo"], "status": "creating"}
         state["repositories"].append(row)
         write_receipt(receipt, state)
+        if state["hub_writes_performed"] is False:
+            state["hub_writes_performed"] = None
+        row["write_outcome"] = "unknown"
+        write_receipt(receipt, state)
         api.create_repo(entry["repo"], repo_type="model", private=False, exist_ok=False)
         state["hub_writes_performed"] = True
         row["status"] = "created"
+        row["write_outcome"] = "created"
         write_receipt(receipt, state)
         info = api.model_info(entry["repo"], files_metadata=True)
         if (

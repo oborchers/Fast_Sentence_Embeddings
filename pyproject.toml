@@ -223,7 +223,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # tests/support holds helpers the test modules share; test modules never import each other.
-pythonpath = ["tests"]
+pythonpath = ["tests", "tools"]
 python_files = "test_*.py"
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 xfail_strict = true

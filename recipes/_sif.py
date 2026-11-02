@@ -66,11 +66,15 @@ def unit(rows):
 
 
 def read_pairs(name):
-    import csv
+    import sys
     from _helpers import ROOT
 
-    with (ROOT / "evaluation" / f"sts-{name}.csv").open(encoding="utf-8") as stream:
-        rows = list(csv.reader(stream, delimiter="\t", quoting=csv.QUOTE_NONE))
+    tools = str(ROOT / "tools")
+    if tools not in sys.path:
+        sys.path.insert(0, tools)
+    from stsb import read_rows
+
+    rows = read_rows(name)
     return [r[5] for r in rows], [r[6] for r in rows], np.array([float(r[4]) for r in rows])
 
 
