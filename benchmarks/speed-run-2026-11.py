@@ -1,4 +1,4 @@
-"""One fixed library-only CPU comparison; machine lifecycle belongs to the coordinator."""
+"""Paired encoding and streaming-write studies; machine lifecycle belongs to the coordinator."""
 
 from __future__ import annotations
 
@@ -8,12 +8,10 @@ import os
 import platform
 import shutil
 import signal
-import statistics
 import subprocess
 import sys
 import threading
 import time
-from datetime import UTC, datetime
 from pathlib import Path
 
 import _speed_cells as records
@@ -23,89 +21,7 @@ HERE = Path(__file__).resolve().parent
 INPUT = HERE / "speed-input-2026-11.json"
 
 
-class Ledger:
-    def __init__(self, root, contract, allocated_at):
-        self.root, self.contract, self.allocated_at = root, contract, allocated_at
-        self.finished, self.stopping = [], False
-        self.current, self.stage = "preparation", "setup"
-        self.lock = threading.Lock()
-
-    def admit(self, estimate):
-        return not self.stopping and records.admit(self.contract, self.allocated_at, estimate)
-
-    def progress(self, terminal=False):
-        with self.lock:
-            remaining = [
-                c
-                for c in self.contract["cells"]
-                if c["id"] not in {r["cell_id"] for r in self.finished}
-            ]
-            scale = (
-                statistics.median(
-                    [
-                        r["duration_seconds"] / r["estimated_seconds"]
-                        for r in self.finished
-                        if r["status"] == "valid"
-                    ]
-                )
-                if any(r["status"] == "valid" for r in self.finished)
-                else 1
-            )
-            records.atomic(
-                self.root / "progress.json",
-                {
-                    "stage": "collection" if terminal else self.stage,
-                    "cell": "DONE" if terminal else self.current,
-                    "finished": len(self.finished),
-                    "planned": len(self.contract["cells"]),
-                    "elapsed_seconds": time.time() - self.allocated_at,
-                    "estimated_remaining_seconds": sum(c["estimated_seconds"] for c in remaining)
-                    * scale,
-                },
-            )
-
-    def result(self, cell, started, **result):
-        row = {
-            **cell,
-            "cell_id": cell["id"],
-            "run_id": self.contract["format"],
-            "machine_environment_sha256": records.sha256(self.root / "environment.json"),
-            "platform": platform.platform(),
-            "python": sys.version,
-            "completed_at_unix": time.time(),
-            "date_utc": datetime.now(UTC).isoformat(),
-            "machine": records.document(self.root / "environment.json")["machine"],
-            "duration_seconds": time.monotonic() - started,
-            "functional_only": self.contract.get("functional_only", False),
-            **result,
-        }
-        records.append(self.root / "cells.jsonl", row)
-        self.finished.append(row)
-        self.progress()
-
-    def done(self):
-        self.progress(terminal=True)
-        files = [
-            {
-                "path": str(p.relative_to(self.root)),
-                "bytes": p.stat().st_size,
-                "sha256": records.sha256(p),
-            }
-            for p in sorted(self.root.rglob("*"))
-            if p.is_file() and p.name not in ("manifest.json", "DONE")
-        ]
-        records.atomic(self.root / "manifest.json", {"files": files})
-        code = int(len(self.finished) != 8 or any(r["status"] != "valid" for r in self.finished))
-        records.atomic(
-            self.root / "DONE",
-            {
-                "exit_status": code,
-                "completed_at": time.time(),
-                "cells": len(self.finished),
-                "manifest_sha256": records.sha256(self.root / "manifest.json"),
-            },
-        )
-        return code
+Ledger = records.Ledger
 
 
 def require_budget(ledger, estimate):
@@ -123,11 +39,17 @@ def prepare(args, contract, ledger):
     if setup_record.exists():
         shutil.copyfile(setup_record, args.results / "setup.json")
     require_budget(ledger, 60)
-    models = engines.prepare_models(args.work, contract)
+    models = engines.prepare_models(args.work, contract, args.reuse_work)
     require_budget(ledger, 60)
-    paragraphs, unknown = records.corpus_sources(contract, args.work / "datasets")
+    paragraphs, unknown = records.corpus_sources(
+        contract, (args.reuse_work or args.work) / "datasets"
+    )
     require_budget(ledger, 60)
-    rust = engines.build_rust(args.work / "native", HERE / "speed-rust.lock")
+    rust = (
+        engines.build_rust(args.work / "native", HERE / "speed-rust.lock")
+        if contract["cells"][0]["kind"] != "write"
+        else None
+    )
     return {
         "work": args.work,
         "ledger": ledger,
@@ -186,6 +108,9 @@ def launch(context, cell, label, number, path, sample, identity):
     )
     if label == "rust":
         job.update(context["rust"], rust_revision=context["rust"]["revision"])
+    if cell["kind"] == "write":
+        job["sample_texts_file"] = str(path.with_suffix(".sample-texts.json"))
+        job["sample_texts_sha256"] = records.sha256(Path(job["sample_texts_file"]))
     spec = root / f"{cell['id']}-{number}-{label}.job.json"
     records.atomic(spec, job)
     python = context["reference_python"] if label == "fastembed" else sys.executable
@@ -377,21 +302,41 @@ def write_environment(args, contract):
                 "affinity": sorted(os.sched_getaffinity(0)),
                 "memory_max": Path("/sys/fs/cgroup/memory.max").read_text().strip(),
                 "allocation_id": os.getenv("SPEED_ALLOCATION_ID"),
-                "allocated_at_unix": args.allocated_at,
+                "allocated_at_unix": float(
+                    os.getenv("SPEED_MACHINE_ALLOCATED_AT", args.allocated_at)
+                ),
+                "budget_started_at_unix": args.allocated_at,
             },
         },
     )
 
 
-def run(args):
+def study_contract(args):
     contract = records.document(args.input)
+    headline = args.study == "headline"
+    contract["cells"] = [c for c in contract["cells"] if (c["kind"] == "write") == headline]
+    if headline:
+        if args.workers is None:
+            raise ValueError("headline requires explicit --workers 16 or 32")
+        contract["billing"].update(contract["headline_billing"])
+        contract["format"] = "headline-2026-11-v1"
+        contract["cells"][0]["workers"] = args.workers
     if args.rehearse:
         contract["rehearsal_limits"] = records.rehearsal_limits()
         contract["functional_only"] = True
         for cell in [*contract["cells"], contract["quiet_cell"]]:
             cell["production_workers"], cell["production_texts"] = cell["workers"], cell["texts"]
-            cell.update(texts=12_000, workers=min(cell["workers"], 2), functional_only=True)
+            cell.update(
+                texts=1_000_000 if headline else 12_000,
+                workers=min(cell["workers"], 2),
+                functional_only=True,
+            )
         contract["billing"].update(planning_minutes=180, planning_balance_usd=10)
+    return contract
+
+
+def run(args):
+    contract = study_contract(args)
     args.results.mkdir(parents=True, exist_ok=False)
     ledger = Ledger(args.results, contract, args.allocated_at)
     write_environment(args, contract)
@@ -404,23 +349,8 @@ def run(args):
     try:
         require_budget(ledger, 60)
         context = prepare(args, contract, ledger)
-        memory_preflight(context, contract)
-        ledger.stage, ledger.current = "quiet", "quiet"
-        require_budget(ledger, 1 if args.rehearse else contract["rules"]["quiet_seconds"])
-        quiet(context, contract)
-        ledger.stage = "libraries"
-        for cell in contract["cells"]:
-            ledger.current = cell["id"]
-            started = time.monotonic()
-            if not ledger.admit(cell["estimated_seconds"]):
-                ledger.result(
-                    cell, started, status="not_started", reason="soft budget or stop signal"
-                )
-                continue
-            try:
-                ledger.result(cell, started, **pair(context, cell))
-            except Exception as error:
-                ledger.result(cell, started, status="failed", reason=repr(error))
+        action = run_headline if args.study == "headline" else run_libraries
+        action(context, contract)
     except Exception as error:
         records.append(args.results / "fatal.jsonl", {"error": repr(error)})
     finally:
@@ -435,9 +365,96 @@ def run(args):
     return ledger.done()
 
 
+def run_libraries(context, contract):
+    ledger = context["ledger"]
+    memory_preflight(context, contract)
+    ledger.stage, ledger.current = "quiet", "quiet"
+    require_budget(
+        ledger, 1 if contract.get("functional_only") else contract["rules"]["quiet_seconds"]
+    )
+    quiet(context, contract)
+    ledger.stage = "libraries"
+    for cell in contract["cells"]:
+        ledger.current = cell["id"]
+        started = time.monotonic()
+        if not ledger.admit(cell["estimated_seconds"]):
+            ledger.result(cell, started, status="not_started", reason="soft budget or stop signal")
+            continue
+        try:
+            ledger.result(cell, started, **pair(context, cell))
+        except Exception as error:
+            ledger.result(cell, started, status="failed", reason=repr(error))
+
+
+def run_headline(context, contract):
+
+    ledger, work = context["ledger"], context["work"]
+    cell = contract["cells"][0]
+    ledger.stage, ledger.current = "headline", cell["id"]
+    started = time.monotonic()
+    if not ledger.admit(cell["estimated_seconds"]):
+        ledger.result(cell, started, status="not_started", reason="headline admission budget")
+        return
+    source = context["paragraphs"]
+    records.stream_budget(work, cell, source)
+    tokens = engines.headline_tokens(context["models"][cell["model"]]["snapshot"], source)
+    path = work / "headline-input.txt"
+    identity = records.write_input(path, source, [], cell["texts"], 0, tokens)
+    records.append(ledger.root / "inputs.jsonl", dict(cell_id=cell["id"], **identity))
+    sample = path.with_suffix(".sample.json")
+    records.atomic(sample, identity["sample_rows"])
+    rows = []
+    for number in range(cell["rounds"]):
+        if not ledger.admit(120):
+            break
+        row = launch(context, cell, "fse", number, path, sample, identity)
+        output = Path(row["sample_file"])
+        actual = {str(p.relative_to(output)) for p in output.rglob("*") if p.is_file()}
+        if output.is_symlink() or not output.resolve().is_relative_to(work.resolve()):
+            raise ValueError("headline cleanup ownership changed")
+        if actual != {r["path"] for r in row["files"]}:
+            raise ValueError("headline output inventory changed before cleanup")
+        shutil.rmtree(output)
+        records.append(
+            ledger.root / "cleanup.jsonl",
+            dict(
+                round=number,
+                completed_at=time.time(),
+                disk_after=shutil.disk_usage(work)._asdict(),
+            ),
+        )
+        rows.append(row)
+    complete = len(rows) == cell["rounds"]
+    ledger.result(
+        cell,
+        started,
+        status="valid" if complete else "partial",
+        input_identity=identity,
+        rounds_completed=len(rows),
+        sample_checked=bool(rows),
+        seconds=records.spread([r["seconds"] for r in rows]) if rows else None,
+        texts_per_second=records.spread([cell["texts"] / r["seconds"] for r in rows])
+        if rows
+        else None,
+        mean_tokens_per_text=identity["mean_tokenizer_ids_per_text"],
+        tokens_per_second=records.spread(
+            [cell["texts"] * identity["mean_tokenizer_ids_per_text"] / r["seconds"] for r in rows]
+        )
+        if rows
+        else None,
+        reason=None if complete else "stop signal or budget before next round",
+    )
+    cleanup(
+        context, [path, path.with_suffix(".json"), sample, path.with_suffix(".sample-texts.json")]
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=INPUT)
+    parser.add_argument("--study", choices=("libraries", "headline"), default="libraries")
+    parser.add_argument("--workers", type=int, choices=(16, 32))
+    parser.add_argument("--reuse-work", type=Path)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--describe", action="store_true")
     mode.add_argument("--child-job", type=Path)

@@ -6,9 +6,14 @@ import hashlib
 import json
 import math
 import os
+import platform
 import re
+import shutil
 import statistics
+import sys
+import threading
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -207,7 +212,7 @@ def corpus_sources(contract, cache):
     return source, [mandatory[r["source_position"]] for r in contract["unknown_cases"]]
 
 
-def write_input(path, source, mandatory, count, seed):
+def write_input(path, source, mandatory, count, seed, token_counts=None):
     import numpy as np
 
     if count < len(mandatory) or path.exists():
@@ -223,6 +228,10 @@ def write_input(path, source, mandatory, count, seed):
             ),
         ]
     )
+    if token_counts is not None:
+        atomic(
+            path.with_suffix(".sample-texts.json"), [source[int(positions[int(i)])] for i in sample]
+        )
     with path.open("xb") as stream:
         for text in mandatory:
             stream.write(text.encode() + b"\n")
@@ -231,15 +240,17 @@ def write_input(path, source, mandatory, count, seed):
         stream.flush()
         os.fsync(stream.fileno())
     unique_source = len(set(source) | set(mandatory))
-    unique_input = len({source[int(i)] for i in set(positions)} | set(mandatory))
-    word_lengths = np.fromiter((len(text.split()) for text in source), dtype=np.int32)
-    word_total = sum(len(text.split()) for text in mandatory)
-    character_total = sum(len(text) for text in mandatory)
-    for start in range(0, len(positions), 100000):
-        selected = positions[start : start + 100000]
-        word_total += int(word_lengths[selected].sum())
-        character_total += sum(len(source[int(i)]) for i in selected)
+    weights = np.bincount(positions, minlength=len(source))
+    unique_input = len({source[int(i)] for i in np.flatnonzero(weights)} | set(mandatory))
+    word_lengths = np.fromiter((len(text.split()) for text in source), dtype=np.int64)
+    character_lengths = np.fromiter((len(text) for text in source), dtype=np.int64)
+    word_total = int(weights @ word_lengths) + sum(len(text.split()) for text in mandatory)
+    character_total = int(weights @ character_lengths) + sum(len(text) for text in mandatory)
     identity = {
+        "mean_tokenizer_ids_per_text": int(weights @ token_counts) / count
+        if token_counts is not None
+        else None,
+        "token_definition": "POTION tokenizer ids after character/token limit, including unknown ids, no special ids",
         "mean_words_per_text": word_total / count,
         "mean_characters_per_text": character_total / count,
         "distinct_source_texts": unique_source,
@@ -265,7 +276,12 @@ def admit(contract, allocated_at, estimate):
         contract["machine"]["disk_gb"] * billing["disk_usd_per_gb_month"] / billing["month_hours"]
     )
     ceiling = min(billing["planning_minutes"] * 60, billing["planning_balance_usd"] * 3600 / hourly)
-    return max(0, time.time() - allocated_at) + estimate + 600 <= ceiling
+    return (
+        max(0, time.time() - allocated_at)
+        + estimate
+        + billing.get("collection_reserve_seconds", 600)
+        <= ceiling
+    )
 
 
 def rehearsal_limits():
@@ -283,3 +299,101 @@ def rehearsal_limits():
         "cpu_period": int(period),
         "cargo_jobs": 2,
     }
+
+
+class Ledger:
+    def __init__(self, root, contract, allocated_at):
+        self.root, self.contract, self.allocated_at = root, contract, allocated_at
+        self.finished, self.stopping = [], False
+        self.current, self.stage = "preparation", "setup"
+        self.lock = threading.Lock()
+
+    def admit(self, estimate):
+        return not self.stopping and admit(self.contract, self.allocated_at, estimate)
+
+    def progress(self, terminal=False):
+        with self.lock:
+            remaining = [
+                c
+                for c in self.contract["cells"]
+                if c["id"] not in {r["cell_id"] for r in self.finished}
+            ]
+            scale = (
+                statistics.median(
+                    [
+                        r["duration_seconds"] / r["estimated_seconds"]
+                        for r in self.finished
+                        if r["status"] == "valid"
+                    ]
+                )
+                if any(r["status"] == "valid" for r in self.finished)
+                else 1
+            )
+            atomic(
+                self.root / "progress.json",
+                {
+                    "stage": "collection" if terminal else self.stage,
+                    "cell": "DONE" if terminal else self.current,
+                    "finished": len(self.finished),
+                    "planned": len(self.contract["cells"]),
+                    "elapsed_seconds": time.time() - self.allocated_at,
+                    "estimated_remaining_seconds": sum(c["estimated_seconds"] for c in remaining)
+                    * scale,
+                },
+            )
+
+    def result(self, cell, started, **result):
+        row = {
+            **cell,
+            "cell_id": cell["id"],
+            "run_id": self.contract["format"],
+            "machine_environment_sha256": sha256(self.root / "environment.json"),
+            "platform": platform.platform(),
+            "python": sys.version,
+            "completed_at_unix": time.time(),
+            "date_utc": datetime.now(UTC).isoformat(),
+            "machine": document(self.root / "environment.json")["machine"],
+            "duration_seconds": time.monotonic() - started,
+            "functional_only": self.contract.get("functional_only", False),
+            **result,
+        }
+        append(self.root / "cells.jsonl", row)
+        self.finished.append(row)
+        self.progress()
+
+    def done(self):
+        self.progress(terminal=True)
+        files = [
+            {
+                "path": str(p.relative_to(self.root)),
+                "bytes": p.stat().st_size,
+                "sha256": sha256(p),
+            }
+            for p in sorted(self.root.rglob("*"))
+            if p.is_file() and p.name not in ("manifest.json", "DONE")
+        ]
+        atomic(self.root / "manifest.json", {"files": files})
+        code = int(
+            len(self.finished) != len(self.contract["cells"])
+            or any(r["status"] != "valid" for r in self.finished)
+        )
+        atomic(
+            self.root / "DONE",
+            {
+                "exit_status": code,
+                "completed_at": time.time(),
+                "cells": len(self.finished),
+                "manifest_sha256": sha256(self.root / "manifest.json"),
+            },
+        )
+        return code
+
+
+def stream_budget(work, cell, source):
+    input_bytes = cell["texts"] * sum(len(t.encode()) + 1 for t in source) / len(source)
+    required = int(input_bytes * 1.2 + cell["texts"] * 264 + 5 * 1024**3)
+    if shutil.disk_usage(work).free < required:
+        raise OSError("not enough free disk for headline input and one output")
+    limit = Path("/sys/fs/cgroup/memory.max").read_text().strip()
+    if not cell.get("functional_only") and (limit == "max" or int(limit) * 0.85 < 20 * 1024**3):
+        raise MemoryError("headline needs a bounded memory allowance of at least 26 GB")

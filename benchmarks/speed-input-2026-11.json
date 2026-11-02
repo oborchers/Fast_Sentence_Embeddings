@@ -187,6 +187,21 @@
       "estimated_seconds": 600,
       "dimensions": 1024,
       "planned_input_bytes": 681709559
+    },
+    {
+      "id": "headline-100m",
+      "stage": "headline",
+      "kind": "write",
+      "model": "minishlab/potion-base-8M",
+      "reference": null,
+      "texts": 100000000,
+      "workers": 32,
+      "dtype": "int8",
+      "table_dtype": "float32",
+      "rounds": 3,
+      "dimensions": 256,
+      "durability": "none",
+      "estimated_seconds": 600
     }
   ],
   "quiet_cell": {
@@ -265,5 +280,10 @@
       "is_first_failure_example": true,
       "text_sha256": "4ac2df529fe5661edc5acd7bcb52c11bf215b19fbc18b7f69061767d16b93074"
     }
-  ]
+  ],
+  "headline_billing": {
+    "planning_minutes": 25,
+    "planning_balance_usd": 0.6,
+    "collection_reserve_seconds": 120
+  }
 }
