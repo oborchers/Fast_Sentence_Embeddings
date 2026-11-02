@@ -5,6 +5,7 @@ import json
 import shutil
 
 import numpy as np
+from stsb import read_rows
 
 from fse._encoder._model2vec_rules import UNSET
 from support import converted as cv
@@ -57,13 +58,9 @@ def close(model, texts, want, *, max_length=UNSET, normalize=None):
 def hub_texts(model, extra=()):
     """Texts for a model of the Hub: the sentences of the STS benchmark, words sampled from
     its vocabulary, edge cases, and long texts that cross both cuts."""
-    import csv
     import random
-    from pathlib import Path
 
-    root = Path(__file__).resolve().parent.parent.parent
-    with open(root / "evaluation" / "sts-test.csv", encoding="utf-8", newline="") as f:
-        sts = [s for row in csv.reader(f, delimiter="\t", quoting=csv.QUOTE_NONE) for s in row[5:7]]
+    sts = [sentence for row in read_rows() for sentence in row[5:7]]
     rng = random.Random(7)
     words = rng.sample([t for t in model.tokens if not t.startswith("[")], 2000)
     edge = ["hello [MASK] [PAD] [UNK] [CLS] world [SEP]", "x" * 101, "İstanbul", "", "zzqxj"]

@@ -3,7 +3,6 @@ recursive-include src/fse *.pyx *.pxi *.pxd *.h *.pyi py.typed
 graft tests
 # The generators and checkers the tests use.
 graft tools
-prune evaluation
-prune media
+prune docs/assets
 prune .github
 global-exclude *.so *.pyc __pycache__ *.c

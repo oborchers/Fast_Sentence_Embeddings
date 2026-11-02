@@ -51,7 +51,7 @@ Never wait for pull request checks or CI in the foreground. Start the wait as a 
 
 `make lint` enforces, and CI and the pre-commit hooks run the same:
 
-- at most 500 lines per source file under the `paths` of `[tool.fse.guardrails]` (src, tests, tools, benchmarks, media, setup.py; the generated Unicode tables excepted); a new top-level folder of code joins `paths`;
+- at most 500 lines per source file under the `paths` of `[tool.fse.guardrails]` (src, tests, tools, benchmarks, docs/assets, setup.py; the generated Unicode tables excepted); a new top-level folder of code joins `paths`;
 - the ruff complexity limits (C901 10, PLR0911 6, PLR0912 12, PLR0913 and PLR0917 15, PLR0915 50) and a cognitive complexity of at most 15 per Python function (complexipy; Cython and C functions are limited by their file length);
 - the import layers and forbidden packages in `[tool.importlinter]`;
 - that only `fse._text` (stages 1 and 2) and the cpu backend `fse._backends._cpu` (the kernels) import `fse._native`, and the extension imports only `fse._contract` from fse;

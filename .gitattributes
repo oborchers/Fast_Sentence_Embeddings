@@ -6,3 +6,5 @@ tests/test_data/GraphemeBreakTest-17.0.0.txt -text
 # Approved Hub payload text is hashed as raw bytes, including on Windows.
 /benchmarks/baseline/dr157/cards/*.txt text eol=lf
 /benchmarks/baseline/dr157/publication-* text eol=lf
+
+/tools/hub/published-manifest.json text eol=lf
