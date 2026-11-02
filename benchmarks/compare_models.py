@@ -2,7 +2,6 @@
 
 from bench_pretrained import COMMITS
 
-
 MODELS = {
     **COMMITS,
     "fse/paranmt-300": "a08e15771891207a22f840a3091a00a1657d888b",
