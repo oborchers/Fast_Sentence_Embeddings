@@ -128,5 +128,42 @@
       "all_bytes_exact": true,
       "output_removed": true
     }
-  ]
+  ],
+  "public_readback": {
+    "repo": "fse/glove-wiki-gigaword-300-raw-int8",
+    "revision": "efcc9db714702d865b4082f2da21d0466d4a2831",
+    "files": {
+      ".gitattributes": {
+        "bytes": 50,
+        "sha256": "ee05350c7fda0af4da116020dd7b976d731de3beed4f5e717d5bcc95ead24550"
+      },
+      "README.md": {
+        "bytes": 3487,
+        "sha256": "cd84d81025634c2f4b20308ebd680742b88c9ec76f76b4623893b4f808f1bbb2"
+      },
+      "config.json": {
+        "bytes": 199,
+        "sha256": "490b3f078955264608fafe6d61b18340e3188e90b923c91fcf26e5eaa748b0db"
+      },
+      "model.safetensors": {
+        "bytes": 127757762,
+        "sha256": "1cb3bc2aa503eb63e3c24e0868db9ec508789fd7cd60384bcb22931a75470e3e"
+      }
+    },
+    "runtime": {
+      "vectors_xxh3": "xxh3-128:cef3ca52a545b1f68a0380d582fe1d77",
+      "pearson_x100": 46.09090014315843,
+      "bitwise_ok": true,
+      "default_and_normalize_false_load_ok": true
+    },
+    "status": "passed"
+  },
+  "independent_review": {
+    "model": "gpt-6.1-sol",
+    "reasoning": "high",
+    "reviewed_commit": "1f318be58163faca1194819c485d159b8c558704",
+    "runs": 1,
+    "findings": 5,
+    "followup": "All five findings addressed in subsequent commits. No second review was run."
+  }
 }

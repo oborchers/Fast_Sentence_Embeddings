@@ -72,3 +72,9 @@ all five sources, raw and SIF-10, and float32, float16 and int8. Every file matc
 the frozen manifest. Each newly built payload was removed after its receipt was
 secured. All 30 cards matched independently. The complete 30-payload rebuild was
 not run, following the maintainer's narrower validation instruction.
+
+The recorded anonymous public readback of GloVe raw int8 also passed, including
+all file hashes, both Hub loading modes and the exact 512-sentence vector checksum.
+One independent Codex review found five issues. The follow-up commits protect LF
+manifest bytes, restore all STS-B readers, use the public Hub loading path, record
+uncertain creation outcomes and retain the Hub CI path trigger.
