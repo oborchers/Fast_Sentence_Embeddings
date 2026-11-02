@@ -344,8 +344,7 @@ untested-modules = ["src/fse/_version.py"]
 "benchmarks/bench_tokenize.py::child_v2" = { cognitive = 19 }
 "benchmarks/bench_tokenize.py::main" = { C901 = 17, PLR0915 = 59, cognitive = 40 }
 "benchmarks/bench_tokenize.py::prepare" = { cognitive = 18 }
-"benchmarks/bench_wordvectors.py::child" = { C901 = 13 }
-"benchmarks/quality/run_mteb.py::summarize" = { cognitive = 39 }
+"benchmarks/quality/run_mteb.py::summarize" = { cognitive = 38 }
 
 # --- Import contracts (import-linter; the Cython extension is invisible to it and is
 # checked by tools/check_guardrails.py) ---

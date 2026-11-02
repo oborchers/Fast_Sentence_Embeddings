@@ -1,5 +1,8 @@
 ## Artifacts
 
+Historical M1 timing observations in this document are withdrawn and must not support speed claims. Numerical contracts and implementation descriptions remain valid. Current evidence is in the [comparison guide](../fse-comparison.md).
+
+
 Binding for every 2.0 module (formerly under "2.0 design").
 
 Word vectors, encoders and stored sentence vectors are sets of named tensors with a flat string map of metadata, written through a container:

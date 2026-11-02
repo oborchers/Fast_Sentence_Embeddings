@@ -1,0 +1,289 @@
+{
+  "format": "library-sentences-2026-11-v1",
+  "variant": "library-only",
+  "fse_revision": "624251df2269e3099f5c61987be63e718893b58c",
+  "models": {
+    "minishlab/potion-base-8M": "bf8b056651a2c21b8d2565580b8569da283cab23",
+    "sentence-transformers/static-retrieval-mrl-en-v1": "f60985c706f192d45d218078e49e5a8b6f15283a"
+  },
+  "rust_revision": "19f58bef6ce145f2bc08de7016498f28d521feea",
+  "corpus": {
+    "repo": "Salesforce/wikitext",
+    "revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+    "configuration": "wikitext-103-raw-v1",
+    "split": "train",
+    "seed": 0,
+    "generator": "PCG64",
+    "paragraph_preprocessing": "collapse whitespace, omit headings, minimum five words",
+    "sampling": "sentence positions with replacement, followed by seeded shuffle",
+    "expected_source_positions": 3863020,
+    "expected_paragraphs": 832318,
+    "sentence_split": "(?<=[.!?])\\s+"
+  },
+  "machine": {
+    "vcpu": 32,
+    "ram_bytes": 128000000000,
+    "disk_gb": 150,
+    "image": "python:3.13@sha256:f23cf6c01ace0da9aa4d04fd078dba0fcce0c23cf3320329a38a2b6890761f9c",
+    "python_patch": "3.13.18",
+    "architecture": "amd64",
+    "os": "linux",
+    "config_digest": "sha256:e2e020974fc5950a42b67b579de668ee586880373a77d5af6306a430156bb605",
+    "source": "Docker official library/python registry manifest and configuration"
+  },
+  "billing": {
+    "compute_usd_per_hour": 1.472,
+    "disk_usd_per_gb_month": 0.1,
+    "month_hours": 720,
+    "planning_balance_usd": 3.48,
+    "planning_minutes": 140,
+    "kill_running_cells": false,
+    "setup_stage_clock_env": "SPEED_SETUP_STARTED_AT",
+    "allocation_clock": "--allocated-at includes machine provisioning and bootstrap"
+  },
+  "stages": [
+    {
+      "name": "setup",
+      "estimate_minutes": 8,
+      "budget_minutes": 15
+    },
+    {
+      "name": "quiet",
+      "estimate_minutes": 3,
+      "budget_minutes": 5
+    },
+    {
+      "name": "libraries",
+      "estimate_minutes": 90,
+      "budget_minutes": 110
+    },
+    {
+      "name": "collection",
+      "estimate_minutes": 3,
+      "budget_minutes": 10
+    }
+  ],
+  "rules": {
+    "rounds": 3,
+    "minimum_fse_seconds": 2,
+    "warmup_calls": 1,
+    "measured_calls": 1,
+    "sample_rows": 10000,
+    "sample_seed": 0,
+    "rtol": 3e-05,
+    "atol": 3e-06,
+    "repeat_failed_cells": false,
+    "quiet_seconds": 180
+  },
+  "cells": [
+    {
+      "id": "libraries-model2vec-1",
+      "stage": "libraries",
+      "kind": "encode",
+      "model": "minishlab/potion-base-8M",
+      "reference": "model2vec",
+      "workers": 1,
+      "texts": 2000000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 780,
+      "dimensions": 256,
+      "planned_input_bytes": 272590827
+    },
+    {
+      "id": "libraries-rust-1",
+      "stage": "libraries",
+      "kind": "encode",
+      "model": "minishlab/potion-base-8M",
+      "reference": "rust",
+      "workers": 1,
+      "texts": 2000000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 120,
+      "dimensions": 256,
+      "planned_input_bytes": 272590827
+    },
+    {
+      "id": "libraries-fastembed-1",
+      "stage": "libraries",
+      "kind": "encode",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fastembed",
+      "workers": 1,
+      "texts": 2000000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 840,
+      "dimensions": 256,
+      "planned_input_bytes": 272590827
+    },
+    {
+      "id": "libraries-st-1",
+      "stage": "libraries",
+      "kind": "encode",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "reference": "st",
+      "workers": 1,
+      "texts": 2000000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 1020,
+      "dimensions": 1024,
+      "planned_input_bytes": 272595911
+    },
+    {
+      "id": "libraries-model2vec-16",
+      "stage": "libraries",
+      "kind": "encode",
+      "model": "minishlab/potion-base-8M",
+      "reference": "model2vec",
+      "workers": 16,
+      "texts": 18000000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 600,
+      "dimensions": 256,
+      "planned_input_bytes": 2455180892
+    },
+    {
+      "id": "libraries-rust-16",
+      "stage": "libraries",
+      "kind": "encode",
+      "model": "minishlab/potion-base-8M",
+      "reference": "rust",
+      "workers": 16,
+      "texts": 18000000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 360,
+      "dimensions": 256,
+      "planned_input_bytes": 2455180892
+    },
+    {
+      "id": "libraries-fastembed-16",
+      "stage": "libraries",
+      "kind": "encode",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fastembed",
+      "workers": 16,
+      "texts": 18000000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 1080,
+      "dimensions": 256,
+      "planned_input_bytes": 2455180892
+    },
+    {
+      "id": "libraries-st-16",
+      "stage": "libraries",
+      "kind": "encode",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "reference": "st",
+      "workers": 16,
+      "texts": 5000000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 600,
+      "dimensions": 1024,
+      "planned_input_bytes": 681709559
+    },
+    {
+      "id": "headline-100m",
+      "stage": "headline",
+      "kind": "write",
+      "model": "minishlab/potion-base-8M",
+      "reference": null,
+      "texts": 100000000,
+      "workers": 32,
+      "dtype": "int8",
+      "table_dtype": "float32",
+      "rounds": 3,
+      "dimensions": 256,
+      "durability": "none",
+      "estimated_seconds": 600
+    }
+  ],
+  "quiet_cell": {
+    "id": "quiet",
+    "model": "minishlab/potion-base-8M",
+    "reference": null,
+    "workers": 1,
+    "texts": 300000,
+    "dimensions": 256,
+    "dtype": "float32",
+    "rounds": 1,
+    "kind": "encode"
+  },
+  "unknown_cases": [
+    {
+      "row": 68,
+      "source_position": 501002,
+      "unknown_tokens": 1,
+      "tokens": 174,
+      "is_first_failure_example": true,
+      "text_sha256": "30da9c0bf5f6a79cea46d383f9186533913ef3c059e5e27e08f5e3f31ff6318c"
+    },
+    {
+      "row": 205,
+      "source_position": 393732,
+      "unknown_tokens": 2,
+      "tokens": 257,
+      "is_first_failure_example": true,
+      "text_sha256": "b4b3ba4dac52d1ce4f16433e095e530452acb692ae114e4dfc709ca1c2b7f7f3"
+    },
+    {
+      "row": 248,
+      "source_position": 190647,
+      "unknown_tokens": 2,
+      "tokens": 51,
+      "is_first_failure_example": true,
+      "text_sha256": "35dfd54a27ac14c54421862c778c3412cf2f3afc4a00eb749c428e7e12c5e0f3"
+    },
+    {
+      "row": 551,
+      "source_position": 356849,
+      "unknown_tokens": 1,
+      "tokens": 123,
+      "is_first_failure_example": true,
+      "text_sha256": "75c6c4f3764a85ff631e44c092bbaa27bd076a7b61e68752aefa2b3c3fb01d6e"
+    },
+    {
+      "row": 664,
+      "source_position": 255235,
+      "unknown_tokens": 9,
+      "tokens": 422,
+      "is_first_failure_example": true,
+      "text_sha256": "d73134948a7f491ea898a83c5a1a09e6669e5b6690155dd1fa6d7272ac8c2f85"
+    },
+    {
+      "row": 1180,
+      "source_position": 152685,
+      "unknown_tokens": 1,
+      "tokens": 115,
+      "is_first_failure_example": true,
+      "text_sha256": "116da2f37111106d9c0f916703415b1ded6583b28382c802d46399f73b413fb7"
+    },
+    {
+      "row": 1951,
+      "source_position": 241616,
+      "unknown_tokens": 5,
+      "tokens": 77,
+      "is_first_failure_example": true,
+      "text_sha256": "fd4f58642b1646f7e01b120ab6cb14e72c6d24de82f194b821559e6ab8d3a159"
+    },
+    {
+      "row": 2168,
+      "source_position": 380271,
+      "unknown_tokens": 2,
+      "tokens": 124,
+      "is_first_failure_example": true,
+      "text_sha256": "4ac2df529fe5661edc5acd7bcb52c11bf215b19fbc18b7f69061767d16b93074"
+    }
+  ],
+  "headline_billing": {
+    "planning_minutes": 25,
+    "planning_balance_usd": 0.6,
+    "collection_reserve_seconds": 120
+  }
+}

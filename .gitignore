@@ -83,6 +83,9 @@ test_emb*
 # Build and tooling #
 #####################
 .venv/
+.venv-quality/
+.venv-compare/
+benchmarks/compare_rust/target/
 src/fse/_version.py
 src/fse/_native.c
 *.egg-info/
@@ -92,3 +95,6 @@ src/fse/_native.c
 htmlcov/
 wheelhouse/
 profiles/
+
+# Raw benchmark evidence belongs on benchmark-evidence-2.0.
+/benchmarks/baseline/results/
