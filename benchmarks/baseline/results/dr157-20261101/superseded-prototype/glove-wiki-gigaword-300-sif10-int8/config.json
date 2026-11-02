@@ -1,8 +1,0 @@
-{
-  "fingerprint": "xxh3-128:99aed226779a6e8bd839c8d163a1b229",
-  "fse_config_version": 1,
-  "fse_format_version": 1,
-  "fse_kind": "encoder",
-  "model": "model.safetensors",
-  "model_type": "fse"
-}

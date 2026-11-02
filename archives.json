@@ -1,0 +1,29 @@
+{
+  "format": "compressed-evidence-v1",
+  "previous_evidence_commit": "b0aa865e13ec1d0d49459aa75cfdf2bd3bd1ef27",
+  "source_snapshot": "34379a6c9e386caf7abaa3d6ab4ff3db804c6f13",
+  "verification": "Every original file checked against Git blob or coordinator manifest, then rechecked after decompression. Historical values unchanged. Large diagnostic matrices retained locally with checked full-file hashes.",
+  "archives": [
+    {
+      "path": "archives/historical-evidence-2026-11.tar.gz",
+      "bytes": 23552447,
+      "sha256": "890a1602f0c6c9b2b0929f9951a7104be2767781cbf1256d5af8d78d56f32b12",
+      "members": 1068,
+      "raw_bytes": 103039645
+    },
+    {
+      "path": "archives/comparison-source-2026-11.tar.gz",
+      "bytes": 969011,
+      "sha256": "69944d13515203b530296510db13241acb76531ab05391d3db26a5f3043cb4f0",
+      "members": 318,
+      "raw_bytes": 3987365
+    },
+    {
+      "path": "archives/speed-run-2026-11.tar.gz",
+      "bytes": 600018,
+      "sha256": "743846611953faca7b76cb9ecf09fb63257db47503c117ae6ebb6a5039ec146f",
+      "members": 411,
+      "raw_bytes": 3375839
+    }
+  ]
+}

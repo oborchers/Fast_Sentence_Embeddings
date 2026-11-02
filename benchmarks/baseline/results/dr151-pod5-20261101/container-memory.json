@@ -1,8 +1,0 @@
-{
-  "memory.max": 64000000000,
-  "memory.current": 11537469440,
-  "memory.peak": 31395303424,
-  "cgroup_namespace": "private root",
-  "mount_root": "/",
-  "ancestor_scope": "namespace root limit; host ancestors require coordinator allocation verification"
-}

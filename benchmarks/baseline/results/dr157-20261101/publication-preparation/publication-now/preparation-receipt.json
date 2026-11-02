@@ -1,9 +1,0 @@
-{
-  "basis_manifest_sha256": "ac85cae41b05788bc278d68fd3231489de1615c7c15b8b79229844c3d0dabe69",
-  "publication_manifest_sha256": "b569e35ee442263a3b73fb3d5f8ec89cf36488816bb36af3426e5caef116a436",
-  "repositories": 30,
-  "files": 135,
-  "only_changed_payload_file": "README.md",
-  "all_model_sha256_unchanged": true,
-  "hub_writes_performed": false
-}
