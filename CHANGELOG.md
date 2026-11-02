@@ -26,7 +26,7 @@ The 1.x branch remains maintained. Entries collect here until the release.
 
 ### Changed
 
-- Add compact speed, quality and classification summaries with pinned source snapshots, paired A/A controls and separately archived raw evidence. All M1 timing and earlier small-input headline comparisons are withdrawn. Quality and accuracy remain unchanged. See `docs/fse-comparison.md`.
+- Add final paired-library and native-file writing summaries with pinned source snapshots and separately archived raw evidence. The approved three-round sentence protocol has no A/A duplicate arm; the separate historical dtype study retains its original controls. All M1 timing and earlier small-input headline comparisons remain withdrawn. Quality and accuracy are unchanged. See `docs/fse-comparison.md`.
 
 - Recipes now guide end users through real POTION and public-dataset examples, with diagrams, a first fse 101 recipe, and a shared-split classification comparison.
 
