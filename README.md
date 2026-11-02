@@ -17,11 +17,9 @@
 <a href="https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"></a>
 </p>
 
-**Compute nearly 3 million text embeddings per second.**
+**Performance headline: awaiting a benchmark decision.**
 
-100 million short texts (28.7 tokens on average) embedded and written to disk in 35 seconds, int8, 32 vCPU AMD EPYC 7713, RunPod, 1 November 2026.
-
-[How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/5c54d65885f1cc7caa56785c142a521a5303c923/docs/benchmarks/readme-evidence.md)
+[How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/2be1726e9f81585469c627b24a6eb19017b86082/docs/benchmarks/readme-evidence.md)
 
 Fast Sentence Embeddings turns text into vectors for search, clustering and classification.
 It runs ready-made static models on your CPU. No GPU needed.
@@ -29,6 +27,22 @@ Use your Model2Vec model, a supported static Sentence Transformers model, or exi
 Bring a trained linear classifier to label text in the same application.
 
 ![An engine turns pages of text into lists of numbers.](https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/233b6d3c0aaee459792938317895790a8bdd862b/media/readme-engine.jpg)
+
+## Speed first
+
+Encode longer texts with one or 16 workers:
+
+| Model precision | 1 worker, texts/s | 16 workers, texts/s |
+|---|---:|---:|
+| float32 | 139,422 | 1,265,123 |
+| float16 | 153,886 | 1,359,540 |
+| int8 | 163,779 | 1,379,949 |
+
+AMD EPYC 9965, 32 logical CPUs, RunPod, POTION-8M, 1 to 2 November 2026. 4.62 million WikiText-103 passages, average 119.1 words, float32 output.
+
+### fse vs other libraries
+
+Comparison chart: awaiting a benchmark decision.
 
 ## Get started
 
