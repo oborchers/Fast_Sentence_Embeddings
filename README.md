@@ -90,14 +90,14 @@ Compare quality and size below, then check the model on your own data.
 | [`minishlab/potion-base-8M`](https://huggingface.co/minishlab/potion-base-8M) | 53.95 | 29.2 MiB |
 | [`sentence-transformers/static-retrieval-mrl-en-v1`](https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1) | 51.89 | 119.7 MiB |
 | [`sentence-transformers/static-similarity-mrl-multilingual-v1`](https://huggingface.co/sentence-transformers/static-similarity-mrl-multilingual-v1) | 51.43 | 415.1 MiB |
-| FastText crawl-subwords-300 SIF-10 | 51.42 | 4.50 GiB |
-| paragram-300-sl999 SIF-10 | 50.98 | 1.93 GiB |
-| paranmt-300 | 50.69 | 89.5 MiB |
+| [`fse/fasttext-crawl-subwords-300-sif10`](https://huggingface.co/fse/fasttext-crawl-subwords-300-sif10) | 51.42 | 4.50 GiB |
+| [`fse/paragram-300-sl999-sif10`](https://huggingface.co/fse/paragram-300-sl999-sif10) | 50.98 | 1.93 GiB |
+| [`fse/paranmt-300-raw`](https://huggingface.co/fse/paranmt-300-raw) | 50.69 | 89.5 MiB |
 | [`minishlab/potion-multilingual-128M`](https://huggingface.co/minishlab/potion-multilingual-128M) | 49.96 | 502.1 MiB |
-| GloVe 300 SIF-10 | 49.79 | 463.6 MiB |
-| word2vec-google-news-300 SIF-10 | 49.26 | 3.41 GiB |
+| [`fse/glove-wiki-gigaword-300-sif10`](https://huggingface.co/fse/glove-wiki-gigaword-300-sif10) | 49.79 | 463.6 MiB |
+| [`fse/word2vec-google-news-300-sif10`](https://huggingface.co/fse/word2vec-google-news-300-sif10) | 49.26 | 3.41 GiB |
 
-[^quality]: Measured on 1 November 2026 with MTEB 2.26.25. Scores are the unweighted mean over 40 of 41 English tasks, multiplied by 100. MIND was not computed. The GloVe, FastText, paragram and word2vec SIF-10 scores use fits on 859,346 WikiText-103 training paragraphs, not the separate Hub preparation. Sizes describe the measured float32 artifacts. [Archived results and artifact metadata](https://github.com/oborchers/Fast_Sentence_Embeddings/tree/660309c4c88930254288495a0bb025fe428870f7/benchmarks/baseline).
+[^quality]: MTEB(eng, v2), measured on 1 November 2026 with MTEB 2.26.25. Scores are the unweighted mean over 40 of 41 English tasks, multiplied by 100. MIND was not computed. Classic-model scores use the historical benchmark recipe. SIF-10 scores use a WikiText-103 fit, whereas the linked Hub SIF-10 models use wordfreq weights and a FineWeb fit. See each Hub card for that version's own results. Sizes refer to float32 fse files. [Archived benchmark results](https://github.com/oborchers/Fast_Sentence_Embeddings/tree/660309c4c88930254288495a0bb025fe428870f7/benchmarks/baseline).
 
 Start with float32. Try float16 or int8 when memory matters, then check quality again.
 
@@ -108,6 +108,7 @@ compact = Encoder.from_pretrained("minishlab/potion-base-8M").quantize("int8")
 compact.save("compact.safetensors")
 ```
 
+Classic Hub models have `-raw` and `-sif10` versions, also with `-float16` or `-int8` suffixes.
 `-raw` in a classic Hub model name means no SIF weighting. It does not mean unnormalized output.
 
 You can also use your own GloVe, word2vec or FastText vectors with the optional `fse[gensim]` adapter.
