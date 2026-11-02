@@ -230,6 +230,15 @@ def round_pair(context, cell, number, path, sample, identity):
     return rows
 
 
+def arm_summary(rows):
+    seconds = [row["seconds"] for row in rows]
+    return {
+        "seconds": records.spread(seconds),
+        "ordered_seconds": seconds,
+        "identity": rows[0]["identity"],
+    }
+
+
 def summarize_pair(cell, observations, identity):
     arms = {"fse": [], cell["reference"]: []}
     for row in observations:
@@ -250,14 +259,7 @@ def summarize_pair(cell, observations, identity):
         "reason": "fse call shorter than two seconds" if short else None,
         "sample_checked": True,
         "paired_speedup": records.spread(ratios),
-        "arms": {
-            name: {
-                "seconds": records.spread([r["seconds"] for r in rows]),
-                "ordered_seconds": [r["seconds"] for r in rows],
-                "identity": rows[0]["identity"],
-            }
-            for name, rows in arms.items()
-        },
+        "arms": {name: arm_summary(rows) for name, rows in arms.items()},
     }
 
 
