@@ -1,6 +1,2 @@
-# Dependencies of run_mteb.py, pinned to the versions of the published results.
-mteb==2.26.25
-model2vec==0.10.0
-sentence-transformers==6.2.0
-datasets==5.1.0
-nltk==3.10.4
+# Complete resolved environment used by the comparison.
+-r requirements.lock.txt

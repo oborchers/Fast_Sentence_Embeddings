@@ -57,7 +57,7 @@ typecheck: ## Type check with mypy
 	$(UV) run mypy
 
 ##@ Profiling
-# make profile-cpu RUN="benchmarks/bench_store.py write --workers 10"; the outputs go to
+# make profile-cpu RUN="benchmarks/bench_runtime.py throughput"; the outputs go to
 # PROFILE_DIR (one file per kind, overwritten).
 PROFILE_DIR ?= profiles
 RUN ?=

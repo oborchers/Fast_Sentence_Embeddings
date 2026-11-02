@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fse"
 dynamic = ["version"]
-description = "Fast Sentence Embeddings from word vectors"
+description = "CPU inference for static text embeddings"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE", "NOTICE"]
@@ -16,13 +16,15 @@ keywords = [
     "gensim",
     "word2vec",
     "fasttext",
-    "sif",
-    "usif",
+    "static-embeddings",
+    "model2vec",
+    "sentence-transformers",
+    "inference",
     "nlp",
     "cython",
 ]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
@@ -51,7 +53,8 @@ dependencies = [
 gensim = ["gensim>=4.3.3"]
 
 [project.urls]
-Homepage = "https://www.drborchers.com"
+Homepage = "https://github.com/oborchers/Fast_Sentence_Embeddings"
+Documentation = "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/README.md"
 Repository = "https://github.com/oborchers/Fast_Sentence_Embeddings"
 Issues = "https://github.com/oborchers/Fast_Sentence_Embeddings/issues"
 Changelog = "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/CHANGELOG.md"
@@ -344,8 +347,7 @@ untested-modules = ["src/fse/_version.py"]
 "benchmarks/bench_tokenize.py::child_v2" = { cognitive = 19 }
 "benchmarks/bench_tokenize.py::main" = { C901 = 17, PLR0915 = 59, cognitive = 40 }
 "benchmarks/bench_tokenize.py::prepare" = { cognitive = 18 }
-"benchmarks/bench_wordvectors.py::child" = { C901 = 13 }
-"benchmarks/quality/run_mteb.py::summarize" = { cognitive = 39 }
+"benchmarks/quality/run_mteb.py::summarize" = { cognitive = 38 }
 
 # --- Import contracts (import-linter; the Cython extension is invisible to it and is
 # checked by tools/check_guardrails.py) ---

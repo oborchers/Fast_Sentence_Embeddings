@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="540" viewBox="0 0 1100 540" role="img" aria-labelledby="title desc">
+<title id="title">fse performance on longer texts</title>
+<desc id="desc">Absolute texts per second for float32, float16 and int8 model tables, with one and sixteen workers. All six bars use the same linear scale.</desc>
+<rect width="1100" height="540" rx="12" fill="#0F0D0A"/>
+<g font-family="Geist, Arial, sans-serif">
+<text x="40" y="48" font-size="30" fill="#E8E4DF" font-weight="700" text-anchor="start">Performance on longer texts</text>
+<text x="40" y="80" font-size="18" fill="#B0A9A0" font-weight="400" text-anchor="start">fse only. POTION-8M, 256 dimensions. Float32 output.</text>
+<rect x="210" y="102" width="18" height="18" rx="3" fill="#B0A9A0"/>
+<text x="238" y="118" font-size="18" fill="#E8E4DF" font-weight="400" text-anchor="start">1 worker</text>
+<rect x="420" y="102" width="18" height="18" rx="3" fill="#5B9E7D"/>
+<text x="448" y="118" font-size="18" fill="#E8E4DF" font-weight="400" text-anchor="start">16 workers</text>
+<text x="40" y="193" font-size="23" fill="#E8E4DF" font-weight="700" text-anchor="start">float32</text>
+<rect x="210" y="150" width="65.064" height="24" rx="3" fill="#B0A9A0"/>
+<text x="287.0636419095675" y="169" font-size="20" fill="#E8E4DF" font-weight="700" text-anchor="start">139,422</text>
+<rect x="210" y="186" width="590.391" height="24" rx="3" fill="#5B9E7D"/>
+<text x="812.3906171056233" y="205" font-size="20" fill="#E8E4DF" font-weight="700" text-anchor="start">1,265,123</text>
+<text x="40" y="303" font-size="23" fill="#E8E4DF" font-weight="700" text-anchor="start">float16</text>
+<rect x="210" y="260" width="71.813" height="24" rx="3" fill="#B0A9A0"/>
+<text x="293.81345705529077" y="279" font-size="20" fill="#E8E4DF" font-weight="700" text-anchor="start">153,886</text>
+<rect x="210" y="296" width="634.452" height="24" rx="3" fill="#5B9E7D"/>
+<text x="856.4518286893159" y="315" font-size="20" fill="#E8E4DF" font-weight="700" text-anchor="start">1,359,540</text>
+<text x="40" y="413" font-size="23" fill="#E8E4DF" font-weight="700" text-anchor="start">int8</text>
+<rect x="210" y="370" width="76.430" height="24" rx="3" fill="#B0A9A0"/>
+<text x="298.4301962659503" y="389" font-size="20" fill="#E8E4DF" font-weight="700" text-anchor="start">163,779</text>
+<rect x="210" y="406" width="643.976" height="24" rx="3" fill="#5B9E7D"/>
+<text x="865.9760829718268" y="425" font-size="20" fill="#E8E4DF" font-weight="700" text-anchor="start">1,379,949</text>
+<path d="M210 465 H910" stroke="#2A2520"/>
+<text x="210.0" y="488" font-size="16" fill="#B0A9A0" font-weight="400" text-anchor="middle">0</text>
+<text x="443.33333333333337" y="488" font-size="16" fill="#B0A9A0" font-weight="400" text-anchor="middle">500,000</text>
+<text x="676.6666666666667" y="488" font-size="16" fill="#B0A9A0" font-weight="400" text-anchor="middle">1,000,000</text>
+<text x="910.0" y="488" font-size="16" fill="#B0A9A0" font-weight="400" text-anchor="middle">1,500,000</text>
+<text x="40" y="526" font-size="17" fill="#B0A9A0" font-weight="400" text-anchor="start">Texts per second. All bars use the same linear scale, starting at zero.</text>
+</g></svg>

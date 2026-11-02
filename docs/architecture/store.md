@@ -1,5 +1,8 @@
 ## sentence_vectors 1
 
+Historical M1 timing observations in this document are withdrawn and must not support speed claims. Numerical contracts and implementation descriptions remain valid. Current evidence is in the [comparison guide](../fse-comparison.md).
+
+
 Binding for every 2.0 module (formerly under "2.0 design").
 
 A store of sentence vectors (`fse._store`), a directory written by `fse.ShardSink` and read by `fse.VectorStore`.
