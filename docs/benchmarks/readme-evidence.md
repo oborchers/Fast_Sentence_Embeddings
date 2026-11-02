@@ -18,7 +18,8 @@ Durability is `none`; the headline does not claim crash-safe storage at 13.46 se
 The collected 16-worker manifest SHA256 is `5fb185267692e6b14cb3831972b4324f9bd599a922a72a37ac3c7bd44d042172`.
 The 32-worker manifest SHA256 is `079581ae37e056565d2d60ec01061d65b6fa0fc7ead77bc1037787a092ba8f31`.
 Both manifests and all listed member hashes were checked locally against the collected results.
-The evidence owner is archiving these results on `benchmark-evidence-2.0`; the fixed archive URL will be added once supplied.
+The fixed [sentence-run archive](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/608cf02a9557ef8bade83ae6c0c2fadd5b8d5012/archives/sentence-speed-2026-11.tar.gz) on `benchmark-evidence-2.0` contains both collected studies and `audit/headline-summary.json`.
+Archive SHA256: `443e7ff798d38b41d14e3952128d8080b2d698e6005991b147c34a69ea88f1c7`.
 
 The dtype table comes from a separate AMD EPYC 9965 run described below.
 These are different machines and workloads. Their rates are not combined or used to derive a speedup.
@@ -47,9 +48,35 @@ Every first and warm fse call takes at least 2 seconds, and the global A/A upper
 The caller and independent reviewer recomputed the medians and those bands from the saved calls.
 No new benchmark was run for the README update.
 
-There is no current 32-worker comparison, complete library panel or classification-speed result.
-The draft placeholders remain until the maintainer decides the next benchmark step.
+There is no current 32-worker dtype comparison or classification-speed result.
 Earlier Mac and small-input timing evidence is not published here. Old hardware cohorts never fill current missing cells.
+
+## Library comparisons: AMD EPYC 9575F
+
+`readme-speed.json` retains exactly the eight library pairs used by the README tables and graphic.
+Each pair uses the same pinned model, input digest/count and normalized float32 output for both libraries.
+The table rates are input count divided by each library's median call time.
+The speedup is the median of the three paired time ratios, so it need not equal the quotient of the separately rounded rates.
+No peak-RSS comparison is made.
+
+Seven pairs come from the WikiText sentence run (manifest `a409cf374700b7dfd8729ce16939dfaefc24b106b1fd9fe8ddc3aaf5369a5a16`).
+The failed Sentence Transformers 16-worker call is excluded.
+Its replacement uses the recommended reused CPU process pool with batch size 1024 and one native thread per process
+(manifest `f2f9bf4300cd4ba4b8f8c41f280c772e03bcb3c712027e73e6c69ba0b0cd1e3a`).
+Sentence Transformers with one worker used the default batch size 32.
+Model2Vec with 16 allowed CPUs used its default thread path; the coordinator observed about four CPUs in use.
+This is the library's default scheduling, not sixteen fully occupied worker processes.
+
+The one-worker pairs each use two million sentences. With sixteen workers, POTION-8M pairs use eighteen million sentences;
+the static-retrieval pair uses five million. Each pair has its own input identity, recorded in the summary.
+Mean length is about 26 words. All calls use the same AMD EPYC 9575F allocation with 32 vCPU, on 2 November 2026.
+POTION-8M has 256 output dimensions. static-retrieval-mrl-en-v1 has 1024; its absolute rates are not compared as if it were POTION-8M.
+The chart's two panels use separate, explicitly labelled linear scales.
+
+The independent audit and all eight pairs are in the same [pinned archive](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/608cf02a9557ef8bade83ae6c0c2fadd5b8d5012/archives/sentence-speed-2026-11.tar.gz), under `audit/library-summary.json`.
+The compact README summary records its member hash. All original manifests, runtime identities and failed attempts remain in that archive.
+The new approved protocol has three paired rounds and no fse A/A duplicate arms; the older A/A eligibility test is not imputed to it.
+These results do not replace the separate EPYC 9965 dtype study.
 
 ## Quality and file size
 
