@@ -10,14 +10,6 @@ from pathlib import Path
 CONFIG = Path(__file__).resolve().parent / "config"
 PINS = json.loads((CONFIG / "pins.json").read_text())
 MODEL_PINS = PINS["models"]
-STATIC_PINS = {k: v for k, v in MODEL_PINS.items() if k.startswith("minishlab/") or "/static-" in k}
-
-
-def artifact_name(repo, dtype):
-    stem = repo.rsplit("/", maxsplit=1)[-1]
-    if repo.startswith("fse/"):
-        stem = "Average-" + stem
-    return f"{stem}-{dtype}.safetensors"
 
 
 def contract(path):

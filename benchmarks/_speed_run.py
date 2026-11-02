@@ -23,7 +23,6 @@ from _measurement_config import contract as load_contract
 ENTRY = Path(__file__).resolve().with_name("speed.py")
 
 HERE = Path(__file__).resolve().parent
-INPUT = CONFIG / "speed.json"
 
 
 Ledger = records.Ledger

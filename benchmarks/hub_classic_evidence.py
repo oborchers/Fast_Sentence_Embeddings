@@ -3,17 +3,12 @@
 from __future__ import annotations
 
 import inspect
-import json
-import math
 import subprocess
 import textwrap
 from functools import lru_cache
 from importlib.metadata import version
 from pathlib import Path
 
-from hub_classic_sources import SOURCES
-
-import fse
 from fse._container._hash import Hasher, checksum
 
 STS_COMMIT = "fc3cbfb0509f56dfe2374c4c94fd68024f8810d6"
@@ -25,7 +20,6 @@ PUNKT = {
     "ortho_context.tab": "xxh3-128:6ef2c67cab33775cdfe9a537e1c6c4ed",
     "sent_starters.txt": "xxh3-128:faa8bab2de114ffc95373f90d0fa7da0",
 }
-MTEB_VERSION = "2.26.25"
 
 
 def implementation_digest(function) -> str:
@@ -73,48 +67,4 @@ def benchmark_identity():
         "cosine_code_xxh3": implementation_digest(normalized),
         "pearson_code_xxh3": implementation_digest(score),
         **tokenizer_identity(),
-    }
-
-
-def validate_score(row, expected, key, lower, upper):
-    for name, value in expected.items():
-        if row.get(name) != value:
-            raise ValueError(f"measurement identity mismatch for {name}")
-    value = row.get(key)
-    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
-        raise ValueError(f"{key} must be finite")
-    if not lower <= value <= upper:
-        raise ValueError(f"{key} outside [{lower}, {upper}]")
-    return value
-
-
-def candidate_evidence(output, kind):
-    fit = json.loads((output / f"glove-{kind}-fit.json").read_text())
-    expected_source = {
-        "repo": "fse/glove-wiki-gigaword-300",
-        "revision": SOURCES["glove-wiki-gigaword-300"],
-    }
-    if (
-        fit.get("source_repo") != expected_source["repo"]
-        or fit.get("source_revision") != expected_source["revision"]
-    ):
-        raise ValueError("candidate vector-source provenance mismatch")
-    state = output / f"glove-{kind}-wordfreq-fit.npz"
-    if digest(state) != fit["state_xxh3"]:
-        raise ValueError("candidate fitted-state checksum mismatch")
-    model = fse.Encoder.load(output / f"glove-{kind}-wordfreq.safetensors", mmap=True)
-    source = model._content.source
-    if source is not None and (
-        source.repo != expected_source["repo"] or source.revision != expected_source["revision"]
-    ):
-        raise ValueError("candidate artifact source differs from its fit receipt")
-    if model.fingerprint != fit["candidate_fingerprint"]:
-        raise ValueError("candidate fingerprint does not match its fit receipt")
-    if fit.get("tokenizer") != tokenizer_identity():
-        raise ValueError("candidate tokenizer resources differ from its fit receipt")
-    return {
-        "corpus": kind,
-        "encoder_fingerprint": model.fingerprint,
-        "state_xxh3": fit["state_xxh3"],
-        "tokenizer": tokenizer_identity(),
     }

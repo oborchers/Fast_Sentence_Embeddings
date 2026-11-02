@@ -36,7 +36,7 @@ def summarize(folder):
     return {
         "source": str(Path(folder).resolve()),
         "cells_sha256": sha256(path),
-        "score_scale": "0 to 1",
+        "mteb_score_scale": "unscaled MTEB main_score",
         "rows": result,
         "artifact_scores": artifact_scores(rows),
         "note": "No existing README or model-card value is updated by this command. Missing coverage has no mean.",
@@ -72,6 +72,7 @@ def artifact_scores(rows):
                 "pearson",
                 "spearman",
                 "recall_at_10",
+                "score_scale",
                 "benchmark",
             )
             if k in r

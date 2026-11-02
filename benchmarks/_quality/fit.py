@@ -145,7 +145,7 @@ def sts(cell, context):
         "pearson": score(labels, vectors),
         "spearman": float(spearmanr(labels, similarities).statistic * 100),
         "fit": receipt,
-        "score_scale": "0 to 100",
+        "score_scale": "correlation multiplied by 100",
         "task": "STSBenchmark test, historical Pearson and Spearman",
     }
 
@@ -197,6 +197,7 @@ def recall(cell, context):
     return {
         "status": "valid",
         "recall_at_10": neighbor_recall(neighbors(a), neighbors(b)),
+        "score_scale": "fraction of shared top-10 neighbors",
         "fit_id": cell.get("fit"),
         "table_dtype": cell["dtype"],
         "rows": len(inputs),
