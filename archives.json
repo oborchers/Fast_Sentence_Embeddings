@@ -24,6 +24,15 @@
       "sha256": "743846611953faca7b76cb9ecf09fb63257db47503c117ae6ebb6a5039ec146f",
       "members": 411,
       "raw_bytes": 3375839
+    },
+    {
+      "path": "archives/sentence-speed-2026-11.tar.gz",
+      "bytes": 2944888,
+      "sha256": "443e7ff798d38b41d14e3952128d8080b2d698e6005991b147c34a69ea88f1c7",
+      "members": 532,
+      "raw_bytes": 8204559,
+      "member_manifest": "archive-member-manifest.json"
     }
-  ]
+  ],
+  "latest_speed_source_pins": "6c9fc1a5fd5f42d4b1af0e0756ef9123d493aad9"
 }
