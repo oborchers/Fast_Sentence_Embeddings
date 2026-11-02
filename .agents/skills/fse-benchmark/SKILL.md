@@ -86,8 +86,12 @@ Report logical file bytes separately from physical device writes and state the R
 Use telemetry to investigate drift. A quiet start does not prove a quiet run.
 
 For hot-path changes, retain the paired base/candidate float32 comparison and representative profiles required by AGENTS.md.
-Use `make profile-cpu`, `make profile-mem` and `make profile-rss` with the selected entry as `RUN`.
-Describe the hottest functions and memory peaks. Profile attribution alone is not a speed ranking.
+Use the profiling targets in AGENTS.md, but verify which processes each profiler captures.
+Linux CPU and RSS targets can follow the controller tree. Memray cannot follow an `exec` into a new interpreter.
+For memory attribution, instrument the executing Python child directly, using its recorded `--child-job` with fresh diagnostic output paths.
+Instrument spawned pool workers separately when needed. Use an appropriate native profiler for Rust.
+Keep diagnostic timings out of speed summaries. State process coverage, hottest functions and memory peaks.
+A controller-only allocation profile is not an encoder memory profile. See the referenced profiler limitation.
 
 ## 5. Preserve quality meaning
 

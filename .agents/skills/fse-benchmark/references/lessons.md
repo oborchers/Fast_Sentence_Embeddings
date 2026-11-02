@@ -42,6 +42,11 @@ The Rust receipt adds binary identity. Recheck identity after execution.
   fse's frozen linear head and Model2Vec's fine-tuned MLP are different trained models.
   Source: [classification](../../../../docs/fse-comparison.md#classification).
 
+- Memray follows forks but not `exec`. The speed controller launches new interpreters, so its allocation profile misses their work.
+  Instrument executing children directly and state coverage of spawned workers.
+  Source: [subprocess launch](../../../../benchmarks/_speed_run.py),
+  [Memray limitations](https://bloomberg.github.io/memray/supported_environments.html#known-issues-and-limitations).
+
 ## Setup and lifecycle traps
 
 - uv's first-index behavior can hide the pinned PyPI version when the Torch index contains the same name.
