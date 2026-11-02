@@ -124,7 +124,7 @@ compact = Encoder.from_pretrained("minishlab/potion-base-8M").quantize("int8")
 compact.save("compact.safetensors")
 ```
 
-Classic Hub models have `-raw` and `-sif10` versions, also with `-float16` or `-int8` suffixes.
+See all [30 classic Hub models](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/0b127c8da4bc177005c78b6a241459bb776244c7/docs/models.md) with float32, float16 and int8 download sizes.
 `-raw` in a classic Hub model name means no SIF weighting. It does not mean unnormalized output.
 
 You can also use your own GloVe, word2vec or FastText vectors with the optional `fse[gensim]` adapter.
