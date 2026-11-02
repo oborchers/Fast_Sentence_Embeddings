@@ -1,6 +1,22 @@
 # README evidence
 
-## Speed
+## Headline and dtype table use different machines
+
+The maintainer explicitly approved restoring the earlier headline. Its source is the
+[pinned headline evidence](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-showcase-20261101/README.md)
+on `benchmark-evidence-2.0`.
+
+The headline describes the 100-million-text file-to-vector run on AMD EPYC 7713 with 32 vCPU, 1 November 2026.
+It reads repeated and shuffled WikiText-103 passages, encodes them and writes int8 output through sink close.
+The model table is float32. The caption's `int8` describes output storage, not model precision.
+Model loading is excluded, and durability `none` does not wait for crash-safe storage.
+The approved headline and caption are copied verbatim from the archived evidence.
+
+The dtype table comes from a separate AMD EPYC 9965 run described below.
+These are different machines and workloads. Their rates are not combined or used to derive a speedup.
+The exception applies only to the headline. Library comparisons remain open, and no other missing cell is filled from an older run.
+
+## Dtype table: AMD EPYC 9965
 
 The six README values come only from cells `dtypes-02` through `dtypes-07` of one reproducible run.
 The pinned source is [speed-run-2026-11.tar.gz](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/f97e32edbc0f9daa538b56b54f3187d8d3c177d8/archives/speed-run-2026-11.tar.gz)
@@ -23,7 +39,7 @@ Every first and warm fse call takes at least 2 seconds, and the global A/A upper
 The caller and independent reviewer recomputed the medians and those bands from the saved calls.
 No new benchmark was run for the README update.
 
-There is no current 32-worker comparison, approved headline, complete library panel or classification-speed result.
+There is no current 32-worker comparison, complete library panel or classification-speed result.
 The draft placeholders remain until the maintainer decides the next benchmark step.
 Earlier Mac and small-input timing evidence is not published here. Old hardware cohorts never fill current missing cells.
 
