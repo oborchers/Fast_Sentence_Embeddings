@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 from pathlib import Path
 
 from _measurement import document, rehearsal_limits
-from _measurement_collect import collect
 from _measurement_config import CONFIG, contract
-from _measurement_setup import bootstrap, setup
+from _measurement_setup import setup, utility
 from _speed_pipeline import measure_child
 from _speed_run import run
 
@@ -19,7 +17,9 @@ from _speed_run import run
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=CONFIG / "speed.json")
-    parser.add_argument("--study", choices=("all", "libraries", "headline", "dtypes"), default="libraries")
+    parser.add_argument(
+        "--study", choices=("all", "libraries", "headline", "dtypes"), default="libraries"
+    )
     parser.add_argument("--workers", type=int, choices=(16, 32))
     parser.add_argument("--reuse-work", type=Path)
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -35,24 +35,19 @@ def main():
     parser.add_argument("--results", type=Path, default=Path("/speed-results"))
     parser.add_argument("--work", type=Path, default=Path("/speed-work"))
     parser.add_argument("--reference-python", default="/speed-env/reference/bin/python")
+    parser.add_argument("--base-python", help="installed base fse interpreter for fse-base cells")
     parser.add_argument("--allocated-at", type=float)
     args = parser.parse_args()
-    if args.collect:
-        if not args.archive:
-            parser.error("--collect requires --archive")
-        print(json.dumps(collect(args.collect, args.archive)))
-        return 0
-    if args.bootstrap:
-        print(bootstrap("speed", args.source_revision))
+    if utility(args, "speed"):
         return 0
     if args.child_job:
         measure_child(document(args.child_job))
         return 0
     specification = contract(args.input)
-    if args.describe:
-        print(json.dumps(specification, indent=2))
-        return 0
-    if sys.platform != "linux" or sys.version.split()[0] != specification["machine"]["python_patch"]:
+    if (
+        sys.platform != "linux"
+        or sys.version.split()[0] != specification["machine"]["python_patch"]
+    ):
         raise RuntimeError("pinned Linux Python required")
     if args.allocated_at is None:
         parser.error("allocation Unix timestamp required")

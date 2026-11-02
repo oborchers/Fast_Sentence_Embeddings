@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import platform
@@ -14,9 +13,12 @@ import threading
 import time
 from pathlib import Path
 
-import _speed_cells as records
+import _measurement as records
+import _speed_cells as inputs
 import _speed_pipeline as engines
-from _measurement_config import CONFIG, contract as load_contract
+import _speed_write as writing
+from _measurement_config import CONFIG
+from _measurement_config import contract as load_contract
 
 ENTRY = Path(__file__).resolve().with_name("speed.py")
 
@@ -45,7 +47,7 @@ def prepare(args, contract, ledger):
     require_budget(ledger, 60)
     models = engines.prepare_models(args.work, contract, args.reuse_work)
     require_budget(ledger, 60)
-    paragraphs, unknown = records.corpus_sources(
+    paragraphs, unknown = inputs.corpus_sources(
         contract, (args.reuse_work or args.work) / "datasets"
     )
     require_budget(ledger, 60)
@@ -62,6 +64,7 @@ def prepare(args, contract, ledger):
         "unknown": unknown,
         "rust": rust,
         "reference_python": args.reference_python,
+        "base_python": args.base_python,
     }
 
 
@@ -78,7 +81,7 @@ def prepare_input(context, cell):
         limit = model.max_length * model.median_token_length
         source = [text[:limit] for text in source]
     path = context["work"] / (cell["id"] + ".txt")
-    identity = records.write_input(path, source, mandatory, cell["texts"], 0)
+    identity = inputs.write_input(path, source, mandatory, cell["texts"], 0)
     if (
         not cell.get("functional_only")
         and cell.get("planned_input_bytes") is not None
@@ -102,12 +105,14 @@ def launch(context, cell, label, number, path, sample, identity):
         cell,
         label=label,
         round=number,
-        backend="fse" if label == "fse-control" else label,
+        backend="fse" if label.startswith("fse-") else label,
         input_file=str(path),
         input_sha256=identity["sha256"],
         sample_file=str(sample),
         snapshot=model["snapshot"],
-        artifact=model.get("artifacts", {}).get(cell.get("table_dtype", cell["dtype"]), model["artifact"]),
+        artifact=model.get("artifacts", {}).get(
+            cell.get("table_dtype", cell["dtype"]), model["artifact"]
+        ),
         vectors_file=str(folder / "sample"),
         receipt=str(folder / "receipt.json"),
     )
@@ -118,7 +123,11 @@ def launch(context, cell, label, number, path, sample, identity):
         job["sample_texts_sha256"] = records.sha256(Path(job["sample_texts_file"]))
     spec = root / f"{cell['id']}-{number}-{label}.job.json"
     records.atomic(spec, job)
-    python = context["reference_python"] if label == "fastembed" else sys.executable
+    python = engines.interpreter(job["backend"], context["reference_python"])
+    if label == "fse-base":
+        if not context["base_python"]:
+            raise ValueError("fse-base requires --base-python")
+        python = context["base_python"]
     with spec.with_suffix(".log").open("x") as stream:
         child = subprocess.Popen(
             [python, str(ENTRY), "--child-job", str(spec)],
@@ -137,10 +146,7 @@ def launch(context, cell, label, number, path, sample, identity):
         model=cell["model"],
         revision=model["revision"],
         sample_file=str(folder / "sample"),
-        adapter_sha256={
-            p.name: records.sha256(p)
-            for p in sorted(HERE.glob("_*.py")) + [ENTRY]
-        },
+        adapter_sha256={p.name: records.sha256(p) for p in [*sorted(HERE.glob("_*.py")), ENTRY]},
     )
     records.append(root / "operations.jsonl", dict(cell_id=cell["id"], **record))
     return record
@@ -170,7 +176,7 @@ def round_pair(context, cell, number, path, sample, identity):
     ]
     a = next(row for row in rows if row["label"] == "fse")
     b = next(row for row in rows if row["label"] != "fse")
-    delta = records.check_output(sample_array(a), sample_array(b), cell["kind"] == "dtype")
+    delta = inputs.check_output(sample_array(a), sample_array(b), cell["kind"] == "dtype")
     records.append(
         context["ledger"].root / "checks.jsonl",
         {
@@ -204,21 +210,21 @@ def summarize_pair(cell, observations, identity):
             raise ValueError("missing or duplicate paired rounds")
         if len({json.dumps(r["identity"], sort_keys=True) for r in rows}) != 1:
             raise ValueError("executing backend changed between rounds")
-    short = not cell.get("functional_only") and min(r["seconds"] for r in observations) < 2
-    control = cell["kind"] == "dtype"
-    a = records.spread([r["seconds"] for r in arms["fse"]])["median"]
-    b = records.spread([r["seconds"] for r in arms[cell["reference"]]])["median"]
-    aa_upper = max(a / b, b / a) if control else None
-    noisy = control and aa_upper > 1.10
+    short, aa_upper, noisy = pair_validity(cell, observations, arms)
     ratios = [
         b["seconds"] / a["seconds"]
         for a, b in zip(arms["fse"], arms[cell["reference"]], strict=True)
     ]
+
     return {
         "status": "invalid" if short or noisy else "valid",
-        "aa": {"status": "measured", "symmetric_upper": aa_upper} if control else {"status": "not_run"},
+        "aa": {"status": "measured", "symmetric_upper": aa_upper}
+        if aa_upper is not None
+        else {"status": "not_run"},
         "input_identity": identity,
-        "reason": "call shorter than two seconds" if short else ("A/A exceeds 10 percent" if noisy else None),
+        "reason": "call shorter than two seconds"
+        if short
+        else ("A/A exceeds 10 percent" if noisy else None),
         "sample_checked": True,
         "paired_speedup": records.spread(ratios),
         "arms": {name: arm_summary(rows) for name, rows in arms.items()},
@@ -242,7 +248,7 @@ def memory_preflight(context, contract):
         if cell["kind"] == "write":
             continue
         model_bytes = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
-        plan = records.memory_plan(production, cell["planned_input_bytes"], model_bytes, limit)
+        plan = inputs.memory_plan(production, cell["planned_input_bytes"], model_bytes, limit)
         rows.append(dict(cell_id=cell["id"], **plan))
     records.atomic(
         context["ledger"].root / "preflight-memory.json",
@@ -258,7 +264,7 @@ def pair(context, cell):
     maximum = Path("/sys/fs/cgroup/memory.max").read_text().strip()
     if maximum == "max":
         raise ValueError("finite cgroup memory limit required")
-    budget = records.memory_plan(cell, identity["file_bytes"], model_bytes, int(maximum))
+    budget = inputs.memory_plan(cell, identity["file_bytes"], model_bytes, int(maximum))
     records.append(context["ledger"].root / "memory.jsonl", dict(cell_id=cell["id"], **budget))
     if not budget["admitted"]:
         raise MemoryError("fixed input exceeds the declared memory budget")
@@ -355,6 +361,7 @@ def run(args):
     contract = study_contract(args)
     args.results.mkdir(parents=True, exist_ok=False)
     ledger = Ledger(args.results, contract, args.allocated_at)
+    os.environ["MEASURE_WORK"] = str(args.work)
     write_environment(args, contract)
     stop = threading.Event()
     watcher = threading.Thread(target=heartbeat, args=(ledger, stop), daemon=True)
@@ -385,7 +392,9 @@ def run_cells(context, contract):
     memory_preflight(context, contract)
     if any(c["kind"] != "write" for c in contract["cells"]):
         ledger.stage, ledger.current = "quiet", "quiet"
-        require_budget(ledger, 1 if contract.get("functional_only") else contract["rules"]["quiet_seconds"])
+        require_budget(
+            ledger, 1 if contract.get("functional_only") else contract["rules"]["quiet_seconds"]
+        )
         quiet(context, contract)
     for cell in contract["cells"]:
         ledger.current, ledger.stage = cell["id"], cell["stage"]
@@ -412,14 +421,14 @@ def run_headline(context, contract):
         ledger.result(cell, started, status="not_started", reason="headline admission budget")
         return
     source = context["paragraphs"]
-    records.stream_budget(work, cell, source)
-    tokens = engines.headline_tokens(context["models"][cell["model"]]["snapshot"], source)
+    inputs.stream_budget(work, cell, source)
+    tokens = writing.headline_tokens(context["models"][cell["model"]]["snapshot"], source)
     path = work / "headline-input.txt"
-    identity = records.write_input(path, source, [], cell["texts"], 0, tokens, ledger.admit)
+    identity = inputs.write_input(path, source, [], cell["texts"], 0, tokens, ledger.admit)
     records.append(ledger.root / "inputs.jsonl", dict(cell_id=cell["id"], **identity))
     sample = path.with_suffix(".sample.json")
     records.atomic(sample, identity["sample_rows"])
-    rows, error = records.headline_rounds(context, cell, path, sample, identity, launch, cleanup)
+    rows, error = inputs.headline_rounds(context, cell, path, sample, identity, launch, cleanup)
     complete = len(rows) == cell["rounds"] and error is None
     ledger.result(
         cell,
@@ -441,3 +450,12 @@ def run_headline(context, contract):
         reason=error or (None if complete else "stop signal or budget before next round"),
     )
 
+
+def pair_validity(cell, observations, arms):
+    short = not cell.get("functional_only") and min(r["seconds"] for r in observations) < 2
+    if cell["reference"] != "fse-control":
+        return short, None, False
+    a = records.spread([r["seconds"] for r in arms["fse"]])["median"]
+    b = records.spread([r["seconds"] for r in arms[cell["reference"]]])["median"]
+    upper = max(a / b, b / a)
+    return short, upper, upper > 1.10 and not cell.get("functional_only")

@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import os
-import subprocess
-import sys
 import time
 from pathlib import Path
 
-from _measurement import admit, atomic, package_identity, sha256, telemetry
+from _measurement import atomic, package_identity, sha256, telemetry
 from _speed_cells import configure
+
 
 def headline_tokens(snapshot, source):
     import numpy as np

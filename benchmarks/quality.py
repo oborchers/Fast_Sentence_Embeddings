@@ -12,9 +12,8 @@ import time
 from pathlib import Path
 
 from _measurement import Ledger, append, atomic, rehearsal_limits
-from _measurement_collect import collect
 from _measurement_config import CONFIG, contract
-from _measurement_setup import bootstrap, setup
+from _measurement_setup import setup, utility
 from _speed_run import heartbeat, write_environment
 
 
@@ -24,9 +23,30 @@ def specification(args):
         rehearsal_limits()
         spec["functional_only"] = True
         spec["cells"] = [
-            {"id": "small-fit", "kind": "fit", "model": "fse/glove-wiki-gigaword-300", "corpus": "wikitext", "workers": 1, "estimated_seconds": 30},
-            {"id": "small-sts", "kind": "sts", "fit": "small-fit", "workers": 1, "estimated_seconds": 30},
-            {"id": "small-mteb", "kind": "mteb", "model": "minishlab/potion-base-8M", "backend": "fse", "workers": 1, "tasks": ["BIOSSES"], "estimated_seconds": 60},
+            {
+                "id": "small-fit",
+                "kind": "fit",
+                "model": "fse/glove-wiki-gigaword-300",
+                "corpus": "wikitext",
+                "workers": 1,
+                "estimated_seconds": 30,
+            },
+            {
+                "id": "small-sts",
+                "kind": "sts",
+                "fit": "small-fit",
+                "workers": 1,
+                "estimated_seconds": 30,
+            },
+            {
+                "id": "small-mteb",
+                "kind": "mteb",
+                "model": "minishlab/potion-base-8M",
+                "backend": "fse",
+                "workers": 1,
+                "tasks": ["BIOSSES"],
+                "estimated_seconds": 60,
+            },
         ]
         spec["billing"].update(planning_minutes=180, planning_balance_usd=10)
     if args.cells:
@@ -44,29 +64,48 @@ def specification(args):
 
 
 def run(args):
-    from _quality.fit import fit, select, sts
+    from _quality.fit import fit, mean, recall, select, sts
     from _quality.mteb import MIND_REASON, evaluate
 
     spec = specification(args)
     args.results.mkdir(parents=True, exist_ok=False)
     ledger = Ledger(args.results, spec, args.allocated_at)
+    os.environ["MEASURE_WORK"] = str(args.work)
     write_environment(args, spec)
     atomic(args.results / "exclusions.json", {"MindSmallReranking": MIND_REASON})
-    context = {"results": args.results, "work": args.work, "cache": args.cache,
-               "fits": {}, "finished": ledger.finished}
+    context = {
+        "results": args.results,
+        "work": args.work,
+        "cache": args.cache,
+        "fits": {},
+        "finished": ledger.finished,
+    }
     stop = threading.Event()
     watcher = threading.Thread(target=heartbeat, args=(ledger, stop), daemon=True)
     watcher.start()
     for signum in (signal.SIGINT, signal.SIGTERM):
         signal.signal(signum, lambda *_: setattr(ledger, "stopping", True))
-    actions = {"fit": fit, "sts": sts, "mteb": evaluate, "select": select}
+    actions = {
+        "fit": fit,
+        "mean": mean,
+        "sts": sts,
+        "mteb": evaluate,
+        "select": select,
+        "recall": recall,
+    }
     try:
         args.work.mkdir(parents=True, exist_ok=False)
+        from nltk import download
+
+        if not download("punkt_tab", quiet=True):
+            raise RuntimeError("pinned NLTK tokenizer resources unavailable")
         for cell in spec["cells"]:
             ledger.stage, ledger.current = cell["kind"], cell["id"]
             started = time.monotonic()
             if not ledger.admit(cell["estimated_seconds"]):
-                ledger.result(cell, started, status="not_started", reason="soft budget or stop signal")
+                ledger.result(
+                    cell, started, status="not_started", reason="soft budget or stop signal"
+                )
                 continue
             try:
                 result = actions[cell["kind"]](cell, context)
@@ -79,7 +118,9 @@ def run(args):
         finished = {r["cell_id"] for r in ledger.finished}
         for cell in spec["cells"]:
             if cell["id"] not in finished:
-                ledger.result(cell, time.monotonic(), status="not_started", reason="preparation failed")
+                ledger.result(
+                    cell, time.monotonic(), status="not_started", reason="preparation failed"
+                )
         stop.set()
         watcher.join()
     return ledger.done()
@@ -109,18 +150,9 @@ def main():
 
         print(json.dumps(summarize(args.summarize), indent=2, allow_nan=False))
         return 0
-    if args.collect:
-        if not args.archive:
-            parser.error("--collect requires --archive")
-        print(json.dumps(collect(args.collect, args.archive)))
-        return 0
-    if args.bootstrap:
-        print(bootstrap("quality", args.source_revision))
+    if utility(args, "quality"):
         return 0
     spec = contract(args.input)
-    if args.describe:
-        print(json.dumps(spec, indent=2))
-        return 0
     if sys.platform != "linux" or sys.version.split()[0] != spec["machine"]["python_patch"]:
         raise RuntimeError("pinned Linux Python required")
     if args.allocated_at is None:

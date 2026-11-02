@@ -13,14 +13,9 @@ from importlib.metadata import distributions
 from pathlib import Path
 
 from _measurement import atomic, package_identity, sha256, telemetry
-from _measurement_config import CONFIG, PINS
-from _measurement_setup import setup as setup
+from _measurement_config import PINS
 from _speed_cells import configure
-from _speed_write import headline_child as headline_child
-from _speed_write import headline_tokens as headline_tokens
-
-
-
+from _speed_write import headline_child
 
 RUST_SOURCE = r"""
 use model2vec_rs::model::StaticModel;
@@ -44,35 +39,36 @@ fn main()->Result<(),Box<dyn std::error::Error>> {
 """
 
 
+def fse_encoder(job):
+    from fse import Encoder
+
+    model = Encoder.load(job["artifact"], mmap=True)
+    if model.word_vectors.dtype != job["dtype"]:
+        raise ValueError("finished table dtype differs from the requested cell")
+    return lambda texts: model.encode(texts, workers=job["workers"])
 
 
-def encoder(job):
-    kind, workers = job["backend"], job["workers"]
-    if kind == "fse":
-        from fse import Encoder
+def model2vec_encoder(job):
+    from model2vec import StaticModel
 
-        model = Encoder.load(job["artifact"], mmap=True)
-        if model.word_vectors.dtype != job["dtype"]:
-            raise ValueError("finished table dtype differs from the requested cell")
-        return lambda texts: model.encode(texts, workers=workers)
-    if kind == "model2vec":
-        from model2vec import StaticModel
+    model = StaticModel.from_pretrained(job["snapshot"], normalize=True)
+    return lambda texts: model.encode(texts, use_multiprocessing=job["workers"] > 1)
 
-        model = StaticModel.from_pretrained(job["snapshot"], normalize=True)
-        return lambda texts: model.encode(texts, use_multiprocessing=workers > 1)
-    if kind == "st":
-        return st_encoder(job)
-    if kind == "fastembed":
-        import numpy as np
-        from fastembed import TextEmbedding
 
-        model = TextEmbedding(
-            model_name=job["model"], specific_model_path=job["snapshot"], local_files_only=True
-        )
-        return lambda texts: np.stack(
-            list(model.embed(texts, parallel=workers if workers > 1 else None))
-        )
-    raise ValueError(f"unsupported Python backend: {kind}")
+def fastembed_encoder(job):
+    import numpy as np
+    from fastembed import TextEmbedding
+
+    model = TextEmbedding(
+        model_name=job["model"], specific_model_path=job["snapshot"], local_files_only=True
+    )
+    return lambda texts: np.stack(
+        list(model.embed(texts, parallel=job["workers"] if job["workers"] > 1 else None))
+    )
+
+
+def interpreter(backend, reference_python):
+    return reference_python if ADAPTERS[backend]["environment"] == "reference" else sys.executable
 
 
 def build_rust(folder, lock):
@@ -80,7 +76,8 @@ def build_rust(folder, lock):
     (folder / "src").mkdir()
     (folder / "src/main.rs").write_text(RUST_SOURCE)
     (folder / "Cargo.lock").write_bytes(lock.read_bytes())
-    (folder / "Cargo.toml").write_text("""[package]
+    (folder / "Cargo.toml").write_text(
+        """[package]
 name="fse-model2vec-rs-compare"
 version="0.1.0"
 edition="2024"
@@ -91,7 +88,8 @@ rayon="=1.12.0"
 [profile.release]
 codegen-units=1
 lto="thin"
-""".replace("@REVISION@", PINS["rust_revision"]))
+""".replace("@REVISION@", PINS["rust_revision"])
+    )
     subprocess.run(
         [
             str(Path.home() / ".cargo/bin/cargo"),
@@ -196,13 +194,21 @@ def prepare_models(root, contract, reuse=None):
             else StaticModel.from_pretrained(snapshot, normalize=True).encoder
         )
         artifacts = {}
-        dtypes = {"float32", *(c["dtype"] for c in contract["cells"] if c["model"] == repo and c["kind"] == "dtype")}
+        dtypes = {
+            "float32",
+            *(c["dtype"] for c in contract["cells"] if c["model"] == repo and c["kind"] == "dtype"),
+        }
         for dtype in sorted(dtypes):
             artifact = root / (repo.rsplit("/", 1)[-1] + "-" + dtype + ".safetensors")
             current = encoder if dtype == "float32" else encoder.quantize(dtype)
             current.save(artifact)
             artifacts[dtype] = str(artifact)
-        result[repo] = {"snapshot": snapshot, "artifact": artifacts["float32"], "artifacts": artifacts, "revision": revision}
+        result[repo] = {
+            "snapshot": snapshot,
+            "artifact": artifacts["float32"],
+            "artifacts": artifacts,
+            "revision": revision,
+        }
     return result
 
 
@@ -211,24 +217,20 @@ def measure_child(job):
         return headline_child(job)
     if job["backend"] == "rust":
         return rust_child(job)
-    configure(job["workers"], native_threads=1 if job["backend"] in ("fastembed", "st") else None)
+    adapter = ADAPTERS[job["backend"]]
+    configure(job["workers"], native_threads=adapter["native_threads"])
     import resource
 
     import numpy as np
 
-    package = {
-        "fse": "fse",
-        "model2vec": "model2vec",
-        "st": "sentence-transformers",
-        "fastembed": "fastembed",
-    }[job["backend"]]
+    package = adapter["package"]
     identity = package_identity(package)
     with Path(job["input_file"]).open() as stream:
         texts = [line.rstrip("\n") for line in stream]
     if len(texts) != job["texts"] or sha256(Path(job["input_file"])) != job["input_sha256"]:
         raise ValueError("input changed")
     indices = np.asarray(json.loads(Path(job["sample_file"]).read_text()), dtype=np.int64)
-    encode = encoder(job)
+    encode = adapter["factory"](job)
     try:
         warm = encode(texts)
         if warm.shape != (len(texts), job["dimensions"]):
@@ -260,19 +262,14 @@ def measure_child(job):
                 "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
                 "telemetry_before": before,
                 "telemetry_after": after,
+                "affinity": sorted(os.sched_getaffinity(0)),
+                "workers": job["workers"],
+                "worker_path": adapter["factory"].__name__,
             },
         )
     finally:
         if hasattr(encode, "close"):
             encode.close()
-
-
-
-
-
-
-
-
 
 
 def st_pool_worker(*args):
@@ -333,3 +330,38 @@ def st_file_limits():
     resource.setrlimit(resource.RLIMIT_NOFILE, (max(soft, target), hard))
     if __import__("shutil").disk_usage("/dev/shm").free < 512 * 1024**2:
         raise RuntimeError("ST pool needs at least 512 MiB free shared memory")
+
+
+# A new Python library adds one factory and one registry entry, not another runner.
+ADAPTERS = {
+    "fse": {
+        "factory": fse_encoder,
+        "package": "fse",
+        "environment": "main",
+        "native_threads": None,
+    },
+    "model2vec": {
+        "factory": model2vec_encoder,
+        "package": "model2vec",
+        "environment": "main",
+        "native_threads": None,
+    },
+    "fastembed": {
+        "factory": fastembed_encoder,
+        "package": "fastembed",
+        "environment": "reference",
+        "native_threads": 1,
+    },
+    "st": {
+        "factory": st_encoder,
+        "package": "sentence-transformers",
+        "environment": "main",
+        "native_threads": 1,
+    },
+    "rust": {
+        "factory": rust_child,
+        "package": "model2vec-rs",
+        "environment": "main",
+        "native_threads": None,
+    },
+}

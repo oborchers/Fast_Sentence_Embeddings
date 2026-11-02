@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import gc
-import json
 import tempfile
 from importlib.metadata import version
 from pathlib import Path
@@ -28,7 +27,32 @@ def miniature(folder):
     import numpy as np
     from gensim.models import KeyedVectors
 
-    words = "the a man woman boy girl dog cat is was are were in on with to from playing running walking sitting standing happy sad".split()
+    words = [
+        "the",
+        "a",
+        "man",
+        "woman",
+        "boy",
+        "girl",
+        "dog",
+        "cat",
+        "is",
+        "was",
+        "are",
+        "were",
+        "in",
+        "on",
+        "with",
+        "to",
+        "from",
+        "playing",
+        "running",
+        "walking",
+        "sitting",
+        "standing",
+        "happy",
+        "sad",
+    ]
     kv = KeyedVectors(vector_size=16)
     kv.add_vectors(words, np.random.default_rng(0).normal(size=(len(words), 16)).astype(np.float32))
     path = folder / "functional-fit.txt"
@@ -38,11 +62,11 @@ def miniature(folder):
 
 def fit(cell, context):
     import numpy as np
-
-    import fse
     from hub_classic_corpus import batches
     from hub_classic_math import components, gram_of_batches, wordfreq_weights
     from prepare_hub_classics import fold_encoder, provenance, source_model, weighted_encoder
+
+    import fse
 
     target = context["work"] / cell["id"]
     target.mkdir()
@@ -52,20 +76,31 @@ def fit(cell, context):
     else:
         kv = source_model(name)
         texts, revision = corpus(cell, context["cache"], target)
-    if not cell.get("functional_only") and MODEL_PINS[cell["model"]] != __import__("hub_classic_sources").SOURCES[name]:
+    if (
+        not cell.get("functional_only")
+        and MODEL_PINS[cell["model"]] != __import__("hub_classic_sources").SOURCES[name]
+    ):
         raise ValueError("quality and Hub source revisions differ; do not fit another source")
     weights = wordfreq_weights(kv.index_to_key)
     with tempfile.TemporaryDirectory(prefix="fit-", dir=target) as temporary:
         directory = Path(temporary)
         weighted = weighted_encoder(kv, weights, directory)
-        basis = components(gram_of_batches(weighted.encode(batch, workers=cell["workers"]) for batch in batches(texts)))
+        basis = components(
+            gram_of_batches(
+                weighted.encode(batch, workers=cell["workers"]) for batch in batches(texts)
+            )
+        )
         state = context["results"] / (cell["id"] + ".npz")
         np.savez(state, weights=weights, components=basis)
         paths, arrays, params = fold_encoder(weighted, basis, directory)
         encoder = fse.Encoder.from_arrays(
-            arrays[0], words=list(kv.index_to_key), fasttext=params,
-            ngrams=arrays[1] if params is not None else None, tokenizer="external",
-            normalize=True, oov_weight=float(weights.max()) if params is not None else None,
+            arrays[0],
+            words=list(kv.index_to_key),
+            fasttext=params,
+            ngrams=arrays[1] if params is not None else None,
+            tokenizer="external",
+            normalize=True,
+            oov_weight=float(weights.max()) if params is not None else None,
         )
         encoder = provenance(encoder, name)
         artifact = target / "encoder.safetensors"
@@ -74,25 +109,32 @@ def fit(cell, context):
         gc.collect()
         for path in paths:
             path.unlink()
-    receipt = {"source_model": cell["model"], "source_revision": MODEL_PINS[cell["model"]],
-               "fit_corpus": cell["corpus"], "fit_revision": revision,
-               "fit_corpus_sha256": sha256(texts), "seed": 0,
-               "frequency": "wordfreq en best, integer count quantization, a=0.001",
-               "wordfreq_version": version("wordfreq"), "components": 10,
-               "fit_sha256": sha256(state), "artifact_sha256": sha256(artifact),
-               "artifact": str(artifact.resolve()), "functional_only": cell.get("functional_only", False)}
+    receipt = {
+        "source_model": cell["model"],
+        "source_revision": MODEL_PINS[cell["model"]],
+        "fit_corpus": cell["corpus"],
+        "fit_revision": revision,
+        "fit_corpus_sha256": sha256(texts),
+        "seed": 0,
+        "frequency": "wordfreq en best, integer count quantization, a=0.001",
+        "wordfreq_version": version("wordfreq"),
+        "components": 10,
+        "fit_sha256": sha256(state),
+        "artifact_sha256": sha256(artifact),
+        "artifact": str(artifact.resolve()),
+        "functional_only": cell.get("functional_only", False),
+    }
     atomic(context["results"] / (cell["id"] + "-fit.json"), receipt)
     context["fits"][cell["id"]] = receipt
     return {"status": "valid", "fit": receipt}
 
 
 def sts(cell, context):
-    import numpy as np
+    from hub_classic_metrics import score
     from scipy.stats import spearmanr
+    from verify_hub_classics import benchmark
 
     import fse
-    from hub_classic_metrics import score
-    from verify_hub_classics import benchmark
 
     receipt = context["fits"][cell["fit"]]
     encoder = fse.Encoder.load(receipt["artifact"], mmap=True)
@@ -100,9 +142,15 @@ def sts(cell, context):
     vectors = encoder.encode(tokens, workers=cell["workers"])
     half = len(labels)
     similarities = (vectors[:half] * vectors[half:]).sum(axis=1)
-    return {"status": "valid", "pairs": half, "pearson": score(labels, vectors),
-            "spearman": float(spearmanr(labels, similarities).statistic * 100),
-            "fit": receipt, "score_scale": "0 to 100", "task": "STSBenchmark test, historical Pearson and Spearman"}
+    return {
+        "status": "valid",
+        "pairs": half,
+        "pearson": score(labels, vectors),
+        "spearman": float(spearmanr(labels, similarities).statistic * 100),
+        "fit": receipt,
+        "score_scale": "0 to 100",
+        "task": "STSBenchmark test, historical Pearson and Spearman",
+    }
 
 
 def select(cell, context):
@@ -110,12 +158,92 @@ def select(cell, context):
     rows = context["finished"]
     candidates = []
     for fit_id in cell["fits"]:
-        sts_rows = [r for r in rows if r.get("fit", {}).get("artifact") == context["fits"][fit_id]["artifact"] and "pearson" in r]
-        nano = [r for r in rows if r.get("fit_id") == fit_id and r.get("benchmark") == "NanoBEIR" and r["status"] == "valid"]
+        sts_rows = [
+            r
+            for r in rows
+            if r.get("fit", {}).get("artifact") == context["fits"][fit_id]["artifact"]
+            and "pearson" in r
+        ]
+        nano = [
+            r
+            for r in rows
+            if r.get("fit_id") == fit_id
+            and r.get("benchmark") == "NanoBEIR"
+            and r["status"] == "valid"
+        ]
         if len(sts_rows) != 1 or len({r["task"] for r in nano}) != 13:
-            raise ValueError("corpus selection requires STS Pearson/Spearman and all 13 NanoBEIR tasks")
-        components = [sts_rows[0]["pearson"], sts_rows[0]["spearman"], 100 * sum(r["main_score"] for r in nano) / 13]
-        candidates.append({"fit_id": fit_id, "selection_mean": sum(components) / 3, "components": components})
+            raise ValueError(
+                "corpus selection requires STS Pearson/Spearman and all 13 NanoBEIR tasks"
+            )
+        components = [
+            sts_rows[0]["pearson"],
+            sts_rows[0]["spearman"],
+            100 * sum(r["main_score"] for r in nano) / 13,
+        ]
+        candidates.append(
+            {"fit_id": fit_id, "selection_mean": sum(components) / 3, "components": components}
+        )
     winner = max(candidates, key=lambda row: row["selection_mean"])
-    return {"status": "valid", "selected": winner["fit_id"], "candidates": candidates,
-            "tie_rule": "first listed candidate", "evaluation_used_for_corpus_selection": True}
+    return {
+        "status": "valid",
+        "selected": winner["fit_id"],
+        "candidates": candidates,
+        "tie_rule": "first listed candidate",
+        "evaluation_used_for_corpus_selection": True,
+    }
+
+
+def mean(cell, context):
+    """ParaNMT uses the unweighted mean, without fitting on evaluation texts."""
+    from prepare_hub_classics import provenance, source_model
+
+    import fse
+    from fse.gensim import from_gensim
+
+    name = cell["model"].removeprefix("fse/")
+    target = context["work"] / cell["id"]
+    target.mkdir()
+    encoder = fse.Encoder.from_word_vectors(
+        from_gensim(source_model(name)), tokenizer="external", normalize=True
+    )
+    encoder = provenance(encoder, name)
+    artifact = target / "encoder.safetensors"
+    encoder.save(artifact)
+    receipt = {
+        "source_model": cell["model"],
+        "source_revision": MODEL_PINS[cell["model"]],
+        "method": "plain mean",
+        "artifact": str(artifact.resolve()),
+        "artifact_sha256": sha256(artifact),
+        "encoder_fingerprint": encoder.fingerprint,
+    }
+    context["fits"][cell["id"]] = receipt
+    atomic(context["results"] / (cell["id"] + "-mean.json"), receipt)
+    return {"status": "valid", "fit": receipt}
+
+
+def recall(cell, context):
+    from hub_classic_evidence import benchmark_identity
+    from hub_classic_metrics import neighbors
+    from hub_classic_metrics import recall as neighbor_recall
+    from verify_hub_classics import benchmark
+
+    from .mteb import native_model
+
+    parent = native_model(
+        {**cell, "dtype": "float32", "backend": "fse"}, context["fits"].get(cell.get("fit"))
+    )
+    quantized = parent.quantize(cell["dtype"])
+    _, texts, tokens = benchmark()
+    inputs = tokens if parent.tokenizer == "external" else texts
+    a = parent.encode(inputs, workers=cell["workers"])
+    b = quantized.encode(inputs, workers=cell["workers"])
+    return {
+        "status": "valid",
+        "recall_at_10": neighbor_recall(neighbors(a), neighbors(b)),
+        "rows": len(inputs),
+        "benchmark": benchmark_identity(),
+        "float32_fingerprint": parent.fingerprint,
+        "quantized_fingerprint": quantized.fingerprint,
+        "backend_identity": __import__("_measurement").package_identity("fse"),
+    }

@@ -64,7 +64,7 @@ export UV_CACHE_DIR="$root/measurement-cache/uv"
 export HF_HOME="$root/measurement-cache/huggingface"
 export HF_DATASETS_CACHE="$root/measurement-cache/datasets"
 export RUSTUP_HOME=/root/.rustup CARGO_HOME=/root/.cargo LC_ALL=C.UTF-8
-/usr/bin/git clone --no-checkout https://github.com/oborchers/Fast_Sentence_Embeddings.git "$source"
+/usr/bin/git clone --filter=blob:none --no-checkout https://github.com/oborchers/Fast_Sentence_Embeddings.git "$source"
 /usr/bin/git -C "$source" checkout --detach "$revision"
 input="${MEASURE_INPUT:-$source/benchmarks/config/$entry.json}"
 /usr/local/bin/python "$source/benchmarks/$entry.py" --setup "$environment" --input "$input" --allocated-at "$MEASURE_ALLOCATED_AT"

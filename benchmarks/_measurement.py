@@ -7,12 +7,14 @@ import json
 import math
 import os
 import platform
+import shutil
 import statistics
 import sys
 import threading
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+
 
 def document(path):
     return json.loads(path.read_text())
@@ -80,7 +82,14 @@ def package_identity(name):
 
 def telemetry():
     root = Path("/sys/fs/cgroup")
-    result = {"unix": time.time(), "monotonic": time.monotonic(), "load": os.getloadavg()}
+    work = Path(os.getenv("MEASURE_WORK", "."))
+    disk = shutil.disk_usage(work if work.exists() else Path.cwd())
+    result = {
+        "unix": time.time(),
+        "monotonic": time.monotonic(),
+        "load": os.getloadavg(),
+        "disk": disk._asdict(),
+    }
     for name in ("memory.max", "memory.current"):
         p = root / name
         result[name] = p.read_text().strip() if p.exists() else None

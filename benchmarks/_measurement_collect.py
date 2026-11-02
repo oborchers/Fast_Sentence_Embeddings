@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import tarfile
-from pathlib import Path
 
 from _measurement import document, sha256
 
@@ -30,8 +29,14 @@ def collect(root, destination):
     with tarfile.open(destination, "x:gz") as stream:
         for name in sorted(expected):
             stream.add(root / name, arcname=name, recursive=False)
-    receipt = {"archive": str(destination), "bytes": destination.stat().st_size,
-               "sha256": sha256(destination), "members": len(expected),
-               "measurement_exit_status": done["exit_status"]}
-    destination.with_suffix(destination.suffix + ".json").write_text(json.dumps(receipt, indent=2) + "\n")
+    receipt = {
+        "archive": str(destination),
+        "bytes": destination.stat().st_size,
+        "sha256": sha256(destination),
+        "members": len(expected),
+        "measurement_exit_status": done["exit_status"],
+    }
+    destination.with_suffix(destination.suffix + ".json").write_text(
+        json.dumps(receipt, indent=2) + "\n"
+    )
     return receipt

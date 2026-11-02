@@ -3,23 +3,14 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
 import time
 from pathlib import Path
 
-from _measurement import Ledger as Ledger
-from _measurement import admit as admit
-from _measurement import append as append
-from _measurement import atomic as atomic
-from _measurement import document as document
-from _measurement import package_identity as package_identity
-from _measurement import rehearsal_limits as rehearsal_limits
-from _measurement import sha256 as sha256
-from _measurement import spread as spread
-from _measurement import sync_directory as sync_directory
-from _measurement import telemetry as telemetry
+from _measurement import append, atomic, sha256
 
 
 def configure(workers, native_threads=None):
@@ -69,8 +60,6 @@ def parquet_texts(part):
             text = " ".join(text.split())
             if not text.startswith("=") and len(text.split()) >= 5:
                 yield text
-
-
 
 
 def memory_plan(job, input_bytes, model_bytes, limit):
@@ -194,12 +183,6 @@ def write_input(path, source, mandatory, count, seed, token_counts=None, admissi
     return identity
 
 
-
-
-
-
-
-
 def stream_budget(work, cell, source):
     input_bytes = cell["texts"] * sum(len(t.encode()) + 1 for t in source) / len(source)
     required = int(input_bytes * 1.2 + cell["texts"] * 264 + 5 * 1024**3)
@@ -229,8 +212,6 @@ def remove_headline(work, output, files):
 def check_preparation(admission):
     if admission is not None and not admission(120):
         raise TimeoutError("input preparation budget or stop signal exhausted")
-
-
 
 
 def headline_rounds(context, cell, path, sample, identity, launch, cleanup):

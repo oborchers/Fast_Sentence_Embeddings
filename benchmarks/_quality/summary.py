@@ -22,15 +22,26 @@ def summarize(folder):
         if task_key in groups.setdefault(key, {}):
             raise ValueError("duplicate task results in one quality configuration")
         groups[key][task_key] = row["main_score"]
-    result = []
-    for key, tasks in sorted(groups.items()):
-        eng = [v for (suite, _), v in tasks.items() if suite == "MTEB(eng, v2)"]
-        nano = [v for (suite, _), v in tasks.items() if suite == "NanoBEIR"]
-        result.append({**json.loads(key), "mteb_coverage": f"{len(eng)}/41",
-                       "mteb_mean_40_of_41": statistics.mean(eng) if len(eng) == 40 else None,
-                       "nano_coverage": f"{len(nano)}/13",
-                       "nanobeir_mean": statistics.mean(nano) if len(nano) == 13 else None,
-                       "stsbenchmark_spearman": next((v for (_, task), v in tasks.items() if task == "STSBenchmark"), None)})
-    return {"source": str(Path(folder).resolve()), "cells_sha256": sha256(path),
-            "score_scale": "0 to 1", "rows": result,
-            "note": "No existing README or model-card value is updated by this command. Missing coverage has no mean."}
+    result = [configuration_summary(key, tasks) for key, tasks in sorted(groups.items())]
+    return {
+        "source": str(Path(folder).resolve()),
+        "cells_sha256": sha256(path),
+        "score_scale": "0 to 1",
+        "rows": result,
+        "note": "No existing README or model-card value is updated by this command. Missing coverage has no mean.",
+    }
+
+
+def configuration_summary(key, tasks):
+    eng = [v for (suite, _), v in tasks.items() if suite == "MTEB(eng, v2)"]
+    nano = [v for (suite, _), v in tasks.items() if suite == "NanoBEIR"]
+    return {
+        **json.loads(key),
+        "mteb_coverage": f"{len(eng)}/41",
+        "mteb_mean_40_of_41": statistics.mean(eng) if len(eng) == 40 else None,
+        "nano_coverage": f"{len(nano)}/13",
+        "nanobeir_mean": statistics.mean(nano) if len(nano) == 13 else None,
+        "stsbenchmark_spearman": next(
+            (v for (_, task), v in tasks.items() if task == "STSBenchmark"), None
+        ),
+    }

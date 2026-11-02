@@ -206,6 +206,26 @@
         "NanoBEIR"
       ],
       "estimated_seconds": 90
+    },
+    {
+      "id": "mean-paranmt",
+      "kind": "mean",
+      "model": "fse/paranmt-300",
+      "workers": 2,
+      "estimated_seconds": 300
+    },
+    {
+      "id": "eval-paranmt",
+      "kind": "mteb",
+      "model": "fse/paranmt-300",
+      "backend": "fse",
+      "fit": "mean-paranmt",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
     }
   ]
 }

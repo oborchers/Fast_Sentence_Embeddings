@@ -51,7 +51,7 @@ Follow the measurement rules in [AGENTS.md](AGENTS.md#commands). In particular:
 - Alternate base and change in several paired rounds. Report the median, range and machine load.
 - Run an A/A control, comparing the base with itself, to estimate noise.
 - Use the same data, settings and environment on both sides. Keep measurements within the repository's time budget.
-- For a hot-path change, compare end-to-end float32 throughput with `uv run python benchmarks/bench_runtime.py throughput` on both commits.
+- For a hot-path change, follow the [measurement guide](docs/benchmarks/measurement.md) for a paired Linux end-to-end float32 comparison of both commits.
 - For performance changes, include the required kernel comparison against 1.1.0 and any relevant tokenizer measurements.
 - Profile hot-path or performance work end to end for CPU, allocation memory and process-tree resident memory.
   Name the time-consuming functions and memory peaks. Use `make profile-cpu`, `make profile-mem` and `make profile-rss`.
