@@ -34,23 +34,13 @@ Bring a trained linear classifier to label text in the same application.
 
 ## Speed first
 
-Encode longer texts with one or 16 workers:
-
-| Model precision | 1 worker, texts/s | 16 workers, texts/s |
-|---|---:|---:|
-| float32 | 139,422 | 1,265,123 |
-| float16 | 153,886 | 1,359,540 |
-| int8 | 163,779 | 1,379,949 |
-
-AMD EPYC 9965, 32 logical CPUs, RunPod, POTION-8M, 1 to 2 November 2026. 4.62 million WikiText-103 passages, average 119.1 words, float32 output.
-
 ### fse vs other libraries
 
 Each row compares the same model, input and float32 output in both libraries.
 
 <picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/2ba9263f82f3a97db9ce44b19f2eb8fb5d0d1b22/media/readme/library-speed-dark.png">
-<img alt="fse speedups against Model2Vec, model2vec-rs, FastEmbed and sentence-transformers, with one and 16 workers." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/2ba9263f82f3a97db9ce44b19f2eb8fb5d0d1b22/media/readme/library-speed-light.png">
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/00877326d8dd37a9e469f2af3439fcd530ac065e/media/readme/library-speed-dark.png">
+<img alt="fse speedups against Model2Vec, model2vec-rs, FastEmbed and sentence-transformers, with one and 16 workers." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/00877326d8dd37a9e469f2af3439fcd530ac065e/media/readme/library-speed-light.png">
 </picture>
 
 AMD EPYC 9575F, 32 vCPU, RunPod, 2 November 2026. WikiText sentences, about 26 words each. Each bar is a paired comparison: 2 million sentences with one worker; 18 million with 16 workers for POTION-8M, 5 million for static-retrieval-mrl-en-v1.
@@ -59,10 +49,10 @@ AMD EPYC 9575F, 32 vCPU, RunPod, 2 November 2026. WikiText sentences, about 26 w
 
 | Library | Model (dimensions) | fse, texts/s | Library, texts/s | Speedup |
 |---|---|---:|---:|---:|
-| Model2Vec | POTION-8M (256) | 701,927 | 33,065 | 21.36× |
-| model2vec-rs | POTION-8M (256) | 625,842 | 413,173 | 1.50× |
 | FastEmbed | POTION-8M (256) | 684,332 | 29,285 | 23.69× |
+| Model2Vec | POTION-8M (256) | 701,927 | 33,065 | 21.36× |
 | sentence-transformers | static-retrieval-mrl-en-v1 (1024) | 217,338 | 18,554 | 11.81× |
+| model2vec-rs | POTION-8M (256) | 625,842 | 413,173 | 1.50× |
 
 AMD EPYC 9575F, 32 vCPU, RunPod, 2 November 2026. 2 million sentences per pair, about 26 words each.
 
@@ -71,15 +61,32 @@ AMD EPYC 9575F, 32 vCPU, RunPod, 2 November 2026. 2 million sentences per pair, 
 | Library | Model (dimensions) | fse, texts/s | Library, texts/s | Speedup |
 |---|---|---:|---:|---:|
 | Model2Vec | POTION-8M (256) | 6,603,476 | 52,772 | 125.78× |
-| model2vec-rs | POTION-8M (256) | 6,505,489 | 2,775,350 | 2.38× |
 | FastEmbed | POTION-8M (256) | 6,513,573 | 290,270 | 22.31× |
 | sentence-transformers | static-retrieval-mrl-en-v1 (1024) | 2,064,693 | 225,927 | 9.14× |
+| model2vec-rs | POTION-8M (256) | 6,505,489 | 2,775,350 | 2.38× |
 
 AMD EPYC 9575F, 32 vCPU, RunPod, 2 November 2026. 18 million sentences per POTION-8M pair; 5 million for the static-retrieval pair, about 26 words each.
 
 Model2Vec uses its default thread path on 16 allowed CPUs, using about four CPUs. Sentence Transformers uses batch size 32 with one worker. With 16 workers, it uses the recommended CPU process pool and batch size 1024.
 
 The Sentence Transformers model has 1024 dimensions, four times POTION-8M's 256. fse computes and writes four times as many numbers per sentence, so its absolute throughput is lower. The speedup compares both libraries on that same 1024-dimensional model.
+
+### Performance on longer texts
+
+Encode longer texts with one or 16 workers:
+
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/00877326d8dd37a9e469f2af3439fcd530ac065e/media/readme/dtype-speed-dark.png">
+<img alt="fse throughput for float32, float16 and int8 model tables, with one and 16 workers, on a shared scale." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/00877326d8dd37a9e469f2af3439fcd530ac065e/media/readme/dtype-speed-light.png">
+</picture>
+
+| Model precision | 1 worker, texts/s | 16 workers, texts/s |
+|---|---:|---:|
+| float32 | 139,422 | 1,265,123 |
+| float16 | 153,886 | 1,359,540 |
+| int8 | 163,779 | 1,379,949 |
+
+AMD EPYC 9965, 32 logical CPUs, RunPod, POTION-8M, 1 to 2 November 2026. 4.62 million WikiText-103 passages, average 119.1 words, float32 output.
 
 ## Get started
 
