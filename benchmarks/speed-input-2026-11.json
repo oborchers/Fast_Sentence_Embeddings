@@ -22,7 +22,7 @@
   },
   "machine": {
     "vcpu": 32,
-    "ram_bytes": 64000000000,
+    "ram_bytes": 128000000000,
     "disk_gb": 150,
     "image": "python:3.13@sha256:f23cf6c01ace0da9aa4d04fd078dba0fcce0c23cf3320329a38a2b6890761f9c",
     "python_patch": "3.13.18",
@@ -32,11 +32,11 @@
     "source": "Docker official library/python registry manifest and configuration"
   },
   "billing": {
-    "compute_usd_per_hour": 1.12,
+    "compute_usd_per_hour": 1.472,
     "disk_usd_per_gb_month": 0.1,
     "month_hours": 720,
-    "planning_balance_usd": 2.0,
-    "planning_minutes": 100,
+    "planning_balance_usd": 3.48,
+    "planning_minutes": 140,
     "kill_running_cells": false,
     "setup_stage_clock_env": "SPEED_SETUP_STARTED_AT",
     "allocation_clock": "--allocated-at includes machine provisioning and bootstrap"
@@ -54,13 +54,13 @@
     },
     {
       "name": "libraries",
-      "estimate_minutes": 82,
-      "budget_minutes": 100
+      "estimate_minutes": 90,
+      "budget_minutes": 110
     },
     {
       "name": "collection",
       "estimate_minutes": 3,
-      "budget_minutes": 5
+      "budget_minutes": 10
     }
   ],
   "rules": {
@@ -139,12 +139,12 @@
       "model": "minishlab/potion-base-8M",
       "reference": "model2vec",
       "workers": 16,
-      "texts": 15000000,
+      "texts": 18000000,
       "dtype": "float32",
       "rounds": 3,
-      "estimated_seconds": 480,
+      "estimated_seconds": 600,
       "dimensions": 256,
-      "planned_input_bytes": 2045970322
+      "planned_input_bytes": 2455180892
     },
     {
       "id": "libraries-rust-16",
@@ -153,12 +153,12 @@
       "model": "minishlab/potion-base-8M",
       "reference": "rust",
       "workers": 16,
-      "texts": 15000000,
+      "texts": 18000000,
       "dtype": "float32",
       "rounds": 3,
-      "estimated_seconds": 300,
+      "estimated_seconds": 360,
       "dimensions": 256,
-      "planned_input_bytes": 2045970322
+      "planned_input_bytes": 2455180892
     },
     {
       "id": "libraries-fastembed-16",
@@ -167,12 +167,12 @@
       "model": "minishlab/potion-base-8M",
       "reference": "fastembed",
       "workers": 16,
-      "texts": 15000000,
+      "texts": 18000000,
       "dtype": "float32",
       "rounds": 3,
-      "estimated_seconds": 900,
+      "estimated_seconds": 1080,
       "dimensions": 256,
-      "planned_input_bytes": 2045970322
+      "planned_input_bytes": 2455180892
     },
     {
       "id": "libraries-st-16",
@@ -181,12 +181,12 @@
       "model": "sentence-transformers/static-retrieval-mrl-en-v1",
       "reference": "st",
       "workers": 16,
-      "texts": 4000000,
+      "texts": 5000000,
       "dtype": "float32",
       "rounds": 3,
-      "estimated_seconds": 480,
+      "estimated_seconds": 600,
       "dimensions": 1024,
-      "planned_input_bytes": 545403061
+      "planned_input_bytes": 681709559
     }
   ],
   "quiet_cell": {

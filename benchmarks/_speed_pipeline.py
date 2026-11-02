@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 import json
 import os
 import subprocess
@@ -290,6 +291,7 @@ def measure_child(job):
     if warm.shape != (len(texts), job["dimensions"]):
         raise ValueError("warm output shape changed")
     del warm
+    gc.collect()
     before = telemetry()
     started = time.perf_counter()
     vectors = encode(texts)
