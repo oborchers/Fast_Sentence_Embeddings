@@ -235,6 +235,20 @@ The goal is to keep useful work together and avoid overhead between steps.
 | Share the work | CPU workers process batches in parallel. |
 | Control the output path | Files and streams can write to fse's vector store without collecting all results in memory. |
 
+## Memory use
+
+Large output arrays can take more space than the model itself.
+For a list of texts with float32 output, fse [allocates the result array once](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/9a0bc841e9ac6a9f3cb41c1b06ac746b5f27337b/src/fse/_runtime/_sinks.py#L145-L177).
+CPU workers write directly into their rows. There is no final join of separate result arrays.
+
+The batch paths in [Model2Vec 0.10.0](https://github.com/MinishLab/model2vec/blob/745bf944406a125be439ddfdfe523747baec1983/model2vec/model.py#L416-L431) and [Sentence Transformers 6.2.0](https://github.com/huggingface/sentence-transformers/blob/0b6937d55981e3486caf9b64ad2664c9a9edb51d/sentence_transformers/sentence_transformer/model.py#L945-L1001) collect results, then join them with `np.concatenate` or `torch.stack`.
+During that join, the parts and the final array coexist, using roughly twice the space for output data alone.
+This is not a measurement of total memory use.
+
+**Size calculation:** 18 million texts × 256 values × 4 bytes = 18.4 GB per float32 matrix.
+For results larger than RAM, write to a `ShardSink` or the vector store. fse limits the output work in flight.
+Returning one array from an input of unknown length still collects and joins parts, so use a disk sink for large streams.
+
 ## More
 
 - [Documentation](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/ARCHITECTURE.md): supported APIs, model formats, exports and guarantees.
