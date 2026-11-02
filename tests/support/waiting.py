@@ -2,18 +2,6 @@
 thread arrived at a point before they act (a sleep only hopes it did)."""
 
 import threading
-import time
-from collections.abc import Callable
-
-
-def until(predicate: Callable[[], object], timeout: float = 10) -> bool:
-    """Whether ``predicate()`` became true within ``timeout`` seconds."""
-    deadline = time.monotonic() + timeout
-    while not predicate():
-        if time.monotonic() > deadline:
-            return False
-        time.sleep(0.001)
-    return True
 
 
 def blocked_in_wait(condition: threading.Condition, thread_name: str) -> threading.Event:

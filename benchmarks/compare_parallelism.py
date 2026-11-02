@@ -12,13 +12,6 @@ NATIVE_THREAD_VARIABLES = (
 )
 
 
-def child_environment(threads: int) -> dict[str, str]:
-    if type(threads) is not int or threads < 1:
-        raise ValueError("threads must be a positive integer")
-    # Accelerate can cache this setting on its first call, before threadpoolctl.
-    return {**os.environ, **dict.fromkeys(NATIVE_THREAD_VARIABLES, str(threads))}
-
-
 def native_thread_limits() -> dict[str, str | None]:
     return {key: os.environ.get(key) for key in NATIVE_THREAD_VARIABLES}
 

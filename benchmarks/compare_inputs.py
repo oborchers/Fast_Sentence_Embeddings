@@ -108,23 +108,6 @@ def _massive(folder: Path) -> list[str]:
     return rows
 
 
-def corpus_identity(name: str, rows: list[str]) -> dict:
-    from fse._container._hash import Hasher
-
-    hasher = Hasher()
-    for row in rows:
-        data = row.encode("utf-8")
-        hasher.update(len(data).to_bytes(8, "little"))
-        hasher.update(data)
-    repo, revision = DATASETS[name]
-    return {
-        "dataset": repo,
-        "dataset_revision": revision,
-        "splits": ["validation", "test"] if name == "wikitext" else ["test"],
-        "input_digest": hasher.checksum(),
-    }
-
-
 def cpu_name() -> str:
     if sys.platform == "darwin":
         result = subprocess.run(

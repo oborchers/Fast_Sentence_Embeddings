@@ -12,7 +12,6 @@ ALL_SOURCES = {**SOURCES, "paragram-300-sl999": "c99818c1470d5c4e454eb9d59dfce2b
 FIT_REPO = "Salesforce/wikitext"
 FIT_REVISION = "b08601e04326c79dfdd32d625aee71d232d685c3"
 FIT_LINES = 859_346
-SEED = 0
 
 
 def stem(name: str) -> str:
