@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Add a shared `fse-benchmark` skill for Codex and Claude Code, with measurement planning, validity checks and sourced lessons.
+
 ## [2.0.0] - 2026-11-02
 
 - Consolidate classic Hub publication under `tools/hub/run.py`, regenerate the published cards including `normalize=False`, and rebuild prepared payloads with exact manifest checks and explicit upload opt-in.
