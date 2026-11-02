@@ -26,6 +26,19 @@ The 1.x branch remains maintained. Entries collect here until the release.
 
 ### Changed
 
+- Move raw README benchmark copies to the verified evidence branch, retaining small summaries and a SHA256 manifest. Distinguish FineWeb/wordfreq Hub SIF models from WikiText-fitted benchmark models.
+
+- Label each planned README library bar with its own paired input size, while retaining shared inputs for precision tables and core selection.
+
+- Retain earlier Pod 2 normalized-classifier results in the evidence guide, with their short-call protocol and separately fitted-head limits.
+
+- Slim the planned RunPod README panels to the 1/16/32 dtype and library grid, retaining direct 32-versus-16 selection and individual fse-call duration checks.
+
+- Lead with the measured 100 million text file-to-vector showcase and mark English MTEB quality as 40 of 41 tasks, with MIND not computed.
+- Fix the README raw POTION classifier loader and execute its Python examples against real models in a dedicated network check.
+- Prepare a validated README speed-table renderer and light/dark library comparison layouts, selecting 32 cores only above the measured 1.20 threshold against 16. Keep unfinished measurements out of the public README.
+- Rewrite the README with restored branding, a short release-style introduction, measured CPU throughput, early usage examples, prominent recipes and light/dark brand-colored graphics. Keep detailed benchmark evidence in a companion guide. Clarify contribution evidence, AI disclosure and MIT agreement, add a PR checklist, and align package metadata with the unreleased 2.0 API.
+
 - Recipes now guide end users through real POTION and public-dataset examples, with diagrams, a first fse 101 recipe, and a shared-split classification comparison.
 
 - `ShardSink` reports the first thread failure instead of a later failure caused by it, regardless of which thread the caller checks first.

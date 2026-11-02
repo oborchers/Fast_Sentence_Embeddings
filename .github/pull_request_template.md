@@ -1,11 +1,34 @@
-## Summary
+## Change and reason
 
-<!-- What does this PR do? Why is it needed? -->
+Describe the problem and resulting behavior. Link the relevant issue with its title.
 
-master is the development branch of fse 2.0, written by the maintainer; 1.x on the branch `1.x` takes compatibility fixes. Feature requests are out of scope.
+## Evidence
 
-## Checklist
+- Base commit:
+- Head commit:
+- Exact commands and raw result links:
+- Data sources, revisions and seeds:
+- CPU, instruction set, OS, Python, NumPy, compiler and relevant package versions:
+- Platforms checked (x86 AVX2, ARM NEON, Linux, Windows), and untested platforms:
+- Factual claims and their sources (including documentation changes):
 
-- [ ] `make check` passes (format, lint, import contracts, guardrails, types, tests) with no new ratchet entries
-- [ ] Tests added or updated for changed behaviour
-- [ ] `CHANGELOG.md` updated
+For performance or hot-path changes, report paired alternating rounds, median and range, load, and an A/A control.
+Include the required kernel and end-to-end throughput comparisons.
+Attach CPU, allocation-memory and process-tree resident set size (RSS) profiles.
+Otherwise state why these do not apply.
+
+## Checks
+
+- [ ] `make check` passes. Exact command and output are linked above.
+- [ ] Relevant network and sentence-transformers checks pass, or omissions are explained.
+- [ ] Conformance and bit identity are unchanged.
+- [ ] No new ratchet entries or suppressions.
+- [ ] User-visible changes have a `CHANGELOG.md` entry.
+- [ ] Measurements cover the target environment. Limits and skipped checks are explicit.
+- [ ] AI tools and model versions are disclosed below, or no AI assistance was used.
+- [ ] I agree that my contribution is licensed under the MIT license as part of fse 2.0.
+- [ ] Third-party code and data, if any, have identified sources and licenses.
+
+## AI assistance
+
+Name tools and model versions, their role, and what you verified yourself.

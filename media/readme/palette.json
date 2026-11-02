@@ -1,0 +1,43 @@
+{
+  "source_revision": "648624ce9bed1d08cacd00e32d5a4bf8ca62f271",
+  "light": {
+    "bg": {
+      "value": "#FAFAF8"
+    },
+    "bg-secondary": {
+      "value": "#F0EBE3"
+    },
+    "accent": {
+      "value": "#2D6A4F"
+    },
+    "text": {
+      "value": "#1E1B18"
+    },
+    "text-secondary": {
+      "value": "#4F463E"
+    },
+    "border": {
+      "value": "#E0D9CF"
+    }
+  },
+  "dark": {
+    "bg": {
+      "value": "#0F0D0A"
+    },
+    "bg-secondary": {
+      "value": "#1C1916"
+    },
+    "accent": {
+      "value": "#5B9E7D"
+    },
+    "text": {
+      "value": "#E8E4DF"
+    },
+    "text-secondary": {
+      "value": "#B0A9A0"
+    },
+    "border": {
+      "value": "#2A2520"
+    }
+  }
+}

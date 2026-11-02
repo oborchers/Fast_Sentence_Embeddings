@@ -1,4 +1,14 @@
 <p align="center">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/master/media/logo/fse-logo-dark.svg">
+<img alt="fse" width="160" src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/master/media/logo/fse-logo.svg">
+</picture>
+</p>
+
+<h2 align="center"><strong>The fastest inference engine for static embeddings on the planet*</strong></h2>
+<p align="center"><sub>* That's our goal, at least.</sub></p>
+
+<p align="center">
 <a href="https://github.com/oborchers/Fast_Sentence_Embeddings/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/oborchers/Fast_Sentence_Embeddings/actions/workflows/ci.yml/badge.svg?branch=master"></a>
 <a href="https://pypi.org/project/fse/"><img alt="PyPI" src="https://img.shields.io/pypi/v/fse.svg"></a>
 <a href="https://pypi.org/project/fse/"><img alt="Python versions" src="https://img.shields.io/pypi/pyversions/fse.svg"></a>
@@ -6,316 +16,229 @@
 <a href="https://github.com/astral-sh/ruff"><img alt="Code style: ruff" src="https://img.shields.io/badge/code%20style-ruff-000000.svg"></a>
 <a href="https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"></a>
 </p>
-<p align="center">
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/master/media/logo/fse-logo-dark.svg">
-<img alt="fse" width="200" src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/master/media/logo/fse-logo.svg">
-</picture>
-</p>
 
-Fast Sentence Embeddings
-==================================
+**Performance headline: awaiting a benchmark decision.**
 
-Status
-------------
+[How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/21ebf1f7839cc2db91594d59a6de9c443657a0b6/docs/benchmarks/readme-evidence.md)
 
-**fse 2.0 is in development on master** and not released yet; this README describes it, and its API may still change before 2.0.0. The current release is [fse 1.1.0 on PyPI](https://pypi.org/project/fse/), in maintenance mode on the branch `1.x` (bug and compatibility fixes only), with its own [README](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/1.x/README.md) and notebooks. 2.0 changes the API and the file format of saved models. Feature requests are closed until then; bug reports are welcome.
+Fast Sentence Embeddings turns text into vectors for search, clustering and classification.
+It runs ready-made static models on your CPU. No GPU needed.
+Use your Model2Vec model, a supported static Sentence Transformers model, or existing word vectors.
+Bring a trained linear classifier to label text in the same application.
 
-If you start a new project, also look at actively maintained libraries such as [sentence-transformers](https://github.com/huggingface/sentence-transformers) or [model2vec](https://github.com/MinishLab/model2vec).
+![An engine turns pages of text into lists of numbers.](https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/233b6d3c0aaee459792938317895790a8bdd862b/media/readme-engine.jpg)
 
-About
-------------
+## Speed first
 
-fse 2.0 encodes text with finished static embedding models: a model (`fse.Encoder`) is one `.safetensors` file that holds a table of word rows, its tokenizer and whether every row is normalized. A sentence becomes the mean of the rows of its words, computed in parallel by a native kernel, bit for bit the same on every CPU. fse 2.0 trains nothing: weights, removed components or projections of a model (such as SIF or uSIF) are folded into its rows before it is saved. Vectors go into memory, or into a store on disk that `fse.VectorStore` searches.
+Encode longer texts with one or 16 workers:
 
-Installation
-------------
+| Model precision | 1 worker, texts/s | 16 workers, texts/s |
+|---|---:|---:|
+| float32 | 139,422 | 1,265,123 |
+| float16 | 153,886 | 1,359,540 |
+| int8 | 163,779 | 1,379,949 |
 
-2.0 is not on PyPI yet. From a checkout of master, with [uv](https://docs.astral.sh/uv/) and a C compiler:
+AMD EPYC 9965, 32 logical CPUs, RunPod, POTION-8M, 1 to 2 November 2026. 4.62 million WikiText-103 passages, average 119.1 words, float32 output.
 
-    make install
+### fse vs other libraries
 
-`fse.gensim` (converting gensim word vectors) needs the extra `fse[gensim]`.
+Comparison chart: awaiting a benchmark decision.
 
-Usage
-------------
+## Get started
 
-Load a finished model and encode:
-
-```python
-import fse
-
-encoder = fse.Encoder.load("model.safetensors")
-rows = encoder.encode(["the cat sleeps", "a dog runs"])  # one float32 row per text
+```sh
+pip install "fse>=2.0"
 ```
 
-Use a Model2Vec model of the Hub, converted when it is loaded:
+Moving an existing application? Read the [migration guide from fse 1.x](docs/migrating-from-1x.md) before upgrading.
+
+Python 3.11 to 3.15. Load a model and make a vector for each text:
 
 ```python
-import fse
+from fse import Encoder
 
-encoder = fse.Encoder.from_pretrained("minishlab/potion-base-8M")
-rows = encoder.encode(["the cat sleeps", "a dog runs"])  # normalized, 256 values per text
-encoder.save("potion-base-8M.safetensors")  # an fse encoder, loaded without the Hub
-multilingual = fse.Encoder.from_pretrained("minishlab/potion-multilingual-128M")  # unigram@1
+encoder = Encoder.from_pretrained("minishlab/potion-base-8M")
+vectors = encoder.encode(["the cat sleeps", "a dog runs"])
 ```
 
-fse gives the token ids of the model's tokenizer (Hugging Face tokenizers 0.23.3) and the vectors of model2vec 0.10.0 within float32 rounding (not bit for bit: the sums run in another order). Like model2vec, it reads the first 512 tokens of the first 512 times the median token length characters of a text; `from_pretrained(..., truncate=False)` reads texts whole, and `max_length=` sets another token limit. Only float32 models are read, and a row whose sum of squares underflows or overflows float32 raises where model2vec returns a row that is not of unit length. Files of the Hub are checked against the commit they come from (docs/architecture/hub.md, "Model2Vec models and from_pretrained"); the model's license applies to its use.
+A vector is a list of numbers that represents a text. Here you get a NumPy array with one row per text.
+For document vectors, pass your documents as strings. The model's text-length limits still apply.
+The first load downloads the model. Its license applies separately.
+For complete applications, explore the nine [recipes](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) below.
 
-### Switch from model2vec
+### Already using Model2Vec?
 
-`fse.StaticModel` has the API of `model2vec.StaticModel`, so code written for it needs only another import:
+Switch the import for the common loading and encoding calls:
 
 ```python
-from fse import StaticModel
+from fse import StaticModel  # replaces: from model2vec import StaticModel
 
 model = StaticModel.from_pretrained("minishlab/potion-base-8M")
-row = model.encode("the cat sleeps")  # a vector of 256 float32 values
-rows = model.encode(["the cat sleeps", "a dog runs"], max_length=128, normalize=False)
-tokens = model.encode_as_sequence("the cat sleeps")  # one row of the table per token
-ids = model.tokenize(["the cat sleeps"])  # [[...]], the unknown id dropped
-model.max_length = 64  # the default of encode from now on
+vectors = model.encode(["the cat sleeps", "a dog runs"])
 ```
 
-Models are read with the rules of model2vec 0.10.0 (its folder layouts, its config, `[UNK]` dropped, the cut at `max_length` tokens and at `max_length` times the median token length characters), also the static models of sentence-transformers, which `fse.Encoder.from_pretrained` reads with the rules of sentence-transformers instead. Rows equal model2vec's within float32 rounding. `model.encoder` is the `fse.Encoder` of the model's settings, for `ShardSink`, `VectorStore` and the heads.
+The supported API is similar, but conversion can change float32 rounding.
+`save_pretrained` and `push_to_hub` export fse folders. Reload them with `fse.StaticModel.from_pretrained`.
+They are not Model2Vec 0.10.0 export files.
 
-| model2vec | fse.StaticModel |
+### Using a static Sentence Transformers model?
+
+```python
+from fse import Encoder
+
+encoder = Encoder.from_pretrained("sentence-transformers/static-retrieval-mrl-en-v1")
+vectors = encoder.encode(["How do I reset my password?", "Open your account settings."])
+```
+
+This supports compatible static models. It does not run contextual transformers such as MiniLM or BGE.
+
+## Choose a model and memory budget
+
+Start with POTION-base-8M for a small English model. Use retrieval models for search and multilingual models for other languages.
+Compare quality and size below, then check the model on your own data.
+
+| Model (Hub ID) | Quality[^quality] | Float32 file size |
+|---|---:|---:|
+| [`minishlab/potion-base-32M`](https://huggingface.co/minishlab/potion-base-32M) | 55.26 | 124.1 MiB |
+| [`minishlab/potion-retrieval-32M`](https://huggingface.co/minishlab/potion-retrieval-32M) | 54.51 | 124.1 MiB |
+| [`minishlab/potion-base-8M`](https://huggingface.co/minishlab/potion-base-8M) | 53.95 | 29.2 MiB |
+| [`sentence-transformers/static-retrieval-mrl-en-v1`](https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1) | 51.89 | 119.7 MiB |
+| [`sentence-transformers/static-similarity-mrl-multilingual-v1`](https://huggingface.co/sentence-transformers/static-similarity-mrl-multilingual-v1) | 51.43 | 415.1 MiB |
+| [`fse/fasttext-crawl-subwords-300-sif10`](https://huggingface.co/fse/fasttext-crawl-subwords-300-sif10) | 51.42 | 4.50 GiB |
+| [`fse/paragram-300-sl999-sif10`](https://huggingface.co/fse/paragram-300-sl999-sif10) | 50.98 | 1.93 GiB |
+| [`fse/paranmt-300-raw`](https://huggingface.co/fse/paranmt-300-raw) | 50.69 | 89.5 MiB |
+| [`minishlab/potion-multilingual-128M`](https://huggingface.co/minishlab/potion-multilingual-128M) | 49.96 | 502.1 MiB |
+| [`fse/glove-wiki-gigaword-300-sif10`](https://huggingface.co/fse/glove-wiki-gigaword-300-sif10) | 49.79 | 463.6 MiB |
+| [`fse/word2vec-google-news-300-sif10`](https://huggingface.co/fse/word2vec-google-news-300-sif10) | 49.26 | 3.41 GiB |
+
+[^quality]: MTEB(eng, v2), measured on 1 November 2026 with MTEB 2.26.25. Scores are the unweighted mean over 40 of 41 English tasks, multiplied by 100. MIND was not computed. Classic-model scores use the historical benchmark recipe. SIF-10 scores use a WikiText-103 fit, whereas the linked Hub SIF-10 models use wordfreq weights and a FineWeb fit. See each Hub card for that version's own results. Sizes refer to float32 fse files. [Quality results and file sizes](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/21ebf1f7839cc2db91594d59a6de9c443657a0b6/docs/benchmarks/readme-quality.json).
+
+Start with float32. Try float16 or int8 when memory matters, then check quality again.
+
+```python
+from fse import Encoder
+
+compact = Encoder.from_pretrained("minishlab/potion-base-8M").quantize("int8")
+compact.save("compact.safetensors")
+```
+
+Classic Hub models have `-raw` and `-sif10` versions, also with `-float16` or `-int8` suffixes.
+`-raw` in a classic Hub model name means no SIF weighting. It does not mean unnormalized output.
+
+You can also use your own GloVe, word2vec or FastText vectors with the optional `fse[gensim]` adapter.
+The [SIF and uSIF recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/01-sif-usif.ipynb) shows how to prepare classic word vectors for sentence search.
+
+## Recipes: from a model to a working application
+
+These nine recipes show the full workflow, including preparation, execution and checks.
+Start with the job you want to do:
+
+| Use case | Recipe |
 |---|---|
-| unknown keywords to `encode` are ignored (`**kwargs`) | raise `TypeError`; `convert_to_numpy=True`, `convert_to_tensor=False` and `device=None` or `"cpu"` are accepted |
-| `show_progress_bar`, `batch_size`, `use_multiprocessing`, `multiprocessing_threshold` | accepted and checked; they change no row (`use_multiprocessing=False` encodes in one thread) |
-| `quantize_to` float16, int8, float64 | raise: float32 tables only |
-| `vocabulary_quantization`, models with `weights` or `mapping` | raise |
-| `max_length=0`, `dimensionality=0` (ignored or empty) | raise |
-| a row whose sum of squares under- or overflows float32 | raises |
-| `embedding` is writable | read-only |
-| `encode([])` raises in numpy | gives a matrix of shape `(0, dim)` |
-| `encode_as_sequence` of a text without tokens is a float64 `(0, dim)` array | float32 `(0, dim)`; the other rows are model2vec's bit for bit |
-| `tokenizer` is a `tokenizers.Tokenizer` | a read-only facade: `encode` and `encode_batch` give `.ids` (unknown id kept, cut at `max_length`), `get_vocab`, `get_vocab_size`, `token_to_id`, `id_to_token`; no offsets, no `.tokens`, and `add_special_tokens` must be `False` |
-| `save_pretrained`, `push_to_hub` | write or upload an fse folder, read by fse; model2vec cannot load it |
+| Start here: fse 101 | [Turn sentences into vectors, find similar text, and save your results.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/00-fse-101.ipynb) |
+| Sentence search | [Make classic word vectors more useful for sentence search.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/01-sif-usif.ipynb) |
+| Text classification | [Train a text classifier, compare its accuracy, and save it for your app.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/02-linear-heads.ipynb) |
+| Files with resume | [Turn a text file into vectors and continue after an interruption.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/03-files-with-resume.ipynb) |
+| Queues and Qdrant | [Turn queued news into searchable vectors and replay safely.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/04-kafka-and-qdrant.ipynb) |
+| Folder listener | [Pick up completed files and add each one to your search store.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/05-folder-listener.ipynb) |
+| Integrations | [Use one local encoder with your search, topic, and table libraries.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/06-integrations.ipynb) |
+| Local compute and HTTP | [See when a local HTTP request costs more than encoding the text.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/07-local-compute-and-http.ipynb) |
+| Folded classifier | [Fold a trained classifier into word vectors, then save a smaller model for your app.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/08-folded-classifier.ipynb) |
 
-Checks of the type (`isinstance(model, model2vec.StaticModel)`) or of its name in other libraries need a change there.
+The [recipe index](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) has setup instructions and recorded results.
+The queue recipe uses a fake queue and local Qdrant. The folder recipe polls for completed files.
+These are worked examples you can adapt, not hosted services.
 
-A static model of sentence-transformers (one StaticEmbedding) is converted the same way, with the rules of its `encode`: every token id is pooled, `[UNK]` included, texts are read whole, and `truncate_dim` keeps the first dimensions of a Matryoshka model, as sentence-transformers' own `truncate_dim` does:
+## Label text with a linear classifier
 
-```python
-import fse
-
-encoder = fse.Encoder.from_pretrained(
-    "sentence-transformers/static-retrieval-mrl-en-v1", truncate_dim=256
-)
-rows = encoder.encode(["what is a panda?", "can lavender grow indoors?"])  # 256 values each
-```
-
-The rows equal those of sentence-transformers 6.2.0 within float32 rounding. Models with a Normalize or Dense module after the StaticEmbedding, or with prompts, are refused with the reason; `normalize=True` normalizes the rows with fse's own `normalize@1` after the cut.
-
-Make a model from word vectors (every word weighs 1) and save it:
+Route support requests, filter documents or classify a dataset.
+Train a supported linear model in scikit-learn, then let fse run it directly on text.
+The model must be trained on this encoder's vectors.
+`normalize=False` works for every supported model, including our classic Hub models under `fse/`.
+Our classic Hub models load normalized by default. For folding, load with `normalize=False` before training the linear head.
+Install `scikit-learn` first: `pip install scikit-learn`.
 
 ```python
-import fse
-from fse.gensim import from_gensim
-from gensim.models import KeyedVectors
-
-wv = from_gensim(KeyedVectors.load("glove-wiki-gigaword-300.model"))
-encoder = fse.Encoder.from_word_vectors(wv)  # tokenizer fse_words@1, rows normalized
-encoder.save("glove.safetensors")  # one file with the table
-```
-
-Share a model as a Hugging Face folder (`config.json`, `model.safetensors` and a `README.md` model card). Any fse model can take this way: one converted from a Model2Vec or sentence-transformers model, one made from word vectors, or a classifier or regressor on such an encoder. Convert it, save or push it, and load it back from the folder or the repository:
-
-```python
-import fse
-
-encoder = fse.Encoder.from_pretrained("minishlab/potion-base-8M")  # converted into fse's format
-encoder.save_pretrained("potion-base-8M-fse")  # a new folder, written atomically
-encoder.push_to_hub("you/potion-base-8M-fse")  # one commit; the license of the source comes along
-encoder = fse.Encoder.from_pretrained("you/potion-base-8M-fse")  # the same fingerprint and rows
-clf.push_to_hub("you/my-classifier", license="apache-2.0", extra_files={"LICENSE": "LICENSE"})
-clf = fse.Classifier.from_pretrained("you/my-classifier", revision="main")
-```
-
-The card states the license the model records from its source (a converted model), or `license=` if it records none; `push_to_hub` needs one. It publishes the folder in one commit on top of the commit it read, leaves files of the same content and license files already there alone, refuses other content under the same names and other files unless `replace=True`, and checks every file at the new commit. `fse.Classifier` and `fse.Regressor` have the same three methods (`standalone=True` saves the folded table).
-
-Which call to use when:
-
-| You want to | Call |
-|---|---|
-| load a model | `encoder = fse.Encoder.load("model.safetensors")` (`mmap=True` maps it read-only) |
-| share a model | `encoder.save_pretrained("folder")`, `encoder.push_to_hub("you/model")`; read with `from_pretrained` |
-| make a model of word vectors | `fse.Encoder.from_word_vectors(wv)`, or `fse.Encoder.from_arrays(vectors, words=words)` |
-| keep the mean as it is | `normalize=False` |
-| encode texts in a list | `rows = encoder.encode(texts)` |
-| encode token lists you made yourself | a model with `tokenizer="external"` and lists of lists of str |
-| encode a text file, one text per line | `encoder.encode(Path("texts.txt"))` |
-| encode a column of a table, read in place | `encoder.encode(table["text"])` for a pyarrow column, a pandas 3 or Polars Series, or `dataset.with_format("arrow")["text"]` of Hugging Face datasets |
-| encode a stream (a generator, a queue) | `encoder.encode(iterator)`: it is read once |
-| encode a stream batch by batch and confirm what is safe | `for batch in encoder.encode_batches(polls, sink=sink)`, confirming up to `batch.durable_rows` |
-| write the vectors to disk | `with fse.ShardSink("store", encoder, dtype="int8") as sink: encoder.encode(texts, sink=sink)` |
-| publish rows without durability confirmation | `fse.ShardSink("store", encoder, durability="none")`, track `sink.published_rows`; tagged rows are verified on every open |
-| repair a damaged tail, with no active readers or writers | `kept_rows = fse.repair_store("store")` |
-| search them | `with fse.VectorStore.open("store") as store: result = store.search(encoder.encode(["query"]), k=10)` |
-
-- `encode` returns float32 rows by default; `dtype="float16"` gives float16 rows and `dtype="int8"` a `fse.QuantizedRows` (int8 codes and one scale per row).
-- `store.search` returns a `fse.SearchResult` with the `ids` (positions in the store) and the cosine `scores`, best first. Its default `mode="auto"` takes the exact arithmetic of fse for up to 8 queries at once and BLAS above, whose bits depend on how many queries are asked together; `mode="exact"` gives the same results for every batch.
-- Texts are tokenized by `fse_words@1` by default: lowercase, split at whitespace and punctuation, contractions expanded (docs/architecture/tokenizers.md, "Tokenizers"). Models converted by `from_pretrained` keep their own subword tokenizer: `wordpiece@1` (POTION, the static models of sentence-transformers) or `unigram@1` (potion-multilingual-128M), with the ids of Hugging Face tokenizers 0.23.3.
-- FastText word vectors keep their ngram rows: an unknown word adds the rows of its first `max_ngrams` ngrams (default 40) with the weight `oov_weight` (default 1).
-
-### Classify and score text
-
-fse runs linear heads trained elsewhere; it trains none. Train in scikit-learn on fse's vectors, then import the head:
-
-```python
-import fse
 from sklearn.linear_model import LogisticRegression
+from fse import Classifier, Encoder
 
-encoder = fse.Encoder.load("model.safetensors")  # or from_word_vectors(wv, normalize=False)
-x = encoder.encode(train_texts)
-head = LogisticRegression(max_iter=1000).fit(x, train_labels)
-
-clf = fse.Classifier.from_sklearn(encoder, head)  # reads coef_, intercept_, classes_
-clf.predict(texts)  # labels, as head.predict(encoder.encode(texts)) gives them
-clf.predict_proba(texts)  # float32 (n, classes)
-for batch in clf.predict_batches(polls, output="proba"):  # a stream, batch by batch
-    handle(batch.outputs)
-clf.save("classifier.safetensors")  # encoder and head
-clf.save("filter.safetensors", standalone=True)  # the folded table and the bias only
+encoder = Encoder.from_pretrained("minishlab/potion-base-8M", normalize=False)
+texts = ["I cannot log in", "My password is lost", "Send me a quote", "What does it cost?"]
+head = LogisticRegression().fit(encoder.encode(texts), ["support", "support", "sales", "sales"])
+classifier = Classifier.from_sklearn(encoder, head)
+labels = classifier.predict(["I need a new password"])
+classifier.save("router.safetensors")
 ```
 
-- Train on raw means (an encoder with `normalize=False`) when you only need the predictions: such a head folds into the table (every word row times A), so predicting reads k values per word instead of d and is faster than `encode`. A head trained on normalized vectors runs on the full mean; `normalized=` says which one a head is, by default the encoder's setting.
-- `fse.Regressor` does the same for regression heads (`predict`); `from_arrays(encoder, weight, bias, labels=...)` takes a head of your own.
-- `predict` and `predict_proba` also take a `fse.VectorStore` of the encoder's rows (store mode: the texts are not encoded again), and `predict_batches(..., return_vectors=True)` gives the vectors with the predictions from one pooling.
-- The predictions are bit-identical across CPU backends, worker counts and runs. The folded head and the vectors agree with scikit-learn within float32 rounding: on Amazon Reviews Polarity (GloVe 300, LogisticRegression on 400,000 reviews, 400,000 test reviews) fse and scikit-learn give the same label for all but one review on raw means (its logit 7.4e-7 from the decision boundary) and for every review on normalized vectors, an accuracy of 0.8299 and 0.8284, and probabilities within 1.2e-6.
+Train on real labeled data for your application.
+Load the saved model with `Classifier.load("router.safetensors")` and predict without scikit-learn.
 
-What 2.0 no longer has, against fse 1.1.0 and the earlier development versions of 2.0:
+The [classification recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/02-linear-heads.ipynb) compares this with Model2Vec's own classifier, TF-IDF and fastText.
 
-- **training**: `Average`, `SIF` and `uSIF` with `train` or `fit`, and any learning from a corpus. SIF and uSIF tables are made offline; a notebook with the 1.1.0 recipe (word weights and the removal of principal components, folded into the table) follows before the release.
-- **stored recipes and learned components**: a model holds its finished table, not the recipe, the weights or the components it was made with.
-- **word frequencies**: word vectors hold no counts, and `from_gensim` takes none.
-- **shared external tables**: every model holds its own table, so two models of the same word vectors hold two copies.
-- **`Corpus`**: encode takes lists, paths and streams directly.
-- Files written by a development version of 2.0 before this change are refused (`fse.UnsupportedArtifactError`); rebuild them.
+### Why folding works
 
-### Logging
+A sentence vector averages the vectors of its words or word pieces.
+A linear head multiplies that average by weights W and adds a bias b.
+Multiplying and averaging can swap order:
 
-fse logs through the standard library on five loggers below the logger `fse` (named "fse.artifact", "fse.hub", "fse.backend", "fse.runtime" and "fse.store") and configures nothing itself: without a configuration only its warnings (a slower fallback, a temporary file it could not remove) reach stderr. To see what it does:
+`W · mean(v) + b = mean(W · v) + b`
 
-```python
-import fse
+fse computes W · v once for each word and stores the scores.
+A four-label classifier can then keep 4 scores per word instead of 256 values.
+Prediction looks up those scores, averages them and adds the bias.
+There is no full sentence vector or head matrix multiplication per text.
 
-fse.enable_logging()  # or "DEBUG" for plans, summaries and the fields of each record
-encoder = fse.Encoder.from_pretrained("minishlab/potion-base-8M")
-fse.disable_logging()
-```
+The [folding recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/08-folded-classifier.ipynb) found identical AG News labels, with probability differences up to about 0.000003 from rounding.
+The complete POTION-8M file uses 29.2 MiB, compared with 0.86 MiB for the standalone file.
 
-An application with its own logging attaches its handler to the logger `fse` instead; every record carries the attribute `fse_event` and its fields as `fse_<name>` (docs/architecture/logging.md, "Logging", lists them), and none holds a path, a text, a token of the Hub or a repository id. Downloads of the Hub show the progress bars of huggingface_hub (`HF_HUB_DISABLE_PROGRESS_BARS=1` hides them).
+POTION-8M, AG News, Apple M1 Pro, 1 November 2026.
 
-ARCHITECTURE.md indexes docs/architecture/, which describes the design and the numerical contract, CHANGELOG.md every change against 1.1.0.
+This works for linear classification and regression heads trained on plain averages, including logistic regression, `LinearSVC` and `Ridge`, without requesting sentence vectors.
+fse runs linear heads trained on normalized vectors explicitly, because normalization prevents this fold.
+Neural heads with hidden layers cannot use this fold, and fse does not run them.
 
-Results
-------------
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/71b69be83efdd8adbf071ada302be8bf1db68b24/media/readme/vectors-and-labels-dark.png">
+<img alt="Your texts enter fse on the CPU. An encoder gives vectors for search and clustering. Add a previously trained linear model to get labels for routing and filtering. Training happens outside fse." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/71b69be83efdd8adbf071ada302be8bf1db68b24/media/readme/vectors-and-labels-light.png">
+</picture>
 
-These are results of fse 1.1.0, not of 2.0 models; the offline SIF and uSIF recipe will be checked against them. Pearson correlation (x100) on the test set of the STS Benchmark, computed with the procedure of [`notebooks/STS-Benchmarks.ipynb` on the branch 1.x](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/1.x/notebooks/STS-Benchmarks.ipynb) (`lang_freq="en"`) with fse 1.1.0 on Python 3.13, numpy 2.5, scipy 1.18, gensim 4.4, wordfreq 3.1 and nltk 3.10. SIF and uSIF compute their principal components exactly since 1.1.0; against the randomized SVD of scikit-learn 1.9 used before, in the same environment, SIF-10 scores move by at most 0.04 points and uSIF scores not at all. Compared with the table published for fse 1.0, uSIF scores rise by 0.2 to 1.4 points. Most of that comes from a fix in 1.1.0 to how uSIF weights the removed principal components, worth 0.2 to 1.3 points when both formulas run in this environment (see [CHANGELOG.md](CHANGELOG.md)). Newer dependency versions shift SIF scores by up to 0.3 points and CBOW scores by up to 0.04 points.
+## When to use fse
 
-Model | Vectors | params | [STS Benchmark](http://ixa2.si.ehu.es/stswiki/index.php/STSbenchmark#Results)
-:---: | :---: | :---: | :---:
-`CBOW` | `paranmt-300` |  | 79.82
-`uSIF` | `paranmt-300` | length=11 | 79.20
-`SIF-10` | `paranmt-300` | components=10 | 76.74
-`SIF-10` | `paragram-300-sl999` | components=10 | 74.29
-`SIF-10` | `paragram-300-ws353` | components=10 | 74.09
-`uSIF` | `paragram-300-sl999` | length=11 | 73.60
-`SIF-10` | `fasttext-crawl-subwords-300` | components=10 | 73.58
-`uSIF` | `paragram-300-ws353` | length=11 | 72.63
-`SIF-10` | `fasttext-wiki-news-subwords-300` | components=10 | 72.24
-`SIF-10` | `glove-twitter-200` | components=10 | 71.67
-`SIF-10` | `glove-wiki-gigaword-300` | components=10 | 71.43
-`SIF-10` | `word2vec-google-news-300` | components=10 | 71.18
-`SIF-10` | `glove-wiki-gigaword-200` | components=10 | 70.73
-`uSIF` | `fasttext-crawl-subwords-300` | length=11 | 70.02
-`SIF-10` | `glove-twitter-100` | components=10 | 69.70
-`uSIF` | `fasttext-wiki-news-subwords-300` | length=11 | 69.33
-`uSIF` | `glove-wiki-gigaword-300` | length=11 | 68.82
-`SIF-10` | `glove-wiki-gigaword-100` | components=10 | 68.43
-`uSIF` | `glove-wiki-gigaword-200` | length=11 | 68.13
-`uSIF` | `glove-twitter-200` | length=11 | 67.60
-`uSIF` | `word2vec-google-news-300` | length=11 | 67.60
-`uSIF` | `glove-wiki-gigaword-100` | length=11 | 66.35
-`SIF-10` | `glove-twitter-50` | components=10 | 65.57
-`uSIF` | `glove-twitter-100` | length=11 | 65.41
-`uSIF` | `paragram-25` | length=11 | 64.60
-`SIF-10` | `glove-wiki-gigaword-50` | components=10 | 64.20
-`uSIF` | `glove-wiki-gigaword-50` | length=11 | 63.37
-`uSIF` | `glove-twitter-50` | length=11 | 61.80
-`CBOW` | `word2vec-google-news-300` |  | 61.54
-`SIF-10` | `paragram-25` | components=10 | 59.18
-`uSIF` | `glove-twitter-25` | length=11 | 56.30
-`CBOW` | `paragram-300-ws353` |  | 54.72
-`SIF-10` | `glove-twitter-25` | components=10 | 54.41
-`CBOW` | `paragram-300-sl999` |  | 51.46
-`CBOW` | `fasttext-crawl-subwords-300` |  | 48.53
-`CBOW` | `glove-wiki-gigaword-300` |  | 44.46
-`CBOW` | `glove-wiki-gigaword-200` |  | 42.40
-`CBOW` | `paragram-25` |  | 40.13
-`CBOW` | `glove-wiki-gigaword-100` |  | 38.12
-`CBOW` | `glove-wiki-gigaword-50` |  | 37.47
-`CBOW` | `glove-twitter-200` |  | 34.94
-`CBOW` | `glove-twitter-100` |  | 33.81
-`CBOW` | `glove-twitter-50` |  | 30.78
-`CBOW` | `glove-twitter-25` |  | 26.15
-`CBOW` | `fasttext-wiki-news-subwords-300` |  | 26.08
+**Choose fse when throughput matters more than squeezing out the highest possible model quality.**
+Static models give each word or word piece a fixed vector. They do less work than contextual transformers.
+That makes them useful for large collections, local applications and repeated classification.
+A good contextual transformer may handle meaning, ambiguity and difficult search tasks better.
+Check the quality on your own data before choosing the faster model.
 
-Literature
--------------
+This trade-off concerns the model you choose. Switching a Model2Vec static model to fse does not mean choosing a weaker model.
+fse runs finished models; it does not train or distill them.
 
-1. Iyyer M, Manjunatha V, Boyd-Graber J, Daumé III H (2015) Deep Unordered
-Composition Rivals Syntactic Methods for Text Classification. Proc. 53rd Annu.
-Meet. Assoc. Comput. Linguist. 7th Int. Jt. Conf. Nat. Lang. Process., 1681-1691.
+| Tool | A good fit when you want to... |
+|---|---|
+| **fse** | Run static embeddings, fitted linear classifiers and file or stream jobs on a CPU. |
+| **Model2Vec** | Create, distill or fine-tune static models, as well as run them. |
+| **Sentence Transformers** | Run or train contextual transformers, or use its static models and broader model ecosystem. |
+| **gensim / Doc2Vec** | Train document vectors or word-vector models in gensim. |
 
-2. Arora S, Liang Y, Ma T (2017) A Simple but Tough-to-Beat Baseline for Sentence
-Embeddings. Int. Conf. Learn. Represent. (Toulon, France), 1-16.
+## Why is fse so fast?
 
-3. Ethayarajh K (2018) Unsupervised Random Walk Sentence Embeddings: A Strong but Simple Baseline.
-Proceedings of the 3rd Workshop on Representation Learning for NLP. (Toulon, France), 91-100.
+**We build and tune the whole path, from reading text to writing results.**
+That includes splitting text into tokens, finding their vectors, combining them and saving the output.
+The goal is to keep useful work together and avoid overhead between steps.
 
-4. Eneko Agirre, Daniel Cer, Mona Diab, Iñigo Lopez-Gazpio, Lucia Specia. Semeval-2017 Task 1: Semantic Textual Similarity Multilingual and Crosslingual Focused Evaluation. Proceedings of SemEval 2017.
+| Design choice | What it does |
+|---|---|
+| Prepare once | Reuse a finished model's fixed word vectors for every text. |
+| Keep work together | The CPU fast path groups tokenization and vector calculation in compiled code. |
+| Share the work | CPU workers process batches in parallel. |
+| Control the output path | Files and streams can write to fse's vector store without collecting all results in memory. |
 
+## More
 
+- [Documentation](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/ARCHITECTURE.md): supported APIs, model formats, exports and guarantees.
+- [Contributing](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/CONTRIBUTING.md): AI-assisted contributions are welcome with reproducible checks and evidence.
+- [Changelog](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/CHANGELOG.md) and [security policy](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/SECURITY.md).
 
-Changelog
--------------
-
-See [CHANGELOG.md](CHANGELOG.md).
-
-Development
--------------
-
-The project uses [uv](https://docs.astral.sh/uv/) and a Makefile:
-
-    make install   # create the environment and build the extension
-    make check     # format check, lint, type check and tests
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details and [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
-
-
-Author
--------------
-
-Built by [Dr. Oliver Borchers](https://www.drborchers.com). For questions that do not belong in a GitHub issue, use the [contact page](https://www.drborchers.com/en/contact/).
-
-Copyright (C) 2019 to 2026 Oliver Borchers, licensed under the [MIT License](LICENSE).
-
-fse 2.0 uses the MIT license. The `1.x` branch and existing 1.x releases remain GPL-3.0.
-Model licenses apply separately: GloVe uses PDDL, word2vec uses Apache-2.0, fastText vectors use CC BY-SA 3.0, and POTION uses MIT. The licenses of paranmt and paragram are unknown. The third-party STS Benchmark data in `evaluation/` keeps the terms in `evaluation/LICENSE.txt`.
-
-Citation
--------------
-
-If you found this software useful, please cite it in your publication.
-
-	@misc{Borchers2019,
-		author = {Borchers, Oliver},
-		title = {Fast sentence embeddings},
-		year = {2019},
-		publisher = {GitHub},
-		journal = {GitHub Repository},
-		howpublished = {\url{https://github.com/oborchers/Fast_Sentence_Embeddings}},
-	}
+fse 2.0 uses the [MIT License](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/LICENSE).
+The 1.x releases remain GPL-3.0. Model and dataset licenses apply separately.
+Built by [Dr. Oliver Borchers](https://www.drborchers.com).
