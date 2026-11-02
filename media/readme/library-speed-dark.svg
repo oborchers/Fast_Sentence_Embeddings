@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="680" viewBox="0 0 1100 680" role="img" aria-labelledby="title desc">
+<title id="title">fse vs other libraries</title>
+<desc id="desc">Paired speedups with the same model and input. The one-worker and sixteen-worker panels have separate linear scales. Exact values and inputs are in the table below.</desc>
+<rect width="1100" height="680" rx="12" fill="#0F0D0A"/>
+<g font-family="Geist, Arial, sans-serif">
+<text x="40" y="48" font-size="30" fill="#E8E4DF" font-weight="700" text-anchor="start">Same model. More texts per second.</text>
+<text x="40" y="98" font-size="24" fill="#E8E4DF" font-weight="700" text-anchor="start">1 worker</text>
+<text x="40" y="143" font-size="21" fill="#E8E4DF" font-weight="700" text-anchor="start">FastEmbed</text>
+<text x="505" y="143" font-size="21" fill="#5B9E7D" font-weight="700" text-anchor="end">23.69x</text>
+<text x="40" y="168" font-size="16" fill="#B0A9A0" font-weight="400" text-anchor="start">POTION-8M, 256 dimensions</text>
+<rect x="40" y="181" width="465" height="20" rx="3" fill="#1C1916"/>
+<rect x="40" y="181" width="440.646" height="20" rx="3" fill="#5B9E7D"/>
+<text x="40" y="261" font-size="21" fill="#E8E4DF" font-weight="700" text-anchor="start">Model2Vec</text>
+<text x="505" y="261" font-size="21" fill="#5B9E7D" font-weight="700" text-anchor="end">21.36x</text>
+<text x="40" y="286" font-size="16" fill="#B0A9A0" font-weight="400" text-anchor="start">POTION-8M, 256 dimensions</text>
+<rect x="40" y="299" width="465" height="20" rx="3" fill="#1C1916"/>
+<rect x="40" y="299" width="397.226" height="20" rx="3" fill="#5B9E7D"/>
+<text x="40" y="379" font-size="21" fill="#E8E4DF" font-weight="700" text-anchor="start">sentence-transformers</text>
+<text x="505" y="379" font-size="21" fill="#5B9E7D" font-weight="700" text-anchor="end">11.81x</text>
+<text x="40" y="404" font-size="16" fill="#B0A9A0" font-weight="400" text-anchor="start">static-retrieval-mrl-en-v1, 1024 dimensions</text>
+<rect x="40" y="417" width="465" height="20" rx="3" fill="#1C1916"/>
+<rect x="40" y="417" width="219.726" height="20" rx="3" fill="#5B9E7D"/>
+<text x="40" y="497" font-size="21" fill="#E8E4DF" font-weight="700" text-anchor="start">model2vec-rs</text>
+<text x="505" y="497" font-size="21" fill="#5B9E7D" font-weight="700" text-anchor="end">1.50x</text>
+<text x="40" y="522" font-size="16" fill="#B0A9A0" font-weight="400" text-anchor="start">POTION-8M, 256 dimensions</text>
+<rect x="40" y="535" width="465" height="20" rx="3" fill="#1C1916"/>
+<rect x="40" y="535" width="27.901" height="20" rx="3" fill="#5B9E7D"/>
+<text x="40" y="626" font-size="15" fill="#B0A9A0" font-weight="400" text-anchor="middle">0x</text>
+<text x="272.5" y="626" font-size="15" fill="#B0A9A0" font-weight="400" text-anchor="middle">12.5x</text>
+<text x="505" y="626" font-size="15" fill="#B0A9A0" font-weight="400" text-anchor="middle">25x</text>
+<text x="595" y="98" font-size="24" fill="#E8E4DF" font-weight="700" text-anchor="start">16 workers</text>
+<text x="595" y="143" font-size="21" fill="#E8E4DF" font-weight="700" text-anchor="start">Model2Vec</text>
+<text x="1060" y="143" font-size="21" fill="#5B9E7D" font-weight="700" text-anchor="end">125.78x</text>
+<text x="595" y="168" font-size="16" fill="#B0A9A0" font-weight="400" text-anchor="start">POTION-8M, 256 dimensions</text>
+<rect x="595" y="181" width="465" height="20" rx="3" fill="#1C1916"/>
+<rect x="595" y="181" width="449.907" height="20" rx="3" fill="#5B9E7D"/>
+<text x="595" y="261" font-size="21" fill="#E8E4DF" font-weight="700" text-anchor="start">FastEmbed</text>
+<text x="1060" y="261" font-size="21" fill="#5B9E7D" font-weight="700" text-anchor="end">22.31x</text>
+<text x="595" y="286" font-size="16" fill="#B0A9A0" font-weight="400" text-anchor="start">POTION-8M, 256 dimensions</text>
+<rect x="595" y="299" width="465" height="20" rx="3" fill="#1C1916"/>
+<rect x="595" y="299" width="79.797" height="20" rx="3" fill="#5B9E7D"/>
+<text x="595" y="379" font-size="21" fill="#E8E4DF" font-weight="700" text-anchor="start">sentence-transformers</text>
+<text x="1060" y="379" font-size="21" fill="#5B9E7D" font-weight="700" text-anchor="end">9.14x</text>
+<text x="595" y="404" font-size="16" fill="#B0A9A0" font-weight="400" text-anchor="start">static-retrieval-mrl-en-v1, 1024 dimensions</text>
+<rect x="595" y="417" width="465" height="20" rx="3" fill="#1C1916"/>
+<rect x="595" y="417" width="32.696" height="20" rx="3" fill="#5B9E7D"/>
+<text x="595" y="497" font-size="21" fill="#E8E4DF" font-weight="700" text-anchor="start">model2vec-rs</text>
+<text x="1060" y="497" font-size="21" fill="#5B9E7D" font-weight="700" text-anchor="end">2.38x</text>
+<text x="595" y="522" font-size="16" fill="#B0A9A0" font-weight="400" text-anchor="start">POTION-8M, 256 dimensions</text>
+<rect x="595" y="535" width="465" height="20" rx="3" fill="#1C1916"/>
+<rect x="595" y="535" width="8.519" height="20" rx="3" fill="#5B9E7D"/>
+<text x="595" y="626" font-size="15" fill="#B0A9A0" font-weight="400" text-anchor="middle">0x</text>
+<text x="827.5" y="626" font-size="15" fill="#B0A9A0" font-weight="400" text-anchor="middle">65x</text>
+<text x="1060" y="626" font-size="15" fill="#B0A9A0" font-weight="400" text-anchor="middle">130x</text>
+<text x="40" y="660" font-size="17" fill="#B0A9A0" font-weight="400" text-anchor="start">Speedup against each library. Each panel uses its own linear scale.</text>
+</g></svg>
