@@ -153,9 +153,12 @@ def prepare_input(context, cell):
         source = [text[:limit] for text in source]
     path = context["work"] / (cell["id"] + ".txt")
     identity = records.write_input(path, source, mandatory, cell["texts"], 0)
-    if not cell.get("functional_only") and cell.get("planned_input_bytes") is not None:
-        if identity["file_bytes"] != cell["planned_input_bytes"]:
-            raise ValueError("prepared input differs from the fixed production byte count")
+    if (
+        not cell.get("functional_only")
+        and cell.get("planned_input_bytes") is not None
+        and identity["file_bytes"] != cell["planned_input_bytes"]
+    ):
+        raise ValueError("prepared input differs from the fixed production byte count")
     identity["common_character_limit"] = None if mandatory else limit
     sample = path.with_suffix(".sample.json")
     records.atomic(sample, identity["sample_rows"])
