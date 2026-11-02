@@ -326,15 +326,7 @@ def heartbeat(ledger, stop):
         stop.wait(15)
 
 
-def run(args):
-    contract = records.document(args.input)
-    if args.rehearse:
-        contract["functional_only"] = True
-        for cell in [*contract["cells"], contract["quiet_cell"]]:
-            cell.update(texts=128, workers=min(cell["workers"], 2), functional_only=True)
-        contract["billing"].update(planning_minutes=180, planning_balance_usd=10)
-    args.results.mkdir(parents=True, exist_ok=False)
-    ledger = Ledger(args.results, contract, args.allocated_at)
+def write_environment(args, contract):
     records.atomic(
         args.results / "environment.json",
         {
@@ -356,6 +348,18 @@ def run(args):
             },
         },
     )
+
+
+def run(args):
+    contract = records.document(args.input)
+    if args.rehearse:
+        contract["functional_only"] = True
+        for cell in [*contract["cells"], contract["quiet_cell"]]:
+            cell.update(texts=128, workers=min(cell["workers"], 2), functional_only=True)
+        contract["billing"].update(planning_minutes=180, planning_balance_usd=10)
+    args.results.mkdir(parents=True, exist_ok=False)
+    ledger = Ledger(args.results, contract, args.allocated_at)
+    write_environment(args, contract)
     stop = threading.Event()
     watcher = threading.Thread(target=heartbeat, args=(ledger, stop), daemon=True)
     watcher.start()
