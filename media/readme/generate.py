@@ -54,3 +54,71 @@ for theme in ("light", "dark"):
         "</g></svg>",
     ]
     (out / f"vectors-and-labels-{theme}.svg").write_text("\n".join(parts) + "\n")
+
+
+def speed_panel(theme, data):
+    global colors
+    colors = {k: v["value"] for k, v in brand[theme].items()}
+    parts = [
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="680" '
+        'viewBox="0 0 1100 680" role="img" aria-labelledby="title desc">',
+        '<title id="title">fse vs other libraries</title>',
+        '<desc id="desc">Paired speedups with the same model and input. '
+        "The one-worker and sixteen-worker panels have separate linear scales. "
+        "Exact values and inputs are in the table below.</desc>",
+        f'<rect width="1100" height="680" rx="12" fill="{colors["bg"]}"/>',
+        '<g font-family="Geist, Arial, sans-serif">',
+        text(40, 48, "Same model. More texts per second.", 30, weight=700),
+    ]
+    for workers, left, maximum in ((1, 40, 25), (16, 595, 130)):
+        width = 465
+        parts += [
+            text(left, 98, f"{workers} worker" + ("s" if workers != 1 else ""), 24, weight=700)
+        ]
+        for index, row in enumerate(r for r in data["comparisons"] if r["workers"] == workers):
+            y = 143 + index * 118
+            ratio = row["paired_speedup_median"]
+            model = "POTION-8M" if row["dimensions"] == 256 else "static-retrieval-mrl-en-v1"
+            parts += [
+                text(left, y, row["library"], 21, weight=700),
+                text(left + width, y, f"{ratio:.2f}x", 21, colors["accent"], 700, "end"),
+                text(
+                    left,
+                    y + 25,
+                    f"{model}, {row['dimensions']} dimensions",
+                    16,
+                    colors["text-secondary"],
+                ),
+                f'<rect x="{left}" y="{y + 38}" width="{width}" height="20" rx="3" fill="{colors["bg-secondary"]}"/>',
+                f'<rect x="{left}" y="{y + 38}" width="{width * ratio / maximum:.3f}" height="20" rx="3" fill="{colors["accent"]}"/>',
+            ]
+        for fraction in (0, 0.5, 1):
+            x = left + fraction * width
+            parts += [
+                text(
+                    x,
+                    626,
+                    f"{fraction * maximum:g}x",
+                    15,
+                    colors["text-secondary"],
+                    anchor="middle",
+                ),
+            ]
+    parts += [
+        text(
+            40,
+            660,
+            "Speedup against each library. Each panel uses its own linear scale.",
+            17,
+            colors["text-secondary"],
+        ),
+        "</g></svg>",
+    ]
+    (out / f"library-speed-{theme}.svg").write_text("\n".join(parts) + "\n")
+
+
+speed_source = ROOT / "docs/benchmarks/readme-speed.json"
+if speed_source.exists():
+    speed_data = json.loads(speed_source.read_text())
+    for speed_theme in ("light", "dark"):
+        speed_panel(speed_theme, speed_data)
