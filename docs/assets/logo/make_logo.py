@@ -4,7 +4,7 @@ The wordmark is built from angular letters on a 512 grid; the crossbar of the e
 leaves the word as an arrow. The SVGs contain only polygons, no font and no
 raster. PNG exports need ``rsvg-convert`` (librsvg)::
 
-    python media/logo/make_logo.py
+    python docs/assets/logo/make_logo.py
 """
 
 import subprocess

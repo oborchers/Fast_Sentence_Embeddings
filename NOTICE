@@ -98,10 +98,3 @@ C Stream Interface specifications
 https://arrow.apache.org/docs/format/CStreamInterface.html), which ask consumers
 to copy them. Apache Arrow is licensed under the Apache License 2.0,
 Copyright 2016-2026 The Apache Software Foundation.
-
-STS Benchmark data
-------------------
-
-The evaluation/ directory contains third-party STS Benchmark data under the
-terms in evaluation/LICENSE.txt. It is excluded from source distributions
-and wheels. The MIT license of fse does not relicense these datasets.

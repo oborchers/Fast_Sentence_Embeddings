@@ -2,9 +2,9 @@ import html
 import json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-brand = json.loads((ROOT / "media/readme/palette.json").read_text())
-out = ROOT / "media/readme"
+ROOT = Path(__file__).resolve().parents[3]
+brand = json.loads((ROOT / "docs/assets/readme/palette.json").read_text())
+out = ROOT / "docs/assets/readme"
 out.mkdir(exist_ok=True)
 
 

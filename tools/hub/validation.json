@@ -1,0 +1,132 @@
+{
+  "manifest_sha256": "04a4453fecdff450f4bc48b1e46710f4bd12c29f38b411ada405442bb6aade34",
+  "source_commit": "e467958",
+  "scope": "Maintainer-approved sample: five sources, raw/sif10, float32/float16/int8; all 30 cards checked separately",
+  "hub_writes_performed": false,
+  "cards_byte_equal": 30,
+  "repositories": [
+    {
+      "repo": "fse/fasttext-crawl-subwords-300-raw",
+      "files": {
+        ".gitattributes": {
+          "bytes": 50,
+          "sha256": "ee05350c7fda0af4da116020dd7b976d731de3beed4f5e717d5bcc95ead24550"
+        },
+        "README.md": {
+          "bytes": 3391,
+          "sha256": "747963dd8cf31105c60146e81d2647579259f04bfc6edef54050634060463925"
+        },
+        "config.json": {
+          "bytes": 199,
+          "sha256": "211167382dadf449564c6ebf2c38340fb31bafb86872d54405514c013f0305ff"
+        },
+        "model.safetensors": {
+          "bytes": 4831846546,
+          "sha256": "7ed5709fef71a455d7e295776ae22f0e3155cb5ef65779268a0b8f981146e0be"
+        }
+      },
+      "all_bytes_exact": true,
+      "output_removed": true
+    },
+    {
+      "repo": "fse/glove-wiki-gigaword-300-raw-int8",
+      "files": {
+        ".gitattributes": {
+          "bytes": 50,
+          "sha256": "ee05350c7fda0af4da116020dd7b976d731de3beed4f5e717d5bcc95ead24550"
+        },
+        "README.md": {
+          "bytes": 3487,
+          "sha256": "cd84d81025634c2f4b20308ebd680742b88c9ec76f76b4623893b4f808f1bbb2"
+        },
+        "config.json": {
+          "bytes": 199,
+          "sha256": "490b3f078955264608fafe6d61b18340e3188e90b923c91fcf26e5eaa748b0db"
+        },
+        "model.safetensors": {
+          "bytes": 127757762,
+          "sha256": "1cb3bc2aa503eb63e3c24e0868db9ec508789fd7cd60384bcb22931a75470e3e"
+        }
+      },
+      "all_bytes_exact": true,
+      "output_removed": true
+    },
+    {
+      "repo": "fse/paragram-300-sl999-raw-float16",
+      "files": {
+        ".gitattributes": {
+          "bytes": 50,
+          "sha256": "ee05350c7fda0af4da116020dd7b976d731de3beed4f5e717d5bcc95ead24550"
+        },
+        "README.md": {
+          "bytes": 3586,
+          "sha256": "a0c9d8f55c24b14aa3e7388eaf0a2f50c451f7da6bbd61679b392750ea0de1cb"
+        },
+        "config.json": {
+          "bytes": 199,
+          "sha256": "0f2f1cb7debc0962642eeb59b37c3d2a99c085dfa2dfa30bb0814cc01132188e"
+        },
+        "model.safetensors": {
+          "bytes": 1049902223,
+          "sha256": "698d12c1707d8aeabffae5cba611153cf82afe2fcbabbedaa2ff22649983b15e"
+        }
+      },
+      "all_bytes_exact": true,
+      "output_removed": true
+    },
+    {
+      "repo": "fse/paranmt-300-sif10",
+      "files": {
+        ".gitattributes": {
+          "bytes": 50,
+          "sha256": "ee05350c7fda0af4da116020dd7b976d731de3beed4f5e717d5bcc95ead24550"
+        },
+        "README.md": {
+          "bytes": 4865,
+          "sha256": "8a2534e518371de2ac3065d4fb2cb06cedffa2c9c848411de099a96ba4635e18"
+        },
+        "config.json": {
+          "bytes": 199,
+          "sha256": "74a1666a1b21b0760f6176aa5be8e42dd0057489f2621fbc0f6d1b7fdb926473"
+        },
+        "model.safetensors": {
+          "bytes": 93858331,
+          "sha256": "8a5628981b74e116a7ae675e822c3e9ce4ed8fb6da47ca94cfa8563d2e17e60f"
+        },
+        "preparation.json": {
+          "bytes": 1297,
+          "sha256": "41b50c857c412e5a3fbafd0fef0ecb58bd292f622614c567536775c2fb381cb3"
+        }
+      },
+      "all_bytes_exact": true,
+      "output_removed": true
+    },
+    {
+      "repo": "fse/word2vec-google-news-300-sif10-int8",
+      "files": {
+        ".gitattributes": {
+          "bytes": 50,
+          "sha256": "ee05350c7fda0af4da116020dd7b976d731de3beed4f5e717d5bcc95ead24550"
+        },
+        "README.md": {
+          "bytes": 5108,
+          "sha256": "eb9d07e1bdee1949afc929c9609e6dad58cae9d8c9cea5b6503587cb96bae173"
+        },
+        "config.json": {
+          "bytes": 199,
+          "sha256": "8ade6bf7e6e61f8a23b72125e36c2b067142c52e782950daf44132304e0acf77"
+        },
+        "model.safetensors": {
+          "bytes": 977259798,
+          "sha256": "e8aff31b69faa81ed62978dd818898bc323699fb36be9290d3ba4abbf21a1882"
+        },
+        "preparation.json": {
+          "bytes": 1310,
+          "sha256": "04194ecec92009b39f4cc2fda10c8c6eec2f0cce312830035ba78e254c4a653c"
+        }
+      },
+      "all_bytes_exact": true,
+      "output_removed": true
+    }
+  ]
+}

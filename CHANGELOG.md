@@ -28,6 +28,8 @@ The 1.x branch remains maintained. Entries collect here until the release.
 
 ### Changed
 
+- Move repository media to `docs/assets/`, remove historical research notes and bundled STS-B data, and load the same pinned STS-B sentences from the Hub in recipe 07.
+
 - Integration package READMEs document raw means through `load_kwargs={"normalize": False}` for every supported pretrained model and the default `"model"` normalization rule.
 
 - Recipe 06 adds LangChain, LlamaIndex and Haystack searches through the prepared fse packages, with publication-dependent installation instructions and a package overview in the main README.
@@ -163,7 +165,7 @@ The 1.x branch remains maintained. Entries collect here until the release.
 - **SIF and uSIF no longer slow down with more workers.** OpenBLAS started its own threads in every worker for the Gram matrix and the removal of components, so 16 workers could run 256 BLAS threads on 16 cores. During `train`, and while `infer` removes components, BLAS now gets `cores // workers` threads (at least one; the limit holds for the whole process during the call), and the components are removed by all workers in parallel. Results are unchanged.
 - New dependency: `threadpoolctl>=3.1.0`, to limit the BLAS threads.
 - At DEBUG level, every training logs how much of its time the producer and the workers spend reading, averaging and waiting, and which side limits it.
-- A new logo, with a light and a dark variant that the README picks by color scheme. The sources and their generator are in `media/logo/`; `media/fse.png` stays for the READMEs of earlier releases.
+- A new logo, with a light and a dark variant that the README picks by color scheme. The sources and their generator are in `docs/assets/logo/`; `docs/assets/fse.png` stays for the READMEs of earlier releases.
 - Unknown keyword arguments to `Average` and `BaseSentence2VecModel` raise a `pydantic.ValidationError` instead of being silently ignored, like at every other validated entry point.
 - Sentence tuples must have exactly two elements, `(words, index)`; longer tuples raise a `ValueError` instead of losing the extra element. `restrict_size=(lo, hi)` with `hi < lo` raises a `ValueError` instead of returning nothing.
 - The input classes reject sets with a `TypeError`. A set has no order, so the sentence indices would be arbitrary; pass `sorted(...)` instead.

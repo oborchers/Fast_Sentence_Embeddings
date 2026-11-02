@@ -58,3 +58,11 @@ commands perform no Hub writes.
 The existing preparation and quality-comparison math remains under `benchmarks/`
 for the measurement tools that import it. Historical publication scripts belong
 to the `benchmark-evidence-2.0` archive branch.
+
+## Recorded validation
+
+`validation.json` records the maintainer-approved five-repository sample, covering
+all five sources, raw and SIF-10, and float32, float16 and int8. Every file matched
+the frozen manifest. Each newly built payload was removed after its receipt was
+secured. All 30 cards matched independently. The complete 30-payload rebuild was
+not run, following the maintainer's narrower validation instruction.
