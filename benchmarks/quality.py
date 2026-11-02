@@ -81,6 +81,19 @@ def specification(args):
                 "estimated_seconds": 30,
             }
         )
+    if args.rehearse:
+        spec["cells"].append(
+            {
+                "id": "small-published-recall",
+                "kind": "recall",
+                "model": "fse/glove-wiki-gigaword-300",
+                "backend": "fse",
+                "fit": "small-published-fit",
+                "dtype": "float16",
+                "workers": 1,
+                "estimated_seconds": 30,
+            }
+        )
     if args.cells:
         spec["cells"] = [c for c in spec["cells"] if c["id"] in args.cells]
         if len(args.cells) != len(spec["cells"]) or set(args.cells) != {

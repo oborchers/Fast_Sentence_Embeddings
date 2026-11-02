@@ -276,6 +276,241 @@
       "workers": 2,
       "estimated_seconds": 1800,
       "description": "SIF-10 fit as published; historical mean evaluation remains separate"
+    },
+    {
+      "id": "published-sts-glove-wiki-gigaword-300-float32",
+      "kind": "sts",
+      "model": "fse/glove-wiki-gigaword-300",
+      "fit": "published-sif10-glove-wiki-gigaword-300",
+      "dtype": "float32",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-glove-wiki-gigaword-300-float16",
+      "kind": "sts",
+      "model": "fse/glove-wiki-gigaword-300",
+      "fit": "published-sif10-glove-wiki-gigaword-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-glove-wiki-gigaword-300-int8",
+      "kind": "sts",
+      "model": "fse/glove-wiki-gigaword-300",
+      "fit": "published-sif10-glove-wiki-gigaword-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-glove-wiki-gigaword-300-float16",
+      "kind": "recall",
+      "model": "fse/glove-wiki-gigaword-300",
+      "backend": "fse",
+      "fit": "published-sif10-glove-wiki-gigaword-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-glove-wiki-gigaword-300-int8",
+      "kind": "recall",
+      "model": "fse/glove-wiki-gigaword-300",
+      "backend": "fse",
+      "fit": "published-sif10-glove-wiki-gigaword-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-word2vec-google-news-300-float32",
+      "kind": "sts",
+      "model": "fse/word2vec-google-news-300",
+      "fit": "published-sif10-word2vec-google-news-300",
+      "dtype": "float32",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-word2vec-google-news-300-float16",
+      "kind": "sts",
+      "model": "fse/word2vec-google-news-300",
+      "fit": "published-sif10-word2vec-google-news-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-word2vec-google-news-300-int8",
+      "kind": "sts",
+      "model": "fse/word2vec-google-news-300",
+      "fit": "published-sif10-word2vec-google-news-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-word2vec-google-news-300-float16",
+      "kind": "recall",
+      "model": "fse/word2vec-google-news-300",
+      "backend": "fse",
+      "fit": "published-sif10-word2vec-google-news-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-word2vec-google-news-300-int8",
+      "kind": "recall",
+      "model": "fse/word2vec-google-news-300",
+      "backend": "fse",
+      "fit": "published-sif10-word2vec-google-news-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-fasttext-crawl-subwords-300-float32",
+      "kind": "sts",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "fit": "published-sif10-fasttext-crawl-subwords-300",
+      "dtype": "float32",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-fasttext-crawl-subwords-300-float16",
+      "kind": "sts",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "fit": "published-sif10-fasttext-crawl-subwords-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-fasttext-crawl-subwords-300-int8",
+      "kind": "sts",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "fit": "published-sif10-fasttext-crawl-subwords-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-fasttext-crawl-subwords-300-float16",
+      "kind": "recall",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "backend": "fse",
+      "fit": "published-sif10-fasttext-crawl-subwords-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-fasttext-crawl-subwords-300-int8",
+      "kind": "recall",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "backend": "fse",
+      "fit": "published-sif10-fasttext-crawl-subwords-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-paragram-300-sl999-float32",
+      "kind": "sts",
+      "model": "fse/paragram-300-sl999",
+      "fit": "published-sif10-paragram-300-sl999",
+      "dtype": "float32",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-paragram-300-sl999-float16",
+      "kind": "sts",
+      "model": "fse/paragram-300-sl999",
+      "fit": "published-sif10-paragram-300-sl999",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-paragram-300-sl999-int8",
+      "kind": "sts",
+      "model": "fse/paragram-300-sl999",
+      "fit": "published-sif10-paragram-300-sl999",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-paragram-300-sl999-float16",
+      "kind": "recall",
+      "model": "fse/paragram-300-sl999",
+      "backend": "fse",
+      "fit": "published-sif10-paragram-300-sl999",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-paragram-300-sl999-int8",
+      "kind": "recall",
+      "model": "fse/paragram-300-sl999",
+      "backend": "fse",
+      "fit": "published-sif10-paragram-300-sl999",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-paranmt-300-float32",
+      "kind": "sts",
+      "model": "fse/paranmt-300",
+      "fit": "published-sif10-paranmt-300",
+      "dtype": "float32",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-paranmt-300-float16",
+      "kind": "sts",
+      "model": "fse/paranmt-300",
+      "fit": "published-sif10-paranmt-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-paranmt-300-int8",
+      "kind": "sts",
+      "model": "fse/paranmt-300",
+      "fit": "published-sif10-paranmt-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-paranmt-300-float16",
+      "kind": "recall",
+      "model": "fse/paranmt-300",
+      "backend": "fse",
+      "fit": "published-sif10-paranmt-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-paranmt-300-int8",
+      "kind": "recall",
+      "model": "fse/paranmt-300",
+      "backend": "fse",
+      "fit": "published-sif10-paranmt-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
     }
   ]
 }

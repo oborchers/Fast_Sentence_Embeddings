@@ -148,6 +148,8 @@ def sts(cell, context):
 
     receipt = context["fits"][cell["fit"]]
     encoder = fse.Encoder.load(receipt["artifact"], mmap=True)
+    if cell.get("dtype", "float32") != "float32":
+        encoder = encoder.quantize(cell["dtype"])
     from verify_hub_classics import external_view
 
     labels, texts, tokens = benchmark(context)
@@ -159,6 +161,7 @@ def sts(cell, context):
     return {
         "status": "valid",
         "pairs": half,
+        "table_dtype": cell.get("dtype", "float32"),
         "fit_id": cell["fit"],
         "pearson": score(labels, vectors),
         "default_tokenizer_pearson": score(labels, default_rows),
@@ -211,12 +214,20 @@ def recall(cell, context):
     )
     quantized = parent.quantize(cell["dtype"])
     _, texts, tokens = benchmark(context)
-    inputs = tokens if parent.tokenizer == "external" else texts
-    a = parent.encode(inputs, workers=cell["workers"])
-    b = quantized.encode(inputs, workers=cell["workers"])
+    evaluation_parent, evaluation_quantized = parent, quantized
+    if cell.get("fit"):
+        from verify_hub_classics import external_view
+
+        evaluation_parent, evaluation_quantized = external_view(parent), external_view(quantized)
+    inputs = tokens if evaluation_parent.tokenizer == "external" else texts
+    a = evaluation_parent.encode(inputs, workers=cell["workers"])
+    b = evaluation_quantized.encode(inputs, workers=cell["workers"])
     return {
         "status": "valid",
         "recall_at_10": neighbor_recall(neighbors(a), neighbors(b)),
+        "evaluation_tokenizer": "historical NLTK external view"
+        if cell.get("fit")
+        else "saved model tokenizer",
         "score_scale": "fraction of shared top-10 neighbors",
         "fit_id": cell.get("fit"),
         "table_dtype": cell["dtype"],
