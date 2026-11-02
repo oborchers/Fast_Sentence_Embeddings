@@ -26,5 +26,3 @@ def runtime_identity() -> str:
         hasher.update(str(path.relative_to(root)).encode("utf-8"))
         hasher.update(file_digest(path).encode("ascii"))
     return hasher.checksum()
-
-
