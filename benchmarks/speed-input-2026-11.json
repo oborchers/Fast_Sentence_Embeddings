@@ -1,0 +1,417 @@
+{
+  "format": "speed-input-v1",
+  "variant": "full",
+  "fse_revision": "624251df2269e3099f5c61987be63e718893b58c",
+  "models": {
+    "minishlab/potion-base-8M": "bf8b056651a2c21b8d2565580b8569da283cab23",
+    "sentence-transformers/static-retrieval-mrl-en-v1": "f60985c706f192d45d218078e49e5a8b6f15283a"
+  },
+  "rust_revision": "19f58bef6ce145f2bc08de7016498f28d521feea",
+  "corpus": {
+    "repo": "Salesforce/wikitext",
+    "revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+    "configuration": "wikitext-103-raw-v1",
+    "split": "train",
+    "seed": 0,
+    "generator": "PCG64",
+    "paragraph_preprocessing": "collapse whitespace, omit headings, minimum five words",
+    "sampling": "source positions with replacement, followed by seeded shuffle",
+    "expected_source_positions": 832318
+  },
+  "classification": {
+    "repo": "SetFit/ag_news",
+    "revision": "ca5ba619eb034211db5f70932b6702efd21e7c73",
+    "seed": 7,
+    "train_selection": 8000,
+    "fit_selection": 6400,
+    "evaluation_selection": 2000,
+    "C": 1,
+    "max_iter": 1000,
+    "normalize": false,
+    "accuracy_policy": "historical recipe only; no new accuracy calculation"
+  },
+  "machine": {
+    "vcpu": 32,
+    "ram_bytes": 64000000000,
+    "disk_gb": 150,
+    "image": "python:3.13@sha256:f23cf6c01ace0da9aa4d04fd078dba0fcce0c23cf3320329a38a2b6890761f9c",
+    "python_patch": "3.13.18",
+    "architecture": "amd64",
+    "os": "linux",
+    "config_digest": "sha256:e2e020974fc5950a42b67b579de668ee586880373a77d5af6306a430156bb605",
+    "source": "Docker official library/python registry manifest and configuration"
+  },
+  "billing": {
+    "compute_usd_per_hour": 0.96,
+    "disk_usd_per_gb_month": 0.1,
+    "month_hours": 720,
+    "planning_balance_usd": 7.3,
+    "planning_minutes": 345,
+    "kill_running_cells": false,
+    "setup_stage_clock_env": "SPEED_SETUP_STARTED_AT",
+    "allocation_clock": "--allocated-at includes machine provisioning and bootstrap"
+  },
+  "stages": [
+    {
+      "name": "setup",
+      "estimate_minutes": 3,
+      "budget_minutes": 5
+    },
+    {
+      "name": "quiet",
+      "estimate_minutes": 9,
+      "budget_minutes": 14
+    },
+    {
+      "name": "sizing",
+      "estimate_minutes": 10,
+      "budget_minutes": 15
+    },
+    {
+      "name": "headline",
+      "estimate_minutes": 18,
+      "budget_minutes": 27
+    },
+    {
+      "name": "dtypes",
+      "estimate_minutes": 28,
+      "budget_minutes": 42
+    },
+    {
+      "name": "classification",
+      "estimate_minutes": 20,
+      "budget_minutes": 30
+    },
+    {
+      "name": "libraries",
+      "estimate_minutes": 108,
+      "budget_minutes": 162
+    },
+    {
+      "name": "call-size",
+      "estimate_minutes": 30,
+      "budget_minutes": 45
+    },
+    {
+      "name": "collection",
+      "estimate_minutes": 3,
+      "budget_minutes": 5
+    }
+  ],
+  "rules": {
+    "rounds": 3,
+    "minimum_fse_seconds": 2,
+    "aa_upper": 1.1,
+    "repeat_failed_cells": false,
+    "quiet_failure": "continue with independent cell controls",
+    "first_and_warm_separate": true
+  },
+  "cells": [
+    {
+      "id": "headline-01",
+      "stage": "headline",
+      "kind": "stream",
+      "workers": 32,
+      "texts": 100000000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "int8",
+      "rounds": 2
+    },
+    {
+      "id": "dtypes-02",
+      "stage": "dtypes",
+      "kind": "encode",
+      "workers": 1,
+      "texts": 4620000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": null,
+      "rounds": 3
+    },
+    {
+      "id": "dtypes-03",
+      "stage": "dtypes",
+      "kind": "encode",
+      "workers": 1,
+      "texts": 4620000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float16",
+      "reference": null,
+      "rounds": 3
+    },
+    {
+      "id": "dtypes-04",
+      "stage": "dtypes",
+      "kind": "encode",
+      "workers": 1,
+      "texts": 4620000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "int8",
+      "reference": null,
+      "rounds": 3
+    },
+    {
+      "id": "dtypes-05",
+      "stage": "dtypes",
+      "kind": "encode",
+      "workers": 16,
+      "texts": 4620000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": null,
+      "rounds": 3
+    },
+    {
+      "id": "dtypes-06",
+      "stage": "dtypes",
+      "kind": "encode",
+      "workers": 16,
+      "texts": 4620000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float16",
+      "reference": null,
+      "rounds": 3
+    },
+    {
+      "id": "dtypes-07",
+      "stage": "dtypes",
+      "kind": "encode",
+      "workers": 16,
+      "texts": 4620000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "int8",
+      "reference": null,
+      "rounds": 3
+    },
+    {
+      "id": "classification-08",
+      "stage": "classification",
+      "kind": "classify",
+      "workers": 16,
+      "texts": 10000000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "dataset": "SetFit/ag_news",
+      "rounds": 3
+    },
+    {
+      "id": "libraries-09",
+      "stage": "libraries",
+      "kind": "encode",
+      "workers": 1,
+      "texts": 450000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "model2vec",
+      "rounds": 3
+    },
+    {
+      "id": "libraries-10",
+      "stage": "libraries",
+      "kind": "encode",
+      "workers": 1,
+      "texts": 450000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "rust",
+      "rounds": 3
+    },
+    {
+      "id": "libraries-11",
+      "stage": "libraries",
+      "kind": "encode",
+      "workers": 1,
+      "texts": 450000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "fastembed",
+      "rounds": 3
+    },
+    {
+      "id": "libraries-12",
+      "stage": "libraries",
+      "kind": "encode",
+      "workers": 1,
+      "texts": 250000,
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "dtype": "float32",
+      "reference": "st",
+      "rounds": 3
+    },
+    {
+      "id": "libraries-13",
+      "stage": "libraries",
+      "kind": "encode",
+      "workers": 16,
+      "texts": 4200000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "model2vec",
+      "rounds": 3
+    },
+    {
+      "id": "libraries-14",
+      "stage": "libraries",
+      "kind": "encode",
+      "workers": 16,
+      "texts": 4200000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "rust",
+      "rounds": 3
+    },
+    {
+      "id": "libraries-15",
+      "stage": "libraries",
+      "kind": "encode",
+      "workers": 16,
+      "texts": 4200000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "fastembed",
+      "rounds": 3
+    },
+    {
+      "id": "libraries-16",
+      "stage": "libraries",
+      "kind": "encode",
+      "workers": 16,
+      "texts": 1500000,
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "dtype": "float32",
+      "reference": "st",
+      "rounds": 3
+    },
+    {
+      "id": "call-size-17",
+      "stage": "call-size",
+      "kind": "encode",
+      "workers": 1,
+      "texts": 5000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "rust",
+      "rounds": 3,
+      "warm_passes": 128,
+      "small_call_exception": true
+    },
+    {
+      "id": "call-size-18",
+      "stage": "call-size",
+      "kind": "encode",
+      "workers": 1,
+      "texts": 50000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "rust",
+      "rounds": 3,
+      "warm_passes": 32,
+      "small_call_exception": true
+    },
+    {
+      "id": "call-size-19",
+      "stage": "call-size",
+      "kind": "encode",
+      "workers": 1,
+      "texts": 500000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "rust",
+      "rounds": 3,
+      "warm_passes": 8,
+      "small_call_exception": true
+    },
+    {
+      "id": "call-size-20",
+      "stage": "call-size",
+      "kind": "encode",
+      "workers": 1,
+      "texts": 3000000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "rust",
+      "rounds": 3,
+      "warm_passes": 3,
+      "small_call_exception": true
+    },
+    {
+      "id": "call-size-21",
+      "stage": "call-size",
+      "kind": "encode",
+      "workers": 16,
+      "texts": 5000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "rust",
+      "rounds": 3,
+      "warm_passes": 128,
+      "small_call_exception": true
+    },
+    {
+      "id": "call-size-22",
+      "stage": "call-size",
+      "kind": "encode",
+      "workers": 16,
+      "texts": 50000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "rust",
+      "rounds": 3,
+      "warm_passes": 32,
+      "small_call_exception": true
+    },
+    {
+      "id": "call-size-23",
+      "stage": "call-size",
+      "kind": "encode",
+      "workers": 16,
+      "texts": 500000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "rust",
+      "rounds": 3,
+      "warm_passes": 8,
+      "small_call_exception": true
+    },
+    {
+      "id": "call-size-24",
+      "stage": "call-size",
+      "kind": "encode",
+      "workers": 16,
+      "texts": 3000000,
+      "model": "minishlab/potion-base-8M",
+      "dtype": "float32",
+      "reference": "rust",
+      "rounds": 3,
+      "warm_passes": 3,
+      "small_call_exception": true
+    },
+    {
+      "id": "call-size-25",
+      "stage": "call-size",
+      "kind": "startup",
+      "workers": 1,
+      "texts": 0,
+      "rounds": 30
+    },
+    {
+      "id": "call-size-26",
+      "stage": "call-size",
+      "kind": "startup",
+      "workers": 16,
+      "texts": 0,
+      "rounds": 30
+    }
+  ],
+  "quiet_cell": {
+    "id": "quiet",
+    "stage": "quiet",
+    "kind": "encode",
+    "workers": 1,
+    "texts": 1000000,
+    "model": "minishlab/potion-base-8M",
+    "dtype": "float32",
+    "rounds": 3,
+    "warm_passes": 3
+  }
+}

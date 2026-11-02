@@ -8,7 +8,7 @@
 load before and after every run, the raw data of every run kept, rounds with a high load
 discarded (kept too), and the ratio of each side to the first per round.
 
-A run is an in-process pass (``runtime_timeline_run.compare``) or a child process
+A run is an in-process pass (a callback supplied by its caller) or a child process
 (``run_child``: bench_sources, bench_lifecycle, bench_length, bench_length_files,
 bench_model2vec, bench_store); both go through ``rounds``. Each script passes its sides
 in the order its first round starts with, and keeps its own JSON; this module takes no
@@ -50,15 +50,6 @@ def order(names: Sequence[Hashable], k: int) -> list[Hashable]:
 def median(values: Sequence[float]) -> float:
     """The median; 0.0 for no values."""
     return statistics.median(values) if values else 0.0
-
-
-def median_numbers(runs: Sequence[Mapping[str, Any]]) -> dict[str, float]:
-    """The median of every number (not a bool) in the first run, over all ``runs``."""
-    return {
-        k: statistics.median(r[k] for r in runs)
-        for k, v in runs[0].items()
-        if isinstance(v, (int, float)) and not isinstance(v, bool)
-    }
 
 
 def run_child(
@@ -123,10 +114,6 @@ class Rounds:
 
     def records(self, name: Hashable) -> list[dict]:
         return [run.record() for run in self.runs(name)]
-
-    def by_round(self) -> list[dict[Hashable, Any]]:
-        """Per kept round the results by name."""
-        return [{n: run.result for n, run in r.items()} for r in self.kept]
 
     def ratios(self, name: Hashable, first: Hashable, value: Callable[[Any], float]) -> list[float]:
         """Per kept round ``value`` of ``name`` over that of ``first`` (rounds where the

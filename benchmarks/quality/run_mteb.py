@@ -42,23 +42,41 @@ import re
 import statistics
 import sys
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
+from contextlib import closing
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
 import mteb
 import numpy as np
+from artifact_manifest import verified_source
+from model2vec_adapter import NativeModel2VecEncoder
 from mteb.cache import ResultCache
 from mteb.models.abs_encoder import AbsEncoder
 from mteb.models.model_meta import ModelMeta, ScoringFunction
+from protocol import (
+    compatible_results,
+    measurement_identity,
+    source_identity,
+    verify_reference_runtime,
+)
+from resume import pending_tasks
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from backend_runtime import model_runtime  # isort: skip
+from compare_runtime import verify_backend_identity  # isort: skip
+from quality_coordination import paused, task_reservation  # isort: skip
+from bench_pretrained import COMMITS  # isort: skip
+from compare_inputs import identity  # isort: skip
+from compare_models import MODELS  # isort: skip
 
 HERE = Path(__file__).resolve().parent
 RESULTS = HERE / "results.jsonl"  # the default of --results
 CACHE = Path(os.environ.get("FSE_QUALITY_CACHE", Path.home() / ".cache" / "fse-quality"))
 
 BENCHMARKS = ["MTEB(eng, v2)", "NanoBEIR"]
-# A selection of both that runs in about 8 minutes per model on an M1 Pro, for baselines:
+# A smaller selection of both benchmarks for historical baseline comparisons:
 # every task type of MTEB(eng, v2) without its slowest tasks, and all of NanoBEIR.
 BASELINE_TASKS = [
     "BIOSSES", "SICK-R", "STS12", "STS13", "STS14", "STS15", "STS17", "STS22.v2", "STSBenchmark",
@@ -73,11 +91,11 @@ BASELINE_TASKS = [
 ]  # fmt: skip
 # Registered in mteb with pinned revisions.
 OTHER_MODELS = [
-    "minishlab/potion-base-8M",
-    "minishlab/potion-base-32M",
-    "sentence-transformers/static-retrieval-mrl-en-v1",
+    *sorted(COMMITS),
+    *[f"model2vec/{name}" for name in sorted(COMMITS) if name.startswith("minishlab/")],
     "sentence-transformers/all-MiniLM-L6-v2",
 ]
+
 
 logger = logging.getLogger("run_mteb")
 
@@ -117,12 +135,18 @@ class FseEncoder(AbsEncoder):
     """Encode with a finished fse model (``fse.Encoder.load``)."""
 
     folder = CACHE / "models"  # set by --fse-models
+    workers = 2
+    batch_tasks = 8
+    coordination: Path | None = None
+    mmap = False
 
     def __init__(self, model_name: str, revision: str | None = None, **kwargs: Any) -> None:
         import fse
 
         path = self.folder / f"{model_name.removeprefix('fse/')}.safetensors"
-        self.model = fse.Encoder.load(path)
+        self.model = fse.Encoder.load(path, mmap=True) if self.mmap else fse.Encoder.load(path)
+        self.provenance = verified_source(path, self.model)
+        self.provenance["artifact_load_mode"] = "mmap" if self.mmap else "copy"
         logger.info("loaded %s from %s", self.model, path)
 
     def encode(
@@ -137,8 +161,10 @@ class FseEncoder(AbsEncoder):
     ) -> np.ndarray:
         texts = [text for batch in inputs for text in batch["text"]]
         if self.model.tokenizer == "external":
-            texts = [tokenize(text) for text in texts]
-        return self.model.encode(texts, workers=os.cpu_count())
+            # The recipe removes empty legacy split tokens at the 2.0 boundary.
+            # Keep every sentence, including sentences with no remaining tokens.
+            texts = [[token for token in tokenize(text) if token] for text in texts]
+        return self.model.encode(texts, workers=self.workers)
 
 
 def vector_license(name: str) -> str:
@@ -148,17 +174,18 @@ def vector_license(name: str) -> str:
     including paranmt and paragram, have unknown terms, never an assumed license.
     """
     for source, license_id in (
-        ("glove-", "pddl"),
+        ("glove-", "https://opendatacommons.org/licenses/pddl/1-0/"),
         ("word2vec-google-news-", "apache-2.0"),
         ("fasttext-", "cc-by-sa-3.0"),
         ("potion-", "mit"),
     ):
         if source in name.lower():
             return license_id
-    return "unknown"
+    return "not specified"
 
 
 def fse_meta(name: str) -> ModelMeta:
+    encoder = FseEncoder(name).model
     return ModelMeta(
         loader=FseEncoder,
         name=name,
@@ -167,8 +194,8 @@ def fse_meta(name: str) -> ModelMeta:
         languages=["eng-Latn"],
         n_parameters=None,
         memory_usage_mb=None,
-        max_tokens=np.inf,
-        embed_dim=FseEncoder(name).model.output_dim,
+        max_tokens=encoder._content.tokenizer.max_tokens or np.inf,
+        embed_dim=encoder.output_dim,
         license=vector_license(name),
         open_weights=True,
         public_training_code="https://github.com/oborchers/Fast_Sentence_Embeddings",
@@ -210,64 +237,161 @@ def tasks_for(names: list[str] | None) -> list[Any]:
     return tasks
 
 
-def run(models: list[str], task_names: list[str] | None, results: Path = RESULTS) -> None:
+def metadata(name: str) -> ModelMeta:
+    if name.startswith("fse/"):
+        return fse_meta(name)
+    if name.startswith("model2vec/"):
+        repo = name.removeprefix("model2vec/")
+        return mteb.get_model_meta(repo).model_copy(
+            update={
+                "name": name,
+                "revision": COMMITS[repo],
+                "loader": NativeModel2VecEncoder,
+            }
+        )
+    return mteb.get_model_meta(name).model_copy(update={"revision": MODELS[name]})
+
+
+def task_batches(model, tasks, cache):
+    pending = deque(tasks)
+    while pending:
+        with task_reservation(FseEncoder.coordination):
+            for _ in range(FseEncoder.batch_tasks):
+                if not pending or (FseEncoder.coordination and paused(FseEncoder.coordination)):
+                    break
+                task = pending.popleft()
+                result = mteb.evaluate(
+                    model, [task], cache=cache, overwrite_strategy="always", show_progress_bar=False
+                )
+                yield task, result
+
+
+def run(
+    models: list[str],
+    task_names: list[str] | None,
+    results: Path = RESULTS,
+    resume: bool = False,
+    defer_mind: bool = False,
+) -> None:
     from nltk import download
 
     download("punkt_tab", quiet=True)
     tasks = tasks_for(task_names)
     benchmark_of = {t.metadata.name: b for b in BENCHMARKS for t in mteb.get_benchmark(b).tasks}
     cache = ResultCache(CACHE / "mteb")
+    environment = {**identity(), **measurement_identity(tasks_for(None))}
     for name in models:
-        meta = fse_meta(name) if name.startswith("fse/") else mteb.get_model_meta(name)
-        model = meta.load_model()
+        verify_reference_runtime(environment)
+        with task_reservation(FseEncoder.coordination):
+            meta = metadata(name)
+            model = meta.load_model(device="cpu")
+        specification = {
+            "model": name,
+            "revision": meta.revision,
+            "loader": f"{type(model).__module__}.{type(model).__name__}",
+            "encoder_fingerprint": getattr(getattr(model, "model", None), "fingerprint", None),
+            "workers": FseEncoder.workers,
+            "device": "cpu",
+            "versions": environment["versions"],
+            **{
+                key: environment[key]
+                for key in ("method_fingerprint", "runtime_fingerprint", "suite_fingerprint")
+            },
+        }
+        specification.update(getattr(model, "provenance", source_identity(name)))
+        specification.update(model_runtime(model, environment))
+        specification.setdefault("float32_parent_fingerprint", None)
+        pending = pending_tasks(results, specification, tasks) if resume else tasks
+        logger.info("%s: %d pending tasks of %d", name, len(pending), len(tasks))
+        if defer_mind:
+            pending = defer_mind_task(pending, environment, specification, results)
         timer = EncodeTimer(model)
-        result = mteb.evaluate(
-            model, tasks, cache=cache, overwrite_strategy="always", show_progress_bar=False
-        )
-        with results.open("a", encoding="utf-8") as f:
-            for task_result in result.task_results:
-                task = task_result.task_name
-                f.write(
-                    json.dumps(
-                        {
-                            "model": name,
-                            "revision": meta.revision,
-                            "benchmark": benchmark_of[task],
-                            "task": task,
-                            "type": mteb.get_task(task).metadata.type,
-                            "main_score": task_result.get_score(),
-                            **timer.stats.get(task, {}),
-                            "machine": platform.platform(),
-                            "python": sys.version.split()[0],
-                            "mteb": version("mteb"),
-                            "fse": version("fse"),
-                            "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                        }
-                    )
-                    + "\n"
-                )
+        with closing(task_batches(model, pending, cache)) as batches:
+            for task_to_run, result in batches:
+                verify_backend_identity(specification["backend_kind"], specification)
+                verify_reference_runtime(environment)
+                for task_result in result.task_results:
+                    task = task_result.task_name
+                    with results.open("a", encoding="utf-8") as f:
+                        f.write(
+                            json.dumps(
+                                {
+                                    **environment,
+                                    **specification,
+                                    "model": name,
+                                    **getattr(model, "provenance", source_identity(name)),
+                                    "loader": f"{type(model).__module__}.{type(model).__name__}",
+                                    "workers": FseEncoder.workers,
+                                    "device": "cpu",
+                                    "task_metadata": task_to_run.metadata.model_dump(mode="json"),
+                                    "encoder_fingerprint": getattr(
+                                        getattr(model, "model", None), "fingerprint", None
+                                    ),
+                                    "revision": meta.revision,
+                                    "encoder_description": str(
+                                        getattr(model, "model", type(model).__name__)
+                                    ),
+                                    "benchmark": benchmark_of[task],
+                                    "task": task,
+                                    "type": mteb.get_task(task).metadata.type,
+                                    "main_score": task_result.get_score(),
+                                    "status": "completed",
+                                    **timer.stats.get(task, {}),
+                                    "machine": platform.platform(),
+                                    "python": sys.version.split()[0],
+                                    "mteb": version("mteb"),
+                                    "fse": version("fse"),
+                                    "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                                }
+                            )
+                            + "\n"
+                        )
         logger.info("finished %s", name)
+
+
+def defer_mind_task(tasks, environment, specification, results):
+    remaining = []
+    for task in tasks:
+        if task.metadata.name != "MindSmallReranking":
+            remaining.append(task)
+            continue
+        row = {
+            **environment,
+            **specification,
+            **source_identity(specification["model"]),
+            "task": task.metadata.name,
+            "task_metadata": task.metadata.model_dump(mode="json"),
+            "status": "deferred",
+            "main_score": None,
+            "reason": "deferred: needs more than 16 GiB RAM on the M1",
+            "benchmark": "MTEB(eng, v2)",
+            "mteb": version("mteb"),
+            "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+        with results.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row) + "\n")
+        logger.info("MindSmallReranking: %s", row["reason"])
+    return remaining
 
 
 def summarize(results: Path = RESULTS) -> None:
     """Print a Markdown table of the latest result per model and task."""
-    # One row per model, fse version and machine: results of different versions or
-    # machines are never averaged together.
-    latest: dict[tuple[str, str], dict[str, Any]] = {}
-    for line in results.read_text(encoding="utf-8").splitlines():
-        row = json.loads(line)
-        model = f"{row['model']} ({row['fse']}, {row['machine']})"
-        latest[model, row["task"]] = row
-    by_model: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for (model, _), row in latest.items():
-        by_model[model].append(row)
+    rows = [json.loads(line) for line in results.read_text(encoding="utf-8").splitlines()]
+    by_model = compatible_results(rows, tasks_for(None))
     eng = {t.metadata.name for t in mteb.get_benchmark("MTEB(eng, v2)").tasks}
     types = sorted({t.metadata.type for t in mteb.get_benchmark("MTEB(eng, v2)").tasks})
     print(
-        "| Model | Mean (Task) | Mean (TaskType) | " + " | ".join(types) + " | NanoBEIR | texts/s |"
+        "| Model | Mean (Task) | Mean (TaskType) | "
+        + " | ".join(types)
+        + " | NanoBEIR (13 tasks required) | coverage | texts/s |"
     )
-    print("|---" * (len(types) + 5) + "|")
-    for model, rows in sorted(by_model.items()):
+    print("|---" * (len(types) + 6) + "|")
+    for key, rows in sorted(by_model.items()):
+        config = json.loads(key)
+        model = (
+            f"{config['model']} ({config.get('method_fingerprint') or config.get('legacy_commit')}, "
+            f"{config.get('runtime_fingerprint')}, {config.get('workers')} workers)"
+        )
         main = [r for r in rows if r["task"] in eng]
         nano = [r["main_score"] for r in rows if r["benchmark"] == "NanoBEIR"]
         per_type = {ty: [r["main_score"] for r in main if r["type"] == ty] for ty in types}
@@ -284,11 +408,11 @@ def summarize(results: Path = RESULTS) -> None:
         print(
             f"| {model} | {100 * mean_task:.2f} | {100 * mean_type:.2f} | "
             + " | ".join(cells)
-            + f" | {100 * statistics.mean(nano):.2f} | {texts / seconds:,.0f} |"
+            + f" | {100 * statistics.mean(nano) if len(nano) == 13 else float('nan'):.2f} | {len(main)}/41 + {len(nano)}/13 | {texts / seconds:,.0f} |"
             if nano and seconds
             else f"| {model} | {100 * mean_task:.2f} | {100 * mean_type:.2f} | "
             + " | ".join(cells)
-            + " | | |"
+            + f" | | {len(main)}/41 + {len(nano)}/13 | |"
         )
 
 
@@ -308,6 +432,16 @@ def main() -> None:
     run_parser.add_argument(
         "--fse-models", type=Path, default=FseEncoder.folder, help="the finished fse models"
     )
+    run_parser.add_argument(
+        "--defer-mind", action="store_true", help="record the authorized RAM deferral"
+    )
+    run_parser.add_argument("--resume", action="store_true", help="reuse matching completed tasks")
+    run_parser.add_argument("--workers", type=int, default=2)
+    run_parser.add_argument(
+        "--mmap-models", action="store_true", help="map finished tables read-only"
+    )
+    run_parser.add_argument("--batch-tasks", type=int, default=8)
+    run_parser.add_argument("--coordination", type=Path, help="shared scratchpad lock directory")
     summary = sub.add_parser("summarize")
     summary.add_argument("--results", type=Path, default=RESULTS)
     args = parser.parse_args()
@@ -315,12 +449,25 @@ def main() -> None:
     if args.command == "summarize":
         summarize(args.results)
         return
+    if args.workers < 1 or args.batch_tasks < 1:
+        parser.error("workers and batch-tasks must be positive")
+    import torch
+
+    torch.set_num_threads(args.workers)
+    os.environ["RAYON_NUM_THREADS"] = str(args.workers)
+    FseEncoder.batch_tasks = args.batch_tasks
+    FseEncoder.workers = args.workers
+    FseEncoder.mmap = args.mmap_models
+    FseEncoder.coordination = args.coordination
     FseEncoder.folder = args.fse_models
     ours = fse_models(args.fse_models) if {"fse", "all"} & set(args.models) else []
     groups = {"fse": ours, "others": OTHER_MODELS, "all": ours + OTHER_MODELS}
     models = [m for name in args.models for m in groups.get(name, [name])]
     tasks = BASELINE_TASKS if args.tasks == ["baseline"] else args.tasks
-    run(models, tasks, args.results)
+    from threadpoolctl import threadpool_limits
+
+    with threadpool_limits(limits=args.workers):
+        run(models, tasks, args.results, args.resume, args.defer_mind)
 
 
 if __name__ == "__main__":

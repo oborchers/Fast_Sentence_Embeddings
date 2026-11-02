@@ -12,7 +12,7 @@ counts), and prints the peak, the time of the peak and the final value; --csv wr
 every sample. Memory-mapped file pages count as far as the system counts them as
 resident.
 
-    uv run python tools/rss.py --csv rss.csv -- python benchmarks/bench_store.py write
+    uv run python tools/rss.py --csv rss.csv -- python benchmarks/bench_runtime.py throughput
 """
 
 from __future__ import annotations

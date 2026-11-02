@@ -1,5 +1,8 @@
 ## Backends
 
+Historical M1 timing observations in this document are withdrawn and must not support speed claims. Numerical contracts and implementation descriptions remain valid. Current evidence is in the [comparison guide](../fse-comparison.md).
+
+
 Binding for every 2.0 module (formerly under "2.0 design").
 
 Both backends implement linear head operations. A backend implements one contract (`fse._backends`) and is chosen by name from a fixed set (`"cpu"`, `"numpy"`); there is no plugin registry and no `"auto"`:

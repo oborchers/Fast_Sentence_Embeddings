@@ -1,6 +1,8 @@
 # Baseline: fse 1.1.0
 
-Model terms apply separately from fse: the licenses of paranmt and paragram are unknown. GloVe uses PDDL, word2vec uses Apache-2.0, fastText vectors use CC BY-SA 3.0, and POTION uses MIT.
+Model terms apply separately from fse. Google News word2vec **vectors have no stated licence**. Apache-2.0 covers the word2vec **code**, and the project carries a research-only disclaimer ("released for research purposes only"). See the [original word2vec project](https://code.google.com/archive/p/word2vec/). Do not attribute the code licence to the vector files.
+
+[GloVe vectors](https://github.com/stanfordnlp/GloVe) use PDDL. [FastText crawl vectors](https://fasttext.cc/docs/en/crawl-vectors.html) use CC BY-SA 3.0. No licence is stated for the paranmt-300 and paragram vector releases used here. POTION uses MIT. Recording these benchmark results does not assert redistribution rights for any model.
 
 The values fse 2.0 is compared with, measured with fse 1.1.0 from PyPI, never with the repository. The 2.0 numerics differ from 1.x by design (no EPS, fused multiply-add instead of `saxpy`, no BLAS in the removal of components); the release of 2.0 measures the same tables again.
 
@@ -64,46 +66,12 @@ Over the WikiText corpus with paranmt-300:
 
 The fixture test (`tests/test_v1_reference.py`) compares the 2.0 reference with 1.1.0's `infer` on small random vectors: on Apple M1 (Accelerate), averaging is bit-identical for every word vector format and for FastText, and the removal of components differs by at most 3e-7 of the largest value of a row.
 
-## Training throughput
+## Historical M1 timing, withdrawn
 
-Synthetic corpus of `bench_train.py` (at 4931f5e; 200,000 sentences of 12 tokens, a Zipf vocabulary of 50,000 words, 10 % unknown words), median of three runs, sentences per second end to end, in millions. 300 dimensions:
+All training-throughput and lifecycle timing results are **withdrawn: M1**, regardless of input size. Their original result files remain unchanged under `results/` for regression purposes. Do not use their timing columns as published speed or cost evidence. The original tables remain only in the [withdrawn snapshot](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/d3b8f658481c494f78d81adce192d21c4383936b/benchmarks/baseline/results/dr151-withdrawn-publication-20261101/benchmarks/baseline/README.md). STS, MTEB and numerical accuracy above remain valid and unchanged.
 
-| Input | Model | 1 | 2 | 4 | 8 | 10 workers | peak RSS (MiB) |
-|---|---|---|---|---|---|---|---|
-| IndexedList | Average | 0.92 | 1.00 | 1.69 | 2.41 | 2.29 | 658 |
-| IndexedList | SIF | 0.72 | 0.89 | 1.39 | 1.71 | 1.40 | 847 |
-| TextList | Average | 0.57 | 0.97 | 1.48 | 2.00 | 2.00 | 694 |
-| TextList | SIF | 0.49 | 0.78 | 1.14 | 1.47 | 1.52 | 887 |
-| CorpusFile | Average | 0.63 | 1.26 | 2.27 | 3.11 | 3.23 | 652 |
-| CorpusFile | SIF | 0.53 | 0.93 | 1.47 | 2.22 | 2.00 | 848 |
-| CorpusFile | uSIF | 0.51 | 0.92 | 1.50 | 1.96 | 1.93 | 827 |
-| CorpusFile | Average FastText | 0.26 | 0.51 | 0.93 | 1.48 | 1.76 | 952 |
-| IndexedLineDocument | Average | 0.45 | 0.46 | 0.48 | 0.48 | 0.48 | 677 |
+## Current comparison and evidence
 
-With 100 dimensions, CorpusFile reaches 6.57 million sentences per second for Average with 10 workers. The full grid (all inputs and models, 100 and 300 dimensions) is in `train-1.1.0-m1pro.json`.
+The [comparison guide](../../docs/fse-comparison.md) describes current speed, quality and classification evidence. Its compact summaries retain full precision. Earlier M1 timing and small-input headline comparisons are withdrawn. Historical quality and numerical values above remain unchanged.
 
-Storage formats, CorpusFile, 300 dimensions, 10 workers:
-
-| Model | wv float32, sv float32 | wv int8, sv float32 | wv float32, sv int8 | wv int8, sv int8 |
-|---|---|---|---|---|
-| Average | 3.59 | 4.62 | 1.26 | 1.31 |
-| SIF | 2.22 | 2.46 | 0.65 | 0.77 |
-
-int8 word vectors are faster, as fewer bytes are read; int8 sentence vectors cut the throughput to about a third, because 1.1 quantizes the windows of rows after the workers. 2.0 quantizes every row in its worker.
-
-## Lifecycle
-
-SIF-10 over glove-wiki-gigaword-300 on the 859,346 WikiText paragraphs, 10 workers (`bench_lifecycle.py` at 4931f5e):
-
-| Phase | sv float32 | sv int8 |
-|---|---|---|
-| load vectors (pickle / mmap) | 2.39 s / 1.42 s | 1.66 s / 1.46 s |
-| train (of it averaging) | 1.28 s (1.04 s) | 2.36 s (2.24 s) |
-| peak RSS during train | 2,292 MiB | 2,347 MiB |
-| save, bytes on disk | 0.70 s, 1,527 MB | 0.30 s, 757 MB |
-| load | 0.39 s | 0.16 s |
-| first search, warm search p50 | 1.52 s, 46.1 ms | 0.24 s, 17.9 ms |
-| score of 1,000 vectors | 1.94 s | 9.64 s |
-| infer of 1 / 1,000 / 100,000 sentences, p50 | 1.6 ms / 14.8 ms / 1.10 s | 1.2 ms / 14.6 ms / 1.08 s |
-
-`infer` runs in one thread in 1.1: 100,000 paragraphs take about a second whatever the number of workers. The float32 first search builds a normalized copy of all rows; int8 keeps inverse norms only, but scores int8 rows more slowly.
+[The archive manifest](evidence-2026-11.json) identifies three compressed bundles on the orphan evidence branch by immutable commit, bytes and SHA256. Each bundle contains a complete member manifest. Original study files and source snapshots remain byte-identical inside those bundles. The protected 1.1 baseline files stay under `results/` in this repository.

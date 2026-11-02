@@ -1,0 +1,498 @@
+"""Durable comparison records, code identities, controls and soft budgets."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import os
+import platform
+import shutil
+import statistics
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+def command(*arguments, ledger=None):
+    if ledger is not None and not ledger.admit(60, "setup"):
+        raise RuntimeError("setup admission budget exhausted")
+    subprocess.run([str(value) for value in arguments], check=True)
+
+
+def document(path):
+    return json.loads(path.read_text())
+
+
+def sha256(path):
+    value = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(8 * 1024 * 1024), b""):
+            value.update(block)
+    return value.hexdigest()
+
+
+def atomic(path, value):
+    temporary = path.with_suffix(path.suffix + ".pending")
+    with temporary.open("x") as stream:
+        json.dump(value, stream, allow_nan=False, separators=(",", ":"))
+        stream.write("\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, path)
+    descriptor = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def append(path, value):
+    line = json.dumps(value, allow_nan=False, separators=(",", ":"))
+    with path.open("a") as stream:
+        stream.write(line + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    print(line, flush=True)
+
+
+def spread(values):
+    if not values or not all(math.isfinite(x) and x > 0 for x in values):
+        raise ValueError("positive finite observations required")
+    return {"median": statistics.median(values), "min": min(values), "max": max(values)}
+
+
+def observations(row):
+    if row.get("measurement_kind") == "streamed-single-call":
+        return [row["single_call_seconds"]]
+    return row["warm_seconds"]
+
+
+def valid_calls(row, minimum):
+    values = (
+        [row["first_seconds"], *observations(row)] if "first_seconds" in row else observations(row)
+    )
+    if not observations(row) or any(not math.isfinite(v) or v <= 0 for v in values):
+        raise ValueError("invalid call durations")
+    if any(v < minimum for v in values):
+        raise ValueError("actual fse call shorter than required")
+
+
+def controls(operations, rounds, minimum):
+    expected = {(r, label) for r in range(rounds) for label in ("fse-a", "fse-b")}
+    rows = [r for r in operations if r["label"] in ("fse-a", "fse-b")]
+    actual = {(r["round"], r["label"]) for r in rows}
+    if actual != expected or len(rows) != len(expected):
+        raise ValueError("missing or duplicate controls")
+    for row in rows:
+        valid_calls(row, minimum)
+    if len({json.dumps(row["identity"], sort_keys=True) for row in rows}) != 1:
+        raise ValueError("fse controls identify different executing code")
+    medians = [statistics.median(observations(row)) for row in rows]
+    upper = max(medians) / min(medians)
+    return {"upper": upper, "lower": 1 / upper, "passed": upper <= 1.10}
+
+
+def arm_summary(cell, operations, label):
+    rows = sorted((r for r in operations if r["label"] == label), key=lambda r: r["round"])
+    if [r["round"] for r in rows] != list(range(cell["rounds"])):
+        raise ValueError("each arm must complete every round exactly once")
+    identities = {json.dumps(r["identity"], sort_keys=True) for r in rows}
+    if len(identities) != 1 or not all(r["output_checked"] for r in rows):
+        raise ValueError("runtime changed or output check failed")
+    seconds = [statistics.median(observations(r)) for r in rows]
+    return {
+        "seconds": spread(seconds),
+        "texts_per_second": spread([cell["texts"] / v for v in seconds]),
+        "ordered_seconds": seconds,
+        "peak_rss_bytes": max(r["peak_rss_bytes"] for r in rows),
+        "identity": rows[0]["identity"],
+        "measurement_kind": rows[0].get("measurement_kind", "separate-first-and-warm"),
+    }
+
+
+def summarize(cell, operations):
+    minimum = 0 if cell.get("small_call_exception") else 2
+    check = controls(operations, cell["rounds"], minimum)
+    labels = {r["label"] for r in operations}
+    arms = {}
+    for label in sorted(labels):
+        arms[label] = arm_summary(cell, operations, label)
+    references = (
+        ["unfolded", "model2vec-linear"] if cell["kind"] == "classify" else [cell.get("reference")]
+    )
+    ratios = {
+        ref: spread(
+            [
+                b / a
+                for a, b in zip(
+                    arms["fse-a"]["ordered_seconds"], arms[ref]["ordered_seconds"], strict=True
+                )
+            ]
+        )
+        for ref in references
+        if ref
+    }
+    return {
+        "status": "valid" if check["passed"] else "invalid",
+        "aa": check,
+        "arms": arms,
+        "paired_speedup": ratios.get(cell.get("reference")),
+        "paired_speedups": ratios,
+    }
+
+
+def work_units(cell):
+    arms = 4 if cell["kind"] == "classify" else 2 + bool(cell.get("reference"))
+    arms += 2 if cell.get("small_call_exception") and cell["workers"] == 16 else 0
+    return max(1, cell.get("texts", 1)) * cell["rounds"] * (1 + cell.get("warm_passes", 1)) * arms
+
+
+class Ledger:
+    """Reserve expected future work; never terminate a running cell."""
+
+    def __init__(self, root, contract, allocated_at):
+        self.root, self.contract, self.allocated_at = root, contract, allocated_at
+        self.finished = []
+        self.deadlines = {}
+        self.stopping = False
+        self.hourly = (
+            contract["billing"]["compute_usd_per_hour"]
+            + contract["machine"]["disk_gb"]
+            * contract["billing"]["disk_usd_per_gb_month"]
+            / contract["billing"]["month_hours"]
+        )
+
+    def elapsed(self):
+        return max(0, time.time() - self.allocated_at)
+
+    def estimate(self, cell, fallback):
+        previous = [
+            r["duration_seconds"] * work_units(cell) / work_units(r)
+            for r in self.finished
+            if all(
+                r.get(k) == cell.get(k) for k in ("kind", "model", "reference", "workers", "stage")
+            )
+            and r["status"] not in ("not_started", "failed")
+        ]
+        return statistics.median(previous) if previous else cell.get("estimated_seconds", fallback)
+
+    def admit(self, seconds, stage):
+        budget = next(
+            s["budget_minutes"] * 60 for s in self.contract["stages"] if s["name"] == stage
+        )
+        epoch = float(os.getenv("SPEED_SETUP_STARTED_AT", self.allocated_at))
+        spent = max(0, time.time() - epoch) if stage == "setup" else 0
+        self.deadlines.setdefault(stage, time.monotonic() + budget - spent)
+        horizon = self.contract["billing"]["planning_minutes"] * 60
+        funds = self.contract["billing"]["planning_balance_usd"] * 3600 / self.hourly
+        available = min(horizon, funds) - self.elapsed() - 600
+        return (
+            not self.stopping and time.monotonic() < self.deadlines[stage] and seconds <= available
+        )
+
+    def progress(self, cell, stage):
+        remaining = [
+            r
+            for r in self.contract["cells"]
+            if r["id"] not in {v["cell_id"] for v in self.finished}
+        ]
+        seconds = sum(self.estimate(r, 600) for r in remaining)
+        atomic(
+            self.root / "progress.json",
+            {
+                "stage": stage,
+                "cell": cell,
+                "finished": len(self.finished),
+                "planned": len(self.contract["cells"]),
+                "elapsed_seconds": self.elapsed(),
+                "estimated_remaining_seconds": seconds,
+                "estimated_remaining_cost": seconds * self.hourly / 3600,
+            },
+        )
+
+    def result(self, cell, status, started, **extra):
+        value = {
+            **cell,
+            "platform": platform.platform(),
+            "python": sys.version,
+            "environment_sha256": sha256(self.root / "environment.json"),
+            "run_id": self.contract["format"],
+            "cell_id": cell["id"],
+            "stage": cell["stage"],
+            "kind": cell["kind"],
+            "status": status,
+            "completed_at_unix": time.time(),
+            "duration_seconds": time.monotonic() - started,
+            **extra,
+        }
+        append(self.root / "cells.jsonl", value)
+        self.finished.append(value)
+
+    def done(self):
+        files = [
+            {"path": str(p.relative_to(self.root)), "bytes": p.stat().st_size, "sha256": sha256(p)}
+            for p in sorted(self.root.rglob("*"))
+            if p.is_file() and p.name not in ("manifest.json", "DONE")
+        ]
+        atomic(self.root / "manifest.json", {"files": files})
+        success = len(self.finished) == len(self.contract["cells"]) and all(
+            r["status"] == "valid" for r in self.finished
+        )
+        atomic(
+            self.root / "DONE",
+            {
+                "exit_status": 0 if success else 1,
+                "completed_at": time.time(),
+                "manifest_sha256": sha256(self.root / "manifest.json"),
+                "cells": len(self.finished),
+            },
+        )
+        return 0 if success else 1
+
+
+def package_identity(name):
+    from importlib import import_module, metadata
+
+    module = import_module(name.replace("-", "_"))
+    distribution = metadata.distribution(name)
+    digest = hashlib.sha256()
+    if not distribution.files:
+        raise ValueError("backend distribution has no verifiable installed files")
+    root = Path(module.__file__).resolve().parent
+    files = {str(item): Path(distribution.locate_file(item)) for item in distribution.files}
+    files.update({"loaded/" + str(p.relative_to(root)): p for p in root.rglob("*")})
+    for relative, path in sorted(files.items()):
+        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
+            digest.update(relative.encode() + b"\0" + bytes.fromhex(sha256(path)))
+    return {
+        "package": name,
+        "version": distribution.version,
+        "path": module.__file__,
+        "sha256": digest.hexdigest(),
+    }
+
+
+def configure(workers):
+    for name in (
+        "OMP_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "BLIS_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+        "RAYON_NUM_THREADS",
+        "LOKY_MAX_CPU_COUNT",
+    ):
+        os.environ[name] = str(workers)
+    os.environ["TOKENIZERS_PARALLELISM"] = "true" if workers > 1 else "false"
+    if hasattr(os, "sched_getaffinity"):
+        cpus = sorted(os.sched_getaffinity(0))
+        if len(cpus) < workers:
+            raise ValueError("requested workers exceed available CPU affinity")
+        os.sched_setaffinity(0, cpus[:workers])
+
+
+def output_array(path, receipt):
+    import numpy as np
+
+    if receipt.get("vector_format") == "raw":
+        return np.memmap(path, dtype="<f4", mode="r", shape=tuple(receipt["shape"]))
+    return np.load(path, mmap_mode="r", allow_pickle=False)
+
+
+def check_output(reference, other, exact):
+    import numpy as np
+
+    if reference.shape != other.shape or reference.dtype != other.dtype:
+        raise ValueError("complete output shape or dtype differs")
+    largest = 0.0
+    for start in range(0, len(reference), 4096):
+        a, b = reference[start : start + 4096], other[start : start + 4096]
+        if not np.isfinite(a).all() or not np.isfinite(b).all():
+            raise ValueError("nonfinite output")
+        equal = (
+            np.array_equal(a.view(np.uint8), b.view(np.uint8))
+            if exact
+            else np.allclose(a, b, rtol=3e-5, atol=3e-6)
+        )
+        if not equal:
+            raise ValueError("full output comparison failed")
+        largest = max(largest, float(np.max(np.abs(a - b), initial=0)))
+    return largest
+
+
+def metadata(root, contract):
+    import importlib.metadata as md
+
+    versions = {d.metadata["Name"]: d.version for d in md.distributions()}
+    details = dict(
+        python=sys.version,
+        platform=platform.platform(),
+        cpu=platform.processor(),
+        versions=versions,
+        load=os.getloadavg(),
+        affinity=sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
+        input_contract=contract,
+    )
+    for name in ("cpu.max", "memory.max", "memory.current"):
+        path = Path("/sys/fs/cgroup") / name
+        details[name] = path.read_text().strip() if path.exists() else None
+    atomic(root / "environment.json", details)
+
+
+def memory_admit(count, dimensions, input_bytes):
+    path = Path("/sys/fs/cgroup/memory.max")
+    if not path.exists():
+        return
+    maximum = path.read_text().strip()
+    if maximum == "max":
+        raise ValueError("finite cgroup memory entitlement required")
+    current = int(path.with_name("memory.current").read_text())
+    additional = count * dimensions * 4 * 3 + input_bytes * 4
+    if current + additional > int(maximum) * 0.85:
+        raise MemoryError(
+            "input, overlapping outputs and validation exceed conservative cgroup budget"
+        )
+
+
+def disk_admit(path, required):
+    if shutil.disk_usage(path).free < required + 2 * 1024**3:
+        raise OSError("insufficient disk for this operation plus 2 GiB result reserve")
+
+
+def startup_job(job):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    workers = job["workers"]
+    configure(workers)
+    native, executor, process = [], [], []
+    for _ in range(job["rounds"]):
+        start = time.perf_counter()
+        subprocess.run([sys.executable, "-c", "pass"], check=True)
+        process.append(time.perf_counter() - start)
+        start = time.perf_counter()
+        if workers > 1:
+            barrier = threading.Barrier(workers + 1)
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = [pool.submit(barrier.wait) for _ in range(workers)]
+                barrier.wait()
+                for future in futures:
+                    future.result()
+        executor.append(time.perf_counter() - start)
+        native.append(
+            json.loads(
+                subprocess.check_output([job["binary"], "--startup", str(workers)], text=True)
+            )
+        )
+    atomic(
+        Path(job["receipt"]),
+        dict(
+            status="valid",
+            subprocess_seconds=process,
+            executor_control_seconds=executor,
+            rust_controls=native,
+            scope="executor includes synchronization; one-worker fse path is inline, not a thread-start measurement",
+        ),
+    )
+
+
+def parquet_texts(part):
+    for batch in part.iter_batches(columns=["text"], batch_size=4096):
+        for text in batch.column(0).to_pylist():
+            text = " ".join(text.split())
+            if not text.startswith("=") and len(text.split()) >= 5:
+                yield text
+
+
+def corpus_sources(contract, cache):
+    import re
+
+    import pyarrow.parquet as pq
+    from huggingface_hub import snapshot_download
+
+    specification = contract["corpus"]
+    folder = Path(
+        snapshot_download(
+            specification["repo"],
+            revision=specification["revision"],
+            repo_type="dataset",
+            cache_dir=cache,
+            allow_patterns=["wikitext-103-raw-v1/train-*.parquet"],
+        )
+    )
+    paragraphs, sentences = [], []
+    for part in sorted((folder / specification["configuration"]).glob("train-*.parquet")):
+        for text in parquet_texts(pq.ParquetFile(part)):
+            paragraphs.append(text)
+            sentences.extend(s for s in re.split(r"(?<=[.!?])\s+", text) if len(s.split()) >= 5)
+    if len(paragraphs) != specification["expected_source_positions"] or not sentences:
+        raise ValueError("pinned corpus paragraph count or sentence selection changed")
+    return paragraphs, sentences
+
+
+def token_lengths(snapshot, source):
+    import numpy as np
+
+    from fse import StaticModel
+
+    tokenizer = StaticModel.from_pretrained(snapshot, normalize=False).tokenizer
+    counts = np.empty(len(source), dtype=np.int64)
+    for start in range(0, len(source), 2048):
+        batch = tokenizer.encode_batch(source[start : start + 2048], add_special_tokens=False)
+        counts[start : start + len(batch)] = [len(item.ids) for item in batch]
+    return counts
+
+
+def write_input(path, source, count, seed, repeated=False, token_counts=None):
+    import numpy as np
+
+    if path.exists() or path.with_suffix(".json").exists() or not source or count < 1:
+        raise ValueError("input destination must be fresh, with positive source and row counts")
+    generator = np.random.Generator(np.random.PCG64(seed))
+    positions = (
+        np.arange(count, dtype=np.int64) % len(source)
+        if repeated
+        else generator.integers(len(source), size=count, dtype=np.int64)
+    )
+    generator.shuffle(positions)
+    digest = hashlib.sha256()
+    weights = np.bincount(positions, minlength=len(source))
+    words = characters = input_bytes = 0
+    for text, weight in zip(source, weights, strict=True):
+        words += int(weight) * len(text.split())
+        characters += int(weight) * len(text)
+        input_bytes += int(weight) * (len(text.encode("utf-8")) + 1)
+    disk_admit(path.parent, input_bytes)
+    with path.open("xb") as stream:
+        for position in positions:
+            data = source[int(position)].encode("utf-8")
+            stream.write(data + b"\n")
+            digest.update(len(data).to_bytes(8, "little"))
+            digest.update(data)
+        stream.flush()
+        os.fsync(stream.fileno())
+    unique_source = len(set(source))
+    result = dict(
+        texts=count,
+        seed=seed,
+        source_positions=len(source),
+        distinct_source_texts=unique_source,
+        distinct_input_texts=len({source[int(p)] for p in np.flatnonzero(weights)}),
+        repetition_factor=count / unique_source,
+        file_bytes=path.stat().st_size,
+        sha256=sha256(path),
+        input_digest=digest.hexdigest(),
+        words_total=words,
+        characters_total=characters,
+        mean_words=words / count,
+        mean_characters=characters / count,
+        tokens_total=int(np.dot(weights, token_counts)) if token_counts is not None else None,
+        token_definition="POTION-8M tokenizer ids, including unknown ids, excluding special tokens",
+        sampling="repeated source positions, shuffled"
+        if repeated
+        else "sampled source positions with replacement, shuffled",
+    )
+    atomic(path.with_suffix(".json"), result)
+    return result
