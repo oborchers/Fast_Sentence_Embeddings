@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import statistics
 import time
 from pathlib import Path
@@ -166,6 +167,12 @@ def memory_plan(job, input_bytes, model_bytes, limit):
     }
 
 
+def collect_sentences(source, text, functional):
+    sentences = [s for s in re.split(r"(?<=[.!?])\s+", text) if len(s.split()) >= 5]
+    source.extend(sentences[: max(0, 1024 - len(source))] if functional else sentences)
+    return len(sentences)
+
+
 def corpus_sources(contract, cache):
     import pyarrow.parquet as pq
     from huggingface_hub import snapshot_download
@@ -181,19 +188,22 @@ def corpus_sources(contract, cache):
         )
     )
     wanted = {r["source_position"]: r for r in contract["unknown_cases"]}
-    source, mandatory, count = [], {}, 0
+    source, mandatory, paragraphs, sentences = [], {}, 0, 0
     parts = sorted((folder / spec["configuration"]).glob("train-*.parquet"))
     texts = (text for part in parts for text in parquet_texts(pq.ParquetFile(part)))
     for text in texts:
-        if not contract.get("functional_only") or count < 1024:
-            source.append(text)
-        if count in wanted:
-            if hashlib.sha256(text.encode()).hexdigest() != wanted[count]["text_sha256"]:
+        if paragraphs in wanted:
+            if hashlib.sha256(text.encode()).hexdigest() != wanted[paragraphs]["text_sha256"]:
                 raise ValueError("mandatory unknown-token source changed")
-            mandatory[count] = text
-        count += 1
-    if count != spec["expected_source_positions"] or set(mandatory) != set(wanted):
-        raise ValueError("pinned corpus or mandatory cases changed")
+            mandatory[paragraphs] = text
+        paragraphs += 1
+        sentences += collect_sentences(source, text, contract.get("functional_only", False))
+    if (
+        paragraphs != spec["expected_paragraphs"]
+        or sentences != spec["expected_source_positions"]
+        or set(mandatory) != set(wanted)
+    ):
+        raise ValueError("pinned sentence corpus or mandatory cases changed")
     return source, [mandatory[r["source_position"]] for r in contract["unknown_cases"]]
 
 
@@ -222,7 +232,16 @@ def write_input(path, source, mandatory, count, seed):
         os.fsync(stream.fileno())
     unique_source = len(set(source) | set(mandatory))
     unique_input = len({source[int(i)] for i in set(positions)} | set(mandatory))
+    word_lengths = np.fromiter((len(text.split()) for text in source), dtype=np.int32)
+    word_total = sum(len(text.split()) for text in mandatory)
+    character_total = sum(len(text) for text in mandatory)
+    for start in range(0, len(positions), 100000):
+        selected = positions[start : start + 100000]
+        word_total += int(word_lengths[selected].sum())
+        character_total += sum(len(source[int(i)]) for i in selected)
     identity = {
+        "mean_words_per_text": word_total / count,
+        "mean_characters_per_text": character_total / count,
         "distinct_source_texts": unique_source,
         "distinct_input_texts": unique_input,
         "repetition_factor": count / unique_source,
@@ -231,7 +250,8 @@ def write_input(path, source, mandatory, count, seed):
         "sha256": sha256(path),
         "file_bytes": path.stat().st_size,
         "source_positions": len(source),
-        "sampling": "sampled and shuffled WikiText-103 passages",
+        "sampling": "sampled and shuffled WikiText-103 sentences",
+        "mandatory_prefix_note": "unchanged historical paragraph UNK cases" if mandatory else None,
         "mandatory_prefix_rows": len(mandatory),
         "sample_rows": sample.tolist(),
     }
