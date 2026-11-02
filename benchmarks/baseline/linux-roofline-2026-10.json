@@ -1,0 +1,13 @@
+{
+  "format": "archived-study-reference-v2",
+  "study": "linux-roofline",
+  "speed_publication_allowed": false,
+  "reason": "historical synthetic roofline, not current large-input speed evidence",
+  "raw_evidence": {
+    "archive_commit": "f97e32edbc0f9daa538b56b54f3187d8d3c177d8",
+    "archive_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/f97e32edbc0f9daa538b56b54f3187d8d3c177d8/archives/historical-evidence-2026-11.tar.gz",
+    "bytes": 76838,
+    "sha256": "8308ec963e085324890ed3f5c594e5e02861eff22f8e9465628c15e85565fcf8",
+    "lookup": "Find the original bytes by SHA256 in the archive member manifest."
+  }
+}
