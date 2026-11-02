@@ -52,11 +52,13 @@ The implementation follows the [official integration guide](https://docs.haystac
 
 ## Options and behavior
 
-`load_kwargs` passes options unchanged to `Encoder.from_pretrained`. For example,
-`{"revision": "<commit>", "local_files_only": True}` selects a Hub revision
-and offline loading after the files have been cached. POTION keeps its saved
-normalization rule. The `normalize` override is only for supported
-sentence-transformers models. A local fse artifact keeps its saved steps. Hub-only options (`revision`, `token`, `cache_dir`, `local_files_only`)
+`load_kwargs` passes options unchanged to `Encoder.from_pretrained`.
+`load_kwargs={"normalize": False}` returns raw means for every supported model,
+including fse artifacts, Model2Vec and supported sentence-transformers models.
+`normalize="model"` (the default) preserves the model's normalization rule.
+For example, `{"revision": "<commit>", "local_files_only": True}` selects a Hub
+revision and offline loading after the files have been cached.
+Hub-only options (`revision`, `token`, `cache_dir`, `local_files_only`)
 are invalid for local paths. See the [fse loader contract](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/hub.md).
 Do not pass `load_kwargs` with `encoder=`. Configure that encoder before injection.
 Use the Hub credential store rather than putting tokens in application configuration.

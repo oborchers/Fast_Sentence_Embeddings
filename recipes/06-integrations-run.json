@@ -1,0 +1,28 @@
+{
+  "executed_at": "2026-11-01T12:49:55.986932+00:00",
+  "python": "3.13.16",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "tutorial_commit": "a1fec82e6a22d75130d45c704d172ddbde12195a",
+  "integration_checkout_commit_at_execution": "2f408ecd8cc164c2d89aa29c36e34f0977fee691",
+  "code_cells_executed": 15,
+  "packages": {
+    "fse": "2.0.0",
+    "langchain-fse": "0.1.0",
+    "llama-index-embeddings-fse": "0.1.0",
+    "fse-haystack": "0.1.0",
+    "langchain-core": "1.7.3",
+    "llama-index-core": "0.14.25",
+    "haystack-ai": "3.4.1",
+    "dspy": "3.4.1",
+    "bertopic": "0.17.4",
+    "txtai": "9.14.0",
+    "chromadb": "1.5.9",
+    "lancedb": "0.41.0",
+    "qdrant-client": "1.20.0",
+    "polars": "2.1.0"
+  },
+  "installation_note": "The notebook pip commands are publication-dependent instructions in Markdown, not executed cells. For this run, fse and all three adapters were built from the parent dr156-integrations checkout, with SETUPTOOLS_SCM_PRETEND_VERSION_FOR_FSE=2.0.0. Framework versions came from recipes/requirements.txt. No PyPI adapter package was installed or published.",
+  "models_and_data": "POTION and AG News revisions are pinned by recipes/_helpers.py.",
+  "notebook_sha256": "0090b6c20a349e6f3da8be2bd103d317d487ba322b4089808c943ac9b764ed5a",
+  "validation_report": "06-integrations-validation.md"
+}

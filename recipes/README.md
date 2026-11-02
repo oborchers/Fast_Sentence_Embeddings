@@ -18,7 +18,7 @@ A vector is a list of numbers that represents a text.
 | <img src="media/03-files-with-resume-icon.svg" width="46" alt="Recipe number"> | [**Files with resume**](03-files-with-resume.ipynb). Turn a text file into vectors and continue after an interruption. | 10 min |
 | <img src="media/04-kafka-and-qdrant-icon.svg" width="46" alt="Recipe number"> | [**Kafka and Qdrant**](04-kafka-and-qdrant.ipynb). Turn queued news into searchable vectors and replay safely. | 10 min |
 | <img src="media/05-folder-listener-icon.svg" width="46" alt="Recipe number"> | [**Folder listener**](05-folder-listener.ipynb). Pick up completed files and add each one to your search store. | 10 min |
-| <img src="media/06-integrations-icon.svg" width="46" alt="Recipe number"> | [**Integrations**](06-integrations.ipynb). Use one local encoder with your search, topic, and table libraries. | 15 min |
+| <img src="media/06-integrations-icon.svg" width="46" alt="Recipe number"> | [**Integrations**](06-integrations.ipynb). Use one local encoder with LangChain, LlamaIndex, Haystack, and other search, topic, and table libraries. | 15 min |
 | <img src="media/07-local-compute-and-http-icon.svg" width="46" alt="Recipe number"> | [**Local compute and HTTP**](07-local-compute-and-http.ipynb). See when a local HTTP request costs more than encoding the text. | 5 min |
 | <img src="media/08-folded-classifier-icon.svg" width="46" alt="Recipe number"> | [**Folded classifier**](08-folded-classifier.ipynb). Fold a trained classifier into word vectors, then save a smaller model for your app. | 15 min |
 
@@ -49,6 +49,9 @@ IPYTHONDIR="$recipe_tmp/ipython" JUPYTER_RUNTIME_DIR="$recipe_tmp/runtime" \
 ```
 
 Replace the filename to run another recipe.
+Recipe 06 also shows the prepared `langchain-fse`, `llama-index-embeddings-fse`, and `fse-haystack` packages.
+Those sections depend on their publication after fse 2.0.0. Their installation commands apply after release.
+The existing DSPy, BERTopic, txtai, Chroma, LanceDB, Qdrant, and Polars sections remain independent of those packages.
 These recipes run locally, outside CI, and their dependencies stay separate from fse core.
 fastText 0.9.3 builds from source, which requires the C++ compiler.
 
@@ -89,7 +92,7 @@ A historical reproduction is not evidence of quality on unseen data.
 The fse 101 speed demonstration is labeled **measured on a MacBook in everyday use, not a controlled benchmark**.
 It prints its machine, CPU, Python, commit, date, and load averages beside the result.
 The HTTP recipe retains its historical 1 November 2026 outputs and [machine provenance](run-environment.json).
-Use the [performance guide](../PERFORMANCE.md) for measurements, methods, and their limits.
+Use the [comparison guide](../docs/fse-comparison.md) for measurements, methods, and their limits.
 
 The [folding recipe](08-folded-classifier.ipynb) compares quality and saved file size before and after folding one linear head.
 It includes saving, loading, and exact prediction checks for both fse formats.
