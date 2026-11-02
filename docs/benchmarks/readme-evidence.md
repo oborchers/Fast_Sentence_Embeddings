@@ -11,13 +11,56 @@ The [comparison study manifest](https://github.com/oborchers/Fast_Sentence_Embed
 This branch is never merged into master. Local study files retain only compact summaries, each below 50 KB.
 The [validation summary](readme-validation-20261101.json) identifies the exact source commit covered by its package and CI checks.
 
-## Current headline: 100 million text file-to-vector showcase
+## Current speed cohort
 
-The [committed showcase snapshot](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/04e5cbeb1af5d36a45384906d91457d423829680/docs/benchmarks/readme-showcase-20261101/README.md) backs the maintainer-approved “Compute nearly 3 million text embeddings per second.” headline.
-The primary run processed 100,000,000 rows at 2,832,638.70 texts/s, from input read through int8 ShardSink close, on 32 vCPU AMD EPYC 7713.
-It uses repeated and shuffled WikiText-103 passages, averaging 28.73027215 POTION tokens, and a float32 model table with int8 output storage.
-The one-primary-plus-one-repeat showcase exception and its 4.53% A/A spread are documented in that snapshot, with exact raw files and output size.
-It is separate from pure encoding on the Mac and does not fill missing library or folded-classifier comparisons.
+Use the [compact speed summary](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/6cb13ed72321d1207fc106f6c0e7154935164017/benchmarks/baseline/speed-2026-11.json).
+Its [evidence reference](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/6cb13ed72321d1207fc106f6c0e7154935164017/benchmarks/baseline/evidence-2026-11.json)
+pins the complete archive at `f97e32edbc0f9daa538b56b54f3187d8d3c177d8` on `benchmark-evidence-2.0`.
+No new benchmark was run for this README update.
+
+The cohort uses AMD EPYC 9965, 32 assigned logical CPUs, Python 3.13.18, Linux, 1 to 2 November 2026.
+Executed fse code is `624251df2269e3099f5c61987be63e718893b58c`, runtime SHA256
+`5a4883c1675cef10e5a08bf1c084f0dc57f872ed1cca9074a08b673b15b8fac0`.
+The driver source is `0c639113f80383fda461f3e776db38eee0efee71`.
+
+### Dtype table
+
+Cells `dtypes-02` through `dtypes-07` are all publication-eligible.
+They share 4,620,000 WikiText-103 passages, input SHA256
+`bec2f6d5e127889fce0b29e6123915f083431ac0cd4b7fe3a4f24e43758a7c92` and the same executed fse runtime.
+Input digest is `e68e8867eb78a48272a9bcf4765bf97a301f7ce6ecb66126e9c5ce080960a9a6`.
+The input samples source positions with replacement, then shuffles them. 814,724 distinct texts appear.
+The exact mean length is 119.0559961038961 whitespace words. All outputs are normalized float32 vectors.
+
+| Model precision | 1 worker, texts/s | 16 workers, texts/s |
+|---|---:|---:|
+| float32 | 139,422 | 1,265,123 |
+| float16 | 153,886 | 1,359,540 |
+| int8 | 163,779 | 1,379,949 |
+
+Values are primary fse-a medians, rounded to whole texts/s for display.
+Three fse-a and three fse-b rounds are retained per cell. Every first and warm call lasts at least 2 seconds.
+The README extraction independently recomputed primary medians and global A/A from the ordered warm calls.
+A/A upper bounds, in table order, are 1.068446063164378/1.018007185052106,
+1.0404600732108225/1.064054384858206 and 1.0231300777602998/1.0306276381377704.
+These all pass the 1.10 limit. This run supplies measured 1/16-worker settings, no 32-worker comparison.
+Do not infer a 32/16 ratio or reuse the earlier run's hardware-selection result as a measurement of this cohort.
+
+### Headline and library panel remain open
+
+The maintainer requires all README speed numbers to come from one reproducible run.
+The older EPYC 7713 showcase is withdrawn from the README. Its archive remains historical evidence only.
+The current run's 100M-repeat cell `headline-01` is invalid (global A/A upper 1.1625013207283315).
+It supplies no replacement headline. The README keeps a visible draft placeholder until the benchmark decision.
+The older local showcase summary is marked withdrawn for current publication without altering its recorded numbers.
+
+Rust `libraries-10` and FastEmbed `libraries-11` are valid one-worker pairs, each using 500,000 identical passages within that pair.
+Their paired median ratios are 1.7262630895228022 and 28.489499659793236, with global A/A upper bounds
+1.0991783964909603 and 1.098455653340089. Each ratio retains its own fse numerator and reference runtime identity.
+These are not paired with the 4.62M dtype input. The library panel remains held for the maintainer's decision.
+Model2Vec's one-worker cell is invalid. The ST adapter drops unknown ids and fails output equivalence, so no ST rate is published.
+The 16-worker library cells and classification were rejected by the memory preflight before eligible results.
+No missing comparison, classification rate or host cohort is inferred.
 
 ## Withdrawn short-call speed evidence
 
@@ -29,11 +72,8 @@ No speedup or rate from those studies may appear in README, PERFORMANCE, model c
 Their immutable archive records remain audit evidence, not publishable results.
 Quality, accuracy, neighborhood stability and saved-file observations remain separate and are not withdrawn.
 
-For the README, only the Pod 3 100M-text showcase and the Pod 4c large-input table remain speed sources.
-Other large-input RunPod observations in PERFORMANCE.md retain their own limited scope.
-Pod 4c publication still awaits the source owner's compact extraction and clearance.
-The [panel plan](readme-speed-panels.md) records its verified archive and selected settings.
-No valid library or folded-classification speed comparison is available.
+The current dtype table uses only the current EPYC 9965 cohort above. Earlier timing rows do not fill missing cells.
+Quality, accuracy, neighborhood stability and file sizes remain under their own recorded protocols.
 
 ## Classifier comparisons: linear head versus fine-tuned MLP
 

@@ -1,4 +1,8 @@
 {
+  "speed_publication": {
+    "valid": false,
+    "decision": "Withdrawn from the current README: maintainer requires one reproducible current-run cohort. This older EPYC 7713 run cannot supply the headline. Historical recorded values retained unchanged."
+  },
   "series_id": "85778f47f4e04ae6a3c5f2531abdc9c8",
   "cell": "showcase/100m/int8/none/32",
   "round": 0,

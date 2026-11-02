@@ -1,6 +1,9 @@
 # Required rows for the next README speed panels
 
-This is a delivery plan, not a benchmark result. Unfinished parts stay outside the main README.
+The current README table uses only `dtypes-02` through `dtypes-07` from the compact `speed-2026-11.json` study.
+See [the current evidence guide](readme-evidence.md#current-speed-cohort). These six cells measure 1/16 workers on one EPYC 9965 run.
+The maintainer holds the headline and library panel for a benchmark decision. Visible draft placeholders are permitted.
+The older 32/16 selection layout below is a future plan, not a result from this current cohort.
 `media/readme/speed_panels.py` prepares the table and light/dark library bars.
 The empty `speed_panel_data.json` produces no publishable panel. Unmeasured previews live under `media/readme/layout/` only.
 
@@ -127,46 +130,18 @@ Run `python media/readme/speed_panels.py --preview` for the explicitly unmeasure
 After accepted data arrives, run without `--preview`, export SVGs with librsvg and inspect both themes.
 The main visual generator calls the same publish function. Empty data adds nothing to the public README or final figures.
 
-## Pod 4c preparation, not yet published in the README
+## Earlier preparation superseded
 
-The archive is [285cdfd3423f0d949ab25c1d30a64bbab6ab1a04](https://github.com/oborchers/Fast_Sentence_Embeddings/tree/285cdfd3423f0d949ab25c1d30a64bbab6ab1a04/benchmarks/baseline/results/dr151-pod4c-20261101).
-The archived summary, operations journal and full-input identity were compared byte for byte with the collected local files.
-Their SHA256 values are, respectively:
-
-- `readme-panels/summary.json`: `fb648398b440a7d33e0c562e475342da319d15b40486dc2eb86619f3f3c27120`
-- `readme-panels/speed-results.jsonl`: `b6d25108f22f1cf3e6bd757e6071f5b3341a63efefa1e8ceb8cb65d7f6a67b03`
-- `readme-panels/input-identities/passages-4620000-seed0.identity.json`: `45b36149e022ca2d21e698c693ca281960aeec70e48b0dddaccbc0f4b83a1fdf`
-
-The shared table input contains 4,620,000 sampled and shuffled WikiText-103 passages.
-Its digest is `xxh3-128:439a5ed8e8eaaddf5fc8150b7c5884c8`.
-Average input length is 119.0559961038961 whitespace words, or 133.74433333333334 consumed POTION tokens.
-Do not reuse the 100M showcase's 28.7-token length for this table.
-
-The float32 primary medians are 1,381,700.9238051528 texts/s at 16 workers and 1,493,666.2764333533 at 32.
-Their ratio is below 1.20, so the display settings are one core and 16 cores.
-Prepared layout, rounded to whole texts/s only for display:
-
-| fse table | One core, texts/s | 16 cores, texts/s |
-|---|---:|---:|
-| float32 | 144,717 | 1,381,701 |
-| float16 | 160,208 | 1,473,711 |
-| int8 | 164,485 | |
-
-AMD EPYC 9965, 32 vCPU RunPod, POTION-8M, WikiText-103, 1 November 2026. Average text: 119.1 words.
-
-The int8/16 cell is excluded (symmetric A/A upper bound 1.1213758192655927).
-The renderer accepts an explicit `table_omissions: [["int8", 16]]` declaration and leaves that cell empty.
-An undeclared missing cell still fails. A rejected row still fails. A 32-worker result never replaces a missing 16-worker result.
-All other selected cells retain the same strict context, runtime and duration checks.
-No production data is activated yet: the upstream extractor rejects the new provenance label
-`pinned source and offline preparation record` where it expects `embedded source and preparation record`.
-The verified header contains the repository/revision and parent fingerprint. This label mismatch must be resolved by the source owner,
-without rewriting identities or weakening the lineage checks. Await the compact audited extraction and publication clearance.
-The library panel and folded-classification section remain unchanged. No classification rate was measured.
+The earlier incomplete dtype preparation is not published in the README.
+Use only the six current cells from the [compact speed source](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/6cb13ed72321d1207fc106f6c0e7154935164017/benchmarks/baseline/speed-2026-11.json).
+No earlier 32-worker cell may be combined with those 1/16-worker cells to claim a current 32/16 ratio.
+The current source has all six dtype cells accepted, including int8 at 16 workers.
+The previous source-label blocker and blank int8 preparation do not describe the current source.
+The old archive remains historical provenance, without its superseded rates in this plan.
 
 ## Prepared quality panel: three historical classics
 
-[Pod 5 results](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/dd44bc2f9561b3c31f14de9b5400229032aea696/benchmarks/baseline/dr151_pod5_results_20261101.md)
+[Compact quality results](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/6cb13ed72321d1207fc106f6c0e7154935164017/benchmarks/baseline/quality-2026-11.json)
 provide the following arithmetic task-score means, multiplied by 100:
 
 | Model | MTEB English, 40 of 41 tasks |
@@ -181,7 +156,7 @@ Their raw evidence is [archived at 660309c4c88930254288495a0bb025fe428870f7](htt
 These are not scores for the Hub's wordfreq/FineWeb SIF-10 models.
 Do not combine historical POTION checkpoints with this panel as a controlled ranking without a cohort audit.
 MIND is not computed: MTEB 2.26.25 MindSmallReranking needs more memory than the 64 GB pod (two attempts, status 137 and earlier ENOSPC).
-Keep the headline and its Pod 3 EPYC 7713 caption unchanged.
+The older EPYC 7713 headline is withdrawn. It cannot be mixed with the current speed cohort.
 
 ## Historical PERFORMANCE audit
 
