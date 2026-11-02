@@ -73,6 +73,15 @@ The historical accuracy summary retains 176 rows. One complete Subjectivity eval
 
 The new raw-mean folded-head measurement failed its memory preflight. It provides no new classification rate or accuracy. Folding a linear head is distinct from replacing it with a fine-tuned MLP. Training cost must remain separate from inference throughput.
 
+## Historical profile attribution
+
+These M1 profiles are retained for attribution, not current speed claims. Allocation and RSS peaks cover different instruments and include preparation. They do not rank the current libraries. The [compact profile record](../benchmarks/baseline/thread_pool_profiles_20261031.json) pins the unchanged raw evidence and its limitations.
+
+| Historical variant | Native allocation peak, bytes | RSS peak, bytes | Hottest recorded functions |
+| :--- | ---: | ---: | :--- |
+| base | 78,198,773 | 154,025,984 | `__psynch_cvwait`, `__pyx_f_3fse_7_native__wp_piece`, `fse_loop_f32_neon` |
+| reuse | 80,945,694 | 159,285,248 | `__psynch_cvwait`, `__pyx_f_3fse_7_native__wp_piece`, `fse_loop_f32_neon` |
+
 ## Withdrawn timing
 
 All Apple M1 speed measurements are withdrawn, regardless of input size. Earlier headline comparisons using only about 5,000 texts per call are also withdrawn, even where their A/A check passed. Their original bytes remain archived. Quality, accuracy and numerical regression fixtures are unaffected.
