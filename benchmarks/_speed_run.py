@@ -205,11 +205,7 @@ def summarize_pair(cell, observations, identity):
     arms = {"fse": [], cell["reference"]: []}
     for row in observations:
         arms[row["label"]].append(row)
-    for rows in arms.values():
-        if [row["round"] for row in rows] != [0, 1, 2]:
-            raise ValueError("missing or duplicate paired rounds")
-        if len({json.dumps(r["identity"], sort_keys=True) for r in rows}) != 1:
-            raise ValueError("executing backend changed between rounds")
+    validate_pair_arms(arms)
     short, aa_upper, noisy = pair_validity(cell, observations, arms)
     ratios = [
         b["seconds"] / a["seconds"]
@@ -459,3 +455,11 @@ def pair_validity(cell, observations, arms):
     b = records.spread([r["seconds"] for r in arms[cell["reference"]]])["median"]
     upper = max(a / b, b / a)
     return short, upper, upper > 1.10 and not cell.get("functional_only")
+
+
+def validate_pair_arms(arms):
+    for rows in arms.values():
+        if [row["round"] for row in rows] != [0, 1, 2]:
+            raise ValueError("missing or duplicate paired rounds")
+        if len({json.dumps(r["identity"], sort_keys=True) for r in rows}) != 1:
+            raise ValueError("executing backend changed between rounds")
