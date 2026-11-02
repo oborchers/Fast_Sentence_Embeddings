@@ -32,7 +32,8 @@ Earlier Mac and small-input timing evidence is not published here. Old hardware 
 [readme-quality.json](readme-quality.json) is the single local summary for all eleven supported models in the README.
 It records unrounded 40-task means, the model identities and exact float32 file sizes used for display.
 The scores use MTEB 2.26.25, measured 1 November 2026. MTEB(eng, v2) is 40 of 41 tasks because MIND was not computed.
-The summary pins the compact quality source and the archived source records through their SHA256 identifiers.
+The summary preserves MIND's recorded memory-limit failure (two attempts, ENOSPC and status 137).
+It pins the compact quality source and archived source records through their SHA256 identifiers.
 
 Historical SIF-10 benchmark scores use the WikiText-103 fit. Linked Hub SIF-10 models use wordfreq weights and a FineWeb fit.
 Those model versions have separate results on their cards. File size is not process memory.

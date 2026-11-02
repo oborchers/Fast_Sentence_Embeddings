@@ -5,8 +5,8 @@
   "measured_on": "2026-11-01",
   "completed_tasks": 40,
   "required_tasks": 41,
-  "mind": "not computed",
-  "score_units": "native score; README displays times100 rounded to two decimals",
+  "mind": "not computed: MTEB 2.26.25 MindSmallReranking exceeds the 64 GB machine limit; two failed attempts, earlier ENOSPC and later status 137",
+  "score_units": "Native MTEB score, displayed times 100 and rounded to two decimals in README",
   "quality_source": {
     "commit": "6cb13ed72321d1207fc106f6c0e7154935164017",
     "path": "benchmarks/baseline/quality-2026-11.json",
