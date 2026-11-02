@@ -1,7 +1,7 @@
 {
   "format": "compressed-evidence-reference-v1",
-  "commit": "f97e32edbc0f9daa538b56b54f3187d8d3c177d8",
-  "commit_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/commit/f97e32edbc0f9daa538b56b54f3187d8d3c177d8",
+  "commit": "608cf02a9557ef8bade83ae6c0c2fadd5b8d5012",
+  "commit_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/commit/608cf02a9557ef8bade83ae6c0c2fadd5b8d5012",
   "archives": [
     {
       "path": "archives/historical-evidence-2026-11.tar.gz",
@@ -23,8 +23,16 @@
       "sha256": "743846611953faca7b76cb9ecf09fb63257db47503c117ae6ebb6a5039ec146f",
       "members": 411,
       "raw_bytes": 3375839
+    },
+    {
+      "path": "archives/sentence-speed-2026-11.tar.gz",
+      "bytes": 2944888,
+      "sha256": "443e7ff798d38b41d14e3952128d8080b2d698e6005991b147c34a69ea88f1c7",
+      "members": 532,
+      "raw_bytes": 8204559,
+      "member_manifest": "archive-member-manifest.json"
     }
   ],
-  "verification": "Original member bytes checked before compression, after extraction and from published Git blobs. No number altered.",
+  "verification": "Original member bytes, archive members and published Git blobs verified by size and SHA256. No measurement changed.",
   "large_diagnostics": "Original two ST output matrices are retained by the maintainer outside Git; full-file hashes and bounded analysis are in the speed archive."
 }

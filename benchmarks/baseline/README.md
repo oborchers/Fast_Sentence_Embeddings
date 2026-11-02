@@ -72,6 +72,6 @@ All training-throughput and lifecycle timing results are **withdrawn: M1**, rega
 
 ## Current comparison and evidence
 
-The [comparison guide](../../docs/fse-comparison.md) describes current speed, quality and classification evidence. Its compact summaries retain full precision. Earlier M1 timing and small-input headline comparisons are withdrawn. Historical quality and numerical values above remain unchanged.
+The [comparison guide](../../docs/fse-comparison.md) describes current speed, quality and classification evidence. Its [library](library-speed-2026-11.json) and [writing](headline-speed-2026-11.json) summaries retain full precision and reference archive commit `608cf02a9557ef8bade83ae6c0c2fadd5b8d5012`. The separate paragraph dtype summary keeps only its six accepted cells. Earlier M1 timing and small-input headline comparisons are withdrawn. Historical quality and numerical values above remain unchanged.
 
-[The archive manifest](evidence-2026-11.json) identifies three compressed bundles on the orphan evidence branch by immutable commit, bytes and SHA256. Each bundle contains a complete member manifest. Original study files and source snapshots remain byte-identical inside those bundles. The protected 1.1 baseline files stay under `results/` in this repository.
+[The archive manifest](evidence-2026-11.json) identifies four compressed bundles on the orphan evidence branch by immutable commit, bytes and SHA256. Each bundle contains a complete member manifest. Original study files and source snapshots remain byte-identical inside those bundles. The protected 1.1 baseline files stay under `results/` in this repository.

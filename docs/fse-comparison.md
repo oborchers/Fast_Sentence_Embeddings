@@ -1,41 +1,75 @@
 # Comparing fse with the alternatives
 
-The November CPU study separates encoding, writing and classification. Quality scores come from the frozen evaluation protocol. A failed measurement provides no speed claim.
+This guide records the measurement contract and evidence behind the README. The final library comparison has seven accepted pairs from the sentence collection and one accepted ST process-pool follow-up. The two writing configurations form a separate study. Quality and historical accuracy are unchanged.
 
-## Evidence and reproduction
+## Sources and cohorts
 
-| Study | Compact source |
-| :--- | :--- |
-| CPU speed and terminal cell statuses | [speed-2026-11.json](../benchmarks/baseline/speed-2026-11.json) |
-| MTEB, NanoBEIR and STS | [quality-2026-11.json](../benchmarks/baseline/quality-2026-11.json) |
-| Historical classification accuracy | [classification-quality-2026-11.json](../benchmarks/baseline/classification-quality-2026-11.json) |
-| Raw archives, sizes and SHA256 | [evidence-2026-11.json](../benchmarks/baseline/evidence-2026-11.json) |
+| Study | Compact source | Cohort |
+| :--- | :--- | :--- |
+| Eight paired library comparisons | [library-speed-2026-11.json](../benchmarks/baseline/library-speed-2026-11.json) | EPYC 9575F, sentence inputs, 2 November 2026 UTC |
+| 100M native-file writing, 16 and 32 CPUs | [headline-speed-2026-11.json](../benchmarks/baseline/headline-speed-2026-11.json) | Same physical allocation, separate writing study |
+| Six accepted table-dtype cells | [speed-2026-11.json](../benchmarks/baseline/speed-2026-11.json) | Earlier EPYC 9965, 4.62M paragraphs, 1/2 November 2026 UTC |
+| MTEB, NanoBEIR and STS | [quality-2026-11.json](../benchmarks/baseline/quality-2026-11.json) | Frozen quality protocol |
+| Historical classifier accuracy | [classification-quality-2026-11.json](../benchmarks/baseline/classification-quality-2026-11.json) | Accuracy only, no inference-speed claim |
+| Immutable raw bundles | [evidence-2026-11.json](../benchmarks/baseline/evidence-2026-11.json) | Per-file sizes and hashes inside each bundle |
 
-Raw evidence lives on `benchmark-evidence-2.0`, which is never merged into the code branch. The manifest pins immutable commits. Each compressed archive includes its own per-file size and SHA256 manifest. Source snapshots preserve the exact original scripts and dependencies. Verify the compressed SHA256 before extraction, then verify every extracted member. Historical scripts are evidence, not installation instructions for the current API.
+The final speed evidence is pinned at [archive commit `608cf02a`](https://github.com/oborchers/Fast_Sentence_Embeddings/commit/608cf02a9557ef8bade83ae6c0c2fadd5b8d5012). Download [the compressed bundle](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/608cf02a9557ef8bade83ae6c0c2fadd5b8d5012/archives/sentence-speed-2026-11.tar.gz), verify SHA256 `443e7ff798d38b41d14e3952128d8080b2d698e6005991b147c34a69ea88f1c7`, then verify every member against `archive-member-manifest.json`. It contains 532 original members. The evidence branch is never merged into the code branch. Historical scripts in the bundle are data, not current installation instructions.
 
-The speed entry point is [speed-run-2026-11.py](../benchmarks/speed-run-2026-11.py). Its two private modules, dependency locks and input specification describe the frozen run. The summary records both the runner commit and the separately pinned library commit. Reproduction requires the original Linux environment and sufficient memory and disk. Do not run this workload on the maintainer's Mac.
+The allocation exposed 32 allowed logical CPUs, 128 GB RAM and 150 GB disk on an AMD EPYC 9575F host. All final library and writing records are dated 2 November 2026 UTC. Raw machine labels are preserved. The maintainer confirmed that `sentence-run-2026-11-02` and `fp09zqzjdg0pgh` refer to the same physical allocation. The ST retry reset its raw allocation timestamp to its incremental budget start. That metadata is retained and does not identify another physical machine.
 
-## CPU speed
+The library code is pinned separately at `624251df2269e3099f5c61987be63e718893b58c`. Runner pins are `7f2fe04a8f27d881cfcd1e38269066bce25ec8d6` for the original sentence collection, `b2e960f923c67cf0ed1fd4fcfc517836a333a06e` for writing and `6c9fc1a5fd5f42d4b1af0e0756ef9123d493aad9` for the ST process pool. The archive includes all three source snapshots and original invocation logs.
 
-The machine exposed 32 logical CPUs on an AMD EPYC 9965 host, with 64 GB RAM and 150 GB disk. Measurements used one or 16 allowed CPUs, with explicit affinity and thread limits. The run crossed 1 and 2 November 2026 UTC.
+## Paired encoding protocol
 
-Every ordinary encode cell requires at least two seconds per fse call. Library arms receive identical text within each pair. Different pairs may use different input sizes. The table uses one shared 4,620,000-paragraph WikiText input. Paragraphs are sampled and shuffled with a fixed seed. These are passages, not individual sentences.
+Inputs come from the pinned WikiText-103 training split. The sentence rule collapses whitespace, skips headings, splits after punctuation followed by whitespace and keeps pieces with at least five words. Seed 0 selects positions with replacement and shuffles them. Both arms of each pair receive the identical file, truncation and normalized float32 output contract. Different pairs can have different counts and digests. These are pairwise library comparisons, not a fixed-input CPU-scaling curve.
 
-The primary estimate is the median of fse-a. fse-b is an identical-code control. The global symmetric A/A upper bound must not exceed 1.10. Normal cells use three rounds. Library speedups use the median of paired ratios, not a ratio of unrelated table medians. Output shape, normalization and numerical agreement are checked separately from timing. Every backend records its own installed-code identity.
+Each pair has three alternating rounds. A full warmup precedes each measured call. Every measured fse call must last at least two seconds. Shape, dtype and 10,000 fixed output rows are checked at unchanged tolerances, `rtol=3e-5` and `atol=3e-6`. The eight saved UNK paragraphs remain unchanged in the ST inputs and their samples. Each backend records its own installed-code identity. Rejected attempts remain archived and supply no speed claim.
 
-All six POTION-8M table cells passed: float32, float16 and int8 at one and 16 workers. Rust and FastEmbed comparisons at one worker also passed. The Python Model2Vec comparison failed A/A. The native sentence-transformers comparison failed output verification because the benchmark used the wrong unknown-token policy. Neither rejected comparison supports a speed claim.
+The maintainer approved this reduced protocol without an A/A duplicate arm. Its three-minute initial quiet observation is not a per-cell A/A measurement. The summaries therefore state `aa.status=not_run`, rather than inventing a clean control band. The ST follow-up uses a short initial observation. Reported factors are medians of same-round counterpart/fse time ratios, not ratios of unrelated medians.
 
-There are 26 terminal cell records: 13 valid, five invalid, six failed and two not started. Five valid records are short-call diagnostics, not headline evidence. The 100-million-text writing repeat failed A/A. The classification stage and four 16-worker library cells stopped at the benchmark's conservative memory guard, before inference started. These stops are not operating-system out-of-memory kills.
+The following table is an audit of durations. Full-precision rates, ranges, per-round observations, input digests, model revisions and raw member paths are in the compact summary.
 
-Peak RSS covers child lifetime, including model loading and output verification. Collection differs between Python and Rust arms. These values do not establish a comparable encode-only memory ranking.
+| Counterpart | Allowed CPUs | Texts | fse median, s | Counterpart median, s | Median paired factor |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| FastEmbed | 1 | 2,000,000 | 2.922560 | 68.294732 | 23.690667 |
+| Model2Vec | 1 | 2,000,000 | 2.849297 | 60.487159 | 21.356244 |
+| model2vec-rs | 1 | 2,000,000 | 3.195695 | 4.840583 | 1.500028 |
+| sentence-transformers | 1 | 2,000,000 | 9.202243 | 107.792172 | 11.813207 |
+| FastEmbed | 16 | 18,000,000 | 2.763460 | 62.011209 | 22.308737 |
+| Model2Vec | 16 | 18,000,000 | 2.725837 | 341.091340 | 125.780572 |
+| model2vec-rs | 16 | 18,000,000 | 2.766894 | 6.485669 | 2.381571 |
+| sentence-transformers | 16 | 5,000,000 | 2.421668 | 22.131070 | 9.140731 |
 
-The allocation lasted 8,244 seconds. Estimated compute plus disk cost was USD 2.25. This is a rate-based estimate, not an invoice. The earlier failed setup cost is separate.
+POTION-8M has 256 dimensions and is shared with Python Model2Vec, model2vec-rs and FastEmbed. The ST pair uses native `static-retrieval-mrl-en-v1` with 1024 dimensions. It retains UNK and reads texts whole. This model difference prevents comparing their absolute rates as an engine-only result.
 
-## Why Rust can win on small calls
+Python Model2Vec 0.10.0 uses its documented serial path at one CPU and its Joblib threading batch path at 16. The latter disables internal tokenizer parallelism. Sixteen allowed CPUs does not mean sixteen processes or full utilization. Rust 0.4.0 uses the pinned source and `encode_flat`, with the global Rayon pool explicitly fixed to the requested count. FastEmbed 0.9.1 uses its NumPy StaticTextEmbedding backend, serial at one CPU and 16 processes with one native thread each. These rows are not ONNX measurements.
 
-At 16 workers, the accepted size diagnostics put Rust ahead at 5,000 texts per call and fse ahead at 50,000 and 500,000. This brackets an observed crossover, without locating an exact threshold. Short calls are deliberately exempt from the two-second rule for this diagnostic only.
+ST 6.2.0 uses native StaticEmbedding. Its one-CPU row uses Torch thread count 1 and default batch size 32. The accepted 16-CPU follow-up uses `start_multi_process_pool(target_devices=["cpu"]*16)`, reused for warmup and measurement, with batch size 1024. Native and Torch threads are limited to 1 per process. Batch size 1024 reduces small-call overhead; it is a justified starting point, not a measured optimum. The fse arm, input digest, normalization and tolerance are unchanged.
 
-Reusing fse's computation pool reduces part of the small-call overhead but does not explain the whole gap. A nested Rust output is a separate diagnostic whose subsequent flattening is outside its timer. It cannot replace the primary contiguous-output comparison. Two startup controls did not begin before the stage budget expired, so absolute startup costs remain unmeasured.
+### ST failure and file-descriptor limit
+
+The original 16-thread ST path did not complete and was manually stopped. Its logs cannot establish whether it stalled in warmup, measured inference or final stacking. It contributes no throughput. The first CPU-process-pool attempt then failed while rebuilding a shared storage descriptor, with `received 0 items of ancdata` and a soft open-file limit of 1024. The hard limit was 524288.
+
+The same code and runner completed after the maintainer raised the soft limit to 524288. This supports a descriptor-pressure explanation for the transport failure, without claiming a recorded EMFILE syscall or an observed peak descriptor count. At 5M rows, roughly 1000 output chunks can approach the low limit before other descriptors. Shared-memory space also needs a separate check. The failed attempt and the accepted retry are both retained. The descriptor-limit analysis is preserved as `notes/st16-file-descriptors.md` inside the final bundle.
+
+## Native-file writing protocol
+
+The two accepted configurations stream the same 100M-line file through POTION-8M into ShardSink. The model table is float32, the persisted vectors are int8 and the encoder output has 256 dimensions. Three rounds use `durability="none"`. Each output is synchronized, verified and deleted before the next round. File and directory synchronization after deletion prevents cleanup from overlapping the next timed operation.
+
+Primary time runs from first input read through sink close. Model loading, input generation and output verification are outside that timer. Sink creation and the subsequent targeted external fsync have separate timings. External fsync does not change the store's recorded `durable_rows` under the none policy. Every round verifies 100M rows, stored checksums, a SHA256 file inventory and 10,000 sampled int8 codes and float32 scales against standalone encoding.
+
+| Allowed CPUs | Median read to close, s | Repeat range, s | Median through external fsync, s |
+| ---: | ---: | :--- | ---: |
+| 16 | 13.458833114 | 13.407013008 to 13.487326292 | 13.913902076 |
+| 32 | 16.750601661 | 16.405571854 to 16.957345100 | 17.281033792 |
+
+Both configurations use input SHA256 `2765496afe36095473776599284b29462fb1798744b3b25abbc06e005fa167ef`, 13,639,687,281 input bytes and 26,400,137,245 logical output bytes per round. The input has 25.57447294 words and 28.73384302 limited tokenizer IDs per text on average. That token count includes UNK and excludes special IDs. The older writing study used another input construction and excluded UNK in its token counter. Do not relabel the old and new digests as the same workload.
+
+The 16-CPU configuration supplies the approved headline. The 32-CPU run preceded it; these were sequential repeats, not an interleaved scaling experiment. The observed 16-CPU advantage does not isolate CPU count from host or storage state. Neither configuration has an A/A arm. Peak RSS covers the inference child before verification, not the complete process tree. Output bytes are logical file sizes, not device write amplification. The full observations remain in `studies/headline16/collected/headline16-results` and `studies/headline32/collected/headline-results` inside [the pinned bundle](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/608cf02a9557ef8bade83ae6c0c2fadd5b8d5012/archives/sentence-speed-2026-11.tar.gz).
+
+## Separate paragraph dtype cohort
+
+The earlier accepted six dtype cells remain unchanged in [their compact source](../benchmarks/baseline/speed-2026-11.json). They used 4,620,000 WikiText paragraphs on EPYC 9965 with 64 GB, float32/float16/int8 tables and one or 16 allowed CPUs. Their older protocol has paired identical-code A/A controls with a symmetric upper bound of 1.10. These conditions do not apply retroactively to the new approved sentence protocol. Keep the machine, input and protocol captions separate. Superseded library rows, rejected controls and short-call diagnostic rates remain in the raw archive only.
 
 ## Quality
 
@@ -67,11 +101,11 @@ The original 1.x STS table uses Pearson correlation on the 1,379 STS Benchmark t
 
 ## Classification
 
-Historical fse accuracy uses normalized frozen embeddings and a linear head. Model2Vec with the same sklearn linear head is the engine comparison. Model2Vec's own classifier is a different trained model: it fine-tunes embeddings and trains an MLP in PyTorch. By default its head has 512 ReLU hidden units, then softmax or sigmoid. Exported inference runs in NumPy, as implemented in model2vec 0.10.0 `model2vec/inference/mlp.py`.
+There are no eligible current classification inference-speed cells. Do not use encoding rates as classifier throughput or draw a measured classification speed chart from these studies. Historical classification accuracy remains in its separate compact summary.
 
-The historical accuracy summary retains 176 rows. One complete Subjectivity evaluation was checked across Mac and Linux, with equal predictions and accuracy. This does not establish bit-identical trained exports or equivalence on every dataset.
+The historical fse linear-head comparison uses frozen embeddings. Model2Vec with the same sklearn linear head is an engine comparison. Model2Vec's own classifier is a different trained model: it fine-tunes embeddings and trains an MLP in PyTorch, by default 512 ReLU hidden units followed by softmax or sigmoid. Exported inference runs in NumPy (`model2vec/inference/mlp.py`, version 0.10.0). Training time must remain separate from inference speed.
 
-The new raw-mean folded-head measurement failed its memory preflight. It provides no new classification rate or accuracy. Folding a linear head is distinct from replacing it with a fine-tuned MLP. Training cost must remain separate from inference throughput.
+The accuracy summary retains 176 historical rows. One full Subjectivity evaluation produced equal predictions and accuracy across Mac and Linux. That does not establish bit-identical trained exports or equivalence on every dataset. The planned folded-head speed measurement failed preflight and provides no new rate.
 
 ## Historical profile attribution
 
@@ -84,6 +118,6 @@ These M1 profiles are retained for attribution, not current speed claims. Alloca
 
 ## Withdrawn timing
 
-All Apple M1 speed measurements are withdrawn, regardless of input size. Earlier headline comparisons using only about 5,000 texts per call are also withdrawn, even where their A/A check passed. Their original bytes remain archived. Quality, accuracy and numerical regression fixtures are unaffected.
+All Apple M1 speed measurements are withdrawn, regardless of input size. Earlier headline comparisons with only about 5,000 texts per call remain withdrawn, including rows whose old A/A checks passed. Their original bytes remain archived. They supply no current speed claim. Quality, accuracy and protected numerical regression fixtures are unchanged.
 
-The November study's rejected cells remain rejected. A clean initial probe does not prove a quiet whole run. Missing per-round memory and writeback telemetry prevents a definitive attribution of later temporal drift. Any follow-up requires the maintainer's decision. A different machine is a new cohort and must be labelled accordingly.
+Rejected rows are not replaced by estimates. A missing result remains missing. The code and dependency locks reproduce the recorded workload; every future measurement needs its own machine, input and execution provenance. No further paid run is required by this report.
