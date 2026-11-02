@@ -178,6 +178,8 @@ def prepare_models(root, contract, reuse=None):
 
     result = {}
     needed = {c["model"] for c in contract["cells"]}
+    if any(c["kind"] != "write" for c in contract["cells"]):
+        needed.add(contract["quiet_cell"]["model"])
     for repo, revision in contract["models"].items():
         if repo not in needed:
             continue

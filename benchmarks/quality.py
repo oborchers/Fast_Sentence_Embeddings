@@ -11,7 +11,15 @@ import threading
 import time
 from pathlib import Path
 
-from _measurement import Ledger, append, atomic, heartbeat, rehearsal_limits, write_environment
+from _measurement import (
+    Ledger,
+    append,
+    atomic,
+    finalize_rehearsal,
+    heartbeat,
+    rehearsal_limits,
+    write_environment,
+)
 from _measurement_config import CONFIG, contract, validate_cell, validate_prerequisites
 from _measurement_setup import outside_checkout, setup, utility
 
@@ -57,6 +65,18 @@ def specification(args):
                 "backend": "fse",
                 "fit": "small-fit",
                 "dtype": "int8",
+                "workers": 1,
+                "estimated_seconds": 30,
+            }
+        )
+    if args.rehearse:
+        spec["cells"].append(
+            {
+                "id": "small-published-fit",
+                "kind": "fit",
+                "model": "fse/glove-wiki-gigaword-300",
+                "corpus": "published-fineweb",
+                "output_tokenizer": "fse_words@1",
                 "workers": 1,
                 "estimated_seconds": 30,
             }
@@ -139,6 +159,7 @@ def run(args):
                 )
         stop.set()
         watcher.join()
+    finalize_rehearsal(ledger, "quality")
     return ledger.done()
 
 
@@ -191,10 +212,6 @@ def main():
     for path in (args.results, args.work, args.cache):
         outside_checkout(path)
     code = run(args)
-    if args.rehearse and code == 0:
-        from _measurement_rehearse import control_proof
-
-        control_proof(args.results.parent / (args.results.name + "-control"), "quality")
     return code
 
 

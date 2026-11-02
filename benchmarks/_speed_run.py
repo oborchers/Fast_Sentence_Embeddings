@@ -346,6 +346,7 @@ def run(args):
                 )
         stop.set()
         watcher.join()
+    records.finalize_rehearsal(ledger, "speed")
     return ledger.done()
 
 

@@ -209,7 +209,7 @@ class Ledger:
                 "sha256": sha256(p),
             }
             for p in sorted(self.root.rglob("*"))
-            if p.is_file() and p.name not in ("manifest.json", "DONE")
+            if p.is_file() and p not in (self.root / "manifest.json", self.root / "DONE")
         ]
         atomic(self.root / "manifest.json", {"files": files})
         code = int(
@@ -273,3 +273,14 @@ def write_environment(args, contract):
             },
         },
     )
+
+
+def finalize_rehearsal(ledger, entry):
+    if not ledger.contract.get("functional_only"):
+        return
+    from _measurement_rehearse import control_proof
+
+    try:
+        control_proof(ledger.root / "controls", entry)
+    except Exception as error:
+        append(ledger.root / "fatal.jsonl", {"stage": "rehearsal-controls", "error": repr(error)})

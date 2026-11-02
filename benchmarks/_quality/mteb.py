@@ -32,23 +32,38 @@ def tasks_for(suite):
 
 def expand(cells):
     result = []
+    membership = {
+        t.metadata.name: (suite, t)
+        for suite in ("MTEB(eng, v2)", "NanoBEIR")
+        for t in tasks_for(suite)
+    }
     for cell in cells:
         if cell["kind"] != "mteb":
             result.append(cell)
             continue
-        for suite in cell["tasks"]:
-            for task in tasks_for(suite):
-                result.append(
-                    {
-                        **cell,
-                        "id": cell["id"] + "_" + task.metadata.name.replace(".", "-"),
-                        "task": task.metadata.name,
-                        "benchmark": suite,
-                    }
-                )
+        for task, benchmark in cell_tasks(cell, membership):
+            result.append(
+                {
+                    **cell,
+                    "id": cell["id"] + "_" + task.metadata.name.replace(".", "-"),
+                    "task": task.metadata.name,
+                    "benchmark": benchmark,
+                    "evaluation_filters": filters_for(task),
+                }
+            )
     if len({c["id"] for c in result}) != len(result):
         raise ValueError("task expansion produced duplicate identifiers")
     return result
+
+
+def cell_tasks(cell, membership):
+    for suite in cell["tasks"]:
+        selected = [membership[suite][1]] if suite in membership else tasks_for(suite)
+        for task in selected:
+            yield (
+                task,
+                membership[task.metadata.name][0] if task.metadata.name in membership else suite,
+            )
 
 
 def loader(cell, context):
@@ -81,6 +96,8 @@ def native_model(cell, fit):
     import fse
 
     backend = cell["backend"]
+    if cell.get("fit") and fit is None:
+        raise ValueError("fit prerequisite did not complete successfully")
     if fit:
         if sha256(Path(fit["artifact"])) != fit["artifact_sha256"]:
             raise ValueError("fitted artifact changed before evaluation")
@@ -152,7 +169,10 @@ def evaluate(cell, context):
     ]
     before = package_identity(package)
     model = loader(cell, context)
-    task = tasks_for(cell["task"])[0]
+    candidates = tasks_for(cell["benchmark"])
+    task = next(t for t in candidates if t.metadata.name == cell["task"])
+    if filters_for(task) != cell["evaluation_filters"]:
+        raise ValueError("configured task filters changed after expansion")
     load_started = time.perf_counter()
     task.load_data()
     load_seconds = time.perf_counter() - load_started
@@ -179,6 +199,7 @@ def evaluate(cell, context):
         "main_score": value,
         "task": task.metadata.name,
         "task_metadata": task.metadata.model_dump(mode="json"),
+        "evaluation_filters": filters_for(task),
         "benchmark": cell["benchmark"],
         "model_revision": MODEL_PINS[cell["model"]],
         "backend_identity": before,
@@ -190,4 +211,12 @@ def evaluate(cell, context):
         "timing_scope": "diagnostic only, never inference throughput",
         "fit_id": cell.get("fit"),
         "fit": context["fits"].get(cell.get("fit")),
+    }
+
+
+def filters_for(task):
+    return {
+        "hf_subsets": list(task.hf_subsets),
+        "eval_splits": list(task.eval_splits),
+        "seed": task.seed,
     }

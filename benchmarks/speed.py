@@ -59,10 +59,6 @@ def main():
     for path in (args.results, args.work):
         outside_checkout(path)
     code = run(args)
-    if args.rehearse and code == 0:
-        from _measurement_rehearse import control_proof
-
-        control_proof(args.results.parent / (args.results.name + "-control"), "speed")
     return code
 
 

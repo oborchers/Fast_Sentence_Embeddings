@@ -226,6 +226,56 @@
         "NanoBEIR"
       ],
       "estimated_seconds": 90
+    },
+    {
+      "id": "published-sif10-glove-wiki-gigaword-300",
+      "kind": "fit",
+      "model": "fse/glove-wiki-gigaword-300",
+      "corpus": "published-fineweb",
+      "output_tokenizer": "fse_words@1",
+      "workers": 2,
+      "estimated_seconds": 1800,
+      "description": "SIF-10 fit as published"
+    },
+    {
+      "id": "published-sif10-word2vec-google-news-300",
+      "kind": "fit",
+      "model": "fse/word2vec-google-news-300",
+      "corpus": "published-fineweb",
+      "output_tokenizer": "fse_words@1",
+      "workers": 2,
+      "estimated_seconds": 1800,
+      "description": "SIF-10 fit as published"
+    },
+    {
+      "id": "published-sif10-fasttext-crawl-subwords-300",
+      "kind": "fit",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "corpus": "published-fineweb",
+      "output_tokenizer": "fse_words@1",
+      "workers": 2,
+      "estimated_seconds": 1800,
+      "description": "SIF-10 fit as published"
+    },
+    {
+      "id": "published-sif10-paragram-300-sl999",
+      "kind": "fit",
+      "model": "fse/paragram-300-sl999",
+      "corpus": "published-fineweb",
+      "output_tokenizer": "fse_words@1",
+      "workers": 2,
+      "estimated_seconds": 1800,
+      "description": "SIF-10 fit as published"
+    },
+    {
+      "id": "published-sif10-paranmt-300",
+      "kind": "fit",
+      "model": "fse/paranmt-300",
+      "corpus": "published-fineweb",
+      "output_tokenizer": "fse_words@1",
+      "workers": 2,
+      "estimated_seconds": 1800,
+      "description": "SIF-10 fit as published; historical mean evaluation remains separate"
     }
   ]
 }

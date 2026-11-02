@@ -19,6 +19,7 @@ def summarize(folder):
         keys = (
             "model",
             "model_revision",
+            "workers",
             "table_dtype",
             "mteb_version",
             "machine_environment_sha256",
@@ -70,6 +71,8 @@ def artifact_scores(rows):
                 "fit",
                 "table_dtype",
                 "pearson",
+                "default_tokenizer_pearson",
+                "evaluation_tokenizer",
                 "spearman",
                 "recall_at_10",
                 "score_scale",

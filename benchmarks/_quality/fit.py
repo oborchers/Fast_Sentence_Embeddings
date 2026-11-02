@@ -14,6 +14,10 @@ from _measurement_config import MODEL_PINS, PINS
 def corpus(cell, cache):
     from hub_classic_corpus import fit_corpus
 
+    if cell["corpus"] == "published-fineweb":
+        from .published import corpus as published_corpus
+
+        return published_corpus(cache), PINS["published_sif"]["revision"]
     if cell["corpus"] != "wikitext":
         raise ValueError("SIF fit requires the pinned WikiText training corpus")
     return fit_corpus(cache), PINS["corpus"]["revision"]
@@ -70,6 +74,10 @@ def fit(cell, context):
     name = cell["model"].removeprefix("fse/")
     if cell.get("functional_only"):
         kv, texts, revision = miniature(target)
+        if cell["corpus"] == "published-fineweb":
+            from .published import miniature_sample
+
+            texts = miniature_sample(target)
     else:
         kv = source_model(name)
         texts, revision = corpus(cell, context["cache"])
@@ -95,13 +103,14 @@ def fit(cell, context):
             words=list(kv.index_to_key),
             fasttext=params,
             ngrams=arrays[1] if params is not None else None,
-            tokenizer="external",
+            tokenizer=cell.get("output_tokenizer", "external"),
             normalize=True,
             oov_weight=float(weights.max()) if params is not None else None,
         )
         encoder = provenance(encoder, name)
         artifact = target / "encoder.safetensors"
         encoder.save(artifact)
+        fingerprint = encoder.fingerprint
         del arrays, weighted, encoder, kv
         gc.collect()
         for path in paths:
@@ -118,10 +127,15 @@ def fit(cell, context):
         "components": 10,
         "fit_sha256": sha256(state),
         "artifact_sha256": sha256(artifact),
+        "encoder_fingerprint": fingerprint,
         "artifact": str(artifact.resolve()),
         "functional_only": cell.get("functional_only", False),
     }
     atomic(context["results"] / (cell["id"] + "-fit.json"), receipt)
+    if cell["corpus"] == "published-fineweb":
+        from .published import selection
+
+        selection(cell, context, receipt, texts)
     context["fits"][cell["id"]] = receipt
     return {"status": "valid", "fit": receipt}
 
@@ -134,8 +148,12 @@ def sts(cell, context):
 
     receipt = context["fits"][cell["fit"]]
     encoder = fse.Encoder.load(receipt["artifact"], mmap=True)
-    labels, _, tokens = benchmark(context)
-    vectors = encoder.encode(tokens, workers=cell["workers"])
+    from verify_hub_classics import external_view
+
+    labels, texts, tokens = benchmark(context)
+    vectors = external_view(encoder).encode(tokens, workers=cell["workers"])
+    default_inputs = tokens if encoder.tokenizer == "external" else texts
+    default_rows = encoder.encode(default_inputs, workers=cell["workers"])
     half = len(labels)
     similarities = (vectors[:half] * vectors[half:]).sum(axis=1)
     return {
@@ -143,6 +161,8 @@ def sts(cell, context):
         "pairs": half,
         "fit_id": cell["fit"],
         "pearson": score(labels, vectors),
+        "default_tokenizer_pearson": score(labels, default_rows),
+        "evaluation_tokenizer": "historical NLTK external view",
         "spearman": float(spearmanr(labels, similarities).statistic * 100),
         "fit": receipt,
         "score_scale": "correlation multiplied by 100",
