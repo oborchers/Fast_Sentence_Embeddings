@@ -137,7 +137,9 @@ def encoder(job):
         model = TextEmbedding(
             model_name=job["model"], specific_model_path=job["snapshot"], local_files_only=True
         )
-        return lambda texts: np.stack(list(model.embed(texts, parallel=None)))
+        return lambda texts: np.stack(
+            list(model.embed(texts, parallel=workers if workers > 1 else None))
+        )
     raise ValueError(f"unsupported Python backend: {kind}")
 
 
@@ -266,7 +268,7 @@ def prepare_models(root, contract):
 def measure_child(job):
     if job["backend"] == "rust":
         return rust_child(job)
-    configure(job["workers"])
+    configure(job["workers"], native_threads=1 if job["backend"] == "fastembed" else None)
     import resource
 
     import numpy as np

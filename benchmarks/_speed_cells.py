@@ -77,7 +77,8 @@ def package_identity(name):
     }
 
 
-def configure(workers):
+def configure(workers, native_threads=None):
+    native_threads = workers if native_threads is None else native_threads
     for name in (
         "OMP_NUM_THREADS",
         "OPENBLAS_NUM_THREADS",
@@ -87,8 +88,8 @@ def configure(workers):
         "RAYON_NUM_THREADS",
         "LOKY_MAX_CPU_COUNT",
     ):
-        os.environ[name] = str(workers)
-    os.environ["TOKENIZERS_PARALLELISM"] = "true" if workers > 1 else "false"
+        os.environ[name] = str(native_threads)
+    os.environ["TOKENIZERS_PARALLELISM"] = "true" if native_threads > 1 else "false"
     if hasattr(os, "sched_getaffinity"):
         cpus = sorted(os.sched_getaffinity(0))
         if len(cpus) < workers:
