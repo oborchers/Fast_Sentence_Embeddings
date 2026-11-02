@@ -115,7 +115,6 @@ class Rounds:
     def records(self, name: Hashable) -> list[dict]:
         return [run.record() for run in self.runs(name)]
 
-
     def ratios(self, name: Hashable, first: Hashable, value: Callable[[Any], float]) -> list[float]:
         """Per kept round ``value`` of ``name`` over that of ``first`` (rounds where the
         value of ``first`` is 0 are left out)."""
