@@ -41,6 +41,24 @@ Reusing fse's computation pool reduces part of the small-call overhead but does 
 
 The English mean covers 40 of 41 MTEB(eng, v2) tasks using unmodified MTEB 2.26.25. MindSmallReranking was not computed: the attempts failed first with insufficient disk and later status 137 on the 64 GB machine. Do not label these means as the full leaderboard mean.
 
+All rows below are float32. Scores are multiplied by 100 and rounded only for display. MTEB is the unweighted mean of the same 40 English tasks. NanoBEIR is its separate 13-task mean. STS Benchmark uses Spearman. Full precision and fit identities remain in the linked quality JSON.
+
+| Finished model | MTEB 40/41 | NanoBEIR | STS Benchmark |
+| :--- | ---: | ---: | ---: |
+| SIF-10-glove-wiki-gigaword-300 | 49.79 | not computed | 62.75 |
+| all-MiniLM-L6-v2 | 59.89 | 56.22 | 82.03 |
+| potion-multilingual-128M | 49.96 | 36.65 | 71.75 |
+| Average-paranmt-300 | 50.69 | 39.39 | 79.07 |
+| potion-base-32M | 55.26 | 46.18 | 76.84 |
+| potion-base-8M | 53.95 | 43.85 | 75.41 |
+| potion-retrieval-32M | 54.51 | 50.39 | 74.10 |
+| static-retrieval-mrl-en-v1 | 51.89 | 50.31 | 74.02 |
+| static-similarity-mrl-multilingual-v1 | 51.43 | 43.52 | 79.94 |
+| word2vec-google-news-300 SIF-10 | 49.26 | 37.66 | 63.69 |
+| fasttext-crawl-subwords-300 SIF-10 | 51.42 | 40.65 | 65.46 |
+| paragram-300-sl999 SIF-10 | 50.98 | 40.92 | 68.81 |
+
+
 The quality summary covers six Hub static models, all-MiniLM-L6-v2, plain-mean paranmt-300, and historical SIF-10 GloVe, word2vec, FastText and paragram configurations. NanoBEIR coverage is explicit per model. GloVe has no completed NanoBEIR result in this collection. No missing score is imputed.
 
 Historical SIF-10 uses WikiText fit data, seed zero, corpus frequencies and ten components. FastText includes its actual OOV ngram path. These fitted states differ from later Hub artifacts fitted with wordfreq or FineWeb. Do not attach the scores to a different fitted artifact. Original revisions and artifact identities remain in the summaries and archives.
