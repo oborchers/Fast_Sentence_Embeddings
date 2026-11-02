@@ -112,11 +112,13 @@ ST checks `RLIMIT_NOFILE` inside its adapter and raises the soft limit to at lea
 
 ## Quality study data
 
-Quality cells declare source model and revision through the common pins, backend, workers, corpus and task selection. Supported calculation kinds are offline SIF `fit`, plain `mean`, historical `sts`, `mteb`, neighbor `recall` and complete corpus `select`. A fitted artifact is referenced by its preceding cell ID. Corpus selection requires both STS correlations and all 13 NanoBEIR tasks for each candidate, with no imputation.
+Quality cells declare source model and revision through the common pins, backend, workers, corpus and task selection. Supported calculation kinds are offline SIF `fit`, plain `mean`, historical `sts`, `mteb`, neighbor `recall`. A fitted artifact is referenced by its preceding cell ID. The retired one-off GloVe corpus-selection experiment is not part of this entry.
 
 MTEB remains pinned at 2.26.25 and unmodified. English evaluation excludes MindSmallReranking and is labelled 40 of 41 tasks. Its two failed attempts do not yield a score. NanoBEIR has 13 tasks. A single named task runs in full; neither production nor rehearsal silently samples evaluation rows.
 
 SIF uses wordfreq English weights and ten uncentered components fitted only on the pinned training corpus. The fit receipt includes corpus digest, revision, seed, frequency implementation, component state hash and exported encoder hash. FastText retains its OOV ngrams. ParaNMT can use the separate plain-mean action. Classical external-tokenizer evaluation uses the preserved historical tokenization. STS Pearson and MTEB Spearman are different metrics.
+
+The historical STS helper reads a fixed object from a Git clone. Setup supplies that clone; an existing environment can set `--fixture-repo` explicitly. No STS fixture or model output is copied into Git.
 
 Use `--cells` with explicit data IDs for a bounded selection. Include prerequisite fit cells. `--summarize` reads completed results and reports means only for complete matching coverage:
 

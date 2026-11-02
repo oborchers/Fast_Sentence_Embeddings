@@ -86,9 +86,14 @@ def native_model(cell, fit):
             raise ValueError("fitted artifact changed before evaluation")
         model = fse.Encoder.load(fit["artifact"], mmap=True)
     elif backend == "fse":
-        model = fse.Encoder.from_pretrained(
-            cell["model"], revision=MODEL_PINS[cell["model"]], normalize=True
-        )
+        if cell["model"].startswith("minishlab/"):
+            model = fse.StaticModel.from_pretrained(
+                cell["model"], revision=MODEL_PINS[cell["model"]], normalize=True
+            ).encoder
+        else:
+            model = fse.Encoder.from_pretrained(
+                cell["model"], revision=MODEL_PINS[cell["model"]], normalize=True
+            )
     elif backend == "model2vec":
         from model2vec import StaticModel
 

@@ -11,10 +11,9 @@ import threading
 import time
 from pathlib import Path
 
-from _measurement import Ledger, append, atomic, rehearsal_limits
+from _measurement import Ledger, append, atomic, heartbeat, rehearsal_limits, write_environment
 from _measurement_config import CONFIG, contract
 from _measurement_setup import setup, utility
-from _speed_run import heartbeat, write_environment
 
 
 def specification(args):
@@ -64,7 +63,7 @@ def specification(args):
 
 
 def run(args):
-    from _quality.fit import fit, mean, recall, select, sts
+    from _quality.fit import fit, mean, recall, sts
     from _quality.mteb import MIND_REASON, evaluate
 
     spec = specification(args)
@@ -77,6 +76,7 @@ def run(args):
         "results": args.results,
         "work": args.work,
         "cache": args.cache,
+        "fixture_repo": args.fixture_repo,
         "fits": {},
         "finished": ledger.finished,
     }
@@ -90,7 +90,6 @@ def run(args):
         "mean": mean,
         "sts": sts,
         "mteb": evaluate,
-        "select": select,
         "recall": recall,
     }
     try:
@@ -141,10 +140,20 @@ def main():
     parser.add_argument("--results", type=Path, default=Path("/quality-results"))
     parser.add_argument("--work", type=Path, default=Path("/quality-work"))
     parser.add_argument("--cache", type=Path, default=Path.home() / ".cache/fse-quality")
+    parser.add_argument(
+        "--fixture-repo", type=Path, help="clone containing the pinned historical STS Git object"
+    )
     parser.add_argument("--allocated-at", type=float)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--source-revision")
     args = parser.parse_args()
+    for name in ("results", "work", "cache"):
+        setattr(args, name, getattr(args, name).resolve())
+    setup_source = Path(sys.executable).parents[2] / "fse-source"
+    args.fixture_repo = (
+        args.fixture_repo
+        or (setup_source if setup_source.is_dir() else Path(__file__).resolve().parents[1])
+    ).resolve()
     if args.summarize:
         from _quality.summary import summarize
 

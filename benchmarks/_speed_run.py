@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import platform
 import shutil
 import signal
 import subprocess
@@ -17,6 +16,7 @@ import _measurement as records
 import _speed_cells as inputs
 import _speed_pipeline as engines
 import _speed_write as writing
+from _measurement import heartbeat, write_environment
 from _measurement_config import CONFIG
 from _measurement_config import contract as load_contract
 
@@ -291,39 +291,6 @@ def quiet(context, contract):
         },
     )
     cleanup(context, [path, path.with_suffix(".json"), sample])
-
-
-def heartbeat(ledger, stop):
-    while not stop.is_set():
-        ledger.progress()
-        stop.wait(15)
-
-
-def write_environment(args, contract):
-    records.atomic(
-        args.results / "environment.json",
-        {
-            "contract": contract,
-            "platform": platform.platform(),
-            "python": sys.version,
-            "telemetry": records.telemetry(),
-            "affinity": sorted(os.sched_getaffinity(0)),
-            "machine": {
-                "cpu": next(
-                    line.split(":", 1)[1].strip()
-                    for line in Path("/proc/cpuinfo").read_text().splitlines()
-                    if line.startswith("model name")
-                ),
-                "affinity": sorted(os.sched_getaffinity(0)),
-                "memory_max": Path("/sys/fs/cgroup/memory.max").read_text().strip(),
-                "allocation_id": os.getenv("SPEED_ALLOCATION_ID"),
-                "allocated_at_unix": float(
-                    os.getenv("SPEED_MACHINE_ALLOCATED_AT", args.allocated_at)
-                ),
-                "budget_started_at_unix": args.allocated_at,
-            },
-        },
-    )
 
 
 def study_contract(args):

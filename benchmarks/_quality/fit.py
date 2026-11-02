@@ -11,15 +11,12 @@ from _measurement import atomic, sha256
 from _measurement_config import MODEL_PINS, PINS
 
 
-def corpus(cell, cache, output):
+def corpus(cell, cache):
     from hub_classic_corpus import fit_corpus
-    from hub_classic_fineweb import REVISION, sampled_corpus
 
-    if cell["corpus"] == "wikitext":
-        return fit_corpus(cache), PINS["corpus"]["revision"]
-    if cell["corpus"] == "fineweb":
-        return sampled_corpus(cache, output), REVISION
-    raise ValueError("fit corpus must be pinned wikitext or fineweb, never evaluation data")
+    if cell["corpus"] != "wikitext":
+        raise ValueError("SIF fit requires the pinned WikiText training corpus")
+    return fit_corpus(cache), PINS["corpus"]["revision"]
 
 
 def miniature(folder):
@@ -75,7 +72,7 @@ def fit(cell, context):
         kv, texts, revision = miniature(target)
     else:
         kv = source_model(name)
-        texts, revision = corpus(cell, context["cache"], target)
+        texts, revision = corpus(cell, context["cache"])
     if (
         not cell.get("functional_only")
         and MODEL_PINS[cell["model"]] != __import__("hub_classic_sources").SOURCES[name]
@@ -132,13 +129,12 @@ def fit(cell, context):
 def sts(cell, context):
     from hub_classic_metrics import score
     from scipy.stats import spearmanr
-    from verify_hub_classics import benchmark
 
     import fse
 
     receipt = context["fits"][cell["fit"]]
     encoder = fse.Encoder.load(receipt["artifact"], mmap=True)
-    labels, _, tokens = benchmark()
+    labels, _, tokens = benchmark(context)
     vectors = encoder.encode(tokens, workers=cell["workers"])
     half = len(labels)
     similarities = (vectors[:half] * vectors[half:]).sum(axis=1)
@@ -150,46 +146,6 @@ def sts(cell, context):
         "fit": receipt,
         "score_scale": "0 to 100",
         "task": "STSBenchmark test, historical Pearson and Spearman",
-    }
-
-
-def select(cell, context):
-    """Require complete equal-size studies; never fill a missing task with an estimate."""
-    rows = context["finished"]
-    candidates = []
-    for fit_id in cell["fits"]:
-        sts_rows = [
-            r
-            for r in rows
-            if r.get("fit", {}).get("artifact") == context["fits"][fit_id]["artifact"]
-            and "pearson" in r
-        ]
-        nano = [
-            r
-            for r in rows
-            if r.get("fit_id") == fit_id
-            and r.get("benchmark") == "NanoBEIR"
-            and r["status"] == "valid"
-        ]
-        if len(sts_rows) != 1 or len({r["task"] for r in nano}) != 13:
-            raise ValueError(
-                "corpus selection requires STS Pearson/Spearman and all 13 NanoBEIR tasks"
-            )
-        components = [
-            sts_rows[0]["pearson"],
-            sts_rows[0]["spearman"],
-            100 * sum(r["main_score"] for r in nano) / 13,
-        ]
-        candidates.append(
-            {"fit_id": fit_id, "selection_mean": sum(components) / 3, "components": components}
-        )
-    winner = max(candidates, key=lambda row: row["selection_mean"])
-    return {
-        "status": "valid",
-        "selected": winner["fit_id"],
-        "candidates": candidates,
-        "tie_rule": "first listed candidate",
-        "evaluation_used_for_corpus_selection": True,
     }
 
 
@@ -226,7 +182,6 @@ def recall(cell, context):
     from hub_classic_evidence import benchmark_identity
     from hub_classic_metrics import neighbors
     from hub_classic_metrics import recall as neighbor_recall
-    from verify_hub_classics import benchmark
 
     from .mteb import native_model
 
@@ -234,7 +189,7 @@ def recall(cell, context):
         {**cell, "dtype": "float32", "backend": "fse"}, context["fits"].get(cell.get("fit"))
     )
     quantized = parent.quantize(cell["dtype"])
-    _, texts, tokens = benchmark()
+    _, texts, tokens = benchmark(context)
     inputs = tokens if parent.tokenizer == "external" else texts
     a = parent.encode(inputs, workers=cell["workers"])
     b = quantized.encode(inputs, workers=cell["workers"])
@@ -247,3 +202,13 @@ def recall(cell, context):
         "quantized_fingerprint": quantized.fingerprint,
         "backend_identity": __import__("_measurement").package_identity("fse"),
     }
+
+
+def benchmark(context):
+    """The retained historical helper reads a fixed Git object, not the caller's cwd."""
+    from contextlib import chdir
+
+    from verify_hub_classics import benchmark as historical_benchmark
+
+    with chdir(context["fixture_repo"]):
+        return historical_benchmark()

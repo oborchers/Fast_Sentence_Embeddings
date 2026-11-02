@@ -235,3 +235,41 @@ def sync_directory(path):
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
+
+
+def heartbeat(ledger, stop):
+    while not stop.is_set():
+        ledger.progress()
+        stop.wait(15)
+
+
+def write_environment(args, contract):
+    atomic(
+        args.results / "environment.json",
+        {
+            "contract": contract,
+            "measurement_source_sha256": {
+                str(p.relative_to(Path(__file__).resolve().parent)): sha256(p)
+                for p in sorted(Path(__file__).resolve().parent.rglob("*.py"))
+                if "baseline" not in p.parts
+            },
+            "platform": platform.platform(),
+            "python": sys.version,
+            "telemetry": telemetry(),
+            "affinity": sorted(os.sched_getaffinity(0)),
+            "machine": {
+                "cpu": next(
+                    line.split(":", 1)[1].strip()
+                    for line in Path("/proc/cpuinfo").read_text().splitlines()
+                    if line.startswith("model name")
+                ),
+                "affinity": sorted(os.sched_getaffinity(0)),
+                "memory_max": Path("/sys/fs/cgroup/memory.max").read_text().strip(),
+                "allocation_id": os.getenv("SPEED_ALLOCATION_ID"),
+                "allocated_at_unix": float(
+                    os.getenv("SPEED_MACHINE_ALLOCATED_AT", args.allocated_at)
+                ),
+                "budget_started_at_unix": args.allocated_at,
+            },
+        },
+    )
