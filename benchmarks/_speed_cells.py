@@ -424,3 +424,40 @@ def remove_headline(work, output, files):
 def check_preparation(admission):
     if admission is not None and not admission(120):
         raise TimeoutError("input preparation budget or stop signal exhausted")
+
+
+def sync_directory(path):
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def headline_rounds(context, cell, path, sample, identity, launch, cleanup):
+    rows, ledger = [], context["ledger"]
+    try:
+        for number in range(cell["rounds"]):
+            if not ledger.admit(120):
+                break
+            row = launch(context, cell, "fse", number, path, sample, identity)
+            rows.append(row)
+            output = Path(row["sample_file"])
+            remove_headline(context["work"], output, row["files"])
+            append(
+                ledger.root / "cleanup.jsonl",
+                dict(
+                    round=number,
+                    completed_at=time.time(),
+                    disk_after=shutil.disk_usage(context["work"])._asdict(),
+                ),
+            )
+        cleanup(
+            context,
+            [path, path.with_suffix(".json"), sample, path.with_suffix(".sample-texts.json")],
+        )
+        if len({json.dumps(row["identity"], sort_keys=True) for row in rows}) > 1:
+            raise ValueError("headline runtime identity changed between rounds")
+    except Exception as error:
+        return rows, repr(error)
+    return rows, None

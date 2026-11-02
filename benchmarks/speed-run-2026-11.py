@@ -31,6 +31,7 @@ def require_budget(ledger, estimate):
 
 def prepare(args, contract, ledger):
     args.work.mkdir(parents=True, exist_ok=False)
+    records.sync_directory(args.work.parent)
     records.atomic(
         args.work / "owner.json",
         {"script_sha256": records.sha256(Path(__file__)), "results": str(args.results.resolve())},
@@ -92,6 +93,7 @@ def launch(context, cell, label, number, path, sample, identity):
     root, work = context["ledger"].root, context["work"]
     folder = work / f"{cell['id']}-{number}-{label}"
     folder.mkdir()
+    records.sync_directory(work)
     model = context["models"][cell["model"]]
     job = dict(
         cell,
@@ -403,30 +405,12 @@ def run_headline(context, contract):
     records.append(ledger.root / "inputs.jsonl", dict(cell_id=cell["id"], **identity))
     sample = path.with_suffix(".sample.json")
     records.atomic(sample, identity["sample_rows"])
-    rows = []
-    for number in range(cell["rounds"]):
-        if not ledger.admit(120):
-            break
-        row = launch(context, cell, "fse", number, path, sample, identity)
-        output = Path(row["sample_file"])
-        records.remove_headline(work, output, row["files"])
-        records.append(
-            ledger.root / "cleanup.jsonl",
-            dict(
-                round=number,
-                completed_at=time.time(),
-                disk_after=shutil.disk_usage(work)._asdict(),
-            ),
-        )
-        rows.append(row)
-    complete = len(rows) == cell["rounds"]
-    cleanup(
-        context, [path, path.with_suffix(".json"), sample, path.with_suffix(".sample-texts.json")]
-    )
+    rows, error = records.headline_rounds(context, cell, path, sample, identity, launch, cleanup)
+    complete = len(rows) == cell["rounds"] and error is None
     ledger.result(
         cell,
         started,
-        status="valid" if complete else "partial",
+        status="failed" if error else ("valid" if complete else "partial"),
         input_identity=identity,
         rounds_completed=len(rows),
         sample_checked=bool(rows),
@@ -440,7 +424,7 @@ def run_headline(context, contract):
         )
         if rows
         else None,
-        reason=None if complete else "stop signal or budget before next round",
+        reason=error or (None if complete else "stop signal or budget before next round"),
     )
 
 

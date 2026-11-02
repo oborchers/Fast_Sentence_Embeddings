@@ -360,6 +360,7 @@ def headline_child(job):
         raise ValueError("headline output must be fresh")
     if sha256(Path(job["input_file"])) != job["input_sha256"]:
         raise ValueError("headline input changed")
+    identity = package_identity("fse")
     before = telemetry()
     disk_before = __import__("shutil").disk_usage(path.parent)._asdict()
     started = time.perf_counter()
@@ -381,14 +382,17 @@ def headline_child(job):
         raise ValueError("headline sample texts changed")
     texts = __import__("json").loads(sample_path.read_text())
     reference = model.encode(texts, dtype="int8", workers=job["workers"])
-    expected = reference.codes.astype(np.float32) * reference.scales[:, None]
     with VectorStore.open(path, encoder=model) as store:
         if len(store) != job["texts"]:
             raise ValueError("reopened headline row count differs")
         store.verify()
-        actual = np.vstack([store.get_vectors(start=i, stop=i + 1) for i in indices])
-    if not np.array_equal(expected.view(np.uint8), actual.view(np.uint8)):
-        raise ValueError("headline sample differs from standalone int8 encode")
+        codes, scales = stored_codes(store, indices)
+    if not np.array_equal(reference.codes.view(np.uint8), codes.view(np.uint8)):
+        raise ValueError("headline int8 sample codes differ")
+    if not np.array_equal(reference.scales.view(np.uint8), scales.view(np.uint8)):
+        raise ValueError("headline int8 sample scales differ")
+    if package_identity("fse") != identity:
+        raise ValueError("executing headline backend changed")
     atomic(
         Path(job["receipt"]),
         dict(
@@ -406,7 +410,7 @@ def headline_child(job):
             sample_checked_rows=len(indices),
             sample_bitwise_equal=True,
             peak_rss_bytes=peak,
-            identity=package_identity("fse"),
+            identity=identity,
             files=files,
             bytes_written=sum(row["bytes"] for row in files),
             telemetry_before=before,
@@ -438,3 +442,17 @@ def sync_headline(path):
         dict(path=str(p.relative_to(path)), bytes=p.stat().st_size, sha256=sha256(p)) for p in files
     ]
     return inventory, synced_at, sync_telemetry
+
+
+def stored_codes(store, indices):
+    import numpy as np
+
+    indices = np.asarray(indices, dtype=np.int64)
+    codes = np.empty((len(indices), store.dim), dtype=np.int8)
+    scales = np.empty(len(indices), dtype=np.float32)
+    for shard, tensors in store._shards:
+        mask = (indices >= shard.first_row) & (indices < shard.first_row + shard.rows)
+        rows = indices[mask] - shard.first_row
+        codes[mask] = tensors["vectors"][rows]
+        scales[mask] = tensors["scales"][rows]
+    return codes, scales
