@@ -128,9 +128,14 @@ def parquet_texts(part):
 def telemetry():
     root = Path("/sys/fs/cgroup")
     result = {"unix": time.time(), "monotonic": time.monotonic(), "load": os.getloadavg()}
-    for name in ("memory.max", "memory.current", "memory.stat", "cpu.stat", "io.stat"):
+    for name in ("memory.max", "memory.current"):
         p = root / name
         result[name] = p.read_text().strip() if p.exists() else None
+    stat = dict(line.split() for line in (root / "memory.stat").read_text().splitlines())
+    result["memory.stat"] = {
+        key: int(stat[key])
+        for key in ("anon", "file", "file_dirty", "file_writeback", "inactive_file")
+    }
     result["meminfo"] = [
         line
         for line in Path("/proc/meminfo").read_text().splitlines()

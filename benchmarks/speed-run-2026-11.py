@@ -355,7 +355,7 @@ def run(args):
     if args.rehearse:
         contract["functional_only"] = True
         for cell in [*contract["cells"], contract["quiet_cell"]]:
-            cell.update(texts=128, workers=min(cell["workers"], 2), functional_only=True)
+            cell.update(texts=12_000, workers=min(cell["workers"], 2), functional_only=True)
         contract["billing"].update(planning_minutes=180, planning_balance_usd=10)
     args.results.mkdir(parents=True, exist_ok=False)
     ledger = Ledger(args.results, contract, args.allocated_at)
