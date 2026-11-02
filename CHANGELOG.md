@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Add a shared `fse-benchmark` skill for Codex and Claude Code, with measurement planning, validity checks and sourced lessons.
+
 - Consolidate classic Hub publication under `tools/hub/run.py`, regenerate the published cards including `normalize=False`, and rebuild prepared payloads with exact manifest checks and explicit upload opt-in.
 
 - `Encoder.from_pretrained(normalize=False | True)` now works for every kind of model, fse encoders (float32, float16, int8, FastText) and Model2Vec models as well as sentence-transformers models. `False` drops a final `normalize@1` and leaves the table unchanged, so linear heads fold into the classic Hub models without a detour through `StaticModel`; `True` appends it. The fingerprint describes the encoder as loaded. (DR-201)
