@@ -11,8 +11,8 @@ from pathlib import Path
 from huggingface_hub import CommitOperationAdd, HfApi, snapshot_download
 from huggingface_hub.errors import RepositoryNotFoundError
 from payload import check
+from verify import runtime
 
-import fse
 from fse._container._common import _sync_directory
 
 
@@ -58,19 +58,12 @@ def readback(entry, scratch, revision="main"):
                 raise ValueError("download escaped the fresh cache")
             os.link(source, materialized / name)
         files = check(materialized, entry)
-        encoder = fse.Encoder.from_pretrained(materialized, mmap=True)
-        if encoder.fingerprint != entry["metadata"]["fingerprint"]:
-            raise ValueError("readback encoder fingerprint differs")
-        vectors = encoder.encode(["A sentence."], workers=1)
-        raw = fse.Encoder.from_pretrained(materialized, mmap=True, normalize=False)
-        raw.encode(["A sentence."], workers=1)
-        if vectors.shape != (1, entry["metadata"]["dimension"]):
-            raise ValueError("readback output shape differs")
+        probe = runtime(materialized, entry)
     return {
         "repo": entry["repo"],
         "revision": revision,
         "files": files,
-        "default_and_normalize_false_load_ok": True,
+        "runtime": probe,
         "status": "passed",
     }
 

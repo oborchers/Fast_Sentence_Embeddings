@@ -50,7 +50,7 @@ def rebuild(entries, models, output, discard):
     write_receipt(receipt, state)
 
 
-def main():
+def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("cards", "build", "check", "upload", "readback"))
     parser.add_argument("--manifest", type=Path, required=True)
@@ -61,11 +61,18 @@ def main():
     parser.add_argument("--discard-verified-output", action="store_true")
     parser.add_argument("--upload", action="store_true", help="Explicitly enable Hub writes")
     args = parser.parse_args()
+    if args.output.resolve().is_relative_to(args.models.resolve()):
+        parser.error("--output must be outside the read-only model inputs")
+    return args
+
+
+def main():
+    args = arguments()
     entries = manifest(args.manifest, args.manifest_sha256)["repositories"]
     if args.repo:
         entries = [entry for entry in entries if entry["repo"] == args.repo]
         if not entries:
-            parser.error("--repo is not in the manifest")
+            raise ValueError("--repo is not in the manifest")
     if args.action == "build":
         rebuild(entries, args.models, args.output, args.discard_verified_output)
         return

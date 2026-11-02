@@ -43,7 +43,10 @@ No throughput measurement runs during preparation.
 `check` takes generated payload folders under `--models` and writes a receipt
 under the new `--output` directory. `readback` anonymously resolves each public
 repository to an exact revision, downloads into a fresh temporary cache, compares
-all files and loads both default normalization and `normalize=False`.
+all files and loads both default normalization and `normalize=False`. It also
+compares the recorded 512-sentence probe bit for bit. This probe reads the original
+STS-B fixture from immutable Git history, so use a checkout with history. The Hub
+mirror rounds some labels and cannot reproduce the original Pearson exactly.
 Only its own temporary cache is removed.
 
 `upload` additionally requires `--upload`. It refuses existing repository names,
@@ -56,8 +59,8 @@ approved environment, never to a file in this repository. The default local
 commands perform no Hub writes.
 
 The existing preparation and quality-comparison math remains under `benchmarks/`
-for the measurement tools that import it. Historical publication scripts belong
-to the `benchmark-evidence-2.0` archive branch.
+for the measurement tools that import it. The superseded publication scripts were preserved in a verified local archive
+before removal. The maintainer requested local archival only.
 
 ## Recorded validation
 
