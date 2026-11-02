@@ -1,5 +1,8 @@
 # Package Layout
 
+Historical M1 timing observations in this document are withdrawn and must not support speed claims. Numerical contracts and implementation descriptions remain valid. Current evidence is in the [comparison guide](../fse-comparison.md).
+
+
 Scope: outside the former "2.0 design" section.
 
 ```
@@ -229,4 +232,4 @@ Binding for every 2.0 module (formerly under "2.0 design").
 
 `benchmarks/baseline/` records the values of fse 1.1.0 from PyPI that 2.0 is compared with: STS, an MTEB selection, training throughput, memory and a lifecycle benchmark. Its README holds the tables and the commands to reproduce them.
 
-PERFORMANCE.md holds the model of the throughput bounds of a machine (per core, Amdahl, memory), its assumptions and the measured shares; `benchmarks/roofline.py` computes them from a hardware profile in `benchmarks/roofline_hardware.toml`, whose numbers each name their source.
+The [comparison guide](../fse-comparison.md) records current publication eligibility, compact results and immutable raw evidence. Historical M1 timing is withdrawn.

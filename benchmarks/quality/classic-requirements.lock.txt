@@ -1,4 +1,0 @@
--r requirements.lock.txt
-gensim==4.4.0
-smart-open==8.0.4
-wrapt==2.5.1

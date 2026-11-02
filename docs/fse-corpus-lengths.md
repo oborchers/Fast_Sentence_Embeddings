@@ -1,6 +1,6 @@
 # Speed corpus lengths
 
-Exact counts from [the committed raw statistics](../benchmarks/baseline/dr151_corpus_lengths_20261101.json). Words use whitespace splitting. Characters are Unicode code points.
+Exact counts from the original corpus-length statistics preserved in [the source archive](../benchmarks/baseline/evidence-2026-11.json). Words use whitespace splitting. Characters are Unicode code points.
 POTION tokens follow pinned model truncation and unknown-token removal. No throughput is measured here. The 2M recipe uses source positions once; natural duplicate strings can occur.
 
 | Corpus | Texts | Words mean / median | Characters mean / median | POTION tokens mean / median |

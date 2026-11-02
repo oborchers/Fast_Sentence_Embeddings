@@ -304,7 +304,7 @@ Built by [Dr. Oliver Borchers](https://www.drborchers.com). For questions that d
 Copyright (C) 2019 to 2026 Oliver Borchers, licensed under the [MIT License](LICENSE).
 
 fse 2.0 uses the MIT license. The `1.x` branch and existing 1.x releases remain GPL-3.0.
-Model licenses apply separately: GloVe uses PDDL, word2vec uses Apache-2.0, fastText vectors use CC BY-SA 3.0, and POTION uses MIT. The licenses of paranmt and paragram are unknown. The third-party STS Benchmark data in `evaluation/` keeps the terms in `evaluation/LICENSE.txt`.
+Model licenses apply separately: GloVe uses PDDL, Google News word2vec vectors have no stated licence (the code is Apache-2.0, with a [research-only disclaimer](https://code.google.com/archive/p/word2vec/)), fastText vectors use CC BY-SA 3.0, and POTION uses MIT. The licenses of paranmt and paragram are unknown. The third-party STS Benchmark data in `evaluation/` keeps the terms in `evaluation/LICENSE.txt`.
 
 Citation
 -------------

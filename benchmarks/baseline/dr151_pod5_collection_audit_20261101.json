@@ -1,8 +1,0 @@
-{
-  "transfer_verified": true,
-  "experiment_complete": false,
-  "errors": [
-    "fit differs from historical GloVe recipe or tokenized training corpus"
-  ],
-  "models": []
-}

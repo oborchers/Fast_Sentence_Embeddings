@@ -8,7 +8,7 @@
 load before and after every run, the raw data of every run kept, rounds with a high load
 discarded (kept too), and the ratio of each side to the first per round.
 
-A run is an in-process pass (``runtime_timeline_run.compare``) or a child process
+A run is an in-process pass (a callback supplied by its caller) or a child process
 (``run_child``: bench_sources, bench_lifecycle, bench_length, bench_length_files,
 bench_model2vec, bench_store); both go through ``rounds``. Each script passes its sides
 in the order its first round starts with, and keeps its own JSON; this module takes no

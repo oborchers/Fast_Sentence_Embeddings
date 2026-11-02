@@ -76,7 +76,7 @@ RESULTS = HERE / "results.jsonl"  # the default of --results
 CACHE = Path(os.environ.get("FSE_QUALITY_CACHE", Path.home() / ".cache" / "fse-quality"))
 
 BENCHMARKS = ["MTEB(eng, v2)", "NanoBEIR"]
-# A selection of both that runs in about 8 minutes per model on an M1 Pro, for baselines:
+# A smaller selection of both benchmarks for historical baseline comparisons:
 # every task type of MTEB(eng, v2) without its slowest tasks, and all of NanoBEIR.
 BASELINE_TASKS = [
     "BIOSSES", "SICK-R", "STS12", "STS13", "STS14", "STS15", "STS17", "STS22.v2", "STSBenchmark",
