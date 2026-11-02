@@ -48,6 +48,8 @@ def append(path, value):
 
 
 def spread(values):
+    if not values or any(not math.isfinite(v) or v <= 0 for v in values):
+        raise ValueError("positive finite observations required")
     if not values or not all(math.isfinite(x) and x > 0 for x in values):
         raise ValueError("positive finite observations required")
     return {"median": statistics.median(values), "min": min(values), "max": max(values)}
@@ -212,7 +214,12 @@ def write_input(path, source, mandatory, count, seed):
             stream.write(source[int(position)].encode() + b"\n")
         stream.flush()
         os.fsync(stream.fileno())
+    unique_source = len(set(source) | set(mandatory))
+    unique_input = len({source[int(i)] for i in set(positions)} | set(mandatory))
     identity = {
+        "distinct_source_texts": unique_source,
+        "distinct_input_texts": unique_input,
+        "repetition_factor": count / unique_source,
         "texts": count,
         "seed": seed,
         "sha256": sha256(path),

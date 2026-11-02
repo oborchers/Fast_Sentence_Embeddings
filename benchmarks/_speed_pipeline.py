@@ -7,7 +7,9 @@ import os
 import subprocess
 import sys
 import time
+import tomllib
 from functools import partial
+from importlib.metadata import distributions
 from pathlib import Path
 
 from _speed_cells import atomic, configure, package_identity, sha256, telemetry
@@ -169,6 +171,11 @@ lto="thin"
     )
     binary = folder / "target/release/fse-model2vec-rs-compare"
     receipt = dict(
+        package_version=next(
+            p["version"]
+            for p in tomllib.loads((folder / "Cargo.lock").read_text())["package"]
+            if p["name"] == "model2vec-rs"
+        ),
         binary=str(binary),
         binary_sha256=sha256(binary),
         source_sha256=sha256(folder / "src/main.rs"),
@@ -214,6 +221,7 @@ def rust_child(job):
         round=job["round"],
         identity=dict(
             package="model2vec-rs",
+            version=job["package_version"],
             revision=job["rust_revision"],
             path=str(binary.resolve()),
             compiler=job["compiler"],
@@ -298,6 +306,7 @@ def measure_child(job):
         Path(job["receipt"]),
         {
             "identity": identity,
+            "versions": {d.metadata["Name"]: d.version for d in distributions()},
             "seconds": seconds,
             "shape": list(sample.shape),
             "full_shape": list(vectors.shape),

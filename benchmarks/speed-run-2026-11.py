@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
 import signal
+import statistics
 import subprocess
 import sys
 import threading
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import _speed_cells as records
@@ -46,6 +49,17 @@ class Ledger:
                 for c in self.contract["cells"]
                 if c["id"] not in {r["cell_id"] for r in self.finished}
             ]
+            scale = (
+                statistics.median(
+                    [
+                        r["duration_seconds"] / r["estimated_seconds"]
+                        for r in self.finished
+                        if r["status"] == "valid"
+                    ]
+                )
+                if any(r["status"] == "valid" for r in self.finished)
+                else 1
+            )
             records.atomic(
                 self.root / "progress.json",
                 {
@@ -54,7 +68,8 @@ class Ledger:
                     "finished": len(self.finished),
                     "planned": len(self.contract["cells"]),
                     "elapsed_seconds": time.time() - self.allocated_at,
-                    "estimated_remaining_seconds": sum(c["estimated_seconds"] for c in remaining),
+                    "estimated_remaining_seconds": sum(c["estimated_seconds"] for c in remaining)
+                    * scale,
                 },
             )
 
@@ -67,6 +82,8 @@ class Ledger:
             "platform": platform.platform(),
             "python": sys.version,
             "completed_at_unix": time.time(),
+            "date_utc": datetime.now(UTC).isoformat(),
+            "machine": records.document(self.root / "environment.json")["machine"],
             "duration_seconds": time.monotonic() - started,
             "functional_only": self.contract.get("functional_only", False),
             **result,
@@ -236,6 +253,7 @@ def arm_summary(rows):
         "seconds": records.spread(seconds),
         "ordered_seconds": seconds,
         "identity": rows[0]["identity"],
+        "versions": rows[0].get("versions", {}),
     }
 
 
@@ -324,7 +342,18 @@ def run(args):
             "platform": platform.platform(),
             "python": sys.version,
             "telemetry": records.telemetry(),
-            "affinity": sorted(__import__("os").sched_getaffinity(0)),
+            "affinity": sorted(os.sched_getaffinity(0)),
+            "machine": {
+                "cpu": next(
+                    line.split(":", 1)[1].strip()
+                    for line in Path("/proc/cpuinfo").read_text().splitlines()
+                    if line.startswith("model name")
+                ),
+                "affinity": sorted(os.sched_getaffinity(0)),
+                "memory_max": Path("/sys/fs/cgroup/memory.max").read_text().strip(),
+                "allocation_id": os.getenv("SPEED_ALLOCATION_ID"),
+                "allocated_at_unix": args.allocated_at,
+            },
         },
     )
     stop = threading.Event()
