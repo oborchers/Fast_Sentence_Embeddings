@@ -32,6 +32,13 @@
       "members": 532,
       "raw_bytes": 8204559,
       "member_manifest": "archive-member-manifest.json"
+    },
+    {
+      "path": "archives/measurement-tools-before-consolidation.tar.gz",
+      "bytes": 224682,
+      "sha256": "9c81b21dcd56b393e50292c188b9aa656a7ff4716cd569df6e7e6d4a6c6acad0",
+      "members": 55,
+      "raw_bytes": 600382
     }
   ],
   "latest_speed_source_pins": "6c9fc1a5fd5f42d4b1af0e0756ef9123d493aad9"
