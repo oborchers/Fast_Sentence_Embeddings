@@ -215,7 +215,7 @@ def corpus_sources(contract, cache):
     return source, [mandatory[r["source_position"]] for r in contract["unknown_cases"]]
 
 
-def write_input(path, source, mandatory, count, seed, token_counts=None):
+def write_input(path, source, mandatory, count, seed, token_counts=None, admission=None):
     import numpy as np
 
     if count < len(mandatory) or path.exists():
@@ -238,8 +238,10 @@ def write_input(path, source, mandatory, count, seed, token_counts=None):
     with path.open("xb") as stream:
         for text in mandatory:
             stream.write(text.encode() + b"\n")
-        for position in positions:
-            stream.write(source[int(position)].encode() + b"\n")
+        for start in range(0, len(positions), 100000):
+            check_preparation(admission)
+            for position in positions[start : start + 100000]:
+                stream.write(source[int(position)].encode() + b"\n")
         stream.flush()
         os.fsync(stream.fileno())
     unique_source = len(set(source) | set(mandatory))
@@ -417,3 +419,8 @@ def remove_headline(work, output, files):
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
+
+
+def check_preparation(admission):
+    if admission is not None and not admission(120):
+        raise TimeoutError("input preparation budget or stop signal exhausted")

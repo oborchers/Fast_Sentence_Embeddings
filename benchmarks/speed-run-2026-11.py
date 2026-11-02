@@ -399,7 +399,7 @@ def run_headline(context, contract):
     records.stream_budget(work, cell, source)
     tokens = engines.headline_tokens(context["models"][cell["model"]]["snapshot"], source)
     path = work / "headline-input.txt"
-    identity = records.write_input(path, source, [], cell["texts"], 0, tokens)
+    identity = records.write_input(path, source, [], cell["texts"], 0, tokens, ledger.admit)
     records.append(ledger.root / "inputs.jsonl", dict(cell_id=cell["id"], **identity))
     sample = path.with_suffix(".sample.json")
     records.atomic(sample, identity["sample_rows"])
