@@ -1,36 +1,5 @@
 {
-  "format": "library-sentences-2026-11-v1",
-  "variant": "library-only",
-  "fse_revision": "624251df2269e3099f5c61987be63e718893b58c",
-  "models": {
-    "minishlab/potion-base-8M": "bf8b056651a2c21b8d2565580b8569da283cab23",
-    "sentence-transformers/static-retrieval-mrl-en-v1": "f60985c706f192d45d218078e49e5a8b6f15283a"
-  },
-  "rust_revision": "19f58bef6ce145f2bc08de7016498f28d521feea",
-  "corpus": {
-    "repo": "Salesforce/wikitext",
-    "revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
-    "configuration": "wikitext-103-raw-v1",
-    "split": "train",
-    "seed": 0,
-    "generator": "PCG64",
-    "paragraph_preprocessing": "collapse whitespace, omit headings, minimum five words",
-    "sampling": "sentence positions with replacement, followed by seeded shuffle",
-    "expected_source_positions": 3863020,
-    "expected_paragraphs": 832318,
-    "sentence_split": "(?<=[.!?])\\s+"
-  },
-  "machine": {
-    "vcpu": 32,
-    "ram_bytes": 128000000000,
-    "disk_gb": 150,
-    "image": "python:3.13@sha256:f23cf6c01ace0da9aa4d04fd078dba0fcce0c23cf3320329a38a2b6890761f9c",
-    "python_patch": "3.13.18",
-    "architecture": "amd64",
-    "os": "linux",
-    "config_digest": "sha256:e2e020974fc5950a42b67b579de668ee586880373a77d5af6306a430156bb605",
-    "source": "Docker official library/python registry manifest and configuration"
-  },
+  "format": "speed-study-v1",
   "billing": {
     "compute_usd_per_hour": 1.472,
     "disk_usd_per_gb_month": 0.1,
@@ -202,6 +171,90 @@
       "dimensions": 256,
       "durability": "none",
       "estimated_seconds": 600
+    },
+    {
+      "id": "dtype-float32-1",
+      "stage": "dtypes",
+      "kind": "dtype",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-control",
+      "workers": 1,
+      "texts": 2000000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 180,
+      "dimensions": 256,
+      "planned_input_bytes": 272590827
+    },
+    {
+      "id": "dtype-float16-1",
+      "stage": "dtypes",
+      "kind": "dtype",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-control",
+      "workers": 1,
+      "texts": 2000000,
+      "dtype": "float16",
+      "rounds": 3,
+      "estimated_seconds": 180,
+      "dimensions": 256,
+      "planned_input_bytes": 272590827
+    },
+    {
+      "id": "dtype-int8-1",
+      "stage": "dtypes",
+      "kind": "dtype",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-control",
+      "workers": 1,
+      "texts": 2000000,
+      "dtype": "int8",
+      "rounds": 3,
+      "estimated_seconds": 180,
+      "dimensions": 256,
+      "planned_input_bytes": 272590827
+    },
+    {
+      "id": "dtype-float32-16",
+      "stage": "dtypes",
+      "kind": "dtype",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-control",
+      "workers": 16,
+      "texts": 18000000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 180,
+      "dimensions": 256,
+      "planned_input_bytes": 2455180892
+    },
+    {
+      "id": "dtype-float16-16",
+      "stage": "dtypes",
+      "kind": "dtype",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-control",
+      "workers": 16,
+      "texts": 18000000,
+      "dtype": "float16",
+      "rounds": 3,
+      "estimated_seconds": 180,
+      "dimensions": 256,
+      "planned_input_bytes": 2455180892
+    },
+    {
+      "id": "dtype-int8-16",
+      "stage": "dtypes",
+      "kind": "dtype",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-control",
+      "workers": 16,
+      "texts": 18000000,
+      "dtype": "int8",
+      "rounds": 3,
+      "estimated_seconds": 180,
+      "dimensions": 256,
+      "planned_input_bytes": 2455180892
     }
   ],
   "quiet_cell": {

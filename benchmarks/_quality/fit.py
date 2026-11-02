@@ -1,0 +1,121 @@
+"""Private offline SIF calculations, shared with the retained Hub preparation tools."""
+
+from __future__ import annotations
+
+import gc
+import json
+import tempfile
+from importlib.metadata import version
+from pathlib import Path
+
+from _measurement import atomic, sha256
+from _measurement_config import MODEL_PINS, PINS
+
+
+def corpus(cell, cache, output):
+    from hub_classic_corpus import fit_corpus
+    from hub_classic_fineweb import REVISION, sampled_corpus
+
+    if cell["corpus"] == "wikitext":
+        return fit_corpus(cache), PINS["corpus"]["revision"]
+    if cell["corpus"] == "fineweb":
+        return sampled_corpus(cache, output), REVISION
+    raise ValueError("fit corpus must be pinned wikitext or fineweb, never evaluation data")
+
+
+def miniature(folder):
+    """Small deterministic mathematical fixture, used only by --rehearse."""
+    import numpy as np
+    from gensim.models import KeyedVectors
+
+    words = "the a man woman boy girl dog cat is was are were in on with to from playing running walking sitting standing happy sad".split()
+    kv = KeyedVectors(vector_size=16)
+    kv.add_vectors(words, np.random.default_rng(0).normal(size=(len(words), 16)).astype(np.float32))
+    path = folder / "functional-fit.txt"
+    path.write_text("\n".join(" ".join(words[i:] + words[:i]) for i in range(len(words))) + "\n")
+    return kv, path, "functional-only"
+
+
+def fit(cell, context):
+    import numpy as np
+
+    import fse
+    from hub_classic_corpus import batches
+    from hub_classic_math import components, gram_of_batches, wordfreq_weights
+    from prepare_hub_classics import fold_encoder, provenance, source_model, weighted_encoder
+
+    target = context["work"] / cell["id"]
+    target.mkdir()
+    name = cell["model"].removeprefix("fse/")
+    if cell.get("functional_only"):
+        kv, texts, revision = miniature(target)
+    else:
+        kv = source_model(name)
+        texts, revision = corpus(cell, context["cache"], target)
+    if not cell.get("functional_only") and MODEL_PINS[cell["model"]] != __import__("hub_classic_sources").SOURCES[name]:
+        raise ValueError("quality and Hub source revisions differ; do not fit another source")
+    weights = wordfreq_weights(kv.index_to_key)
+    with tempfile.TemporaryDirectory(prefix="fit-", dir=target) as temporary:
+        directory = Path(temporary)
+        weighted = weighted_encoder(kv, weights, directory)
+        basis = components(gram_of_batches(weighted.encode(batch, workers=cell["workers"]) for batch in batches(texts)))
+        state = context["results"] / (cell["id"] + ".npz")
+        np.savez(state, weights=weights, components=basis)
+        paths, arrays, params = fold_encoder(weighted, basis, directory)
+        encoder = fse.Encoder.from_arrays(
+            arrays[0], words=list(kv.index_to_key), fasttext=params,
+            ngrams=arrays[1] if params is not None else None, tokenizer="external",
+            normalize=True, oov_weight=float(weights.max()) if params is not None else None,
+        )
+        encoder = provenance(encoder, name)
+        artifact = target / "encoder.safetensors"
+        encoder.save(artifact)
+        del arrays, weighted, encoder, kv
+        gc.collect()
+        for path in paths:
+            path.unlink()
+    receipt = {"source_model": cell["model"], "source_revision": MODEL_PINS[cell["model"]],
+               "fit_corpus": cell["corpus"], "fit_revision": revision,
+               "fit_corpus_sha256": sha256(texts), "seed": 0,
+               "frequency": "wordfreq en best, integer count quantization, a=0.001",
+               "wordfreq_version": version("wordfreq"), "components": 10,
+               "fit_sha256": sha256(state), "artifact_sha256": sha256(artifact),
+               "artifact": str(artifact.resolve()), "functional_only": cell.get("functional_only", False)}
+    atomic(context["results"] / (cell["id"] + "-fit.json"), receipt)
+    context["fits"][cell["id"]] = receipt
+    return {"status": "valid", "fit": receipt}
+
+
+def sts(cell, context):
+    import numpy as np
+    from scipy.stats import spearmanr
+
+    import fse
+    from hub_classic_metrics import score
+    from verify_hub_classics import benchmark
+
+    receipt = context["fits"][cell["fit"]]
+    encoder = fse.Encoder.load(receipt["artifact"], mmap=True)
+    labels, _, tokens = benchmark()
+    vectors = encoder.encode(tokens, workers=cell["workers"])
+    half = len(labels)
+    similarities = (vectors[:half] * vectors[half:]).sum(axis=1)
+    return {"status": "valid", "pairs": half, "pearson": score(labels, vectors),
+            "spearman": float(spearmanr(labels, similarities).statistic * 100),
+            "fit": receipt, "score_scale": "0 to 100", "task": "STSBenchmark test, historical Pearson and Spearman"}
+
+
+def select(cell, context):
+    """Require complete equal-size studies; never fill a missing task with an estimate."""
+    rows = context["finished"]
+    candidates = []
+    for fit_id in cell["fits"]:
+        sts_rows = [r for r in rows if r.get("fit", {}).get("artifact") == context["fits"][fit_id]["artifact"] and "pearson" in r]
+        nano = [r for r in rows if r.get("fit_id") == fit_id and r.get("benchmark") == "NanoBEIR" and r["status"] == "valid"]
+        if len(sts_rows) != 1 or len({r["task"] for r in nano}) != 13:
+            raise ValueError("corpus selection requires STS Pearson/Spearman and all 13 NanoBEIR tasks")
+        components = [sts_rows[0]["pearson"], sts_rows[0]["spearman"], 100 * sum(r["main_score"] for r in nano) / 13]
+        candidates.append({"fit_id": fit_id, "selection_mean": sum(components) / 3, "components": components})
+    winner = max(candidates, key=lambda row: row["selection_mean"])
+    return {"status": "valid", "selected": winner["fit_id"], "candidates": candidates,
+            "tie_rule": "first listed candidate", "evaluation_used_for_corpus_selection": True}

@@ -1,0 +1,211 @@
+{
+  "format": "quality-study-v1",
+  "billing": {
+    "compute_usd_per_hour": 1.472,
+    "disk_usd_per_gb_month": 0.1,
+    "month_hours": 720,
+    "planning_balance_usd": 3.48,
+    "planning_minutes": 140,
+    "kill_running_cells": false,
+    "setup_stage_clock_env": "SPEED_SETUP_STARTED_AT",
+    "allocation_clock": "--allocated-at includes machine provisioning and bootstrap"
+  },
+  "cells": [
+    {
+      "id": "eval-potion-base-8M",
+      "kind": "mteb",
+      "model": "minishlab/potion-base-8M",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-static-retrieval-mrl-en-v1",
+      "kind": "mteb",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-static-similarity-mrl-multilingual-v1",
+      "kind": "mteb",
+      "model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-potion-base-32M",
+      "kind": "mteb",
+      "model": "minishlab/potion-base-32M",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-potion-retrieval-32M",
+      "kind": "mteb",
+      "model": "minishlab/potion-retrieval-32M",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-potion-multilingual-128M",
+      "kind": "mteb",
+      "model": "minishlab/potion-multilingual-128M",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-all-MiniLM-L6-v2",
+      "kind": "mteb",
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "backend": "st",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "fit-glove-wiki-gigaword-300",
+      "kind": "fit",
+      "model": "fse/glove-wiki-gigaword-300",
+      "corpus": "wikitext",
+      "workers": 2,
+      "estimated_seconds": 900
+    },
+    {
+      "id": "sts-glove-wiki-gigaword-300",
+      "kind": "sts",
+      "fit": "fit-glove-wiki-gigaword-300",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "eval-glove-wiki-gigaword-300",
+      "kind": "mteb",
+      "model": "fse/glove-wiki-gigaword-300",
+      "backend": "fse",
+      "fit": "fit-glove-wiki-gigaword-300",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "fit-word2vec-google-news-300",
+      "kind": "fit",
+      "model": "fse/word2vec-google-news-300",
+      "corpus": "wikitext",
+      "workers": 2,
+      "estimated_seconds": 900
+    },
+    {
+      "id": "sts-word2vec-google-news-300",
+      "kind": "sts",
+      "fit": "fit-word2vec-google-news-300",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "eval-word2vec-google-news-300",
+      "kind": "mteb",
+      "model": "fse/word2vec-google-news-300",
+      "backend": "fse",
+      "fit": "fit-word2vec-google-news-300",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "fit-fasttext-crawl-subwords-300",
+      "kind": "fit",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "corpus": "wikitext",
+      "workers": 2,
+      "estimated_seconds": 900
+    },
+    {
+      "id": "sts-fasttext-crawl-subwords-300",
+      "kind": "sts",
+      "fit": "fit-fasttext-crawl-subwords-300",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "eval-fasttext-crawl-subwords-300",
+      "kind": "mteb",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "backend": "fse",
+      "fit": "fit-fasttext-crawl-subwords-300",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "fit-paragram-300-sl999",
+      "kind": "fit",
+      "model": "fse/paragram-300-sl999",
+      "corpus": "wikitext",
+      "workers": 2,
+      "estimated_seconds": 900
+    },
+    {
+      "id": "sts-paragram-300-sl999",
+      "kind": "sts",
+      "fit": "fit-paragram-300-sl999",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "eval-paragram-300-sl999",
+      "kind": "mteb",
+      "model": "fse/paragram-300-sl999",
+      "backend": "fse",
+      "fit": "fit-paragram-300-sl999",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    }
+  ]
+}
