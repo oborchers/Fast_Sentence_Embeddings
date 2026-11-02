@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-02
+
 - Consolidate classic Hub publication under `tools/hub/run.py`, regenerate the published cards including `normalize=False`, and rebuild prepared payloads with exact manifest checks and explicit upload opt-in.
 
 - `Encoder.from_pretrained(normalize=False | True)` now works for every kind of model, fse encoders (float32, float16, int8, FastText) and Model2Vec models as well as sentence-transformers models. `False` drops a final `normalize@1` and leaves the table unchanged, so linear heads fold into the classic Hub models without a detour through `StaticModel`; `True` appends it. The fingerprint describes the encoder as loaded. (DR-201)
@@ -14,7 +16,7 @@ All notable changes to this project are documented in this file. The format is b
 
 - Prepare LangChain, LlamaIndex and Haystack integration packages under `integrations/`, with isolated package CI, real-model retrieval examples and independent approval-gated release workflows. The planned 0.1.0 packages require fse 2.0.0.
 
-fse 2.0 is in development on master. It is an inference engine for finished static embedding models.
+fse 2.0 is a rewrite. It is an inference engine for finished static embedding models.
 It adds encoders for word tables, Model2Vec and supported sentence-transformers StaticEmbedding models,
 linear heads trained elsewhere, and saved vector stores with cosine search.
 It removes the 1.x training API (`Average`, `SIF`, `uSIF`), indexed input classes, and pickle model loading.
@@ -269,7 +271,8 @@ Changes from 0.1.11:
 - Fixed overflow when infer method is used with too many sentences.
 - Fixed similar_by_sentence bug.
 
-[Unreleased]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/oborchers/Fast_Sentence_Embeddings/compare/v0.1.17...v0.2.0
