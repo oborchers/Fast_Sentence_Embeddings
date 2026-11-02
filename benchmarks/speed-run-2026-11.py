@@ -207,6 +207,60 @@ def cleanup(context, paths):
         path.unlink()
 
 
+def round_pair(context, cell, number, path, sample, identity):
+    labels = ["fse", cell["reference"]]
+    rows = [
+        launch(context, cell, label, number, path, sample, identity)
+        for label in (labels if number % 2 == 0 else labels[::-1])
+    ]
+    a = next(row for row in rows if row["label"] == "fse")
+    b = next(row for row in rows if row["label"] != "fse")
+    delta = records.check_output(sample_array(a), sample_array(b), False)
+    records.append(
+        context["ledger"].root / "checks.jsonl",
+        {
+            "cell_id": cell["id"],
+            "round": number,
+            "rows": len(identity["sample_rows"]),
+            "mandatory_unknown_rows": identity["mandatory_prefix_rows"],
+            "max_abs_difference": delta,
+        },
+    )
+    cleanup(context, [Path(a["sample_file"]), Path(b["sample_file"])])
+    return rows
+
+
+def summarize_pair(cell, observations, identity):
+    arms = {"fse": [], cell["reference"]: []}
+    for row in observations:
+        arms[row["label"]].append(row)
+    for rows in arms.values():
+        if [row["round"] for row in rows] != [0, 1, 2]:
+            raise ValueError("missing or duplicate paired rounds")
+        if len({json.dumps(r["identity"], sort_keys=True) for r in rows}) != 1:
+            raise ValueError("executing backend changed between rounds")
+    short = not cell.get("functional_only") and min(r["seconds"] for r in arms["fse"]) < 2
+    ratios = [
+        b["seconds"] / a["seconds"]
+        for a, b in zip(arms["fse"], arms[cell["reference"]], strict=True)
+    ]
+    return {
+        "status": "invalid" if short else "valid",
+        "input_identity": identity,
+        "reason": "fse call shorter than two seconds" if short else None,
+        "sample_checked": True,
+        "paired_speedup": records.spread(ratios),
+        "arms": {
+            name: {
+                "seconds": records.spread([r["seconds"] for r in rows]),
+                "ordered_seconds": [r["seconds"] for r in rows],
+                "identity": rows[0]["identity"],
+            }
+            for name, rows in arms.items()
+        },
+    }
+
+
 def pair(context, cell):
     path, sample, identity = prepare_input(context, cell)
     model_bytes = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
@@ -219,57 +273,10 @@ def pair(context, cell):
         raise MemoryError("fixed input exceeds the declared memory budget")
     observations = []
     for number in range(3):
-        labels = ["fse", cell["reference"]]
-        for label in labels if number % 2 == 0 else labels[::-1]:
-            observations.append(launch(context, cell, label, number, path, sample, identity))
-        a, b = observations[-2:]
-        delta = records.check_output(sample_array(a), sample_array(b), False)
-        records.append(
-            context["ledger"].root / "checks.jsonl",
-            {
-                "cell_id": cell["id"],
-                "round": number,
-                "rows": len(identity["sample_rows"]),
-                "mandatory_unknown_rows": identity["mandatory_prefix_rows"],
-                "max_abs_difference": delta,
-            },
-        )
-        cleanup(context, [Path(a["sample_file"]), Path(b["sample_file"])])
-    arms = {
-        name: [
-            next(r for r in observations if r["label"] == name and r["round"] == n)
-            for n in range(3)
-        ]
-        for name in ("fse", cell["reference"])
-    }
-    for name, rows in arms.items():
-        if len({json.dumps(r["identity"], sort_keys=True) for r in rows}) != 1:
-            raise ValueError("executing backend changed between rounds")
-        if (
-            name == "fse"
-            and not cell.get("functional_only")
-            and min(r["seconds"] for r in rows) < 2
-        ):
-            raise ValueError("fse call shorter than two seconds")
-    ratios = [
-        b["seconds"] / a["seconds"]
-        for a, b in zip(arms["fse"], arms[cell["reference"]], strict=True)
-    ]
+        observations.extend(round_pair(context, cell, number, path, sample, identity))
+    result = summarize_pair(cell, observations, identity)
     cleanup(context, [path, path.with_suffix(".json"), sample])
-    return {
-        "status": "valid",
-        "input_identity": identity,
-        "sample_checked": True,
-        "paired_speedup": records.spread(ratios),
-        "arms": {
-            name: {
-                "seconds": records.spread([r["seconds"] for r in rows]),
-                "ordered_seconds": [r["seconds"] for r in rows],
-                "identity": rows[0]["identity"],
-            }
-            for name, rows in arms.items()
-        },
-    }
+    return result
 
 
 def quiet(context, contract):

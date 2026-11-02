@@ -6,7 +6,6 @@ import hashlib
 import json
 import math
 import os
-import shutil
 import statistics
 import time
 from pathlib import Path
@@ -116,11 +115,6 @@ def check_output(reference, other, exact):
     return largest
 
 
-def disk_admit(path, required):
-    if shutil.disk_usage(path).free < required + 2 * 1024**3:
-        raise OSError("insufficient disk for this operation plus 2 GiB result reserve")
-
-
 def parquet_texts(part):
     for batch in part.iter_batches(columns=["text"], batch_size=4096):
         for text in batch.column(0).to_pylist():
@@ -180,15 +174,16 @@ def corpus_sources(contract, cache):
     )
     wanted = {r["source_position"]: r for r in contract["unknown_cases"]}
     source, mandatory, count = [], {}, 0
-    for part in sorted((folder / spec["configuration"]).glob("train-*.parquet")):
-        for text in parquet_texts(pq.ParquetFile(part)):
-            if not contract.get("functional_only") or count < 1024:
-                source.append(text)
-            if count in wanted:
-                if hashlib.sha256(text.encode()).hexdigest() != wanted[count]["text_sha256"]:
-                    raise ValueError("mandatory unknown-token source changed")
-                mandatory[count] = text
-            count += 1
+    parts = sorted((folder / spec["configuration"]).glob("train-*.parquet"))
+    texts = (text for part in parts for text in parquet_texts(pq.ParquetFile(part)))
+    for text in texts:
+        if not contract.get("functional_only") or count < 1024:
+            source.append(text)
+        if count in wanted:
+            if hashlib.sha256(text.encode()).hexdigest() != wanted[count]["text_sha256"]:
+                raise ValueError("mandatory unknown-token source changed")
+            mandatory[count] = text
+        count += 1
     if count != spec["expected_source_positions"] or set(mandatory) != set(wanted):
         raise ValueError("pinned corpus or mandatory cases changed")
     return source, [mandatory[r["source_position"]] for r in contract["unknown_cases"]]
