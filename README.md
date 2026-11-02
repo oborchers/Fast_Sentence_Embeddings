@@ -28,7 +28,7 @@ Bring a trained linear classifier to label text in the same application.
 
 [^headline] 100 million WikiText sentences (28.7 tokens on average) embedded and written to disk in 13.46 seconds. Float32 model table, int8 output, 16 workers, AMD EPYC 9575F (32 vCPU), RunPod, 2 November 2026.
 
-[How we measured](docs/benchmarks/readme-evidence.md)
+[How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/a77a732043ec89a40dd52fe97d7a48b5de034179/docs/benchmarks/readme-evidence.md)
 
 [^headline]: Median of three runs. On the same machine, 32 workers took 16.75 seconds, so we use 16 workers here.
 

@@ -26,7 +26,7 @@ The 1.x branch remains maintained. Entries collect here until the release.
 
 ### Changed
 
-- Rewrite the README with restored branding, practical examples, one supported-model quality table and prominent recipes. Keep English MTEB scores labelled 40 of 41 tasks, with MIND not computed, and link benchmark evidence separately.
+- Rewrite the README with restored branding, practical examples, one supported-model quality table and prominent recipes. Add paired library speed tables and charts for light and dark backgrounds. Keep English MTEB scores labelled 40 of 41 tasks, with MIND not computed, and link benchmark evidence separately.
 - Add a catalog of all 30 classic Hub models, with copyable IDs, precision variants and model-file download sizes.
 - Clarify contribution evidence, AI disclosure and MIT agreement, add a PR checklist, and align package metadata with the 2.0 API.
 
