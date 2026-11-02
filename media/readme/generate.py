@@ -2,8 +2,6 @@ import html
 import json
 from pathlib import Path
 
-from speed_panels import publish
-
 ROOT = Path(__file__).resolve().parents[2]
 brand = json.loads((ROOT / "media/readme/palette.json").read_text())
 out = ROOT / "media/readme"
@@ -56,89 +54,3 @@ for theme in ("light", "dark"):
         "</g></svg>",
     ]
     (out / f"vectors-and-labels-{theme}.svg").write_text("\n".join(parts) + "\n")
-    parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="575" viewBox="0 0 1100 575" role="img" aria-labelledby="title desc"><title id="title">Classification: fold the linear head</title><desc id="desc">A trained linear head turns each word vector into class scores once. For each new text, fse looks up those word scores, averages them, adds the bias and returns labels. This applies to heads trained on raw unnormalized averages when only class outputs are needed. Standalone saving preserves that same folded table. Speed measurements are pending.</desc><rect width="1100" height="575" rx="12" fill="{colors["bg"]}"/><g font-family="Geist, Arial, sans-serif">',
-        text(40, 52, "Classification: fold the linear head", 30, weight=700),
-        text(
-            40,
-            84,
-            "Compute word scores once. Reuse them for each text.",
-            19,
-            colors["text-secondary"],
-        ),
-        text(40, 128, "PREPARE ONCE", 15, colors["accent"], 700),
-        text(40, 286, "PREDICT REPEATEDLY", 15, colors["accent"], 700),
-    ]
-    for x, y, w, label, detail in (
-        (40, 146, 250, "Word vectors", "the finished encoder table"),
-        (360, 146, 285, "Trained linear head", "apply its weights per word"),
-        (755, 146, 305, "Word-score table", "ready for new texts"),
-        (40, 307, 180, "New texts", "your input"),
-        (285, 307, 245, "Look up scores", "for the words in each text"),
-        (595, 307, 220, "Average + bias", "combine the word scores"),
-        (880, 307, 180, "Labels", "your predictions"),
-    ):
-        parts += [
-            f'<rect x="{x}" y="{y}" width="{w}" height="85" rx="12" fill="{colors["bg-secondary"]}" stroke="{colors["border"]}"/>',
-            text(x + w / 2, y + 35, label, 22, weight=700, anchor="middle"),
-            text(x + w / 2, y + 62, detail, 16, colors["text-secondary"], anchor="middle"),
-        ]
-    for path in (
-        "M305 188 H345",
-        "M660 188 H740",
-        "M235 350 H270",
-        "M545 350 H580",
-        "M830 350 H865",
-        "M908 246 V271 H408 V292",
-    ):
-        parts += [f'<path d="{path}" fill="none" stroke="{colors["accent"]}" stroke-width="3"/>']
-    for x, y, down in (
-        (345, 188, False),
-        (740, 188, False),
-        (270, 350, False),
-        (580, 350, False),
-        (865, 350, False),
-        (408, 292, True),
-    ):
-        points = (
-            f"M{x - 6} {y - 9} L{x} {y} L{x + 6} {y - 9}"
-            if down
-            else f"M{x - 9} {y - 6} L{x} {y} L{x - 9} {y + 6}"
-        )
-        parts += [f'<path d="{points}" fill="none" stroke="{colors["accent"]}" stroke-width="3"/>']
-    parts += [
-        text(
-            40,
-            438,
-            "For linear heads trained on raw, unnormalized averages and predicting only class outputs.",
-            17,
-            colors["text-secondary"],
-        ),
-        text(
-            40,
-            468,
-            "With fewer scores than vector values, each word contributes a shorter list of numbers.",
-            17,
-            colors["text-secondary"],
-        ),
-        text(
-            40,
-            498,
-            "Standalone saving keeps this table. It is not another speed optimization.",
-            17,
-            colors["text-secondary"],
-        ),
-        text(
-            40,
-            546,
-            "Classification speed: pending controlled measurements. No rate or speedup is claimed.",
-            18,
-            colors["accent"],
-            700,
-        ),
-        "</g></svg>",
-    ]
-    (out / f"classification-folding-{theme}.svg").write_text("\n".join(parts) + "\n")
-
-# Future measured panels stay absent until audited cells are supplied.
-publish(json.loads((out / "speed_panel_data.json").read_text()), out, brand)

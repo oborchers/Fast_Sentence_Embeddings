@@ -2,102 +2,42 @@
   "source_revision": "648624ce9bed1d08cacd00e32d5a4bf8ca62f271",
   "light": {
     "bg": {
-      "value": "#FAFAF8",
-      "description": "Warm white background"
+      "value": "#FAFAF8"
     },
     "bg-secondary": {
-      "value": "#F0EBE3",
-      "description": "Cards, secondary surfaces"
+      "value": "#F0EBE3"
     },
     "accent": {
-      "value": "#2D6A4F",
-      "description": "Forest green \u2014 CTAs, links, highlights"
-    },
-    "accent-hover": {
-      "value": "#245840",
-      "description": "Accent darkened for hover states"
+      "value": "#2D6A4F"
     },
     "text": {
-      "value": "#1E1B18",
-      "description": "Anthracite primary text"
+      "value": "#1E1B18"
     },
     "text-secondary": {
-      "value": "#4F463E",
-      "description": "Warm mid gray muted text (AAA: 8.7:1 on bg)"
-    },
-    "highlight": {
-      "value": "#D4E8DC",
-      "description": "Light green tint for subtle highlights"
+      "value": "#4F463E"
     },
     "border": {
-      "value": "#E0D9CF",
-      "description": "Warm border color"
-    },
-    "code-bg": {
-      "value": "#F5F0E8",
-      "description": "Code block background"
-    },
-    "accent-fixed": {
-      "value": "#2D6A4F",
-      "description": "Forest green that does not change with the theme, for surfaces that stay green in light and dark mode (website Mission card)"
-    },
-    "accent-fixed-deep": {
-      "value": "#245840",
-      "description": "Deep forest green that does not change with the theme, the shadowed edge of theme-fixed green surfaces"
-    },
-    "on-accent-fixed": {
-      "value": "#FAFAF8",
-      "description": "Warm white text on theme-fixed green surfaces, in both themes"
+      "value": "#E0D9CF"
     }
   },
   "dark": {
     "bg": {
-      "value": "#0F0D0A",
-      "description": "Warm near-black background"
+      "value": "#0F0D0A"
     },
     "bg-secondary": {
-      "value": "#1C1916",
-      "description": "Dark warm brown cards"
+      "value": "#1C1916"
     },
     "accent": {
-      "value": "#5B9E7D",
-      "description": "Lightened forest green (same hue ~153\u00b0)"
-    },
-    "accent-hover": {
-      "value": "#6DB08D",
-      "description": "Accent lightened for hover states"
+      "value": "#5B9E7D"
     },
     "text": {
-      "value": "#E8E4DF",
-      "description": "Warm off-white primary text"
+      "value": "#E8E4DF"
     },
     "text-secondary": {
-      "value": "#B0A9A0",
-      "description": "Warm mid gray muted text (AAA: 8.5:1 on bg)"
-    },
-    "highlight": {
-      "value": "#1A2E24",
-      "description": "Dark green tint for subtle highlights"
+      "value": "#B0A9A0"
     },
     "border": {
-      "value": "#2A2520",
-      "description": "Warm dark border color"
-    },
-    "code-bg": {
-      "value": "#161412",
-      "description": "Code block background"
-    },
-    "accent-fixed": {
-      "value": "#2D6A4F",
-      "description": "Forest green that does not change with the theme, for surfaces that stay green in light and dark mode (website Mission card)"
-    },
-    "accent-fixed-deep": {
-      "value": "#245840",
-      "description": "Deep forest green that does not change with the theme, the shadowed edge of theme-fixed green surfaces"
-    },
-    "on-accent-fixed": {
-      "value": "#FAFAF8",
-      "description": "Warm white text on theme-fixed green surfaces, in both themes"
+      "value": "#2A2520"
     }
   }
 }

@@ -1,0 +1,153 @@
+{
+  "format": "readme-quality-v1",
+  "benchmark": "MTEB(eng, v2)",
+  "mteb_version": "2.26.25",
+  "measured_on": "2026-11-01",
+  "completed_tasks": 40,
+  "required_tasks": 41,
+  "mind": "not computed",
+  "score_units": "native score; README displays times100 rounded to two decimals",
+  "quality_source": {
+    "commit": "6cb13ed72321d1207fc106f6c0e7154935164017",
+    "path": "benchmarks/baseline/quality-2026-11.json",
+    "archive_commit": "f97e32edbc0f9daa538b56b54f3187d8d3c177d8",
+    "archives": [
+      "archives/comparison-source-2026-11.tar.gz",
+      "archives/historical-evidence-2026-11.tar.gz"
+    ]
+  },
+  "size_notes": "Complete float32 fse files; public classic model.safetensors sizes at the pinned revisions, saved fse encoders for publisher models. Historical benchmark scores do not describe the separate Hub SIF-10 fit.",
+  "models": [
+    {
+      "hub_id": "minishlab/potion-base-32M",
+      "benchmark_source_model": "minishlab/potion-base-32M",
+      "english_40_mean": 0.552573112515375,
+      "score_source_sha256": "7cda2cb0175f8bf3bbe24c6938014bb61c499d49a5359076e395b1894eeb831a",
+      "float32_file_bytes": 130145513,
+      "size_source": {
+        "source_revision": "1e5a03f8eeb2c98b928fbbd846f22f816360919f",
+        "artifact": "potion-base-32M-float32.safetensors",
+        "encoder_fingerprint": "xxh3-128:99737b0f0d2dc7cfb4ee240faa2e278f"
+      }
+    },
+    {
+      "hub_id": "minishlab/potion-retrieval-32M",
+      "benchmark_source_model": "minishlab/potion-retrieval-32M",
+      "english_40_mean": 0.5450983952160903,
+      "score_source_sha256": "3f38855e7c3155a90fe5671c59433243d3b8e0d682197b3ffb555d174035280a",
+      "float32_file_bytes": 130145513,
+      "size_source": {
+        "source_revision": "6fc8051fab2a1e0ee76689cf08c853792ac285e7",
+        "artifact": "potion-retrieval-32M-float32.safetensors",
+        "encoder_fingerprint": "xxh3-128:6f78af26bab53a3d464e97d9189f5b20"
+      }
+    },
+    {
+      "hub_id": "minishlab/potion-base-8M",
+      "benchmark_source_model": "minishlab/potion-base-8M",
+      "english_40_mean": 0.5395270762114082,
+      "score_source_sha256": "bd4cd1247db0c8383a0a6a39b1c669bf595bff334dbe1d63ec0d8f02d82c994c",
+      "float32_file_bytes": 30664410,
+      "size_source": {
+        "source_revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+        "artifact": "potion-base-8M-float32.safetensors",
+        "encoder_fingerprint": "xxh3-128:7aed2ca9bf7f9073ffa6778672a7575f"
+      }
+    },
+    {
+      "hub_id": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "benchmark_source_model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "english_40_mean": 0.5188933349914983,
+      "score_source_sha256": "8c63900da3543b9e61b0f374fe79df0fdb2c530e486f42a9427019522b46c0fe",
+      "float32_file_bytes": 125464626,
+      "size_source": {
+        "source_revision": "f60985c706f192d45d218078e49e5a8b6f15283a",
+        "artifact": "static-retrieval-mrl-en-v1-float32.safetensors",
+        "encoder_fingerprint": "xxh3-128:6cb1abbcb0649e6362ff38e5ee29e0b4"
+      }
+    },
+    {
+      "hub_id": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "benchmark_source_model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "english_40_mean": 0.5142923589459428,
+      "score_source_sha256": "1f62602a99b422436d50d94f99c430b53c88105dde1f3a99b720aeb00311ae86",
+      "float32_file_bytes": 435294780,
+      "size_source": {
+        "source_revision": "b68f4122911bcffcd6e1f695f2d99cd6788972d8",
+        "artifact": "static-similarity-mrl-multilingual-v1-float32.safetensors",
+        "encoder_fingerprint": "xxh3-128:d0a49427e9aae947660d4a1e0c78846a"
+      }
+    },
+    {
+      "hub_id": "fse/fasttext-crawl-subwords-300-sif10",
+      "benchmark_source_model": "fse/fasttext-crawl-subwords-300",
+      "english_40_mean": 0.5142144285346,
+      "score_source_sha256": "f3203379bec429743381efc41ab03125837615702a147c8b6aa9169396d7a008",
+      "float32_file_bytes": 4831846546,
+      "size_source": {
+        "hub_revision": "1560d2916c34aa378ac747185d10b077ba4cb300",
+        "filename": "model.safetensors"
+      },
+      "benchmark_fit": "WikiText-103, SIF weights and ten components; differs from linked Hub preparation"
+    },
+    {
+      "hub_id": "fse/paragram-300-sl999-sif10",
+      "benchmark_source_model": "fse/paragram-300-sl999",
+      "english_40_mean": 0.5098331564560725,
+      "score_source_sha256": "f3203379bec429743381efc41ab03125837615702a147c8b6aa9169396d7a008",
+      "float32_file_bytes": 2072155759,
+      "size_source": {
+        "hub_revision": "e5c6ba7530d1c726a2f670ba84b6cda7014cac01",
+        "filename": "model.safetensors"
+      },
+      "benchmark_fit": "WikiText-103, SIF weights and ten components; differs from linked Hub preparation"
+    },
+    {
+      "hub_id": "fse/paranmt-300-raw",
+      "benchmark_source_model": "fse/paranmt-300",
+      "english_40_mean": 0.5069397016298677,
+      "score_source_sha256": "3de8236d318828fb807135af855f6a831dbc20a2f5eea814560b7560fd333fe9",
+      "float32_file_bytes": 93858331,
+      "size_source": {
+        "hub_revision": "3f52ffe3c75db8b3ffb2a1029241acbb0b94f473",
+        "filename": "model.safetensors"
+      }
+    },
+    {
+      "hub_id": "minishlab/potion-multilingual-128M",
+      "benchmark_source_model": "minishlab/potion-multilingual-128M",
+      "english_40_mean": 0.4995653416629938,
+      "score_source_sha256": "283434872c5237847e3ac8e75e416288537794cc2b5a714c636224f18b67b3be",
+      "float32_file_bytes": 526463889,
+      "size_source": {
+        "source_revision": "73908c3438cf03b6a01bcb9611d62b23d0726f08",
+        "artifact": "potion-multilingual-128M-float32.safetensors",
+        "encoder_fingerprint": "xxh3-128:6bdec1ad83263940d62a9e6224f0a0d4"
+      }
+    },
+    {
+      "hub_id": "fse/glove-wiki-gigaword-300-sif10",
+      "benchmark_source_model": "fse/glove-wiki-gigaword-300",
+      "english_40_mean": 0.4978635579898691,
+      "score_source_sha256": "8f2c0da66a7adbe58d88f9c5419e772d71870efff48cf9fb2a981193e3411a77",
+      "float32_file_bytes": 486157506,
+      "size_source": {
+        "hub_revision": "5a04f0549baff466ef1456e26d4bd787b087542d",
+        "filename": "model.safetensors"
+      },
+      "benchmark_fit": "WikiText-103, SIF weights and ten components; differs from linked Hub preparation"
+    },
+    {
+      "hub_id": "fse/word2vec-google-news-300-sif10",
+      "benchmark_source_model": "fse/word2vec-google-news-300",
+      "english_40_mean": 0.4926357736402644,
+      "score_source_sha256": "f3203379bec429743381efc41ab03125837615702a147c8b6aa9169396d7a008",
+      "float32_file_bytes": 3665259542,
+      "size_source": {
+        "hub_revision": "db261abf035826ca59ad19ada593352566878387",
+        "filename": "model.safetensors"
+      },
+      "benchmark_fit": "WikiText-103, SIF weights and ten components; differs from linked Hub preparation"
+    }
+  ]
+}
