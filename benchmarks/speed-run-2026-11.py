@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import platform
+import shutil
 import signal
 import statistics
 import subprocess
@@ -123,6 +124,9 @@ def prepare(args, contract, ledger):
         args.work / "owner.json",
         {"script_sha256": records.sha256(Path(__file__)), "results": str(args.results.resolve())},
     )
+    setup_record = Path(sys.executable).parents[2] / "setup.json"
+    if setup_record.exists():
+        shutil.copyfile(setup_record, args.results / "setup.json")
     models = engines.prepare_models(args.work, contract)
     paragraphs, unknown = records.corpus_sources(contract, args.work / "datasets")
     rust = engines.build_rust(args.work / "native", HERE / "speed-rust.lock")
